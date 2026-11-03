@@ -1,11 +1,12 @@
-// The Overview's strip: which chats and terminals are open as panes, in which columns, how wide, which are pinned and
-// which are stacked, and how many columns fit in one view. Plain data and functions (no DOM), saved in this browser for
-// each project.
+// The Overview's strip: which chats and terminals are open as panes (of any project), in which columns, how wide,
+// which are pinned and which are stacked, and how many columns fit in one view. Plain data and functions (no DOM),
+// saved in this browser.
 
-/** What a pane shows: an agent's chat, a team's thread, or a terminal. */
+/** What a pane shows: an agent's chat, a team's thread, or a terminal, of a project. */
 export interface PaneRef {
   kind: 'agent' | 'team' | 'terminal';
   id: string;
+  projectId: string;
 }
 /** A column of the strip: one pane, or up to three stacked. */
 export interface StripColumn {
@@ -30,9 +31,9 @@ export const PER_VIEW_MIN = 1;
 export const PER_VIEW_MAX = 8;
 const WIDTH_MIN = 0.5;
 const WIDTH_MAX = 3;
-const KEY = (projectId: string) => `dash-overview-strip:${projectId}`;
+const KEY = (name: string) => `dash-overview-strip:${name}`;
 
-export const paneKey = (p: PaneRef): string => `${p.kind}:${p.id}`;
+export const paneKey = (p: PaneRef): string => `${p.projectId}/${p.kind}:${p.id}`;
 export const emptyLayout = (perView = 2): StripLayout => ({ columns: [], perView, focus: null });
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const even = (n: number) => Array.from({ length: n }, () => 1 / n);
@@ -181,27 +182,33 @@ export function prune(l: StripLayout, exists: (ref: PaneRef) => boolean): StripL
   return { ...l, columns, focus };
 }
 
-/** The saved layout of a project's strip (a broken one starts afresh). */
-export function loadLayout(projectId: string, perView = 2): StripLayout {
+/** A saved strip (a broken one starts afresh). project: the project of panes saved before panes said theirs. */
+export function loadLayout(name: string, project?: string, perView = 2): StripLayout {
   try {
-    const v = JSON.parse(localStorage.getItem(KEY(projectId)) || 'null') as Partial<StripLayout> | null;
+    const v = JSON.parse(localStorage.getItem(KEY(name)) || 'null') as Partial<StripLayout> | null;
     if (!v || !Array.isArray(v.columns)) return emptyLayout(perView);
-    const ref = (p: unknown): p is PaneRef => !!p && typeof p === 'object' && ['agent', 'team', 'terminal'].includes((p as PaneRef).kind) && typeof (p as PaneRef).id === 'string';
+    const ref = (p: unknown): PaneRef[] => {
+      const x = p as Partial<PaneRef> | null;
+      if (!x || typeof x !== 'object' || !['agent', 'team', 'terminal'].includes(String(x.kind)) || typeof x.id !== 'string') return [];
+      const projectId = typeof x.projectId === 'string' && x.projectId ? x.projectId : project;
+      return projectId ? [{ kind: x.kind as PaneRef['kind'], id: x.id, projectId }] : [];
+    };
     const columns = v.columns.flatMap((c): StripColumn[] => {
-      const panes = Array.isArray(c?.panes) ? c.panes.filter(ref).slice(0, STACK_MAX) : [];
+      const panes = Array.isArray(c?.panes) ? c.panes.flatMap(ref).slice(0, STACK_MAX) : [];
       if (!panes.length) return [];
       const heights = Array.isArray(c.heights) && c.heights.length === panes.length && c.heights.every((h) => typeof h === 'number' && h > 0) ? c.heights : even(panes.length);
       return [{ panes, width: clamp(typeof c.width === 'number' ? c.width : 1, WIDTH_MIN, WIDTH_MAX), heights, pinned: !!c.pinned }];
     });
-    return { columns: pinnedFirst(columns), perView: clamp(typeof v.perView === 'number' ? v.perView : perView, PER_VIEW_MIN, PER_VIEW_MAX), focus: typeof v.focus === 'string' ? v.focus : null };
+    const keys = new Set(columns.flatMap((c) => c.panes.map(paneKey)));
+    return { columns: pinnedFirst(columns), perView: clamp(typeof v.perView === 'number' ? v.perView : perView, PER_VIEW_MIN, PER_VIEW_MAX), focus: typeof v.focus === 'string' && keys.has(v.focus) ? v.focus : null };
   } catch {
     return emptyLayout(perView);
   }
 }
 
-export function saveLayout(projectId: string, l: StripLayout): void {
+export function saveLayout(name: string, l: StripLayout): void {
   try {
-    localStorage.setItem(KEY(projectId), JSON.stringify(l));
+    localStorage.setItem(KEY(name), JSON.stringify(l));
   } catch {
     /* full storage: the layout just isn't remembered */
   }

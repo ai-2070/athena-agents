@@ -10,6 +10,7 @@ import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo,
 import type { CSSProperties, ReactNode } from 'react';
 import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
 import { attachTray } from './attach.tsx';
+import { foreignAgent, useProjectAgents } from './projectagents.ts';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { mentionPreviews } from './filepreview.tsx';
@@ -57,6 +58,8 @@ export interface TeamChatApi {
 interface TeamChatOptions {
   height?: number;
   fill?: boolean;
+  /** the team's project, when it isn't the open one (an Overview pane; its requests are scoped with scopeTo) */
+  projectId?: string;
 }
 /** The chat as it stands: changed by the first load and by live events, then drawn. */
 interface TeamChatData {
@@ -106,7 +109,8 @@ const TYPING = 'flex items-center gap-2 text-[12.5px] leading-[normal] font-norm
 /** the steps behind a reply, and a live turn */
 const TURN_BODY = 'mt-2 flex flex-col gap-2 min-w-0';
 const blank = (): TeamChatData => ({ team: null, others: [], messages: [], working: [], queued: [], held: [], loop: null, goal: null, activity: {}, sessions: {}, turning: new Set() });
-const agentOf = (id: string) => state.data?.agents.find((a) => a.id === id);
+// (a team of a project that isn't open: its members are among the agents fetched for that project)
+const agentOf = (id: string) => state.data?.agents.find((a) => a.id === id) || foreignAgent(id);
 
 /** Who wrote a message, in a few words (the quote above a reply). */
 export function senderName(m: TeamMessage, agentName: (id: string) => string | undefined): string {
@@ -444,8 +448,9 @@ function mentionIn(input: HTMLTextAreaElement, name: string): void {
   input.setSelectionRange(input.value.length, input.value.length);
 }
 
-function TeamChat({ teamId, height, fill, box }: { teamId: string; height: number; fill: boolean; box: BoxRef }) {
+function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; height: number; fill: boolean; box: BoxRef; projectId?: string }) {
   useAppState(); // (names, avatars and who is lead follow the app state)
+  useProjectAgents(projectId); // (and the members of a team of a project that isn't open, once fetched)
   const [C, bump, store] = useTeamData(teamId);
   const [replyTo, setReplyTo] = useState<TeamMessage | null>(null);
   const lastReply = useRef(replyTo);
@@ -473,7 +478,7 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   // something to send in the box (words or files): Send; nothing while the team works: Stop
   const [filled, setFilled] = useState(false);
   const refill = useRef(() => {});
-  const tray = useMemo(() => attachTray({ onChange: () => refill.current(), iconWeight: 'regular' }), []);
+  const tray = useMemo(() => attachTray({ onChange: () => refill.current(), iconWeight: 'regular', project: projectId }), [projectId]);
   refill.current = () => setFilled(!!input.current?.value.trim() || tray.count() > 0);
   // long pasted text, folded into a chip until it is sent
   const pastes = useMemo(() => pasteBox(), []);
@@ -926,9 +931,9 @@ function TeamChat({ teamId, height, fill, box }: { teamId: string; height: numbe
   );
 }
 
-export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false }: TeamChatOptions = {}): TeamChatApi {
+export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false, projectId }: TeamChatOptions = {}): TeamChatApi {
   const box: BoxRef = { input: null, pending: { focus: false, mentions: [] } };
-  const root = mountReact(container, <IconWeightProvider value="regular"><TeamChat teamId={teamId} height={height} fill={fill} box={box} /></IconWeightProvider>);
+  const root = mountReact(container, <IconWeightProvider value="regular"><TeamChat teamId={teamId} height={height} fill={fill} box={box} projectId={projectId} /></IconWeightProvider>);
   return {
     // (before the box is drawn, kept until it is)
     focus: () => (box.input ? box.input.focus() : (box.pending.focus = true)),

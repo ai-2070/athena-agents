@@ -10,6 +10,7 @@ import { attachTray } from './attach.tsx';
 import { memoryButton } from './memory.tsx';
 import { buttonClass } from './ui/classes.ts';
 import { DomNode, Icon, useAppState } from './ui/react.tsx';
+import { useProjectAgents } from './projectagents.ts';
 import { Button, ButtonLink } from './ui/button.tsx';
 import type { ChatViewApi } from './chat/ChatView.tsx';
 import type { Chat, ChatSummary } from '../shared/types.ts';
@@ -32,16 +33,18 @@ interface FocusAsk {
   api: { current: ChatViewApi | null };
 }
 
-function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
+function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: FocusAsk; projectId?: string }) {
   const d = useAppState();
-  const agent = d?.agents.find((a) => a.id === agentId);
+  // (a chat of a project that isn't open: its agents are fetched from that project)
+  const theirs = useProjectAgents(projectId);
+  const agent = projectId ? theirs.find((a) => a.id === agentId) : d?.agents.find((a) => a.id === agentId);
   // the chat picked (when the tab opens, or New chat): undefined while looking for its latest one,
   // null for a new one, made by the first message. n tells picks apart, so New chat starts afresh.
   const [pick, setPick] = useState<{ id: string | null; n: number } | undefined>(undefined);
   // the chat shown, for the Full page link (a first message makes one without starting the view again)
   const [chatId, setChatId] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const tray = useMemo(() => attachTray(), []);
+  const tray = useMemo(() => attachTray({ project: projectId }), [projectId]);
   // New chat was clicked: a slow first look for the latest chat must not take the tab back to it
   const chosen = useRef(false);
   useEffect(() => {
@@ -100,10 +103,12 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
           New chat
         </Button>
         <DomNode as="span" make={() => memoryButton(agentId, agent?.name, { size: 'tiny' })} deps={[agentId]} />
-        <ButtonLink size="tiny" variant="ghost" title="Open the full chat page" href={chatId ? `#/agents/${agentId}/${chatId}` : `#/agents/${agentId}`}>
-          <Icon name="maximize-2" size={13} />
-          Full page
-        </ButtonLink>
+        {projectId ? null : (
+          <ButtonLink size="tiny" variant="ghost" title="Open the full chat page" href={chatId ? `#/agents/${agentId}/${chatId}` : `#/agents/${agentId}`}>
+            <Icon name="maximize-2" size={13} />
+            Full page
+          </ButtonLink>
+        )}
       </div>
       <div className="contents">
         {agent && pick ? (
@@ -117,6 +122,7 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
               footer={chip}
               onChat={(c: Chat) => setChatId(c.id)}
               apiRef={ask.api}
+              {...(projectId ? { agents: theirs } : {})}
             />
           </Suspense>
         ) : null}
@@ -126,12 +132,13 @@ function AgentChatPane({ agentId, ask }: { agentId: string; ask: FocusAsk }) {
 }
 
 /** Draws the agent's chat into a tab of the floating window. */
-export function renderAgentChat(container: HTMLElement, agentId: string): AgentChatApi {
+/** projectId: the agent's project, when it isn't the open one (an Overview pane; its requests are scoped with scopeTo). */
+export function renderAgentChat(container: HTMLElement, agentId: string, { projectId }: { projectId?: string } = {}): AgentChatApi {
   const ask: FocusAsk = { wanted: false, api: { current: null } };
   const root = createRoot(container);
   root.render(
     <StrictMode>
-      <AgentChatPane agentId={agentId} ask={ask} />
+      <AgentChatPane agentId={agentId} ask={ask} projectId={projectId} />
     </StrictMode>,
   );
   return {

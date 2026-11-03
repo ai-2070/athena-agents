@@ -3,6 +3,7 @@ import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
 import { renderAgentChat } from '../../web/agentchat.tsx';
+import { scopeTo } from '../../web/client/connection.ts';
 import type { AppState } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -46,6 +47,31 @@ describe('the agent chat box', () => {
     const editor = el.querySelector<HTMLElement>('[role="textbox"][contenteditable="true"]')!;
     expect([...editor.querySelectorAll('[data-mention]')].map((p) => p.getAttribute('data-mention'))).toEqual(['@Writer']);
     tab.destroy();
+  });
+});
+
+describe('a chat of a project that isn\'t open (an Overview pane)', () => {
+  it('finds its agent in that project, and its requests and files go there', async () => {
+    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      urls.push(url);
+      const body = url === '/api/p/p2/agents' ? [{ id: 'far', name: 'Far writer', engine: 'eve', model: 'm', provider: 'custom' }] : url.endsWith('/chats') ? [] : {};
+      return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+    });
+    const el = document.createElement('div');
+    document.body.append(el);
+    const release = scopeTo('p2', 'agents', 'far');
+    const tab = renderAgentChat(el, 'far', { projectId: 'p2' });
+    for (let i = 0; i < 100 && !el.querySelector('[role="textbox"][contenteditable="true"]'); i++) await settle();
+    expect(el.querySelector('[role="textbox"][contenteditable="true"]')).not.toBeNull();
+    expect(urls).toContain('/api/p/p2/agents');
+    expect(urls).toContain('/api/p/p2/agents/far/chats');
+    expect(urls).not.toContain('/api/agents/far/chats');
+    // (no Full page link: that page is the open project's)
+    expect(el.textContent).not.toContain('Full page');
+    tab.destroy();
+    release();
   });
 });
 

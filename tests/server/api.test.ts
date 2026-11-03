@@ -608,6 +608,32 @@ describe('attached files', () => {
 });
 
 describe('agent runs and projects', () => {
+  it('works with a project that isn\'t open through /api/p/<id>/…, only for the routes an Overview pane uses', async () => {
+    const send = (p: string, body: unknown, headers: Record<string, string> = json) => req(p, { method: 'POST', headers, body: JSON.stringify(body) });
+    const home = path.join(tmp, 'home');
+    const other = await (await send('/api/projects', { name: 'Scoped other', mode: 'new', folder: path.join(home, 'scoped-other') })).json();
+    const writer = await (await send('/api/agents', { name: 'Scoped writer', engine: 'eve', provider: 'custom', model: 'mock' })).json();
+    const open = await (await send('/api/projects', { name: 'Scoped open', mode: 'new', folder: path.join(home, 'scoped-open') })).json();
+    // (the page shows the open project and says so with its changes)
+    const page = { ...json, 'x-dash-project': open.id };
+    expect((await (await req('/api/agents')).json()).some((a: { id: string }) => a.id === writer.id)).toBe(false);
+    expect((await (await req(`/api/p/${other.id}/agents`)).json()).map((a: { id: string }) => a.id)).toContain(writer.id);
+    const chat = await (await send(`/api/p/${other.id}/agents/${writer.id}/chats`, {}, page)).json();
+    expect(chat.agentId).toBe(writer.id);
+    expect((await (await req(`/api/p/${other.id}/agents/${writer.id}/chats`)).json()).map((c: { id: string }) => c.id)).toContain(chat.id);
+    expect((await req(`/api/agents/${writer.id}/chats/${chat.id}`)).status).toBe(404);
+    // attached files land in that project's folder
+    const { batch } = await (await send(`/api/p/${other.id}/uploads`, {}, page)).json();
+    const f = await (await req(`/api/p/${other.id}/uploads/${batch}?path=note.txt`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-dash': '1' }, body: 'hi' })).json();
+    expect(fs.realpathSync(f.path).startsWith(fs.realpathSync(path.join(other.brainPath, 'uploads')))).toBe(true);
+    // the rest stays global, and an unknown project is refused
+    expect((await req(`/api/p/${other.id}/settings`)).status).toBe(404);
+    expect((await req(`/api/p/${other.id}/projects`)).status).toBe(404);
+    expect((await req('/api/p/no-such-project/agents')).status).toBe(404);
+    // an ordinary change still has to be for the open project
+    expect((await send(`/api/agents/${writer.id}/chats`, {}, { ...json, 'x-dash-project': other.id })).status).toBe(409);
+  });
+
   it("tool calls through the MCP bridge stay in the run's project after you open another", async () => {
     // a fake model that holds its answer until the test lets it go
     let release = () => {};

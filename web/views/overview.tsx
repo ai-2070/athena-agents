@@ -1,12 +1,14 @@
 // Overview (#/overview): every project's agents, teams, the Brain, terminals and board tasks being worked on, in one
-// sidebar, with what works and what needs you; this project, all projects, or one. The open project's chats and
-// terminals open side by side on a strip where each keeps its width (overviewlayout.ts): 1 to 8 columns per view,
-// pinned columns stay at the left, up to three panes stack in one column, and the rail at either edge shows what is
-// off screen. A session of another project opens that project first (after asking). The plan:
+// sidebar, with what works and what needs you; this project, all projects, or one. Chats and terminals of any project
+// open side by side on a strip where each keeps its width (overviewlayout.ts): 1 to 8 columns per view, pinned columns
+// stay at the left, up to three panes stack in one column, and the rail at either edge shows what is off screen. A
+// pane of a project that isn't open sends its requests to that project (scopeTo, /api/p/<project>/…). The Brain of
+// another project opens that project first (after asking). The plan:
 // docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { DEL, GET, POST, ago, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state } from '../core.ts';
+import { DEL, GET, POST, ago, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
+import { scopeTo } from '../client/connection.ts';
 import { openChat } from '../chatwin.tsx';
 import { openDock } from '../dock.tsx';
 import { renderAgentChat } from '../agentchat.tsx';
@@ -36,7 +38,8 @@ const KIND_ORDER: Record<OverviewSession['kind'], number> = { brain: 0, agent: 1
 const STATUS_ORDER: Record<OverviewSession['status'], number> = { 'needs-you': 0, working: 1, idle: 2 };
 const sessionKey = (p: OverviewProject, s: OverviewSession) => `${p.id}/${s.kind}/${s.id}`;
 /** What a session opens as a pane (the Brain and tasks open where they live). */
-const paneOf = (s: OverviewSession): PaneRef | null => (s.kind === 'agent' || s.kind === 'team' || s.kind === 'terminal' ? { kind: s.kind, id: s.id } : null);
+const paneOf = (s: OverviewSession, projectId: string): PaneRef | null => (s.kind === 'agent' || s.kind === 'team' || s.kind === 'terminal' ? { kind: s.kind, id: s.id, projectId } : null);
+const STRIP = 'all';
 const readSet = (key: string): Set<string> => {
   try {
     const v: unknown = JSON.parse(localStorage.getItem(key) || '[]');
@@ -81,8 +84,8 @@ function OverviewPage() {
   const [pins, setPins] = useState(() => readSet(PINS_KEY));
   const [folded, setFolded] = useState(() => readSet(FOLDED_KEY));
   const [search, setSearch] = useState('');
-  // the open project's strip (each project keeps its own)
-  const [strip, setStrip] = useState<{ projectId: string; layout: StripLayout } | null>(null);
+  // the strip: chats and terminals of any project, side by side (one strip, saved in this browser)
+  const [layout, setLayout] = useState<StripLayout | null>(null);
   const serial = useRef(0);
 
   const load = useCallback(async () => {
@@ -105,22 +108,23 @@ function OverviewPage() {
     return () => (clearTimeout(timer), clearInterval(tick), off(), offReconnect());
   }, [load]);
 
-  // the strip of the project open now: loaded when it changes, saved with every change, and without panes whose
-  // agent, team or terminal is gone
+  // the strip: loaded once, saved with every change, and without panes whose agent, team, terminal or project is gone
   const active = data?.active || '';
-  const here = data?.projects.find((p) => p.id === active);
   useEffect(() => {
-    if (active && strip?.projectId !== active) setStrip({ projectId: active, layout: loadLayout(active) });
-  }, [active, strip?.projectId]);
+    if (layout || !active) return;
+    const saved = loadLayout(STRIP);
+    // (a strip saved for the open project before panes could come from any project)
+    setLayout(saved.columns.length ? saved : loadLayout(active, active));
+  }, [active, layout]);
   useEffect(() => {
-    if (!here || strip?.projectId !== here.id) return;
-    const pruned = prune(strip.layout, (ref) => here.sessions.some((s) => s.kind === ref.kind && s.id === ref.id));
-    if (pruned !== strip.layout) setStrip({ projectId: here.id, layout: pruned });
-  }, [here, strip]);
+    if (!data || !layout) return;
+    const pruned = prune(layout, (ref) => !!data.projects.find((p) => p.id === ref.projectId)?.sessions.some((s) => s.kind === ref.kind && s.id === ref.id));
+    if (pruned !== layout) setLayout(pruned);
+  }, [data, layout]);
   useEffect(() => {
-    if (strip) saveLayout(strip.projectId, strip.layout);
-  }, [strip]);
-  const change = useCallback((fn: (l: StripLayout) => StripLayout) => setStrip((s) => (s ? { ...s, layout: fn(s.layout) } : s)), []);
+    if (layout) saveLayout(STRIP, layout);
+  }, [layout]);
+  const change = useCallback((fn: (l: StripLayout) => StripLayout) => setLayout((l) => (l ? fn(l) : l)), []);
 
   const pickScope = (v: string) => (localStorage.setItem(SCOPE_KEY, v), setScope(v));
   const pickSort = (v: string) => (localStorage.setItem(SORT_KEY, v), setSort(v as Sort));
@@ -131,31 +135,32 @@ function OverviewPage() {
     return next;
   });
 
-  /** Opens a session: a chat or terminal as a pane, the Brain in its chat, a task on its page. One in another
-   *  project opens that project first, after asking. */
+  /** Opens a session: a chat or terminal (of any project) as a pane, a task on its page, the Brain in its chat. The
+   *  Brain of another project opens that project first, after asking. */
   const openSession = async (p: OverviewProject, s: OverviewSession) => {
     if (!data) return;
-    const ref = paneOf(s);
+    const ref = paneOf(s, p.id);
+    if (ref) {
+      // (a copy of the open project has the same ids: the page can't tell their requests apart)
+      const twin = p.id !== data.active && s.kind !== 'terminal' && !!data.projects.find((x) => x.id === data.active)?.sessions.some((x) => x.kind === s.kind && x.id === s.id);
+      if (twin) return toast(`${s.name} has a twin in the open project (one is a copy of the other). Open ${p.name} to use this one.`, 'warn', 7000);
+      return change((l) => openPane(l, ref));
+    }
+    if (s.kind === 'task') return navigate(taskHref({ projectId: p.id, id: s.id }));
     if (p.id !== data.active) {
-      if (!(await confirmBox(`Open the project ${p.name}? The dashboard switches to it, and ${s.kind === 'task' ? `${taskKey(s.number || 0)} opens` : `${s.name} opens there`}.`, { ok: `Open ${p.name}` }))) return;
-      // (its strip gets the pane now, and shows once the project is open)
-      if (ref) saveLayout(p.id, openPane(loadLayout(p.id), ref));
+      if (!(await confirmBox(`Open the project ${p.name}? The Brain's chat is the open project's: the dashboard switches to ${p.name}, and its Brain opens.`, { ok: `Open ${p.name}` }))) return;
       if (!(await attempt(() => POST(`/projects/${encodeURIComponent(p.id)}/activate`), `Opened ${p.name}`))) return;
       refreshSoon(0);
       await whenOpen(p.id);
       void load();
-      if (ref) return;
-    } else if (ref) return change((l) => openPane(l, ref));
-    if (s.kind === 'agent') openChat('agent', s.id);
-    else if (s.kind === 'team') openChat('team', s.id);
-    else if (s.kind === 'brain') openDock();
-    else if (s.kind === 'task') navigate(taskHref({ projectId: p.id, id: s.id }));
+    }
+    openDock();
   };
   /** A new terminal in the open project's folder, opened as a pane. */
   const newTerminal = async () => {
     const t = await attempt(() => POST<{ id: string; title: string }>('/terminals', { kind: 'shell', cwd: state.data?.project?.brainPath }));
     if (!t) return;
-    change((l) => openPane(l, { kind: 'terminal', id: t.id }));
+    change((l) => openPane(l, { kind: 'terminal', id: t.id, projectId: active }));
     void load();
   };
 
@@ -171,13 +176,12 @@ function OverviewPage() {
   const all = projects.flatMap((p) => p.sessions.map((s) => ({ p, s })));
   const needing = all.filter(({ s }) => s.status === 'needs-you');
   const working = all.filter(({ s }) => s.status === 'working');
-  const layout = strip?.projectId === active ? strip.layout : null;
 
   // Ctrl+Alt+N: the next session that needs you (after the one in use)
   const nextNeeding = () => {
     if (!needing.length) return;
     const focus = layout?.focus;
-    const i = needing.findIndex(({ p, s }) => p.id === active && `${s.kind}:${s.id}` === focus);
+    const i = needing.findIndex(({ p, s }) => focus === `${p.id}/${s.kind}:${s.id}`);
     const { p, s } = needing[(i + 1) % needing.length];
     void openSession(p, s);
   };
@@ -233,17 +237,17 @@ function OverviewPage() {
             onPin={(s) => toggleSet(sessionKey(p, s), setPins, PINS_KEY)}
             onOpen={(s) => open(p, s)}
             onNewTerminal={p.id === data.active ? () => void newTerminal() : undefined}
-            shownAsPane={(s) => p.id === data.active && !!layout && panesInOrder(layout).some((x) => x.kind === s.kind && x.id === s.id)}
+            shownAsPane={(s) => !!layout && panesInOrder(layout).some((x) => x.projectId === p.id && x.kind === s.kind && x.id === s.id)}
           />
         ))}
         {q && !shown.some((x) => x.sessions.length) ? <p className="m-0 px-3 py-2 text-[12.5px] text-faint">Nothing matches "{search.trim()}".</p> : null}
       </aside>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {layout && panes ? (
-          <Strip layout={layout} change={change} sessions={here?.sessions || []} onNextNeeding={nextNeeding} />
+          <Strip layout={layout} change={change} projects={data.projects} active={active} onNextNeeding={nextNeeding} />
         ) : (
           <main className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-7 max-md:px-4">
-            <p className="m-0 text-[13px] text-dim">Click an agent, a team or a terminal of {here?.name || 'the open project'} to open it here. They sit side by side and keep their width.</p>
+            <p className="m-0 text-[13px] text-dim">Click an agent, a team or a terminal, of any project, to open it here. They sit side by side and keep their width.</p>
             <Section title="Needs you" empty="Nothing waits for you." items={needing} showProject={projects.length > 1} onOpen={open} />
             <Section title="Working now" empty="Nothing is working right now." items={working} showProject={projects.length > 1} onOpen={open} />
           </main>
@@ -390,7 +394,7 @@ function StripControls({ layout, change }: { layout: StripLayout; change: Change
 }
 
 /** The strip of panes: columns that keep their width and slide sideways, pinned ones at the left. */
-function Strip({ layout, change, sessions, onNextNeeding }: { layout: StripLayout; change: Change; sessions: OverviewSession[]; onNextNeeding: () => void }) {
+function Strip({ layout, change, projects, active, onNextNeeding }: { layout: StripLayout; change: Change; projects: OverviewProject[]; active: string; onNextNeeding: () => void }) {
   const scroller = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ width: 0, left: 0 });
   useLayoutEffect(() => {
@@ -420,7 +424,9 @@ function Strip({ layout, change, sessions, onNextNeeding }: { layout: StripLayou
   const visible = (i: number) => !view.width || spans[i].pinned || (spans[i].x + spans[i].w > view.left + pinnedWidth + 1 && spans[i].x < view.left + view.width - 1);
   // chats more than a view away aren't drawn (their header and status stay); terminals always are
   const near = (i: number) => !view.width || spans[i].pinned || (spans[i].x + spans[i].w > view.left - view.width && spans[i].x < view.left + 2 * view.width);
-  const status = (ref: PaneRef) => sessions.find((s) => s.kind === ref.kind && s.id === ref.id);
+  const status = (ref: PaneRef) => projects.find((p) => p.id === ref.projectId)?.sessions.find((s) => s.kind === ref.kind && s.id === ref.id);
+  // (a pane of a project that isn't open says which project it is)
+  const projectName = (ref: PaneRef) => (ref.projectId === active ? undefined : projects.find((p) => p.id === ref.projectId)?.name || 'Another project');
 
   // the pane in use slides into view
   useEffect(() => {
@@ -491,6 +497,7 @@ function Strip({ layout, change, sessions, onNextNeeding }: { layout: StripLayou
             focus={layout.focus}
             drawn={(ref) => ref.kind === 'terminal' || near(i)}
             status={status}
+            projectName={projectName}
             change={change}
             colPx={colPx}
             canStack={i > 0 && layout.columns[i - 1].panes.length < STACK_MAX}
@@ -503,13 +510,14 @@ function Strip({ layout, change, sessions, onNextNeeding }: { layout: StripLayou
   );
 }
 
-function StripColumnView({ index, column: c, style, focus, drawn, status, change, colPx, canStack }: {
+function StripColumnView({ index, column: c, style, focus, drawn, status, projectName, change, colPx, canStack }: {
   index: number;
   column: StripLayout['columns'][number];
   style: CSSProperties;
   focus: string | null;
   drawn: (ref: PaneRef) => boolean;
   status: (ref: PaneRef) => OverviewSession | undefined;
+  projectName: (ref: PaneRef) => string | undefined;
   change: Change;
   colPx: number;
   canStack: boolean;
@@ -540,7 +548,7 @@ function StripColumnView({ index, column: c, style, focus, drawn, status, change
   return (
     <div ref={box} className={`strip-column relative flex h-full flex-none flex-col bg-bg ${c.pinned ? 'border-r border-line shadow-card' : ''}`} style={style} data-pinned={c.pinned || undefined}>
       {c.panes.map((ref, row) => (
-        <Pane key={paneKey(ref)} paneRef={ref} share={c.heights[row] ?? 1 / c.panes.length} stacked={c.panes.length > 1} pinned={c.pinned} focused={focus === paneKey(ref)} drawn={drawn(ref)} session={status(ref)} change={change} canStack={row === 0 && canStack} resizeBelow={row < c.panes.length - 1 ? resizeHeight(row) : undefined} />
+        <Pane key={paneKey(ref)} paneRef={ref} projectName={projectName(ref)} share={c.heights[row] ?? 1 / c.panes.length} stacked={c.panes.length > 1} pinned={c.pinned} focused={focus === paneKey(ref)} drawn={drawn(ref)} session={status(ref)} change={change} canStack={row === 0 && canStack} resizeBelow={row < c.panes.length - 1 ? resizeHeight(row) : undefined} />
       ))}
       <div role="separator" aria-orientation="vertical" aria-label="Column width" className="absolute top-0 right-0 bottom-0 z-10 w-1.5 cursor-col-resize hover:bg-accent/30" onPointerDown={resizeWidth} />
     </div>
@@ -549,8 +557,10 @@ function StripColumnView({ index, column: c, style, focus, drawn, status, change
 
 const DRAG_TYPE = 'text/x-overview-pane';
 
-function Pane({ paneRef: ref, share, stacked, pinned, focused, drawn, session: s, change, canStack, resizeBelow }: {
+function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, drawn, session: s, change, canStack, resizeBelow }: {
   paneRef: PaneRef;
+  /** set when the pane's project isn't the open one */
+  projectName?: string;
   share: number;
   stacked: boolean;
   pinned: boolean;
@@ -610,7 +620,10 @@ function Pane({ paneRef: ref, share, stacked, pinned, focused, drawn, session: s
             <Icon name="grip-vertical" size={12} />
           </span>
           <SessionMark session={s || { kind: ref.kind, id: ref.id }} size={18} />
-          <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{name}</span>
+          <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">
+            {name}
+            {projectName ? <span className="font-normal text-faint">{` · ${projectName}`}</span> : null}
+          </span>
           {pinned ? <Icon name="star" size={11} className="flex-none text-accent" /> : null}
           {s?.status === 'needs-you' ? <span className="flex-none rounded-full bg-amber/15 px-1.5 text-[11px] font-medium text-amber" title={s.why}>Needs you</span> : s?.status === 'working' ? <span className="inline-flex flex-none items-center gap-1 text-[11px] text-accent"><span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" />Working</span> : s?.ended ? <span className="flex-none text-[11px] text-faint">ended</span> : null}
           <Dropdown>
@@ -622,7 +635,7 @@ function Pane({ paneRef: ref, share, stacked, pinned, focused, drawn, session: s
               {stacked ? <DropdownItem icon="columns-2" onClick={() => change((l) => unstackPane(l, key))}>Take out of the stack</DropdownItem> : canStack ? <DropdownItem icon="layers" onClick={() => change((l) => stackPane(l, key))}>Stack under the one before</DropdownItem> : null}
               <DropdownItem onClick={() => change((l) => movePane(l, key, -1))}>Move left</DropdownItem>
               <DropdownItem onClick={() => change((l) => movePane(l, key, 1))}>Move right</DropdownItem>
-              {ref.kind !== 'terminal' ? <DropdownItem icon="external-link" onClick={() => (openChat(ref.kind === 'agent' ? 'agent' : 'team', ref.id), change((l) => closePane(l, key)))}>Open in a chat window</DropdownItem> : null}
+              {ref.kind !== 'terminal' && !projectName ? <DropdownItem icon="external-link" onClick={() => (openChat(ref.kind === 'agent' ? 'agent' : 'team', ref.id), change((l) => closePane(l, key)))}>Open in a chat window</DropdownItem> : null}
               <DropdownSeparator />
               {ref.kind === 'terminal' && !s?.ended ? <DropdownItem icon="square" danger onClick={() => void endTerminal()}>End terminal</DropdownItem> : null}
               <DropdownItem icon="x" onClick={() => change((l) => closePane(l, key))}>Close</DropdownItem>
@@ -630,7 +643,7 @@ function Pane({ paneRef: ref, share, stacked, pinned, focused, drawn, session: s
           </Dropdown>
         </header>
         <div className="flex min-h-0 flex-1 flex-col">
-          {drawn ? <PaneBody paneRef={ref} /> : <div className="grid flex-1 place-items-center text-[12px] text-faint">{name}</div>}
+          {drawn ? <PaneBody paneRef={ref} foreign={!!projectName} /> : <div className="grid flex-1 place-items-center text-[12px] text-faint">{name}</div>}
         </div>
         {over ? <div aria-hidden="true" className={`pointer-events-none absolute z-20 rounded-[6px] bg-accent/15 outline-2 -outline-offset-2 outline-accent/60 ${over === 'before' ? 'inset-y-0 left-0 w-1/4' : over === 'after' ? 'inset-y-0 right-0 w-1/4' : 'inset-x-0 bottom-0 h-1/2'}`} /> : null}
       </section>
@@ -639,16 +652,19 @@ function Pane({ paneRef: ref, share, stacked, pinned, focused, drawn, session: s
   );
 }
 
-/** What a pane shows: an agent's chat or a team's thread (the components the chat windows use), or a terminal. */
-function PaneBody({ paneRef: ref }: { paneRef: PaneRef }) {
+/** What a pane shows: an agent's chat or a team's thread (the components the chat windows use), or a terminal. A
+ *  chat of a project that isn't open (foreign) sends its requests to that project while it shows. */
+function PaneBody({ paneRef: ref, foreign }: { paneRef: PaneRef; foreign: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (ref.kind === 'terminal') return;
     const el = host.current!;
-    const api = ref.kind === 'agent' ? renderAgentChat(el, ref.id) : renderTeamChat(el, ref.id, { fill: true });
+    const scoped = foreign ? { projectId: ref.projectId } : {};
+    const release = foreign ? scopeTo(ref.projectId, ref.kind === 'agent' ? 'agents' : 'teams', ref.id) : () => {};
+    const api = ref.kind === 'agent' ? renderAgentChat(el, ref.id, scoped) : renderTeamChat(el, ref.id, { fill: true, ...scoped });
     // (the chat is its own React root: it is taken down after this render)
-    return () => void setTimeout(() => api.destroy());
-  }, [ref.kind, ref.id]);
+    return () => void setTimeout(() => (api.destroy(), release()));
+  }, [ref.kind, ref.id, ref.projectId, foreign]);
   if (ref.kind === 'terminal') return <XTerm id={ref.id} className="min-h-0 flex-1 bg-bg px-2 py-1" />;
   return <div ref={host} className="strip-chat flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3 *:min-h-0 *:flex-1" />;
 }

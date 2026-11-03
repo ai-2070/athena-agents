@@ -34,7 +34,7 @@ import type { SlashOption } from '../../shared/commands.ts';
 import { goalLine, loopLine } from '../chatcommands.ts';
 import { QueuedList, keepLostEdit } from '../queuedlist.tsx';
 import type { ChatMessage } from './messages.ts';
-import type { AppState, BrainBrief, Chat, ChatItem, LoopInfo, QueuedMessage } from '../../shared/types.ts';
+import type { AppState, BrainBrief, Chat, ChatItem, LoopInfo, QueuedMessage, Agent } from '../../shared/types.ts';
 
 export { isRichCode };
 
@@ -67,6 +67,8 @@ export interface ChatViewProps {
   /** The chat as it was (re)loaded, or made by the first message. */
   onChat?: (chat: Chat) => void;
   apiRef?: { current: ChatViewApi | null };
+  /** The agents of the chat's project, when it isn't the open one (an Overview pane): the ones @ offers. */
+  agents?: Agent[];
 }
 
 /** The page's shared state (agents, runs, approvals), kept current. */
@@ -522,7 +524,7 @@ export function ChatView(p: ChatViewProps) {
     e.preventDefault();
     return true;
   };
-  const others = app?.agents || [];
+  const others = p.agents || app?.agents || [];
   // @ mentions of other agents show as pills while you write, as in team chats
   const othersRef = useRef(others);
   othersRef.current = others;

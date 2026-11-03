@@ -135,6 +135,18 @@ const put = <B = Body>(p: string, h: Handler<B>) => route('PUT', p, h);
 const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
 const gatewaySupervisor = new GatewaySupervisor();
 
+// The routes an Overview pane uses for a project that isn't open (/api/p/<projectId>/…): an agent's chats and its
+// details, a team's thread, and attached files. Everything else (projects, settings, keys, backups) stays global.
+const SCOPED = /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|uploads(\/[\w-]+)?)$/;
+function scopedRoute(pathname: string): { project: Project; path: string } | null {
+  const m = /^\/api\/p\/([^/]+)(\/.*)$/.exec(pathname);
+  if (!m) return null;
+  const project = store.listProjects().find((p) => p.id === decodeURIComponent(m[1]));
+  if (!project) throw new HttpError(404, 'That project is unavailable.');
+  if (!SCOPED.test(m[2])) throw new HttpError(404, `${m[2]} isn't available for another project.`);
+  return { project, path: `/api${m[2]}` };
+}
+
 class HttpError extends Error {
   status: number;
   constructor(status: number, msg: string) {
@@ -1496,42 +1508,47 @@ const server = http.createServer(async (req, res) => {
         // Other websites can't add this header without a CORS preflight, which we never allow.
         throw new HttpError(403, 'Missing x-dash header');
       }
+      // /api/p/<projectId>/…: a route run inside that project (an Overview pane of a project that isn't open).
+      // It names its project, so the open-project guard below doesn't apply; only the routes a pane uses take it.
+      const scope = scopedRoute(url.pathname);
+      const pathname = scope ? scope.path : url.pathname;
+      const inScope = <T>(fn: () => T): T => (scope ? store.withProject(scope.project, fn) : fn());
       // A change made for the project the page shows, after another one was opened (in this tab or another):
       // refused, so it can't land in the wrong project. Project routes name their project themselves.
       const pageProject = req.headers['x-dash-project'];
-      if (!internal && req.method !== 'GET' && typeof pageProject === 'string' && pageProject && !url.pathname.startsWith('/api/projects') && pageProject !== store.activeProject().id) {
+      if (!scope && !internal && req.method !== 'GET' && typeof pageProject === 'string' && pageProject && !url.pathname.startsWith('/api/projects') && pageProject !== store.activeProject().id) {
         throw new HttpError(409, 'Another project was opened meanwhile. Nothing was changed; try again.');
       }
-      if (url.pathname === '/api/comfyui/view') return await comfy.proxyView(Object.fromEntries(url.searchParams), res);
+      if (pathname === '/api/comfyui/view') return await comfy.proxyView(Object.fromEntries(url.searchParams), res);
       // an attached file: the raw bytes, streamed to disk (the router only reads JSON bodies)
-      const upload = req.method === 'POST' && /^\/api\/uploads\/([\w-]+)$/.exec(url.pathname);
+      const upload = req.method === 'POST' && /^\/api\/uploads\/([\w-]+)$/.exec(pathname);
       if (upload) {
-        const saved = await uploads.receive(req, upload[1], url.searchParams.get('path') || '');
+        const saved = await inScope(() => uploads.receive(req, upload[1], url.searchParams.get('path') || ''));
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(JSON.stringify(saved));
       }
       for (const r of routes) {
         if (r.method !== req.method) continue;
-        const m = r.re.exec(url.pathname);
+        const m = r.re.exec(pathname);
         if (!m) continue;
         const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
         let out: unknown;
         if (r.raw) {
           const file = await receiveFile(req, FILE_LIMIT);
           try {
-            out = await r.handler(params, file, Object.fromEntries(url.searchParams), res);
+            out = await inScope(() => r.handler(params, file, Object.fromEntries(url.searchParams), res));
           } finally {
             fs.rmSync(file, { force: true });
           }
         } else {
           const body = req.method === 'GET' || req.method === 'DELETE' ? {} : await readBody(req);
-          out = await r.handler(params, body, Object.fromEntries(url.searchParams), res);
+          out = await inScope(() => r.handler(params, body, Object.fromEntries(url.searchParams), res));
         }
         if (out === undefined && res.headersSent) return;
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(JSON.stringify(out ?? null));
       }
-      throw new HttpError(404, `No API route ${req.method} ${url.pathname}`);
+      throw new HttpError(404, `No API route ${req.method} ${pathname}`);
     }
     if (req.method === 'GET' && serveStatic(url, res)) return;
     res.writeHead(404);

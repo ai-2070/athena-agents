@@ -123,7 +123,8 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 - **Show** picks **This project**, **All projects** or one project. **Sort** puts the ones that need you first (the default), or orders them by last update, by kind or by name.
 - The star next to one pins it to the top of its project. Click a project's name to fold it. **Search** narrows the list by name.
 - **Needs you** and **Working now** list them across what is shown, with **Open** next to each. The line at the bottom counts them: "2 need you · 4 of 7 working · 3 projects".
-- Clicking an agent, a team or a terminal of the open project opens it on the strip, beside the others. The Brain opens in its chat, a task on its page. One in another project asks first, then opens that project with the chat on its strip.
+- Clicking an agent, a team or a terminal opens it on the strip, beside the others, whichever project it is in: you can write to an agent or a team of another project without opening that project (its pane says which project it is, and the files you attach go to that project). A task opens on its page. The Brain of another project asks first, then opens that project and its Brain.
+- If you copied a project, its agents have the same ids as the original's: one of a copy can't sit on the strip while the original's project is open. Open its project to use it.
 - Your choices (what is shown, the sort, pins, folded projects) are remembered in this browser.
 
 **The strip.** Open chats and terminals sit side by side and keep their width; the strip slides sideways instead of squeezing them.
@@ -133,7 +134,7 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 - Drag a pane by its grip (⋮⋮) onto another: its left or right quarter puts it before or after, its middle stacks it.
 - Panes out of view show as small marks at the edge, with a dot when they work or need you; click one to slide to it. Chats far out of view aren't drawn until they come back; terminals stay connected.
 - **New terminal** (the terminal button next to the open project's name) opens PowerShell (or your shell) in the project's folder as a pane. Terminals belong to the project they were opened in.
-- Each project keeps its own strip, remembered in this browser.
+- One strip for all projects, remembered in this browser.
 
 | Keys (**Ctrl+Alt** on Windows, **Ctrl+⌥** on macOS) | What they do |
 |---|---|

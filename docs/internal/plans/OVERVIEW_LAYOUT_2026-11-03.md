@@ -1,6 +1,15 @@
 # Overview: one project or all of them, in one view
 
-3 November 2026. Plan. **Step 2 is built too**: the strip for the open project, with terminals
+3 November 2026. Plan. **Step 3 is built**: `/api/p/<projectId>/…` runs an agent's, a team's or an upload route in that
+project (`scopedRoute` in `server/index.ts`; other routes refuse it). The page sends a pane's requests there with
+`scopeTo()` / `scopedPath()` in `web/client/connection.ts`, `renderAgentChat` and `renderTeamChat` take a `projectId`
+(their agents come from `web/projectagents.ts`), and the tray uploads into that project. Questions are answered in
+the project that has them. There is one strip for every project. Left as they are:
+- An agent or team with the same id in the open project (a copied project) can't sit on the strip; the page says so.
+- The Brain of another project still opens that project first. Its chat is the dock, which is the open project's.
+- File previews in another project's chat (`/api/file`) only show files the open project allows.
+
+**Step 2 is built too**: the strip for the open project, with terminals
 (`web/overviewlayout.ts` for the layout, `web/terminalview.tsx` shared with the Terminals page, `Terminal.projectId`).
 Columns per view, pinning, stacking, dragging, resizing, the rail, the minimap, the Ctrl+Alt keys and the saved layout
 are in. A pane's header shows its status; Open folder in VS Code comes with step 4.
