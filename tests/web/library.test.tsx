@@ -126,6 +126,15 @@ describe('Library page', () => {
     expect(el.textContent).toContain('Showing 240 of 250. Search to narrow down.');
   });
 
+  it('shows each engine\'s logo next to its name under "Runs on"', async () => {
+    state.data!.engineList.push({ id: 'pi', label: 'pi' } as AppState['engineList'][number]);
+    await open();
+    const options = [...el.querySelectorAll<HTMLButtonElement>('[aria-label="Runs on"] button')];
+    expect(options.map((b) => b.textContent)).toEqual(['Claude Code', 'Codex', 'pi']);
+    for (const option of options) expect(option.querySelector('svg, img')).not.toBeNull();
+    expect(options[2].querySelector('img')!.getAttribute('src')).toBe('/brand/engines/pi.svg');
+  });
+
   it('hires on the engine picked under "Runs on", then offers Chat and Edit', async () => {
     await open();
     await click(buttons('Codex')[0]);

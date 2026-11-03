@@ -11,7 +11,7 @@ import { FieldRow, Row, Section, Segmented, SwitchRow } from '../ui/controls.tsx
 import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { logo } from '../icons.ts';
 import { ProgramGlyph, ProgramLabel } from '../ui/programmark.tsx';
-import { serverUrl } from '../client/connection.ts';
+import { brandSrc, followTheme } from '../brandimages.ts';
 import type { AppState, EngineStatus, SecretKey, SecretStatus, Settings, Terminal, VeniceAccountInfo } from '../../shared/types.ts';
 
 /** What POST /api/settings/test-openrouter passes on from OpenRouter's /key endpoint. */
@@ -229,7 +229,7 @@ function SavedSwitch({ field, initial, on, off, reload, title, description }: { 
 /** A provider's mark, bundled locally so it also works offline. */
 function Mark({ brand, glyph, engine }: { brand?: string; glyph?: string; engine?: 'hermes' | 'pi' | 'omp' | 'openclaw' | 'venice' }) {
   const size = engine === 'pi' ? 15 : 17;
-  if (engine) return <span className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2"><img src={serverUrl(`/brand/engines/${engine}.svg`)} width={size} height={size} alt="" aria-hidden="true" className="object-contain" /></span>;
+  if (engine) return <span className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2"><img ref={(el) => { if (el) followTheme(el, engine); }} src={brandSrc(engine) ?? undefined} width={size} height={size} alt="" aria-hidden="true" className="object-contain" /></span>;
   // near-black brand colours (Anthropic, OpenAI) draw in the text colour, so they show on a dark page too
   const color = brand && DARK_BRANDS.has(brand) ? 'currentColor' : null;
   return <DomNode as="span" className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2 font-sans text-[16px] leading-none font-semibold text-ink [&_svg]:size-[17px]" make={() => (brand && logo(brand, 18, color)) || document.createTextNode(glyph || '•')} deps={[brand, glyph]} />;
