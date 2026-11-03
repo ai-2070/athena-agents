@@ -196,12 +196,32 @@ describe('the Overview', () => {
     expect(panes()[0]).toBe('Shop team');
     await key('KeyW');
     expect(panes()).toEqual(['Writer', 'Baker']);
+    await settle(10);
     expect(drawn.live.has('team:t1')).toBe(false);
     await key('Minus');
     expect(el.querySelector('.strip-per-view')!.textContent).toBe('1');
     await key('Equal');
     await key('Equal');
     expect(el.querySelector('.strip-per-view')!.textContent).toBe('3');
+  });
+
+  it('keeps a chat as it is (an unsent message, attached files) when its pane is stacked, moved or scrolled away', async () => {
+    await open();
+    for (const name of ['Writer', 'Baker']) await act(async () => row('Bakery', name).click());
+    const chatOf = (name: string) => el.querySelector<HTMLElement>(`.strip-pane[aria-label="${name}"] .strip-chat > div`)!;
+    // (stands in for what was typed)
+    chatOf('Baker').dataset.draft = 'Half a message';
+    const renders = drawn.projects.length;
+    const key = (code: string, shiftKey = false) => act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { code, ctrlKey: true, altKey: true, shiftKey, bubbles: true, cancelable: true })));
+    await key('KeyS');
+    expect(el.querySelectorAll('.strip-column')).toHaveLength(1);
+    expect(chatOf('Baker').dataset.draft).toBe('Half a message');
+    await key('KeyS');
+    await key('BracketLeft', true);
+    expect(panes()).toEqual(['Baker', 'Writer']);
+    expect(chatOf('Baker').dataset.draft).toBe('Half a message');
+    expect(drawn.projects.length).toBe(renders);
+    expect(drawn.live.has('agent:baker')).toBe(true);
   });
 
   it('leaves AltGr alone: Ctrl+Alt that types a character isn\'t a shortcut', async () => {

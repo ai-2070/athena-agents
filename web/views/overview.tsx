@@ -195,6 +195,11 @@ function OverviewPage() {
   useEffect(() => {
     if (layout) saveLayout(STRIP, layout);
   }, [layout]);
+  // the chats of panes that closed go; all of them once the Overview does
+  useEffect(() => {
+    if (layout && active) dropChats(new Set(panesInOrder(layout).map((ref) => chatKey(ref, ref.projectId !== active))));
+  }, [layout, active]);
+  useEffect(() => () => dropChats(new Set()), []);
   const change = useCallback((fn: (l: StripLayout) => StripLayout) => setLayout((l) => (l ? fn(l) : l)), []);
 
   const pickScope = (v: string) => (localStorage.setItem(SCOPE_KEY, v), setScope(v));
@@ -900,21 +905,47 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
   );
 }
 
+// The chats on the strip. Each is its own React root, drawn into an element of its own that outlives the pane's
+// place: moving the pane to another column, stacking it or scrolling it out of reach moves that element, so a
+// half-written message and the files attached to it stay. A chat is taken down when its pane closes, or the Overview.
+const liveChats = new Map<string, { el: HTMLDivElement; api: { destroy: () => void } }>();
+const chatKey = (ref: PaneRef, foreign: boolean) => `${paneKey(ref)}${foreign ? '|elsewhere' : ''}`;
+function liveChat(ref: PaneRef, foreign: boolean): HTMLDivElement {
+  const key = chatKey(ref, foreign);
+  const known = liveChats.get(key);
+  if (known) return known.el;
+  const el = document.createElement('div');
+  el.className = 'flex min-h-0 flex-1 flex-col *:min-h-0 *:flex-1';
+  const scoped = foreign ? { projectId: ref.projectId } : {};
+  const api = ref.kind === 'agent' ? renderAgentChat(el, ref.id, scoped) : renderTeamChat(el, ref.id, { fill: true, ...scoped });
+  liveChats.set(key, { el, api });
+  return el;
+}
+/** Takes down the chats whose pane is gone (keep: the chat keys of the panes there are). */
+function dropChats(keep: ReadonlySet<string>): void {
+  for (const [key, chat] of liveChats) {
+    if (keep.has(key)) continue;
+    liveChats.delete(key);
+    chat.el.remove();
+    // (its own React root: taken down after the render that closed the pane)
+    setTimeout(() => chat.api.destroy());
+  }
+}
+
 /** What a pane shows: an agent's chat or a team's thread (the components the chat windows use), a terminal, or a
  *  project's Brain. A chat of a project that isn't open (foreign) sends its requests to that project. */
 function PaneBody({ paneRef: ref, foreign, projectName, change }: { paneRef: PaneRef; foreign: boolean; projectName: string; change: Change }) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (ref.kind === 'terminal' || ref.kind === 'brain') return;
-    const el = host.current!;
-    const scoped = foreign ? { projectId: ref.projectId } : {};
-    const api = ref.kind === 'agent' ? renderAgentChat(el, ref.id, scoped) : renderTeamChat(el, ref.id, { fill: true, ...scoped });
-    // (the chat is its own React root: it is taken down after this render)
-    return () => void setTimeout(() => api.destroy());
+    const at = host.current!;
+    const el = liveChat(ref, foreign);
+    at.appendChild(el);
+    return () => void (el.parentNode === at && el.remove());
   }, [ref.kind, ref.id, ref.projectId, foreign]);
   if (ref.kind === 'terminal') return <XTerm id={ref.id} className="min-h-0 flex-1 bg-bg px-2 py-1" />;
   if (ref.kind === 'brain') return <div className="flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3"><BrainPane projectId={ref.projectId} projectName={projectName} onOpen={(kind, id) => change((l) => openPane(l, { kind, id, projectId: ref.projectId }))} /></div>;
-  return <div ref={host} className="strip-chat flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3 *:min-h-0 *:flex-1" />;
+  return <div ref={host} className="strip-chat flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3" />;
 }
 
 export const flush = true;
