@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { activeProject, agents, bus, chats, questions, withProject } from '../../server/store.ts';
+import { activeProject, agents, bus, chats, questions, setActiveProject, withProject } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 import { createProject } from '../../server/projects.ts';
 import { addBrief, listBriefs } from '../../server/briefs.ts';
@@ -124,6 +124,27 @@ describe('native run lifecycle', () => {
     f.coordinator.restore();
     expect(ends).toHaveLength(1);
     expect(chats.get(f.agent.id, f.chat.id)!.items.filter((item) => item.type === 'user')).toHaveLength(1);
+  });
+
+  it('says a dropped connection is its own project\'s, with another project open', async () => {
+    const f = fixture();
+    const seen: ServerEvent[] = [];
+    const listen = (e: ServerEvent) => void (e.type === 'run' && seen.push(e));
+    bus.on('event', listen);
+    const other = await createProject({ name: 'Opened meanwhile' });
+    try {
+      f.coordinator.restore();
+      f.coordinator.start();
+      await expect.poll(f.connections).toBe(1);
+      setActiveProject(other.id);
+      f.breakStream();
+      await expect.poll(() => seen.find((e) => (e as { event?: { text?: string } }).event?.text === 'Reconnecting to Eve…')).toBeTruthy();
+      expect(seen.find((e) => (e as { event?: { text?: string } }).event?.text === 'Reconnecting to Eve…')).toMatchObject({ projectId: f.project.id, chatId: f.chat.id });
+    } finally {
+      bus.off('event', listen);
+      setActiveProject(f.project.id);
+      withProject(f.project, () => f.finish('Done'));
+    }
   });
 
   it('saves Stop, aborts the restored signal and ignores late native output', async () => {

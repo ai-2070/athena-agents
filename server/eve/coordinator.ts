@@ -153,7 +153,7 @@ export class EveCoordinator {
         }
         // A disconnected stream is still the same run, never a replacement model request.
         const binding = readBinding(readRun(runId)?.bindingId || '');
-        if (!signal.aborted) emit('run', { runId, agentId: binding?.agentId, chatId: binding?.chatId, event: { kind: 'status', text: 'Reconnecting to Eve…' } });
+        if (!signal.aborted) emit('run', { runId, agentId: binding?.agentId, chatId: binding?.chatId, projectId: binding?.projectId, event: { kind: 'status', text: 'Reconnecting to Eve…' } });
       } finally {
         local.abort();
         clearInterval(timer);
