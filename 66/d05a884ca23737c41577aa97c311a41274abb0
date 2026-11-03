@@ -1,0 +1,29 @@
+tests/server/api.test.ts
+  s_d3db9ebe8d99bd::t_b91cc27088acab 634-636
+server/index.ts
+  s_d3db9ebe8d99bd::t_b91cc27088acab 141
+web/filepreview.tsx
+  s_d3db9ebe8d99bd::t_1cea4d45445fb2 14,34,47-53,149
+web/client/connection.ts
+  s_d3db9ebe8d99bd::t_1cea4d45445fb2 75-91,93,95
+web/core.ts
+  s_d3db9ebe8d99bd::t_1cea4d45445fb2 6,75
+tests/web/client.test.ts
+  s_d3db9ebe8d99bd::t_bd9a922350888d 180-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66d05a884ca23737c41577aa97c311a41274abb0",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
