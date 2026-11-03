@@ -106,7 +106,8 @@ export async function receive(req: http.IncomingMessage, batch: string, rel: str
 
 /** Browser requests and private platform streams use the same bounded, safe upload path. */
 export async function receiveSource(source: AsyncIterable<Uint8Array>, batch: string, rel: string, { declaredBytes = 0, maxBytes = MAX_FILE_BYTES, signal }: { declaredBytes?: number; maxBytes?: number; signal?: AbortSignal } = {}): Promise<UploadedFile> {
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_FILE_BYTES) throw new UploadError(400, 'Bad upload limit.');
+  // (Infinity: no limit, for a copy of a file already on this PC)
+  if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_FILE_BYTES)) throw new UploadError(400, 'Bad upload limit.');
   const limitError = () => new UploadError(413, `${path.basename(rel)} is over ${maxBytes / 1024 / 1024} MB.`);
   if (declaredBytes > maxBytes) throw limitError();
   signal?.throwIfAborted();

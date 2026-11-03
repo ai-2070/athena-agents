@@ -21,7 +21,9 @@ Where it differs from the plan below:
   as new messages and open a new revision, and the conversation belongs to that task only.
 - **A team starts in the background.** Picking a member can ask a model, so the card says Starting until the message
   is posted. Comments passed on to a worker don't hold up the request either.
-- **Backups take task files up to 100 MB**, not 500 MB. A backup unpacks to at most 512 MB in all.
+- **No limits of the board's own**: no cap on files per task or comment, file size, text length, comments or tasks, and the
+  worker gets every comment in full. Backups take as many task files as the backup file can still hold (it unpacks to
+  at most 512 MB in all).
 - **Not built:**
   - the card going back to In progress when the check finds the work unfinished after the worker said In review;
   - "started working" entries between the comments (the Work box and the started message say it);

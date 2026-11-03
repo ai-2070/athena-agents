@@ -263,7 +263,7 @@ const TOOLS: ToolDef[] = [
     description: 'Only when you work on a Tasks board task: comment on it (Markdown), attach finished files by their full paths (your workspace or the project uploads), and move it to in_review when it is done or to blocked with a reason when you can\'t finish it. Never to done: the user does that.',
     parameters: obj({
       text: str('Your comment: what you did, found or made (Markdown)'),
-      files: { type: 'array', items: str('Full path of a finished file'), maxItems: 20 },
+      files: { type: 'array', items: str('Full path of a finished file') },
       status: { type: 'string', enum: ['in_review', 'blocked'], description: 'in_review when the task is done; blocked when it can\'t be finished' },
       reason: str('Why it is blocked (with status blocked)'),
     }),

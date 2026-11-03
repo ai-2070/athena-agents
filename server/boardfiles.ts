@@ -8,14 +8,12 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { activeProject, listProjects, withProject } from './store.ts';
 import { DATA, insideRoots } from './util.ts';
-import { cleanAttachments, MAX_FILE_BYTES, newBatch, receiveSource, safeUploadsRoot } from './uploads.ts';
+import { cleanAttachments, newBatch, receiveSource, safeUploadsRoot } from './uploads.ts';
 import type { RunInfo } from './engines/index.ts';
 import type { Project, TaskFile } from '../shared/types.ts';
 
-/** At most this many files on one task, and on one comment. */
-export const TASK_FILES_MAX = 20;
 const fail = (message: string, status = 400): never => { throw Object.assign(new Error(message), { status }); };
-const unavailable = () => fail('This file cannot be attached. Check that it is a finished file in your workspace or the project uploads, not a link, and at most 500 MB.');
+const unavailable = () => fail('This file cannot be attached. Check that it is a finished file in your workspace or the project uploads, and not a link.');
 
 // Credentials, runtime stores and account material never become task files, even inside a broad workspace.
 // (the same names gateways/outgoing.ts refuses)
@@ -42,7 +40,7 @@ async function copyInto(p: Project, from: string, by: string): Promise<TaskFile>
   const handle = await fs.promises.open(from, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
     const stat = await handle.stat();
-    if (!stat.isFile() || stat.nlink !== 1 || stat.size > MAX_FILE_BYTES) return unavailable();
+    if (!stat.isFile() || stat.nlink !== 1) return unavailable();
     const hash = crypto.createHash('sha256');
     const stream = handle.createReadStream({ autoClose: false });
     async function* hashed(): AsyncIterable<Uint8Array> {
@@ -51,7 +49,7 @@ async function copyInto(p: Project, from: string, by: string): Promise<TaskFile>
     return await withProject(p, async () => {
       const root = safeUploadsRoot() || fail("The task's project has no usable uploads folder.");
       const { batch } = newBatch();
-      const saved = await receiveSource(hashed(), batch, path.basename(from), { declaredBytes: stat.size });
+      const saved = await receiveSource(hashed(), batch, path.basename(from), { declaredBytes: stat.size, maxBytes: Infinity });
       return { path: relative(root, saved.path), name: saved.name, size: saved.size, sha256: hash.digest('hex'), by, at: Date.now() };
     });
   } finally { await handle.close(); }
@@ -66,7 +64,6 @@ export async function filesFromRequest(p: Project, list: unknown, current: TaskF
   if (!Array.isArray(list)) return fail('files must be a list.');
   const kept = current.filter((f) => list.includes(f.path));
   const fresh = cleanAttachments(list.filter((x) => typeof x === 'string' && path.isAbsolute(x))).filter((x) => !x.endsWith(path.sep));
-  if (kept.length + fresh.length > TASK_FILES_MAX) return fail(`A task or comment can have ${TASK_FILES_MAX} files.`);
   const open = activeProject();
   const added: TaskFile[] = [];
   for (const file of fresh) {
@@ -86,7 +83,7 @@ export async function filesFromRequest(p: Project, list: unknown, current: TaskF
  */
 export async function workerFiles(run: RunInfo, raw: unknown, by: string): Promise<TaskFile[]> {
   if (raw === undefined) return [];
-  if (!Array.isArray(raw) || raw.length > TASK_FILES_MAX || raw.some((x) => typeof x !== 'string' || !x || x.length > 16384)) return fail(`files must be a list of at most ${TASK_FILES_MAX} full paths.`);
+  if (!Array.isArray(raw) || raw.some((x) => typeof x !== 'string' || !x)) return fail('files must be a list of full paths.');
   const out: TaskFile[] = [];
   for (const file of raw as string[]) {
     if (!path.isAbsolute(file)) return unavailable();

@@ -842,7 +842,6 @@ function TitleEditor({ task, onSave }: { task: BoardTask; onSave: (title: string
       <textarea
         aria-label="Title"
         rows={1}
-        maxLength={200}
         value={value}
         onChange={(e) => setValue(e.currentTarget.value.replace(/\n/g, ' '))}
         onBlur={() => void commit()}
@@ -907,7 +906,6 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
         aria-label="Description"
         autoFocus
         rows={10}
-        maxLength={8000}
         placeholder="What needs to happen, and how you'll know it's done. Type @ to mention an agent, a team or a skill."
         value={value}
         disabled={busy}
@@ -988,7 +986,6 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
           ref={box}
           aria-label="Comment"
           rows={3}
-          maxLength={8000}
           placeholder="Leave a comment… Type @ to mention someone. Markdown supported."
           value={text}
           disabled={busy}
@@ -1060,7 +1057,7 @@ function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; co
         </div>
         {editing ? (
           <div className="mt-1.5 flex flex-col gap-2">
-            <textarea ref={box} aria-label="Edit comment" autoFocus rows={3} maxLength={8000} className="min-h-20 w-full rounded-ctl border border-line-2 bg-bg px-3 py-2 text-[14px] leading-relaxed whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]" value={value} onChange={(e) => setValue(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), void save())} />
+            <textarea ref={box} aria-label="Edit comment" autoFocus rows={3} className="min-h-20 w-full rounded-ctl border border-line-2 bg-bg px-3 py-2 text-[14px] leading-relaxed whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]" value={value} onChange={(e) => setValue(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), void save())} />
             <div className="flex justify-end gap-1.5">
               <Button variant="plain" size="small" onClick={() => setEditing(false)}>Cancel</Button>
               <Button size="small" onClick={() => void save()} disabled={!value.trim()}>Save</Button>

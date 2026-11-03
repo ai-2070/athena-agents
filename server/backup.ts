@@ -37,7 +37,7 @@ export const BACKUP_MAX = UNPACKED_MAX;
 
 // How much of each kind is packed at most (the same limits as the auto-save into the project folder).
 // A file that doesn't fit any more is left out and counted (BackupSummary.omitted). Keep docs/guide.md in step.
-const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024, world: 300 * 1024 * 1024, library: 100 * 1024 * 1024, marks: 100 * 1024 * 1024, taskFiles: 100 * 1024 * 1024 };
+const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024, world: 300 * 1024 * 1024, library: 100 * 1024 * 1024, marks: 100 * 1024 * 1024 };
 // A kept version in a backup: <kind>/<item id>/<version id>.json, and a skill version's files under
 // skills/<slug>/files-<version id>/. Agents and teams are the project's; skills are the library's
 // (deleted ones too, so Recently deleted comes back).
@@ -385,27 +385,12 @@ export function packProject(p: Project): BackupData {
     libraryLeft -= size;
     return true;
   });
-  // the files on board tasks and their comments (their copies in the uploads folder), the board's order first
-  const taskBudget = budget(CAP.taskFiles);
-  const taskFiles: PackedFile[] = [];
-  const listed = restoredBoard(readPlain<unknown>(projectDir(id, 'board.json'), { tasks: [] })).tasks.flatMap((t) => [...(t.files || []), ...(t.comments || []).flatMap((c) => c.files || [])]);
-  for (const rel of new Set(listed.map((f) => f.path))) {
-    const file = taskFilePath(p, rel);
-    if (!file) continue;
-    const size = fs.statSync(file).size;
-    if (size > taskBudget.left) {
-      taskBudget.omitted++;
-      continue;
-    }
-    taskBudget.left -= size;
-    taskFiles.push({ path: rel, data: fs.readFileSync(file).toString('base64') });
-  }
   const marksBudget = budget(CAP.marks);
   const teamMarks = packTree(projectDir(id, 'team-marks'), marksBudget, '', (r, dir) => !dir && MARK_RE.test(r));
   const presets = jsonFiles(dataPath('presets'))
     .map((n) => readJSON<Preset>(dataPath('presets', n)))
     .filter((x): x is Preset => !!x && PRESET_RE.test(String(x.id)));
-  return {
+  const data: BackupData = {
     app: 'my-dashboard',
     kind: 'workspace-backup',
     format: FORMAT,
@@ -431,9 +416,26 @@ export function packProject(p: Project): BackupData {
     world,
     prefabLibrary,
     teamMarks,
-    taskFiles,
-    omitted: taskBudget.omitted + brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted + worldBudget.omitted + libraryOmitted + marksBudget.omitted,
+    taskFiles: [],
+    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted + worldBudget.omitted + libraryOmitted + marksBudget.omitted,
   };
+  // The files on board tasks and their comments (their copies in the uploads folder), the board's order first. No
+  // limit of their own: as many as the backup can still hold (it unpacks to at most UNPACKED_MAX, files as base64).
+  const room = budget(Math.max(0, Math.floor(((UNPACKED_MAX - JSON.stringify(data).length - 1024 * 1024) * 3) / 4)));
+  const listed = restoredBoard(data.board).tasks.flatMap((t) => [...(t.files || []), ...(t.comments || []).flatMap((c) => c.files || [])]);
+  for (const rel of new Set(listed.map((f) => f.path))) {
+    const file = taskFilePath(p, rel);
+    if (!file) continue;
+    const size = fs.statSync(file).size;
+    if (size > room.left) {
+      room.omitted++;
+      continue;
+    }
+    room.left -= size;
+    data.taskFiles!.push({ path: rel, data: fs.readFileSync(file).toString('base64') });
+  }
+  data.omitted += room.omitted;
+  return data;
 }
 
 /** The bytes of a backup file. */

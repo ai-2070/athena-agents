@@ -175,6 +175,16 @@ describe('the Tasks board', () => {
     expect(back.next).toBe(5);
   });
 
+  it('sets no limits of its own on titles, descriptions, comments or reasons', async () => {
+    const p = await createProject({ name: 'Board unlimited' });
+    const long = 'x'.repeat(20000);
+    const t = addBoardTask(p.id, { title: long, description: long, status: 'blocked', blockedReason: long });
+    expect(t).toMatchObject({ title: long, description: long, blockedReason: long });
+    for (let i = 0; i < 510; i++) addBoardComment(p.id, t.id, i === 509 ? long : `Comment ${i}`);
+    expect(boardTask(p.id, t.id).comments).toHaveLength(510);
+    expect(boardTask(p.id, t.id).comments!.at(-1)!.text).toBe(long);
+  });
+
   it('keeps the board out of a gateway chat\'s Brain, and lets a task\'s own conversation touch only that task', async () => {
     const p = await createProject({ name: 'Board private' });
     const mine = addBoardTask(p.id, { title: 'Its own task' });

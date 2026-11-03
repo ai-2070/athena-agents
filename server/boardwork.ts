@@ -37,9 +37,9 @@ function fileNames(files: TaskFile[] | undefined): string {
 }
 /** The task in one message: what it is, what was said, and how to report back. */
 function assignment(p: Project, t: ProjectTask): string {
-  const comments = (t.comments || []).slice(-20).map((c) => {
+  const comments = (t.comments || []).map((c) => {
     const files = fileNames(c.files);
-    return `- ${c.by === 'you' ? 'You' : c.by}: ${c.text.replace(/\s+/g, ' ').slice(0, 600)}${files ? ` [files: ${files}]` : ''}`;
+    return `- ${c.by === 'you' ? 'You' : c.by}: ${c.text}${files ? ` [files: ${files}]` : ''}`;
   });
   return [
     `Task #${t.number} on the Tasks board of project "${p.name}": ${t.title}`,
@@ -246,15 +246,15 @@ function settle(projectId: string, t: ProjectTask, result: Outcome): void {
   // (a worker that already commented since it started has said its piece; the answer isn't repeated)
   const commented = (t.comments || []).some((c) => c.by !== 'you' && c.by !== 'brain' && c.at >= w.startedAt);
   if (result.state === 'blocked') {
-    const reason = result.summary.slice(0, 300);
+    const reason = result.summary;
     // (the reason comes from the completion check, so the Brain signs it)
-    addBoardComment(projectId, t.id, [`**${result.summary}**`, result.action].filter(Boolean).join('\n\n').slice(0, 8000), 'brain');
+    addBoardComment(projectId, t.id, [`**${result.summary}**`, result.action].filter(Boolean).join('\n\n'), 'brain');
     setWork(projectId, t.id, w.operationId, { state: 'blocked', note: reason, ...end }, (task) => {
       if (task.status === 'in_progress' || task.status === 'in_review') { task.status = 'blocked'; task.blockedReason = reason; }
     });
     return;
   }
-  if (!commented && result.answer.trim()) addBoardComment(projectId, t.id, result.answer.slice(0, 8000), workerRef(w));
+  if (!commented && result.answer.trim()) addBoardComment(projectId, t.id, result.answer, workerRef(w));
   setWork(projectId, t.id, w.operationId, { state: 'review', ...end }, (task) => {
     if (task.status === 'blocked') task.work!.state = 'blocked';
     else if (task.status === 'in_progress') task.status = 'in_review';
@@ -358,7 +358,7 @@ export async function workerReply(runId: string | null | undefined, agentId: str
   const { run, task } = workerTask(runId, agentId);
   const text = typeof args.text === 'string' ? args.text.trim() : '';
   const status = args.status === undefined || args.status === '' ? null : args.status === 'in_review' || args.status === 'blocked' ? args.status : fail('status must be in_review or blocked. Only the user moves a task to Done.');
-  const reason = typeof args.reason === 'string' ? args.reason.trim().slice(0, 300) : '';
+  const reason = typeof args.reason === 'string' ? args.reason.trim() : '';
   if (status === 'blocked' && !reason && !text) return fail('Say why it is blocked (reason).');
   const by = `agent:${run.agentId}`;
   const files = await workerFiles(run, args.files, by);
@@ -367,7 +367,7 @@ export async function workerReply(runId: string | null | undefined, agentId: str
     if (text || files.length) addBoardComment(run.projectId, task.id, text, by, files);
     if (status) editBoardTask(run.projectId, task.id, (t) => {
       t.status = status;
-      if (status === 'blocked') t.blockedReason = reason || text.slice(0, 300);
+      if (status === 'blocked') t.blockedReason = reason || text;
       else delete t.blockedReason;
     });
     return [text || files.length ? `Commented on #${task.number}${files.length ? ` with ${files.length} file${files.length === 1 ? '' : 's'}` : ''}.` : '', status ? `Moved #${task.number} to ${status === 'in_review' ? 'In review' : 'Blocked'}.` : ''].filter(Boolean).join(' ');
