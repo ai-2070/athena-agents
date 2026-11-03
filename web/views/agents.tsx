@@ -15,6 +15,7 @@ import { Dot, Pill } from '../ui/marks.tsx';
 import { Avatar, DomNode, Icon, ProjectScoped, reactPage, useAppState } from '../ui/react.tsx';
 import { ProgramGlyph, PresetGlyph } from '../ui/programmark.tsx';
 import { SelectControl } from '../ui/select.tsx';
+import type { SelectOption } from '../ui/select.tsx';
 import { themeColor } from '../theme.ts';
 import type { ModelListing } from '../models.tsx';
 import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
@@ -709,7 +710,7 @@ function EngineFields({ a, d, set, fit }: {
   }, [a.engine, a.provider]);
   const placeholder =
     a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : a.provider === 'venice' ? 'Choose a Venice model' : 'anthropic/claude-sonnet-5.5';
-  const pick = (label: string, value: string, options: { value: string; label: string }[], onChange: (v: string) => void, hint?: ReactNode) => (
+  const pick = (label: string, value: string, options: SelectOption[], onChange: (v: string) => void, hint?: ReactNode) => (
     <Field label={label} hint={hint}>
       <SelectControl aria-label={label} value={value} options={options} onChange={onChange} />
     </Field>
@@ -759,7 +760,8 @@ function EngineFields({ a, d, set, fit }: {
               { value: 'lmstudio', label: 'LM Studio (local)' },
               { value: 'ollama', label: 'Ollama (local)' },
               { value: 'custom', label: 'Custom OpenAI-compatible' },
-            ],
+              // each with its logo (Custom: a plug)
+            ].map((o) => ({ ...o, mark: <ProgramGlyph id={o.value} size={16} /> })),
             // a server on this PC takes fewer effort levels
             (v) => fit({ ...a, provider: v, model: defaultModelForEngine('eve', d.settings.defaults, v) }),
           )}

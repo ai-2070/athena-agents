@@ -94,6 +94,13 @@ describe('the select control', () => {
     await click(rows('option')[0]);
     expect(picked).toEqual(['']);
   });
+
+  it('shows an option\'s logo before its label, in the list and on the closed field', async () => {
+    await act(async () => root.render(<SelectControl aria-label="Provider" value="b" onChange={() => {}} options={[{ value: 'a', label: 'Alpha', mark: <i className="logo-a" /> }, { value: 'b', label: 'Beta', mark: <i className="logo-b" /> }]} />));
+    expect(document.querySelector('button[aria-label="Provider"] .logo-b')).not.toBeNull();
+    await click(document.querySelector('button[aria-label="Provider"]')!);
+    expect(rows('option').map((row) => [row.querySelector('i')?.className, row.textContent?.trim()])).toEqual([['logo-a', 'Alpha'], ['logo-b', 'Beta']]);
+  });
 });
 
 describe('the paperclip', () => {

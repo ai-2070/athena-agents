@@ -60,6 +60,10 @@ describe('agent editor: effort', () => {
     const provider = el.querySelector<HTMLButtonElement>('button[aria-label="Provider"]')!;
     await act(async () => provider.click());
     await settle();
+    // each provider shows its logo (Custom a plug icon)
+    const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+    expect(options.map((o) => o.textContent?.replace(/ \(.*\)$/, ''))).toEqual(['OpenRouter', 'Venice', 'LM Studio', 'Ollama', 'Custom OpenAI-compatible']);
+    expect(options.every((o) => o.querySelector('svg, img'))).toBe(true);
     await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((b) => b.textContent?.startsWith('Venice'))!.click());
     await settle();
     await act(async () => effortSelect().click());
