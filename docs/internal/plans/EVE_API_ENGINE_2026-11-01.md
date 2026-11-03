@@ -264,7 +264,7 @@ All three windows pass repeatedly on Windows/Bun 1.4.4, without repeating either
 the tool. Linux results remain pending CI. Tests use a fake provider, never paid calls or user
 credentials. The fault preload exists only in the throwaway test process.
 
-`runtime/eve-world` selects `@workflow/world-local` 5.1.2 through Eve's public custom-world option.
+`runtime/eve-world` selects `@workflow/world-local` 5.2.0 through Eve's public custom-world option.
 The committed Bun patch stores the exact outcome and event in the atomic terminal claim, then
 finishes pending writes before startup requeues work. It clears the extra payload after committing
 both files. Successes, failures, duplicate startup and event deduplication have tests. Application
