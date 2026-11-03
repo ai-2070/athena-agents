@@ -26,7 +26,7 @@
         "@openuidev/react-ui": "0.18.1",
         "@phosphor-icons/react": "2.1.10",
         "@tanstack/react-virtual": "3.14.25",
-        "@workflow/world-local": "5.1.2",
+        "@workflow/world-local": "5.2.0",
         "@xterm/addon-fit": "0.11.0",
         "@xterm/xterm": "6.0.0",
         "ai": "7.0.161",
@@ -474,13 +474,13 @@
 
     "@vercel/oidc": ["@vercel/oidc@3.2.0", "", {}, "sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug=="],
 
-    "@vercel/queue": ["@vercel/queue@0.8.0", "", { "dependencies": { "@vercel/oidc": "^3.0.5", "minimatch": "^10.2.4", "mixpart": "0.0.6", "picocolors": "^1.1.1" }, "peerDependencies": { "@opentelemetry/api": "^1.0.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-Rwaoq8DbSN2/qVPMdHzBdBXqpoD2h2s7+gOSaE3Gff9XI1NjNh281uMesP30k1kbsnjgeaibLTSiuYDlNPlw+g=="],
+    "@vercel/queue": ["@vercel/queue@0.10.0", "", { "dependencies": { "@vercel/oidc": "^3.0.5", "minimatch": "^10.2.4", "mixpart": "0.0.6", "picocolors": "^1.1.1" }, "peerDependencies": { "@opentelemetry/api": "^1.0.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-GKrt5p+D/drm5bkDr8j2EqEkYs29AMLAtun18iXA4PLorVzaHk39YorQ8TdCCeN9H5CDQV4ElMnfxDrbxou8Aw=="],
 
     "@vitest/mocker": ["@vitest/mocker@5.0.5", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.31", "@vitest/spy": "5.0.5", "estree-walker": "^3.0.3", "magic-string": "^1.4.3" }, "peerDependencies": { "msw": "^2.4.9 || ^3.0.0", "vite": "^6.0.0 || ^7.0.0 || ^8.0.0" }, "optionalPeers": ["msw", "vite"] }, "sha512-xLL3lkDegJZw+MGoGaCCsFayDZthGgpAtr3Vziyfc4p7xH89K7KRPcRBBh/kEYm0Aqkt5DtTmkYpBtRV/FrHZg=="],
 
     "@vitest/spy": ["@vitest/spy@5.0.5", "", {}, "sha512-lwJRExuH417257Q5wv9QYugN9IMJkoxcrKrYxGPQkBzl7wlNpTUxD/5yNX4ESKVUIShKPgkGchYPFMWOOk0wzw=="],
 
-    "@workflow/errors": ["@workflow/errors@5.0.5", "", { "dependencies": { "@workflow/utils": "5.0.2", "@workflow/world": "5.0.5", "ms": "2.1.3" } }, "sha512-aPf+vFXJRK5jOtbYg+o2q+x5PxeTXYLrCbi+Ftevdu5jklBxiW52ArfSyLtrkQv2fD1Xm6zU5D3qdQR/IqfaIw=="],
+    "@workflow/errors": ["@workflow/errors@5.1.0", "", { "dependencies": { "@workflow/utils": "5.0.2", "@workflow/world": "5.1.0", "ms": "2.1.3" } }, "sha512-++fn9P1AofCWjh166YP36Yr/hk3ynGQQio73jrYn4Fs2Ix2ECA6B9HK8zcjFpnAfZ0xqf7wpXUZQTmK3toAgxA=="],
 
     "@workflow/serde": ["@workflow/serde@4.1.0", "", {}, "sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ=="],
 
@@ -488,7 +488,7 @@
 
     "@workflow/world": ["@workflow/world@5.0.5", "", { "dependencies": { "ulid": "~3.0.1", "zod": "~4.5.4" } }, "sha512-/Kg87kfZheyLrGjUo0HYXIs0yHSI/8VMWUeoBjfFfecmOgX9XufnsWisYiGiqX6mRzrl+6exorgw043BnLWnXQ=="],
 
-    "@workflow/world-local": ["@workflow/world-local@5.1.2", "", { "dependencies": { "@vercel/queue": "0.8.0", "@workflow/errors": "5.0.5", "@workflow/utils": "5.0.2", "@workflow/world": "5.0.5", "async-sema": "3.1.1", "proper-lockfile": "4.1.2", "ulid": "~3.0.1", "undici": "7.30.0", "zod": "~4.5.4" }, "peerDependencies": { "@opentelemetry/api": "1" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-QGyWRpYfAVqnY2UWA4xjNuVdwlYsCURk4mgqyxV1R78KfVwq7OaV26XJbMADppiIr8eWVmxcgYOrAqw5jieT5g=="],
+    "@workflow/world-local": ["@workflow/world-local@5.2.0", "", { "dependencies": { "@vercel/queue": "0.10.0", "@workflow/errors": "5.1.0", "@workflow/utils": "5.0.2", "@workflow/world": "5.1.0", "async-sema": "3.1.1", "proper-lockfile": "4.1.2", "ulid": "~3.0.1", "undici": "7.30.0", "zod": "~4.5.4" }, "peerDependencies": { "@opentelemetry/api": "1" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-BUSuozzXA9luWohgOyQdWDqG+dYcDdx9i7gbNI285GjvbkCJE1QJI1kwZqzgKh5FxiGl6dzoLguDSIQugdGnUA=="],
 
     "@xterm/addon-fit": ["@xterm/addon-fit@0.11.0", "", {}, "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g=="],
 
@@ -1322,6 +1322,8 @@
 
     "@ai-sdk/provider-utils/undici": ["undici@7.30.1", "", {}, "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg=="],
 
+    "@athena/eve-world/@workflow/world-local": ["@workflow/world-local@5.1.2", "", { "dependencies": { "@vercel/queue": "0.8.0", "@workflow/errors": "5.0.5", "@workflow/utils": "5.0.2", "@workflow/world": "5.0.5", "async-sema": "3.1.1", "proper-lockfile": "4.1.2", "ulid": "~3.0.1", "undici": "7.30.0", "zod": "~4.5.4" }, "peerDependencies": { "@opentelemetry/api": "1" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-QGyWRpYfAVqnY2UWA4xjNuVdwlYsCURk4mgqyxV1R78KfVwq7OaV26XJbMADppiIr8eWVmxcgYOrAqw5jieT5g=="],
+
     "@openuidev/devtools/lucide-react": ["lucide-react@0.575.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-VuXgKZrk0uiDlWjGGXmKV6MSk9Yy4l10qgVvzGn2AWBx1Ylt0iBexKOAoA6I7JO3m+M9oeovJd3yYENfkUbOeg=="],
 
     "@tailwindcss/oxide-wasm32-wasi/@emnapi/core": ["@emnapi/core@1.11.3", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.3", "tslib": "^2.4.0" }, "bundled": true }, "sha512-zLpS5asjEb7lq8jYLq37N6XKaE41DIexlY1rF/z4/tIl3wo13Sqm28fRyfIsKZD+NZ8mM5RoKkpW/rBcuoSZSg=="],
@@ -1336,7 +1338,11 @@
 
     "@tailwindcss/oxide-wasm32-wasi/tslib": ["tslib@2.8.1", "", { "bundled": true }, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
 
+    "@workflow/errors/@workflow/world": ["@workflow/world@5.1.0", "", { "dependencies": { "ulid": "~3.0.1", "zod": "~4.5.4" } }, "sha512-+4hDxk76WPGef6Albro6mES9QprGCO6pWva/p9Zfb89mU01srzde5RHAN8f0oir85PJ/YLhE3XFiPxw+jMO1Pw=="],
+
     "@workflow/world/zod": ["zod@4.5.4", "", {}, "sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA=="],
+
+    "@workflow/world-local/@workflow/world": ["@workflow/world@5.1.0", "", { "dependencies": { "ulid": "~3.0.1", "zod": "~4.5.4" } }, "sha512-+4hDxk76WPGef6Albro6mES9QprGCO6pWva/p9Zfb89mU01srzde5RHAN8f0oir85PJ/YLhE3XFiPxw+jMO1Pw=="],
 
     "@workflow/world-local/undici": ["undici@7.30.0", "", {}, "sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ=="],
 
@@ -1371,6 +1377,16 @@
     "rc/ini": ["ini@1.3.8", "", {}, "sha512-JV/yugV2uzW5iMRSiZAyDtQd+nxtUnjeLt0acNdw98kKLrvuRVyB80tsREOE7yvGVgalhZ6RNXCmEHkUKBKxew=="],
 
     "type-is/content-type": ["content-type@2.1.0", "", {}, "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag=="],
+
+    "@athena/eve-world/@workflow/world-local/@vercel/queue": ["@vercel/queue@0.8.0", "", { "dependencies": { "@vercel/oidc": "^3.0.5", "minimatch": "^10.2.4", "mixpart": "0.0.6", "picocolors": "^1.1.1" }, "peerDependencies": { "@opentelemetry/api": "^1.0.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-Rwaoq8DbSN2/qVPMdHzBdBXqpoD2h2s7+gOSaE3Gff9XI1NjNh281uMesP30k1kbsnjgeaibLTSiuYDlNPlw+g=="],
+
+    "@athena/eve-world/@workflow/world-local/@workflow/errors": ["@workflow/errors@5.0.5", "", { "dependencies": { "@workflow/utils": "5.0.2", "@workflow/world": "5.0.5", "ms": "2.1.3" } }, "sha512-aPf+vFXJRK5jOtbYg+o2q+x5PxeTXYLrCbi+Ftevdu5jklBxiW52ArfSyLtrkQv2fD1Xm6zU5D3qdQR/IqfaIw=="],
+
+    "@athena/eve-world/@workflow/world-local/undici": ["undici@7.30.0", "", {}, "sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ=="],
+
+    "@athena/eve-world/@workflow/world-local/zod": ["zod@4.5.4", "", {}, "sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA=="],
+
+    "@workflow/errors/@workflow/world/zod": ["zod@4.5.4", "", {}, "sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA=="],
 
     "hast-util-from-html/parse5/entities": ["entities@6.0.1", "", {}, "sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g=="],
   }
