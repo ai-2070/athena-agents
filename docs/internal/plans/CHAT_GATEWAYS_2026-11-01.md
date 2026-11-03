@@ -531,8 +531,23 @@ New gateway data does not need a legacy compatibility layer.*
 - Validation: full checks passed with CI's two-worker limit (2,360 tests, one skipped). After adding
   the final held-assignment guard, type checks and 52 focused delivery/SDK/outgoing tests passed.
   Desktop staging, the web build and desktop smoke passed. No service was deployed or real account used.
-- Next: implement WhatsApp application transport wiring, pairing/setup
-  UI and explicit recovery controls. Then
+- Joined the paired relay consumer and guarded Meta adapter in the application transport factory,
+  with instance-scoped access token, app secret and pull key. The worker selects this factory for
+  WhatsApp, verifies the Meta phone/business before relay I/O, recovers the inbox before intake and
+  shares the existing file, native-work, reply and selected-document stages. Relay failures abort
+  the worker signal immediately, stopping new dispatch and file/delivery I/O before monitor disposal;
+  existing native runs keep ordinary stop/recovery semantics. Shutdown drains local stages and releases
+  the remote lease before SDK state and account ownership. Temporary errors respect relay retry times;
+  setup errors and durable recovery markers do not retry automatically or clear saved review holds.
+- Integration fixtures cover the complete worker path, signed ACK-gated input/files, selected output,
+  lost ACKs before/after remote commit, restart without duplicate work or sends, independent business
+  phones, missing credentials/pairing, Meta verification failure, durable gaps, redacted health,
+  rate waits and shutdown during a stalled pull. The Bun/Node and bundled read-only proof also
+  reconnects the actual transport, dedupes a replay and delivers a new saved reply with no real account
+  or model invocation. WhatsApp remains unavailable in the product pending pairing and recovery controls.
+- Validation: full type checks and 2,377 tests passed (one skipped) with CI's two-worker limit;
+  desktop staging, the web build and desktop smoke passed. No relay deployment or live account was used.
+- Next: implement WhatsApp pairing/setup UI and explicit recovery controls. Then
   finish unified delivery and product controls. Read-only setup checks, native-work override controls
   and explicit webhook switching still need product setup. Deleted instances retain private inbox
   receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks

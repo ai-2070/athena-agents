@@ -30,6 +30,7 @@ if (!proofRoot) {
 
 async function proof(): Promise<void> {
   const { WhatsAppGatewayAdapter } = await import('../server/gateways/whatsapp.ts');
+  const { whatsAppTransport } = await import('../server/gateways/whatsapp-transport.ts');
   const { WhatsAppRelayIntake } = await import('../server/gateways/whatsapp-intake.ts');
   const { GatewayInbox } = await import('../server/gateways/inbox.ts');
   const { GatewayStateAdapter } = await import('../server/gateways/state.ts');
@@ -38,7 +39,7 @@ async function proof(): Promise<void> {
   const { gatewayConversation } = await import('../server/gateways/conversations.ts');
   const { selectGatewayDocuments } = await import('../server/gateways/outgoing.ts');
   const { ensureBrain } = await import('../server/projects.ts');
-  const { saveGatewayInstance, withGatewayRoute } = await import('../server/gateways/instances.ts');
+  const { saveGatewayCredentials, saveGatewayInstance, withGatewayRoute } = await import('../server/gateways/instances.ts');
   const { listProjects, saveProjects, setActiveProject } = await import('../server/store.ts');
   const { uploadsRoot } = await import('../server/uploads.ts');
   const quiet: Logger = { child: () => quiet, debug() {}, info() {}, warn() {}, error() {} };
@@ -51,7 +52,7 @@ async function proof(): Promise<void> {
   });
   const state = new GatewayStateAdapter(instance.id); await state.connect(); const inbox = new GatewayInbox(state); const epoch = crypto.randomUUID();
   inbox.bindWhatsAppRelayConnection({ origin: 'https://relay.example', installationId: crypto.randomUUID(), businessAccountId: business, phoneNumberId: phone, epoch }, 0);
-  let origin = ''; let downloads = 0; const errors: unknown[] = []; const calls: string[] = [];
+  let origin = ''; let downloads = 0; let replyTo = 'wamid.media'; const errors: unknown[] = []; const calls: string[] = [];
   const posts: Record<string, unknown>[] = [];
   const server = http.createServer(async (request, response) => {
     try {
@@ -65,7 +66,7 @@ async function proof(): Promise<void> {
           posts.push({ upload: true }); result = { id: '9900000001' };
         } else {
           assert.equal(url.pathname, `/v25.0/${phone}/messages`); const body = JSON.parse(bytes.toString()) as Record<string, unknown>; posts.push(body);
-          assert.equal(body.to, actor); assert.deepEqual(body.context, { message_id: 'wamid.media' });
+          assert.equal(body.to, actor); assert.deepEqual(body.context, { message_id: replyTo });
           result = { messaging_product: 'whatsapp', contacts: [{ input: actor, wa_id: actor }], messages: [{ id: `wamid.out-${posts.length}` }] };
         }
         response.setHeader('content-type', 'application/json'); response.end(JSON.stringify(result)); return;
@@ -118,6 +119,46 @@ async function proof(): Promise<void> {
     assert.deepEqual(posts[4].document, { id: '9900000001', filename: 'whatsapp-proof-result.txt' });
     assert.ok(inbox.list()[0].reply!.parts.every((part) => part.status === 'sent')); assert.equal(inbox.list()[0].outgoing![0].status, 'sent');
     assert.deepEqual(errors, []); console.log('gateways: WhatsApp service-window replies and selected document upload pass');
+    await replies.stop(); await processor.stop(); await adapter.disconnect(); await chat.shutdown(); await state.connect();
+    saveGatewayCredentials(instance.id, { accessToken: token, signingSecret: appSecret, relayKey: 'a'.repeat(64) });
+    replyTo = 'wamid.transport';
+    const fresh = JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: business, changes: [{ field: 'messages', value: {
+      messaging_product: 'whatsapp', metadata: { phone_number_id: phone }, messages: [{ id: replyTo, from: actor, timestamp: String(Math.floor(Date.now() / 1000)), type: 'text', text: { body: 'Transport request' } }],
+    } }] }] });
+    const envelopes = [raw, fresh].map((body, index) => {
+      const bodyBase64 = Buffer.from(body).toString('base64');
+      return { sequence: index + 2, id: crypto.createHash('sha256').update(bodyBase64).digest('hex'), receivedAt: Date.now(), expiresAt: Date.now() + 60000,
+        bodyBase64, signature: 'sha256=' + crypto.createHmac('sha256', appSecret).update(body).digest('hex'), contentType: 'application/json' };
+    });
+    let cursor = 1; let leased = false;
+    const connection = inbox.whatsAppRelayState()!.connection!;
+    const metadata = () => ({ version: 1, installationId: connection.installationId, businessAccountId: business, phoneNumberId: phone, epoch,
+      cursor, gap: null, queuedEvents: envelopes.length, queuedBytes: envelopes.length * 100,
+      limits: { bodyBytes: 1048576, queueBytes: 16777216, queueEvents: 1000, replayEntries: 10000, retentionMs: 259200000, replayMs: 604800000, pairingMs: 600000, leaseMs: 60000, batchBytes: 2097152, batchEvents: 20 } });
+    const transport = whatsAppTransport(state, inbox, () => assert.fail('Unexpected transport disconnect'), signal, { testOrigin: origin, request: async (url, init) => {
+      const address = new URL(url); assert.equal(address.origin, connection.origin); const headers = new Headers(init.headers);
+      assert.equal(headers.get('authorization'), `Bearer ${'a'.repeat(64)}`); assert.equal(init.redirect, 'error');
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      if (address.pathname === '/v1/status') return Response.json(metadata());
+      if (address.pathname === '/v1/claim') { assert.equal(leased, false); leased = true; return Response.json({ epoch, cursor, lease: 'b'.repeat(64), expiresAt: Date.now() + 60000 }); }
+      assert.equal(headers.get('x-relay-lease'), 'b'.repeat(64));
+      if (address.pathname === '/v1/pull') return Response.json({ ...metadata(), envelopes, leaseExpiresAt: Date.now() + 60000 });
+      if (address.pathname === '/v1/ack') {
+        const next = envelopes.shift()!; assert.equal(body.through, next.sequence); assert.equal(body.eventId, next.id);
+        assert.equal(inbox.whatsAppRelayState()!.receipt!.confirmed, false); cursor = next.sequence; return Response.json({ cursor });
+      }
+      assert.equal(address.pathname, '/v1/release'); leased = false; return Response.json({ released: true });
+    } });
+    const connectedReplies = new GatewayReplies(inbox, transport.reply!, signal);
+    try {
+      await transport.start(); assert.equal(transport.alive(), true); assert.equal(cursor, 3); assert.equal(inbox.list().length, 2);
+      assert.equal(inbox.list()[0].reply!.parts[0].status, 'sent'); assert.equal(posts.length, 5);
+      const next = inbox.claimNext()!; assert.equal(next.input.sourceMessageId, replyTo);
+      inbox.beginDispatch(next.id, next.operationId!, await gatewayConversation(next, signal)); inbox.finishDispatch(next.id, next.operationId!, 'Transport answer');
+      await connectedReplies.wake(); assert.equal(posts.length, 6); assert.equal(inbox.list()[1].reply!.parts[0].status, 'sent'); assert.deepEqual(errors, []);
+      console.log('gateways: WhatsApp paired transport reconnect, replay dedupe and guarded delivery pass');
+    } finally { await connectedReplies.stop(); await transport.stop(); }
+    assert.equal(leased, false);
   } finally {
     await replies.stop(); await processor.stop(); await adapter.disconnect(); await chat.shutdown(); await state.disconnect();
     server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve()));

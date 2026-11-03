@@ -9,6 +9,8 @@ import { GatewaySetupError, TelegramIntakeAdapter } from './telegram.ts';
 import { SlackIntakeAdapter } from './slack.ts';
 import { DiscordGatewayGapError, DiscordGatewayRetryError } from './discord-gateway.ts';
 import { discordTransport } from './discord-transport.ts';
+import { whatsAppTransport } from './whatsapp-transport.ts';
+import { WhatsAppRelayError } from './whatsapp-relay.ts';
 export { discordTransport } from './discord-transport.ts';
 import { gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { claimGatewayAccount } from './ownership.ts';
@@ -122,8 +124,8 @@ export class GatewayWorker {
       const inbox = new GatewayInbox(state);
       this.inbox = inbox;
       inbox.recover();
-      const transport = (this.options.transport ?? (instance.platform === 'discord' ? discordTransport : instance.platform === 'slack' ? slackTransport : telegramTransport))(state, inbox, (connected) => {
-        if (!connected && instance.platform === 'discord') abort.abort();
+      const transport = (this.options.transport ?? (instance.platform === 'whatsapp' ? whatsAppTransport : instance.platform === 'discord' ? discordTransport : instance.platform === 'slack' ? slackTransport : telegramTransport))(state, inbox, (connected) => {
+        if (!connected && (instance.platform === 'discord' || instance.platform === 'whatsapp')) abort.abort();
         this.publish(connected ? 'connected' : 'retrying', connected ? '' : 'This gateway could not receive messages. It will retry.');
       }, abort.signal);
       this.transport = transport;
@@ -165,10 +167,11 @@ export class GatewayWorker {
   }
 
   private connectionFailed(error: unknown): void {
-    if (error instanceof GatewaySetupError) this.publish('needs-setup', error.message, error instanceof DiscordGatewayGapError ? { recoveryRequired: true } : {});
+    if (error instanceof WhatsAppRelayError && error.kind !== 'retry') this.publish('needs-setup', error.message, { recoveryRequired: error.kind === 'review' });
+    else if (error instanceof GatewaySetupError) this.publish('needs-setup', error.message, error instanceof DiscordGatewayGapError ? { recoveryRequired: true } : {});
     else {
-      const retryAt = error instanceof DiscordGatewayRetryError ? error.retryAt : undefined;
-      this.publish('retrying', retryAt ? 'Discord asked this instance to wait before reconnecting.' : 'This gateway could not connect or restore its inbox. Check setup and local storage.', { retryAt });
+      const retryAt = error instanceof DiscordGatewayRetryError || error instanceof WhatsAppRelayError ? error.retryAt : undefined;
+      this.publish('retrying', retryAt ? error instanceof WhatsAppRelayError ? 'The WhatsApp relay asked this instance to wait before reconnecting.' : 'Discord asked this instance to wait before reconnecting.' : 'This gateway could not connect or restore its inbox. Check setup and local storage.', { retryAt });
       this.scheduleRetry(retryAt);
     }
   }

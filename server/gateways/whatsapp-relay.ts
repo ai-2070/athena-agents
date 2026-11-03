@@ -29,6 +29,7 @@ interface Options {
   /** Protocol fixtures only. Never read a request function or timeout from instance settings. */
   request?: (url: string, init: RequestInit) => Promise<Response>;
   timeoutMs?: number;
+  onDisconnect?: (error: WhatsAppRelayError) => void;
 }
 
 async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -98,18 +99,23 @@ export class WhatsAppRelayConsumer {
       if (owner && owner !== this) throw new WhatsAppRelayError('retry');
       active.set(this.options.inbox.instanceId, this);
     } catch (error) {
-      this.failureValue = error instanceof WhatsAppRelayError ? error : new WhatsAppRelayError('retry');
+      this.failed(error instanceof WhatsAppRelayError ? error : new WhatsAppRelayError('retry'));
       return Promise.reject(this.failureValue);
     }
     return this.pending = this.drain().catch((error: unknown) => {
-      const failure = error instanceof WhatsAppRelayError ? error : error instanceof WhatsAppIntakeError ? new WhatsAppRelayError('review') : new WhatsAppRelayError('retry');
-      this.failureValue = failure;
+      let failure = error instanceof WhatsAppRelayError ? error : error instanceof WhatsAppIntakeError ? new WhatsAppRelayError('review') : new WhatsAppRelayError('retry');
       if (failure.kind === 'review') {
         try { this.options.inbox.holdWhatsAppRelay(failure.recovery); }
-        catch { throw new WhatsAppRelayError('retry'); }
+        catch { failure = new WhatsAppRelayError('retry'); }
       }
+      this.failed(failure);
       throw failure;
     }).finally(() => { this.pending = undefined; });
+  }
+
+  private failed(error: WhatsAppRelayError): void {
+    this.failureValue = error;
+    if (!this.stopped && !this.options.signal?.aborted) this.options.onDisconnect?.(error);
   }
 
   private status(value: unknown): GatewayWhatsAppRelayStatus {

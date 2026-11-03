@@ -8,8 +8,8 @@ This is the relay foundation. Athena cannot pair or enable WhatsApp yet. Local s
 exact phone guards, verified identity mappings and durable acknowledgement gates have offline
 integration proof. The local Chat SDK adapter also checks the configured Meta phone/business account
 and saves hash-verified private media. Guarded replies and selected document uploads enforce the
-service window. Application transport wiring and Settings controls are the next pieces. Deploying
-this Worker does not enable a gateway.
+service window. The application transport now joins these pieces under the gateway worker; pairing,
+Settings and recovery controls are still pending. Deploying this Worker does not enable a gateway.
 
 Each deployment serves **one Meta Business app and one business phone**. Use a separate deployment
 for each WhatsApp instance. An original webhook body may contain several entries; forwarding such a
@@ -194,6 +194,17 @@ at Meta under its own retention rules. Upload failures keep their quota charge a
 retry unless Meta confirms a rate refusal. Unknown message POST outcomes are marked uncertain and
 never resend automatically. HTTP 200 receipts must include one message ID and a matching recipient.
 SDK default sends stay blocked, and reconnecting cannot reuse an old `sending` claim.
+
+The local `whatsAppTransport` reads the outbound access token, Meta app secret (`signingSecret`)
+and relay pull key (`relayKey`) from instance-scoped secrets. Its pinned business account and relay
+origin come only from the saved pairing. It verifies the Meta account before claiming or pulling
+the relay, then uses the shared inbox, file processor, dispatcher and reply ledger. Relay failures
+abort the worker signal immediately, stopping new dispatch and file/delivery I/O. Already running
+native agents keep their ordinary stop/recovery semantics. The worker drains delivery and files,
+releases the remote lease, then releases SDK state and account ownership. Temporary outages honor relay retry times; invalid
+credentials require setup, and gaps or changed pairing metadata require explicit recovery review.
+Reconnect never clears a recovery marker or re-runs an interrupted assignment automatically.
+The product availability gate remains closed until pairing and recovery controls are ready.
 
 A consumer must claim a lease before pulling. A second claim, even with the same consumer UUID,
 is refused while the lease is active; pull/ack renew it. A lost claim response waits for lease expiry.

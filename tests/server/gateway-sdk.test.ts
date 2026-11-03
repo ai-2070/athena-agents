@@ -12,6 +12,7 @@ describe('pinned Chat SDK transport proof', () => {
     const { stdout } = await exec(runtime, ['scripts/gateways-whatsapp-media-smoke.ts'], { env: process.env, timeout: 20000, windowsHide: true });
     expect(stdout).toContain('WhatsApp SDK account checks, ACK-gated private media, signed hash and bound project pass');
     expect(stdout).toContain('WhatsApp service-window replies and selected document upload pass');
+    expect(stdout).toContain('WhatsApp paired transport reconnect, replay dedupe and guarded delivery pass');
   });
 
   it('runs the bundled WhatsApp media adapter from read-only files outside the checkout', async () => {
@@ -22,6 +23,7 @@ describe('pinned Chat SDK transport proof', () => {
       const { stdout } = await exec(process.execPath, [file], { cwd: directory, env: process.env, timeout: 20000, windowsHide: true });
       expect(stdout).toContain('WhatsApp SDK account checks, ACK-gated private media, signed hash and bound project pass');
       expect(stdout).toContain('WhatsApp service-window replies and selected document upload pass');
+      expect(stdout).toContain('WhatsApp paired transport reconnect, replay dedupe and guarded delivery pass');
     } finally { fs.chmodSync(directory, 0o755); fs.chmodSync(file, 0o644); }
   });
 
