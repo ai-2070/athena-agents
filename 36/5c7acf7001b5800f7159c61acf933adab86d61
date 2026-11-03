@@ -1,0 +1,23 @@
+web/projectagents.ts
+  s_6f0380c72fc1f3::t_c42d674229fd2d 2-4,7,10,13,16
+web/projectlist.ts
+  s_6f0380c72fc1f3::t_c42d674229fd2d 1-70
+tests/web/projectlist.test.tsx
+  s_6f0380c72fc1f3::t_6dbb016c376185 1-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "365c7acf7001b5800f7159c61acf933adab86d61",
+  "prompts": {},
+  "sessions": {
+    "s_6f0380c72fc1f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a749ac26-5261-4d62-8ee9-ebdd7fb04e38",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
