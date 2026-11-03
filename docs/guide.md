@@ -533,6 +533,25 @@ finishing to establish fresh phone proof and start new private conversations. De
 before replacement are ignored. Retired sender IDs stay blocked, and pending acknowledgements are
 archived as unconfirmed. Setup still leaves WhatsApp disabled and the instance paused.
 
+Open **Review senders** from relay setup to see each allowed phone's signed status: **Needs phone
+proof**, **Verified**, **Needs review** or **Reviewed**. This reads saved local records only. It
+shows counts of retired IDs, missing phone proofs and verified numbers outside the allowed list;
+provider IDs and private pairing details stay hidden. Use **Edit allowed phones** for the guard
+and **Open inbox** to inspect earlier work.
+
+For example, if Alice keeps the same allowed phone but WhatsApp changes her sender ID, Athena
+retires the old ID and holds its requests. Once signed proof confirms the new association and its
+relay acknowledgement is saved, pause the instance and choose **Review sender** for Alice's phone.
+Confirming keeps earlier requests, files and delivery receipts held, and preserves native operation records. Ask
+Alice to message again after the review; that fresh message starts a new private conversation with
+the same Brain, team or agent. The review itself starts no work, sends nothing and keeps the
+instance paused. Retired IDs cannot be restored by this action.
+
+If Alice has a different number, explicitly add that full number to the allowed list and wait for
+signed phone proof. Permission is not copied from her old number. Missing proofs, pending pairing,
+relay recovery and unconfirmed acknowledgements block sender review. Ordinary verified phones
+need no review, and a change after a saved review needs a fresh confirmation.
+
 ## License and credits
 
 Both are in the [README](../README.md#license).

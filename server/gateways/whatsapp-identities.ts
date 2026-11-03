@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import crypto from 'node:crypto';
 import type { GatewayInbound, GatewayWhatsAppIdentities } from '../../shared/types.ts';
 import { canonicalWhatsAppPhone } from '../../shared/gateway-whatsapp.ts';
 
@@ -17,6 +18,12 @@ export function whatsAppIdentityAllowed(input: GatewayInbound, state: GatewayWha
   if (!input.whatsappUserId) return true;
   const user = state?.users.find((item) => item.id === input.whatsappUserId);
   return Boolean(user && !user.retired && user.phone === input.actor.id);
+}
+
+/** Message timestamps may advance without changing the verified association. */
+export function whatsAppSenderKey(phone: string, state: GatewayWhatsAppIdentities | undefined): string {
+  const users = state?.users.filter((user) => user.phone === phone).map((user) => [user.id, user.retired, user.parentId ?? '']).sort((a, b) => String(a[0]) < String(b[0]) ? -1 : String(a[0]) > String(b[0]) ? 1 : 0) ?? [];
+  return crypto.createHash('sha256').update(JSON.stringify([state?.businessAccountId, phone, state?.phoneChanges.find((change) => change.phone === phone)?.at, users])).digest('hex');
 }
 
 /** Mutates only the caller's journal snapshot. The inbox commits it with the whole batch. */

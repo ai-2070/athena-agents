@@ -1,4 +1,4 @@
-import type { GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayWhatsAppCheck, GatewayWhatsAppRecovery, GatewayWhatsAppSetup, ServerEvent } from '../../shared/types.ts';
+import type { GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayWhatsAppCheck, GatewayWhatsAppRecovery, GatewayWhatsAppSenders, GatewayWhatsAppSetup, ServerEvent } from '../../shared/types.ts';
 import { gatewayNeedsReview, gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { bus, emit, listProjects } from '../store.ts';
 import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.ts';
@@ -169,6 +169,10 @@ export class GatewaySupervisor {
 
   restoreWhatsAppRecovery(instanceId: string, body: unknown): Promise<GatewayWhatsAppRecovery> {
     return this.whatsAppSetupTask(instanceId, (inbox) => restoreWhatsAppRecovery(inbox, body));
+  }
+
+  reviewWhatsAppSender(instanceId: string, body: unknown): Promise<GatewayWhatsAppSenders> {
+    return this.whatsAppSetupTask(instanceId, (inbox) => inbox.reviewWhatsAppSender(body));
   }
 
   async selectDocuments(instanceId: string, eventId: string, body: unknown): Promise<void> {

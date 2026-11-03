@@ -272,7 +272,7 @@ describe('gateway configuration API', () => {
     const text = await (await req(`${url}/whatsapp-setup`)).text(); expect(text).not.toContain('private-relay'); expect(text).not.toContain('b'.repeat(64)); expect(text).not.toContain(connection.epoch);
     const preview = JSON.parse(text) as GatewayWhatsAppSetup; expect(preview).toMatchObject({ paired: false, pending: { phase: 'received' } });
     const listing = await (await req('/api/gateways')).text(); expect(listing).not.toContain('whatsappPairing'); expect(listing).not.toContain('b'.repeat(64));
-    for (const suffix of ['/whatsapp-pairing', '/whatsapp-pairing/replace', '/whatsapp-pairing/finish', '/whatsapp-pairing/review', '/whatsapp-recovery', '/whatsapp-recovery/inspect', '/whatsapp-recovery/restore', '/whatsapp-setup/check']) {
+    for (const suffix of ['/whatsapp-pairing', '/whatsapp-pairing/replace', '/whatsapp-pairing/finish', '/whatsapp-pairing/review', '/whatsapp-recovery', '/whatsapp-recovery/inspect', '/whatsapp-recovery/restore', '/whatsapp-setup/check', '/whatsapp-senders/review']) {
       expect((await req(url + suffix, { method: 'POST', body: '{}' })).status).toBe(403);
       expect((await req(url + suffix, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body: '{}' })).status).toBe(403);
     }
@@ -285,6 +285,10 @@ describe('gateway configuration API', () => {
     expect(JSON.parse(replacementText)).toMatchObject({ revision: expect.stringMatching(/^[a-f0-9]{64}$/), retired: 0 });
     for (const value of [connection.origin, connection.installationId, connection.epoch, 'b'.repeat(64)]) expect(replacementText).not.toContain(value);
     expect((await req(`${url}/whatsapp-pairing/replace`, { method: 'POST', headers: json, body: '{}' })).status).toBe(400);
+    const sendersText = await (await req(`${url}/whatsapp-senders`)).text();
+    for (const value of [connection.origin, connection.installationId, connection.businessAccountId, connection.epoch, 'b'.repeat(64)]) expect(sendersText).not.toContain(value);
+    expect(JSON.parse(sendersText)).toMatchObject({ retired: 0, waiting: 0, unallowed: 0, senders: [{ phone: '+436641234567', status: 'needs-proof', revision: null }] });
+    expect((await req(`${url}/whatsapp-senders/review`, { method: 'POST', headers: json, body: '{}' })).status).toBe(409);
     expect((await req(`${url}/whatsapp-pairing`, { method: 'POST', headers: json, body: '{}' })).status).toBe(400);
     const inboxFile = path.join(tmp, 'data', 'gateways-runtime', instance.id, 'inbox.json');
     const inbox = JSON.parse(fs.readFileSync(inboxFile, 'utf8')) as { whatsappRelay: Record<string, unknown> };

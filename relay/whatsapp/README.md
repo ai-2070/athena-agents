@@ -407,6 +407,39 @@ files, native work, sent prefixes and uncertain deliveries cannot run or send th
 The history holds up to 100 prior relay states without eviction; a full history refuses replacement.
 The instance remains paused and WhatsApp receiving/sending remain disabled.
 
+### Review a verified sender change
+
+In **Settings → Gateways → Set up relay → Review senders**, Athena reads its saved signed identity
+records. Each allowed phone reports missing proof, verified, needs review or reviewed status. The
+safe local `GET /api/gateways/:id/whatsapp-senders` response includes only allowed phones, status,
+change times, saved-request counts, opaque eligible revisions and aggregate counts of retired,
+unproven and unallowed associations. It omits provider IDs, parent IDs, business IDs, relay metadata,
+tokens and raw webhooks. It never performs network I/O.
+
+For a changed association, signed current phone proof and a confirmed exact relay receipt are
+required before the paused review is offered. Pairing must be fully saved, the pull key present
+and relay recovery resolved. `POST /api/gateways/:id/whatsapp-senders/review` takes `phone`, the
+current `revision` and `acknowledgeNewConversation: true`, under normal local request guards and
+exclusive state/account ownership. A revision includes current settings, work and the verified
+association. Missing proof, changed state, duplicate confirmation or an unallowed phone fails closed.
+
+For example, a signed rotation from an old business-scoped ID to a new ID for the same allowed
+phone can be reviewed without transferring its old requests. The atomic review records a phone
+association fingerprint and the earlier input sequence, and holds that phone's prior work/files
+and unsent replies. Earlier requests cannot be authorized by this review, even if their provider
+timestamp was ahead of the local clock. Native operations and confirmed/uncertain delivery evidence
+stay in Athena. A new signed message after review uses a distinct private conversation binding;
+delayed input from before the review is ignored. Senders should message again after confirming
+(messages in the review second are conservatively ignored).
+
+The review changes no phone guard, alias mapping, retired-ID tombstone, relay cursor or ACK proof.
+Ordinary messages may advance timestamps without invalidating the saved association fingerprint;
+a new identity change requires a new review. A new number still needs its own allowed-phone rule
+and signed proof, and starts its own conversation. No claim, pull, acknowledgement, file I/O,
+model run or provider send occurs during review. Up to 1,000 sender reviews per relay are retained
+without eviction. Replacement archives these reviews with the old relay; it does not apply them
+to the new epoch. The instance stays paused and WhatsApp stays unavailable.
+
 The relay necessarily sees webhook content and holds Meta's verification secret. Use a deployment
 whose operator you trust. The outbound Meta access token, model keys, files and dashboard sessions
 stay on the computer. Raw content is removed from the live SQLite queue as described above;

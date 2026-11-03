@@ -4,6 +4,7 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { FieldRow, PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
 import { useServerEvents } from '../ui/react.tsx';
+import { WhatsAppSendersView } from './gateway-whatsapp-senders.tsx';
 import type { GatewayInstance, GatewayWhatsAppCheck, GatewayWhatsAppRecovery, GatewayWhatsAppReplacement, GatewayWhatsAppSetup } from '../../shared/types.ts';
 
 export function WhatsAppSetupView({ instance, close, changed, pause, edit }: {
@@ -15,6 +16,7 @@ export function WhatsAppSetupView({ instance, close, changed, pause, edit }: {
   const [check, setCheck] = useState<GatewayWhatsAppCheck | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false); const [restored, setRestored] = useState(false);
   const [replacement, setReplacement] = useState<GatewayWhatsAppReplacement | null>(null); const [replacing, setReplacing] = useState(false);
+  const [senders, setSenders] = useState(false);
   const [origin, setOrigin] = useState(''); const [business, setBusiness] = useState(''); const [code, setCode] = useState('');
   const mounted = useRef(false); const request = useRef(0); const active = useRef(false);
   const load = useCallback(async (clearError = true) => {
@@ -43,6 +45,7 @@ export function WhatsAppSetupView({ instance, close, changed, pause, edit }: {
     await POST(`${root}/whatsapp-pairing${replace ? '/replace' : ''}`, body);
   });
   const credentialsReady = instance.credentials.accessToken && instance.credentials.signingSecret && instance.credentials.relayKey;
+  if (senders) return <WhatsAppSendersView instance={instance} close={() => setSenders(false)} edit={edit} changed={async () => { await changed(); await load(false); }} />;
   return <Section title={`WhatsApp setup · ${instance.name}`} description="Pair one relay with this business phone, then check its saved account and connection. Setup leaves the instance paused."
     action={<><Button size="small" variant="ghost" disabled={busy} onClick={() => void load()}>Reload setup</Button><Button size="small" variant="ghost" disabled={busy} onClick={close}>Close setup</Button></>}>
     {error && <div role="alert" className="px-5 py-4 text-red">{error}</div>}
@@ -100,6 +103,7 @@ export function WhatsAppSetupView({ instance, close, changed, pause, edit }: {
       <Row title="Replace a lost relay" description={replacement?.revision ? 'Use a new pairing when the original relay cannot be restored. Keep the same business account and phone; revoke or permanently stop the old relay and review its queue loss first. Old work remains separate.' : 'Replacement is unavailable until this pairing is saved or its bounded history has room.'}>
         <Button size="small" variant="ghost" disabled={busy || instance.enabled || !replacement?.revision} onClick={() => { setOrigin(''); setBusiness(''); setCode(''); setReplacing(true); }}>Replace relay</Button>
       </Row>
+      <Row title="Sender identity review" description="See signed phone proof, retired sender IDs and changes that need a fresh conversation. Earlier requests and delivery receipts stay held."><Button variant="ghost" size="small" disabled={busy} onClick={() => setSenders(true)}>Review senders</Button></Row>
       {Boolean(replacement?.retired) && <PanelNote>{replacement!.retired} earlier relay {replacement!.retired === 1 ? 'binding is' : 'bindings are'} archived. Their requests and receipts stay in the inbox; they cannot run or send through this relay.</PanelNote>}
     </>}
     <RowActions><ButtonLink variant="ghost" size="small" href="https://github.com/ai-2070/athena-agents/blob/main/relay/whatsapp/README.md" target="_blank" rel="noopener noreferrer">Relay setup instructions</ButtonLink></RowActions>

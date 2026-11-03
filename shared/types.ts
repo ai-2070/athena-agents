@@ -200,6 +200,7 @@ export interface GatewayWhatsAppIntakeState {
   epoch: string;
   cursor: number;
   startedAt?: number;
+  senderReviews?: { at: number; throughSequence: number; phone: string; identityKey: string; revision: string }[];
   receipt?: GatewayWhatsAppReceipt & { confirmed: boolean; accepted: number; ignored: number; unmatchedSenders: number };
   identities?: GatewayWhatsAppIdentities;
   connection?: GatewayWhatsAppRelayConnection;
@@ -238,6 +239,14 @@ export interface GatewayWhatsAppSetup {
 export interface GatewayWhatsAppReplacement {
   revision: string | null;
   retired: number;
+}
+
+export interface GatewayWhatsAppSenders {
+  reason: string;
+  retired: number;
+  waiting: number;
+  unallowed: number;
+  senders: { phone: string; status: 'needs-proof' | 'verified' | 'needs-review' | 'reviewed'; changedAt?: number; revision: string | null; requests: number; reason: string }[];
 }
 
 export interface GatewayWhatsAppCheck {

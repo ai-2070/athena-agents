@@ -709,7 +709,43 @@ New gateway data does not need a legacy compatibility layer.*
 - Validation: `CI=1 bun run check` passed (259 files; 2,557 tests passed, one skipped). Web build,
   desktop staging and bundled desktop smoke passed. No real account, deployment, provider message
   or model call was used to exercise replacement.
-- Next: finish remaining identity recovery and unified delivery/product controls. Native-work
+- Added local WhatsApp sender status and explicit review of confirmed signed identity changes.
+  Settings → Review senders lists allowed phones as missing proof, verified, needs review or
+  reviewed, plus saved-request counts and aggregate retired/unproven/unallowed counts. Provider
+  IDs, parent IDs, business IDs, relay metadata, keys and raw bodies stay private. Edit allowed
+  phones and Open inbox connect the review to existing policy/work controls.
+- A sender review requires pause, a fully saved pairing/pull key, resolved relay recovery, an exact
+  confirmed ACK, an allowed phone and verified current association after a recorded change. It
+  never restores an alias, edits the guard or transfers permission to a new number. The current
+  settings/work/identity revision and explicit fresh-conversation acknowledgement are checked
+  under exclusive state/account ownership. No network, claim, pull, ACK, file/model work or send
+  occurs. Missing proof, stale/replayed confirmation and a full 1,000-entry audit fail closed.
+- The review atomically holds earlier requests/files/unsent replies and records the association
+  fingerprint, time and prior input sequence. A fresh signed message after review gets a distinct
+  private conversation with the same project/Brain/team/agent; delayed input is ignored. Earlier
+  source requests stay blocked even if a provider timestamp was ahead of the local clock. Native
+  operation IDs and sent/uncertain delivery evidence remain, and native agents keep their ordinary
+  controls. Other allowed phones keep their existing histories. Normal message timestamps do not
+  invalidate a reviewed association; a later identity change needs another review. Replacement
+  archives the sender reviews with the old relay instead of carrying their authority forward.
+- Added local status/privacy, exact ACK, pause/pairing/hold/phone gates, stale/double confirmations,
+  atomic failure, ownership, audit-limit, future-clock native-work/reply and per-phone isolation
+  tests. DOM tests cover discovery/back, all sender states, confirmation, cancel, navigation/error
+  and no automatic mutation. Bun/Node and read-only bundle proof now reviews a signed rotation
+  across restart and admits only a fresh separate conversation without provider sends or a model.
+  README, guide and relay instructions include same-phone rotation and new-number examples.
+- Testing also exposed dismissed requests still blocking later text/file replies in the same
+  binding. Delivery now skips these already settled unstarted requests, matching work dispatch;
+  regression coverage verifies later text and file claims while retaining the dismissed receipt.
+- A scoped finish review approved the sender panel, four status states, navigation and confirmation
+  in light/dark desktop/mobile captures, with no material findings. A six-Tab probe stayed in the
+  confirmation and Escape closed it. Only isolated synthetic state was used and removed; browser
+  review submission was cancelled. Error/empty/success states have source and DOM evidence, without
+  a live-provider correctness or transport-readiness claim.
+- Validation: `CI=1 bun run check` passed (261 files; 2,575 tests passed, one skipped). The web
+  build, desktop staging and bundled desktop smoke passed. No real account, deployment, provider
+  message or model call was used to exercise sender review.
+- Next: finish unified delivery/product controls. Native-work
   override controls and explicit webhook switching still need product
   setup. Deleted instances retain private inbox
   receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks

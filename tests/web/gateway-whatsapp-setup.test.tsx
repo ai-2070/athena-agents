@@ -18,7 +18,7 @@ beforeEach(() => {
   setup = { paired: false, pending: null, recoveryRequired: false }; recovery = { reason: null, gap: null }; replacement = { revision: null, retired: 0 }; calls = []; fail = ''; close = vi.fn();
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method ?? 'GET'; const body = JSON.parse(String(init.body ?? '{}')) as Record<string, unknown>; calls.push({ url, method, body });
-    if (method === 'GET') return new Response(JSON.stringify(url.endsWith('/whatsapp-setup') ? setup : url.endsWith('/whatsapp-replacement') ? replacement : recovery));
+    if (method === 'GET') return new Response(JSON.stringify(url.endsWith('/whatsapp-senders') ? { reason: '', retired: 1, waiting: 0, unallowed: 0, senders: [] } : url.endsWith('/whatsapp-setup') ? setup : url.endsWith('/whatsapp-replacement') ? replacement : recovery));
     if (fail) { if (url.endsWith('/whatsapp-pairing')) setup = { paired: false, pending: { phase: 'requesting', revision: 'a'.repeat(64) }, recoveryRequired: true }; return new Response(JSON.stringify({ error: fail }), { status: 409 }); }
     if (url.endsWith('/whatsapp-setup/check')) return new Response(JSON.stringify({ checkedAt: 1700000000000, account: 'verified', relay: 'ready' }));
     if (url.endsWith('/whatsapp-pairing') || url.endsWith('/whatsapp-pairing/finish')) setup = { paired: true, pending: null, recoveryRequired: false };
@@ -36,6 +36,10 @@ async function form() { await type('Relay HTTPS address', 'https://relay.example
 it('loads secret-free setup without making a pairing/check request automatically', async () => {
   await open(); expect(host.textContent).toContain('receiving and sending remain disabled'); expect(host.querySelector<HTMLInputElement>('[aria-label="Pairing code"]')!.type).toBe('password');
   expect(calls.filter((item) => item.method !== 'GET')).toEqual([]); expect(host.querySelector('[aria-label="Access token"]')).toBeNull();
+});
+it('opens sender review from a paired relay and returns to setup without a mutation', async () => {
+  setup.paired = true; await open(); await click('Review senders'); await settle(); expect(host.textContent).toContain('WhatsApp senders'); expect(host.textContent).toContain('1 retired sender ID stays blocked');
+  await click('Back to relay setup'); await settle(); expect(host.textContent).toContain('Relay paired'); expect(calls.filter((item) => item.method === 'POST')).toEqual([]);
 });
 it('confirms one pairing, clears its code and keeps the connection disabled', async () => {
   await open(); await form(); await click('Pair relay'); await settle(); expect(calls.filter((item) => item.method === 'POST')).toEqual([]);
