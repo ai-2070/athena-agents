@@ -1,0 +1,271 @@
+web/styles/components.css
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 155,178-180,182-183,351-352,362
+src-tauri/src/main.rs
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 11,67-69,96-100,249-257,266
+web/builder.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 11,18,48-49,195-196,201,203-211,218-219,244,295-300,303-309,343,409
+web/navlimits.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 55-56,59,61
+web/views/routines.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 3-4,14,18,20-21,203-205,221,223-225,234-239,291-292,296,305-306,310,312-314,317-324,326-329,338-344,347-348,355-356,360,362,366,368-393,395-408,410-416,424-454,456-457,463-464,469,472-479,482-535,537-538,543-544,546-572
+web/theme.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 34-38
+web/teamchat.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 8,264,688,780-782
+web/brandimages.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 3,12-41,43-44,46,52
+web/attachmenu.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 11-12,18,20
+tests/server/backup.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 27,49
+package.json
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 2,63-64,89,92,95,98,109-110,121,124,126
+src-tauri/src/look.rs
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-119
+tests/server/setup.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 11
+web/views/chat.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 6-8,12,113,115-118,139-151,153,155-161,163-166,168-184,186-197,199-230,232,236-264,277-281
+  s_d3db9ebe8d99bd::t_c6eef5780d6dc2 282-283
+tests/server/taskboard.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-159
+web/views/settings.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 14,232
+tests/web/programs.test.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 66
+web/dock.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 441-443
+tests/web/brand.test.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 61-82
+tests/web/agents-page.test.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 146-158,216
+web/views/agents.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 12,18,24,164,179-180,307-310,313-331,357-391,438,440-443,445-463,466-485,493,495,497-506,508-509,511,514-522,524-537,540-555,557-589,591-604,606-611,633-635,637,665,713,763-764,824,876,882,891,899-900,902-903,906-907
+docs/internal/plans/REMOTE_APP_PLAN.md
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 7
+shared/routines.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 7-8,10-17
+web/ui/popover.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-2,16
+server/overseer.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 44,96-101,578,606-609,1362-1386,1388-1389
+  s_d3db9ebe8d99bd::t_f44363ae28f456 449
+  s_d3db9ebe8d99bd::t_b63ce2e7720e6b 1387
+scripts/desktop-updates.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 27,31-32
+web/views/programs.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 68
+tests/web/groupD-pickers.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 148,162,228,272,316,523-561
+  s_d3db9ebe8d99bd::t_2e81d722c58feb 562
+tests/web/mentioneditor.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 24-54,76-96
+  s_d3db9ebe8d99bd::t_c3669f13128aac 97
+web/chat/mentioneditor.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 4-7,50,55-57,64,115-139,145-151,156-157
+scripts/build-css.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 7,11-14,19-23
+public/brand/engines/pi.svg
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 2-4
+web/styles/app.css
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 104-105
+web/views/library.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 5,14,121-165,185,199,209
+.github/workflows/desktop.yml
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 76,95-110,146
+shared/types.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1479,1567-1648
+  s_d3db9ebe8d99bd::t_39f2dbae539393 1649
+src-tauri/.gitignore
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 7-8
+public/brand/engines/README.md
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 6,12
+server/projects.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 10-13,257
+tests/server/routines.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 6,9,11,14-21,141-154
+tests/web/routines-page.test.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 34,48-49,67-69,95-97,110-128,185-200,209-213,215-223
+scripts/desktop-smoke.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 46
+web/views/stationclock.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-25
+web/views/terminals.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 12,14,113-122,131-136
+runtime/eve-world/package.json
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 8-9
+tests/web/station-panel.test.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 9,75-80,159,172,175-190,193-194,197-199,201-204
+web/chatwin.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 917
+server/skillinstall.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 71,120
+web/autosize.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-32
+web/ui/agentselect.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 25
+server/index.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 46-48,524-537
+web/projectmenu.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 85
+.github/workflows/ci.yml
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 26,35-43,75,93-101,105-112
+  s_d3db9ebe8d99bd::t_51837037fc4f66 113
+web/views/setup.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 183
+public/brand/engines/venice.svg
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-3
+docs/guide.md
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 27,135-146,204,350,358
+tests/web/teamchat-teams.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 81-83
+scripts/mac-icon.swift
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-48
+web/chat/ChatView.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 751-756,758-759
+server/codexlimits.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 132
+tests/web/chat-page.test.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 22,56-71,86-91,93-94,97,102-106,112-117
+LICENSE-MIT
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 3
+server/taskdraft.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-35
+tests/server/styles.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 32-36
+src-tauri/tauri.conf.json
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 3,5,36-37
+tests/server/fresh-profile.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 3
+tests/server/api.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 386
+server/tools.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 360
+tests/server/desktop.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 92-96,101-102,105-107,109,113-114,121-122,130-133,136
+tests/web/agent-effort.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 63-66
+tests/web/models.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 3,55-67
+  s_d3db9ebe8d99bd::t_213d4598a717cf 68-69
+web/ui/select.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 3,11-12,15-17,29,34,39
+tests/web/tasks-board.test.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-435
+web/views/station.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 23,27,32,41,233,360-361,369,899,953,960,986,2331,2336,2349,2351-2354,2362-2363,2464-2469,3877-3878,4014-4020,4176
+web/look.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 26,43-46,69-70
+docs/internal/plans/TASK_PICKUP_2026-11-03.md
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-259
+web/ui/formsection.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-36
+web/phosphor.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 10-21,217-228
+server/store.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 149-156
+tests/web/library.test.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 129-137,171,200-202
+web/views/tasks.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-961
+server/reddit.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 83
+tests/web/autosize.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-45
+tests/server/rename-folders.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1,8,13-19,21-23,26-27,29,32-39,41
+tests/web/station-clock.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-33
+docs/desktop.md
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 25,58-84
+  s_d3db9ebe8d99bd::t_5e8e48d1646075 85
+AGENTS.md
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 8
+web/backup.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 141
+server/taskboard.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-317
+web/ui/skeleton.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-19
+web/agentstats.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 4-5,20-23
+web/views/stationdata.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 10,245-250
+  s_d3db9ebe8d99bd::t_56cbdb7ea44b1b 251
+web/ui/emojipicker.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 51
+tests/web/newproject-glass.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 13
+tests/web/dropdown.test.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 8,97-103,107-117
+web/models.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 6,12,267-268,271-273,277-279,305-308,311-312,315-317,319,321,342-347,386,392,418,453,457,462-463,473,480,483,502-503,526,537,671-720,773-777,795-796,801,806-822
+web/ui/dropdown.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 28
+tests/server/taskdraft.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-40
+server/backup.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 4,26,63,66-68,70,124-125,402,569,820
+tests/server/brandmarks.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-22
+public/brand/engines/pi-dark.svg
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-5
+public/index.html
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 15,19,21
+runtime/eve/package.json
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 7-10
+web/client/http.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 2,24,26,38,82
+scripts/build-desktop.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 16-18
+web/views/outbox.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 57-58
+server/mcp.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 979,992
+web/taskboard.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-388
+server/projectsync.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 22,46-47,212,307,575
+web/attach.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 289-290,347
+web/ui/overlays.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 26-27,149,152-153,185,188
+web/routinemention.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 182,184-186,191
+src-tauri/Cargo.toml
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 2,5
+web/app.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 10,27,32,70,94-95,97,108-109,129-134,176-180,193
+web/projects.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 7-8,18,94,133,145-150,152-155,157,222,230,244,347-388,460-461,464-465,467,470-493,511,513,523-528,531-533,536-542,557,573-580,582,601-621,632-645,647-654,656-673
+web/views/stationpanel.tsx
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 7,33-34,904-905,907-914,917-920,975-1010
+README.md
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 31,173,209
+public/brand/engines/venice-dark.svg
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-4
+tests/web/builder-pick.test.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 46,49-51
+web/taskmotion.ts
+  s_d3db9ebe8d99bd::t_8cf713d3c4163e 1-74
+bun.lock
+  s_d3db9ebe8d99bd::t_6d0b1a6531c7d7 6,8-9,34,37,40,43,54-55,66,69,71,78,80,82,86,88,94,444,446,448,450,452,454,456,458,460,462,464,466,468,470,602,604,606,610,616,618,628,820,992,994,996,998,1000,1002,1004,1006,1008,1010,1012,1014,1032,1036,1382,1478
+src-tauri/Cargo.lock
+  s_d3db9ebe8d99bd::t_de09b3cb2fef6c 181-194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "07a1973b29cccadd76d3391b047ed80136d5580d",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
