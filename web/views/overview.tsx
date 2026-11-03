@@ -329,11 +329,11 @@ function OverviewPage() {
             </aside>
           ) : null}
         </div>
-        <footer aria-label="Status" className="overview-status flex flex-none flex-wrap items-center gap-4 border-t border-line bg-bg px-4 py-1.5 text-[12.5px] text-dim">
-          <button type="button" className={`inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-inherit ${needing.length ? 'text-amber' : ''}`} onClick={nextNeeding} disabled={!needing.length} title={needing.length ? 'Open the next one that needs you (Ctrl+Alt+N)' : undefined}>
+        <footer aria-label="Status" className="overview-status flex flex-none flex-wrap items-center gap-4 border-t border-line bg-bg px-4 py-1 text-[12.5px] text-dim">
+          <Button variant="plain" size="tiny" className="-ml-2" onClick={nextNeeding} disabled={!needing.length} title={needing.length ? 'Open the next one that needs you (Ctrl+Alt+N)' : undefined}>
             <span className={`size-1.5 rounded-full ${needing.length ? 'bg-amber' : 'bg-line-2'}`} />
-            {needing.length ? `${needing.length} need${needing.length === 1 ? 's' : ''} you` : 'Nothing needs you'}
-          </button>
+            <span className={needing.length ? 'text-amber' : ''}>{needing.length ? `${needing.length} need${needing.length === 1 ? 's' : ''} you` : 'Nothing needs you'}</span>
+          </Button>
           <span className="inline-flex items-center gap-1.5">
             <span className={`size-1.5 rounded-full ${working.length ? 'bg-accent motion-safe:animate-pulse' : 'bg-line-2'}`} />
             {`${working.length} of ${all.filter((x) => x.s.kind !== 'brain' && x.s.kind !== 'terminal').length} working`}
@@ -341,10 +341,10 @@ function OverviewPage() {
           {projects.length > 1 ? <span>{`${projects.length} projects`}</span> : null}
           <span className="ml-auto inline-flex items-center gap-1" aria-label="Panels">
             {PANELS.map((x) => (
-              <button key={x.id} type="button" aria-pressed={panel === x.id} className={`inline-flex cursor-pointer items-center gap-1.5 rounded-ctl border-0 px-2 py-1 text-[12px] ${panel === x.id ? 'bg-ink/7 text-ink' : 'bg-transparent text-dim hover:bg-ink/5 hover:text-ink'}`} onClick={() => togglePanel(x.id)}>
+              <Button key={x.id} variant="plain" size="tiny" aria-pressed={panel === x.id} className="aria-pressed:bg-panel-2 aria-pressed:text-ink" onClick={() => togglePanel(x.id)}>
                 <Icon name={x.icon} size={12} />
                 {x.label}
-              </button>
+              </Button>
             ))}
           </span>
           {layout && panes ? <StripControls layout={layout} change={change} /> : null}
