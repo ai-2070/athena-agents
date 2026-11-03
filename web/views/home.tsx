@@ -1,4 +1,4 @@
-// Home (Overview): what's happening, what needs you, and a quick way to give any agent a task.
+// Home: what's happening, what needs you, and a quick way to give any agent a task.
 import { Plate, PlateLink } from '../ui/surface.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { Dot } from '../ui/marks.tsx';

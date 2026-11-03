@@ -44,6 +44,7 @@ import * as commands from './commands.ts';
 import { openGoal, clearWork, listBriefs } from './briefs.ts';
 import * as tasksMod from './tasks.ts';
 import * as taskBoard from './taskboard.ts';
+import { overview } from './overview.ts';
 import * as boardWork from './boardwork.ts';
 import { filesFromRequest, taskFilePath } from './boardfiles.ts';
 import { draftBoardText } from './taskdraft.ts';
@@ -526,6 +527,8 @@ put<TaskUpdateInput>('/api/tasks/:id', async ({ id }, body) => ({ task: tasksMod
 // the Tasks board (the project's own tasks, not the agents' step lists): one project's or every project's
 // (?project=all), each changed in the project it belongs to
 get('/api/task-board', async (_p, _b, q) => taskBoard.taskBoard(q.project || 'all'));
+// the Overview page: every project's agents, teams, the Brain and tasks being worked on, at a glance
+get('/api/overview', async () => overview());
 get('/api/task-board-people/:projectId', async ({ projectId }) => taskBoard.boardPeople(projectId));
 // A task you make In progress for an agent or team, or move there, starts its work (boardwork.ts); moving it away
 // or giving it to someone else stops it. Files are uploads of the open project, copied into the task's own.

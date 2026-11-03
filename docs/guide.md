@@ -116,6 +116,18 @@ Click an attached picture, Markdown file or PDF to look at it, before or after s
 
 Clicking the Brain on the Station shows what is in its folder. Pictures, Markdown files and PDFs there open the same way, so does **from PROJECT.md** under the description, and a folder opens in Finder or Explorer.
 
+## Overview
+
+**Overview** in the sidebar shows every project at once. Each project lists its agents, its teams, the Brain and the board tasks an agent or team works on. Each one shows how it's doing: a small breathing dot while it works, and an amber **!** when it needs you. That means an approval, a question it asked you, or work that stopped and waits for you; point at the **!** to see which.
+
+- **Show** picks **This project**, **All projects** or one project. **Sort** puts the ones that need you first (the default), or orders them by last update, by kind or by name.
+- The star next to one pins it to the top of its project. Click a project's name to fold it. **Search** narrows the list by name.
+- **Needs you** and **Working now** list them across what is shown, with **Open** next to each. The line at the bottom counts them: "2 need you · 4 of 7 working · 3 projects".
+- Clicking one opens it: an agent or a team in its chat window, the Brain in its chat, a task on its page. One in another project asks first, then opens that project and the chat.
+- Your choices (what is shown, the sort, pins, folded projects) are remembered in this browser.
+
+Seeing chats side by side in Overview, a strip of panes that keep their width, comes next.
+
 ## Tasks
 
 Open **Tasks** in an agent, team or Brain chat to see the steps of a job. Agent and team chats show their own list and project tasks assigned to them. The Brain starts with **All project tasks**; filter by the Brain, a team or an agent, then by status or a search phrase. Lists update as work changes.
