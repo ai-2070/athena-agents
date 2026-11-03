@@ -1,0 +1,23 @@
+web/app.ts
+  s_6f0380c72fc1f3::t_5c65772984f91d 81-82
+README.md
+  s_6f0380c72fc1f3::t_187f5aedf2885c 173
+docs/guide.md
+  s_6f0380c72fc1f3::t_f85d3946bcb131 121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b05bc85d9a5b6ea6e2c45ab3aad21ed86a7cf1c",
+  "prompts": {},
+  "sessions": {
+    "s_6f0380c72fc1f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a749ac26-5261-4d62-8ee9-ebdd7fb04e38",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
