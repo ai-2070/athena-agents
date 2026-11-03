@@ -1,0 +1,23 @@
+docs/guide.md
+  s_6f0380c72fc1f3::t_0a79b802757b59 158-159
+docs/internal/plans/CODE_REVIEW_2026-11-03.md
+  s_6f0380c72fc1f3::t_daac7d1367a97f 53-59
+docs/internal/plans/OVERVIEW_REVIEW_2026-11-03.md
+  s_6f0380c72fc1f3::t_f365c1b021aadc 168-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8aa71ff98777244cd96cf4b18892b9825e8816ad",
+  "prompts": {},
+  "sessions": {
+    "s_6f0380c72fc1f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a749ac26-5261-4d62-8ee9-ebdd7fb04e38",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
