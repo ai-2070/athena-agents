@@ -139,6 +139,7 @@ export interface GatewayInbound {
   sourceEventId: string;
   sourceMessageId: string;
   sentAt?: number;
+  whatsappUserId?: string;
   kind: 'message' | 'edit';
   actor: { id: string; label: string; kind: 'user' | 'bot' | 'anonymous' };
   directMessage: boolean;
@@ -192,6 +193,14 @@ export interface GatewayWhatsAppIntakeState {
   epoch: string;
   cursor: number;
   receipt?: GatewayWhatsAppReceipt & { confirmed: boolean; accepted: number; ignored: number; unmatchedSenders: number };
+  identities?: GatewayWhatsAppIdentities;
+}
+
+/** Scoped to one instance, business account and relay epoch; retired IDs are never reused. */
+export interface GatewayWhatsAppIdentities {
+  businessAccountId: string;
+  users: { id: string; phone: string | null; at: number; retired: boolean; parentId?: string }[];
+  phoneChanges: { phone: string; at: number }[];
 }
 
 export interface GatewayRunInput {

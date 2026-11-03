@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, UploadedFile } from '../../shared/types.ts';
+import type { GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, UploadedFile } from '../../shared/types.ts';
 import { emit } from '../store.ts';
 import { readJSON, uid, writeJSON } from '../util.ts';
 import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
@@ -13,6 +13,7 @@ import { gatewayAlbumCandidates, gatewayAlbumKey, gatewayCleanupCandidates } fro
 import { slackChannelId, slackTimestamp, slackUserId, slackWorkspaceId } from '../../shared/gateway-slack.ts';
 import { discordId } from '../../shared/gateway-discord.ts';
 import { canonicalWhatsAppPhone } from '../../shared/gateway-whatsapp.ts';
+import { whatsAppIdentitiesSchema, whatsAppIdentityAllowed } from './whatsapp-identities.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -40,6 +41,7 @@ const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
   platform: z.enum(['telegram', 'slack', 'discord', 'whatsapp']), accountId: externalId,
   conversationId: externalId, guildId: externalId.optional(), parentConversationId: externalId.optional(), threadId: z.string().max(500), sourceEventId: externalId, sourceMessageId: externalId,
   sentAt: stamp.optional(),
+  whatsappUserId: externalId.optional(),
   kind: z.enum(['message', 'edit']),
   actor: z.strictObject({ id: externalId, label: z.string().max(200), kind: z.enum(['user', 'bot', 'anonymous']) }),
   directMessage: z.boolean(), triggered: z.boolean(), text: z.string().max(65536),
@@ -52,7 +54,7 @@ const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
 const replyPart = z.strictObject({ text: z.string().min(1).max(3000), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed']), attempts: stamp, remoteId: externalId.optional(), retryAt: stamp.optional() });
 const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
   version: z.literal(1), nextSequence: stamp.positive(),
-  whatsappRelay: z.strictObject({ epoch: z.uuid(), cursor: stamp, receipt: intakeReceipt.optional() }).optional(),
+  whatsappRelay: z.strictObject({ epoch: z.uuid(), cursor: stamp, receipt: intakeReceipt.optional(), identities: whatsAppIdentitiesSchema.optional() }).optional(),
   retired: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(100000).optional(),
   retiredAlbums: z.array(z.string().regex(/^[a-f0-9]{64}$/)).max(100000).optional(),
   retiredQuota: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), incomingBytes: stamp, outgoingBytes: stamp })).max(100000).optional(),
@@ -153,6 +155,7 @@ export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] {
 /** Only inputs from verified transport normalizers may reach this journal. */
 export function gatewayInputAllowed(instance: GatewayInstance, input: GatewayInbound): boolean {
   if (!instance.enabled || instance.platform !== input.platform || input.accountId !== instance.accountId || input.actor.kind !== 'user') return false;
+  if (input.platform !== 'whatsapp' && input.whatsappUserId !== undefined) return false;
   if (input.platform !== 'discord' && (input.guildId !== undefined || input.parentConversationId !== undefined)) return false;
   if (instance.platform === 'discord') {
     if (instance.senderPolicy.platform !== 'discord' || ![input.accountId, input.actor.id, input.conversationId, input.sourceMessageId].every(discordId)
@@ -188,6 +191,8 @@ export class GatewayInbox {
   private readonly state: GatewayStateAdapter;
 
   constructor(state: GatewayStateAdapter) { this.state = state; }
+
+  get instanceId(): string { return this.state.instanceId; }
 
   private read(): GatewayInboxJournal {
     const file = this.state.inboxFile();
@@ -561,6 +566,7 @@ export class GatewayInbox {
 
   checkAccess(event: GatewayInboxEvent): GatewayInstance {
     if (event.input.platform === 'whatsapp' && !event.relay?.confirmed) throw new Error('Wait for the relay acknowledgement before starting work.');
+    if (event.input.platform === 'whatsapp' && !whatsAppIdentityAllowed(event.input, this.read().whatsappRelay?.identities)) throw new Error('This WhatsApp identity changed. Review the sender before continuing.');
     const instance = getGatewayInstance(this.state.instanceId);
     if (!gatewayInputAllowed(instance, event.input)) throw new Error('This sender or conversation is no longer allowed.');
     withGatewayRoute(event.route, () => {});
@@ -676,7 +682,7 @@ export class GatewayInbox {
   whatsAppRelayState(): GatewayWhatsAppIntakeState | undefined { return this.read().whatsappRelay; }
 
   /** All normalized messages, pinned routes and the batch outcome commit before remote ACK. */
-  acceptWhatsAppRelay(value: GatewayWhatsAppReceipt, inputs: unknown[], ignored = 0, unmatchedSenders = 0): NonNullable<GatewayWhatsAppIntakeState['receipt']> {
+  acceptWhatsAppRelay(value: GatewayWhatsAppReceipt, inputs: unknown[], ignored = 0, unmatchedSenders = 0, identities?: GatewayWhatsAppIdentities): NonNullable<GatewayWhatsAppIntakeState['receipt']> {
     const receipt = relayReceipt.parse(value);
     const parsed = z.array(inboundSchema).max(1000).parse(inputs);
     const counts = z.strictObject({ ignored: stamp.max(1000), unmatchedSenders: stamp.max(1000) }).parse({ ignored, unmatchedSenders });
@@ -685,11 +691,17 @@ export class GatewayInbox {
       || parsed.some((input) => input.platform !== 'whatsapp')) throw new Error('This message belongs to another relay.');
     if (state.receipt?.sequence === receipt.sequence && state.receipt.id === receipt.id) return state.receipt;
     if (state.receipt?.confirmed === false || receipt.sequence !== state.cursor + 1) throw new Error('Confirm the saved relay receipt before accepting another batch.');
+    if (identities) {
+      const saved = whatsAppIdentitiesSchema.parse(identities);
+      if (state.identities && state.identities.businessAccountId !== saved.businessAccountId) throw new Error('The WhatsApp business account changed. Review setup before reconnecting.');
+      state.identities = saved;
+    }
     let accepted = 0;
     for (const input of parsed) {
-      const event = this.record(journal, input, { ...receipt, confirmed: false });
+      const event = whatsAppIdentityAllowed(input, state.identities) ? this.record(journal, input, { ...receipt, confirmed: false }) : null;
       if (event) accepted++; else counts.ignored++;
     }
+    for (const event of journal.events) if (!whatsAppIdentityAllowed(event.input, state.identities)) this.holdSource(event, 'This WhatsApp identity changed. Review the sender before continuing.');
     state.receipt = intakeReceipt.parse({ ...receipt, confirmed: false, accepted, ...counts });
     this.commit(journal); return state.receipt;
   }
@@ -758,9 +770,7 @@ export class GatewayInbox {
       if (prior) continue;
       if (event.input.platform === 'whatsapp' && !event.relay?.confirmed) continue;
       try {
-        const instance = getGatewayInstance(this.state.instanceId);
-        if (!gatewayInputAllowed(instance, event.input)) throw new Error('The sender or conversation is no longer allowed.');
-        withGatewayRoute(event.route, () => {});
+        this.checkAccess(event);
       } catch {
         event.status = 'needs-review';
         event.reason = 'Access or the destination changed. Review this message before retrying.';

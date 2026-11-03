@@ -85,7 +85,7 @@ export function base64(bytes: Uint8Array): string {
 
 /** A whole signed body belongs to one business phone; never disclose another phone's batch. */
 export function checkAccount(body: Uint8Array, env: RelayEnv): void {
-  const webhook = z.object({ object: z.literal('whatsapp_business_account'), entry: z.array(z.object({ id: externalId, changes: z.array(z.object({ field: z.literal('messages'),
+  const webhook = z.object({ object: z.literal('whatsapp_business_account'), entry: z.array(z.object({ id: externalId, changes: z.array(z.object({ field: z.enum(['messages', 'user_id_update']),
     value: z.object({ messaging_product: z.literal('whatsapp'), metadata: z.object({ phone_number_id: externalId }) }),
   })).min(1).max(100) })).min(1).max(100) }).safeParse(parseJSON(body));
   if (!webhook.success) return fail(400, 'unsupported_webhook');

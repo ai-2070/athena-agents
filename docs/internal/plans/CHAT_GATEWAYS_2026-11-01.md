@@ -44,8 +44,8 @@ New gateway data does not need a legacy compatibility layer.*
   the existing
   Outbox helpers remain unchanged. WhatsApp reports unavailable in the application worker.
   Configuration requires parser-validated canonical E.164 numbers; the normalization helper accepts
-  local notation only with an explicit country. Setup controls and verified business identity mapping
-  remain to implement.
+  local notation only with an explicit country. Verified mappings are implemented below; setup
+  controls remain to implement.
 - Added a streamed incoming-file stage. Telegram metadata and response headers are checked before
   consuming a bounded body; redirects and unsafe provider paths are refused. Browser uploads and
   gateway streams share the same safe upload writer. Files go into a uniquely claimed batch in
@@ -418,7 +418,7 @@ New gateway data does not need a legacy compatibility layer.*
   `1.13.15` with full validation metadata handles normalization and exact canonical allowlists.
   Missing phones and business-scoped IDs without a verified mapping are denied; bounded local
   receipt counters record unmatched senders without retaining denied bodies. Status, system and
-  action messages never become assignments. Identity mapping/rotation remains pending.
+  action messages never become assignments. Verified mappings and rotation support follow below.
 - A whole local webhook batch commits accepted messages, pinned routes, message timestamps, media
   descriptors and its receipt/cursor metadata in one atomic inbox write before remote ACK. Text,
   manual file preparation and background downloads remain blocked until the exact saved epoch,
@@ -432,7 +432,29 @@ New gateway data does not need a legacy compatibility layer.*
   Node processes retain Worker SQLite and local receipts, lose an ACK reply after its remote commit,
   then confirm that receipt after restart before releasing work. Both Bun and Node launch this proof.
   No Meta account, public dashboard webhook, deployment or native model call is involved.
-- Next: implement the WhatsApp Chat SDK transport, verified identity mappings/rotation, authenticated
+- Added private verified WhatsApp identity mappings in the same atomic inbox write as the batch's
+  messages, route bindings and relay receipt. A signed current phone plus BSUID, or one exactly
+  matched signed provider contact, establishes the phone association. Later BSUID-only messages use
+  that stored phone and still require its exact current allowlist entry. Names, contact cards,
+  unrelated contacts, forwarded authors and parent IDs alone never prove a phone. Instance/business
+  account mismatches fail closed, including when confirming a saved receipt after restart.
+- Both the relay and local intake now support scoped `user_id_update` notifications as well as
+  `messages`. Signed number/ID-change system messages and dated identity updates retire old aliases,
+  clear missing new-phone proof, hold old queued/running assignments and pending delivery, and block
+  earlier phone-only messages. A newly shared phone needs its own permission and conversation; it
+  never inherits the old number's target binding. Conflicting aliases stay blocked. Up to 10,000 user
+  records and 10,000 phone-change cutoffs retain replay protection rather than silently evicting it.
+  Parent changes only revoke matching proof; parent IDs do not provide an alternative allowlist.
+- Tests cover restart with hidden phones, uniquely matched provider contacts, account isolation,
+  conflicts, old-message/rotation replay, same-batch ordering and an atomic write failure during
+  revocation. The real Worker/SQLite and bundled local intake proof now also restores a phone mapping
+  after process restart, consumes a BSUID-only message, then applies a signed rotation that holds
+  old work without running a model. Updates without usable signed timestamps or complete identity
+  information stop intake without ACK for review; product recovery controls remain pending.
+- Validation: type checks and all 2,263 tests passed (one skipped) with CI's two-worker limit;
+  desktop staging and smoke passed. The initial four-worker run had one gateway lifecycle startup
+  status mismatch; it passed in the focused and complete reruns. No startup/ownership code was changed.
+- Next: implement the WhatsApp Chat SDK transport, authenticated
   relay polling and recovery, local media downloads, service-window replies/files and pairing/setup UI. Then
   finish unified delivery and product controls. Read-only setup checks, native-work override controls
   and explicit webhook switching still need product setup. Deleted instances retain private inbox

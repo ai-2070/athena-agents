@@ -5,8 +5,8 @@ installation. Athena's dashboard stays on `127.0.0.1`; no tunnel, public dashboa
 runtime runs here. SQLite-backed Durable Objects serialize queue changes across Worker replicas.
 
 This is the relay foundation. Athena cannot pair or enable WhatsApp yet. Local signature verification,
-exact phone guards and durable acknowledgement gates have offline integration proof. The Chat SDK
-transport, relay polling/recovery, verified business identity mappings, private media, replies,
+exact phone guards, verified identity mappings and durable acknowledgement gates have offline integration proof. The Chat SDK
+transport, relay polling/recovery, private media, replies,
 service-window checks and Settings controls are the next pieces. Deploying this Worker does not enable a gateway.
 
 Each deployment serves **one Meta Business app and one business phone**. Use a separate deployment
@@ -14,7 +14,7 @@ for each WhatsApp instance. An original webhook body may contain several entries
 body to another phone's installation would expose its messages. The relay therefore refuses any
 signed body containing another business account/phone. The Meta app/account setup must deliver batches for this phone only. Separate endpoints alone do
 not split a mixed-phone Meta subscription. Use dedicated provider setup for this topology and the
-`messages` webhook field. Other webhook fields are not supported by this first version.
+`messages` and `user_id_update` webhook fields. Other webhook fields are not supported by this version.
 
 ## Build and verify
 
@@ -130,6 +130,17 @@ The smoke proof bundles these local modules into read-only files and runs them a
 processes against the real local Worker/SQLite runtime. It deliberately loses an ACK reply after
 remote commit, verifies local work is still blocked, then retries the saved ACK after process restart.
 No real provider account is used. Production polling and recovery controls remain pending.
+
+Local identity checks accept a business-scoped user ID only after a signed message or its unique,
+exactly matched provider contact ties that ID to an allowed phone. Contact cards, names, forwarded
+metadata and parent IDs alone do not authorize a sender. Mappings are private to the instance,
+business account and relay epoch and commit with the normalized batch receipt. Signed number/ID
+changes retire old aliases and hold their queued work and pending delivery. A new number needs its
+own allowlist entry and conversation; permission is never copied from the old phone. Conflicting
+aliases stay blocked and bounded retired-ID records prevent delayed messages from restoring them.
+An update without a usable signed timestamp, or an incomplete/ambiguous rotation, stops local intake
+without ACK for later review. Recovery controls for these cases remain pending; WhatsApp stays
+unavailable in the application worker. Subscribe the Meta app to both supported webhook fields.
 
 A consumer must claim a lease before pulling. A second claim, even with the same consumer UUID,
 is refused while the lease is active; pull/ack renew it. A lost claim response waits for lease expiry.

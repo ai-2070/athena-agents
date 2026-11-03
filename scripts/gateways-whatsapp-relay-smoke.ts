@@ -33,6 +33,7 @@ if (!suppliedRoot) {
     }
     console.log('gateways: WhatsApp relay signed intake, process restart, commit-before-ack, replay, lease and revocation pass');
     console.log('gateways: WhatsApp bundled local intake holds work across a lost ACK reply and process restart');
+    console.log('gateways: WhatsApp verified identity mappings survive restart and signed rotations hold old work');
   } finally {
     fs.chmodSync(application, 0o755);
     for (const file of [bundle, clientBundle]) if (fs.existsSync(file)) fs.chmodSync(file, 0o644);
@@ -50,7 +51,7 @@ async function proof(root: string, mode: string | undefined): Promise<void> {
   const { Miniflare, Log, LogLevel } = await import('miniflare');
   const business = '100000000000001'; const phone = '200000000000001'; const appSecret = 'FAKE_META_APPLICATION_SECRET'; const admin = 'a'.repeat(64);
   const raw = JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: business, changes: [{ field: 'messages', value: {
-    messaging_product: 'whatsapp', metadata: { phone_number_id: phone }, messages: [{ id: 'wamid.proof', from: '436641234567', timestamp: '1700000000', type: 'text', text: { body: 'Relay proof' } }],
+    messaging_product: 'whatsapp', metadata: { phone_number_id: phone }, messages: [{ id: 'wamid.proof', from: '436641234567', from_user_id: 'AT.PROOF', timestamp: '1700000000', type: 'text', text: { body: 'Relay proof' } }],
   } }] }] });
   const signature = 'sha256=' + crypto.createHmac('sha256', appSecret).update(raw).digest('hex');
   const mf = new Miniflare({ modules: true, modulesRoot: path.join(root, 'app'), rootPath: root, scriptPath: path.join(root, 'app', 'worker.mjs'),
@@ -58,7 +59,7 @@ async function proof(root: string, mode: string | undefined): Promise<void> {
     log: new Log(LogLevel.NONE), bindings: { BUSINESS_ACCOUNT_ID: business, PHONE_NUMBER_ID: phone, META_APP_SECRET: appSecret, META_VERIFY_TOKEN: 'FAKE_META_VERIFY_TOKEN', RELAY_ADMIN_KEY: admin } });
   const call = (route: string, body?: unknown, token?: string, lease?: string) => mf.dispatchFetch(`https://relay.test${route}`, { method: body === undefined ? 'GET' : 'POST',
     body: body === undefined ? undefined : JSON.stringify(body), headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(token ? { authorization: `Bearer ${token}` } : {}), ...(lease ? { 'x-relay-lease': lease } : {}) } });
-  const webhook = () => mf.dispatchFetch('https://relay.test/webhooks/meta', { method: 'POST', body: raw, headers: { 'content-type': 'application/json', 'x-hub-signature-256': signature } });
+  const webhook = (body = raw) => mf.dispatchFetch('https://relay.test/webhooks/meta', { method: 'POST', body, headers: { 'content-type': 'application/json', 'x-hub-signature-256': 'sha256=' + crypto.createHmac('sha256', appSecret).update(body).digest('hex') } });
   const clientFile = path.join(root, 'data', 'client.json');
   try {
     if (mode === 'write') {
@@ -100,8 +101,22 @@ async function proof(root: string, mode: string | undefined): Promise<void> {
           assert.equal(inbox.whatsAppRelayState()!.receipt!.confirmed, false);
           await intake.confirmPending(acknowledge); assert.equal(inbox.whatsAppRelayState()!.cursor, 1);
           assert.equal(inbox.claimNext()!.input.text, 'Relay proof'); assert.equal(inbox.claimNext(), null);
+          const ingest = async (field: string, value: Record<string, unknown>, after: number) => {
+            const payload = JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: business, changes: [{ field, value: {
+              messaging_product: 'whatsapp', metadata: { phone_number_id: phone }, ...value,
+            } }] }] });
+            assert.equal((await webhook(payload)).status, 200);
+            const pulled = await call(`/v1/pull?epoch=${client.epoch}&after=${after}`, undefined, client.token, client.lease);
+            assert.equal(pulled.status, 200); const { envelopes } = await pulled.json() as { envelopes: GatewayWhatsAppRelayEnvelope[] };
+            assert.equal(envelopes.length, 1); await intake.receive(client.epoch, envelopes[0], acknowledge);
+          };
+          await ingest('messages', { messages: [{ id: 'wamid.hidden', from_user_id: 'AT.PROOF', timestamp: '1700000001', type: 'text', text: { body: 'Phone hidden' } }] }, 1);
+          assert.equal(inbox.list()[1].input.actor.id, '+436641234567'); assert.equal(inbox.list()[1].bindingId, inbox.list()[0].bindingId);
+          await ingest('user_id_update', { user_id_update: [{ timestamp: '1700000010', user_id: { previous: 'AT.PROOF', current: 'AT.NEW' } }] }, 2);
+          assert.ok(inbox.list().every((event) => event.status === 'needs-review')); assert.equal(inbox.claimNext(), null);
+          assert.equal(inbox.whatsAppRelayState()!.identities!.users.find((user) => user.id === 'AT.NEW')!.phone, null);
           assert.equal((await webhook()).status, 200);
-          const empty = await call(`/v1/pull?epoch=${client.epoch}&after=1`, undefined, client.token, client.lease); assert.equal((await empty.json() as { envelopes: unknown[] }).envelopes.length, 0);
+          const empty = await call(`/v1/pull?epoch=${client.epoch}&after=3`, undefined, client.token, client.lease); assert.equal((await empty.json() as { envelopes: unknown[] }).envelopes.length, 0);
           assert.equal((await call('/admin/revoke', { acknowledgeDrop: true }, admin)).status, 200); assert.equal((await call('/v1/status', undefined, client.token)).status, 401);
         }
       } finally { await state.disconnect(); }

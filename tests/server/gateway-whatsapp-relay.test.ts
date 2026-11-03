@@ -70,6 +70,17 @@ async function fixture(changes: Record<string, string> = {}, directory = path.jo
 }
 
 describe('hosted WhatsApp relay', () => {
+  it('retains signed user ID rotations only for the configured business phone', async () => {
+    const f = await fixture(); const paired = await f.pair();
+    const rotation = (phone = PHONE) => JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: BUSINESS, changes: [{ field: 'user_id_update', value: {
+      messaging_product: 'whatsapp', metadata: { phone_number_id: phone }, user_id_update: [{ timestamp: '1700000010', user_id: { previous: 'US.OLD', current: 'US.NEW' } }],
+    } }] }] });
+    expect((await f.webhook(rotation())).status).toBe(200);
+    expect((await f.webhook(rotation('999'))).status).toBe(503);
+    expect((await f.webhook(rotation(), { 'x-hub-signature-256': 'sha256=' + '0'.repeat(64) })).status).toBe(401);
+    const response = await f.pull(paired); const { envelopes } = await response.json() as { envelopes: GatewayWhatsAppRelayEnvelope[] };
+    expect(envelopes).toHaveLength(1); expect(Buffer.from(envelopes[0].bodyBase64, 'base64').toString()).toBe(rotation());
+  });
   it('verifies the Meta challenge without exposing the verification token', async () => {
     const f = await fixture(); const response = await f.request('/webhooks/meta?hub.mode=subscribe&hub.verify_token=PRIVATE_VERIFICATION_TOKEN&hub.challenge=12345');
     expect(response.status).toBe(200); expect(await response.text()).toBe('12345'); expect(response.headers.get('cache-control')).toBe('no-store');
