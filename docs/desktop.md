@@ -154,6 +154,21 @@ Each kind of install updates from the same kind: the NSIS installer or the MSI o
 `.app.tar.gz` on macOS, the AppImage, `.deb` or `.rpm` on Linux (the updater looks for
 `<os>-<arch>-<installer>` in `latest.json`). Windows installs quietly with a progress bar (`passive`).
 
+### The rename from Blacksite
+
+0.1.0 shipped as Blacksite. The product name is now Athena Agents, but the bundle identifier stays
+`com.ai2070.blacksite`: the data folder, the window's saved size and the single-instance lock all follow
+it, so changing it would lose everyone's data. What the new name changes, and what keeps it working:
+
+- **Windows (NSIS)** installs into a new folder (`%LOCALAPPDATA%\Athena Agents`) with its own entry in
+  Installed apps. `src-tauri/windows/hooks.nsh` then runs the old Blacksite uninstaller silently, which
+  removes its files and shortcuts and leaves the data folder alone.
+- **Windows (MSI)** keeps the upgrade code the old name gave it (`bundle.windows.wix.upgradeCode`), so it
+  upgrades in place.
+- **macOS** updates replace the app in place, so an updated copy keeps its `Blacksite.app` file name while
+  its menus say Athena Agents. New downloads are `Athena Agents.app`.
+- **Linux**: the `.deb` replaces the `blacksite` package and the `.rpm` obsoletes it.
+
 ### The updater key
 
 Updates are signed, and the app only installs one whose signature matches `plugins.updater.pubkey` in

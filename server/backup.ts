@@ -1,7 +1,7 @@
 // Backups: one file with everything in a project (agents, teams, routines, layout, chats, knowledge
 // files, MEMORY.md files, logo and background, PROJECT.md and notes, its voxel world, and the kept versions of its agents, teams and memories) plus every skill in
 // the library with its versions, every saved preset and the prefab library. Written
-// to <home>/Blacksite Backups on Windows, macOS and Linux. Drop one into "New project > From
+// to <home>/Athena Agents Backups on Windows, macOS and Linux. Drop one into "New project > From
 // backup" to get it all back as a new project, here or on another PC. Keys and tokens are never in it.
 //
 // The file: a first line naming the format, a second line with a short JSON summary (so the page can
@@ -60,13 +60,14 @@ const MARK_RE = /^([\w.-]+)\.(png|jpg|jpeg|webp|gif|glb|gltf|obj|stl|ply|fbx)$/;
 
 /** Where backups are written: a folder in your home folder. */
 export const backupsRoot = (): string => {
-  const dir = path.join(HOME, 'Blacksite Backups');
+  const dir = path.join(HOME, 'Athena Agents Backups');
   if (!movedOld) {
     movedOld = true;
-    // Backups made before the app was called Blacksite: bring the whole folder along, once
-    const old = path.join(HOME, 'My Dashboard Backups');
+    // Backups made under the app's old names (Blacksite, then My Dashboard before it): bring the
+    // newest folder along, once
+    const old = ['Blacksite Backups', 'My Dashboard Backups'].map((n) => path.join(HOME, n)).find((d) => exists(d));
     try {
-      if (exists(old) && !exists(dir)) fs.renameSync(old, dir);
+      if (old && !exists(dir)) fs.renameSync(old, dir);
     } catch {
       /* in use or not allowed: new backups still go to the new folder */
     }

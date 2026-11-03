@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "blacksite",
+      "name": "athena-agents",
       "dependencies": {
         "@ai-sdk/openai-compatible": "3.0.83",
         "@ai-sdk/react": "4.0.165",

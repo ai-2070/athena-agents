@@ -10,7 +10,7 @@ beforeEach(() => {
   state.data = { agents: [], toolGroups: [], engines: {}, secrets: {}, runs: [], approvals: [], projects: [] } as unknown as AppState;
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => new Response(JSON.stringify({ root: '/home/me/Blacksite' }), { status: 200 })),
+    vi.fn(async () => new Response(JSON.stringify({ root: '/home/me/Athena Agents' }), { status: 200 })),
   );
 });
 afterEach(() => {

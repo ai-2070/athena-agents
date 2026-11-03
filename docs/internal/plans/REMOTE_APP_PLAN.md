@@ -4,7 +4,7 @@
 
 ## Goal
 
-Use Blacksite from a phone as well as from the desktop app and the browser, with one codebase for
+Use Athena Agents from a phone as well as from the desktop app and the browser, with one codebase for
 the page. The server keeps running on your computer: it starts agent CLIs, terminals and a Bun
 runtime, which a phone can't. The Android app is a remote control for that server.
 
