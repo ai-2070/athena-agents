@@ -1,0 +1,30 @@
+web/views/setup.tsx
+  s_a8edb05a2bf8be::t_260a9b585ff482 23-24,38-39,130,262
+web/app.ts
+  s_a8edb05a2bf8be::t_260a9b585ff482 188-189,191
+tests/web/settings-page.test.tsx
+  s_a8edb05a2bf8be::t_abd7540995142b 32-34,55-59,62-64
+  s_a8edb05a2bf8be::t_304197b38341c1 60-61
+  s_a8edb05a2bf8be::t_0113a4ff9b9273 65-66
+docs/guide.md
+  s_a8edb05a2bf8be::t_7774eb992af859 439
+  s_a8edb05a2bf8be::t_1e85f9914b24c7 530
+README.md
+  s_a8edb05a2bf8be::t_7774eb992af859 175,229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bca699420aa4ef19135478353645025bd4a37f67",
+  "prompts": {},
+  "sessions": {
+    "s_a8edb05a2bf8be": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a78e6df-5328-47a7-b149-1d54619bea09",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
