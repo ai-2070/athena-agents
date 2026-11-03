@@ -651,6 +651,19 @@ describe('agent runs and projects', () => {
     expect(Array.isArray(await (await req(`/api/p/${other.id}/brain/history`)).json())).toBe(true);
     expect((await send(`/api/p/${other.id}/brain/steer`, {}, page)).status).toBe(200);
     expect((await send(`/api/p/${other.id}/brain/clear`, {}, page)).status).toBe(404);
+    // the questions its agents ask are listed and answered there, even when the open project has one with the same id
+    const ask = (projectId: string) => {
+      const dir = path.join(tmp, 'data', 'projects', projectId, 'questions');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'twin-q.json'), JSON.stringify({ id: 'twin-q', question: 'Which style?', choices: ['Flat'], status: 'waiting', agentId: writer.id, agentName: 'Scoped writer', createdAt: Date.now() }));
+    };
+    ask(other.id);
+    ask(open.id);
+    expect((await (await req(`/api/p/${other.id}/questions`)).json()).map((q: { id: string }) => q.id)).toContain('twin-q');
+    expect((await send(`/api/p/${other.id}/questions/twin-q/dismiss`, {}, page)).status).toBe(200);
+    const statusIn = async (at: string) => (await (await req(`/api${at}/questions`)).json()).find((q: { id: string }) => q.id === 'twin-q')?.status;
+    expect(await statusIn(`/p/${other.id}`)).toBe('dismissed');
+    expect(await statusIn('')).toBe('waiting');
     // its agents' MEMORY.md (and its versions) are read and saved there
     const put = (at: string, text: string) => req(`/api${at}/memory/${writer.id}`, { method: 'PUT', headers: page, body: JSON.stringify({ text }) });
     expect((await put(`/p/${other.id}`, 'Use British spelling.')).status).toBe(200);

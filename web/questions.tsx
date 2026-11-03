@@ -2,6 +2,8 @@
 // your own words. Shown in the Outbox, in the Needs you drawer, and in the chat while the agent waits there.
 import { useState } from 'react';
 import { POST, DEL, attempt, ago, md, refreshSoon } from './core.ts';
+import { projectAt } from './client/connection.ts';
+import { projectList } from './projectlist.ts';
 import { DomNode, mountReact, useAppState } from './ui/react.tsx';
 import { pillClass } from './ui/classes.ts';
 import type { PillTone } from './ui/classes.ts';
@@ -30,6 +32,10 @@ export interface QuestionOwner {
   chatId: string | null;
 }
 
+/** The questions of a project that isn't open, for a chat of it in an Overview pane (the open project's are in the
+ *  app state). */
+export const projectQuestions = projectList<AgentQuestion>('/questions', ['questions']);
+
 /** The waiting question in the list that a chat's ask_user call made (matched by its text, newest first,
  *  and by the agent and chat it is in: two agents asking the same thing each answer their own). */
 export function questionFor(list: readonly AgentQuestion[] | undefined, input: unknown, owner?: QuestionOwner | null): AgentQuestion | null {
@@ -44,8 +50,10 @@ export function questionFor(list: readonly AgentQuestion[] | undefined, input: u
 export type QuestionPlace = 'outbox' | 'chat' | 'drawer';
 const CARD: Record<QuestionPlace, string> = { outbox: 'panel question', chat: 'question in-chat', drawer: 'approval question' };
 
-/** One question: click a choice, or write an answer (or both: what you wrote goes along with the choice). */
-export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestion; place?: QuestionPlace; changed?: () => void }) {
+/** One question: click a choice, or write an answer (or both: what you wrote goes along with the choice).
+ *  project: the question's project when it isn't the open one (a chat in an Overview pane): answered there. */
+export function QuestionCard({ q, place = 'outbox', changed, project }: { q: AgentQuestion; place?: QuestionPlace; changed?: () => void; project?: string }) {
+  const at = projectAt(project);
   const inChat = place === 'chat';
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -53,7 +61,7 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
   const who = q.agentName || 'the agent';
   const answer = async (choice?: string) => {
     setBusy(true);
-    const r = await attempt(() => POST<AgentQuestion>(`/questions/${q.id}/answer`, { choice: choice || '', text }), `Sent to ${who}`);
+    const r = await attempt(() => POST<AgentQuestion>(`${at}/questions/${q.id}/answer`, { choice: choice || '', text }), `Sent to ${who}`);
     setBusy(false);
     if (r) {
       setText('');
@@ -61,7 +69,7 @@ export function QuestionCard({ q, place = 'outbox', changed }: { q: AgentQuestio
     }
   };
   const dismiss = async () => {
-    if (await attempt(() => POST(`/questions/${q.id}/dismiss`, {}))) changed?.();
+    if (await attempt(() => POST(`${at}/questions/${q.id}/dismiss`, {}))) changed?.();
   };
   const remove = async () => {
     if (await attempt(() => DEL(`/questions/${q.id}`))) changed?.();

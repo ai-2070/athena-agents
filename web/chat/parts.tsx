@@ -14,7 +14,7 @@ import { readOutput, readUser } from './messages.ts';
 import { ChatProject } from './project.ts';
 import { fileSrc } from '../client/connection.ts';
 import { useAppState } from '../ui/react.tsx';
-import { QuestionCard, questionFor } from '../questions.tsx';
+import { QuestionCard, projectQuestions, questionFor } from '../questions.tsx';
 import type { QuestionOwner } from '../questions.tsx';
 import type { ChatMessage, ChatPart } from './messages.ts';
 import type { CompactionItem } from '../../shared/types.ts';
@@ -123,12 +123,15 @@ export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPa
     input = String(part.input);
   }
   const small = variant !== 'full';
-  // ask_user while the agent waits: answer right here (it's in the Outbox too)
-  const asked = useAppState()?.questions;
-  const question = part.toolName === 'ask_user' && !done ? questionFor(asked, part.input, owner) : null;
+  // ask_user while the agent waits: answer right here (it's in the Outbox too). A chat of a project that isn't open
+  // looks in that project's questions (a copied project's have the same agents and chats), and answers there.
+  const waits = part.toolName === 'ask_user' && !done;
+  const ours = useAppState()?.questions;
+  const theirs = projectQuestions.use(waits ? project : undefined);
+  const question = waits ? questionFor(project ? theirs : ours, part.input, owner) : null;
   return (
     <div className={small ? 'flex flex-col gap-1.5' : 'flex flex-col gap-2'}>
-      {question ? <QuestionCard q={question} place="chat" /> : null}
+      {question ? <QuestionCard q={question} place="chat" project={project} /> : null}
       <details
         className={`tool${failed ? ' error' : ''}${small ? ' small [&>summary]:px-3 [&>summary]:py-2' : ''}`}
         open={open}

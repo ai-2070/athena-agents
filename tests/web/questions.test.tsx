@@ -32,6 +32,8 @@ beforeEach(() => {
     requests.push({ method, url, body });
     const json = (v: unknown) => new Response(JSON.stringify(v));
     if (url === '/api/questions') return json(list);
+    // a copied project: the same agent and chat asked the same thing there
+    if (url === '/api/p/p2/questions') return json([question({ id: 'theirs', choices: ['Round', 'Square'] })]);
     if (url === '/api/outbox') return json([]);
     if (url.endsWith('/answer')) return json({ ...list[0], status: 'answered', delivered: 'live' });
     return json({ ok: true });
@@ -156,6 +158,16 @@ describe('in the chat', () => {
     const done = { type: 'dynamic-tool', toolName: 'screenshot', toolCallId: 't2', input: {}, state: 'output-available', output: { text: 'ok', images: [src] } } as DynamicToolUIPart;
     await show(<ChatProject.Provider value="p2"><ToolCard part={done} variant="full" busy={false} /></ChatProject.Provider>);
     expect(el.querySelector('img')!.getAttribute('src')).toBe(src.replace('/api/file', '/api/p/p2/file'));
+  });
+
+  it('in a pane of another project, shows and answers that project\'s question, not the open one\'s', async () => {
+    const { ChatProject } = await import('../../web/chat/project.ts');
+    await show(<ChatProject.Provider value="p2"><ToolCard part={part({ question: 'Which style?' })} variant="full" busy /></ChatProject.Provider>);
+    await settle();
+    expect(btn('Flat')).toBeUndefined();
+    await act(async () => btn('Round').click());
+    await settle();
+    expect(requests.find((r) => r.method === 'POST')).toMatchObject({ url: '/api/p/p2/questions/theirs/answer', body: { choice: 'Round', text: '' } });
   });
 
   it('shows no card once the call is done', async () => {
