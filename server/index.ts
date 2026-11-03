@@ -20,6 +20,7 @@ import { whatsAppSetup } from './gateways/whatsapp-setup.ts';
 import { GatewaySupervisor } from './gateways/supervisor.ts';
 import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders, gatewayWorkReview } from './gateways/inbox.ts';
 import { telegramSetup } from './gateways/telegram-setup.ts';
+import { gatewayOutboxDestinations } from './gateways/outbox-owner.ts';
 import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
@@ -166,7 +167,7 @@ get('/api/state', async (): Promise<AppState> => ({
   projectSaved: projectSync.saveStatus(),
   projects: store.listProjects().map(projects.withLogo),
   approvals: listApprovals(),
-  outboxPending: outbox.list().filter((p) => p.status === 'pending').length,
+  outboxPending: social.listPosts().filter((p) => p.status === 'pending' || ((p.platform === 'telegram' || p.platform === 'discord') && p.status === 'failed')).length,
   questions: questions.waitingQuestions(),
   runs: engines.activeRuns(),
   engines: engines.engineStatus(),
@@ -1101,26 +1102,29 @@ del('/api/accounts/reddit/:id', async ({ id }) => {
   reddit.disconnectReddit(id);
   return social.listAccounts();
 });
-post<{ platform?: string }>('/api/social/test', async (_p, body) => ({ message: body.platform === 'discord' ? await social.sendDiscord('Test from Athena Agents ✅') : await social.sendTelegram('Test from Athena Agents ✅') }));
+post('/api/social/test', async () => { throw new HttpError(400, 'Choose a gateway instance and known conversation in the Outbox, review the test text, then approve it. Old global tokens and webhooks are no longer used.'); });
 
 get('/api/artifacts', async () => artifactStore.list().sort((a, b) => b.createdAt! - a.createdAt!));
 del('/api/artifacts/:id', async ({ id }) => {
   removeArtifact(id);
   return { ok: true };
 });
-get('/api/outbox', async () => outbox.list().sort((a, b) => b.createdAt! - a.createdAt!));
-post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, agentName: 'You' }));
+get('/api/outbox', async () => social.listPosts());
+get('/api/outbox/gateway-destinations', async () => gatewayOutboxDestinations(store.activeProject().id));
+post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, gateway: body.gateway, agentName: 'You' }));
+post<unknown>('/api/outbox/:id/gateway-review', async ({ id }, body) => social.prepareGatewayPost(id, body));
+post<unknown>('/api/outbox/:id/gateway-finish', async ({ id }, body) => {
+  const project = store.activeProject();
+  return store.withProject(project, async () => {
+    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
+    await gatewaySupervisor.finishOutbox(item.gateway.instanceId, project.id, item.id, body);
+    return social.listPosts().find((post) => post.id === id);
+  });
+});
 post<Parameters<typeof social.approvePost>[1]>('/api/outbox/:id/approve', async ({ id }, body) => social.approvePost(id, body));
 post<{ text?: string }>('/api/outbox/:id/discuss', async ({ id }, body) => social.returnPost(id, String(body.text || ''), (teamId, text) => teams.postUserMessage(teamId, text, { route: brain.pickMember })));
 post<{ reason?: string }>('/api/outbox/:id/reject', async ({ id }, body) => social.rejectPost(id, body.reason));
-put<{ parts?: string[]; images?: string[]; title?: string }>('/api/outbox/:id', async ({ id }, body) => {
-  const it = need(outbox.get(id));
-  if (body.parts) it.parts = body.parts;
-  // images can be taken off a draft here, not added (adding goes through the checks in draftPost)
-  if (body.images && it.images) it.images = it.images.filter((p) => body.images!.includes(p));
-  if (body.title != null && it.reddit) it.reddit.title = String(body.title).trim();
-  return outbox.save(it);
-});
+put<Parameters<typeof social.editPost>[1]>('/api/outbox/:id', async ({ id }, body) => social.editPost(id, body));
 // questions agents asked you (ask_user): answer with a choice, your own words, or both
 get('/api/questions', async () => store.questions.list().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 100));
 post<{ choice?: string; text?: string }>('/api/questions/:id/answer', async ({ id }, body) => questions.answerQuestion(id, { choice: body.choice, text: body.text }));
@@ -1130,7 +1134,7 @@ del('/api/questions/:id', async ({ id }) => {
   return { ok: true };
 });
 del('/api/outbox/:id', async ({ id }) => {
-  outbox.remove(id);
+  social.removePost(id);
   return { ok: true };
 });
 

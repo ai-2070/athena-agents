@@ -95,7 +95,7 @@ export function GatewaysTab() {
           })()}>Delete</Button>
         </Row>;
       })}
-      <PanelNote>Telegram, Slack and Discord are available for testing. WhatsApp setup is available, but receiving and sending remain disabled. Existing one-way notifications stay under Connections. Approvals are reviewed in Athena.</PanelNote>
+      <PanelNote>Telegram, Slack and Discord are available for testing. WhatsApp setup is available, but receiving and sending remain disabled. Review Telegram and Discord follow-ups in Outbox. Approvals are reviewed in Athena.</PanelNote>
     </Section>
     {editor && <GatewayEditor key={typeof editor === 'string' ? editor : editor.id} platform={typeof editor === 'string' ? editor : editor.platform} instance={typeof editor === 'string' ? null : editor} projects={projects} close={close} saved={async () => { close(); await load(); }} />}
     {recoveryInstance && <DiscordRecoveryView key={recoveryInstance.id} instance={recoveryInstance} close={() => setRecovery(null)} changed={load} />}

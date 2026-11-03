@@ -25,6 +25,7 @@ import { selectGatewayDocuments } from './outgoing.ts';
 import type { GatewayFileSender } from './outgoing.ts';
 import { registerGatewayDeliverables } from './deliverables.ts';
 import { GatewayOutboxLedger } from './outbox.ts';
+import { registerGatewayOutbox } from './outbox-owner.ts';
 
 export interface Transport {
   start(): Promise<void>;
@@ -75,6 +76,7 @@ export class GatewayWorker {
   private abort: AbortController | undefined;
   private releaseAccount: (() => Promise<void>) | undefined;
   private releaseDeliverables: (() => void) | undefined;
+  private releaseOutbox: (() => void) | undefined;
   private starting: Promise<void> | undefined;
   private stopping: Promise<void> | undefined;
   private disposing: Promise<void> | undefined;
@@ -141,6 +143,7 @@ export class GatewayWorker {
       abort.signal.throwIfAborted();
       if (transport.reply) {
         const execution = this.options.execution ?? gatewayExecution;
+        if (instance.platform === 'telegram' || instance.platform === 'discord') this.releaseOutbox = registerGatewayOutbox(instance.id, outbox, abort.signal);
         if (transport.upload) this.releaseDeliverables = registerGatewayDeliverables(instance.id, inbox, abort.signal);
         this.replies = new GatewayReplies(inbox, transport.reply, abort.signal, (event, kind) => kind !== 'approval' || execution.approvalPending?.(event) === true, transport.upload, outbox); this.replies.start();
         this.dispatcher = new GatewayDispatcher(inbox, abort.signal, execution);
@@ -197,6 +200,7 @@ export class GatewayWorker {
   private async disposeOwned(): Promise<void> {
     this.abort?.abort();
     this.releaseDeliverables?.(); this.releaseDeliverables = undefined;
+    this.releaseOutbox?.(); this.releaseOutbox = undefined;
     const transport = this.transport;
     const state = this.state;
     const releaseAccount = this.releaseAccount;

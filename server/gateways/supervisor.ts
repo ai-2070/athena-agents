@@ -10,6 +10,7 @@ import { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecover
 import { claimGatewayAccount } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
 import { checkTelegramSetup, switchTelegramToPolling } from './telegram-setup.ts';
+import { GatewayOutboxLedger } from './outbox.ts';
 
 /** Settings changes restart only their instance; transport failures never expose raw SDK errors. */
 export class GatewaySupervisor {
@@ -134,6 +135,24 @@ export class GatewaySupervisor {
   }
   keepWork(instanceId: string, eventId: string, body: unknown): Promise<GatewayWorkReview> {
     return this.workReviewTask(instanceId, (inbox) => inbox.keepWork(eventId, body));
+  }
+
+  finishOutbox(instanceId: string, projectId: string, postId: string, body: unknown): Promise<void> {
+    const task = this.pending.then(async () => {
+      const instance = getGatewayInstance(instanceId);
+      if (this.closed || instance.enabled) throw Object.assign(new Error('Pause the selected gateway before finishing its saved Outbox delivery locally.'), { status: 400 });
+      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined; let reviewing = false;
+      try {
+        await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
+        release = await claimGatewayAccount(instance.platform, instance.accountId); await state.connect();
+        const ledger = new GatewayOutboxLedger(state, new GatewayInbox(state)); ledger.recover(); reviewing = true;
+        ledger.finishLocal(projectId, postId, body);
+      } catch (error) {
+        if (reviewing && error instanceof Error && 'status' in error) throw error;
+        throw Object.assign(new Error('This Outbox delivery could not be reviewed safely. Check storage and ownership, then reload its receipts.'), { status: 503 });
+      } finally { await state.disconnect(); await release?.(); }
+    });
+    this.pending = task.then(() => {}, () => {}); return task;
   }
 
   reconcile(instanceId: string, eventId: string): GatewayReconciliation {

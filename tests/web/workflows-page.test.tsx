@@ -81,4 +81,14 @@ describe('the workflow editor', () => {
     await settle();
     expect(requests.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.url}`)).toEqual(['PUT /api/workflows/w1', 'POST /api/workflows/w1/run']);
   });
+
+  it('makes the Telegram notification option an Outbox draft with explicit recipient choice and approval', async () => {
+    await open(); await act(async () => btn('+ Notify me').click());
+    const label = [...el.querySelectorAll('label.switch-row')].find((row) => row.textContent?.includes('Also draft a Telegram message in Outbox'))!;
+    expect(label).toBeTruthy(); expect(el.textContent).toContain('Choose the gateway recipient and approve the draft in Outbox before it sends.');
+    await act(async () => label.querySelector<HTMLElement>('.toggle-text')!.click()); expect(label.querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('true');
+    await act(async () => btn('Save').click()); await settle();
+    const saved = requests.find((request) => request.method === 'PUT')!.body as { steps: { type: string; telegram?: boolean }[] }; expect(saved.steps.at(-1)).toMatchObject({ type: 'notify', telegram: true });
+    expect(requests.some((request) => request.url.includes('/approve'))).toBe(false);
+  });
 });

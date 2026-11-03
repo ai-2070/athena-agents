@@ -875,10 +875,61 @@ New gateway data does not need a legacy compatibility layer.*
   by the web build, desktop staging and bundled desktop smoke. An earlier full run hit the
   existing kernel ownership-port collision in a saved-work fixture before it opened state;
   the full rerun passed with the ownership guard unchanged.
-- Next: connect existing Outbox intent to this ledger with explicit gateway instances and reviewed
-  destinations, finish delivery/product controls, then remove the old one-way forms. Deleted
-  instances retain private inbox receipts for recovery; the full deletion flow for retired
-  instances is pending. Real-account checks
+- Connected Telegram/Discord Outbox drafts to the worker-owned delivery ledger. The guarded
+  destination list contains only current-project, completed, still-allowed source conversations
+  with confirmed native replies. No source text, private native answer or credentials is returned.
+  Drafts can wait without a recipient; no instance is picked implicitly. Review saves selected
+  instance/conversation and exact Unicode-safe parts, then returns a draft revision and explicit
+  approval snapshot. Stale edits, another project/platform, changed access or source, and stopped
+  owners refuse approval. Successful approval reports queued rather than delivered.
+- The private approval is authoritative before the sender wakes; failed public-status saves
+  cannot unlock an approved draft. Outbox GET projects per-part receipts, confirmed IDs, retry
+  waits, held/failed/uncertain/sent states and local closure. Each private journal is read once per
+  list request. Missing or corrupt committed receipts fail closed; draft edits, reject, return and
+  remove cannot erase approved delivery evidence. Removed instances stay held with retained
+  receipts rather than appearing queued. Native work and its inbox records are not rewritten.
+- Added paused **Finish locally** for approved Outbox deliveries. The supervisor drains the worker,
+  claims account and private state, recovers interrupted sends as uncertain, and requires a fresh
+  receipt revision plus explicit no-send acknowledgement. Closure preserves confirmed IDs,
+  remaining text, attempts and uncertainty, blocks all future sends from that post and releases
+  its cleanup hold. Original-project receipts can be finished after an instance is rebound to
+  another project; the action never follows the new route or starts native work.
+- Outbox now offers **Gateway message**, separate instance/conversation pickers, saved draft
+  review with full bot/chat/thread/source addresses and every text part, checkbox-gated approval,
+  per-part delivery receipts and paused local finish confirmation. It distinguishes queued,
+  sending, confirmed, uncertain, held and locally finished states. Cancellation does not approve;
+  stale reviews and unmounted views cannot submit later. Original draft revisions are retained
+  while editing, so another tab's changes cannot silently become the review baseline.
+- Replaced Telegram/Discord Connections credential forms and implicit test sends with fresh
+  Gateways setup links; Settings search and Station links now open Gateways. Old global tokens,
+  chat IDs and Discord webhooks are not used for sends. X/Reddit account behavior stays separate.
+  `gateway_draft` saves an unsent draft for the user's recipient choice. High-risk `telegram_send`
+  and `discord_send` require explicit instance/source IDs and keep normal approval policy, with
+  queued results in Outbox. `notify_user` is local-only; legacy external flags fail explicitly.
+  Workflow notifications remain local and their Telegram option saves an unapproved Outbox draft.
+- Added API/server/DOM checks for draft snapshots, no implicit recipient or old-secret fallback,
+  owner/platform/project guards, concurrent edits, immutable approved receipts, partial progress,
+  storage interruption, missing/corrupt evidence, paused exclusive closure, rebinding and removed
+  instances, project-pinned tool sends, workflow drafts, cancelled/stale UI and modal unmount.
+  An obsolete webhook-send fixture now checks that old gateway drafts stay unsent and isolated.
+- A fresh scoped finish reviewer approved fourteen light/dark desktop/mobile captures of Outbox
+  recipient review, uncertain parts, local finish confirmation and Connections setup links. Six
+  Tab presses stayed in the review modal and Escape closed it. Both confirmations were cancelled;
+  native inbox bytes stayed unchanged and the fake provider recorded zero writes. The isolated
+  data/home/Chrome profile were removed. Unshown states have source and DOM evidence rather than
+  real-account readiness claims. WhatsApp remains unavailable; Slack/WhatsApp proactive Outbox
+  sends and Outbox manual confirmation/explicit retry remain to implement.
+- A separate source-only finish review approved the Gateways and workflow wording corrections:
+  follow-ups are reviewed in Outbox, and the workflow Telegram option creates a draft requiring
+  recipient choice and approval. This does not extend the fourteen-capture visual evidence.
+- Validation: `CI=1 bun run check` passed (270 files; 2,692 tests passed, one skipped). The final
+  focused Outbox fixture passed all twelve tests after making its storage-failure path match
+  Windows separators too. The web build, desktop staging and bundled desktop smoke passed.
+  An earlier WhatsApp fixture hit the existing kernel ownership-port collision before state
+  opened; its isolated rerun and the final full check passed with ownership checks unchanged.
+- Next: finish approved Outbox reconciliation/retry and the remaining delivery/product controls.
+  Deleted instances retain private inbox receipts for recovery; the full deletion flow for retired
+  instances and temporary-media retention are pending. Real-account checks
   on all four platforms and Windows/Linux verification remain outstanding. Offline checks run in CI.
 
 ## Goal

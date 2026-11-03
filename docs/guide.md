@@ -533,7 +533,31 @@ list. If an inbox is unreadable, its status says **check inbox** rather than rep
 Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
 Slow requests can send one working notice. When a run needs approval, the messaging app says **Needs approval in Athena**;
 review it in the dashboard. Gateway messages cannot approve requests.
-Existing Outbox connections work as before. The
+For a Telegram or Discord follow-up, open **Outbox → Gateway message → Draft a message**. Save the
+draft, choose an instance and a known conversation in this project, then choose **Review & send**.
+Only enabled, connected instances and completed source messages with confirmed replies are eligible.
+Review shows the bot account, conversation, thread, source message and every exact text part. It
+saves your edits; cancelling leaves a draft and does not approve delivery. Check the recipient and
+full text, then choose **Approve & send**. Long text is split without truncation or broken emoji.
+
+Outbox keeps a receipt for every approved part. Queued and sending are separate from confirmed
+delivery. Confirmed parts are not resent; provider rate-limit waits survive restart. An interrupted,
+unknown or failed send stops for review. Changes to access, routing, credentials or source messages
+hold the unsent text. Approved text and recipients cannot be edited, rejected, removed or sent back
+to a team through draft actions. Pause the instance and choose **Finish locally** to permanently stop
+the remaining delivery while keeping confirmed IDs and uncertainty. An uncertain part may already
+have arrived: check the messaging app before creating a new draft. Recording manual confirmations
+or explicitly retrying approved Outbox parts is still planned.
+
+Telegram and Discord setup now lives in **Settings → Gateways**, with links from Connections. Add
+fresh bot credentials there; old global Telegram tokens/chat IDs and Discord webhooks are not used.
+There is no default test-send button: review a test draft with an explicit recipient in Outbox instead.
+The Social tool `gateway_draft` saves an unsent draft for your recipient choice and approval. The
+high-risk `telegram_send` and `discord_send` tools require explicit instance and source-event IDs
+provided by you and follow the normal tool approval policy. They report queued delivery, with results
+in Outbox. `notify_user` only notifies inside Athena. X and Reddit account handling is unchanged;
+the workflow notification option also saves a Telegram draft for recipient choice and approval.
+Slack and WhatsApp proactive Outbox sends remain unavailable. The
 [gateway plan](internal/plans/CHAT_GATEWAYS_2026-11-01.md) tracks the remaining work;
 `bun run gateways:smoke` checks a fake local Telegram service without using accounts or keys.
 `bun run gateways:slack-smoke` checks Slack Socket Mode, private downloads and selected file replies

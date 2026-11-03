@@ -370,14 +370,34 @@ export interface GatewayOutboxPreview {
   };
 }
 
+export interface GatewayOutboxDestination {
+  instanceId: string;
+  eventId: string;
+  recipient: GatewayOutboxPreview['recipient'];
+}
+
+export interface GatewayOutboxProgress {
+  state: 'queued' | 'sending' | 'sent' | 'failed' | 'uncertain' | 'held' | 'closed' | 'unavailable';
+  recipient?: GatewayOutboxPreview['recipient'];
+  parts: { status: GatewayReplyPart['status']; attempts: number; remoteId?: string; retryAt?: number }[];
+  approvedAt?: number;
+  closedAt?: number;
+  reviewRevision?: string;
+  paused: boolean;
+}
+
+export interface GatewayOutboxPostPreview extends GatewayOutboxPreview { draftRevision: string }
+
 /** Private receipt. Fingerprints bind approval to current access, credentials and saved input. */
 export interface GatewayOutboxDelivery extends GatewayOutboxApproval {
+  recipient: GatewayOutboxPreview['recipient'];
   bindingId: string;
   configHash: string;
   sourceHash: string;
   approvedAt: number;
   receipts: GatewayReplyPart[];
   held?: 'destination-changed';
+  closed?: { at: number; revision: string };
 }
 
 export interface GatewayOutboxJournal {
@@ -1116,6 +1136,10 @@ export interface OutboxPost {
   accountId?: string | null;
   accountLabel?: string;
   parts: string[];
+  gateway?: { instanceId: string; eventId: string };
+  gatewayApprovedRevision?: string;
+  gatewayDraftRevision?: string;
+  gatewayProgress?: GatewayOutboxProgress;
   /** Image files (full paths inside the project's folders) that go with the first part. X only. */
   images?: string[];
   status: 'pending' | 'posting' | 'posted' | 'failed' | 'rejected' | 'returned' | string;

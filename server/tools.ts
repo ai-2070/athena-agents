@@ -875,20 +875,32 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'gateway_draft',
+    group: 'social',
+    risk: 'none',
+    description: 'Draft a Telegram or Discord message in the Outbox. The user selects a gateway instance and a known conversation, reviews the exact text, then approves sending. This tool never sends or lists private gateway conversations.',
+    parameters: obj({ platform: { type: 'string', enum: ['telegram', 'discord'] }, text: str('Exact message text'), note: str('Context for the reviewer') }, ['platform', 'text']),
+    run: async ({ platform, text, note }: { platform: string; text: string; note?: string }, ctx) => {
+      if (platform !== 'telegram' && platform !== 'discord') throw new Error('Choose Telegram or Discord.');
+      const item = await social.draftPost({ platform, text, note, agentId: ctx.agent.id, agentName: ctx.agent.name, chatId: await chatOf(ctx) });
+      return { text: `Saved Outbox draft ${item.id}. The user must choose its gateway recipient and approve before it sends.` };
+    },
+  },
+  {
     name: 'telegram_send',
     group: 'social',
     risk: 'high',
-    description: 'Send a Telegram message to the configured chat.',
-    parameters: obj({ text: str('Message') }, ['text']),
-    run: async ({ text }: { text: string }) => ({ text: await social.sendTelegram(text) }),
+    description: 'Queue an approved Telegram message through an explicit gateway instance to an existing completed conversation. Use recipient IDs provided by the user. Otherwise use gateway_draft so the user chooses in Outbox. Delivery receipts appear in Outbox; never assume queued means delivered.',
+    parameters: obj({ text: str('Exact message'), instance_id: str('Selected Telegram gateway instance ID'), event_id: str('Completed source event ID provided by the user') }, ['text', 'instance_id', 'event_id']),
+    run: async ({ text, instance_id, event_id }: { text: string; instance_id: string; event_id: string }, ctx) => ({ text: await social.sendTelegram(text, { instanceId: instance_id, eventId: event_id }, { agentId: ctx.agent.id, agentName: ctx.agent.name, chatId: await chatOf(ctx) }, ctx.signal) }),
   },
   {
     name: 'discord_send',
     group: 'social',
     risk: 'high',
-    description: 'Post a message to the configured Discord channel webhook.',
-    parameters: obj({ text: str('Message') }, ['text']),
-    run: async ({ text }: { text: string }) => ({ text: await social.sendDiscord(text) }),
+    description: 'Queue an approved Discord message through an explicit gateway instance to an existing completed conversation. Use recipient IDs provided by the user. Otherwise use gateway_draft so the user chooses in Outbox. Delivery receipts appear in Outbox; never assume queued means delivered.',
+    parameters: obj({ text: str('Exact message'), instance_id: str('Selected Discord gateway instance ID'), event_id: str('Completed source event ID provided by the user') }, ['text', 'instance_id', 'event_id']),
+    run: async ({ text, instance_id, event_id }: { text: string; instance_id: string; event_id: string }, ctx) => ({ text: await social.sendDiscord(text, { instanceId: instance_id, eventId: event_id }, { agentId: ctx.agent.id, agentName: ctx.agent.name, chatId: await chatOf(ctx) }, ctx.signal) }),
   },
   // ---------- team ----------
   {
@@ -1076,12 +1088,12 @@ const TOOLS: ToolDef[] = [
     name: 'notify_user',
     group: 'core',
     risk: 'none',
-    description: 'Show the user a notification in the dashboard (and on Telegram when telegram=true and it is set up).',
-    parameters: obj({ text: str('Message'), telegram: { type: 'boolean' } }, ['text']),
+    description: 'Show the user a notification in the dashboard. For an external message, use gateway_draft or an explicitly approved gateway send.',
+    parameters: obj({ text: str('Message') }, ['text']),
     run: async ({ text, telegram }: { text: string; telegram?: boolean }, ctx) => {
+      if (telegram) throw new Error('Telegram notifications now require a selected gateway recipient and approval. Use gateway_draft.');
       emit('toast', { text: `${ctx.agent.name}: ${text}` });
       log('notify', `${ctx.agent.name}: ${text}`, { agentId: ctx.agent.id });
-      if (telegram) await social.sendTelegram(`${ctx.agent.name}: ${text}`).catch(() => {});
       return { text: 'The user has been notified.' };
     },
   },

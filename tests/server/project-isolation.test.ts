@@ -286,17 +286,15 @@ describe('conversation tools during a project switch', () => {
 });
 
 describe('the Outbox', () => {
-  it('saves a post being published in its own project when another is opened meanwhile', async () => {
+  it('keeps a legacy gateway draft unsent in its own project after switching projects', async () => {
     const a = await createProject({ name: 'Post A', mode: 'new', folder: folder('post-a') });
     setSecret('discordWebhook', `${base}/hook`);
     outbox.save({ id: 'pd1', platform: 'discord', parts: ['hello'], status: 'pending' } as OutboxPost);
-    const going = approvePost('pd1');
+    const going = expect(approvePost('pd1')).rejects.toThrow('Review this saved gateway recipient');
     const b = await createProject({ name: 'Post B', mode: 'new', folder: folder('post-b') });
-    await releaseUntil(() => hooks === 1);
-    const done = await going;
-    expect(done.status).toBe('posted');
-    expect(hooks).toBe(1);
-    withProject(a, () => expect(outbox.get('pd1')?.status).toBe('posted'));
+    await going;
+    expect(hooks).toBe(0);
+    withProject(a, () => expect(outbox.get('pd1')?.status).toBe('pending'));
     expect(activeProject().id).toBe(b.id);
     expect(outbox.get('pd1')).toBeNull();
   });

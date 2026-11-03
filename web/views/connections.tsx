@@ -76,8 +76,6 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
   const rdCallback = fullUrl('/oauth/reddit/callback');
   const x = useRef({ clientId: settings.x.clientId, secret: '' });
   const rd = useRef({ clientId: settings.reddit?.clientId || '', secret: '', username: settings.reddit?.username || '' });
-  const tg = useRef({ token: '', chatId: settings.telegram.chatId });
-  const dc = useRef('');
   const saved = (s: { set: boolean; hint?: string } | undefined, otherwise: string) => (s?.set ? `saved (${s.hint})` : otherwise);
 
   const saveX = async () => {
@@ -94,18 +92,6 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
     }, 'Reddit app saved');
     await reload();
   };
-  const saveTelegram = async () => {
-    await attempt(async () => {
-      if (tg.current.token.trim()) await POST('/secrets', { key: 'telegramBotToken', value: tg.current.token.trim() });
-      await PUT('/settings', { telegram: { chatId: tg.current.chatId.trim() } });
-    }, 'Saved');
-    await reload();
-  };
-  const saveDiscord = async () => {
-    if (dc.current.trim()) await attempt(() => POST('/secrets', { key: 'discordWebhook', value: dc.current.trim() }), 'Saved');
-    await reload();
-  };
-  const test = (platform: string) => void attempt(() => POST<{ message: string }>('/social/test', { platform }), (r) => r.message);
 
   return (
     <div className="flex flex-col gap-10">
@@ -120,27 +106,12 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
           <PanelNote>Agents with the Social tools draft posts into the Outbox; you approve each one. X bills API use per request on your developer account.</PanelNote>
         </Section>
 
-        <Section title={<ProgramLabel id="telegram">Telegram</ProgramLabel>} description="Agents and workflows can message you, e.g. when a long task is done.">
-          <FieldRow label="Bot token" size="lg">
-            <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.telegramBotToken, 'Bot token from @BotFather')} onChange={(e) => (tg.current.token = e.target.value)} />
-          </FieldRow>
-          <FieldRow label="Chat ID" size="lg">
-            <input className="code" defaultValue={settings.telegram.chatId} placeholder="Your chat ID (message @userinfobot to get it)" onChange={(e) => (tg.current.chatId = e.target.value)} />
-          </FieldRow>
-          <RowActions>
-            <Button variant="ghost" size="small" onClick={() => test('telegram')}>Send test</Button>
-            <Button size="small" onClick={() => void saveTelegram()}>Save</Button>
-          </RowActions>
+        <Section title={<ProgramLabel id="telegram">Telegram</ProgramLabel>} description="Connect bot instances to the Brain, a team or an agent in Settings › Gateways.">
+          <Row title="Set up a gateway instance" description="Add fresh credentials in Gateways. The old global token and chat ID are no longer used. Review a message in Outbox to send to a known conversation."><ButtonLink size="small" variant="ghost" href="#/settings?tab=gateways">Open Gateways</ButtonLink></Row>
         </Section>
 
-        <Section title={<ProgramLabel id="discord">Discord</ProgramLabel>} description="Post to a channel through a webhook.">
-          <FieldRow label="Channel webhook URL" hint="Channel settings > Integrations > Webhooks > New webhook > Copy URL." size="lg">
-            <input className="code" type="password" autoComplete="off" placeholder={saved(secrets.discordWebhook, 'https://discord.com/api/webhooks/…')} onChange={(e) => (dc.current = e.target.value)} />
-          </FieldRow>
-          <RowActions>
-            <Button variant="ghost" size="small" onClick={() => test('discord')}>Send test</Button>
-            <Button size="small" onClick={() => void saveDiscord()}>Save</Button>
-          </RowActions>
+        <Section title={<ProgramLabel id="discord">Discord</ProgramLabel>} description="Connect bot instances to the Brain, a team or an agent in Settings › Gateways.">
+          <Row title="Set up a gateway instance" description="Add a bot with fresh credentials in Gateways. Old channel webhooks are no longer used. Review a message in Outbox to send to a known conversation."><ButtonLink size="small" variant="ghost" href="#/settings?tab=gateways">Open Gateways</ButtonLink></Row>
         </Section>
 
         <Section title="Everything else" description="Gmail, Calendar, Drive, Notion, Slack and more.">

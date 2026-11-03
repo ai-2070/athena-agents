@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import type { GatewayDeliveryReview, GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayRequestReview, GatewayTelegramSetup, GatewayWhatsAppSetup, GatewayWorkReview } from '../../shared/types.ts';
+import type { GatewayDeliveryReview, GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayRequestReview, GatewayTelegramSetup, GatewayWhatsAppSetup, GatewayWorkReview, OutboxPost } from '../../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 // set in beforeAll: a port nothing else is using (see startServer)
@@ -229,6 +229,18 @@ describe('API', () => {
 });
 
 describe('gateway configuration API', () => {
+  it('keeps gateway drafts unsent until a recipient is reviewed and refuses the old implicit test-send route', async () => {
+    const response = await req('/api/outbox', { method: 'POST', headers: json, body: JSON.stringify({ platform: 'telegram', text: 'Local draft only' }) });
+    expect(response.ok).toBe(true); const draft = await response.json() as OutboxPost; expect(draft.status).toBe('pending'); expect(draft.gateway).toBeUndefined(); expect(draft.gatewayDraftRevision).toMatch(/^[a-f0-9]{64}$/);
+    expect((await req('/api/outbox/gateway-destinations')).ok).toBe(true);
+    expect((await req(`/api/outbox/${draft.id}/gateway-review`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status).toBe(403);
+    expect((await req(`/api/outbox/${draft.id}/approve`, { method: 'POST', headers: json, body: '{}' })).ok).toBe(false);
+    expect((await req(`/api/outbox/${draft.id}/gateway-finish`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeNoSend: true }) })).ok).toBe(false);
+    const old = await req('/api/social/test', { method: 'POST', headers: json, body: JSON.stringify({ platform: 'telegram' }) }); expect(old.status).toBe(400); expect(await old.text()).toContain('Old global tokens');
+    const listed = await (await req('/api/outbox')).json() as OutboxPost[]; expect(listed.find((item) => item.id === draft.id)).toMatchObject({ status: 'pending', parts: ['Local draft only'] });
+    expect((await req(`/api/outbox/${draft.id}`, { method: 'DELETE', headers: json })).ok).toBe(true);
+  });
+
   it('keeps paused native work locally behind current-receipt and request guards without changing native evidence', async () => {
     const state = await (await req('/api/state')).json() as { project: { id: string } };
     const config = { name: 'Keep native work', platform: 'telegram', accountId: '9540000001', projectId: state.project.id, target: { kind: 'brain' },

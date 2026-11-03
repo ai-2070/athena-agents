@@ -15,6 +15,7 @@ import { Pill } from '../ui/marks.tsx';
 import type { PillTone } from '../ui/marks.tsx';
 import { QuestionCard } from '../questions.tsx';
 import type { AgentQuestion, OutboxPost } from '../../shared/types.ts';
+import { GatewayCompose, GatewayOutboxCard } from './gateway-outbox.tsx';
 
 /** X's limit for one post. */
 const LIMIT = 280;
@@ -43,9 +44,11 @@ async function copyImage(url: string): Promise<void> {
 export function Outbox() {
   const data = useAppState();
   const [list, setList] = useState<OutboxPost[] | null>(null);
-  const reload = useCallback(() => GET<OutboxPost[]>('/outbox').then(setList), []);
+  const version = useRef(0);
+  const reload = useCallback(async () => { const next = ++version.current; const value = await GET<OutboxPost[]>('/outbox'); if (next === version.current) setList(value); }, []);
   useEffect(() => void reload().catch(() => setList([])), [reload]);
-  useServerEvents((ev) => (ev.type === 'outbox' || ev.type === 'project') && void reload().catch(() => {}));
+  useEffect(() => () => { version.current++; }, []);
+  useServerEvents((ev) => { if (ev.type === 'project') setList(null); if (['outbox', 'project', 'gateway-inbox', 'gateway-health', 'gateways'].includes(ev.type)) void reload().catch(() => {}); });
   if (!list || !data) return null;
   const pending = list.filter((p) => ['pending', 'failed', 'posting'].includes(p.status));
   const done = list.filter((p) => p.status === 'posted' || p.status === 'rejected' || p.status === 'returned');
@@ -54,10 +57,11 @@ export function Outbox() {
     <Sections>
       <Questions />
       {data.accounts.x.length ? <Compose accounts={data.accounts.x.map((a) => a.username)} added={() => void reload()} /> : null}
+      <GatewayCompose key={`compose-${data.project?.id ?? ''}`} added={() => void reload()} />
       <Section title={`Waiting for you (${pending.length})`} headingClassName="section" bare>
         {pending.length ? (
           <div className="flex flex-col gap-4">
-            {pending.map((p) => <PostCard key={p.id} p={p} changed={changed} />)}
+            {pending.map((p) => p.platform === 'telegram' || p.platform === 'discord' ? <GatewayOutboxCard key={`${data.project?.id ?? ''}-${p.id}`} p={p} changed={changed} /> : <PostCard key={p.id} p={p} changed={changed} />)}
           </div>
         ) : (
           <div className="empty mx-auto max-w-[56ch] py-12">No posts waiting. Agents with the Social tools put their drafts here.</div>
@@ -66,7 +70,7 @@ export function Outbox() {
       {done.length ? (
         <Section title="History" headingClassName="section" bare>
           <div className="flex flex-col gap-4">
-            {done.slice(0, 40).map((p) => <PostCard key={p.id} p={p} changed={changed} />)}
+            {done.slice(0, 40).map((p) => p.platform === 'telegram' || p.platform === 'discord' ? <GatewayOutboxCard key={`${data.project?.id ?? ''}-${p.id}`} p={p} changed={changed} /> : <PostCard key={p.id} p={p} changed={changed} />)}
           </div>
         </Section>
       ) : null}

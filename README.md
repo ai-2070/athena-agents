@@ -245,6 +245,14 @@ sends, keeping the answer, uncertainty and byte accounting. Neither action sends
 For reserved or started work without a final reply, **Review saved work → Keep work in Athena**
 permanently ends gateway tracking. Native work may still run; manage it in Athena. Earlier queued
 requests stay held, and new messages use a separate private conversation under the current rules.
+**Outbox → Gateway message** drafts a Telegram or Discord follow-up. Choose the instance and a
+completed conversation in this project, review the full recipient and text, then approve. Each text
+part has its own delivery receipt. Uncertain or failed parts stay for review; pausing the instance
+lets you **Finish locally** without another send. Confirmed parts and any uncertainty are kept.
+Telegram/Discord setup has moved from Connections to Gateways and needs fresh credentials. Old
+global tokens, chat IDs and Discord webhooks are no longer used. Agents can use `gateway_draft`
+for recipient choice and approval in Outbox; direct send tools require an explicit instance and source
+event plus their normal approval policy. Slack/WhatsApp proactive Outbox sends are not enabled.
 `bun run gateways:smoke` checks the SDK with
 a fake local Telegram service and throwaway data; it uses no accounts or keys. See the
 [gateway plan](docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md) for what is finished and what remains.
