@@ -1,11 +1,353 @@
 // Types shared by the server (server/) and the browser app (web/).
 // The server stores these as JSON files; the browser gets them from the API.
 import type { Effort } from './effort.ts';
+import type { SerializedMessage } from 'chat';
 export type { Effort } from './effort.ts';
 
 export type EngineId = 'claude-code' | 'eve' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
 export type Autonomy = 'ask' | 'auto' | 'full';
 export type ProviderId = 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom';
+
+// ---------- chat gateway instances ----------
+export type GatewayPlatform = 'telegram' | 'slack' | 'discord' | 'whatsapp';
+export type GatewayTarget = { kind: 'brain' } | { kind: 'team'; id: string } | { kind: 'agent'; id: string };
+export interface GatewayTargets {
+  agents: { id: string; name: string }[];
+  teams: { id: string; name: string }[];
+}
+
+export type GatewaySenderPolicy =
+  | { platform: 'telegram'; allowedUserIds: string[] }
+  | { platform: 'whatsapp'; allowedPhones: string[] }
+  | { platform: 'slack' | 'discord'; allowedUserIds: string[] };
+
+/** Versioned protocol for the separate hosted WhatsApp relay. Not part of dashboard state. */
+export interface GatewayWhatsAppRelayLimits {
+  bodyBytes: number;
+  queueBytes: number;
+  queueEvents: number;
+  replayEntries: number;
+  retentionMs: number;
+  replayMs: number;
+  pairingMs: number;
+  leaseMs: number;
+  batchBytes: number;
+  batchEvents: number;
+}
+export interface GatewayWhatsAppRelayEnvelope {
+  sequence: number;
+  id: string;
+  receivedAt: number;
+  expiresAt: number;
+  bodyBase64: string;
+  signature: string;
+  contentType: string;
+}
+export interface GatewayWhatsAppRelayStatus {
+  version: 1;
+  installationId: string;
+  businessAccountId: string;
+  phoneNumberId: string;
+  epoch: string;
+  cursor: number;
+  gap: { at: number; through: number } | null;
+  limits: GatewayWhatsAppRelayLimits;
+  queuedEvents: number;
+  queuedBytes: number;
+}
+/** Private Durable Object metadata; plaintext pairing, client and lease keys are never stored. */
+export interface GatewayWhatsAppRelayState {
+  version: 1;
+  installationId: string;
+  businessAccountId: string;
+  phoneNumberId: string;
+  epoch: string;
+  nextSequence: number;
+  cursor: number;
+  lastAckId: string | null;
+  lastReceivedAt: number;
+  lostThrough: number;
+  gapAt: number | null;
+  tokenHash: string | null;
+  pairingHash: string | null;
+  pairingExpiresAt: number;
+  leaseHash: string | null;
+  leaseConsumer: string | null;
+  leaseExpiresAt: number;
+  deliveredThrough: number;
+}
+
+/** Browser-safe configuration. Credentials are stored separately and never included here. */
+export interface GatewayInstance {
+  id: string;
+  name: string;
+  platform: GatewayPlatform;
+  accountId: string;
+  projectId: string;
+  target: GatewayTarget;
+  senderPolicy: GatewaySenderPolicy;
+  scope: { directMessages: boolean; conversationIds: string[]; guildIds: string[] };
+  fileLimits: { perFileBytes: number; perMessageBytes: number; filesPerMessage: number; dailyBytes: number };
+  enabled: boolean;
+  routeGeneration: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Queued work keeps this route even when the instance is edited. */
+export interface GatewayRoute {
+  instanceId: string;
+  projectId: string;
+  target: GatewayTarget;
+  generation: number;
+}
+
+/** Private SDK coordination state, separate from the application inbox and delivery ledgers. */
+export interface GatewaySdkState {
+  version: 1;
+  values: Record<string, { value: unknown; expiresAt: number | null }>;
+  lists: Record<string, { values: unknown[]; expiresAt: number | null }>;
+  locks: Record<string, { threadId: string; token: string; expiresAt: number }>;
+  subscriptions: string[];
+  queues: Record<string, { enqueuedAt: number; expiresAt: number; message: SerializedMessage }[]>;
+}
+
+/** Private Discord resume state. Never returned by the instance API. */
+export interface GatewayDiscordState {
+  version: 1;
+  accountId: string;
+  intents: number;
+  identifiedAt?: number;
+  retryAt?: number;
+  session?: { id: string; url: string; sequence: number };
+  gap?: { at: number; reason: 'session-lost' };
+  reviewedGaps?: { at: number; gapAt: number; sequence: number; revision: string }[];
+}
+
+/** Safe recovery preview; session IDs and resume addresses stay private. */
+export interface GatewayDiscordRecovery {
+  gap: { at: number; revision: string } | null;
+}
+
+export interface GatewayInbound {
+  platform: GatewayPlatform;
+  accountId: string;
+  conversationId: string;
+  guildId?: string;
+  parentConversationId?: string;
+  threadId: string;
+  sourceEventId: string;
+  sourceMessageId: string;
+  sentAt?: number;
+  whatsappUserId?: string;
+  kind: 'message' | 'edit';
+  actor: { id: string; label: string; kind: 'user' | 'bot' | 'anonymous' };
+  directMessage: boolean;
+  triggered: boolean;
+  mediaGroupId?: string;
+  text: string;
+  media: { kind: 'image' | 'file' | 'audio' | 'video'; fileId: string; name?: string; mimeType?: string; size?: number; sha256?: string }[];
+}
+
+export interface GatewayConversationBinding {
+  id: string;
+  accountId: string;
+  conversationId: string;
+  guildId?: string;
+  parentConversationId?: string;
+  threadId: string;
+  route: GatewayRoute;
+  createdAt: number;
+}
+
+export interface GatewayInboxEvent {
+  id: string;
+  bindingId: string;
+  route: GatewayRoute;
+  input: GatewayInbound;
+  sequence: number;
+  receivedAt: number;
+  relay?: GatewayWhatsAppReceipt & { confirmed: boolean };
+  dismissed?: { at: number; revision: string };
+  status: 'queued' | 'waiting-files' | 'running' | 'done' | 'needs-review';
+  operationId?: string;
+  reason?: string;
+  fileBatch?: string;
+  files?: GatewayIncomingFile[];
+  dispatch?: GatewayDispatch;
+  reply?: { parts: GatewayReplyPart[]; createdAt: number; reason?: string };
+  notices?: Partial<Record<'working' | 'approval', GatewayReplyPart>>;
+  outgoing?: GatewayOutgoingFile[];
+  reconciliation?: GatewayReconciliation;
+  album?: { leaderId: string; memberIds?: string[] };
+  albumBlocked?: true;
+}
+
+export interface GatewayRequestReview {
+  revision: string;
+  canDismiss: boolean;
+  reason: string;
+}
+
+/** Local receipt only; raw webhook bodies and relay keys never enter the application inbox. */
+export interface GatewayWhatsAppReceipt {
+  epoch: string;
+  sequence: number;
+  id: string;
+}
+
+export interface GatewayWhatsAppIntakeState {
+  epoch: string;
+  cursor: number;
+  receipt?: GatewayWhatsAppReceipt & { confirmed: boolean; accepted: number; ignored: number; unmatchedSenders: number };
+  identities?: GatewayWhatsAppIdentities;
+  connection?: GatewayWhatsAppRelayConnection;
+  recovery?: { at: number; reason: 'gap' | 'cursor' | 'epoch' | 'installation' | 'envelope' };
+  gapReview?: { at: number; from: number; through: number; remoteCursor: number };
+  reviewedGaps?: { at: number; gapAt: number; from: number; through: number; revision: string; receipt?: NonNullable<GatewayWhatsAppIntakeState['receipt']> }[];
+}
+
+export interface GatewayWhatsAppRecovery {
+  reason: NonNullable<GatewayWhatsAppIntakeState['recovery']>['reason'] | null;
+  gap: { at: number; revision: string } | null;
+}
+
+/** Private paired identity. Pull/lease tokens are stored separately or kept in memory. */
+export interface GatewayWhatsAppRelayConnection {
+  origin: string;
+  installationId: string;
+  businessAccountId: string;
+  phoneNumberId: string;
+  epoch: string;
+}
+
+/** Private setup receipt, stored with gateway secrets so the returned pull key saves atomically. */
+export type GatewayWhatsAppPairing =
+  | { phase: 'requesting'; attemptId: string; origin: string; businessAccountId: string; phoneNumberId: string }
+  | { phase: 'received'; attemptId: string; connection: GatewayWhatsAppRelayConnection; cursor: number; gap: boolean };
+
+export interface GatewayWhatsAppSetup {
+  paired: boolean;
+  pending: null | { phase: GatewayWhatsAppPairing['phase']; revision: string };
+  recoveryRequired: boolean;
+}
+
+export interface GatewayWhatsAppCheck {
+  checkedAt: number;
+  account: 'verified';
+  relay: 'ready' | 'acknowledgement-pending' | 'needs-review';
+}
+
+/** Scoped to one instance, business account and relay epoch; retired IDs are never reused. */
+export interface GatewayWhatsAppIdentities {
+  businessAccountId: string;
+  users: { id: string; phone: string | null; at: number; retired: boolean; parentId?: string }[];
+  phoneChanges: { phone: string; at: number }[];
+}
+
+export interface GatewayRunInput {
+  text: string;
+  attachments: string[];
+}
+
+export interface GatewayReconciliation {
+  at: number;
+  state: 'tracking' | 'completed' | 'needs-review';
+}
+
+export interface GatewayOutgoingFile {
+  path: string;
+  name: string;
+  size: number;
+  sha256: string;
+  source?: { runId: string; agentId: string; chatId: string; workspace: string };
+  status: GatewayReplyPart['status'] | 'skipped';
+  attempts: { day: string; bytes: number }[];
+  remoteId?: string;
+  retryAt?: number;
+  reason?: string;
+}
+
+export interface GatewayDispatch {
+  conversation: GatewayLocalConversation;
+  state: 'starting' | 'running' | 'completed' | 'needs-review';
+  startedAt: number;
+  runId?: string;
+  messageId?: string;
+  briefId?: string;
+  briefRevision?: number;
+  brain?: { answer: string; delegate: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'> | null };
+  answer?: string;
+}
+
+export interface GatewayReplyPart {
+  text: string;
+  status: 'pending' | 'sending' | 'sent' | 'uncertain' | 'failed';
+  attempts: number;
+  remoteId?: string;
+  retryAt?: number;
+}
+
+export type GatewayDeliveryFailureReason = 'whatsapp-window' | 'whatsapp-file-type';
+export type GatewayDeliveryOutcome = { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number; reason?: GatewayDeliveryFailureReason };
+
+export interface GatewayIncomingFile {
+  index: number;
+  status: 'pending' | 'transferring' | 'saved' | 'failed';
+  attempts: { id: string; day: string; bytes: number }[];
+  file?: UploadedFile;
+  sha256?: string;
+  reason?: string;
+}
+
+/** One atomic receipt includes its binding and route; transport acknowledgement follows this write. */
+export interface GatewayInboxJournal {
+  version: 1;
+  nextSequence: number;
+  bindings: GatewayConversationBinding[];
+  events: GatewayInboxEvent[];
+  retired?: string[];
+  retiredQuota?: { day: string; incomingBytes: number; outgoingBytes: number }[];
+  retiredAlbums?: string[];
+  whatsappRelay?: GatewayWhatsAppIntakeState;
+}
+
+export interface GatewayHealth {
+  instanceId: string;
+  status: 'paused' | 'connecting' | 'connected' | 'needs-setup' | 'retrying';
+  reason: string;
+  attempts: number;
+  updatedAt: number;
+  retryAt?: number;
+  recoveryRequired?: boolean;
+}
+
+/** Navigation metadata only: no credentials, sender rules or message contents. */
+export interface GatewayStatus {
+  id: string;
+  name: string;
+  platform: GatewayPlatform;
+  projectId: string;
+  projectName: string;
+  enabled: boolean;
+  status: GatewayHealth['status'];
+  reviewCount: number | null;
+}
+
+/** Stable private runtime identities; the configured agent/team stays the source of its settings. */
+export interface PrivateConversation {
+  id: string;
+  projectId: string;
+  conversationId: string;
+  target: { kind: 'agent' | 'team'; id: string };
+  createdAt: number;
+}
+
+export type GatewayLocalConversation = { conversationId: string; projectId: string; sender: string } & (
+  | { kind: 'brain' }
+  | { kind: 'agent'; agentId: string; chatId: string }
+  | { kind: 'team'; teamId: string }
+);
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
 /** An API model's advertised limits. Missing capabilities mean the provider did not say. */
@@ -241,6 +583,7 @@ export interface SavedTeamAssignment {
 export interface SavedTeamInput {
   id: string;
   from: string;
+  sender?: string;
   text: string;
   replyTo: string | null;
   attachments: string[];
@@ -295,6 +638,7 @@ export interface TeamMessage {
   id: string;
   ts: number;
   from: string; // 'user' | 'system' | 'brain' | agent id | 'team:<id>' (another team)
+  sender?: string;
   text: string;
   /** From another team (#Team Name): who there wrote it, and, for that team's answer to a question
    *  asked from here, the message that asked. Names are kept so it reads right after renames. */
@@ -516,6 +860,8 @@ export interface Chat {
   sessionEngine?: EngineId;
   /** Set when this is the agent's session for a team chat. */
   teamId?: string | null;
+  /** External binding scope; absent for ordinary dashboard conversations. */
+  conversationId?: string;
   /** The next CLI session receives the saved original conversation. */
   reseed?: boolean;
   /** How full the agent's memory is (see ChatContext). Cleared when the session is replaced or you clear memory. */
@@ -542,6 +888,7 @@ export interface ChatSummary {
   createdAt: number;
   count: number;
   teamId?: string | null;
+  conversationId?: string;
 }
 
 // ---------- runs and live events ----------
@@ -817,6 +1164,7 @@ export interface EveRuntimeConfiguration {
 
 /** Private runtime records are not part of browser state or project exports. */
 export interface EveSessionBinding {
+  conversationId?: string;
   id: string;
   projectId: string;
   agentId: string;
@@ -987,6 +1335,7 @@ export interface Terminal {
 
 /** GET /api/state: everything the browser needs to draw. */
 export interface AppState {
+  gateways: GatewayStatus[];
   agents: Agent[];
   mcpServers: string[];
   /** each MCP server's label, service and "use for" (an older server leaves it out) */
@@ -1245,6 +1594,44 @@ export interface ProjectTask {
   doneAt?: number;
   /** what people said about it, oldest first (Markdown) */
   comments?: TaskComment[];
+  /** files attached to the task itself */
+  files?: TaskFile[];
+  /** the agent's or team's work on it: the one going now, or the last one */
+  work?: TaskWork;
+}
+
+/** A file on a task or a comment: a copy in the task's own project's uploads folder (path relative to it). */
+export interface TaskFile {
+  path: string;
+  name: string;
+  size: number;
+  sha256?: string;
+  /** 'you' or 'agent:<id>' */
+  by: string;
+  at: number;
+}
+
+/** Where a task's work stands. starting: saved, not started yet. waiting: it needs your OK for a step. */
+export type TaskWorkState = 'starting' | 'working' | 'waiting' | 'review' | 'blocked' | 'stopped' | 'needs-review';
+
+/** An agent or team working on a task, in a conversation of its own (board-<taskId>). One at a time. */
+export interface TaskWork {
+  /** chosen before anything starts: the run's id or the team message's id */
+  operationId: string;
+  conversationId: string;
+  /** who was given it: an agent, or a team (its private thread for this task) */
+  target: { kind: 'agent' | 'team'; id: string };
+  /** the agent's private chat for this task */
+  chatId?: string;
+  /** the team's private thread for this task */
+  teamId?: string;
+  runId?: string;
+  messageId?: string;
+  startedAt: number;
+  state: TaskWorkState;
+  endedAt?: number;
+  /** what to check, for needs-review; the reason, for blocked */
+  note?: string;
 }
 /** A comment on a board task: from you, the Brain or an agent. */
 export interface TaskComment {
@@ -1255,6 +1642,7 @@ export interface TaskComment {
   text: string;
   at: number;
   editedAt?: number;
+  files?: TaskFile[];
 }
 /** A comment as the task page shows it: with its writer's name. */
 export interface BoardComment extends TaskComment {
@@ -1265,6 +1653,8 @@ export interface BoardComment extends TaskComment {
  *  board's list carries only how many comments it has; the task's own page gets them. */
 export interface BoardTask extends Omit<ProjectTask, 'comments'> {
   commentCount: number;
+  /** the task's files and its comments' */
+  fileCount: number;
   comments?: BoardComment[];
   projectId: string;
   projectName: string;
@@ -1272,6 +1662,8 @@ export interface BoardTask extends Omit<ProjectTask, 'comments'> {
   assigneeEmoji?: string;
   assigneeColor?: string;
   creatorName: string;
+  /** who works on it, by name (with work) */
+  workerName?: string;
 }
 /** GET /api/task-board: the cards, and every project with how many open tasks it has. */
 export interface TaskBoardData {

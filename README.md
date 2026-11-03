@@ -170,8 +170,8 @@ Projects keep separate agents, teams and chats. The project name at the top left
 | **Routines** | Repeatable jobs, their schedules and the results of each run. **Run now** uses the routine's saved instructions. One switch controls manual and scheduled runs; daily schedules can have several times. |
 | **Outbox** | Questions from agents (click a choice or write an answer), and X and Reddit drafts waiting to be approved, edited or rejected. |
 | **Artifacts** | Written results, files and folders that agents have saved, each with a preview (images, video, audio, 3D models you can turn) and a search box. Chats show the same previews for files agents mention; in the desktop app any of them opens in its own program. |
-| **Tasks** | A board of the project's tasks (not the agents' step lists) in five columns: To do, In progress, In review, Blocked and Done; or every project's at once. Each task has a number, a title, a description, a priority and someone who has it, and a page of its own. Descriptions and comments are Markdown with @mentions of agents, teams and skills, and **Draft with the Brain** writes a task or a comment for you. The Brain sees the board and can add, move, assign, comment on and remove tasks. Drag cards between and within columns, or use the keyboard or a card's menu; a move is saved in the task's own project. |
-| **Settings** | Engines and keys, accounts and connections, MCP servers, programs, and the look: UI scale, colour scheme (System, Light or Dark), accent colour (each with a light and a dark tone), motion, the Station's look (the classic map, pale on a light system and dark on a dark one, or the voxel world's light: sky, sun and soft shadows, glow) and the open project's background picture, with sliders for how strongly the picture and the map's dots show, the font chats are written in (the page's own font by default, a serif, a terminal font like Claude Code, your system font like ChatGPT, Google Sans like Gemini, Roboto like Android, or San Francisco like iPhone), how hard the Station map works (**Smooth**, **Balanced** or **Battery saver**), and whether the bottom of the sidebar shows what's set up or your Claude and Codex usage limits (point at Codex to see its free limit resets and a **Reset now** button; the **Status / Limits** switch there does the same). **About** shows the version, the GitHub link with a star button, and this PC's address and data folder; the version and a Star link are also at the bottom of the sidebar. |
+| **Tasks** | A board of the project's tasks (not the agents' step lists) in five columns: To do, In progress, In review, Blocked and Done; or every project's at once. Each task has a number, a title, a description, a priority and someone who has it, and a page of its own. Descriptions and comments are Markdown with @mentions of agents, teams and skills, and **Draft with the Brain** writes a task or a comment for you. The Brain sees the board and can add, move, assign, comment on and remove tasks. Drag cards between and within columns, or use the keyboard or a card's menu; a move is saved in the task's own project. Move a task given to an agent or team to In progress and they pick it up in a conversation of their own, comment with the files they made and move it to In review, or to Blocked with the reason. Tasks and comments take files both ways. |
+| **Settings** | Engines and keys, accounts and connections, chat gateways, MCP servers, programs, and the look: UI scale, colour scheme (System, Light or Dark), accent colour (each with a light and a dark tone), motion, the Station's look (the classic map, pale on a light system and dark on a dark one, or the voxel world's light: sky, sun and soft shadows, glow) and the open project's background picture, with sliders for how strongly the picture and the map's dots show, the font chats are written in (the page's own font by default, a serif, a terminal font like Claude Code, your system font like ChatGPT, Google Sans like Gemini, Roboto like Android, or San Francisco like iPhone), how hard the Station map works (**Smooth**, **Balanced** or **Battery saver**), and whether the bottom of the sidebar shows what's set up or your Claude and Codex usage limits (point at Codex to see its free limit resets and a **Reset now** button; the **Status / Limits** switch there does the same). **About** shows the version, the GitHub link with a star button, and this PC's address and data folder; the version and a Star link are also at the bottom of the sidebar. |
 
 **Esc** takes you back to the Station from any other page. What is open closes first — a dialog, a dropdown, the Brain chat, a chat's find box — and a field you are typing in just loses the cursor. On the Station itself there is nowhere to go back to, so **Esc** opens the menu sidebar, and **Esc** again closes it.
 
@@ -221,6 +221,43 @@ More: [Save and restore](docs/guide.md#save-and-restore).
 More: [Troubleshooting](docs/guide.md#troubleshooting).
 
 ## Development
+
+Chat gateways are in development. Experimental Telegram, Slack and Discord instances can pass allowed text and attached files
+to the Brain, a team or an agent and send final text replies. Files explicitly selected through the local API
+or explicitly handed in by a gateway agent through its approval policy can be sent as Telegram documents, Slack files or Discord attachments.
+Set up Telegram, Slack or Discord instances under **Settings → Gateways**, choose their project, destination and sender rules,
+then enable them. Open an instance's **Inbox** to review delivery, retry unconfirmed parts, skip files or select
+specific files to send. Uncertain retries ask you to check the messaging app first. Artifacts and tool images are not attached automatically.
+**Check saved work** can recover a verified completed reply or resume tracking its original operation without starting another run.
+Pause an instance to **Dismiss request** for a held request that has never started. Its receipt and files stay;
+later messages can continue. Reserved or started work and deliveries cannot be dismissed this way.
+Telegram albums wait in the inbox for **Group album and start**. Check Telegram for all parts first;
+one assignment includes every saved file and caption. Later parts or edits hold the work for review.
+The sidebar's **Status** panel links gateway warnings to the relevant inbox or instance setup.
+Completed or dismissed inbox receipts can be removed after confirmation. Native chats, files, replay protection and byte accounting stay intact.
+Delegated files stay tied to their source run and workspace; revoked access holds delivery for review.
+Slow requests show a short working notice; approvals stay in Athena. Uncertain sends need review before retrying.
+`bun run gateways:smoke` checks the SDK with
+a fake local Telegram service and throwaway data; it uses no accounts or keys. See the
+[gateway plan](docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md) for what is finished and what remains.
+`bun run gateways:slack-smoke` checks Slack Socket Mode, private files and threaded replies against
+a local service. Slack needs a workspace ID, separate bot/app tokens and explicit conversation scopes.
+Its sender list is optional; empty allows local workspace users within those scopes. Real-account checks remain pending.
+`bun run gateways:discord-smoke` checks Discord identities, scopes, permissions and restart recovery
+against local REST and WebSocket fixtures, including private downloads and selected file replies.
+It uses no real account. Discord setup needs a bot ID/token, the Message content intent, exact
+server/channel scopes and an optional user-ID guard. A lost session stops intake; **Review recovery**
+requires pausing and an explicit acknowledgement before a fresh session can be enabled.
+Real-account and Windows/Linux checks remain pending.
+
+The separate [WhatsApp relay](relay/whatsapp/README.md) now has signed webhook intake, durable
+SQLite storage, one-time pairing, leased pull/ack recovery and revocation. `bun run relay:build`
+bundles the Worker; `bun run gateways:whatsapp-relay-smoke` checks two local Node/workerd processes
+and read-only Worker files with throwaway data. Deployment was checked with Wrangler's dry run;
+no real service was deployed. In Settings → Gateways, WhatsApp instances can now save their own
+project, Brain/team/agent destination, phone guard and private Meta credentials, pair a relay and
+run read-only setup checks. Interrupted pairing and relay gaps have explicit review controls.
+Receiving and sending stay disabled pending the remaining recovery controls and acceptance checks.
 
 The Eve runtime replacement is being developed separately from the current API engine. Building
 the runtime uses Bun 1.4 or newer. `bun run eve:build` builds it and `bun run eve:smoke` checks

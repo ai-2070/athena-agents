@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
+import type { GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayRequestReview, GatewayWhatsAppSetup } from '../../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 // set in beforeAll: a port nothing else is using (see startServer)
@@ -227,6 +228,157 @@ describe('API', () => {
   });
 });
 
+describe('gateway configuration API', () => {
+  it('dismisses only a current paused unstarted request behind the existing request guards', async () => {
+    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const config = { name: 'Held request', platform: 'telegram', accountId: '9800000001', projectId: state.project.id, target: { kind: 'brain' },
+      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
+    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true });
+    const route = { instanceId: instance.id, projectId: instance.projectId, target: instance.target, generation: instance.routeGeneration }; const eventId = 'a'.repeat(64);
+    fs.writeFileSync(path.join(directory, 'inbox.json'), JSON.stringify({ version: 1, nextSequence: 2,
+      bindings: [{ id: 'binding', accountId: instance.accountId, conversationId: '123', threadId: '', route, createdAt: 1 }],
+      events: [{ id: eventId, bindingId: 'binding', route, sequence: 1, receivedAt: 1, status: 'needs-review',
+        input: { platform: 'telegram', accountId: instance.accountId, conversationId: '123', threadId: '', sourceMessageId: '1', sourceEventId: '1', kind: 'message',
+          actor: { id: '123', label: 'Alice', kind: 'user' }, directMessage: true, triggered: false, text: 'Saved request', media: [] } }],
+    }));
+    const base = `/api/gateways/${instance.id}/inbox/${eventId}`; const preview = await (await req(`${base}/review`)).json() as GatewayRequestReview;
+    expect(preview).toMatchObject({ canDismiss: true, reason: '' }); expect(preview.revision).toMatch(/^[a-f0-9]{64}$/);
+    const body = JSON.stringify({ revision: preview.revision, acknowledgeDismiss: true });
+    expect((await req(`${base}/dismiss`, { method: 'POST', body })).status).toBe(403);
+    expect((await req(`${base}/dismiss`, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status).toBe(403);
+    expect((await req(`${base}/dismiss`, { method: 'POST', headers: json, body: JSON.stringify({ revision: preview.revision }) })).status).toBe(409);
+    expect((await req(`${base}/dismiss`, { method: 'POST', headers: json, body })).status).toBe(200);
+    expect((await req(`${base}/dismiss`, { method: 'POST', headers: json, body })).status).toBe(409);
+    const saved = await (await req(`/api/gateways/${instance.id}/inbox`)).json() as { events: { input: { text: string }; dismissed: { revision: string }; operationId?: string }[] };
+    expect(saved.events[0]).toMatchObject({ input: { text: 'Saved request' }, dismissed: { revision: preview.revision } }); expect(saved.events[0].operationId).toBeUndefined();
+    const navigation = await (await req('/api/state')).json() as { gateways: { id: string; status: string; reviewCount: number }[] };
+    expect(navigation.gateways.find((item) => item.id === instance.id)).toMatchObject({ status: 'paused', reviewCount: 0 });
+    await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
+  });
+
+  it('guards paused WhatsApp pairing finish and unknown-attempt review without exposing keys or private pairing metadata', async () => {
+    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const config = { name: 'WhatsApp pairing', platform: 'whatsapp', accountId: '9500000001', projectId: state.project.id, target: { kind: 'brain' },
+      senderPolicy: { platform: 'whatsapp', allowedPhones: ['+436641234567'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
+    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
+    const url = `/api/gateways/${instance.id}`; const file = path.join(tmp, 'data', 'gateway-secrets.json');
+    const records = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown> : {};
+    const connection = { origin: 'https://private-relay.example', installationId: '00000000-0000-4000-8000-000000000002', businessAccountId: '9000000001', phoneNumberId: instance.accountId, epoch: '00000000-0000-4000-8000-000000000001' };
+    records[instance.id] = { relayKey: 'b'.repeat(64), whatsappPairing: { phase: 'received', attemptId: '00000000-0000-4000-8000-000000000003', connection, cursor: 0, gap: false } };
+    fs.writeFileSync(file, JSON.stringify(records));
+    const text = await (await req(`${url}/whatsapp-setup`)).text(); expect(text).not.toContain('private-relay'); expect(text).not.toContain('b'.repeat(64)); expect(text).not.toContain(connection.epoch);
+    const preview = JSON.parse(text) as GatewayWhatsAppSetup; expect(preview).toMatchObject({ paired: false, pending: { phase: 'received' } });
+    const listing = await (await req('/api/gateways')).text(); expect(listing).not.toContain('whatsappPairing'); expect(listing).not.toContain('b'.repeat(64));
+    for (const suffix of ['/whatsapp-pairing', '/whatsapp-pairing/finish', '/whatsapp-pairing/review', '/whatsapp-recovery', '/whatsapp-recovery/inspect', '/whatsapp-setup/check']) {
+      expect((await req(url + suffix, { method: 'POST', body: '{}' })).status).toBe(403);
+      expect((await req(url + suffix, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body: '{}' })).status).toBe(403);
+    }
+    expect((await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64) }) })).status).toBe(409);
+    const body = JSON.stringify({ revision: preview.pending!.revision });
+    expect(await (await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body })).json()).toEqual({ paired: true, pending: null, recoveryRequired: false });
+    expect((await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body })).status).toBe(409);
+    expect((await req(`${url}/whatsapp-setup/check`, { method: 'POST', headers: json })).status).toBe(400);
+    expect((await req(`${url}/whatsapp-pairing`, { method: 'POST', headers: json, body: '{}' })).status).toBe(400);
+    const inboxFile = path.join(tmp, 'data', 'gateways-runtime', instance.id, 'inbox.json');
+    const inbox = JSON.parse(fs.readFileSync(inboxFile, 'utf8')) as { whatsappRelay: Record<string, unknown> };
+    inbox.whatsappRelay.recovery = { at: Date.now(), reason: 'gap' }; inbox.whatsappRelay.gapReview = { at: Date.now(), from: 0, through: 2, remoteCursor: 0 };
+    fs.writeFileSync(inboxFile, JSON.stringify(inbox));
+    const recoveryText = await (await req(`${url}/whatsapp-recovery`)).text(); expect(recoveryText).not.toContain('private-relay'); expect(recoveryText).not.toContain('cursor'); expect(recoveryText).not.toContain('b'.repeat(64));
+    expect(JSON.parse(recoveryText)).toMatchObject({ reason: 'gap', gap: { revision: expect.stringMatching(/^[a-f0-9]{64}$/) } });
+    expect((await req(`${url}/whatsapp-recovery`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeGap: true }) })).status).toBe(409);
+    await req(url, { method: 'DELETE', headers: json });
+    const other = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify({ ...config, accountId: '9500000002' }) })).json() as GatewayInstance;
+    const current = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+    current[other.id] = { whatsappPairing: { phase: 'requesting', attemptId: '00000000-0000-4000-8000-000000000004', origin: 'https://relay.example', businessAccountId: '9000000001', phoneNumberId: other.accountId } }; fs.writeFileSync(file, JSON.stringify(current));
+    const pending = await (await req(`/api/gateways/${other.id}/whatsapp-setup`)).json() as GatewayWhatsAppSetup;
+    expect((await req(`/api/gateways/${other.id}/whatsapp-pairing/review`, { method: 'POST', headers: json, body: JSON.stringify({ revision: pending.pending!.revision }) })).status).toBe(409);
+    expect(await (await req(`/api/gateways/${other.id}/whatsapp-pairing/review`, { method: 'POST', headers: json, body: JSON.stringify({ revision: pending.pending!.revision, acknowledgeRemoteRevoked: true }) })).json()).toEqual({ paired: false, pending: null, recoveryRequired: false });
+    await req(`/api/gateways/${other.id}`, { method: 'DELETE', headers: json });
+  });
+
+  it('guards explicit Discord recovery review and never exposes its private session', async () => {
+    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const config = { name: 'Discord recovery', platform: 'discord', accountId: '900000000000000001', projectId: state.project.id, target: { kind: 'brain' },
+      senderPolicy: { platform: 'discord', allowedUserIds: [] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
+    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true }); const file = path.join(directory, 'discord-gateway.json');
+    const saved = { version: 1, accountId: instance.accountId, intents: 1 | 512 | 4096 | 32768, session: { id: 'PRIVATE_SESSION', url: 'wss://gateway.discord.gg/', sequence: 42 }, gap: { at: Date.now(), reason: 'session-lost' } };
+    fs.writeFileSync(file, JSON.stringify(saved)); const url = `/api/gateways/${instance.id}/discord-recovery`;
+    const preview = await (await req(url)).json() as GatewayDiscordRecovery; expect(preview.gap?.revision).toMatch(/^[a-f0-9]{64}$/); expect(JSON.stringify(preview)).not.toContain('PRIVATE_'); expect(JSON.stringify(preview)).not.toContain('discord.gg');
+    const body = JSON.stringify({ revision: preview.gap!.revision, acknowledgeGap: true });
+    expect((await req(url, { method: 'POST', body })).status).toBe(403);
+    expect((await req(url, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status).toBe(403);
+    expect((await req(url, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeGap: true }) })).status).toBe(409);
+    expect((await req(url, { method: 'POST', headers: json, body })).status).toBe(200); expect(await (await req(url)).json()).toEqual({ gap: null });
+    expect((await req(url, { method: 'POST', headers: json, body })).status).toBe(409);
+    const after = JSON.parse(fs.readFileSync(file, 'utf8')) as { session?: unknown; reviewedGaps: unknown[] }; expect(after.session).toBeUndefined(); expect(after.reviewedGaps).toHaveLength(1);
+    await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
+  });
+
+  it('keeps multiple instances and credentials separate behind the existing request guards', async () => {
+    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const config = {
+      name: 'First Telegram', platform: 'telegram', accountId: '30000', projectId: state.project.id,
+      target: { kind: 'brain' }, senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] },
+      scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false,
+    };
+    const unguarded = await req('/api/gateways', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) });
+    expect(unguarded.status).toBe(403);
+    const create = async (body: unknown) => req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(body) });
+    const one = await (await create(config)).json() as GatewayInstance;
+    const targets = await req(`/api/gateways/targets/${state.project.id}`);
+    expect(targets.status).toBe(200);
+    expect(await targets.json()).toMatchObject({ agents: expect.any(Array), teams: expect.any(Array) });
+    expect((await req('/api/gateways/targets/missing')).status).toBe(400);
+    const two = await (await create({ ...config, name: 'Second Telegram', accountId: '30001' })).json() as GatewayInstance;
+    expect(one.id).not.toBe(two.id);
+    expect((await create(config)).status).toBe(400);
+    const credentials = await req(`/api/gateways/${one.id}/credentials`, { method: 'PUT', headers: json, body: JSON.stringify({ botToken: 'private-gateway-token' }) });
+    expect(await credentials.json()).toEqual({ botToken: true });
+    expect((await req(`/api/gateways/${one.id}/credentials`, { method: 'POST', body: JSON.stringify({ appToken: 'private-app-token' }) })).status).toBe(403);
+    expect(await (await req(`/api/gateways/${one.id}/credentials`, { method: 'POST', headers: json, body: JSON.stringify({ appToken: 'private-app-token' }) })).json()).toEqual({ botToken: true, appToken: true });
+    expect(await (await req(`/api/gateways/${one.id}/credentials`, { method: 'POST', headers: json, body: JSON.stringify({ appToken: null }) })).json()).toEqual({ botToken: true });
+    const listing = await req('/api/gateways');
+    const listed = await listing.json() as { instances: (GatewayInstance & { credentials: Record<string, boolean> })[]; health: GatewayHealth[] };
+    expect(JSON.stringify(listed)).not.toContain('private-gateway-token');
+    expect(listed.instances.find((instance) => instance.id === one.id)?.credentials).toEqual({ botToken: true });
+    expect(listed.instances.find((instance) => instance.id === two.id)?.credentials).toEqual({});
+    const navigation = await (await req('/api/state')).json() as { gateways: { id: string; status: string; reviewCount: number | null }[] };
+    expect(navigation.gateways.find((instance) => instance.id === one.id)).toMatchObject({ status: 'paused', reviewCount: 0 });
+    expect(JSON.stringify(navigation.gateways)).not.toContain('private-gateway-token');
+    expect(JSON.stringify(navigation.gateways)).not.toContain('credentials');
+    expect((await create({ ...config, accountId: '30002', botToken: 'do-not-echo-this' })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/reconnect`, { method: 'POST', headers: json })).status).toBe(200);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-files`, { method: 'POST', headers: json })).status).toBe(400);
+    expect(await (await req(`/api/gateways/${one.id}/inbox`)).json()).toEqual({ events: [] });
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-reply`, { method: 'POST', headers: json })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-reply`, { method: 'POST' })).status).toBe(403);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/reconcile`, { method: 'POST' })).status).toBe(403);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/reconcile`, { method: 'POST', headers: json })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/group-album`, { method: 'POST' })).status).toBe(403);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/group-album`, { method: 'POST', headers: json, body: JSON.stringify({ eventIds: ['missing', 'other'] }) })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/inbox/cleanup`, { method: 'POST' })).status).toBe(403);
+    expect((await req(`/api/gateways/${one.id}/inbox/cleanup`, { method: 'POST', headers: json, body: JSON.stringify({ before: Date.now(), eventIds: [] }) })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/files`, { method: 'POST', headers: json, body: JSON.stringify({ paths: ['file.txt'] }) })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/files/0/retry`, { method: 'POST', headers: json })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/files/0/skip`, { method: 'POST', headers: json })).status).toBe(400);
+    expect((await req(`/api/gateways/${one.id}/inbox/missing/files`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ paths: ['file.txt'] }) })).status).toBe(403);
+    expect((await req(`/api/gateways/${one.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ ...config, name: 'Renamed Telegram' }) })).status).toBe(200);
+    expect((await req(`/api/gateways/${one.id}`, { method: 'DELETE', headers: json })).status).toBe(200);
+    const remaining = await (await req('/api/gateways')).json() as { instances: GatewayInstance[] };
+    expect(remaining.instances.some((instance) => instance.id === one.id)).toBe(false);
+    expect(remaining.instances.some((instance) => instance.id === two.id)).toBe(true);
+    const secrets = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'gateway-secrets.json'), 'utf8')) as Record<string, unknown>;
+    expect(Object.hasOwn(secrets, one.id)).toBe(false);
+    await req(`/api/gateways/${two.id}`, { method: 'DELETE', headers: json });
+  });
+});
+
 describe('backups', () => {
   it('backs up a project into the home folder and restores it from an upload or from the backups folder', async () => {
     const st = await (await req('/api/state')).json();
@@ -370,6 +522,29 @@ describe('attached files', () => {
     expect(shown.status).toBe(200);
     expect(shown.headers.get('content-length')).toBe('7');
     expect(await shown.text()).toBe('# Brief');
+  });
+
+  it('attaches uploads to a board task and its comments, and serves only the files listed on that task', async () => {
+    const st = await (await req('/api/state')).json();
+    const pid = st.project.id as string;
+    const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
+    const menu = await (await upload(batch, 'menu.txt', 'Soup')).json();
+    const other = await (await upload(batch, 'other.txt', 'Bread')).json();
+    const { task } = await (await req(`/api/task-board/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ title: 'With files', files: [menu.path] }) })).json();
+    expect(task.files).toEqual([expect.objectContaining({ path: `${batch}/menu.txt`, name: 'menu.txt', size: 4, by: 'you' })]);
+    const file = (rel: string) => req(`/api/task-board-file/${pid}/${task.id}?path=${encodeURIComponent(rel)}`);
+    const got = await file(task.files[0].path);
+    expect(got.status).toBe(200);
+    expect(await got.text()).toBe('Soup');
+    // only what the task lists, and nothing outside the uploads folder
+    expect((await file(`${batch}/other.txt`)).status).toBe(404);
+    expect((await file('../../secrets.json')).status).toBe(404);
+    const commented = (await (await req(`/api/task-board/${pid}/${task.id}/comments`, { method: 'POST', headers: json, body: JSON.stringify({ text: '', files: [other.path] }) })).json()).task;
+    expect(commented.comments.at(-1).files[0].name).toBe('other.txt');
+    expect(await (await file(`${batch}/other.txt`)).text()).toBe('Bread');
+    const kept = (await (await req(`/api/task-board/${pid}/${task.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ files: [] }) })).json()).task;
+    expect(kept.files).toBeUndefined();
+    expect(kept.fileCount).toBe(1);
   });
 
   it('opens a PDF in a browser tab when asked (view=1); everything else still downloads, sandboxed', async () => {

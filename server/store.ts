@@ -6,7 +6,7 @@ import { EventEmitter } from 'node:events';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { DATA, HOME, dataPath, ensureDir, readJSON, writeJSON, uid, listFiles, exists } from './util.ts';
 import { keepVersion } from './versions.ts';
-import type { ActivityEntry, Agent, AgentQuestion, Artifact, Chat, ChatSummary, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team } from '../shared/types.ts';
+import type { ActivityEntry, Agent, AgentQuestion, Artifact, Chat, ChatSummary, GatewayWhatsAppPairing, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team } from '../shared/types.ts';
 
 ensureDir(DATA);
 
@@ -101,6 +101,33 @@ export function secretStatus(): SecretStatus {
     out[k] = v ? { set: true, hint: `…${String(v).slice(-4)}` } : { set: false };
   }
   return out as SecretStatus;
+}
+
+export interface GatewaySecrets {
+  whatsappPairing?: GatewayWhatsAppPairing;
+  botToken?: string;
+  appToken?: string;
+  signingSecret?: string;
+  verificationToken?: string;
+  accessToken?: string;
+  relayKey?: string;
+}
+
+// Global, outside project exports and versions, just like provider secrets.
+const GATEWAY_SECRETS_FILE = dataPath('gateway-secrets.json');
+
+export function getGatewaySecrets(instanceId: string): GatewaySecrets {
+  const records = readJSON<Record<string, GatewaySecrets>>(GATEWAY_SECRETS_FILE, {});
+  return Object.hasOwn(records, instanceId) ? records[instanceId] : {};
+}
+
+export function setGatewaySecrets(instanceId: string, value: GatewaySecrets | null): void {
+  if (!/^[a-zA-Z0-9_-]+$/.test(instanceId)) throw new Error('Invalid gateway instance ID.');
+  const records = readJSON<Record<string, GatewaySecrets>>(GATEWAY_SECRETS_FILE, {});
+  if (value === null) delete records[instanceId];
+  else Object.defineProperty(records, instanceId, { value, enumerable: true, configurable: true, writable: true });
+  writeJSON(GATEWAY_SECRETS_FILE, records);
+  emit('gateways', { id: instanceId });
 }
 
 // A token the local MCP bridge uses to call back into the dashboard.
@@ -377,15 +404,15 @@ export const chats = {
     return listFiles(dir, (n) => n.endsWith('.json'))
       .map((n) => readJSON<Chat>(path.join(dir, n)))
       .filter((c): c is Chat => Boolean(c))
-      .map(({ id, title, updatedAt, createdAt, items, teamId }) => ({ id, title, updatedAt, createdAt, count: items?.length || 0, teamId: teamId || null }))
+      .map(({ id, title, updatedAt, createdAt, items, teamId, conversationId }) => ({ id, title, updatedAt, createdAt, count: items?.length || 0, teamId: teamId || null, ...(conversationId ? { conversationId } : {}) }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   },
   get(agentId: string, chatId: string | null | undefined): Chat | null {
     if (!chatId || !SAFE_ID.test(chatId)) return null;
     return readJSON<Chat>(path.join(this.dir(agentId), `${chatId}.json`));
   },
-  create(agentId: string, title = 'New chat', teamId: string | null = null): Chat {
-    const chat: Chat = { id: uid('c'), agentId, title, items: [], sessionId: null, ...(teamId ? { teamId } : {}), createdAt: Date.now(), updatedAt: Date.now() };
+  create(agentId: string, title = 'New chat', teamId: string | null = null, conversationId?: string): Chat {
+    const chat: Chat = { id: uid('c'), agentId, title, items: [], sessionId: null, ...(teamId ? { teamId } : {}), ...(conversationId ? { conversationId } : {}), createdAt: Date.now(), updatedAt: Date.now() };
     return this.save(chat);
   },
   save(chat: Chat): Chat {

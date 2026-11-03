@@ -190,7 +190,7 @@ const TOOLS: ToolDef[] = [
       const { activeProject, withProject } = await import('./store.ts');
       const run = runInfo(ctx.runId);
       if (ctx.runId && (!run || run.agentId !== ctx.agent.id)) return { text: 'That run is not available to you.', isError: true };
-      return withProject(run?.project || activeProject(), () => ({ text: JSON.stringify(searchConversations(ctx.agent.id, args as unknown as import('../shared/types.ts').ConversationSearch)) }));
+      return withProject(run?.project || activeProject(), () => ({ text: JSON.stringify(searchConversations(ctx.agent.id, args as unknown as import('../shared/types.ts').ConversationSearch, run?.conversationId)) }));
     },
   },
   {
@@ -205,7 +205,7 @@ const TOOLS: ToolDef[] = [
       const { activeProject, withProject } = await import('./store.ts');
       const run = runInfo(ctx.runId);
       if (ctx.runId && (!run || run.agentId !== ctx.agent.id)) return { text: 'That run is not available to you.', isError: true };
-      return withProject(run?.project || activeProject(), () => ({ text: JSON.stringify(readConversation(ctx.agent.id, args as unknown as import('../shared/types.ts').ConversationRead)) }));
+      return withProject(run?.project || activeProject(), () => ({ text: JSON.stringify(readConversation(ctx.agent.id, args as unknown as import('../shared/types.ts').ConversationRead, run?.conversationId)) }));
     },
   },
   {
@@ -218,6 +218,58 @@ const TOOLS: ToolDef[] = [
       const { addArtifact } = await import('./artifacts.ts');
       const a = addArtifact({ title, path: target, text, note, agentId: ctx.agent.id, chatId: await chatOf(ctx) });
       return { text: `Saved to Artifacts${a.teamName ? ` (team ${a.teamName})` : ''}: ${a.title}.` };
+    },
+  },
+  {
+    name: 'prepare_gateway_files',
+    group: 'core',
+    risk: 'none',
+    description: 'Inspect specific finished files for this active gateway assignment. Returns paths, names, sizes and SHA-256 hashes without sending them. Only your own workspace and safe project uploads are eligible. Use send_gateway_files with the returned paths and hashes to request delivery; ordinary artifacts and tool images are not sent automatically.',
+    parameters: obj({ paths: { type: 'array', items: str('Absolute path of a finished file'), minItems: 1, maxItems: 10 } }, ['paths']),
+    run: async (args, ctx) => {
+      const { prepareGatewayFiles } = await import('./gateways/deliverables.ts');
+      return { text: JSON.stringify(await prepareGatewayFiles(ctx.runId, ctx.agent.id, args)) };
+    },
+  },
+  {
+    name: 'send_gateway_files',
+    group: 'core',
+    risk: 'high',
+    description: 'Request delivery of explicitly chosen finished files to the sender of this active gateway assignment. Pass the paths and SHA-256 hashes returned by prepare_gateway_files. Uses the normal approval policy, refuses changed bytes, and queues files after the final answer. The destination cannot be changed. One immutable selection per assignment; the result confirms selection, not remote delivery. Never retry an uncertain delivery with another tool call; review it in Athena.',
+    parameters: obj({ files: { type: 'array', minItems: 1, maxItems: 10, items: obj({ path: str('Absolute path returned by prepare_gateway_files'), sha256: str('SHA-256 returned by prepare_gateway_files') }, ['path', 'sha256']) } }, ['files']),
+    run: async (args, ctx) => {
+      const { sendGatewayFiles } = await import('./gateways/deliverables.ts');
+      const count = await sendGatewayFiles(ctx.runId, ctx.agent.id, args);
+      return { text: `Selected ${count} file${count === 1 ? '' : 's'} for this gateway assignment. Delivery waits for the final answer; check its receipts in Athena.` };
+    },
+  },
+  // ---------- a Tasks board task (only in the task's own conversation) ----------
+  // Risk none: nothing leaves the dashboard, and files pass the same checks as gateway files before they are copied.
+  {
+    name: 'board_task',
+    group: 'core',
+    risk: 'none',
+    description: 'Only when you work on a Tasks board task: read it again, with its description, the latest comments and the names of its files.',
+    parameters: obj({}),
+    run: async (_args, ctx) => {
+      const { readWorkerTask } = await import('./boardwork.ts');
+      return { text: readWorkerTask(ctx.runId, ctx.agent.id) };
+    },
+  },
+  {
+    name: 'board_reply',
+    group: 'core',
+    risk: 'none',
+    description: 'Only when you work on a Tasks board task: comment on it (Markdown), attach finished files by their full paths (your workspace or the project uploads), and move it to in_review when it is done or to blocked with a reason when you can\'t finish it. Never to done: the user does that.',
+    parameters: obj({
+      text: str('Your comment: what you did, found or made (Markdown)'),
+      files: { type: 'array', items: str('Full path of a finished file') },
+      status: { type: 'string', enum: ['in_review', 'blocked'], description: 'in_review when the task is done; blocked when it can\'t be finished' },
+      reason: str('Why it is blocked (with status blocked)'),
+    }),
+    run: async (args, ctx) => {
+      const { workerReply } = await import('./boardwork.ts');
+      return { text: await workerReply(ctx.runId, ctx.agent.id, args) };
     },
   },
   // ---------- asking the user (every agent) ----------

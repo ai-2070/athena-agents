@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { connectEvents, state } from '../../web/core.ts';
 import * as tasks from '../../web/views/tasks.tsx';
 import { pillMentions } from '../../web/taskboard.tsx';
-import type { AppState, BoardTask, ServerEvent } from '../../shared/types.ts';
+import type { TaskWork, AppState, BoardTask, ServerEvent } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = (ms = 40) => act(() => new Promise((r) => setTimeout(r, ms)));
@@ -14,7 +14,7 @@ const now = Date.now();
 let n = 0;
 const card = (over: Partial<BoardTask>): BoardTask => ({
   id: 't', number: ++n, projectId: 'p1', projectName: 'Bakery', title: 'Task', description: '', status: 'todo', priority: 'normal', assignee: '', rank: 0,
-  createdBy: 'you', createdAt: now, updatedAt: now, assigneeName: 'Unassigned', creatorName: 'You', commentCount: 0, ...over,
+  createdBy: 'you', createdAt: now, updatedAt: now, assigneeName: 'Unassigned', creatorName: 'You', commentCount: 0, fileCount: 0, ...over,
 });
 // live events from the server, through a stand-in for the event socket
 class FakeSocket {
@@ -29,6 +29,10 @@ const serverEvent = async (ev: Omit<ServerEvent, 'ts'>) => {
   await settle(200);
 };
 let board: BoardTask[];
+let workNext: Record<string, Partial<TaskWork>>;
+// what the server adds to a task you save (work it started)
+let afterPut: ((t: BoardTask) => BoardTask) | null;
+const working = (over: Partial<TaskWork> = {}): TaskWork => ({ operationId: 'r1', conversationId: 'board-c', target: { kind: 'agent', id: 'x' }, chatId: 'ch1', runId: 'r1', startedAt: now, state: 'working', ...over });
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
 
@@ -39,6 +43,8 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><section id="view"></section>';
   el = document.getElementById('view')!;
   requests = [];
+  afterPut = null;
+  workNext = { stop: { state: 'stopped' }, start: { state: 'working', operationId: 'r2' }, check: { state: 'review' } };
   board = [
     card({ id: 'a', title: 'Write the menu', rank: 1, priority: 'high' }),
     card({ id: 'b', title: 'Take photos', rank: 2, assignee: 'agent:x', assigneeName: 'Photographer', assigneeEmoji: '📷' }),
@@ -76,9 +82,17 @@ beforeEach(() => {
       // (and names who has it, as the server does)
       const named = change.assignee === undefined ? {} : { assigneeName: ({ '': 'Unassigned', you: 'You', brain: 'The Brain', 'agent:x': 'Photographer' } as Record<string, string>)[change.assignee] };
       board[i] = { ...board[i], ...change, ...named, updatedAt: board[i].updatedAt + 1 };
+      if (afterPut) board[i] = afterPut(board[i]);
       return json({ task: board[i] });
     }
     if (url === '/api/task-board-draft') return json({ kind: 'comment', text: 'Is the oven here yet?' });
+    // Start, Stop and Check saved work (the work's next state is set by each test in workNext)
+    const work = /^\/api\/task-board\/([^/]+)\/([^/]+)\/(start|stop|check)$/.exec(url);
+    if (work) {
+      const i = board.findIndex((t) => t.projectId === work[1] && t.id === work[2]);
+      board[i] = { ...board[i], work: { ...board[i].work!, ...workNext[work[3]] }, updatedAt: board[i].updatedAt + 1 };
+      return json({ task: board[i] });
+    }
     const comments = /^\/api\/task-board\/([^/]+)\/([^/]+)\/comments/.exec(url);
     if (comments) return json({ task: { ...board.find((t) => t.id === comments[2]), comments: [{ id: 'c9', by: 'you', byName: 'You', text: body?.text, at: now }] } });
     if (method === 'POST') return json({ task: card({ id: 'new', ...body }) });
@@ -295,6 +309,41 @@ describe('the Tasks board', () => {
     expect(location.hash).toBe('');
   });
 
+  it('shows who works on a card and its files, and asks before a move stops the work', async () => {
+    board[2] = { ...board[2], assignee: 'agent:x', assigneeName: 'Photographer', fileCount: 2, work: working(), workerName: 'Photographer' };
+    board[3] = { ...board[3], work: working({ state: 'waiting' }), workerName: 'Photographer' };
+    await open();
+    const c = () => el.querySelector<HTMLElement>('[data-task-id="p1/c"]')!;
+    expect(c().querySelector('.work-mark')!.getAttribute('aria-label')).toBe('Photographer is working on it');
+    expect(c().querySelector('[title="2 files"]')).not.toBeNull();
+    expect(el.querySelector('[data-task-id="p1/r"] .work-mark')!.textContent).toBe('Needs you');
+    // moving it on asks first; No leaves it where it is
+    await act(async () => c().dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })));
+    expect(document.querySelector('.modal')!.textContent).toContain('Photographer is working on #3. Stop it?');
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent !== 'Stop it')!.click());
+    await settle();
+    expect(ids('In progress')).toEqual(['c']);
+    expect(requests.some((r) => r.method === 'PUT')).toBe(false);
+    await act(async () => c().dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })));
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent === 'Stop it')!.click());
+    await settle();
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/c', body: { status: 'in_review' } });
+  });
+
+  it('says who started on a card you moved to In progress, with Stop', async () => {
+    await open();
+    afterPut = (t) => ({ ...t, work: working({ conversationId: 'board-b', operationId: 'r5' }), workerName: 'Photographer' });
+    await act(async () => el.querySelector<HTMLElement>('[data-task-id="p1/b"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })));
+    await settle();
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/b', body: { status: 'in_progress' } });
+    const toasts = document.getElementById('toasts')!;
+    expect(toasts.textContent).toContain('Photographer started on #2');
+    expect(el.querySelector('[data-task-id="p1/b"] .work-mark')).not.toBeNull();
+    await act(async () => [...toasts.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Stop')!.click());
+    await settle();
+    expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/task-board/p1/b/stop' });
+  });
+
   it('works out a place between two cards', () => {
     expect(tasks.rankBetween(undefined, undefined)).toBe(0);
     expect(tasks.rankBetween(1, 2)).toBe(1.5);
@@ -426,6 +475,44 @@ describe('a task\'s own page', () => {
     const edit = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Edit comment"]')!;
     expect(edit.value).toBe('Mine to change');
     expect(edit.selectionStart).toBe('Mine to change'.length);
+  });
+
+  it('shows the work on a task: Stop while it goes, Check saved work when it needs a look, Start again after', async () => {
+    board[2] = { ...board[2], assignee: 'agent:x', assigneeName: 'Photographer', work: working(), workerName: 'Photographer' };
+    await open(['p1', 'c']);
+    const box = () => el.querySelector<HTMLElement>('section[aria-label="Work"]')!;
+    expect(box().textContent).toContain('Photographer');
+    expect(box().textContent).toContain('Working');
+    const button = (label: string) => [...box().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes(label));
+    expect(button('Open chat')).toBeDefined();
+    workNext.stop = { state: 'needs-review', note: 'Its run was interrupted.' };
+    await act(async () => button('Stop')!.click());
+    await settle();
+    expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/task-board/p1/c/stop' });
+    expect(box().textContent).toContain('Needs review');
+    expect(box().textContent).toContain('Its run was interrupted.');
+    await act(async () => button('Check saved work')!.click());
+    await settle();
+    expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/task-board/p1/c/check', body: { operationId: 'r1' } });
+    expect(box().textContent).toContain('Ready for review');
+    await act(async () => button('Start again')!.click());
+    await settle();
+    expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/task-board/p1/c/start' });
+    expect(document.getElementById('toasts')!.textContent).toContain('Photographer started on #3');
+  });
+
+  it('says how to start a task given to an agent, and shows files on the task and its comments', async () => {
+    board[1] = {
+      ...board[1],
+      files: [{ path: 'batch1/menu.pdf', name: 'menu.pdf', size: 10, by: 'you', at: now }],
+      comments: [{ id: 'c1', by: 'agent:x', byName: 'Photographer', text: 'Here are the shots.', at: now, files: [{ path: 'batch2/shot.png', name: 'shot.png', size: 5, by: 'agent:x', at: now }] }],
+    };
+    await open(['p1', 'b']);
+    expect(el.querySelector('section[aria-label="Work"]')!.textContent).toContain('Moving the task to In progress starts it.');
+    const links = [...el.querySelectorAll<HTMLAnchorElement>('.task-files a')].map((a) => a.getAttribute('href'));
+    expect(links).toContain('/api/task-board-file/p1/b?path=batch1%2Fmenu.pdf');
+    expect(links).toContain('/api/task-board-file/p1/b?path=batch2%2Fshot.png');
+    expect(el.querySelector<HTMLImageElement>('.task-files img')!.alt).toBe('shot.png');
   });
 
   it('says so when the task is gone', async () => {

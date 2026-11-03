@@ -14,6 +14,11 @@ import * as engines from './engines/index.ts';
 import { eveRuntime } from './eve/runtime.ts';
 import { EveOwnershipError } from './eve/ownership.ts';
 import { eveCoordinator } from './eve/coordinator.ts';
+import * as gateways from './gateways/instances.ts';
+import { discordRecovery } from './gateways/discord-recovery.ts';
+import { whatsAppSetup } from './gateways/whatsapp-setup.ts';
+import { GatewaySupervisor } from './gateways/supervisor.ts';
+import { gatewayInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery } from './gateways/inbox.ts';
 import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
@@ -39,6 +44,8 @@ import * as commands from './commands.ts';
 import { openGoal, clearWork, listBriefs } from './briefs.ts';
 import * as tasksMod from './tasks.ts';
 import * as taskBoard from './taskboard.ts';
+import * as boardWork from './boardwork.ts';
+import { filesFromRequest, taskFilePath } from './boardfiles.ts';
 import { draftBoardText } from './taskdraft.ts';
 import type { TaskCreateInput, TaskQuery, TaskUpdateInput, BoardDraftInput } from '../shared/types.ts';
 import * as kb from './knowledge.ts';
@@ -125,6 +132,7 @@ const post = <B = Body>(p: string, h: Handler<B>) => route('POST', p, h);
 const postFile = (p: string, h: Handler<string>) => route('POST', p, h, true);
 const put = <B = Body>(p: string, h: Handler<B>) => route('PUT', p, h);
 const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
+const gatewaySupervisor = new GatewaySupervisor();
 
 class HttpError extends Error {
   status: number;
@@ -154,6 +162,7 @@ const mcpState = () => {
   return { mcpServers: Object.keys(servers), mcpInfo: mcp.serverInfo(servers) };
 };
 get('/api/state', async (): Promise<AppState> => ({
+  gateways: gatewaySupervisor.summary(),
   agents: agents.list().sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || a.name.localeCompare(b.name)),
   ...mcpState(),
   project: projects.withLogo(store.activeProject()),
@@ -518,12 +527,43 @@ put<TaskUpdateInput>('/api/tasks/:id', async ({ id }, body) => ({ task: tasksMod
 // (?project=all), each changed in the project it belongs to
 get('/api/task-board', async (_p, _b, q) => taskBoard.taskBoard(q.project || 'all'));
 get('/api/task-board-people/:projectId', async ({ projectId }) => taskBoard.boardPeople(projectId));
-post<taskBoard.BoardInput>('/api/task-board/:projectId', async ({ projectId }, body) => ({ task: taskBoard.addBoardTask(projectId, body || {}) }));
+// A task you make In progress for an agent or team, or move there, starts its work (boardwork.ts); moving it away
+// or giving it to someone else stops it. Files are uploads of the open project, copied into the task's own.
+const boardProject = (id: string) => need(store.listProjects().find((p) => p.id === id));
+post<taskBoard.BoardInput & { files?: unknown }>('/api/task-board/:projectId', async ({ projectId }, body) => {
+  const files = await filesFromRequest(boardProject(projectId), body?.files);
+  const task = taskBoard.addBoardTask(projectId, body || {}, 'you', files);
+  return { task: task.status === 'in_progress' && /^(agent|team):/.test(task.assignee) ? await boardWork.startWork(projectId, task.id) : task };
+});
 get('/api/task-board/:projectId/:id', async ({ projectId, id }) => ({ task: taskBoard.boardTask(projectId, id) }));
-put<taskBoard.BoardInput & { expectedUpdatedAt?: unknown }>('/api/task-board/:projectId/:id', async ({ projectId, id }, body) => ({ task: taskBoard.changeBoardTask(projectId, id, body || {}) }));
+put<taskBoard.BoardInput & { expectedUpdatedAt?: unknown; files?: unknown }>('/api/task-board/:projectId/:id', async ({ projectId, id }, body) => {
+  const before = need(taskBoard.savedBoardTask(projectId, id));
+  const files = body?.files === undefined ? undefined : await filesFromRequest(boardProject(projectId), body.files, before.files);
+  const after = taskBoard.changeBoardTask(projectId, id, body || {}, files);
+  return { task: await boardWork.afterUserChange(projectId, before, after) };
+});
+post('/api/task-board/:projectId/:id/start', async ({ projectId, id }) => ({ task: await boardWork.startWork(projectId, id) }));
+post('/api/task-board/:projectId/:id/stop', async ({ projectId, id }) => ({ task: boardWork.stopWork(projectId, id) }));
+post<{ operationId?: unknown }>('/api/task-board/:projectId/:id/check', async ({ projectId, id }, body) => ({ task: boardWork.checkWork(projectId, id, body?.operationId) }));
+// A file on a task or one of its comments (?path= as the task lists it), from the task's own project.
+get('/api/task-board-file/:projectId/:id', async ({ projectId, id }, _b, q, res) => {
+  const p = boardProject(projectId);
+  const t = need(taskBoard.savedBoardTask(projectId, id));
+  const listed = [...(t.files || []), ...(t.comments || []).flatMap((c) => c.files || [])].some((f) => f.path === q.path);
+  const file = listed ? taskFilePath(p, q.path) : null;
+  if (!file) throw new HttpError(404, 'That file is missing.');
+  sendFileSafely(res, file);
+  return undefined;
+});
 put<{ ranks?: unknown }>('/api/task-board-ranks', async (_p, body) => (taskBoard.rerankBoardTasks(body?.ranks), { ok: true }));
-del('/api/task-board/:projectId/:id', async ({ projectId, id }) => (taskBoard.removeBoardTask(projectId, id), { ok: true }));
-post<{ text?: unknown }>('/api/task-board/:projectId/:id/comments', async ({ projectId, id }, body) => ({ task: taskBoard.addBoardComment(projectId, id, body?.text) }));
+del('/api/task-board/:projectId/:id', async ({ projectId, id }) => (boardWork.stopWork(projectId, id), taskBoard.removeBoardTask(projectId, id), { ok: true }));
+post<{ text?: unknown; files?: unknown }>('/api/task-board/:projectId/:id/comments', async ({ projectId, id }, body) => {
+  const files = await filesFromRequest(boardProject(projectId), body?.files ?? []);
+  const task = taskBoard.addBoardComment(projectId, id, body?.text, 'you', files);
+  // (while an agent or team works on it, your comment reaches them too)
+  void boardWork.passToWorker(projectId, id, `A new comment on the task from you:\n\n${typeof body?.text === 'string' ? body.text : ''}`, files).catch(() => {});
+  return { task };
+});
 put<{ text?: unknown }>('/api/task-board/:projectId/:id/comments/:cid', async ({ projectId, id, cid }, body) => ({ task: taskBoard.changeBoardComment(projectId, id, cid, body?.text) }));
 del('/api/task-board/:projectId/:id/comments/:cid', async ({ projectId, id, cid }) => ({ task: taskBoard.changeBoardComment(projectId, id, cid, null) }));
 // "Draft with the Brain": a title and description, or a comment, put back in the box (nothing saved)
@@ -985,6 +1025,72 @@ post<{ flavor?: string }>('/api/pi/add-bridge', async (_p, body) => {
 });
 
 // ---------- settings ----------
+get('/api/gateways', async () => ({
+  instances: gateways.listGatewayInstances().map((instance) => ({ ...instance, targetName: gateways.gatewayTargetName(instance), credentials: gateways.gatewayCredentialStatus(instance.id) })),
+  health: gatewaySupervisor.health(),
+}));
+post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(body));
+get('/api/gateways/targets/:projectId', async ({ projectId }) => gateways.gatewayTargets(projectId));
+get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
+get('/api/gateways/:id/inbox/:eventId/review', async ({ id, eventId }) => gatewayRequestReview(id, eventId));
+post<unknown>('/api/gateways/:id/inbox/:eventId/dismiss', async ({ id, eventId }, body) => {
+  await gatewaySupervisor.dismissRequest(id, eventId, body); return { ok: true };
+});
+get('/api/gateways/:id/discord-recovery', async ({ id }) => discordRecovery(id));
+get('/api/gateways/:id/whatsapp-setup', async ({ id }) => whatsAppSetup(id));
+post('/api/gateways/:id/whatsapp-setup/check', async ({ id }) => gatewaySupervisor.checkWhatsAppSetup(id));
+get('/api/gateways/:id/whatsapp-recovery', async ({ id }) => gatewayWhatsAppRecovery(id));
+post('/api/gateways/:id/whatsapp-recovery/inspect', async ({ id }) => gatewaySupervisor.inspectWhatsAppRecovery(id));
+post<unknown>('/api/gateways/:id/whatsapp-recovery', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppRecovery(id, body));
+post<unknown>('/api/gateways/:id/whatsapp-pairing', async ({ id }, body) => gatewaySupervisor.pairWhatsApp(id, body));
+post<unknown>('/api/gateways/:id/whatsapp-pairing/finish', async ({ id }, body) => gatewaySupervisor.finishWhatsAppPairing(id, body));
+post<unknown>('/api/gateways/:id/whatsapp-pairing/review', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppPairing(id, body));
+post<unknown>('/api/gateways/:id/discord-recovery', async ({ id }, body) => {
+  await gatewaySupervisor.reviewDiscordRecovery(id, body);
+  return { gap: null };
+});
+post<unknown>('/api/gateways/:id/inbox/cleanup', async ({ id }, body) => gatewaySupervisor.cleanup(id, body));
+put<unknown>('/api/gateways/:id', async ({ id }, body) => gateways.saveGatewayInstance(body, id));
+put<unknown>('/api/gateways/:id/credentials', async ({ id }, body) => {
+  gateways.saveGatewayCredentials(id, body);
+  return gateways.gatewayCredentialStatus(id);
+});
+post<unknown>('/api/gateways/:id/credentials', async ({ id }, body) => {
+  gateways.updateGatewayCredentials(id, body);
+  return gateways.gatewayCredentialStatus(id);
+});
+post('/api/gateways/:id/reconnect', async ({ id }) => {
+  gateways.getGatewayInstance(id);
+  await gatewaySupervisor.reconnect(id);
+  return { ok: true };
+});
+post('/api/gateways/:id/inbox/:eventId/retry-files', async ({ id, eventId }) => {
+  gatewaySupervisor.retryFiles(id, eventId);
+  return { ok: true };
+});
+post('/api/gateways/:id/inbox/:eventId/retry-reply', async ({ id, eventId }) => {
+  gatewaySupervisor.retryReply(id, eventId);
+  return { ok: true };
+});
+post('/api/gateways/:id/inbox/:eventId/reconcile', async ({ id, eventId }) => gatewaySupervisor.reconcile(id, eventId));
+post<unknown>('/api/gateways/:id/inbox/:eventId/group-album', async ({ id, eventId }, body) => gatewaySupervisor.groupAlbum(id, eventId, body));
+post<unknown>('/api/gateways/:id/inbox/:eventId/files', async ({ id, eventId }, body) => {
+  await gatewaySupervisor.selectDocuments(id, eventId, body);
+  return { ok: true };
+});
+post('/api/gateways/:id/inbox/:eventId/files/:index/retry', async ({ id, eventId, index }) => {
+  gatewaySupervisor.changeDocument(id, eventId, /^\d+$/.test(index) ? Number(index) : -1, 'retry');
+  return { ok: true };
+});
+post('/api/gateways/:id/inbox/:eventId/files/:index/skip', async ({ id, eventId, index }) => {
+  gatewaySupervisor.changeDocument(id, eventId, /^\d+$/.test(index) ? Number(index) : -1, 'skip');
+  return { ok: true };
+});
+del('/api/gateways/:id', async ({ id }) => {
+  gateways.removeGatewayInstance(id);
+  await gatewaySupervisor.reconnect(id);
+  return { ok: true };
+});
 get('/api/settings', async () => ({ settings: getSettings(), secrets: secretStatus() }));
 put<Parameters<typeof saveSettings>[0] | null>('/api/settings', async (_p, body) => saveSettings(body || {}));
 post<{ key: string; value?: unknown }>('/api/secrets', async (_p, body) => {
@@ -1504,6 +1610,8 @@ skills.ensureBuiltinSkills();
 learning.startLearning();
 irc.startIrc();
 eveCoordinator.start();
+await gatewaySupervisor.start();
+boardWork.boardWork.start();
 void irc.recoverWork().catch((e: unknown) => store.log('error', `Couldn't resume saved work: ${e instanceof Error ? e.message : String(e)}`));
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
@@ -1534,7 +1642,7 @@ const shutdown = () => {
   stopping = true;
   terms.closeAll();
   // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
-  void engines.stopAllRuns().finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => process.exit(0));
+  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns()]).finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => process.exit(0));
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

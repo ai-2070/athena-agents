@@ -141,8 +141,14 @@ Creating or assigning a task records the plan. Ask the agent, team or Brain in t
 - **Mentions.** In a description or a comment (and in the New task window), type **@** to mention one of the project's agents or teams, or a skill: it shows as a pill while you write and when you read it, a team's and a skill's with their icon. The Brain can mention them too. A card shows how many comments it has. The Brain reads them and can add its own.
 - **Draft with the Brain** in the New task window, under a description you are editing and under the comment box: say what it should say (or leave it empty), and the Brain writes a draft into the box from the task, its comments and what is there. Nothing is saved until you save; **Undo** takes the draft back.
 - Choose **This project**, **All projects** or one project above the board; in **All projects** each card says which project it is in, and the choice is remembered on this PC (if that project is removed, the board goes back to This project). A change is saved in the task's own project, whichever project is open. Search, **Assigned to** and **Priority** narrow the cards. Done shows the last 14 days; **Show older** shows the rest.
-- The Brain sees the board and can manage it: ask it to "put that on the board", "move #12 to review", "give #4 to the Writer" or "what's blocked?". Tasks it adds say they were made by the Brain. It moves a task to Done only when you say so or it has checked the result; otherwise finished work goes to In review.
-- The board is included in folder saves, backups and clones.
+- **Agents and teams pick up their tasks.** Move a task that is given to an agent or a team to **In progress** (or make it there, or give a task that is already In progress to one) and they start on it at once: "Writer started on #4" appears, with **Stop**. An agent works in a chat of its own for that task; a team works in a thread of its own for it, apart from its main chat, so two tasks given to one team don't mix. They comment on the task as they go, attach the files they made, and move it to **In review** when it's done or to **Blocked** with the reason when they can't finish it. They never move it to Done; you do. When they stop without saying, the usual completion check settles it: finished work goes to In review with their answer as a comment; work that needs you goes to Blocked with the Brain's note, and the question waits in **Needs you**.
+  - A card shows a small breathing dot while someone works on it, **Needs you** while it waits for your OK on a step, and **Check** when it needs a look.
+  - The task's page has a **Work** box: who has it and how it goes, with **Stop**, **Start** (or **Start again**), **Open chat** (or **Open thread**) and, when the dashboard couldn't tell how it went (a restart in the middle, say), **Check saved work**, which looks again without starting anything twice.
+  - Your comments reach them while they work, with their files, and so does a description you change. Moving the task to another column, giving it to someone else or removing it stops the work; the board asks first.
+  - The Brain's own moves on the board never start work.
+- **Files.** Attach files to a new task, to a description you are editing and to a comment (the paperclip, or drop or paste them). They are kept with the task in its own project (copied there when you work in All projects) and go to whoever works on it. Pictures show as thumbnails; a card shows how many files it has.
+- The Brain sees the board and can manage it: ask it to "put that on the board", "move #12 to review", "give #4 to the Writer" or "what's blocked?". Tasks it adds say they were made by the Brain. It moves a task to Done only when you say so or it has checked the result; otherwise finished work goes to In review. A Brain answering you on Telegram, Slack or Discord doesn't see the board and can't change it.
+- The board is included in folder saves, backups and clones. Backups and clones take the files on its tasks and comments too, as many as fit (a backup holds up to 512 MB in all); any that don't are counted as left out.
 
 Tasks survive restarts and are included in folder saves, backups and clones. Opening a saved copy keeps task IDs and dependency links, resets In progress tasks to Pending and drops old completion-check links. Each project's tasks remain separate when you switch projects.
 
@@ -351,7 +357,7 @@ Choose **Project menu → Back up this project**. The dashboard writes a `.dashb
 
 A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, MEMORY.md files, logo and background picture (with its opacity and the map dots' opacity), the teams' pictures and 3D models, `PROJECT.md` and notes, and its voxel world (with WORLD.md and its prefabs). It also includes **every skill and saved preset in your library, and every prefab in the prefab library**, plus earlier versions of the project's agents, teams and memories and of library skills, including deleted items. It does not include stored keys or account tokens.
 
-Backups are not a full copy of your working folder: back up source files, uploads and generated work separately. Size limits also apply: 300 MB of voxel world, 200 MB of agent chats, 100 MB each of prefab library and team pictures and models, 50 MB each of knowledge files, skills and earlier versions, and 20 MB each of MEMORY.md files and of project brief and notes. A restore adds the library prefabs this computer doesn't have yet and leaves the ones it has as they are. Files that do not fit are left out; the saved-backup message reports the number omitted.
+Backups are not a full copy of your working folder: back up source files, other uploads and generated work separately (the files on Tasks board tasks and comments go in with whatever room is left). Size limits also apply: 300 MB of voxel world, 200 MB of agent chats, 100 MB each of prefab library and team pictures and models, 50 MB each of knowledge files, skills and earlier versions, and 20 MB each of MEMORY.md files and of project brief and notes. A restore adds the library prefabs this computer doesn't have yet and leaves the ones it has as they are. Files that do not fit are left out; the saved-backup message reports the number omitted.
 
 ### Restore a backup
 
@@ -381,6 +387,145 @@ The dashboard keeps the last **50 versions** per item and groups nearby edits. *
 ## Development
 
 Building, testing and packaging the dashboard is in the [README](../README.md#development).
+
+Chat gateways are still being built. Experimental Telegram, Slack and Discord instances can pass allowed text and attached files
+to the Brain, a team or an agent and send final text replies. Files explicitly selected through the local API
+can be sent as Telegram documents, Slack files or Discord attachments after their size, location and saved content hash are checked.
+Gateway agents can also inspect specific finished files and request their delivery through the normal
+approval policy. Files changed after inspection are refused. Artifacts and tool images are not attached automatically.
+Delegated files can come from the agent's custom workspace. Their source run, private conversation and
+current folder access are checked again before delivery; missing records or revoked access hold the file for review.
+Set up Telegram under **Settings → Gateways**. Add an instance with its numeric bot account ID and
+BotFather token, choose a project and the Brain, a team or an agent, and enter the allowed Telegram
+user IDs. Choose whether direct messages are allowed and list exact group/topic IDs when needed.
+Save leaves the instance paused; click **Enable** to connect. Saving an edit pauses it again. Each bot
+account has its own instance and token. **Pause** stops receiving and delivering; native work already
+started keeps its normal stop behavior. **Reconnect** retries connection setup. **Delete** removes the
+connection and token but retains conversation receipts for recovery.
+
+For Slack, choose **Add Slack instance** and enter the workspace ID (starting with T), a bot OAuth
+token (xoxb-) and an app-level token (xapp-) from the same Slack app. Enable Socket Mode; the app
+token needs `connections:write`. The bot needs `app_mentions:read`, `channels:history`, `channels:read`,
+`groups:history`, `groups:read`, `im:history`, `im:read`, `users:read`, `chat:write`, `files:read` and
+`files:write`. Subscribe to `app_mention`, `message.channels`, `message.groups` and `message.im`.
+Reinstall the app after changing scopes, and invite the bot into each allowed channel. No public
+callback URL is needed. Bot and app tokens can be changed or removed separately; blank fields keep
+the saved tokens. Save pauses the instance; **Enable** starts it once both tokens are saved.
+
+Slack's user-ID list is optional. Empty allows local workspace users within the configured scope;
+adding IDs restricts it to those exact users. Direct messages are a separate choice. List channel IDs
+or channel ID/thread timestamp pairs under **Allowed channels and threads**. Mention the bot to start
+an assignment in a channel, then reply in that thread to continue. Direct messages also start a thread
+per new root message. Different threads keep separate Athena histories. Shared channels, external
+users, group DMs and org-wide installations are refused. Slack files must be hosted uploads shared
+in the saved local conversation; external or inaccessible files hold the request for review. Downloads
+are bounded and rechecked; selected output files use the same workspace, channel and thread.
+Replies are plain text and cannot turn model output into Slack mentions or unfurls. Ambiguous sends
+stay held until explicitly retried after checking Slack. Approvals are reviewed in Athena.
+
+For Discord, choose **Add Discord instance** and enter the bot user ID and token from the Discord
+Developer Portal. Enable the **Message content** intent on the Bot page. Invite the bot with the
+`bot` scope and View channels, Read message history, Send messages, Send messages in threads and
+Attach files permissions. List exact server IDs under **Allowed servers** and channel or native
+thread IDs under **Allowed channels and threads**. Allowing a parent channel also allows its threads.
+Direct messages have a separate rule. The optional user-ID list narrows access; leaving it empty
+allows any human who can message the bot or post in those channels. Bots and webhooks are refused.
+Choose a project and the Brain, a team or an agent; save pauses the instance and **Enable** connects.
+Multiple bot accounts keep separate routes, credentials, histories and delivery receipts.
+
+Discord replies stay attached to the source message, with mentions and link previews suppressed.
+Files are fetched from refreshed attachment links without exposing them in saved receipts. Selected
+output files use the same verified channel or thread and saved byte limits. **Reconnect** resumes a
+saved session and honors Discord's requested wait. If Discord cannot replay that session, intake
+stops and **Review recovery** explains the gap. Pause the instance, check Discord for missed messages,
+and confirm **Allow new session** to acknowledge that the missing messages cannot be recovered
+automatically. The instance stays paused until you enable it. Existing work and confirmed deliveries
+stay saved; the review never starts a second run or blindly resends output. Real-account checks
+remain pending.
+
+Open an instance's **Inbox** to see messages needing review, or choose **All messages** for its saved
+history. Expand a message to see its original sender, saved destination, attachments, final reply and
+individual delivery results. **Retry remaining reply** preserves confirmed text parts. Outgoing files
+have separate **Retry file** and **Skip file** controls; uncertain deliveries ask you to check the messaging app
+first because a retry might create a duplicate. Skipping cannot undo a delivery that already happened.
+Enable a paused instance before retrying. To send specific files for the current assignment, enter
+absolute paths under **Files to send**, one per line. The server checks their location, size and content
+hash before upload. These actions never replay model work.
+
+Telegram albums wait for you to confirm their parts in the inbox. Once all files are saved, choose
+**Group album and start** on the first received part. Check Telegram for the complete album before
+confirming the listed message IDs: Telegram does not provide an album completion marker. One
+assignment receives all saved files, captions and source IDs. Limits apply to the whole album.
+The other parts point to that assignment's work and delivery receipts. A late part or an edit holds
+unfinished work and unsent deliveries for review; it never starts a second assignment automatically.
+Confirmed sends stay confirmed. Album receipts can only be cleaned together, and replay protection
+continues to hold late parts after cleanup.
+
+For a held message with a saved operation, **Check saved work** checks that original operation without
+starting another run. If its completion is verified and the original sender and destination are still
+allowed, its saved reply is queued for delivery. Work still in progress resumes completion tracking.
+Missing records, edited input, changed destinations and unproven completion remain held; this action
+does not override them. Team recovery needs a completed review of the original message, rather than
+the latest team reply.
+
+For a held request that has never started, pause its instance and choose **Dismiss request**. Athena
+checks the current receipt and asks you to confirm. The request will not start an assignment or send
+a reply, and later messages in that conversation can continue once other holds are resolved. Its
+text, files and byte charges stay saved. Ask the sender to send a new message if the work is still
+needed; an old request cannot replay. This action refuses even a reserved operation with no proven
+run, saved native work, replies, outgoing files and albums. Existing native work still uses
+**Check saved work**, and uncertain deliveries still need their separate review. Unconfirmed WhatsApp
+requests require the exact ACK or a reviewed retention gap before they can be dismissed; relay holds
+must be resolved first. Dismissing an abandoned receipt never marks it confirmed.
+
+Under **Clean resolved receipts**, choose a received-before age or **All resolved receipts**, then
+choose **Remove resolved receipts** and confirm **Remove receipts**. Completed and dismissed requests are eligible. Only the displayed eligible selection is removed; unresolved
+conversations keep their earlier context. Paused instances can be cleaned without reconnecting.
+This removes inbox message text and delivery receipts, while native chats, project files and conversation
+links stay. Compact replay markers and daily byte totals stay too, so cleanup cannot resend an old
+request or refill a file budget. These records do not expire; if their storage limit is reached, cleanup
+refuses to remove further receipts. There is no automatic purge of unresolved work.
+
+The sidebar's **Status** panel shows gateway connection state and messages needing review. Click an
+instance needing review to open its inbox, or a connection warning to open its setup. Its tooltip names
+the bound project. Up to five instances appear, with attention items first; **All gateways** opens the full
+list. If an inbox is unreadable, its status says **check inbox** rather than reporting no problems.
+Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
+Slow requests can send one working notice. When a run needs approval, the messaging app says **Needs approval in Athena**;
+review it in the dashboard. Gateway messages cannot approve requests.
+Existing Outbox connections work as before. The
+[gateway plan](internal/plans/CHAT_GATEWAYS_2026-11-01.md) tracks the remaining work;
+`bun run gateways:smoke` checks a fake local Telegram service without using accounts or keys.
+`bun run gateways:slack-smoke` checks Slack Socket Mode, private downloads and selected file replies
+locally with throwaway data. Real-account checks and Windows/Linux verification remain pending.
+`bun run gateways:discord-smoke` checks Discord intake with local REST and WebSocket fixtures:
+bot identity, optional sender rules, explicit guild/channel scopes, permissions, message edits and
+saved-session recovery after a failed inbox write, private downloads and selected document replies.
+It uses no real account or platform messages. Discord setup, supervised connections and explicit
+recovery review are available for testing; real-account checks remain pending.
+
+The separate [WhatsApp relay and deployment guide](../relay/whatsapp/README.md) describes its
+one-phone-per-deployment scope, signature checks, one-time pairing, queue limits and explicit gap
+review/revocation. It keeps Athena's port private and stores no outbound Meta token or model keys.
+`bun run gateways:whatsapp-relay-smoke` proves the bundled Worker across separate local processes;
+no real deployment or account is used. In **Settings → Gateways**, add a WhatsApp instance and choose
+its project, Brain/team/agent destination and allowed phone numbers. Save its business phone ID,
+access token and Meta app secret; blank secret fields keep saved values, and each removal control
+removes only that credential. Each business phone needs its own relay deployment.
+
+Open **Set up relay**, enter the relay HTTPS address, business account ID and a new one-use pairing
+code, then confirm the starting position. **Check setup** reads the Meta phone/account and saved
+relay status; it does not claim or acknowledge messages, download files, start work or send replies.
+It checks that an app secret is saved; a signed webhook is still needed to prove that secret works.
+A successful check is a current observation and leaves the instance paused. Receiving and sending
+remain disabled while the remaining recovery controls and acceptance checks are completed.
+
+If setup was interrupted, **Finish saved pairing** completes a locally saved key without exchanging
+the code again. **Pairing outcome unknown** requires revoking the pairing at the relay and reviewing
+its queue loss before clearing the local attempt and using a new code. For expired queued messages,
+**Check relay gap** saves the observed loss; ask the relay operator to review that exact gap before
+**Review gap locally**. Saved work and delivery receipts remain held for their own review. Changed
+installations or invalid receipts require restoration; gap review cannot reset them.
 
 ## License and credits
 

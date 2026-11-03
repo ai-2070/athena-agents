@@ -4,7 +4,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { Popover } from '@base-ui/react/popover';
-import { GET, POST, h, md, state, toast } from './core.ts';
+import { GET, POST, confirmBox, h, md, state, toast } from './core.ts';
+import { attachTray } from './attach.tsx';
+import type { AttachTray } from './attach.tsx';
+import { apiUrl } from './client/connection.ts';
 import { icon } from './icons.ts';
 import { loadSkills, skillsCache } from './skillpick.ts';
 import { attachMentions } from './routinemention.ts';
@@ -17,7 +20,7 @@ import { Dropdown, DropdownContent, DropdownRadioGroup, DropdownRadioItem, Dropd
 import { DomNode, Icon } from './ui/react.tsx';
 import { buttonClass } from './ui/classes.ts';
 import { openModal } from './ui/overlays.tsx';
-import type { BoardDraft, BoardDraftInput, BoardPeople, BoardPriority, BoardStatus, BoardTask } from '../shared/types.ts';
+import type { BoardDraft, BoardDraftInput, BoardPeople, BoardPriority, BoardStatus, BoardTask, TaskFile, TaskWorkState } from '../shared/types.ts';
 
 export const STATUSES: readonly { value: BoardStatus; label: string; icon: string; tone: string }[] = [
   { value: 'todo', label: 'To do', icon: 'circle-dashed', tone: 'text-dim' },
@@ -38,6 +41,66 @@ export const statusOf = (s: BoardStatus) => STATUSES.find((x) => x.value === s)!
 export const priorityOf = (p: BoardPriority) => PRIORITIES.find((x) => x.value === p)!;
 export const taskKey = (n: number) => `#${n}`;
 export const taskHref = (t: Pick<BoardTask, 'projectId' | 'id'>) => `#/tasks/${encodeURIComponent(t.projectId)}/${encodeURIComponent(t.id)}`;
+
+// ---------- an agent's or team's work on a task ----------
+/** How a task's work reads on its card and its page. */
+export const WORK_STATES: Record<TaskWorkState, { label: string; tone: string; icon: string }> = {
+  starting: { label: 'Starting', tone: 'text-accent', icon: 'play' },
+  working: { label: 'Working', tone: 'text-accent', icon: 'play' },
+  waiting: { label: 'Needs you', tone: 'text-amber', icon: 'hand' },
+  review: { label: 'Ready for review', tone: 'text-ok', icon: 'eye' },
+  blocked: { label: 'Blocked', tone: 'text-red', icon: 'circle-pause' },
+  stopped: { label: 'Stopped', tone: 'text-dim', icon: 'square' },
+  'needs-review': { label: 'Needs review', tone: 'text-amber', icon: 'triangle-alert' },
+};
+/** True while an agent or team works on the task (starting, working, or waiting for your OK). */
+export const isWorking = (t: Pick<BoardTask, 'work'>): boolean => !!t.work && ['starting', 'working', 'waiting'].includes(t.work.state);
+/** Before a change that stops the work (moving the task away, giving it to someone else, removing it): asks first. */
+export function confirmStop(t: BoardTask): Promise<boolean> {
+  if (!isWorking(t)) return Promise.resolve(true);
+  return confirmBox(`${t.workerName || 'Someone'} is working on ${taskKey(t.number)}. Stop it?`, { ok: 'Stop it', danger: true });
+}
+
+// ---------- files ----------
+/** A file on a task, from the task's own project (whichever project is open). */
+export const taskFileUrl = (t: Pick<BoardTask, 'projectId' | 'id'>, f: TaskFile) => apiUrl(`/task-board-file/${encodeURIComponent(t.projectId)}/${encodeURIComponent(t.id)}`, { path: f.path });
+const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
+/** A task's or comment's files: pictures as thumbnails, the rest as chips; each opens in a new tab. */
+export function TaskFiles({ task, files, onRemove }: { task: Pick<BoardTask, 'projectId' | 'id'>; files: readonly TaskFile[] | undefined; onRemove?: (f: TaskFile) => void }) {
+  if (!files?.length) return null;
+  return (
+    <div className="task-files flex flex-wrap gap-2">
+      {files.map((f) => {
+        const url = taskFileUrl(task, f);
+        const remove = onRemove ? (
+          <button type="button" className="att-x" title="Remove" aria-label={`Remove ${f.name}`} onClick={() => onRemove(f)}><Icon name="x" size={12} /></button>
+        ) : null;
+        return IMAGE.test(f.name) ? (
+          <span key={f.path} className="relative inline-flex">
+            <a className="att-img group block leading-[0]" href={url} target="_blank" rel="noopener" title={f.name}>
+              <img className="h-18 w-24 rounded-[8px] border border-line-2 object-cover group-hover:shadow-lift" src={url} alt={f.name} loading="lazy" />
+            </a>
+            {remove ? <span className="absolute -top-1.5 -right-1.5 rounded-full bg-bg">{remove}</span> : null}
+          </span>
+        ) : (
+          <span key={f.path} className="att-chip sent">
+            <a className="flex min-w-0 items-center gap-1.5 text-inherit no-underline hover:text-accent" href={url} target="_blank" rel="noopener" title={f.name}>
+              <span className="att-ico"><Icon name="file" size={13} /></span>
+              <span className="att-name">{f.name}</span>
+            </a>
+            {remove}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+/** The app's attachment tray (paperclip, drop, paste) for a React box; what it holds is thrown away when the box goes. */
+export function useTray(): AttachTray {
+  const [tray] = useState(() => attachTray());
+  useEffect(() => () => tray.discard(), [tray]);
+  return tray;
+}
 
 export function StatusIcon({ status, size = 15 }: { status: BoardStatus; size?: number }) {
   const s = statusOf(status);
@@ -297,6 +360,9 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
   const descBox = useRef<HTMLTextAreaElement>(null);
   const people = usePeople(projectId);
   useMentionBox(descBox, useMentionables(projectId));
+  const tray = useTray();
+  const frame = useRef<HTMLFormElement>(null);
+  useEffect(() => (frame.current ? tray.dropZone(frame.current, 'Drop files to attach them to the task') : undefined), [tray]);
   const choices = projects.length ? projects : [{ id: here, name: state.data?.project?.name || 'This project' }];
 
   const submit = async () => {
@@ -304,8 +370,11 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
     if (busy || !title.trim() || !projectId) return;
     setBusy(true);
     try {
-      const { task } = await POST<{ task: BoardTask }>(`/task-board/${encodeURIComponent(projectId)}`, { title, description, status, priority, assignee });
-      toast(`Created ${taskKey(task.number)}: ${task.title}`);
+      const files = await tray.ready();
+      if (files === null) return;
+      const { task } = await POST<{ task: BoardTask }>(`/task-board/${encodeURIComponent(projectId)}`, { title, description, status, priority, assignee, files });
+      tray.take();
+      toast(`Created ${taskKey(task.number)}: ${task.title}${task.work && task.workerName ? `. ${task.workerName} started on it.` : ''}`);
       await onCreated?.(task);
       if (another) {
         // the properties stay for the next one; its words start afresh
@@ -322,7 +391,8 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
 
   return (
     <form
-      className="flex min-h-0 flex-col"
+      ref={frame}
+      className="relative flex min-h-0 flex-col"
       onSubmit={(e) => (e.preventDefault(), void submit())}
       onKeyDown={(e) => {
         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -337,7 +407,6 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
           aria-label="Title"
           autoFocus
           required
-          maxLength={200}
           placeholder="Task title"
           value={title}
           disabled={busy}
@@ -348,14 +417,15 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
           ref={descBox}
           aria-label="Description"
           rows={6}
-          maxLength={8000}
           placeholder="Add a description: what needs to happen, and how you'll know it's done. Type @ to mention an agent, a team or a skill. Markdown supported."
           value={description}
           disabled={busy}
           onChange={(e) => setDescription(e.currentTarget.value)}
           className="min-h-36 resize-none border-0! bg-transparent! px-0! text-[14.5px]! leading-relaxed whitespace-pre-wrap text-ink shadow-none! outline-none focus:shadow-none! empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
         />
+        <DomNode make={() => tray.el} deps={[tray]} />
         <div className="flex flex-wrap items-center gap-1.5 pt-2">
+          <DomNode as="span" make={() => tray.picker} deps={[tray]} />
           <Pick label="Status" value={status} choices={statusChoices(START_STATUSES)} onChange={(v) => setStatus(v as BoardStatus)} disabled={busy} />
           <Pick label="Priority" value={priority} choices={priorityChoices()} onChange={(v) => setPriority(v as BoardPriority)} disabled={busy} />
           <Pick label="Assigned to" value={assignee} choices={assigneeChoices(people)} onChange={setAssignee} disabled={busy} />

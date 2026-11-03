@@ -11,7 +11,6 @@ import { ensureDir, exists, isInside, realTarget } from './util.ts';
 import { ensureBrain } from './projects.ts';
 import type { Project, UploadedFile } from '../shared/types.ts';
 
-export const MAX_FILE_BYTES = 500 * 1024 * 1024;
 const MAX_ATTACHMENTS = 50;
 const MAX_DEPTH = 16;
 export const IMAGE_EXT = /\.(png|jpe?g|webp|gif)$/i;
@@ -48,9 +47,16 @@ const checkedRoot = (): string => {
 export function newBatch(): { batch: string; dir: string } {
   const d = new Date();
   const two = (n: number) => String(n).padStart(2, '0');
-  const batch = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}_${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}-${crypto.randomBytes(2).toString('hex')}`;
   const root = checkedRoot();
-  const dir = ensureDir(path.join(root, batch));
+  ensureDir(root);
+  let batch: string;
+  let dir: string;
+  for (;;) {
+    batch = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}_${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}-${crypto.randomBytes(6).toString('hex')}`;
+    dir = path.join(root, batch);
+    try { fs.mkdirSync(dir); break; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
+  }
   // a Git project: keep dropped files out of commits (an agent's `git add -A` would take them all)
   const ignore = path.join(root, '.gitignore');
   if (exists(path.join(ensureBrain(), '.git')) && !exists(ignore)) fs.writeFileSync(ignore, '# Files attached in the dashboard. Move a file out of uploads/ to commit it.\n*\n');
@@ -94,15 +100,23 @@ export function reserveName(file: string): string {
 
 // Save one file of a batch from the raw request body (streamed, never held in memory).
 export async function receive(req: http.IncomingMessage, batch: string, rel: string): Promise<UploadedFile> {
+  return receiveSource(req, batch, rel, { declaredBytes: Number(req.headers['content-length'] || 0) });
+}
+
+/** Browser requests and private platform streams use the same bounded, safe upload path. */
+export async function receiveSource(source: AsyncIterable<Uint8Array>, batch: string, rel: string, { declaredBytes = 0, maxBytes = Infinity, signal }: { declaredBytes?: number; maxBytes?: number; signal?: AbortSignal } = {}): Promise<UploadedFile> {
+  // No size limit of its own; a caller with one (a gateway's file limits) passes it.
+  if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1)) throw new UploadError(400, 'Bad upload limit.');
+  const limitError = () => new UploadError(413, `${path.basename(rel)} is over ${maxBytes / 1024 / 1024} MB.`);
+  if (declaredBytes > maxBytes) throw limitError();
+  signal?.throwIfAborted();
   if (!/^[\w-]{1,64}$/.test(batch)) throw new UploadError(400, 'Bad upload batch.');
   const root = checkedRoot();
   const dir = path.join(root, batch);
-  if (!exists(dir) || !inside(root, dir)) throw new UploadError(400, 'That upload batch is gone. Attach the files again.');
+  if (!exists(dir) || !fs.lstatSync(dir).isDirectory() || !inside(root, dir)) throw new UploadError(400, 'That upload batch is gone. Attach the files again.');
   const parts = safeParts(rel);
   if (!parts.length) throw new UploadError(400, 'The file needs a name.');
   if (parts.length > MAX_DEPTH) throw new UploadError(400, 'That folder is nested too deep.');
-  const declared = Number(req.headers['content-length'] || 0);
-  if (declared > MAX_FILE_BYTES) throw new UploadError(413, `${parts[parts.length - 1]} is over ${MAX_FILE_BYTES / 1024 / 1024} MB.`);
   ensureDir(path.dirname(path.join(dir, ...parts)));
   // a folder in the path that is a link out of uploads/
   if (!inside(root, path.dirname(path.join(dir, ...parts)))) throw new UploadError(400, 'Bad upload path.');
@@ -112,12 +126,13 @@ export async function receive(req: http.IncomingMessage, batch: string, rel: str
   const count = new Transform({
     transform(chunk: Buffer, _enc, done) {
       size += chunk.length;
-      if (size > MAX_FILE_BYTES) done(new UploadError(413, `${parts[parts.length - 1]} is over ${MAX_FILE_BYTES / 1024 / 1024} MB.`));
+      if (size > maxBytes) done(limitError());
       else done(null, chunk);
     },
   });
   try {
-    await pipeline(req, count, fs.createWriteStream(tmp));
+    await pipeline(source, count, fs.createWriteStream(tmp, { flags: 'wx' }), { signal });
+    if (!inside(root, target) || !inside(root, tmp)) throw new UploadError(400, 'Bad upload path.');
     fs.renameSync(tmp, target);
   } catch (e) {
     fs.rmSync(tmp, { force: true });
@@ -127,6 +142,21 @@ export async function receive(req: http.IncomingMessage, batch: string, rel: str
   const folder = parts.length > 1;
   // a folder ends with a separator, so it can be told from a file anywhere it is shown
   return { path: target, top: folder ? path.join(dir, parts[0]) + path.sep : target, kind: folder ? 'folder' : 'file', name: path.basename(target), size };
+}
+
+/** Only a gateway's recorded batch is passed here, while its exclusive worker owns the inbox. */
+export function cleanOwnedBatch(batch: string, keep: string[]): void {
+  if (!/^[\w-]{1,64}$/.test(batch)) throw new UploadError(400, 'Bad upload batch.');
+  const root = checkedRoot();
+  const dir = path.join(root, batch);
+  if (!inside(root, dir)) throw new UploadError(400, 'Bad upload path.');
+  if (!exists(dir)) return;
+  if (!fs.lstatSync(dir).isDirectory()) throw new UploadError(400, 'Bad upload path.');
+  const retained = new Set(keep.map((file) => path.resolve(file)));
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const file = path.join(dir, entry.name);
+    if ((entry.isFile() || entry.isSymbolicLink()) && !retained.has(path.resolve(file))) fs.unlinkSync(file);
+  }
 }
 
 // Strictly inside root once links are followed (case only ignored on Windows). A link that can't be
@@ -139,7 +169,7 @@ const inside = (root: string, p: string) => {
 
 // The attachments a request names, keeping only uploads of this project that still exist.
 // Folders end with a separator.
-export function cleanAttachments(list: unknown): string[] {
+export function cleanAttachments(list: unknown, max = MAX_ATTACHMENTS): string[] {
   const root = safeUploadsRoot();
   if (!Array.isArray(list) || !root) return [];
   const out = new Set<string>();
@@ -147,7 +177,7 @@ export function cleanAttachments(list: unknown): string[] {
     if (typeof x !== 'string' || !x) continue;
     const p = path.resolve(x);
     if (inside(root, p) && exists(p)) out.add(isDir(p) ? p + path.sep : p);
-    if (out.size >= MAX_ATTACHMENTS) break;
+    if (out.size >= max) break;
   }
   return [...out];
 }

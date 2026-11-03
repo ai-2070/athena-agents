@@ -26,6 +26,7 @@ import { guardPageDrops } from './attach.tsx';
 import { applyLook, applySavedLook } from './look.ts';
 import { autosizeTextareas } from './autosize.ts';
 import { navLimits, panelSwitch, sidebarPanel } from './navlimits.tsx';
+import { gatewayStatusLinks } from './gateway-status.ts';
 
 applySavedLook();
 autosizeTextareas();
@@ -167,6 +168,7 @@ function navStatus(d: AppState) {
   const sv = d.projectSaved;
   const savedLine = sv ? (sv.error ? `not saved: ${sv.error}` : `auto-saved ${ago(sv.at)}`) : 'auto-save on';
   const footer = 'flex min-w-0 w-full items-start gap-2.5 rounded-ctl px-2 py-1.5 text-[11.5px] leading-4 text-faint hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
+  const gatewayLinks = gatewayStatusLinks(d.gateways || []);
   return [
     h('div', { class: heading }, 'Engines'),
     line(cc.installed ? (cc.loggedIn ? 'on' : 'warn') : '', 'Claude Code', cc.installed ? (cc.loggedIn ? ver(cc.version) || 'ready' : 'not signed in') : 'not found', S('tab=general&find=Claude Code')),
@@ -180,6 +182,10 @@ function navStatus(d: AppState) {
     line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : b.provider === 'venice' ? ' · Venice' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
     line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),
     d.outboxPending || d.questions?.length ? line('busy', 'Outbox', `${d.outboxPending + (d.questions?.length || 0)} waiting`, '#/outbox') : null,
+    h('div', { class: heading }, 'Chat gateways'),
+    ...gatewayLinks.map((gateway) => line(gateway.dot, gateway.label, gateway.value, gateway.href, gateway.title)),
+    !gatewayLinks.length ? line('', 'Gateways', 'not set up', S('tab=gateways')) : (d.gateways || []).length > gatewayLinks.length
+      ? line('', 'All gateways', String(d.gateways.length), S('tab=gateways')) : null,
     h('div', { class: 'mt-2 border-t border-line pt-2' },
       h('a', { class: footer, href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` },
         icon('folder-open', 13), h('span', { class: 'flex min-w-0 flex-1 flex-col gap-0.5' },
@@ -308,7 +314,7 @@ onState(() => {
 // the usage limits count down, and are read again now and then while they're shown
 setInterval(() => sidebarPanel() === 'limits' && !document.hidden && renderNav(), 20_000);
 
-const STATE_EVENTS = new Set(['agents', 'approvals', 'outbox', 'questions', 'runs', 'settings', 'accounts', 'terminals', 'mcp', 'project', 'project-logo', 'projects', 'engines']);
+const STATE_EVENTS = new Set(['agents', 'approvals', 'outbox', 'questions', 'runs', 'settings', 'accounts', 'terminals', 'mcp', 'project', 'project-logo', 'projects', 'engines', 'gateways', 'gateway-health', 'gateway-inbox']);
 onEvent((ev) => {
   if (STATE_EVENTS.has(ev.type)) refreshSoon();
   if (ev.type === 'toast') toast(ev.text as string);

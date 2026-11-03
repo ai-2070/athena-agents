@@ -4,6 +4,7 @@
 // its team chat) as a new message, so nothing you answer is lost.
 import { agents, chats, questions, workflows, log, activeProject, withProject } from './store.ts';
 import { uid } from './util.ts';
+import { privateTeamDefinition } from './private-conversations.ts';
 import { canonical } from '../shared/canonical.ts';
 import type { AgentQuestion } from '../shared/types.ts';
 
@@ -54,7 +55,7 @@ export function addQuestion({ question, detail, choices, agentId = null, chatId 
   const agent = agentId ? agents.get(agentId) : null;
   // a team's chat: a late answer goes to the team, so the others see it too
   const teamId = explicitTeam || (agentId && chatId ? chats.get(agentId, chatId)?.teamId || null : null);
-  const team = teamId ? workflows.get(teamId) : null;
+  const team = teamId ? workflows.get(teamId) || privateTeamDefinition(teamId) : null;
   const q = questions.save({
     id: uid('qn'),
     ...(operationId ? { operationId } : {}),

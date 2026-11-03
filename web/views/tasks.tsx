@@ -6,15 +6,17 @@
 // project. A task's page shows its description (Markdown) and its comments, with "Draft with the Brain" for both.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
-import { DEL, GET, POST, PUT, ago, confirmBox, navigate, onEvent, onReconnect, promptBox, toast } from '../core.ts';
+import { DEL, GET, POST, PUT, ago, confirmBox, h, navigate, onEvent, onReconnect, promptBox, toast } from '../core.ts';
+import { domButton } from '../ui/dom.ts';
 import { reducedMotion } from '../motion.ts';
 import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
 import { iconButtonClass } from '../ui/classes.ts';
 import { Dropdown, DropdownContent, DropdownGroup, DropdownItem, DropdownLabel, DropdownRadioGroup, DropdownRadioItem, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
-import { Icon, reactPage, useAppState } from '../ui/react.tsx';
+import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { Bone, Skeleton } from '../ui/skeleton.tsx';
 import { cardCopy, grab, useDragPreview } from '../taskmotion.ts';
-import { DraftWithBrain, Markdown, useMentionBox, useMentionables, PRIORITIES, Pick, PriorityIcon, STATUSES, StatusIcon, WhoMark, askForDraft, assigneeChoices, openTaskComposer, priorityChoices, priorityOf, statusChoices, statusOf, taskHref, taskKey, usePeople } from '../taskboard.tsx';
+import { openChat } from '../chatwin.tsx';
+import { DraftWithBrain, Markdown, useMentionBox, useMentionables, PRIORITIES, Pick, PriorityIcon, STATUSES, StatusIcon, TaskFiles, WORK_STATES, WhoMark, askForDraft, assigneeChoices, confirmStop, isWorking, openTaskComposer, priorityChoices, priorityOf, statusChoices, statusOf, taskHref, taskKey, usePeople, useTray } from '../taskboard.tsx';
 import type { Choice } from '../taskboard.tsx';
 import type { Candidate } from '../routinemention.ts';
 import type { BoardComment, BoardPriority, BoardStatus, BoardTask, TaskBoardData } from '../../shared/types.ts';
@@ -219,7 +221,9 @@ function TaskBoardPage() {
         const r = await PUT<{ task: BoardTask }>(path(task), { ...patch, expectedUpdatedAt: version });
         // the server's version (and the names of who has it), leaving the rest as shown
         const named = 'assignee' in patch ? { assigneeName: r.task.assigneeName, assigneeEmoji: r.task.assigneeEmoji, assigneeColor: r.task.assigneeColor } : {};
-        setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...named, updatedAt: r.task.updatedAt } : t)) } : d));
+        const work = { work: r.task.work, workerName: r.task.workerName };
+        setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...named, ...work, updatedAt: r.task.updatedAt } : t)) } : d));
+        startedNote(task, r.task);
         return r.task.updatedAt;
       } catch (e) {
         toast(errorText(e), 'error');
@@ -239,6 +243,8 @@ function TaskBoardPage() {
   /** Saves a move (and shows it at once); one the server refuses goes back. Moving to Blocked asks why first. */
   const move = async (task: BoardTask, status: BoardStatus, { rank, respaced }: Placement, at?: { x: number; y: number }) => {
     if (status === task.status && rank === task.rank && !respaced.length) return;
+    // (only asks while someone works on it: a quick second move must not wait behind a question)
+    if (status !== 'in_progress' && isWorking(task) && !(await confirmStop(task))) return;
     let blockedReason: string | undefined;
     if (status === 'blocked' && task.status !== 'blocked') {
       const why = await askWhyBlocked(task);
@@ -255,8 +261,8 @@ function TaskBoardPage() {
     await saved;
   };
   /** Gives a card to someone (shown at once, with their name and mark). */
-  const assign = (task: BoardTask, who: Assignee) => {
-    if (who.assignee === task.assignee) return;
+  const assign = async (task: BoardTask, who: Assignee) => {
+    if (who.assignee === task.assignee || (isWorking(task) && !(await confirmStop(task)))) return;
     setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...who } : t)) } : d));
     void saveCard(task, { assignee: who.assignee });
   };
@@ -285,7 +291,7 @@ function TaskBoardPage() {
     void move(task, status, placeAt(status, target.index, task), at);
   };
   const remove = async (task: BoardTask) => {
-    if (!(await confirmBox(`Remove ${taskKey(task.number)} "${task.title}"?`, { ok: 'Remove', danger: true }))) return;
+    if (!(await confirmStop(task)) || !(await confirmBox(`Remove ${taskKey(task.number)} "${task.title}"?`, { ok: 'Remove', danger: true }))) return;
     try {
       remember();
       setData((d) => (d ? { ...d, tasks: d.tasks.filter((t) => !same(t, task)) } : d));
@@ -532,14 +538,51 @@ function Card({ task: t, showProject, first, last, dragging, onDragStart, onDrag
             {t.commentCount}
           </span>
         ) : null}
+        {t.fileCount ? (
+          <span className="inline-flex items-center gap-1 tabular-nums" title={`${t.fileCount} file${t.fileCount === 1 ? '' : 's'}`}>
+            <Icon name="paperclip" size={12} />
+            {t.fileCount}
+          </span>
+        ) : null}
         {showProject ? <span className="min-w-0 truncate" title={`Project: ${t.projectName}`}>{t.projectName}</span> : null}
-        <AssignMenu task={t} onAssign={onAssign} />
+        <span className="ml-auto flex flex-none items-center gap-2">
+          <WorkMark task={t} />
+          <AssignMenu task={t} onAssign={onAssign} />
+        </span>
       </div>
     </li>
   );
 }
 
 type Assignee = Pick<BoardTask, 'assignee' | 'assigneeName' | 'assigneeEmoji' | 'assigneeColor'>;
+
+/** On a card, how its work goes: a small dot that breathes while someone works on it, Needs you while it waits for
+ *  your OK, and Check when it needs a look. Settled work shows nothing (the column says it). */
+function WorkMark({ task: t }: { task: BoardTask }) {
+  const w = t.work;
+  if (!w || !['starting', 'working', 'waiting', 'needs-review'].includes(w.state)) return null;
+  const s = WORK_STATES[w.state];
+  const who = t.workerName || 'Someone';
+  if (w.state === 'starting' || w.state === 'working')
+    return (
+      <span className="work-mark inline-flex flex-none items-center" title={`${who} is working on it`} aria-label={`${who} is working on it`}>
+        <span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
+      </span>
+    );
+  return (
+    <span className={`work-mark inline-flex flex-none items-center gap-1 font-medium ${s.tone}`} title={w.state === 'waiting' ? `${who} needs your OK for a step` : w.note || s.label}>
+      <Icon name={s.icon} size={12} />
+      {w.state === 'waiting' ? 'Needs you' : 'Check'}
+    </span>
+  );
+}
+
+/** "Writer started on #4", with Stop, when a change you made started someone's work. */
+function startedNote(before: BoardTask, after: BoardTask): void {
+  if (!after.work || !isWorking(after) || before.work?.operationId === after.work.operationId) return;
+  const stop = domButton({ variant: 'ghost', size: 'tiny', class: 'ml-2', onclick: () => void POST(`${path(after)}/stop`).then(() => toast(`Stopped the work on ${taskKey(after.number)}`), (e: unknown) => toast(errorText(e), 'error')) }, 'Stop');
+  toast(h('span', {}, `${after.workerName || 'Someone'} started on ${taskKey(after.number)}`, stop), 'info', 8000);
+}
 
 /** Who has the card, as a button: it opens the people of the card's project (loaded when it opens) to give it to. */
 function AssignMenu({ task: t, onAssign }: { task: BoardTask; onAssign: (who: Assignee) => void }) {
@@ -554,7 +597,7 @@ function AssignMenu({ task: t, onAssign }: { task: BoardTask; onAssign: (who: As
   const label = t.assignee ? `Assigned to ${t.assigneeName}` : 'Unassigned';
   return (
     <Dropdown open={open} onOpenChange={setOpen}>
-      <DropdownTrigger className="ml-auto flex flex-none cursor-pointer items-center rounded-[8px] border-0 bg-transparent p-0 outline-offset-2 [transition:opacity_0.15s] hover:opacity-80" aria-label={`${label}. Assign to…`} title={label}>
+      <DropdownTrigger className="flex flex-none cursor-pointer items-center rounded-[8px] border-0 bg-transparent p-0 outline-offset-2 [transition:opacity_0.15s] hover:opacity-80" aria-label={`${label}. Assign to…`} title={label}>
         {t.assignee ? <WhoMark who={t.assignee} emoji={t.assigneeEmoji} color={t.assigneeColor} size={20} /> : <span className="grid size-5 place-items-center rounded-[7px] border border-dashed border-line-2 text-faint"><Icon name="user" size={10} /></span>}
       </DropdownTrigger>
       <DropdownContent align="end" className="min-w-48">
@@ -638,6 +681,7 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
     try {
       const r = await PUT<{ task: BoardTask }>(path(task), { ...patch, expectedUpdatedAt: task.updatedAt });
       onChange(r.task);
+      startedNote(task, r.task);
       return true;
     } catch (e) {
       toast(errorText(e), 'error');
@@ -645,7 +689,7 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
     }
   };
   const changeStatus = async (s: BoardStatus) => {
-    if (s === task.status) return;
+    if (s === task.status || (s !== 'in_progress' && !(await confirmStop(task)))) return;
     if (s === 'blocked') {
       const why = await askWhyBlocked(task);
       if (why === null) return;
@@ -654,7 +698,7 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
     void save({ status: s });
   };
   const remove = async () => {
-    if (!(await confirmBox(`Remove ${taskKey(task.number)} "${task.title}"?`, { ok: 'Remove', danger: true }))) return;
+    if (!(await confirmStop(task)) || !(await confirmBox(`Remove ${taskKey(task.number)} "${task.title}"?`, { ok: 'Remove', danger: true }))) return;
     try {
       await DEL(path(task));
       navigate('#/tasks');
@@ -709,15 +753,17 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
               <Button variant="ghost" size="tiny" onClick={async () => { const why = await askWhyBlocked(task); if (why !== null) void save({ blockedReason: why }); }}>Change</Button>
             </div>
           ) : null}
-          <DescriptionEditor task={task} mentions={mentions} onSave={(description) => save({ description })} />
+          <DescriptionEditor task={task} mentions={mentions} onSave={save} />
+          <TaskFiles task={task} files={task.files} onRemove={(f) => void save({ files: (task.files || []).filter((x) => x.path !== f.path).map((x) => x.path) })} />
           <Activity task={task} mentions={mentions} onChange={onChange} />
         </article>
         <aside aria-label="Properties" className="flex flex-col gap-4 lg:sticky lg:top-20 max-lg:order-1">
           <div className="flex flex-col gap-0.5 rounded-box border border-line bg-panel p-2 shadow-card">
             <Pick look="row" label="Status" value={task.status} choices={statusChoices()} onChange={(v) => void changeStatus(v as BoardStatus)} />
             <Pick look="row" label="Priority" value={task.priority} choices={priorityChoices()} onChange={(v) => void save({ priority: v as BoardPriority })} />
-            <Pick look="row" label="Assigned to" value={task.assignee} choices={assigneeChoices(people)} onChange={(v) => void save({ assignee: v })} />
+            <Pick look="row" label="Assigned to" value={task.assignee} choices={assigneeChoices(people)} onChange={(v) => void confirmStop(task).then((ok) => ok && save({ assignee: v }))} />
           </div>
+          <WorkBox task={task} onChange={onChange} />
           <dl className="m-0 flex flex-col px-2">
             {detail('Project', task.projectName)}
             {detail('Created', ago(task.createdAt), new Date(task.createdAt).toLocaleString())}
@@ -728,6 +774,57 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
         </aside>
       </div>
     </div>
+  );
+}
+
+/** The agent's or team's work on the task: who, how it goes, and Stop, Start or Check saved work. Shown once the
+ *  task is given to an agent or team. */
+function WorkBox({ task, onChange }: { task: BoardTask; onChange: (t: BoardTask) => void }) {
+  const app = useAppState();
+  const [busy, setBusy] = useState(false);
+  const w = task.work;
+  const canWork = /^(agent|team):/.test(task.assignee);
+  if (!w && !canWork) return null;
+  const going = isWorking(task);
+  const act = async (what: 'start' | 'stop' | 'check') => {
+    setBusy(true);
+    try {
+      const r = await POST<{ task: BoardTask }>(`${path(task)}/${what}`, what === 'check' ? { operationId: w?.operationId } : {});
+      onChange(r.task);
+      if (what === 'start') startedNote(task, r.task);
+    } catch (e) {
+      toast(errorText(e), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const state = w ? WORK_STATES[w.state] : null;
+  const who = w ? task.workerName || 'Someone' : task.assigneeName;
+  // (its chat lives in the task's project: it opens from there)
+  const here = app?.project?.id === task.projectId;
+  const openWork = w && here ? (w.chatId ? () => navigate(`#/agents/${w.target.id}/${w.chatId}`) : w.teamId ? () => void openChat('team', w.teamId!) : null) : null;
+  return (
+    <section aria-label="Work" className="work-box flex flex-col gap-2.5 rounded-box border border-line bg-panel p-3 shadow-card">
+      <div className="flex items-center gap-2 text-[12.5px]">
+        <WhoMark who={w ? `${w.target.kind}:${w.target.id}` : task.assignee} emoji={w ? undefined : task.assigneeEmoji} color={w ? undefined : task.assigneeColor} size={20} />
+        <b className="min-w-0 truncate font-medium text-ink">{who}</b>
+        {state ? (
+          <span className={`work-state ml-auto inline-flex flex-none items-center gap-1 font-medium ${state.tone}`}>
+            {going && w!.state !== 'waiting' ? <span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" /> : <Icon name={state.icon} size={12} />}
+            {state.label}
+          </span>
+        ) : <span className="ml-auto text-faint">Not started</span>}
+      </div>
+      {w?.note && (w.state === 'needs-review' || w.state === 'blocked') ? <p className="m-0 text-[12.5px] leading-snug text-dim">{w.note}</p> : null}
+      {!w ? <p className="m-0 text-[12.5px] leading-snug text-dim">Moving the task to In progress starts it.</p> : null}
+      {w ? <p className="m-0 text-[11.5px] text-faint" title={new Date(w.startedAt).toLocaleString()}>Started {ago(w.startedAt)}{w.endedAt ? ` · ended ${ago(w.endedAt)}` : ''}</p> : null}
+      <div className="flex flex-wrap gap-1.5">
+        {going ? <Button variant="ghost" size="small" disabled={busy} onClick={() => void act('stop')}><Icon name="square" size={12} />Stop</Button> : null}
+        {!going && canWork ? <Button variant="ghost" size="small" disabled={busy} onClick={() => void act('start')}><Icon name="play" size={12} />{w ? 'Start again' : 'Start'}</Button> : null}
+        {w?.state === 'needs-review' ? <Button variant="ghost" size="small" disabled={busy} onClick={() => void act('check')}><Icon name="rotate-ccw" size={12} />Check saved work</Button> : null}
+        {openWork ? <Button variant="plain" size="small" onClick={openWork}><Icon name="message-square" size={12} />{w!.teamId ? 'Open thread' : 'Open chat'}</Button> : null}
+      </div>
+    </section>
   );
 }
 
@@ -745,7 +842,6 @@ function TitleEditor({ task, onSave }: { task: BoardTask; onSave: (title: string
       <textarea
         aria-label="Title"
         rows={1}
-        maxLength={200}
         value={value}
         onChange={(e) => setValue(e.currentTarget.value.replace(/\n/g, ' '))}
         onBlur={() => void commit()}
@@ -757,8 +853,11 @@ function TitleEditor({ task, onSave }: { task: BoardTask; onSave: (title: string
 }
 
 /** The description: Markdown to read, and Edit to write it (with Draft with the Brain); Ctrl+Enter saves. */
-function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentions: Candidate[]; onSave: (description: string) => Promise<boolean> }) {
+function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentions: Candidate[]; onSave: (patch: { description: string; files?: string[] }) => Promise<boolean> }) {
   const [editing, setEditing] = useState(false);
+  const tray = useTray();
+  const frame = useRef<HTMLDivElement>(null);
+  useEffect(() => (editing && frame.current ? tray.dropZone(frame.current, 'Drop files to attach them to the task') : undefined), [editing, tray]);
   const box = useRef<HTMLTextAreaElement>(null);
   useMentionBox(box, mentions, editing);
   useCaretAtEnd(box, editing);
@@ -772,11 +871,17 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
     setEditing(true);
   };
   const save = async () => {
-    if (value === task.description) return setEditing(false);
+    if (value === task.description && !tray.count()) return setEditing(false);
     // changed while you were writing: replace it only if you say so
-    if (task.description !== start.current && !(await confirmBox('Someone changed this description while you were editing it. Replace their version with yours?', { ok: 'Replace' }))) return;
+    if (value !== task.description && task.description !== start.current && !(await confirmBox('Someone changed this description while you were editing it. Replace their version with yours?', { ok: 'Replace' }))) return;
     setBusy(true);
-    if (await onSave(value)) setEditing(false);
+    const added = await tray.ready();
+    if (added === null) return setBusy(false);
+    const files = added.length ? { files: [...(task.files || []).map((f) => f.path), ...added] } : {};
+    if (await onSave({ description: value, ...files })) {
+      tray.take();
+      setEditing(false);
+    }
     setBusy(false);
   };
   if (!editing)
@@ -795,13 +900,12 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
       </Button>
     );
   return (
-    <div className="flex flex-col overflow-hidden rounded-box border border-accent/50 bg-bg shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_12%,transparent)]">
+    <div ref={frame} className="relative flex flex-col overflow-hidden rounded-box border border-accent/50 bg-bg shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_12%,transparent)]">
       <textarea
         ref={box}
         aria-label="Description"
         autoFocus
         rows={10}
-        maxLength={8000}
         placeholder="What needs to happen, and how you'll know it's done. Type @ to mention an agent, a team or a skill."
         value={value}
         disabled={busy}
@@ -812,7 +916,9 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
         }}
         className="min-h-48 resize-y overflow-y-auto rounded-none! border-0! bg-transparent! px-4! py-3! text-[14px]! leading-relaxed shadow-none! focus:shadow-none! whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
       />
+      <DomNode className="px-3 empty:hidden" make={() => tray.el} deps={[tray]} />
       <div className="flex flex-wrap items-center gap-2 border-t border-line bg-panel-2/50 px-2 py-1.5">
+        <DomNode as="span" make={() => tray.picker} deps={[tray]} />
         <DraftWithBrain
           disabled={busy}
           draft={async (instruction) => {
@@ -838,13 +944,22 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
+  const form = useRef<HTMLFormElement>(null);
   useMentionBox(box, mentions);
+  const tray = useTray();
+  const [, setFiles] = useState(0);
+  useEffect(() => tray.listen(() => setFiles(tray.count())), [tray]);
+  useEffect(() => (form.current ? tray.dropZone(form.current, 'Drop files to attach them to your comment') : undefined), [tray]);
   const comments = task.comments || [];
+  const empty = !text.trim() && !tray.count();
   const send = async () => {
-    if (busy || !text.trim()) return;
+    if (busy || empty) return;
     setBusy(true);
     try {
-      onChange((await POST<{ task: BoardTask }>(`${path(task)}/comments`, { text })).task);
+      const files = await tray.ready();
+      if (files === null) return;
+      onChange((await POST<{ task: BoardTask }>(`${path(task)}/comments`, { text, files })).task);
+      tray.take();
       setText('');
     } catch (e) {
       toast(errorText(e), 'error');
@@ -866,12 +981,11 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
         </li>
         {comments.map((c) => <Comment key={c.id} task={task} comment={c} mentions={mentions} onChange={onChange} />)}
       </ol>
-      <form className="flex flex-col overflow-hidden rounded-box border border-line bg-bg shadow-card [transition:border-color_0.15s] focus-within:border-accent/60" onSubmit={(e) => (e.preventDefault(), void send())}>
+      <form ref={form} className="relative flex flex-col overflow-hidden rounded-box border border-line bg-bg shadow-card [transition:border-color_0.15s] focus-within:border-accent/60" onSubmit={(e) => (e.preventDefault(), void send())}>
         <textarea
           ref={box}
           aria-label="Comment"
           rows={3}
-          maxLength={8000}
           placeholder="Leave a comment… Type @ to mention someone. Markdown supported."
           value={text}
           disabled={busy}
@@ -879,7 +993,9 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
           onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), void send())}
           className="min-h-20 resize-y overflow-y-auto rounded-none! border-0! bg-transparent! px-4! py-3! text-[14px]! leading-relaxed shadow-none! focus:shadow-none! whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
         />
+        <DomNode className="px-3 empty:hidden" make={() => tray.el} deps={[tray]} />
         <div className="flex items-center gap-2 border-t border-line bg-panel-2/50 px-2 py-1.5">
+          <DomNode as="span" make={() => tray.picker} deps={[tray]} />
           <DraftWithBrain
             disabled={busy}
             draft={async (instruction) => {
@@ -890,7 +1006,7 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
               return () => setText(was);
             }}
           />
-          <Button type="submit" size="small" className="ml-auto" disabled={busy || !text.trim()}>
+          <Button type="submit" size="small" className="ml-auto" disabled={busy || empty}>
             {busy ? 'Sending…' : 'Comment'}
             <kbd className="ml-1 rounded border border-current/25 px-1 font-sans text-[10px] opacity-70">Ctrl ↵</kbd>
           </Button>
@@ -941,15 +1057,16 @@ function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; co
         </div>
         {editing ? (
           <div className="mt-1.5 flex flex-col gap-2">
-            <textarea ref={box} aria-label="Edit comment" autoFocus rows={3} maxLength={8000} className="min-h-20 w-full rounded-ctl border border-line-2 bg-bg px-3 py-2 text-[14px] leading-relaxed whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]" value={value} onChange={(e) => setValue(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), void save())} />
+            <textarea ref={box} aria-label="Edit comment" autoFocus rows={3} className="min-h-20 w-full rounded-ctl border border-line-2 bg-bg px-3 py-2 text-[14px] leading-relaxed whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]" value={value} onChange={(e) => setValue(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), void save())} />
             <div className="flex justify-end gap-1.5">
               <Button variant="plain" size="small" onClick={() => setEditing(false)}>Cancel</Button>
               <Button size="small" onClick={() => void save()} disabled={!value.trim()}>Save</Button>
             </div>
           </div>
         ) : (
-          <div className="mt-1 rounded-box border border-line bg-panel/60 px-3.5 py-2.5" onDoubleClick={c.by === 'you' ? editOnDoubleClick(edit) : undefined}>
-            <Markdown text={c.text} mentions={mentions} />
+          <div className="mt-1 flex flex-col gap-2 rounded-box border border-line bg-panel/60 px-3.5 py-2.5" onDoubleClick={c.by === 'you' ? editOnDoubleClick(edit) : undefined}>
+            {c.text ? <Markdown text={c.text} mentions={mentions} /> : null}
+            <TaskFiles task={task} files={c.files} />
           </div>
         )}
       </div>

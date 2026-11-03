@@ -1,6 +1,7 @@
 // Search saved originals, including entries that the agent's current model memory has compacted.
 import { agents, chats } from './store.ts';
 import { listTeams, teamMessages } from './teams.ts';
+import { privateTeams } from './private-conversations.ts';
 import type { ChatItem, ConversationHit, ConversationRead, ConversationReadResult, ConversationSearch, ConversationSearchResult } from '../shared/types.ts';
 
 const pageNumber = (value: unknown, fallback: number, max: number) => typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(0, Math.floor(value))) : fallback;
@@ -11,11 +12,11 @@ function ownText(item: ChatItem): string {
   return item.text + (item.type === 'user' && item.attachments?.length ? `\nAttached: ${item.attachments.join(', ')}` : '');
 }
 
-function memberTeams(agentId: string, teamId?: string) {
-  return listTeams().filter((t) => t.members.includes(agentId) && (!teamId || t.id === teamId));
+function memberTeams(agentId: string, teamId?: string, conversationId?: string) {
+  return (conversationId ? privateTeams(conversationId) : listTeams()).filter((t) => t.members.includes(agentId) && (!teamId || t.id === teamId));
 }
 
-export function searchConversations(agentId: string, args: ConversationSearch): ConversationSearchResult {
+export function searchConversations(agentId: string, args: ConversationSearch, conversationId?: string): ConversationSearchResult {
   if (!agents.get(agentId)) throw new Error('Only saved dashboard agents can search conversations.');
   const query = typeof args.query === 'string' ? args.query.trim() : '';
   if (!query || query.length > 1000) throw new Error('Give search words, up to 1000 characters.');
@@ -34,12 +35,12 @@ export function searchConversations(agentId: string, args: ConversationSearch): 
   if (scope !== 'team') {
     for (const summary of chats.list(agentId)) {
       const chat = chats.get(agentId, summary.id);
-      if (!chat) continue;
+      if (!chat || chat.conversationId !== conversationId) continue;
       chat.items.forEach((item, i) => match({ source: 'own', conversationId: chat.id, title: chat.title, messageId: String(i), author: item.type === 'user' ? item.from || 'user' : item.type === 'assistant' ? agentId : item.type, ts: item.ts || chat.createdAt }, ownText(item)));
     }
   }
   if (scope !== 'own') {
-    const teams = memberTeams(agentId, args.teamId);
+    const teams = memberTeams(agentId, args.teamId, conversationId);
     if (args.teamId && !teams.length) throw new Error('That team conversation is not available to you.');
     for (const team of teams) {
       for (const m of teamMessages(team.id)) {
@@ -55,7 +56,7 @@ export function searchConversations(agentId: string, args: ConversationSearch): 
 }
 
 /** Long originals are read in explicit character pages; an oversized message can always be read to its end. */
-export function readConversation(agentId: string, args: ConversationRead): ConversationReadResult {
+export function readConversation(agentId: string, args: ConversationRead, conversationId?: string): ConversationReadResult {
   if (!agents.get(agentId)) throw new Error('Only saved dashboard agents can read conversations.');
   let text: string;
   let title: string;
@@ -63,11 +64,11 @@ export function readConversation(agentId: string, args: ConversationRead): Conve
     const chat = chats.get(agentId, args.conversationId);
     const index = /^\d+$/.test(String(args.messageId)) ? Number(args.messageId) : -1;
     const item = chat?.items[index];
-    if (!chat || !item) throw new Error('That conversation message is not available to you.');
+    if (!chat || !item || chat.conversationId !== conversationId) throw new Error('That conversation message is not available to you.');
     text = ownText(item);
     title = chat.title;
   } else if (args.source === 'team') {
-    const team = memberTeams(agentId, args.conversationId)[0];
+    const team = memberTeams(agentId, args.conversationId, conversationId)[0];
     if (!team) throw new Error('That conversation message is not available to you.');
     const message = teamMessages(team.id).find((m) => m.id === args.messageId);
     if (!message) throw new Error('That conversation message is not available to you.');
