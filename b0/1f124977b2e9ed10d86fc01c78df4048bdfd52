@@ -1,0 +1,28 @@
+server/index.ts
+  s_6f0380c72fc1f3::t_bc253aa5dfd343 139-140,142
+tests/web/questions.test.tsx
+  s_6f0380c72fc1f3::t_501d5e9ce2ad38 35-36,163-170
+  s_6f0380c72fc1f3::t_db50cd286d95a1 171-172
+tests/server/api.test.ts
+  s_6f0380c72fc1f3::t_229acf29694f2b 654-666
+web/chat/parts.tsx
+  s_6f0380c72fc1f3::t_bc253aa5dfd343 17,126-131,134
+web/questions.tsx
+  s_6f0380c72fc1f3::t_bc253aa5dfd343 5-6,35-38,53-56,64,72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b01f124977b2e9ed10d86fc01c78df4048bdfd52",
+  "prompts": {},
+  "sessions": {
+    "s_6f0380c72fc1f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a749ac26-5261-4d62-8ee9-ebdd7fb04e38",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
