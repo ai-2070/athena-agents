@@ -11,6 +11,7 @@ import { h, GET, POST, PUT, DEL, attempt, navigate, md, modal, toast, refreshSoo
 import { Chips, SearchBox, Segmented, Tabs } from '../ui/controls.tsx';
 import { domButton } from '../ui/dom.ts';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
+import { ProgramGlyph } from '../ui/programmark.tsx';
 import { modelInfo, openModelPicker } from '../models.tsx';
 import type { ModelPatch } from '../models.tsx';
 import type { Agent, AppState, EngineId, PresetListing, Team } from '../../shared/types.ts';
@@ -195,7 +196,7 @@ function LibraryPage() {
     tab === 'agency' || tab === 'starters' ? (
       <div className="ml-auto flex flex-wrap items-center gap-3">
         <span className="label">Runs on</span>
-        <Segmented label="Runs on" options={data.engineList.map((e) => ({ value: e.id, label: e.label }))} value={engine} onChange={setEngine} />
+        <Segmented label="Runs on" options={data.engineList.map((e) => ({ value: e.id, label: <span className="inline-flex items-center gap-2"><ProgramGlyph id={e.id} size={14} />{e.label}</span> }))} value={engine} onChange={setEngine} />
         {engine === 'eve' ? <Button variant="ghost" size="small" onClick={(event) => openModelPicker(event.currentTarget, apiChoice || { engine: 'eve', provider: 'openrouter', model: data.settings.defaults.openrouterModel }, setApiChoice, { title: 'Model for new hires', engines: ['eve'] })}>
           {apiChoice ? `${modelInfo(apiChoice).where} · ${modelInfo(apiChoice).short}` : 'Choose API model'}
         </Button> : null}
