@@ -774,9 +774,40 @@ New gateway data does not need a legacy compatibility layer.*
   A later full run was interrupted by confirmed system sleep and timed out across unrelated suites;
   a fresh complete run with idle-sleep prevention passed. No real account, deployment, provider
   message or model call was used to exercise delivery review.
+- Telegram instances now offer **Set up Telegram** with local status, an explicit paused bot/webhook
+  check and a separately confirmed switch to polling. `getMe` must match the saved numeric bot ID;
+  full webhook settings and current configuration/token are rechecked before removal. The browser
+  and private setup receipts keep only the host, queue count and opaque fingerprints, never the
+  full URL, credentials, query/path or raw provider errors. Opening/reloading makes no provider call.
+- Switching requires acknowledgements that the previous integration is stopped and pending updates
+  will be kept. An atomic private intent precedes one `deleteWebhook` request with
+  `drop_pending_updates: false`; a fresh identity/webhook check must verify the result. The instance
+  remains paused. There is no polling, intake, download, send or model work during setup; native
+  operations, inbox receipts and byte reservations stay untouched. Connect still refuses webhooks
+  and keeps the SDK's automatic deletion disabled. [Telegram's API](https://core.telegram.org/bots/api#deletewebhook)
+  has no atomic compare/delete operation, so stopping the previous integration remains necessary.
+- Interrupted switches and uncertain responses survive restart and block adapter initialization
+  before any provider request. Only an explicit paused check can verify no webhook remains; a
+  remaining or changed webhook requires a fresh check and confirmation. Checks expire after ten
+  minutes or any configuration/token change, old confirmations cannot replay, and the bounded
+  100-attempt history is never evicted. Account and state ownership drain the worker for both
+  checks and switching; write failures before intent prevent remote mutation.
+- The Bun/Node and read-only bundle proof now switches a local fake Telegram webhook, keeps its
+  pending count, survives state restart and verifies that only setup methods ran. Server tests cover
+  identity, pause, source/configuration/URL changes, lost outcomes, strict request bodies, failed
+  writes, bounded responses, redaction, ownership and audit capacity. API/DOM tests cover request
+  guards, deep links, loading/check states, confirmation, cancellation, unmount, pause and reload.
+  A scoped finish reviewer approved ten light/dark desktop/mobile captures of the setup, held
+  switch and confirmation, with no blocking findings. Six Tab presses stayed in the confirmation;
+  Escape closed it. Only isolated synthetic saved state was used and removed; no browser provider
+  check or switch was submitted. Empty/error/success/pause states have source and DOM evidence,
+  without a live-provider correctness claim.
+- Validation: `CI=1 bun run check` passed (265 files; 2,624 tests passed, one skipped). The web
+  build, desktop staging and bundled desktop smoke passed. The final request-format review keeps
+  Telegram's token separator while escaping URL path/query characters, with regression coverage.
+  No real account, deployment, provider mutation, message or model call was used to exercise setup.
 - Next: finish unified delivery/product controls. Native-work
-  override controls and explicit webhook switching still need product
-  setup. Deleted instances retain private inbox
+  override controls still need product setup. Deleted instances retain private inbox
   receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks
   on all four platforms and Windows/Linux verification remain outstanding. Offline checks run in CI.
 

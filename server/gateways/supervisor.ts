@@ -1,4 +1,4 @@
-import type { GatewayDeliveryReview, GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayWhatsAppCheck, GatewayWhatsAppRecovery, GatewayWhatsAppSenders, GatewayWhatsAppSetup, ServerEvent } from '../../shared/types.ts';
+import type { GatewayDeliveryReview, GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayTelegramSetup, GatewayWhatsAppCheck, GatewayWhatsAppRecovery, GatewayWhatsAppSenders, GatewayWhatsAppSetup, ServerEvent } from '../../shared/types.ts';
 import { gatewayNeedsReview, gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { bus, emit, listProjects } from '../store.ts';
 import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.ts';
@@ -9,6 +9,7 @@ import { checkWhatsAppSetup, finishWhatsAppPairing, pairWhatsApp, replaceWhatsAp
 import { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecovery } from './whatsapp-recovery.ts';
 import { claimGatewayAccount } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
+import { checkTelegramSetup, switchTelegramToPolling } from './telegram-setup.ts';
 
 /** Settings changes restart only their instance; transport failures never expose raw SDK errors. */
 export class GatewaySupervisor {
@@ -168,6 +169,32 @@ export class GatewaySupervisor {
       } finally { await state.disconnect(); await release?.(); }
     });
     this.pending = task.then(() => {}, () => {}); return task;
+  }
+
+  private telegramSetupTask(instanceId: string, work: (state: GatewayStateAdapter) => Promise<GatewayTelegramSetup>): Promise<GatewayTelegramSetup> {
+    const task = this.pending.then(async () => {
+      const instance = getGatewayInstance(instanceId);
+      if (this.closed || instance.platform !== 'telegram' || instance.enabled) throw Object.assign(new Error('Pause this Telegram instance before checking or switching setup.'), { status: 400 });
+      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined; let checking = false;
+      try {
+        await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
+        release = await claimGatewayAccount('telegram', instance.accountId); await state.connect(); checking = true;
+        const result = await work(state);
+        const health: GatewayHealth = { instanceId, status: 'paused', reason: '', attempts: 0, updatedAt: Date.now() };
+        this.statuses.set(instanceId, health); emit('gateway-health', { ...health }); return result;
+      } catch (error) {
+        if (checking && error instanceof Error && 'status' in error) throw error;
+        throw Object.assign(new Error('Telegram setup could not be checked safely. Check storage and ownership, then reload setup.'), { status: 503 });
+      } finally { await state.disconnect(); await release?.(); }
+    });
+    this.pending = task.then(() => {}, () => {}); return task;
+  }
+
+  checkTelegramSetup(instanceId: string): Promise<GatewayTelegramSetup> {
+    return this.telegramSetupTask(instanceId, (state) => checkTelegramSetup(state));
+  }
+  switchTelegramToPolling(instanceId: string, body: unknown): Promise<GatewayTelegramSetup> {
+    return this.telegramSetupTask(instanceId, (state) => switchTelegramToPolling(state, body));
   }
 
   pairWhatsApp(instanceId: string, body: unknown): Promise<GatewayWhatsAppSetup> {

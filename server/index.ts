@@ -19,6 +19,7 @@ import { discordRecovery } from './gateways/discord-recovery.ts';
 import { whatsAppSetup } from './gateways/whatsapp-setup.ts';
 import { GatewaySupervisor } from './gateways/supervisor.ts';
 import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders } from './gateways/inbox.ts';
+import { telegramSetup } from './gateways/telegram-setup.ts';
 import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
@@ -991,6 +992,9 @@ post<unknown>('/api/gateways/:id/inbox/:eventId/dismiss', async ({ id, eventId }
   await gatewaySupervisor.dismissRequest(id, eventId, body); return { ok: true };
 });
 get('/api/gateways/:id/discord-recovery', async ({ id }) => discordRecovery(id));
+get('/api/gateways/:id/telegram-setup', async ({ id }) => telegramSetup(id));
+post('/api/gateways/:id/telegram-setup/check', async ({ id }) => gatewaySupervisor.checkTelegramSetup(id));
+post<unknown>('/api/gateways/:id/telegram-setup/switch', async ({ id }, body) => gatewaySupervisor.switchTelegramToPolling(id, body));
 get('/api/gateways/:id/whatsapp-setup', async ({ id }) => whatsAppSetup(id));
 post('/api/gateways/:id/whatsapp-setup/check', async ({ id }) => gatewaySupervisor.checkWhatsAppSetup(id));
 get('/api/gateways/:id/whatsapp-recovery', async ({ id }) => gatewayWhatsAppRecovery(id));

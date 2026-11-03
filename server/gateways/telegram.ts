@@ -9,6 +9,7 @@ import { gatewayInputAllowed, GatewayFileLimitError } from './inbox.ts';
 import type { GatewayInbox } from './inbox.ts';
 import { GatewaySendError } from './replies.ts';
 import { withGatewayRoute } from './instances.ts';
+import { requireTelegramSetupReviewed } from './telegram-setup.ts';
 
 export class GatewaySetupError extends Error {}
 
@@ -48,6 +49,8 @@ export class TelegramIntakeAdapter extends TelegramAdapter {
   override async initialize(chat: ChatInstance): Promise<void> {
     const instance = getGatewayInstance(this.instanceId);
     if (!instance.enabled || instance.platform !== 'telegram') throw new GatewaySetupError('This Telegram instance is paused.');
+    try { requireTelegramSetupReviewed(this.instanceId); }
+    catch { throw new GatewaySetupError('Pause this instance and check Telegram setup before connecting. Its switch receipts need review.'); }
     // SDK initialize catches identity failures; resolve explicitly so a wrong bot cannot start polling.
     await this.ensureBotIdentity();
     if (this.botUserId !== instance.accountId) throw new GatewaySetupError('The Telegram token belongs to a different bot. Check the account ID.');

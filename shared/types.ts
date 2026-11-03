@@ -203,6 +203,20 @@ export interface GatewayDeliveryReview {
   items: { target: GatewayDeliveryTarget; label: string; text?: string; status: GatewayOutgoingFile['status']; remoteId?: string; canConfirm: boolean; confirmedAt?: number }[];
 }
 
+export interface GatewayTelegramSetupState {
+  version: 1;
+  check?: { at: number; configRevision: string; revision: string; fingerprint: string; webhook: boolean; host?: string; pendingUpdates: number };
+  switches: { at: number; revision: string; state: 'started' | 'confirmed' | 'uncertain'; checkedAt?: number }[];
+}
+
+export interface GatewayTelegramSetup {
+  reason: string;
+  revision: string | null;
+  check: { at: number; webhook: boolean; host?: string; pendingUpdates: number } | null;
+  attempt: { at: number; state: 'started' | 'confirmed' | 'uncertain'; checkedAt?: number } | null;
+  switches: number;
+}
+
 /** Local receipt only; raw webhook bodies and relay keys never enter the application inbox. */
 export interface GatewayWhatsAppReceipt {
   epoch: string;

@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import type { GatewayDeliveryReview, GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayRequestReview, GatewayWhatsAppSetup } from '../../shared/types.ts';
+import type { GatewayDeliveryReview, GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayRequestReview, GatewayTelegramSetup, GatewayWhatsAppSetup } from '../../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 // set in beforeAll: a port nothing else is using (see startServer)
@@ -229,6 +229,27 @@ describe('API', () => {
 });
 
 describe('gateway configuration API', () => {
+  it('serves local Telegram setup status without secrets and guards explicit provider checks and switches', async () => {
+    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const config = { name: 'Telegram switch', platform: 'telegram', accountId: '9550000001', projectId: state.project.id, target: { kind: 'brain' },
+      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
+    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
+    await req(`/api/gateways/${instance.id}/credentials`, { method: 'POST', headers: json, body: JSON.stringify({ botToken: 'PRIVATE_TELEGRAM_SETUP_TOKEN' }) });
+    const url = `/api/gateways/${instance.id}/telegram-setup`; const initial = await (await req(url)).json() as GatewayTelegramSetup;
+    expect(initial).toMatchObject({ revision: null, check: null, attempt: null, switches: 0 }); expect(JSON.stringify(initial)).not.toContain('PRIVATE_TELEGRAM_SETUP_TOKEN');
+    for (const suffix of ['check', 'switch']) {
+      expect((await req(`${url}/${suffix}`, { method: 'POST', body: '{}' })).status).toBe(403);
+      expect((await req(`${url}/${suffix}`, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body: '{}' })).status).toBe(403);
+    }
+    expect((await req(`${url}/switch`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeStopped: true, acknowledgeKeepUpdates: true }) })).status).toBe(409);
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(path.join(directory, 'telegram-setup.json'), JSON.stringify({ version: 1, switches: [{ at: 1, state: 'started', revision: 'a'.repeat(64) }] }));
+    const saved = await (await req(url)).json() as GatewayTelegramSetup; expect(saved).toMatchObject({ revision: null, attempt: { at: 1, state: 'started' }, switches: 1 });
+    expect(saved.attempt).not.toHaveProperty('revision'); expect((await req('/api/gateways/missing/telegram-setup')).status).toBe(404);
+    await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
+  });
+
   it('reviews a paused completed delivery locally behind request guards and keeps its native and remaining receipts', async () => {
     const state = await (await req('/api/state')).json() as { project: { id: string } };
     const config = { name: 'Local delivery', platform: 'telegram', accountId: '9600000001', projectId: state.project.id, target: { kind: 'brain' },

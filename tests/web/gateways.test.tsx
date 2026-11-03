@@ -31,6 +31,7 @@ beforeEach(() => {
       if (method === 'POST') recovery = { gap: null }; result = recovery;
     }
     else if (url.endsWith('/inbox')) result = { events: [] };
+    else if (url.endsWith('/telegram-setup')) result = { reason: 'Check setup to verify this bot.', revision: null, check: null, attempt: null, switches: 0 };
     else if (url.endsWith('/credentials')) {
       if (failToken) return new Response(JSON.stringify({ error: 'Could not store token.' }), { status: 500 });
       const instance = instances.find((item) => url.includes(item.id))!; if (method === 'POST') { for (const key of ['botToken', 'appToken', 'accessToken', 'signingSecret']) if (Object.hasOwn(body, key)) { if (body[key] === null) delete instance.credentials[key]; else instance.credentials[key] = Boolean(body[key]); } } else instance.credentials = { botToken: Boolean(body.botToken) };
@@ -83,6 +84,16 @@ it('keeps multiple instances separate and opens an instance deep link without di
   await type('Instance name', 'Second bot renamed');
   await act(async () => button('Save instance').click()); await settle();
   expect(instances[0].name).toBe('Telegram work'); expect(instances[1].name).toBe('Second bot renamed');
+});
+
+it('opens Telegram setup for the selected instance without checking the provider, and supports its own deep link', async () => {
+  await open(); await create(); await act(async () => button('Save instance').click()); await settle();
+  instances.push({ ...instances[0], id: 'g2', name: 'Second bot', accountId: '67890' }); act(() => unmount()); location.hash = '#/settings?tab=gateways&telegram=g2'; await open();
+  expect(host.textContent).toContain('Telegram setup · Second bot'); expect(host.textContent).toContain('67890');
+  expect(requests.some((item) => item.url === '/api/gateways/g2/telegram-setup' && item.method === 'GET')).toBe(true);
+  expect(requests.some((item) => item.url.includes('/telegram-setup/') && item.method === 'POST')).toBe(false);
+  await act(async () => button('Back to gateways').click()); await settle(); expect(location.hash).toBe('#/settings?tab=gateways');
+  act(() => unmount()); location.hash = '#/settings?tab=gateways&telegram=deleted'; await open(); expect(host.textContent).toContain('This Telegram instance is no longer available');
 });
 
 it('loads destinations for a different project and saves the explicitly chosen team', async () => {

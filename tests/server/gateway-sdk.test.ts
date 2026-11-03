@@ -87,6 +87,7 @@ describe('pinned Chat SDK transport proof', () => {
   it.each(['bun', process.execPath])('receives and replies with a private file under %s', async (runtime) => {
     const { stdout } = await exec(runtime, ['scripts/gateways-smoke.ts'], { env: process.env, timeout: 20000, windowsHide: true });
     expect(stdout).toContain('Telegram polling, sender filter, private download, file reply and persistent subscription pass');
+    expect(stdout).toContain('explicit paused Telegram switch keeps pending updates and private receipts across restart without polling or sends');
   });
 
   it('bundles the SDK and state adapter and runs from read-only application files outside the repo', async () => {
@@ -99,6 +100,7 @@ describe('pinned Chat SDK transport proof', () => {
     try {
       const { stdout } = await exec('bun', [file], { cwd: directory, env: process.env, timeout: 20000, windowsHide: true });
       expect(stdout).toContain('persistent subscription pass');
+      expect(stdout).toContain('explicit paused Telegram switch keeps pending updates and private receipts across restart without polling or sends');
     } finally {
       fs.chmodSync(directory, 0o755);
       fs.chmodSync(file, 0o644);

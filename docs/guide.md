@@ -385,6 +385,23 @@ account has its own instance and token. **Pause** stops receiving and delivering
 started keeps its normal stop behavior. **Reconnect** retries connection setup. **Delete** removes the
 connection and token but retains conversation receipts for recovery.
 
+Choose **Set up Telegram** on the saved instance and **Check setup** while paused. This verifies the
+token's bot identity and reads its webhook status without receiving messages or sending replies.
+The page shows only the webhook host and the last pending-update count; full URL paths and secrets
+stay private. Opening or reloading the page reads saved local status and makes no Telegram request.
+
+If another service registered a webhook, stop that integration first, then confirm **Switch to
+polling**. Athena rechecks the same bot and webhook, saves an intent before the change, and asks
+Telegram to remove the webhook with pending updates kept. It verifies the result and leaves the
+instance paused. Pending messages may be handled under the saved sender and conversation rules
+when you enable it. Telegram has no atomic check-and-switch operation, so another integration must
+stay stopped during the change. Connecting never removes an existing webhook automatically.
+
+If the request is interrupted or its result cannot be saved, the switch remains unconfirmed across
+restarts. Polling is blocked until you explicitly **Check setup** again. A check can verify that no
+webhook remains, or show the current webhook for a new explicit confirmation; Athena never retries
+the switch automatically. Existing inbox receipts, byte accounting and native work stay intact.
+
 For Slack, choose **Add Slack instance** and enter the workspace ID (starting with T), a bot OAuth
 token (xoxb-) and an app-level token (xapp-) from the same Slack app. Enable Socket Mode; the app
 token needs `connections:write`. The bot needs `app_mentions:read`, `channels:history`, `channels:read`,
