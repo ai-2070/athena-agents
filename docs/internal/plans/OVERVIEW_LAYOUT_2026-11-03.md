@@ -2,6 +2,13 @@
 
 3 November 2026. Plan, not built.
 
+**Decided (3 November):**
+- It's called **Overview**, and it's an additional page. The Station stays the start page.
+- Terminals open as panes from the first strip step.
+- Git changes and pull requests aren't built now. The side panels are made so they can be added later without changing
+  the page.
+- Kanso's Cmd keys for the desktop app are in the plan, but come after everything else (see Keys).
+
 A new page, **Overview** (`#/overview`), modelled on [Kanso](https://github.com/jlopezlira/herdr-kanso), a layout for
 the Herdr terminal app. It shows every project's agents, teams and chats in one sidebar, opens them side by side on a
 strip where each keeps its width, and says at a glance what needs you. It works for the open project or for all of them.
@@ -95,7 +102,9 @@ On the right, one at a time, folding away:
 - **Needs you:** approvals and questions, answered right there;
 - **Files:** the project folder, opening with the previews we have.
 
-**Changes** (Git diff and commit) and **Pull requests** are a later step (open question 4).
+**Changes** (Git diff and commit) and **Pull requests** are not built now. The panels are a small list (`id`, label,
+icon, the component, and whether it shows in this scope), so adding them later means adding one entry, with no change
+to the page.
 
 ### The status line
 - "**2 need you**": click to open Needs you.
@@ -105,11 +114,28 @@ On the right, one at a time, folding away:
 - In This project: the folder save ("auto-saved 2 min ago"), as the sidebar shows today.
 
 ## How it fits what exists
-- **The Station stays the home.** Overview is a new sidebar item next to Tasks. It replaces neither the Station nor the
-  chat windows. A pane can go to a chat window and back (its menu, or dragging it onto the map later).
+- **The Station stays the home and the start page.** Overview is an additional page, a new sidebar item next to Tasks.
+  It replaces neither the Station nor the chat windows. A pane can go to a chat window and back (its menu, or dragging it onto the map later).
 - **The chats are the same components**, so everything they do comes along: queued messages, approvals in the chat,
   /commands, @ pills, files.
 - **Tasks with work** (the board pickup) appear as sessions under their project and open their private chat or thread.
+
+## Terminals as panes
+
+Terminals today belong to the PC, not a project. `server/terminals.ts` keeps each one's id, title, command and agent;
+the Terminals page draws them with xterm over a WebSocket (`XTerm` in `web/views/terminals.tsx`).
+- **Their own component.** `XTerm` moves to `web/terminalview.tsx`, exported, so the Terminals page and a pane draw the
+  same thing. A pane keeps its terminal connected while it is open, also off screen (a terminal is cheap and its output
+  must not be lost). It is fitted again when its width or stack height changes.
+- **Which project.** A terminal saves the open project's id when it is made (`Terminal.projectId`), and shows under that
+  project in the sidebar. Older ones, and ones made from the Terminals page with no project, go under **This PC** at the
+  bottom of the sidebar, in every scope.
+- **New terminal** in a project's group menu opens PowerShell (or the shell) in the project's folder, or a Claude Code or
+  Hermes terminal for one of its agents, as the Terminals page does. It opens as a pane next to the current one.
+- **Status:** a running terminal is "open", one that has ended shows its exit code. Terminals don't need you, so they
+  never sort first under Needs you first.
+- **Stacking** suits them: a dev server's terminal above the agent working on that code.
+- Closing a pane doesn't end its terminal. **End terminal** in the pane's menu does, after asking.
 
 ## What has to change underneath
 
@@ -150,7 +176,7 @@ On the page:
 
 A browser takes Cmd+W, Cmd+D and Cmd+1…9 (close tab, bookmark, switch tab). On a Mac, Alt plus a key types a
 character in a text box (Alt+P is π), so Alt alone would get in the way while you write. The page uses **Ctrl+Alt**
-(⌃⌥ on a Mac), as the chat windows already do. The desktop app can add Kanso's Cmd keys (open question 5).
+(⌃⌥ on a Mac), as the chat windows already do. The desktop app adds Kanso's Cmd keys later (below).
 
 | Keys (⌃⌥ on a Mac) | What they do |
 |---|---|
@@ -165,6 +191,24 @@ character in a text box (Alt+P is π), so Alt alone would get in the way while y
 | Ctrl+Alt+N | Jump to the next session that needs you |
 
 They're listed in the shortcuts help. The chat windows' Ctrl+Alt keys are the arrows, so none of these clash with them.
+
+**Later: Kanso's Cmd keys in the desktop app.** The desktop app can take Cmd keys a browser keeps, so it can offer
+Kanso's as well (Ctrl+Alt still works there). Only while Overview is shown, and only after the rest is built.
+
+| Keys (desktop app, macOS) | What they do |
+|---|---|
+| Cmd+1 … Cmd+9 | Go to pane 1 to 9 |
+| Cmd+[ and Cmd+] | Previous and next pane |
+| Cmd+D, Cmd+Alt+D, Cmd+Shift+D | New pane right, left, below (stacked): asks what to open |
+| Cmd+Alt+Up and Cmd+Alt+Down | Move the focus within a stack |
+| Cmd+W | Close the pane |
+| Cmd+Shift+[ and Cmd+Shift+] | Move the pane left and right |
+| Cmd+Shift+− and Cmd+Shift+= | Fewer or more columns per view |
+| Cmd+Shift+0 | Even the panes out |
+| Cmd+Shift+O | Open the pane's folder in VS Code |
+| Cmd+Alt+P | Pin the pane |
+
+On Windows the desktop app keeps Ctrl+Alt only: Ctrl+W, Ctrl+D and Ctrl+1…9 are too common there.
 
 ## Look
 
@@ -185,18 +229,19 @@ Each step ships on its own and is useful by itself.
    - Clicking a session in the open project opens it in the existing chat window. In another project, it asks "Open
      <project>?" and switches, as the project menu does.
    - This alone gives the cross-project "what needs me" view.
-2. **The strip, for the open project.**
-   - Panes with the existing chat components; columns, pin, stack, drag, the rail, the minimap, the keys, saving the
-     layout.
+2. **The strip, for the open project, with terminals.**
+   - Panes with the existing chat components and terminals (`web/terminalview.tsx`, `Terminal.projectId`); columns,
+     pin, stack, drag, the rail, the minimap, the keys, saving the layout.
    - Panes off screen not drawn.
 3. **Project-scoped addresses and panes from any project.**
    - Build: `/api/p/<projectId>/…`, `scoped()`, the chat components with `projectId` and `useProjectData`.
    - In All projects, panes from different projects sit side by side and you can write to each.
 4. **Side panels:** Tasks, Needs you, Files; Open in VS Code from a pane.
-5. **Later:**
+5. **Later, when wanted** (the panel list makes room for them):
    - Changes (Git status, diff and commit for a project or an agent's workspace) and Pull requests (`gh`, as Kanso
      does), with "Ask the agent to address the feedback".
    - Branches on sessions, from agents' workspace folders.
+   - Kanso's Cmd keys in the desktop app (see Keys).
 
 ## Tests
 - **Server:**
@@ -206,18 +251,17 @@ Each step ships on its own and is useful by itself.
     404.
   - `GET /api/overview` counts working and needs you per project and has no chat contents.
   - Events carry `projectId`.
+  - A new terminal saves the open project; older ones without it are listed under This PC.
 - **Web (happy-dom):**
   - the sidebar's scope, sorting (Needs you first, your order), pinning and search;
   - opening, sliding to, pinning, stacking and closing panes, and the layout coming back after a reload;
   - the rail showing an off-screen pane that needs you;
+  - a terminal pane: it connects, is fitted again when resized or stacked, and closing the pane leaves the terminal
+    running while End terminal ends it;
   - the keys;
   - a pane from another project sending through the scoped address.
 - **Desktop:** `bun run check`, the desktop smoke, and a look in the macOS app, where WebKit differs (focus and
   selection, as the mention editor showed).
 
 ## Open questions
-1. **Name:** Overview, Desk or Work? The plan uses Overview.
-2. **Home:** should Overview be able to replace the Station as the start page (a setting), or stay a page next to it?
-3. **Terminals as panes:** the terminal page's xterm sessions in the strip, from step 2 or later?
-4. **Changes and pull requests:** wanted (they need Git and `gh`), or out of scope?
-5. **Desktop keys:** Kanso's Cmd keys in the desktop app as well as Ctrl+Alt, or Ctrl+Alt everywhere for one set to learn?
+None left: the five from the first draft are answered at the top.
