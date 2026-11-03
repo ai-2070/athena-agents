@@ -168,6 +168,7 @@ export interface GatewayInboxEvent {
   sequence: number;
   receivedAt: number;
   relay?: GatewayWhatsAppReceipt & { confirmed: boolean };
+  dismissed?: { at: number; revision: string };
   status: 'queued' | 'waiting-files' | 'running' | 'done' | 'needs-review';
   operationId?: string;
   reason?: string;
@@ -180,6 +181,12 @@ export interface GatewayInboxEvent {
   reconciliation?: GatewayReconciliation;
   album?: { leaderId: string; memberIds?: string[] };
   albumBlocked?: true;
+}
+
+export interface GatewayRequestReview {
+  revision: string;
+  canDismiss: boolean;
+  reason: string;
 }
 
 /** Local receipt only; raw webhook bodies and relay keys never enter the application inbox. */

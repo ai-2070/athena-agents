@@ -5,14 +5,15 @@ import { Pill } from '../ui/marks.tsx';
 import { PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { useServerEvents } from '../ui/react.tsx';
-import type { GatewayInboxEvent, GatewayInstance, GatewayOutgoingFile } from '../../shared/types.ts';
-import { gatewayAlbumCandidates, gatewayCleanupCandidates, gatewayNeedsReview, gatewayPlatformAvailable } from '../../shared/gateways.ts';
+import type { GatewayInboxEvent, GatewayInstance, GatewayOutgoingFile, GatewayRequestReview } from '../../shared/types.ts';
+import { gatewayAlbumCandidates, gatewayCleanupCandidates, gatewayNeedsReview, gatewayPlatformAvailable, gatewayRequestUnstarted } from '../../shared/gateways.ts';
 export { gatewayNeedsReview } from '../../shared/gateways.ts';
 
 const message = (error: unknown) => error instanceof Error ? error.message : 'Could not update this inbox. Try again.';
 const unresolved = (status: string) => status === 'failed' || status === 'uncertain';
 const deliveryLabel = (status: GatewayOutgoingFile['status'] | 'saved' | 'transferring') => ({ pending: 'Waiting', sending: 'Sending', sent: 'Sent', uncertain: 'Delivery uncertain', failed: 'Needs review', skipped: 'Skipped', saved: 'Saved', transferring: 'Downloading' })[status];
 export function gatewayMessageStatus(event: GatewayInboxEvent): string {
+  if (event.dismissed) return 'Dismissed';
   if (event.album && event.album.leaderId !== event.id) return 'Grouped in album';
   if (event.reply?.parts.some((part) => part.status === 'uncertain') || event.outgoing?.some((file) => file.status === 'uncertain')) return 'Delivery uncertain';
   if (gatewayNeedsReview(event)) return 'Needs review';
@@ -29,7 +30,7 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState('review'); const [limit, setLimit] = useState(25);
   const [age, setAge] = useState('30'); const [notice, setNotice] = useState('');
-  const mounted = useRef(false); const request = useRef(0);
+  const mounted = useRef(false); const request = useRef(0); const actionPending = useRef(false);
   const root = `/gateways/${encodeURIComponent(instance.id)}/inbox`;
   const load = useCallback(async () => {
     const version = ++request.current;
@@ -41,11 +42,25 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
   useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; request.current++; }; }, [load]);
   useServerEvents((event) => { if (event.type === 'gateway-inbox' && event.instanceId === instance.id) void load(); });
   const act = async (suffix: string, body?: unknown): Promise<boolean> => {
-    if (busy || !mounted.current) return false;
+    if (actionPending.current || !mounted.current) return false;
+    actionPending.current = true;
     setBusy(true); setError('');
     try { await POST(`${root}/${suffix}`, body); if (mounted.current) await load(); return true; }
     catch (failure) { if (mounted.current) setError(message(failure)); return false; }
-    finally { if (mounted.current) setBusy(false); }
+    finally { actionPending.current = false; if (mounted.current) setBusy(false); }
+  };
+  const dismiss = async (eventId: string) => {
+    if (actionPending.current || !mounted.current) return;
+    actionPending.current = true; setBusy(true); setError('');
+    try {
+      const preview = await GET<GatewayRequestReview>(`${root}/${encodeURIComponent(eventId)}/review`);
+      if (!mounted.current) return;
+      if (!preview.canDismiss) { setError(preview.reason); return; }
+      if (!await confirmBox('Dismiss this request without starting an assignment or sending a reply? Its saved text and files stay in Athena. If the work is still needed, ask the sender to send a new message. Later messages can continue once earlier holds are resolved and the gateway is enabled.', { ok: 'Dismiss request' }) || !mounted.current) return;
+      await POST(`${root}/${encodeURIComponent(eventId)}/dismiss`, { revision: preview.revision, acknowledgeDismiss: true });
+      if (mounted.current) { setNotice('Request dismissed. Its saved text and files stay in Athena.'); await load(); }
+    } catch (failure) { if (mounted.current) setError(message(failure)); }
+    finally { actionPending.current = false; if (mounted.current) setBusy(false); }
   };
   const ordered = [...(events || [])].sort((a, b) => b.sequence - a.sequence);
   const shown = filter === 'review' ? ordered.filter(gatewayNeedsReview) : ordered;
@@ -55,8 +70,8 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
   const cleanup = async () => {
     const before = cutoff(); const selected = gatewayCleanupCandidates(events || [], before).map((event) => event.id);
     if (!selected.length || busy) return;
-    if (!await confirmBox(`Remove ${selected.length} completed inbox receipt${selected.length === 1 ? '' : 's'}? Their message text, replies and file receipts will be removed from this inbox and cannot be restored here. Native chats and project files stay. Compact replay markers and byte reservations stay; active or unresolved conversations are kept.`, { ok: 'Remove receipts', danger: true })) return;
-    if (await act('cleanup', { before, eventIds: selected }) && mounted.current) setNotice(`Removed ${selected.length} completed receipt${selected.length === 1 ? '' : 's'}. Native chats and project files were kept.`);
+    if (!await confirmBox(`Remove ${selected.length} completed or dismissed inbox receipt${selected.length === 1 ? '' : 's'}? Their message text, replies and file receipts will be removed from this inbox and cannot be restored here. Native chats and project files stay. Compact replay markers and byte reservations stay; active or unresolved conversations are kept.`, { ok: 'Remove receipts', danger: true })) return;
+    if (await act('cleanup', { before, eventIds: selected }) && mounted.current) setNotice(`Removed ${selected.length} resolved receipt${selected.length === 1 ? '' : 's'}. Native chats and project files were kept.`);
   };
   return <Section title={`Inbox · ${instance.name}`} description="Review accepted messages and individual delivery results. Earlier unresolved work holds later messages in the same conversation."
     action={<><Button size="small" variant="ghost" disabled={busy} onClick={() => void load()}>Reload inbox</Button><Button size="small" variant="ghost" disabled={busy} onClick={close}>Close inbox</Button></>}>
@@ -72,25 +87,26 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
       const candidates = gatewayAlbumCandidates(events || [], event);
       const album = event.album?.memberIds?.map((id) => events?.find((item) => item.id === id)).filter((item) => item !== undefined) ?? [];
       const leader = events?.find((item) => item.id === event.album?.leaderId);
-      return <InboxMessage key={event.id} event={event} busy={busy} connected={connected} act={act}
+      return <InboxMessage key={event.id} event={event} busy={busy} connected={connected} paused={!instance.enabled} act={act} dismiss={dismiss}
         candidates={candidates[0]?.id === event.id ? candidates : []} album={album} leader={leader}
         canSelect={!event.outgoing && Boolean(event.dispatch) && ['running', 'done'].includes(event.status) && !events?.some((later) => later.bindingId === event.bindingId && later.sequence > event.sequence && later.dispatch)} />;
     })}
     {shown.length > limit && <RowActions><Button size="small" variant="ghost" onClick={() => setLimit((before) => before + 25)}>Show 25 more</Button></RowActions>}
-    {events && <Row title="Clean completed receipts" description={`${eligible.length} eligible. Unresolved conversations stay. This only removes inbox receipts, not native chats or project files.`} stack>
+    {events && <Row title="Clean resolved receipts" description={`${eligible.length} eligible. Completed and dismissed requests can be removed; unresolved conversations stay. This only removes inbox receipts, not native chats or project files.`} stack>
       <div className="flex flex-wrap items-center gap-2">
-        <SelectControl aria-label="Receipt cleanup age" value={age} options={[{ value: '7', label: 'Received over 7 days ago' }, { value: '30', label: 'Received over 30 days ago' }, { value: '90', label: 'Received over 90 days ago' }, { value: 'all', label: 'All completed receipts' }]} onChange={setAge} />
-        <Button size="small" variant="danger" disabled={busy || !eligible.length} onClick={() => void cleanup()}>Remove completed receipts</Button>
+        <SelectControl aria-label="Receipt cleanup age" value={age} options={[{ value: '7', label: 'Received over 7 days ago' }, { value: '30', label: 'Received over 30 days ago' }, { value: '90', label: 'Received over 90 days ago' }, { value: 'all', label: 'All resolved receipts' }]} onChange={setAge} />
+        <Button size="small" variant="danger" disabled={busy || !eligible.length} onClick={() => void cleanup()}>Remove resolved receipts</Button>
       </div>
     </Row>}
     <PanelNote>Confirmed deliveries are kept. Check the messaging app before retrying an uncertain send; it may already have arrived. These controls never replay model work. Approvals stay in Athena.</PanelNote>
   </Section>;
 }
 
-function InboxMessage({ event, busy, connected, canSelect, act, candidates, album, leader }: {
-  event: GatewayInboxEvent; busy: boolean; connected: boolean; canSelect: boolean;
+function InboxMessage({ event, busy, connected, paused, canSelect, act, dismiss, candidates, album, leader }: {
+  event: GatewayInboxEvent; busy: boolean; connected: boolean; paused: boolean; canSelect: boolean;
   candidates: GatewayInboxEvent[]; album: GatewayInboxEvent[]; leader?: GatewayInboxEvent;
   act: (suffix: string, body?: unknown) => Promise<boolean>;
+  dismiss: (eventId: string) => Promise<void>;
 }) {
   const [paths, setPaths] = useState(''); const [selecting, setSelecting] = useState(false);
   const mounted = useRef(false);
@@ -135,8 +151,13 @@ function InboxMessage({ event, busy, connected, canSelect, act, candidates, albu
         <p className="my-2 text-dim">{candidates.length} saved album messages are ready. Check Telegram for all parts before starting one assignment.</p>
         <Button size="small" disabled={busy || !connected} onClick={() => void group()}>Group album and start</Button>
       </div>}
-      {event.status === 'needs-review' && <div>
+      {event.dismissed && <p className="m-0 text-dim">Dismissed {new Date(event.dismissed.at).toLocaleString()}. Saved text and files stay in Athena. To request this work again, ask the sender to send a new message.</p>}
+      {event.status === 'needs-review' && !event.dismissed && <div>
         <p className="m-0 text-dim">This message is held for review. Automatic model replay is disabled. Review the native work and saved destination before starting another assignment.</p>
+        {gatewayRequestUnstarted(event) && <div className="mt-2">
+          <p className="my-2 text-dim">{paused ? 'Dismiss a request that has never started to let later messages continue. Its saved text and files stay in Athena.' : 'Pause this gateway to dismiss a request that has never started.'}</p>
+          <Button size="small" variant="ghost" disabled={busy || !paused} onClick={() => void dismiss(event.id)}>Dismiss request</Button>
+        </div>}
         {event.dispatch && event.operationId && !event.reply && event.input.kind === 'message' && (!event.input.mediaGroupId || event.album?.leaderId === event.id) && <div className="mt-2">
           <p className="my-2 text-dim">Check only the original saved operation. If it is complete and still allowed, its saved reply will be delivered. This does not start another run or override edited input.</p>
           <Button size="small" variant="ghost" disabled={busy || !connected} onClick={() => void act(`${base}/reconcile`)}>Check saved work</Button>

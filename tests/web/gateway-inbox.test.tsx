@@ -19,19 +19,21 @@ function event(sequence = 1): GatewayInboxEvent {
   };
 }
 let events: GatewayInboxEvent[]; let host: HTMLElement; let unmount: () => void;
-let writes: { url: string; body: Record<string, unknown> }[]; let refuse: boolean;
+let writes: { url: string; body: Record<string, unknown> }[]; let refuse: boolean; let reviews: number;
 const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 30)));
 const button = (name: string, root: ParentNode = host) => [...root.querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent === name)!;
 const click = (name: string, root: ParentNode = host) => act(async () => button(name, root).click());
 beforeEach(() => {
   document.body.innerHTML = '<div id="view"></div><div id="modal-root"></div><div id="toasts"></div>';
-  host = document.getElementById('view')!; events = [event()]; writes = []; refuse = false;
+  host = document.getElementById('view')!; events = [event()]; writes = []; refuse = false; reviews = 0;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+    if ((!init.method || init.method === 'GET') && url.endsWith('/review')) { reviews++; return new Response(JSON.stringify({ revision: 'a'.repeat(64), canDismiss: !refuse, reason: refuse ? 'Wait for the relay acknowledgement.' : '' })); }
     if (!init.method || init.method === 'GET') return new Response(JSON.stringify({ events }));
     writes.push({ url, body: JSON.parse(String(init.body || '{}')) as Record<string, unknown> });
     if (refuse) return new Response(JSON.stringify({ error: 'File access changed.' }), { status: 400 });
     if (url.endsWith('/retry-reply')) events[0].reply!.parts[1].status = 'pending';
     if (url.endsWith('/reconcile')) events[0].reconciliation = { at: 1700000000000, state: 'needs-review' };
+    if (url.endsWith('/dismiss')) events[0].dismissed = { at: 1700000000000, revision: 'a'.repeat(64) };
     if (url.endsWith('/files/1/skip')) events[0].outgoing![1].status = 'skipped';
     if (url.endsWith('/cleanup')) {
       const ids = writes.at(-1)!.body.eventIds as string[];
@@ -46,6 +48,55 @@ async function all() {
   await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Inbox filter"]')!.click()); await settle();
   await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((item) => item.textContent?.includes('All messages'))!.click()); await settle();
 }
+
+function held() {
+  const item = event(); item.status = 'needs-review'; delete item.operationId; delete item.dispatch; delete item.reply; return item;
+}
+
+it('dismisses an unstarted held request only after checking its current preview and confirming while paused', async () => {
+  events = [held()]; await open(false); expect(button('Dismiss request').disabled).toBe(false);
+  await click('Dismiss request'); await settle(); expect(reviews).toBe(1); expect(writes).toHaveLength(0);
+  expect(document.querySelector('.modal')?.textContent).toContain('without starting an assignment');
+  await click('Cancel', document); await settle(); expect(writes).toHaveLength(0);
+  await click('Dismiss request'); await settle(); await click('Dismiss request', document.querySelector('.modal')!); await settle();
+  expect(writes).toEqual([{ url: '/api/gateways/g1/inbox/event-1/dismiss', body: { revision: 'a'.repeat(64), acknowledgeDismiss: true } }]);
+  expect(host.textContent).toContain('Request dismissed.'); expect(host.textContent).toContain('No messages need review');
+  await all(); expect(host.textContent).toContain('Dismissed'); expect(host.textContent).toContain('Request 1'); expect(button('Dismiss request')).toBeUndefined();
+});
+
+it('requires pause and hides dismissal when any native operation is reserved', async () => {
+  events = [held()]; await open(); expect(button('Dismiss request').disabled).toBe(true); act(() => unmount());
+  events[0].operationId = 'reserved-operation'; await open(false); expect(button('Dismiss request')).toBeUndefined(); expect(writes).toHaveLength(0);
+});
+
+it('reports a blocked dismissal preview and never opens a confirmation or starts work', async () => {
+  events = [held()]; refuse = true; await open(false); await click('Dismiss request'); await settle();
+  expect(host.textContent).toContain('Wait for the relay acknowledgement.'); expect(document.querySelector('.modal')).toBeNull(); expect(writes).toHaveLength(0);
+});
+
+it('keeps a request held when its confirmation becomes stale or access changes', async () => {
+  events = [held()]; await open(false); await click('Dismiss request'); await settle(); refuse = true;
+  await click('Dismiss request', document.querySelector('.modal')!); await settle();
+  expect(host.textContent).toContain('File access changed.'); expect(host.textContent).toContain('Needs review'); expect(events[0].dismissed).toBeUndefined();
+});
+
+it('does not apply dismissal confirmation after the inbox closes', async () => {
+  events = [held()]; await open(false); await click('Dismiss request'); await settle(); act(() => unmount());
+  await click('Dismiss request', document.querySelector('.modal')!); await settle(); expect(writes).toHaveLength(0);
+});
+
+it('requests one preview for rapid repeated dismiss clicks', async () => {
+  events = [held()]; await open(false);
+  await act(async () => { button('Dismiss request').click(); button('Dismiss request').click(); }); await settle();
+  expect(reviews).toBe(1); expect(writes).toHaveLength(0); await click('Cancel', document); await settle();
+});
+
+it('allows dismissed receipts to be cleaned while keeping their saved message visible until confirmation', async () => {
+  events = [held()]; events[0].dismissed = { at: 1700000000000, revision: 'a'.repeat(64) }; await open(false); await all();
+  expect(gatewayMessageStatus(events[0])).toBe('Dismissed'); expect(host.textContent).toContain('Saved text and files stay'); expect(button('Remove resolved receipts').disabled).toBe(false);
+  await click('Remove resolved receipts'); await settle(); expect(writes).toHaveLength(0); expect(document.querySelector('.modal')?.textContent).toContain('completed or dismissed');
+  await click('Cancel', document); await settle(); expect(events).toHaveLength(1);
+});
 
 it('shows saved context and selected final text as text, without automatically retrying anything', async () => {
   events[0].input.text = '<script>untrusted()</script>'; await open();
@@ -149,31 +200,31 @@ it('does not offer recovery for input without a dispatch receipt and disables it
 
 it('cleans completed receipts while paused only after confirming the exact selection', async () => {
   events[0].reply!.parts[1].status = 'sent'; await open(false);
-  expect(button('Remove completed receipts').disabled).toBe(false);
-  await click('Remove completed receipts'); await settle(); expect(writes).toHaveLength(0);
+  expect(button('Remove resolved receipts').disabled).toBe(false);
+  await click('Remove resolved receipts'); await settle(); expect(writes).toHaveLength(0);
   expect(document.querySelector('.modal')?.textContent).toContain('Native chats and project files stay');
   await click('Cancel', document); await settle(); expect(writes).toHaveLength(0);
-  await click('Remove completed receipts'); await settle(); await click('Remove receipts', document); await settle();
+  await click('Remove resolved receipts'); await settle(); await click('Remove receipts', document); await settle();
   expect(writes).toHaveLength(1); expect(writes[0].url).toBe('/api/gateways/g1/inbox/cleanup');
   expect(writes[0].body).toEqual({ before: expect.any(Number), eventIds: ['event-1'] });
-  expect(host.textContent).toContain('Removed 1 completed receipt.'); expect(host.textContent).toContain('No saved messages');
+  expect(host.textContent).toContain('Removed 1 resolved receipt.'); expect(host.textContent).toContain('No saved messages');
 });
 
 it('keeps completed context when another message in its conversation is unresolved', async () => {
   events[0].reply!.parts[1].status = 'sent'; const queued = event(2); queued.status = 'queued'; queued.reply = undefined; queued.dispatch = undefined; events.push(queued);
-  await open(); expect(button('Remove completed receipts').disabled).toBe(true); expect(writes).toHaveLength(0);
+  await open(); expect(button('Remove resolved receipts').disabled).toBe(true); expect(writes).toHaveLength(0);
 });
 
 it('applies the chosen receipt age without sending a cleanup request automatically', async () => {
   events[0].reply!.parts[1].status = 'sent'; events[0].receivedAt = Date.now() - 10 * 86400000;
-  await open(); expect(button('Remove completed receipts').disabled).toBe(true);
+  await open(); expect(button('Remove resolved receipts').disabled).toBe(true);
   await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Receipt cleanup age"]')!.click()); await settle();
   await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((item) => item.textContent?.includes('over 7 days'))!.click()); await settle();
-  expect(button('Remove completed receipts').disabled).toBe(false); expect(writes).toHaveLength(0);
+  expect(button('Remove resolved receipts').disabled).toBe(false); expect(writes).toHaveLength(0);
 });
 
 it('does not apply cleanup confirmation after the inbox has closed', async () => {
-  events[0].reply!.parts[1].status = 'sent'; await open(); await click('Remove completed receipts'); await settle();
+  events[0].reply!.parts[1].status = 'sent'; await open(); await click('Remove resolved receipts'); await settle();
   act(() => unmount()); await click('Remove receipts', document); await settle(); expect(writes).toHaveLength(0);
 });
 

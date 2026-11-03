@@ -64,13 +64,15 @@ async function fixture() {
   const chat = new Chat({ userName: 'Athena', adapters: { whatsapp: adapter }, state, logger: quiet }); await chat.initialize();
   const intake = new WhatsAppRelayIntake(instance.id, inbox, BUSINESS, SECRET); let sequence = 0;
   async function accept(options: { age?: number; userId?: string; hidden?: boolean; from?: string; confirmed?: boolean; timestamp?: number } = {}) {
+    // Setup can cross a second; fresh signed input must not outrun the fixture's frozen clock.
+    const receivedAt = Date.now(); now = Math.max(now, receivedAt);
     const messageId = `wamid.input-${++sequence}`;
     const raw = JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: BUSINESS, changes: [{ field: 'messages', value: {
       messaging_product: 'whatsapp', metadata: { phone_number_id: instance.accountId }, messages: [{ id: messageId, from: options.hidden ? undefined : options.from ?? ALICE,
-        ...(options.userId ? { from_user_id: options.userId } : {}), type: 'text', timestamp: String(Math.floor((options.timestamp ?? Date.now() - (options.age ?? 0)) / 1000)), text: { body: 'Hello' } }],
+        ...(options.userId ? { from_user_id: options.userId } : {}), type: 'text', timestamp: String(Math.floor((options.timestamp ?? receivedAt - (options.age ?? 0)) / 1000)), text: { body: 'Hello' } }],
     } }] }] });
     const bodyBase64 = Buffer.from(raw).toString('base64');
-    await intake.receive(EPOCH, { sequence, id: crypto.createHash('sha256').update(bodyBase64).digest('hex'), bodyBase64, receivedAt: Date.now(), expiresAt: Date.now() + 60000,
+    await intake.receive(EPOCH, { sequence, id: crypto.createHash('sha256').update(bodyBase64).digest('hex'), bodyBase64, receivedAt, expiresAt: receivedAt + 60000,
       signature: 'sha256=' + crypto.createHmac('sha256', SECRET).update(raw).digest('hex'), contentType: 'application/json' }, async (proof) => {
       if (options.confirmed === false) throw new Error('Lost ACK'); return { epoch: proof.epoch, cursor: proof.sequence };
     });

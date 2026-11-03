@@ -450,8 +450,18 @@ Missing records, edited input, changed destinations and unproven completion rema
 does not override them. Team recovery needs a completed review of the original message, rather than
 the latest team reply.
 
-Under **Clean completed receipts**, choose a received-before age or **All completed receipts**, then
-confirm **Remove completed receipts**. Only the displayed eligible selection is removed; unresolved
+For a held request that has never started, pause its instance and choose **Dismiss request**. Athena
+checks the current receipt and asks you to confirm. The request will not start an assignment or send
+a reply, and later messages in that conversation can continue once other holds are resolved. Its
+text, files and byte charges stay saved. Ask the sender to send a new message if the work is still
+needed; an old request cannot replay. This action refuses even a reserved operation with no proven
+run, saved native work, replies, outgoing files and albums. Existing native work still uses
+**Check saved work**, and uncertain deliveries still need their separate review. Unconfirmed WhatsApp
+requests require the exact ACK or a reviewed retention gap before they can be dismissed; relay holds
+must be resolved first. Dismissing an abandoned receipt never marks it confirmed.
+
+Under **Clean resolved receipts**, choose a received-before age or **All resolved receipts**, then
+choose **Remove resolved receipts** and confirm **Remove receipts**. Completed and dismissed requests are eligible. Only the displayed eligible selection is removed; unresolved
 conversations keep their earlier context. Paused instances can be cleaned without reconnecting.
 This removes inbox message text and delivery receipts, while native chats, project files and conversation
 links stay. Compact replay markers and daily byte totals stay too, so cleanup cannot resend an old

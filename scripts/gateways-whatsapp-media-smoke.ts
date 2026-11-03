@@ -35,7 +35,7 @@ async function proof(): Promise<void> {
   const { pairWhatsApp } = await import('../server/gateways/whatsapp-setup.ts');
   const { inspectWhatsAppRecovery, reviewWhatsAppRecovery } = await import('../server/gateways/whatsapp-recovery.ts');
   const { WhatsAppRelayIntake } = await import('../server/gateways/whatsapp-intake.ts');
-  const { GatewayInbox } = await import('../server/gateways/inbox.ts');
+  const { GatewayInbox, gatewayRequestReview } = await import('../server/gateways/inbox.ts');
   const { GatewayStateAdapter } = await import('../server/gateways/state.ts');
   const { GatewayFileProcessor } = await import('../server/gateways/files.ts');
   const { GatewayReplies } = await import('../server/gateways/replies.ts');
@@ -184,6 +184,16 @@ async function proof(): Promise<void> {
     assert.equal(JSON.stringify(inbox.list()), work); assert.equal(JSON.stringify(inbox.whatsAppRelayState()!.identities), mappings);
     assert.equal(inbox.whatsAppRelayState()!.cursor, 5); assert.equal(inbox.whatsAppRelayState()!.reviewedGaps!.length, 1); assert.equal(posts.length, 6);
     console.log('gateways: WhatsApp saved gap review survives restart and keeps prior work intact');
+    saveGatewayInstance({ ...config, enabled: true }, instance.id);
+    const heldRaw = fresh.replace('wamid.transport', 'wamid.dismiss'); const heldBase64 = Buffer.from(heldRaw).toString('base64');
+    await intake.receive(epoch, { sequence: 6, id: crypto.createHash('sha256').update(heldBase64).digest('hex'), receivedAt: Date.now(), expiresAt: Date.now() + 60000,
+      bodyBase64: heldBase64, signature: 'sha256=' + crypto.createHmac('sha256', appSecret).update(heldRaw).digest('hex'), contentType: 'application/json' }, async (receipt) => ({ epoch: receipt.epoch, cursor: receipt.sequence }));
+    const held = inbox.list()[2]; inbox.review(held.id); saveGatewayInstance(config, instance.id);
+    const review = gatewayRequestReview(instance.id, held.id); assert.equal(review.canDismiss, true);
+    inbox.dismissRequest(held.id, { revision: review.revision, acknowledgeDismiss: true }); await state.disconnect(); await state.connect();
+    assert.ok(inbox.list()[2].dismissed); assert.equal(inbox.list()[2].operationId, undefined); assert.equal(posts.length, 6);
+    saveGatewayInstance({ ...config, enabled: true }, instance.id); assert.equal(inbox.claimNext(), null);
+    console.log('gateways: held request dismissal preserves its receipt without work or delivery');
   } finally {
     await replies.stop(); await processor.stop(); await adapter.disconnect(); await chat.shutdown(); await state.disconnect();
     server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve()));

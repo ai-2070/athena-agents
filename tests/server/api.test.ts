@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import type { GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayWhatsAppSetup } from '../../shared/types.ts';
+import type { GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayRequestReview, GatewayWhatsAppSetup } from '../../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 // set in beforeAll: a port nothing else is using (see startServer)
@@ -229,6 +229,35 @@ describe('API', () => {
 });
 
 describe('gateway configuration API', () => {
+  it('dismisses only a current paused unstarted request behind the existing request guards', async () => {
+    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const config = { name: 'Held request', platform: 'telegram', accountId: '9800000001', projectId: state.project.id, target: { kind: 'brain' },
+      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
+    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true });
+    const route = { instanceId: instance.id, projectId: instance.projectId, target: instance.target, generation: instance.routeGeneration }; const eventId = 'a'.repeat(64);
+    fs.writeFileSync(path.join(directory, 'inbox.json'), JSON.stringify({ version: 1, nextSequence: 2,
+      bindings: [{ id: 'binding', accountId: instance.accountId, conversationId: '123', threadId: '', route, createdAt: 1 }],
+      events: [{ id: eventId, bindingId: 'binding', route, sequence: 1, receivedAt: 1, status: 'needs-review',
+        input: { platform: 'telegram', accountId: instance.accountId, conversationId: '123', threadId: '', sourceMessageId: '1', sourceEventId: '1', kind: 'message',
+          actor: { id: '123', label: 'Alice', kind: 'user' }, directMessage: true, triggered: false, text: 'Saved request', media: [] } }],
+    }));
+    const base = `/api/gateways/${instance.id}/inbox/${eventId}`; const preview = await (await req(`${base}/review`)).json() as GatewayRequestReview;
+    expect(preview).toMatchObject({ canDismiss: true, reason: '' }); expect(preview.revision).toMatch(/^[a-f0-9]{64}$/);
+    const body = JSON.stringify({ revision: preview.revision, acknowledgeDismiss: true });
+    expect((await req(`${base}/dismiss`, { method: 'POST', body })).status).toBe(403);
+    expect((await req(`${base}/dismiss`, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status).toBe(403);
+    expect((await req(`${base}/dismiss`, { method: 'POST', headers: json, body: JSON.stringify({ revision: preview.revision }) })).status).toBe(409);
+    expect((await req(`${base}/dismiss`, { method: 'POST', headers: json, body })).status).toBe(200);
+    expect((await req(`${base}/dismiss`, { method: 'POST', headers: json, body })).status).toBe(409);
+    const saved = await (await req(`/api/gateways/${instance.id}/inbox`)).json() as { events: { input: { text: string }; dismissed: { revision: string }; operationId?: string }[] };
+    expect(saved.events[0]).toMatchObject({ input: { text: 'Saved request' }, dismissed: { revision: preview.revision } }); expect(saved.events[0].operationId).toBeUndefined();
+    const navigation = await (await req('/api/state')).json() as { gateways: { id: string; status: string; reviewCount: number }[] };
+    expect(navigation.gateways.find((item) => item.id === instance.id)).toMatchObject({ status: 'paused', reviewCount: 0 });
+    await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
+  });
+
   it('guards paused WhatsApp pairing finish and unknown-attempt review without exposing keys or private pairing metadata', async () => {
     const state = await (await req('/api/state')).json() as { project: { id: string } };
     const config = { name: 'WhatsApp pairing', platform: 'whatsapp', accountId: '9500000001', projectId: state.project.id, target: { kind: 'brain' },

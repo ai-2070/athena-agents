@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GatewayInboxJournal, GatewayWhatsAppRelayStatus } from '../../shared/types.ts';
 import { getGatewaySecrets, setGatewaySecrets } from '../../server/store.ts';
 import { saveGatewayCredentials, saveGatewayInstance } from '../../server/gateways/instances.ts';
-import { GatewayInbox, gatewayInboxHistory, gatewayWhatsAppRecovery } from '../../server/gateways/inbox.ts';
+import { GatewayInbox, gatewayInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery } from '../../server/gateways/inbox.ts';
 import { GatewayStateAdapter } from '../../server/gateways/state.ts';
 import { GatewaySupervisor } from '../../server/gateways/supervisor.ts';
 import { WhatsAppRelayIntake } from '../../server/gateways/whatsapp-intake.ts';
@@ -51,6 +51,14 @@ async function fixture() {
 }
 
 describe('explicit WhatsApp relay-gap recovery', () => {
+  it('allows explicit dismissal of abandoned unstarted requests only after gap review, then admits fresh work in that conversation', async () => {
+    const f = await fixture(); await expect(f.accept('wamid.pending', false)).rejects.toThrow(); f.pause();
+    const event = f.inbox.list()[0]; f.inbox.review(event.id); expect(gatewayRequestReview(f.instance.id, event.id).canDismiss).toBe(false);
+    f.gap(2); await f.inspect(); expect(gatewayRequestReview(f.instance.id, event.id).canDismiss).toBe(false); f.reviewed(); await f.review();
+    const preview = gatewayRequestReview(f.instance.id, event.id); expect(preview.canDismiss).toBe(true); f.inbox.dismissRequest(event.id, { revision: preview.revision, acknowledgeDismiss: true });
+    expect(f.inbox.list()[0].relay!.confirmed).toBe(false); saveGatewayInstance(f.config, f.instance.id); await f.accept('wamid.fresh');
+    expect(f.inbox.claimNext()!.input.sourceMessageId).toBe('wamid.fresh'); expect(f.inbox.list()[0].operationId).toBeUndefined();
+  });
   it('observes a gap, requires the exact remote review, preserves work and mappings, and resumes only fresh intake', async () => {
     const f = await fixture(); await f.accept('wamid.old'); f.pause(); f.gap();
     expect(f.preview()).toEqual({ reason: null, gap: null }); const seen = await f.inspect();

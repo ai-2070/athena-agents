@@ -70,6 +70,23 @@ export class GatewaySupervisor {
     worker.retryReply(eventId);
   }
 
+  dismissRequest(instanceId: string, eventId: string, body: unknown): Promise<void> {
+    const task = this.pending.then(async () => {
+      const instance = getGatewayInstance(instanceId);
+      if (this.closed || instance.enabled) throw Object.assign(new Error('Pause this gateway before dismissing a held request.'), { status: 400 });
+      await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
+      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined;
+      try {
+        release = await claimGatewayAccount(instance.platform, instance.accountId); await state.connect();
+        new GatewayInbox(state).dismissRequest(eventId, body);
+      } catch (error) {
+        if (error instanceof Error && 'status' in error) throw error;
+        throw Object.assign(new Error('This request could not be dismissed. Check storage and ownership, then reload its saved receipt.'), { status: 503 });
+      } finally { await state.disconnect(); await release?.(); }
+    });
+    this.pending = task.then(() => {}, () => {}); return task;
+  }
+
   reconcile(instanceId: string, eventId: string): GatewayReconciliation {
     const worker = this.workers.get(instanceId);
     if (!worker) throw Object.assign(new Error('Connect this gateway before checking its saved work.'), { status: 400 });

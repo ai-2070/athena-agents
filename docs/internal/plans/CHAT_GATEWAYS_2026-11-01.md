@@ -591,7 +591,28 @@ New gateway data does not need a legacy compatibility layer.*
   blocked for restoration or separate recovery controls; no epoch or inbox replacement is implemented.
 - Validation: full type checks and 2,445 tests passed (one skipped) with CI's two-worker limit;
   desktop staging, the web build and desktop smoke passed. No service was deployed or live account used.
-- Next: implement WhatsApp Settings and held-work controls, read-only setup checks, and recovery for
+- Added paused-only, revision-checked dismissal for held requests that have never reserved or started
+  native work. The local review preview and explicit confirmation refuse any operation ID, dispatch,
+  reply, outgoing delivery, notice or album. Dismissal adds an audit marker without rewriting the
+  source, route or original hold; it cannot start work, send or confirm a receipt. Interrupted incoming
+  transfers become failed while their reservations remain charged. Current WhatsApp relay holds
+  still block dismissal, and unconfirmed inputs require a saved reviewed-gap proof of abandonment.
+- The inbox offers Dismiss request only on unstarted holds and requires pause, a fresh server preview
+  and explicit confirmation. Dismissed requests stay visible in All messages and no longer count as
+  needing review or block later work in the binding. Old source IDs remain deduplicated across restart.
+  Completed/dismissed receipts can be explicitly cleaned together when their conversation is resolved;
+  compact replay markers and byte charges remain. Native operations and deliveries keep their existing
+  reconciliation/retry controls; this action never overrides ambiguous work or album completeness.
+- Added server, API and UI fixtures for ownership, stale confirmation, pause/settings changes,
+  native-work refusal, ACK/gap gates, interrupted download charges, cleanup replay protection,
+  double clicks and closing during confirmation. The Bun/Node and read-only bundled proof also
+  dismisses a saved held request without work or delivery. README and guide describe the new controls.
+- Validation: full checks passed with CI's two-worker limit (2,470 tests, one skipped). The initial
+  run exposed a WhatsApp fixture clock that could lag fresh signed input across a second boundary;
+  intake now captures one time frame and the full rerun passed. Desktop staging, the web build and
+  desktop smoke passed. A scoped desktop/mobile finish review approved the control and confirmation;
+  the existing design system is unchanged. Only synthetic preview data was used, then removed.
+- Next: implement WhatsApp Settings, read-only setup checks, and recovery for
   identity/installation changes. Then
   finish unified delivery and product controls. Read-only setup checks, native-work override controls
   and explicit webhook switching still need product setup. Deleted instances retain private inbox
