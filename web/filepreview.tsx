@@ -11,7 +11,7 @@ import { icon } from './icons.ts';
 import { isMac } from './shortcuts.ts';
 import { findFileMentions } from './mentions.ts';
 import { modelViewer } from './modelviewer.ts';
-import { fileUrl, pdfViewUrl } from './client/connection.ts';
+import { fileUrl, pdfViewUrl, filesAt } from './client/connection.ts';
 import { fetchFile } from './client/http.ts';
 import { showMarkdownDialog } from './ui/bigmarkdown.tsx';
 import { Plate } from './ui/surface.tsx';
@@ -31,7 +31,7 @@ export const fileManager = (): string => (isWindows() ? 'Explorer' : isMac() ? '
 export const onDesktop = (): boolean => !!state.data?.desktop;
 
 /** Opens the file with its default program (desktop app). Programs and scripts are refused by the server. */
-export const openFile = (path: string): void => void attempt(() => POST('/files/open', { path }));
+export const openFile = (path: string): void => void attempt(() => POST(`${filesAt(path)}/files/open`, { path }));
 
 // ---------- looking files up: one request for everything asked for in the same moment ----------
 const known = new Map<string, { at: number; info: Promise<FileInfo> }>();
@@ -44,9 +44,13 @@ function flush(): void {
   timer = null;
   const batch = queue.splice(0, 50);
   if (queue.length) timer = setTimeout(flush, 0);
-  POST<FileInfo[]>('/files/info', { paths: batch.map((q) => q.path) })
-    .then((list) => batch.forEach((q, i) => q.resolve(list[i] ?? { path: q.path, ok: false })))
-    .catch(() => batch.forEach((q) => q.resolve({ path: q.path, ok: false })));
+  // (each project's files are looked up in that project)
+  const byProject = new Map<string, typeof batch>();
+  for (const q of batch) byProject.set(filesAt(q.path), [...(byProject.get(filesAt(q.path)) || []), q]);
+  for (const [at, part] of byProject)
+    POST<FileInfo[]>(`${at}/files/info`, { paths: part.map((q) => q.path) })
+      .then((list) => part.forEach((q, i) => q.resolve(list[i] ?? { path: q.path, ok: false })))
+      .catch(() => part.forEach((q) => q.resolve({ path: q.path, ok: false })));
 }
 
 export function lookupFiles(paths: readonly string[]): Promise<FileInfo[]> {
@@ -142,7 +146,7 @@ export function openButton(path: string, name: string): HTMLButtonElement {
 }
 
 export function revealButton(path: string): HTMLButtonElement {
-  return domButton({ variant: 'ghost', size: 'tiny', class: 'fp-reveal flex-none gap-1.25', type: 'button', title: path, onclick: () => attempt(() => POST('/files/reveal', { path })) }, icon('folder-open', 13), revealLabel());
+  return domButton({ variant: 'ghost', size: 'tiny', class: 'fp-reveal flex-none gap-1.25', type: 'button', title: path, onclick: () => attempt(() => POST(`${filesAt(path)}/files/reveal`, { path })) }, icon('folder-open', 13), revealLabel());
 }
 
 /** An image the box owns that opens big (zoomable adds the button role, focus and keys to it). */

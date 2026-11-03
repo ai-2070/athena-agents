@@ -631,6 +631,9 @@ describe('agent runs and projects', () => {
     expect(shown.status).toBe(200);
     expect(await shown.text()).toBe('hi');
     expect((await req(`/api/file?path=${encodeURIComponent(f.path)}`)).status).not.toBe(200);
+    const info = async (at: string) => (await (await send(`/api${at}/files/info`, { paths: [f.path] }, page)).json())[0];
+    expect(await info(`/p/${other.id}`)).toMatchObject({ ok: true, name: 'note.txt', size: 2 });
+    expect(await info('')).toMatchObject({ ok: false });
     // the Files panel lists its folders, never outside the project folder
     const top = await (await req(`/api/projects/${other.id}/folder`)).json();
     expect(top.rel).toBe('');

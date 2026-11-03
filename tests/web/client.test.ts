@@ -177,3 +177,21 @@ describe('upload()', () => {
     await expect(upload('/uploads/b1', new Blob(['x']), { signal: stop.signal })).rejects.toThrow('Cancelled');
   });
 });
+
+describe('files of a project that isn\'t open', () => {
+  it('are shown and looked up through that project, picked by the folder that holds them', async () => {
+    const { setProjectFolders, filesAt, fileUrl, pdfViewUrl } = await import('../../web/client/connection.ts');
+    setProjectFolders([{ id: 'p1', brainPath: '/work/bakery' }, { id: 'p2', brainPath: '/work/bakery-2/' }, { id: 'p3', brainPath: 'C:\\Projects\\Pod' }, { id: 'p4' }], 'p1');
+    try {
+      expect(filesAt('/work/bakery/notes/a.md')).toBe('');
+      expect(filesAt('/work/bakery-2/notes/a.md')).toBe('/p/p2');
+      expect(filesAt('c:\\projects\\pod\\uploads\\b.png')).toBe('/p/p3');
+      expect(filesAt('/elsewhere/c.txt')).toBe('');
+      expect(fileUrl('/work/bakery-2/x.png')).toBe('/api/p/p2/file?path=%2Fwork%2Fbakery-2%2Fx.png');
+      expect(fileUrl('/work/bakery/x.png')).toBe('/api/file?path=%2Fwork%2Fbakery%2Fx.png');
+      expect(pdfViewUrl('/work/bakery-2/a.pdf')).toBe('/api/p/p2/file?path=%2Fwork%2Fbakery-2%2Fa.pdf&view=1');
+    } finally {
+      setProjectFolders([], null);
+    }
+  });
+});

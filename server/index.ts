@@ -138,7 +138,7 @@ const gatewaySupervisor = new GatewaySupervisor();
 // The routes an Overview pane uses for a project that isn't open (/api/p/<projectId>/…): an agent's chats and its
 // details, a team's thread, attached files, and showing that project's files. Everything else (projects, settings,
 // keys, backups) stays global.
-const SCOPED = /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|uploads(\/[\w-]+)?|file)$/;
+const SCOPED = /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|uploads(\/[\w-]+)?|file|files\/(info|open|reveal))$/;
 function scopedRoute(pathname: string): { project: Project; path: string } | null {
   const m = /^\/api\/p\/([^/]+)(\/.*)$/.exec(pathname);
   if (!m) return null;

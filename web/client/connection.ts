@@ -72,10 +72,27 @@ export function scopedPath(path: string): string {
 /** An API address: apiUrl('/agents') is '/api/agents' (or '/api/p/<project>/agents/…' for a scopeTo() agent). */
 export const apiUrl = (path: string, query?: Query): string => serverUrl(`/api${scopedPath(path)}`, query);
 
+// Where each project's folder is (from the page's state), so a file of a project that isn't open (a chat of it in an
+// Overview pane) is shown and looked up through that project: the server only shows the open project's files.
+let folders: { id: string; folder: string }[] = [];
+let openProjectId = '';
+const folderOf = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+/** The page's projects and which one is open (core.ts keeps this current). */
+export function setProjectFolders(list: readonly { id: string; brainPath?: string }[], open: string | null | undefined): void {
+  folders = list.flatMap((p) => (p.brainPath ? [{ id: p.id, folder: folderOf(p.brainPath) }] : [])).sort((a, b) => b.folder.length - a.folder.length);
+  openProjectId = open || '';
+}
+/** '/p/<project>' for a file inside a project that isn't open (the longest folder that holds it), else ''. */
+export function filesAt(path: string): string {
+  const p = folderOf(path);
+  const hit = folders.find((f) => p === f.folder || p.startsWith(`${f.folder}/`));
+  return hit && hit.id !== openProjectId ? `/p/${encodeURIComponent(hit.id)}` : '';
+}
+
 /** A file the server hands out (attachments, images, artifacts), for src and href. */
-export const fileUrl = (path: string): string => apiUrl('/file', { path });
+export const fileUrl = (path: string): string => apiUrl(`${filesAt(path)}/file`, { path });
 /** A PDF to read in a browser tab (fileUrl downloads it). */
-export const pdfViewUrl = (path: string): string => apiUrl('/file', { path, view: 1 });
+export const pdfViewUrl = (path: string): string => apiUrl(`${filesAt(path)}/file`, { path, view: 1 });
 
 /** The ws:// (or wss://) address of a path on the server. */
 export function socketUrl(path: string, query?: Query): string {
