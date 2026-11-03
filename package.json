@@ -65,7 +65,7 @@
     "@athena/eve-world": "file:./runtime/eve-world",
     "@base-ui/react": "1.9.0",
     "@chat-adapter/discord": "4.43.0",
-    "@chat-adapter/slack": "4.43.0",
+    "@chat-adapter/slack": "4.44.0",
     "@chat-adapter/telegram": "4.43.0",
     "@chat-adapter/whatsapp": "4.43.0",
     "@emoji-mart/data": "1.2.1",
