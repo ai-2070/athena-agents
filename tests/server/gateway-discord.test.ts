@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import http from 'node:http';
+import path from 'node:path';
 import { once } from 'node:events';
 import { Chat } from 'chat';
 import type { Logger } from 'chat';
@@ -12,6 +13,10 @@ import { gatewayConfig } from './gateway-fixtures.ts';
 import { gatewayConversation } from '../../server/gateways/conversations.ts';
 import { newAgent } from '../../server/library.ts';
 import { gatewayPlatformAvailable } from '../../shared/gateways.ts';
+import { GatewayFileProcessor } from '../../server/gateways/files.ts';
+import { GatewayReplies } from '../../server/gateways/replies.ts';
+import { selectGatewayDocuments } from '../../server/gateways/outgoing.ts';
+import { ensureBrain } from '../../server/projects.ts';
 import type { GatewayInboxJournal } from '../../shared/types.ts';
 
 const GUILD = '100000000000000001'; const CHANNEL = '200000000000000001'; const THREAD = '300000000000000001';
@@ -29,7 +34,7 @@ async function fixture(options: { users?: string[]; directMessages?: boolean; wr
   const config = { ...gatewayConfig(String(account++)), platform: 'discord', senderPolicy: { platform: 'discord', allowedUserIds: options.users ?? [] },
     scope: { directMessages: options.directMessages ?? true, conversationIds: [CHANNEL], guildIds: [GUILD] } };
   const instance = saveGatewayInstance(config); const state = new GatewayStateAdapter(instance.id); await state.connect(); const inbox = new GatewayInbox(state);
-  const calls: { path: string; method: string; token: string }[] = [];
+  const calls: { path: string; method: string; token: string; form?: FormData; payload?: Record<string, unknown> }[] = [];
   const channels: Record<string, Record<string, unknown>> = {
     [DM]: { id: DM, type: 1, recipients: [{ id: ALICE, bot: false }] },
     [CHANNEL]: { id: CHANNEL, guild_id: GUILD, type: 0, permission_overwrites: [] },
@@ -37,13 +42,34 @@ async function fixture(options: { users?: string[]; directMessages?: boolean; wr
   };
   let permissions = permissionBits; let roleIds: string[] = []; let additionalRoles: { id: string; permissions: string }[] = [];
   let actor: Record<string, unknown> = {}; let current = message(FIRST, { content: 'Edited text' });
+  let replyChanges: Record<string, unknown> = {}; let posted = 700000000000000000n;
+  let cdn: { body: string; length: number | null; redirect?: string } = { body: 'hello', length: 5 };
   let failure: { path: string; status: number } | undefined; let gate: { path: string; wait: () => Promise<void> } | undefined;
   const server = http.createServer(async (request, response) => {
-    const path = request.url ?? ''; calls.push({ path, method: request.method ?? '', token: request.headers.authorization ?? '' });
+    const path = request.url ?? ''; const call: typeof calls[number] = { path, method: request.method ?? '', token: request.headers.authorization ?? '' }; calls.push(call);
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    if (request.method === 'POST') {
+      const bytes = new Uint8Array(Buffer.concat(chunks));
+      if (request.headers['content-type']?.startsWith('multipart/form-data')) {
+        call.form = await new Response(bytes, { headers: { 'content-type': request.headers['content-type'] } }).formData();
+        call.payload = JSON.parse(String(call.form.get('payload_json'))) as Record<string, unknown>;
+      } else call.payload = JSON.parse(Buffer.from(bytes).toString()) as Record<string, unknown>;
+    }
+    if (path.startsWith('/attachments/')) {
+      if (cdn.redirect) response.writeHead(302, { location: cdn.redirect });
+      else if (cdn.length !== null) response.setHeader('content-length', cdn.length);
+      else response.setHeader('transfer-encoding', 'chunked');
+      response.end(cdn.body); return;
+    }
     if (gate?.path === path) await gate.wait();
-    if (failure?.path === path) { response.writeHead(failure.status, { 'content-type': 'application/json' }); response.end(JSON.stringify({ error: 'PRIVATE_PROVIDER_DETAIL' })); return; }
+    if (failure?.path === path) { response.writeHead(failure.status, { 'content-type': 'application/json', 'retry-after': '7' }); response.end(JSON.stringify({ error: 'PRIVATE_PROVIDER_DETAIL' })); return; }
     let result: unknown;
-    if (path === '/users/@me') result = { id: options.wrongBot ? '999' : instance.accountId, bot: true, username: 'Athena' };
+    if (request.method === 'POST' && /^\/channels\/\d+\/messages$/.test(path)) {
+      const file = call.form?.get('files[0]');
+      result = { id: String(posted++), channel_id: path.split('/')[2], author: { id: instance.accountId, bot: true }, type: 19,
+        ...call.payload, attachments: file instanceof Blob ? [{ id: '600000000000000009', filename: 'name' in file ? file.name : 'file.bin', size: file.size }] : [], ...replyChanges };
+    }
+    else if (path === '/users/@me') result = { id: options.wrongBot ? '999' : instance.accountId, bot: true, username: 'Athena' };
     else if (path === '/oauth2/applications/@me') result = { id: instance.accountId, ...(options.omitAppBot ? {} : { bot: { id: options.appBot ?? instance.accountId, bot: true } }), flags: options.appFlags ?? (1 << 19) };
     else if (path === `/guilds/${GUILD}/roles`) result = [{ id: GUILD, permissions: String(permissions) }, ...additionalRoles];
     else if (path === `/guilds/${GUILD}/members/${instance.accountId}`) result = { user: { id: instance.accountId, bot: true }, roles: roleIds };
@@ -56,12 +82,13 @@ async function fixture(options: { users?: string[]; directMessages?: boolean; wr
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening'); const address = server.address(); if (!address || typeof address === 'string') throw new Error('No fixture port');
   const abort = new AbortController(); const origin = `http://127.0.0.1:${address.port}`;
-  const adapter = new DiscordIntakeAdapter(instance.id, inbox, 'PRIVATE_BOT_TOKEN', { apiUrl: origin, signal: abort.signal });
+  const adapter = new DiscordIntakeAdapter(instance.id, inbox, 'PRIVATE_BOT_TOKEN', { apiUrl: origin, fileOrigin: origin, signal: abort.signal });
   const chat = new Chat({ userName: 'Athena', adapters: { discord: adapter }, state, logger: quiet });
   closes.push(async () => { await adapter.disconnect(); await chat.shutdown(); await state.disconnect(); server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); });
   let event = 0;
   return { config, instance, state, inbox, adapter, chat, abort, origin, calls, channels,
     receive: (payload: unknown, type = 'MESSAGE_CREATE') => adapter.receiveDispatch(type, `dispatch-${++event}`, payload),
+    reply: (value: Record<string, unknown>) => { replyChanges = value; }, cdn: (value: typeof cdn) => { cdn = value; },
     actor: (value: Record<string, unknown>) => { actor = value; }, update: (value: Record<string, unknown>) => { current = value; },
     permissions: (value: bigint) => { permissions = value; }, roles: (ids: string[], values: typeof additionalRoles) => { roleIds = ids; additionalRoles = values; },
     fail: (path: string, status: number) => { failure = { path, status }; }, gate: (path: string, wait: () => Promise<void>) => { gate = { path, wait }; }, clearGate: () => { gate = undefined; },
@@ -88,7 +115,7 @@ describe('verified Discord event intake proof', () => {
     expect(gatewayPlatformAvailable('discord')).toBe(false);
     expect(f.calls.some((call) => call.path.includes('gateway'))).toBe(false);
     expect((await f.adapter.handleWebhook(new Request('http://localhost/unused'))).status).toBe(404);
-    await expect(f.adapter.startGatewayListener({})).rejects.toThrow('recovery is not available');
+    await expect(f.adapter.startGatewayListener({})).rejects.toThrow('durable Discord Gateway');
   });
 
   it.each([{ wrongBot: true }, { appFlags: 0 }, { appBot: ALICE }])('fails setup for an unverified identity or missing intent: %j', async (options) => {
@@ -231,5 +258,176 @@ describe('verified Discord event intake proof', () => {
     expect(gatewayInputAllowed(f.instance, { ...saved!.input, parentConversationId: '999' })).toBe(false);
     const journal = JSON.parse(fs.readFileSync(f.state.inboxFile(), 'utf8')) as GatewayInboxJournal; journal.bindings[0].guildId = '999'; fs.writeFileSync(f.state.inboxFile(), JSON.stringify(journal));
     expect(() => f.inbox.list()).toThrow('inconsistent'); expect(getGatewayInstance(f.instance.id).enabled).toBe(true);
+  });
+});
+
+async function completed(f: Awaited<ReturnType<typeof fixture>>, answer = 'Done'): Promise<string> {
+  const claimed = f.inbox.claimNext()!;
+  f.inbox.beginDispatch(claimed.id, claimed.operationId!, await gatewayConversation(claimed, f.abort.signal));
+  f.inbox.finishDispatch(claimed.id, claimed.operationId!, answer); return claimed.id;
+}
+function files(f: Awaited<ReturnType<typeof fixture>>) {
+  const processor = new GatewayFileProcessor(f.instance.id, f.inbox, (id, limit, signal, event) => f.adapter.downloadFileSource(id, limit, signal, event), f.abort.signal);
+  closes.push(() => processor.stop()); return processor;
+}
+function replies(f: Awaited<ReturnType<typeof fixture>>) {
+  const service = new GatewayReplies(f.inbox, (event, text, signal) => f.adapter.replyText(event, text, signal), f.abort.signal, () => true,
+    (event, file, signal) => f.adapter.replyDocument(event, file, signal));
+  closes.push(() => service.stop()); return service;
+}
+const attachmentId = '600000000000000005';
+async function received(f: Awaited<ReturnType<typeof fixture>>, changes: Record<string, unknown> = {}) {
+  await f.chat.initialize(); const input = message(FIRST, changes); f.update(input); return (await f.receive(input))!;
+}
+async function output(f: Awaited<ReturnType<typeof fixture>>, id: string): Promise<string> {
+  const file = path.join(ensureBrain(), `discord-result-${f.instance.accountId}.txt`); fs.writeFileSync(file, 'result');
+  await selectGatewayDocuments(f.inbox, id, { paths: [file] }, f.abort.signal); return file;
+}
+
+describe('Discord files and replies', () => {
+  it('refreshes attachment URLs from the saved message and saves bounded bytes without leaking tokens to the CDN', async () => {
+    const f = await fixture(); await received(f, { attachments: [{ id: attachmentId, filename: '../../plan.txt', size: 5, url: 'https://expired.invalid/PRIVATE_URL' }] });
+    f.update(message(FIRST, { attachments: [{ id: attachmentId, filename: '../../plan.txt', size: 5, url: `${f.origin}/attachments/${DM}/${attachmentId}/plan.txt?ex=PRIVATE_SIGNATURE` }] }));
+    await files(f).start(); const saved = f.inbox.list()[0]; expect(saved.status).toBe('queued');
+    expect(fs.readFileSync(saved.files![0].file!.path, 'utf8')).toBe('hello'); expect(saved.files![0].sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(f.calls.find((call) => call.path.startsWith('/attachments/'))?.token).toBe('');
+    expect(fs.readFileSync(f.state.inboxFile(), 'utf8')).not.toContain('PRIVATE_');
+  });
+
+  it.each(['https://steal.invalid/attachments/1/2/file.txt', 'http://cdn.discordapp.com/attachments/1/2/file.txt', '/attachments/999/600000000000000005/file.txt', '/attachments/500000000000000001/999/file.txt', '/attachments/500000000000000001/600000000000000005/a%2fb'])('refuses an untrusted attachment location: %s', async (location) => {
+    const f = await fixture(); const descriptor = { id: attachmentId, filename: 'plan.txt', size: 5 }; await received(f, { attachments: [descriptor] });
+    f.update(message(FIRST, { attachments: [{ ...descriptor, url: location.startsWith('/') ? f.origin + location : location }] }));
+    await files(f).start(); expect(f.inbox.list()[0].files![0].status).toBe('failed'); expect(f.inbox.claimNext()).toBeNull();
+    expect(f.calls.some((call) => call.path.startsWith('/attachments/'))).toBe(false);
+  });
+
+  it.each(['redirect', 'wrong-length', 'oversize', 'short-body', 'changed-source'])('holds unsafe or incomplete attachment transfers and keeps their quota charge: %s', async (reason) => {
+    const f = await fixture(); const descriptor = { id: attachmentId, filename: 'plan.txt', size: 5 }; await received(f, { attachments: [descriptor] });
+    f.update(message(FIRST, { content: reason === 'changed-source' ? 'Changed' : 'Hello', attachments: [{ ...descriptor, url: `${f.origin}/attachments/${DM}/${attachmentId}/plan.txt` }] }));
+    if (reason === 'redirect') f.cdn({ body: '', length: 0, redirect: '/forbidden-download' });
+    if (reason === 'wrong-length') f.cdn({ body: 'hello!', length: 6 });
+    if (reason === 'oversize') f.cdn({ body: 'x'.repeat(2048), length: null });
+    if (reason === 'short-body') f.cdn({ body: 'hi', length: null });
+    await files(f).start(); const saved = f.inbox.list()[0]; expect(saved.files![0].status).toBe('failed'); expect(saved.files![0].attempts[0].bytes).toBeGreaterThan(0);
+    expect(f.inbox.claimNext()).toBeNull(); expect(f.calls.some((call) => call.path === '/forbidden-download')).toBe(false);
+  });
+
+  it('splits long answers without splitting emoji and sends exact parts as replies with no mentions or previews', async () => {
+    const f = await fixture(); await received(f); const answer = 'a'.repeat(1999) + '😊 <@123> @everyone **answer** '.repeat(150);
+    await completed(f, answer); await replies(f).wake(); const posts = f.calls.filter((call) => call.method === 'POST');
+    expect(posts.length).toBeGreaterThan(1); expect(posts.map((call) => call.payload!.content).join('')).toBe(answer);
+    for (const post of posts) {
+      expect(String(post.payload!.content).length).toBeLessThanOrEqual(2000); expect(String(post.payload!.content)).not.toMatch(/[\ud800-\udbff]$/);
+      expect(post.payload).toMatchObject({ allowed_mentions: { parse: [], replied_user: false }, flags: 4, enforce_nonce: true,
+        message_reference: { message_id: FIRST, channel_id: DM, fail_if_not_exists: true } });
+      expect(String(post.payload!.nonce)).toHaveLength(24); expect(post.token).toBe('Bot PRIVATE_BOT_TOKEN');
+    }
+    expect(new Set(posts.map((call) => call.payload!.nonce)).size).toBe(posts.length);
+    expect(f.inbox.list()[0].reply?.parts.every((part) => part.status === 'sent')).toBe(true); await replies(f).wake(); expect(f.calls.filter((call) => call.method === 'POST')).toHaveLength(posts.length);
+  });
+
+  it.each([{ status: 429, outcome: 'pending' }, { status: 500, outcome: 'uncertain' }, { status: 408, outcome: 'uncertain' }, { status: 403, outcome: 'failed' }, { status: 404, outcome: 'failed' }])('records HTTP $status without automatic send retries', async ({ status, outcome }) => {
+    const f = await fixture(); await received(f); await completed(f); f.fail(`/channels/${DM}/messages`, status); const service = replies(f);
+    await service.wake(); await service.wake(); const part = f.inbox.list()[0].reply!.parts[0]; expect(part.status).toBe(outcome); expect(f.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+    if (status === 429) expect(part.retryAt).toBeGreaterThan(Date.now() + 5000); expect(fs.readFileSync(f.state.inboxFile(), 'utf8')).not.toContain('PRIVATE_PROVIDER_DETAIL');
+  });
+
+  it.each([{ channel_id: '999' }, { content: 'truncated' }, { nonce: 'wrong' }, { author: { id: ALICE, bot: false } }, { message_reference: { message_id: SECOND } }])('holds an unconfirmed or altered response instead of claiming success: %j', async (changes) => {
+    const f = await fixture(); await received(f); await completed(f); f.reply(changes); await replies(f).wake(); expect(f.inbox.list()[0].reply?.parts[0].status).toBe('uncertain');
+  });
+
+  it('rechecks sender rules and live DM recipients before posting', async () => {
+    const f = await fixture(); await received(f); await completed(f); f.channels[DM] = { id: DM, type: 1, recipients: [{ id: BOB }] };
+    await replies(f).wake(); expect(f.inbox.list()[0].reply?.parts[0].status).toBe('failed'); expect(f.calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
+  it('detects source changes during preflight and permits delivery only after an explicit retry of the saved answer', async () => {
+    const f = await fixture(); await received(f); const id = await completed(f); f.update(message(FIRST, { content: 'Changed request' })); const service = replies(f);
+    await service.wake(); expect(f.inbox.list()[0].reply?.parts[0].status).toBe('failed'); expect(f.calls.some((call) => call.method === 'POST')).toBe(false);
+    expect(f.inbox.list().filter((event) => event.input.kind === 'edit')).toHaveLength(1);
+    f.inbox.retryReply(id); await service.wake(); expect(f.inbox.list()[0].reply?.parts[0].status).toBe('sent');
+  });
+
+  it('records repeated or empty text changes and still allows a reviewed retry', async () => {
+    const f = await fixture(); await received(f); const id = await completed(f); const service = replies(f);
+    for (const content of ['First change', 'Second change', 'First change', '']) {
+      f.update(message(FIRST, { content })); await service.wake(); expect(f.inbox.list()[0].reply?.parts[0].status).toBe('failed'); f.inbox.retryReply(id);
+    }
+    expect(f.inbox.list().filter((event) => event.input.kind === 'edit')).toHaveLength(4);
+    await service.wake(); expect(f.inbox.list()[0].reply?.parts[0].status).toBe('sent'); expect(f.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+  });
+
+  it('blocks delivery while a partial update is being verified and holds work when that check fails', async () => {
+    const f = await fixture(); await received(f); await completed(f);
+    let release!: () => void; const gate = new Promise<void>((resolve) => { release = resolve; }); f.gate(`/channels/${DM}/messages/${FIRST}`, () => gate);
+    const pending = f.receive({ id: FIRST, channel_id: DM }, 'MESSAGE_UPDATE'); const rejected = expect(pending).rejects.toThrow('Retry it before advancing recovery');
+    try {
+      await replies(f).wake(); expect(f.calls.some((call) => call.method === 'POST')).toBe(false); f.fail(`/channels/${DM}/messages/${FIRST}`, 500);
+    } finally { release(); f.clearGate(); }
+    await rejected; expect(f.inbox.list()[0].reply?.parts[0].status).toBe('failed');
+  });
+
+  it('rechecks source versions after asynchronous checks and refuses a forged destination or unclaimed send', async () => {
+    const f = await fixture(); const event = await received(f); await completed(f);
+    await expect(f.adapter.replyText({ ...event, input: { ...event.input, conversationId: CHANNEL } }, 'Done', f.abort.signal)).rejects.toMatchObject({ outcome: 'failed' });
+    await expect(f.adapter.replyText(event, 'Done', f.abort.signal)).rejects.toMatchObject({ outcome: 'failed' }); expect(f.calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
+  it('honors a local hold that arrives while destination checks are running', async () => {
+    const f = await fixture(); await received(f); const id = await completed(f); const claimed = f.inbox.claimReply()!;
+    let release!: () => void; const gate = new Promise<void>((resolve) => { release = resolve; }); f.gate(`/users/${ALICE}`, () => gate);
+    const task = f.adapter.replyText(claimed.event, 'Done', f.abort.signal); const failed = expect(task).rejects.toMatchObject({ outcome: 'failed' });
+    try {
+      await expect.poll(() => f.calls.filter((call) => call.path === `/users/${ALICE}`).length).toBe(2); f.inbox.review(id);
+    } finally { release(); f.clearGate(); }
+    await failed; expect(f.calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
+  it('releases a partial-update barrier when only unchanged metadata was received', async () => {
+    const f = await fixture(); await received(f); await completed(f);
+    expect(await f.receive({ id: FIRST, channel_id: DM }, 'MESSAGE_UPDATE')).toBeNull(); await replies(f).wake(); expect(f.inbox.list()[0].reply?.parts[0].status).toBe('sent');
+  });
+
+  it.each(['working', 'approval'] as const)('sends a claimed %s notice and maps a human reply back to its topic', async (kind) => {
+    const f = await fixture(); const original = await received(f, { channel_id: CHANNEL, guild_id: GUILD, mentions: [{ id: f.instance.accountId }] });
+    const claimed = f.inbox.claimNext()!; f.inbox.beginDispatch(claimed.id, claimed.operationId!, await gatewayConversation(claimed, f.abort.signal)); f.inbox.queueNotice(claimed.id, kind);
+    await replies(f).wake(); const notice = f.inbox.list()[0].notices?.[kind]; expect(notice?.status).toBe('sent');
+    const follow = await f.receive(message(SECOND, { channel_id: CHANNEL, guild_id: GUILD, type: 19, message_reference: { message_id: '700000000000000000' } }));
+    expect(follow?.bindingId).toBe(original.bindingId); expect(f.calls.find((call) => call.method === 'POST')?.payload?.content).toBe(notice?.text);
+  });
+
+  it('delivers in the actual native thread and refuses a thread that was locked after intake', async () => {
+    const f = await fixture(); await received(f, { channel_id: THREAD, guild_id: GUILD, mentions: [{ id: f.instance.accountId }] }); await completed(f, 'x'.repeat(2001));
+    const first = f.inbox.claimReply()!; const remoteId = await f.adapter.replyText(first.event, first.event.reply!.parts[first.index].text, f.abort.signal); f.inbox.settleReply(first.event.id, first.index, { remoteId });
+    expect(f.calls.find((call) => call.method === 'POST')?.path).toBe(`/channels/${THREAD}/messages`);
+    f.channels[THREAD].thread_metadata = { archived: false, locked: true }; await replies(f).wake();
+    expect(f.inbox.list()[0].reply?.parts[1].status).toBe('failed'); expect(f.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+  });
+
+  it('uploads selected verified bytes once as a document after text and maps replies to that delivery', async () => {
+    const f = await fixture(); const original = await received(f, { channel_id: CHANNEL, guild_id: GUILD, mentions: [{ id: f.instance.accountId }] });
+    const id = await completed(f); await output(f, id); f.permissions(permissionBits | (1n << 15n)); await replies(f).wake();
+    const posts = f.calls.filter((call) => call.method === 'POST'); expect(posts).toHaveLength(2);
+    const file = posts[1].form?.get('files[0]'); expect(file).toBeInstanceOf(Blob); expect(await (file as Blob).text()).toBe('result');
+    expect(posts[1].payload).toMatchObject({ attachments: [{ id: 0 }], message_reference: { message_id: FIRST, channel_id: CHANNEL } });
+    const saved = f.inbox.list()[0]; expect(saved.outgoing?.[0]).toMatchObject({ status: 'sent', remoteId: expect.stringContaining('/700000000000000001') });
+    const follow = await f.receive(message(SECOND, { channel_id: CHANNEL, guild_id: GUILD, type: 19, message_reference: { message_id: '700000000000000001' } })); expect(follow?.bindingId).toBe(original.bindingId);
+  });
+
+  it('requires Attach files permission even when ordinary text replies are allowed', async () => {
+    const f = await fixture(); await received(f, { channel_id: CHANNEL, guild_id: GUILD, mentions: [{ id: f.instance.accountId }] }); const id = await completed(f); await output(f, id);
+    await replies(f).wake(); expect(f.inbox.list()[0].reply?.parts[0].status).toBe('sent'); expect(f.inbox.list()[0].outgoing?.[0].status).toBe('failed'); expect(f.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+  });
+
+  it('refuses changed output bytes before uploading', async () => {
+    const f = await fixture(); await received(f); const id = await completed(f); const file = await output(f, id); fs.writeFileSync(file, 'changed'); const service = replies(f);
+    await service.wake(); expect(f.inbox.list()[0].outgoing?.[0].status).toBe('failed'); expect(f.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+  });
+
+  it('keeps an uncertain multipart send held for explicit retry', async () => {
+    const f = await fixture(); await received(f); const id = await completed(f); await output(f, id);
+    const service = replies(f); // Finish text before failing the following document post.
+    const first = f.inbox.claimReply()!; f.inbox.settleReply(id, first.index, { remoteId: 'already-confirmed' }); f.fail(`/channels/${DM}/messages`, 500);
+    await service.wake(); await service.wake(); expect(f.inbox.list()[0].outgoing?.[0].status).toBe('uncertain'); expect(f.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
   });
 });

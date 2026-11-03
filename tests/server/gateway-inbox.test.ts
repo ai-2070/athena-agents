@@ -121,6 +121,14 @@ describe('gateway application inbox', () => {
     expect(fixture.inbox.accept({ ...edit, sourceMessageId: 'missing' })).toBeNull();
   });
 
+  it('retains an empty edit to an existing source and holds its original assignment', async () => {
+    const fixture = await inbox(); fixture.inbox.accept(fixture.input());
+    expect(fixture.inbox.accept({ ...fixture.input('2'), text: '', media: [] })).toBeNull();
+    const edit = { ...fixture.input(), kind: 'edit', sourceEventId: 'empty-edit', text: '', media: [] };
+    expect(fixture.inbox.accept(edit)?.status).toBe('needs-review'); expect(fixture.inbox.list()[0].status).toBe('needs-review');
+    expect(fixture.inbox.accept({ ...edit, sourceMessageId: 'missing' })).toBeNull(); expect(fixture.inbox.list()).toHaveLength(2); expect(fixture.inbox.claimNext()).toBeNull();
+  });
+
   it('keeps raw message content off event notifications and fails closed on storage corruption', async () => {
     const fixture = await inbox();
     const notifications: unknown[] = [];

@@ -111,7 +111,8 @@ New gateway data does not need a legacy compatibility layer.*
   | --- | --- | --- | --- |
   | Telegram | Nonempty regular files as documents, including images/audio/video | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | No file captions, native media or albums. One SDK transport request and remote receipt per file, with a 30-second send timeout |
   | Slack | Hosted local uploads and explicitly selected regular output files | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Bounded private streaming downloads; one external-upload allocation, byte upload and completion per file, without SDK retry/fallback |
-  | Discord, WhatsApp | Not enabled in application transport | Pending live verification | Pending |
+  | Discord | Private message attachments and selected regular output files, local proof only | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Refreshed source-message CDN URLs and one multipart request per selected file; application workers remain disabled |
+  | WhatsApp | Not enabled in application transport | Pending live verification | Pending |
 
   The application uses the SDK's Telegram multipart transport primitive directly for documents,
   avoiding formatter fallback, grouped sends and hidden retries that would obscure per-file outcomes.
@@ -329,7 +330,38 @@ New gateway data does not need a legacy compatibility layer.*
   platform message or application Discord worker is enabled. See Discord's
   [Gateway lifecycle and resume contract](https://docs.discord.com/developers/events/gateway) and
   [close codes](https://docs.discord.com/developers/topics/opcodes-and-status-codes).
-- Next: add Discord replies, files and setup, including explicit recovery-gap review; implement
+- Added Discord text and file delivery to the local transport proof. Replies are saved in at most
+  2,000-character UTF-16-safe parts and sent with explicit source-message references, no allowed
+  mentions and suppressed link previews. The transport requires a claimed ledger part, notice or
+  selected file; sends use bounded direct API calls with no SDK retry or fallback. A per-attempt
+  nonce identifies the request, and success checks the bot, channel, reference, nonce, exact returned
+  text and file metadata. Known refusals are failed; 429 preserves its requested wait; timeouts,
+  server errors and malformed/mismatched successes are uncertain and need explicit review.
+- Delivery rechecks the saved route, optional sender guard, verified human, live DM recipient or
+  guild/thread parent and bot read/send permissions. Documents also require Attach files. Live
+  source-message reads detect missed edits before delivery and hold the old work. Removing all text
+  and files still records an edit, and returning to earlier text records a separate transition. Partial updates
+  block delivery while verification is pending; failed verification holds pending output rather than
+  letting the cursor or delivery bypass it. An explicitly retried answer can still be delivered after
+  a known, reviewed edit; another edit during asynchronous checks stops that attempt. Replies to
+  confirmed advisory messages and document deliveries now resolve their saved topic too.
+- Incoming Discord files use only attachment IDs saved in the receipt. The transport rereads the
+  source message for a fresh signed URL, checks the exact CDN host/channel/attachment path, rejects
+  redirects and bounds the stream against both saved size and reserved budget. The CDN gets no bot
+  authorization header; its URL is never saved. Changed metadata or incomplete/oversized downloads
+  hold the assignment and retain their quota charge. Selected output files pass the existing root,
+  regular-file, size and hash checks and are uploaded as verified bytes in one multipart message,
+  after final text. Unconfirmed uploads are never repeated automatically. See Discord's
+  [message API](https://docs.discord.com/developers/resources/message),
+  [attachment URL and upload reference](https://docs.discord.com/developers/reference) and
+  [rate-limit handling](https://docs.discord.com/developers/topics/rate-limits).
+- The Bun, Node and read-only bundle smoke proof now downloads a private attachment, splits and
+  confirms a complete long reply, uploads a selected document and verifies duplicate wakes do not
+  send it again. Unit tests cover unsafe CDN paths, missing permissions, changed sources and local
+  bytes, inaccurate lengths, redirect refusal, source-check barriers and uncertain text/file outcomes.
+  This remains local-fixture evidence: Discord workers and Settings are still disabled, and real
+  Discord account/platform checks remain pending.
+- Next: wire Discord's supervised workers and setup, including explicit recovery-gap review; implement
   WhatsApp after that. Native-work override controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the full deletion flow for retired instances is pending. Real-account text/file checks on all four platforms

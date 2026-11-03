@@ -452,8 +452,9 @@ Existing Outbox connections work as before. The
 locally with throwaway data. Real-account checks and Windows/Linux verification remain pending.
 `bun run gateways:discord-smoke` checks Discord intake with local REST and WebSocket fixtures:
 bot identity, optional sender rules, explicit guild/channel scopes, permissions, message edits and
-saved-session recovery after a failed inbox write. It uses no real account or outgoing messages.
-Discord is not enabled in Settings; reply delivery, file transfer and real-account checks remain unfinished.
+saved-session recovery after a failed inbox write, private downloads and selected document replies.
+It uses no real account or platform messages. Discord is not enabled in Settings; supervised workers,
+setup, recovery-gap review and real-account checks remain unfinished.
 
 ## License and credits
 

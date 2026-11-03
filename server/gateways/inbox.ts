@@ -75,7 +75,7 @@ function saveAnswer(event: GatewayInboxEvent, answer: string): void {
   if (!event.dispatch || event.reply || !answer.trim() || answer.length > 1000000) throw new Error('The gateway answer needs review.');
   const parts: string[] = [];
   for (let start = 0; start < answer.length;) {
-    let end = Math.min(start + 3000, answer.length);
+    let end = Math.min(start + (event.input.platform === 'discord' ? 2000 : 3000), answer.length);
     if (event.input.platform === 'slack') {
       end = start; let length = 0;
       while (end < answer.length) {
@@ -242,6 +242,12 @@ export class GatewayInbox {
       event.reply.reason = reason;
     }
     for (const file of event.outgoing ?? []) if (file.status === 'pending') { file.status = 'failed'; file.reason = reason; }
+  }
+
+  holdInput(eventId: string, reason: string): void {
+    const journal = this.read(); const event = journal.events.find((item) => item.id === eventId);
+    if (!event) throw new Error('No such gateway message.');
+    this.holdSource(event, reason); this.commit(journal);
   }
 
   private sourceChanged(journal: GatewayInboxJournal, event: GatewayInboxEvent): boolean {
@@ -637,7 +643,7 @@ export class GatewayInbox {
     if (!input.directMessage && !binding && !input.triggered) return null;
     const original = input.kind === 'edit' ? journal.events.find((event) => event.id === digest([...source, 'message'])) : undefined;
     if (input.kind === 'edit' && !original) return null;
-    if (!input.text && !input.media.length) return null;
+    if (input.kind === 'message' && !input.text && !input.media.length) return null;
     if (journal.events.length >= 10000) throw new Error('The gateway inbox is full. Free space before retrying.');
     if (!binding) {
       binding = { id: bindingId, accountId: input.accountId, conversationId: input.conversationId, ...(input.guildId ? { guildId: input.guildId } : {}), ...(input.parentConversationId ? { parentConversationId: input.parentConversationId } : {}), threadId: input.threadId, route: boundRoute, createdAt: Date.now() };
