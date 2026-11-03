@@ -21,6 +21,7 @@ import { GatewaySupervisor } from './gateways/supervisor.ts';
 import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders, gatewayWorkReview } from './gateways/inbox.ts';
 import { telegramSetup } from './gateways/telegram-setup.ts';
 import { gatewayOutboxDestinations } from './gateways/outbox-owner.ts';
+import { readGatewayPostDelivery } from './gateways/outbox-posts.ts';
 import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
@@ -1113,6 +1114,19 @@ get('/api/outbox', async () => social.listPosts());
 get('/api/outbox/gateway-destinations', async () => gatewayOutboxDestinations(store.activeProject().id));
 post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, gateway: body.gateway, agentName: 'You' }));
 post<unknown>('/api/outbox/:id/gateway-review', async ({ id }, body) => social.prepareGatewayPost(id, body));
+get('/api/outbox/:id/gateway-delivery', async ({ id }) => readGatewayPostDelivery(id));
+post('/api/outbox/:id/gateway-delivery/prepare', async ({ id }) => {
+  return store.withProject(store.activeProject(), async () => {
+    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
+    await gatewaySupervisor.prepareOutboxReview(item.gateway.instanceId, store.activeProject().id, item.id); return readGatewayPostDelivery(id);
+  });
+});
+post<unknown>('/api/outbox/:id/gateway-delivery', async ({ id }, body) => {
+  return store.withProject(store.activeProject(), async () => {
+    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
+    await gatewaySupervisor.reviewOutbox(item.gateway.instanceId, store.activeProject().id, item.id, body); return readGatewayPostDelivery(id);
+  });
+});
 post<unknown>('/api/outbox/:id/gateway-finish', async ({ id }, body) => {
   const project = store.activeProject();
   return store.withProject(project, async () => {

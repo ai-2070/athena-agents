@@ -236,6 +236,9 @@ describe('gateway configuration API', () => {
     expect((await req(`/api/outbox/${draft.id}/gateway-review`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status).toBe(403);
     expect((await req(`/api/outbox/${draft.id}/approve`, { method: 'POST', headers: json, body: '{}' })).ok).toBe(false);
     expect((await req(`/api/outbox/${draft.id}/gateway-finish`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeNoSend: true }) })).ok).toBe(false);
+    expect((await req(`/api/outbox/${draft.id}/gateway-delivery`)).status).toBe(409);
+    for (const suffix of ['gateway-delivery', 'gateway-delivery/prepare']) expect((await req(`/api/outbox/${draft.id}/${suffix}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status).toBe(403);
+    expect((await req(`/api/outbox/${draft.id}/gateway-delivery`, { method: 'POST', headers: json, body: JSON.stringify({ action: 'retry', index: 0, revision: 'a'.repeat(64), acknowledgeRemaining: true, acknowledgePossibleDuplicate: true }) })).ok).toBe(false);
     const old = await req('/api/social/test', { method: 'POST', headers: json, body: JSON.stringify({ platform: 'telegram' }) }); expect(old.status).toBe(400); expect(await old.text()).toContain('Old global tokens');
     const listed = await (await req('/api/outbox')).json() as OutboxPost[]; expect(listed.find((item) => item.id === draft.id)).toMatchObject({ status: 'pending', parts: ['Local draft only'] });
     expect((await req(`/api/outbox/${draft.id}`, { method: 'DELETE', headers: json })).ok).toBe(true);

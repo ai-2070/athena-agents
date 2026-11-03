@@ -247,8 +247,11 @@ permanently ends gateway tracking. Native work may still run; manage it in Athen
 requests stay held, and new messages use a separate private conversation under the current rules.
 **Outbox → Gateway message** drafts a Telegram or Discord follow-up. Choose the instance and a
 completed conversation in this project, review the full recipient and text, then approve. Each text
-part has its own delivery receipt. Uncertain or failed parts stay for review; pausing the instance
-lets you **Finish locally** without another send. Confirmed parts and any uncertainty are kept.
+part has its own delivery receipt. Pause the instance and choose **Review delivery** to recover
+interrupted receipts, record a part you found in the messaging app, or explicitly queue a retry.
+Recording confirmation holds that post's remaining parts until you choose to continue. Retry keeps
+confirmed parts and the original text/recipient; the instance stays paused until you enable it.
+**Finish locally** permanently stops the remaining sends while keeping receipts and uncertainty.
 Telegram/Discord setup has moved from Connections to Gateways and needs fresh credentials. Old
 global tokens, chat IDs and Discord webhooks are no longer used. Agents can use `gateway_draft`
 for recipient choice and approval in Outbox; direct send tools require an explicit instance and source

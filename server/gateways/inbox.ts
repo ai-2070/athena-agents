@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { GatewayDeliveryOutcome, GatewayDeliveryReview, GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayRequestReview, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, GatewayWhatsAppRecovery, GatewayWhatsAppRelayConnection, GatewayWhatsAppRelayStatus, GatewayWhatsAppReplacement, GatewayWhatsAppSenders, GatewayWorkReview, UploadedFile } from '../../shared/types.ts';
 import { emit, getGatewaySecrets } from '../store.ts';
 import { readJSON, uid, writeJSON } from '../util.ts';
-import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
+import { captureGatewayRoute, checkGatewayDestination, getGatewayInstance, withGatewayRoute } from './instances.ts';
 import type { GatewayStateAdapter } from './state.ts';
 import { privateDataPath } from '../private.ts';
 import type { GatewayCompletion } from './execution.ts';
@@ -447,14 +447,14 @@ export class GatewayInbox {
     this.commit(journal); return { leaderId: leader.id };
   }
 
-  private sources(journal: GatewayInboxJournal, event: GatewayInboxEvent): GatewayInboxEvent[] {
+  private sources(journal: GatewayInboxJournal, event: GatewayInboxEvent, pausedReview = false): GatewayInboxEvent[] {
     if (!event.input.mediaGroupId) return [event];
     if (event.album?.leaderId !== event.id || !event.album.memberIds) throw new Error('Group the complete album before starting work.');
     const members = event.album.memberIds.map((id) => journal.events.find((item) => item.id === id)!);
     if (journal.events.some((item) => (gatewayAlbumKey(item.input) === gatewayAlbumKey(event.input) && (item.albumBlocked || !event.album!.memberIds!.includes(item.id)))
       || (item.input.kind === 'edit' && item.input.accountId === event.input.accountId && item.input.conversationId === event.input.conversationId
         && item.input.threadId === event.input.threadId && members.some((source) => source.input.sourceMessageId === item.input.sourceMessageId)))) throw new Error('The album changed after grouping. Review it before continuing.');
-    for (const item of members) this.checkAccess(item);
+    if (!pausedReview) for (const item of members) this.checkAccess(item);
     return members;
   }
 
@@ -477,9 +477,9 @@ export class GatewayInbox {
     this.holdSource(event, reason); this.commit(journal);
   }
 
-  private sourceChanged(journal: GatewayInboxJournal, event: GatewayInboxEvent): boolean {
+  private sourceChanged(journal: GatewayInboxJournal, event: GatewayInboxEvent, pausedReview = false): boolean {
     try {
-      const sources = this.sources(journal, event);
+      const sources = this.sources(journal, event, pausedReview);
       return journal.events.some((item) => item.input.kind === 'edit' && sources.some((source) => source.input.accountId === item.input.accountId
         && source.input.conversationId === item.input.conversationId && source.input.threadId === item.input.threadId && source.input.sourceMessageId === item.input.sourceMessageId));
     } catch { return true; }
@@ -493,15 +493,33 @@ export class GatewayInbox {
 
   /** An approved follow-up uses a real, completed source, never a model-supplied address. */
   outboxSource(eventId: string, projectId: string): GatewayInboxEvent {
+    return this.outboxEvidence(eventId, projectId).event;
+  }
+
+  /** Paused review checks the original route and policy without enabling intake or transport. */
+  outboxEvidence(eventId: string, projectId: string, pausedReview = false): { event: GatewayInboxEvent; sources: GatewayInboxEvent[] } {
     const journal = this.read(); const event = journal.events.find((item) => item.id === eventId);
     if (!event || event.route.projectId !== projectId || event.input.kind !== 'message' || event.status !== 'done'
       || event.dismissed || event.album?.leaderId && event.album.leaderId !== event.id
       || !event.reply?.parts.every((part) => part.status === 'sent')
-      || event.outgoing?.some((file) => !['sent', 'skipped'].includes(file.status)) || this.sourceChanged(journal, event)) {
+      || event.outgoing?.some((file) => !['sent', 'skipped'].includes(file.status)) || this.sourceChanged(journal, event, pausedReview)) {
       throw new Error('Choose a completed gateway conversation with confirmed delivery and unchanged source messages.');
     }
-    for (const source of this.sources(journal, event)) this.checkAccess(source);
-    return event;
+    const sources = this.sources(journal, event, pausedReview);
+    if (pausedReview) {
+      const instance = getGatewayInstance(this.state.instanceId);
+      if (instance.enabled || (instance.platform !== 'telegram' && instance.platform !== 'discord')) throw new Error('Pause this Telegram or Discord gateway before reviewing a retry.');
+      checkGatewayDestination(instance.id);
+      for (const source of sources) {
+        const boundary = latestWorkReview(journal, source.bindingId);
+        if (source.workKept || source.deliveryFinished || source.dismissed || (boundary && source.sequence <= boundary.throughSequence)
+          || !gatewayInputAllowed({ ...instance, enabled: true }, source.input) || source.route.projectId !== instance.projectId
+          || source.route.instanceId !== instance.id || source.route.generation !== instance.routeGeneration || JSON.stringify(source.route.target) !== JSON.stringify(instance.target)) {
+          throw new Error('The original source, sender access or gateway destination changed. Keep this delivery local and review a new draft.');
+        }
+      }
+    } else for (const source of sources) this.checkAccess(source);
+    return { event, sources };
   }
 
   /** Detect source changes during asynchronous transport checks without overriding an explicit retry. */

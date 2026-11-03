@@ -546,8 +546,25 @@ unknown or failed send stops for review. Changes to access, routing, credentials
 hold the unsent text. Approved text and recipients cannot be edited, rejected, removed or sent back
 to a team through draft actions. Pause the instance and choose **Finish locally** to permanently stop
 the remaining delivery while keeping confirmed IDs and uncertainty. An uncertain part may already
-have arrived: check the messaging app before creating a new draft. Recording manual confirmations
-or explicitly retrying approved Outbox parts is still planned.
+have arrived: check the messaging app before creating a new draft.
+
+Choose **Review delivery** on an approved post to see the original recipient, text parts and receipts.
+Opening the review only reads saved metadata. Pause its instance before changing receipts. If a send
+was interrupted, choose **Recover interrupted receipts** to classify it as uncertain locally. This
+contacts no messaging service. Choose the exact uncertain part you found in the messaging app,
+enter its messaging-app ID and choose **Record confirmed delivery**. Pending and unattempted parts
+cannot be confirmed. The saved ID, time and attempt stay recorded; this action sends nothing and
+holds that post's remaining parts until you explicitly continue them.
+
+**Retry remaining delivery** starts with the first failed or uncertain part. Check the messaging app
+first: retrying an attempted part can send a duplicate. **Continue remaining delivery** releases the
+pending tail after you recorded a confirmation. Both actions queue only the original approved text
+and recipient and keep every confirmed part. They leave the instance paused; enable it in Gateways
+when ready. Current route, project, sender access, credentials and every source/album part must still
+match the original approval. Changed setup, edited sources or a locally finished post cannot be
+reopened by retry; keep that delivery local and review a new draft instead. Other already approved
+posts can continue under their own rules when the instance is enabled. Review history survives
+restart and is retained with the delivery receipts; native runs, files and byte accounting stay intact.
 
 Telegram and Discord setup now lives in **Settings → Gateways**, with links from Connections. Add
 fresh bot credentials there; old global Telegram tokens/chat IDs and Discord webhooks are not used.

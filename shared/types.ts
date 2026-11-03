@@ -383,7 +383,27 @@ export interface GatewayOutboxProgress {
   approvedAt?: number;
   closedAt?: number;
   reviewRevision?: string;
+  reviewAvailable?: true;
   paused: boolean;
+}
+
+export type GatewayOutboxReviewRecord =
+  | { action: 'confirmed'; at: number; revision: string; index: number; attempt: number; remoteId: string }
+  | { action: 'retry'; at: number; revision: string; index: number; attempt: number; from: 'pending' | 'failed' | 'uncertain' };
+
+export interface GatewayOutboxDeliveryReview {
+  revision: string;
+  recipient: GatewayOutboxPreview['recipient'];
+  paused: boolean;
+  reason: string;
+  needsPrepare: boolean;
+  canRetry: boolean;
+  retryReason: string;
+  nextIndex?: number;
+  canFinish: boolean;
+  closedAt?: number;
+  reviewHeld: boolean;
+  parts: { text: string; status: GatewayReplyPart['status']; attempts: number; remoteId?: string; canConfirm: boolean; confirmedAt?: number }[];
 }
 
 export interface GatewayOutboxPostPreview extends GatewayOutboxPreview { draftRevision: string }
@@ -397,6 +417,8 @@ export interface GatewayOutboxDelivery extends GatewayOutboxApproval {
   approvedAt: number;
   receipts: GatewayReplyPart[];
   held?: 'destination-changed';
+  reviewHeld?: true;
+  reviews?: GatewayOutboxReviewRecord[];
   closed?: { at: number; revision: string };
 }
 

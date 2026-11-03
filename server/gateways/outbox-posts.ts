@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { GatewayOutboxApproval, GatewayOutboxDelivery, GatewayOutboxPostPreview, GatewayOutboxProgress, OutboxPost } from '../../shared/types.ts';
+import type { GatewayInstance, GatewayOutboxApproval, GatewayOutboxDelivery, GatewayOutboxDeliveryReview, GatewayOutboxPostPreview, GatewayOutboxProgress, OutboxPost } from '../../shared/types.ts';
 import { activeProject, outbox } from '../store.ts';
 import { approveGatewayOutbox, prepareGatewayOutbox } from './outbox-owner.ts';
-import { gatewayOutboxReviewRevision, readGatewayOutboxDeliveries } from './outbox.ts';
+import { gatewayOutboxDeliveryReview, gatewayOutboxReviewRevision, readGatewayOutboxDeliveries } from './outbox.ts';
 import { getGatewayInstance } from './instances.ts';
 
 const destination = z.strictObject({ instanceId: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/), eventId: z.string().regex(/^[a-f0-9]{64}$/) });
@@ -68,6 +68,16 @@ export function approveGatewayPost(item: OutboxPost, body: { gatewayApproval?: G
   return projectGatewayPost(saved);
 }
 
+export function readGatewayPostDelivery(id: string): GatewayOutboxDeliveryReview {
+  const item = outbox.get(id); if (!item || !gatewayPost(item)) throw Object.assign(new Error('Choose a saved gateway Outbox delivery.'), { status: 404 });
+  const entry = receipt(item);
+  if (!entry || entry.eventId !== item.gateway?.eventId || entry.recipient.platform !== item.platform || JSON.stringify(entry.parts) !== JSON.stringify(item.parts)) {
+    throw Object.assign(new Error('The saved Outbox delivery receipts are missing or changed. Restore them before reviewing delivery.'), { status: 409 });
+  }
+  let instance: GatewayInstance | undefined; try { instance = getGatewayInstance(entry.instanceId); } catch { /* Removed instances keep their delivery evidence. */ }
+  return gatewayOutboxDeliveryReview(instance, entry);
+}
+
 export function projectGatewayPost<T extends OutboxPost>(item: T, cache?: GatewayOutboxReadCache): T {
   if (!gatewayPost(item)) return item;
   const draftRevision = gatewayDraftRevision(item);
@@ -81,11 +91,12 @@ export function projectGatewayPost<T extends OutboxPost>(item: T, cache?: Gatewa
     const parts = entry.receipts.map(({ status, attempts, remoteId, retryAt }) => ({ status, attempts, ...(remoteId ? { remoteId } : {}), ...(retryAt !== undefined ? { retryAt } : {}) }));
     const first = parts.find((part) => part.status !== 'sent');
     let paused = false; let removed = false; try { paused = !getGatewayInstance(entry.instanceId).enabled; } catch { removed = true; }
-    const state: GatewayOutboxProgress['state'] = entry.closed ? 'closed' : !first ? 'sent' : entry.held || removed ? 'held' : first.status === 'pending' ? 'queued' : first.status;
-    const progress: GatewayOutboxProgress = { state, recipient: entry.recipient, parts, approvedAt: entry.approvedAt, paused,
+    const state: GatewayOutboxProgress['state'] = entry.closed ? 'closed' : !first ? 'sent' : entry.held || entry.reviewHeld || removed ? 'held' : first.status === 'pending' ? 'queued' : first.status;
+    const progress: GatewayOutboxProgress = { state, recipient: entry.recipient, parts, approvedAt: entry.approvedAt, paused, reviewAvailable: true,
       ...(!entry.closed && first && !removed ? { reviewRevision: gatewayOutboxReviewRevision(entry) } : {}), ...(entry.closed ? { closedAt: entry.closed.at } : {}) };
     const error = removed && first && !entry.closed ? 'This gateway instance was removed. Its delivery receipts are kept for recovery; no further sends will run.'
       : state === 'uncertain' ? 'Delivery is uncertain. Check the messaging app before deciding whether to send a new draft.'
+      : !entry.closed && entry.reviewHeld && !entry.held ? 'A delivery confirmation was recorded. Review and explicitly continue the remaining approved parts.'
       : state === 'held' ? 'The source, access or gateway setup changed. This approved delivery is held.'
       : state === 'failed' ? 'Delivery failed. Confirmed parts are kept; the remaining text will not retry automatically.' : null;
     return { ...item, gatewayDraftRevision: draftRevision, gatewayProgress: progress, accountLabel: entry.recipient.instanceName,

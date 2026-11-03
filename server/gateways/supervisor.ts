@@ -137,22 +137,36 @@ export class GatewaySupervisor {
     return this.workReviewTask(instanceId, (inbox) => inbox.keepWork(eventId, body));
   }
 
-  finishOutbox(instanceId: string, projectId: string, postId: string, body: unknown): Promise<void> {
+  private outboxReviewTask(instanceId: string, work: (ledger: GatewayOutboxLedger) => void): Promise<void> {
     const task = this.pending.then(async () => {
       const instance = getGatewayInstance(instanceId);
-      if (this.closed || instance.enabled) throw Object.assign(new Error('Pause the selected gateway before finishing its saved Outbox delivery locally.'), { status: 400 });
+      if (this.closed || instance.enabled) throw Object.assign(new Error('Pause the selected gateway before reviewing its saved Outbox delivery.'), { status: 400 });
       const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined; let reviewing = false;
       try {
         await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
         release = await claimGatewayAccount(instance.platform, instance.accountId); await state.connect();
-        const ledger = new GatewayOutboxLedger(state, new GatewayInbox(state)); ledger.recover(); reviewing = true;
-        ledger.finishLocal(projectId, postId, body);
+        reviewing = true;
+        if (getGatewayInstance(instanceId).enabled) throw Object.assign(new Error('Pause this gateway before changing its Outbox delivery receipts.'), { status: 400 });
+        work(new GatewayOutboxLedger(state, new GatewayInbox(state)));
       } catch (error) {
         if (reviewing && error instanceof Error && 'status' in error) throw error;
         throw Object.assign(new Error('This Outbox delivery could not be reviewed safely. Check storage and ownership, then reload its receipts.'), { status: 503 });
       } finally { await state.disconnect(); await release?.(); }
     });
     this.pending = task.then(() => {}, () => {}); return task;
+  }
+
+  finishOutbox(instanceId: string, projectId: string, postId: string, body: unknown): Promise<void> {
+    return this.outboxReviewTask(instanceId, (ledger) => { ledger.recover({ projectId, postId }); ledger.finishLocal(projectId, postId, body); });
+  }
+  prepareOutboxReview(instanceId: string, projectId: string, postId: string): Promise<void> {
+    return this.outboxReviewTask(instanceId, (ledger) => {
+      if (!ledger.list().some((entry) => entry.projectId === projectId && entry.postId === postId)) throw Object.assign(new Error('No such saved Outbox delivery.'), { status: 404 });
+      ledger.recover({ projectId, postId });
+    });
+  }
+  reviewOutbox(instanceId: string, projectId: string, postId: string, body: unknown): Promise<void> {
+    return this.outboxReviewTask(instanceId, (ledger) => ledger.review(projectId, postId, body));
   }
 
   reconcile(instanceId: string, eventId: string): GatewayReconciliation {

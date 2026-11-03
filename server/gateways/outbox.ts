@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { z } from 'zod';
-import type { GatewayDeliveryOutcome, GatewayInboxEvent, GatewayOutboxApproval, GatewayOutboxDelivery, GatewayOutboxDestination, GatewayOutboxJournal, GatewayOutboxPreview } from '../../shared/types.ts';
+import type { GatewayDeliveryOutcome, GatewayInboxEvent, GatewayInstance, GatewayOutboxApproval, GatewayOutboxDelivery, GatewayOutboxDeliveryReview, GatewayOutboxDestination, GatewayOutboxJournal, GatewayOutboxPreview } from '../../shared/types.ts';
 import { emit, getGatewaySecrets } from '../store.ts';
 import { privateDataPath } from '../private.ts';
 import { readJSON, writeJSON } from '../util.ts';
@@ -21,12 +21,17 @@ const receipt = z.strictObject({ text, status: z.enum(['pending', 'sending', 'se
   remoteId: z.string().min(1).max(500).regex(/^\S+$/).optional(), retryAt: stamp.optional() });
 const recipient = z.strictObject({ platform: z.enum(['telegram', 'discord']), instanceName: z.string().min(1).max(100),
   accountId: z.string().min(1).max(200), conversationId: z.string().min(1).max(500), threadId: z.string().max(500), sourceMessageId: z.string().min(1).max(500), sender: z.string().max(200) });
+const reviewRecord = z.discriminatedUnion('action', [
+  z.strictObject({ action: z.literal('confirmed'), at: stamp, revision: hash, index: stamp.max(99), attempt: stamp.positive(), remoteId: z.string().min(1).max(500).regex(/^\S+$/) }),
+  z.strictObject({ action: z.literal('retry'), at: stamp, revision: hash, index: stamp.max(99), attempt: stamp, from: z.enum(['pending', 'failed', 'uncertain']) }),
+]);
 const delivery: z.ZodType<GatewayOutboxDelivery> = approval.safeExtend({ bindingId: hash, configHash: hash, sourceHash: hash,
-  approvedAt: stamp, recipient, receipts: z.array(receipt).min(1).max(100), held: z.literal('destination-changed').optional(), closed: z.strictObject({ at: stamp, revision: hash }).optional() })
+  approvedAt: stamp, recipient, receipts: z.array(receipt).min(1).max(100), held: z.literal('destination-changed').optional(), closed: z.strictObject({ at: stamp, revision: hash }).optional(),
+  reviewHeld: z.literal(true).optional(), reviews: z.array(reviewRecord).min(1).max(1000).optional() })
   .refine((value) => {
     let unfinished = false;
     const { closed, ...beforeClose } = value;
-    return (!closed || closed.revision === gatewayOutboxReviewRevision(beforeClose))
+    return reviewReceiptsValid(value) && (!closed || closed.revision === gatewayOutboxReviewRevision(beforeClose))
       && value.revision === reviewRevision(value, value.configHash, value.sourceHash, value.recipient)
       && value.parts.length === value.receipts.length && value.receipts.every((part, index) => {
       if (part.text !== value.parts[index] || (part.status === 'sent') !== Boolean(part.remoteId)
@@ -48,6 +53,49 @@ function reviewRevision(value: Omit<GatewayOutboxApproval, 'revision'>, configHa
 }
 const unfinished = (item: GatewayOutboxDelivery): boolean => !item.closed && item.receipts.some((part) => part.status !== 'sent');
 export const gatewayOutboxReviewRevision = (item: GatewayOutboxDelivery): string => digest(item);
+
+function reviewReceiptsValid(item: GatewayOutboxDelivery): boolean {
+  const reviews = item.reviews ?? []; const confirmed = new Set<number>(); const attempts = new Map<number, number>();
+  if (new Set(reviews.map((review) => review.revision)).size !== reviews.length) return false;
+  for (const [index, review] of reviews.entries()) {
+    const part = item.receipts[review.index]; const previous = reviews[index - 1];
+    if (!part || review.attempt > part.attempts || (previous && previous.index > review.index)) return false;
+    if (review.action === 'confirmed') {
+      if (confirmed.has(review.index) || part.status !== 'sent' || part.remoteId !== review.remoteId || part.attempts !== review.attempt) return false;
+      confirmed.add(review.index);
+    } else {
+      if (confirmed.has(review.index) || (attempts.has(review.index) && attempts.get(review.index)! >= review.attempt)
+        || (review.from === 'uncertain' && !review.attempt)
+        || (review.from === 'pending' && (review.attempt !== 0 || previous?.action !== 'confirmed' || previous.index >= review.index))) return false;
+      attempts.set(review.index, review.attempt);
+    }
+  }
+  const needsHold = reviews.at(-1)?.action === 'confirmed' && item.receipts.some((part) => part.status !== 'sent');
+  return Boolean(item.reviewHeld) === needsHold;
+}
+
+/** Saved metadata only. A retry rechecks live local access under exclusive ownership at POST. */
+export function gatewayOutboxDeliveryReview(instance: GatewayInstance | undefined, item: GatewayOutboxDelivery): GatewayOutboxDeliveryReview {
+  const paused = Boolean(instance && !instance.enabled); const sending = item.receipts.some((part) => part.status === 'sending');
+  const nextIndex = item.receipts.findIndex((part) => part.status !== 'sent'); const next = item.receipts[nextIndex];
+  const room = (item.reviews?.length ?? 0) < 1000;
+  const reason = !instance ? 'This gateway instance was removed. Its receipts are kept for recovery.' : !paused ? 'Pause this gateway before reviewing delivery.'
+    : item.closed ? 'Delivery was finished locally and cannot be reopened.' : sending ? 'Recover interrupted receipts before reviewing their outcome.'
+      : nextIndex < 0 ? 'Every part is confirmed.' : !room ? 'The delivery review history is full. Keep its receipts intact.' : '';
+  const ready = paused && !item.closed && !sending && room;
+  const retryReason = reason || (item.held ? 'The original gateway setup or source changed. Keep this delivery local and review a new draft.'
+    : next?.status === 'pending' && !item.reviewHeld ? 'The remaining parts are already queued. Enable this instance to continue under its original approval.'
+      : next?.status === 'pending' && (next.retryAt ?? 0) > Date.now() ? 'Wait for the saved provider retry time before continuing.' : '');
+  return { revision: gatewayOutboxReviewRevision(item), recipient: item.recipient, paused, reason,
+    needsPrepare: paused && !item.closed && sending, canFinish: paused && !item.closed && !sending && nextIndex >= 0,
+    canRetry: ready && nextIndex >= 0 && !retryReason, retryReason, ...(nextIndex >= 0 ? { nextIndex } : {}),
+    reviewHeld: Boolean(item.reviewHeld), ...(item.closed ? { closedAt: item.closed.at } : {}),
+    parts: item.receipts.map((part, index) => {
+      const review = item.reviews?.find((record) => record.action === 'confirmed' && record.index === index);
+      return { text: part.text, status: part.status, attempts: part.attempts, ...(part.remoteId ? { remoteId: part.remoteId } : {}),
+        canConfirm: ready && part.status === 'uncertain' && part.attempts > 0, ...(review ? { confirmedAt: review.at } : {}) };
+    }) };
+}
 
 function read(file: string, instanceId: string): GatewayOutboxJournal {
   if (!fs.existsSync(file)) return { version: 1, deliveries: [] };
@@ -97,8 +145,8 @@ export class GatewayOutboxLedger {
     emit('gateway-inbox', { instanceId: this.state.instanceId });
   }
 
-  private context(projectId: string, eventId: string) {
-    const event = this.inbox.outboxSource(eventId, projectId);
+  private context(projectId: string, eventId: string, pausedReview = false) {
+    const { event, sources } = this.inbox.outboxEvidence(eventId, projectId, pausedReview);
     const instance = getGatewayInstance(this.state.instanceId);
     if (instance.platform !== 'telegram' && instance.platform !== 'discord') throw new Error('Approved Outbox sends currently support Telegram and Discord only.');
     const botToken = getGatewaySecrets(instance.id).botToken;
@@ -106,7 +154,7 @@ export class GatewayOutboxLedger {
     if (digest(botToken) !== this.tokenHash) throw new Error('Reconnect this gateway after changing its credentials.');
     const configHash = digest([instance.id, instance.name, instance.platform, instance.accountId, instance.projectId, instance.target,
       instance.routeGeneration, instance.senderPolicy, instance.scope, instance.fileLimits, botToken]);
-    const sourceHash = digest(this.inbox.dispatchSources(eventId).map((source) => [source.id, source.bindingId, source.route, source.input, source.sequence]));
+    const sourceHash = digest(sources.map((source) => [source.id, source.bindingId, source.route, source.input, source.sequence]));
     return { event, configHash, sourceHash, recipient: { platform: instance.platform, instanceName: instance.name, accountId: instance.accountId,
       conversationId: event.input.conversationId, threadId: event.input.threadId, sourceMessageId: event.input.sourceMessageId, sender: event.input.actor.label } };
   }
@@ -152,10 +200,45 @@ export class GatewayOutboxLedger {
     journal.deliveries.push(item); this.commit(journal); return item;
   }
 
-  recover(): void {
+  recover(target?: { projectId: string; postId: string }): void {
     const journal: GatewayOutboxJournal = { version: 1, deliveries: this.list() }; let changed = false;
-    for (const item of journal.deliveries) for (const part of item.receipts) if (part.status === 'sending') { part.status = 'uncertain'; changed = true; }
+    for (const item of journal.deliveries) {
+      if (target && (item.projectId !== target.projectId || item.postId !== target.postId)) continue;
+      for (const part of item.receipts) if (part.status === 'sending') { part.status = 'uncertain'; changed = true; }
+    }
     if (changed) this.commit(journal);
+  }
+
+  review(projectId: string, postId: string, body: unknown): void {
+    const parsed = z.discriminatedUnion('action', [
+      z.strictObject({ action: z.literal('confirm'), revision: hash, index: stamp.max(99), remoteId: z.string().trim().min(1).max(500).regex(/^\S+$/), acknowledgeChecked: z.literal(true) }),
+      z.strictObject({ action: z.literal('retry'), revision: hash, index: stamp.max(99), acknowledgeRemaining: z.literal(true), acknowledgePossibleDuplicate: z.boolean().optional() }),
+    ]).safeParse(body);
+    const instance = getGatewayInstance(this.state.instanceId);
+    if (instance.enabled) throw Object.assign(new Error('Pause this gateway before reviewing an Outbox delivery.'), { status: 400 });
+    const journal: GatewayOutboxJournal = { version: 1, deliveries: this.list() };
+    const item = journal.deliveries.find((entry) => entry.projectId === projectId && entry.postId === postId);
+    if (!item) throw Object.assign(new Error('No such saved Outbox delivery.'), { status: 404 });
+    const preview = gatewayOutboxDeliveryReview(instance, item);
+    if (!parsed.success || parsed.data.revision !== preview.revision || preview.reason) throw Object.assign(new Error(preview.reason || 'The delivery receipts changed. Reload and review them again.'), { status: 409 });
+    const value = parsed.data; const part = item.receipts[value.index]; const at = Date.now();
+    if (value.action === 'confirm') {
+      if (!preview.parts[value.index]?.canConfirm || item.receipts.some((other, index) => index !== value.index && other.remoteId === value.remoteId)) throw Object.assign(new Error('Only an attempted uncertain part with its own messaging app ID can be confirmed.'), { status: 409 });
+      item.reviews = [...(item.reviews ?? []), { action: 'confirmed', at, revision: value.revision, index: value.index, attempt: part.attempts, remoteId: value.remoteId }];
+      part.status = 'sent'; part.remoteId = value.remoteId; delete part.retryAt;
+      if (item.receipts.some((receipt) => receipt.status !== 'sent')) item.reviewHeld = true; else delete item.reviewHeld;
+    } else {
+      if (!preview.canRetry || preview.nextIndex !== value.index || (part.attempts > 0 && value.acknowledgePossibleDuplicate !== true)) throw Object.assign(new Error(preview.retryReason || 'Review the first remaining part and acknowledge possible duplicate delivery before retrying.'), { status: 409 });
+      let context: ReturnType<GatewayOutboxLedger['context']>;
+      try { context = this.context(projectId, item.eventId, true); }
+      catch { throw Object.assign(new Error('The original gateway setup, access or source changed. Keep this delivery local and review a new draft.'), { status: 409 }); }
+      if (context.configHash !== item.configHash || context.sourceHash !== item.sourceHash || context.event.bindingId !== item.bindingId) throw Object.assign(new Error('The original gateway setup or source changed. Keep this delivery local and review a new draft.'), { status: 409 });
+      const from = part.status;
+      if (from !== 'pending' && from !== 'failed' && from !== 'uncertain') throw new Error('The selected part cannot be retried.');
+      item.reviews = [...(item.reviews ?? []), { action: 'retry', at, revision: value.revision, index: value.index, attempt: part.attempts, from }];
+      part.status = 'pending'; delete part.retryAt; delete item.reviewHeld;
+    }
+    this.commit(journal);
   }
 
   finishLocal(projectId: string, postId: string, body: unknown): void {
@@ -178,7 +261,7 @@ export class GatewayOutboxLedger {
       if (!unfinished(item) || blocked.has(item.bindingId)) continue;
       blocked.add(item.bindingId);
       const index = item.receipts.findIndex((part) => part.status !== 'sent'); const part = item.receipts[index];
-      if (item.held || part.status !== 'pending' || (part.retryAt ?? 0) > Date.now()) continue;
+      if (item.held || item.reviewHeld || part.status !== 'pending' || (part.retryAt ?? 0) > Date.now()) continue;
       let event: GatewayInboxEvent;
       try {
         const context = this.context(item.projectId, item.eventId);
@@ -211,7 +294,7 @@ export class GatewayOutboxLedger {
   authorize(claim: GatewayOutboxClaim, event: GatewayInboxEvent, text: string): string {
     const item = this.list().find((entry) => entry.projectId === claim.projectId && entry.postId === claim.postId);
     const part = item?.receipts[claim.index];
-    if (!item || item.held || item.closed || item.eventId !== claim.event.id || !part || part.status !== 'sending'
+    if (!item || item.held || item.reviewHeld || item.closed || item.eventId !== claim.event.id || !part || part.status !== 'sending'
       || part.attempts !== claim.attempt || part.text !== claim.text || text !== part.text || event.id !== item.eventId) throw new Error('This approved Outbox send is no longer current.');
     const context = this.context(item.projectId, item.eventId);
     if (item.configHash !== context.configHash || item.sourceHash !== context.sourceHash || item.bindingId !== context.event.bindingId

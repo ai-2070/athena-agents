@@ -927,7 +927,53 @@ New gateway data does not need a legacy compatibility layer.*
   Windows separators too. The web build, desktop staging and bundled desktop smoke passed.
   An earlier WhatsApp fixture hit the existing kernel ownership-port collision before state
   opened; its isolated rerun and the final full check passed with ownership checks unchanged.
-- Next: finish approved Outbox reconciliation/retry and the remaining delivery/product controls.
+- Added **Outbox → Review delivery** for approved Telegram/Discord posts. Opening reads saved
+  recipient/text/part metadata without provider checks, state claims or receipt recovery. Closed,
+  removed-instance and completed history remain readable; no configuration fingerprints, secrets
+  or private native answers reach the view. Original recipient metadata is shared with send review.
+- Paused **Recover interrupted receipts** drains the worker and claims account/private state before
+  classifying the selected post's interrupted send as uncertain. Pause is checked again after
+  asynchronous ownership acquisition. GET never performs this mutation, other posts keep their
+  receipts, and stale revisions must be reloaded before recording or retrying.
+- **Record confirmed delivery** requires an explicitly selected attempted uncertain part, its own
+  messaging-app ID, a fresh receipt revision and acknowledgement that the operator checked the
+  app. It records ID, time and attempt locally; pending, unattempted, failed and already-confirmed
+  parts cannot be relabelled. Confirmed prefix IDs remain intact. A pending tail on that post is
+  held until an explicit continuation; recording a result sends nothing and enables no instance.
+- **Retry remaining delivery** requeues only the first unresolved failed/uncertain part and its
+  original approved suffix, with duplicate-risk acknowledgement for an attempted send.
+  **Continue remaining delivery** releases the pending tail after a local confirmation. Both keep
+  confirmed parts, immutable text/recipient and existing attempt counts; actual send claims still
+  increment attempts and use distinct transport nonces. The instance stays paused until enabled.
+  Saved provider retry waits are not bypassed and ordinary already-queued work is not reapproved.
+- Retry rechecks the exact original route, project, target, account, credentials, sender/scope rules,
+  source messages, grouped album members and private-conversation review boundaries. Pure paused
+  policy inspection never enables intake or transport. Changed or previously held destinations
+  cannot be reopened by retry; local confirmation/finish remain available where appropriate.
+  Native runs, inbox evidence, files and byte charges are not replayed or rewritten.
+- Review history is bounded, revisioned and checked against part order, attempts, confirmed IDs and
+  continuation holds. History and closure seals survive restart; contradictory records fail closed.
+  Failed writes cannot clear a hold or queue work. Confirmation, retry and local finish each require
+  fresh paused receipts under exclusive ownership; closed delivery remains permanent.
+- Added API/server/DOM checks for paused and stale/body guards, explicit part selection, duplicate
+  acknowledgement, preserved prefixes, continuation holds, recovery, ownership and pause races,
+  source/credential/policy/route changes, albums, audit corruption, storage failure and late callbacks.
+  The UI keeps upper receipt details and lower actions accessible in scrolling shared dialogs, with
+  inline errors, cancelled confirmations, double-click/unmount guards and explicit paused results.
+- A fresh scoped finish reviewer approved fourteen light/dark desktop/mobile captures of recovery,
+  uncertain parts, local confirmation, held continuation and duplicate-warning dialogs. Six Tab
+  presses stayed inside and Escape closed the dialog. In isolated synthetic state, real local APIs
+  recovered a receipt, recorded a checked ID and queued continuation/retry without enabling the
+  instance. The confirmed prefix and native inbox bytes stayed unchanged; the pending tail retained
+  zero attempts and the retried part retained its prior single attempt. The preview recorded zero
+  provider attempts, then its data/home/Chrome profile were removed. Unshown states have source and
+  test evidence; this is not real-account delivery acceptance. WhatsApp remains unavailable.
+- Final validation: `CI=1 bun run check` passed (272 files; 2,715 tests passed, one skipped),
+  including closed-history projection after confirming a part and finishing locally. A WhatsApp
+  recovery fixture failed once; its isolated 55-test rerun and the final full check passed with
+  ownership checks unchanged. The web build, desktop staging and bundled desktop smoke passed.
+- Next: finish retired-instance recovery/deletion and temporary-media retention, then remaining
+  delivery/product controls and proactive platform coverage under the same approval policy.
   Deleted instances retain private inbox receipts for recovery; the full deletion flow for retired
   instances and temporary-media retention are pending. Real-account checks
   on all four platforms and Windows/Linux verification remain outstanding. Offline checks run in CI.

@@ -8,7 +8,9 @@ import { SelectControl } from '../ui/select.tsx';
 import { openModal } from '../ui/overlays.tsx';
 import type { OpenDialog } from '../ui/overlays.tsx';
 import { useServerEvents } from '../ui/react.tsx';
-import type { GatewayOutboxDestination, GatewayOutboxPostPreview, GatewayOutboxPreview, GatewayOutboxProgress, OutboxPost } from '../../shared/types.ts';
+import type { GatewayOutboxDestination, GatewayOutboxPostPreview, GatewayOutboxProgress, OutboxPost } from '../../shared/types.ts';
+import { GatewayOutboxRecipient as Recipient } from './gateway-outbox-recipient.tsx';
+import { GatewayOutboxDeliveryView } from './gateway-outbox-delivery.tsx';
 
 const platformName = (platform: string) => platform === 'discord' ? 'Discord' : 'Telegram';
 const problem = (failure: unknown) => failure instanceof Error ? failure.message : 'The gateway draft could not save. Reload it before continuing.';
@@ -32,15 +34,6 @@ export function GatewayCompose({ added }: { added: () => void }) {
       <div className="flex flex-wrap gap-2"><Button size="small" disabled={busy || !text.trim()} onClick={() => void save()}>{busy ? 'Saving…' : 'Save draft'}</Button><Button size="small" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>Cancel</Button></div>
     </div>}
   </Section>;
-}
-
-function Recipient({ value }: { value: GatewayOutboxPreview['recipient'] }) {
-  return <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm min-w-0 [overflow-wrap:anywhere]">
-    <dt className="text-dim">Instance</dt><dd className="min-w-0">{value.instanceName} · {platformName(value.platform)}</dd>
-    <dt className="text-dim">Bot account</dt><dd className="min-w-0"><code>{value.accountId}</code></dd>
-    <dt className="text-dim">Conversation</dt><dd className="min-w-0"><code>{value.conversationId}</code>{value.threadId && <> · thread <code>{value.threadId}</code></>}</dd>
-    <dt className="text-dim">Reply to</dt><dd className="min-w-0">{value.sender} · message <code>{value.sourceMessageId}</code></dd>
-  </dl>;
 }
 
 function SendReview({ id, preview, close, changed, alive }: { id: string; preview: GatewayOutboxPostPreview; close: () => void; changed: () => void; alive: () => boolean }) {
@@ -134,6 +127,7 @@ export function GatewayOutboxCard({ p, changed }: { p: OutboxPost; changed: () =
     {!editable && <div className="flex flex-col gap-4 mt-5">
       {progress?.recipient && <Recipient value={progress.recipient} />}
       {p.parts.map((text, index) => <div key={index} className="border-t border-line pt-4 min-w-0"><div className="flex flex-wrap items-center gap-2 text-sm text-dim mb-2"><span>Part {index + 1} of {p.parts.length}</span>{progress?.parts[index] && <><span>·</span><span>{progress.parts[index].status === 'sent' ? 'Confirmed' : progress.parts[index].status === 'pending' ? 'Waiting' : progress.parts[index].status === 'sending' ? 'Sending' : progress.parts[index].status === 'uncertain' ? 'Delivery uncertain' : 'Failed'}</span></>}</div><p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{text}</p>{progress?.parts[index]?.remoteId && <details className="text-sm text-dim mt-2"><summary>Delivery receipt</summary><code className="break-all">{progress.parts[index].remoteId}</code></details>}</div>)}
+      {progress?.reviewAvailable && p.gateway && <div><Button size="small" variant="ghost" onClick={() => { if (dialog.current?.el.isConnected) return; dialog.current = openModal('Outbox delivery review', (close) => <GatewayOutboxDeliveryView id={p.id} instanceId={p.gateway!.instanceId} close={close} changed={changed} alive={() => mounted.current} />); }}>Review delivery</Button></div>}
       {progress?.reviewRevision && <div className="flex flex-col gap-3"><p className="text-sm text-dim">To stop the remaining delivery, pause this instance in Gateways, then finish this post locally. This keeps confirmed receipts and any uncertainty.</p><div className="flex flex-wrap gap-2"><ButtonLink variant="ghost" size="small" href={`#/settings?tab=gateways&instance=${encodeURIComponent(p.gateway?.instanceId ?? '')}`}>Open this gateway</ButtonLink><Button size="small" variant="danger" disabled={busy || !progress.paused} onClick={() => void act('finish')}>Finish locally</Button></div></div>}
       {progress?.state === 'closed' && <p className="text-sm text-dim">Finished locally. Unsent parts will not send from this post. An uncertain part may already have arrived.</p>}
     </div>}
