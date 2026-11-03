@@ -1,0 +1,78 @@
+server/codexlimits.ts
+  s_14ca3d7e50ee3f::t_2e69201a795fde 132
+server/backup.ts
+  s_14ca3d7e50ee3f::t_2e69201a795fde 4,63,66-68,70
+src-tauri/windows/hooks.nsh
+  s_14ca3d7e50ee3f::t_f4afd7c943a7b3 1-24
+server/store.ts
+  s_14ca3d7e50ee3f::t_2e69201a795fde 122-129
+tests/server/api.test.ts
+  s_14ca3d7e50ee3f::t_ae436dcf2abadc 234
+server/projects.ts
+  s_14ca3d7e50ee3f::t_2e69201a795fde 10-13,257
+tests/server/backup.test.ts
+  s_14ca3d7e50ee3f::t_ae436dcf2abadc 27,49
+tests/server/desktop.test.ts
+  s_14ca3d7e50ee3f::t_808d05c7494017 93,95-96,101-102,105-107,109,113-114,121-122,130-133,136
+AGENTS.md
+  s_14ca3d7e50ee3f::t_de1c18a5387fa1 8
+docs/internal/plans/REMOTE_APP_PLAN.md
+  s_14ca3d7e50ee3f::t_de1c18a5387fa1 7
+LICENSE-MIT
+  s_14ca3d7e50ee3f::t_ae436dcf2abadc 3
+web/projects.tsx
+  s_14ca3d7e50ee3f::t_2e69201a795fde 94
+tests/server/setup.ts
+  s_14ca3d7e50ee3f::t_ae436dcf2abadc 11
+docs/desktop.md
+  s_14ca3d7e50ee3f::t_8ff21a36bf16df 157-171
+tests/server/rename-folders.test.ts
+  s_14ca3d7e50ee3f::t_808d05c7494017 1,8,13-19,21-23,26-27,29,32-39,41
+scripts/desktop-smoke.ts
+  s_14ca3d7e50ee3f::t_ae436dcf2abadc 46
+tests/web/newproject-glass.test.ts
+  s_14ca3d7e50ee3f::t_808d05c7494017 13
+server/tools.ts
+  s_14ca3d7e50ee3f::t_ae436dcf2abadc 337
+docs/guide.md
+  s_14ca3d7e50ee3f::t_de1c18a5387fa1 27
+  s_14ca3d7e50ee3f::t_ae436dcf2abadc 350
+server/reddit.ts
+  s_14ca3d7e50ee3f::t_ae436dcf2abadc 83
+tests/server/fresh-profile.test.ts
+  s_14ca3d7e50ee3f::t_808d05c7494017 3
+README.md
+  s_14ca3d7e50ee3f::t_ae436dcf2abadc 209
+server/mcp.ts
+  s_14ca3d7e50ee3f::t_ae436dcf2abadc 979,992
+server/skillinstall.ts
+  s_14ca3d7e50ee3f::t_ae436dcf2abadc 71,120
+.github/workflows/desktop.yml
+  s_14ca3d7e50ee3f::t_854ad0385c4e83 146
+bun.lock
+  s_14ca3d7e50ee3f::t_776204609c3c44 6
+package.json
+  s_14ca3d7e50ee3f::t_b6c73436f65ed6 2
+src-tauri/Cargo.lock
+  s_14ca3d7e50ee3f::t_b57e2872e0acd5 181-194
+src-tauri/Cargo.toml
+  s_14ca3d7e50ee3f::t_ecaca417ce0dc5 2,5
+src-tauri/tauri.conf.json
+  s_14ca3d7e50ee3f::t_f89c9d4e3759a7 3,36-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f42d2f235a2d134089ff467d071afc81cb988d3",
+  "prompts": {},
+  "sessions": {
+    "s_14ca3d7e50ee3f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3f9ec22a-fe9c-4d2e-ad55-1241f11b7aa0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
