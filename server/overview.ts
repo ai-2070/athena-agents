@@ -6,6 +6,7 @@ import path from 'node:path';
 import { activeProject, agents, listProjects, questions, withProject, workflows } from './store.ts';
 import { dataPath } from './util.ts';
 import { activeRuns } from './engines/index.ts';
+import { listTerminals } from './terminals.ts';
 import { listApprovals } from './approvals.ts';
 import { listBriefs } from './briefs.ts';
 import { isTeamBusy } from './teams.ts';
@@ -85,6 +86,11 @@ function projectOverview(p: Project, open: Project): OverviewProject {
     // the Brain: its own approvals (installing a skill, say) need you
     const brainAsks = approvals.find((x) => !x.agentId);
     sessions.push({ kind: 'brain', id: 'brain', name: 'The Brain', status: brainAsks ? 'needs-you' : 'idle', ...(brainAsks ? { why: cut(`Approval: ${brainAsks.title}`) } : {}), updatedAt: mtime(dataPath('projects', p.id, 'brain-chat.json')) });
+
+    // the terminals opened in this project (running, or ended with their code)
+    for (const t of listTerminals().filter((x) => (x.projectId || open.id) === p.id)) {
+      sessions.push({ kind: 'terminal', id: t.id, name: t.title, status: 'idle', ...(t.exited ? { ended: true, why: `Ended (exit code ${t.exitCode ?? '?'})` } : {}), updatedAt: t.createdAt });
+    }
 
     // board tasks an agent or team works on, or whose work waits for you
     const board = projectCards(p.id);

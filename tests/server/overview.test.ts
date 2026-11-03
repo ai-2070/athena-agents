@@ -9,12 +9,13 @@ import { createProject } from '../../server/projects.ts';
 import { addBrief, updateBrief } from '../../server/briefs.ts';
 import { addBoardTask, editBoardTask } from '../../server/taskboard.ts';
 import { overview } from '../../server/overview.ts';
-import type { ActiveRun, Approval } from '../../shared/types.ts';
+import type { ActiveRun, Approval, Terminal } from '../../shared/types.ts';
 
-const fake = vi.hoisted(() => ({ runs: [] as ActiveRun[], approvals: [] as Approval[] }));
+const fake = vi.hoisted(() => ({ runs: [] as ActiveRun[], approvals: [] as Approval[], terminals: [] as Terminal[] }));
+vi.mock('../../server/terminals.ts', () => ({ listTerminals: () => fake.terminals }));
 vi.mock('../../server/engines/index.ts', async (original) => ({ ...await original<typeof import('../../server/engines/index.ts')>(), activeRuns: () => fake.runs }));
 vi.mock('../../server/approvals.ts', async (original) => ({ ...await original<typeof import('../../server/approvals.ts')>(), listApprovals: () => fake.approvals }));
-afterEach(() => { fake.runs = []; fake.approvals = []; });
+afterEach(() => { fake.runs = []; fake.approvals = []; fake.terminals = []; });
 
 describe('the Overview', () => {
   it('shows every project\'s agents, teams, the Brain and tasks at work, with what works and what needs you', async () => {
@@ -27,6 +28,10 @@ describe('the Overview', () => {
     // the podcast is open; the bakery isn't
     setActiveProject(podcast.id);
 
+    fake.terminals = [
+      { id: 't1', title: 'PowerShell', agentId: null, createdAt: 5, exited: false, exitCode: null, command: 'pwsh', projectId: bakery.id },
+      { id: 't2', title: 'Dev server', agentId: null, createdAt: 6, exited: true, exitCode: 1, command: 'npm run dev', projectId: podcast.id },
+    ];
     fake.runs = [{ id: 'r1', agentId: writer.id, chatId: 'c1', projectId: bakery.id, startedAt: 1, agentName: writer.name, parentRunId: null }];
     fake.approvals = [{ id: 'ap1', kind: 'tool', title: 'Run a command', detail: '', agentId: baker.id, agentName: baker.name, data: {}, editable: null, createdAt: 1, projectId: bakery.id }];
     withProject(podcast, () => questions.save({ id: 'q1', question: 'Which intro music?', choices: [], status: 'waiting', teamId: team.id, createdAt: 1 } as never));
@@ -57,6 +62,11 @@ describe('the Overview', () => {
     expect(of(p, team.id)).toMatchObject({ kind: 'team', status: 'needs-you', why: 'Question: Which intro music?' });
     expect(of(p, host.id)).toMatchObject({ status: 'needs-you', why: 'It needs the raw recording.' });
     expect(of(p, 'brain')).toMatchObject({ kind: 'brain', status: 'idle' });
+    // each terminal under the project it was opened in; an ended one says so
+    expect(of(b, 't1')).toMatchObject({ kind: 'terminal', name: 'PowerShell', status: 'idle' });
+    expect(of(b, 't1').ended).toBeUndefined();
+    expect(of(p, 't2')).toMatchObject({ kind: 'terminal', ended: true, why: 'Ended (exit code 1)' });
+    expect(b.sessions.some((x) => x.id === 't2')).toBe(false);
     expect(b).toMatchObject({ working: 1, needsYou: 2, boardOpen: 1 });
     expect(p).toMatchObject({ working: 0, needsYou: 2 });
     // names and times only

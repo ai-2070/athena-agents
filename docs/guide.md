@@ -118,15 +118,34 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 
 ## Overview
 
-**Overview** in the sidebar shows every project at once. Each project lists its agents, its teams, the Brain and the board tasks an agent or team works on. Each one shows how it's doing: a small breathing dot while it works, and an amber **!** when it needs you. That means an approval, a question it asked you, or work that stopped and waits for you; point at the **!** to see which.
+**Overview** in the sidebar shows every project at once. Each project lists its agents, its teams, the Brain, its terminals and the board tasks an agent or team works on. Each one shows how it's doing: a small breathing dot while it works, and an amber **!** when it needs you. That means an approval, a question it asked you, or work that stopped and waits for you; point at the **!** to see which.
 
 - **Show** picks **This project**, **All projects** or one project. **Sort** puts the ones that need you first (the default), or orders them by last update, by kind or by name.
 - The star next to one pins it to the top of its project. Click a project's name to fold it. **Search** narrows the list by name.
 - **Needs you** and **Working now** list them across what is shown, with **Open** next to each. The line at the bottom counts them: "2 need you · 4 of 7 working · 3 projects".
-- Clicking one opens it: an agent or a team in its chat window, the Brain in its chat, a task on its page. One in another project asks first, then opens that project and the chat.
+- Clicking an agent, a team or a terminal of the open project opens it on the strip, beside the others. The Brain opens in its chat, a task on its page. One in another project asks first, then opens that project with the chat on its strip.
 - Your choices (what is shown, the sort, pins, folded projects) are remembered in this browser.
 
-Seeing chats side by side in Overview, a strip of panes that keep their width, comes next.
+**The strip.** Open chats and terminals sit side by side and keep their width; the strip slides sideways instead of squeezing them.
+- **−** and **+** at the bottom right choose how many fit in one view (1 to 8). The dashes beside them are the panes, the one in use longer; click one to go to it.
+- Drag the line at a pane's right edge to make it wider or narrower.
+- A pane's **…** menu pins it at the left (it stays in view while the rest slides), stacks it under the pane before it (up to three in one column; drag the line between them to share the height), moves it, opens it in a chat window, or closes it. A terminal's menu can also end it.
+- Drag a pane by its grip (⋮⋮) onto another: its left or right quarter puts it before or after, its middle stacks it.
+- Panes out of view show as small marks at the edge, with a dot when they work or need you; click one to slide to it. Chats far out of view aren't drawn until they come back; terminals stay connected.
+- **New terminal** (the terminal button next to the open project's name) opens PowerShell (or your shell) in the project's folder as a pane. Terminals belong to the project they were opened in.
+- Each project keeps its own strip, remembered in this browser.
+
+| Keys (**Ctrl+Alt** on Windows, **Ctrl+⌥** on macOS) | What they do |
+|---|---|
+| **1** … **9** | Go to pane 1 to 9 |
+| **[** and **]** | Previous and next pane |
+| **Shift+[** and **Shift+]** | Move the pane left or right |
+| **−** and **=** | Fewer or more panes in one view |
+| **0** | Even the panes out |
+| **P** | Pin the pane, or let it go |
+| **S** | Stack the pane under the one before, or take it out |
+| **W** | Close the pane |
+| **N** | Open the next one that needs you |
 
 ## Tasks
 

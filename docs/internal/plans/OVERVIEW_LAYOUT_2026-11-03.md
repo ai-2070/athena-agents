@@ -1,6 +1,11 @@
 # Overview: one project or all of them, in one view
 
-3 November 2026. Plan. **Step 1 is built** (`LZL0/overview`): `GET /api/overview` (`server/overview.ts`), the page
+3 November 2026. Plan. **Step 2 is built too**: the strip for the open project, with terminals
+(`web/overviewlayout.ts` for the layout, `web/terminalview.tsx` shared with the Terminals page, `Terminal.projectId`).
+Columns per view, pinning, stacking, dragging, resizing, the rail, the minimap, the Ctrl+Alt keys and the saved layout
+are in. A pane's header shows its status; Open folder in VS Code comes with step 4.
+
+**Step 1 is built** (`LZL0/overview`): `GET /api/overview` (`server/overview.ts`), the page
 (`web/views/overview.tsx`) with the sidebar, Needs you and Working now, and the status line. Approvals now say their
 project. The old hidden Overview page (`#/home`) is called Home. Not in step 1 yet: dragging your own order, and events
 that carry `projectId` (the page reads the overview again, a moment after any change that matters).

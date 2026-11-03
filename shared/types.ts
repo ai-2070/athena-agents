@@ -1333,6 +1333,8 @@ export interface Terminal {
   exited: boolean;
   exitCode: number | null;
   command: string;
+  /** the project open when it was made (the Overview lists it there) */
+  projectId?: string;
 }
 
 /** GET /api/state: everything the browser needs to draw. */
@@ -1674,7 +1676,7 @@ export interface TaskBoardData {
 }
 /** One thing on the Overview page's sidebar: an agent, a team, the Brain, or a board task being worked on. */
 export interface OverviewSession {
-  kind: 'agent' | 'team' | 'brain' | 'task';
+  kind: 'agent' | 'team' | 'brain' | 'task' | 'terminal';
   /** the agent's, team's or task's id ('brain' for the Brain) */
   id: string;
   name: string;
@@ -1692,6 +1694,8 @@ export interface OverviewSession {
   chatId?: string;
   /** a task's #number */
   number?: number;
+  /** a terminal whose program has ended */
+  ended?: boolean;
 }
 /** A project on the Overview page, with its sessions and how many work or need you. */
 export interface OverviewProject {
