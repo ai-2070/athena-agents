@@ -1,0 +1,21 @@
+web/views/library.tsx
+  s_d3db9ebe8d99bd::t_c52d15221f1f14 14,199
+tests/web/library.test.tsx
+  s_d3db9ebe8d99bd::t_8e3dea0436a52e 129-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "123d38cf1fef190726bbe7dd011f9bba4c08741c",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
