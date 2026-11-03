@@ -45,6 +45,8 @@ const open = async () => {
   await settle(200);
 };
 const btn = (text: string) => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
+// a run's open/close button
+const toggleOf = (entry: HTMLElement) => entry.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
 const typeInto = (ta: HTMLTextAreaElement, text: string) =>
   act(async () => {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(ta, text);
@@ -180,17 +182,17 @@ describe('the routine editor', () => {
 
   it('lists its runs, the newest open, with what each agent did', async () => {
     await open();
-    const details = el.querySelector<HTMLDetailsElement>('details')!;
-    expect(details.open).toBe(true);
-    expect(details.textContent).toContain('Three stories.');
-    expect(details.querySelector('strong')?.textContent).toBe('Three stories.');
-    expect(details.querySelector('a[href="#/agents/a1/c1"]')).not.toBeNull();
+    const entry = el.querySelector<HTMLElement>('[data-run]')!;
+    expect(toggleOf(entry).getAttribute('aria-expanded')).toBe('true');
+    expect(entry.textContent).toContain('Three stories.');
+    expect(entry.querySelector('strong')?.textContent).toBe('Three stories.');
+    expect(entry.querySelector('a[href="#/agents/a1/c1"]')).not.toBeNull();
   });
 
   it('says how long a run took, and who did it', async () => {
     runsData = [{ ...run, createdAt: Date.now() - 65_000, finishedAt: Date.now() }];
     await open();
-    const summary = el.querySelector('details summary')!;
+    const summary = toggleOf(el.querySelector<HTMLElement>('[data-run]')!);
     expect(summary.textContent).toContain('Done');
     expect(summary.textContent).toContain('Run by hand');
     expect(summary.textContent).toContain('took 1m 5s');
@@ -204,12 +206,20 @@ describe('the routine editor', () => {
       { ...run, id: 'running2', status: 'running' },
     ];
     await open();
-    const details = [...el.querySelectorAll<HTMLDetailsElement>('details')];
-    expect(details.map((item) => item.open)).toEqual([true, false]);
-    await act(async () => details[0].parentElement!.querySelector<HTMLButtonElement>('button')!.click());
+    const entries = () => [...el.querySelectorAll<HTMLElement>('[data-run]')];
+    const opened = () => entries().map((entry) => toggleOf(entry).getAttribute('aria-expanded'));
+    expect(opened()).toEqual(['true', 'false']);
+    const stop = [...entries()[0].parentElement!.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Stop')!;
+    await act(async () => stop.click());
     expect(requests.some((r) => r.method === 'POST' && r.url === '/api/routine-runs/running1/stop')).toBe(true);
-    expect(details[0].open).toBe(true);
-    await act(async () => details[1].querySelector('summary')!.click());
-    expect(details[1].open).toBe(true);
+    expect(opened()).toEqual(['true', 'false']);
+    await act(async () => toggleOf(entries()[1]).click());
+    await settle();
+    expect(opened()).toEqual(['true', 'true']);
+    expect(entries()[1].textContent).toContain('Three stories.');
+    // and closes again
+    await act(async () => toggleOf(entries()[0]).click());
+    await settle(300);
+    expect(opened()).toEqual(['false', 'true']);
   });
 });

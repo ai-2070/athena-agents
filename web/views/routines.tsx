@@ -15,6 +15,7 @@ import { attachMentionEditor } from '../chat/mentioneditor.ts';
 import type { Candidate } from '../routinemention.ts';
 import { findMentions, scheduleSummary } from '../../shared/routines.ts';
 import { Field, Switch } from '../ui/controls.tsx';
+import { CollapsePanel, CollapseRoot, CollapseTrigger } from '../ui/collapse.tsx';
 import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { Dot, Pill } from '../ui/marks.tsx';
 import type { PillTone } from '../ui/classes.ts';
@@ -484,11 +485,11 @@ function Runs({ id, onLatest }: { id: string; onLatest?: (run: RoutineRun | null
         const took = run.finishedAt && run.createdAt ? runTook(run.finishedAt - run.createdAt) : '';
         return (
           <div key={run.id} className="relative overflow-hidden rounded-box border border-line bg-bg shadow-card">
-            <details
-              className="group/run"
+            {/* (opens and closes with the app's shared motion) */}
+            <CollapseRoot
+              data-run={run.id}
               open={isOpen(run, i)}
-              onToggle={(e) => {
-                const now = (e.currentTarget as HTMLDetailsElement).open;
+              onOpenChange={(now) => {
                 if (now === isOpen(run, i)) return;
                 const next = new Set(open ?? (runs[0] ? [runs[0].id] : []));
                 if (now) next.add(run.id);
@@ -496,7 +497,7 @@ function Runs({ id, onLatest }: { id: string; onLatest?: (run: RoutineRun | null
                 setOpen(next);
               }}
             >
-              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors hover:bg-panel-2/60 [&::-webkit-details-marker]:hidden">
+              <CollapseTrigger className="flex w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-2 border-0 bg-transparent px-4 py-3 text-left text-ink transition-colors hover:bg-panel-2/60">
                 <Pill tone={look.tone} className="gap-1.5">
                   {run.status === 'running' ? <Dot tone="busy" /> : null}
                   {look.label}
@@ -512,21 +513,23 @@ function Runs({ id, onLatest }: { id: string; onLatest?: (run: RoutineRun | null
                   {ago(run.createdAt)}{took ? ` · took ${took}` : ''}
                 </span>
                 {run.status === 'running' ? <span className="w-14 flex-none" aria-hidden="true" /> : null}
-                <Icon name="chevron-down" size={14} className="flex-none text-dim transition-transform duration-200 ease-in-out group-open/run:rotate-180" />
-              </summary>
-              <div className="flex flex-col gap-1 border-t border-line px-4 py-3">
-                {run.error ? <p className="m-0 rounded-ctl bg-red/8 px-3 py-2 text-[13px] text-red">{run.error}</p> : null}
-                {run.targets.map((t) => (
-                  <TargetRow key={`${t.kind}:${t.id}`} t={t} agent={agentOf(t)} />
-                ))}
-                {run.skills.length ? (
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-dim">
-                    <Icon name="puzzle" size={13} />
-                    {run.skills.map((slug) => skillsCache().find((sk) => sk.slug === slug)?.name || slug).join(', ')}
-                  </div>
-                ) : null}
-              </div>
-            </details>
+                <Icon name="chevron-down" size={14} className={`flex-none text-dim transition-transform duration-200 ease-in-out ${isOpen(run, i) ? 'rotate-180' : ''}`} />
+              </CollapseTrigger>
+              <CollapsePanel>
+                <div className="flex flex-col gap-1 border-t border-line px-4 py-3">
+                  {run.error ? <p className="m-0 rounded-ctl bg-red/8 px-3 py-2 text-[13px] text-red">{run.error}</p> : null}
+                  {run.targets.map((t) => (
+                    <TargetRow key={`${t.kind}:${t.id}`} t={t} agent={agentOf(t)} />
+                  ))}
+                  {run.skills.length ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-dim">
+                      <Icon name="puzzle" size={13} />
+                      {run.skills.map((slug) => skillsCache().find((sk) => sk.slug === slug)?.name || slug).join(', ')}
+                    </div>
+                  ) : null}
+                </div>
+              </CollapsePanel>
+            </CollapseRoot>
             {run.status === 'running' ? (
               <Button variant="danger" size="tiny" className="absolute top-3 right-10" onClick={() => void attempt(() => POST(`/routine-runs/${run.id}/stop`))}>Stop</Button>
             ) : null}
