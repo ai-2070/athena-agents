@@ -1,0 +1,27 @@
+docs/internal/plans/TASK_PICKUP_2026-11-03.md
+  s_d3db9ebe8d99bd::t_74b9cd8e7eb7d1 175-176
+  s_d3db9ebe8d99bd::t_29d13fa11279e1 249-250
+  s_d3db9ebe8d99bd::t_c3511c4f2bf060 329-331
+  s_d3db9ebe8d99bd::t_ea2177c9f568d8 282-283,285-286
+  s_d3db9ebe8d99bd::t_f84ed28c711566 273-274
+  s_d3db9ebe8d99bd::t_0d559aa7b2c89a 51-72
+  s_d3db9ebe8d99bd::t_1fbc5afee4aec5 3,9-13
+  s_d3db9ebe8d99bd::t_45c2a8bbfe2901 248,251-253
+  s_d3db9ebe8d99bd::t_983d17687d5709 309-310
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0ebfd78fb287a1677a0034c0f2380bdfd5ecda39",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
