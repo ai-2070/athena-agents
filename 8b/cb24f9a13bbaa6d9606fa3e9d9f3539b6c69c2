@@ -1,0 +1,30 @@
+renovate.json
+  s_d3db9ebe8d99bd::t_c6eb37d8b6370e 5-11
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_d3db9ebe8d99bd::t_4cfdbe524bf5b5 267
+runtime/eve-world/README.md
+  s_d3db9ebe8d99bd::t_4cfdbe524bf5b5 3,9
+  s_d3db9ebe8d99bd::t_c6eb37d8b6370e 16-20
+package.json
+  s_d3db9ebe8d99bd::t_e4c79ee36981b4 129
+patches/@workflow%2Fworld-local@5.2.0.patch
+  s_d3db9ebe8d99bd::t_e4c79ee36981b4 1-132
+bun.lock
+  s_d3db9ebe8d99bd::t_d39564d784f7ff 75-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8bcb24f9a13bbaa6d9606fa3e9d9f3539b6c69c2",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
