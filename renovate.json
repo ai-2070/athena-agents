@@ -2,5 +2,12 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "Eve's local store carries a patch for its exact version (runtime/eve-world/README.md): an update has to move the patch with it",
+      "matchPackageNames": ["@workflow/world-local"],
+      "dependencyDashboardApproval": true
+    }
   ]
 }
