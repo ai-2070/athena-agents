@@ -197,6 +197,28 @@ describe('the Overview', () => {
     expect(el.querySelector('.strip-per-view')!.textContent).toBe('3');
   });
 
+  it('leaves AltGr alone: Ctrl+Alt that types a character isn\'t a shortcut', async () => {
+    const press = (code: string, key: string) => ({ code, key });
+    // a German keyboard: AltGr+8 is [, AltGr+ß is \; a Polish one: AltGr+O is ó
+    expect(overview.typesCharacter(press('Digit8', '['), false)).toBe(true);
+    expect(overview.typesCharacter(press('Minus', '\\'), false)).toBe(true);
+    expect(overview.typesCharacter(press('KeyO', 'ó'), false)).toBe(true);
+    expect(overview.typesCharacter(press('KeyS', 'ś'), false)).toBe(true);
+    // a US keyboard, and a Mac (⌃⌥ types nothing there): shortcuts
+    expect(overview.typesCharacter(press('Digit8', '8'), false)).toBe(false);
+    expect(overview.typesCharacter(press('KeyO', 'O'), false)).toBe(false);
+    expect(overview.typesCharacter(press('Minus', '-'), false)).toBe(false);
+    expect(overview.typesCharacter(press('KeyO', 'ø'), true)).toBe(false);
+
+    await open();
+    for (const name of ['Writer', 'Shop team']) await act(async () => row('Bakery', name).click());
+    const before = el.querySelector('.strip-per-view')!.textContent;
+    const typed = new KeyboardEvent('keydown', { code: 'Minus', key: '\\', ctrlKey: true, altKey: true, bubbles: true, cancelable: true });
+    await act(async () => void document.dispatchEvent(typed));
+    expect(typed.defaultPrevented).toBe(false);
+    expect(el.querySelector('.strip-per-view')!.textContent).toBe(before);
+  });
+
   it('opens a new terminal in the project as a pane, and leaves out panes that are gone', async () => {
     await open();
     await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="New terminal in Bakery"]')!.click());

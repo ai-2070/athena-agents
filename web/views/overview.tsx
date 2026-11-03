@@ -18,6 +18,7 @@ import { renderTeamChat } from '../teamchat.tsx';
 import { XTerm } from '../terminalview.tsx';
 import { BrainPane } from '../brainpane.tsx';
 import { reducedMotion } from '../motion.ts';
+import { isMac } from '../shortcuts.ts';
 import { Button, IconButton } from '../ui/button.tsx';
 import { iconButtonClass } from '../ui/classes.ts';
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
@@ -71,6 +72,16 @@ async function openInVSCode(ref: PaneRef, foreign: boolean): Promise<void> {
   const at = foreign ? `/p/${encodeURIComponent(ref.projectId)}` : '';
   const r = await attempt(() => (ref.kind === 'agent' ? POST<{ message?: string }>(`${at}/agents/${encodeURIComponent(ref.id)}/open-workspace`, { app: 'vscode' }) : POST<{ message?: string }>(`/projects/${encodeURIComponent(ref.projectId)}/open`, { app: 'vscode' })));
   if (r?.message) toast(r.message);
+}
+// what each shortcut key types without modifiers
+const PLAIN: Record<string, string> = { Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']' };
+/** Ctrl+Alt that is really AltGr typing a character (Windows and Linux: [ { \ on a German keyboard, ó ś on a
+ *  Polish one), so it isn't taken as a shortcut: the key types something else than it does on its own. (Not
+ *  getModifierState('AltGraph'): browsers report it for a plain Ctrl+Alt too.) On a Mac, ⌃⌥ types nothing. */
+export function typesCharacter(e: Pick<KeyboardEvent, 'key' | 'code'>, mac = isMac()): boolean {
+  if (mac) return false;
+  const plain = PLAIN[e.code] ?? /^(?:Key|Digit)(.)$/.exec(e.code)?.[1]?.toLowerCase();
+  return !!e.key && e.key.length === 1 && !!plain && e.key.toLowerCase() !== plain;
 }
 const readSet = (key: string): Set<string> => {
   try {
@@ -658,7 +669,7 @@ function Strip({ layout, change, projects, active, onNextNeeding }: { layout: St
   keys.current = { layout, change, onNextNeeding, active };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!e.ctrlKey || !e.altKey || e.metaKey) return;
+      if (!e.ctrlKey || !e.altKey || e.metaKey || typesCharacter(e)) return;
       const { layout: l, change: set } = keys.current;
       const order = panesInOrder(l).map(paneKey);
       const focus = l.focus && order.includes(l.focus) ? l.focus : order[0];
