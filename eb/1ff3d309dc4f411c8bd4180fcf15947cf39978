@@ -1,0 +1,80 @@
+server/tools.ts
+  s_d3db9ebe8d99bd::t_e5bb86934472de 246-274
+server/taskboard.ts
+  s_d3db9ebe8d99bd::t_13470ef96e0aa1 129,152,160,172-176,349
+  s_d3db9ebe8d99bd::t_582f4085126f4b 72
+  s_d3db9ebe8d99bd::t_3e97a510e02d28 6,80,224-250,258,307-309,332,347-348,356-372
+  s_d3db9ebe8d99bd::t_5d60c9cd2af3d4 297,301
+docs/internal/plans/TASK_PICKUP_2026-11-03.md
+  s_d3db9ebe8d99bd::t_ff2baaa157dd82 3-4
+  s_d3db9ebe8d99bd::t_56628a2d9220ec 18-20,23-72,75-86,88-96,103-104,106,108-110,112-113,115,118-119,122-147,150-180,184-187,191-192,195-196,198-199,201,203-213,217-225,229-230,232-240,244-252,256,258-262,266-276,282-293,298-318,322-326,328-331
+  s_d3db9ebe8d99bd::t_db8520a7788798 5-7
+  s_d3db9ebe8d99bd::t_68a0563d2d79cf 8-13
+server/boardfiles.ts
+  s_d3db9ebe8d99bd::t_7dd9db297239c2 10,101-102
+  s_d3db9ebe8d99bd::t_ddd16d96aa545a 1-9,11-100,103-106
+server/index.ts
+  s_d3db9ebe8d99bd::t_bfdd9b1849bc5c 564-565
+  s_d3db9ebe8d99bd::t_47c506f415a8b6 47-48,530-537,539-557,559-563,566,1614
+tests/web/tasks-board.test.tsx
+  s_d3db9ebe8d99bd::t_72efdbdb7e3356 33-34,46,85,335,339-344
+  s_d3db9ebe8d99bd::t_299e8eb40cd9a3 17
+  s_d3db9ebe8d99bd::t_f383dd9ad34f61 8,32,35,47,89-95,312-334,336-338,345,480-516
+  s_d3db9ebe8d99bd::t_634abc7c43aeb7 346,517
+tests/server/boardwork.test.ts
+  s_d3db9ebe8d99bd::t_01111f80cd0f0a 165-166,168-169
+  s_d3db9ebe8d99bd::t_ce767d6af2d4c2 11,160
+  s_d3db9ebe8d99bd::t_11767ecee43351 167
+  s_d3db9ebe8d99bd::t_90424200c79bf0 24-31,36
+  s_d3db9ebe8d99bd::t_936151870af88c 241-252,256-266
+  s_d3db9ebe8d99bd::t_482c1c9bcd6880 253-255
+  s_d3db9ebe8d99bd::t_9293d270e95ed6 1-10,12-23,32-35,37-159,161-164,170-177,183-184,186-240,267-280
+  s_d3db9ebe8d99bd::t_3569509143dc80 181,185
+  s_d3db9ebe8d99bd::t_bfdd9b1849bc5c 178-180,182
+server/boardwork.ts
+  s_d3db9ebe8d99bd::t_c2e990899b8a5f 77,81,83-84,250-251
+  s_d3db9ebe8d99bd::t_bfdd9b1849bc5c 86-106,108-112,159,283-284,293,319-321
+  s_d3db9ebe8d99bd::t_12fa01be6193e6 1-76,78-80,82,85,107,113-158,160-249,252-282,285-292,294-303,305-306,315-318,322-375
+  s_d3db9ebe8d99bd::t_43146d154c804b 304,307-314
+server/backup.ts
+  s_d3db9ebe8d99bd::t_ad94bdea493128 27,40,146-147,388-402,434-435,605,841-842
+shared/types.ts
+  s_d3db9ebe8d99bd::t_f80b4c6080a853 1597-1634,1645,1665-1666
+  s_d3db9ebe8d99bd::t_582f4085126f4b 1656-1657
+server/overseer.ts
+  s_d3db9ebe8d99bd::t_325134a06dfa4f 586
+  s_d3db9ebe8d99bd::t_5d60c9cd2af3d4 332-339
+  s_d3db9ebe8d99bd::t_2e3ec5d31c8fc0 457,1123-1132,1134,1381,1389,2121
+web/views/tasks.tsx
+  s_d3db9ebe8d99bd::t_34b283f4dfa783 9-10,15,19,224-226,264,294,541-546,559-567,569-572,574-585,828-829
+  s_d3db9ebe8d99bd::t_18c51dcc647967 756,857,859-861,875,877,879-885,904,921,923,949,951-954,956,958,961-964,986,999,1001,1012,1070-1072
+  s_d3db9ebe8d99bd::t_29f36461296414 18,684,692,701,757,764,766,780-827
+  s_d3db9ebe8d99bd::t_b1a1d1607fbd6e 548-551,568,573,600
+  s_d3db9ebe8d99bd::t_297f8717ca51f8 246-247,265,586,830
+tests/server/taskboard.test.ts
+  s_d3db9ebe8d99bd::t_e7eb49a6bf2dda 177-191,200
+  s_d3db9ebe8d99bd::t_a0ed90d770040a 9,192-199
+  s_d3db9ebe8d99bd::t_edd32dd3104092 95-112
+tests/server/api.test.ts
+  s_d3db9ebe8d99bd::t_936151870af88c 527-549
+web/taskboard.tsx
+  s_d3db9ebe8d99bd::t_5861044fb4fc9c 363-365,373-377,394-395,428,430
+  s_d3db9ebe8d99bd::t_582f4085126f4b 7-10,23,45-103
+  s_d3db9ebe8d99bd::t_133260e594a16a 104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eb1ff3d309dc4f411c8bd4180fcf15947cf39978",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
