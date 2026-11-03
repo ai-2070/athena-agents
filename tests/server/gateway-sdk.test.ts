@@ -13,6 +13,7 @@ describe('pinned Chat SDK transport proof', () => {
     expect(stdout).toContain('Discord verified identities, guild scopes, permissions, source replay and partial edits pass');
     expect(stdout).toContain('Discord Gateway Identify, durable cursor, failed-write replay and Resume pass');
     expect(stdout).toContain('Discord private download, bounded replies and selected document upload pass');
+    expect(stdout).toContain('shared Discord transport resumes without a new Identify or repeated delivery');
   });
 
   it('bundles the Discord Gateway proof and runs it from read-only files outside the checkout', async () => {

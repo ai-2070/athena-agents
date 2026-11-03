@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import type { GatewayHealth, GatewayInstance } from '../../shared/types.ts';
+import type { GatewayHealth, GatewayInstance, GatewayDiscordRecovery } from '../../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 // set in beforeAll: a port nothing else is using (see startServer)
@@ -229,6 +229,26 @@ describe('API', () => {
 });
 
 describe('gateway configuration API', () => {
+  it('guards explicit Discord recovery review and never exposes its private session', async () => {
+    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const config = { name: 'Discord recovery', platform: 'discord', accountId: '900000000000000001', projectId: state.project.id, target: { kind: 'brain' },
+      senderPolicy: { platform: 'discord', allowedUserIds: [] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
+    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true }); const file = path.join(directory, 'discord-gateway.json');
+    const saved = { version: 1, accountId: instance.accountId, intents: 1 | 512 | 4096 | 32768, session: { id: 'PRIVATE_SESSION', url: 'wss://gateway.discord.gg/', sequence: 42 }, gap: { at: Date.now(), reason: 'session-lost' } };
+    fs.writeFileSync(file, JSON.stringify(saved)); const url = `/api/gateways/${instance.id}/discord-recovery`;
+    const preview = await (await req(url)).json() as GatewayDiscordRecovery; expect(preview.gap?.revision).toMatch(/^[a-f0-9]{64}$/); expect(JSON.stringify(preview)).not.toContain('PRIVATE_'); expect(JSON.stringify(preview)).not.toContain('discord.gg');
+    const body = JSON.stringify({ revision: preview.gap!.revision, acknowledgeGap: true });
+    expect((await req(url, { method: 'POST', body })).status).toBe(403);
+    expect((await req(url, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status).toBe(403);
+    expect((await req(url, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeGap: true }) })).status).toBe(409);
+    expect((await req(url, { method: 'POST', headers: json, body })).status).toBe(200); expect(await (await req(url)).json()).toEqual({ gap: null });
+    expect((await req(url, { method: 'POST', headers: json, body })).status).toBe(409);
+    const after = JSON.parse(fs.readFileSync(file, 'utf8')) as { session?: unknown; reviewedGaps: unknown[] }; expect(after.session).toBeUndefined(); expect(after.reviewedGaps).toHaveLength(1);
+    await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
+  });
+
   it('keeps multiple instances and credentials separate behind the existing request guards', async () => {
     const state = await (await req('/api/state')).json() as { project: { id: string } };
     const config = {

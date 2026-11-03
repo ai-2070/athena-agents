@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { GatewayInstance, GatewayRoute, GatewayTarget, GatewayTargets } from '../../shared/types.ts';
 import { agents, collection, getGatewaySecrets, listProjects, setGatewaySecrets, withProject, workflows } from '../store.ts';
 import { uid } from '../util.ts';
+import { discordId } from '../../shared/gateway-discord.ts';
 import { slackChannelId, slackTimestamp, slackUserId, slackWorkspaceId } from '../../shared/gateway-slack.ts';
 
 const instances = collection<GatewayInstance>('gateways', { global: true });
@@ -98,6 +99,8 @@ export function saveGatewayInstance(input: unknown, instanceId?: string): Gatewa
     fail('File limits must fit within the message and daily limits.');
   }
   if (next.enabled) {
+    if (next.platform === 'discord' && (!discordId(next.accountId) || (next.senderPolicy.platform === 'discord' && next.senderPolicy.allowedUserIds.some((id) => !discordId(id)))
+      || next.scope.conversationIds.some((id) => !discordId(id)) || next.scope.guildIds.some((id) => !discordId(id)))) fail('Check the Discord bot, user, server and channel IDs.');
     if (next.platform === 'slack' && (!slackWorkspaceId.test(next.accountId) || (next.senderPolicy.platform === 'slack' && next.senderPolicy.allowedUserIds.some((id) => !slackUserId.test(id)))
       || next.scope.guildIds.length || next.scope.conversationIds.some((scope) => { const [channel, thread, extra] = scope.split('/'); return !slackChannelId.test(channel) || extra !== undefined || (thread !== undefined && !slackTimestamp.test(thread)); }))) fail('Check the Slack workspace, user IDs and channel or thread scopes.');
     const policy = next.senderPolicy;

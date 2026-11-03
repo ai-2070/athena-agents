@@ -8,10 +8,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DiscordIntakeAdapter } from '../../server/gateways/discord.ts';
 import { GatewayInbox, gatewayInputAllowed } from '../../server/gateways/inbox.ts';
 import { GatewayStateAdapter } from '../../server/gateways/state.ts';
-import { getGatewayInstance, saveGatewayInstance } from '../../server/gateways/instances.ts';
+import { getGatewayInstance, saveGatewayInstance, saveGatewayCredentials } from '../../server/gateways/instances.ts';
 import { gatewayConfig } from './gateway-fixtures.ts';
 import { gatewayConversation } from '../../server/gateways/conversations.ts';
 import { newAgent } from '../../server/library.ts';
+import { WebSocketServer } from 'ws';
+import type WebSocket from 'ws';
+import { GatewayWorker, discordTransport } from '../../server/gateways/worker.ts';
 import { gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { GatewayFileProcessor } from '../../server/gateways/files.ts';
 import { GatewayReplies } from '../../server/gateways/replies.ts';
@@ -70,6 +73,7 @@ async function fixture(options: { users?: string[]; directMessages?: boolean; wr
         ...call.payload, attachments: file instanceof Blob ? [{ id: '600000000000000009', filename: 'name' in file ? file.name : 'file.bin', size: file.size }] : [], ...replyChanges };
     }
     else if (path === '/users/@me') result = { id: options.wrongBot ? '999' : instance.accountId, bot: true, username: 'Athena' };
+    else if (path === '/gateway/bot') result = { url: origin.replace('http:', 'ws:'), shards: 1, session_start_limit: { total: 1000, remaining: 999, reset_after: 10000, max_concurrency: 1 } };
     else if (path === '/oauth2/applications/@me') result = { id: instance.accountId, ...(options.omitAppBot ? {} : { bot: { id: options.appBot ?? instance.accountId, bot: true } }), flags: options.appFlags ?? (1 << 19) };
     else if (path === `/guilds/${GUILD}/roles`) result = [{ id: GUILD, permissions: String(permissions) }, ...additionalRoles];
     else if (path === `/guilds/${GUILD}/members/${instance.accountId}`) result = { user: { id: instance.accountId, bot: true }, roles: roleIds };
@@ -80,13 +84,23 @@ async function fixture(options: { users?: string[]; directMessages?: boolean; wr
     else { response.writeHead(404); response.end(); return; }
     response.setHeader('content-type', 'application/json'); response.end(JSON.stringify(result));
   });
+  const sockets = new WebSocketServer({ server }); const peers: WebSocket[] = []; const wire: { op: number; d: Record<string, unknown> }[] = [];
+  sockets.on('connection', (peer) => {
+    peers.push(peer); peer.on('message', (data) => {
+      const value = JSON.parse(data.toString()) as typeof wire[number]; wire.push(value);
+      if (value.op === 1) peer.send(JSON.stringify({ op: 11, d: null }));
+      else if (value.op === 2) peer.send(JSON.stringify({ op: 0, s: 1, t: 'READY', d: { v: 10, user: { id: instance.accountId, bot: true }, session_id: 'PRIVATE_SESSION_ID', resume_gateway_url: origin.replace('http:', 'ws:') } }));
+      else if (value.op === 6) peer.send(JSON.stringify({ op: 0, s: Number(value.d.seq) + 1, t: 'RESUMED', d: {} }));
+    }); peer.send(JSON.stringify({ op: 10, d: { heartbeat_interval: 1000 } }));
+  });
   server.listen(0, '127.0.0.1'); await once(server, 'listening'); const address = server.address(); if (!address || typeof address === 'string') throw new Error('No fixture port');
   const abort = new AbortController(); const origin = `http://127.0.0.1:${address.port}`;
   const adapter = new DiscordIntakeAdapter(instance.id, inbox, 'PRIVATE_BOT_TOKEN', { apiUrl: origin, fileOrigin: origin, signal: abort.signal });
   const chat = new Chat({ userName: 'Athena', adapters: { discord: adapter }, state, logger: quiet });
-  closes.push(async () => { await adapter.disconnect(); await chat.shutdown(); await state.disconnect(); server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); });
+  closes.push(async () => { for (const peer of peers) peer.terminate(); await new Promise<void>((resolve) => sockets.close(() => resolve())); await adapter.disconnect(); await chat.shutdown(); await state.disconnect(); server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); });
   let event = 0;
-  return { config, instance, state, inbox, adapter, chat, abort, origin, calls, channels,
+  return { config, instance, state, inbox, adapter, chat, abort, origin, calls, channels, peers, wire,
+    sendGateway: (sequence: number, payload: unknown, type = 'MESSAGE_CREATE') => peers.at(-1)!.send(JSON.stringify({ op: 0, s: sequence, t: type, d: payload })),
     receive: (payload: unknown, type = 'MESSAGE_CREATE') => adapter.receiveDispatch(type, `dispatch-${++event}`, payload),
     reply: (value: Record<string, unknown>) => { replyChanges = value; }, cdn: (value: typeof cdn) => { cdn = value; },
     actor: (value: Record<string, unknown>) => { actor = value; }, update: (value: Record<string, unknown>) => { current = value; },
@@ -112,7 +126,7 @@ describe('verified Discord event intake proof', () => {
     expect(f.adapter.botUserId).toBe(f.instance.accountId); const saved = await f.receive(message());
     expect(saved?.input).toMatchObject({ platform: 'discord', accountId: f.instance.accountId, actor: { id: ALICE, label: 'Verified Alice', kind: 'user' }, sourceMessageId: FIRST, threadId: '' });
     expect(f.calls.every((call) => call.method === 'GET' && call.token === 'Bot PRIVATE_BOT_TOKEN')).toBe(true);
-    expect(gatewayPlatformAvailable('discord')).toBe(false);
+    expect(gatewayPlatformAvailable('discord')).toBe(true);
     expect(f.calls.some((call) => call.path.includes('gateway'))).toBe(false);
     expect((await f.adapter.handleWebhook(new Request('http://localhost/unused'))).status).toBe(404);
     await expect(f.adapter.startGatewayListener({})).rejects.toThrow('durable Discord Gateway');
@@ -429,5 +443,53 @@ describe('Discord files and replies', () => {
     const service = replies(f); // Finish text before failing the following document post.
     const first = f.inbox.claimReply()!; f.inbox.settleReply(id, first.index, { remoteId: 'already-confirmed' }); f.fail(`/channels/${DM}/messages`, 500);
     await service.wake(); await service.wake(); expect(f.inbox.list()[0].outgoing?.[0].status).toBe('uncertain'); expect(f.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+  });
+});
+
+describe('supervised Discord connections', () => {
+  async function supervised(f: Awaited<ReturnType<typeof fixture>>, answer = 'Worker answer') {
+    await f.state.disconnect(); saveGatewayCredentials(f.instance.id, { botToken: 'PRIVATE_BOT_TOKEN' });
+    let saved: GatewayInbox | undefined; let submissions = 0;
+    const worker = new GatewayWorker(f.instance.id, { retryMs: 5, monitorMs: 10,
+      execution: { async submit() { submissions++; return {}; }, poll() { return { state: 'completed', answer }; } },
+      transport: (state, inbox, activity, signal) => { saved = inbox; return discordTransport(state, inbox, activity, signal, { apiUrl: f.origin, fileOrigin: f.origin, testOrigin: f.origin.replace('http:', 'ws:') }); },
+    }); closes.push(() => worker.stop()); await worker.start();
+    return { worker, inbox: () => saved!, submissions: () => submissions };
+  }
+
+  it('runs intake and replies through the shared worker, resumes without a duplicate run and releases ownership on pause', async () => {
+    const f = await fixture(); f.update(message()); const run = await supervised(f);
+    expect(run.worker.health().status).toBe('connected'); f.sendGateway(2, message());
+    await expect.poll(() => run.inbox().list()[0]?.reply?.parts[0]?.status, { timeout: 5000 }).toBe('sent');
+    expect(run.submissions()).toBe(1); f.peers[0].terminate(); await expect.poll(() => f.peers.length).toBe(2);
+    await expect.poll(() => run.worker.health().status).toBe('connected'); f.sendGateway(4, message());
+    await expect.poll(() => run.inbox().list().length).toBe(1); expect(run.submissions()).toBe(1);
+    expect(f.wire.filter((value) => value.op === 2)).toHaveLength(1); expect(f.wire.find((value) => value.op === 6)?.d.seq).toBe(2);
+    await run.worker.stop(); await f.state.connect(); expect(f.inbox.list()[0].reply?.parts[0].status).toBe('sent');
+  });
+
+  it.each([4007, 4014])('stops automatic reconnects on a lost session or fatal setup close %s', async (code) => {
+    const f = await fixture(); const run = await supervised(f); f.peers[0].close(code, 'PRIVATE_ERROR');
+    await expect.poll(() => run.worker.health().status).toBe('needs-setup');
+    expect(run.worker.health().recoveryRequired).toBe(code === 4007 ? true : undefined);
+    expect(JSON.stringify(run.worker.health())).not.toContain('PRIVATE_'); expect(f.peers).toHaveLength(1);
+    if (code === 4007) { await run.worker.start(); expect(run.worker.health().recoveryRequired).toBe(true); expect(f.calls.filter((call) => call.path === '/users/@me')).toHaveLength(1); }
+  });
+
+  it('honors persisted Discord waits before auth checks even after a manual reconnect', async () => {
+    const f = await fixture(); const run = await supervised(f); f.peers[0].send(JSON.stringify({ op: 9, d: true }));
+    await expect.poll(() => run.worker.health().retryAt).toBeGreaterThan(Date.now() + 3000);
+    await run.worker.start(); expect(f.calls.filter((call) => call.path === '/users/@me')).toHaveLength(1); expect(f.peers).toHaveLength(1);
+  });
+
+  it('keeps two bot instances, their private histories and reply destinations separate', async () => {
+    const first = await fixture(); const second = await fixture(); first.update(message()); second.update(message());
+    const a = await supervised(first, 'First answer'); const b = await supervised(second, 'Second answer');
+    first.sendGateway(2, message()); second.sendGateway(2, message());
+    await expect.poll(() => a.inbox().list()[0]?.reply?.parts[0].status, { timeout: 5000 }).toBe('sent');
+    await expect.poll(() => b.inbox().list()[0]?.reply?.parts[0].status, { timeout: 5000 }).toBe('sent');
+    expect(a.inbox().list()[0].bindingId).not.toBe(b.inbox().list()[0].bindingId);
+    expect(first.calls.find((call) => call.method === 'POST')?.payload?.content).toBe('First answer'); expect(second.calls.find((call) => call.method === 'POST')?.payload?.content).toBe('Second answer');
+    expect(a.submissions()).toBe(1); expect(b.submissions()).toBe(1);
   });
 });

@@ -4,6 +4,8 @@ import { bus, emit, listProjects } from '../store.ts';
 import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.ts';
 import { GatewayStateAdapter } from './state.ts';
 import { getGatewayInstance, listGatewayInstances } from './instances.ts';
+import { reviewDiscordRecovery } from './discord-recovery.ts';
+import { claimGatewayAccount } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
 
 /** Settings changes restart only their instance; transport failures never expose raw SDK errors. */
@@ -90,6 +92,22 @@ export class GatewaySupervisor {
     } catch (error) {
       throw Object.assign(new Error(error instanceof GatewayCleanupError ? error.message : 'This inbox could not be cleaned safely. Check storage and ownership before retrying.'), { status: 400 });
     } finally { await state.disconnect(); }
+  }
+
+  reviewDiscordRecovery(instanceId: string, body: unknown): Promise<void> {
+    const task = this.pending.then(async () => {
+      const instance = getGatewayInstance(instanceId);
+      if (instance.platform !== 'discord' || instance.enabled) throw Object.assign(new Error('Pause this Discord instance before reviewing its recovery gap.'), { status: 400 });
+      await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
+      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined;
+      try {
+        release = await claimGatewayAccount('discord', instance.accountId); await state.connect();
+        reviewDiscordRecovery(state, body);
+        const health: GatewayHealth = { instanceId, status: 'paused', reason: '', attempts: 0, updatedAt: Date.now() };
+        this.statuses.set(instanceId, health); emit('gateway-health', { ...health });
+      } finally { await state.disconnect(); await release?.(); }
+    });
+    this.pending = task.then(() => {}, () => {}); return task;
   }
 
   async selectDocuments(instanceId: string, eventId: string, body: unknown): Promise<void> {

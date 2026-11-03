@@ -14,7 +14,7 @@ const second = { ...first, id: 'other-project', name: 'Other project' };
 
 function config(accountId = 'bot-1', platform: GatewayPlatform = 'telegram', target: GatewayTarget = { kind: 'brain' }) {
   return {
-    name: 'My gateway', platform, accountId: platform === 'slack' ? `T${accountId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}` : accountId, projectId: first.id, target,
+    name: 'My gateway', platform, accountId: platform === 'slack' ? `T${accountId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}` : platform === 'discord' ? String(100000000000000000n + BigInt([...accountId].reduce((sum, point) => sum * 31 + point.charCodeAt(0), 0) >>> 0)) : accountId, projectId: first.id, target,
     senderPolicy: platform === 'whatsapp'
       ? { platform, allowedPhones: ['+436641234567'] }
       : { platform, allowedUserIds: platform === 'slack' ? ['UALICE'] : ['12345'] },
@@ -48,6 +48,15 @@ describe('gateway instances', () => {
     }
     expect(saveGatewayInstance({ ...good, senderPolicy: { platform: 'slack', allowedUserIds: [] }, scope: { directMessages: false, conversationIds: ['CLOCAL/1700000000.000001'], guildIds: [] } }).enabled).toBe(true);
   });
+  it('checks Discord snowflakes and scopes before enabling, with an optional sender list', () => {
+    const good = config('ids', 'discord');
+    for (const change of [{ accountId: 'bot-name' }, { accountId: '18446744073709551616' }, { senderPolicy: { platform: 'discord', allowedUserIds: ['18446744073709551616'] } },
+      { scope: { directMessages: true, guildIds: ['18446744073709551616'], conversationIds: ['123'] } }, { scope: { directMessages: true, guildIds: ['123'], conversationIds: ['channel-name'] } }]) {
+      expect(() => saveGatewayInstance({ ...good, ...change })).toThrow('Discord');
+    }
+    expect(saveGatewayInstance({ ...good, senderPolicy: { platform: 'discord', allowedUserIds: [] } }).enabled).toBe(true);
+  });
+
   it('lists only target names and IDs in the chosen project without moving the open project', () => {
     agents.save({ id: 'visible-first', name: 'First', workspace: 'private path' });
     withProject(second, () => { agents.save({ id: 'visible-second', name: 'Second', workspace: 'other private path' }); workflows.save({ id: 'team-second', name: 'Other team' }); });

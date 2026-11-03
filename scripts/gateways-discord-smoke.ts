@@ -36,7 +36,8 @@ async function proof(): Promise<void> {
   const { DiscordIntakeAdapter } = await import('../server/gateways/discord.ts');
   const { GatewayInbox } = await import('../server/gateways/inbox.ts');
   const { GatewayStateAdapter } = await import('../server/gateways/state.ts');
-  const { saveGatewayInstance } = await import('../server/gateways/instances.ts');
+  const { discordTransport } = await import('../server/gateways/discord-transport.ts');
+  const { saveGatewayInstance, saveGatewayCredentials } = await import('../server/gateways/instances.ts');
   const { listProjects } = await import('../server/store.ts');
   const { GatewayFileProcessor } = await import('../server/gateways/files.ts');
   const { GatewayReplies } = await import('../server/gateways/replies.ts');
@@ -107,8 +108,9 @@ async function proof(): Promise<void> {
           identifies++; assert.equal(value.d.intents, 1 | 512 | 4096 | 32768);
           dispatch(socket, 1, 'READY', { v: 10, user: { id: bot, bot: true }, session_id: 'PRIVATE_PROOF_SESSION', resume_gateway_url: gatewayOrigin });
         } else {
-          assert.equal(value.op, 6); resumes++; assert.equal(value.d.seq, 2); assert.equal(value.d.session_id, 'PRIVATE_PROOF_SESSION');
-          dispatch(socket, 3, 'MESSAGE_CREATE', replayInput); dispatch(socket, 4, 'RESUMED', {});
+          assert.equal(value.op, 6); resumes++; assert.equal(value.d.session_id, 'PRIVATE_PROOF_SESSION');
+          if (resumes === 1) { assert.equal(value.d.seq, 2); dispatch(socket, 3, 'MESSAGE_CREATE', replayInput); dispatch(socket, 4, 'RESUMED', {}); }
+          else { assert.equal(value.d.seq, 5); dispatch(socket, 6, 'RESUMED', {}); }
         }
       } catch (error) { failures.push(error instanceof Error ? error : new Error(String(error))); socket.terminate(); }
     });
@@ -121,6 +123,7 @@ async function proof(): Promise<void> {
   const cursor = () => JSON.parse(fs.readFileSync(state.discordGatewayFile(), 'utf8')) as GatewayDiscordState;
   let gateway: ReturnType<InstanceType<typeof DiscordIntakeAdapter>['createGateway']> | undefined;
   let processor: InstanceType<typeof GatewayFileProcessor> | undefined; let deliveries: InstanceType<typeof GatewayReplies> | undefined;
+  let supervised: ReturnType<typeof discordTransport> | undefined;
   let chat: Chat | undefined; let adapter: InstanceType<typeof DiscordIntakeAdapter> | undefined;
   try {
     server.listen(0, '127.0.0.1'); await once(server, 'listening'); const address = server.address(); assert.ok(address && typeof address !== 'string');
@@ -163,10 +166,15 @@ async function proof(): Promise<void> {
     assert.ok(delivered.reply?.parts.every((part) => part.status === 'sent')); assert.equal(delivered.outgoing?.[0].status, 'sent');
     assert.ok(!fs.readFileSync(state.inboxFile(), 'utf8').includes('PRIVATE_'));
     console.log('gateways: Discord private download, bounded replies and selected document upload pass');
-    await deliveries.stop(); await processor.stop(); await adapter.disconnect(); await chat.shutdown(); chat = undefined; await state.connect(); assert.equal(new GatewayInbox(state).list().length, 5); assert.deepEqual(failures, []);
+    await deliveries.stop(); await processor.stop(); await adapter.disconnect(); await chat.shutdown(); chat = undefined; await state.connect();
+    saveGatewayCredentials(instance.id, { botToken: 'FAKE_BOT_TOKEN' });
+    supervised = discordTransport(state, new GatewayInbox(state), () => {}, new AbortController().signal, { apiUrl: fileOrigin, fileOrigin, testOrigin: gatewayOrigin });
+    await supervised.start(); assert.equal(supervised.alive(), true); assert.equal(identifies, 1); assert.equal(resumes, 2); await supervised.stop(); await state.connect();
+    console.log('gateways: shared Discord transport resumes without a new Identify or repeated delivery');
+    assert.equal(new GatewayInbox(state).list().length, 5); assert.deepEqual(failures, []);
     console.log('gateways: Discord verified identities, guild scopes, permissions, source replay and partial edits pass');
   } finally {
-    await deliveries?.stop(); await processor?.stop(); await gateway?.stop(); for (const socket of sockets) socket.terminate(); await new Promise<void>((resolve) => socketServer.close(() => resolve()));
+    await supervised?.stop(); await deliveries?.stop(); await processor?.stop(); await gateway?.stop(); for (const socket of sockets) socket.terminate(); await new Promise<void>((resolve) => socketServer.close(() => resolve()));
     await adapter?.disconnect(); await chat?.shutdown(); await state.disconnect(); server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }

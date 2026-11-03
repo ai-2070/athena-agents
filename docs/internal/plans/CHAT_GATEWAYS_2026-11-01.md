@@ -1,7 +1,7 @@
 # Chat SDK Gateways with files
 
 *Plan, 1 November 2026. Experimental Telegram conversations added 2 November;
-Experimental Slack text/file delivery added 3 November. Product setup remains incomplete.
+Experimental Slack and Discord text/file delivery added 3 November. Product setup remains incomplete.
 New gateway data does not need a legacy compatibility layer.*
 
 ## Implementation status
@@ -42,7 +42,7 @@ New gateway data does not need a legacy compatibility layer.*
 - Added guarded local APIs for instance configuration, credential replacement/presence, connection
   health, reconnect, inbox receipts, explicit file/reply retry and deletion under `/api/gateways`;
   the existing
-  Outbox helpers remain unchanged. Discord and WhatsApp fail closed at application intake and report
+  Outbox helpers remain unchanged. WhatsApp fails closed at application intake and reports
   unavailable when enabled. WhatsApp configuration currently accepts canonical E.164 only;
   local-number parsing and verified business identity mapping remain to implement.
 - Added a streamed incoming-file stage. Telegram metadata and response headers are checked before
@@ -111,7 +111,7 @@ New gateway data does not need a legacy compatibility layer.*
   | --- | --- | --- | --- |
   | Telegram | Nonempty regular files as documents, including images/audio/video | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | No file captions, native media or albums. One SDK transport request and remote receipt per file, with a 30-second send timeout |
   | Slack | Hosted local uploads and explicitly selected regular output files | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Bounded private streaming downloads; one external-upload allocation, byte upload and completion per file, without SDK retry/fallback |
-  | Discord | Private message attachments and selected regular output files, local proof only | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Refreshed source-message CDN URLs and one multipart request per selected file; application workers remain disabled |
+  | Discord | Private message attachments and selected regular output files | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Refreshed source-message CDN URLs and one multipart request per selected file; experimental supervised workers |
   | WhatsApp | Not enabled in application transport | Pending live verification | Pending |
 
   The application uses the SDK's Telegram multipart transport primitive directly for documents,
@@ -143,7 +143,7 @@ New gateway data does not need a legacy compatibility layer.*
   retain the new instance ID so retrying credential storage cannot create a duplicate account.
   Live health refreshes preserve form drafts. Destination lookup lists only names/IDs in the chosen
   project without changing the open project. Settings search finds gateways, and
-  `#/settings?tab=gateways&instance=<id>` opens the named Telegram or Slack editor. Discord and WhatsApp are marked
+  `#/settings?tab=gateways&instance=<id>` opens the named Telegram, Slack or Discord editor. WhatsApp remains
   unavailable; old one-way forms remain under Connections until unified delivery is ready.
   DOM tests cover creation, separate secrets, partial saves, project/team choice, deep links and
   loading errors. Browser screenshot verification was unavailable in this development session.
@@ -359,10 +359,31 @@ New gateway data does not need a legacy compatibility layer.*
   confirms a complete long reply, uploads a selected document and verifies duplicate wakes do not
   send it again. Unit tests cover unsafe CDN paths, missing permissions, changed sources and local
   bytes, inaccurate lengths, redirect refusal, source-check barriers and uncertain text/file outcomes.
-  This remains local-fixture evidence: Discord workers and Settings are still disabled, and real
-  Discord account/platform checks remain pending.
-- Next: wire Discord's supervised workers and setup, including explicit recovery-gap review; implement
-  WhatsApp after that. Native-work override controls and explicit webhook
+  This remains local-fixture evidence; real Discord account/platform checks remain pending.
+- Enabled experimental Discord through the shared worker and a thin transport factory, keeping
+  intake, file processing, native dispatch, final replies and selected files under the same instance
+  and account claims. A lost Gateway aborts incoming/outgoing work promptly; shutdown drains the
+  journals before releasing ownership. Fatal setup errors stop automatic retry. Retry deadlines
+  survive restart and manual reconnect and are checked before REST authentication or Identify.
+  Worker tests cover text delivery, Resume, source replay without another run, fatal closes,
+  preserved waits and independent bot histories/destinations. Bun, Node and read-only bundle proofs
+  also reconnect through the same transport factory without another Identify or repeated delivery.
+- Settings > Gateways now adds Discord accounts, preserves separate secret storage, supports an
+  optional exact user list, explicit server/channel/thread scopes, DM policy and independent
+  Brain/team/agent targets. Saves remain paused. Enable rejects invalid or overflowing snowflake
+  IDs. Search and existing instance/inbox links recognize Discord. The new recovery view shows only
+  a date and opaque revision; it never exposes session IDs, resume URLs or sequence details. Its
+  guarded API requires a paused instance, exclusive account/state ownership, a matching current
+  revision and explicit acknowledgement. It atomically records the review and clears only the
+  old session/gap, preserving Identify spacing, provider waits and all inbox/delivery receipts.
+  Corrupt, foreign-account, stale or overfull review records fail closed. The instance stays paused
+  until separately enabled; missing Discord messages are not silently recovered or discarded.
+- Local API and DOM tests cover guarded/stale recovery requests, pause/confirmation, private
+  credentials, scope fields, multiple bot drafts and deep links. The static UI detector returned no
+  findings. Browser visual approval remains unavailable: no desktop/mobile capture surface was
+  available, and the fresh finish review requested screenshots rather than issuing approval.
+- Next: implement the deployable WhatsApp relay and full intake/delivery, then finish unified
+  delivery and product controls. Read-only setup checks, native-work override controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the full deletion flow for retired instances is pending. Real-account text/file checks on all four platforms
   and platform verification on Windows/Linux remain outstanding. Offline checks run in CI.

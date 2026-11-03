@@ -221,10 +221,10 @@ More: [Troubleshooting](docs/guide.md#troubleshooting).
 
 ## Development
 
-Chat gateways are in development. Experimental Telegram and Slack instances can pass allowed text and attached files
+Chat gateways are in development. Experimental Telegram, Slack and Discord instances can pass allowed text and attached files
 to the Brain, a team or an agent and send final text replies. Files explicitly selected through the local API
-or explicitly handed in by a gateway agent through its approval policy can be sent as Telegram documents or Slack files.
-Set up Telegram or Slack instances under **Settings → Gateways**, choose their project, destination and sender rules,
+or explicitly handed in by a gateway agent through its approval policy can be sent as Telegram documents, Slack files or Discord attachments.
+Set up Telegram, Slack or Discord instances under **Settings → Gateways**, choose their project, destination and sender rules,
 then enable them. Open an instance's **Inbox** to review delivery, retry unconfirmed parts, skip files or select
 specific files to send. Uncertain retries ask you to check the messaging app first. Artifacts and tool images are not attached automatically.
 **Check saved work** can recover a verified completed reply or resume tracking its original operation without starting another run.
@@ -242,8 +242,10 @@ a local service. Slack needs a workspace ID, separate bot/app tokens and explici
 Its sender list is optional; empty allows local workspace users within those scopes. Real-account checks remain pending.
 `bun run gateways:discord-smoke` checks Discord identities, scopes, permissions and restart recovery
 against local REST and WebSocket fixtures, including private downloads and selected file replies.
-It uses no real account; Discord remains unavailable in Settings while setup and supervised workers
-are being finished.
+It uses no real account. Discord setup needs a bot ID/token, the Message content intent, exact
+server/channel scopes and an optional user-ID guard. A lost session stops intake; **Review recovery**
+requires pausing and an explicit acknowledgement before a fresh session can be enabled.
+Real-account and Windows/Linux checks remain pending.
 
 The Eve runtime replacement is being developed separately from the current API engine. Building
 the runtime uses Bun 1.4 or newer. `bun run eve:build` builds it and `bun run eve:smoke` checks

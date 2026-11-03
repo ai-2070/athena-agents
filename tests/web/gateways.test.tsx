@@ -2,13 +2,13 @@ import { act } from 'react';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { mountReact } from '../../web/ui/react.tsx';
 import { GatewaysTab } from '../../web/views/gateways.tsx';
-import type { GatewayInstance } from '../../shared/types.ts';
+import type { GatewayHealth, GatewayInstance, GatewayDiscordRecovery } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let host: HTMLElement; let unmount: () => void;
 let instances: (GatewayInstance & { credentials: Record<string, boolean> })[];
 let requests: { url: string; method: string; body: Record<string, unknown> }[];
-let failToken: boolean;
+let failToken: boolean; let health: GatewayHealth[]; let recovery: GatewayDiscordRecovery; let failRecovery: boolean;
 const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 30)));
 const button = (name: string, root: ParentNode = host) => [...root.querySelectorAll('button')].find((item) => item.textContent === name)!;
 const input = (name: string) => host.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[aria-label="${name}"]`)!;
@@ -17,15 +17,19 @@ async function type(name: string, value: string) {
 }
 beforeEach(() => {
   document.body.innerHTML = '<div id="view"></div><div id="modal-root"></div><div id="toasts"></div>';
-  host = document.getElementById('view')!; requests = []; instances = []; failToken = false;
+  host = document.getElementById('view')!; requests = []; instances = []; failToken = false; health = []; recovery = { gap: { at: 1700000000000, revision: 'a'.repeat(64) } }; failRecovery = false;
   location.hash = '#/settings?tab=gateways';
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET'; const body = JSON.parse(String(init.body || '{}')) as Record<string, unknown>;
     requests.push({ url, method, body });
     let result: unknown = {};
     if (url === '/api/projects') result = { projects: [{ id: 'p1', name: 'First project' }, { id: 'p2', name: 'Second project' }] };
-    else if (url === '/api/gateways' && method === 'GET') result = { instances, health: [] };
+    else if (url === '/api/gateways' && method === 'GET') result = { instances, health };
     else if (url.startsWith('/api/gateways/targets/')) result = { agents: [{ id: 'a1', name: 'Writer' }], teams: [{ id: 't1', name: 'Editors' }] };
+    else if (url.endsWith('/discord-recovery')) {
+      if (failRecovery) return new Response(JSON.stringify({ error: 'This Discord gap changed. Reload and review it again.' }), { status: 409 });
+      if (method === 'POST') recovery = { gap: null }; result = recovery;
+    }
     else if (url.endsWith('/inbox')) result = { events: [] };
     else if (url.endsWith('/credentials')) {
       if (failToken) return new Response(JSON.stringify({ error: 'Could not store token.' }), { status: 500 });
@@ -173,4 +177,48 @@ it('opens a Slack setup deep link with independent fields and keeps token drafts
   await act(async () => button('Save instance').click()); await settle(); act(() => unmount()); location.hash = '#/settings?tab=gateways&instance=g1'; await open();
   expect(input('Workspace ID').value).toBe('TWORK'); expect(input('Allowed user IDs').value).toBe(''); expect(input('App token').value).toBe('');
   expect(host.textContent).toContain('Edit Slack work'); expect(instances).toHaveLength(1);
+});
+
+async function createDiscord() {
+  await act(async () => button('Add Discord instance').click()); await settle();
+  await type('Instance name', 'Discord work'); await type('Bot account ID', '100000000000000001'); await type('Bot token', 'private-discord-token');
+}
+it('creates a paused Discord bot with explicit servers/channels, an optional user guard and a separate secret', async () => {
+  await open(); await createDiscord(); expect(host.textContent).toContain('Empty allows any human'); expect(host.textContent).toContain('Message content intent');
+  expect(host.querySelector('[aria-label="App token"]')).toBeNull(); await type('Allowed servers', '200000000000000001'); await type('Allowed channels and threads', '300000000000000001');
+  await act(async () => button('Save instance').click()); await settle();
+  expect(instances[0]).toMatchObject({ platform: 'discord', enabled: false, accountId: '100000000000000001', senderPolicy: { platform: 'discord', allowedUserIds: [] },
+    scope: { guildIds: ['200000000000000001'], conversationIds: ['300000000000000001'] } });
+  expect(requests.filter((item) => item.url.endsWith('/credentials')).at(-1)?.body).toEqual({ botToken: 'private-discord-token' });
+  expect(host.textContent).not.toContain('private-discord-token'); expect(button('Enable').disabled).toBe(false);
+  await act(async () => button('Enable').click()); await settle(); expect(instances[0].enabled).toBe(true);
+});
+
+it('keeps Discord instance drafts and deep links separate without revealing stored credentials', async () => {
+  await open(); await createDiscord(); await type('Allowed user IDs', '400000000000000001'); await act(async () => button('Save instance').click()); await settle();
+  instances.push({ ...instances[0], id: 'g2', name: 'Other Discord', accountId: '100000000000000002', target: { kind: 'agent', id: 'a1' } });
+  act(() => unmount()); location.hash = '#/settings?tab=gateways&instance=g2'; await open();
+  expect(input('Bot token').value).toBe(''); expect(input('Bot account ID').value).toBe('100000000000000002'); expect(input('Bot account ID').disabled).toBe(true);
+  expect(input('Allowed user IDs').value).toBe('400000000000000001'); await type('Instance name', 'Other bot renamed');
+  await act(async () => button('Save instance').click()); await settle(); expect(instances[0].name).toBe('Discord work'); expect(instances[1].target).toEqual({ kind: 'agent', id: 'a1' });
+});
+
+it('pauses a lost-session instance, explains missed messages and requires confirmation before allowing a fresh session', async () => {
+  await open(); await createDiscord(); await act(async () => button('Save instance').click()); await settle(); instances[0].enabled = true;
+  health = [{ instanceId: 'g1', status: 'needs-setup', reason: 'Review the recovery gap.', recoveryRequired: true, attempts: 1, updatedAt: 1 }];
+  act(() => unmount()); await open(); await act(async () => button('Review recovery').click()); await settle();
+  expect(host.textContent).toContain('missing messages will not be recovered'); expect(button('Allow new session')).toBeUndefined();
+  await act(async () => button('Pause instance').click()); await settle(); expect(instances[0].enabled).toBe(false);
+  await act(async () => button('Allow new session').click()); await settle();
+  expect(requests.filter((item) => item.url.endsWith('/discord-recovery') && item.method === 'POST')).toHaveLength(0);
+  await act(async () => button('Allow new session', document.querySelector('[role="dialog"]')!).click()); await settle();
+  expect(requests.filter((item) => item.url.endsWith('/discord-recovery') && item.method === 'POST').at(-1)?.body).toEqual({ revision: 'a'.repeat(64), acknowledgeGap: true });
+  expect(instances[0].enabled).toBe(false); expect(host.textContent).toContain('No recovery gap is waiting'); expect(button('Allow new session')).toBeUndefined();
+});
+
+it('shows stale recovery failures and offers a reload before another review', async () => {
+  await open(); await createDiscord(); await act(async () => button('Save instance').click()); await settle(); failRecovery = true;
+  await act(async () => button('Review recovery').click()); await settle(); expect(host.textContent).toContain('recovery record could not load'); expect(button('Allow new session')).toBeUndefined();
+  failRecovery = false; await act(async () => button('Reload recovery').click()); await settle(); expect(button('Allow new session')).toBeDefined();
+  await act(async () => button('Close recovery').click()); await settle(); expect(button('Enable').disabled).toBe(false);
 });

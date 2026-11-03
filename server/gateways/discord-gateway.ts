@@ -13,12 +13,14 @@ const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 export const discordGatewayDetails = z.object({ url: z.string().max(2048), shards: stamp.min(1), session_start_limit: z.object({
   total: stamp.min(1), remaining: stamp, reset_after: stamp, max_concurrency: stamp.min(1),
 }) });
-const journal = z.object({
+export const discordStateSchema = z.object({
   version: z.literal(1), accountId: z.string().refine(discordId), intents: z.literal(discordGatewayIntents),
   identifiedAt: stamp.optional(), retryAt: stamp.optional(),
   session: z.object({ id: z.string().min(1).max(512), url: z.string().max(2048), sequence: stamp }).strict().optional(),
   gap: z.object({ at: stamp, reason: z.literal('session-lost') }).strict().optional(),
-}).strict();
+  reviewedGaps: z.array(z.object({ at: stamp, gapAt: stamp, sequence: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/) }).strict()).max(1000).optional(),
+}).strict().refine((value) => !value.gap || Boolean(value.session), 'A recovery gap needs its saved session.');
+const journal = discordStateSchema;
 const packet = z.object({ op: stamp, d: z.unknown(), s: stamp.nullable().optional(), t: z.string().min(1).max(100).nullable().optional() });
 const connections = new WeakMap<GatewayStateAdapter, DiscordGateway>();
 const ready = z.object({ v: z.literal(10), user: z.object({ id: z.string(), bot: z.literal(true) }), session_id: z.string().min(1).max(512), resume_gateway_url: z.string().max(2048) });
@@ -27,6 +29,33 @@ export class DiscordGatewayRetryError extends Error {
   readonly retryAt: number;
   constructor(retryAt: number) { super('Discord needs a pause before reconnecting.'); this.retryAt = retryAt; }
 }
+export class DiscordGatewayGapError extends GatewaySetupError {
+  constructor() { super('Discord lost its saved session. Review the recovery gap before starting a new session.'); }
+}
+
+export function discordEndpoint(value: string, testOrigin?: string): string {
+  let url: URL;
+  try { url = new URL(value); } catch { throw new GatewaySetupError('The Discord Gateway address is invalid.'); }
+  const local = testOrigin && url.origin === testOrigin && url.protocol === 'ws:' && url.hostname === '127.0.0.1';
+  const official = url.protocol === 'wss:' && !url.port && /^gateway(?:-[a-z0-9-]+)?\.discord\.gg$/.test(url.hostname);
+  if ((!local && !official) || url.username || url.password || url.hash || url.search || url.pathname !== '/') throw new GatewaySetupError('The Discord Gateway address is not allowed.');
+  url.searchParams.set('v', '10'); url.searchParams.set('encoding', 'json'); return url.href;
+}
+
+export function readDiscordGatewayState(file: string, accountId: string, testOrigin?: string): GatewayDiscordState {
+  const parsed = journal.safeParse(fs.existsSync(file) ? readJSON(file) : { version: 1, accountId, intents: discordGatewayIntents });
+  if (!parsed.success || parsed.data.accountId !== accountId) throw new GatewaySetupError('Discord recovery state is unreadable. Restore it before reconnecting.');
+  if (parsed.data.session) discordEndpoint(parsed.data.session.url, testOrigin);
+  return parsed.data;
+}
+
+export function checkDiscordGatewayState(state: GatewayStateAdapter, accountId: string, testOrigin?: string): void {
+  const saved = readDiscordGatewayState(state.discordGatewayFile(), accountId, testOrigin);
+  if (saved.gap) throw new DiscordGatewayGapError();
+  const retryAt = Math.max(saved.retryAt ?? 0, saved.session ? 0 : (saved.identifiedAt ?? 0) + 5000);
+  if (retryAt > Date.now()) throw new DiscordGatewayRetryError(retryAt);
+}
+
 interface Options {
   state: GatewayStateAdapter;
   accountId: string;
@@ -68,12 +97,9 @@ export class DiscordGateway {
     this.saved = this.load();
   }
   private load(): GatewayDiscordState {
-    const file = this.options.state.discordGatewayFile();
-    const parsed = journal.safeParse(fs.existsSync(file) ? readJSON(file) : { version: 1, accountId: this.options.accountId, intents: discordGatewayIntents });
-    if (!parsed.success || parsed.data.accountId !== this.options.accountId) throw new GatewaySetupError('Discord recovery state is unreadable. Restore it before reconnecting.');
-    if (parsed.data.session) this.endpoint(parsed.data.session.url);
-    return parsed.data;
+    return readDiscordGatewayState(this.options.state.discordGatewayFile(), this.options.accountId, this.options.testOrigin);
   }
+
   private readonly options: Options;
   get alive(): boolean { return this.connected && !this.stopped; }
   private now(): number { return (this.options.now ?? Date.now)(); }
@@ -82,19 +108,14 @@ export class DiscordGateway {
     writeJSON(this.options.state.discordGatewayFile(), journal.parse(next)); this.saved = next;
   }
   private endpoint(value: string): string {
-    let url: URL;
-    try { url = new URL(value); } catch { throw new GatewaySetupError('The Discord Gateway address is invalid.'); }
-    const local = this.options.testOrigin && url.origin === this.options.testOrigin && url.protocol === 'ws:' && url.hostname === '127.0.0.1';
-    const official = url.protocol === 'wss:' && !url.port && /^gateway(?:-[a-z0-9-]+)?\.discord\.gg$/.test(url.hostname);
-    if ((!local && !official) || url.username || url.password || url.hash || url.search || url.pathname !== '/') throw new GatewaySetupError('The Discord Gateway address is not allowed.');
-    url.searchParams.set('v', '10'); url.searchParams.set('encoding', 'json'); return url.href;
+    return discordEndpoint(value, this.options.testOrigin);
   }
 
   async start(): Promise<void> {
     if (this.started || this.stopped) throw new Error('This Discord connection has already been used.');
     if (connections.has(this.options.state)) throw new Error('This Discord instance already has a connection.');
     connections.set(this.options.state, this); this.started = true; this.active(); this.saved = this.load();
-    if (this.saved.gap) throw new GatewaySetupError('Discord lost its saved session. Review the recovery gap before starting a new session.');
+    if (this.saved.gap) throw new DiscordGatewayGapError();
     if ((this.saved.retryAt ?? 0) > this.now()) throw new DiscordGatewayRetryError(this.saved.retryAt!);
     let url = this.saved.session?.url;
     if (!url) {
@@ -220,7 +241,7 @@ export class DiscordGateway {
   private lostSession(): void {
     if (this.saved.session) {
       this.save({ ...this.saved, gap: { at: this.now(), reason: 'session-lost' } });
-      this.fail(new GatewaySetupError('Discord lost its saved session. Review the recovery gap before starting a new session.'));
+      this.fail(new DiscordGatewayGapError());
     } else this.retry(5000);
   }
   private fail(error: Error): void {

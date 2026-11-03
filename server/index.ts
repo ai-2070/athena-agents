@@ -15,6 +15,7 @@ import { eveRuntime } from './eve/runtime.ts';
 import { EveOwnershipError } from './eve/ownership.ts';
 import { eveCoordinator } from './eve/coordinator.ts';
 import * as gateways from './gateways/instances.ts';
+import { discordRecovery } from './gateways/discord-recovery.ts';
 import { GatewaySupervisor } from './gateways/supervisor.ts';
 import { gatewayInboxHistory } from './gateways/inbox.ts';
 import { PROVIDERS, listModels } from './providers.ts';
@@ -981,6 +982,11 @@ get('/api/gateways', async () => ({
 post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(body));
 get('/api/gateways/targets/:projectId', async ({ projectId }) => gateways.gatewayTargets(projectId));
 get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
+get('/api/gateways/:id/discord-recovery', async ({ id }) => discordRecovery(id));
+post<unknown>('/api/gateways/:id/discord-recovery', async ({ id }, body) => {
+  await gatewaySupervisor.reviewDiscordRecovery(id, body);
+  return { gap: null };
+});
 post<unknown>('/api/gateways/:id/inbox/cleanup', async ({ id }, body) => gatewaySupervisor.cleanup(id, body));
 put<unknown>('/api/gateways/:id', async ({ id }, body) => gateways.saveGatewayInstance(body, id));
 put<unknown>('/api/gateways/:id/credentials', async ({ id }, body) => {

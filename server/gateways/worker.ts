@@ -7,6 +7,9 @@ import { GatewayCleanupError, GatewayInbox } from './inbox.ts';
 import { GatewayStateAdapter } from './state.ts';
 import { GatewaySetupError, TelegramIntakeAdapter } from './telegram.ts';
 import { SlackIntakeAdapter } from './slack.ts';
+import { DiscordGatewayGapError, DiscordGatewayRetryError } from './discord-gateway.ts';
+import { discordTransport } from './discord-transport.ts';
+export { discordTransport } from './discord-transport.ts';
 import { gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { claimGatewayAccount } from './ownership.ts';
 import { GatewayFileProcessor } from './files.ts';
@@ -20,10 +23,11 @@ import { selectGatewayDocuments } from './outgoing.ts';
 import type { GatewayFileSender } from './outgoing.ts';
 import { registerGatewayDeliverables } from './deliverables.ts';
 
-interface Transport {
+export interface Transport {
   start(): Promise<void>;
   stop(): Promise<void>;
   alive(): boolean;
+  failure?(): Error | undefined;
   download?: GatewayDownloader;
   reply?: GatewayReplySender;
   upload?: GatewayFileSender;
@@ -85,9 +89,9 @@ export class GatewayWorker {
 
   health(): GatewayHealth { return { ...this.current }; }
 
-  private publish(status: GatewayHealth['status'], reason = ''): void {
+  private publish(status: GatewayHealth['status'], reason = '', details: Pick<GatewayHealth, 'retryAt' | 'recoveryRequired'> = {}): void {
     if (this.closed && status !== 'paused') return;
-    this.current = { instanceId: this.instanceId, status, reason, attempts: this.attempts, updatedAt: Date.now() };
+    this.current = { instanceId: this.instanceId, status, reason, attempts: this.attempts, updatedAt: Date.now(), ...details };
     this.options.health?.(this.health());
   }
 
@@ -118,7 +122,8 @@ export class GatewayWorker {
       const inbox = new GatewayInbox(state);
       this.inbox = inbox;
       inbox.recover();
-      const transport = (this.options.transport ?? (instance.platform === 'slack' ? slackTransport : telegramTransport))(state, inbox, (connected) => {
+      const transport = (this.options.transport ?? (instance.platform === 'discord' ? discordTransport : instance.platform === 'slack' ? slackTransport : telegramTransport))(state, inbox, (connected) => {
+        if (!connected && instance.platform === 'discord') abort.abort();
         this.publish(connected ? 'connected' : 'retrying', connected ? '' : 'This gateway could not receive messages. It will retry.');
       }, abort.signal);
       this.transport = transport;
@@ -147,26 +152,31 @@ export class GatewayWorker {
       }, this.options.monitorMs ?? 1000);
       this.monitor.unref();
     } catch (error) {
+      const failure = this.transport?.failure?.() ?? error;
       await this.dispose();
-      if (this.closed) return;
-      if (error instanceof GatewaySetupError) this.publish('needs-setup', error.message);
-      else {
-        this.publish('retrying', 'This gateway could not connect or restore its inbox. Check setup and local storage.');
-        this.scheduleRetry();
-      }
+      if (!this.closed) this.connectionFailed(failure);
     }
   }
 
   private async restart(): Promise<void> {
+    const failure = this.transport?.failure?.();
     await this.dispose();
-    if (this.closed) return;
-    this.publish('retrying', 'This gateway stopped receiving messages. It will reconnect.');
-    this.scheduleRetry();
+    if (!this.closed) this.connectionFailed(failure);
   }
 
-  private scheduleRetry(): void {
+  private connectionFailed(error: unknown): void {
+    if (error instanceof GatewaySetupError) this.publish('needs-setup', error.message, error instanceof DiscordGatewayGapError ? { recoveryRequired: true } : {});
+    else {
+      const retryAt = error instanceof DiscordGatewayRetryError ? error.retryAt : undefined;
+      this.publish('retrying', retryAt ? 'Discord asked this instance to wait before reconnecting.' : 'This gateway could not connect or restore its inbox. Check setup and local storage.', { retryAt });
+      this.scheduleRetry(retryAt);
+    }
+  }
+
+  private scheduleRetry(retryAt?: number): void {
     if (this.retry || this.closed) return;
-    const delay = Math.min(30000, (this.options.retryMs ?? 1000) * 2 ** Math.min(this.attempts, 5));
+    const backoff = Math.min(30000, (this.options.retryMs ?? 1000) * 2 ** Math.min(this.attempts, 5));
+    const delay = Math.min(2147483647, Math.max(backoff, (retryAt ?? 0) - Date.now()));
     this.retry = setTimeout(() => {
       this.retry = undefined;
       void this.start().catch(() => this.publish('needs-setup', 'This gateway could not reconnect safely. Restart Athena before retrying.'));

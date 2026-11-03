@@ -65,6 +65,12 @@ export interface GatewayDiscordState {
   retryAt?: number;
   session?: { id: string; url: string; sequence: number };
   gap?: { at: number; reason: 'session-lost' };
+  reviewedGaps?: { at: number; gapAt: number; sequence: number; revision: string }[];
+}
+
+/** Safe recovery preview; session IDs and resume addresses stay private. */
+export interface GatewayDiscordRecovery {
+  gap: { at: number; revision: string } | null;
 }
 
 export interface GatewayInbound {
@@ -186,6 +192,8 @@ export interface GatewayHealth {
   reason: string;
   attempts: number;
   updatedAt: number;
+  retryAt?: number;
+  recoveryRequired?: boolean;
 }
 
 /** Navigation metadata only: no credentials, sender rules or message contents. */

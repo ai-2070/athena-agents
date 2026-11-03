@@ -370,9 +370,9 @@ The dashboard keeps the last **50 versions** per item and groups nearby edits. *
 
 Building, testing and packaging the dashboard is in the [README](../README.md#development).
 
-Chat gateways are still being built. Experimental Telegram and Slack instances can pass allowed text and attached files
+Chat gateways are still being built. Experimental Telegram, Slack and Discord instances can pass allowed text and attached files
 to the Brain, a team or an agent and send final text replies. Files explicitly selected through the local API
-can be sent as Telegram documents or Slack files after their size, location and saved content hash are checked.
+can be sent as Telegram documents, Slack files or Discord attachments after their size, location and saved content hash are checked.
 Gateway agents can also inspect specific finished files and request their delivery through the normal
 approval policy. Files changed after inspection are refused. Artifacts and tool images are not attached automatically.
 Delegated files can come from the agent's custom workspace. Their source run, private conversation and
@@ -405,10 +405,30 @@ are bounded and rechecked; selected output files use the same workspace, channel
 Replies are plain text and cannot turn model output into Slack mentions or unfurls. Ambiguous sends
 stay held until explicitly retried after checking Slack. Approvals are reviewed in Athena.
 
+For Discord, choose **Add Discord instance** and enter the bot user ID and token from the Discord
+Developer Portal. Enable the **Message content** intent on the Bot page. Invite the bot with the
+`bot` scope and View channels, Read message history, Send messages, Send messages in threads and
+Attach files permissions. List exact server IDs under **Allowed servers** and channel or native
+thread IDs under **Allowed channels and threads**. Allowing a parent channel also allows its threads.
+Direct messages have a separate rule. The optional user-ID list narrows access; leaving it empty
+allows any human who can message the bot or post in those channels. Bots and webhooks are refused.
+Choose a project and the Brain, a team or an agent; save pauses the instance and **Enable** connects.
+Multiple bot accounts keep separate routes, credentials, histories and delivery receipts.
+
+Discord replies stay attached to the source message, with mentions and link previews suppressed.
+Files are fetched from refreshed attachment links without exposing them in saved receipts. Selected
+output files use the same verified channel or thread and saved byte limits. **Reconnect** resumes a
+saved session and honors Discord's requested wait. If Discord cannot replay that session, intake
+stops and **Review recovery** explains the gap. Pause the instance, check Discord for missed messages,
+and confirm **Allow new session** to acknowledge that the missing messages cannot be recovered
+automatically. The instance stays paused until you enable it. Existing work and confirmed deliveries
+stay saved; the review never starts a second run or blindly resends output. Real-account checks
+remain pending.
+
 Open an instance's **Inbox** to see messages needing review, or choose **All messages** for its saved
 history. Expand a message to see its original sender, saved destination, attachments, final reply and
 individual delivery results. **Retry remaining reply** preserves confirmed text parts. Outgoing files
-have separate **Retry file** and **Skip file** controls; uncertain deliveries ask you to check Telegram
+have separate **Retry file** and **Skip file** controls; uncertain deliveries ask you to check the messaging app
 first because a retry might create a duplicate. Skipping cannot undo a delivery that already happened.
 Enable a paused instance before retrying. To send specific files for the current assignment, enter
 absolute paths under **Files to send**, one per line. The server checks their location, size and content
@@ -443,8 +463,8 @@ instance needing review to open its inbox, or a connection warning to open its s
 the bound project. Up to five instances appear, with attention items first; **All gateways** opens the full
 list. If an inbox is unreadable, its status says **check inbox** rather than reporting no problems.
 Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
-Slow requests can send one working notice. When a run needs approval, Telegram says **Needs approval in Athena**;
-review it in the dashboard. Telegram cannot approve requests.
+Slow requests can send one working notice. When a run needs approval, the messaging app says **Needs approval in Athena**;
+review it in the dashboard. Gateway messages cannot approve requests.
 Existing Outbox connections work as before. The
 [gateway plan](internal/plans/CHAT_GATEWAYS_2026-11-01.md) tracks the remaining work;
 `bun run gateways:smoke` checks a fake local Telegram service without using accounts or keys.
@@ -453,8 +473,8 @@ locally with throwaway data. Real-account checks and Windows/Linux verification 
 `bun run gateways:discord-smoke` checks Discord intake with local REST and WebSocket fixtures:
 bot identity, optional sender rules, explicit guild/channel scopes, permissions, message edits and
 saved-session recovery after a failed inbox write, private downloads and selected document replies.
-It uses no real account or platform messages. Discord is not enabled in Settings; supervised workers,
-setup, recovery-gap review and real-account checks remain unfinished.
+It uses no real account or platform messages. Discord setup, supervised connections and explicit
+recovery review are available for testing; real-account checks remain pending.
 
 ## License and credits
 
