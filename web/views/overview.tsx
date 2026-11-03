@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { DEL, GET, POST, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
-import { apiUrl } from '../client/connection.ts';
+import { apiUrl, projectAt } from '../client/connection.ts';
 import { previewFile, previewTitle, revealLabel } from '../filepreview.tsx';
 import { openChat } from '../chatwin.tsx';
 import { openDock } from '../dock.tsx';
@@ -69,7 +69,7 @@ const PANELS: readonly { id: PanelId; label: string; icon: string }[] = [
 
 /** Opens a pane's folder in VS Code: an agent's own workspace, or the project folder for a team or a terminal. */
 async function openInVSCode(ref: PaneRef, foreign: boolean): Promise<void> {
-  const at = foreign ? `/p/${encodeURIComponent(ref.projectId)}` : '';
+  const at = foreign ? projectAt(ref.projectId) : '';
   const r = await attempt(() => (ref.kind === 'agent' ? POST<{ message?: string }>(`${at}/agents/${encodeURIComponent(ref.id)}/open-workspace`, { app: 'vscode' }) : POST<{ message?: string }>(`/projects/${encodeURIComponent(ref.projectId)}/open`, { app: 'vscode' })));
   if (r?.message) toast(r.message);
 }
@@ -565,7 +565,7 @@ function FilesPanel({ projects, active }: { projects: OverviewProject[]; active:
   const parts = rel ? rel.split('/') : [];
   const openFile = (path: string, name: string) => {
     if (projectId === active && previewTitle(name)) return previewFile(path, name);
-    window.open(projectId === active ? apiUrl('/file', { path }) : apiUrl(`/p/${encodeURIComponent(projectId)}/file`, { path }), '_blank', 'noopener');
+    window.open(apiUrl(`${projectId === active ? '' : projectAt(projectId)}/file`, { path }), '_blank', 'noopener');
   };
   const openFolder = async (app?: 'vscode') => {
     const r = await attempt(() => POST<{ message?: string }>(`/projects/${encodeURIComponent(projectId)}/open`, { path: rel, ...(app ? { app } : {}) }));

@@ -9,7 +9,7 @@ import type { Root } from 'react-dom/client';
 import type { CSSProperties } from 'react';
 import { POST, DEL, toast, lightbox } from './core.ts';
 import { upload } from './client/http.ts';
-import { fileUrl } from './client/connection.ts';
+import { fileUrl, projectAt } from './client/connection.ts';
 import { mountAttachMenu } from './attachmenu.tsx';
 import { markdownTooBig, onDesktop, openFile, openPdf, previewKind, showMarkdown } from './filepreview.tsx';
 import { Icon } from './ui/react.tsx';
@@ -346,7 +346,7 @@ const OVERLAY_CLASS = 'pointer-events-none absolute inset-0.75 z-50 flex animate
 // iconWeight: the weight the chat around it draws its icons in (the paperclip is drawn apart from it).
 // project: files go to that project's uploads (an Overview pane of a project that isn't open).
 export function attachTray({ deferred = false, onChange, iconWeight, pickerButton = PICKER_BUTTON, project }: { deferred?: boolean; onChange?: () => void; iconWeight?: IconWeight; pickerButton?: { variant?: ButtonVariant; size?: ButtonSize; class?: string; label?: string }; project?: string } = {}): AttachTray {
-  const at = project ? `/p/${encodeURIComponent(project)}` : '';
+  const at = projectAt(project);
   let items: Item[] = [];
   const el = document.createElement('div');
   el.className = 'att-tray hidden';
