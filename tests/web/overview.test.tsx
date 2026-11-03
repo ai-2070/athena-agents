@@ -83,6 +83,7 @@ beforeEach(() => {
       const path = decodeURIComponent(url.split('path=')[1] || '');
       return json(path === 'notes' ? { rel: 'notes', entries: [{ name: 'idea.md', dir: false, size: 2048, path: '/b/notes/idea.md', rel: 'notes/idea.md' }], more: 0 } : { rel: '', entries: [{ name: 'notes', dir: true, path: '/b/notes', rel: 'notes' }, { name: 'PROJECT.md', dir: false, size: 12, path: '/b/PROJECT.md', rel: 'PROJECT.md' }], more: 0 });
     }
+    if (url.startsWith('/api/projects/p2/folder')) return json({ rel: '', entries: [{ name: 'episodes', dir: true, path: '/pod/episodes', rel: 'episodes' }], more: 0 });
     if (url === '/api/terminals' && init.method === 'POST') {
       data.projects[0].sessions.push(session({ kind: 'terminal', id: 'term2', name: 'PowerShell 2' }));
       return json({ id: 'term2', title: 'PowerShell 2' });
@@ -361,6 +362,23 @@ describe('the Overview', () => {
     expect(files.querySelector('nav[aria-label="Folder"]')!.textContent).toBe('Bakerynotes');
     await act(async () => [...files.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Open in VS Code')!.click());
     expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/projects/p1/open', body: { path: 'notes', app: 'vscode' } });
+  });
+
+  it('moves the Files panel to a project the scope shows when the scope changes', async () => {
+    await open();
+    const files = await panel('Files');
+    expect(files.querySelector('nav[aria-label="Folder"]')!.textContent).toBe('Bakery');
+    await act(async () => [...files.querySelectorAll<HTMLButtonElement>('.overview-files button')][0].click());
+    await settle();
+    // only the podcast now: its folder, from the top
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label^="Show:"]')!.click());
+    await settle();
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((c) => c.textContent!.trim() === 'Podcast')!.click());
+    await settle();
+    const now = el.querySelector<HTMLElement>('.overview-panel[aria-label="Files"]')!;
+    expect(now.querySelector('nav[aria-label="Folder"]')!.textContent).toBe('Podcast');
+    expect([...now.querySelectorAll('.overview-files li')].map((li) => li.textContent)).toEqual(['episodes']);
+    expect(requests.some((r) => r.url === '/api/projects/p2/folder?path=')).toBe(true);
   });
 
   it('opens a pane\'s folder in VS Code: the agent\'s workspace, in its own project', async () => {

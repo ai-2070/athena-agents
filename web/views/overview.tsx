@@ -556,8 +556,13 @@ function TasksPanel({ scope, data }: { scope: string; data: OverviewData }) {
 const size = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 /** Files: a project's folder, one level at a time; files open with the previews (another project's in a new tab). */
 function FilesPanel({ projects, active }: { projects: OverviewProject[]; active: string }) {
-  const [projectId, setProjectId] = useState(() => (projects.some((p) => p.id === active) ? active : projects[0]?.id || active));
-  const [rel, setRel] = useState('');
+  // the project picked and the folder in it; a project the scope no longer shows gives way to one it does (from its top)
+  const first = () => (projects.some((p) => p.id === active) ? active : projects[0]?.id || active);
+  const [place, setPlace] = useState(() => ({ project: first(), rel: '' }));
+  const projectId = projects.some((p) => p.id === place.project) ? place.project : first();
+  const rel = place.project === projectId ? place.rel : '';
+  const setRel = (next: string) => setPlace({ project: projectId, rel: next });
+  const setProjectId = (next: string) => setPlace({ project: next, rel: '' });
   const [listing, setListing] = useState<FolderListing | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -578,7 +583,7 @@ function FilesPanel({ projects, active }: { projects: OverviewProject[]; active:
   };
   return (
     <div className="flex flex-col gap-2 p-3">
-      {projects.length > 1 ? <Pick label="Project" value={projectId} choices={projects.map((p) => ({ value: p.id, label: p.name, mark: <Icon name="folder" size={14} className="text-faint" /> }))} onChange={(v) => (setProjectId(v), setRel(''))} /> : null}
+      {projects.length > 1 ? <Pick label="Project" value={projectId} choices={projects.map((p) => ({ value: p.id, label: p.name, mark: <Icon name="folder" size={14} className="text-faint" /> }))} onChange={setProjectId} /> : null}
       <nav aria-label="Folder" className="flex min-w-0 flex-wrap items-center gap-1 text-[12.5px]">
         <button type="button" className="cursor-pointer border-0 bg-transparent p-0 font-medium text-dim hover:text-ink" onClick={() => setRel('')}>{project?.name || 'Project'}</button>
         {parts.map((part, i) => (
