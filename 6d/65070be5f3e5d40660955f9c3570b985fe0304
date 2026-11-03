@@ -1,0 +1,64 @@
+tests/server/gateway-discord-recovery.test.ts
+  s_3f5afab86a1bb3::t_a83fb8fb6fa367 1-74
+server/gateways/worker.ts
+  s_3f5afab86a1bb3::t_3b7c13d4d0abaf 30,92,94,125-126,155,157,162,164-173,176,178-179
+  s_3f5afab86a1bb3::t_c5582ab3164fa9 10-12,26
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_3b7c13d4d0abaf 7-8,97-110
+  s_3f5afab86a1bb3::t_42841fbd4ca702 111-112
+web/views/gateways.tsx
+  s_3f5afab86a1bb3::t_f9dfa4bff4df2a 86
+  s_3f5afab86a1bb3::t_b5bc99f2491ab7 9,28-29,56,61,65,67,71-77,82,85,98,103-104,120,134,136-137,145-148,150-151
+server/index.ts
+  s_3f5afab86a1bb3::t_3b7c13d4d0abaf 18,985-989
+web/views/setup.tsx
+  s_3f5afab86a1bb3::t_f9dfa4bff4df2a 45
+README.md
+  s_3f5afab86a1bb3::t_cd8ac076852489 224,226-227,245-248
+docs/guide.md
+  s_3f5afab86a1bb3::t_3fb7a94329c758 373,375,408-427,431,466-467,476-477
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_4eefa856a89d09 4,45,114,146,362-386
+scripts/gateways-discord-smoke.ts
+  s_3f5afab86a1bb3::t_376df57b630630 39-40,111-113,126,169-174,177
+server/gateways/discord-gateway.ts
+  s_3f5afab86a1bb3::t_2cc81440b66786 16,21-23,32-58,100,102,111,118,244
+server/gateways/discord-recovery.ts
+  s_3f5afab86a1bb3::t_f143a785a32315 1-37
+server/gateways/discord-transport.ts
+  s_3f5afab86a1bb3::t_42d33fbd6f65e3 1-35
+server/gateways/instances.ts
+  s_3f5afab86a1bb3::t_3a8f7260357458 5,102-103
+shared/gateways.ts
+  s_3f5afab86a1bb3::t_cc33c3615a3f61 3
+shared/types.ts
+  s_3f5afab86a1bb3::t_232ea8e95c682b 68-73,195-196
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_2ccbf6379b6fb4 12,232-251
+tests/server/gateway-discord.test.ts
+  s_3f5afab86a1bb3::t_83d9e7a1c70193 11,15-17,76,87-95,100,102-103,129,448-495
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_c63f990dd48f23 16
+tests/server/gateways.test.ts
+  s_3f5afab86a1bb3::t_b59aaa311691b1 17,51-59
+tests/web/gateways.test.tsx
+  s_3f5afab86a1bb3::t_a4ab39ea16f185 5,11,20,27,29-32,181-224
+web/views/gateway-discord-recovery.tsx
+  s_3f5afab86a1bb3::t_a6a62581120e4b 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6d65070be5f3e5d40660955f9c3570b985fe0304",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
