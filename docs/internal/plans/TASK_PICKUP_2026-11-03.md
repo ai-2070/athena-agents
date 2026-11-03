@@ -1,6 +1,31 @@
 # Tasks board: assigned agents and teams pick up their tasks
 
-3 November 2026. Plan for the Tasks board, which is on `main` since PR #121. Not built yet.
+3 November 2026. Plan for the Tasks board, which is on `main` since PR #121.
+
+## Status (3 November, later)
+
+Built on `LZL0/task-pickup`: `LZL0/gateways` (`80fc566`) with `main` merged in. The merge hides the board from a
+private conversation's Brain. Agents, teams, files both ways, Stop / Start / Check saved work, the Work box and card
+marks, Brain scoping and backups are done, with tests (`tests/server/boardwork.test.ts`, `taskboard.test.ts`,
+`api.test.ts`, `tests/web/tasks-board.test.tsx`).
+
+Where it differs from the plan below:
+- **Gateway files are untouched.** `LZL0/gateways` still gets new commits every few hours, so nothing was taken out of
+  it yet. `server/boardwork.ts` has its own completion reader, written like `gateways/execution.ts`.
+  `server/boardfiles.ts` has its own copy of the gateway file checks. Moving both into shared modules
+  (`assignments.ts`, `deliverables.ts`) is a follow-up once #112 lands.
+- **Two tools, not three**, and in the `core` group like the gateway file tools: `board_task` (read) and
+  `board_reply { text, files, status, reason }`. They check at run time that the run's conversation is the task's.
+  That avoids per-run tool groups, which team members' runs don't get.
+- **The latest brief in the task's conversation** settles it, not one fixed revision. Your comments reach the worker
+  as new messages and open a new revision, and the conversation belongs to that task only.
+- **A team starts in the background.** Picking a member can ask a model, so the card says Starting until the message
+  is posted. Comments passed on to a worker don't hold up the request either.
+- **Backups take task files up to 100 MB**, not 500 MB. A backup unpacks to at most 512 MB in all.
+- **Not built:**
+  - the card going back to In progress when the check finds the work unfinished after the worker said In review;
+  - "started working" entries between the comments (the Work box and the started message say it);
+  - the Brain as an assignee (open question 3).
 
 **Rewritten the same day to build on [Gateways](CHAT_GATEWAYS_2026-11-01.md) (`LZL0/gateways`, PR #112).** Gateways
 already hands a piece of outside work (a Telegram, Slack or Discord message) to the Brain, an agent or a team, gives it a
