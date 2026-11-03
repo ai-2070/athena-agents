@@ -1,0 +1,52 @@
+relay/whatsapp/README.md
+  s_3f5afab86a1bb3::t_3cb60a8d6d4c32 8-9,17,134-143
+  s_3f5afab86a1bb3::t_7d69385a2067f8 144
+tests/server/gateway-whatsapp-relay.test.ts
+  s_3f5afab86a1bb3::t_7e9ea5c7b51461 73-83
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_891465e8a67310 454-456
+  s_3f5afab86a1bb3::t_3cb60a8d6d4c32 47-48,421,435-453,457
+server/gateways/whatsapp-intake.ts
+  s_3f5afab86a1bb3::t_374e165fed0105 130-163
+  s_3f5afab86a1bb3::t_d6fe77336d3f6c 56-57
+  s_3f5afab86a1bb3::t_9814a2583ae036 3,7,18-19,21-22,25,27,30,32,34,73,97,109,111-129,166
+scripts/gateways-whatsapp-relay-smoke.ts
+  s_3f5afab86a1bb3::t_7e9ea5c7b51461 36,54,62,104-117,119
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_e4b213ce8d9ff5 4,16,44,57,158,569,685,694-698,701,704,773
+  s_3f5afab86a1bb3::t_d6fe77336d3f6c 195-196
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_7e9ea5c7b51461 15
+shared/types.ts
+  s_3f5afab86a1bb3::t_e4b213ce8d9ff5 142,196-203
+server/gateways/whatsapp-identities.ts
+  s_3f5afab86a1bb3::t_e4b213ce8d9ff5 1-44,50-61,63-88,91-95
+  s_3f5afab86a1bb3::t_2a0760797a7c49 45-46,48-49
+  s_3f5afab86a1bb3::t_d3d31d32a0e367 47,62,89-90
+tests/server/gateway-whatsapp-intake.test.ts
+  s_3f5afab86a1bb3::t_d3d31d32a0e367 189-199
+  s_3f5afab86a1bb3::t_2a0760797a7c49 268,299
+  s_3f5afab86a1bb3::t_2406fd4268c85e 12,35-38,66-159,162-186
+  s_3f5afab86a1bb3::t_41b7526b84232e 296
+  s_3f5afab86a1bb3::t_10663a8da86db0 187-188,200-213
+  s_3f5afab86a1bb3::t_d6fe77336d3f6c 160-161
+  s_3f5afab86a1bb3::t_27cc465a8cd32f 214-215
+relay/whatsapp/protocol.ts
+  s_3f5afab86a1bb3::t_9814a2583ae036 88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d8edc1fd46e38f83e93f5aad2bd56adf293a7fd0",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
