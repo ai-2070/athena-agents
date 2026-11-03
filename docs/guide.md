@@ -476,6 +476,13 @@ saved-session recovery after a failed inbox write, private downloads and selecte
 It uses no real account or platform messages. Discord setup, supervised connections and explicit
 recovery review are available for testing; real-account checks remain pending.
 
+The separate [WhatsApp relay and deployment guide](../relay/whatsapp/README.md) describes its
+one-phone-per-deployment scope, signature checks, one-time pairing, queue limits and explicit gap
+review/revocation. It keeps Athena's port private and stores no outbound Meta token or model keys.
+`bun run gateways:whatsapp-relay-smoke` proves the bundled Worker across separate local processes;
+no real deployment or account is used. WhatsApp remains unavailable in Athena while its local
+adapter, phone identity guards, media, service-window delivery and setup are still being built.
+
 ## License and credits
 
 Both are in the [README](../README.md#license).

@@ -247,6 +247,13 @@ server/channel scopes and an optional user-ID guard. A lost session stops intake
 requires pausing and an explicit acknowledgement before a fresh session can be enabled.
 Real-account and Windows/Linux checks remain pending.
 
+The separate [WhatsApp relay](relay/whatsapp/README.md) now has signed webhook intake, durable
+SQLite storage, one-time pairing, leased pull/ack recovery and revocation. `bun run relay:build`
+bundles the Worker; `bun run gateways:whatsapp-relay-smoke` checks two local Node/workerd processes
+and read-only Worker files with throwaway data. Deployment was checked with Wrangler's dry run;
+no real service was deployed. WhatsApp stays disabled in Athena until the local adapter, phone
+identity rules, files, replies and setup are implemented.
+
 The Eve runtime replacement is being developed separately from the current API engine. Building
 the runtime uses Bun 1.4 or newer. `bun run eve:build` builds it and `bun run eve:smoke` checks
 its private HTTP API, tool bridge, idle restart and file inputs with a fake model and throwaway data.

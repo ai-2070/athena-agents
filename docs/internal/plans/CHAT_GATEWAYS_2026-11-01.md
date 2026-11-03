@@ -382,11 +382,39 @@ New gateway data does not need a legacy compatibility layer.*
   credentials, scope fields, multiple bot drafts and deep links. The static UI detector returned no
   findings. Browser visual approval remains unavailable: no desktop/mobile capture surface was
   available, and the fresh finish review requested screenshots rather than issuing approval.
-- Next: implement the deployable WhatsApp relay and full intake/delivery, then finish unified
-  delivery and product controls. Read-only setup checks, native-work override controls and explicit webhook
-  switching still need product setup. Deleted instances retain private inbox receipts for recovery;
-  the full deletion flow for retired instances is pending. Real-account text/file checks on all four platforms
-  and platform verification on Windows/Linux remain outstanding. Offline checks run in CI.
+- Added the separate deployable `relay/whatsapp` Cloudflare Worker with SQLite-backed Durable
+  Objects. Webhook verification checks the challenge token; POST intake verifies the exact raw
+  HMAC-SHA256 bytes, configured business account/phone and supported message envelope before any
+  acceptance. One deployment serves one phone/provider setup; mixed-account signed batches fail
+  closed rather than exposing another installation's original body. Multiple WhatsApp instances
+  can use separate deployments. No dashboard port or local API is exposed by the relay.
+- The versioned relay protocol uses one-use ten-minute pairing codes, distinct administrative and
+  per-installation pull keys, one active 60-second consumer lease, ordered cursors and acknowledgements
+  tied to delivered envelope IDs. Bodies and cursor/replay mutations commit together in a SQL
+  transaction; a storage failure returns 503. Exact retries reuse their receipt; acknowledged bodies
+  are deleted from live storage while bounded replay hashes remain. The private envelope preserves
+  exact body bytes and the signature/Content-Type headers for later local verification, omitting
+  unrelated HTTP headers. The relay never holds an outbound Meta token, model key or local path.
+- Default relay limits are 72 hours, 1,000 pending bodies and 16 MiB of raw bytes, plus 10,000 replay
+  markers retained seven days. Overflow refuses acknowledgement. Alarms and request cleanup expire
+  content; expired unacknowledged data creates a durable gap and blocks further consumption until
+  explicit current-epoch administrative review. Revocation invalidates the pull key/lease, changes
+  epoch and removes queued raw bodies only after explicit acknowledgement. Provider backup/PITR
+  retention is documented separately from live deletion. Local intake must commit before ACK and
+  must not dispatch native work from an unconfirmed relay acknowledgement; integration remains next.
+- Pinned Miniflare `4.20260730.0` and Worker types `5.20261103.1` for isolated runtime/type checks.
+  The deployment guide includes the SQLite migration, secrets, provider scope, pairing, protocol,
+  quotas and recovery boundaries. Wrangler `4.156.2` deployment dry-run passed with a throwaway home
+  and no account credentials; no relay was deployed. Tests exercise real SQLite rollback, signature
+  and account refusal, pairing/lease isolation, capacity, retention gaps, revocation and runtime
+  restart. Separate Node/workerd processes also use a fully bundled read-only Worker outside the
+  checkout, preserving receipts across process boundaries without any provider account.
+- Next: implement the local WhatsApp Chat SDK adapter, required phone parsing/guards and verified
+  identity mappings, local media downloads, service-window replies/files and pairing/setup UI. Then
+  finish unified delivery and product controls. Read-only setup checks, native-work override controls
+  and explicit webhook switching still need product setup. Deleted instances retain private inbox
+  receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks
+  on all four platforms and Windows/Linux verification remain outstanding. Offline checks run in CI.
 
 ## Goal
 

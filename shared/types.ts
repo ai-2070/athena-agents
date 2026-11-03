@@ -21,6 +21,62 @@ export type GatewaySenderPolicy =
   | { platform: 'whatsapp'; allowedPhones: string[] }
   | { platform: 'slack' | 'discord'; allowedUserIds: string[] };
 
+/** Versioned protocol for the separate hosted WhatsApp relay. Not part of dashboard state. */
+export interface GatewayWhatsAppRelayLimits {
+  bodyBytes: number;
+  queueBytes: number;
+  queueEvents: number;
+  replayEntries: number;
+  retentionMs: number;
+  replayMs: number;
+  pairingMs: number;
+  leaseMs: number;
+  batchBytes: number;
+  batchEvents: number;
+}
+export interface GatewayWhatsAppRelayEnvelope {
+  sequence: number;
+  id: string;
+  receivedAt: number;
+  expiresAt: number;
+  bodyBase64: string;
+  signature: string;
+  contentType: string;
+}
+export interface GatewayWhatsAppRelayStatus {
+  version: 1;
+  installationId: string;
+  businessAccountId: string;
+  phoneNumberId: string;
+  epoch: string;
+  cursor: number;
+  gap: { at: number; through: number } | null;
+  limits: GatewayWhatsAppRelayLimits;
+  queuedEvents: number;
+  queuedBytes: number;
+}
+/** Private Durable Object metadata; plaintext pairing, client and lease keys are never stored. */
+export interface GatewayWhatsAppRelayState {
+  version: 1;
+  installationId: string;
+  businessAccountId: string;
+  phoneNumberId: string;
+  epoch: string;
+  nextSequence: number;
+  cursor: number;
+  lastAckId: string | null;
+  lastReceivedAt: number;
+  lostThrough: number;
+  gapAt: number | null;
+  tokenHash: string | null;
+  pairingHash: string | null;
+  pairingExpiresAt: number;
+  leaseHash: string | null;
+  leaseConsumer: string | null;
+  leaseExpiresAt: number;
+  deliveredThrough: number;
+}
+
 /** Browser-safe configuration. Credentials are stored separately and never included here. */
 export interface GatewayInstance {
   id: string;
