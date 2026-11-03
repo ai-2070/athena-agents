@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Chat } from 'chat';
 import type { Logger } from 'chat';
+import type { GatewayWhatsAppRelayStatus } from '../shared/types.ts';
 
 const proofRoot = process.env.ATHENA_WHATSAPP_MEDIA_PROOF_ROOT;
 if (!proofRoot) {
@@ -32,6 +33,7 @@ async function proof(): Promise<void> {
   const { WhatsAppGatewayAdapter } = await import('../server/gateways/whatsapp.ts');
   const { whatsAppTransport } = await import('../server/gateways/whatsapp-transport.ts');
   const { pairWhatsApp } = await import('../server/gateways/whatsapp-setup.ts');
+  const { inspectWhatsAppRecovery, reviewWhatsAppRecovery } = await import('../server/gateways/whatsapp-recovery.ts');
   const { WhatsAppRelayIntake } = await import('../server/gateways/whatsapp-intake.ts');
   const { GatewayInbox } = await import('../server/gateways/inbox.ts');
   const { GatewayStateAdapter } = await import('../server/gateways/state.ts');
@@ -169,6 +171,19 @@ async function proof(): Promise<void> {
       console.log('gateways: WhatsApp paired transport reconnect, replay dedupe and guarded delivery pass');
     } finally { await connectedReplies.stop(); await transport.stop(); }
     assert.equal(leased, false);
+    await state.connect(); saveGatewayInstance(config, instance.id);
+    const remote: GatewayWhatsAppRelayStatus = { ...metadata(), version: 1, cursor: 3, gap: { at: Date.now(), through: 5 } };
+    const check = { request: async (url: string, init: RequestInit) => {
+      assert.equal(url, `${connection.origin}/v1/status`); assert.equal(init.method, 'GET'); assert.equal(init.body, undefined);
+      assert.equal(new Headers(init.headers).get('authorization'), `Bearer ${'a'.repeat(64)}`); return Response.json(remote);
+    } };
+    const work = JSON.stringify(inbox.list()); const mappings = JSON.stringify(inbox.whatsAppRelayState()!.identities);
+    const observed = await inspectWhatsAppRecovery(inbox, check); assert.ok(observed.gap); assert.equal(observed.reason, 'gap');
+    await state.disconnect(); await state.connect(); remote.cursor = 5; remote.gap = null;
+    assert.deepEqual(await reviewWhatsAppRecovery(inbox, { revision: observed.gap.revision, acknowledgeGap: true }, check), { reason: null, gap: null });
+    assert.equal(JSON.stringify(inbox.list()), work); assert.equal(JSON.stringify(inbox.whatsAppRelayState()!.identities), mappings);
+    assert.equal(inbox.whatsAppRelayState()!.cursor, 5); assert.equal(inbox.whatsAppRelayState()!.reviewedGaps!.length, 1); assert.equal(posts.length, 6);
+    console.log('gateways: WhatsApp saved gap review survives restart and keeps prior work intact');
   } finally {
     await replies.stop(); await processor.stop(); await adapter.disconnect(); await chat.shutdown(); await state.disconnect();
     server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve()));

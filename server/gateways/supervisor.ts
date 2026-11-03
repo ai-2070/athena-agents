@@ -1,4 +1,4 @@
-import type { GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayWhatsAppSetup, ServerEvent } from '../../shared/types.ts';
+import type { GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayWhatsAppRecovery, GatewayWhatsAppSetup, ServerEvent } from '../../shared/types.ts';
 import { gatewayNeedsReview, gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { bus, emit, listProjects } from '../store.ts';
 import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.ts';
@@ -6,6 +6,7 @@ import { GatewayStateAdapter } from './state.ts';
 import { getGatewayInstance, listGatewayInstances } from './instances.ts';
 import { reviewDiscordRecovery } from './discord-recovery.ts';
 import { finishWhatsAppPairing, pairWhatsApp, reviewWhatsAppPairing } from './whatsapp-setup.ts';
+import { inspectWhatsAppRecovery, reviewWhatsAppRecovery } from './whatsapp-recovery.ts';
 import { claimGatewayAccount } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
 
@@ -111,10 +112,10 @@ export class GatewaySupervisor {
     this.pending = task.then(() => {}, () => {}); return task;
   }
 
-  private whatsAppSetupTask(instanceId: string, work: (inbox: GatewayInbox) => GatewayWhatsAppSetup | Promise<GatewayWhatsAppSetup>): Promise<GatewayWhatsAppSetup> {
+  private whatsAppSetupTask<T>(instanceId: string, work: (inbox: GatewayInbox) => T | Promise<T>): Promise<T> {
     const task = this.pending.then(async () => {
       const instance = getGatewayInstance(instanceId);
-      if (this.closed || instance.platform !== 'whatsapp' || instance.enabled) throw Object.assign(new Error('Pause this WhatsApp instance before changing its pairing.'), { status: 400 });
+      if (this.closed || instance.platform !== 'whatsapp' || instance.enabled) throw Object.assign(new Error('Pause this WhatsApp instance before changing its setup or recovery.'), { status: 400 });
       await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
       const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined;
       try {
@@ -135,6 +136,12 @@ export class GatewaySupervisor {
   }
   reviewWhatsAppPairing(instanceId: string, body: unknown): Promise<GatewayWhatsAppSetup> {
     return this.whatsAppSetupTask(instanceId, (inbox) => reviewWhatsAppPairing(inbox, body));
+  }
+  inspectWhatsAppRecovery(instanceId: string): Promise<GatewayWhatsAppRecovery> {
+    return this.whatsAppSetupTask(instanceId, (inbox) => inspectWhatsAppRecovery(inbox));
+  }
+  reviewWhatsAppRecovery(instanceId: string, body: unknown): Promise<GatewayWhatsAppRecovery> {
+    return this.whatsAppSetupTask(instanceId, (inbox) => reviewWhatsAppRecovery(inbox, body));
   }
 
   async selectDocuments(instanceId: string, eventId: string, body: unknown): Promise<void> {

@@ -7,6 +7,12 @@ import { Miniflare, Log, LogLevel } from 'miniflare';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { dataPath } from '../../server/util.ts';
 import type { GatewayWhatsAppRelayEnvelope, GatewayWhatsAppRelayStatus } from '../../shared/types.ts';
+import { GatewayInbox } from '../../server/gateways/inbox.ts';
+import { GatewayStateAdapter } from '../../server/gateways/state.ts';
+import { saveGatewayCredentials, saveGatewayInstance } from '../../server/gateways/instances.ts';
+import { WhatsAppRelayConsumer } from '../../server/gateways/whatsapp-relay.ts';
+import { inspectWhatsAppRecovery, reviewWhatsAppRecovery } from '../../server/gateways/whatsapp-recovery.ts';
+import { gatewayConfig } from './gateway-fixtures.ts';
 
 const exec = promisify(execFile); const opened: Miniflare[] = [];
 const BUSINESS = '100000000000001'; const PHONE = '200000000000001'; const SECRET = 'PRIVATE_META_APPLICATION_SECRET'; const ADMIN = 'PRIVATE_ADMIN_KEY_' + 'a'.repeat(40);
@@ -70,6 +76,36 @@ async function fixture(changes: Record<string, string> = {}, directory = path.jo
 }
 
 describe('hosted WhatsApp relay', () => {
+  it('reviews a real retained gap locally after remote administration without promoting a lost ACK or restarting saved work', async () => {
+    const f = await fixture(); const paired = await f.pair();
+    expect((await f.request('/v1/release', { token: paired.token, lease: paired.lease, body: { epoch: paired.epoch } })).status).toBe(200);
+    const config = { ...gatewayConfig(PHONE), platform: 'whatsapp', senderPolicy: { platform: 'whatsapp', allowedPhones: ['+436641234567'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] } };
+    const instance = saveGatewayInstance(config); saveGatewayCredentials(instance.id, { relayKey: paired.token, signingSecret: SECRET });
+    const state = new GatewayStateAdapter(instance.id); await state.connect(); const inbox = new GatewayInbox(state); let consumer: WhatsAppRelayConsumer | undefined; let loseAck = false;
+    const request = async (url: string, init: RequestInit): Promise<Response> => {
+      expect(new URL(url).origin).toBe('https://relay.test');
+      const result = await f.mf.dispatchFetch(url, { method: init.method, body: typeof init.body === 'string' ? init.body : undefined, headers: Object.fromEntries(new Headers(init.headers)), signal: init.signal });
+      if (loseAck && url.endsWith('/v1/ack')) throw new Error('Lost response after remote ACK commit');
+      return new Response(await result.arrayBuffer(), { status: result.status, headers: Object.fromEntries(result.headers) });
+    };
+    const send = (text: string) => f.webhook(payload(text).replaceAll('1800000000', String(Math.floor(Date.now() / 1000))));
+    try {
+      inbox.bindWhatsAppRelayConnection({ origin: 'https://relay.test', installationId: paired.installationId, businessAccountId: BUSINESS, phoneNumberId: PHONE, epoch: paired.epoch }, 0);
+      consumer = new WhatsAppRelayConsumer({ inbox, token: paired.token, appSecret: SECRET, request });
+      expect((await send('saved')).status).toBe(200); expect(await consumer.poll()).toBe(1);
+      loseAck = true; expect((await send('pending')).status).toBe(200); await expect(consumer.poll()).rejects.toThrow('could not connect'); await consumer.stop();
+      expect((await send('lost')).status).toBe(200); await f.control('expire'); saveGatewayInstance({ ...config, enabled: false }, instance.id);
+      const preview = await inspectWhatsAppRecovery(inbox, { request }); expect(preview.reason).toBe('gap'); expect(inbox.list()).toHaveLength(2);
+      expect((await f.admin('recovery', { epoch: paired.epoch, through: 3, acknowledgeGap: true })).status).toBe(200);
+      expect(await reviewWhatsAppRecovery(inbox, { revision: preview.gap!.revision, acknowledgeGap: true }, { request })).toEqual({ reason: null, gap: null });
+      expect(inbox.whatsAppRelayState()!.cursor).toBe(3); expect(inbox.list().every((event) => event.status === 'needs-review' && !event.operationId)).toBe(true); expect(inbox.list()[1].relay!.confirmed).toBe(false);
+      await state.disconnect(); await state.connect(); loseAck = false; saveGatewayInstance(config, instance.id);
+      consumer = new WhatsAppRelayConsumer({ inbox, token: paired.token, appSecret: SECRET, request });
+      expect((await send('fresh')).status).toBe(200); expect(await consumer.poll()).toBe(1);
+      expect(inbox.list()[2]).toMatchObject({ status: 'queued', relay: { sequence: 4, confirmed: true } }); expect(inbox.claimNext()).toBeNull();
+      expect(inbox.list()[1].relay!.confirmed).toBe(false);
+    } finally { await consumer?.stop(); await state.disconnect(); }
+  });
   it('retains signed user ID rotations only for the configured business phone', async () => {
     const f = await fixture(); const paired = await f.pair();
     const rotation = (phone = PHONE) => JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: BUSINESS, changes: [{ field: 'user_id_update', value: {

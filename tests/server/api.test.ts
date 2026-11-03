@@ -243,7 +243,7 @@ describe('gateway configuration API', () => {
     const text = await (await req(`${url}/whatsapp-setup`)).text(); expect(text).not.toContain('private-relay'); expect(text).not.toContain('b'.repeat(64)); expect(text).not.toContain(connection.epoch);
     const preview = JSON.parse(text) as GatewayWhatsAppSetup; expect(preview).toMatchObject({ paired: false, pending: { phase: 'received' } });
     const listing = await (await req('/api/gateways')).text(); expect(listing).not.toContain('whatsappPairing'); expect(listing).not.toContain('b'.repeat(64));
-    for (const suffix of ['/whatsapp-pairing', '/whatsapp-pairing/finish', '/whatsapp-pairing/review']) {
+    for (const suffix of ['/whatsapp-pairing', '/whatsapp-pairing/finish', '/whatsapp-pairing/review', '/whatsapp-recovery', '/whatsapp-recovery/inspect']) {
       expect((await req(url + suffix, { method: 'POST', body: '{}' })).status).toBe(403);
       expect((await req(url + suffix, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body: '{}' })).status).toBe(403);
     }
@@ -252,6 +252,13 @@ describe('gateway configuration API', () => {
     expect(await (await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body })).json()).toEqual({ paired: true, pending: null, recoveryRequired: false });
     expect((await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body })).status).toBe(409);
     expect((await req(`${url}/whatsapp-pairing`, { method: 'POST', headers: json, body: '{}' })).status).toBe(400);
+    const inboxFile = path.join(tmp, 'data', 'gateways-runtime', instance.id, 'inbox.json');
+    const inbox = JSON.parse(fs.readFileSync(inboxFile, 'utf8')) as { whatsappRelay: Record<string, unknown> };
+    inbox.whatsappRelay.recovery = { at: Date.now(), reason: 'gap' }; inbox.whatsappRelay.gapReview = { at: Date.now(), from: 0, through: 2, remoteCursor: 0 };
+    fs.writeFileSync(inboxFile, JSON.stringify(inbox));
+    const recoveryText = await (await req(`${url}/whatsapp-recovery`)).text(); expect(recoveryText).not.toContain('private-relay'); expect(recoveryText).not.toContain('cursor'); expect(recoveryText).not.toContain('b'.repeat(64));
+    expect(JSON.parse(recoveryText)).toMatchObject({ reason: 'gap', gap: { revision: expect.stringMatching(/^[a-f0-9]{64}$/) } });
+    expect((await req(`${url}/whatsapp-recovery`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeGap: true }) })).status).toBe(409);
     await req(url, { method: 'DELETE', headers: json });
     const other = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify({ ...config, accountId: '9500000002' }) })).json() as GatewayInstance;
     const current = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;

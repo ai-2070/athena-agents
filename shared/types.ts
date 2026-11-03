@@ -196,6 +196,13 @@ export interface GatewayWhatsAppIntakeState {
   identities?: GatewayWhatsAppIdentities;
   connection?: GatewayWhatsAppRelayConnection;
   recovery?: { at: number; reason: 'gap' | 'cursor' | 'epoch' | 'installation' | 'envelope' };
+  gapReview?: { at: number; from: number; through: number; remoteCursor: number };
+  reviewedGaps?: { at: number; gapAt: number; from: number; through: number; revision: string; receipt?: NonNullable<GatewayWhatsAppIntakeState['receipt']> }[];
+}
+
+export interface GatewayWhatsAppRecovery {
+  reason: NonNullable<GatewayWhatsAppIntakeState['recovery']>['reason'] | null;
+  gap: { at: number; revision: string } | null;
 }
 
 /** Private paired identity. Pull/lease tokens are stored separately or kept in memory. */

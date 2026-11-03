@@ -569,7 +569,29 @@ New gateway data does not need a legacy compatibility layer.*
   run hit an ownership-port collision and Miniflare oversized-request EPIPE; 139 focused tests and
   the full rerun passed. After the final malformed-receipt guard, type checks and 74 focused tests
   passed. Desktop staging, the web build and desktop smoke passed. No deployment or live account was used.
-- Next: implement WhatsApp Settings controls and explicit review of already paired relay gaps and
+- Added paused-only inspection and explicit local review of an observed retention gap. Inspection
+  uses only the saved origin/key and a bounded read-only status check; the exact installation,
+  business/phone, epoch and local receipt prefix must match. It saves the lost range, holds old work
+  and provides only the hold reason, date and opaque revision through a local preview. Review
+  requires a fresh authenticated status after separate operator administration: the gap must be gone
+  and the remote cursor must equal the exact observed end. Unknown advances, stale work/settings,
+  new gaps and changed identities are refused. No local action claims, pulls, ACKs or administers the relay.
+- Local cursor movement and a bounded audit commit atomically, retaining identity mappings, source
+  dedupe, operation IDs, files and confirmed reply prefixes. A skipped pending ACK moves into the
+  audit without confirming its envelope; its saved messages remain unconfirmed and held. Journal
+  validation rejects forged promotion into a confirmed receipt, even after later valid intake.
+  Existing ordering still blocks work behind unresolved earlier assignments/deliveries. A gap review
+  only restores intake; it neither releases those holds, enables the instance nor restarts work/sends.
+  Local history retains 1,000 reviews without eviction and then refuses further reviews.
+- Fixtures cover restarts, saved/unconfirmed ACKs, stale/changed gaps, read bounds and timeouts,
+  ownership, save failure and retained work/mappings. A real local SQLite Worker proof reviews a
+  retained gap after an ACK reply is lost; fresh intake resumes without confirming or replaying old
+  work. The Bun/Node and bundled read-only proof also reopens saved state before reviewing its gap
+  and preserves prior work. Non-gap receipt holds and identity/installation changes remain
+  blocked for restoration or separate recovery controls; no epoch or inbox replacement is implemented.
+- Validation: full type checks and 2,445 tests passed (one skipped) with CI's two-worker limit;
+  desktop staging, the web build and desktop smoke passed. No service was deployed or live account used.
+- Next: implement WhatsApp Settings and held-work controls, read-only setup checks, and recovery for
   identity/installation changes. Then
   finish unified delivery and product controls. Read-only setup checks, native-work override controls
   and explicit webhook switching still need product setup. Deleted instances retain private inbox

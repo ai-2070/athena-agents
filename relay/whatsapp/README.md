@@ -9,8 +9,9 @@ exact phone guards, verified identity mappings and durable acknowledgement gates
 integration proof. The local Chat SDK adapter also checks the configured Meta phone/business account
 and saves hash-verified private media. Guarded replies and selected document uploads enforce the
 service window. The application transport joins these pieces under the gateway worker, and a
-paused-only local API can pair a new instance. Settings and relay-gap recovery controls are still
-pending. Deploying this Worker does not enable a gateway.
+paused-only local API can pair a new instance and review an observed retention gap. Settings,
+held-work controls and recovery from changed installations are still pending. Deploying this Worker
+does not enable a gateway.
 
 Each deployment serves **one Meta Business app and one business phone**. Use a separate deployment
 for each WhatsApp instance. An original webhook body may contain several entries; forwarding such a
@@ -206,7 +207,7 @@ native agents keep their ordinary stop/recovery semantics. The worker drains del
 releases the remote lease, then releases SDK state and account ownership. Temporary outages honor relay retry times; invalid
 credentials require setup, and gaps or changed pairing metadata require explicit recovery review.
 Reconnect never clears a recovery marker or re-runs an interrupted assignment automatically.
-The product availability gate remains closed until Settings and relay-gap recovery controls are ready.
+The product availability gate remains closed until Settings and the remaining recovery controls are ready.
 
 ### Local pairing API
 
@@ -278,6 +279,39 @@ messages and explicitly reviews the current gap. Review advances past the affect
 removes any remaining bodies through that cursor; it invalidates the old lease. It never silently
 skips lost messages. The last 100 numerical administrative review/revocation records remain as a
 bounded audit. A revoked relay refuses new webhooks until it has been paired again.
+
+### Local review of an observed gap
+
+Pause the instance, then `POST /api/gateways/:id/whatsapp-recovery/inspect`. This checks only
+`GET /v1/status` at the saved origin with the saved pull key. It never claims, pulls, ACKs or calls
+administrative endpoints. The exact installation, business phone, epoch and local receipt prefix
+must still match. A real gap is saved locally with its lost range, and earlier work/delivery stays
+held. Requests and response bodies are bounded to ten seconds and 64 KiB; provider details are not
+returned. Setup must be fully saved before inspection.
+
+`GET /api/gateways/:id/whatsapp-recovery` is a local-only preview: it returns the hold reason and,
+when an observation exists, its date and opaque revision. It omits keys, origins, IDs and cursors.
+The revision changes with the saved work or instance settings. After checking missing messages,
+the relay operator must review that exact gap through `/admin/recovery`. Then send the current
+revision and `acknowledgeGap: true` to `POST /api/gateways/:id/whatsapp-recovery`. The local action
+checks a fresh authenticated status: the remote gap must be gone and its cursor must equal the
+previously observed end. It refuses stale previews, changed ranges, new gaps, foreign identities
+and epochs, and cursor advances without a saved observation. All local mutation routes use the
+normal `x-dash: 1`/cross-site guards and exclusive state/account ownership.
+
+The instance remains paused. The local cursor and audit commit atomically; identities, source
+dedupe, files, native operation IDs and confirmed delivery prefixes are retained. A pending ACK
+that the remote gap skipped is retained in the review audit. Its saved messages remain unconfirmed
+and held for a resend; a status cursor never becomes proof of their exact envelope ID. New intake
+can continue after explicit enable, but the existing conversation-order rule still blocks new work
+behind unresolved earlier work or deliveries. Clearing a gap does not resolve those assignments,
+retry a send or start another model run. Those product controls remain pending.
+
+The local journal keeps up to 1,000 gap reviews without eviction; a full history refuses another
+review. Non-gap receipt holds, identity/epoch changes and installation replacement need restoration
+or separate recovery controls. This flow cannot clear them, re-pair an existing inbox or replace
+its private conversation history. A gap already skipped remotely without a prior local observation
+also requires restoration rather than guessing the lost range.
 
 The relay necessarily sees webhook content and holds Meta's verification secret. Use a deployment
 whose operator you trust. The outbound Meta access token, model keys, files and dashboard sessions

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { GatewayDeliveryOutcome, GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, GatewayWhatsAppRelayConnection, UploadedFile } from '../../shared/types.ts';
+import type { GatewayDeliveryOutcome, GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, GatewayWhatsAppRecovery, GatewayWhatsAppRelayConnection, GatewayWhatsAppRelayStatus, UploadedFile } from '../../shared/types.ts';
 import { emit } from '../store.ts';
 import { readJSON, uid, writeJSON } from '../util.ts';
 import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
@@ -57,7 +57,9 @@ const replyPart = z.strictObject({ text: z.string().min(1).max(3000), status: z.
 const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
   version: z.literal(1), nextSequence: stamp.positive(),
   whatsappRelay: z.strictObject({ epoch: z.uuid(), cursor: stamp, receipt: intakeReceipt.optional(), identities: whatsAppIdentitiesSchema.optional(),
-    connection: whatsAppRelayConnectionSchema.optional(), recovery: relayRecovery.optional() }).optional(),
+    connection: whatsAppRelayConnectionSchema.optional(), recovery: relayRecovery.optional(),
+    gapReview: z.strictObject({ at: stamp, from: stamp, through: stamp, remoteCursor: stamp }).optional(),
+    reviewedGaps: z.array(z.strictObject({ at: stamp, gapAt: stamp, from: stamp, through: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/), receipt: intakeReceipt.optional() })).min(1).max(1000).optional() }).optional(),
   retired: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(100000).optional(),
   retiredAlbums: z.array(z.string().regex(/^[a-f0-9]{64}$/)).max(100000).optional(),
   retiredQuota: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), incomingBytes: stamp, outgoingBytes: stamp })).max(100000).optional(),
@@ -118,16 +120,37 @@ function replayReceiptsValid(journal: GatewayInboxJournal): boolean {
 
 function relayReceiptsValid(journal: GatewayInboxJournal): boolean {
   const state = journal.whatsappRelay; const receipt = state?.receipt;
+  const reviews = state?.reviewedGaps ?? [];
+  if (new Set(reviews.map((review) => review.revision)).size !== reviews.length || reviews.some((review, index) => !state || review.through <= review.from || review.through > state.cursor
+    || (index > 0 && reviews[index - 1].through > review.from) || (review.receipt && (review.receipt.epoch !== state.epoch || review.receipt.sequence !== review.from + (review.receipt.confirmed ? 0 : 1) || review.receipt.sequence > review.through)))) return false;
+  const gap = state?.gapReview;
+  if (gap && (state?.recovery?.reason !== 'gap' || gap.from !== state.cursor || gap.through <= gap.remoteCursor
+    || (gap.remoteCursor !== state.cursor && !(receipt && !receipt.confirmed && gap.remoteCursor === receipt.sequence)))) return false;
   if (state?.connection && (state.connection.epoch !== state.epoch || (state.identities && state.connection.businessAccountId !== state.identities.businessAccountId))) return false;
-  if (receipt && (receipt.epoch !== state?.epoch || receipt.sequence !== state.cursor + (receipt.confirmed ? 0 : 1))) return false;
+  if (receipt && (receipt.epoch !== state?.epoch || receipt.sequence !== state.cursor + (receipt.confirmed ? 0 : 1) || receipt.sequence <= (reviews.at(-1)?.through ?? 0))) return false;
   return journal.events.every((event) => {
     if (event.input.platform !== 'whatsapp') return !event.relay;
     const relay = event.relay;
-    if (!relay || !state || !receipt || relay.epoch !== state.epoch || (state.connection && state.connection.phoneNumberId !== event.input.accountId)) return false;
-    if (relay.confirmed) return relay.sequence <= state.cursor && (relay.sequence !== receipt.sequence || relay.id === receipt.id);
-    return receipt && !receipt.confirmed && relay.sequence === receipt.sequence && relay.id === receipt.id
+    if (!relay || !state || relay.epoch !== state.epoch || (state.connection && state.connection.phoneNumberId !== event.input.accountId)) return false;
+    if (relay.confirmed) return relay.sequence <= state.cursor && Boolean(receipt || reviews.some((review) => relay.sequence <= review.from))
+      && reviews.every((review) => relay.sequence <= review.from || relay.sequence > review.through)
+      && (relay.sequence !== receipt?.sequence || relay.id === receipt.id)
+      && reviews.every((review) => !review.receipt?.confirmed || review.receipt.sequence !== relay.sequence || review.receipt.id === relay.id);
+    const abandoned = reviews.some((review) => review.receipt && !review.receipt.confirmed && review.receipt.sequence === relay.sequence && review.receipt.id === relay.id);
+    return ((receipt && !receipt.confirmed && relay.sequence === receipt.sequence && relay.id === receipt.id) || (abandoned && event.status === 'needs-review'))
       && ['queued', 'waiting-files', 'needs-review'].includes(event.status) && !event.operationId && !event.dispatch && !event.fileBatch && !event.reply && !event.outgoing;
   });
+}
+
+function whatsAppGapRevision(instance: GatewayInstance, journal: GatewayInboxJournal): string {
+  // Object insertion order can change when the saved journal is parsed again.
+  const value = JSON.stringify([instance, journal], (_key, part: unknown) => part && typeof part === 'object' && !Array.isArray(part)
+    ? Object.fromEntries(Object.entries(part).sort(([one], [two]) => one < two ? -1 : one > two ? 1 : 0)) : part);
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+function whatsAppRecoveryView(instance: GatewayInstance, journal: GatewayInboxJournal | undefined): GatewayWhatsAppRecovery {
+  const state = journal?.whatsappRelay;
+  return { reason: state?.recovery?.reason ?? null, gap: state?.gapReview && journal ? { at: state.gapReview.at, revision: whatsAppGapRevision(instance, journal) } : null };
 }
 const albumDigest = (input: GatewayInbound) => digest([gatewayAlbumKey(input)!]);
 
@@ -158,6 +181,11 @@ function savedGatewayInbox(instanceId: string): GatewayInboxJournal | undefined 
 
 export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] { return savedGatewayInbox(instanceId)?.events ?? []; }
 export function savedWhatsAppRelayState(instanceId: string): GatewayWhatsAppIntakeState | undefined { return savedGatewayInbox(instanceId)?.whatsappRelay; }
+export function gatewayWhatsAppRecovery(instanceId: string): GatewayWhatsAppRecovery {
+  const instance = getGatewayInstance(instanceId);
+  if (instance.platform !== 'whatsapp') throw Object.assign(new Error('Choose a WhatsApp instance.'), { status: 400 });
+  return whatsAppRecoveryView(instance, savedGatewayInbox(instanceId));
+}
 
 /** Only inputs from verified transport normalizers may reach this journal. */
 export function gatewayInputAllowed(instance: GatewayInstance, input: GatewayInbound): boolean {
@@ -736,6 +764,40 @@ export class GatewayInbox {
     state.recovery = relayRecovery.parse({ at: Date.now(), reason });
     for (const event of journal.events) this.holdSource(event, 'Review the WhatsApp relay recovery before continuing.');
     this.commit(journal);
+  }
+
+  private whatsAppRecoveryState(journal: GatewayInboxJournal, remote: GatewayWhatsAppRelayStatus): GatewayWhatsAppIntakeState {
+    const instance = getGatewayInstance(this.state.instanceId); const saved = journal.whatsappRelay; const connection = saved?.connection;
+    if (instance.enabled || instance.platform !== 'whatsapp' || !saved || !connection || instance.accountId !== connection.phoneNumberId) throw Object.assign(new Error('Pause the paired WhatsApp instance before reviewing its relay.'), { status: 400 });
+    if (remote.installationId !== connection.installationId || remote.businessAccountId !== connection.businessAccountId || remote.phoneNumberId !== connection.phoneNumberId || remote.epoch !== connection.epoch
+      || remote.queuedEvents > 10000 || remote.queuedBytes > 67108864 || (!remote.queuedEvents && remote.queuedBytes)) throw Object.assign(new Error('The relay identity or queue changed. Restore the saved pairing before reviewing a gap.'), { status: 409 });
+    if (saved.recovery && saved.recovery.reason !== 'gap') throw Object.assign(new Error('This relay needs its saved receipt or pairing restored. A gap review cannot clear this hold.'), { status: 409 });
+    return saved;
+  }
+
+  observeWhatsAppGap(remote: GatewayWhatsAppRelayStatus): GatewayWhatsAppRecovery {
+    const journal = this.read(); const state = this.whatsAppRecoveryState(journal, remote);
+    if (!remote.gap) {
+      if (!state.gapReview || remote.cursor !== state.gapReview.through) throw Object.assign(new Error('No matching saved gap was found. Restore the relay and local receipts before continuing.'), { status: 409 });
+      return whatsAppRecoveryView(getGatewayInstance(this.state.instanceId), journal);
+    }
+    if ((state.reviewedGaps?.length ?? 0) >= 1000) throw Object.assign(new Error('The saved gap reviews need attention before another gap can be reviewed.'), { status: 409 });
+    if (remote.gap.through <= remote.cursor || (remote.cursor !== state.cursor && !(state.receipt && !state.receipt.confirmed && remote.cursor === state.receipt.sequence))) throw Object.assign(new Error('The relay cursor does not match the saved receipts. Restore them before reviewing this gap.'), { status: 409 });
+    state.recovery ??= { at: Date.now(), reason: 'gap' };
+    for (const event of journal.events) this.holdSource(event, 'Review the WhatsApp relay recovery before continuing.');
+    state.gapReview = { at: remote.gap.at, from: state.cursor, through: remote.gap.through, remoteCursor: remote.cursor };
+    this.commit(journal); return whatsAppRecoveryView(getGatewayInstance(this.state.instanceId), journal);
+  }
+
+  reviewWhatsAppGap(remote: GatewayWhatsAppRelayStatus, body: unknown): GatewayWhatsAppRecovery {
+    const journal = this.read(); const state = this.whatsAppRecoveryState(journal, remote); const gap = state.gapReview;
+    const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeGap: z.literal(true) }).safeParse(body);
+    if (!gap || !parsed.success || parsed.data.revision !== whatsAppGapRevision(getGatewayInstance(this.state.instanceId), journal)) throw Object.assign(new Error('This gap or its saved work changed. Reload and review it again.'), { status: 409 });
+    if (remote.gap || remote.cursor !== gap.through) throw Object.assign(new Error('Review this exact gap at the relay first. Its current cursor must match the saved lost range.'), { status: 409 });
+    if ((state.reviewedGaps?.length ?? 0) >= 1000) throw Object.assign(new Error('The saved gap reviews need attention before another gap can be reviewed.'), { status: 409 });
+    state.reviewedGaps = [...(state.reviewedGaps ?? []), { at: Date.now(), gapAt: gap.at, from: state.cursor, through: gap.through, revision: parsed.data.revision, ...(state.receipt ? { receipt: state.receipt } : {}) }];
+    state.cursor = gap.through; delete state.receipt; delete state.gapReview; delete state.recovery;
+    this.commit(journal); return whatsAppRecoveryView(getGatewayInstance(this.state.instanceId), journal);
   }
 
   /** All normalized messages, pinned routes and the batch outcome commit before remote ACK. */
