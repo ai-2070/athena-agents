@@ -119,6 +119,8 @@ switcher animates the header's text directly. It can move once those read from a
 
 ## C. Net: pairing, relay and the Android app
 
+*Superseded by [MOBILE_APP_2026-11-03.md](MOBILE_APP_2026-11-03.md), which turns this part into steps.*
+
 **Goal:** a phone (or another computer) reaches the dashboard over Net, end to end encrypted,
 without opening the server to the internet.
 
