@@ -67,7 +67,7 @@
     "@chat-adapter/discord": "4.44.0",
     "@chat-adapter/slack": "4.44.0",
     "@chat-adapter/telegram": "4.43.0",
-    "@chat-adapter/whatsapp": "4.43.0",
+    "@chat-adapter/whatsapp": "4.44.0",
     "@emoji-mart/data": "1.2.1",
     "@fontsource-variable/archivo": "5.3.0",
     "@fontsource-variable/cinzel": "5.3.0",
