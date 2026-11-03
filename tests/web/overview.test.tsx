@@ -300,4 +300,31 @@ describe('the Overview', () => {
     await settle();
     expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/p/p2/agents/host/open-workspace', body: { app: 'vscode' } });
   });
+
+  it('keeps your own order of sessions when you drag them (Sort: Your order), and remembers it', async () => {
+    localStorage.setItem('dash-overview-sort', 'mine');
+    await open();
+    const li = (name: string) => row('Bakery', name).closest('li')!;
+    const before = rows('Bakery');
+    // a drag carries what is dragged (happy-dom leaves dataTransfer out)
+    const carried = new Map<string, string>();
+    const dragEvent = (type: string) => {
+      const e = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'dataTransfer', { value: { effectAllowed: '', types: [...carried.keys()], setData: (k: string, v: string) => carried.set(k, v), getData: (k: string) => carried.get(k) || '' } });
+      Object.defineProperty(e, 'clientY', { value: 0 });
+      return e;
+    };
+    await act(async () => void li('The Brain').dispatchEvent(dragEvent('dragstart')));
+    await act(async () => void li(before[0]).dispatchEvent(dragEvent('dragover')));
+    await act(async () => void li(before[0]).dispatchEvent(dragEvent('drop')));
+    expect(rows('Bakery')[0]).toBe('The Brain');
+    act(() => overview.unmount());
+    await open();
+    expect(rows('Bakery')[0]).toBe('The Brain');
+    // other sorts don't drag
+    localStorage.setItem('dash-overview-sort', 'name');
+    act(() => overview.unmount());
+    await open();
+    expect(li('Writer').getAttribute('draggable')).toBeNull();
+  });
 });

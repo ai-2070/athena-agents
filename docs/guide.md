@@ -120,10 +120,10 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 
 **Overview** in the sidebar shows every project at once. Each project lists its agents, its teams, the Brain, its terminals and the board tasks an agent or team works on. Each one shows how it's doing: a small breathing dot while it works, and an amber **!** when it needs you. That means an approval, a question it asked you, or work that stopped and waits for you; point at the **!** to see which.
 
-- **Show** picks **This project**, **All projects** or one project. **Sort** puts the ones that need you first (the default), or orders them by last update, by kind or by name.
+- **Show** picks **This project**, **All projects** or one project. **Sort** puts the ones that need you first (the default), or orders them by last update, by kind, by name, or in **Your order**: then drag them up and down within their project.
 - The star next to one pins it to the top of its project. Click a project's name to fold it. **Search** narrows the list by name.
 - **Needs you** and **Working now** list them across what is shown, with **Open** next to each. The line at the bottom counts them: "2 need you · 4 of 7 working · 3 projects".
-- Clicking an agent, a team or a terminal opens it on the strip, beside the others, whichever project it is in: you can write to an agent or a team of another project without opening that project (its pane says which project it is, and the files you attach go to that project). A task opens on its page. The Brain of another project asks first, then opens that project and its Brain.
+- Clicking an agent, a team or a terminal opens it on the strip, beside the others, whichever project it is in: you can write to an agent or a team of another project without opening that project (its pane says which project it is, the files you attach go to that project, and the files it mentions show their previews). A task opens on its page. The Brain of another project asks first, then opens that project and its Brain.
 - If you copied a project, its agents have the same ids as the original's: one of a copy can't sit on the strip while the original's project is open. Open its project to use it.
 - Your choices (what is shown, the sort, pins, folded projects) are remembered in this browser.
 

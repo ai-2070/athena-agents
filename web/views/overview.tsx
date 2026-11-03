@@ -27,7 +27,19 @@ import { PER_VIEW_MAX, PER_VIEW_MIN, STACK_MAX, closePane, dropPane, evenOut, lo
 import type { PaneRef, StripLayout } from '../overviewlayout.ts';
 import type { BoardStatus, FolderListing, OverviewData, OverviewProject, OverviewSession, TaskBoardData } from '../../shared/types.ts';
 
-type Sort = 'needs' | 'recent' | 'kind' | 'name';
+type Sort = 'needs' | 'recent' | 'kind' | 'name' | 'mine';
+const ORDER_KEY = 'dash-overview-order';
+/** Your own order of each project's sessions (Sort: Your order), as kind/id keys. */
+type Order = Record<string, string[]>;
+const readOrder = (): Order => {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(ORDER_KEY) || '{}');
+    return v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter((e): e is [string, string[]] => Array.isArray(e[1]) && e[1].every((x) => typeof x === 'string'))) : {};
+  } catch {
+    return {};
+  }
+};
+const rowKey = (s: Pick<OverviewSession, 'kind' | 'id'>) => `${s.kind}/${s.id}`;
 const SCOPE_KEY = 'dash-overview-scope';
 const SORT_KEY = 'dash-overview-sort';
 const PINS_KEY = 'dash-overview-pins';
@@ -67,13 +79,18 @@ const readSet = (key: string): Set<string> => {
 const saveSet = (key: string, set: Set<string>) => localStorage.setItem(key, JSON.stringify([...set]));
 const label = (s: OverviewSession) => (s.kind === 'task' ? `${taskKey(s.number || 0)} ${s.name}` : s.name);
 
-/** The sessions in the order the sort asks for, pinned ones first. */
-export function sortSessions(list: OverviewSession[], sort: Sort, pinned: (s: OverviewSession) => boolean): OverviewSession[] {
+/** The sessions in the order the sort asks for, pinned ones first. mine: your order (new ones after it, by kind). */
+export function sortSessions(list: OverviewSession[], sort: Sort, pinned: (s: OverviewSession) => boolean, mine: string[] = []): OverviewSession[] {
+  const place = (s: OverviewSession) => {
+    const i = mine.indexOf(rowKey(s));
+    return i < 0 ? mine.length + KIND_ORDER[s.kind] : i;
+  };
   const by: Record<Sort, (a: OverviewSession, b: OverviewSession) => number> = {
     needs: (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || b.updatedAt - a.updatedAt,
     recent: (a, b) => b.updatedAt - a.updatedAt,
     kind: (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.name.localeCompare(b.name),
     name: (a, b) => a.name.localeCompare(b.name),
+    mine: (a, b) => place(a) - place(b),
   };
   return [...list].sort((a, b) => +pinned(b) - +pinned(a) || by[sort](a, b) || a.name.localeCompare(b.name));
 }
@@ -96,10 +113,21 @@ function OverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [error, setError] = useState('');
   const [scope, setScope] = useState(() => localStorage.getItem(SCOPE_KEY) || 'all');
-  const [sort, setSort] = useState<Sort>(() => (['needs', 'recent', 'kind', 'name'].includes(localStorage.getItem(SORT_KEY) || '') ? localStorage.getItem(SORT_KEY) as Sort : 'needs'));
+  const [sort, setSort] = useState<Sort>(() => (['needs', 'recent', 'kind', 'name', 'mine'].includes(localStorage.getItem(SORT_KEY) || '') ? localStorage.getItem(SORT_KEY) as Sort : 'needs'));
   const [pins, setPins] = useState(() => readSet(PINS_KEY));
   const [folded, setFolded] = useState(() => readSet(FOLDED_KEY));
   const [search, setSearch] = useState('');
+  const [order, setOrder] = useState(readOrder);
+  /** Puts a dragged session before or after another in its project (Your order). */
+  const reorder = (p: OverviewProject, sessions: OverviewSession[], from: string, onto: string, after: boolean) => setOrder((was) => {
+    const keys = sessions.map(rowKey).filter((k) => k !== from);
+    const at = keys.indexOf(onto);
+    if (at < 0) return was;
+    keys.splice(after ? at + 1 : at, 0, from);
+    const next = { ...was, [p.id]: keys };
+    localStorage.setItem(ORDER_KEY, JSON.stringify(next));
+    return next;
+  });
   const [panel, setPanel] = useState<PanelId | null>(() => (PANELS.some((x) => x.id === localStorage.getItem(PANEL_KEY)) ? localStorage.getItem(PANEL_KEY) as PanelId : null));
   const togglePanel = (id: PanelId) => setPanel((was) => {
     const next = was === id ? null : id;
@@ -195,7 +223,7 @@ function OverviewPage() {
     return one.length ? one : data.projects;
   }, [data, scope]);
   const q = search.trim().toLowerCase();
-  const shown = projects.map((p) => ({ p, sessions: sortSessions(p.sessions.filter((s) => !q || `${label(s)} ${p.name}`.toLowerCase().includes(q)), sort, (s) => pins.has(sessionKey(p, s))) }));
+  const shown = projects.map((p) => ({ p, sessions: sortSessions(p.sessions.filter((s) => !q || `${label(s)} ${p.name}`.toLowerCase().includes(q)), sort, (s) => pins.has(sessionKey(p, s)), order[p.id]) }));
   const all = projects.flatMap((p) => p.sessions.map((s) => ({ p, s })));
   const needing = all.filter(({ s }) => s.status === 'needs-you');
   const working = all.filter(({ s }) => s.status === 'working');
@@ -234,6 +262,7 @@ function OverviewPage() {
     { value: 'recent', label: 'Last update' },
     { value: 'kind', label: 'By kind' },
     { value: 'name', label: 'By name' },
+    { value: 'mine', label: 'Your order (drag)' },
   ];
   const open = (p: OverviewProject, s: OverviewSession) => void openSession(p, s);
   const panes = layout ? panesInOrder(layout).length : 0;
@@ -261,6 +290,7 @@ function OverviewPage() {
             onOpen={(s) => open(p, s)}
             onNewTerminal={p.id === data.active ? () => void newTerminal() : undefined}
             shownAsPane={(s) => !!layout && panesInOrder(layout).some((x) => x.projectId === p.id && x.kind === s.kind && x.id === s.id)}
+            onMove={sort === 'mine' && !q ? (from, onto, after) => reorder(p, sessions, from, onto, after) : undefined}
           />
         ))}
         {q && !shown.some((x) => x.sessions.length) ? <p className="m-0 px-3 py-2 text-[12.5px] text-faint">Nothing matches "{search.trim()}".</p> : null}
@@ -317,7 +347,7 @@ function OverviewPage() {
 }
 
 // ---------- the sidebar ----------
-function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPin, onOpen, onNewTerminal, shownAsPane }: {
+function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPin, onOpen, onNewTerminal, shownAsPane, onMove }: {
   project: OverviewProject;
   sessions: OverviewSession[];
   open: boolean;
@@ -328,6 +358,8 @@ function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPi
   onOpen: (s: OverviewSession) => void;
   onNewTerminal?: () => void;
   shownAsPane: (s: OverviewSession) => boolean;
+  /** Your order: a row dragged onto another goes before it (upper half) or after it */
+  onMove?: (from: string, onto: string, after: boolean) => void;
 }) {
   const summary = [p.needsYou ? `${p.needsYou} need${p.needsYou === 1 ? 's' : ''} you` : '', p.working ? `${p.working} working` : ''].filter(Boolean).join(' · ') || 'idle';
   return (
@@ -348,7 +380,7 @@ function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPi
       </div>
       {folded ? null : (
         <ul className="m-0 flex list-none flex-col p-0">
-          {sessions.map((s) => <SessionRow key={`${s.kind}/${s.id}`} session={s} pinned={pinned(s)} shown={shownAsPane(s)} onPin={() => onPin(s)} onOpen={() => onOpen(s)} />)}
+          {sessions.map((s) => <SessionRow key={rowKey(s)} session={s} pinned={pinned(s)} shown={shownAsPane(s)} onPin={() => onPin(s)} onOpen={() => onOpen(s)} onMove={onMove ? (from, after) => onMove(from, rowKey(s), after) : undefined} />)}
         </ul>
       )}
     </section>
@@ -371,9 +403,38 @@ function SessionStatus({ session: s }: { session: OverviewSession }) {
   return null;
 }
 
-function SessionRow({ session: s, pinned, shown, onPin, onOpen }: { session: OverviewSession; pinned: boolean; shown: boolean; onPin: () => void; onOpen: () => void }) {
+const ROW_DRAG = 'text/x-overview-session';
+function SessionRow({ session: s, pinned, shown, onPin, onOpen, onMove }: { session: OverviewSession; pinned: boolean; shown: boolean; onPin: () => void; onOpen: () => void; onMove?: (from: string, after: boolean) => void }) {
+  const [over, setOver] = useState<'before' | 'after' | null>(null);
+  const half = (e: ReactDragEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return e.clientY - r.top > r.height / 2 ? 'after' : 'before';
+  };
+  const drag = onMove
+    ? {
+        draggable: true,
+        onDragStart: (e: ReactDragEvent<HTMLLIElement>) => {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData(ROW_DRAG, rowKey(s));
+        },
+        onDragOver: (e: ReactDragEvent<HTMLLIElement>) => {
+          if (!e.dataTransfer.types.includes(ROW_DRAG)) return;
+          e.preventDefault();
+          setOver(half(e));
+        },
+        onDragLeave: () => setOver(null),
+        onDrop: (e: ReactDragEvent<HTMLLIElement>) => {
+          const from = e.dataTransfer.getData(ROW_DRAG);
+          const where = half(e);
+          setOver(null);
+          if (!from || from === rowKey(s)) return;
+          e.preventDefault();
+          onMove(from, where === 'after');
+        },
+      }
+    : {};
   return (
-    <li className={`group relative flex items-center gap-2 rounded-ctl pr-1.5 pl-4 hover:bg-ink/4 ${shown ? 'bg-ink/4' : ''}`}>
+    <li {...drag} className={`group relative flex items-center gap-2 rounded-ctl pr-1.5 pl-4 hover:bg-ink/4 ${shown ? 'bg-ink/4' : ''} ${onMove ? 'cursor-grab' : ''} ${over === 'before' ? 'shadow-[inset_0_2px_0_var(--color-accent)]' : over === 'after' ? 'shadow-[inset_0_-2px_0_var(--color-accent)]' : ''}`}>
       <button type="button" className="session-open flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent py-1.5 text-left text-[13px] text-ink" title={s.why || (s.updatedAt ? `Last change ${ago(s.updatedAt)}` : '')} aria-current={shown ? 'true' : undefined} onClick={onOpen}>
         <SessionMark session={s} />
         <span className="session-name min-w-0 flex-1 truncate">{label(s)}</span>

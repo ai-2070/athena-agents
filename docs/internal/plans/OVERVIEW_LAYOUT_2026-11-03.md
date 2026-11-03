@@ -12,7 +12,8 @@ project (`scopedRoute` in `server/index.ts`; other routes refuse it). The page s
 the project that has them. There is one strip for every project. Left as they are:
 - An agent or team with the same id in the open project (a copied project) can't sit on the strip; the page says so.
 - The Brain of another project still opens that project first. Its chat is the dock, which is the open project's.
-- File previews in another project's chat (`/api/file`) only show files the open project allows.
+- (Fixed since: files of another project are shown and looked up through that project, chosen by the folder that
+  holds them: `filesAt()` in `web/client/connection.ts`.)
 
 **Step 2 is built too**: the strip for the open project, with terminals
 (`web/overviewlayout.ts` for the layout, `web/terminalview.tsx` shared with the Terminals page, `Terminal.projectId`).
@@ -21,7 +22,7 @@ are in. A pane's header shows its status; Open folder in VS Code comes with step
 
 **Step 1 is built** (`LZL0/overview`): `GET /api/overview` (`server/overview.ts`), the page
 (`web/views/overview.tsx`) with the sidebar, Needs you and Working now, and the status line. Approvals now say their
-project. The old hidden Overview page (`#/home`) is called Home. Not in step 1 yet: dragging your own order, and events
+project. The old hidden Overview page (`#/home`) is called Home. Your own order (drag) came later. Not built: events
 that carry `projectId` (the page reads the overview again, a moment after any change that matters).
 
 **Decided (3 November):**
