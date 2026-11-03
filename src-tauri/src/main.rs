@@ -8,6 +8,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod look;
 mod tray;
 mod updater;
 
@@ -63,6 +64,9 @@ fn main() {
         .setup(|app| {
             let handle = app.handle().clone();
             build_window(&handle)?;
+            if let Ok(data) = data_dir(&handle) {
+                look::watch(handle.clone(), data.join("settings.json"));
+            }
             tray::start(&handle);
             start_server(&handle);
             updater::start(&handle);
@@ -89,7 +93,11 @@ fn main() {
 fn build_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let nav_app = app.clone();
     let popup_app = app.clone();
-    WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
+    let mut builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()));
+    if look::PAGE_ZOOM {
+        builder = builder.initialization_script(look::INIT_SCRIPT);
+    }
+    builder
         .title("Athena Agents")
         .inner_size(1440.0, 900.0)
         .min_inner_size(900.0, 600.0)
@@ -238,6 +246,15 @@ fn start_server(app: &AppHandle) {
     thread::spawn(move || watch_server(app, generation, port));
 }
 
+/// Where chats, agents, keys and settings live; set DASH_DATA to use another folder.
+fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    match std::env::var_os("DASH_DATA") {
+        // made whole here: it is also the server's working folder, where a relative one would be read again
+        Some(d) => std::path::absolute(PathBuf::from(d)).map_err(|e| e.to_string()),
+        None => Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("data")),
+    }
+}
+
 fn spawn_server(app: &AppHandle, port: u16) -> Result<Child, String> {
     let paths = app.path();
     let app_dir = paths.resource_dir().map_err(|e| e.to_string())?.join("app");
@@ -246,12 +263,7 @@ fn spawn_server(app: &AppHandle, port: u16) -> Result<Child, String> {
         return Err(format!("{} is missing. Reinstall the app.", script.display()));
     }
     let bun = sidecar("bun")?;
-    // where chats, agents, keys and settings live; set DASH_DATA to use another folder
-    let data = match std::env::var_os("DASH_DATA") {
-        // made whole here: it is also the server's working folder, where a relative one would be read again
-        Some(d) => std::path::absolute(PathBuf::from(d)).map_err(|e| e.to_string())?,
-        None => paths.app_data_dir().map_err(|e| e.to_string())?.join("data"),
-    };
+    let data = data_dir(app)?;
     fs::create_dir_all(&data).map_err(|e| format!("could not create {}: {e}", data.display()))?;
 
     let log = log_file(app).ok_or("no folder for the log")?;

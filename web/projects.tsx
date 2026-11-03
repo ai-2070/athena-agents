@@ -91,7 +91,7 @@ function askDeleteProject(name: string): Promise<boolean> {
           <div className="modal-body">
             <div className="text-[14px] leading-[1.65] text-ink [&_p]:mb-3 [&_p:last-child]:mb-0">
               <p>{`Delete the project "${name}"?`}</p>
-              <p className="hint">First a backup is made in My Dashboard Backups and checked. Only if it is complete is the project removed: its agents, teams, chats and settings leave the dashboard (set aside on this PC, not erased). The project's own folder and files are not touched.</p>
+              <p className="hint">First a backup is made in Athena Agents Backups and checked. Only if it is complete is the project removed: its agents, teams, chats and settings leave the dashboard (set aside on this PC, not erased). The project's own folder and files are not touched.</p>
             </div>
           </div>
           <div className="modal-foot">

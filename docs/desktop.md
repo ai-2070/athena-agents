@@ -55,6 +55,34 @@ The window only shows the dashboard and its start page. Other `http(s)`/`mailto`
 window (`target=_blank`, `window.open`) open in the default browser; other schemes (`file:`…) are dropped.
 A second launch shows and focuses the open window. Size and position are remembered.
 
+### What the window takes from Settings › Appearance
+
+The page has no IPC, so `src-tauri/src/look.rs` reads `settings.json` in the data folder, and reads it
+again whenever it changes:
+
+- **Light or dark** sets the window's own theme, so the title bar matches the page.
+- **UI scale**, on macOS and Linux. In a browser the page scales itself with CSS `zoom`. WebKit, which
+  the window uses there, gets sizes and positions wrong under CSS zoom: popups run off the window and the
+  page stops short of its edges. So the window zooms the page itself, like ⌘+ in a browser, and an
+  initialization script sets `window.__athenaPageZoom` so the page leaves CSS zoom off (`windowZooms()` in
+  `web/look.ts`). On Windows the window is WebView2 (Chromium), where the page's own zoom works.
+
+### Older WebKit
+
+On macOS the window is the system's WebKit, which can be as old as Safari 16.4 (macOS 13 without Safari
+updates). The page has to work there too:
+
+- `scripts/build-css.ts` writes out `light-dark()` (Safari 17.5+) as variables; `lightDark()` in
+  `web/theme.ts` does the same for colours set from code. Don't write `light-dark(` in inline styles.
+- Safari has no `field-sizing`, so `web/autosize.ts` sizes the message boxes as you type.
+- Try a change in WebKit, not just Chrome: Safari on the same Mac uses the same engine.
+
+### The macOS icon
+
+`icon.icns` is drawn on Apple's icon grid (an 824-pixel tile with a shadow in 1024), the way other Dock
+icons are; the other platforms' icons are the full-bleed picture. `bunx tauri icon` would overwrite it, so
+run `swift scripts/mac-icon.swift src-tauri/icons/artwork-1024.png src-tauri/icons/icon.icns` after it.
+
 ### Keep in mind when changing the server
 
 The staged app includes the default API engine's Eve runtime in `app/runtime/eve/`, its attachment

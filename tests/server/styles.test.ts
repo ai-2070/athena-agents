@@ -29,6 +29,11 @@ describe('the stylesheet', () => {
     expect(css).toMatch(/\.text-dim\s*\{/);
     // the hidden class beats display utilities
     expect(css).toMatch(/\.hidden\s*\{[^}]*display:\s*none\s*!important/);
+    // Safari before 17.5 (the macOS 13 desktop app) has no light-dark(): it's written out for it,
+    // and the two tones follow the colour scheme the page is in
+    expect(css).not.toContain('light-dark(');
+    expect(css).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--lightningcss-dark:\s*initial/);
+    expect(css).toMatch(/:root\[data-theme="light"\]\s*\{[^}]*--lightningcss-light:\s*initial/);
   }, 60_000);
 
   it('has no class names built from pieces (Tailwind reads the source text)', () => {

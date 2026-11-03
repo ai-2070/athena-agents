@@ -23,7 +23,7 @@ export interface Accent {
 export const ACCENTS: Accent[] = [
   { id: 'aegean', label: 'Aegean', light: { c: '#18688e', hover: '#125574', dim: '#347a9a', on: '#ffffff' }, dark: { c: '#7cbad5', hover: '#9dcfe3', dim: '#4289a9', on: '#061923' } },
   { id: 'olive', label: 'Olive', light: { c: '#5a7d2b', hover: '#496624', dim: '#86a45a', on: '#ffffff' }, dark: { c: '#a3c45d', hover: '#b8d37b', dim: '#738f3f', on: '#10170a' } },
-  { id: 'gold', label: 'Gold', light: { c: '#9a6410', hover: '#82530b', dim: '#c0913f', on: '#ffffff' }, dark: { c: '#e8b95f', hover: '#f0cb84', dim: '#a9833b', on: '#1a1204' } },
+  { id: 'gold', label: 'Gold', light: { c: '#a87500', hover: '#956700', dim: '#cba041', on: '#1a1204' }, dark: { c: '#e8b95f', hover: '#f0cb84', dim: '#a9833b', on: '#1a1204' } },
   { id: 'terracotta', label: 'Terracotta', light: { c: '#c0502f', hover: '#a7421f', dim: '#d98369', on: '#ffffff' }, dark: { c: '#f19272', hover: '#f5ab8f', dim: '#b2674d', on: '#1c0b05' } },
   { id: 'amethyst', label: 'Amethyst', light: { c: '#7c4dcc', hover: '#6a3ab8', dim: '#a283dd', on: '#ffffff' }, dark: { c: '#b69cff', hover: '#cbb8ff', dim: '#7f69c2', on: '#120c24' } },
   { id: 'slate', label: 'Slate', light: { c: '#33343c', hover: '#1f2026', dim: '#6e6f7a', on: '#ffffff' }, dark: { c: '#d5d7de', hover: '#ffffff', dim: '#8a8c97', on: '#111216' } },
@@ -39,6 +39,10 @@ let current: LookSetting = DEFAULT_LOOK;
 /** The look in use now (the Station reads its quality from here every frame). */
 export const currentLook = (): LookSetting => current;
 const KEY = 'dash-look';
+
+/** True in the desktop app on WebKit (macOS, Linux): the window applies the UI scale, the way the browser's own zoom
+ *  does, because WebKit places popups wrongly under CSS zoom. The app says so before the page's scripts run. */
+export const windowZooms = (): boolean => (window as { __athenaPageZoom?: unknown }).__athenaPageZoom === true;
 
 // With a UI scale, mouse and box positions are in screen pixels but CSS pixels are scaled:
 // divide by this when placing a popup at the mouse or next to a button.
@@ -62,7 +66,8 @@ export function applyLook(look: Partial<LookSetting> = {}): LookSetting {
   applyTheme(l.theme);
   const root = document.documentElement;
   const scale = Math.max(70, Math.min(160, Number(l.scale) || 100));
-  root.style.zoom = scale === 100 ? '' : String(scale / 100);
+  // the desktop app on macOS and Linux zooms the whole page itself (src-tauri/src/look.rs)
+  root.style.zoom = scale === 100 || windowZooms() ? '' : String(scale / 100);
   paintAccent(l.accent);
   root.classList.toggle('reduce-motion', l.motion === 'reduced');
   const font = chatFont(l.chatFont);

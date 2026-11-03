@@ -119,7 +119,14 @@ export function internalToken(): string {
 // A project has its own agents, branches, runs and chats (data/projects/<id>/) and a Brain:
 // a real folder with the project's files, notes and (optionally) its GitHub repo.
 const PROJECTS_FILE = dataPath('projects.json');
-const DEFAULT_PROJECT = (): Project => ({ id: 'default', name: 'My workspace', brainPath: path.join(HOME, 'Documents', 'Blacksite', 'My workspace'), repo: '', createdAt: Date.now() });
+const DEFAULT_PROJECT = (): Project => ({ id: 'default', name: 'My workspace', brainPath: defaultBrain(), repo: '', createdAt: Date.now() });
+// The default project's folder. One made when the app was called Blacksite is used if it's there, so a
+// fresh profile (the desktop app beside the browser version) still finds the copy saved in it.
+function defaultBrain(): string {
+  const now = path.join(HOME, 'Documents', 'Athena Agents', 'My workspace');
+  const before = path.join(HOME, 'Documents', 'Blacksite', 'My workspace');
+  return !exists(now) && exists(before) ? before : now;
+}
 
 let madeDefault = false;
 export function listProjects(): Project[] {

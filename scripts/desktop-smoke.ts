@@ -43,7 +43,7 @@ function fail(msg: string): never {
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-smoke-'));
 const data = path.join(tmp, 'data');
-// a home of its own too: the default project's folder is <home>/Documents/Blacksite, and its auto-save
+// a home of its own too: the default project's folder is <home>/Documents/Athena Agents, and its auto-save
 // must never touch yours
 const home = path.join(tmp, 'home');
 fs.mkdirSync(data);

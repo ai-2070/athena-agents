@@ -24,9 +24,11 @@ import { initDock } from './dock.tsx';
 import { mountDrawerQuestions } from './questions.tsx';
 import { guardPageDrops } from './attach.tsx';
 import { applyLook, applySavedLook } from './look.ts';
+import { autosizeTextareas } from './autosize.ts';
 import { navLimits, panelSwitch, sidebarPanel } from './navlimits.tsx';
 
 applySavedLook();
+autosizeTextareas();
 import { icon, logo } from './icons.ts';
 import { REPO } from '../shared/about.ts';
 import { openProjectMenu, openLauncher } from './projects.tsx';

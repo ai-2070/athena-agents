@@ -206,7 +206,7 @@ More: [Approvals and safety](docs/guide.md#approvals-and-safety).
 
 - **`data/`** (git-ignored) holds projects, agents, teams, chats, knowledge, MEMORY.md files, skills, presets, settings, the Outbox and activity. The desktop app uses its own data folder.
 - Each project folder also gets a **`.dashboard`** copy of its agents, teams, routines, chats, memories and the skills it uses, so opening that folder as a project brings the state back. These copies hold no keys or account tokens, but they do hold what you put in chats, knowledge files, memories and skills.
-- **Project menu → Back up this project** writes a `.dashbackup` file under `Blacksite Backups` in your home folder; **New project → Backup** restores it as a new project, with schedules paused. Neither includes your working files.
+- **Project menu → Back up this project** writes a `.dashbackup` file under `Athena Agents Backups` in your home folder; **New project → Backup** restores it as a new project, with schedules paused. Neither includes your working files.
 - **History** on a skill, agent, team or MEMORY.md compares earlier versions (the last 50 per item) and restores them.
 
 More: [Save and restore](docs/guide.md#save-and-restore).

@@ -348,7 +348,8 @@ details.compaction .hint.warn { color: var(--color-amber); }
 .approval.question textarea { min-height: 0; margin: 0; }
 
 /* ---------- dialogs and toasts (web/ui/overlays.tsx) ---------- */
-.modal-back { position: fixed; inset: 0; z-index: 60; background: var(--color-scrim); display: grid; place-items: center; padding: 24px; backdrop-filter: none; animation: var(--animate-fade); }
+/* one column as wide as the window: older Safari sizes an auto column from the dialog, so its 100% cap never bit */
+.modal-back { position: fixed; inset: 0; z-index: 60; background: var(--color-scrim); display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 24px; backdrop-filter: none; animation: var(--animate-fade); }
 .modal {
   width: min(880px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column;
   border-radius: 16px;
