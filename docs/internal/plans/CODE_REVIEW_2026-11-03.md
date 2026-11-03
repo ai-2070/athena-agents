@@ -50,3 +50,10 @@ When the selected project falls outside the scope, select an available project a
 - `bun run build` passed.
 - Four temporary reproduction tests confirmed the findings above. They were removed after the review.
 - The working tree was clean after removing the temporary tests, before saving this report.
+
+## Fixed
+
+1. `ce38186`: a Brain request asked in a project that isn't open (it names its project) isn't stale when another project is opened meanwhile.
+2. `b01f124`: a pane's chat reads and answers its own project's questions through `/api/p/<project>/questions` (the same as finding 5 in `OVERVIEW_REVIEW_2026-11-03.md`).
+3. `23b23ad`: each pane's chat is its own element that lives as long as the pane; moving, stacking or scrolling the pane moves that element, so the draft and attachments stay.
+4. `3a80147`: the Files panel falls back to a project the scope shows, from its top folder.

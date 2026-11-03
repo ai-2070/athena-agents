@@ -155,6 +155,8 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 | **N** | Open the next one that needs you |
 | **O** | Open the pane's folder in VS Code |
 
+On a keyboard where **Ctrl+Alt** (AltGr) types a character with one of these keys, such as **[** or **ó**, it types that character instead.
+
 ## Tasks
 
 Open **Tasks** in an agent, team or Brain chat to see the steps of a job. Agent and team chats show their own list and project tasks assigned to them. The Brain starts with **All project tasks**; filter by the Brain, a team or an agent, then by status or a search phrase. Lists update as work changes.

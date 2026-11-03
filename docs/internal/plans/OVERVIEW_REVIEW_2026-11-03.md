@@ -165,3 +165,18 @@ These buttons don't follow changes to the shared control styles in `web/ui/class
 ### Suggested change
 
 Use `Button` / `IconButton` from `web/ui/button.tsx`, or `buttonClass(...)` where a plain element is needed.
+
+## Fixed
+
+Every finding is fixed on the branch, with a test that fails without the fix (except 9 and 10, which change no behavior).
+
+1. `b4817a4`: a Ctrl+Alt key that types something other than its plain character is left alone (Windows and Linux; on a Mac ⌃⌥ types nothing). Not `getModifierState('AltGraph')`: browsers report it for a plain Ctrl+Alt too.
+2. `eea1266`: each pane remembers the newest overview request when it opened; only data asked for after that can prune it.
+3. `c56ef4a`: the wait is capped at 2 s from the first change, so a streaming reply can't keep putting the reload off.
+4. `768f703`: done in the browser, not the server, because `api.test.ts` checks that the open project's `/api/file` refuses another project's files. A chat knows its project (`web/chat/project.ts`): `filesAt()` falls back to it for paths outside every project folder, and `fileSrc()` sends a tool's `/api/file?` image to `/api/p/<project>/file`.
+5. `b01f124`: `/api/p/<project>/questions` (and `…/answer`, `…/dismiss`) are scoped routes; a pane's chat reads its project's questions and answers there.
+6. `c83cb46`: the event carries its binding's project. The other events of this kind that leave the project out were checked; they are sent inside the run's `withProject`.
+7. `771f621`: runs, approvals and terminals are read once per overview; each agent's newest chat is cached and kept current by the `chats` events, and read from the files again after 5 minutes.
+8. `365c7ac`: `web/projectlist.ts`, one listener and one request in flight per project.
+9. `095fdf1`: `projectAt()` in `overview.tsx` and `attach.tsx`.
+10. `4a36fda`: the status line's "needs you" action and the panel switches are `Button`s. The session rows, breadcrumbs, file rows, minimap ticks and rail marks stay plain buttons: they are rows and marks, as on the task board and in the Station panel.
