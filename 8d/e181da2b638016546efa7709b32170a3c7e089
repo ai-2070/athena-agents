@@ -1,0 +1,39 @@
+public/brand/engines/README.md
+  s_d3db9ebe8d99bd::t_5df99cd8b1b42f 12
+  s_d3db9ebe8d99bd::t_4369a72d51ad32 6
+tests/web/brand.test.tsx
+  s_d3db9ebe8d99bd::t_5df99cd8b1b42f 62,72
+  s_d3db9ebe8d99bd::t_4369a72d51ad32 61,63-71,73-82
+public/brand/engines/pi-dark.svg
+  s_d3db9ebe8d99bd::t_4369a72d51ad32 1-5
+web/views/settings.tsx
+  s_d3db9ebe8d99bd::t_4369a72d51ad32 14,232
+public/brand/engines/pi.svg
+  s_d3db9ebe8d99bd::t_4369a72d51ad32 2-4
+tests/server/brandmarks.test.ts
+  s_d3db9ebe8d99bd::t_4369a72d51ad32 1-15
+  s_d3db9ebe8d99bd::t_5df99cd8b1b42f 16-22
+web/brandimages.ts
+  s_d3db9ebe8d99bd::t_4369a72d51ad32 3,12-13,15-41,43-44,46,52
+  s_d3db9ebe8d99bd::t_60b0d1eb2294cd 14
+public/brand/engines/venice-dark.svg
+  s_d3db9ebe8d99bd::t_f5e831875724a4 1-4
+public/brand/engines/venice.svg
+  s_d3db9ebe8d99bd::t_47466b2b823fe4 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8de181da2b638016546efa7709b32170a3c7e089",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
