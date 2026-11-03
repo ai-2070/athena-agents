@@ -1,0 +1,48 @@
+README.md
+  s_d3db9ebe8d99bd::t_41aad98585bcb4 173
+web/views/overview.tsx
+  s_d3db9ebe8d99bd::t_26b8229de8c37c 1-9,12-15,17-18,23-24,33,35,38-39,49,84-85,108-124,127,130,134-161,170,174-183,194,211-212,214-262,268-269,278-279,283-297,300,307-312,315,319,323,325-326,328,330,352,364-418,421,423-486,488-622,625-656
+  s_d3db9ebe8d99bd::t_dcc4293a505f7b 419-420,422
+  s_d3db9ebe8d99bd::t_ad6b14c3ce97be 487,623-624
+server/overview.ts
+  s_d3db9ebe8d99bd::t_4bca82b4bdfd77 9,90-93
+  s_d3db9ebe8d99bd::t_ebffad69914519 94
+tests/web/overviewlayout.test.ts
+  s_d3db9ebe8d99bd::t_6e32de58a1715c 45
+  s_d3db9ebe8d99bd::t_7ed822c17cf32e 1-44,46-104
+web/overviewlayout.ts
+  s_d3db9ebe8d99bd::t_8faf52068a3e2b 1-208
+server/terminals.ts
+  s_d3db9ebe8d99bd::t_93fef387741a29 7
+  s_d3db9ebe8d99bd::t_4bca82b4bdfd77 38,91
+web/views/terminals.tsx
+  s_d3db9ebe8d99bd::t_2eee0b40960c8a 11,14-15
+tests/web/overview.test.tsx
+  s_d3db9ebe8d99bd::t_a5bedf9abe90b6 12-19,52,68-71,89,95,105,132,134,136-146,149,151-194,204-206
+web/terminalview.tsx
+  s_d3db9ebe8d99bd::t_2eee0b40960c8a 1-79
+shared/types.ts
+  s_d3db9ebe8d99bd::t_4bca82b4bdfd77 1336-1337,1679,1697-1698
+tests/server/overview.test.ts
+  s_d3db9ebe8d99bd::t_68aaab3e0ff2a6 12,14-15,18,31-34,65-69
+docs/guide.md
+  s_d3db9ebe8d99bd::t_41aad98585bcb4 121,126,129-148
+docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md
+  s_d3db9ebe8d99bd::t_41aad98585bcb4 3-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e35a4b33baf57a51954b14798551dc8acbd26f0a",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
