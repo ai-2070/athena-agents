@@ -1,0 +1,29 @@
+docs/internal/plans/CODE_REVIEW_2026-11-03.md
+  s_ec535689eccc36::t_7f75902575cf11 1-52
+docs/internal/plans/OVERVIEW_REVIEW_2026-11-03.md
+  s_6f0380c72fc1f3::t_48b2fed4b4d96b 1-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d25656b12e4115c8f59eccfbb7fd5c447aed2918",
+  "prompts": {},
+  "sessions": {
+    "s_6f0380c72fc1f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a749ac26-5261-4d62-8ee9-ebdd7fb04e38",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_ec535689eccc36": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a346-2e0b-7932-a692-dac65c914592",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
