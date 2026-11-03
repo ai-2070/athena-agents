@@ -261,6 +261,13 @@ describe('files you attach', () => {
     // a path that isn't an upload of the open project is left out; files already on the task stay by their path
     expect(await filesFromRequest(here, [path.join(activeProject().brainPath, 'not-uploaded.txt')])).toEqual([]);
     expect(await filesFromRequest(here, [same.path], [same])).toEqual([same]);
+    // as many as you attach (a chat message carries 50; a task has no limit)
+    const many = Array.from({ length: 60 }, (_, i) => {
+      const f = path.join(dir, `page-${i}.txt`);
+      fs.writeFileSync(f, String(i));
+      return f;
+    });
+    expect(await filesFromRequest(here, many)).toHaveLength(60);
   });
 });
 

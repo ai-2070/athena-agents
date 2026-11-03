@@ -11,7 +11,6 @@ import { ensureDir, exists, isInside, realTarget } from './util.ts';
 import { ensureBrain } from './projects.ts';
 import type { Project, UploadedFile } from '../shared/types.ts';
 
-export const MAX_FILE_BYTES = 500 * 1024 * 1024;
 const MAX_ATTACHMENTS = 50;
 const MAX_DEPTH = 16;
 export const IMAGE_EXT = /\.(png|jpe?g|webp|gif)$/i;
@@ -105,9 +104,9 @@ export async function receive(req: http.IncomingMessage, batch: string, rel: str
 }
 
 /** Browser requests and private platform streams use the same bounded, safe upload path. */
-export async function receiveSource(source: AsyncIterable<Uint8Array>, batch: string, rel: string, { declaredBytes = 0, maxBytes = MAX_FILE_BYTES, signal }: { declaredBytes?: number; maxBytes?: number; signal?: AbortSignal } = {}): Promise<UploadedFile> {
-  // (Infinity: no limit, for a copy of a file already on this PC)
-  if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_FILE_BYTES)) throw new UploadError(400, 'Bad upload limit.');
+export async function receiveSource(source: AsyncIterable<Uint8Array>, batch: string, rel: string, { declaredBytes = 0, maxBytes = Infinity, signal }: { declaredBytes?: number; maxBytes?: number; signal?: AbortSignal } = {}): Promise<UploadedFile> {
+  // No size limit of its own; a caller with one (a gateway's file limits) passes it.
+  if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1)) throw new UploadError(400, 'Bad upload limit.');
   const limitError = () => new UploadError(413, `${path.basename(rel)} is over ${maxBytes / 1024 / 1024} MB.`);
   if (declaredBytes > maxBytes) throw limitError();
   signal?.throwIfAborted();
@@ -170,7 +169,7 @@ const inside = (root: string, p: string) => {
 
 // The attachments a request names, keeping only uploads of this project that still exist.
 // Folders end with a separator.
-export function cleanAttachments(list: unknown): string[] {
+export function cleanAttachments(list: unknown, max = MAX_ATTACHMENTS): string[] {
   const root = safeUploadsRoot();
   if (!Array.isArray(list) || !root) return [];
   const out = new Set<string>();
@@ -178,7 +177,7 @@ export function cleanAttachments(list: unknown): string[] {
     if (typeof x !== 'string' || !x) continue;
     const p = path.resolve(x);
     if (inside(root, p) && exists(p)) out.add(isDir(p) ? p + path.sep : p);
-    if (out.size >= MAX_ATTACHMENTS) break;
+    if (out.size >= max) break;
   }
   return [...out];
 }

@@ -49,7 +49,7 @@ async function copyInto(p: Project, from: string, by: string): Promise<TaskFile>
     return await withProject(p, async () => {
       const root = safeUploadsRoot() || fail("The task's project has no usable uploads folder.");
       const { batch } = newBatch();
-      const saved = await receiveSource(hashed(), batch, path.basename(from), { declaredBytes: stat.size, maxBytes: Infinity });
+      const saved = await receiveSource(hashed(), batch, path.basename(from), { declaredBytes: stat.size });
       return { path: relative(root, saved.path), name: saved.name, size: saved.size, sha256: hash.digest('hex'), by, at: Date.now() };
     });
   } finally { await handle.close(); }
@@ -63,7 +63,7 @@ export async function filesFromRequest(p: Project, list: unknown, current: TaskF
   if (list === undefined) return current;
   if (!Array.isArray(list)) return fail('files must be a list.');
   const kept = current.filter((f) => list.includes(f.path));
-  const fresh = cleanAttachments(list.filter((x) => typeof x === 'string' && path.isAbsolute(x))).filter((x) => !x.endsWith(path.sep));
+  const fresh = cleanAttachments(list.filter((x) => typeof x === 'string' && path.isAbsolute(x)), Infinity).filter((x) => !x.endsWith(path.sep));
   const open = activeProject();
   const added: TaskFile[] = [];
   for (const file of fresh) {
