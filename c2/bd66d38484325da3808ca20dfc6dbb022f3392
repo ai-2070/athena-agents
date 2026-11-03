@@ -1,0 +1,60 @@
+web/client/connection.ts
+  s_d3db9ebe8d99bd::t_77bfae2e581cec 47-73
+tests/web/attach-tray.test.ts
+  s_d3db9ebe8d99bd::t_ae0f8e6a62be54 78-87
+README.md
+  s_d3db9ebe8d99bd::t_971751479eebfd 173
+web/overviewlayout.ts
+  s_d3db9ebe8d99bd::t_462d6ae8062458 1-3,5,9,34,36,185-186,188,190-195,197,202-203,209,211
+tests/web/overview.test.tsx
+  s_d3db9ebe8d99bd::t_726acd705953ee 6,14-15,41,107,141-144,199,202-224,229-237
+web/projectagents.ts
+  s_d3db9ebe8d99bd::t_4dfbd30887f8c6 1-42
+web/chat/ChatView.tsx
+  s_d3db9ebe8d99bd::t_008546fe14d9af 37,70-71,527
+web/attach.tsx
+  s_d3db9ebe8d99bd::t_9ebc11c219660c 153-155,208,220,234,240,249,255
+  s_d3db9ebe8d99bd::t_c36efe80e14d19 347-349,392,414,425
+tests/web/agentchat.test.ts
+  s_d3db9ebe8d99bd::t_b17165955444b2 6,53-74
+  s_d3db9ebe8d99bd::t_9b51c8472a1976 75-77
+server/questions.ts
+  s_d3db9ebe8d99bd::t_9ef2f884137707 5,9
+  s_d3db9ebe8d99bd::t_2115dad6f21874 124-130,133,197-199
+web/agentchat.tsx
+  s_d3db9ebe8d99bd::t_008546fe14d9af 13,36,38-40,47,106-111,125,135-136,141
+tests/server/api.test.ts
+  s_d3db9ebe8d99bd::t_fb0eac5ed0cc83 611-636
+web/views/overview.tsx
+  s_d3db9ebe8d99bd::t_72ac19cdc5d39d 2-6,10-11,41-42,87-88,111,114-118,120-123,125-127,138-139,142-149,151,156-157,163,184,240,247,250,397,427-429,500,513,520,551,560,562-563,623-626,646,655-657,662-664,666-667
+  s_d3db9ebe8d99bd::t_b2a26173fee86b 638
+web/teamchat.tsx
+  s_d3db9ebe8d99bd::t_008546fe14d9af 13,61-62,112-113,481,934,936
+  s_d3db9ebe8d99bd::t_79107f0df27129 451,453
+tests/web/overviewlayout.test.ts
+  s_d3db9ebe8d99bd::t_94719af2e89e7f 1-2,7-14,20,23-24,26,29-31,35,37-38,42,44,47,52-53,56,61-64,68,71-72,84,90,97-107,110-111
+server/index.ts
+  s_d3db9ebe8d99bd::t_8fdb8f5f6a64b1 138-149,1511-1515,1519,1522,1524,1526,1532,1539,1545,1551
+docs/guide.md
+  s_d3db9ebe8d99bd::t_971751479eebfd 126-127,137
+tests/server/questions.test.ts
+  s_d3db9ebe8d99bd::t_daa344fa5357c2 172-188
+docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md
+  s_d3db9ebe8d99bd::t_971751479eebfd 3-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2bd66d38484325da3808ca20dfc6dbb022f3392",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
