@@ -1,0 +1,59 @@
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_334efb81b0e62b 7,450,457,480,482,496-500,505,508-522
+tests/web/gateway-outbox-delivery.test.tsx
+  s_3f5afab86a1bb3::t_dcdd1927f174dd 1-82
+server/gateways/outbox-posts.ts
+  s_3f5afab86a1bb3::t_9d97f46f6c4444 3,6,71-80,94-95
+  s_3f5afab86a1bb3::t_8513b5116ce131 99
+shared/types.ts
+  s_3f5afab86a1bb3::t_be656a5c2e1d9f 401
+  s_3f5afab86a1bb3::t_334efb81b0e62b 390-400,402-408,420-421
+  s_3f5afab86a1bb3::t_9d97f46f6c4444 386
+web/views/gateway-outbox.tsx
+  s_3f5afab86a1bb3::t_dcdd1927f174dd 130
+  s_3f5afab86a1bb3::t_10c2475035100f 11-13
+server/index.ts
+  s_3f5afab86a1bb3::t_9d97f46f6c4444 24,1117-1129
+tests/server/gateway-albums.test.ts
+  s_3f5afab86a1bb3::t_ae67bbd8f3a5ca 6-7,41-48
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_9d97f46f6c4444 140,143,159-170
+  s_3f5afab86a1bb3::t_7a74cb525ac7fe 148-150
+  s_3f5afab86a1bb3::t_6f0626726af043 171
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_ae67bbd8f3a5ca 239-241
+web/views/gateway-outbox-recipient.tsx
+  s_3f5afab86a1bb3::t_10c2475035100f 1-10
+README.md
+  s_3f5afab86a1bb3::t_fd33229d393d37 250-254
+server/gateways/outbox.ts
+  s_3f5afab86a1bb3::t_be656a5c2e1d9f 4,24-27,29-30,34,57-99,148-149,157,203,205-208,212-243,264,297
+docs/guide.md
+  s_3f5afab86a1bb3::t_fd33229d393d37 549-567
+tests/server/gateway-outbox-review.test.ts
+  s_3f5afab86a1bb3::t_7a74cb525ac7fe 108-113,121-122
+  s_3f5afab86a1bb3::t_b1b209c930b312 1-11,13-107,123-128
+  s_3f5afab86a1bb3::t_8513b5116ce131 12,114-120
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_ece57c08dcda12 971-974
+  s_3f5afab86a1bb3::t_e5067640bada9f 930-970,975-976
+web/views/gateway-outbox-delivery.tsx
+  s_3f5afab86a1bb3::t_dcdd1927f174dd 52,77
+  s_3f5afab86a1bb3::t_10c2475035100f 1-51,53-76,78-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b275b7026a31146372f7292b90a0e5a058862822",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
