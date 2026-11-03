@@ -806,8 +806,48 @@ New gateway data does not need a legacy compatibility layer.*
   build, desktop staging and bundled desktop smoke passed. The final request-format review keeps
   Telegram's token separator while escaping URL path/query characters, with regression coverage.
   No real account, deployment, provider mutation, message or model call was used to exercise setup.
-- Next: finish unified delivery/product controls. Native-work
-  override controls still need product setup. Deleted instances retain private inbox
+- Added paused **Review saved work → Keep work in Athena** for a reserved or started request
+  without a final gateway reply. The operator explicitly acknowledges possibly running native
+  work, no gateway reply, and a separate future private conversation. This permanently closes
+  gateway tracking, reconciliation, file selection and future delivery for that request, without
+  cancelling, completing, approving or replaying native work. Original operation/dispatch IDs,
+  inputs, saved files, notices, delivery uncertainty and byte reservations are retained unchanged.
+- The review is bound to the selected event and exact settings/journal revision, drains the
+  worker, and claims exclusive account/state ownership while paused. It makes no provider or
+  native-runtime call and also works for unavailable platforms or revoked old access. A selected
+  interrupted receipt requires explicit local recovery; GET only reads saved evidence. The UI
+  clearly distinguishes saved native receipts from a live status check and keeps native IDs in
+  a disclosure, alongside the original source and destination.
+- Keeping work holds earlier queued input and unsent output in the same external conversation
+  lineage. Newly accepted messages use a fresh private binding under current routing/guards, so
+  an old possibly running native chat/team/Brain operation cannot become the next request's
+  context. Other conversations/threads and separate route, relay and sender-review generations
+  are untouched. Old edits and late grouped album parts stay in the old binding. Dedupe still
+  returns the original receipt; no old source is admitted a second time. Successive reviews keep
+  a monotonic action order and validated binding roots, independent of original input order.
+- Kept work does not consume active dispatcher slots, emit more notices, reenter tracking or
+  accept late native completion callbacks. Its original saved status is preserved rather than
+  invented completion. Normal cleanup retains these review/routing markers and their old held
+  context for recovery; resolved work in a fresh binding can still be cleaned normally, retaining
+  replay/quota markers and stable future routing.
+- Added server coverage for Brain/agent/team and Slack/Discord isolation, paused and stale/body
+  guards, source edits and albums, preserved native runs/chats, no old callbacks or admissions,
+  local receipt recovery, revoked access, repeated reviews, cleanup and forged roots, atomic saves,
+  ownership and stop-failure redaction. API/DOM checks cover request guards, private metadata,
+  exact confirmation, pause, history, cancellation, stale errors and unmount. The signed WhatsApp
+  Bun/Node/read-only bundle proof now keeps native work locally across restart and admits only a
+  new private request, without provider calls, sends or model work. WhatsApp remains unavailable.
+- A scoped finish reviewer approved twelve light/dark desktop/mobile captures of saved native
+  work, reservation-only work, the ID disclosure and irreversible confirmation, with no material
+  findings. Six Tab presses stayed in the confirmation and Escape closed it. Only isolated
+  synthetic state was used and removed; the browser confirmation was cancelled. Unshown
+  empty/error/success/prepare states have source and DOM evidence, without a live-native or
+  provider-readiness claim.
+- Validation: `CI=1 bun run check` passed (267 files; 2,650 tests passed, one skipped). The web
+  build, desktop staging and bundled desktop smoke passed. No real account, provider call,
+  native cancellation/admission, message or model call was used to exercise keeping work local.
+- Next: finish unified delivery/product controls and route existing Outbox intent through explicit
+  gateway instances and destinations. Deleted instances retain private inbox
   receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks
   on all four platforms and Windows/Linux verification remain outstanding. Offline checks run in CI.
 

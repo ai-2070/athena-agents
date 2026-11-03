@@ -242,6 +242,9 @@ never removes a webhook automatically. An unconfirmed switch needs a fresh setup
 Pause an instance and choose **Review delivery** on a completed answer to record a text part, file or
 notice you confirmed in the messaging app. **Finish delivery locally** permanently stops its remaining
 sends, keeping the answer, uncertainty and byte accounting. Neither action sends or replays work.
+For reserved or started work without a final reply, **Review saved work → Keep work in Athena**
+permanently ends gateway tracking. Native work may still run; manage it in Athena. Earlier queued
+requests stay held, and new messages use a separate private conversation under the current rules.
 `bun run gateways:smoke` checks the SDK with
 a fake local Telegram service and throwaway data; it uses no accounts or keys. See the
 [gateway plan](docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md) for what is finished and what remains.

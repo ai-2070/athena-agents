@@ -9,7 +9,7 @@ import { verifyGatewayFile } from './files.ts';
 export async function gatewayConversation(event: GatewayInboxEvent, signal: AbortSignal, sources = [event]): Promise<GatewayLocalConversation> {
   signal.throwIfAborted();
   checkConversationId(event.bindingId);
-  if (event.status !== 'running' || !event.operationId) throw new Error('Claim this gateway message before dispatching it.');
+  if (event.workKept || event.status !== 'running' || !event.operationId) throw new Error('Claim this gateway message before dispatching it.');
   const allowed = () => sources.every((source) => gatewayInputAllowed(getGatewayInstance(event.route.instanceId), source.input));
   if (!allowed()) throw new Error('This gateway sender or conversation is no longer allowed.');
   gatewayRunInput(event, sources);

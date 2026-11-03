@@ -76,6 +76,12 @@ it('keeps locally finished statuses as evidence and hides all retry and file sel
   expect(button('Retry remaining reply')).toBeUndefined(); expect(button('Send selected files')).toBeUndefined();
 });
 
+it('shows kept native work in history without offering tracking, selection or retry controls', async () => {
+  const saved = event(); delete saved.reply; saved.status = 'running'; saved.workKept = { at: 1700000000000, revision: 'a'.repeat(64), throughSequence: 1, serial: 1 }; events = [saved];
+  await open(false); await all(); expect(gatewayMessageStatus(saved)).toBe('Kept in Athena'); expect(button('Review saved work')).toBeDefined();
+  expect(host.textContent).toContain('Native work may still be running'); expect(button('Check saved work')).toBeUndefined(); expect(button('Send selected files')).toBeUndefined();
+});
+
 it('reports a blocked dismissal preview and never opens a confirmation or starts work', async () => {
   events = [held()]; refuse = true; await open(false); await click('Dismiss request'); await settle();
   expect(host.textContent).toContain('Wait for the relay acknowledgement.'); expect(document.querySelector('.modal')).toBeNull(); expect(writes).toHaveLength(0);

@@ -1,4 +1,4 @@
-import type { GatewayDeliveryReview, GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayTelegramSetup, GatewayWhatsAppCheck, GatewayWhatsAppRecovery, GatewayWhatsAppSenders, GatewayWhatsAppSetup, ServerEvent } from '../../shared/types.ts';
+import type { GatewayDeliveryReview, GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayTelegramSetup, GatewayWhatsAppCheck, GatewayWhatsAppRecovery, GatewayWhatsAppSenders, GatewayWhatsAppSetup, GatewayWorkReview, ServerEvent } from '../../shared/types.ts';
 import { gatewayNeedsReview, gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { bus, emit, listProjects } from '../store.ts';
 import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.ts';
@@ -111,6 +111,29 @@ export class GatewaySupervisor {
 
   reviewDelivery(instanceId: string, eventId: string, body: unknown): Promise<GatewayDeliveryReview> {
     return this.deliveryReviewTask(instanceId, (inbox) => inbox.reviewDelivery(eventId, body));
+  }
+
+  private workReviewTask(instanceId: string, work: (inbox: GatewayInbox) => GatewayWorkReview): Promise<GatewayWorkReview> {
+    const task = this.pending.then(async () => {
+      const instance = getGatewayInstance(instanceId);
+      if (this.closed || instance.enabled) throw Object.assign(new Error('Pause this gateway before reviewing saved work.'), { status: 400 });
+      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined; let reviewing = false;
+      try {
+        await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
+        release = await claimGatewayAccount(instance.platform, instance.accountId); await state.connect(); reviewing = true;
+        return work(new GatewayInbox(state));
+      } catch (error) {
+        if (reviewing && error instanceof Error && 'status' in error && (error.status === 400 || error.status === 404 || error.status === 409 || error.status === 503)) throw error;
+        throw Object.assign(new Error('Saved work could not be reviewed safely. Check storage and ownership, then reload its receipts.'), { status: 503 });
+      } finally { await state.disconnect(); await release?.(); }
+    });
+    this.pending = task.then(() => {}, () => {}); return task;
+  }
+  prepareWorkReview(instanceId: string, eventId: string): Promise<GatewayWorkReview> {
+    return this.workReviewTask(instanceId, (inbox) => inbox.prepareWorkReview(eventId));
+  }
+  keepWork(instanceId: string, eventId: string, body: unknown): Promise<GatewayWorkReview> {
+    return this.workReviewTask(instanceId, (inbox) => inbox.keepWork(eventId, body));
   }
 
   reconcile(instanceId: string, eventId: string): GatewayReconciliation {

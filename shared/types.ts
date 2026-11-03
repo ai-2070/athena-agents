@@ -151,6 +151,7 @@ export interface GatewayInbound {
 
 export interface GatewayConversationBinding {
   id: string;
+  rootId?: string;
   accountId: string;
   conversationId: string;
   guildId?: string;
@@ -170,6 +171,7 @@ export interface GatewayInboxEvent {
   relay?: GatewayWhatsAppReceipt & { confirmed: boolean };
   dismissed?: { at: number; revision: string };
   deliveryFinished?: { at: number; revision: string };
+  workKept?: { at: number; revision: string; throughSequence: number; serial: number };
   deliveryReviews?: ({ at: number; revision: string; action: 'confirmed'; target: GatewayDeliveryTarget; remoteId: string; previousRemoteId?: string } | { at: number; revision: string; action: 'finish-local' })[];
   status: 'queued' | 'waiting-files' | 'running' | 'done' | 'needs-review';
   operationId?: string;
@@ -189,6 +191,18 @@ export interface GatewayRequestReview {
   revision: string;
   canDismiss: boolean;
   reason: string;
+}
+
+export interface GatewayWorkReview {
+  revision: string;
+  reason: string;
+  canKeep: boolean;
+  needsPrepare: boolean;
+  keptAt?: number;
+  heldRequests: number;
+  source: { platform: GatewayPlatform; actor: string; conversationId: string; threadId: string; messageId: string; projectId: string; target: GatewayTarget };
+  operationId?: string;
+  native?: { state: GatewayDispatch['state']; conversation: GatewayLocalConversation; runId?: string; messageId?: string; briefId?: string };
 }
 
 export type GatewayDeliveryTarget = { kind: 'text' | 'file'; index: number } | { kind: 'notice'; notice: 'working' | 'approval' };

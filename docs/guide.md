@@ -484,6 +484,30 @@ Missing records, edited input, changed destinations and unproven completion rema
 does not override them. Team recovery needs a completed review of the original message, rather than
 the latest team reply.
 
+For reserved or started work without a saved final reply, pause the instance and choose **Review
+saved work**. The panel shows the original source and destination, the saved operation and native
+conversation IDs, and how many other requests will stay held. These are historical gateway
+receipts, not a live native-status check. Review or stop the original work using Athena's native
+controls; it may still be running. An operation reservation alone does not prove that admission
+failed or that nothing happened.
+
+**Keep work in Athena** permanently ends gateway tracking and any future reply or file delivery
+for this request. Confirm that native work may still run, that no gateway reply should follow, and
+that new incoming messages will use a separate private conversation. This does not stop native
+work, mark it complete, approve tools or replay it. It preserves the operation IDs, original
+input, saved files, delivery evidence and byte reservations. These receipts remain in the inbox
+for recovery and are not eligible for normal inbox cleanup.
+
+Already queued requests in the earlier conversation stay held. New messages accepted after the
+review use a fresh private conversation with the instance's current project, destination and
+sender rules; other conversations and threads keep their history. Earlier edits and late grouped
+album parts stay in their original conversation. A changed project, sender identity or relay
+keeps its own separate routing boundary. This local review is also available for unavailable
+platforms and after access changes, but grants no new permission to receive or send. If saved
+notices or files still say they were in flight, **Recover interrupted receipts** classifies only
+this request's interrupted receipts before keeping the work locally. Opening the panel never
+does that automatically.
+
 For a held request that has never started, pause its instance and choose **Dismiss request**. Athena
 checks the current receipt and asks you to confirm. The request will not start an assignment or send
 a reply, and later messages in that conversation can continue once other holds are resolved. Its

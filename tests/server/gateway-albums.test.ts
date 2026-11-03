@@ -5,7 +5,7 @@ import type { GatewayInbound, GatewayInboxJournal, GatewayRunInput } from '../..
 import { gatewayAlbumCandidates, gatewayCleanupCandidates } from '../../shared/gateways.ts';
 import { saveGatewayInstance } from '../../server/gateways/instances.ts';
 import { GatewayStateAdapter } from '../../server/gateways/state.ts';
-import { GatewayInbox, gatewayInboxHistory } from '../../server/gateways/inbox.ts';
+import { GatewayInbox, gatewayInboxHistory, gatewayWorkReview } from '../../server/gateways/inbox.ts';
 import { GatewayFileProcessor } from '../../server/gateways/files.ts';
 import { GatewayDispatcher } from '../../server/gateways/dispatch.ts';
 import { gatewayConversation } from '../../server/gateways/conversations.ts';
@@ -37,6 +37,18 @@ async function fixture(limits = { perFileBytes: 1024, perMessageBytes: 4096, fil
 }
 
 describe('explicit Telegram album grouping', () => {
+  it('keeps only the started album leader locally and holds late parts in its original conversation', async () => {
+    const f = await fixture(); const originals = await f.saved(); f.seal(originals.map((event) => event.id)); const leader = f.inbox.claimNext()!;
+    f.inbox.beginDispatch(leader.id, leader.operationId!, await gatewayConversation(leader, f.abort.signal, f.inbox.dispatchSources(leader.id)));
+    saveGatewayInstance({ ...f.config, enabled: false }, f.instance.id); const before = structuredClone(f.inbox.list());
+    expect(gatewayWorkReview(f.instance.id, originals[1].id).canKeep).toBe(false); const preview = gatewayWorkReview(f.instance.id, leader.id);
+    f.inbox.keepWork(leader.id, { revision: preview.revision, acknowledgeMayStillRun: true, acknowledgeFreshConversation: true, acknowledgeNoReply: true });
+    const kept = structuredClone(f.inbox.list()[0]); expect(kept.dispatch).toEqual(before[0].dispatch); expect(kept.files).toEqual(before[0].files); expect(f.inbox.list()[1]).toEqual(before[1]);
+    saveGatewayInstance(f.config, f.instance.id); const late = f.accept('3'); expect(late.bindingId).toBe(leader.bindingId); expect(late.status).toBe('needs-review');
+    const fresh = f.inbox.accept({ ...gatewayInput('fresh'), accountId: f.instance.accountId })!; expect(fresh.bindingId).not.toBe(leader.bindingId); expect(f.inbox.claimNext()!.id).toBe(fresh.id);
+    expect(f.inbox.list()[0]).toEqual(kept); expect(gatewayCleanupCandidates(f.inbox.list(), Date.now() + 1000)).toEqual([]);
+  });
+
   it('dispatches all original IDs, captions and verified file batches once under one operation', async () => {
     const f = await fixture(); const originals = await f.saved();
     expect(f.inbox.claimNext()).toBeNull(); expect(f.submitted).toHaveLength(0);

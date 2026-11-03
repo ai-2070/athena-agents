@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import type { GatewayDeliveryReview, GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayRequestReview, GatewayTelegramSetup, GatewayWhatsAppSetup } from '../../shared/types.ts';
+import type { GatewayDeliveryReview, GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayRequestReview, GatewayTelegramSetup, GatewayWhatsAppSetup, GatewayWorkReview } from '../../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 // set in beforeAll: a port nothing else is using (see startServer)
@@ -229,6 +229,35 @@ describe('API', () => {
 });
 
 describe('gateway configuration API', () => {
+  it('keeps paused native work locally behind current-receipt and request guards without changing native evidence', async () => {
+    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const config = { name: 'Keep native work', platform: 'telegram', accountId: '9540000001', projectId: state.project.id, target: { kind: 'brain' },
+      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
+    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true }); const file = path.join(directory, 'inbox.json');
+    const route = { instanceId: instance.id, projectId: instance.projectId, target: instance.target, generation: instance.routeGeneration }; const eventId = 'c'.repeat(64);
+    const dispatch = { state: 'needs-review', startedAt: 1, conversation: { kind: 'brain', projectId: instance.projectId, conversationId: 'binding', sender: 'Alice' }, brain: { answer: 'PRIVATE_INTERMEDIATE_ANSWER', delegate: null } };
+    fs.writeFileSync(file, JSON.stringify({ version: 1, nextSequence: 2,
+      bindings: [{ id: 'binding', accountId: instance.accountId, conversationId: '123', threadId: '', route, createdAt: 1 }],
+      events: [{ id: eventId, bindingId: 'binding', route, sequence: 1, receivedAt: 1, status: 'needs-review', operationId: 'native-operation', dispatch,
+        input: { platform: 'telegram', accountId: instance.accountId, conversationId: '123', threadId: '', sourceMessageId: '1', sourceEventId: '1', kind: 'message',
+          actor: { id: '123', label: 'Alice', kind: 'user' }, directMessage: true, triggered: false, text: 'Saved request', media: [] } }],
+    }));
+    const url = `/api/gateways/${instance.id}/inbox/${eventId}/work-review`; const before = fs.readFileSync(file, 'utf8');
+    const preview = await (await req(url)).json() as GatewayWorkReview; expect(preview).toMatchObject({ canKeep: true, operationId: 'native-operation', native: { state: 'needs-review' } });
+    expect(JSON.stringify(preview)).not.toContain('PRIVATE_INTERMEDIATE_ANSWER'); expect(fs.readFileSync(file, 'utf8')).toBe(before);
+    const body = JSON.stringify({ revision: preview.revision, acknowledgeMayStillRun: true, acknowledgeFreshConversation: true, acknowledgeNoReply: true });
+    expect((await req(`${url}/prepare`, { method: 'POST' })).status).toBe(403); expect((await req(`${url}/keep`, { method: 'POST', body })).status).toBe(403);
+    expect((await req(`${url}/keep`, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status).toBe(403);
+    expect((await req(`${url}/keep`, { method: 'POST', headers: json, body: JSON.stringify({ revision: preview.revision, acknowledgeNoReply: true }) })).status).toBe(409);
+    expect((await req(`${url}/keep`, { method: 'POST', headers: json, body })).status).toBe(200); expect((await req(`${url}/keep`, { method: 'POST', headers: json, body })).status).toBe(409);
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8')) as { events: { status: string; operationId: string; dispatch: unknown; reply?: unknown; workKept: unknown }[] };
+    expect(saved.events[0]).toMatchObject({ status: 'needs-review', operationId: 'native-operation', dispatch }); expect(saved.events[0].reply).toBeUndefined(); expect(saved.events[0].workKept).toBeDefined();
+    const summary = await (await req('/api/state')).json() as { gateways: { id: string; reviewCount: number }[] }; expect(summary.gateways.find((item) => item.id === instance.id)?.reviewCount).toBe(0);
+    await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
+  });
+
   it('serves local Telegram setup status without secrets and guards explicit provider checks and switches', async () => {
     const state = await (await req('/api/state')).json() as { project: { id: string } };
     const config = { name: 'Telegram switch', platform: 'telegram', accountId: '9550000001', projectId: state.project.id, target: { kind: 'brain' },

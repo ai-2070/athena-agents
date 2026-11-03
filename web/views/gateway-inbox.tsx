@@ -6,6 +6,7 @@ import { PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { useServerEvents } from '../ui/react.tsx';
 import { GatewayDeliveryReviewView } from './gateway-delivery-review.tsx';
+import { GatewayWorkReviewView } from './gateway-work-review.tsx';
 import type { GatewayInboxEvent, GatewayInstance, GatewayOutgoingFile, GatewayRequestReview } from '../../shared/types.ts';
 import { gatewayAlbumCandidates, gatewayCleanupCandidates, gatewayNeedsReview, gatewayPlatformAvailable, gatewayRequestUnstarted } from '../../shared/gateways.ts';
 export { gatewayNeedsReview } from '../../shared/gateways.ts';
@@ -14,6 +15,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : 'Co
 const unresolved = (status: string) => status === 'failed' || status === 'uncertain';
 const deliveryLabel = (status: GatewayOutgoingFile['status'] | 'saved' | 'transferring') => ({ pending: 'Waiting', sending: 'Sending', sent: 'Sent', uncertain: 'Delivery uncertain', failed: 'Needs review', skipped: 'Skipped', saved: 'Saved', transferring: 'Downloading' })[status];
 export function gatewayMessageStatus(event: GatewayInboxEvent): string {
+  if (event.workKept) return 'Kept in Athena';
   if (event.dismissed) return 'Dismissed';
   if (event.deliveryFinished) return 'Finished locally';
   if (event.album && event.album.leaderId !== event.id) return 'Grouped in album';
@@ -33,6 +35,7 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
   const [filter, setFilter] = useState('review'); const [limit, setLimit] = useState(25);
   const [age, setAge] = useState('30'); const [notice, setNotice] = useState('');
   const [deliveryId, setDeliveryId] = useState('');
+  const [workId, setWorkId] = useState('');
   const mounted = useRef(false); const request = useRef(0); const actionPending = useRef(false);
   const root = `/gateways/${encodeURIComponent(instance.id)}/inbox`;
   const load = useCallback(async () => {
@@ -77,6 +80,7 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
     if (await act('cleanup', { before, eventIds: selected }) && mounted.current) setNotice(`Removed ${selected.length} resolved receipt${selected.length === 1 ? '' : 's'}. Native chats and project files were kept.`);
   };
   if (deliveryId) return <GatewayDeliveryReviewView instance={instance} eventId={deliveryId} close={() => setDeliveryId('')} changed={load} />;
+  if (workId) return <GatewayWorkReviewView instance={instance} eventId={workId} close={() => setWorkId('')} changed={load} />;
   return <Section title={`Inbox · ${instance.name}`} description="Review accepted messages and individual delivery results. Earlier unresolved work holds later messages in the same conversation."
     action={<><Button size="small" variant="ghost" disabled={busy} onClick={() => void load()}>Reload inbox</Button><Button size="small" variant="ghost" disabled={busy} onClick={close}>Close inbox</Button></>}>
     <Row title="Messages" description={events ? `${events.length} saved · ${events.filter(gatewayNeedsReview).length} need review` : 'Loading inbox…'}>
@@ -91,9 +95,9 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
       const candidates = gatewayAlbumCandidates(events || [], event);
       const album = event.album?.memberIds?.map((id) => events?.find((item) => item.id === id)).filter((item) => item !== undefined) ?? [];
       const leader = events?.find((item) => item.id === event.album?.leaderId);
-      return <InboxMessage key={event.id} event={event} busy={busy} connected={connected} paused={!instance.enabled} act={act} dismiss={dismiss} reviewDelivery={setDeliveryId}
+      return <InboxMessage key={event.id} event={event} busy={busy} connected={connected} paused={!instance.enabled} act={act} dismiss={dismiss} reviewDelivery={setDeliveryId} reviewWork={setWorkId}
         candidates={candidates[0]?.id === event.id ? candidates : []} album={album} leader={leader}
-        canSelect={!event.deliveryFinished && !event.outgoing && Boolean(event.dispatch) && ['running', 'done'].includes(event.status) && !events?.some((later) => later.bindingId === event.bindingId && later.sequence > event.sequence && later.dispatch)} />;
+        canSelect={!event.workKept && !event.deliveryFinished && !event.outgoing && Boolean(event.dispatch) && ['running', 'done'].includes(event.status) && !events?.some((later) => later.bindingId === event.bindingId && later.sequence > event.sequence && later.dispatch)} />;
     })}
     {shown.length > limit && <RowActions><Button size="small" variant="ghost" onClick={() => setLimit((before) => before + 25)}>Show 25 more</Button></RowActions>}
     {events && <Row title="Clean resolved receipts" description={`${eligible.length} eligible. Completed and dismissed requests can be removed; unresolved conversations stay. This only removes inbox receipts, not native chats or project files.`} stack>
@@ -106,12 +110,13 @@ export function GatewayInboxView({ instance, close }: { instance: GatewayInstanc
   </Section>;
 }
 
-function InboxMessage({ event, busy, connected, paused, canSelect, act, dismiss, reviewDelivery, candidates, album, leader }: {
+function InboxMessage({ event, busy, connected, paused, canSelect, act, dismiss, reviewDelivery, reviewWork, candidates, album, leader }: {
   event: GatewayInboxEvent; busy: boolean; connected: boolean; paused: boolean; canSelect: boolean;
   candidates: GatewayInboxEvent[]; album: GatewayInboxEvent[]; leader?: GatewayInboxEvent;
   act: (suffix: string, body?: unknown) => Promise<boolean>;
   dismiss: (eventId: string) => Promise<void>;
   reviewDelivery: (eventId: string) => void;
+  reviewWork: (eventId: string) => void;
 }) {
   const [paths, setPaths] = useState(''); const [selecting, setSelecting] = useState(false);
   const mounted = useRef(false);
@@ -157,7 +162,11 @@ function InboxMessage({ event, busy, connected, paused, canSelect, act, dismiss,
         <Button size="small" disabled={busy || !connected} onClick={() => void group()}>Group album and start</Button>
       </div>}
       {event.dismissed && <p className="m-0 text-dim">Dismissed {new Date(event.dismissed.at).toLocaleString()}. Saved text and files stay in Athena. To request this work again, ask the sender to send a new message.</p>}
-      {event.status === 'needs-review' && !event.dismissed && <div>
+      {event.operationId && !event.reply && ['running', 'needs-review'].includes(event.status) && (!event.input.mediaGroupId || event.album?.leaderId === event.id) && <div>
+        <p className="my-2 text-dim">{event.workKept ? 'Kept in Athena. This gateway cannot resume tracking or send a reply for this request. Native work may still be running.' : 'Pause this gateway to review its saved native work and keep the request in Athena without another gateway reply.'}</p>
+        <Button size="small" variant="ghost" disabled={busy} onClick={() => reviewWork(event.id)}>Review saved work</Button>
+      </div>}
+      {event.status === 'needs-review' && !event.dismissed && !event.workKept && <div>
         <p className="m-0 text-dim">This message is held for review. Automatic model replay is disabled. Review the native work and saved destination before starting another assignment.</p>
         {gatewayRequestUnstarted(event) && <div className="mt-2">
           <p className="my-2 text-dim">{paused ? 'Dismiss a request that has never started to let later messages continue. Its saved text and files stay in Athena.' : 'Pause this gateway to dismiss a request that has never started.'}</p>
@@ -193,8 +202,8 @@ function InboxMessage({ event, busy, connected, paused, canSelect, act, dismiss,
             {file.retryAt && file.status === 'pending' ? <div className="text-dim">Retry after {new Date(file.retryAt).toLocaleString()}</div> : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            {!event.deliveryFinished && unresolved(file.status) && <Button size="small" variant="ghost" disabled={busy || !connected} onClick={() => void retry(`files/${index}/retry`, file.status === 'uncertain')}>Retry file</Button>}
-            {!event.deliveryFinished && ['pending', 'failed', 'uncertain'].includes(file.status) && <Button size="small" variant="ghost" disabled={busy || !connected} onClick={() => void skip(index, file.status === 'uncertain')}>Skip file</Button>}
+            {!event.workKept && !event.deliveryFinished && unresolved(file.status) && <Button size="small" variant="ghost" disabled={busy || !connected} onClick={() => void retry(`files/${index}/retry`, file.status === 'uncertain')}>Retry file</Button>}
+            {!event.workKept && !event.deliveryFinished && ['pending', 'failed', 'uncertain'].includes(file.status) && <Button size="small" variant="ghost" disabled={busy || !connected} onClick={() => void skip(index, file.status === 'uncertain')}>Skip file</Button>}
           </div>
         </div>)}
       </div> : null}

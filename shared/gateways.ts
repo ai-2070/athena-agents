@@ -20,7 +20,7 @@ export function gatewayAlbumCandidates(events: GatewayInboxEvent[], event: Gatew
 
 /** Advisory notices do not hold work; model holds and unresolved deliveries need review. */
 export function gatewayNeedsReview(event: GatewayInboxEvent): boolean {
-  if (event.dismissed) return false;
+  if (event.dismissed || event.workKept) return false;
   const unresolved = (status: string) => status === 'failed' || status === 'uncertain';
   return event.status === 'needs-review' || Boolean(event.files?.some((file) => file.status === 'failed')
     || (!event.deliveryFinished && (event.reply?.parts.some((part) => unresolved(part.status)) || event.outgoing?.some((file) => unresolved(file.status)))));
@@ -33,6 +33,7 @@ export function gatewayRequestUnstarted(event: GatewayInboxEvent): boolean {
 }
 
 function settled(event: GatewayInboxEvent): boolean {
+  if (event.workKept) return false;
   if (event.dismissed) return true;
   return event.status === 'done' && (!event.dispatch || event.dispatch.state === 'completed')
     && (event.deliveryFinished || !event.reply || event.reply.parts.every((part) => part.status === 'sent'))

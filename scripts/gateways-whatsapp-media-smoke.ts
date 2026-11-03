@@ -35,7 +35,7 @@ async function proof(): Promise<void> {
   const { pairWhatsApp, checkWhatsAppSetup, replaceWhatsAppPairing, finishWhatsAppPairing, whatsAppSetup } = await import('../server/gateways/whatsapp-setup.ts');
   const { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecovery } = await import('../server/gateways/whatsapp-recovery.ts');
   const { WhatsAppRelayIntake } = await import('../server/gateways/whatsapp-intake.ts');
-  const { GatewayInbox, gatewayDeliveryReview, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders } = await import('../server/gateways/inbox.ts');
+  const { GatewayInbox, gatewayDeliveryReview, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders, gatewayWorkReview } = await import('../server/gateways/inbox.ts');
   const { GatewayStateAdapter } = await import('../server/gateways/state.ts');
   const { GatewayFileProcessor } = await import('../server/gateways/files.ts');
   const { GatewayReplies } = await import('../server/gateways/replies.ts');
@@ -262,6 +262,19 @@ async function proof(): Promise<void> {
       assert.ok(inbox.list().at(-1)!.deliveryFinished); assert.equal(JSON.stringify(inbox.list().at(-1)!.reply), remaining); assert.equal(JSON.stringify(inbox.list().at(-1)!.dispatch), native);
       assert.equal(inbox.claimReply(), null); assert.equal(inbox.claimOutgoing(), null); assert.equal(calls.length, beforeReviewCalls); assert.equal(posts.length, 6);
       console.log('gateways: paused delivery review confirms only checked parts and finishes locally without sends or model replay');
+      const workRaw = senderRaw.replace('wamid.sender-fresh', 'wamid.keep-work'); const workBody = Buffer.from(workRaw).toString('base64');
+      await intake.receive(nextEpoch, { sequence: 4, id: crypto.createHash('sha256').update(workBody).digest('hex'), receivedAt: Date.now(), expiresAt: Date.now() + 60000, bodyBase64: workBody,
+        signature: 'sha256=' + crypto.createHmac('sha256', appSecret).update(workRaw).digest('hex'), contentType: 'application/json' }, async (receipt) => ({ epoch: receipt.epoch, cursor: receipt.sequence }));
+      const nativeWork = inbox.claimNext()!; inbox.beginDispatch(nativeWork.id, nativeWork.operationId!, await gatewayConversation(nativeWork, signal)); const nativeReceipt = JSON.stringify(inbox.list().at(-1)!.dispatch);
+      saveGatewayInstance(config, instance.id); const callCount = calls.length;
+      inbox.keepWork(nativeWork.id, { revision: gatewayWorkReview(instance.id, nativeWork.id).revision, acknowledgeMayStillRun: true, acknowledgeFreshConversation: true, acknowledgeNoReply: true });
+      await state.disconnect(); await state.connect(); const kept = inbox.list().at(-1)!; assert.ok(kept.workKept); assert.equal(kept.operationId, nativeWork.operationId); assert.equal(JSON.stringify(kept.dispatch), nativeReceipt); assert.equal(kept.reply, undefined);
+      saveGatewayInstance({ ...config, enabled: true }, instance.id); const nextRaw = senderRaw.replace('wamid.sender-fresh', 'wamid.after-keep'); const nextBody = Buffer.from(nextRaw).toString('base64');
+      await intake.receive(nextEpoch, { sequence: 5, id: crypto.createHash('sha256').update(nextBody).digest('hex'), receivedAt: Date.now(), expiresAt: Date.now() + 60000, bodyBase64: nextBody,
+        signature: 'sha256=' + crypto.createHmac('sha256', appSecret).update(nextRaw).digest('hex'), contentType: 'application/json' }, async (receipt) => ({ epoch: receipt.epoch, cursor: receipt.sequence }));
+      const afterKeep = inbox.claimNext()!; assert.equal(afterKeep.input.sourceMessageId, 'wamid.after-keep'); assert.notEqual(afterKeep.bindingId, nativeWork.bindingId); assert.notEqual(afterKeep.operationId, nativeWork.operationId);
+      assert.equal(calls.length, callCount); assert.equal(posts.length, 6); assert.equal(inbox.claimReply(), null); assert.equal(inbox.claimOutgoing(), null);
+      console.log('gateways: keeping native work local preserves signed receipts across restart and admits only fresh private work');
     } finally { await staleAdapter.disconnect(); await staleChat.shutdown(); }
   } finally {
     await replies.stop(); await processor.stop(); await adapter.disconnect(); await chat.shutdown(); await state.disconnect();
