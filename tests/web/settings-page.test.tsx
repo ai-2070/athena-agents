@@ -29,11 +29,9 @@ describe('searchSettings()', () => {
     expect(searchSettings('accent')[0].label).toBe('Accent colour');
     expect(searchSettings('zoom').map((h) => h.label)).toEqual(['UI scale']);
     expect(searchSettings('codex')[0].label).toBe('OpenAI Codex');
-    expect(searchSettings('sender guard')[0].tab).toBe('gateways');
-    expect(searchSettings('telegram')[0].tab).toBe('gateways');
-    expect(searchSettings('whatsapp setup')[0].tab).toBe('gateways');
-    expect(searchSettings('relay pairing')[0].tab).toBe('gateways');
-    expect(searchSettings('meta app secret')[0].tab).toBe('gateways');
+    // (Gateways is hidden for now, so search leaves it out)
+    expect(searchSettings('sender guard')).toEqual([]);
+    expect(searchSettings('telegram').some((h) => h.tab === 'gateways')).toBe(false);
     expect(searchSettings('nothing like this')).toEqual([]);
     expect(searchSettings('   ')).toEqual([]);
   });
@@ -52,6 +50,18 @@ describe('the Settings page', () => {
     expect(on.textContent).toBe('Appearance');
     expect(el.querySelector('[role="tablist"]')!.getAttribute('aria-label')).toBe('Settings');
     expect(el.textContent).toContain('Accent colour');
+  });
+
+  it('leaves the hidden Gateways tab out of the row, but its link still opens it', async () => {
+    await open('#/settings?tab=look');
+    const tabs = () => [...el.querySelectorAll('[role="tablist"][aria-label="Settings"] [role="tab"]')].map((t) => t.textContent);
+    expect(tabs()).not.toContain('Gateways');
+    act(() => settings.unmount());
+    const replies: Record<string, unknown> = { '/api/gateways': { instances: [], health: [] }, '/api/projects': { projects: [] } };
+    vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(replies[url] ?? {})));
+    await open('#/settings?tab=gateways');
+    expect(tabs()).toContain('Gateways');
+    expect(el.querySelector('[role="tab"].on')!.textContent).toBe('Gateways');
   });
 
   it('search lists matching settings and jumps to the one picked', async () => {

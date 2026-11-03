@@ -185,9 +185,10 @@ function navStatus(d: AppState) {
     line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : b.provider === 'venice' ? ' · Venice' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
     line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),
     d.outboxPending || d.questions?.length ? line('busy', 'Outbox', `${d.outboxPending + (d.questions?.length || 0)} waiting`, '#/outbox') : null,
-    h('div', { class: heading }, 'Chat gateways'),
+    // (gateways are out of Settings for now: only ones already set up show here)
+    gatewayLinks.length ? h('div', { class: heading }, 'Chat gateways') : null,
     ...gatewayLinks.map((gateway) => line(gateway.dot, gateway.label, gateway.value, gateway.href, gateway.title)),
-    !gatewayLinks.length ? line('', 'Gateways', 'not set up', S('tab=gateways')) : (d.gateways || []).length > gatewayLinks.length
+    gatewayLinks.length && (d.gateways || []).length > gatewayLinks.length
       ? line('', 'All gateways', String(d.gateways.length), S('tab=gateways')) : null,
     h('div', { class: 'mt-2 border-t border-line pt-2' },
       h('a', { class: footer, href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` },

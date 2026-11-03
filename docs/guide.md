@@ -436,7 +436,7 @@ Gateway agents can also inspect specific finished files and request their delive
 approval policy. Files changed after inspection are refused. Artifacts and tool images are not attached automatically.
 Delegated files can come from the agent's custom workspace. Their source run, private conversation and
 current folder access are checked again before delivery; missing records or revoked access hold the file for review.
-Set up Telegram under **Settings → Gateways**. Add an instance with its numeric bot account ID and
+Set up Telegram under **Settings → Gateways**. The tab is hidden for now: open it by going to `#/settings?tab=gateways` in the address bar. Add an instance with its numeric bot account ID and
 BotFather token, choose a project and the Brain, a team or an agent, and enter the allowed Telegram
 user IDs. Choose whether direct messages are allowed and list exact group/topic IDs when needed.
 Save leaves the instance paused; click **Enable** to connect. Saving an edit pauses it again. Each bot
@@ -527,7 +527,7 @@ links stay. Compact replay markers and daily byte totals stay too, so cleanup ca
 request or refill a file budget. These records do not expire; if their storage limit is reached, cleanup
 refuses to remove further receipts. There is no automatic purge of unresolved work.
 
-The sidebar's **Status** panel shows gateway connection state and messages needing review. Click an
+The sidebar's **Status** panel shows gateway connection state and messages needing review once an instance is set up. Click an
 instance needing review to open its inbox, or a connection warning to open its setup. Its tooltip names
 the bound project. Up to five instances appear, with attention items first; **All gateways** opens the full
 list. If an inbox is unreadable, its status says **check inbox** rather than reporting no problems.
