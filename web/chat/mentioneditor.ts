@@ -21,6 +21,10 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
   const value = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!;
   const focus = input.focus;
   const range = input.setSelectionRange;
+  // The caret, as the textarea's selectionStart / selectionEnd, is kept here and never set on the hidden textarea:
+  // in WebKit (Safari, the macOS app) setting a textarea's selection moves focus to it, which took focus away from
+  // this box on every click and key.
+  let sel = { start: input.value.length, end: input.value.length };
   const plain = (node: Node): string => {
     if (node instanceof HTMLElement && node.dataset.mention) return node.dataset.mention;
     if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
@@ -35,7 +39,7 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
     before.selectNodeContents(editor);
     before.setEnd(selected.startContainer, selected.startOffset);
     const start = plain(before.cloneContents()).length;
-    range.call(input, start, start + plain(selected.cloneContents()).length);
+    sel = { start, end: start + plain(selected.cloneContents()).length };
   };
   let syncing = false;
   const changed = () => {
@@ -95,9 +99,15 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
     selection?.removeAllRanges();
     selection?.addRange(next);
   };
-  Object.defineProperty(input, 'value', { configurable: true, get: () => value.get!.call(input) as string, set: (text: string) => { value.set!.call(input, text); draw(); } });
-  input.focus = () => { editor.focus(); place(input.selectionStart, input.selectionEnd); };
-  input.setSelectionRange = (start, end, direction) => { range.call(input, start, end, direction); place(start ?? 0, end ?? start ?? 0); };
+  // (setting the text puts the caret at its end, as a textarea does)
+  Object.defineProperty(input, 'value', { configurable: true, get: () => value.get!.call(input) as string, set: (text: string) => { value.set!.call(input, text); sel = { start: text.length, end: text.length }; draw(); } });
+  Object.defineProperty(input, 'selectionStart', { configurable: true, get: () => sel.start, set: (v: number) => { sel = { start: v, end: Math.max(v, sel.end) }; } });
+  Object.defineProperty(input, 'selectionEnd', { configurable: true, get: () => sel.end, set: (v: number) => { sel = { start: Math.min(sel.start, v), end: v }; } });
+  input.focus = () => { editor.focus(); place(sel.start, sel.end); };
+  input.setSelectionRange = (start, end) => {
+    sel = { start: start ?? 0, end: end ?? start ?? 0 };
+    place(sel.start, sel.end);
+  };
   const insertText = (text: string) => {
     if (typeof document.execCommand === 'function' && document.execCommand('insertText', false, text)) return;
     const selection = window.getSelection();
@@ -181,10 +191,15 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
     input.removeEventListener('input', syncFromInput);
     attributes.disconnect();
     delete (input as unknown as Record<string, unknown>).value;
+    delete (input as unknown as Record<string, unknown>).selectionStart;
+    delete (input as unknown as Record<string, unknown>).selectionEnd;
     input.focus = focus;
     input.setSelectionRange = range;
     input.hidden = false;
     editor.remove();
-    if (focused) focus.call(input);
+    if (focused) {
+      focus.call(input);
+      range.call(input, sel.start, sel.end);
+    }
   };
 }

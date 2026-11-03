@@ -175,7 +175,7 @@ Projects keep separate agents, teams and chats. The project name at the top left
 
 **Esc** takes you back to the Station from any other page. What is open closes first — a dialog, a dropdown, the Brain chat, a chat's find box — and a field you are typing in just loses the cursor. On the Station itself there is nowhere to go back to, so **Esc** opens the menu sidebar, and **Esc** again closes it.
 
-In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `/resume`, `/resend`, `/loop`, `/goal`, `/compact`, `/clear`), **@** picks another agent, and **#** in a team chat picks another team. What each one does, and how files and long chats are handled: [Chats and files](docs/guide.md#chats-and-files).
+In any agent, team or Brain chat, **/** lists the commands (`/queue`, `/stop`, `/resume`, `/resend`, `/loop`, `/goal`, `/compact`, `/clear`), **@** picks another agent (in the Brain chat: an agent, a team or a skill), shown as a pill, and **#** in a team chat picks another team. What each one does, and how files and long chats are handled: [Chats and files](docs/guide.md#chats-and-files).
 
 Agent and team queues survive a restart. Unfinished work pauses for you to check; use `/resume`
 or send a message to continue. Teams keep their assignments and read marks, and reuse saved results

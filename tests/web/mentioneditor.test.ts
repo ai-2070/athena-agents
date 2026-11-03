@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { attachMentionEditor } from '../../web/chat/mentioneditor.ts';
 
 let dispose: (() => void) | undefined;
@@ -12,6 +12,24 @@ const open = (text: string) => {
 };
 
 describe('inline mention editor', () => {
+  it('never sets the hidden textarea\'s own selection (WebKit would move focus to it)', () => {
+    const native = vi.spyOn(HTMLTextAreaElement.prototype, 'setSelectionRange');
+    const { input, editor } = open('Ask @Ana to help');
+    editor.focus();
+    const range = document.createRange();
+    range.setStart(editor.lastChild!, 3);
+    range.collapse(true);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    editor.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    editor.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
+    input.setSelectionRange(2, 2);
+    expect(native).not.toHaveBeenCalled();
+    expect(input.selectionStart).toBe(2);
+    expect(document.activeElement).toBe(editor);
+    native.mockRestore();
+  });
+
   it('keeps chips between the words they were inserted into', () => {
     const { input, editor } = open('Ask @Ana to help #Design today');
     expect([...editor.childNodes].map((n) => n.textContent)).toEqual(['Ask ', '@Ana', ' to help ', '#Design', ' today']);
