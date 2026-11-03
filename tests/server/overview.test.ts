@@ -72,4 +72,22 @@ describe('the Overview', () => {
     // names and times only
     expect(JSON.stringify(o)).not.toContain('SECRET WORDS');
   });
+  it('keeps each agent\'s newest chat from the chats\' saves, without reading every chat file again', async () => {
+    const p = await createProject({ name: 'Overview busy' });
+    const agent = withProject(p, () => newAgent({ name: 'Overview chatter' }));
+    const first = withProject(p, () => chats.create(agent.id));
+    const of = () => overview().projects.find((x) => x.id === p.id)!.sessions.find((s) => s.id === agent.id)!;
+    expect(of().chatId).toBe(first.id);
+    const stat = vi.spyOn(fs, 'statSync');
+    try {
+      // a new chat, and a private one (a gateway's): the newest is the new one, known without looking at the files
+      const second = withProject(p, () => chats.create(agent.id));
+      withProject(p, () => chats.save({ id: 'private-chat-x', agentId: agent.id, title: 'Gateway', items: [], sessionId: null, createdAt: Date.now(), updatedAt: Date.now() }));
+      expect(of().chatId).toBe(second.id);
+      const chatFiles = stat.mock.calls.filter(([f]) => String(f).includes(`${path.sep}chats${path.sep}`));
+      expect(chatFiles).toEqual([]);
+    } finally {
+      stat.mockRestore();
+    }
+  });
 });

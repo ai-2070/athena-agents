@@ -3,7 +3,7 @@
 // in its own withProject, whichever project is open.
 import fs from 'node:fs';
 import path from 'node:path';
-import { activeProject, agents, listProjects, questions, withProject, workflows } from './store.ts';
+import { activeProject, agents, bus, listProjects, questions, withProject, workflows } from './store.ts';
 import { dataPath } from './util.ts';
 import { activeRuns } from './engines/index.ts';
 import { listTerminals } from './terminals.ts';
@@ -11,7 +11,7 @@ import { listApprovals } from './approvals.ts';
 import { listBriefs } from './briefs.ts';
 import { isTeamBusy } from './teams.ts';
 import { projectCards } from './taskboard.ts';
-import type { OverviewData, OverviewProject, OverviewSession, Project } from '../shared/types.ts';
+import type { ActiveRun, Approval, OverviewData, OverviewProject, OverviewSession, Project, Terminal } from '../shared/types.ts';
 
 const mtime = (file: string): number => {
   try {
@@ -22,8 +22,33 @@ const mtime = (file: string): number => {
 };
 const cut = (text: string, n = 80) => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
 
-/** An agent's newest chat (not the private ones gateways and board tasks keep) and when it changed, from the files' times. */
+// Each agent's newest chat, read from the files once and then kept current by the chats' saves (the Overview is read
+// again after every change: looking at every chat file each time would add up). Read again after a while, for
+// files changed outside the dashboard.
+const NEWEST_FOR = 5 * 60_000;
+const newest = new Map<string, { chatId?: string; at: number; read: number }>();
+const isPrivate = (chatId: string) => chatId.startsWith('private-chat-');
+bus.on('event', (e) => {
+  if (e.type !== 'chats') return;
+  const { agentId, chatId, project, removed } = e as { agentId?: unknown; chatId?: unknown; project?: unknown; removed?: unknown };
+  if (typeof agentId !== 'string' || typeof project !== 'string') return;
+  const key = `${project}/${agentId}`;
+  if (removed || typeof chatId !== 'string') newest.delete(key);
+  else if (!isPrivate(chatId) && newest.has(key)) newest.set(key, { chatId, at: e.ts, read: newest.get(key)!.read });
+});
+
+/** An agent's newest chat (not the private ones gateways and board tasks keep) and when it changed. */
 function newestChat(projectId: string, agentId: string): { chatId?: string; at: number } {
+  const key = `${projectId}/${agentId}`;
+  const known = newest.get(key);
+  if (known && Date.now() - known.read < NEWEST_FOR) return known;
+  const found = newestChatOnDisk(projectId, agentId);
+  newest.set(key, { ...found, read: Date.now() });
+  return found;
+}
+
+/** The same, from the files' times. */
+function newestChatOnDisk(projectId: string, agentId: string): { chatId?: string; at: number } {
   const dir = dataPath('projects', projectId, 'chats', agentId);
   let best: { chatId?: string; at: number } = { at: 0 };
   let names: string[] = [];
@@ -33,18 +58,25 @@ function newestChat(projectId: string, agentId: string): { chatId?: string; at: 
     return best;
   }
   for (const name of names) {
-    if (!name.endsWith('.json') || name.startsWith('private-chat-')) continue;
+    if (!name.endsWith('.json') || isPrivate(name)) continue;
     const at = mtime(path.join(dir, name));
     if (at > best.at) best = { chatId: name.slice(0, -5), at };
   }
   return best;
 }
 
-function projectOverview(p: Project, open: Project): OverviewProject {
+/** What is running, waiting for approval and open as a terminal, across every project (read once per overview). */
+interface Live {
+  runs: ActiveRun[];
+  approvals: Approval[];
+  terminals: Terminal[];
+}
+
+function projectOverview(p: Project, open: Project, live: Live): OverviewProject {
   return withProject(p, () => {
-    const runs = activeRuns().filter((r) => (r.projectId || open.id) === p.id);
+    const runs = live.runs.filter((r) => (r.projectId || open.id) === p.id);
     // (approvals made before they said their project belong to the one open now)
-    const approvals = listApprovals().filter((a) => (a.projectId || open.id) === p.id);
+    const approvals = live.approvals.filter((a) => (a.projectId || open.id) === p.id);
     const waiting = questions.list().filter((q) => q.status === 'waiting');
     const stuck = listBriefs(p.id).filter((b) => b.status === 'blocked' || b.status === 'stuck');
     const sessions: OverviewSession[] = [];
@@ -88,7 +120,7 @@ function projectOverview(p: Project, open: Project): OverviewProject {
     sessions.push({ kind: 'brain', id: 'brain', name: 'The Brain', status: brainAsks ? 'needs-you' : 'idle', ...(brainAsks ? { why: cut(`Approval: ${brainAsks.title}`) } : {}), updatedAt: mtime(dataPath('projects', p.id, 'brain-chat.json')) });
 
     // the terminals opened in this project (running, or ended with their code)
-    for (const t of listTerminals().filter((x) => (x.projectId || open.id) === p.id)) {
+    for (const t of live.terminals.filter((x) => (x.projectId || open.id) === p.id)) {
       sessions.push({ kind: 'terminal', id: t.id, name: t.title, status: 'idle', ...(t.exited ? { ended: true, why: `Ended (exit code ${t.exitCode ?? '?'})` } : {}), updatedAt: t.createdAt });
     }
 
@@ -116,6 +148,7 @@ function projectOverview(p: Project, open: Project): OverviewProject {
 export function overview(): OverviewData {
   const open = activeProject();
   const list = listProjects();
-  const projects = [...list.filter((p) => p.id === open.id), ...list.filter((p) => p.id !== open.id)].map((p) => projectOverview(p, open));
+  const live: Live = { runs: activeRuns(), approvals: listApprovals(), terminals: listTerminals() };
+  const projects = [...list.filter((p) => p.id === open.id), ...list.filter((p) => p.id !== open.id)].map((p) => projectOverview(p, open, live));
   return { active: open.id, projects };
 }
