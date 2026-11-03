@@ -1,0 +1,49 @@
+server/gateways/whatsapp-intake.ts
+  s_3f5afab86a1bb3::t_fbd22d9adf0a2d 46,55-59,74-81
+  s_3f5afab86a1bb3::t_0aa87aebe8d9f0 14
+  s_3f5afab86a1bb3::t_3831c4ce6a82ab 1-13,15-45,47-54,60-73,82-129
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_759cb6cebd3e3c 14
+server/gateways/files.ts
+  s_3f5afab86a1bb3::t_7b255fdf76283b 84
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_c507ed641d49af 28,45-48,405-406,414-436
+shared/types.ts
+  s_3f5afab86a1bb3::t_3831c4ce6a82ab 141
+  s_3f5afab86a1bb3::t_06d09bb33cc28c 169,184-196,258
+scripts/gateways-whatsapp-relay-smoke.ts
+  s_3f5afab86a1bb3::t_759cb6cebd3e3c 8,17,21-27,30,35,37-39,49,53,71-107
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_3831c4ce6a82ab 42,123,693
+  s_3f5afab86a1bb3::t_7b255fdf76283b 4,15,19,55,62,113-119,122,124-125,149,173-177,201,563,657-692,694-707,732,759
+  s_3f5afab86a1bb3::t_7ba09c1460208f 20-21,120-121
+tests/server/gateway-whatsapp-intake.test.ts
+  s_3f5afab86a1bb3::t_0aa87aebe8d9f0 192-217
+  s_3f5afab86a1bb3::t_43a1afcca2f833 1-191,218-224
+server/gateways/instances.ts
+  s_3f5afab86a1bb3::t_06d09bb33cc28c 7,26
+relay/whatsapp/README.md
+  s_3f5afab86a1bb3::t_4eb1d6176fc969 7-10,128-132
+package.json
+  s_3f5afab86a1bb3::t_eb466f479fb05b 96
+shared/gateway-whatsapp.ts
+  s_3f5afab86a1bb3::t_06d09bb33cc28c 1-20
+bun.lock
+  s_3f5afab86a1bb3::t_b646a1e04dde2a 42,992-993
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fbe1b2aecafe66c69152e6914c0b97e15fe297c6",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
