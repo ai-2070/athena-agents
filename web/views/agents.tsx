@@ -9,17 +9,19 @@ import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.tsx';
 import { memoryEditor } from '../memory.tsx';
 import { ChipSet, Field, SearchBox, Segmented, Switch } from '../ui/controls.tsx';
+import { FormSection } from '../ui/formsection.tsx';
 import { buttonClass, chipClass } from '../ui/classes.ts';
 import { Dot, Pill } from '../ui/marks.tsx';
 import { Avatar, DomNode, Icon, ProjectScoped, reactPage, useAppState } from '../ui/react.tsx';
 import { ProgramGlyph, PresetGlyph } from '../ui/programmark.tsx';
 import { SelectControl } from '../ui/select.tsx';
+import type { SelectOption } from '../ui/select.tsx';
 import { themeColor } from '../theme.ts';
 import type { ModelListing } from '../models.tsx';
 import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
-import { ENGINE_NAMES, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
+import { CATEGORY_COLORS, ENGINE_NAMES, OTHER_COLOR, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
 import type { Slice } from '../agentstats.ts';
 import type { Agent, AppState, Autonomy, EngineStatus, McpServerInfo, Team, Terminal } from '../../shared/types.ts';
 
@@ -159,7 +161,7 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
         <div className="min-w-0">
           <div className={`${CAPTION} mb-3`}>By model</div>
           <ul className="agents-models -mx-2 flex flex-col">
-            {models.map((m) => (
+            {models.map((m, i) => (
               <li key={m.id}>
                 <button
                   type="button"
@@ -174,7 +176,8 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
                     <span className="ml-2 text-[12px] text-faint">{m.rest ? `${m.rest.length} more` : m.sub}</span>
                   </span>
                   <span className="h-1.5 overflow-hidden rounded-full bg-panel-2" aria-hidden="true">
-                    <span className="block h-full rounded-full bg-accent/80 transition-colors duration-150 group-hover:bg-accent" style={{ width: `${(m.count / topModel) * 100}%` }} />
+                    {/* (each model in its own colour from the same six as the categories) */}
+                    <span className="block h-full rounded-full opacity-85 transition-opacity duration-150 group-hover:opacity-100" style={{ width: `${(m.count / topModel) * 100}%`, background: m.id === 'other' ? OTHER_COLOR : CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
                   </span>
                   <span className="text-right text-[12.5px] text-dim tabular-nums">{m.count}</span>
                 </button>
@@ -301,11 +304,30 @@ function AgentsList() {
 }
 
 // ---------- the editor ----------
-const AUTONOMY: { value: Autonomy; label: string; title: string }[] = [
-  { value: 'ask', label: 'Ask first', title: 'You approve every action that changes something' },
-  { value: 'auto', label: 'Auto', title: 'Runs on its own; asks only for risky things (running code, shell, messages)' },
-  { value: 'full', label: 'Full', title: 'Never asks. Only for agents you trust completely' },
+const AUTONOMY: { value: Autonomy; label: string; title: string; icon: string }[] = [
+  { value: 'ask', label: 'Ask first', title: 'You approve every action that changes something', icon: 'hand' },
+  { value: 'auto', label: 'Auto', title: 'Asks only for risky things: running code, shell, sending messages', icon: 'shield-check' },
+  { value: 'full', label: 'Full', title: 'Never asks. Only for agents you trust completely', icon: 'zap' },
 ];
+
+// the editor's parts, in page order: the list beside the page jumps to them
+const PARTS = [
+  { id: 'identity', label: 'Identity', icon: 'bot' },
+  { id: 'brain', label: 'Brain', icon: 'cpu' },
+  { id: 'knowledge', label: 'Knowledge', icon: 'file-text' },
+  { id: 'behaviour', label: 'Autonomy', icon: 'shield-check' },
+  { id: 'tools', label: 'Tools and skills', icon: 'wrench' },
+  { id: 'workspace', label: 'Workspace', icon: 'folder' },
+  { id: 'more', label: 'More', icon: 'ellipsis' },
+] as const;
+const partId = (id: string) => `agent-part-${id}`;
+
+/** A choice tile (an engine, an autonomy level): its icon over its name, lit when picked. */
+const TILE =
+  'relative flex min-w-0 cursor-pointer flex-col items-start gap-2.5 rounded-box border border-line bg-panel/60 p-3 text-left text-dim [transition:border-color_0.15s,background-color_0.15s,color_0.15s,box-shadow_0.15s] hover:border-line-2 hover:bg-panel-2 hover:text-ink aria-checked:border-accent aria-checked:bg-accent/8 aria-checked:text-ink aria-checked:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]';
+const TILE_ICON = 'grid size-8 flex-none place-items-center rounded-[9px] border border-line bg-panel-2 text-dim [[aria-checked=true]_&]:border-accent/40 [[aria-checked=true]_&]:bg-accent/12 [[aria-checked=true]_&]:text-accent';
+/** A part of the page: one surface, its sections split by hairlines. */
+const PART = 'scroll-mt-40 rounded-box p-6 max-sm:p-4';
 
 interface EditorData {
   agent: AgentDetail;
@@ -332,13 +354,41 @@ function AgentEditor({ id }: { id: string }) {
   return <EditorForm key={version} data={data} d={d} reload={() => setVersion((v) => v + 1)} />;
 }
 
-/** A panel's title, with its icon. */
-const Heading = ({ icon, children }: { icon: string; children: ReactNode }) => (
-  <h2 className="flex items-center gap-2.5">
-    <Icon name={icon} size={16} className="text-faint" />
-    {children}
-  </h2>
-);
+/** The list of parts beside the page: a click scrolls to one, and the one in view is lit. */
+function PartsNav() {
+  const [seen, setSeen] = useState<string>(PARTS[0].id);
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const top = entries.filter((e) => e.isIntersecting).sort((x, y) => x.boundingClientRect.top - y.boundingClientRect.top)[0];
+        if (top) setSeen(top.target.id.replace('agent-part-', ''));
+      },
+      { rootMargin: '-15% 0px -65% 0px' },
+    );
+    for (const p of PARTS) {
+      const el = document.getElementById(partId(p.id));
+      if (el) io.observe(el);
+    }
+    return () => io.disconnect();
+  }, []);
+  return (
+    <nav aria-label="Parts of the agent" className="sticky top-40 flex flex-col gap-0.5 max-lg:hidden">
+      {PARTS.map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          aria-current={seen === p.id ? 'true' : undefined}
+          className="flex items-center gap-2.5 rounded-ctl px-2.5 py-1.5 text-left text-[13px] text-dim [transition:background-color_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink aria-[current]:bg-ink/5 aria-[current]:font-medium aria-[current]:text-ink"
+          onClick={() => document.getElementById(partId(p.id))?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        >
+          <Icon name={p.icon} size={14} />
+          {p.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
 
 /** The colour box takes #rrggbb: an agent without a colour starts on the accent. */
 const colorValue = (c?: string): string => (c && /^#[0-9a-f]{6}$/i.test(c) ? c : /^#[0-9a-f]{6}$/i.test(themeColor('accent')) ? themeColor('accent') : '#18688e');
@@ -385,160 +435,180 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
       toast(a.pinned ? 'Unpinned' : 'Pinned');
     });
 
+  const engineInfo = d.engineList.find((e) => e.id === a.engine);
   return (
-    <>
-      <div className="mx-auto max-w-5xl">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto max-w-6xl">
+      {/* the agent at the top, with Chat and Save: it stays in view on this long page */}
+      {/* (just under the app's own top bar, which is sticky too and 3.5rem tall) */}
+      <div className="sticky top-14 z-10 -mx-3 mb-8 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-line bg-bg/90 px-3 py-3 backdrop-blur-md">
         <ButtonLink variant="ghost" size="small" href="#/agents">← Agents</ButtonLink>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button variant="ghost" onClick={() => (dirty ? void save(true) : navigate(`#/agents/${id}`))}>Chat</Button>
-          <Button  disabled={!dirty} onClick={() => void save()}>Save</Button>
+        <div className="flex min-w-0 flex-1 items-center gap-3 [&_.avatar]:size-10 [&_.avatar]:rounded-[11px] [&_.avatar]:text-[20px]">
+          <Avatar agent={a} />
+          <div className="min-w-0">
+            <h1 className="m-0 truncate text-[18px] leading-tight font-semibold text-ink">{a.name.trim() || 'Agent'}</h1>
+            <p className="m-0 mt-0.5 truncate text-[12.5px] text-dim">{`Edit agent · ${engineLabel(a)}${a.model ? ` · ${a.model}` : ''}`}</p>
+          </div>
+        </div>
+        {dirty ? (
+          <span className="inline-flex items-center gap-1.5 text-[12.5px] text-dim" role="status">
+            <Dot tone="warn" />
+            Not saved yet
+          </span>
+        ) : null}
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" onClick={() => (dirty ? void save(true) : navigate(`#/agents/${id}`))}>
+            <Icon name="message-square" size={14} />
+            Chat
+          </Button>
+          <Button disabled={!dirty} onClick={() => void save()}>Save</Button>
         </div>
       </div>
-      <div className="mb-6">
-        <h1 className="m-0 text-[22px] leading-[1.2] font-semibold text-ink">Edit agent</h1>
-        <p className="hint mt-2 mb-0">Set its instructions, model and access.</p>
-      </div>
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-6 [&>.panel]:mt-0">
-          <Plate className="panel">
-            <div className="panel-head">
-              <Heading icon="bot">Identity and instructions</Heading>
-            </div>
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-4">
-              <div className="flex-none [&_.avatar]:size-15 [&_.avatar]:rounded-[14px] [&_.avatar]:text-[30px]">
-                <Suspense fallback={<Avatar agent={a} lg />}>
-                  <EmojiPicker value={a.emoji} onChange={(emoji) => set('emoji', emoji)}><Avatar agent={a} lg /></EmojiPicker>
-                </Suspense>
-              </div>
-              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-                <div className="min-w-0">
-                  <Field label="Name">
-                    <input value={a.name} onChange={(e) => set('name', e.target.value)} />
+
+      <div className="grid grid-cols-[180px_minmax(0,1fr)] items-start gap-10 max-lg:grid-cols-1">
+        <PartsNav />
+        <div className="flex min-w-0 flex-col gap-6">
+          <Plate id={partId('identity')} className={PART}>
+            <FormSection icon="bot" title="Identity and instructions" hint="Who it is and how it works. Click the picture to change it.">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-4">
+                <div className="flex-none [&_.avatar]:size-15 [&_.avatar]:rounded-[14px] [&_.avatar]:text-[30px]">
+                  <Suspense fallback={<Avatar agent={a} lg />}>
+                    <EmojiPicker value={a.emoji} onChange={(emoji) => set('emoji', emoji)}><Avatar agent={a} lg /></EmojiPicker>
+                  </Suspense>
+                </div>
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+                  <div className="min-w-0">
+                    <Field label="Name">
+                      <input value={a.name} onChange={(e) => set('name', e.target.value)} />
+                    </Field>
+                  </div>
+                  <Field label="Color">
+                    <input type="color" value={colorValue(a.color)} aria-label="Color" onChange={(e) => set('color', e.target.value)} />
                   </Field>
                 </div>
-                <Field label="Color">
-                  <input type="color" value={colorValue(a.color)} aria-label="Color" onChange={(e) => set('color', e.target.value)} />
-                </Field>
               </div>
-            </div>
-            <div className="mt-4">
               <Field label="Specialty" hint="One line. Other agents see it when deciding who to ask.">
                 <input value={a.specialty} placeholder="e.g. writes punchy X threads about AI" onChange={(e) => set('specialty', e.target.value)} />
               </Field>
-            </div>
-            <div className="mt-4">
               <Field label="Instructions">
-                <textarea className="code" rows={12} value={a.systemPrompt} placeholder="How this agent thinks, works and talks. Its process, rules, what good output looks like." onChange={(e) => set('systemPrompt', e.target.value)} />
+                <textarea className="code min-h-60 leading-[1.6]" rows={12} value={a.systemPrompt} placeholder="How this agent thinks, works and talks. Its process, rules, what good output looks like." onChange={(e) => set('systemPrompt', e.target.value)} />
               </Field>
-            </div>
+            </FormSection>
           </Plate>
-          <Plate className="panel">
-            <div className="panel-head">
-              <Heading icon="cpu">Brain</Heading>
-            </div>
-            <Segmented label="Brain" options={d.engineList.map((e) => ({ value: e.id, label: <span className="inline-flex items-center gap-2"><ProgramGlyph id={e.id} size={14} />{e.label}</span>, title: e.description }))} value={a.engine} onChange={pickEngine} />
-            <p className="hint mt-4">{d.engineList.find((e) => e.id === a.engine)?.description || ''}</p>
-            <div className="mt-4">
-              <EngineFields a={a} d={d} set={set} fit={(x) => (setA(fit(x)), setDirty(true))} />
-            </div>
-          </Plate>
-          <Plate className="overflow-hidden rounded-box">
-            <section className="p-5 sm:p-6">
-              <div className="panel-head">
-                <Heading icon="file-text">Knowledge</Heading>
-              </div>
-              {/* Save keeps any knowledge linked while editing. */}
-              <Knowledge id={id} synced={(knowledge) => setA((x) => ({ ...x, knowledge }))} />
-            </section>
-            <section className="border-t border-line p-5 sm:p-6">
-              <div className="panel-head">
-                <Heading icon="brain">MEMORY.md</Heading>
-                <span className="hint">saved on its own</span>
-              </div>
-              <DomNode make={() => (memory.current = memoryEditor(id, { rows: 10 })).el} deps={[id]} />
-            </section>
-          </Plate>
-        </div>
 
-        <Plate className="overflow-hidden rounded-box [&_.panel-head]:mb-4">
-          <div className="p-5 sm:p-6">
-            <div className="panel-head">
-              <Heading icon="shield-check">Autonomy</Heading>
+          <Plate id={partId('brain')} className={PART}>
+            <FormSection icon="cpu" title="Brain" hint={engineInfo?.description || 'What runs the agent, and which model it thinks with.'}>
+              <div role="radiogroup" aria-label="Brain" className="grid grid-cols-4 gap-2 max-sm:grid-cols-2">
+                {d.engineList.map((e) => (
+                  <button key={e.id} type="button" role="radio" aria-checked={a.engine === e.id} title={e.description} className={TILE} onClick={() => a.engine !== e.id && pickEngine(e.id)}>
+                    <span className={TILE_ICON}><ProgramGlyph id={e.id} size={16} /></span>
+                    <span className="max-w-full truncate text-[13px] font-semibold">{e.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="border-t border-line pt-5">
+                <EngineFields a={a} d={d} set={set} fit={(x) => (setA(fit(x)), setDirty(true))} />
+              </div>
+            </FormSection>
+          </Plate>
+
+          <Plate id={partId('knowledge')} className={PART}>
+            <div className="flex flex-col gap-6">
+              <FormSection icon="file-text" title="Knowledge" hint="Notes, files, folders and web pages it can read.">
+                {/* Save keeps any knowledge linked while editing. */}
+                <Knowledge id={id} synced={(knowledge) => setA((x) => ({ ...x, knowledge }))} />
+              </FormSection>
+              <FormSection icon="brain" title="MEMORY.md" end={<Pill>saved on its own</Pill>}>
+                <DomNode make={() => (memory.current = memoryEditor(id, { rows: 10 })).el} deps={[id]} />
+              </FormSection>
             </div>
-            <Segmented label="Autonomy" options={AUTONOMY.map((option) => ({ ...option, label: <span className="inline-flex items-center gap-2"><Icon name={option.value === 'ask' ? 'hand' : option.value === 'auto' ? 'shield-check' : 'zap'} size={14} />{option.label}</span> }))} value={a.autonomy || 'auto'} onChange={(v) => set('autonomy', v)} />
-            <p className="hint mt-4">Ask first: you approve anything that changes something. Auto: asks only for risky actions (running code or scripts in Blender, Photoshop, After Effects, ffmpeg, shell, sending messages); click Always allow to stop being asked for a tool. Full: never asks. X posts always wait in the Outbox unless you turn on auto-post for that account.</p>
-            {a.alwaysAllow?.length ? (
-              <div className="mt-4">
-                <div className="label">Always allowed</div>
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  {a.alwaysAllow.map((t) => (
-                    <Pill key={t}>{t}</Pill>
+          </Plate>
+
+          <Plate id={partId('behaviour')} className={PART}>
+            <div className="flex flex-col gap-6">
+              <FormSection icon="shield-check" title="Autonomy" hint="How much it does before asking you. X posts always wait in the Outbox unless an account has auto-post on.">
+                <div role="radiogroup" aria-label="Autonomy" className="grid grid-cols-3 gap-2 max-sm:grid-cols-1">
+                  {AUTONOMY.map((o) => (
+                    <button key={o.value} type="button" role="radio" aria-checked={(a.autonomy || 'auto') === o.value} className={TILE} onClick={() => set('autonomy', o.value)}>
+                      <span className={TILE_ICON}><Icon name={o.icon} size={16} /></span>
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-[13px] font-semibold text-ink">{o.label}</span>
+                        <span className="text-[12px] leading-normal text-dim">{o.title}</span>
+                      </span>
+                    </button>
                   ))}
                 </div>
-                <Button variant="ghost" size="tiny" className="mt-4" onClick={() => (set('alwaysAllow', []), toast('Cleared; save to apply'))}>Clear</Button>
+                {a.alwaysAllow?.length ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-box border border-line bg-panel-2/40 px-4 py-3">
+                    <span className="mr-1 text-[12.5px] font-medium text-dim">Always allowed</span>
+                    {a.alwaysAllow.map((t) => (
+                      <Pill key={t}>{t}</Pill>
+                    ))}
+                    <Button variant="ghost" size="tiny" className="ml-auto" onClick={() => (set('alwaysAllow', []), toast('Cleared; save to apply'))}>Clear</Button>
+                  </div>
+                ) : null}
+              </FormSection>
+              <FormSection icon="sparkles" title="Answers">
+                <Switch checked={!!a.richAnswers} onChange={(v) => set('richAnswers', v)} className="flex-nowrap! items-start! gap-3.5! rounded-box border border-line bg-panel-2/40 px-4 py-3.5 [&_.switch]:mt-0.5 [&_.switch]:flex-none">
+                  <span className="block text-[13.5px] font-medium text-ink">Rich answers</span>
+                  <span className="mt-0.5 block text-[12.5px] leading-normal text-dim">In your own chats it answers with live cards, tables, charts and forms. Good for research and reports. Leave off for coding agents and small or local models: it adds about 13k tokens to every message. Team chats, routines and other agents always get plain text.</span>
+                </Switch>
+              </FormSection>
+            </div>
+          </Plate>
+
+          <Plate id={partId('tools')} className={PART}>
+            <div className="flex flex-col gap-6">
+              <FormSection icon="wrench" title="Tools" hint="Point at a tool for what it does. Claude Code and Hermes agents also keep their own built-in tools.">
+                <ChipSet label="Tools" options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={a.toolGroups} onChange={(v) => set('toolGroups', v)} />
+              </FormSection>
+              <FormSection icon="plug" title="MCP servers" hint="Outside apps and services it can use.">
+                {servers.length ? (
+                  <div>
+                    <ChipSet label="MCP servers" options={mcpOptions(servers, info).map((option) => ({ ...option, label: <span className="inline-flex items-center gap-2"><PresetGlyph id={info?.[option.value]?.kind || option.value} size={14} />{option.label}</span> }))} value={a.mcpServers} onChange={(v) => set('mcpServers', v)} />
+                    {copiesWarning(a.mcpServers, info) ? <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(a.mcpServers, info)}</p> : null}
+                  </div>
+                ) : (
+                  <p className="m-0 rounded-box border border-dashed border-line-2 px-4 py-3 text-[13px] text-dim">
+                    No MCP servers yet. <a href="#/settings?tab=mcp">Add one</a> (browser control, GitHub, Blender live…).
+                  </p>
+                )}
+              </FormSection>
+              <FormSection icon="puzzle" title="Skills" hint="Its own skills. It also gets the project's and, while working for a team, that team's (both greyed). Save to apply.">
+                <DomNode
+                  make={() =>
+                    skillPicker(a.skills || [], (skills) => set('skills', skills), {
+                      inherited: [
+                        ...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' })),
+                        ...teams.filter((w) => (w.members || []).includes(id)).flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name }))),
+                      ],
+                      empty: 'No skills of its own yet.',
+                    })
+                  }
+                  deps={[id]}
+                />
+              </FormSection>
+            </div>
+          </Plate>
+
+          <Plate id={partId('workspace')} className={PART}>
+            <FormSection icon="folder" title="Workspace" hint="Where it saves files and runs commands. Empty: its own folder in the dashboard data.">
+              <div className="flex items-end gap-2 max-sm:flex-col max-sm:items-stretch">
+                <div className="min-w-0 flex-1">
+                  <Field label="Working folder">
+                    <input className="code" value={a.workspace || ''} placeholder={agent.workspacePath} onChange={(e) => set('workspace', e.target.value.trim())} />
+                  </Field>
+                </div>
+                <Button variant="ghost" onClick={() => void attempt(() => POST(`/agents/${id}/open-workspace`))}>
+                  <Icon name="folder-open" size={14} />
+                  Open folder
+                </Button>
               </div>
-            ) : null}
-          </div>
-          <div className="border-t border-line p-5 sm:p-6">
-            <div className="panel-head">
-              <Heading icon="sparkles">Answers</Heading>
-            </div>
-            <Switch checked={!!a.richAnswers} onChange={(v) => set('richAnswers', v)}>Rich answers</Switch>
-            <p className="hint mt-4">In your own chats with this agent it answers with live components (cards, tables, charts, forms with buttons) instead of plain text. Good for research, comparisons, reports and plans. Off for coding agents and team chats: it adds about 13k tokens of instructions to every message, and smaller or local models often get it wrong. Team chats, routines and other agents always get plain text.</p>
-          </div>
-          <div className="border-t border-line p-5 sm:p-6">
-            <div className="panel-head">
-              <Heading icon="wrench">Tools</Heading>
-            </div>
-            <ChipSet label="Tools" options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={a.toolGroups} onChange={(v) => set('toolGroups', v)} />
-            <p className="hint mt-4">Hover a tool for what it does. Claude Code and Hermes agents also keep their own built-in tools.</p>
-            <div className="mt-8"><Heading icon="plug">MCP servers</Heading></div>
-            {servers.length ? (
-              <div className="mt-4">
-                <ChipSet label="MCP servers" options={mcpOptions(servers, info).map((option) => ({ ...option, label: <span className="inline-flex items-center gap-2"><PresetGlyph id={info?.[option.value]?.kind || option.value} size={14} />{option.label}</span> }))} value={a.mcpServers} onChange={(v) => set('mcpServers', v)} />
-                {copiesWarning(a.mcpServers, info) ? <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(a.mcpServers, info)}</p> : null}
-              </div>
-            ) : (
-              <p className="hint mt-4">
-                No MCP servers yet. <a href="#/settings?tab=mcp">Add one</a> (browser control, GitHub, Blender live…).
-              </p>
-            )}
-          </div>
-          <div className="border-t border-line p-5 sm:p-6">
-            <div className="panel-head">
-              <Heading icon="puzzle">Skills</Heading>
-            </div>
-            <DomNode
-              make={() =>
-                skillPicker(a.skills || [], (skills) => set('skills', skills), {
-                  inherited: [
-                    ...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' })),
-                    ...teams.filter((w) => (w.members || []).includes(id)).flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name }))),
-                  ],
-                  empty: 'No skills of its own yet.',
-                })
-              }
-              deps={[id]}
-            />
-            <p className="hint mt-4">Skills given to this agent. It also gets the project's skills and, while working for a team, that team's skills (both greyed). Save to apply. Manage the library under Skills.</p>
-          </div>
-          <div className="border-t border-line p-5 sm:p-6">
-            <div className="panel-head">
-              <Heading icon="folder">Workspace</Heading>
-            </div>
-            <Field label="Working folder" hint="Where it saves files and runs commands. Empty = its own folder in the dashboard data.">
-              <input className="code" value={a.workspace || ''} placeholder={agent.workspacePath} onChange={(e) => set('workspace', e.target.value.trim())} />
-            </Field>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <Button variant="ghost" size="small" onClick={() => void attempt(() => POST(`/agents/${id}/open-workspace`))}>Open folder</Button>
-            </div>
-          </div>
-          <div className="border-t border-line p-5 sm:p-6">
-            <div className="panel-head">
-              <Heading icon="ellipsis">More</Heading>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
+            </FormSection>
+          </Plate>
+
+          {/* the rest: quiet actions, and Delete set apart at the end */}
+          <section id={partId('more')} className="scroll-mt-40 flex flex-col gap-3 border-t border-line pt-6">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="ghost" size="small" onClick={pin}>
                 <Icon name="star" size={13} />
                 {a.pinned ? 'Unpin' : 'Pin to top'}
@@ -560,12 +630,11 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
                 Delete
               </Button>
             </div>
-            <p className="hint mt-4">{`Id: ${a.id}${a.source?.type && a.source.type !== 'custom' ? ` · from ${a.source.type}${a.source.slug ? ` (${a.source.slug})` : ''}` : ''}`}</p>
-          </div>
-        </Plate>
+            <p className="m-0 font-mono text-[11.5px] text-faint">{`Id: ${a.id}${a.source?.type && a.source.type !== 'custom' ? ` · from ${a.source.type}${a.source.slug ? ` (${a.source.slug})` : ''}` : ''}`}</p>
+          </section>
+        </div>
       </div>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -593,7 +662,7 @@ function ModelInput({ label, hint, value, placeholder, models, onChange }: { lab
           </Autocomplete.Trigger>
         </div>
         <Autocomplete.Portal>
-          <Autocomplete.Positioner anchor={anchor} side="bottom" align="start" sideOffset={5} className="z-96 outline-none" collisionPadding={8}>
+          <Autocomplete.Positioner positionMethod="fixed" anchor={anchor} side="bottom" align="start" sideOffset={5} className="z-96 outline-none" collisionPadding={8}>
             <Autocomplete.Popup className="glass st-menu w-(--anchor-width) max-w-(--available-width) outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
               <Autocomplete.List className="max-h-72 overflow-y-auto">
                 {(item: ModelListing) => (
@@ -641,7 +710,7 @@ function EngineFields({ a, d, set, fit }: {
   }, [a.engine, a.provider]);
   const placeholder =
     a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : a.provider === 'venice' ? 'Choose a Venice model' : 'anthropic/claude-sonnet-5.5';
-  const pick = (label: string, value: string, options: { value: string; label: string }[], onChange: (v: string) => void, hint?: ReactNode) => (
+  const pick = (label: string, value: string, options: SelectOption[], onChange: (v: string) => void, hint?: ReactNode) => (
     <Field label={label} hint={hint}>
       <SelectControl aria-label={label} value={value} options={options} onChange={onChange} />
     </Field>
@@ -691,7 +760,8 @@ function EngineFields({ a, d, set, fit }: {
               { value: 'lmstudio', label: 'LM Studio (local)' },
               { value: 'ollama', label: 'Ollama (local)' },
               { value: 'custom', label: 'Custom OpenAI-compatible' },
-            ],
+              // each with its logo (Custom: a plug)
+            ].map((o) => ({ ...o, mark: <ProgramGlyph id={o.value} size={16} /> })),
             // a server on this PC takes fewer effort levels
             (v) => fit({ ...a, provider: v, model: defaultModelForEngine('eve', d.settings.defaults, v) }),
           )}
@@ -751,12 +821,7 @@ function EngineFields({ a, d, set, fit }: {
         <p className="hint">Each chat here is its own OpenClaw session. It goes through your OpenClaw Gateway when it is running, else OpenClaw answers here on its own. OpenClaw's own approval settings apply to its tools.</p>
       </>
     );
-  return (
-    <div className="flex flex-col gap-4">
-      {parts}
-
-    </div>
-  );
+  return <div className="flex flex-col gap-4">{parts}</div>;
 }
 
 /** What the agent knows: notes and files of its own, linked folders, saved web pages. */
@@ -808,13 +873,13 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
   };
   return (
     <div className="flex flex-col gap-3">
-      <p className="hint">
+      <p className="hint m-0">
         {total <= 24000 ? 'Small knowledge is given to the agent in full with every message.' : 'Large knowledge: the agent searches it when needed (knowledge_search).'}
         {` ${info.files.length} file${info.files.length === 1 ? '' : 's'} · ${Math.round(total / 1024)} KB`}
       </p>
       {info.folders.map((f) => (
         <div key={f} className="list-row">
-          <span aria-hidden="true">📁</span>
+          <Icon name="folder" size={15} className="flex-none text-dim" />
           <div className="flex-1 min-w-0 font-mono text-[12.5px] wrap-anywhere">{f}</div>
           <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?folder=${encodeURIComponent(f)}`)).then(load)}>Unlink</Button>
         </div>
@@ -823,7 +888,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
         .filter((f) => f.own)
         .map((f) => (
           <div key={f.label} className="list-row">
-            <span aria-hidden="true">📄</span>
+            <Icon name="file-text" size={15} className="flex-none text-dim" />
             <div className="flex-1 min-w-0">
               {f.label}
               <span className="hint">{` · ${Math.max(1, Math.round(f.size / 1024))} KB`}</span>
@@ -831,14 +896,15 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
             <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?label=${encodeURIComponent(f.label)}`)).then(load)}>Remove</Button>
           </div>
         ))}
-      <div className="mt-1 flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="small" onClick={() => void addNote()}>+ Write a note</Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="small" onClick={() => void addNote()}><Icon name="pen-line" size={13} />Write a note</Button>
         <label className={buttonClass('ghost', 'small')}>
-          + Upload files
+          <Icon name="upload" size={13} />
+          Upload files
           <input type="file" multiple hidden onChange={(e) => void upload(e.target.files)} />
         </label>
-        <Button variant="ghost" size="small" onClick={() => void addFolder()}>+ Link a folder</Button>
-        <Button variant="ghost" size="small" onClick={() => void addUrl()}>+ From a web page</Button>
+        <Button variant="ghost" size="small" onClick={() => void addFolder()}><Icon name="folder-open" size={13} />Link a folder</Button>
+        <Button variant="ghost" size="small" onClick={() => void addUrl()}><Icon name="globe" size={13} />From a web page</Button>
       </div>
     </div>
   );

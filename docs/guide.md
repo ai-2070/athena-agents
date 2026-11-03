@@ -24,7 +24,7 @@ The [README](../README.md) says what the dashboard is, how to install it, which 
 The [desktop app](../README.md#desktop-app) is the same dashboard in its own window. It starts the dashboard's server when you open it and stops it when you quit. Links to other sites open in your browser.
 
 - **Closing the window keeps it running** in the tray (the notification area on Windows, the menu bar on macOS), so agents keep working. Click the tray icon, or open the app again, to bring the window back. To quit, right-click the tray icon and choose **Quit Athena Agents**. On a Linux desktop that hides tray icons (GNOME without an extension), open the app again from the app menu to bring the window back.
-- **Its data is separate** from a checkout's `data/` folder. It lives in `%APPDATA%\com.ai2070.blacksite\data` on Windows, `~/Library/Application Support/com.ai2070.blacksite/data` on macOS and `~/.local/share/com.ai2070.blacksite/data` on Linux. To use another folder, start the app with `DASH_DATA` set to it. Its first project uses the same **My workspace** folder as the browser version: if that folder already has a saved copy (`.dashboard`), the app loads it first instead of saving an empty project over it.
+- **Its data is separate** from a checkout's `data/` folder. It lives in `%APPDATA%\com.ai2070.athena-agents\data` on Windows, `~/Library/Application Support/com.ai2070.athena-agents/data` on macOS and `~/.local/share/com.ai2070.athena-agents/data` on Linux. To use another folder, start the app with `DASH_DATA` set to it. Its first project uses the same **My workspace** folder as the browser version: if that folder already has a saved copy (`.dashboard`), the app loads it first instead of saving an empty project over it.
 - **It uses port 14800**, not 4800, so it can run next to the browser version. If 14800 is taken, it uses the next free port. To sign in to X or Reddit from the app, add the callback address its **Connections** page shows (with 14800) to your X or Reddit app.
 - **The installers are not signed yet.** On Windows, choose **More info → Run anyway**. On macOS, Control-click the app in Finder and choose **Open**, or allow it under **System Settings → Privacy & Security**.
 - **Files open in their own programs.** A file in a chat, a team chat, the Brain or the Outbox has an **Open** button that opens it with the program your computer uses for it, and clicking a PDF or any other file the page can't show opens it there too, instead of a browser tab or a download. Programs and scripts (`.exe`, `.bat`, `.ps1`, `.py` and the like) are never opened this way: use **Show in Explorer** / **Show in Finder** to look at them.
@@ -132,6 +132,18 @@ Tasks start **Pending**. A worker claims ready work as **In progress**, checks t
 
 Creating or assigning a task records the plan. Ask the agent, team or Brain in the chat to do the work. During supervised work, unfinished tasks linked to the assignment prevent a premature completion report. Completing every task still requires the Brain's usual check of the requested result. A blocker continues to go to **Needs you**.
 
+**The Tasks board** is something else: **Tasks** in the sidebar holds the project's own tasks, the work you track, apart from the step lists agents keep in their chats. Each task has a number (#12), a title, a description, a priority (Urgent, High, Normal, Low) and someone who has it (you, the Brain, an agent or a team). They sit in five columns: **To do**, **In progress**, **In review**, **Blocked** and **Done**.
+
+- **New task** (or **+** at the top of To do, In progress or In review) opens a window with a big title, its description, and pills for its status, priority, who has it and its project. **Create another** keeps the window open for the next one; **Ctrl+Enter** creates it.
+- Drag a card to another column or up and down its own: a copy follows the pointer, a gap opens where it will land, and the card glides into place. Or focus it and press **[** / **]** to change column and **Alt+↑** / **Alt+↓** to move it within one; the card's **…** menu does the same and has **Remove**. Click the person mark on a card to give it to you, the Brain, an agent or a team. Moving a card to **Blocked** asks why; the reason shows on the card until it moves on. If the task was changed somewhere else a moment before (by the Brain or in another tab), the move is refused and the card goes back.
+- Click a card to open its page: the title to edit in place, the description shown as Markdown (**Edit** to change it), its status, priority and who has it, and when it was made and changed. **Copy a link** gives an address that opens it again. If someone changes the description while you are editing it, **Save** asks before replacing their version with yours.
+- **Comments.** Under **Activity** on a task's page, leave a comment (Markdown supported; **Ctrl+Enter** sends it); yours can be changed or removed.
+- **Mentions.** In a description or a comment (and in the New task window), type **@** to mention one of the project's agents or teams, or a skill: it shows as a pill while you write and when you read it, a team's and a skill's with their icon. The Brain can mention them too. A card shows how many comments it has. The Brain reads them and can add its own.
+- **Draft with the Brain** in the New task window, under a description you are editing and under the comment box: say what it should say (or leave it empty), and the Brain writes a draft into the box from the task, its comments and what is there. Nothing is saved until you save; **Undo** takes the draft back.
+- Choose **This project**, **All projects** or one project above the board; in **All projects** each card says which project it is in, and the choice is remembered on this PC (if that project is removed, the board goes back to This project). A change is saved in the task's own project, whichever project is open. Search, **Assigned to** and **Priority** narrow the cards. Done shows the last 14 days; **Show older** shows the rest.
+- The Brain sees the board and can manage it: ask it to "put that on the board", "move #12 to review", "give #4 to the Writer" or "what's blocked?". Tasks it adds say they were made by the Brain. It moves a task to Done only when you say so or it has checked the result; otherwise finished work goes to In review.
+- The board is included in folder saves, backups and clones.
+
 Tasks survive restarts and are included in folder saves, backups and clones. Opening a saved copy keeps task IDs and dependency links, resets In progress tasks to Pending and drops old completion-check links. Each project's tasks remain separate when you switch projects.
 
 ## Skills: instructions worth keeping
@@ -189,7 +201,7 @@ Each project can have its own background picture behind the map: click the Brain
 
 ## Routines: work worth repeating
 
-Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Use **Run now** to run its saved instructions, or set a schedule. A new routine is only saved once it has something to do. Every routine has a sliding switch, on its card in the list and on its page, to switch it on or off: a routine that is off doesn't run, by hand or on its schedule. The same switch controls manual and scheduled runs. A daily schedule can have several times; use **Add time** to add another. Pick the hour, minute and AM/PM, then press **OK**. The routine card shows every time and the selected days. Each run records what its agents and teams did.
+Create a routine, write the instructions, and **@mention** the agents or teams that should do the work and the skills they should use. Each mention shows as a pill, as in a team chat's message box, with an icon for a team or a skill; **×** on a pill takes it out. Use **Run now** to run its saved instructions, or set a schedule. A new routine is only saved once it has something to do. Every routine has a sliding switch, on its card in the list and on its page, to switch it on or off: a routine that is off doesn't run, by hand or on its schedule. The same switch controls manual and scheduled runs. A daily schedule can have several times; use **Add time** to add another. Pick the hour, minute and AM/PM, then press **OK**. The routine card shows every time and the selected days. Each run records what its agents and teams did. On the Station, a team's **Setup** tab lists the routines that mention it; **New routine for this team** starts one with the team already mentioned.
 
 In **Runs**, expand a run to see each agent's or team's result. Markdown in a result is shown formatted, and **Chat** opens the conversation.
 
@@ -335,7 +347,7 @@ These copies exclude stored keys and account tokens, **not private content you p
 
 ### Back up a project
 
-Choose **Project menu → Back up this project**. The dashboard writes a `.dashbackup` file under **`Blacksite Backups`** in your home folder.
+Choose **Project menu → Back up this project**. The dashboard writes a `.dashbackup` file under **`Athena Agents Backups`** in your home folder.
 
 A backup includes the project's agents, teams, routines, layout, Brain and agent/team chats, knowledge files, MEMORY.md files, logo and background picture (with its opacity and the map dots' opacity), the teams' pictures and 3D models, `PROJECT.md` and notes, and its voxel world (with WORLD.md and its prefabs). It also includes **every skill and saved preset in your library, and every prefab in the prefab library**, plus earlier versions of the project's agents, teams and memories and of library skills, including deleted items. It does not include stored keys or account tokens.
 
@@ -343,7 +355,7 @@ Backups are not a full copy of your working folder: back up source files, upload
 
 ### Restore a backup
 
-Choose **New project → From backup**, then drop in a `.dashbackup` file or choose one from the backups folder.
+Choose **New project → Backup**, then drop in a `.dashbackup` file or choose one from the backups folder.
 
 - Restore creates a new project; it does not replace the original.
 - Missing skills and presets are added. If a skill has the same ID but different contents, your existing skill stays and the restored copy gets an `-restored` suffix. Matching skills receive the backup's earlier versions.

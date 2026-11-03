@@ -7,6 +7,7 @@ import type { DotTone } from './ui/classes.ts';
 import * as home from './views/home.tsx';
 import * as station from './views/station.ts';
 import * as artifactsView from './views/artifacts.tsx';
+import * as tasksView from './views/tasks.tsx';
 import * as agents from './views/agents.tsx';
 import * as chat from './views/chat.tsx';
 import * as library from './views/library.tsx';
@@ -23,10 +24,12 @@ import { initDock } from './dock.tsx';
 import { mountDrawerQuestions } from './questions.tsx';
 import { guardPageDrops } from './attach.tsx';
 import { applyLook, applySavedLook } from './look.ts';
+import { autosizeTextareas } from './autosize.ts';
 import { navLimits, panelSwitch, sidebarPanel } from './navlimits.tsx';
 import { gatewayStatusLinks } from './gateway-status.ts';
 
 applySavedLook();
+autosizeTextareas();
 import { icon, logo } from './icons.ts';
 import { REPO } from '../shared/about.ts';
 import { openProjectMenu, openLauncher } from './projects.tsx';
@@ -64,6 +67,7 @@ const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
   { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => (state.data?.outboxPending || 0) + (state.data?.questions?.length || 0) },
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
+  { path: 'tasks', label: 'Tasks', ico: 'kanban', view: tasksView },
   // how many agents this project has
   { path: 'agents', label: 'Agents', ico: 'bot', view: agents, count: () => state.data?.agents?.length || 0 },
   { path: 'library', label: 'Agent Library', ico: 'library-big', view: library },
@@ -87,9 +91,10 @@ const VIEW_FLUSH = 'w-full min-w-0 *:animate-[fade_0.35s_ease-out]';
 
 // The sidebar's links. On the Station (body.station-mode) the bar folds to its icons: on a wide screen it is
 // clipped to the icon strip and its text fades in when it opens (body.nav-wide); on a narrow one a hovered
-// icon shows its name beside it.
+// icon shows its name beside it. Open, the links have the same padding as on every other page (the icons
+// ease over from their place in the strip).
 const NAV_LINK =
-  'group flex items-center gap-3 rounded-ctl px-3 py-2 text-[14px] leading-[1.3] font-medium [transition:background-color_0.15s,color_0.15s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-3 md:in-[.station-mode]:w-8.5 md:in-[.station-mode]:justify-start md:in-[.station-mode]:px-[6px] md:in-[.station-mode.nav-wide]:w-auto md:in-[.station-mode.nav-wide]:px-[6px]';
+  'group flex items-center gap-3 rounded-ctl px-3 py-2 text-[14px] leading-[1.3] font-medium [transition:background-color_0.15s,color_0.15s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-3 md:in-[.station-mode]:w-8.5 md:in-[.station-mode]:justify-start md:in-[.station-mode]:px-[6px] md:in-[.station-mode.nav-wide]:w-auto md:in-[.station-mode.nav-wide]:px-3 md:in-[.station-mode]:[transition:background-color_0.15s,color_0.15s,padding_0.45s_cubic-bezier(.22,.9,.25,1)]';
 const NAV_LINK_OFF = 'text-dim hover:bg-ink/5 hover:text-ink';
 const NAV_LINK_ON = 'bg-ink/7 text-ink';
 const NAV_ICO = 'grid w-5 flex-none place-items-center text-center in-[.station-mode]:group-hover:text-accent';
@@ -100,6 +105,8 @@ const NAV_TXT =
   'uppercase tracking-[0.025em] in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:rounded-ctl in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line in-[.station-mode]:group-hover:bg-raise in-[.station-mode]:group-hover:shadow-pop in-[.station-mode]:group-hover:px-3 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:shadow-none in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 const NAV_COUNT =
   'ml-auto in-[.station-mode]:[display:none] in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
+// the status list's scrolling part: its top and bottom fade instead of cutting off
+const NAV_LIST = 'nav-list flex min-h-0 min-w-0 flex-1 flex-col gap-px overflow-x-hidden overflow-y-auto pb-2 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-16px),transparent_100%)]';
 // a line of the status list at the bottom left
 const NS_LINE = 'group flex min-w-0 w-full items-center gap-2.5 rounded-ctl px-2 py-1 text-[12.5px] leading-5 text-dim no-underline [transition:background-color_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
 
@@ -119,7 +126,12 @@ function renderNav() {
   const d = state.data;
   if (d) {
     // the status list, or (Status / Limits switch) your Claude and Codex usage limits
-    mount(document.getElementById('nav-status')!, sidebarPanel() === 'limits' ? navLimits(renderNav) : navStatus(d), panelSwitch(renderNav));
+    // only the list scrolls, its ends fading out (like a chat's), and the switch stays under it
+    mount(
+      document.getElementById('nav-status')!,
+      h('div', { class: NAV_LIST }, sidebarPanel() === 'limits' ? navLimits(renderNav) : navStatus(d)),
+      panelSwitch(renderNav),
+    );
   }
   // the version is asked for once (no GitHub call here: the star count is only fetched in Settings > About)
   if (!aboutAsked) {
@@ -161,10 +173,11 @@ function navStatus(d: AppState) {
     h('div', { class: heading }, 'Engines'),
     line(cc.installed ? (cc.loggedIn ? 'on' : 'warn') : '', 'Claude Code', cc.installed ? (cc.loggedIn ? ver(cc.version) || 'ready' : 'not signed in') : 'not found', S('tab=general&find=Claude Code')),
     line(cx.installed ? (cx.loggedIn ? 'on' : 'warn') : '', 'Codex', cx.installed ? (cx.loggedIn ? ver(cx.version) || 'ready' : 'sign in') : 'not installed', S('tab=general&find=OpenAI Codex')),
-    line(e.hermes?.installed ? 'on' : '', 'Hermes', e.hermes?.installed ? 'found' : 'not found', S('tab=general&find=Hermes')),
-    line(e.pi?.installed ? 'on' : '', 'pi coding agent', e.pi?.installed ? ver(e.pi.version) || 'found' : 'not installed', S('tab=general&find=pi coding agent')),
-    line(e.omp?.installed ? 'on' : '', 'oh-my-pi', e.omp?.installed ? ver(e.omp.version) || 'found' : 'not installed', S('tab=general&find=oh-my-pi')),
-    line(e.openclaw?.installed ? 'on' : '', 'OpenClaw', e.openclaw?.installed ? ver(e.openclaw.version) || 'found' : 'not installed', S('tab=general&find=OpenClaw')),
+    // the optional engines only show once they are installed (Settings still lists them with how to install)
+    e.hermes?.installed ? line('on', 'Hermes', 'found', S('tab=general&find=Hermes')) : null,
+    e.pi?.installed ? line('on', 'pi coding agent', ver(e.pi.version) || 'found', S('tab=general&find=pi coding agent')) : null,
+    e.omp?.installed ? line('on', 'oh-my-pi', ver(e.omp.version) || 'found', S('tab=general&find=oh-my-pi')) : null,
+    e.openclaw?.installed ? line('on', 'OpenClaw', ver(e.openclaw.version) || 'found', S('tab=general&find=OpenClaw')) : null,
     h('div', { class: heading }, 'Models and connections'),
     line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : b.provider === 'venice' ? ' · Venice' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
     line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),
@@ -177,8 +190,7 @@ function navStatus(d: AppState) {
       h('a', { class: footer, href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` },
         icon('folder-open', 13), h('span', { class: 'flex min-w-0 flex-1 flex-col gap-0.5' },
           h('span', { class: 'truncate text-dim' }, d.project?.name || 'Project'),
-          h('span', { class: 'truncate', title: savedLine }, savedLine))),
-      h('a', { class: footer, href: S('tab=about&find=This PC'), title: 'Address' }, icon('globe', 13), h('span', { class: 'min-w-0 truncate' }, `localhost:${d.port} · no login`))),
+          h('span', { class: 'truncate', title: savedLine }, savedLine)))),
   ];
 }
 

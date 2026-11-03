@@ -129,7 +129,7 @@ export function codexRequest<T = unknown>(method: string, params: unknown, timeo
         }
       }
     });
-    send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'blacksite', version: '1' } } });
+    send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'athena-agents', version: '1' } } });
   });
 }
 

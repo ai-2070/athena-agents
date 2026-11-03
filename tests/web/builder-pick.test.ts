@@ -43,9 +43,11 @@ describe('the team builder', () => {
     expect(rows().map((b) => b.title)).toEqual(['Add Scout to the team']);
   });
 
-  it('shows a box for each part, in the same type as the page (only code and ids are mono)', async () => {
+  it('shows a section for each part, in the same type as the page (only code and ids are mono)', async () => {
     const m = await openBranchBuilder();
     expect(m.el.classList.contains('mono-fields')).toBe(false);
-    expect([...m.el.querySelectorAll('section')].map((s) => s.firstElementChild!.textContent?.trim())).toEqual(['Basics', 'Files', 'Members0', 'Access']);
+    expect([...m.el.querySelectorAll('section h3')].map((h) => h.textContent?.trim())).toEqual(['Basics', 'Files', 'Members', 'Access']);
+    // the members' count sits at the end of its title row
+    expect([...m.el.querySelectorAll('section')][2].firstElementChild!.textContent).toContain('0');
   });
 });

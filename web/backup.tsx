@@ -138,7 +138,7 @@ export async function backupProject(p: Pick<Project, 'id' | 'name'>): Promise<vo
                 <Icon name="copy" size={14} />
               </IconButton>
             </div>
-            <p className="hint">To bring it back, here or on another PC: New project &gt; From backup, and drop this file in.</p>
+            <p className="hint">To bring it back, here or on another PC: New project &gt; Backup, and drop this file in.</p>
           </div>
         </div>
         <div className="modal-foot">

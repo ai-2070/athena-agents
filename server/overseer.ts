@@ -41,6 +41,7 @@ import { cachedApiModelInfo } from './apiproviders.ts';
 import { listBriefs } from './briefs.ts';
 import { createTask, getTask, listTasks, runTaskBatch, savedTasks, updateTask } from './tasks.ts';
 import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
+import { addBoardComment, addBoardTask, boardLines, changeBoardTask, findBoardTask, removeBoardTask } from './taskboard.ts';
 import { build as buildInWorld } from './voxel/build.ts';
 import { shownWorld, worldForBuild } from './voxel/link.ts';
 import { readWorldMd, writeWorldMd, writeWorldMdSection } from './voxel/worldmd.ts';
@@ -92,6 +93,12 @@ interface MemberRef {
 }
 /** One action the Brain asked for, as parsed from its answer (nothing is guaranteed). */
 export interface BrainAction {
+  // the Tasks board (board_add, board_update, board_remove)
+  task?: unknown;
+  title?: unknown;
+  priority?: unknown;
+  assignee?: unknown;
+  blockedReason?: unknown;
   tasks?: unknown;
   taskId?: string;
   subject?: unknown;
@@ -439,6 +446,7 @@ export async function snapshot({ fileBudget = 9000, conversationId }: { fileBudg
     `\nTEAMS (${teams.length}; a team is a group chat of agents with a shared goal):\n${teamLines.join('\n') || '(none)'}`,
     `\nWORK YOU HANDED OUT (newest last; you check on open ones when they finish):\n${briefLines.join('\n') || '(none)'}`,
     `\nSAVED TASKS (use TaskList for more, TaskGet for full details):\n${conversationId ? '(not included in private conversation snapshots)' : JSON.stringify(listTasks({ status: 'open', limit: 40 }, { admin: true, scope: { kind: 'brain' } }))}`,
+    `\nTASK BOARD (the user's own tracked work on the Tasks page; open tasks, then the last ones done):\n${conversationId ? '(not included in private conversation snapshots)' : boardLines(p.id).join('\n') || '(empty)'}`,
     `\nROUTINES (${routineLines.length}; saved instructions run by hand or on a schedule):\n${routineLines.join('\n') || '(none)'}`,
     `\nSKILLS (${skillLines.length}; the project's recorded know-how and workflows; mention one in a routine as @Name):\n${skillLines.slice(0, 120).join('\n') || '(none)'}`,
     `\nMCP SERVERS (${mcpLines.length}; outside tool servers agents and teams can be given):\n${mcpLines.join('\n') || '(none)'}\nReady-made, to add: ${ready}\nReady-made that sign in through the browser the first time they run (no key to paste), to add: ${byBrowser}${suggested ? `\nSuggested for this PC (not added; offer them, add only when the user says yes): ${suggested}` : ''}${found ? `\nFound in the user's Claude configs, to add: ${found}` : ''}`,
@@ -567,6 +575,7 @@ Kinds of request:
 4. Routines: work the user wants done again and again, or on a schedule ("every morning…", "each Friday…", "set up a routine that…"), or changes to an existing routine. Create, update, run or delete them with the routine actions. A routine's text says what to do and @mentions, by their exact names from the SNAPSHOT, who does it (one or more agents and/or teams) and the skills they use (e.g. "@Researcher finds the 3 biggest AI stories, then @Content Team writes a post using @Brand voice."). Every mentioned agent and team gets the routine; an agent in a mentioned team gets it in that team chat. Mention at least one agent or team. If the right agent or team doesn't exist, build it first in the same answer, then mention it by name.
 5. Work to be done (make, write, research, draft a post or DM, edit a video, generate images, fix code…): never do it yourself. Delegate it to the best existing team or agent. If nothing fits, build what's needed first (a team or an agent) and then delegate to it in the same answer.
 For work with several steps, maintain saved tasks with TaskCreate/TaskGet/TaskList/TaskUpdate. You can manage all project lists. Use a brain list for a project plan, team lists for shared team work, and agent lists for private work. Owners are brain, agent:<id>, team:<id>, or empty. Task records track work; creating or assigning one does not start a run: delegate the work as well. Mark completed only after verifying the requested result. Dependencies belong to one list and must be completed before starting dependent work. Do not create task records for greetings or simple answers.
+The TASK BOARD is different: the user's own tracked work (the Tasks page), each task with a #number, a title, a description, a status (todo, in_progress, in_review, blocked, done), a priority (urgent, high, normal, low) and who has it (you = the user, brain, agent:<id>, team:<id>, or empty). Add, move, assign, change or remove board tasks with the board actions when the user asks (e.g. "put that on the board", "move #12 to review", "what's blocked?"), or to keep it in step with work you hand out when the user wants that. A board task records work; it doesn't start a run: delegate the work as well. Moving one to blocked needs a blockedReason. Read a task's comments in the TASK BOARD lines (the last one shows); add your own with board_comment, e.g. what you checked or what is still missing. In a board task's description or a comment, mention an agent, a team or a skill by its exact name as @Name; the page shows it as a pill. Move a task to done only when the user says it is done or you have checked the result; finished work you have not checked goes to in_review.
 6. Skills: the project's recorded know-how (workflows, checklists, house rules, pitfalls) in Claude Code's SKILL.md format. Agents read a skill before work that matches its description. Create, edit, give, take back, re-assign or delete skills with the skill actions when the user asks, or when a workflow is worth keeping (see your own skills). Re-assigning is take_skill from one and give_skill to another, or set_skills for an agent's or team's whole list. Install skills from a GitHub link the user gives with install_skill, and give them to whoever needs them. Before rewriting a skill's whole text you must have seen it: its text is under SKILL TEXTS, or open it with read_skill first (you get its text and answer again). To add a step or a pitfall without rewriting, use "append".
 7. Stop work: when the user asks to stop an agent, a team or everything, stop it with the stop action right away (it can't be undone, but nothing is lost: they pick up again when someone writes to them).
 8. Models: which model an agent, several agents or a whole team run on, and how hard they think (effort). The SNAPSHOT shows each agent's provider, model and effort: answer questions about them from there (for a team, its members'). Change them with set_model when the user asks. When you don't know a model's exact id, or the user asks which models a provider has, look it up with find_models first (you get the list and answer again); never guess an id.
@@ -594,6 +603,10 @@ Actions (JSON, ids exactly as in the snapshot or library):
 {"do":"TaskUpdate","taskId":"id, unique title, or new (the task just created)","status":"pending"|"in_progress"|"completed"|"deleted","owner":"…","addBlockedBy":["prerequisite ids or unique titles"],"addBlocks":["dependent ids or unique titles"]} (also subject, description, activeForm, metadata, removeBlockedBy, removeBlocks)
 TaskCreate and TaskUpdate also accept {"do":"TaskCreate"|"TaskUpdate","tasks":[{...},{...}]} with a non-empty array of task objects/updates and no per-call task-count cap, without single-task fields. Items run in order; failures are reported per item and successful items remain saved. Retry only failed items. Batch updates can refer to unique titles from earlier creates; put prerequisite completion before dependent completion.
 {"do":"TaskGet","taskId":"id"} / {"do":"TaskList","status":"open","search":"optional text","offset":0,"limit":50} (read saved tasks before answering; TaskList also accepts scope, returns nextOffset for more pages)
+{"do":"board_add","title":"short title","description":"what needs to happen and how to tell it's done","status":"todo"|"in_progress"|"in_review","priority":"urgent"|"high"|"normal"|"low","assignee":"you|brain|agent:<id>|team:<id>|agent:new|team:new|"}   (a task on the TASK BOARD)
+{"do":"board_update","task":"#12, its id or its exact title","title":"…","description":"…","status":"todo"|"in_progress"|"in_review"|"blocked"|"done","priority":"…","assignee":"…","blockedReason":"why (needed for blocked)"}   (only the fields that change)
+{"do":"board_remove","task":"#12"}
+{"do":"board_comment","task":"#12","text":"the comment, in Markdown"}   (a comment on a board task, signed by you, the Brain: a status note, a question, what you checked)
 {"do":"create_routine","name":"…","description":"one line","text":"what to do, with @Name mentions","schedule":SCHEDULE,"enabled":true|false}
 {"do":"update_routine","routine":"<routine id>","name":"…","description":"…","text":"the whole new text","schedule":SCHEDULE,"enabled":true|false}   (only the fields that change)
 {"do":"run_routine","routine":"<routine id, or 'new'>","input":"optional extra for this run"}
@@ -1343,6 +1356,34 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
           if (!result.success) { done.push({ kind: 'error', text: `${kind} item ${result.index + 1}: ${result.error}` }); continue; }
           const task = saved.get(result.taskId)!;
           done.push({ kind: 'task', taskId: task.id, text: `${kind === 'TaskCreate' ? 'Created' : task.status === 'deleted' ? 'Removed' : 'Updated'} task: ${task.subject}` });
+        }
+        continue;
+      }
+      if (kind === 'board_comment') {
+        const t = findBoardTask(p.id, act.task ?? act.id);
+        addBoardComment(p.id, t.id, act.text, 'brain');
+        done.push({ kind: 'board', text: `Commented on #${t.number}: ${t.title}`, boardTask: { projectId: p.id, id: t.id } });
+        continue;
+      }
+      if (kind === 'board_add' || kind === 'board_update' || kind === 'board_remove') {
+        // the Tasks board: the user's own tracked work, in this project
+        const who = (v: unknown) => (v === 'agent:new' ? `agent:${lastAgent}` : v === 'team:new' ? `team:${lastTeam}` : v);
+        const fields = { title: act.title, description: act.description, status: act.status, priority: act.priority, assignee: act.assignee === undefined ? undefined : who(act.assignee), blockedReason: act.blockedReason };
+        const reasoned = typeof fields.blockedReason === 'string' && !!fields.blockedReason.trim();
+        if (kind === 'board_add') {
+          if (fields.status === 'blocked' && !reasoned) throw new Error('say why it is blocked (blockedReason)');
+          const t = addBoardTask(p.id, fields, 'brain');
+          done.push({ kind: 'board', text: `Added #${t.number} to the board: ${t.title}`, boardTask: { projectId: p.id, id: t.id } });
+        } else if (kind === 'board_update') {
+          const was = findBoardTask(p.id, act.task ?? act.id);
+          if (fields.status === 'blocked' && was.status !== 'blocked' && !reasoned) throw new Error('say why it is blocked (blockedReason)');
+          const t = changeBoardTask(p.id, was.id, fields);
+          const moved = t.status !== was.status ? ` (now ${t.status.replace('_', ' ')})` : '';
+          done.push({ kind: 'board', text: `Updated #${t.number} on the board: ${t.title}${moved}`, boardTask: { projectId: p.id, id: t.id } });
+        } else {
+          const t = findBoardTask(p.id, act.task ?? act.id);
+          removeBoardTask(p.id, t.id);
+          done.push({ kind: 'board', text: `Removed #${t.number} from the board: ${t.title}` });
         }
         continue;
       }

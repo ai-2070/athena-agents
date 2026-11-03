@@ -13,7 +13,9 @@ import type { DesktopTarget } from './desktop-target.ts';
 const root = path.resolve(import.meta.dirname, '..');
 const tauriDir = path.join(root, 'src-tauri');
 const stage = path.join(tauriDir, 'app');
-const cache = path.join(tauriDir, 'target', 'desktop-cache');
+// The downloads (Bun for the target, node-pty) stay between builds. Not under src-tauri/target: `cargo
+// clean` empties it, and CI's Rust cache throws away everything in it that Cargo didn't write.
+const cache = path.join(tauriDir, '.cache');
 
 function argValue(name: string): string | undefined {
   const i = process.argv.indexOf(name);

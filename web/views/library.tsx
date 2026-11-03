@@ -2,6 +2,7 @@
 // and your presets. A React page on Base UI controls.
 import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { Plate } from '../ui/surface.tsx';
+import { Bone, Skeleton } from '../ui/skeleton.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { useEffect, useState } from 'react';
@@ -10,6 +11,7 @@ import { h, GET, POST, PUT, DEL, attempt, navigate, md, modal, toast, refreshSoo
 import { Chips, SearchBox, Segmented, Tabs } from '../ui/controls.tsx';
 import { domButton } from '../ui/dom.ts';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
+import { ProgramGlyph } from '../ui/programmark.tsx';
 import { modelInfo, openModelPicker } from '../models.tsx';
 import type { ModelPatch } from '../models.tsx';
 import type { Agent, AppState, EngineId, PresetListing, Team } from '../../shared/types.ts';
@@ -116,6 +118,51 @@ function Empty({ children, action }: { children: ReactNode; action?: ReactNode }
   );
 }
 
+// ---------- while it loads: the page's shape ----------
+const LEDE = 'Hire a specialist and it joins your team with its instructions already written. You can change anything afterwards.';
+const TAB_W = ['w-20', 'w-32', 'w-30', 'w-44', 'w-28'];
+const CHIP_W = ['w-11', 'w-22', 'w-17', 'w-25', 'w-19', 'w-36', 'w-13', 'w-27', 'w-24', 'w-25', 'w-20', 'w-36', 'w-22', 'w-15'];
+const TITLE_W = ['w-32', 'w-28', 'w-24', 'w-36'];
+
+function LibrarySkeleton() {
+  return (
+    <Skeleton label="Loading library…">
+      <p className="lede max-w-[68ch]">{LEDE}</p>
+      <div className="flex gap-7 border-b border-line px-4 pt-2 pb-3.5">
+        {TAB_W.map((w, i) => <Bone key={i} className={`h-4 ${w}`} />)}
+      </div>
+      <div className="mt-8 flex flex-wrap items-center gap-3">
+        <Bone className="h-10 w-[min(400px,100%)]" />
+        <Bone className="ml-auto h-10 w-[560px] max-xl:hidden" />
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {CHIP_W.map((w, i) => <Bone key={i} className={`h-8 rounded-full ${w}`} />)}
+      </div>
+      <div className="cards mt-6">
+        {Array.from({ length: 8 }, (_, i) => (
+          <Plate key={i} className="card hover:shadow-none">
+            <div className="card-top">
+              <Bone className="size-11 rounded-[11px]" />
+              <div className="flex min-w-0 flex-1 flex-col gap-2 pt-1">
+                <Bone className={`h-4 ${TITLE_W[i % TITLE_W.length]}`} />
+                <Bone className="h-3 w-16" />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 py-1">
+              <Bone className="h-3 w-full" />
+              <Bone className="h-3 w-3/5" />
+            </div>
+            <div className="card-foot">
+              <Bone className="h-7 w-14" />
+              <Bone className="h-7 w-15" />
+            </div>
+          </Plate>
+        ))}
+      </div>
+    </Skeleton>
+  );
+}
+
 // ---------- the page ----------
 function LibraryPage() {
   const data = useAppState();
@@ -135,7 +182,7 @@ function LibraryPage() {
   }, []);
 
   if (failed) return <Plate className="panel"><p className="text-red">Something went wrong: {failed}</p></Plate>;
-  if (!lib || !data) return <p className="text-dim">Loading library…</p>;
+  if (!lib || !data) return <LibrarySkeleton />;
 
   const pick = (t: Tab) => setTab((lastTab = t));
   const tabs = [
@@ -149,7 +196,7 @@ function LibraryPage() {
     tab === 'agency' || tab === 'starters' ? (
       <div className="ml-auto flex flex-wrap items-center gap-3">
         <span className="label">Runs on</span>
-        <Segmented label="Runs on" options={data.engineList.map((e) => ({ value: e.id, label: e.label }))} value={engine} onChange={setEngine} />
+        <Segmented label="Runs on" options={data.engineList.map((e) => ({ value: e.id, label: <span className="inline-flex items-center gap-2"><ProgramGlyph id={e.id} size={14} />{e.label}</span> }))} value={engine} onChange={setEngine} />
         {engine === 'eve' ? <Button variant="ghost" size="small" onClick={(event) => openModelPicker(event.currentTarget, apiChoice || { engine: 'eve', provider: 'openrouter', model: data.settings.defaults.openrouterModel }, setApiChoice, { title: 'Model for new hires', engines: ['eve'] })}>
           {apiChoice ? `${modelInfo(apiChoice).where} · ${modelInfo(apiChoice).short}` : 'Choose API model'}
         </Button> : null}
@@ -159,7 +206,7 @@ function LibraryPage() {
 
   return (
     <>
-      <p className="lede max-w-[68ch]">Hire a specialist and it joins your team with its instructions already written. You can change anything afterwards.</p>
+      <p className="lede max-w-[68ch]">{LEDE}</p>
       {branchParam() ? (
         <Plate className="panel mb-6">
           <div className="flex flex-wrap items-center justify-between gap-3">

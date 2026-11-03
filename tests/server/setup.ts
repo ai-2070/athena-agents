@@ -8,7 +8,7 @@ import { afterAll } from 'vitest';
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-test-'));
 process.env.DASH_DATA = path.join(dir, 'data');
 fs.mkdirSync(process.env.DASH_DATA, { recursive: true });
-// project folders default to <home>/Documents/Blacksite: keep those in the throwaway folder too
+// project folders default to <home>/Documents/Athena Agents: keep those in the throwaway folder too
 const home = path.join(dir, 'home');
 fs.mkdirSync(home, { recursive: true });
 process.env.HOME = home;

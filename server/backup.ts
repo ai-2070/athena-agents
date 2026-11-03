@@ -1,7 +1,7 @@
 // Backups: one file with everything in a project (agents, teams, routines, layout, chats, knowledge
 // files, MEMORY.md files, logo and background, PROJECT.md and notes, its voxel world, and the kept versions of its agents, teams and memories) plus every skill in
 // the library with its versions, every saved preset and the prefab library. Written
-// to <home>/Blacksite Backups on Windows, macOS and Linux. Drop one into "New project > From
+// to <home>/Athena Agents Backups on Windows, macOS and Linux. Drop one into "New project > From
 // backup" to get it all back as a new project, here or on another PC. Keys and tokens are never in it.
 //
 // The file: a first line naming the format, a second line with a short JSON summary (so the page can
@@ -23,6 +23,7 @@ import { libraryEntries, putLibraryEntry } from './voxel/prefabs.ts';
 import type { LibraryPrefab } from './voxel/prefabs.ts';
 import { savedOpacity } from '../shared/look.ts';
 import { restoredTasks } from './tasks.ts';
+import { restoredBoard } from './taskboard.ts';
 import type { Agent, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
 
 export const BACKUP_EXT = '.dashbackup';
@@ -59,13 +60,14 @@ const MARK_RE = /^([\w.-]+)\.(png|jpg|jpeg|webp|gif|glb|gltf|obj|stl|ply|fbx)$/;
 
 /** Where backups are written: a folder in your home folder. */
 export const backupsRoot = (): string => {
-  const dir = path.join(HOME, 'Blacksite Backups');
+  const dir = path.join(HOME, 'Athena Agents Backups');
   if (!movedOld) {
     movedOld = true;
-    // Backups made before the app was called Blacksite: bring the whole folder along, once
-    const old = path.join(HOME, 'My Dashboard Backups');
+    // Backups made under the app's old names (Blacksite, then My Dashboard before it): bring the
+    // newest folder along, once
+    const old = ['Blacksite Backups', 'My Dashboard Backups'].map((n) => path.join(HOME, n)).find((d) => exists(d));
     try {
-      if (exists(old) && !exists(dir)) fs.renameSync(old, dir);
+      if (old && !exists(dir)) fs.renameSync(old, dir);
     } catch {
       /* in use or not allowed: new backups still go to the new folder */
     }
@@ -119,6 +121,8 @@ export interface BackupData {
   layout: unknown;
   brainChat: unknown;
   tasks?: unknown;
+  /** the Tasks board */
+  board?: unknown;
   teamChats: { name: string; data: unknown }[];
   chats: { agentId: string; chat: Chat }[];
   knowledge: PackedFile[];
@@ -395,6 +399,7 @@ export function packProject(p: Project): BackupData {
     layout: readPlain<unknown>(projectDir(id, 'layout.json'), {}),
     brainChat: readPlain<unknown>(projectDir(id, 'brain-chat.json'), { messages: [] }),
     tasks: readPlain<unknown>(projectDir(id, 'tasks.json'), { tasks: [] }),
+    board: readPlain<unknown>(projectDir(id, 'board.json'), { tasks: [] }),
     teamChats: jsonFiles(projectDir(id, 'teamchats')).map((name) => ({ name, data: readJSON<unknown>(projectDir(id, 'teamchats', name)) })).filter((x) => x.data != null),
     chats,
     knowledge,
@@ -561,6 +566,7 @@ export function decodeBackup(buf: Buffer): BackupData {
     layout: b.layout && typeof b.layout === 'object' ? b.layout : {},
     brainChat: b.brainChat && typeof b.brainChat === 'object' ? b.brainChat : { messages: [] },
     tasks: restoredTasks(b.tasks),
+    board: restoredBoard(b.board),
     teamChats: arr<BackupData['teamChats'][number]>(b.teamChats).filter((c) => c && typeof c.name === 'string' && /^[\w.-]+\.json$/.test(c.name) && c.data != null),
     chats: arr<BackupData['chats'][number]>(b.chats).filter((c) => c && typeof c.agentId === 'string' && CHAT_ID_RE.test(c.agentId) && c.chat && typeof c.chat.id === 'string' && CHAT_ID_RE.test(c.chat.id) && Array.isArray(c.chat.items)),
     knowledge: files(b.knowledge),
@@ -811,6 +817,7 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   writeJSON(projectDir(id, 'layout.json'), b.layout);
   writeJSON(projectDir(id, 'brain-chat.json'), b.brainChat);
   writeJSON(projectDir(id, 'tasks.json'), restoredTasks(b.tasks));
+  writeJSON(projectDir(id, 'board.json'), restoredBoard(b.board));
   for (const c of b.teamChats) writeJSON(projectDir(id, 'teamchats', c.name), c.data);
   // chats go back under the agent and id they were saved as (whatever the chat itself claims)
   const agentIds = new Set(b.agents.map((a) => a.id));

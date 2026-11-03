@@ -179,13 +179,16 @@ function pick(c: Candidate) {
 }
 
 // Put the menu under the caret: measure where it is with a hidden copy of the textarea.
-function caretRect(ta: HTMLTextAreaElement, pos: number): DOMRect {
+function caretRect(input: HTMLTextAreaElement, pos: number): DOMRect {
   const z = uiZoom();
+  // with mentions shown as pills the textarea is hidden and the editor after it is what you see
+  const shown = input.nextElementSibling;
+  const ta = input.hidden && shown instanceof HTMLElement && shown.getAttribute('contenteditable') === 'true' ? shown : input;
   const cs = getComputedStyle(ta);
   const copy = document.createElement('div');
   for (const p of ['boxSizing', 'width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderStyle', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'tabSize'] as const) copy.style[p] = cs[p];
   Object.assign(copy.style, { position: 'absolute', visibility: 'hidden', top: '0', left: '-9999px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' });
-  copy.textContent = ta.value.slice(0, pos);
+  copy.textContent = input.value.slice(0, pos);
   const mark = document.createElement('span');
   mark.textContent = '@';
   copy.append(mark);

@@ -152,6 +152,7 @@ a.card.clickable { color: inherit; text-decoration: none; }
 }
 /* the dropdown (Base UI) goes in and out by transitions instead: Base UI keeps it on screen until its ending style is
    done, and it opens from the side of its trigger (--transform-origin is set by where it is placed) */
+.st-menu.dd { max-height: min(480px, var(--available-height, 480px)); }
 .st-menu.dd { animation: none; transform-origin: var(--transform-origin); transition: opacity 0.14s, transform 0.14s var(--ease-soft); }
 .st-menu.dd[data-starting-style], .st-menu.dd[data-ending-style] { opacity: 0; transform: scale(0.96); }
 .st-menu.dd[data-side='top'][data-starting-style], .st-menu.dd[data-side='top'][data-ending-style] { transform: translateY(4px) scale(0.96); }
@@ -174,9 +175,12 @@ a.card.clickable { color: inherit; text-decoration: none; }
 .st-menu-item.danger .ico-svg { color: var(--color-red); }
 .st-menu-sep { height: 1px; background: var(--color-line); margin: 4px -4px; }
 
-/* the model picker (web/models.ts) */
-.model-menu { min-width: 280px; max-width: 340px; max-height: 500px; width: 340px; }
+/* the model picker (web/models.ts): a column whose list is the only part that scrolls, never taller than the room
+   Base UI finds below (or above) its chip */
+.model-menu { display: flex; flex-direction: column; overflow: hidden; padding: 0; width: min(380px, calc(100vw - 16px)); min-width: 0; max-width: none; max-height: min(560px, var(--available-height, 560px)); }
 .model-list { max-height: 320px; overflow-y: auto; }
+.model-menu .model-list { max-height: none; overflow: visible; }
+.model-menu .model-body .st-menu-head { padding: 10px 8px 4px; }
 .model-sub { display: block; font-size: 12px; color: var(--color-faint); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .model-latest { font: 500 11px var(--font-sans); color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, transparent); border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
 
@@ -344,7 +348,8 @@ details.compaction .hint.warn { color: var(--color-amber); }
 .approval.question textarea { min-height: 0; margin: 0; }
 
 /* ---------- dialogs and toasts (web/ui/overlays.tsx) ---------- */
-.modal-back { position: fixed; inset: 0; z-index: 60; background: var(--color-scrim); display: grid; place-items: center; padding: 24px; backdrop-filter: none; animation: var(--animate-fade); }
+/* one column as wide as the window: older Safari sizes an auto column from the dialog, so its 100% cap never bit */
+.modal-back { position: fixed; inset: 0; z-index: 60; background: var(--color-scrim); display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 24px; backdrop-filter: none; animation: var(--animate-fade); }
 .modal {
   width: min(880px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column;
   border-radius: 16px;
@@ -354,6 +359,7 @@ details.compaction .hint.warn { color: var(--color-amber); }
 .modal-back.exit[data-ending-style] { animation: var(--animate-fade-out); }
 .modal-back.exit[data-ending-style] .modal { animation: var(--animate-pop-out); }
 .modal.narrow { width: min(520px, 100%); }
+.modal.medium { width: min(680px, 100%); }
 .modal-back.wide .modal { width: min(1100px, 100%); }
 /* a document to read (a Markdown file): about 80 characters a line */
 .modal-back.doc .modal { width: min(800px, 100%); }

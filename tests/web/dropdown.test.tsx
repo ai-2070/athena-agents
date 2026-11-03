@@ -5,7 +5,7 @@ import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Dropdown, DropdownContent, DropdownGroup, DropdownItem, DropdownLabel, DropdownRadioGroup, DropdownRadioItem, DropdownSeparator, DropdownTrigger } from '../../web/ui/dropdown.tsx';
 import { SelectControl } from '../../web/ui/select.tsx';
-import { attachTray } from '../../web/attach.tsx';
+import { attachTray, PICKER_LABELLED } from '../../web/attach.tsx';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
@@ -94,9 +94,27 @@ describe('the select control', () => {
     await click(rows('option')[0]);
     expect(picked).toEqual(['']);
   });
+
+  it('shows an option\'s logo before its label, in the list and on the closed field', async () => {
+    await act(async () => root.render(<SelectControl aria-label="Provider" value="b" onChange={() => {}} options={[{ value: 'a', label: 'Alpha', mark: <i className="logo-a" /> }, { value: 'b', label: 'Beta', mark: <i className="logo-b" /> }]} />));
+    expect(document.querySelector('button[aria-label="Provider"] .logo-b')).not.toBeNull();
+    await click(document.querySelector('button[aria-label="Provider"]')!);
+    expect(rows('option').map((row) => [row.querySelector('i')?.className, row.textContent?.trim()])).toEqual([['logo-a', 'Alpha'], ['logo-b', 'Beta']]);
+  });
 });
 
 describe('the paperclip', () => {
+  it('in a dialog it is a button that says Add files / folders', async () => {
+    const tray = attachTray({ pickerButton: PICKER_LABELLED });
+    document.getElementById('host')!.append(tray.picker);
+    await settle();
+    const button = tray.picker.querySelector<HTMLButtonElement>('button')!;
+    expect(button.textContent).toBe('Add files / folders');
+    expect(button.querySelector('svg')).not.toBeNull();
+    await click(button);
+    expect(rows().map((r) => r.textContent!.trim())).toEqual(['Files…', 'A folder…']);
+  });
+
   it('opens Files… and A folder… from the app dropdown, and each asks its own picker', async () => {
     const tray = attachTray();
     document.getElementById('host')!.append(tray.picker);

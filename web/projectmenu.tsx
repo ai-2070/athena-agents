@@ -82,7 +82,7 @@ function ProjectMenu({ anchor, projects, active, actions, open, close, dispose }
       }
     }} onOpenChangeComplete={(next) => { if (!next) dispose(); }}>
       <Menu.Portal>
-        <Menu.Positioner anchor={anchor} className="z-80 outline-none" side="bottom" align="start" sideOffset={6} collisionPadding={8}>
+        <Menu.Positioner positionMethod="fixed" anchor={anchor} className="z-80 outline-none" side="bottom" align="start" sideOffset={6} collisionPadding={8}>
           <Menu.Popup className="st-menu dd static proj-menu data-[ending-style]:pointer-events-none" finalFocus={() => returnFocusOnEscape.current && anchor instanceof HTMLElement ? anchor : false}>
             <div className="st-menu-head">Projects</div>
             <div className="max-w-[260px] px-2.5 pb-2.5 text-[12px] leading-[1.5] font-normal text-faint">Drag to reorder, the pencil renames. On the Station, Up and Down switch between them.</div>
