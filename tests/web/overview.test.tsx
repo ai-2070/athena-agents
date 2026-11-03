@@ -30,7 +30,7 @@ class FakeSocket {
 const now = Date.now();
 const session = (over: Partial<OverviewSession>): OverviewSession => ({ kind: 'agent', id: 'x', name: 'X', status: 'idle', updatedAt: now - 60_000, ...over });
 let data: OverviewData;
-let requests: { method: string; url: string }[];
+let requests: { method: string; url: string; body?: unknown }[];
 let activated = false;
 let el: HTMLElement;
 
@@ -63,10 +63,19 @@ beforeEach(() => {
   vi.stubGlobal('WebSocket', FakeSocket);
   connectEvents();
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
-    requests.push({ method: init.method || 'GET', url });
+    requests.push({ method: init.method || 'GET', url, body: init.body ? JSON.parse(String(init.body)) : undefined });
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url === '/api/overview') return json(data);
     if (url === '/api/projects/p2/activate') return (activated = true), json({ id: 'p2' });
+    if (url === '/api/task-board?project=all') return json({ projects: [], tasks: [
+      { id: 'bt1', number: 4, title: 'Edit the intro', status: 'in_progress', projectId: 'p2', projectName: 'Podcast', assignee: 'agent:host', assigneeName: 'Host', work: { state: 'working' }, workerName: 'Host' },
+      { id: 'bt2', number: 7, title: 'Order flour', status: 'todo', projectId: 'p1', projectName: 'Bakery', assignee: '' },
+      { id: 'bt3', number: 1, title: 'Old', status: 'done', projectId: 'p1', projectName: 'Bakery', assignee: '' },
+    ] });
+    if (url.startsWith('/api/projects/p1/folder')) {
+      const path = decodeURIComponent(url.split('path=')[1] || '');
+      return json(path === 'notes' ? { rel: 'notes', entries: [{ name: 'idea.md', dir: false, size: 2048, path: '/b/notes/idea.md', rel: 'notes/idea.md' }], more: 0 } : { rel: '', entries: [{ name: 'notes', dir: true, path: '/b/notes', rel: 'notes' }, { name: 'PROJECT.md', dir: false, size: 12, path: '/b/PROJECT.md', rel: 'PROJECT.md' }], more: 0 });
+    }
     if (url === '/api/terminals' && init.method === 'POST') {
       data.projects[0].sessions.push(session({ kind: 'terminal', id: 'term2', name: 'PowerShell 2' }));
       return json({ id: 'term2', title: 'PowerShell 2' });
@@ -90,6 +99,12 @@ const group = (name: string) => el.querySelector<HTMLElement>(`.overview-project
 const rows = (name: string) => [...group(name).querySelectorAll('.session-name')].map((b) => b.textContent);
 const panes = () => [...el.querySelectorAll('.strip-pane')].map((p) => p.getAttribute('aria-label'));
 const row = (project: string, name: string) => [...group(project).querySelectorAll<HTMLButtonElement>('.session-open')].find((b) => b.querySelector('.session-name')!.textContent === name)!;
+
+const panel = async (label: string) => {
+  await act(async () => [...el.querySelectorAll<HTMLButtonElement>('[aria-label="Panels"] button')].find((b) => b.textContent === label)!.click());
+  await settle();
+  return el.querySelector<HTMLElement>(`.overview-panel[aria-label="${label}"]`)!;
+};
 
 describe('the Overview', () => {
   it('lists every project\'s sessions, Needs you first, with what needs you and what works', async () => {
@@ -235,5 +250,54 @@ describe('the Overview', () => {
     await act(async () => row('Podcast', 'Writer').click());
     expect(document.getElementById('toasts')!.textContent).toContain('Writer has a twin in the open project');
     expect(panes()).toEqual([]);
+  });
+
+  it('shows what needs you in its panel: approvals to decide right there, then the rest', async () => {
+    state.data = { ...state.data!, approvals: [
+      { id: 'ap1', kind: 'tool', title: 'Run a command', detail: 'rm -rf build', agentId: 'baker', agentName: 'Baker', data: {}, editable: null, createdAt: 1, projectId: 'p1' },
+      { id: 'ap2', kind: 'tool', title: 'Elsewhere', detail: '', agentId: 'z', agentName: 'Z', data: {}, editable: null, createdAt: 1, projectId: 'p9' },
+    ] } as AppState;
+    await open();
+    const needs = await panel('Needs you');
+    expect(needs.textContent).toContain('Run a command');
+    expect(needs.textContent).not.toContain('Elsewhere');
+    expect(needs.textContent).toContain('#4 Edit the intro');
+    // (the approval isn't listed twice)
+    expect(needs.textContent?.match(/Run a command/g)).toHaveLength(1);
+    // the panel stays open next time
+    act(() => overview.unmount());
+    await open();
+    expect(el.querySelector('.overview-panel[aria-label="Needs you"]')).not.toBeNull();
+  });
+
+  it('lists the open tasks of what is shown by column in the Tasks panel', async () => {
+    await open();
+    const tasks = await panel('Tasks');
+    expect([...tasks.querySelectorAll('section h3')].map((h) => h.textContent)).toEqual(['In progress1', 'To do1']);
+    const links = [...tasks.querySelectorAll<HTMLAnchorElement>('a')];
+    expect(links.map((a) => a.textContent)).toEqual(['#4Edit the intro · Podcast', '#7Order flour · Bakery']);
+    expect(links[0].getAttribute('href')).toBe('#/tasks/p2/bt1');
+    expect(tasks.textContent).not.toContain('Old');
+  });
+
+  it('browses a project folder in the Files panel and opens it in VS Code', async () => {
+    localStorage.setItem('dash-overview-scope', 'here');
+    await open();
+    const files = await panel('Files');
+    expect([...files.querySelectorAll('.overview-files li')].map((li) => li.textContent)).toEqual(['notes', 'PROJECT.md12 B']);
+    await act(async () => [...files.querySelectorAll<HTMLButtonElement>('.overview-files button')][0].click());
+    await settle();
+    expect(files.textContent).toContain('idea.md2 KB');
+    expect(files.querySelector('nav[aria-label="Folder"]')!.textContent).toBe('Bakerynotes');
+    await act(async () => [...files.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Open in VS Code')!.click());
+    expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/projects/p1/open', body: { path: 'notes', app: 'vscode' } });
+  });
+
+  it('opens a pane\'s folder in VS Code: the agent\'s workspace, in its own project', async () => {
+    await open();
+    await act(async () => row('Podcast', 'Host').click());
+    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyO', ctrlKey: true, altKey: true, bubbles: true, cancelable: true })));
+    await settle();
+    expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/p/p2/agents/host/open-workspace', body: { app: 'vscode' } });
   });
 });

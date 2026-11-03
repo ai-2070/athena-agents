@@ -1713,6 +1713,25 @@ export interface OverviewData {
   active: string;
   projects: OverviewProject[];
 }
+/** One entry of a project folder, as the Overview's Files panel lists it. */
+export interface FolderEntry {
+  name: string;
+  dir: boolean;
+  /** bytes (files only) */
+  size?: number;
+  /** the full path */
+  path: string;
+  /** the path from the project folder ('/'-separated) */
+  rel: string;
+}
+/** GET /api/projects/:id/folder: one folder of a project, its folders first. */
+export interface FolderListing {
+  /** the folder's path from the project folder ('' for the project folder itself) */
+  rel: string;
+  entries: FolderEntry[];
+  /** entries left out past the limit */
+  more: number;
+}
 /** POST /api/task-board-draft: the Brain drafts a task's title and description, or a comment. */
 export interface BoardDraftInput {
   projectId: string;

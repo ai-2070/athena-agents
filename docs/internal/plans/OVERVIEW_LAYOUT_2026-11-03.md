@@ -1,6 +1,11 @@
 # Overview: one project or all of them, in one view
 
-3 November 2026. Plan. **Step 3 is built**: `/api/p/<projectId>/…` runs an agent's, a team's or an upload route in that
+3 November 2026. Plan. **Steps 1 to 4 are built.** Step 4: the Needs you, Tasks and Files panels (`PANELS` in
+`web/views/overview.tsx`, a list Changes and Pull requests can join), `GET /api/projects/:id/folder` and
+`POST /api/projects/:id/open` for the Files panel, previews of another project's files through `/api/p/<id>/file`, and
+Open folder in VS Code from a pane (its menu and Ctrl+Alt+O). Step 5 waits until it is wanted.
+
+**Step 3 is built**: `/api/p/<projectId>/…` runs an agent's, a team's or an upload route in that
 project (`scopedRoute` in `server/index.ts`; other routes refuse it). The page sends a pane's requests there with
 `scopeTo()` / `scopedPath()` in `web/client/connection.ts`, `renderAgentChat` and `renderTeamChat` take a `projectId`
 (their agents come from `web/projectagents.ts`), and the tray uploads into that project. Questions are answered in

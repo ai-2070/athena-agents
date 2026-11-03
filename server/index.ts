@@ -136,8 +136,9 @@ const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
 const gatewaySupervisor = new GatewaySupervisor();
 
 // The routes an Overview pane uses for a project that isn't open (/api/p/<projectId>/…): an agent's chats and its
-// details, a team's thread, and attached files. Everything else (projects, settings, keys, backups) stays global.
-const SCOPED = /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|uploads(\/[\w-]+)?)$/;
+// details, a team's thread, attached files, and showing that project's files. Everything else (projects, settings,
+// keys, backups) stays global.
+const SCOPED = /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|uploads(\/[\w-]+)?|file)$/;
 function scopedRoute(pathname: string): { project: Project; path: string } | null {
   const m = /^\/api\/p\/([^/]+)(\/.*)$/.exec(pathname);
   if (!m) return null;
@@ -272,6 +273,15 @@ post<Parameters<typeof projects.createProject>[0] | null>('/api/projects', async
 });
 // The start screen: shown once each time the dashboard starts, until you pick or create a project.
 let launcherPending = true;
+// The Overview's Files panel: one folder of any project (?path= from the project folder), and opening a folder of it
+// in VS Code or the file manager. (They name their project, as project routes do.)
+get('/api/projects/:id/folder', async ({ id }, _b, q) => projects.folderListing(q.path || '', need(store.listProjects().find((p) => p.id === id))));
+post<{ app?: string; path?: unknown }>('/api/projects/:id/open', async ({ id }, body) => {
+  const dir = projects.brainFolder(body.path, need(store.listProjects().find((p) => p.id === id)));
+  if (body.app === 'vscode') return { message: await programs.launchProgram('vscode', { file: dir }) };
+  openWithShell(dir);
+  return { ok: true };
+});
 get('/api/projects/overview', async () => ({ ...projects.overview(projectSync.peek), showLauncher: launcherPending }));
 post('/api/projects/save', async () => projectSync.saveProject(store.activeProject().id));
 // The start screen closed; picking the project that is open already lands here too.
@@ -485,8 +495,11 @@ post('/api/agents/:id/duplicate', async ({ id }) => {
   return library.newAgent({ ...rest, name: `${a.name} (copy)` });
 });
 post('/api/agents/:id/export-claude', async ({ id }) => ({ file: library.exportToClaude(need(agents.get(id))) }));
-post('/api/agents/:id/open-workspace', async ({ id }) => {
-  openWithShell(tools.workspaceOf(need(agents.get(id))));
+// app 'vscode': in VS Code (an Overview pane's Open folder in VS Code), else in the file manager
+post<{ app?: string }>('/api/agents/:id/open-workspace', async ({ id }, body) => {
+  const dir = tools.workspaceOf(need(agents.get(id)));
+  if (body?.app === 'vscode') return { message: await programs.launchProgram('vscode', { file: dir }) };
+  openWithShell(dir);
   return { ok: true };
 });
 

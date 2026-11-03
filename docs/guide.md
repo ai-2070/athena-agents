@@ -135,6 +135,11 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 - Panes out of view show as small marks at the edge, with a dot when they work or need you; click one to slide to it. Chats far out of view aren't drawn until they come back; terminals stay connected.
 - **New terminal** (the terminal button next to the open project's name) opens PowerShell (or your shell) in the project's folder as a pane. Terminals belong to the project they were opened in.
 - One strip for all projects, remembered in this browser.
+- **Panels** beside the strip, one at a time (the buttons at the bottom right):
+  - **Needs you**: approvals to decide right there, then the questions, stopped work and tasks waiting for you, each with **Open**.
+  - **Tasks**: the open tasks of what is shown, by column; click one to open it, or make a **New task**.
+  - **Files**: a project's folder, one level at a time. Pictures, Markdown and PDFs open in their preview (another project's open in a new tab). **Open in VS Code** and **Show in Finder** (or Explorer) open the folder you are in.
+- A pane's **…** menu also has **Open folder in VS Code**: an agent's own workspace, or the project folder for a team or a terminal.
 
 | Keys (**Ctrl+Alt** on Windows, **Ctrl+⌥** on macOS) | What they do |
 |---|---|
@@ -147,6 +152,7 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 | **S** | Stack the pane under the one before, or take it out |
 | **W** | Close the pane |
 | **N** | Open the next one that needs you |
+| **O** | Open the pane's folder in VS Code |
 
 ## Tasks
 

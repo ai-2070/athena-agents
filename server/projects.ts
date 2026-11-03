@@ -1,10 +1,10 @@
 // Projects: create, switch, and look inside a project's Brain folder (files, notes, GitHub).
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ensureDir, exists, insideRoots, isPlainDir, run, slugify, uid, which, dataPath } from './util.ts';
+import { HOME, ensureDir, exists, insideRoots, isPlainDir, realTarget, run, slugify, uid, which, dataPath } from './util.ts';
 import { listProjects, saveProjects, activeProject, setActiveProject, log } from './store.ts';
 import { toPercent } from '../shared/look.ts';
-import type { Project } from '../shared/types.ts';
+import type { Project, FolderEntry, FolderListing } from '../shared/types.ts';
 import type { ProjectPeek } from './projectsync.ts';
 
 const PROJECTS_ROOT = path.join(HOME, 'Documents', 'Athena Agents');
@@ -214,6 +214,37 @@ export function brainFolder(sub: unknown, p: Project = activeProject()): string 
   const real = insideRoots(target, [root]);
   if (!real || !isPlainDir(real)) throw Object.assign(new Error('That folder isn’t in the Brain folder.'), { status: 403 });
   return real;
+}
+
+/** One folder of a project (its folders first; build outputs, dependencies and .git left out). */
+export function folderListing(sub: unknown, p: Project = activeProject(), max = 1000): FolderListing {
+  // (real paths on both sides: the project folder itself can sit under a link, as /var does on a Mac)
+  const dir = realTarget(brainFolder(sub, p)) || brainFolder(sub, p);
+  const root = realTarget(ensureBrain(p)) || ensureBrain(p);
+  const rel = path.relative(root, dir).split(path.sep).join('/');
+  let list: fs.Dirent[] = [];
+  try {
+    list = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    /* unreadable: empty */
+  }
+  const entries: FolderEntry[] = [];
+  for (const e of list) {
+    if (SKIP.has(e.name) || e.isSymbolicLink()) continue;
+    const full = path.join(dir, e.name);
+    const dirEntry = e.isDirectory();
+    let size: number | undefined;
+    if (!dirEntry) {
+      try {
+        size = fs.statSync(full).size;
+      } catch {
+        continue;
+      }
+    }
+    entries.push({ name: e.name, dir: dirEntry, ...(size !== undefined ? { size } : {}), path: full, rel: rel ? `${rel}/${e.name}` : e.name });
+  }
+  entries.sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
+  return { rel, entries: entries.slice(0, max), more: Math.max(0, entries.length - max) };
 }
 
 export async function gitPull(p: Project = activeProject()): Promise<string> {

@@ -626,6 +626,18 @@ describe('agent runs and projects', () => {
     const { batch } = await (await send(`/api/p/${other.id}/uploads`, {}, page)).json();
     const f = await (await req(`/api/p/${other.id}/uploads/${batch}?path=note.txt`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-dash': '1' }, body: 'hi' })).json();
     expect(fs.realpathSync(f.path).startsWith(fs.realpathSync(path.join(other.brainPath, 'uploads')))).toBe(true);
+    // its files show through its own address, not the open project's
+    const shown = await req(`/api/p/${other.id}/file?path=${encodeURIComponent(f.path)}`);
+    expect(shown.status).toBe(200);
+    expect(await shown.text()).toBe('hi');
+    expect((await req(`/api/file?path=${encodeURIComponent(f.path)}`)).status).not.toBe(200);
+    // the Files panel lists its folders, never outside the project folder
+    const top = await (await req(`/api/projects/${other.id}/folder`)).json();
+    expect(top.rel).toBe('');
+    expect(top.entries).toContainEqual(expect.objectContaining({ name: 'uploads', dir: true, rel: 'uploads' }));
+    const inside = await (await req(`/api/projects/${other.id}/folder?path=${encodeURIComponent(`uploads/${batch}`)}`)).json();
+    expect(inside.entries).toEqual([expect.objectContaining({ name: 'note.txt', dir: false, size: 2, rel: `uploads/${batch}/note.txt` })]);
+    expect((await req(`/api/projects/${other.id}/folder?path=${encodeURIComponent('../..')}`)).status).toBe(403);
     // the rest stays global, and an unknown project is refused
     expect((await req(`/api/p/${other.id}/settings`)).status).toBe(404);
     expect((await req(`/api/p/${other.id}/projects`)).status).toBe(404);

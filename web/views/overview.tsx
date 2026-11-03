@@ -7,8 +7,9 @@
 // docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { DEL, GET, POST, ago, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
-import { scopeTo } from '../client/connection.ts';
+import { DEL, GET, POST, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
+import { apiUrl, scopeTo } from '../client/connection.ts';
+import { previewFile, previewTitle, revealLabel } from '../filepreview.tsx';
 import { openChat } from '../chatwin.tsx';
 import { openDock } from '../dock.tsx';
 import { renderAgentChat } from '../agentchat.tsx';
@@ -18,13 +19,13 @@ import { reducedMotion } from '../motion.ts';
 import { Button, IconButton } from '../ui/button.tsx';
 import { iconButtonClass } from '../ui/classes.ts';
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
-import { Icon, reactPage } from '../ui/react.tsx';
+import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { Skeleton, Bone } from '../ui/skeleton.tsx';
-import { Pick, WhoMark, taskHref, taskKey } from '../taskboard.tsx';
+import { Pick, STATUSES, StatusIcon, WhoMark, isWorking, openTaskComposer, taskHref, taskKey } from '../taskboard.tsx';
 import type { Choice } from '../taskboard.tsx';
 import { PER_VIEW_MAX, PER_VIEW_MIN, STACK_MAX, closePane, dropPane, evenOut, loadLayout, movePane, openPane, paneKey, panesInOrder, prune, resizeColumn, resizeStack, saveLayout, setPerView, stackPane, togglePin, unstackPane } from '../overviewlayout.ts';
 import type { PaneRef, StripLayout } from '../overviewlayout.ts';
-import type { OverviewData, OverviewProject, OverviewSession } from '../../shared/types.ts';
+import type { BoardStatus, FolderListing, OverviewData, OverviewProject, OverviewSession, TaskBoardData } from '../../shared/types.ts';
 
 type Sort = 'needs' | 'recent' | 'kind' | 'name';
 const SCOPE_KEY = 'dash-overview-scope';
@@ -40,6 +41,21 @@ const sessionKey = (p: OverviewProject, s: OverviewSession) => `${p.id}/${s.kind
 /** What a session opens as a pane (the Brain and tasks open where they live). */
 const paneOf = (s: OverviewSession, projectId: string): PaneRef | null => (s.kind === 'agent' || s.kind === 'team' || s.kind === 'terminal' ? { kind: s.kind, id: s.id, projectId } : null);
 const STRIP = 'all';
+const PANEL_KEY = 'dash-overview-panel';
+type PanelId = 'needs' | 'tasks' | 'files';
+/** The panels beside the strip, one at a time. Changes and pull requests can be added as more entries later. */
+const PANELS: readonly { id: PanelId; label: string; icon: string }[] = [
+  { id: 'needs', label: 'Needs you', icon: 'bell' },
+  { id: 'tasks', label: 'Tasks', icon: 'kanban' },
+  { id: 'files', label: 'Files', icon: 'folder' },
+];
+
+/** Opens a pane's folder in VS Code: an agent's own workspace, or the project folder for a team or a terminal. */
+async function openInVSCode(ref: PaneRef, foreign: boolean): Promise<void> {
+  const at = foreign ? `/p/${encodeURIComponent(ref.projectId)}` : '';
+  const r = await attempt(() => (ref.kind === 'agent' ? POST<{ message?: string }>(`${at}/agents/${encodeURIComponent(ref.id)}/open-workspace`, { app: 'vscode' }) : POST<{ message?: string }>(`/projects/${encodeURIComponent(ref.projectId)}/open`, { app: 'vscode' })));
+  if (r?.message) toast(r.message);
+}
 const readSet = (key: string): Set<string> => {
   try {
     const v: unknown = JSON.parse(localStorage.getItem(key) || '[]');
@@ -84,6 +100,13 @@ function OverviewPage() {
   const [pins, setPins] = useState(() => readSet(PINS_KEY));
   const [folded, setFolded] = useState(() => readSet(FOLDED_KEY));
   const [search, setSearch] = useState('');
+  const [panel, setPanel] = useState<PanelId | null>(() => (PANELS.some((x) => x.id === localStorage.getItem(PANEL_KEY)) ? localStorage.getItem(PANEL_KEY) as PanelId : null));
+  const togglePanel = (id: PanelId) => setPanel((was) => {
+    const next = was === id ? null : id;
+    if (next) localStorage.setItem(PANEL_KEY, next);
+    else localStorage.removeItem(PANEL_KEY);
+    return next;
+  });
   // the strip: chats and terminals of any project, side by side (one strip, saved in this browser)
   const [layout, setLayout] = useState<StripLayout | null>(null);
   const serial = useRef(0);
@@ -243,15 +266,31 @@ function OverviewPage() {
         {q && !shown.some((x) => x.sessions.length) ? <p className="m-0 px-3 py-2 text-[12.5px] text-faint">Nothing matches "{search.trim()}".</p> : null}
       </aside>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {layout && panes ? (
-          <Strip layout={layout} change={change} projects={data.projects} active={active} onNextNeeding={nextNeeding} />
-        ) : (
-          <main className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-7 max-md:px-4">
-            <p className="m-0 text-[13px] text-dim">Click an agent, a team or a terminal, of any project, to open it here. They sit side by side and keep their width.</p>
-            <Section title="Needs you" empty="Nothing waits for you." items={needing} showProject={projects.length > 1} onOpen={open} />
-            <Section title="Working now" empty="Nothing is working right now." items={working} showProject={projects.length > 1} onOpen={open} />
-          </main>
-        )}
+        <div className="flex min-h-0 flex-1">
+          {layout && panes ? (
+            <Strip layout={layout} change={change} projects={data.projects} active={active} onNextNeeding={nextNeeding} />
+          ) : (
+            <main className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-7 max-md:px-4">
+              <p className="m-0 text-[13px] text-dim">Click an agent, a team or a terminal, of any project, to open it here. They sit side by side and keep their width.</p>
+              <Section title="Needs you" empty="Nothing waits for you." items={needing} showProject={projects.length > 1} onOpen={open} />
+              <Section title="Working now" empty="Nothing is working right now." items={working} showProject={projects.length > 1} onOpen={open} />
+            </main>
+          )}
+          {panel ? (
+            <aside aria-label={PANELS.find((x) => x.id === panel)!.label} className="overview-panel flex w-96 flex-none flex-col border-l border-line bg-panel max-lg:w-80">
+              <div className="flex flex-none items-center gap-2 border-b border-line px-3 py-2">
+                <Icon name={PANELS.find((x) => x.id === panel)!.icon} size={14} className="text-dim" />
+                <h2 className="m-0 flex-1 text-[13.5px] font-semibold text-ink">{PANELS.find((x) => x.id === panel)!.label}</h2>
+                <IconButton variant="plain" className="size-7!" aria-label="Close the panel" title="Close" onClick={() => togglePanel(panel)}><Icon name="x" size={13} /></IconButton>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                {panel === 'needs' ? <NeedsPanel projects={projects} active={active} needing={needing} onOpen={open} /> : null}
+                {panel === 'tasks' ? <TasksPanel key={scope} scope={scope} data={data} /> : null}
+                {panel === 'files' ? <FilesPanel projects={projects} active={active} /> : null}
+              </div>
+            </aside>
+          ) : null}
+        </div>
         <footer aria-label="Status" className="overview-status flex flex-none flex-wrap items-center gap-4 border-t border-line bg-bg px-4 py-1.5 text-[12.5px] text-dim">
           <button type="button" className={`inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-inherit ${needing.length ? 'text-amber' : ''}`} onClick={nextNeeding} disabled={!needing.length} title={needing.length ? 'Open the next one that needs you (Ctrl+Alt+N)' : undefined}>
             <span className={`size-1.5 rounded-full ${needing.length ? 'bg-amber' : 'bg-line-2'}`} />
@@ -262,6 +301,14 @@ function OverviewPage() {
             {`${working.length} of ${all.filter((x) => x.s.kind !== 'brain' && x.s.kind !== 'terminal').length} working`}
           </span>
           {projects.length > 1 ? <span>{`${projects.length} projects`}</span> : null}
+          <span className="ml-auto inline-flex items-center gap-1" aria-label="Panels">
+            {PANELS.map((x) => (
+              <button key={x.id} type="button" aria-pressed={panel === x.id} className={`inline-flex cursor-pointer items-center gap-1.5 rounded-ctl border-0 px-2 py-1 text-[12px] ${panel === x.id ? 'bg-ink/7 text-ink' : 'bg-transparent text-dim hover:bg-ink/5 hover:text-ink'}`} onClick={() => togglePanel(x.id)}>
+                <Icon name={x.icon} size={12} />
+                {x.label}
+              </button>
+            ))}
+          </span>
           {layout && panes ? <StripControls layout={layout} change={change} /> : null}
         </footer>
       </div>
@@ -365,13 +412,140 @@ function Section({ title, empty, items, showProject, onOpen }: { title: string; 
   );
 }
 
+// ---------- the panels ----------
+/** Needs you: approvals to decide right here, then the rest that waits for you (questions, stopped work, tasks). */
+function NeedsPanel({ projects, active, needing, onOpen }: { projects: OverviewProject[]; active: string; needing: { p: OverviewProject; s: OverviewSession }[]; onOpen: (p: OverviewProject, s: OverviewSession) => void }) {
+  const app = useAppState();
+  const shown = new Set(projects.map((p) => p.id));
+  const approvals = (app?.approvals || []).filter((a) => shown.has(a.projectId || active));
+  const rest = needing.filter(({ s }) => !s.why?.startsWith('Approval: '));
+  return (
+    <div className="flex flex-col gap-4 p-3">
+      {approvals.map((a) => <DomNode key={a.id} className="overview-approval" make={() => approvalCard(a)} deps={[a.id]} />)}
+      {rest.length || !approvals.length ? <Section title={approvals.length ? 'And' : 'Waiting for you'} empty="Nothing waits for you." items={rest} showProject={projects.length > 1} onOpen={onOpen} /> : null}
+    </div>
+  );
+}
+
+const TASK_GROUPS: BoardStatus[] = ['in_progress', 'todo', 'in_review', 'blocked'];
+/** Tasks: the board's open tasks for what is shown, by column; a click opens the task. */
+function TasksPanel({ scope, data }: { scope: string; data: OverviewData }) {
+  const project = scope === 'here' ? data.active : scope === 'all' || !data.projects.some((p) => p.id === scope) ? 'all' : scope;
+  const [board, setBoard] = useState<TaskBoardData | null>(null);
+  const load = useCallback(() => void GET<TaskBoardData>(`/task-board?project=${encodeURIComponent(project)}`).then(setBoard, () => setBoard({ projects: [], tasks: [] })), [project]);
+  useEffect(() => {
+    load();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = onEvent((e) => e.type === 'board' && (clearTimeout(timer), (timer = setTimeout(load, 200))));
+    return () => (clearTimeout(timer), off());
+  }, [load]);
+  const many = project === 'all' && data.projects.length > 1;
+  return (
+    <div className="flex flex-col gap-4 p-3">
+      <Button variant="ghost" size="small" className="self-start" onClick={() => openTaskComposer({ projectId: project === 'all' ? data.active : project, projects: data.projects.map((p) => ({ id: p.id, name: p.name })), onCreated: load })}>
+        <Icon name="plus" size={13} />
+        New task
+      </Button>
+      {!board ? <p className="m-0 text-[12.5px] text-faint">Loading the tasks…</p> : null}
+      {board && !board.tasks.some((t) => t.status !== 'done') ? <p className="m-0 text-[12.5px] text-faint">No open tasks.</p> : null}
+      {board
+        ? TASK_GROUPS.map((status) => {
+            const list = board.tasks.filter((t) => t.status === status);
+            if (!list.length) return null;
+            return (
+              <section key={status} aria-label={STATUSES.find((x) => x.value === status)!.label} className="flex flex-col gap-1">
+                <h3 className="m-0 flex items-center gap-1.5 text-[12px] font-medium text-dim">
+                  <StatusIcon status={status} size={13} />
+                  {STATUSES.find((x) => x.value === status)!.label}
+                  <span className="font-normal text-faint">{list.length}</span>
+                </h3>
+                <ul className="m-0 flex list-none flex-col p-0">
+                  {list.map((t) => (
+                    <li key={`${t.projectId}/${t.id}`}>
+                      <a href={taskHref(t)} className="flex items-center gap-2 rounded-ctl px-2 py-1.5 text-[13px] text-ink no-underline hover:bg-ink/4">
+                        <span className="flex-none text-[11.5px] text-faint tabular-nums">{taskKey(t.number)}</span>
+                        <span className="min-w-0 flex-1 truncate">{t.title}{many ? <span className="text-faint">{` · ${t.projectName}`}</span> : null}</span>
+                        {isWorking(t) ? <span className={`size-1.5 flex-none rounded-full ${t.work?.state === 'waiting' ? 'bg-amber' : 'bg-accent motion-safe:animate-pulse'}`} title={`${t.workerName || 'Someone'} is working on it`} /> : null}
+                        {t.assignee ? <WhoMark who={t.assignee} emoji={t.assigneeEmoji} color={t.assigneeColor} size={18} /> : null}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })
+        : null}
+    </div>
+  );
+}
+
+const size = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+/** Files: a project's folder, one level at a time; files open with the previews (another project's in a new tab). */
+function FilesPanel({ projects, active }: { projects: OverviewProject[]; active: string }) {
+  const [projectId, setProjectId] = useState(() => (projects.some((p) => p.id === active) ? active : projects[0]?.id || active));
+  const [rel, setRel] = useState('');
+  const [listing, setListing] = useState<FolderListing | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let live = true;
+    setListing(null);
+    GET<FolderListing>(`/projects/${encodeURIComponent(projectId)}/folder?path=${encodeURIComponent(rel)}`).then((l) => live && (setListing(l), setError('')), (e: unknown) => live && setError(e instanceof Error ? e.message : String(e)));
+    return () => void (live = false);
+  }, [projectId, rel]);
+  const project = projects.find((p) => p.id === projectId);
+  const parts = rel ? rel.split('/') : [];
+  const openFile = (path: string, name: string) => {
+    if (projectId === active && previewTitle(name)) return previewFile(path, name);
+    window.open(projectId === active ? apiUrl('/file', { path }) : apiUrl(`/p/${encodeURIComponent(projectId)}/file`, { path }), '_blank', 'noopener');
+  };
+  const openFolder = async (app?: 'vscode') => {
+    const r = await attempt(() => POST<{ message?: string }>(`/projects/${encodeURIComponent(projectId)}/open`, { path: rel, ...(app ? { app } : {}) }));
+    if (r?.message) toast(r.message);
+  };
+  return (
+    <div className="flex flex-col gap-2 p-3">
+      {projects.length > 1 ? <Pick label="Project" value={projectId} choices={projects.map((p) => ({ value: p.id, label: p.name, mark: <Icon name="folder" size={14} className="text-faint" /> }))} onChange={(v) => (setProjectId(v), setRel(''))} /> : null}
+      <nav aria-label="Folder" className="flex min-w-0 flex-wrap items-center gap-1 text-[12.5px]">
+        <button type="button" className="cursor-pointer border-0 bg-transparent p-0 font-medium text-dim hover:text-ink" onClick={() => setRel('')}>{project?.name || 'Project'}</button>
+        {parts.map((part, i) => (
+          <span key={`${i}/${part}`} className="inline-flex items-center gap-1">
+            <Icon name="chevron-right" size={11} className="text-faint" />
+            <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-dim hover:text-ink" onClick={() => setRel(parts.slice(0, i + 1).join('/'))}>{part}</button>
+          </span>
+        ))}
+      </nav>
+      <div className="flex flex-wrap gap-1.5">
+        <Button variant="ghost" size="tiny" onClick={() => void openFolder('vscode')}><Icon name="code" size={12} />Open in VS Code</Button>
+        <Button variant="ghost" size="tiny" onClick={() => void openFolder()}><Icon name="folder-open" size={12} />{revealLabel()}</Button>
+      </div>
+      {error ? <p className="m-0 text-[12.5px] text-red">{error}</p> : null}
+      {!listing && !error ? <p className="m-0 text-[12.5px] text-faint">Loading…</p> : null}
+      {listing ? (
+        <ul className="overview-files m-0 flex list-none flex-col p-0">
+          {listing.entries.map((e) => (
+            <li key={e.rel}>
+              <button type="button" className="flex w-full cursor-pointer items-center gap-2 rounded-ctl border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-ink hover:bg-ink/4" onClick={() => (e.dir ? setRel(e.rel) : openFile(e.path, e.name))} title={e.dir ? `Open ${e.name}` : previewTitle(e.name) || `Open ${e.name}`}>
+                <Icon name={e.dir ? 'folder' : 'file'} size={13} className="flex-none text-faint" />
+                <span className="min-w-0 flex-1 truncate">{e.name}</span>
+                {e.dir ? <Icon name="chevron-right" size={11} className="flex-none text-faint" /> : <span className="flex-none text-[11.5px] text-faint tabular-nums">{size(e.size || 0)}</span>}
+              </button>
+            </li>
+          ))}
+          {!listing.entries.length ? <li className="px-2 py-1.5 text-[12.5px] text-faint">This folder is empty.</li> : null}
+          {listing.more ? <li className="px-2 py-1.5 text-[12px] text-faint">{`${listing.more} more not listed.`}</li> : null}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 // ---------- the strip ----------
 type Change = (fn: (l: StripLayout) => StripLayout) => void;
 
 /** The columns control and the minimap, in the status line. */
 function StripControls({ layout, change }: { layout: StripLayout; change: Change }) {
   return (
-    <span className="ml-auto inline-flex items-center gap-3">
+    <span className="inline-flex items-center gap-3">
       <span className="strip-minimap inline-flex items-center gap-1" aria-label="Panes">
         {layout.columns.map((c, i) => (
           <button
@@ -441,8 +615,8 @@ function Strip({ layout, change, projects, active, onNextNeeding }: { layout: St
   }, [layout.focus, layout.columns, spans, pinnedWidth]);
 
   // the keys (Ctrl+Alt, ⌃⌥ on a Mac): panes by number, previous and next, move, columns, pin, stack, close
-  const keys = useRef({ layout, change, onNextNeeding });
-  keys.current = { layout, change, onNextNeeding };
+  const keys = useRef({ layout, change, onNextNeeding, active });
+  keys.current = { layout, change, onNextNeeding, active };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.ctrlKey || !e.altKey || e.metaKey) return;
@@ -462,6 +636,10 @@ function Strip({ layout, change, projects, active, onNextNeeding }: { layout: St
       if (e.code === 'KeyS') return act((x) => (x.columns.find((c) => c.panes.some((p) => paneKey(p) === focus))!.panes.length > 1 ? unstackPane(x, focus) : stackPane(x, focus)));
       if (e.code === 'KeyW') return act((x) => closePane(x, focus));
       if (e.code === 'KeyN') return (e.preventDefault(), keys.current.onNextNeeding());
+      if (e.code === 'KeyO') {
+        const ref = panesInOrder(l).find((p) => paneKey(p) === focus);
+        if (ref) (e.preventDefault(), void openInVSCode(ref, ref.projectId !== keys.current.active));
+      }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -636,6 +814,7 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
               <DropdownItem onClick={() => change((l) => movePane(l, key, -1))}>Move left</DropdownItem>
               <DropdownItem onClick={() => change((l) => movePane(l, key, 1))}>Move right</DropdownItem>
               {ref.kind !== 'terminal' && !projectName ? <DropdownItem icon="external-link" onClick={() => (openChat(ref.kind === 'agent' ? 'agent' : 'team', ref.id), change((l) => closePane(l, key)))}>Open in a chat window</DropdownItem> : null}
+              <DropdownItem icon="code" onClick={() => void openInVSCode(ref, !!projectName)}>Open folder in VS Code</DropdownItem>
               <DropdownSeparator />
               {ref.kind === 'terminal' && !s?.ended ? <DropdownItem icon="square" danger onClick={() => void endTerminal()}>End terminal</DropdownItem> : null}
               <DropdownItem icon="x" onClick={() => change((l) => closePane(l, key))}>Close</DropdownItem>
