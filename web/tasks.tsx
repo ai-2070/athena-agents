@@ -1,6 +1,8 @@
 // The same task list in agent, team and Brain chats. Editing stays inline with the work.
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { GET, POST, PUT, confirmBox, onEvent, onReconnect, state } from './core.ts';
+import { projectAt } from './client/connection.ts';
+import { useProjectAgents } from './projectagents.ts';
 import { CollapseRoot, CollapsePanel } from './ui/collapse.tsx';
 import { Icon, useAppState } from './ui/react.tsx';
 import { Button, IconButton } from './ui/button.tsx';
@@ -13,13 +15,16 @@ const sameScope = (a: TaskScope, b: TaskScope) => a.kind === b.kind && a.id === 
 const scopeValue = (s: TaskScope) => s.kind === 'brain' ? 'brain' : `${s.kind}:${s.id}`;
 const scopeFrom = (value: string): TaskScope => value === 'brain' || value === 'all' ? { kind: 'brain' } : { kind: value.startsWith('team:') ? 'team' : 'agent', id: value.slice(value.indexOf(':') + 1) };
 
-export function TaskPanel({ view = 'all', scope = { kind: 'brain' }, filters = false, chatId }: { view?: string; scope?: TaskScope; filters?: boolean; chatId?: string }) {
-  const projectId = useAppState()?.project?.id || '';
-  return <TaskList key={`${projectId}/${view}/${chatId || ''}`} view={view} scope={scope} filters={filters} chatId={chatId} projectId={projectId} />;
+/** foreign: the chat's project, when it isn't the open one (an Overview pane): the tasks are that project's. */
+export function TaskPanel({ view = 'all', scope = { kind: 'brain' }, filters = false, chatId, projectId: foreign }: { view?: string; scope?: TaskScope; filters?: boolean; chatId?: string; projectId?: string }) {
+  const open = useAppState()?.project?.id || '';
+  const projectId = foreign || open;
+  return <TaskList key={`${projectId}/${view}/${chatId || ''}`} view={view} scope={scope} filters={filters} chatId={chatId} projectId={projectId} at={projectAt(foreign)} />;
 }
 
-function TaskList({ view, scope, filters, chatId, projectId }: { view: string; scope: TaskScope; filters: boolean; chatId?: string; projectId: string }) {
+function TaskList({ view, scope, filters, chatId, projectId, at }: { view: string; scope: TaskScope; filters: boolean; chatId?: string; projectId: string; at: string }) {
   const app = useAppState();
+  const theirs = useProjectAgents(at ? projectId : undefined);
   const panelId = useId();
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState(view);
@@ -36,13 +41,14 @@ function TaskList({ view, scope, filters, chatId, projectId }: { view: string; s
   const editSerial = useRef(0);
   const live = useRef(true);
   useEffect(() => { live.current = true; return () => { live.current = false; serial.current++; editSerial.current++; }; }, []);
-  const here = () => live.current && (state.data?.project?.id || '') === projectId;
+  // (another project's list stays its own; the open project's is left once another opens)
+  const here = () => live.current && (!!at || (state.data?.project?.id || '') === projectId);
   const load = useCallback(async (more = false) => {
     const request = ++serial.current;
     setLoading(true); setError('');
     try {
       const q = new URLSearchParams({ view: target, status, search, limit: '100', offset: String(more ? page?.nextOffset || 0 : 0) });
-      const [next, unfinished] = await Promise.all([GET<TaskPage>(`/tasks?${q}`), GET<TaskPage>(`/tasks?${new URLSearchParams({ view: target, status: 'open', limit: '1' })}`)]);
+      const [next, unfinished] = await Promise.all([GET<TaskPage>(`${at}/tasks?${q}`), GET<TaskPage>(`${at}/tasks?${new URLSearchParams({ view: target, status: 'open', limit: '1' })}`)]);
       if (request !== serial.current || !here()) return;
       setOpenCount(unfinished.total);
       setPage((old) => more && old ? { ...next, tasks: [...old.tasks, ...next.tasks] } : next);
@@ -57,18 +63,18 @@ function TaskList({ view, scope, filters, chatId, projectId }: { view: string; s
   }, [open, target, status, search]);
   useEffect(() => {
     if (!open) return;
-    void GET<Team[]>('/workflows').then((all) => { if (here()) setTeams(all); }).catch((e: unknown) => { if (here()) setError(e instanceof Error ? e.message : String(e)); });
+    void GET<Team[]>(`${at}/workflows`).then((all) => { if (here()) setTeams(all); }).catch((e: unknown) => { if (here()) setError(e instanceof Error ? e.message : String(e)); });
     const update = onEvent((e) => { if (e.type === 'tasks' && (!e.projectId || e.projectId === projectId)) void reload.current(); });
     const reconnect = onReconnect(() => void reload.current());
     return () => { update(); reconnect(); };
   }, [open, projectId]);
-  const agents = app?.agents || [];
+  const agents = at ? theirs : app?.agents || [];
   const lists = [{ value: 'brain', label: 'The Brain', icon: 'brain' }, ...teams.map((t) => ({ value: `team:${t.id}`, label: `Team · ${t.name}`, icon: 'users' })), ...agents.map((a) => ({ value: `agent:${a.id}`, label: a.name, icon: 'bot' }))];
   const nameOf = (value: string) => value === '' ? 'Unassigned' : lists.find((x) => x.value === value)?.label || 'Former owner';
   const edit = async (id: string) => {
     const request = ++editSerial.current;
     setError('');
-    try { const result = await GET<{ task: WorkTask }>(`/tasks/${encodeURIComponent(id)}`); if (here() && request === editSerial.current) setEditing(result.task); }
+    try { const result = await GET<{ task: WorkTask }>(`${at}/tasks/${encodeURIComponent(id)}`); if (here() && request === editSerial.current) setEditing(result.task); }
     catch (e) { if (here()) setError(e instanceof Error ? e.message : String(e)); }
   };
   const clearTasks = async () => {
@@ -81,15 +87,15 @@ function TaskList({ view, scope, filters, chatId, projectId }: { view: string; s
       const tasks: TaskSummary[] = [];
       let offset: number | null = 0;
       while (offset != null) {
-        const result: TaskPage = await GET<TaskPage>(`/tasks?${new URLSearchParams({ view: target, status: 'open', limit: '100', offset: String(offset) })}`);
+        const result: TaskPage = await GET<TaskPage>(`${at}/tasks?${new URLSearchParams({ view: target, status: 'open', limit: '100', offset: String(offset) })}`);
         if (!here()) return;
         tasks.push(...result.tasks); offset = result.nextOffset;
       }
       for (const task of tasks) {
-        const current = await GET<{ task: WorkTask }>(`/tasks/${encodeURIComponent(task.id)}`);
+        const current = await GET<{ task: WorkTask }>(`${at}/tasks/${encodeURIComponent(task.id)}`);
         if (!here()) return;
         if (current.task.status !== 'pending' && current.task.status !== 'in_progress') continue;
-        await PUT(`/tasks/${encodeURIComponent(task.id)}`, { status: 'deleted', expectedUpdatedAt: current.task.updatedAt });
+        await PUT(`${at}/tasks/${encodeURIComponent(task.id)}`, { status: 'deleted', expectedUpdatedAt: current.task.updatedAt });
         if (!here()) return;
       }
       setEditing(null);
@@ -110,7 +116,7 @@ function TaskList({ view, scope, filters, chatId, projectId }: { view: string; s
         <div className="relative min-w-24 flex-1"><Icon name="search" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-dim" /><input type="search" className="w-full pl-9" aria-label="Search tasks" placeholder="Search tasks…" value={search} maxLength={240} onChange={(e) => { setSearch(e.target.value); setPage(null); }} /></div>
       </div>
       {error && <div role="alert" className="flex flex-wrap items-center gap-2 py-2 text-red"><span className="min-w-0 flex-1 wrap-anywhere">{error}</span><Button variant="plain" size="tiny" onClick={() => void load()}>Retry</Button></div>}
-      {editing && <TaskEditor key={editing === 'new' ? 'new' : `${editing.id}/${editing.updatedAt}`} task={editing === 'new' ? null : editing} scope={filters ? scopeFrom(target) : scope} lists={lists} teams={teams} candidates={page?.tasks || []} chatId={chatId} projectId={projectId} allowScopeChange={filters} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); }} onReload={() => editing !== 'new' && void edit(editing.id)} />}
+      {editing && <TaskEditor key={editing === 'new' ? 'new' : `${editing.id}/${editing.updatedAt}`} task={editing === 'new' ? null : editing} scope={filters ? scopeFrom(target) : scope} lists={lists} teams={teams} candidates={page?.tasks || []} chatId={chatId} projectId={projectId} at={at} allowScopeChange={filters} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); }} onReload={() => editing !== 'new' && void edit(editing.id)} />}
       {!page && loading ? <p role="status" className="m-0 py-4 text-dim">Loading tasks…</p> : page?.tasks.length ? <ul className="m-0 list-none divide-y divide-line p-0">
         {page.tasks.map((t) => <li key={t.id} className="py-2.5">
           <div className="flex items-start gap-2">
@@ -125,7 +131,7 @@ function TaskList({ view, scope, filters, chatId, projectId }: { view: string; s
   </CollapseRoot>;
 }
 
-function TaskEditor({ task, scope: initialScope, lists, teams, candidates, chatId, projectId, allowScopeChange, onClose, onSaved, onReload }: { task: WorkTask | null; scope: TaskScope; lists: { value: string; label: string }[]; teams: Team[]; candidates: TaskSummary[]; chatId?: string; projectId: string; allowScopeChange: boolean; onClose: () => void; onSaved: () => void; onReload: () => void }) {
+function TaskEditor({ task, scope: initialScope, lists, teams, candidates, chatId, projectId, at, allowScopeChange, onClose, onSaved, onReload }: { task: WorkTask | null; scope: TaskScope; lists: { value: string; label: string }[]; teams: Team[]; candidates: TaskSummary[]; chatId?: string; projectId: string; at: string; allowScopeChange: boolean; onClose: () => void; onSaved: () => void; onReload: () => void }) {
   const [scope, setScope] = useState(task?.scope || initialScope);
   const [subject, setSubject] = useState(task?.subject || '');
   const [description, setDescription] = useState(task?.description || '');
@@ -135,15 +141,15 @@ function TaskEditor({ task, scope: initialScope, lists, teams, candidates, chatI
   const [dependencies, setDependencies] = useState(task?.blockedBy || []);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const current = () => (state.data?.project?.id || '') === projectId;
+  const current = () => !!at || (state.data?.project?.id || '') === projectId;
   const owners = lists.filter((x) => x.value === 'brain' || scope.kind === 'brain' || (scope.kind === 'agent' ? x.value === `agent:${scope.id}` : x.value === `team:${scope.id}` || teams.find((t) => t.id === scope.id)?.members.includes(x.value.slice(6))));
   const save = async (deleted = false) => {
     if (!current() || busy) return;
     if (deleted && !(await confirmBox(`Remove the task “${task?.subject}”? Its dependency links will also be removed.`, { ok: 'Remove', danger: true }))) return;
     setBusy(true); setError('');
     try {
-      if (task) await PUT(`/tasks/${encodeURIComponent(task.id)}`, { subject, description, activeForm, owner, status: deleted ? 'deleted' : status, expectedUpdatedAt: task.updatedAt, addBlockedBy: dependencies.filter((id) => !task.blockedBy.includes(id)), removeBlockedBy: task.blockedBy.filter((id) => !dependencies.includes(id)) });
-      else await POST('/tasks', { subject, description, activeForm, owner, scope, ...(chatId ? { chatId } : {}) } satisfies TaskCreateInput & { chatId?: string });
+      if (task) await PUT(`${at}/tasks/${encodeURIComponent(task.id)}`, { subject, description, activeForm, owner, status: deleted ? 'deleted' : status, expectedUpdatedAt: task.updatedAt, addBlockedBy: dependencies.filter((id) => !task.blockedBy.includes(id)), removeBlockedBy: task.blockedBy.filter((id) => !dependencies.includes(id)) });
+      else await POST(`${at}/tasks`, { subject, description, activeForm, owner, scope, ...(chatId ? { chatId } : {}) } satisfies TaskCreateInput & { chatId?: string });
       if (current()) onSaved();
     } catch (e) { if (current()) setError(e instanceof Error ? e.message : String(e)); }
     finally { if (current()) setBusy(false); }

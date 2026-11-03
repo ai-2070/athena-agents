@@ -641,6 +641,22 @@ describe('agent runs and projects', () => {
     const inside = await (await req(`/api/projects/${other.id}/folder?path=${encodeURIComponent(`uploads/${batch}`)}`)).json();
     expect(inside.entries).toEqual([expect.objectContaining({ name: 'note.txt', dir: false, size: 2, rel: `uploads/${batch}/note.txt` })]);
     expect((await req(`/api/projects/${other.id}/folder?path=${encodeURIComponent('../..')}`)).status).toBe(403);
+    // a chat's tasks, the teams, and the Brain's chat are that project's
+    const task = await (await send(`/api/p/${other.id}/tasks`, { subject: 'Scoped task', description: 'Made from a pane' }, page)).json();
+    const listed = async (at: string) => (await (await req(`/api${at}/tasks?view=all&status=all`)).json()).tasks.map((t: { subject: string }) => t.subject);
+    expect(task).toMatchObject({ task: { subject: 'Scoped task' } });
+    expect(await listed(`/p/${other.id}`)).toContain('Scoped task');
+    expect(await listed('')).not.toContain('Scoped task');
+    expect((await req(`/api/p/${other.id}/workflows`)).status).toBe(200);
+    expect(Array.isArray(await (await req(`/api/p/${other.id}/brain/history`)).json())).toBe(true);
+    expect((await send(`/api/p/${other.id}/brain/steer`, {}, page)).status).toBe(200);
+    expect((await send(`/api/p/${other.id}/brain/clear`, {}, page)).status).toBe(404);
+    // its agents' MEMORY.md (and its versions) are read and saved there
+    const put = (at: string, text: string) => req(`/api${at}/memory/${writer.id}`, { method: 'PUT', headers: page, body: JSON.stringify({ text }) });
+    expect((await put(`/p/${other.id}`, 'Use British spelling.')).status).toBe(200);
+    expect((await (await req(`/api/p/${other.id}/memory/${writer.id}`)).json()).text).toContain('British spelling');
+    expect((await req(`/api/memory/${writer.id}`)).status).toBe(404);
+    expect((await req(`/api/p/${other.id}/versions/memory/${writer.id}`)).status).toBe(200);
     // the rest stays global, and an unknown project is refused
     expect((await req(`/api/p/${other.id}/settings`)).status).toBe(404);
     expect((await req(`/api/p/${other.id}/projects`)).status).toBe(404);

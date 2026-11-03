@@ -1,9 +1,8 @@
 // The Overview page: every project's sessions in one sidebar, sorted Needs you first, with pins, a scope and search;
-// what needs you and what works; and a session of another project opened after asking.
+// what needs you and what works; chats, terminals and Brains of any project as panes on a strip.
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { connectEvents, state } from '../../web/core.ts';
-import { scopedPath } from '../../web/client/connection.ts';
 import * as overview from '../../web/views/overview.tsx';
 import type { AppState, OverviewData, OverviewSession } from '../../shared/types.ts';
 
@@ -14,6 +13,10 @@ vi.mock('../../web/dock.tsx', () => ({ openDock: () => { opened.dock++; } }));
 const drawn = vi.hoisted(() => ({ live: new Set<string>(), projects: [] as (string | undefined)[] }));
 vi.mock('../../web/agentchat.tsx', () => ({ renderAgentChat: (el: HTMLElement, id: string, o: { projectId?: string } = {}) => ((el.textContent = `agent chat ${id}`), drawn.live.add(`agent:${id}`), drawn.projects.push(o.projectId), { focus() {}, destroy: () => drawn.live.delete(`agent:${id}`) }) }));
 vi.mock('../../web/teamchat.tsx', () => ({ renderTeamChat: (el: HTMLElement, id: string) => ((el.textContent = `team chat ${id}`), drawn.live.add(`team:${id}`), { focus() {}, mention() {}, destroy: () => drawn.live.delete(`team:${id}`) }) }));
+vi.mock('../../web/brainpane.tsx', async () => {
+  const { createElement } = await import('react');
+  return { BrainPane: ({ projectId }: { projectId: string }) => createElement('div', { className: 'brain-stand-in' }, `brain of ${projectId}`) };
+});
 vi.mock('../../web/terminalview.tsx', async () => {
   const { createElement } = await import('react');
   return { XTerm: ({ id }: { id: string }) => createElement('div', { className: 'xterm-stand-in' }, `terminal ${id}`) };
@@ -31,7 +34,6 @@ const now = Date.now();
 const session = (over: Partial<OverviewSession>): OverviewSession => ({ kind: 'agent', id: 'x', name: 'X', status: 'idle', updatedAt: now - 60_000, ...over });
 let data: OverviewData;
 let requests: { method: string; url: string; body?: unknown }[];
-let activated = false;
 let el: HTMLElement;
 
 beforeEach(() => {
@@ -42,7 +44,6 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><section id="view"></section>';
   el = document.getElementById('view')!;
   requests = [];
-  activated = false;
   data = {
     active: 'p1',
     projects: [
@@ -66,7 +67,6 @@ beforeEach(() => {
     requests.push({ method: init.method || 'GET', url, body: init.body ? JSON.parse(String(init.body)) : undefined });
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url === '/api/overview') return json(data);
-    if (url === '/api/projects/p2/activate') return (activated = true), json({ id: 'p2' });
     if (url === '/api/task-board?project=all') return json({ projects: [], tasks: [
       { id: 'bt1', number: 4, title: 'Edit the intro', status: 'in_progress', projectId: 'p2', projectName: 'Podcast', assignee: 'agent:host', assigneeName: 'Host', work: { state: 'working' }, workerName: 'Host' },
       { id: 'bt2', number: 7, title: 'Order flour', status: 'todo', projectId: 'p1', projectName: 'Bakery', assignee: '' },
@@ -81,7 +81,7 @@ beforeEach(() => {
       return json({ id: 'term2', title: 'PowerShell 2' });
     }
     // (once opened, the page's state shows the podcast)
-    if (url === '/api/state') return json({ ...state.data, project: activated ? { id: 'p2', name: 'Podcast' } : { id: 'p1', name: 'Bakery' } });
+    if (url === '/api/state') return json({ ...state.data, project: { id: 'p1', name: 'Bakery' } });
     return json({});
   });
 });
@@ -211,45 +211,43 @@ describe('the Overview', () => {
     expect(panes()).toEqual(['Writer']);
   });
 
-  it('opens another project\'s agent as a pane that talks to that project, and asks before opening its Brain', async () => {
+  it('opens another project\'s agent and its Brain as panes that talk to that project, without opening it', async () => {
+    data.projects[1].sessions.push(session({ kind: 'brain', id: 'brain', name: 'The Brain' }));
     await open();
     await act(async () => row('Podcast', 'Host').click());
     await settle();
     expect(panes()).toEqual(['Host']);
     const pane = el.querySelector<HTMLElement>('[data-pane="p2/agent:host"]')!;
     expect(pane.textContent).toContain('Host · Podcast');
+    // (its chat is told its project: its requests go there)
     expect(drawn.projects.at(-1)).toBe('p2');
-    // while it shows, the Host's requests go to the podcast
-    expect(scopedPath('/agents/host/chats')).toBe('/p/p2/agents/host/chats');
-    expect(scopedPath('/agents/writer/chats')).toBe('/agents/writer/chats');
-    expect(requests.some((r) => r.url.includes('/activate'))).toBe(false);
     await act(async () => [...pane.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.getAttribute('aria-label') === 'Actions for Host')!.click());
     await settle();
     // (no chat window for another project's agent)
     expect(document.body.textContent).not.toContain('Open in a chat window');
-    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', ctrlKey: true, altKey: true, bubbles: true, cancelable: true })));
-    await settle();
-    expect(scopedPath('/agents/host/chats')).toBe('/agents/host/chats');
+    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
 
-    // its Brain is the open project's thing: it asks first
-    data.projects[1].sessions.push(session({ kind: 'brain', id: 'brain', name: 'The Brain' }));
-    await act(async () => void (await import('../../web/core.ts')).refreshSoon(0));
-    act(() => overview.unmount());
-    await open();
+    // its Brain opens beside it; the Brain chat stays the open project's
     await act(async () => row('Podcast', 'The Brain').click());
-    expect(document.querySelector('.modal')!.textContent).toContain('Open the project Podcast?');
-    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent === 'Open Podcast')!.click());
-    await settle(80);
-    expect(requests.find((r) => r.url === '/api/projects/p2/activate')).toMatchObject({ method: 'POST' });
+    await settle();
+    expect(panes()).toEqual(['Host', 'The Brain']);
+    expect(el.querySelector('[data-pane="p2/brain:brain"]')!.textContent).toContain('brain of p2');
+    expect(opened.dock).toBe(0);
+    expect(requests.some((r) => r.url.includes('/activate'))).toBe(false);
+    // the open project's Brain is the Brain chat
+    await act(async () => row('Bakery', 'The Brain').click());
     expect(opened.dock).toBe(1);
+    expect(panes()).toHaveLength(2);
   });
 
-  it('won\'t mix up an agent with its twin in the open project (a copied project has the same ids)', async () => {
+  it('puts an agent beside its twin of a copied project (the same id), each talking to its own project', async () => {
     data.projects[1].sessions.push(session({ id: 'writer', name: 'Writer' }));
     await open();
+    await act(async () => row('Bakery', 'Writer').click());
     await act(async () => row('Podcast', 'Writer').click());
-    expect(document.getElementById('toasts')!.textContent).toContain('Writer has a twin in the open project');
-    expect(panes()).toEqual([]);
+    await settle();
+    expect([...el.querySelectorAll('.strip-pane')].map((p) => p.getAttribute('data-pane'))).toEqual(['p1/agent:writer', 'p2/agent:writer']);
+    expect([...new Set(drawn.projects)]).toEqual([undefined, 'p2']);
   });
 
   it('shows what needs you in its panel: approvals to decide right there, then the rest', async () => {

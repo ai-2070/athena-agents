@@ -21,15 +21,6 @@ export async function loadProjectAgents(projectId: string): Promise<Agent[]> {
 /** A project's agents as fetched (empty until they are). */
 export const projectAgents = (projectId: string): Agent[] => byProject.get(projectId) || [];
 
-/** An agent of a project that isn't open, by id (the first project that has it). */
-export function foreignAgent(id: string): Agent | undefined {
-  for (const list of byProject.values()) {
-    const a = list.find((x) => x.id === id);
-    if (a) return a;
-  }
-  return undefined;
-}
-
 /** A project's agents, fetched on first use and again when agents change; re-renders when they arrive. */
 export function useProjectAgents(projectId: string | undefined): Agent[] {
   useSyncExternalStore(subscribe, () => version);

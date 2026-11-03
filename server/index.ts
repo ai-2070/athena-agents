@@ -136,9 +136,10 @@ const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
 const gatewaySupervisor = new GatewaySupervisor();
 
 // The routes an Overview pane uses for a project that isn't open (/api/p/<projectId>/…): an agent's chats and its
-// details, a team's thread, attached files, and showing that project's files. Everything else (projects, settings,
-// keys, backups) stays global.
-const SCOPED = /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|uploads(\/[\w-]+)?|file|files\/(info|open|reveal))$/;
+// details, a team's thread, a chat's tasks, the Brain's chat, MEMORY.md and its versions, attached files, and showing
+// that project's files.
+// Everything else (projects, settings, keys, backups) stays global.
+const SCOPED = /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|workflows|tasks(\/[\w-]+)?|brain\/(history|stream|steer)|memory\/[\w-]+|versions\/memory\/[^/]+(\/[^/]+(\/restore)?)?|uploads(\/[\w-]+)?|file|files\/(info|open|reveal))$/;
 function scopedRoute(pathname: string): { project: Project; path: string } | null {
   const m = /^\/api\/p\/([^/]+)(\/.*)$/.exec(pathname);
   if (!m) return null;

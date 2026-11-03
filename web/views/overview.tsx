@@ -2,19 +2,21 @@
 // sidebar, with what works and what needs you; this project, all projects, or one. Chats and terminals of any project
 // open side by side on a strip where each keeps its width (overviewlayout.ts): 1 to 8 columns per view, pinned columns
 // stay at the left, up to three panes stack in one column, and the rail at either edge shows what is off screen. A
-// pane of a project that isn't open sends its requests to that project (scopeTo, /api/p/<project>/…). The Brain of
-// another project opens that project first (after asking). The plan:
+// pane of a project that isn't open sends its requests to that project (projectAt, /api/p/<project>/…), so a copied
+// project's agents and teams (the same ids) sit beside the originals. Another project's Brain opens as a pane too
+// (brainpane.tsx); the open project's is the Brain chat. The plan:
 // docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { DEL, GET, POST, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
-import { apiUrl, scopeTo } from '../client/connection.ts';
+import { apiUrl } from '../client/connection.ts';
 import { previewFile, previewTitle, revealLabel } from '../filepreview.tsx';
 import { openChat } from '../chatwin.tsx';
 import { openDock } from '../dock.tsx';
 import { renderAgentChat } from '../agentchat.tsx';
 import { renderTeamChat } from '../teamchat.tsx';
 import { XTerm } from '../terminalview.tsx';
+import { BrainPane } from '../brainpane.tsx';
 import { reducedMotion } from '../motion.ts';
 import { Button, IconButton } from '../ui/button.tsx';
 import { iconButtonClass } from '../ui/classes.ts';
@@ -50,8 +52,10 @@ const CHANGES = new Set(['agents', 'workflows', 'approvals', 'questions', 'runs'
 const KIND_ORDER: Record<OverviewSession['kind'], number> = { brain: 0, agent: 1, team: 2, terminal: 3, task: 4 };
 const STATUS_ORDER: Record<OverviewSession['status'], number> = { 'needs-you': 0, working: 1, idle: 2 };
 const sessionKey = (p: OverviewProject, s: OverviewSession) => `${p.id}/${s.kind}/${s.id}`;
-/** What a session opens as a pane (the Brain and tasks open where they live). */
-const paneOf = (s: OverviewSession, projectId: string): PaneRef | null => (s.kind === 'agent' || s.kind === 'team' || s.kind === 'terminal' ? { kind: s.kind, id: s.id, projectId } : null);
+/** What a session opens as a pane: a chat, a terminal, or another project's Brain (the open project's is the Brain
+ *  chat, and tasks open on their page). */
+const paneOf = (s: OverviewSession, projectId: string, active: string): PaneRef | null =>
+  s.kind === 'agent' || s.kind === 'team' || s.kind === 'terminal' || (s.kind === 'brain' && projectId !== active) ? { kind: s.kind, id: s.id, projectId } : null;
 const STRIP = 'all';
 const PANEL_KEY = 'dash-overview-panel';
 type PanelId = 'needs' | 'tasks' | 'files';
@@ -93,20 +97,6 @@ export function sortSessions(list: OverviewSession[], sort: Sort, pinned: (s: Ov
     mine: (a, b) => place(a) - place(b),
   };
   return [...list].sort((a, b) => +pinned(b) - +pinned(a) || by[sort](a, b) || a.name.localeCompare(b.name));
-}
-
-/** Waits until the page shows the given project (after opening it), at most a few seconds. */
-function whenOpen(projectId: string): Promise<void> {
-  return new Promise((resolve) => {
-    if (state.data?.project?.id === projectId) return resolve();
-    const off = onState((d) => {
-      if (d.project?.id !== projectId) return;
-      off();
-      clearTimeout(timer);
-      resolve();
-    });
-    const timer = setTimeout(() => (off(), resolve()), 5000);
-  });
 }
 
 function OverviewPage() {
@@ -186,25 +176,13 @@ function OverviewPage() {
     return next;
   });
 
-  /** Opens a session: a chat or terminal (of any project) as a pane, a task on its page, the Brain in its chat. The
-   *  Brain of another project opens that project first, after asking. */
-  const openSession = async (p: OverviewProject, s: OverviewSession) => {
+  /** Opens a session: a chat, a terminal or another project's Brain (of any project) as a pane, a task on its page,
+   *  the open project's Brain in the Brain chat. */
+  const openSession = (p: OverviewProject, s: OverviewSession) => {
     if (!data) return;
-    const ref = paneOf(s, p.id);
-    if (ref) {
-      // (a copy of the open project has the same ids: the page can't tell their requests apart)
-      const twin = p.id !== data.active && s.kind !== 'terminal' && !!data.projects.find((x) => x.id === data.active)?.sessions.some((x) => x.kind === s.kind && x.id === s.id);
-      if (twin) return toast(`${s.name} has a twin in the open project (one is a copy of the other). Open ${p.name} to use this one.`, 'warn', 7000);
-      return change((l) => openPane(l, ref));
-    }
+    const ref = paneOf(s, p.id, data.active);
+    if (ref) return change((l) => openPane(l, ref));
     if (s.kind === 'task') return navigate(taskHref({ projectId: p.id, id: s.id }));
-    if (p.id !== data.active) {
-      if (!(await confirmBox(`Open the project ${p.name}? The Brain's chat is the open project's: the dashboard switches to ${p.name}, and its Brain opens.`, { ok: `Open ${p.name}` }))) return;
-      if (!(await attempt(() => POST(`/projects/${encodeURIComponent(p.id)}/activate`), `Opened ${p.name}`))) return;
-      refreshSoon(0);
-      await whenOpen(p.id);
-      void load();
-    }
     openDock();
   };
   /** A new terminal in the open project's folder, opened as a pane. */
@@ -734,7 +712,7 @@ function Strip({ layout, change, projects, active, onNextNeeding }: { layout: St
             column={c}
             style={{ width: spans[i]?.w || colPx, ...(c.pinned ? { position: 'sticky', left: spans.slice(0, i).filter((s) => s.pinned).reduce((n, s) => n + s.w, 0), zIndex: 10 } : {}) }}
             focus={layout.focus}
-            drawn={(ref) => ref.kind === 'terminal' || near(i)}
+            drawn={(ref) => ref.kind === 'terminal' || ref.kind === 'brain' || near(i)}
             status={status}
             projectName={projectName}
             change={change}
@@ -874,7 +852,7 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
               {stacked ? <DropdownItem icon="columns-2" onClick={() => change((l) => unstackPane(l, key))}>Take out of the stack</DropdownItem> : canStack ? <DropdownItem icon="layers" onClick={() => change((l) => stackPane(l, key))}>Stack under the one before</DropdownItem> : null}
               <DropdownItem onClick={() => change((l) => movePane(l, key, -1))}>Move left</DropdownItem>
               <DropdownItem onClick={() => change((l) => movePane(l, key, 1))}>Move right</DropdownItem>
-              {ref.kind !== 'terminal' && !projectName ? <DropdownItem icon="external-link" onClick={() => (openChat(ref.kind === 'agent' ? 'agent' : 'team', ref.id), change((l) => closePane(l, key)))}>Open in a chat window</DropdownItem> : null}
+              {(ref.kind === 'agent' || ref.kind === 'team') && !projectName ? <DropdownItem icon="external-link" onClick={() => (openChat(ref.kind === 'agent' ? 'agent' : 'team', ref.id), change((l) => closePane(l, key)))}>Open in a chat window</DropdownItem> : null}
               <DropdownItem icon="code" onClick={() => void openInVSCode(ref, !!projectName)}>Open folder in VS Code</DropdownItem>
               <DropdownSeparator />
               {ref.kind === 'terminal' && !s?.ended ? <DropdownItem icon="square" danger onClick={() => void endTerminal()}>End terminal</DropdownItem> : null}
@@ -883,7 +861,7 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
           </Dropdown>
         </header>
         <div className="flex min-h-0 flex-1 flex-col">
-          {drawn ? <PaneBody paneRef={ref} foreign={!!projectName} /> : <div className="grid flex-1 place-items-center text-[12px] text-faint">{name}</div>}
+          {drawn ? <PaneBody paneRef={ref} foreign={!!projectName} projectName={projectName || 'This project'} change={change} /> : <div className="grid flex-1 place-items-center text-[12px] text-faint">{name}</div>}
         </div>
         {over ? <div aria-hidden="true" className={`pointer-events-none absolute z-20 rounded-[6px] bg-accent/15 outline-2 -outline-offset-2 outline-accent/60 ${over === 'before' ? 'inset-y-0 left-0 w-1/4' : over === 'after' ? 'inset-y-0 right-0 w-1/4' : 'inset-x-0 bottom-0 h-1/2'}`} /> : null}
       </section>
@@ -892,20 +870,20 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
   );
 }
 
-/** What a pane shows: an agent's chat or a team's thread (the components the chat windows use), or a terminal. A
- *  chat of a project that isn't open (foreign) sends its requests to that project while it shows. */
-function PaneBody({ paneRef: ref, foreign }: { paneRef: PaneRef; foreign: boolean }) {
+/** What a pane shows: an agent's chat or a team's thread (the components the chat windows use), a terminal, or a
+ *  project's Brain. A chat of a project that isn't open (foreign) sends its requests to that project. */
+function PaneBody({ paneRef: ref, foreign, projectName, change }: { paneRef: PaneRef; foreign: boolean; projectName: string; change: Change }) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (ref.kind === 'terminal') return;
+    if (ref.kind === 'terminal' || ref.kind === 'brain') return;
     const el = host.current!;
     const scoped = foreign ? { projectId: ref.projectId } : {};
-    const release = foreign ? scopeTo(ref.projectId, ref.kind === 'agent' ? 'agents' : 'teams', ref.id) : () => {};
     const api = ref.kind === 'agent' ? renderAgentChat(el, ref.id, scoped) : renderTeamChat(el, ref.id, { fill: true, ...scoped });
     // (the chat is its own React root: it is taken down after this render)
-    return () => void setTimeout(() => (api.destroy(), release()));
+    return () => void setTimeout(() => api.destroy());
   }, [ref.kind, ref.id, ref.projectId, foreign]);
   if (ref.kind === 'terminal') return <XTerm id={ref.id} className="min-h-0 flex-1 bg-bg px-2 py-1" />;
+  if (ref.kind === 'brain') return <div className="flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3"><BrainPane projectId={ref.projectId} projectName={projectName} onOpen={(kind, id) => change((l) => openPane(l, { kind, id, projectId: ref.projectId }))} /></div>;
   return <div ref={host} className="strip-chat flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3 *:min-h-0 *:flex-1" />;
 }
 

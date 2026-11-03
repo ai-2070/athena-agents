@@ -409,7 +409,7 @@ function Previews({ text, attachments, id }: { text: string; attachments?: strin
 }
 
 // A tool call the Brain made, as the chats show them (open it for its input and result).
-function StepCard({ st }: { st: BrainStep }) {
+export function StepCard({ st }: { st: BrainStep }) {
   const input = typeof st.input === 'string' ? st.input : JSON.stringify(st.input ?? {}, null, 2);
   const brief = st.input && typeof st.input === 'object' ? Object.values(st.input as Record<string, unknown>).filter((v) => typeof v === 'string').join(' · ').slice(0, 120) : '';
   return (

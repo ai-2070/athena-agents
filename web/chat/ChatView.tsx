@@ -24,6 +24,7 @@ import { useFind } from '../ui/find.tsx';
 import { Button } from '../ui/button.tsx';
 import { estimateHeight, messageSig } from './estimate.ts';
 import { chatTransport } from './transport.ts';
+import { projectAt } from '../client/connection.ts';
 import { agentMentions, insertMention } from './mention.ts';
 import { attachMentionEditor } from './mentioneditor.ts';
 import type { MentionAgent } from './mention.ts';
@@ -69,6 +70,9 @@ export interface ChatViewProps {
   apiRef?: { current: ChatViewApi | null };
   /** The agents of the chat's project, when it isn't the open one (an Overview pane): the ones @ offers. */
   agents?: Agent[];
+  /** The chat's project, when it isn't the open one (an Overview pane): its requests go there, and runs, approvals
+   *  and events of other projects (a copied project has the same agent and chat ids) are left out. */
+  projectId?: string;
 }
 
 /** The page's shared state (agents, runs, approvals), kept current. */
@@ -82,6 +86,14 @@ export { chatTransport, streamUrl } from './transport.ts';
 
 export function ChatView(p: ChatViewProps) {
   const { agent } = p;
+  const at = projectAt(p.projectId);
+  /** Whether a run, approval or event (by its project) is this chat's: the pane's project, or the open one. */
+  const ours = (projectId: unknown) => {
+    const mine = p.projectId || state.data?.project?.id;
+    return !projectId || !mine || projectId === mine;
+  };
+  const oursRef = useRef(ours);
+  oursRef.current = ours;
   const variant: Variant = p.variant || (p.compact ? 'compact' : 'full');
   const compact = variant !== 'full';
   const tray = p.tray || null;
@@ -130,7 +142,7 @@ export function ChatView(p: ChatViewProps) {
 
   // the server answered the last send (so it has the message): a failure after that is the run's, not the send's
   const accepted = useRef(false);
-  const transport = useMemo(() => chatTransport(agent.id, () => chatIdRef.current, () => (accepted.current = true)), [agent.id]);
+  const transport = useMemo(() => chatTransport(agent.id, () => chatIdRef.current, () => (accepted.current = true), at), [agent.id, at]);
   const { messages, setMessages, sendMessage, status, stop: stopStream, resumeStream } = useChat<ChatMessage>({
     id: viewId,
     transport,
@@ -146,17 +158,17 @@ export function ChatView(p: ChatViewProps) {
   const streamingRef = useRef(streaming);
   streamingRef.current = streaming;
 
-  const serverRunning = !!chatId && !!app?.runs.some((r) => r.chatId === chatId);
+  const serverRunning = !!chatId && !!app?.runs.some((r) => r.chatId === chatId && ours(r.projectId));
   const busy = streaming || serverRunning;
   // it works for a team or another agent here: they wait on its answer, so a message can't change its course
-  const helping = !!chatId && !!app?.runs.some((r) => r.chatId === chatId && (r.depth ?? 0) > 0);
-  const approvals = (app?.approvals || []).filter((a) => a.agentId === agent.id);
+  const helping = !!chatId && !!app?.runs.some((r) => r.chatId === chatId && ours(r.projectId) && (r.depth ?? 0) > 0);
+  const approvals = (app?.approvals || []).filter((a) => a.agentId === agent.id && ours(a.projectId));
 
   // the saved chat, shown as it is. after: a stream just ended (its flag may not have caught up yet)
   const reload = useCallback(async (after = false) => {
     const id = chatIdRef.current;
     if (!id) return;
-    const saved = await GET<Chat>(`/agents/${agent.id}/chats/${id}`).catch(() => null);
+    const saved = await GET<Chat>(`${at}/agents/${agent.id}/chats/${id}`).catch(() => null);
     if (!saved || chatIdRef.current !== id) return;
     setItems(saved.items);
     setQueued(saved.queued || []);
@@ -165,7 +177,7 @@ export function ChatView(p: ChatViewProps) {
     // (while a stream is going it keeps its own message; the saved chat comes when it ends)
     if (after || !streamingRef.current) setMessages(toUIMessages(saved.items));
     onChat.current?.(saved);
-  }, [agent.id, setMessages]);
+  }, [agent.id, at, setMessages]);
 
   // pick up a run going in this chat: the messages before its turn, then the turn streamed in
   const following = useRef(false);
@@ -202,7 +214,7 @@ export function ChatView(p: ChatViewProps) {
   useEffect(() => {
     void (async () => {
       await reload();
-      if (chatIdRef.current && state.data?.runs.some((r) => r.chatId === chatIdRef.current)) await follow();
+      if (chatIdRef.current && state.data?.runs.some((r) => r.chatId === chatIdRef.current && oursRef.current(r.projectId))) await follow();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -211,6 +223,7 @@ export function ChatView(p: ChatViewProps) {
   useEffect(
     () =>
       onEvent((ev) => {
+        if (!oursRef.current(ev.projectId)) return;
         // your /goal here: the Brain followed up, or it is reached, stuck or dropped
         if (ev.type === 'brief') {
           const b = ev.brief as BrainBrief;
@@ -281,7 +294,7 @@ export function ChatView(p: ChatViewProps) {
         }
         // a new conversation: make the chat first
         if (!chatIdRef.current) {
-          const made = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
+          const made = await attempt(() => POST<Chat>(`${at}/agents/${agent.id}/chats`));
           if (!made) {
             if (typed == null && box) restore(text);
             return;
@@ -336,7 +349,7 @@ export function ChatView(p: ChatViewProps) {
       pastes.sync();
       refill();
       const taken = tray?.take() || [];
-      const r = await attempt(() => POST<{ runId?: string; queued?: QueuedMessage }>(`/agents/${agent.id}/chats/${id}/queue`, { text, attachments }));
+      const r = await attempt(() => POST<{ runId?: string; queued?: QueuedMessage }>(`${at}/agents/${agent.id}/chats/${id}/queue`, { text, attachments }));
       if (!r) {
         restore(`/queue ${text}`);
         tray?.put(taken);
@@ -347,15 +360,15 @@ export function ChatView(p: ChatViewProps) {
     } finally {
       queueing.current = false;
     }
-  }, [agent.id, tray, pastes, refill, restore]);
+  }, [agent.id, at, tray, pastes, refill, restore]);
   const unqueue = useCallback(
     (q: QueuedMessage) => {
       const id = chatIdRef.current;
       if (!id) return;
       setQueued((list) => list.filter((x) => x.id !== q.id));
-      void attempt(() => DEL(`/agents/${agent.id}/chats/${id}/queue/${q.id}`));
+      void attempt(() => DEL(`${at}/agents/${agent.id}/chats/${id}/queue/${q.id}`));
     },
-    [agent.id],
+    [agent.id, at],
   );
   const keepEdit = (text: string) => keepLostEdit(text, input.current, restore);
   const editQueued = async (q: QueuedMessage, text: string) => {
@@ -363,7 +376,7 @@ export function ChatView(p: ChatViewProps) {
     if (!id) return;
     const put = (t: string) => setQueued((list) => list.map((x) => (x.id === q.id ? { ...x, text: t } : x)));
     put(text);
-    const r = await attempt(() => PUT<{ queued: QueuedMessage | null }>(`/agents/${agent.id}/chats/${id}/queue/${q.id}`, { text }));
+    const r = await attempt(() => PUT<{ queued: QueuedMessage | null }>(`${at}/agents/${agent.id}/chats/${id}/queue/${q.id}`, { text }));
     // not saved: it shows what will go after all; already sent: the change comes to the box
     if (!r) put(q.text);
     else if (r.queued === null) keepEdit(text);
@@ -372,12 +385,12 @@ export function ChatView(p: ChatViewProps) {
     const id = chatIdRef.current;
     if (!id) return;
     setQueued((list) => ids.map((x) => list.find((q) => q.id === x)).filter((q): q is QueuedMessage => !!q));
-    void attempt(() => POST(`/agents/${agent.id}/chats/${id}/queue/order`, { ids }));
+    void attempt(() => POST(`${at}/agents/${agent.id}/chats/${id}/queue/order`, { ids }));
   };
   // the chat, made now if this is a new conversation (for a command that needs one)
   const ensureChat = async (): Promise<string | null> => {
     if (chatIdRef.current) return chatIdRef.current;
-    const made = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
+    const made = await attempt(() => POST<Chat>(`${at}/agents/${agent.id}/chats`));
     if (!made) return null;
     chatIdRef.current = made.id;
     setChatId(made.id);
@@ -403,7 +416,7 @@ export function ChatView(p: ChatViewProps) {
     if (name === 'stop') return void stop();
     const id = await ensureChat();
     if (!id) return back();
-    const base = `/agents/${agent.id}/chats/${id}`;
+    const base = `${at}/agents/${agent.id}/chats/${id}`;
     if (name === 'goal' && !rest) return void toast(goal ? `Goal: ${goal.goal || goal.text}` : 'No goal yet. Type /goal and what done looks like.');
     if (name === 'loop') {
       // (with the files in the tray: each loop message carries them; not when it is ended)
@@ -436,12 +449,12 @@ export function ChatView(p: ChatViewProps) {
     const id = chatIdRef.current;
     void stopStream();
     if (!id) return;
-    const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`/agents/${agent.id}/chats/${id}/stop`));
+    const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`${at}/agents/${agent.id}/chats/${id}/stop`));
     // what you queued comes back to the box, so stopping never loses it
     const back = r?.unqueued || [];
     if (back.length) restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
     if (back.some((q) => q.attachments?.length)) toast('Your queued messages are back in the box. Attach their files again.');
-  }, [agent.id, stopStream, restore]);
+  }, [agent.id, at, stopStream, restore]);
 
   if (p.apiRef)
     p.apiRef.current = {
@@ -494,10 +507,10 @@ export function ChatView(p: ChatViewProps) {
   // / for commands: a menu above the box while it holds just "/" and the start of a name
   const [slash, setSlash] = useState<{ options: SlashOption[]; active: number } | null>(null);
   useEffect(() => {
-    void GET<{ name: string; about: string }[]>(`/agents/${agent.id}/commands`)
+    void GET<{ name: string; about: string }[]>(`${at}/agents/${agent.id}/commands`)
       .then((list) => setHarness(Array.isArray(list) ? list : []))
       .catch(() => {});
-  }, [agent.id]);
+  }, [agent.id, at]);
   const lookForSlash = () => {
     const options = slashSuggestions(input.current?.value || '', 'agent', harness);
     setSlash((was) => (options.length ? { options, active: was && was.options.length === options.length ? Math.min(was.active, options.length - 1) : 0 } : null));
@@ -532,7 +545,7 @@ export function ChatView(p: ChatViewProps) {
     const box = input.current;
     if (!box) return;
     return attachMentionEditor(box, () => othersRef.current.filter((a) => a.id !== agent.id && a.name.trim()).map((a) => `@${agentRef(a, othersRef.current)}`));
-  }, [agent.id]);
+  }, [agent.id, at]);
   // (it can only hand work on with ask_agent, which the Delegate tools give it)
   const canDelegate = !!others.find((a) => a.id === agent.id)?.toolGroups?.includes('agents');
   const lookForMention = () => {
@@ -752,7 +765,7 @@ export function ChatView(p: ChatViewProps) {
   return (
     <>
       {find}
-      {variant !== 'mini' && <div className={compact ? '' : 'px-10 max-md:px-4'}><TaskPanel view={`agent:${agent.id}`} scope={{ kind: 'agent', id: agent.id }} chatId={chatId || undefined} /></div>}
+      {variant !== 'mini' && <div className={compact ? '' : 'px-10 max-md:px-4'}><TaskPanel view={`agent:${agent.id}`} scope={{ kind: 'agent', id: agent.id }} chatId={chatId || undefined} projectId={p.projectId} /></div>}
       <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto py-2' : compact ? 'ac-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-14px),transparent_100%)] flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pt-1 pb-2' : 'messages'} onScroll={onScroll}>
         {empty ? (
           variant === 'mini' ? (

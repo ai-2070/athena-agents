@@ -123,8 +123,9 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 - **Show** picks **This project**, **All projects** or one project. **Sort** puts the ones that need you first (the default), or orders them by last update, by kind, by name, or in **Your order**: then drag them up and down within their project.
 - The star next to one pins it to the top of its project. Click a project's name to fold it. **Search** narrows the list by name.
 - **Needs you** and **Working now** list them across what is shown, with **Open** next to each. The line at the bottom counts them: "2 need you · 4 of 7 working · 3 projects".
-- Clicking an agent, a team or a terminal opens it on the strip, beside the others, whichever project it is in: you can write to an agent or a team of another project without opening that project (its pane says which project it is, the files you attach go to that project, and the files it mentions show their previews). A task opens on its page. The Brain of another project asks first, then opens that project and its Brain.
-- If you copied a project, its agents have the same ids as the original's: one of a copy can't sit on the strip while the original's project is open. Open its project to use it.
+- Clicking an agent, a team or a terminal opens it on the strip, beside the others, whichever project it is in: you can write to an agent or a team of another project without opening that project (its pane says which project it is, the files you attach go to that project, the files it mentions show their previews, and its MEMORY.md is the one it has there). A task opens on its page.
+- The Brain of another project opens on the strip too: its conversation, a box to ask it something (with files), the answer as it is written, its MEMORY.md, and **Open** on the work it hands to an agent or a team, which opens beside it. The open project's Brain opens in the Brain chat at the bottom, which also has who a message goes to, /goal, /loop and /queue.
+- A copied project's agents and teams can sit beside the originals: each pane talks to its own project.
 - Your choices (what is shown, the sort, pins, folded projects) are remembered in this browser.
 
 **The strip.** Open chats and terminals sit side by side and keep their width; the strip slides sideways instead of squeezing them.

@@ -13,6 +13,8 @@ import type { Chat } from '../../shared/types.ts';
 export interface TurnViewProps {
   agentId: string;
   chatId: string;
+  /** '/p/<project>' for an agent of a project that isn't open (projectAt) */
+  at?: string;
   /** the turn going now (streamed in) */
   live?: boolean;
   /** a finished turn: these items of the chat */
@@ -26,8 +28,8 @@ export interface TurnViewProps {
   onSend?: (text: string) => void;
 }
 
-export function TurnView({ agentId, chatId, live, from, to, empty, onEnd, onSend }: TurnViewProps) {
-  const transport = useMemo(() => chatTransport(agentId, () => chatId), [agentId, chatId]);
+export function TurnView({ agentId, chatId, at = '', live, from, to, empty, onEnd, onSend }: TurnViewProps) {
+  const transport = useMemo(() => chatTransport(agentId, () => chatId, undefined, at), [agentId, chatId, at]);
   const [viewId] = useState(() => `turn-${chatId}-${Math.random().toString(36).slice(2, 8)}`);
   const { messages, setMessages, resumeStream, status } = useChat<ChatMessage>({ id: viewId, transport });
   const [loaded, setLoaded] = useState(false);
@@ -44,7 +46,7 @@ export function TurnView({ agentId, chatId, live, from, to, empty, onEnd, onSend
       }
       // a finished turn, or the live one once it ended (or had ended before it could be picked up):
       // as saved. Only the agent's side: the message to it is what the team or the Brain already shows.
-      const chat = await GET<Chat>(`/agents/${agentId}/chats/${chatId}`).catch(() => null);
+      const chat = await GET<Chat>(`${at}/agents/${agentId}/chats/${chatId}`).catch(() => null);
       if (!alive) return;
       // (a chat that is gone, or not one: nothing to show)
       if (chat && Array.isArray(chat.items)) {

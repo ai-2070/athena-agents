@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeProject, agents, chats, getSettings, listProjects, saveSettings, secretStatus, setActiveProject, setSecret, workflows } from '../../server/store.ts';
+import { activeProject, agents, bus, chats, emit, getSettings, listProjects, saveSettings, secretStatus, setActiveProject, setSecret, withProject, workflows } from '../../server/store.ts';
 import { dataPath, readJSON, writeJSON } from '../../server/util.ts';
 import type { Agent } from '../../shared/types.ts';
 
@@ -85,5 +85,22 @@ describe('chats', () => {
 
   it('rejects unsafe agent ids', () => {
     expect(() => chats.list('../../etc')).toThrow();
+  });
+});
+
+describe('events', () => {
+  it("say which project a chat's event is from (a copied project has the same ids), and leave the rest alone", () => {
+    const seen: Record<string, unknown>[] = [];
+    const listen = (ev: Record<string, unknown>) => seen.push(ev);
+    bus.on('event', listen);
+    try {
+      const p = { ...activeProject(), id: 'elsewhere' };
+      withProject(p, () => emit('run', { chatId: 'c1' }));
+      emit('queue', { chatId: 'c1', projectId: 'given' });
+      emit('settings');
+    } finally {
+      bus.off('event', listen);
+    }
+    expect(seen.map((e) => [e.type, e.projectId])).toEqual([['run', 'elsewhere'], ['queue', 'given'], ['settings', undefined]]);
   });
 });

@@ -44,33 +44,12 @@ export function serverUrl(path: string, query?: Query): string {
   return `${conn.base}${path}${q ? (path.includes('?') ? '&' : '?') + q : ''}`;
 }
 
-// Agents and teams of a project that isn't open, shown in an Overview pane: their requests go to /api/p/<project>/…,
-// which the server runs in that project. Counted, so two panes of one agent share it until both close.
-const owners = new Map<string, { project: string; n: number }>();
-/** Sends an agent's or team's requests to its own project until the returned function is called. */
-export function scopeTo(project: string, kind: 'agents' | 'teams', id: string): () => void {
-  const key = `${kind}/${id}`;
-  const was = owners.get(key);
-  owners.set(key, { project, n: was?.project === project ? was.n + 1 : 1 });
-  let done = false;
-  return () => {
-    if (done) return;
-    done = true;
-    const now = owners.get(key);
-    if (!now || now.project !== project) return;
-    if (now.n > 1) owners.set(key, { project, n: now.n - 1 });
-    else owners.delete(key);
-  };
-}
-/** The path with its project in front, when it is for an agent or team scopeTo() named. */
-export function scopedPath(path: string): string {
-  const m = /^\/(agents|teams)\/([^/?]+)/.exec(path);
-  const owner = m ? owners.get(`${m[1]}/${decodeURIComponent(m[2])}`) : undefined;
-  return owner ? `/p/${encodeURIComponent(owner.project)}${path}` : path;
-}
+/** The path prefix for a project that isn't open: '/p/<project>' ('' for none). The server runs a request sent there
+ *  in that project (an Overview pane of another project's chat, terminal or Brain). */
+export const projectAt = (projectId?: string | null): string => (projectId ? `/p/${encodeURIComponent(projectId)}` : '');
 
-/** An API address: apiUrl('/agents') is '/api/agents' (or '/api/p/<project>/agents/…' for a scopeTo() agent). */
-export const apiUrl = (path: string, query?: Query): string => serverUrl(`/api${scopedPath(path)}`, query);
+/** An API address: apiUrl('/agents') is '/api/agents'. */
+export const apiUrl = (path: string, query?: Query): string => serverUrl(`/api${path}`, query);
 
 // Where each project's folder is (from the page's state), so a file of a project that isn't open (a chat of it in an
 // Overview pane) is shown and looked up through that project: the server only shows the open project's files.
@@ -86,7 +65,7 @@ export function setProjectFolders(list: readonly { id: string; brainPath?: strin
 export function filesAt(path: string): string {
   const p = folderOf(path);
   const hit = folders.find((f) => p === f.folder || p.startsWith(`${f.folder}/`));
-  return hit && hit.id !== openProjectId ? `/p/${encodeURIComponent(hit.id)}` : '';
+  return hit && hit.id !== openProjectId ? projectAt(hit.id) : '';
 }
 
 /** A file the server hands out (attachments, images, artifacts), for src and href. */

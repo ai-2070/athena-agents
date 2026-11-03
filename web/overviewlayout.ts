@@ -2,9 +2,9 @@
 // which are pinned and which are stacked, and how many columns fit in one view. Plain data and functions (no DOM),
 // saved in this browser.
 
-/** What a pane shows: an agent's chat, a team's thread, or a terminal, of a project. */
+/** What a pane shows: an agent's chat, a team's thread, a terminal, or the Brain (id 'brain'), of a project. */
 export interface PaneRef {
-  kind: 'agent' | 'team' | 'terminal';
+  kind: 'agent' | 'team' | 'terminal' | 'brain';
   id: string;
   projectId: string;
 }
@@ -189,7 +189,7 @@ export function loadLayout(name: string, project?: string, perView = 2): StripLa
     if (!v || !Array.isArray(v.columns)) return emptyLayout(perView);
     const ref = (p: unknown): PaneRef[] => {
       const x = p as Partial<PaneRef> | null;
-      if (!x || typeof x !== 'object' || !['agent', 'team', 'terminal'].includes(String(x.kind)) || typeof x.id !== 'string') return [];
+      if (!x || typeof x !== 'object' || !['agent', 'team', 'terminal', 'brain'].includes(String(x.kind)) || typeof x.id !== 'string') return [];
       const projectId = typeof x.projectId === 'string' && x.projectId ? x.projectId : project;
       return projectId ? [{ kind: x.kind as PaneRef['kind'], id: x.id, projectId }] : [];
     };

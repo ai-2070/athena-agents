@@ -193,8 +193,9 @@ function makeChip(title: string, face: () => ReactNode): { chip: HTMLButtonEleme
   return { chip, draw };
 }
 
-// A chip showing an agent's model; click it to switch (model or what it runs on).
-export function modelChip(agent: Agent, { onChange, compact = false }: { onChange?: (agent: Agent) => void; compact?: boolean } = {}): HTMLButtonElement {
+// A chip showing an agent's model; click it to switch (model or what it runs on). at: '/p/<project>' for an agent of a
+// project that isn't open (projectAt).
+export function modelChip(agent: Agent, { onChange, compact = false, at = '' }: { onChange?: (agent: Agent) => void; compact?: boolean; at?: string } = {}): HTMLButtonElement {
   const { chip, draw } = makeChip('Switch model', () => {
     const mi = modelInfo(agent);
     return <ChipFace brand={mi.brand} engine={agent.engine} label={mi.short} effort={effortOf(agent)} latest={mi.latest && !compact} />;
@@ -203,7 +204,7 @@ export function modelChip(agent: Agent, { onChange, compact = false }: { onChang
     e.stopPropagation();
     openModelPicker(chip, agent, async (patch) => {
       const sameOne = sameModel(agent, patch);
-      const r = await attempt(() => PUT<Agent>(`/agents/${agent.id}`, patch));
+      const r = await attempt(() => PUT<Agent>(`${at}/agents/${agent.id}`, patch));
       if (!r) return false;
       Object.assign(agent, patch);
       flushSync(draw);

@@ -6,14 +6,21 @@
 Open folder in VS Code from a pane (its menu and Ctrl+Alt+O). Step 5 waits until it is wanted.
 
 **Step 3 is built**: `/api/p/<projectId>/…` runs an agent's, a team's or an upload route in that
-project (`scopedRoute` in `server/index.ts`; other routes refuse it). The page sends a pane's requests there with
-`scopeTo()` / `scopedPath()` in `web/client/connection.ts`, `renderAgentChat` and `renderTeamChat` take a `projectId`
-(their agents come from `web/projectagents.ts`), and the tray uploads into that project. Questions are answered in
-the project that has them. There is one strip for every project. Left as they are:
-- An agent or team with the same id in the open project (a copied project) can't sit on the strip; the page says so.
-- The Brain of another project still opens that project first. Its chat is the dock, which is the open project's.
-- (Fixed since: files of another project are shown and looked up through that project, chosen by the folder that
-  holds them: `filesAt()` in `web/client/connection.ts`.)
+project (`scopedRoute` in `server/index.ts`; other routes refuse it). `renderAgentChat` and `renderTeamChat` take a
+`projectId` and put `projectAt(projectId)` (`web/client/connection.ts`) in front of their own requests, down to the
+chat view, its task list, turn views, the model chip and MEMORY.md with its History (`/api/p/<id>/memory/…`,
+`/versions/memory/…`) (their agents come from `web/projectagents.ts`), and the tray
+uploads into that project. Questions are answered in the project that has them. There is one strip for every project.
+Fixed since:
+- Files of another project are shown and looked up through that project, chosen by the folder that holds them
+  (`filesAt()`).
+- A copied project's agents and teams (the same ids) sit beside the originals: requests carry their project
+  explicitly (no lookup by id), a chat's events say their project (`emit()` in `server/store.ts` adds `projectId` to
+  run, queue, loop, compacted, chat-note, brief and team events), and a pane leaves out runs, approvals and events of
+  other projects.
+- Another project's Brain is a pane (`web/brainpane.tsx`): its history, asking it (streamed, with files), stopping
+  the answer, and opening the work it handed on, through `/api/p/<id>/brain/(history|stream|steer)`. The open
+  project's Brain stays the Brain chat (the dock), with targets, /goal, /loop and /queue.
 
 **Step 2 is built too**: the strip for the open project, with terminals
 (`web/overviewlayout.ts` for the layout, `web/terminalview.tsx` shared with the Terminals page, `Terminal.projectId`).

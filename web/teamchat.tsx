@@ -6,11 +6,12 @@
 // mention() change its text directly, as typing does.
 import { attachMentionEditor } from './chat/mentioneditor.ts';
 import { icon } from './icons.ts';
-import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Suspense, createContext, lazy, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
 import { attachTray } from './attach.tsx';
-import { foreignAgent, useProjectAgents } from './projectagents.ts';
+import { projectAgents, useProjectAgents } from './projectagents.ts';
+import { projectAt } from './client/connection.ts';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { mentionPreviews } from './filepreview.tsx';
@@ -58,7 +59,7 @@ export interface TeamChatApi {
 interface TeamChatOptions {
   height?: number;
   fill?: boolean;
-  /** the team's project, when it isn't the open one (an Overview pane; its requests are scoped with scopeTo) */
+  /** the team's project, when it isn't the open one (an Overview pane): its requests go there (projectAt) */
   projectId?: string;
 }
 /** The chat as it stands: changed by the first load and by live events, then drawn. */
@@ -109,8 +110,11 @@ const TYPING = 'flex items-center gap-2 text-[12.5px] leading-[normal] font-norm
 /** the steps behind a reply, and a live turn */
 const TURN_BODY = 'mt-2 flex flex-col gap-2 min-w-0';
 const blank = (): TeamChatData => ({ team: null, others: [], messages: [], working: [], queued: [], held: [], loop: null, goal: null, activity: {}, sessions: {}, turning: new Set() });
-// (a team of a project that isn't open: its members are among the agents fetched for that project)
-const agentOf = (id: string) => state.data?.agents.find((a) => a.id === id) || foreignAgent(id);
+// The team's project, when it isn't the open one (an Overview pane): its members are the agents fetched for that
+// project (a copied project has agents with the same ids), and their turns are read from there.
+const TeamProject = createContext<string | undefined>(undefined);
+const agentIn = (projectId: string | undefined) => (id: string): Agent | undefined => (projectId ? projectAgents(projectId) : state.data?.agents || []).find((a) => a.id === id);
+const useAgentOf = () => agentIn(useContext(TeamProject));
 
 /** Who wrote a message, in a few words (the quote above a reply). */
 export function senderName(m: TeamMessage, agentName: (id: string) => string | undefined): string {
@@ -133,7 +137,7 @@ export function mergeSnapshot(snapshot: TeamMessage[], live: TeamMessage[], clea
 }
 
 /** The chat's data, kept current by its first load and live events. bump() draws it again. */
-function useTeamData(teamId: string): [TeamChatData, () => void, { current: TeamChatData }] {
+function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => void, { current: TeamChatData }] {
   const C = useRef<TeamChatData>(blank());
   const [, setVersion] = useState(0);
   const bump = useCallback(() => setVersion((v) => v + 1), []);
@@ -145,6 +149,9 @@ function useTeamData(teamId: string): [TeamChatData, () => void, { current: Team
     let early = { loading: true, cleared: false, state: false, fresh: new Set<string>(), turned: new Set<string>() };
     const off = onEvent((ev) => {
       if (!alive) return;
+      // (another project's events: a copied project has a team, agents and chats with the same ids)
+      const mine = projectId || state.data?.project?.id;
+      if (ev.projectId && mine && ev.projectId !== mine) return;
       if (ev.type === 'team' && ev.teamId === teamId) {
         const e = ev.event as TeamEvent;
         if (e.kind === 'message' && !c.messages.some((m) => m.id === e.message.id)) c.messages = [...c.messages, e.message];
@@ -193,7 +200,7 @@ function useTeamData(teamId: string): [TeamChatData, () => void, { current: Team
     // again: the event socket came back, and what happened while it was down never came as events
     const load = (again: boolean) => {
       const now: typeof early = (early = { loading: true, cleared: false, state: false, fresh: new Set(), turned: new Set() });
-      GET<TeamChatResponse>(`/teams/${teamId}/chat`)
+      GET<TeamChatResponse>(`${projectAt(projectId)}/teams/${teamId}/chat`)
         .then((r) => {
           if (!alive || now !== early) return;
           c.team = r.team;
@@ -221,7 +228,7 @@ function useTeamData(teamId: string): [TeamChatData, () => void, { current: Team
       off();
       offReconnect();
     };
-  }, [teamId, bump]);
+  }, [teamId, projectId, bump]);
   return [C.current, bump, C];
 }
 
@@ -341,6 +348,7 @@ function Fold({ children }: { children: ReactNode }) {
 function Work({ m }: { m: TeamMessage }) {
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
+  const at = projectAt(useContext(TeamProject));
   const turn = m.turn!;
   return (
     <CollapseRoot className="tc-work mt-2.5 text-left" open={open} onOpenChange={(value) => { setOpen(value); if (value) setOpened(true); }}>
@@ -350,7 +358,7 @@ function Work({ m }: { m: TeamMessage }) {
       </CollapseTrigger>
       <CollapsePanel keepMounted>
         <div className={TURN_BODY}>
-          {opened ? <Suspense fallback={null}><TurnView agentId={m.from} chatId={turn.chatId} from={turn.from} to={turn.to} empty="No steps were saved for this reply." /></Suspense> : null}
+          {opened ? <Suspense fallback={null}><TurnView agentId={m.from} chatId={turn.chatId} at={at} from={turn.from} to={turn.to} empty="No steps were saved for this reply." /></Suspense> : null}
         </div>
       </CollapsePanel>
     </CollapseRoot>
@@ -359,6 +367,7 @@ function Work({ m }: { m: TeamMessage }) {
 
 /** One message. Memo: a message drawn once stays as it is while others arrive or stream in. */
 const Message = memo(function Message({ m, parent, author, team, lead, names, teams, onReply }: { m: TeamMessage; parent: TeamMessage | null; author: Agent | undefined; team: TeamRef | undefined; lead: boolean; names: string; teams: string; onReply: (m: TeamMessage) => void }) {
+  const agentOf = useAgentOf();
   if (m.from === 'system') return <div className="text-center text-[12.5px] leading-[normal] font-normal text-faint py-1">{m.text}</div>;
   const brain = m.from === 'brain';
   // a message from another team (#Team): in that team's colour
@@ -415,7 +424,8 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
 
 /** A working agent's turn, streamed in as it goes (its text and tool calls). */
 function LiveTurn({ agentId, chatId }: { agentId: string; chatId: string }) {
-  const a = agentOf(agentId);
+  const projectId = useContext(TeamProject);
+  const a = agentIn(projectId)(agentId);
   return (
     <div className={MSG_LIVE}>
       <div className={WHO}>
@@ -425,7 +435,7 @@ function LiveTurn({ agentId, chatId }: { agentId: string; chatId: string }) {
       </div>
       <div className={TURN_BODY}>
         <Suspense fallback={null}>
-          <TurnView agentId={agentId} chatId={chatId} live />
+          <TurnView agentId={agentId} chatId={chatId} at={projectAt(projectId)} live />
         </Suspense>
       </div>
     </div>
@@ -451,7 +461,9 @@ function mentionIn(input: HTMLTextAreaElement, name: string): void {
 function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; height: number; fill: boolean; box: BoxRef; projectId?: string }) {
   useAppState(); // (names, avatars and who is lead follow the app state)
   useProjectAgents(projectId); // (and the members of a team of a project that isn't open, once fetched)
-  const [C, bump, store] = useTeamData(teamId);
+  const agentOf = agentIn(projectId);
+  const at = projectAt(projectId);
+  const [C, bump, store] = useTeamData(teamId, projectId);
   const [replyTo, setReplyTo] = useState<TeamMessage | null>(null);
   const lastReply = useRef(replyTo);
   if (replyTo) lastReply.current = replyTo;
@@ -525,15 +537,15 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     commandChips(chips.current, {
       loop: store.current.loop,
       goal: store.current.goal,
-      onStopLoop: () => void attempt(() => DEL(`/teams/${teamId}/loop`)),
-      onClearGoal: () => void attempt(() => DEL(`/teams/${teamId}/goal`)).then((r) => r && ((store.current.goal = null), bump())),
+      onStopLoop: () => void attempt(() => DEL(`${at}/teams/${teamId}/loop`)),
+      onClearGoal: () => void attempt(() => DEL(`${at}/teams/${teamId}/goal`)).then((r) => r && ((store.current.goal = null), bump())),
     });
   }, [chipsSig, teamId, store, bump]);
 
   const unqueue = (q: QueuedMessage) => {
     store.current.held = store.current.held.filter((x) => x.id !== q.id);
     bump();
-    void attempt(() => DEL(`/teams/${teamId}/queue/${q.id}`));
+    void attempt(() => DEL(`${at}/teams/${teamId}/queue/${q.id}`));
   };
   const keepEdit = (text: string) => keepLostEdit(text, input.current, restore);
   const editQueued = async (q: QueuedMessage, text: string) => {
@@ -542,7 +554,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
       bump();
     };
     put(text);
-    const r = await attempt(() => PUT<{ queued: QueuedMessage | null }>(`/teams/${teamId}/queue/${q.id}`, { text }));
+    const r = await attempt(() => PUT<{ queued: QueuedMessage | null }>(`${at}/teams/${teamId}/queue/${q.id}`, { text }));
     // not saved: it shows what will go after all; sent before the change got there: the new words come back to the box
     if (!r) put(q.text);
     else if (r.queued === null) keepEdit(text);
@@ -551,10 +563,10 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     const by = new Map(store.current.held.map((q) => [q.id, q]));
     store.current.held = ids.map((id) => by.get(id)).filter((q): q is QueuedMessage => !!q);
     bump();
-    void attempt(() => POST(`/teams/${teamId}/queue/order`, { ids }));
+    void attempt(() => POST(`${at}/teams/${teamId}/queue/order`, { ids }));
   };
   const stop = async () => {
-    const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`/teams/${teamId}/stop`));
+    const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`${at}/teams/${teamId}/stop`));
     // what you queued comes back to the box, so stopping never loses it
     const back = r?.unqueued || [];
     if (back.length) restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
@@ -566,7 +578,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
   }, []);
   const clear = async (): Promise<boolean> => {
     if (!(await confirmBox('Clear this team chat? Each agent also forgets the conversation.', { ok: 'Clear', danger: true }))) return false;
-    return (await attempt(() => POST(`/teams/${teamId}/clear`))) !== undefined;
+    return (await attempt(() => POST(`${at}/teams/${teamId}/clear`))) !== undefined;
   };
   const held = (q: QueuedMessage | undefined) => {
     if (q && !store.current.held.some((x) => x.id === q.id)) {
@@ -588,11 +600,11 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     // (said no, or it failed: the /clear stays in the box)
     if (name === 'clear') return void ((await clear()) || restore(typed));
     if (name === 'goal' && !rest) {
-      const r = await attempt(() => GET<TeamChatResponse>(`/teams/${teamId}/chat`));
+      const r = await attempt(() => GET<TeamChatResponse>(`${at}/teams/${teamId}/chat`));
       return void (r && toast(r.goal ? `Goal: ${r.goal.goal || r.goal.text}` : 'No goal yet. Type /goal and what done looks like.'));
     }
     type Done = { goal?: BrainBrief | null; queued?: QueuedMessage };
-    const r = await attempt(() => POST<Done>(`/teams/${teamId}/${name}`, name === 'goal' ? { text: rest } : {}));
+    const r = await attempt(() => POST<Done>(`${at}/teams/${teamId}/${name}`, name === 'goal' ? { text: rest } : {}));
     if (!r) return restore(typed);
     if (name === 'goal') {
       store.current.goal = r.goal || null;
@@ -603,7 +615,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
 
   const loopOff = async (rest: string, typed: string) => {
     emptyBox();
-    const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`/teams/${teamId}/loop`, { text: rest, attachments: [] }));
+    const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`${at}/teams/${teamId}/loop`, { text: rest, attachments: [] }));
     if (!r) return restore(typed);
     store.current.loop = r.loop;
     bump();
@@ -631,7 +643,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
         if (LOOP_OFF.test(cmd.rest)) return loopOff(cmd.rest, typed);
         emptyBox();
         const taken = tray.take();
-        const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`/teams/${teamId}/loop`, { text: cmd.rest, attachments }));
+        const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`${at}/teams/${teamId}/loop`, { text: cmd.rest, attachments }));
         if (!r) return void (restore(typed), tray.put(taken));
         store.current.loop = r.loop;
         return bump();
@@ -647,7 +659,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
       const taken = tray.take();
       const body = { text, replyTo: replyRef.current?.id || null, attachments };
       type Sent = { message?: TeamMessage; queued?: QueuedMessage };
-      const r = await attempt((): Promise<Sent> => (queued != null ? POST<Sent>(`/teams/${teamId}/queue`, body) : POST<TeamMessage>(`/teams/${teamId}/${steer ? 'steer' : 'messages'}`, body).then((message) => ({ message }))));
+      const r = await attempt((): Promise<Sent> => (queued != null ? POST<Sent>(`${at}/teams/${teamId}/queue`, body) : POST<TeamMessage>(`${at}/teams/${teamId}/${steer ? 'steer' : 'messages'}`, body).then((message) => ({ message }))));
       if (!r) {
         restore(text);
         tray.put(taken);
@@ -780,7 +792,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
   return (
     <div className={fill ? 'flex flex-col gap-2 h-full' : 'flex flex-col gap-2'} ref={root}>
       {find}
-      <TaskPanel view={`team:${teamId}`} scope={{ kind: 'team', id: teamId }} />
+      <TaskPanel view={`team:${teamId}`} scope={{ kind: 'team', id: teamId }} projectId={projectId} />
       <div
         // (in a scrolling column, an item must keep its height: never squeezed by the list's;
         // -mt-2 takes back the column's gap: the tasks bar has room under it already)
@@ -904,7 +916,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
                 <DomNode
                   className="inline-flex min-w-0 items-center [&_.model-chip]:rounded-ctl [&_.model-chip]:border-transparent [&_.model-chip]:bg-transparent [&_.model-chip]:h-7 [&_.model-chip]:px-2 [&_.model-chip]:py-0 [&_.model-chip]:text-[12.5px] [&_.model-chip]:text-dim [&_.model-chip]:hover:bg-panel-2 [&_.model-chip]:hover:text-ink"
                   make={() => {
-                    const chip = modelChip(leadAgent, { compact: true });
+                    const chip = modelChip(leadAgent, { compact: true, at });
                     chip.title = `Change ${leadAgent.name}'s model (team lead)`;
                     return chip;
                   }}
@@ -933,7 +945,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
 
 export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false, projectId }: TeamChatOptions = {}): TeamChatApi {
   const box: BoxRef = { input: null, pending: { focus: false, mentions: [] } };
-  const root = mountReact(container, <IconWeightProvider value="regular"><TeamChat teamId={teamId} height={height} fill={fill} box={box} projectId={projectId} /></IconWeightProvider>);
+  const root = mountReact(container, <IconWeightProvider value="regular"><TeamProject.Provider value={projectId}><TeamChat teamId={teamId} height={height} fill={fill} box={box} projectId={projectId} /></TeamProject.Provider></IconWeightProvider>);
   return {
     // (before the box is drawn, kept until it is)
     focus: () => (box.input ? box.input.focus() : (box.pending.focus = true)),
