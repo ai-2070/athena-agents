@@ -1,0 +1,59 @@
+server/index.ts
+  s_3f5afab86a1bb3::t_f25b11d1d2c338 22,995-997
+scripts/gateways-smoke.ts
+  s_3f5afab86a1bb3::t_504b213633888a 28,39-42,130-145
+shared/types.ts
+  s_3f5afab86a1bb3::t_1f0754313de9ae 206-219
+README.md
+  s_3f5afab86a1bb3::t_c76b477eeb233b 239-241
+server/gateways/telegram-setup.ts
+  s_3f5afab86a1bb3::t_bdb2202e8abc70 66
+  s_3f5afab86a1bb3::t_1f0754313de9ae 1-14,17-57,60-65,68-70,72-115
+  s_3f5afab86a1bb3::t_c38c5919f27f9d 67,71
+  s_3f5afab86a1bb3::t_f25b11d1d2c338 58-59
+  s_3f5afab86a1bb3::t_775b844bed93b0 15-16
+tests/web/gateway-telegram-setup.test.tsx
+  s_3f5afab86a1bb3::t_a17d125ed14ae7 1-57
+tests/server/gateway-telegram-setup.test.ts
+  s_3f5afab86a1bb3::t_775b844bed93b0 1-26,28-46,56-75,77-147
+  s_3f5afab86a1bb3::t_c38c5919f27f9d 27,47-55
+  s_3f5afab86a1bb3::t_3047e328a3cdb6 76
+docs/guide.md
+  s_3f5afab86a1bb3::t_7e7537c1e7525b 388-404
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_7e7537c1e7525b 777-799,810
+  s_3f5afab86a1bb3::t_f502189c854046 800-803
+  s_3f5afab86a1bb3::t_bdb2202e8abc70 804-808
+web/views/gateway-telegram-setup.tsx
+  s_3f5afab86a1bb3::t_8d76aa07e0db22 1-57
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_f25b11d1d2c338 1,12,174-198
+  s_3f5afab86a1bb3::t_a5143c77d37429 199
+web/views/gateways.tsx
+  s_3f5afab86a1bb3::t_8d76aa07e0db22 12,32,52-53,64,70-71,75,87,107-108,185
+tests/web/gateways.test.tsx
+  s_3f5afab86a1bb3::t_c76b477eeb233b 89-98
+  s_3f5afab86a1bb3::t_a17d125ed14ae7 34
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_c76b477eeb233b 12,232-252
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_504b213633888a 90,103
+server/gateways/telegram.ts
+  s_3f5afab86a1bb3::t_f25b11d1d2c338 12,52-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1dbdda7e03af027fe202ab9077fc434fba55b092",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
