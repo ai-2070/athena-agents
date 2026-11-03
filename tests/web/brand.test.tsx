@@ -58,3 +58,25 @@ it('uses the official VS Code ribbon for the folder action', async () => {
     act(() => root.unmount());
   }
 });
+
+it("uses the white pi and Venice marks on a dark page and swaps marks already shown when the look changes", async () => {
+  const root = document.documentElement;
+  const shown = programIcon('pi', 'pi', 15) as HTMLImageElement;
+  document.body.append(shown);
+  try {
+    expect(shown.getAttribute('src')).toBe('/brand/engines/pi.svg');
+    root.dataset.theme = 'dark';
+    await new Promise((r) => setTimeout(r, 0));
+    expect(shown.getAttribute('src')).toBe('/brand/engines/pi-dark.svg');
+    expect((mark('pi', 15) as HTMLImageElement).getAttribute('src')).toBe('/brand/engines/pi-dark.svg');
+    expect((mark('venice', 15) as HTMLImageElement).getAttribute('src')).toBe('/brand/engines/venice-dark.svg');
+    // marks without a dark copy stay as they are
+    expect((mark('omp', 15) as HTMLImageElement).getAttribute('src')).toBe('/brand/engines/omp.svg');
+    root.dataset.theme = 'light';
+    await new Promise((r) => setTimeout(r, 0));
+    expect(shown.getAttribute('src')).toBe('/brand/engines/pi.svg');
+  } finally {
+    shown.remove();
+    root.removeAttribute('data-theme');
+  }
+});
