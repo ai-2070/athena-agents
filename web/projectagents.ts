@@ -1,33 +1,16 @@
 // The agents of projects that aren't open, for Overview panes that show their chats: the open project's are in the
-// app state, these are fetched from /api/p/<project>/agents when a pane needs them, and kept current while it shows.
-import { useEffect, useSyncExternalStore } from 'react';
-import { GET, onEvent } from './core.ts';
+// app state, these are fetched from /api/p/<project>/agents when a pane needs them, and kept current while it shows
+// (projectlist.ts: one request at a time per project, however many panes).
+import { projectList } from './projectlist.ts';
 import type { Agent } from '../shared/types.ts';
 
-const byProject = new Map<string, Agent[]>();
-const listeners = new Set<() => void>();
-let version = 0;
-const notify = () => ((version += 1), listeners.forEach((fn) => fn()));
-const subscribe = (fn: () => void) => (listeners.add(fn), () => void listeners.delete(fn));
+const list = projectList<Agent>('/agents', ['agents']);
 
 /** Fetches a project's agents (again). */
-export async function loadProjectAgents(projectId: string): Promise<Agent[]> {
-  const list = await GET<Agent[]>(`/p/${encodeURIComponent(projectId)}/agents`).catch((): Agent[] => byProject.get(projectId) || []);
-  byProject.set(projectId, Array.isArray(list) ? list : []);
-  notify();
-  return byProject.get(projectId)!;
-}
+export const loadProjectAgents = list.load;
 
 /** A project's agents as fetched (empty until they are). */
-export const projectAgents = (projectId: string): Agent[] => byProject.get(projectId) || [];
+export const projectAgents = list.get;
 
 /** A project's agents, fetched on first use and again when agents change; re-renders when they arrive. */
-export function useProjectAgents(projectId: string | undefined): Agent[] {
-  useSyncExternalStore(subscribe, () => version);
-  useEffect(() => {
-    if (!projectId) return;
-    void loadProjectAgents(projectId);
-    return onEvent((e) => void (e.type === 'agents' && loadProjectAgents(projectId)));
-  }, [projectId]);
-  return projectId ? projectAgents(projectId) : [];
-}
+export const useProjectAgents = list.use;
