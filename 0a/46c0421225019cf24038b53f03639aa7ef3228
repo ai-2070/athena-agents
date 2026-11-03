@@ -1,0 +1,69 @@
+shared/types.ts
+  s_3f5afab86a1bb3::t_25cd0d50e4d9e4 172-173,194-203
+  s_3f5afab86a1bb3::t_c7182001edd4b7 204-205
+tests/server/gateway-delivery-review.test.ts
+  s_3f5afab86a1bb3::t_1987756add923b 74
+  s_3f5afab86a1bb3::t_83cf722303bd58 10,121-138
+  s_3f5afab86a1bb3::t_abe0a6f1c086fc 35-47
+  s_3f5afab86a1bb3::t_3fa8a4a05465cc 4,54,102-103,110
+  s_3f5afab86a1bb3::t_0fcdaff549bdd5 1-3,5-9,11-34,48-53,55-73,75-101,104-109,111-120,139-157
+shared/gateways.ts
+  s_3f5afab86a1bb3::t_25cd0d50e4d9e4 26,38,40
+tests/web/gateway-inbox.test.tsx
+  s_3f5afab86a1bb3::t_d579353b8cd1ce 72-78
+README.md
+  s_3f5afab86a1bb3::t_abe0a6f1c086fc 239-241
+web/views/gateway-delivery-review.tsx
+  s_3f5afab86a1bb3::t_cbb9e8c60002be 1-34,36-45,47-50,52-59,61-70
+  s_3f5afab86a1bb3::t_83cf722303bd58 46
+  s_3f5afab86a1bb3::t_b6a39a90fa1e37 60
+  s_3f5afab86a1bb3::t_2287b430890660 35,51
+tests/web/gateway-delivery-review.test.tsx
+  s_3f5afab86a1bb3::t_b6a39a90fa1e37 33
+  s_3f5afab86a1bb3::t_d579353b8cd1ce 1-32,34-68
+server/gateways/delivery-review.ts
+  s_3f5afab86a1bb3::t_d579353b8cd1ce 4-5
+  s_3f5afab86a1bb3::t_25cd0d50e4d9e4 1-3,6-36
+server/index.ts
+  s_3f5afab86a1bb3::t_44e5f6aed10f0d 21,987-989
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_40ceb8f86f0c4f 23,42
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_1987756add923b 536
+  s_3f5afab86a1bb3::t_5824ea2e8be835 100
+  s_3f5afab86a1bb3::t_e9dfa7a2d8e3c3 4,18,58-62,81-82,98-99,101-102,270-274,368-401,593,615,631,676,699,753,1105,1137,1141
+  s_3f5afab86a1bb3::t_83cf722303bd58 433
+  s_3f5afab86a1bb3::t_4aa7ad291e5726 402
+web/views/gateway-inbox.tsx
+  s_3f5afab86a1bb3::t_12716a38ac9cc1 8,18,35,79,89,94,96,109,114,128,180-183,187,196-197
+scripts/gateways-whatsapp-media-smoke.ts
+  s_3f5afab86a1bb3::t_40ceb8f86f0c4f 38,253-264
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_8788abc6c36427 766-770
+  s_3f5afab86a1bb3::t_abe0a6f1c086fc 748-762,764-765
+  s_3f5afab86a1bb3::t_d3263f718ee311 763,771-776
+docs/guide.md
+  s_3f5afab86a1bb3::t_abe0a6f1c086fc 437-453
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_44e5f6aed10f0d 1,90-93,95-97,99,101-113
+  s_3f5afab86a1bb3::t_40ceb8f86f0c4f 94,98,100
+  s_3f5afab86a1bb3::t_4d277931c728bf 114
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_6f7ede4da8039c 12,232-263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a46c0421225019cf24038b53f03639aa7ef3228",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
