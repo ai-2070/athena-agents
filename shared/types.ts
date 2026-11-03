@@ -1594,6 +1594,44 @@ export interface ProjectTask {
   doneAt?: number;
   /** what people said about it, oldest first (Markdown) */
   comments?: TaskComment[];
+  /** files attached to the task itself */
+  files?: TaskFile[];
+  /** the agent's or team's work on it: the one going now, or the last one */
+  work?: TaskWork;
+}
+
+/** A file on a task or a comment: a copy in the task's own project's uploads folder (path relative to it). */
+export interface TaskFile {
+  path: string;
+  name: string;
+  size: number;
+  sha256?: string;
+  /** 'you' or 'agent:<id>' */
+  by: string;
+  at: number;
+}
+
+/** Where a task's work stands. starting: saved, not started yet. waiting: it needs your OK for a step. */
+export type TaskWorkState = 'starting' | 'working' | 'waiting' | 'review' | 'blocked' | 'stopped' | 'needs-review';
+
+/** An agent or team working on a task, in a conversation of its own (board-<taskId>). One at a time. */
+export interface TaskWork {
+  /** chosen before anything starts: the run's id or the team message's id */
+  operationId: string;
+  conversationId: string;
+  /** who was given it: an agent, or a team (its private thread for this task) */
+  target: { kind: 'agent' | 'team'; id: string };
+  /** the agent's private chat for this task */
+  chatId?: string;
+  /** the team's private thread for this task */
+  teamId?: string;
+  runId?: string;
+  messageId?: string;
+  startedAt: number;
+  state: TaskWorkState;
+  endedAt?: number;
+  /** what to check, for needs-review; the reason, for blocked */
+  note?: string;
 }
 /** A comment on a board task: from you, the Brain or an agent. */
 export interface TaskComment {
@@ -1604,6 +1642,7 @@ export interface TaskComment {
   text: string;
   at: number;
   editedAt?: number;
+  files?: TaskFile[];
 }
 /** A comment as the task page shows it: with its writer's name. */
 export interface BoardComment extends TaskComment {
@@ -1614,6 +1653,8 @@ export interface BoardComment extends TaskComment {
  *  board's list carries only how many comments it has; the task's own page gets them. */
 export interface BoardTask extends Omit<ProjectTask, 'comments'> {
   commentCount: number;
+  /** the task's files and its comments' */
+  fileCount: number;
   comments?: BoardComment[];
   projectId: string;
   projectName: string;
@@ -1621,6 +1662,8 @@ export interface BoardTask extends Omit<ProjectTask, 'comments'> {
   assigneeEmoji?: string;
   assigneeColor?: string;
   creatorName: string;
+  /** who works on it, by name (with work) */
+  workerName?: string;
 }
 /** GET /api/task-board: the cards, and every project with how many open tasks it has. */
 export interface TaskBoardData {

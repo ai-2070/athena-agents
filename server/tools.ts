@@ -243,6 +243,35 @@ const TOOLS: ToolDef[] = [
       return { text: `Selected ${count} file${count === 1 ? '' : 's'} for this gateway assignment. Delivery waits for the final answer; check its receipts in Athena.` };
     },
   },
+  // ---------- a Tasks board task (only in the task's own conversation) ----------
+  // Risk none: nothing leaves the dashboard, and files pass the same checks as gateway files before they are copied.
+  {
+    name: 'board_task',
+    group: 'core',
+    risk: 'none',
+    description: 'Only when you work on a Tasks board task: read it again, with its description, the latest comments and the names of its files.',
+    parameters: obj({}),
+    run: async (_args, ctx) => {
+      const { readWorkerTask } = await import('./boardwork.ts');
+      return { text: readWorkerTask(ctx.runId, ctx.agent.id) };
+    },
+  },
+  {
+    name: 'board_reply',
+    group: 'core',
+    risk: 'none',
+    description: 'Only when you work on a Tasks board task: comment on it (Markdown), attach finished files by their full paths (your workspace or the project uploads), and move it to in_review when it is done or to blocked with a reason when you can\'t finish it. Never to done: the user does that.',
+    parameters: obj({
+      text: str('Your comment: what you did, found or made (Markdown)'),
+      files: { type: 'array', items: str('Full path of a finished file'), maxItems: 20 },
+      status: { type: 'string', enum: ['in_review', 'blocked'], description: 'in_review when the task is done; blocked when it can\'t be finished' },
+      reason: str('Why it is blocked (with status blocked)'),
+    }),
+    run: async (args, ctx) => {
+      const { workerReply } = await import('./boardwork.ts');
+      return { text: await workerReply(ctx.runId, ctx.agent.id, args) };
+    },
+  },
   // ---------- asking the user (every agent) ----------
   {
     name: 'ask_user',

@@ -24,6 +24,7 @@ import type { LibraryPrefab } from './voxel/prefabs.ts';
 import { savedOpacity } from '../shared/look.ts';
 import { restoredTasks } from './tasks.ts';
 import { restoredBoard } from './taskboard.ts';
+import { taskFilePath } from './boardfiles.ts';
 import type { Agent, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
 
 export const BACKUP_EXT = '.dashbackup';
@@ -36,7 +37,7 @@ export const BACKUP_MAX = UNPACKED_MAX;
 
 // How much of each kind is packed at most (the same limits as the auto-save into the project folder).
 // A file that doesn't fit any more is left out and counted (BackupSummary.omitted). Keep docs/guide.md in step.
-const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024, world: 300 * 1024 * 1024, library: 100 * 1024 * 1024, marks: 100 * 1024 * 1024 };
+const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024, world: 300 * 1024 * 1024, library: 100 * 1024 * 1024, marks: 100 * 1024 * 1024, taskFiles: 100 * 1024 * 1024 };
 // A kept version in a backup: <kind>/<item id>/<version id>.json, and a skill version's files under
 // skills/<slug>/files-<version id>/. Agents and teams are the project's; skills are the library's
 // (deleted ones too, so Recently deleted comes back).
@@ -142,6 +143,8 @@ export interface BackupData {
   teamMarks?: PackedFile[];
   /** The prefab library (every project's), like the presets. Older backups: empty. */
   prefabLibrary: LibraryPrefab[];
+  /** Files on the Tasks board's tasks and comments: paths in the uploads folder, as the board lists them. Older backups: missing. */
+  taskFiles?: PackedFile[];
   /** Files left out because their kind's size limit was reached (see CAP) */
   omitted: number;
 }
@@ -382,6 +385,21 @@ export function packProject(p: Project): BackupData {
     libraryLeft -= size;
     return true;
   });
+  // the files on board tasks and their comments (their copies in the uploads folder), the board's order first
+  const taskBudget = budget(CAP.taskFiles);
+  const taskFiles: PackedFile[] = [];
+  const listed = restoredBoard(readPlain<unknown>(projectDir(id, 'board.json'), { tasks: [] })).tasks.flatMap((t) => [...(t.files || []), ...(t.comments || []).flatMap((c) => c.files || [])]);
+  for (const rel of new Set(listed.map((f) => f.path))) {
+    const file = taskFilePath(p, rel);
+    if (!file) continue;
+    const size = fs.statSync(file).size;
+    if (size > taskBudget.left) {
+      taskBudget.omitted++;
+      continue;
+    }
+    taskBudget.left -= size;
+    taskFiles.push({ path: rel, data: fs.readFileSync(file).toString('base64') });
+  }
   const marksBudget = budget(CAP.marks);
   const teamMarks = packTree(projectDir(id, 'team-marks'), marksBudget, '', (r, dir) => !dir && MARK_RE.test(r));
   const presets = jsonFiles(dataPath('presets'))
@@ -413,7 +431,8 @@ export function packProject(p: Project): BackupData {
     world,
     prefabLibrary,
     teamMarks,
-    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted + worldBudget.omitted + libraryOmitted + marksBudget.omitted,
+    taskFiles,
+    omitted: taskBudget.omitted + brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted + worldBudget.omitted + libraryOmitted + marksBudget.omitted,
   };
 }
 
@@ -583,6 +602,7 @@ export function decodeBackup(buf: Buffer): BackupData {
     prefabLibrary: arr<LibraryPrefab>(b.prefabLibrary).filter((e) => e && typeof e === 'object'),
     world: b.world && typeof b.world === 'object' && Array.isArray(b.world.files) ? { name: String(b.world.name || 'World').slice(0, 80), files: files(b.world.files).filter((f) => WORLD_FILE.test(f.path)) } : null,
     teamMarks: files(b.teamMarks).filter((f) => MARK_RE.test(f.path)),
+    taskFiles: files(b.taskFiles),
     omitted: Number(b.omitted) || 0,
   };
 }
@@ -818,6 +838,8 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   writeJSON(projectDir(id, 'brain-chat.json'), b.brainChat);
   writeJSON(projectDir(id, 'tasks.json'), restoredTasks(b.tasks));
   writeJSON(projectDir(id, 'board.json'), restoredBoard(b.board));
+  // the board's files back into the uploads folder, where its tasks say they are (never over a file already there)
+  for (const f of b.taskFiles || []) writePacked(path.join(newBrain, 'uploads'), f, { overwrite: false });
   for (const c of b.teamChats) writeJSON(projectDir(id, 'teamchats', c.name), c.data);
   // chats go back under the agent and id they were saved as (whatever the chat itself claims)
   const agentIds = new Set(b.agents.map((a) => a.id));

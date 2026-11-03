@@ -6,7 +6,7 @@ import { activeProject, setActiveProject, withProject } from '../../server/store
 import { createProject } from '../../server/projects.ts';
 import { savedTasks } from '../../server/tasks.ts';
 import { cloneProject } from '../../server/backup.ts';
-import { applyActions } from '../../server/overseer.ts';
+import { applyActions, snapshot } from '../../server/overseer.ts';
 import { addBoardComment, addBoardTask, boardLines, boardPeople, boardTask, changeBoardComment, changeBoardTask, findBoardTask, removeBoardTask, rerankBoardTasks, restoredBoard, taskBoard } from '../../server/taskboard.ts';
 
 describe('the Tasks board', () => {
@@ -92,6 +92,24 @@ describe('the Tasks board', () => {
     expect(addBoardTask(copy.id, { title: 'Next' }).number).toBe(2);
   });
 
+  it('takes the files on its tasks and comments along to a copy, into the copy\'s uploads folder', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { newBatch, safeUploadsRoot } = await import('../../server/uploads.ts');
+    const original = await createProject({ name: 'Board files original' });
+    const { batch, dir } = withProject(original, () => newBatch());
+    fs.writeFileSync(path.join(dir, 'plan.txt'), 'The plan');
+    fs.writeFileSync(path.join(dir, 'note.txt'), 'A note');
+    const file = (name: string, size: number) => ({ path: `${batch}/${name}`, name, size, by: 'you', at: 1 });
+    const t = addBoardTask(original.id, { title: 'With files' }, 'you', [file('plan.txt', 8)]);
+    addBoardComment(original.id, t.id, 'See this', 'you', [file('note.txt', 6)]);
+    const copy = (await cloneProject(original.id, 'Board files copy')).project;
+    const root = withProject(copy, () => safeUploadsRoot()!);
+    expect(fs.readFileSync(path.join(root, batch, 'plan.txt'), 'utf8')).toBe('The plan');
+    expect(fs.readFileSync(path.join(root, batch, 'note.txt'), 'utf8')).toBe('A note');
+    expect(boardTask(copy.id, t.id).files).toEqual([file('plan.txt', 8)]);
+  });
+
   it('lets the Brain add, move, assign and remove board tasks by #number or title, and see the board', async () => {
     const p = await createProject({ name: 'Board brain' });
     const r = applyActions([
@@ -155,5 +173,29 @@ describe('the Tasks board', () => {
     expect(back.tasks[0]).toMatchObject({ status: 'blocked', blockedReason: 'Why', priority: 'urgent', assignee: 'agent:a1', createdBy: 'brain' });
     expect(back.tasks[1]).toMatchObject({ status: 'todo', priority: 'normal', assignee: '', createdBy: 'you' });
     expect(back.next).toBe(5);
+  });
+
+  it('keeps the board out of a gateway chat\'s Brain, and lets a task\'s own conversation touch only that task', async () => {
+    const p = await createProject({ name: 'Board private' });
+    const mine = addBoardTask(p.id, { title: 'Its own task' });
+    const other = addBoardTask(p.id, { title: 'Someone else\'s task' });
+    const telegram = { conversationId: 'gateway-binding-1' };
+    for (const act of [{ do: 'board_add', title: 'Sneaky' }, { do: 'board_update', task: '#1', status: 'done' }, { do: 'board_comment', task: '#1', text: 'Hi' }, { do: 'board_remove', task: '#2' }]) {
+      expect(applyActions([act], p, telegram).done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('isn\'t available in this conversation') });
+    }
+    const own = { conversationId: `board-${mine.id}` };
+    expect(applyActions([{ do: 'board_comment', task: `#${mine.number}`, text: 'On it.' }], p, own).done[0]).toMatchObject({ kind: 'board' });
+    expect(applyActions([{ do: 'board_update', task: `#${other.number}`, title: 'Changed' }], p, own).done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('only that task') });
+    expect(applyActions([{ do: 'board_add', title: 'More' }], p, own).done[0]).toMatchObject({ kind: 'error' });
+    expect(taskBoard(p.id).tasks.map((t) => t.title).sort()).toEqual(['Its own task', 'Someone else\'s task']);
+    expect(boardLines(p.id, 60, mine.id)).toHaveLength(1);
+    // what the Brain sees
+    expect(await withProject(p, () => snapshot())).toContain('Someone else\'s task');
+    const gateway = await withProject(p, () => snapshot(telegram));
+    expect(gateway).not.toContain('Its own task');
+    expect(gateway).toContain('(not included in private conversation snapshots)');
+    const task = await withProject(p, () => snapshot(own));
+    expect(task).toContain('Its own task');
+    expect(task).not.toContain('Someone else\'s task');
   });
 });

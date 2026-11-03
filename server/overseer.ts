@@ -329,6 +329,14 @@ const runsOn = (a: Agent) => {
 };
 
 // Everything the Brain knows right now, as text.
+// The board in the Brain's snapshot. A private conversation (a gateway chat) doesn't see it; a task's own
+// conversation (board-<taskId>) sees only that task.
+function boardSnapshot(projectId: string, conversationId?: string): string {
+  if (conversationId === undefined) return boardLines(projectId).join('\n') || '(empty)';
+  const own = /^board-([\w.-]+)$/.exec(conversationId)?.[1];
+  return own ? boardLines(projectId, 60, own).join('\n') || '(the task is gone)' : '(not included in private conversation snapshots)';
+}
+
 export async function snapshot({ fileBudget = 9000, conversationId }: { fileBudget?: number; conversationId?: string } = {}): Promise<string> {
   if (conversationId !== undefined) checkConversationId(conversationId);
   const p = activeProject();
@@ -446,7 +454,7 @@ export async function snapshot({ fileBudget = 9000, conversationId }: { fileBudg
     `\nTEAMS (${teams.length}; a team is a group chat of agents with a shared goal):\n${teamLines.join('\n') || '(none)'}`,
     `\nWORK YOU HANDED OUT (newest last; you check on open ones when they finish):\n${briefLines.join('\n') || '(none)'}`,
     `\nSAVED TASKS (use TaskList for more, TaskGet for full details):\n${conversationId ? '(not included in private conversation snapshots)' : JSON.stringify(listTasks({ status: 'open', limit: 40 }, { admin: true, scope: { kind: 'brain' } }))}`,
-    `\nTASK BOARD (the user's own tracked work on the Tasks page; open tasks, then the last ones done):\n${conversationId ? '(not included in private conversation snapshots)' : boardLines(p.id).join('\n') || '(empty)'}`,
+    `\nTASK BOARD (the user's own tracked work on the Tasks page; open tasks, then the last ones done):\n${boardSnapshot(p.id, conversationId)}`,
     `\nROUTINES (${routineLines.length}; saved instructions run by hand or on a schedule):\n${routineLines.join('\n') || '(none)'}`,
     `\nSKILLS (${skillLines.length}; the project's recorded know-how and workflows; mention one in a routine as @Name):\n${skillLines.slice(0, 120).join('\n') || '(none)'}`,
     `\nMCP SERVERS (${mcpLines.length}; outside tool servers agents and teams can be given):\n${mcpLines.join('\n') || '(none)'}\nReady-made, to add: ${ready}\nReady-made that sign in through the browser the first time they run (no key to paste), to add: ${byBrowser}${suggested ? `\nSuggested for this PC (not added; offer them, add only when the user says yes): ${suggested}` : ''}${found ? `\nFound in the user's Claude configs, to add: ${found}` : ''}`,
@@ -575,7 +583,7 @@ Kinds of request:
 4. Routines: work the user wants done again and again, or on a schedule ("every morning…", "each Friday…", "set up a routine that…"), or changes to an existing routine. Create, update, run or delete them with the routine actions. A routine's text says what to do and @mentions, by their exact names from the SNAPSHOT, who does it (one or more agents and/or teams) and the skills they use (e.g. "@Researcher finds the 3 biggest AI stories, then @Content Team writes a post using @Brand voice."). Every mentioned agent and team gets the routine; an agent in a mentioned team gets it in that team chat. Mention at least one agent or team. If the right agent or team doesn't exist, build it first in the same answer, then mention it by name.
 5. Work to be done (make, write, research, draft a post or DM, edit a video, generate images, fix code…): never do it yourself. Delegate it to the best existing team or agent. If nothing fits, build what's needed first (a team or an agent) and then delegate to it in the same answer.
 For work with several steps, maintain saved tasks with TaskCreate/TaskGet/TaskList/TaskUpdate. You can manage all project lists. Use a brain list for a project plan, team lists for shared team work, and agent lists for private work. Owners are brain, agent:<id>, team:<id>, or empty. Task records track work; creating or assigning one does not start a run: delegate the work as well. Mark completed only after verifying the requested result. Dependencies belong to one list and must be completed before starting dependent work. Do not create task records for greetings or simple answers.
-The TASK BOARD is different: the user's own tracked work (the Tasks page), each task with a #number, a title, a description, a status (todo, in_progress, in_review, blocked, done), a priority (urgent, high, normal, low) and who has it (you = the user, brain, agent:<id>, team:<id>, or empty). Add, move, assign, change or remove board tasks with the board actions when the user asks (e.g. "put that on the board", "move #12 to review", "what's blocked?"), or to keep it in step with work you hand out when the user wants that. A board task records work; it doesn't start a run: delegate the work as well. Moving one to blocked needs a blockedReason. Read a task's comments in the TASK BOARD lines (the last one shows); add your own with board_comment, e.g. what you checked or what is still missing. In a board task's description or a comment, mention an agent, a team or a skill by its exact name as @Name; the page shows it as a pill. Move a task to done only when the user says it is done or you have checked the result; finished work you have not checked goes to in_review.
+The TASK BOARD is different: the user's own tracked work (the Tasks page), each task with a #number, a title, a description, a status (todo, in_progress, in_review, blocked, done), a priority (urgent, high, normal, low) and who has it (you = the user, brain, agent:<id>, team:<id>, or empty). Add, move, assign, change or remove board tasks with the board actions when the user asks (e.g. "put that on the board", "move #12 to review", "what's blocked?"), or to keep it in step with work you hand out when the user wants that. When the user moves a task given to an agent or team to in_progress, that agent or team picks it up in a conversation of its own, comments on it and moves it to in_review or blocked (the line shows "working: <name>" meanwhile; leave such a task alone). Your own board actions never start work: delegate the work as well. Moving one to blocked needs a blockedReason. Read a task's comments in the TASK BOARD lines (the last one shows); add your own with board_comment, e.g. what you checked or what is still missing. In a board task's description or a comment, mention an agent, a team or a skill by its exact name as @Name; the page shows it as a pill. Move a task to done only when the user says it is done or you have checked the result; finished work you have not checked goes to in_review.
 6. Skills: the project's recorded know-how (workflows, checklists, house rules, pitfalls) in Claude Code's SKILL.md format. Agents read a skill before work that matches its description. Create, edit, give, take back, re-assign or delete skills with the skill actions when the user asks, or when a workflow is worth keeping (see your own skills). Re-assigning is take_skill from one and give_skill to another, or set_skills for an agent's or team's whole list. Install skills from a GitHub link the user gives with install_skill, and give them to whoever needs them. Before rewriting a skill's whole text you must have seen it: its text is under SKILL TEXTS, or open it with read_skill first (you get its text and answer again). To add a step or a pitfall without rewriting, use "append".
 7. Stop work: when the user asks to stop an agent, a team or everything, stop it with the stop action right away (it can't be undone, but nothing is lost: they pick up again when someone writes to them).
 8. Models: which model an agent, several agents or a whole team run on, and how hard they think (effort). The SNAPSHOT shows each agent's provider, model and effort: answer questions about them from there (for a team, its members'). Change them with set_model when the user asks. When you don't know a model's exact id, or the user asks which models a provider has, look it up with find_models first (you get the list and answer again); never guess an id.
@@ -1112,8 +1120,18 @@ interface ApplyOptions {
   /** The user's own words in the Brain chat (this message and the earlier ones). An MCP server's command,
    *  link, env and header values are set only from these (see notFromUser); without them, not at all. */
   userWords?: string;
+  /** A private conversation (a gateway chat, a task's own): the board is out of reach there, except that a task's
+   *  conversation (board-<taskId>) may comment on and update its own task. */
+  conversationId?: string;
 }
-function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set<string>(), only = null, auto = false, userWords }: ApplyOptions): { done: BrainDone[]; delegate: BrainDelegate | null } {
+/** In a private conversation, the board task an action may touch: its own task, or none at all. */
+function boardScope(conversationId: string | undefined, p: Project, ref: unknown, kind: string): void {
+  if (conversationId === undefined) return;
+  const own = /^board-([\w.-]+)$/.exec(conversationId)?.[1];
+  if (!own || kind === 'board_add' || kind === 'board_remove') throw new Error('The Tasks board isn\'t available in this conversation.');
+  if (findBoardTask(p.id, ref).id !== own) throw new Error('In a task\'s own conversation, only that task can be changed.');
+}
+function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set<string>(), only = null, auto = false, userWords, conversationId }: ApplyOptions): { done: BrainDone[]; delegate: BrainDelegate | null } {
   const done: BrainDone[] = [];
   let delegate: BrainDelegate | null = null;
   let lastTeam: string | null = null;
@@ -1360,6 +1378,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         continue;
       }
       if (kind === 'board_comment') {
+        boardScope(conversationId, p, act.task ?? act.id, kind);
         const t = findBoardTask(p.id, act.task ?? act.id);
         addBoardComment(p.id, t.id, act.text, 'brain');
         done.push({ kind: 'board', text: `Commented on #${t.number}: ${t.title}`, boardTask: { projectId: p.id, id: t.id } });
@@ -1367,6 +1386,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
       }
       if (kind === 'board_add' || kind === 'board_update' || kind === 'board_remove') {
         // the Tasks board: the user's own tracked work, in this project
+        boardScope(conversationId, p, act.task ?? act.id, kind);
         const who = (v: unknown) => (v === 'agent:new' ? `agent:${lastAgent}` : v === 'team:new' ? `team:${lastTeam}` : v);
         const fields = { title: act.title, description: act.description, status: act.status, priority: act.priority, assignee: act.assignee === undefined ? undefined : who(act.assignee), blockedReason: act.blockedReason };
         const reasoned = typeof fields.blockedReason === 'string' && !!fields.blockedReason.trim();
@@ -2098,7 +2118,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false,
   if (!stale() && parsed.actions.slice(0, ACTIONS_MAX).some((a) => actionKind(a) === 'set_model')) await prepareModels(parsed.actions);
   if (cleared()) skipped.text = `You started a new conversation while the Brain was thinking, so nothing${finished.length ? ' else' : ''} was changed.`;
   else if (finished.length) skipped.text = `You switched projects while the Brain was thinking, so nothing else was changed. Open "${p.name}" and ask again.`;
-  const applied = stale() ? { done: parsed.actions.length ? [skipped, ...finished] : [], delegate: null } : applyActions(parsed.actions, p, { seenSkills, userWords });
+  const applied = stale() ? { done: parsed.actions.length ? [skipped, ...finished] : [], delegate: null } : applyActions(parsed.actions, p, { seenSkills, userWords, conversationId });
   const done = applied.done;
   let delegate = applied.delegate;
   // the work is handed on with the files, by the server as the Brain (so it goes even with no tab open)

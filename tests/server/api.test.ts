@@ -524,6 +524,29 @@ describe('attached files', () => {
     expect(await shown.text()).toBe('# Brief');
   });
 
+  it('attaches uploads to a board task and its comments, and serves only the files listed on that task', async () => {
+    const st = await (await req('/api/state')).json();
+    const pid = st.project.id as string;
+    const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
+    const menu = await (await upload(batch, 'menu.txt', 'Soup')).json();
+    const other = await (await upload(batch, 'other.txt', 'Bread')).json();
+    const { task } = await (await req(`/api/task-board/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ title: 'With files', files: [menu.path] }) })).json();
+    expect(task.files).toEqual([expect.objectContaining({ path: `${batch}/menu.txt`, name: 'menu.txt', size: 4, by: 'you' })]);
+    const file = (rel: string) => req(`/api/task-board-file/${pid}/${task.id}?path=${encodeURIComponent(rel)}`);
+    const got = await file(task.files[0].path);
+    expect(got.status).toBe(200);
+    expect(await got.text()).toBe('Soup');
+    // only what the task lists, and nothing outside the uploads folder
+    expect((await file(`${batch}/other.txt`)).status).toBe(404);
+    expect((await file('../../secrets.json')).status).toBe(404);
+    const commented = (await (await req(`/api/task-board/${pid}/${task.id}/comments`, { method: 'POST', headers: json, body: JSON.stringify({ text: '', files: [other.path] }) })).json()).task;
+    expect(commented.comments.at(-1).files[0].name).toBe('other.txt');
+    expect(await (await file(`${batch}/other.txt`)).text()).toBe('Bread');
+    const kept = (await (await req(`/api/task-board/${pid}/${task.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ files: [] }) })).json()).task;
+    expect(kept.files).toBeUndefined();
+    expect(kept.fileCount).toBe(1);
+  });
+
   it('opens a PDF in a browser tab when asked (view=1); everything else still downloads, sandboxed', async () => {
     const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
     const pdf = await (await upload(batch, 'plan.pdf', '%PDF-1.4')).json();

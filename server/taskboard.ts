@@ -3,7 +3,7 @@
 // the task belongs to (withProject), whichever project is open.
 import { agents, workflows, listProjects, withProject, activeProject, emit } from './store.ts';
 import { dataPath, readJSON, writeJSON, uid } from './util.ts';
-import type { BoardComment, BoardPeople, BoardPriority, BoardStatus, BoardTask, Project, ProjectTask, TaskBoardData, TaskComment } from '../shared/types.ts';
+import type { BoardComment, BoardPeople, BoardPriority, BoardStatus, BoardTask, Project, ProjectTask, TaskBoardData, TaskComment, TaskFile } from '../shared/types.ts';
 
 export const BOARD_STATUSES: readonly BoardStatus[] = ['todo', 'in_progress', 'in_review', 'blocked', 'done'];
 export const BOARD_PRIORITIES: readonly BoardPriority[] = ['urgent', 'high', 'normal', 'low'];
@@ -69,6 +69,7 @@ function card(p: Project, t: ProjectTask, withComments = false): BoardTask {
   return {
     ...rest,
     commentCount: comments.length,
+    fileCount: (t.files?.length || 0) + comments.reduce((n, c) => n + (c.files?.length || 0), 0),
     ...(withComments ? { comments: comments.map(named) } : {}),
     projectId: p.id,
     projectName: p.name,
@@ -76,6 +77,7 @@ function card(p: Project, t: ProjectTask, withComments = false): BoardTask {
     ...(a.emoji ? { assigneeEmoji: a.emoji } : {}),
     ...(a.color ? { assigneeColor: a.color } : {}),
     creatorName: who(t.createdBy, 'You').name,
+    ...(t.work ? { workerName: who(`${t.work.target.kind}:${t.work.target.id}`, 'Unassigned').name } : {}),
   };
 }
 function named(c: TaskComment): BoardComment {
@@ -124,7 +126,7 @@ export interface BoardInput {
 }
 
 /** A new task in a project. Without a rank it goes to the top of its column. */
-export function addBoardTask(projectId: string, input: BoardInput, by = 'you'): BoardTask {
+export function addBoardTask(projectId: string, input: BoardInput, by = 'you', files: TaskFile[] = []): BoardTask {
   const p = projectOf(projectId);
   if (!object(input)) return fail('Give the task a title.');
   return withProject(p, () => {
@@ -147,6 +149,7 @@ export function addBoardTask(projectId: string, input: BoardInput, by = 'you'): 
       createdAt: now,
       updatedAt: now,
       ...(s === 'done' ? { doneAt: now } : {}),
+      ...(files.length ? { files } : {}),
     };
     write({ tasks: [...f.tasks, t], next: f.next + 1 }, [t.id]);
     return card(p, t);
@@ -154,7 +157,7 @@ export function addBoardTask(projectId: string, input: BoardInput, by = 'you'): 
 }
 
 /** Moves (status, rank) or edits a task in its own project. Leaving Blocked drops its reason. */
-export function changeBoardTask(projectId: string, id: string, input: BoardInput & { expectedUpdatedAt?: unknown }): BoardTask {
+export function changeBoardTask(projectId: string, id: string, input: BoardInput & { expectedUpdatedAt?: unknown }, files?: TaskFile[]): BoardTask {
   const p = projectOf(projectId);
   if (!object(input)) return fail('Say what changes.');
   return withProject(p, () => {
@@ -166,6 +169,11 @@ export function changeBoardTask(projectId: string, id: string, input: BoardInput
     if (input.priority !== undefined) t.priority = priority(input.priority);
     if (input.assignee !== undefined) t.assignee = assignee(input.assignee);
     if (input.rank !== undefined) t.rank = rank(input.rank);
+    if (files) {
+      if (files.length > 50) return fail('A task can have 50 files. Remove some first.');
+      if (files.length) t.files = files;
+      else delete t.files;
+    }
     if (input.status !== undefined) {
       const s = status(input.status);
       if (s === 'done' && t.status !== 'done') t.doneAt = Date.now();
@@ -213,8 +221,33 @@ export function rerankBoardTasks(items: unknown): void {
   }
 }
 
-/** Adds a comment (Markdown) to a task: from you, the Brain ('brain') or an agent ('agent:<id>'). */
-export function addBoardComment(projectId: string, taskId: string, text: unknown, by = 'you'): BoardTask {
+/** Changes one task in its own project and saves it; fn returns false to leave it as it was. */
+export function editBoardTask(projectId: string, id: string, fn: (t: ProjectTask) => boolean | void): BoardTask {
+  const p = projectOf(projectId);
+  return withProject(p, () => {
+    const f = read();
+    const t = f.tasks.find((x) => x.id === id) || fail('That task is unavailable.', 404);
+    if (fn(t) !== false) {
+      t.updatedAt = Math.max(Date.now(), t.updatedAt + 1);
+      write(f, [t.id]);
+    }
+    return card(p, t, true);
+  });
+}
+
+/** The task as it is saved (inside its project), or null. */
+export function savedBoardTask(projectId: string, id: string): ProjectTask | null {
+  return withProject(projectOf(projectId), () => read().tasks.find((x) => x.id === id) || null);
+}
+
+/** Every project's tasks that have work going (starting, working or waiting). */
+export function tasksWithWork(): { projectId: string; task: ProjectTask }[] {
+  return listProjects().flatMap((p) => withProject(p, () => read().tasks.filter((t) => t.work && ['starting', 'working', 'waiting'].includes(t.work.state)).map((task) => ({ projectId: p.id, task }))));
+}
+
+/** Adds a comment (Markdown) to a task: from you, the Brain ('brain') or an agent ('agent:<id>'), with files
+ *  already copied into the task's project. */
+export function addBoardComment(projectId: string, taskId: string, text: unknown, by = 'you', files: TaskFile[] = []): BoardTask {
   const p = projectOf(projectId);
   return withProject(p, () => {
     const f = read();
@@ -222,7 +255,7 @@ export function addBoardComment(projectId: string, taskId: string, text: unknown
     const comments = t.comments || [];
     if (comments.length >= MAX_COMMENTS) return fail('This task has 500 comments. Remove old ones before adding more.');
     const now = Date.now();
-    t.comments = [...comments, { id: uid('c'), by, text: text_(text), at: now }];
+    t.comments = [...comments, { id: uid('c'), by, text: files.length && (typeof text !== 'string' || !text.trim()) ? '' : text_(text), at: now, ...(files.length ? { files } : {}) }];
     t.updatedAt = Math.max(now, t.updatedAt + 1);
     write(f, [t.id]);
     return card(p, t, true);
@@ -261,17 +294,19 @@ export function findBoardTask(projectId: string, ref: unknown): BoardTask {
 }
 
 /** The board as the Brain sees it: open tasks, then the last few done, one line each. */
-export function boardLines(projectId: string, max = 60): string[] {
+export function boardLines(projectId: string, max = 60, only?: string): string[] {
   const label: Record<BoardStatus, string> = { todo: 'To do', in_progress: 'In progress', in_review: 'In review', blocked: 'Blocked', done: 'Done' };
   // (one read of this project's board, comments and all)
   return withProject(projectOf(projectId), () => {
-    const tasks = read().tasks.sort(order);
+    const tasks = read().tasks.filter((t) => !only || t.id === only).sort(order);
     const open = tasks.filter((t) => t.status !== 'done');
     const done = tasks.filter((t) => t.status === 'done').sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 5);
     return [...open.slice(0, max), ...done].map((t) => {
       const comments = t.comments || [];
       const c = comments.at(-1);
-      return `#${t.number} [${label[t.status]}] ${t.priority === 'normal' ? '' : `(${t.priority}) `}${t.title} | ${t.assignee ? `${who(t.assignee, 'Unassigned').name} (${t.assignee})` : 'unassigned'}${t.blockedReason ? ` | blocked: ${t.blockedReason}` : ''}${t.description ? ` | ${t.description.replace(/\s+/g, ' ').slice(0, 140)}` : ''}${c ? ` | ${comments.length} comment${comments.length === 1 ? '' : 's'}, last from ${who(c.by, 'you').name}: "${c.text.replace(/\s+/g, ' ').slice(0, 120)}"` : ''}`;
+      const working = t.work && ['starting', 'working', 'waiting'].includes(t.work.state) ? ` | working: ${who(`${t.work.target.kind}:${t.work.target.id}`, 'someone').name}` : '';
+      const files = (t.files?.length || 0) + comments.reduce((n, x) => n + (x.files?.length || 0), 0);
+      return `#${t.number} [${label[t.status]}] ${t.priority === 'normal' ? '' : `(${t.priority}) `}${t.title} | ${t.assignee ? `${who(t.assignee, 'Unassigned').name} (${t.assignee})` : 'unassigned'}${working}${files ? ` | files: ${files}` : ''}${t.blockedReason ? ` | blocked: ${t.blockedReason}` : ''}${t.description ? ` | ${t.description.replace(/\s+/g, ' ').slice(0, 140)}` : ''}${c ? ` | ${comments.length} comment${comments.length === 1 ? '' : 's'}, last from ${who(c.by, 'you').name}: "${c.text.replace(/\s+/g, ' ').slice(0, 120)}"` : ''}`;
     });
   });
 }
@@ -294,6 +329,7 @@ export function restoredBoard(raw: unknown): BoardFile {
     const num = (x: unknown, d: number) => (typeof x === 'number' && Number.isFinite(x) ? x : d);
     const ref = (x: unknown) => (typeof x === 'string' && /^(|you|brain|(?:agent|team):[\w.-]+)$/.test(x) ? x : '');
     const s: BoardStatus = (BOARD_STATUSES as readonly unknown[]).includes(v.status) ? v.status as BoardStatus : 'todo';
+    const files = restoredFiles(v.files);
     tasks.push({
       id: v.id,
       number: num(v.number, tasks.length + 1),
@@ -308,10 +344,29 @@ export function restoredBoard(raw: unknown): BoardFile {
       createdAt: num(v.createdAt, Date.now()),
       updatedAt: num(v.updatedAt, Date.now()),
       ...(s === 'done' ? { doneAt: num(v.doneAt, num(v.updatedAt, Date.now())) } : {}),
-      ...(Array.isArray(v.comments) ? { comments: v.comments.filter((c): c is Record<string, unknown> => object(c) && typeof c.id === 'string' && /^[\w.-]+$/.test(c.id) && typeof c.text === 'string' && !!c.text.trim()).slice(0, MAX_COMMENTS).map((c) => ({ id: c.id as string, by: ref(c.by) || 'you', text: (c.text as string).slice(0, COMMENT_MAX), at: num(c.at, Date.now()), ...(typeof c.editedAt === 'number' ? { editedAt: c.editedAt } : {}) })) } : {}),
+      ...(files.length ? { files } : {}),
+      // (work isn't kept: its runs and threads belong to the copy it was saved from)
+      ...(Array.isArray(v.comments) ? { comments: v.comments.filter((c): c is Record<string, unknown> => object(c) && typeof c.id === 'string' && /^[\w.-]+$/.test(c.id) && typeof c.text === 'string' && (!!c.text.trim() || restoredFiles(c.files).length > 0)).slice(0, MAX_COMMENTS).map((c) => ({ id: c.id as string, by: ref(c.by) || 'you', text: (c.text as string).slice(0, COMMENT_MAX), at: num(c.at, Date.now()), ...(typeof c.editedAt === 'number' ? { editedAt: c.editedAt } : {}), ...(restoredFiles(c.files).length ? { files: restoredFiles(c.files) } : {}) })) } : {}),
     });
     seen.add(v.id);
   }
   const next = Math.max(object(raw) && typeof raw.next === 'number' ? raw.next : 1, tasks.reduce((n, t) => Math.max(n, t.number), 0) + 1);
   return { tasks, next };
+}
+
+/** Files on a saved copy: paths inside the uploads folder only (relative, no way out of it). */
+function restoredFiles(raw: unknown): TaskFile[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(object).flatMap((x) => {
+    const rel = typeof x.path === 'string' ? x.path : '';
+    if (!rel || rel.length > 1000 || /^[\\/]|^[a-z]:/i.test(rel) || rel.split(/[\\/]/).some((part) => !part || part === '.' || part === '..')) return [];
+    return [{
+      path: rel,
+      name: typeof x.name === 'string' && x.name ? x.name.slice(0, 200) : rel.split(/[\\/]/).at(-1)!,
+      size: typeof x.size === 'number' && x.size >= 0 ? x.size : 0,
+      ...(typeof x.sha256 === 'string' && /^[a-f0-9]{64}$/.test(x.sha256) ? { sha256: x.sha256 } : {}),
+      by: typeof x.by === 'string' && /^(you|agent:[\w.-]+)$/.test(x.by) ? x.by : 'you',
+      at: typeof x.at === 'number' ? x.at : Date.now(),
+    }];
+  }).slice(0, 50);
 }
