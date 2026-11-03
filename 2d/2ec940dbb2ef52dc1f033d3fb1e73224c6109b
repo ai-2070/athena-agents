@@ -1,0 +1,66 @@
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_8e8a0cbcd0d4a2 12,232-260
+tests/web/gateway-inbox.test.tsx
+  s_3f5afab86a1bb3::t_89456f8e323eb3 22,28,30,36,52-99
+  s_3f5afab86a1bb3::t_674328bc81dd8f 203-204,207,210,215,220,223,227
+  s_14ca3d7e50ee3f::t_78d4cf235b0ff0 100
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_7a24de930487b3 170
+  s_3f5afab86a1bb3::t_178b5de033fb63 4,12,70,86,146,154-169,201-205,432-442,828,921
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_8e8a0cbcd0d4a2 18,32
+server/index.ts
+  s_3f5afab86a1bb3::t_178b5de033fb63 21,986-989
+tests/server/gateway-whatsapp-recovery.test.ts
+  s_3f5afab86a1bb3::t_bf286659de60e7 7,54-61
+shared/gateways.ts
+  s_3f5afab86a1bb3::t_178b5de033fb63 23,29-34,36
+docs/guide.md
+  s_3f5afab86a1bb3::t_6d0239519f8e45 464
+  s_3f5afab86a1bb3::t_891dade8e610c4 453-463
+README.md
+  s_3f5afab86a1bb3::t_891dade8e610c4 231-232,236
+tests/server/gateway-dismiss.test.ts
+  s_3f5afab86a1bb3::t_bf286659de60e7 1-50,57-114
+  s_3f5afab86a1bb3::t_7a24de930487b3 51-56
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_140a8e2fac1318 610-614
+  s_3f5afab86a1bb3::t_891dade8e610c4 594-609,615
+tests/server/gateway-whatsapp-replies.test.ts
+  s_3f5afab86a1bb3::t_c0238f43500f06 67-68,72,75
+web/views/gateway-inbox.tsx
+  s_3f5afab86a1bb3::t_674328bc81dd8f 97
+  s_3f5afab86a1bb3::t_66fca5418699fd 59,154
+  s_3f5afab86a1bb3::t_c02eca3241de13 8-9,16,33,45-46,50-58,60-63,73-74,90,95,98,105-106,109,155,157-160
+scripts/gateways-whatsapp-media-smoke.ts
+  s_3f5afab86a1bb3::t_8e8a0cbcd0d4a2 38,187-196
+shared/types.ts
+  s_3f5afab86a1bb3::t_178b5de033fb63 171,186-189
+  s_3f5afab86a1bb3::t_bdded0d962fa61 190-191
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_178b5de033fb63 73-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d2ec940dbb2ef52dc1f033d3fb1e73224c6109b",
+  "prompts": {},
+  "sessions": {
+    "s_14ca3d7e50ee3f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3f9ec22a-fe9c-4d2e-ad55-1241f11b7aa0",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
