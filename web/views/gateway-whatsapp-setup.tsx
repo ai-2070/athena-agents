@@ -13,11 +13,12 @@ export function WhatsAppSetupView({ instance, close, changed, pause, edit }: {
   const root = `/gateways/${encodeURIComponent(instance.id)}`;
   const [setup, setSetup] = useState<GatewayWhatsAppSetup | null>(null); const [recovery, setRecovery] = useState<GatewayWhatsAppRecovery | null>(null);
   const [check, setCheck] = useState<GatewayWhatsAppCheck | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false); const [restored, setRestored] = useState(false);
   const [origin, setOrigin] = useState(''); const [business, setBusiness] = useState(''); const [code, setCode] = useState('');
   const mounted = useRef(false); const request = useRef(0); const active = useRef(false);
   const load = useCallback(async (clearError = true) => {
     const version = ++request.current;
-    if (clearError) { setError(''); setCheck(null); }
+    if (clearError) { setError(''); setCheck(null); setRestored(false); }
     try {
       const [saved, held] = await Promise.all([GET<GatewayWhatsAppSetup>(`${root}/whatsapp-setup`), GET<GatewayWhatsAppRecovery>(`${root}/whatsapp-recovery`)]);
       if (mounted.current && version === request.current) { setSetup(saved); setRecovery(held); }
@@ -27,12 +28,12 @@ export function WhatsAppSetupView({ instance, close, changed, pause, edit }: {
   useServerEvents((event) => {
     if ((event.type === 'gateways' && event.id === instance.id) || (event.type === 'gateway-inbox' && event.instanceId === instance.id)) { setCheck(null); void load(false); }
   });
-  const run = async (work: () => Promise<void>) => {
+  const run = async (work: () => Promise<void>, checking = false) => {
     if (active.current || !mounted.current) return;
-    active.current = true; setBusy(true); setError(''); setCheck(null);
+    active.current = true; setBusy(true); setChecking(checking); setError(''); setCheck(null); setRestored(false);
     try { await work(); if (mounted.current) await changed(); }
     catch (failure) { if (mounted.current) setError(failure instanceof Error ? failure.message : 'Setup could not be completed. Reload its saved status before trying again.'); }
-    finally { if (mounted.current) await load(false); if (mounted.current) setBusy(false); active.current = false; }
+    finally { if (mounted.current) await load(false); if (mounted.current) { setBusy(false); setChecking(false); } active.current = false; }
   };
   const pair = () => run(async () => {
     if (!await confirmBox('Pair this relay with the saved business phone? This starts at the relay’s current saved position. Review any previous installation first. This instance will stay paused.', { ok: 'Pair relay' }) || !mounted.current) return;
@@ -66,9 +67,20 @@ export function WhatsAppSetupView({ instance, close, changed, pause, edit }: {
     </form> : <>
       <Row title={<span className="flex flex-wrap items-center gap-2">Relay paired <Pill tone={setup.recoveryRequired ? 'warn' : 'ok'}>{setup.recoveryRequired ? 'Needs review' : 'Saved'}</Pill></span>} description="The pull key stays on this computer. Pairing does not verify the Meta access token or enable the connection." />
       {!credentialsReady && <Row title="Complete the account credentials" description="Save the access token and Meta app secret in the instance editor before checking setup."><Button size="small" variant="ghost" disabled={busy} onClick={edit}>Edit instance</Button></Row>}
-      <Row title="Check setup" description="Read-only account and relay checks. No messages are claimed or acknowledged, no files are downloaded and no work or replies are started."><Button size="small" disabled={busy || instance.enabled || !credentialsReady} onClick={() => void run(async () => { const result = await POST<GatewayWhatsAppCheck>(`${root}/whatsapp-setup/check`); if (mounted.current) setCheck(result); })}>{busy ? 'Checking…' : 'Check setup'}</Button></Row>
+      <Row title="Check setup" description="Read-only account and relay checks. No messages are claimed or acknowledged, no files are downloaded and no work or replies are started."><Button size="small" disabled={busy || instance.enabled || !credentialsReady} onClick={() => void run(async () => { const result = await POST<GatewayWhatsAppCheck>(`${root}/whatsapp-setup/check`); if (mounted.current) setCheck(result); }, true)}>{checking ? 'Checking…' : 'Check setup'}</Button></Row>
       {check && <Row title="Setup check complete" description={<span role="status">Account verified. {check.relay === 'ready' ? 'The saved relay is ready for a connection.' : check.relay === 'acknowledgement-pending' ? 'The relay is reachable; an exact saved acknowledgement still needs recovery on connection.' : 'The relay needs recovery review.'} Checked {new Date(check.checkedAt).toLocaleString()}. This result does not enable the instance.</span>} />}
-      {recovery?.reason && recovery.reason !== 'gap' && <Row title="Restore the saved pairing or receipt" description="This hold cannot be cleared by a retention-gap review. Keep the saved work and pairing; restore them before reconnecting." />}
+      {recovery?.reason && recovery.reason !== 'gap' && <>
+        <Row title="Restore the saved relay" description="Restore the original relay installation and its saved data at the same address, then check it here. A replacement relay, changed account or missing receipts cannot pass this check. Saved work stays held.">
+          {recovery.restoration && <Button size="small" disabled={busy || instance.enabled} onClick={() => void run(async () => {
+            const revision = recovery.restoration!.revision;
+            if (!await confirmBox('Have you restored the original relay and its saved data? Only the saved installation, phone, account and receipt position can clear this connection hold. Saved work and delivery receipts stay held. This does not pair a new relay or enable WhatsApp.', { ok: 'Check restored relay' }) || !mounted.current) return;
+            await POST(`${root}/whatsapp-recovery/restore`, { revision, acknowledgeRestore: true });
+            if (mounted.current) setRestored(true);
+          })}>Check restored relay</Button>}
+        </Row>
+        {recovery.restoration && <PanelNote>Connection held since {new Date(recovery.restoration.at).toLocaleString()}. This check reads relay status only. Signed messages and exact acknowledgements are verified again on connection.</PanelNote>}
+      </>}
+      {restored && !recovery?.reason && <Row title="Connection hold cleared" description={<span role="status">The original relay matches its saved binding. The instance stays paused; saved work, files and delivery receipts still need their own review.</span>} />}
       {(!recovery?.reason || recovery.reason === 'gap') && <>
         <Row title="Relay gap review" description={recovery?.gap ? `Observed ${new Date(recovery.gap.at).toLocaleString()}. Ask the relay operator to review that exact gap before accepting its loss here.` : 'If messages expired while this computer was offline, check and save the relay’s current lost range first.'}>
           <Button size="small" variant="ghost" disabled={busy || instance.enabled} onClick={() => void run(async () => { await POST(`${root}/whatsapp-recovery/inspect`); })}>Check relay gap</Button>

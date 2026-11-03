@@ -3,12 +3,13 @@ import fs from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GatewayInboxJournal, GatewayWhatsAppRelayStatus } from '../../shared/types.ts';
 import { getGatewaySecrets, setGatewaySecrets } from '../../server/store.ts';
-import { saveGatewayCredentials, saveGatewayInstance } from '../../server/gateways/instances.ts';
+import { getGatewayInstance, saveGatewayCredentials, saveGatewayInstance } from '../../server/gateways/instances.ts';
 import { GatewayInbox, gatewayInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery } from '../../server/gateways/inbox.ts';
 import { GatewayStateAdapter } from '../../server/gateways/state.ts';
 import { GatewaySupervisor } from '../../server/gateways/supervisor.ts';
 import { WhatsAppRelayIntake } from '../../server/gateways/whatsapp-intake.ts';
-import { inspectWhatsAppRecovery, reviewWhatsAppRecovery } from '../../server/gateways/whatsapp-recovery.ts';
+import { WhatsAppIdentities } from '../../server/gateways/whatsapp-identities.ts';
+import { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecovery } from '../../server/gateways/whatsapp-recovery.ts';
 import { gatewayConversation } from '../../server/gateways/conversations.ts';
 import { gatewayConfig } from './gateway-fixtures.ts';
 
@@ -47,7 +48,9 @@ async function fixture() {
   const pause = () => saveGatewayInstance({ ...config, enabled: false }, instance.id);
   const inspect = () => inspectWhatsAppRecovery(inbox, { request });
   const review = (value: unknown = body()) => reviewWhatsAppRecovery(inbox, value, { request });
-  return { config, instance, state, inbox, remote, calls, request, preview, body, accept, gap, reviewed, pause, inspect, review };
+  const restoreBody = () => ({ revision: preview().restoration!.revision, acknowledgeRestore: true });
+  const restore = (value: unknown = restoreBody()) => restoreWhatsAppRecovery(inbox, value, { request });
+  return { config, instance, state, inbox, remote, calls, request, preview, body, accept, gap, reviewed, pause, inspect, review, restoreBody, restore };
 }
 
 describe('explicit WhatsApp relay-gap recovery', () => {
@@ -115,7 +118,7 @@ describe('explicit WhatsApp relay-gap recovery', () => {
 
   it.each(['cursor', 'envelope', 'epoch', 'installation'] as const)('cannot clear a %s hold through a gap acknowledgement', async (reason) => {
     const f = await fixture(); f.inbox.holdWhatsAppRelay(reason); f.pause(); f.gap(); const before = fs.readFileSync(f.state.inboxFile(), 'utf8');
-    await expect(f.inspect()).rejects.toThrow('cannot clear'); expect(fs.readFileSync(f.state.inboxFile(), 'utf8')).toBe(before); expect(f.preview()).toEqual({ reason, gap: null });
+    await expect(f.inspect()).rejects.toThrow('cannot clear'); expect(fs.readFileSync(f.state.inboxFile(), 'utf8')).toBe(before); expect(f.preview()).toMatchObject({ reason, gap: null, restoration: { revision: expect.stringMatching(/^[a-f0-9]{64}$/) } });
   });
 
   it('refuses an already skipped cursor without a saved gap observation and never guesses a gap range', async () => {
@@ -175,5 +178,93 @@ describe('explicit WhatsApp relay-gap recovery', () => {
   it('requires supervisor ownership and stays paused without making requests when another owner exists', async () => {
     const f = await fixture(); f.pause(); const supervisor = new GatewaySupervisor(); closes.push(() => supervisor.stop());
     await expect(supervisor.inspectWhatsAppRecovery(f.instance.id)).rejects.toThrow('claim'); expect(f.calls).toEqual([]);
+  });
+});
+
+describe('explicit restoration of the original WhatsApp relay', () => {
+  it.each(['cursor', 'epoch', 'installation', 'envelope'] as const)('clears only the %s connection hold after the original binding and cursor match', async (reason) => {
+    const f = await fixture(); await f.accept('wamid.held'); f.inbox.holdWhatsAppRelay(reason); f.pause();
+    const events = structuredClone(f.inbox.list()); const saved = structuredClone(f.inbox.whatsAppRelayState()!); const secrets = getGatewaySecrets(f.instance.id); const body = f.restoreBody();
+    const safe = JSON.stringify(f.preview()); for (const value of [ORIGIN, TOKEN, BUSINESS, EPOCH, INSTALLATION, 'cursor']) if (value !== reason) expect(safe).not.toContain(value);
+    await f.state.disconnect(); await f.state.connect(); expect(f.restoreBody()).toEqual(body);
+    expect(await f.restore(body)).toEqual({ reason: null, gap: null }); expect(f.inbox.list()).toEqual(events); expect(getGatewaySecrets(f.instance.id)).toEqual(secrets);
+    const restored = f.inbox.whatsAppRelayState()!;
+    expect(restored).toEqual({ ...saved, recovery: undefined, restorations: [{ at: expect.any(Number), heldAt: saved.recovery!.at, reason, revision: body.revision, remoteCursor: 1 }] });
+    expect(f.calls).toEqual([`${ORIGIN}/v1/status`]); expect(f.inbox.claimNext()).toBeNull(); expect(getGatewayInstance(f.instance.id).enabled).toBe(false);
+    await expect(f.restore(body)).rejects.toThrow('changed'); expect(f.calls).toHaveLength(1);
+  });
+
+  it.each([0, 1])('never confirms or advances a pending ACK when the restored cursor is %s', async (cursor) => {
+    const f = await fixture(); await expect(f.accept('wamid.pending', false)).rejects.toThrow('Lost ACK'); f.inbox.holdWhatsAppRelay('cursor'); f.pause(); f.remote.cursor = cursor;
+    const before = structuredClone(f.inbox.whatsAppRelayState()!); await f.restore();
+    expect(f.inbox.whatsAppRelayState()).toMatchObject({ cursor: 0, receipt: before.receipt, identities: before.identities });
+    expect(f.inbox.list()[0]).toMatchObject({ status: 'needs-review', relay: { confirmed: false } }); expect(f.inbox.claimNext()).toBeNull();
+  });
+
+  it.each(['installationId', 'businessAccountId', 'phoneNumberId', 'epoch', 'cursor', 'gap'] as const)('refuses a still-changed %s and leaves saved data untouched', async (field) => {
+    const f = await fixture(); await f.accept('wamid.old'); f.inbox.holdWhatsAppRelay('installation'); f.pause();
+    Object.assign(f.remote, { [field]: field === 'gap' ? { at: Date.now(), through: 4 } : field === 'cursor' ? 9 : field === 'epoch' || field === 'installationId' ? crypto.randomUUID() : '999' });
+    const before = fs.readFileSync(f.state.inboxFile(), 'utf8'); await expect(f.restore()).rejects.toThrow(); expect(fs.readFileSync(f.state.inboxFile(), 'utf8')).toBe(before);
+  });
+
+  it('preserves sent prefixes and uncertain deliveries instead of retrying them', async () => {
+    const f = await fixture(); await f.accept('wamid.reply'); const event = f.inbox.claimNext()!;
+    f.inbox.beginDispatch(event.id, event.operationId!, await gatewayConversation(event, new AbortController().signal)); f.inbox.finishDispatch(event.id, event.operationId!, 'x'.repeat(6500));
+    f.inbox.claimReply(); f.inbox.settleReply(event.id, 0, { remoteId: 'sent-prefix' }); f.inbox.claimReply(); f.inbox.recover();
+    f.inbox.holdWhatsAppRelay('epoch'); f.pause(); const before = structuredClone(f.inbox.list()); await f.restore();
+    expect(f.inbox.list()).toEqual(before); expect(f.inbox.list()[0].reply!.parts.map((part) => part.status)).toEqual(['sent', 'uncertain', 'failed']);
+  });
+
+  it('never restores a retired sender alias or its earlier work when the relay returns', async () => {
+    const f = await fixture(); await f.accept('wamid.retired');
+    const identities = new WhatsAppIdentities(BUSINESS, f.inbox.whatsAppRelayState()!.identities); identities.rotate('US.ALICE', 'US.NEW', null, Date.now());
+    const receipt = { epoch: EPOCH, sequence: 2, id: 'c'.repeat(64) }; f.inbox.acceptWhatsAppRelay(receipt, [], 1, 0, identities.state); f.inbox.confirmWhatsAppRelay(receipt); f.remote.cursor = 2;
+    f.inbox.holdWhatsAppRelay('installation'); f.pause(); const saved = structuredClone(f.inbox.whatsAppRelayState()!.identities); await f.restore();
+    expect(f.inbox.whatsAppRelayState()!.identities).toEqual(saved); saveGatewayInstance(f.config, f.instance.id);
+    expect(() => f.inbox.checkAccess(f.inbox.list()[0])).toThrow('identity changed');
+    expect(await f.accept('wamid.old-alias-again')).toMatchObject({ accepted: 0, ignored: 1, unmatchedSenders: 1 }); expect(f.inbox.list()).toHaveLength(1); expect(f.inbox.claimNext()).toBeNull();
+  });
+
+  it('rejects missing acknowledgement, stale work or settings, and replayed submissions before I/O', async () => {
+    const f = await fixture(); await f.accept('wamid.held'); f.inbox.holdWhatsAppRelay('envelope'); f.pause(); const body = f.restoreBody();
+    for (const value of [{}, { revision: body.revision }, { ...body, acknowledgeRestore: false }, { ...body, revision: '0'.repeat(64) }, { ...body, reset: true }]) await expect(f.restore(value)).rejects.toThrow('changed');
+    f.inbox.review(f.inbox.list()[0].id, 'Review changed work'); await expect(f.restore(body)).rejects.toThrow('changed'); const current = f.restoreBody();
+    saveGatewayInstance({ ...f.config, enabled: false, name: 'Changed name' }, f.instance.id); await expect(f.restore(current)).rejects.toThrow('changed'); expect(f.calls).toEqual([]);
+  });
+
+  it.each(['settings', 'credentials', 'receipt', 'work'] as const)('refuses a %s change while checking the restored relay', async (kind) => {
+    const f = await fixture(); await f.accept('wamid.held'); f.inbox.holdWhatsAppRelay('cursor'); f.pause(); const body = f.restoreBody();
+    await expect(restoreWhatsAppRecovery(f.inbox, body, { request: async () => {
+      if (kind === 'settings') saveGatewayInstance({ ...f.config, enabled: false, name: 'Changed' }, f.instance.id);
+      else if (kind === 'credentials') setGatewaySecrets(f.instance.id, { relayKey: 'b'.repeat(64), signingSecret: SECRET });
+      else if (kind === 'receipt') { const journal = JSON.parse(fs.readFileSync(f.state.inboxFile(), 'utf8')) as GatewayInboxJournal; journal.whatsappRelay!.restorations = [{ at: 1, heldAt: 1, reason: 'cursor', revision: 'a'.repeat(64), remoteCursor: 0 }]; fs.writeFileSync(f.state.inboxFile(), JSON.stringify(journal)); }
+      else f.inbox.review(f.inbox.list()[0].id, 'Updated work review');
+      return Response.json(f.remote);
+    } })).rejects.toThrow(); expect(f.preview().reason).toBe('cursor');
+  });
+
+  it('keeps gap recovery and unheld instances out of restoration before I/O', async () => {
+    const f = await fixture(); f.pause(); await expect(f.restore({ revision: 'a'.repeat(64), acknowledgeRestore: true })).rejects.toThrow('changed');
+    f.inbox.holdWhatsAppRelay('gap'); await expect(f.restore({ revision: 'a'.repeat(64), acknowledgeRestore: true })).rejects.toThrow('changed'); expect(f.calls).toEqual([]);
+  });
+
+  it('refuses enabled and partly saved setup, and requires exclusive ownership', async () => {
+    const f = await fixture(); f.inbox.holdWhatsAppRelay('installation'); await expect(f.restore()).rejects.toThrow('Pause'); f.pause();
+    setGatewaySecrets(f.instance.id, { ...getGatewaySecrets(f.instance.id), whatsappPairing: { phase: 'requesting', attemptId: crypto.randomUUID(), origin: ORIGIN, businessAccountId: BUSINESS, phoneNumberId: f.instance.accountId } });
+    await expect(f.restore()).rejects.toThrow('fully paired'); expect(f.calls).toEqual([]);
+    const supervisor = new GatewaySupervisor(); closes.push(() => supervisor.stop()); await expect(supervisor.restoreWhatsAppRecovery(f.instance.id, f.restoreBody())).rejects.toThrow('claim');
+  });
+
+  it('keeps the hold when its atomic save fails', async () => {
+    const f = await fixture(); f.inbox.holdWhatsAppRelay('envelope'); f.pause(); const before = fs.readFileSync(f.state.inboxFile(), 'utf8'); const write = fs.writeFileSync.bind(fs);
+    const fault = vi.spyOn(fs, 'writeFileSync').mockImplementation((file, ...args) => { if (String(file).includes('inbox.json')) throw new Error('PRIVATE_DISK'); return write(file, ...args); });
+    await expect(f.restore()).rejects.toThrow('local storage'); fault.mockRestore(); expect(fs.readFileSync(f.state.inboxFile(), 'utf8')).toBe(before); await f.restore();
+  });
+
+  it('keeps its bounded restoration audit instead of evicting older reviews', async () => {
+    const f = await fixture(); f.inbox.holdWhatsAppRelay('envelope'); f.pause(); const journal = JSON.parse(fs.readFileSync(f.state.inboxFile(), 'utf8')) as GatewayInboxJournal;
+    journal.whatsappRelay!.restorations = Array.from({ length: 1000 }, (_, index) => ({ at: index, heldAt: index, reason: 'envelope', revision: crypto.createHash('sha256').update(String(index)).digest('hex'), remoteCursor: 0 }));
+    fs.writeFileSync(f.state.inboxFile(), JSON.stringify(journal)); const before = fs.readFileSync(f.state.inboxFile(), 'utf8');
+    await expect(f.restore()).rejects.toThrow('history needs attention'); expect(fs.readFileSync(f.state.inboxFile(), 'utf8')).toBe(before);
   });
 });

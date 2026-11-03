@@ -642,8 +642,37 @@ New gateway data does not need a legacy compatibility layer.*
 - Validation: `CI=1 bun run check` passed (258 files; 2,508 tests passed, one skipped), followed by
   successful desktop staging and bundled desktop smoke. The web build passed. No real Meta account,
   relay deployment, provider messages or model calls were used for this slice.
-- Next: implement recovery for identity/installation changes, then finish unified delivery and
-  product controls. Native-work override controls and explicit webhook switching still need product
+- Added explicit paused restoration of the original WhatsApp relay after installation, epoch,
+  cursor or envelope connection holds. The safe preview exposes only a hold time and opaque
+  revision. Settings confirms the restoration before the exclusively owned local route reads
+  status at the saved origin with the saved pull key. The original installation/business/phone,
+  epoch and local cursor or exact pending ACK position must match, with no remote gap. Changed
+  settings, credentials, local receipts or saved work invalidate the check; no replacement pairing,
+  administrative call, lease claim, pull or ACK is performed.
+- A matching check atomically records the old hold and observed cursor in a bounded restoration
+  audit, then clears only the connection hold. It keeps the cursor, pending ACK, signed identity
+  mappings and retired aliases, source dedupe, files, native operations and confirmed/uncertain
+  delivery state. Existing work stays held, the instance stays paused, and WhatsApp stays unavailable.
+  A full history refuses another review instead of evicting evidence. A non-gap hold with a remote
+  gap still requires the original queue/receipt position restored; gap review cannot override it.
+- Added restoration coverage for all hold reasons, foreign metadata, unexplained cursor advances,
+  stale/double/replayed restoration confirmations, mid-check changes, ownership, partial setup, failed writes,
+  audit limits, retired aliases, preserved sent/uncertain replies and guarded local API access.
+  Local consumer fixtures prove lost ACK recovery before/after remote commit still needs the exact
+  envelope ID and leaves earlier work held; an invalid signed envelope remains invalid after review.
+  Bun/Node and read-only bundled proof now also restores the original relay across local restart.
+  README, guide and relay instructions include the user flow and a restored-deployment example.
+- A scoped finish reviewer approved the restoration panel and confirmation with no material findings
+  in light/dark desktop/mobile captures. A local keyboard probe kept six successive Tab presses
+  inside the confirmation and Escape closed it. Preview used only isolated synthetic state, with no
+  remote check submitted, then removed that state. The review does not establish live restoration
+  or transport readiness; success behavior is covered by source/DOM and local protocol tests.
+- Validation: `CI=1 bun run check` passed (258 files; 2,536 tests passed, one skipped). One earlier
+  full run found a Discord fixture with no test socket; all 76 Discord tests and the full rerun
+  passed without a source change. The web build, desktop staging and bundled desktop smoke passed.
+  No real account, relay deployment or provider messages were used.
+- Next: implement explicit replacement of a lost/changed relay installation and remaining identity
+  recovery, then finish unified delivery and product controls. Native-work override controls and explicit webhook switching still need product
   setup. Deleted instances retain private inbox
   receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks
   on all four platforms and Windows/Linux verification remain outstanding. Offline checks run in CI.

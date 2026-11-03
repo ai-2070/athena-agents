@@ -509,6 +509,15 @@ its queue loss before clearing the local attempt and using a new code. For expir
 **Review gap locally**. Saved work and delivery receipts remain held for their own review. Changed
 installations or invalid receipts require restoration; gap review cannot reset them.
 
+If **Restore the saved relay** appears, restore the original installation and its saved data at the
+same relay address first. Then choose **Check restored relay** and confirm. Athena checks the saved
+installation, account, phone, queue epoch and receipt position before clearing only the connection
+hold. For example, after accidentally pointing the relay address at a replacement deployment, put
+the original deployment and its data back before checking. A new installation or skipped messages
+will fail the check. Pending acknowledgements still need their exact envelope proof on connection;
+saved work, files and delivery receipts stay held for separate review. This leaves the instance
+paused and does not enable WhatsApp. Retired sender aliases stay blocked.
+
 ## License and credits
 
 Both are in the [README](../README.md#license).

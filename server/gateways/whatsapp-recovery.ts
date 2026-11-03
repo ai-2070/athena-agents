@@ -54,3 +54,13 @@ export async function reviewWhatsAppRecovery(inbox: GatewayInbox, body: unknown,
   const remote = await readWhatsAppRelayStatus(inbox, options);
   return saved(() => inbox.reviewWhatsAppGap(remote, body));
 }
+
+/** Restore the original binding only; never accept a new installation, epoch or receipt prefix. */
+export async function restoreWhatsAppRecovery(inbox: GatewayInbox, body: unknown, options: Options = {}): Promise<GatewayWhatsAppRecovery> {
+  const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeRestore: z.literal(true) }).safeParse(body);
+  if (!parsed.success || parsed.data.revision !== gatewayWhatsAppRecovery(inbox.instanceId).restoration?.revision) return fail('This connection hold changed. Reload and acknowledge its current restoration.');
+  const snapshot = JSON.stringify([getGatewayInstance(inbox.instanceId), getGatewaySecrets(inbox.instanceId), inbox.whatsAppRelayState()]);
+  const remote = await readWhatsAppRelayStatus(inbox, options);
+  if (snapshot !== JSON.stringify([getGatewayInstance(inbox.instanceId), getGatewaySecrets(inbox.instanceId), inbox.whatsAppRelayState()])) return fail('The saved setup changed during the restoration check. Reload and review it again.');
+  return saved(() => inbox.restoreWhatsAppRelay(remote, body));
+}

@@ -993,6 +993,7 @@ post('/api/gateways/:id/whatsapp-setup/check', async ({ id }) => gatewaySupervis
 get('/api/gateways/:id/whatsapp-recovery', async ({ id }) => gatewayWhatsAppRecovery(id));
 post('/api/gateways/:id/whatsapp-recovery/inspect', async ({ id }) => gatewaySupervisor.inspectWhatsAppRecovery(id));
 post<unknown>('/api/gateways/:id/whatsapp-recovery', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppRecovery(id, body));
+post<unknown>('/api/gateways/:id/whatsapp-recovery/restore', async ({ id }, body) => gatewaySupervisor.restoreWhatsAppRecovery(id, body));
 post<unknown>('/api/gateways/:id/whatsapp-pairing', async ({ id }, body) => gatewaySupervisor.pairWhatsApp(id, body));
 post<unknown>('/api/gateways/:id/whatsapp-pairing/finish', async ({ id }, body) => gatewaySupervisor.finishWhatsAppPairing(id, body));
 post<unknown>('/api/gateways/:id/whatsapp-pairing/review', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppPairing(id, body));

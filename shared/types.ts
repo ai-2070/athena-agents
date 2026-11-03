@@ -205,11 +205,13 @@ export interface GatewayWhatsAppIntakeState {
   recovery?: { at: number; reason: 'gap' | 'cursor' | 'epoch' | 'installation' | 'envelope' };
   gapReview?: { at: number; from: number; through: number; remoteCursor: number };
   reviewedGaps?: { at: number; gapAt: number; from: number; through: number; revision: string; receipt?: NonNullable<GatewayWhatsAppIntakeState['receipt']> }[];
+  restorations?: { at: number; heldAt: number; reason: 'cursor' | 'epoch' | 'installation' | 'envelope'; revision: string; remoteCursor: number }[];
 }
 
 export interface GatewayWhatsAppRecovery {
   reason: NonNullable<GatewayWhatsAppIntakeState['recovery']>['reason'] | null;
   gap: { at: number; revision: string } | null;
+  restoration?: { at: number; revision: string };
 }
 
 /** Private paired identity. Pull/lease tokens are stored separately or kept in memory. */

@@ -6,7 +6,7 @@ import { GatewayStateAdapter } from './state.ts';
 import { getGatewayInstance, listGatewayInstances } from './instances.ts';
 import { reviewDiscordRecovery } from './discord-recovery.ts';
 import { checkWhatsAppSetup, finishWhatsAppPairing, pairWhatsApp, reviewWhatsAppPairing } from './whatsapp-setup.ts';
-import { inspectWhatsAppRecovery, reviewWhatsAppRecovery } from './whatsapp-recovery.ts';
+import { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecovery } from './whatsapp-recovery.ts';
 import { claimGatewayAccount } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
 
@@ -162,6 +162,10 @@ export class GatewaySupervisor {
   }
   reviewWhatsAppRecovery(instanceId: string, body: unknown): Promise<GatewayWhatsAppRecovery> {
     return this.whatsAppSetupTask(instanceId, (inbox) => reviewWhatsAppRecovery(inbox, body));
+  }
+
+  restoreWhatsAppRecovery(instanceId: string, body: unknown): Promise<GatewayWhatsAppRecovery> {
+    return this.whatsAppSetupTask(instanceId, (inbox) => restoreWhatsAppRecovery(inbox, body));
   }
 
   async selectDocuments(instanceId: string, eventId: string, body: unknown): Promise<void> {

@@ -11,7 +11,8 @@ and saves hash-verified private media. Guarded replies and selected document upl
 service window. The application transport joins these pieces under the gateway worker, and a
 paused-only Settings flow can pair a new instance, check its account and relay, finish interrupted
 setup and review an observed retention gap. Unstarted held requests can be dismissed separately.
-Recovery from changed installations and the remaining work/delivery controls are still pending.
+The original relay can be checked after restoration; accepting a replacement installation and the
+remaining work/delivery controls are still pending.
 Deploying this Worker does not enable a gateway.
 
 Each deployment serves **one Meta Business app and one business phone**. Use a separate deployment
@@ -337,10 +338,35 @@ behind unresolved earlier work or deliveries. Clearing a gap does not resolve th
 retry a send or start another model run. Those product controls remain pending.
 
 The local journal keeps up to 1,000 gap reviews without eviction; a full history refuses another
-review. Non-gap receipt holds, identity/epoch changes and installation replacement need restoration
-or separate recovery controls. This flow cannot clear them, re-pair an existing inbox or replace
+review. Non-gap receipt holds and identity/epoch changes use the restoration check below; accepting
+an installation replacement still needs separate controls. Gap review cannot clear them, re-pair an existing inbox or replace
 its private conversation history. A gap already skipped remotely without a prior local observation
 also requires restoration rather than guessing the lost range.
+
+### Check a restored original relay
+
+After an installation, epoch, cursor or envelope fault, **Settings → Gateways → Set up relay** offers
+**Restore the saved relay**. Restore the original deployment and its saved data at its saved HTTPS
+origin, then choose **Check restored relay** and confirm. For example, if a deployment was accidentally
+replaced, restore its original Durable Object data and pairing rather than creating another pairing
+with a new installation ID. A revoked pairing cannot be recovered by this check.
+
+`GET /api/gateways/:id/whatsapp-recovery` includes an optional `restoration` with the hold time and an
+opaque revision. `POST /api/gateways/:id/whatsapp-recovery/restore` accepts that `revision` and
+`acknowledgeRestore: true`. The local route uses the normal request guards and exclusive ownership.
+It performs only the bounded, saved-origin `/v1/status` GET with the saved pull key; it never calls
+administration, claims a lease, pulls or acknowledges messages. Instance settings, credentials and
+local receipts must remain unchanged during the check, and a changed work journal invalidates the
+confirmation. The installation, business account, phone and epoch must match exactly, with no gap.
+The remote cursor must equal the local cursor or the exact pending receipt's sequence.
+
+A matching check atomically records the previous hold and observed cursor, then clears only the
+connection hold. It never changes the local cursor, confirms an ACK, rebinds a relay, restores a
+retired sender alias, releases held work or retries a delivery. A pending ACK still needs the exact
+envelope ID checked on connection; invalid signed bodies are still refused when pulled again. The
+instance stays paused, and WhatsApp remains disabled. A full audit of 1,000 restorations refuses
+another review instead of discarding older entries. A gap hold uses its separate review flow; a
+non-gap hold with a new remote gap requires the original queue/receipts to be restored first.
 
 The relay necessarily sees webhook content and holds Meta's verification secret. Use a deployment
 whose operator you trust. The outbound Meta access token, model keys, files and dashboard sessions

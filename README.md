@@ -256,6 +256,8 @@ and read-only Worker files with throwaway data. Deployment was checked with Wran
 no real service was deployed. In Settings → Gateways, WhatsApp instances can now save their own
 project, Brain/team/agent destination, phone guard and private Meta credentials, pair a relay and
 run read-only setup checks. Interrupted pairing and relay gaps have explicit review controls.
+A connection hold can also be reviewed after restoring the original relay and its saved data,
+keeping earlier work held.
 Receiving and sending stay disabled pending the remaining recovery controls and acceptance checks.
 
 The Eve runtime replacement is being developed separately from the current API engine. Building

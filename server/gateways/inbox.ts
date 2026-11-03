@@ -59,7 +59,8 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
   whatsappRelay: z.strictObject({ epoch: z.uuid(), cursor: stamp, receipt: intakeReceipt.optional(), identities: whatsAppIdentitiesSchema.optional(),
     connection: whatsAppRelayConnectionSchema.optional(), recovery: relayRecovery.optional(),
     gapReview: z.strictObject({ at: stamp, from: stamp, through: stamp, remoteCursor: stamp }).optional(),
-    reviewedGaps: z.array(z.strictObject({ at: stamp, gapAt: stamp, from: stamp, through: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/), receipt: intakeReceipt.optional() })).min(1).max(1000).optional() }).optional(),
+    reviewedGaps: z.array(z.strictObject({ at: stamp, gapAt: stamp, from: stamp, through: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/), receipt: intakeReceipt.optional() })).min(1).max(1000).optional(),
+    restorations: z.array(z.strictObject({ at: stamp, heldAt: stamp, reason: z.enum(['cursor', 'epoch', 'installation', 'envelope']), revision: z.string().regex(/^[a-f0-9]{64}$/), remoteCursor: stamp })).min(1).max(1000).optional() }).optional(),
   retired: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(100000).optional(),
   retiredAlbums: z.array(z.string().regex(/^[a-f0-9]{64}$/)).max(100000).optional(),
   retiredQuota: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), incomingBytes: stamp, outgoingBytes: stamp })).max(100000).optional(),
@@ -151,7 +152,9 @@ function gatewayInboxRevision(instance: GatewayInstance, journal: GatewayInboxJo
 }
 function whatsAppRecoveryView(instance: GatewayInstance, journal: GatewayInboxJournal | undefined): GatewayWhatsAppRecovery {
   const state = journal?.whatsappRelay;
-  return { reason: state?.recovery?.reason ?? null, gap: state?.gapReview && journal ? { at: state.gapReview.at, revision: gatewayInboxRevision(instance, journal) } : null };
+  return { reason: state?.recovery?.reason ?? null, gap: state?.gapReview && journal ? { at: state.gapReview.at, revision: gatewayInboxRevision(instance, journal) } : null,
+    ...(state?.connection && state.recovery && state.recovery.reason !== 'gap' && !state.gapReview && journal
+      ? { restoration: { at: state.recovery.at, revision: gatewayInboxRevision(instance, journal) } } : {}) };
 }
 
 function requestReview(instance: GatewayInstance, journal: GatewayInboxJournal, eventId: string): GatewayRequestReview {
@@ -803,13 +806,32 @@ export class GatewayInbox {
     const instance = getGatewayInstance(this.state.instanceId); const saved = journal.whatsappRelay; const connection = saved?.connection;
     if (instance.enabled || instance.platform !== 'whatsapp' || !saved || !connection || instance.accountId !== connection.phoneNumberId) throw Object.assign(new Error('Pause the paired WhatsApp instance before reviewing its relay.'), { status: 400 });
     if (remote.installationId !== connection.installationId || remote.businessAccountId !== connection.businessAccountId || remote.phoneNumberId !== connection.phoneNumberId || remote.epoch !== connection.epoch
-      || remote.queuedEvents > 10000 || remote.queuedBytes > 67108864 || (!remote.queuedEvents && remote.queuedBytes)) throw Object.assign(new Error('The relay identity or queue changed. Restore the saved pairing before reviewing a gap.'), { status: 409 });
+      || remote.queuedEvents > 10000 || remote.queuedBytes > 67108864 || (!remote.queuedEvents && remote.queuedBytes)) throw Object.assign(new Error('The relay identity or queue changed. Restore the saved pairing before reviewing recovery.'), { status: 409 });
+    return saved;
+  }
+
+  private whatsAppGapRecoveryState(journal: GatewayInboxJournal, remote: GatewayWhatsAppRelayStatus): GatewayWhatsAppIntakeState {
+    const saved = this.whatsAppRecoveryState(journal, remote);
     if (saved.recovery && saved.recovery.reason !== 'gap') throw Object.assign(new Error('This relay needs its saved receipt or pairing restored. A gap review cannot clear this hold.'), { status: 409 });
     return saved;
   }
 
+  /** Release only the connection hold. Status is never proof of an envelope ACK or completed work. */
+  restoreWhatsAppRelay(remote: GatewayWhatsAppRelayStatus, body: unknown): GatewayWhatsAppRecovery {
+    const journal = this.read(); const state = this.whatsAppRecoveryState(journal, remote); const held = state.recovery;
+    const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeRestore: z.literal(true) }).safeParse(body);
+    if (!parsed.success || parsed.data.revision !== gatewayInboxRevision(getGatewayInstance(this.state.instanceId), journal)
+      || !held || held.reason === 'gap' || state.gapReview) throw Object.assign(new Error('This connection hold changed. Reload and review it again.'), { status: 409 });
+    if (remote.gap) throw Object.assign(new Error('The restored relay still has a message gap. Restore its saved queue and receipt position before retrying.'), { status: 409 });
+    if (remote.cursor !== state.cursor && !(state.receipt && !state.receipt.confirmed && remote.cursor === state.receipt.sequence)) throw Object.assign(new Error('The restored relay cursor does not match the saved receipts. Restore them before continuing.'), { status: 409 });
+    if ((state.restorations?.length ?? 0) >= 1000) throw Object.assign(new Error('The saved restoration history needs attention before another hold can be reviewed.'), { status: 409 });
+    state.restorations = [...(state.restorations ?? []), { at: Date.now(), heldAt: held.at, reason: held.reason, revision: parsed.data.revision, remoteCursor: remote.cursor }];
+    delete state.recovery;
+    this.commit(journal); return whatsAppRecoveryView(getGatewayInstance(this.state.instanceId), journal);
+  }
+
   observeWhatsAppGap(remote: GatewayWhatsAppRelayStatus): GatewayWhatsAppRecovery {
-    const journal = this.read(); const state = this.whatsAppRecoveryState(journal, remote);
+    const journal = this.read(); const state = this.whatsAppGapRecoveryState(journal, remote);
     if (!remote.gap) {
       if (!state.gapReview || remote.cursor !== state.gapReview.through) throw Object.assign(new Error('No matching saved gap was found. Restore the relay and local receipts before continuing.'), { status: 409 });
       return whatsAppRecoveryView(getGatewayInstance(this.state.instanceId), journal);
@@ -823,7 +845,7 @@ export class GatewayInbox {
   }
 
   reviewWhatsAppGap(remote: GatewayWhatsAppRelayStatus, body: unknown): GatewayWhatsAppRecovery {
-    const journal = this.read(); const state = this.whatsAppRecoveryState(journal, remote); const gap = state.gapReview;
+    const journal = this.read(); const state = this.whatsAppGapRecoveryState(journal, remote); const gap = state.gapReview;
     const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeGap: z.literal(true) }).safeParse(body);
     if (!gap || !parsed.success || parsed.data.revision !== gatewayInboxRevision(getGatewayInstance(this.state.instanceId), journal)) throw Object.assign(new Error('This gap or its saved work changed. Reload and review it again.'), { status: 409 });
     if (remote.gap || remote.cursor !== gap.through) throw Object.assign(new Error('Review this exact gap at the relay first. Its current cursor must match the saved lost range.'), { status: 409 });

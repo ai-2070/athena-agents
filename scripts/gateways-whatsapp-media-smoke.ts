@@ -33,9 +33,9 @@ async function proof(): Promise<void> {
   const { WhatsAppGatewayAdapter } = await import('../server/gateways/whatsapp.ts');
   const { whatsAppTransport } = await import('../server/gateways/whatsapp-transport.ts');
   const { pairWhatsApp, checkWhatsAppSetup } = await import('../server/gateways/whatsapp-setup.ts');
-  const { inspectWhatsAppRecovery, reviewWhatsAppRecovery } = await import('../server/gateways/whatsapp-recovery.ts');
+  const { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecovery } = await import('../server/gateways/whatsapp-recovery.ts');
   const { WhatsAppRelayIntake } = await import('../server/gateways/whatsapp-intake.ts');
-  const { GatewayInbox, gatewayRequestReview } = await import('../server/gateways/inbox.ts');
+  const { GatewayInbox, gatewayRequestReview, gatewayWhatsAppRecovery } = await import('../server/gateways/inbox.ts');
   const { GatewayStateAdapter } = await import('../server/gateways/state.ts');
   const { GatewayFileProcessor } = await import('../server/gateways/files.ts');
   const { GatewayReplies } = await import('../server/gateways/replies.ts');
@@ -192,6 +192,12 @@ async function proof(): Promise<void> {
     assert.equal(JSON.stringify(inbox.list()), work); assert.equal(JSON.stringify(inbox.whatsAppRelayState()!.identities), mappings);
     assert.equal(inbox.whatsAppRelayState()!.cursor, 5); assert.equal(inbox.whatsAppRelayState()!.reviewedGaps!.length, 1); assert.equal(posts.length, 6);
     console.log('gateways: WhatsApp saved gap review survives restart and keeps prior work intact');
+    inbox.holdWhatsAppRelay('installation'); const heldWork = JSON.stringify(inbox.list());
+    const restoration = gatewayWhatsAppRecovery(instance.id).restoration!; await state.disconnect(); await state.connect();
+    assert.deepEqual(await restoreWhatsAppRecovery(inbox, { revision: restoration.revision, acknowledgeRestore: true }, check), { reason: null, gap: null });
+    assert.equal(JSON.stringify(inbox.list()), heldWork); assert.equal(JSON.stringify(inbox.whatsAppRelayState()!.identities), mappings);
+    assert.equal(inbox.whatsAppRelayState()!.cursor, 5); assert.equal(inbox.whatsAppRelayState()!.restorations!.length, 1); assert.equal(posts.length, 6);
+    console.log('gateways: WhatsApp original relay restoration preserves receipts and held work');
     saveGatewayInstance({ ...config, enabled: true }, instance.id);
     const heldRaw = fresh.replace('wamid.transport', 'wamid.dismiss'); const heldBase64 = Buffer.from(heldRaw).toString('base64');
     await intake.receive(epoch, { sequence: 6, id: crypto.createHash('sha256').update(heldBase64).digest('hex'), receivedAt: Date.now(), expiresAt: Date.now() + 60000,

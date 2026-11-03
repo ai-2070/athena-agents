@@ -23,7 +23,7 @@ beforeEach(() => {
     if (url.endsWith('/whatsapp-pairing') || url.endsWith('/whatsapp-pairing/finish')) setup = { paired: true, pending: null, recoveryRequired: false };
     if (url.endsWith('/whatsapp-pairing/review')) setup = { paired: false, pending: null, recoveryRequired: false };
     if (url.endsWith('/whatsapp-recovery/inspect')) { recovery = { reason: 'gap', gap: { at: 1700000000000, revision: 'b'.repeat(64) } }; setup.recoveryRequired = true; }
-    if (url.endsWith('/whatsapp-recovery')) { recovery = { reason: null, gap: null }; setup.recoveryRequired = false; }
+    if (url.endsWith('/whatsapp-recovery') || url.endsWith('/whatsapp-recovery/restore')) { recovery = { reason: null, gap: null }; setup.recoveryRequired = false; }
     return new Response(JSON.stringify(setup));
   });
 });
@@ -70,8 +70,26 @@ it('saves a gap observation and then confirms the exact revision without calling
   expect(calls.filter((item) => item.method === 'POST').map((item) => item.url)).toEqual(['/api/gateways/g1/whatsapp-recovery/inspect', '/api/gateways/g1/whatsapp-recovery']);
   expect(calls.find((item) => item.url.endsWith('/whatsapp-recovery') && item.method === 'POST')?.body).toEqual({ revision: 'b'.repeat(64), acknowledgeGap: true });
 });
-it('keeps non-gap holds blocked and explains restoration rather than offering a reset', async () => {
-  setup.paired = true; recovery.reason = 'installation'; await open(); expect(button('Check relay gap')).toBeUndefined(); expect(host.textContent).toContain('Restore the saved pairing');
+it('confirms an exact restoration review while keeping gap and replacement controls separate', async () => {
+  setup.paired = true; recovery = { reason: 'installation', gap: null, restoration: { at: 1700000000000, revision: 'd'.repeat(64) } }; await open();
+  expect(button('Check relay gap')).toBeUndefined(); expect(host.textContent).toContain('Restore the saved relay'); expect(calls.filter((item) => item.method === 'POST')).toEqual([]);
+  await click('Check restored relay'); await settle(); expect(document.querySelector('.modal')?.textContent).toContain('does not pair a new relay');
+  expect(button('Check setup').textContent).toBe('Check setup'); expect(button('Check setup').disabled).toBe(true);
+  await click('Check restored relay', document.querySelector('.modal')!); await settle();
+  expect(calls.filter((item) => item.method === 'POST')).toEqual([{ url: '/api/gateways/g1/whatsapp-recovery/restore', method: 'POST', body: { revision: 'd'.repeat(64), acknowledgeRestore: true } }]);
+  expect(host.querySelector('[role="status"]')?.textContent).toContain('instance stays paused'); expect(button('Enable')).toBeUndefined();
+});
+it('preserves the restoration hold and shows a reloadable error when the original relay does not match', async () => {
+  setup.paired = true; recovery = { reason: 'epoch', gap: null, restoration: { at: 1700000000000, revision: 'd'.repeat(64) } }; fail = 'The relay no longer matches'; await open();
+  await click('Check restored relay'); await settle(); await click('Check restored relay', document.querySelector('.modal')!); await settle();
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('no longer matches'); expect(button('Check restored relay')).toBeDefined(); expect(host.textContent).not.toContain('Connection hold cleared');
+});
+it('requires pause for restoration and makes no request after its confirmation is cancelled or closed', async () => {
+  setup.paired = true; recovery = { reason: 'cursor', gap: null, restoration: { at: 1700000000000, revision: 'd'.repeat(64) } }; await open(true);
+  expect(button('Check restored relay').disabled).toBe(true); act(() => unmount()); await open();
+  await click('Check restored relay'); await settle(); await click('Cancel', document.querySelector('.modal')!); await settle(); expect(calls.filter((item) => item.method === 'POST')).toEqual([]);
+  const restore = button('Check restored relay'); await act(async () => { restore.click(); restore.click(); }); await settle(); act(() => unmount());
+  await click('Check restored relay', document.querySelector('.modal')!); await settle(); expect(calls.filter((item) => item.method === 'POST')).toEqual([]);
 });
 it('does not pair after navigation closes the confirmation', async () => {
   await open(); await form(); await click('Pair relay'); await settle(); act(() => unmount()); await click('Pair relay', document.querySelector('.modal')!); await settle(); expect(calls.filter((item) => item.method === 'POST')).toHaveLength(0);
