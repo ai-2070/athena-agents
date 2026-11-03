@@ -1,0 +1,22 @@
+docs/internal/plans/MOBILE_APP_2026-11-03.md
+  s_621928bfe3ed86::t_b56715edf86d59 110
+  s_621928bfe3ed86::t_a72421dcf2a730 1-109,111-221
+docs/internal/plans/REMOTE_APP_PLAN.md
+  s_621928bfe3ed86::t_1d4072a417f200 122-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "34e9b4ccb0405b8c54dc10e9bff11626691cac8a",
+  "prompts": {},
+  "sessions": {
+    "s_621928bfe3ed86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fa96b5e-86f6-4f27-adf2-5bb9ca1fe743",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
