@@ -118,7 +118,7 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 
 ## Overview
 
-**Overview** in the sidebar shows every project at once. Each project lists its agents, its teams, the Brain, its terminals and the board tasks an agent or team works on. Each one shows how it's doing: a small breathing dot while it works, and an amber **!** when it needs you. That means an approval, a question it asked you, or work that stopped and waits for you; point at the **!** to see which.
+**Overview** shows every project at once. It isn't in the sidebar for now: open it by going to `#/overview` in the address bar. Each project lists its agents, its teams, the Brain, its terminals and the board tasks an agent or team works on. Each one shows how it's doing: a small breathing dot while it works, and an amber **!** when it needs you. That means an approval, a question it asked you, or work that stopped and waits for you; point at the **!** to see which.
 
 - **Show** picks **This project**, **All projects** or one project. **Sort** puts the ones that need you first (the default), or orders them by last update, by kind, by name, or in **Your order**: then drag them up and down within their project.
 - The star next to one pins it to the top of its project. Click a project's name to fold it. **Search** narrows the list by name.

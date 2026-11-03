@@ -66,7 +66,6 @@ interface NavLink extends Route {
 // The menu stays short. Other pages still open from links (branch editor, terminals, home).
 const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
-  { path: 'overview', label: 'Overview', ico: 'layout-grid', view: overviewView },
   { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => (state.data?.outboxPending || 0) + (state.data?.questions?.length || 0) },
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
   { path: 'tasks', label: 'Tasks', ico: 'kanban', view: tasksView },
@@ -79,6 +78,8 @@ const NAV: NavLink[] = [
 ];
 const HIDDEN: Route[] = [
   { path: 'home', label: 'Home', view: home },
+  // (out of the menu for now; #/overview still opens it)
+  { path: 'overview', label: 'Overview', view: overviewView },
   { path: 'workflows', label: 'Team editor', view: workflows },
   { path: 'programs', label: 'Programs', view: programs },
   { path: 'mcp', label: 'MCP servers', view: mcp },
