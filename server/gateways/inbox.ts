@@ -17,6 +17,7 @@ import { whatsAppIdentitiesSchema, whatsAppIdentityAllowed, whatsAppSenderKey } 
 import { whatsAppRelayConnectionSchema } from '../../shared/gateway-whatsapp-relay.ts';
 import { completedGatewayDelivery, deliveryEntries, deliveryReview, deliveryTargetKey } from './delivery-review.ts';
 import { gatewayBindingRoot, gatewayWorkUnfinished, latestWorkReview, workBindingId, workReceiptsValid, workReview } from './work-review.ts';
+import { gatewayOutboxProtectedBindings } from './outbox.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -490,6 +491,19 @@ export class GatewayInbox {
     return this.sources(journal, event);
   }
 
+  /** An approved follow-up uses a real, completed source, never a model-supplied address. */
+  outboxSource(eventId: string, projectId: string): GatewayInboxEvent {
+    const journal = this.read(); const event = journal.events.find((item) => item.id === eventId);
+    if (!event || event.route.projectId !== projectId || event.input.kind !== 'message' || event.status !== 'done'
+      || event.dismissed || event.album?.leaderId && event.album.leaderId !== event.id
+      || !event.reply?.parts.every((part) => part.status === 'sent')
+      || event.outgoing?.some((file) => !['sent', 'skipped'].includes(file.status)) || this.sourceChanged(journal, event)) {
+      throw new Error('Choose a completed gateway conversation with confirmed delivery and unchanged source messages.');
+    }
+    for (const source of this.sources(journal, event)) this.checkAccess(source);
+    return event;
+  }
+
   /** Detect source changes during asynchronous transport checks without overriding an explicit retry. */
   deliveryVersion(eventId: string): string {
     const journal = this.read(); const event = journal.events.find((item) => item.id === eventId);
@@ -509,6 +523,8 @@ export class GatewayInbox {
     if (before > Date.now() || new Set(eventIds).size !== eventIds.length) throw new GatewayCleanupError('Choose a valid cleanup selection and date.');
     const journal = this.read(); const eligible = new Map(gatewayCleanupCandidates(journal.events, before).map((event) => [event.id, event]));
     if (eventIds.some((id) => !eligible.has(id))) throw new GatewayCleanupError('Some receipts are no longer eligible. Reload the inbox before cleaning up.');
+    const protectedBindings = gatewayOutboxProtectedBindings(this.state.instanceId);
+    if (eventIds.some((id) => protectedBindings.has(eligible.get(id)!.bindingId))) throw new GatewayCleanupError('Keep conversation receipts while an approved Outbox delivery is unresolved.');
     const selected = new Set(eventIds);
     if (eventIds.some((id) => { const item = eligible.get(id)!; const leader = item.album && eligible.get(item.album.leaderId); return item.album && (!leader?.album?.memberIds || leader.album.memberIds.some((member) => !selected.has(member))); })) throw new GatewayCleanupError('Remove a completed album’s receipts together.');
     if ((journal.retired?.length ?? 0) + eventIds.length > 100000) throw new GatewayCleanupError('The replay-protection store is full. Cleanup cannot remove its protection.');

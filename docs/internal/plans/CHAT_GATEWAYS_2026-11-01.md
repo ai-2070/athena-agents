@@ -846,9 +846,39 @@ New gateway data does not need a legacy compatibility layer.*
 - Validation: `CI=1 bun run check` passed (267 files; 2,650 tests passed, one skipped). The web
   build, desktop staging and bundled desktop smoke passed. No real account, provider call,
   native cancellation/admission, message or model call was used to exercise keeping work local.
-- Next: finish unified delivery/product controls and route existing Outbox intent through explicit
-  gateway instances and destinations. Deleted instances retain private inbox
-  receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks
+- Added the backend ledger for approved Telegram/Discord Outbox follow-ups, separate from native
+  inbox answers. Review binds an explicit instance, project, post, real completed source message
+  and exact bounded Unicode text parts to current credentials, sender access, scope and routing.
+  Review exposes recipient addresses and an opaque revision, without source text or credentials.
+  Changed review text or context requires a fresh review; repeated approval retains existing
+  receipts and cannot replace the recipient or resend confirmed parts.
+- Approved parts use the worker's exclusive state claim and serialized reply sender. Each part is
+  saved as sending before provider I/O. Confirmed IDs and provider retry times survive restart;
+  interrupted or unknown sends remain uncertain and do not retry automatically. A failed or held
+  delivery blocks later approved sends in that binding while unrelated conversations can proceed.
+  Instance, policy, source and credential changes hold unsent work, with another approval check
+  immediately before provider POST, including after Discord's asynchronous recipient checks.
+  Discord uses separate per-attempt Outbox nonces and retains its native claimed-reply guard.
+- Unresolved approved sends protect their real source binding from inbox cleanup. Completion
+  releases that protection but retains dedupe and confirmed delivery evidence. Private receipts
+  reject foreign instances, inconsistent ordering, changed approval text and duplicate post keys;
+  capacity and storage failures stop delivery rather than evicting evidence. Worker startup
+  recovers interrupted receipts before opening transport. No new native request or run is created.
+- Added local ledger and fake-provider adapter coverage for exact text/recipient review, partial
+  success, rate limits, failed/uncertain outcomes, restart, stale authorization, credential changes
+  during Discord preflight, unchanged native work, ordered bindings, cleanup and atomic saves.
+  This is backend groundwork: HTTP/tools do not yet enqueue these approved sends. The Outbox
+  recipient picker, approval/progress projection, paused delivery reconciliation and replacement
+  of old global-token helpers/Connections forms remain to implement. No real account or external
+  platform send was used; WhatsApp stays unavailable and Slack proactive sends are not enabled.
+- Validation: `CI=1 bun run check` passed (268 files; 2,670 tests passed, one skipped), followed
+  by the web build, desktop staging and bundled desktop smoke. An earlier full run hit the
+  existing kernel ownership-port collision in a saved-work fixture before it opened state;
+  the full rerun passed with the ownership guard unchanged.
+- Next: connect existing Outbox intent to this ledger with explicit gateway instances and reviewed
+  destinations, finish delivery/product controls, then remove the old one-way forms. Deleted
+  instances retain private inbox receipts for recovery; the full deletion flow for retired
+  instances is pending. Real-account checks
   on all four platforms and Windows/Linux verification remain outstanding. Offline checks run in CI.
 
 ## Goal

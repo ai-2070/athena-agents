@@ -24,6 +24,7 @@ import type { GatewayReplySender } from './replies.ts';
 import { selectGatewayDocuments } from './outgoing.ts';
 import type { GatewayFileSender } from './outgoing.ts';
 import { registerGatewayDeliverables } from './deliverables.ts';
+import { GatewayOutboxLedger } from './outbox.ts';
 
 export interface Transport {
   start(): Promise<void>;
@@ -48,7 +49,7 @@ function telegramTransport(state: GatewayStateAdapter, inbox: GatewayInbox, acti
   if (!botToken) throw new GatewaySetupError('Add a Telegram bot token before connecting.');
   const telegram = new TelegramIntakeAdapter(state.instanceId, inbox, botToken, activity, { signal });
   const chat = new Chat({ userName: 'Athena', adapters: { telegram }, state, logger: quiet, concurrency: 'concurrent' });
-  return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => telegram.isPolling, download: (id, maxBytes, signal) => telegram.downloadFileSource(id, maxBytes, signal), reply: (event, text, signal) => telegram.replyText(event, text, signal), upload: (event, file, signal) => telegram.replyDocument(event, file, signal) };
+  return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => telegram.isPolling, download: (id, maxBytes, signal) => telegram.downloadFileSource(id, maxBytes, signal), reply: (event, text, signal, approved) => telegram.replyText(event, text, signal, approved), upload: (event, file, signal) => telegram.replyDocument(event, file, signal) };
 }
 
 function slackTransport(state: GatewayStateAdapter, inbox: GatewayInbox, activity: (connected: boolean) => void, signal: AbortSignal): Transport {
@@ -124,6 +125,8 @@ export class GatewayWorker {
       const inbox = new GatewayInbox(state);
       this.inbox = inbox;
       inbox.recover();
+      const outbox = new GatewayOutboxLedger(state, inbox);
+      outbox.recover();
       const transport = (this.options.transport ?? (instance.platform === 'whatsapp' ? whatsAppTransport : instance.platform === 'discord' ? discordTransport : instance.platform === 'slack' ? slackTransport : telegramTransport))(state, inbox, (connected) => {
         if (!connected && (instance.platform === 'discord' || instance.platform === 'whatsapp')) abort.abort();
         this.publish(connected ? 'connected' : 'retrying', connected ? '' : 'This gateway could not receive messages. It will retry.');
@@ -139,7 +142,7 @@ export class GatewayWorker {
       if (transport.reply) {
         const execution = this.options.execution ?? gatewayExecution;
         if (transport.upload) this.releaseDeliverables = registerGatewayDeliverables(instance.id, inbox, abort.signal);
-        this.replies = new GatewayReplies(inbox, transport.reply, abort.signal, (event, kind) => kind !== 'approval' || execution.approvalPending?.(event) === true, transport.upload); this.replies.start();
+        this.replies = new GatewayReplies(inbox, transport.reply, abort.signal, (event, kind) => kind !== 'approval' || execution.approvalPending?.(event) === true, transport.upload, outbox); this.replies.start();
         this.dispatcher = new GatewayDispatcher(inbox, abort.signal, execution);
         await this.dispatcher.start();
       }

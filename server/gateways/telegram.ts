@@ -8,6 +8,7 @@ import { getGatewayInstance } from './instances.ts';
 import { gatewayInputAllowed, GatewayFileLimitError } from './inbox.ts';
 import type { GatewayInbox } from './inbox.ts';
 import { GatewaySendError } from './replies.ts';
+import type { GatewayApprovedTextSend } from './replies.ts';
 import { withGatewayRoute } from './instances.ts';
 import { requireTelegramSetupReviewed } from './telegram-setup.ts';
 
@@ -98,11 +99,13 @@ export class TelegramIntakeAdapter extends TelegramAdapter {
     return [];
   }
 
-  async replyText(event: GatewayInboxEvent, text: string, signal: AbortSignal): Promise<string> {
+  async replyText(event: GatewayInboxEvent, text: string, signal: AbortSignal, approved?: GatewayApprovedTextSend): Promise<string> {
     const instance = getGatewayInstance(this.instanceId);
     if (event.route.instanceId !== this.instanceId || !gatewayInputAllowed(instance, event.input) || event.input.accountId !== this.botUserId) throw new GatewaySendError('failed');
     withGatewayRoute(event.route, () => {});
     if (!text || text.length > 3000 || !/^-?\d+$/.test(event.input.conversationId) || !/^\d+$/.test(event.input.sourceMessageId)) throw new GatewaySendError('failed');
+    try { approved?.authorize(event, text); }
+    catch { throw new GatewaySendError('failed'); }
     try {
       // Plain text avoids formatter expansion, truncation and fallback posts with ambiguous outcomes.
       const result = z.object({ message_id: z.number().int().positive(), chat: z.object({ id: z.number().int() }) }).parse(await this.telegramFetch('sendMessage', {

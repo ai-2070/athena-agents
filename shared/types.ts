@@ -347,6 +347,44 @@ export interface GatewayReplyPart {
   retryAt?: number;
 }
 
+/** Exact text and recipient reviewed for an approved Outbox send, separate from native replies. */
+export interface GatewayOutboxApproval {
+  instanceId: string;
+  projectId: string;
+  postId: string;
+  eventId: string;
+  parts: string[];
+  revision: string;
+}
+
+export interface GatewayOutboxPreview {
+  approval: GatewayOutboxApproval;
+  recipient: {
+    platform: 'telegram' | 'discord';
+    instanceName: string;
+    accountId: string;
+    conversationId: string;
+    threadId: string;
+    sourceMessageId: string;
+    sender: string;
+  };
+}
+
+/** Private receipt. Fingerprints bind approval to current access, credentials and saved input. */
+export interface GatewayOutboxDelivery extends GatewayOutboxApproval {
+  bindingId: string;
+  configHash: string;
+  sourceHash: string;
+  approvedAt: number;
+  receipts: GatewayReplyPart[];
+  held?: 'destination-changed';
+}
+
+export interface GatewayOutboxJournal {
+  version: 1;
+  deliveries: GatewayOutboxDelivery[];
+}
+
 export type GatewayDeliveryFailureReason = 'whatsapp-window' | 'whatsapp-file-type';
 export type GatewayDeliveryOutcome = { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number; reason?: GatewayDeliveryFailureReason };
 
