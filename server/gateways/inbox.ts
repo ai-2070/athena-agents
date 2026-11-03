@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, GatewayWhatsAppRelayConnection, UploadedFile } from '../../shared/types.ts';
+import type { GatewayDeliveryOutcome, GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, GatewayWhatsAppRelayConnection, UploadedFile } from '../../shared/types.ts';
 import { emit } from '../store.ts';
 import { readJSON, uid, writeJSON } from '../util.ts';
 import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
@@ -476,7 +476,7 @@ export class GatewayInbox {
     return null;
   }
 
-  settleOutgoing(eventId: string, index: number, outcome: { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number }): void {
+  settleOutgoing(eventId: string, index: number, outcome: GatewayDeliveryOutcome): void {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
     const file = event?.outgoing?.[index];
@@ -485,6 +485,8 @@ export class GatewayInbox {
     else {
       file.status = outcome.status; file.retryAt = outcome.retryAt;
       file.reason = outcome.status === 'uncertain' ? 'Delivery uncertain. Check the messaging app before explicitly retrying.' : outcome.status === 'failed' ? 'The file could not be sent. Check its location, contents and setup.' : 'The platform asked this file to wait before retrying.';
+      if (outcome.status === 'failed' && outcome.reason === 'whatsapp-window') file.reason = 'The WhatsApp reply window closed. Ask the sender to message again, then retry in Athena.';
+      if (outcome.status === 'failed' && outcome.reason === 'whatsapp-file-type') file.reason = 'WhatsApp can send PDF, plain text and Office documents here. Choose a supported file.';
       if (file.status === 'pending' && this.sourceChanged(journal, event!)) { file.status = 'failed'; file.reason = 'The source changed during delivery. Review it before explicitly retrying.'; }
     }
     this.commit(journal);
@@ -533,7 +535,7 @@ export class GatewayInbox {
     return null;
   }
 
-  settleNotice(eventId: string, kind: 'working' | 'approval', outcome: { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number }): void {
+  settleNotice(eventId: string, kind: 'working' | 'approval', outcome: GatewayDeliveryOutcome): void {
     const journal = this.read();
     const notice = journal.events.find((item) => item.id === eventId)?.notices?.[kind];
     if (!notice || notice.status !== 'sending') throw new Error('This gateway notice is no longer sending.');
@@ -542,7 +544,7 @@ export class GatewayInbox {
     this.commit(journal);
   }
 
-  settleReply(eventId: string, index: number, outcome: { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number }): void {
+  settleReply(eventId: string, index: number, outcome: GatewayDeliveryOutcome): void {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
     const part = event?.reply?.parts[index];
@@ -551,6 +553,7 @@ export class GatewayInbox {
     else {
       part.status = outcome.status; part.retryAt = outcome.retryAt;
       event!.reply!.reason = outcome.status === 'uncertain' ? 'Delivery uncertain. Check the messaging app before explicitly retrying.' : outcome.status === 'failed' ? 'The reply could not be sent. Check setup before retrying.' : 'The platform asked this reply to wait before retrying.';
+      if (outcome.status === 'failed' && outcome.reason === 'whatsapp-window') event!.reply!.reason = 'The WhatsApp reply window closed. Ask the sender to message again, then retry in Athena.';
       if (part.status === 'pending' && this.sourceChanged(journal, event!)) { part.status = 'failed'; event!.reply!.reason = 'The source changed during delivery. Review it before explicitly retrying.'; }
     }
     if (event!.reply!.parts.every((item) => item.status === 'sent')) delete event!.reply!.reason;

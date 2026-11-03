@@ -34,6 +34,10 @@ async function proof(): Promise<void> {
   const { GatewayInbox } = await import('../server/gateways/inbox.ts');
   const { GatewayStateAdapter } = await import('../server/gateways/state.ts');
   const { GatewayFileProcessor } = await import('../server/gateways/files.ts');
+  const { GatewayReplies } = await import('../server/gateways/replies.ts');
+  const { gatewayConversation } = await import('../server/gateways/conversations.ts');
+  const { selectGatewayDocuments } = await import('../server/gateways/outgoing.ts');
+  const { ensureBrain } = await import('../server/projects.ts');
   const { saveGatewayInstance, withGatewayRoute } = await import('../server/gateways/instances.ts');
   const { listProjects, saveProjects, setActiveProject } = await import('../server/store.ts');
   const { uploadsRoot } = await import('../server/uploads.ts');
@@ -48,10 +52,25 @@ async function proof(): Promise<void> {
   const state = new GatewayStateAdapter(instance.id); await state.connect(); const inbox = new GatewayInbox(state); const epoch = crypto.randomUUID();
   inbox.bindWhatsAppRelayConnection({ origin: 'https://relay.example', installationId: crypto.randomUUID(), businessAccountId: business, phoneNumberId: phone, epoch }, 0);
   let origin = ''; let downloads = 0; const errors: unknown[] = []; const calls: string[] = [];
-  const server = http.createServer((request, response) => {
+  const posts: Record<string, unknown>[] = [];
+  const server = http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? '/', 'http://fixture'); calls.push(url.pathname);
-      assert.equal(request.method, 'GET'); assert.equal(request.headers.authorization, `Bearer ${token}`);
+      assert.equal(request.headers.authorization, `Bearer ${token}`);
+      if (request.method === 'POST') {
+        const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk)); const bytes = Buffer.concat(chunks); let result: unknown;
+        if (url.pathname === `/v25.0/${phone}/media`) {
+          const form = await new Response(bytes, { headers: { 'content-type': request.headers['content-type']! } }).formData();
+          assert.equal(form.get('messaging_product'), 'whatsapp'); assert.equal(form.get('type'), 'text/plain'); assert.equal(await (form.get('file') as Blob).text(), 'Proof output');
+          posts.push({ upload: true }); result = { id: '9900000001' };
+        } else {
+          assert.equal(url.pathname, `/v25.0/${phone}/messages`); const body = JSON.parse(bytes.toString()) as Record<string, unknown>; posts.push(body);
+          assert.equal(body.to, actor); assert.deepEqual(body.context, { message_id: 'wamid.media' });
+          result = { messaging_product: 'whatsapp', contacts: [{ input: actor, wa_id: actor }], messages: [{ id: `wamid.out-${posts.length}` }] };
+        }
+        response.setHeader('content-type', 'application/json'); response.end(JSON.stringify(result)); return;
+      }
+      assert.equal(request.method, 'GET');
       let result: unknown;
       if (url.pathname === `/v25.0/${phone}`) result = { id: phone };
       else if (url.pathname === `/v25.0/${business}/phone_numbers`) result = { data: [{ id: phone }] };
@@ -65,11 +84,14 @@ async function proof(): Promise<void> {
   const adapter = new WhatsAppGatewayAdapter(instance.id, inbox, { businessAccountId: business, accessToken: token, appSecret }, { testOrigin: origin });
   const chat = new Chat({ userName: 'Athena', adapters: { whatsapp: adapter }, state, logger: quiet });
   const processor = new GatewayFileProcessor(instance.id, inbox, (...args) => adapter.downloadFileSource(...args), new AbortController().signal);
+  const signal = new AbortController().signal;
+  const replies = new GatewayReplies(inbox, (event, text, signal) => adapter.replyText(event, text, signal), signal, () => true,
+    (event, file, signal) => adapter.replyDocument(event, file, signal));
   try {
     await chat.initialize(); assert.equal(adapter.botUserId, phone); await processor.start();
     const second = { ...firstProject, id: 'whatsapp-proof-other', name: 'Other' }; saveProjects([...listProjects(), second]); setActiveProject(second.id);
     const raw = JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: business, changes: [{ field: 'messages', value: {
-      messaging_product: 'whatsapp', metadata: { phone_number_id: phone }, messages: [{ id: 'wamid.media', from: actor, timestamp: '1700000000', type: 'document',
+      messaging_product: 'whatsapp', metadata: { phone_number_id: phone }, messages: [{ id: 'wamid.media', from: actor, timestamp: String(Math.floor(Date.now() / 1000)), type: 'document',
         document: { id: fileId, mime_type: 'text/plain', filename: '../../proof.txt', sha256: Buffer.from(digest, 'hex').toString('base64') } }],
     } }] }] });
     const bodyBase64 = Buffer.from(raw).toString('base64');
@@ -87,8 +109,17 @@ async function proof(): Promise<void> {
     const count = calls.length; await assert.rejects(adapter.postMessage(adapter.encodeThreadId({ phoneNumberId: phone, userWaId: actor }), 'never'), /saved WhatsApp reply/);
     await assert.rejects(adapter.downloadMedia(fileId), /resend/); assert.equal(calls.length, count); assert.deepEqual(errors, []);
     console.log('gateways: WhatsApp SDK account checks, ACK-gated private media, signed hash and bound project pass');
+    const claimed = inbox.claimNext()!; inbox.beginDispatch(claimed.id, claimed.operationId!, await gatewayConversation(claimed, signal));
+    const selected = path.join(withGatewayRoute(event.route, ensureBrain), 'whatsapp-proof-result.txt'); fs.writeFileSync(selected, 'Proof output');
+    await selectGatewayDocuments(inbox, event.id, { paths: [selected] }, signal);
+    const answer = 'a'.repeat(2999) + '🧪' + 'b'.repeat(3500); inbox.finishDispatch(claimed.id, claimed.operationId!, answer);
+    await replies.wake();
+    assert.equal(posts.length, 5); assert.equal(posts.filter((post) => post.type === 'text').map((post) => (post.text as { body: string }).body).join(''), answer);
+    assert.deepEqual(posts[4].document, { id: '9900000001', filename: 'whatsapp-proof-result.txt' });
+    assert.ok(inbox.list()[0].reply!.parts.every((part) => part.status === 'sent')); assert.equal(inbox.list()[0].outgoing![0].status, 'sent');
+    assert.deepEqual(errors, []); console.log('gateways: WhatsApp service-window replies and selected document upload pass');
   } finally {
-    await processor.stop(); await adapter.disconnect(); await chat.shutdown(); await state.disconnect();
+    await replies.stop(); await processor.stop(); await adapter.disconnect(); await chat.shutdown(); await state.disconnect();
     server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }

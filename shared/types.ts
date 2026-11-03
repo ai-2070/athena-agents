@@ -257,6 +257,9 @@ export interface GatewayReplyPart {
   retryAt?: number;
 }
 
+export type GatewayDeliveryFailureReason = 'whatsapp-window' | 'whatsapp-file-type';
+export type GatewayDeliveryOutcome = { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number; reason?: GatewayDeliveryFailureReason };
+
 export interface GatewayIncomingFile {
   index: number;
   status: 'pending' | 'transferring' | 'saved' | 'failed';

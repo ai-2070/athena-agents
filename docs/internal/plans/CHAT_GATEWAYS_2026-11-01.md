@@ -113,7 +113,7 @@ New gateway data does not need a legacy compatibility layer.*
   | Telegram | Nonempty regular files as documents, including images/audio/video | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | No file captions, native media or albums. One SDK transport request and remote receipt per file, with a 30-second send timeout |
   | Slack | Hosted local uploads and explicitly selected regular output files | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Bounded private streaming downloads; one external-upload allocation, byte upload and completion per file, without SDK retry/fallback |
   | Discord | Private message attachments and selected regular output files | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Refreshed source-message CDN URLs and one multipart request per selected file; experimental supervised workers |
-  | WhatsApp | Not enabled in application transport | Pending live verification | Pending |
+  | WhatsApp | Guarded PDF, plain `.txt` and Office document uploads; application transport not enabled yet | At most 20 MiB per file and configured message/daily caps; live verification pending | One upload plus one contextual document message per file, with the 24-hour window checked before both. No captions, albums, native image/audio/video sends or template fallback |
 
   The application uses the SDK's Telegram multipart transport primitive directly for documents,
   avoiding formatter fallback, grouped sends and hidden retries that would obscure per-file outcomes.
@@ -504,7 +504,34 @@ New gateway data does not need a legacy compatibility layer.*
 - Validation: type checks and all 2,331 tests passed (one skipped) using CI's two-worker limit;
   desktop staging and smoke passed. The relay and dashboard were not deployed or connected to a
   real WhatsApp account. Application transport remains unavailable pending replies and setup.
-- Next: implement WhatsApp service-window replies/files, application transport wiring, pairing/setup
+- Added guarded WhatsApp text/notices and selected document delivery. Every call must match a saved
+  `sending` part/file/notice, original input and pinned route, with current sender/identity permission
+  and a confirmed same-account/contact message inside 24 hours. Activity from another sender,
+  unconfirmed receipts and old signed replays cannot refresh the window. The signed timestamp is
+  clamped to its first local receipt time. Long answers retain all plain text in the existing durable
+  part ledger; each part quotes the original message and disables previews. No automatic template,
+  formatter fallback or hidden split/send path is used.
+- Selected `.txt`, PDF and Office documents use the existing safe regular-file/root/hash proof,
+  one bounded multipart upload and one contextual document message. The 24-hour window, access,
+  source revision and claim are checked before upload and again before the final send. Expiry holds
+  the remaining work with a local request for a fresh message and explicit retry. No upload is
+  started for an unsupported file; no document is posted after a lost/invalid upload response.
+  A completed authorized upload may remain at Meta if a later access/window check refuses its send.
+  Per-file byte reservations and confirmed-prefix preservation remain in the shared delivery ledger.
+- Unknown message POST outcomes, malformed acknowledgements, mismatched recipients and ambiguous
+  responses remain uncertain for explicit review; only definite rate refusals return safe waits.
+  New adapters cannot reuse a pre-existing `sending` claim, and concurrent duplicate calls cannot
+  post that attempt twice. SDK public/default sends and template paths stay blocked. Public failure
+  reasons for expired windows and unsupported document types use fixed text, never provider details.
+- Local fixtures cover expiry between reply parts and during file upload, fresh-message recovery,
+  notices, future timestamps, original-project/recipient routing, selected-byte integrity, revoked
+  access, unsupported types, rate refusals, unknown sends and reconnect without a second POST. The
+  Bun/Node and bundled read-only proof now sends a full long reply followed by one selected document
+  through the saved ledger against the local Meta fixture; no real account or model is used.
+- Validation: full checks passed with CI's two-worker limit (2,360 tests, one skipped). After adding
+  the final held-assignment guard, type checks and 52 focused delivery/SDK/outgoing tests passed.
+  Desktop staging, the web build and desktop smoke passed. No service was deployed or real account used.
+- Next: implement WhatsApp application transport wiring, pairing/setup
   UI and explicit recovery controls. Then
   finish unified delivery and product controls. Read-only setup checks, native-work override controls
   and explicit webhook switching still need product setup. Deleted instances retain private inbox

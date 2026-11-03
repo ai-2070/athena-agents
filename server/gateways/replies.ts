@@ -1,4 +1,4 @@
-import type { GatewayInboxEvent, ServerEvent } from '../../shared/types.ts';
+import type { GatewayDeliveryFailureReason, GatewayDeliveryOutcome, GatewayInboxEvent, ServerEvent } from '../../shared/types.ts';
 import { bus } from '../store.ts';
 import type { GatewayInbox } from './inbox.ts';
 import type { GatewayFileSender } from './outgoing.ts';
@@ -6,9 +6,11 @@ import type { GatewayFileSender } from './outgoing.ts';
 export class GatewaySendError extends Error {
   readonly outcome: 'retry' | 'failed' | 'uncertain';
   readonly retryAfterMs: number;
-  constructor(outcome: 'retry' | 'failed' | 'uncertain', retryAfterMs = 1000) {
+  readonly reason?: GatewayDeliveryFailureReason;
+  constructor(outcome: 'retry' | 'failed' | 'uncertain', retryAfterMs = 1000, reason?: GatewayDeliveryFailureReason) {
     super('The gateway reply could not be confirmed.'); this.outcome = outcome;
     this.retryAfterMs = Number.isSafeInteger(retryAfterMs) && retryAfterMs >= 0 ? retryAfterMs : 1000;
+    this.reason = reason;
   }
 }
 export type GatewayReplySender = (event: GatewayInboxEvent, text: string, signal: AbortSignal) => Promise<string>;
@@ -53,7 +55,7 @@ export class GatewayReplies {
       const notice = claimed || upload ? null : this.inbox.claimNotice(this.noticeAllowed);
       if (!claimed && !upload && !notice) return;
       const event = claimed?.event ?? upload?.event ?? notice!.event;
-      const settle = (outcome: { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number }) => {
+      const settle = (outcome: GatewayDeliveryOutcome) => {
         if (claimed) this.inbox.settleReply(event.id, claimed.index, outcome);
         else if (upload) this.inbox.settleOutgoing(event.id, upload.index, outcome);
         else this.inbox.settleNotice(event.id, notice!.kind, outcome);
@@ -66,7 +68,7 @@ export class GatewayReplies {
       } catch (error) {
         const result = error instanceof GatewaySendError ? error : new GatewaySendError('uncertain');
         const retryAt = Math.min(Number.MAX_SAFE_INTEGER, Date.now() + Math.max(1000, result.retryAfterMs));
-        settle(result.outcome === 'retry' ? { status: 'pending', retryAt } : { status: result.outcome });
+        settle(result.outcome === 'retry' ? { status: 'pending', retryAt } : { status: result.outcome, ...(result.reason ? { reason: result.reason } : {}) });
       }
     }
   }

@@ -7,8 +7,9 @@ runtime runs here. SQLite-backed Durable Objects serialize queue changes across 
 This is the relay foundation. Athena cannot pair or enable WhatsApp yet. Local signature verification,
 exact phone guards, verified identity mappings and durable acknowledgement gates have offline
 integration proof. The local Chat SDK adapter also checks the configured Meta phone/business account
-and saves hash-verified private media. Replies, service-window checks, application transport wiring
-and Settings controls are the next pieces. Deploying this Worker does not enable a gateway.
+and saves hash-verified private media. Guarded replies and selected document uploads enforce the
+service window. Application transport wiring and Settings controls are the next pieces. Deploying
+this Worker does not enable a gateway.
 
 Each deployment serves **one Meta Business app and one business phone**. Use a separate deployment
 for each WhatsApp instance. An original webhook body may contain several entries; forwarding such a
@@ -175,6 +176,24 @@ with HTTPS, no credentials in URLs, no redirects and a 45-second transfer deadli
 origins are test-only constructor options. Current app limits can be lower than the provider limits:
 images cap at 5 MiB, audio/video at 16 MiB, documents at the app's 20 MiB. Failed/incomplete bytes
 stay unpublished and hold the assignment; retries keep the inbox's normal quota accounting.
+
+Outgoing replies use the saved delivery ledger and check current phone permission, identity and
+route before each request. A fresh confirmed user message for that same business phone/contact must
+exist within 24 hours; an old replay or an unconfirmed relay receipt cannot open the window. Signed
+timestamps are clamped to the first local receipt time so a future timestamp cannot extend it.
+Parts retain the full plain answer, quote the original message and disable link previews. Every
+part, advisory notice, document upload and final document send rechecks the window. Expiry asks for
+a new message and an explicit retry in Athena; no template fallback is attempted.
+
+Selected `.txt`, `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt` and `.pptx` files send as documents,
+with the app's existing regular-file/root/hash checks and 20 MiB ceiling (configured limits can be
+lower). There are no captions, albums or native image/audio/video sends. Each file gets a single
+multipart upload and then one contextual message with its returned media ID. If access or the
+window changes during upload, the document is not posted; an authorized private upload may remain
+at Meta under its own retention rules. Upload failures keep their quota charge and require explicit
+retry unless Meta confirms a rate refusal. Unknown message POST outcomes are marked uncertain and
+never resend automatically. HTTP 200 receipts must include one message ID and a matching recipient.
+SDK default sends stay blocked, and reconnecting cannot reuse an old `sending` claim.
 
 A consumer must claim a lease before pulling. A second claim, even with the same consumer UUID,
 is refused while the lease is active; pull/ack renew it. A lost claim response waits for lease expiry.
