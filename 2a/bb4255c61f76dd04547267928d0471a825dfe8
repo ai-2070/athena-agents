@@ -1,0 +1,44 @@
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_3241833db487f9 15,23
+server/gateways/discord.ts
+  s_3f5afab86a1bb3::t_3241833db487f9 334
+  s_3f5afab86a1bb3::t_d0a7688fd92859 240
+  s_3f5afab86a1bb3::t_cd68de1e115bb9 1,6,9,14-16,27,44-45,53,59,109-113,116-119,121-124,146-148,159,167-191,195,198,214,371-374
+  s_3f5afab86a1bb3::t_cb9e53f6bc5e49 51,218-239,241-333,335-351,358,362,375-379
+  s_3f5afab86a1bb3::t_b00990081c97b9 68
+docs/guide.md
+  s_3f5afab86a1bb3::t_3241833db487f9 455-457
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_cd68de1e115bb9 78,247-250
+  s_3f5afab86a1bb3::t_54267224df63c1 251-252,646
+scripts/gateways-discord-smoke.ts
+  s_3f5afab86a1bb3::t_3241833db487f9 1,41-45,53-54,56,58-80,87,90,123,127-128,134,150-166,169
+tests/server/gateway-discord.test.ts
+  s_3f5afab86a1bb3::t_d0a7688fd92859 352,354-355,357-359
+  s_3f5afab86a1bb3::t_e196521d29972c 3,16-19,37,45-46,49-63,65,67-72,85,91,118,263-350,360-421,423-432
+  s_3f5afab86a1bb3::t_3241833db487f9 422
+  s_3f5afab86a1bb3::t_5223b430027f52 351,353,356,433
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_3241833db487f9 114-115,333-341,344-364
+  s_3f5afab86a1bb3::t_fbe2ca04c28939 342-343
+README.md
+  s_3f5afab86a1bb3::t_3241833db487f9 244-246
+tests/server/gateway-inbox.test.ts
+  s_3f5afab86a1bb3::t_aad9306af58380 124-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2abb4255c61f76dd04547267928d0471a825dfe8",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
