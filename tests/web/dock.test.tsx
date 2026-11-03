@@ -51,6 +51,7 @@ beforeAll(() => {
       );
     if (url === '/api/brain/history') return json([]);
     if (url === '/api/workflows') return json([{ id: 't1', name: 'Thumbs', members: ['a1'], lead: 'a1', steps: [] }]);
+    if (url === '/api/task-board-people/p1') return json({ agents: [{ id: 'a1', name: 'Scout', emoji: '🔭' }], teams: [{ id: 't1', name: 'Thumbs' }] });
     return json({});
   });
   vi.stubGlobal('WebSocket', FakeSocket);
@@ -61,7 +62,9 @@ afterAll(() => vi.unstubAllGlobals());
 
 const panel = () => document.querySelector<HTMLElement>('.dock')!;
 const launcher = () => document.querySelector<HTMLButtonElement>('.bottom-bar .dock-launcher')!;
-const input = () => document.querySelector<HTMLTextAreaElement>('.dock-input')!;
+const input = () => document.querySelector<HTMLTextAreaElement>('textarea.dock-input')!;
+// the box you type in: the pill editor that takes the textarea's place (it shows @mentions as pills)
+const typing = () => document.querySelector<HTMLElement>('.dock-input[contenteditable="true"]')!;
 const enter = () => act(async () => void input().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
 
 describe('the Brain chat', () => {
@@ -84,7 +87,27 @@ describe('the Brain chat', () => {
     expect(offered.map((b) => b.textContent)).toEqual(['What is everyone working on?', 'Make me a social media team', 'Write PROJECT.md for this project']);
     await act(async () => offered[1].click());
     expect(input().value).toBe('Make me a social media team');
-    expect(document.activeElement).toBe(input());
+    expect(document.activeElement).toBe(typing());
+    // (leave the box as it was)
+    input().value = '';
+    await act(async () => void input().dispatchEvent(new Event('input', { bubbles: true })));
+    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
+    await settle();
+  });
+
+  it('offers the project\'s agents and teams for @, picks one with Enter rather than sending, and shows it as a pill', async () => {
+    await act(async () => launcher().click());
+    await settle();
+    const sent = calls.filter((c) => c.url === '/api/brain/stream').length;
+    input().value = 'Ask @Sc';
+    await act(async () => void input().dispatchEvent(new Event('input', { bubbles: true })));
+    await settle();
+    expect(document.body.textContent).toContain('Scout');
+    await enter();
+    await settle();
+    expect(input().value).toBe('Ask @Scout ');
+    expect(calls.filter((c) => c.url === '/api/brain/stream')).toHaveLength(sent);
+    expect(typing().querySelector('[data-mention="@Scout"]')).not.toBeNull();
     // (leave the box as it was)
     input().value = '';
     await act(async () => void input().dispatchEvent(new Event('input', { bubbles: true })));
@@ -222,7 +245,7 @@ describe('the Brain chat', () => {
     await act(async () => void edit.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     await settle();
     expect(texts()).toEqual(['first', 'second, changed']);
-    expect(document.activeElement).toBe(input());
+    expect(document.activeElement).toBe(typing());
     const last = document.querySelectorAll<HTMLButtonElement>('.dock-held .queued-text')[1];
     await act(async () => void last.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true })));
     await settle();

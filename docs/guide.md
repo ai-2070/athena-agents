@@ -85,7 +85,7 @@ To arrange the windows, use the **Arrange** button in a window's title bar or th
 - **Separate tabs** (**↑**): gives every tab a window of its own, all side by side. When they don't fit across, they go in rows.
 - **Combine all** (**↓**): puts every tab back into the window on top, on the chat you were in.
 
-Minimized windows come back when you arrange them. If Rectangle or Magnet is installed on your Mac, it takes **Ctrl+⌥** + arrows first; the Arrange button still works. A new chat opens in the window you used last, and the windows and their tabs are remembered in this browser. Type **@** in a chat to pick another agent. An agent with **Delegate** enabled can hand that agent part of the work. Handing off doesn't make it wait: the other agent starts at once, so an agent can hand out several tasks side by side and collect each answer when it's ready, however long the work takes.
+Minimized windows come back when you arrange them. If Rectangle or Magnet is installed on your Mac, it takes **Ctrl+⌥** + arrows first; the Arrange button still works. A new chat opens in the window you used last, and the windows and their tabs are remembered in this browser. Type **@** in a chat to pick another agent; it shows as a pill while you write (Backspace takes the whole pill away). In the Brain chat, **@** offers the project's agents, teams and skills. An agent with **Delegate** enabled can hand that agent part of the work. Handing off doesn't make it wait: the other agent starts at once, so an agent can hand out several tasks side by side and collect each answer when it's ready, however long the work takes.
 
 Type **/** in an agent, team or Brain chat to see the commands. They work while the agent is busy:
 

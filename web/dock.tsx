@@ -3,6 +3,8 @@
 // The chat's state and what it does (sending, /queue, /loop, live events) live here in the module;
 // React draws it (draw() asks for a redraw, at most once a frame).
 import { StrictMode, Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useMentionBox, useMentionables } from './taskboard.tsx';
+import { mentionMenuOpen } from './routinemention.ts';
 import { createPortal, flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { h, state, GET, POST, attempt, md, onEvent, onState, navigate, refreshSoon, toast, confirmBox } from './core.ts';
@@ -825,6 +827,9 @@ function DockView({ bar }: { bar: HTMLElement }) {
   // the queued message being changed (its id)
   const [editing, setEditing] = useState<string | null>(null);
 
+  // @ an agent, a team or a skill of this project: a menu, and pills while you write (as in tasks and routines)
+  useMentionBox(input, useMentionables(data?.project?.id || ''));
+
   // the box: the / menu, long pastes, Enter to send; files dropped anywhere on the chat
   useLayoutEffect(() => {
     const box = input.current!;
@@ -838,7 +843,8 @@ function DockView({ bar }: { bar: HTMLElement }) {
       if (!!box.value.trim() !== drawnFilled) draw();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (slash.key(e)) return;
+      // (while the @ menu is open, its keys are its own: Enter or Tab picks a name)
+      if (mentionMenuOpen(box) || slash.key(e)) return;
       // Up in an empty box: change the last queued message
       const waiting = held.items();
       if (e.key === 'ArrowUp' && !box.value && waiting.length && !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {

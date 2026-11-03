@@ -25,6 +25,7 @@ import { Button } from '../ui/button.tsx';
 import { estimateHeight, messageSig } from './estimate.ts';
 import { chatTransport } from './transport.ts';
 import { agentMentions, insertMention } from './mention.ts';
+import { attachMentionEditor } from './mentioneditor.ts';
 import type { MentionAgent } from './mention.ts';
 import { agentRef } from '../../shared/agentref.ts';
 import { queuedText } from '../../shared/queue.ts';
@@ -522,6 +523,14 @@ export function ChatView(p: ChatViewProps) {
     return true;
   };
   const others = app?.agents || [];
+  // @ mentions of other agents show as pills while you write, as in team chats
+  const othersRef = useRef(others);
+  othersRef.current = others;
+  useEffect(() => {
+    const box = input.current;
+    if (!box) return;
+    return attachMentionEditor(box, () => othersRef.current.filter((a) => a.id !== agent.id && a.name.trim()).map((a) => `@${agentRef(a, othersRef.current)}`));
+  }, [agent.id]);
   // (it can only hand work on with ask_agent, which the Delegate tools give it)
   const canDelegate = !!others.find((a) => a.id === agent.id)?.toolGroups?.includes('agents');
   const lookForMention = () => {
@@ -589,8 +598,18 @@ export function ChatView(p: ChatViewProps) {
   const doing = lastPart?.type === 'dynamic-tool' && lastPart.state !== 'output-available' && lastPart.state !== 'output-error' ? `Using ${lastPart.toolName}…` : lastPart?.type === 'text' ? 'Writing…' : '';
   const generic = !statusText || /^(Thinking|Working)…$/.test(statusText);
   const statusLine = (approvals.length && busy ? `Waiting for you: ${approvals[0].title}` : '') || (generic && doing) || statusText || (busy ? 'Working…' : '');
+  // (click, keyup and blur are read on the box around it: the pill editor that takes the textarea's place gets them)
   const composer = (
-    <div className="relative flex min-w-0 flex-1">
+    <div
+      className="relative flex min-w-0 flex-1"
+      onClick={lookForMention}
+      onKeyUp={(e) => {
+        if (/^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) lookForMention();
+      }}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) (setMention(null), setSlash(null));
+      }}
+    >
       <textarea
         ref={input}
         className={variant === 'mini' ? 'max-h-50 min-h-11.5 flex-1 resize-none' : `dock-input w-full ${COMPOSER_TEXT}`}
@@ -618,11 +637,6 @@ export function ChatView(p: ChatViewProps) {
           t.style.height = 'auto';
           t.style.height = `${t.scrollHeight + 2}px`;
         }}
-        onClick={lookForMention}
-        onKeyUp={(e) => {
-          if (/^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) lookForMention();
-        }}
-        onBlur={() => (setMention(null), setSlash(null))}
       />
       {slash ? (
         <div className="tc-suggest slash-menu" role="listbox">

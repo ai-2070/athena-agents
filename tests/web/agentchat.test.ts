@@ -22,8 +22,29 @@ describe('renderAgentChat()', () => {
     const tab = renderAgentChat(el, 'a1');
     // (what chatwin.ts does a moment after opening a tab: the chat is still loading)
     tab.focus();
-    for (let i = 0; i < 100 && document.activeElement?.tagName !== 'TEXTAREA'; i++) await settle();
-    expect(document.activeElement).toBe(el.querySelector('textarea'));
+    // (the box you type in is the pill editor that takes the textarea's place)
+    const box = () => el.querySelector('[role="textbox"][contenteditable="true"]');
+    for (let i = 0; i < 100 && (!box() || document.activeElement !== box()); i++) await settle();
+    expect(document.activeElement).toBe(box());
+    tab.destroy();
+  });
+});
+
+describe('the agent chat box', () => {
+  it('shows an @mention of another agent as a pill, not the agent it talks to', async () => {
+    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }, { id: 'a2', name: 'Writer', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
+    vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(url === '/api/agents/a1/chats' ? [] : {}), { headers: { 'content-type': 'application/json' } }));
+    const el = document.createElement('div');
+    document.body.append(el);
+    const tab = renderAgentChat(el, 'a1');
+    for (let i = 0; i < 100 && !el.querySelector('[role="textbox"][contenteditable="true"]'); i++) await settle();
+    const box = el.querySelector<HTMLTextAreaElement>('textarea')!;
+    await act(async () => {
+      box.value = 'Ask @Writer and @Scout';
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const editor = el.querySelector<HTMLElement>('[role="textbox"][contenteditable="true"]')!;
+    expect([...editor.querySelectorAll('[data-mention]')].map((p) => p.getAttribute('data-mention'))).toEqual(['@Writer']);
     tab.destroy();
   });
 });

@@ -34,6 +34,9 @@ let menu: MenuState | null = null;
 let nextMenuId = 0;
 const mentionAria = ['aria-autocomplete', 'aria-controls', 'aria-activedescendant'] as const;
 
+/** True while the @ menu is open for this box: its arrows, Enter, Tab and Escape are the menu's. */
+export const mentionMenuOpen = (ta: HTMLTextAreaElement): boolean => menu?.ta === ta;
+
 export function closeMenu(): void {
   const current = menu;
   menu = null;
