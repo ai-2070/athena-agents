@@ -1,0 +1,20 @@
+docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md
+  s_d3db9ebe8d99bd::t_b6fc9038fd3bd3 1-150,156,168-222
+  s_d3db9ebe8d99bd::t_ba4c5b4e12b4ce 151-155,157-167,223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7d1f5ced35355e6a8f7f40801662b29048670159",
+  "prompts": {},
+  "sessions": {
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
