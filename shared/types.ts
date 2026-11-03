@@ -169,6 +169,8 @@ export interface GatewayInboxEvent {
   receivedAt: number;
   relay?: GatewayWhatsAppReceipt & { confirmed: boolean };
   dismissed?: { at: number; revision: string };
+  deliveryFinished?: { at: number; revision: string };
+  deliveryReviews?: ({ at: number; revision: string; action: 'confirmed'; target: GatewayDeliveryTarget; remoteId: string; previousRemoteId?: string } | { at: number; revision: string; action: 'finish-local' })[];
   status: 'queued' | 'waiting-files' | 'running' | 'done' | 'needs-review';
   operationId?: string;
   reason?: string;
@@ -187,6 +189,18 @@ export interface GatewayRequestReview {
   revision: string;
   canDismiss: boolean;
   reason: string;
+}
+
+export type GatewayDeliveryTarget = { kind: 'text' | 'file'; index: number } | { kind: 'notice'; notice: 'working' | 'approval' };
+
+export interface GatewayDeliveryReview {
+  revision: string;
+  reason: string;
+  canFinish: boolean;
+  needsPrepare: boolean;
+  closedAt?: number;
+  source: { platform: GatewayPlatform; actor: string; conversationId: string; threadId: string; messageId: string; projectId: string; target: GatewayTarget };
+  items: { target: GatewayDeliveryTarget; label: string; text?: string; status: GatewayOutgoingFile['status']; remoteId?: string; canConfirm: boolean; confirmedAt?: number }[];
 }
 
 /** Local receipt only; raw webhook bodies and relay keys never enter the application inbox. */

@@ -745,6 +745,35 @@ New gateway data does not need a legacy compatibility layer.*
 - Validation: `CI=1 bun run check` passed (261 files; 2,575 tests passed, one skipped). The web
   build, desktop staging and bundled desktop smoke passed. No real account, deployment, provider
   message or model call was used to exercise sender review.
+- Paused delivery review now records an operator-confirmed remote message/file ID for one attempted
+  uncertain text part, outgoing file or advisory notice. The review is bound to the exact event,
+  target and current journal/configuration revision. Pending, failed, unattempted and already sent
+  parts cannot be promoted. Native work must already have a completed saved answer; no provider or
+  model call is made. Local review remains possible after sender permission or relay changes.
+- An explicit **Finish delivery locally** action permanently closes the remaining delivery while
+  preserving original statuses, uncertainty, confirmed parts, native IDs and byte reservations.
+  Closed receipts cannot retry, select or skip files, send notices, or reopen delivery. Schedulers
+  let later messages continue in the binding after other holds are resolved. Source changes and
+  restart recovery keep closed evidence intact. Normal cleanup retains replay and quota markers.
+- **Review delivery** in the inbox opens a dedicated Settings section using the existing shared
+  controls, showing the original source, pinned destination and per-item receipts. Interrupted
+  sends require an explicit local recovery action for the selected completed answer; GET stays
+  read-only. Both recovery and review drain the worker and take exclusive account/state ownership
+  while paused, including unavailable WhatsApp, without constructing a transport.
+- The offline WhatsApp media proof now records an old
+  sender's uncertain delivery locally, closes a new saved answer, survives restart and checks that
+  provider calls, native work and delivery evidence are unchanged. WhatsApp remains unavailable.
+- A scoped finish reviewer approved the delivery panel and both confirmations in eleven
+  light/dark desktop/mobile captures, with no blocking findings. Six Tab presses stayed in the
+  local-finish confirmation and Escape closed it. Only isolated synthetic state was used and
+  removed; both browser submissions were cancelled. DOM tests supply the empty/error/success,
+  stale review and closed-state evidence; no real-provider correctness claim is made.
+- Validation: `CI=1 bun run check` passed (263 files; 2,603 tests passed, one skipped). The web
+  build, desktop staging and bundled desktop smoke passed. An earlier full run hit an ownership-port
+  collision in the isolated Bun proof; its focused rerun passed without changing ownership guards.
+  A later full run was interrupted by confirmed system sleep and timed out across unrelated suites;
+  a fresh complete run with idle-sleep prevention passed. No real account, deployment, provider
+  message or model call was used to exercise delivery review.
 - Next: finish unified delivery/product controls. Native-work
   override controls and explicit webhook switching still need product
   setup. Deleted instances retain private inbox

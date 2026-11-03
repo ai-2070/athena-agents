@@ -69,6 +69,13 @@ it('requires pause and hides dismissal when any native operation is reserved', a
   events[0].operationId = 'reserved-operation'; await open(false); expect(button('Dismiss request')).toBeUndefined(); expect(writes).toHaveLength(0);
 });
 
+it('keeps locally finished statuses as evidence and hides all retry and file selection controls', async () => {
+  events = [{ ...event(), deliveryFinished: { at: 1700000000000, revision: 'a'.repeat(64) } }];
+  await open(false); await all(); expect(gatewayMessageStatus(events[0])).toBe('Finished locally');
+  expect(host.textContent).toContain('Earlier statuses stay as evidence'); expect(button('Review delivery')).toBeDefined();
+  expect(button('Retry remaining reply')).toBeUndefined(); expect(button('Send selected files')).toBeUndefined();
+});
+
 it('reports a blocked dismissal preview and never opens a confirmation or starts work', async () => {
   events = [held()]; refuse = true; await open(false); await click('Dismiss request'); await settle();
   expect(host.textContent).toContain('Wait for the relay acknowledgement.'); expect(document.querySelector('.modal')).toBeNull(); expect(writes).toHaveLength(0);

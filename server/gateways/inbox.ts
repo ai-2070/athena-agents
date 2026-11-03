@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { GatewayDeliveryOutcome, GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayRequestReview, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, GatewayWhatsAppRecovery, GatewayWhatsAppRelayConnection, GatewayWhatsAppRelayStatus, GatewayWhatsAppReplacement, GatewayWhatsAppSenders, UploadedFile } from '../../shared/types.ts';
+import type { GatewayDeliveryOutcome, GatewayDeliveryReview, GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayRequestReview, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, GatewayWhatsAppRecovery, GatewayWhatsAppRelayConnection, GatewayWhatsAppRelayStatus, GatewayWhatsAppReplacement, GatewayWhatsAppSenders, UploadedFile } from '../../shared/types.ts';
 import { emit, getGatewaySecrets } from '../store.ts';
 import { readJSON, uid, writeJSON } from '../util.ts';
 import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
@@ -15,6 +15,7 @@ import { discordId } from '../../shared/gateway-discord.ts';
 import { canonicalWhatsAppPhone } from '../../shared/gateway-whatsapp.ts';
 import { whatsAppIdentitiesSchema, whatsAppIdentityAllowed, whatsAppSenderKey } from './whatsapp-identities.ts';
 import { whatsAppRelayConnectionSchema } from '../../shared/gateway-whatsapp-relay.ts';
+import { completedGatewayDelivery, deliveryEntries, deliveryReview, deliveryTargetKey } from './delivery-review.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -54,6 +55,11 @@ const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
   })).max(10),
 });
 const replyPart = z.strictObject({ text: z.string().min(1).max(3000), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed']), attempts: stamp, remoteId: externalId.optional(), retryAt: stamp.optional() });
+const deliveryTarget = z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('text'), index: stamp.max(1999) }), z.strictObject({ kind: z.literal('file'), index: stamp.max(9) }), z.strictObject({ kind: z.literal('notice'), notice: z.enum(['working', 'approval']) })]);
+const deliveryAudit = z.discriminatedUnion('action', [
+  z.strictObject({ action: z.literal('confirmed'), at: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/), target: deliveryTarget, remoteId: externalId, previousRemoteId: externalId.optional() }),
+  z.strictObject({ action: z.literal('finish-local'), at: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/) }),
+]);
 const whatsAppStateSchema: z.ZodType<GatewayWhatsAppIntakeState> = z.strictObject({ epoch: z.uuid(), cursor: stamp, startedAt: stamp.optional(), receipt: intakeReceipt.optional(), identities: whatsAppIdentitiesSchema.optional(),
     senderReviews: z.array(z.strictObject({ at: stamp, throughSequence: stamp, phone: z.string().refine(canonicalWhatsAppPhone), identityKey: z.string().regex(/^[a-f0-9]{64}$/), revision: z.string().regex(/^[a-f0-9]{64}$/) })).min(1).max(1000).optional(),
     connection: whatsAppRelayConnectionSchema.optional(), recovery: relayRecovery.optional(),
@@ -72,6 +78,8 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
     id: externalId, bindingId: externalId, route, input: inboundSchema, sequence: stamp.positive(), receivedAt: stamp,
     relay: relayReceipt.extend({ confirmed: z.boolean() }).optional(),
     dismissed: z.strictObject({ at: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/) }).optional(),
+    deliveryFinished: z.strictObject({ at: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/) }).optional(),
+    deliveryReviews: z.array(deliveryAudit).min(1).max(3000).optional(),
     status: z.enum(['queued', 'waiting-files', 'running', 'done', 'needs-review']), operationId: externalId.optional(), reason: z.string().optional(),
     fileBatch: z.string().regex(/^[\w-]{1,64}$/).optional(),
     dispatch: dispatchSchema.optional(),
@@ -87,7 +95,11 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
       file: z.strictObject({ path: z.string(), top: z.string(), kind: z.enum(['file', 'folder']), name: z.string(), size: stamp }).optional(),
       sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(), reason: z.string().optional(),
     })).optional(),
-  }).refine((event) => !event.dismissed || (event.status === 'needs-review' && gatewayRequestUnstarted(event) && !event.files?.some((file) => file.status === 'transferring')))),
+  }).refine((event) => (!event.dismissed || (event.status === 'needs-review' && gatewayRequestUnstarted(event) && !event.files?.some((file) => file.status === 'transferring')))
+    && (!event.deliveryFinished || (completedGatewayDelivery(event) && event.deliveryReviews?.at(-1)?.action === 'finish-local'
+      && event.deliveryReviews.at(-1)?.revision === event.deliveryFinished.revision && event.deliveryReviews.at(-1)?.at === event.deliveryFinished.at && !deliveryEntries(event).some((item) => item.value.status === 'sending')))
+    && (!event.deliveryReviews || (new Set(event.deliveryReviews.map((review) => review.revision)).size === event.deliveryReviews.length
+      && event.deliveryReviews.every((review) => review.action === 'finish-local' ? Boolean(event.deliveryFinished && review.revision === event.deliveryFinished.revision) : deliveryEntries(event).some((item) => deliveryTargetKey(item.target) === deliveryTargetKey(review.target) && item.value.status === 'sent' && item.value.remoteId === review.remoteId)))))),
 });
 const digest = (parts: (string | number)[]): string => crypto.createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 function saveAnswer(event: GatewayInboxEvent, answer: string): void {
@@ -255,6 +267,11 @@ export function gatewayWhatsAppReplacement(instanceId: string): GatewayWhatsAppR
 export function gatewayWhatsAppSenders(instanceId: string): GatewayWhatsAppSenders {
   return whatsAppSendersView(getGatewayInstance(instanceId), savedGatewayInbox(instanceId));
 }
+export function gatewayDeliveryReview(instanceId: string, eventId: string): GatewayDeliveryReview {
+  const instance = getGatewayInstance(instanceId); const journal = savedGatewayInbox(instanceId); const event = journal?.events.find((item) => item.id === eventId);
+  if (!journal || !event) throw Object.assign(new Error('No such saved gateway delivery.'), { status: 404 });
+  return deliveryReview(instance, event, digest([gatewayInboxRevision(instance, journal), event.id]));
+}
 export function gatewayRequestReview(instanceId: string, eventId: string): GatewayRequestReview {
   const instance = getGatewayInstance(instanceId); const journal = savedGatewayInbox(instanceId);
   if (!journal) throw Object.assign(new Error('No such saved gateway message.'), { status: 404 });
@@ -348,6 +365,41 @@ export class GatewayInbox {
 
   list(): GatewayInboxEvent[] { return this.read().events; }
 
+  prepareDeliveryReview(eventId: string): GatewayDeliveryReview {
+    const instance = getGatewayInstance(this.state.instanceId); const event = this.read().events.find((item) => item.id === eventId);
+    if (instance.enabled) throw Object.assign(new Error('Pause this gateway before recovering interrupted delivery receipts.'), { status: 400 });
+    if (!event || !completedGatewayDelivery(event) || event.deliveryFinished) throw Object.assign(new Error('Only an open delivery for a completed saved answer can be recovered.'), { status: 409 });
+    this.recover(eventId); return gatewayDeliveryReview(instance.id, eventId);
+  }
+
+  reviewDelivery(eventId: string, body: unknown): GatewayDeliveryReview {
+    const parsed = z.discriminatedUnion('action', [
+      z.strictObject({ action: z.literal('confirm'), revision: z.string().regex(/^[a-f0-9]{64}$/), target: deliveryTarget, remoteId: z.string().trim().min(1).max(500).refine((value) => !/\s/.test(value)), acknowledgeChecked: z.literal(true) }),
+      z.strictObject({ action: z.literal('finish-local'), revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeNoSend: z.literal(true) }),
+    ]).safeParse(body);
+    const journal = this.read(); const instance = getGatewayInstance(this.state.instanceId); const event = journal.events.find((item) => item.id === eventId);
+    if (!event) throw Object.assign(new Error('No such saved gateway delivery.'), { status: 404 });
+    const preview = deliveryReview(instance, event, digest([gatewayInboxRevision(instance, journal), event.id]));
+    if (!parsed.success || parsed.data.revision !== preview.revision || preview.reason) throw Object.assign(new Error(preview.reason || 'This delivery or its saved work changed. Reload and review the current receipts.'), { status: 409 });
+    const value = parsed.data; const at = Date.now();
+    if (value.action === 'confirm') {
+      const target = deliveryTargetKey(value.target); const item = preview.items.find((item) => deliveryTargetKey(item.target) === target);
+      const receipt = deliveryEntries(event).find((item) => deliveryTargetKey(item.target) === target)?.value;
+      if (!item?.canConfirm || !receipt) throw Object.assign(new Error('Only an attempted uncertain delivery can be confirmed from the messaging app.'), { status: 409 });
+      event.deliveryReviews = [...(event.deliveryReviews ?? []), { at, revision: value.revision, action: 'confirmed', target: value.target, remoteId: value.remoteId, ...(receipt.remoteId ? { previousRemoteId: receipt.remoteId } : {}) }];
+      receipt.status = 'sent'; receipt.remoteId = value.remoteId; delete receipt.retryAt;
+      if ('path' in receipt) delete receipt.reason;
+      if (event.reply?.parts.every((part) => part.status === 'sent')) delete event.reply.reason;
+    } else {
+      if (!preview.canFinish) throw Object.assign(new Error('No remaining final delivery can be finished locally.'), { status: 409 });
+      event.deliveryReviews = [...(event.deliveryReviews ?? []), { at, revision: value.revision, action: 'finish-local' }];
+      event.deliveryFinished = { at, revision: value.revision };
+    }
+    try { this.commit(journal); }
+    catch { throw Object.assign(new Error('The delivery review could not be saved. Check local storage and reload its receipts.'), { status: 503 }); }
+    return gatewayDeliveryReview(instance.id, eventId);
+  }
+
   groupAlbum(eventId: string, body: unknown): { leaderId: string } {
     const parsed = z.strictObject({ eventIds: z.array(externalId).min(2).max(10) }).safeParse(body);
     if (!parsed.success) throw new Error('Choose the complete saved album.');
@@ -378,6 +430,7 @@ export class GatewayInbox {
   }
 
   private holdSource(event: GatewayInboxEvent, reason: string): void {
+    if (event.deliveryFinished) return;
     if (['queued', 'waiting-files', 'running'].includes(event.status)) {
       event.status = 'needs-review'; event.reason = reason;
       if (event.dispatch) event.dispatch.state = 'needs-review';
@@ -480,6 +533,7 @@ export class GatewayInbox {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
     if (!event) throw new Error('No such gateway message.');
+    if (event.deliveryFinished) return;
     event.status = 'needs-review'; event.reason = reason;
     if (event.dispatch) event.dispatch.state = 'needs-review';
     if (event.reconciliation?.state === 'tracking') event.reconciliation = { at: Date.now(), state: 'needs-review' };
@@ -536,7 +590,7 @@ export class GatewayInbox {
     const journal = this.read();
     const blocked = new Set<string>();
     for (const event of journal.events) {
-      if (event.dismissed) continue;
+      if (event.dismissed || event.deliveryFinished) continue;
       if (blocked.has(event.bindingId)) continue;
       const index = event.reply?.parts.findIndex((part) => part.status !== 'sent') ?? -1;
       if (event.status !== 'done' || index >= 0 || event.outgoing?.some((file) => !['sent', 'skipped'].includes(file.status))) blocked.add(event.bindingId);
@@ -558,7 +612,7 @@ export class GatewayInbox {
   selectOutgoing(eventId: string, files: Pick<GatewayOutgoingFile, 'path' | 'name' | 'size' | 'sha256' | 'source'>[]): void {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
-    if (!event?.dispatch || !['running', 'done'].includes(event.status) || journal.events.some((item) => item.bindingId === event.bindingId && item.sequence > event.sequence && item.dispatch)) throw new Error('Select files for the current gateway assignment.');
+    if (!event?.dispatch || event.deliveryFinished || !['running', 'done'].includes(event.status) || journal.events.some((item) => item.bindingId === event.bindingId && item.sequence > event.sequence && item.dispatch)) throw new Error('Select files for the current gateway assignment.');
     const instance = this.checkAccess(event);
     if (!files.length || files.length > instance.fileLimits.filesPerMessage || files.some((file) => file.size > instance.fileLimits.perFileBytes) || files.reduce((sum, file) => sum + file.size, 0) > instance.fileLimits.perMessageBytes) throw new Error('These files exceed this gateway’s limits.');
     if (event.outgoing) {
@@ -574,7 +628,7 @@ export class GatewayInbox {
     const blocked = new Set<string>();
     let changed = false;
     for (const event of journal.events) {
-      if (event.dismissed) continue;
+      if (event.dismissed || event.deliveryFinished) continue;
       if (blocked.has(event.bindingId)) continue;
       const index = event.outgoing?.findIndex((file) => !['sent', 'skipped'].includes(file.status)) ?? -1;
       if (event.status !== 'done' || event.reply?.parts.some((part) => part.status !== 'sent') || index >= 0) blocked.add(event.bindingId);
@@ -619,7 +673,7 @@ export class GatewayInbox {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
     const file = event?.outgoing?.[index];
-    if (!event || !file || !['pending', 'failed', 'uncertain'].includes(file.status)) throw new Error('This file cannot be changed.');
+    if (!event || event.deliveryFinished || !file || !['pending', 'failed', 'uncertain'].includes(file.status)) throw new Error('This file cannot be changed.');
     if (action === 'retry') {
       this.checkAccess(event);
       if (file.status === 'pending') throw new Error('This file is already waiting to send.');
@@ -642,6 +696,7 @@ export class GatewayInbox {
     const journal = this.read();
     let changed = false;
     for (const event of journal.events) {
+      if (event.deliveryFinished) continue;
       for (const kind of ['approval', 'working'] as const) {
         const notice = event.notices?.[kind];
         if (!notice || notice.status !== 'pending') continue;
@@ -695,6 +750,7 @@ export class GatewayInbox {
   }
 
   checkAccess(event: GatewayInboxEvent): GatewayInstance {
+    if (event.deliveryFinished) throw new Error('Delivery was finished locally. Ask for a new request instead of reopening this receipt.');
     if (event.input.platform === 'whatsapp') {
       const state = this.read().whatsappRelay;
       if (getGatewaySecrets(this.state.instanceId).whatsappPairing !== undefined) throw new Error('Finish or review the pending WhatsApp pairing before continuing.');
@@ -1046,7 +1102,7 @@ export class GatewayInbox {
     let changed = false;
     const blocked = new Set<string>();
     for (const event of journal.events) {
-      if (event.dismissed) continue;
+      if (event.dismissed || event.deliveryFinished) continue;
       const prior = blocked.has(event.bindingId);
       if (event.status !== 'done' || event.reply?.parts.some((part) => part.status !== 'sent') || event.outgoing?.some((file) => !['sent', 'skipped'].includes(file.status))) blocked.add(event.bindingId);
       if (event.status !== 'queued') continue;
@@ -1078,10 +1134,11 @@ export class GatewayInbox {
   }
 
   /** Interrupted work requires reconciliation with its saved operation ID, never a blind second run. */
-  recover(): void {
+  recover(eventId?: string): void {
     const journal = this.read();
     let changed = false;
     for (const event of journal.events) {
+      if (event.deliveryFinished || (eventId !== undefined && event.id !== eventId)) continue;
       for (const file of event.outgoing ?? []) {
         if (file.status !== 'sending') continue;
         file.status = 'uncertain'; file.reason = 'Delivery was interrupted. Check the messaging app before explicitly retrying.'; changed = true;

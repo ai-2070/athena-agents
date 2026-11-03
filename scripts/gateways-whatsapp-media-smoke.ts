@@ -35,7 +35,7 @@ async function proof(): Promise<void> {
   const { pairWhatsApp, checkWhatsAppSetup, replaceWhatsAppPairing, finishWhatsAppPairing, whatsAppSetup } = await import('../server/gateways/whatsapp-setup.ts');
   const { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecovery } = await import('../server/gateways/whatsapp-recovery.ts');
   const { WhatsAppRelayIntake } = await import('../server/gateways/whatsapp-intake.ts');
-  const { GatewayInbox, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders } = await import('../server/gateways/inbox.ts');
+  const { GatewayInbox, gatewayDeliveryReview, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders } = await import('../server/gateways/inbox.ts');
   const { GatewayStateAdapter } = await import('../server/gateways/state.ts');
   const { GatewayFileProcessor } = await import('../server/gateways/files.ts');
   const { GatewayReplies } = await import('../server/gateways/replies.ts');
@@ -250,6 +250,18 @@ async function proof(): Promise<void> {
         bodyBase64: senderBody, signature: 'sha256=' + crypto.createHmac('sha256', appSecret).update(senderRaw).digest('hex'), contentType: 'application/json' }, async (receipt) => ({ epoch: receipt.epoch, cursor: receipt.sequence }));
       const senderWork = inbox.claimNext()!; assert.equal(senderWork.input.sourceMessageId, 'wamid.sender-fresh'); assert.notEqual(senderWork.bindingId, oldBinding); assert.equal(posts.length, 6);
       console.log('gateways: WhatsApp sender review keeps retired aliases and old work held across restart');
+      inbox.beginDispatch(senderWork.id, senderWork.operationId!, await gatewayConversation(senderWork, signal)); inbox.finishDispatch(senderWork.id, senderWork.operationId!, 'Local review answer. '.repeat(200));
+      const uncertain = inbox.claimReply()!; assert.equal(uncertain.event.id, senderWork.id); inbox.settleReply(senderWork.id, uncertain.index, { status: 'uncertain' });
+      saveGatewayInstance(config, instance.id); const beforeReviewCalls = calls.length; const oldNative = JSON.stringify(inbox.list().find((event) => event.id === oldIdentitySource.id)!.dispatch);
+      const oldReview = gatewayDeliveryReview(instance.id, oldIdentitySource.id); assert.equal(oldReview.items[0].canConfirm, true);
+      inbox.reviewDelivery(oldIdentitySource.id, { action: 'confirm', revision: oldReview.revision, target: { kind: 'text', index: 0 }, remoteId: 'operator-checked-message', acknowledgeChecked: true });
+      assert.equal(JSON.stringify(inbox.list().find((event) => event.id === oldIdentitySource.id)!.dispatch), oldNative);
+      const remaining = JSON.stringify(inbox.list().at(-1)!.reply); const native = JSON.stringify(inbox.list().at(-1)!.dispatch);
+      inbox.reviewDelivery(senderWork.id, { action: 'finish-local', revision: gatewayDeliveryReview(instance.id, senderWork.id).revision, acknowledgeNoSend: true });
+      await state.disconnect(); await state.connect(); saveGatewayInstance({ ...config, enabled: true }, instance.id);
+      assert.ok(inbox.list().at(-1)!.deliveryFinished); assert.equal(JSON.stringify(inbox.list().at(-1)!.reply), remaining); assert.equal(JSON.stringify(inbox.list().at(-1)!.dispatch), native);
+      assert.equal(inbox.claimReply(), null); assert.equal(inbox.claimOutgoing(), null); assert.equal(calls.length, beforeReviewCalls); assert.equal(posts.length, 6);
+      console.log('gateways: paused delivery review confirms only checked parts and finishes locally without sends or model replay');
     } finally { await staleAdapter.disconnect(); await staleChat.shutdown(); }
   } finally {
     await replies.stop(); await processor.stop(); await adapter.disconnect(); await chat.shutdown(); await state.disconnect();

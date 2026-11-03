@@ -20,6 +20,7 @@ describe('pinned Chat SDK transport proof', () => {
     expect(stdout).toContain('WhatsApp original relay restoration preserves receipts and held work');
     expect(stdout).toContain('WhatsApp replacement saves a new key across restart and quarantines old receipts');
     expect(stdout).toContain('WhatsApp sender review keeps retired aliases and old work held across restart');
+    expect(stdout).toContain('paused delivery review confirms only checked parts and finishes locally without sends or model replay');
   });
 
   it('runs the bundled WhatsApp media adapter from read-only files outside the checkout', async () => {
@@ -38,6 +39,7 @@ describe('pinned Chat SDK transport proof', () => {
       expect(stdout).toContain('WhatsApp original relay restoration preserves receipts and held work');
       expect(stdout).toContain('WhatsApp replacement saves a new key across restart and quarantines old receipts');
       expect(stdout).toContain('WhatsApp sender review keeps retired aliases and old work held across restart');
+      expect(stdout).toContain('paused delivery review confirms only checked parts and finishes locally without sends or model replay');
     } finally { fs.chmodSync(directory, 0o755); fs.chmodSync(file, 0o644); }
   });
 

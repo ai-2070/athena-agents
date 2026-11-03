@@ -18,7 +18,7 @@ import * as gateways from './gateways/instances.ts';
 import { discordRecovery } from './gateways/discord-recovery.ts';
 import { whatsAppSetup } from './gateways/whatsapp-setup.ts';
 import { GatewaySupervisor } from './gateways/supervisor.ts';
-import { gatewayInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders } from './gateways/inbox.ts';
+import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders } from './gateways/inbox.ts';
 import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
@@ -984,6 +984,9 @@ post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(
 get('/api/gateways/targets/:projectId', async ({ projectId }) => gateways.gatewayTargets(projectId));
 get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
 get('/api/gateways/:id/inbox/:eventId/review', async ({ id, eventId }) => gatewayRequestReview(id, eventId));
+get('/api/gateways/:id/inbox/:eventId/delivery-review', async ({ id, eventId }) => gatewayDeliveryReview(id, eventId));
+post('/api/gateways/:id/inbox/:eventId/delivery-review/prepare', async ({ id, eventId }) => gatewaySupervisor.prepareDeliveryReview(id, eventId));
+post<unknown>('/api/gateways/:id/inbox/:eventId/delivery-review', async ({ id, eventId }, body) => gatewaySupervisor.reviewDelivery(id, eventId, body));
 post<unknown>('/api/gateways/:id/inbox/:eventId/dismiss', async ({ id, eventId }, body) => {
   await gatewaySupervisor.dismissRequest(id, eventId, body); return { ok: true };
 });

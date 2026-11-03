@@ -434,6 +434,23 @@ Enable a paused instance before retrying. To send specific files for the current
 absolute paths under **Files to send**, one per line. The server checks their location, size and content
 hash before upload. These actions never replay model work.
 
+For a completed saved answer, **Review delivery** also works while the instance is paused or its
+platform is unavailable. It shows the original source and saved destination, each text part, outgoing
+file and advisory notice. Check the messaging app first. **Record confirmed delivery** requires the
+app's message or file ID and marks only an attempted uncertain item as sent; other parts keep their
+own receipts. It records your confirmation locally and makes no provider request. Pending,
+unattempted, failed or already confirmed items cannot be promoted this way.
+
+**Recover interrupted receipts** classifies that answer's saved in-flight sends as uncertain before
+review; opening the panel never does this automatically. **Finish delivery locally** permanently
+stops the remaining text and files for that answer. It keeps the saved answer, native operation,
+confirmed deliveries, uncertainty and charged bytes. It cannot recall a message or reopen delivery.
+Later messages can continue after other holds are resolved and the instance is enabled. Native work
+must already be complete; active or held assignments keep their separate controls in Athena.
+These local reviews stay available for old receipts after sender access or relay setup changes,
+and never grant permission to send. Resolved receipts remain eligible for the normal confirmed
+cleanup, with compact replay markers and byte reservations kept.
+
 Telegram albums wait for you to confirm their parts in the inbox. Once all files are saved, choose
 **Group album and start** on the first received part. Check Telegram for the complete album before
 confirming the listed message IDs: Telegram does not provide an album completion marker. One

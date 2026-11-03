@@ -236,6 +236,9 @@ The sidebar's **Status** panel links gateway warnings to the relevant inbox or i
 Completed or dismissed inbox receipts can be removed after confirmation. Native chats, files, replay protection and byte accounting stay intact.
 Delegated files stay tied to their source run and workspace; revoked access holds delivery for review.
 Slow requests show a short working notice; approvals stay in Athena. Uncertain sends need review before retrying.
+Pause an instance and choose **Review delivery** on a completed answer to record a text part, file or
+notice you confirmed in the messaging app. **Finish delivery locally** permanently stops its remaining
+sends, keeping the answer, uncertainty and byte accounting. Neither action sends or replays work.
 `bun run gateways:smoke` checks the SDK with
 a fake local Telegram service and throwaway data; it uses no accounts or keys. See the
 [gateway plan](docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md) for what is finished and what remains.

@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import type { GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayRequestReview, GatewayWhatsAppSetup } from '../../shared/types.ts';
+import type { GatewayDeliveryReview, GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayRequestReview, GatewayWhatsAppSetup } from '../../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 // set in beforeAll: a port nothing else is using (see startServer)
@@ -229,6 +229,38 @@ describe('API', () => {
 });
 
 describe('gateway configuration API', () => {
+  it('reviews a paused completed delivery locally behind request guards and keeps its native and remaining receipts', async () => {
+    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const config = { name: 'Local delivery', platform: 'telegram', accountId: '9600000001', projectId: state.project.id, target: { kind: 'brain' },
+      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
+    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true }); const file = path.join(directory, 'inbox.json');
+    const route = { instanceId: instance.id, projectId: instance.projectId, target: instance.target, generation: instance.routeGeneration }; const eventId = 'b'.repeat(64);
+    const dispatch = { state: 'completed', startedAt: 1, runId: 'native-run', conversation: { kind: 'brain', projectId: instance.projectId, conversationId: 'binding', sender: 'Alice' }, answer: 'Saved answer' };
+    fs.writeFileSync(file, JSON.stringify({ version: 1, nextSequence: 2,
+      bindings: [{ id: 'binding', accountId: instance.accountId, conversationId: '123', threadId: '', route, createdAt: 1 }],
+      events: [{ id: eventId, bindingId: 'binding', route, sequence: 1, receivedAt: 1, status: 'done', operationId: 'native-operation', dispatch,
+        reply: { createdAt: 1, parts: [{ text: 'Attempted', status: 'sending', attempts: 1 }, { text: 'Remaining', status: 'pending', attempts: 0 }] },
+        input: { platform: 'telegram', accountId: instance.accountId, conversationId: '123', threadId: '', sourceMessageId: '1', sourceEventId: '1', kind: 'message',
+          actor: { id: '123', label: 'Alice', kind: 'user' }, directMessage: true, triggered: false, text: 'Saved request', media: [] } }],
+    }));
+    const url = `/api/gateways/${instance.id}/inbox/${eventId}/delivery-review`; const before = fs.readFileSync(file, 'utf8');
+    const interrupted = await (await req(url)).json() as GatewayDeliveryReview; expect(interrupted.needsPrepare).toBe(true); expect(fs.readFileSync(file, 'utf8')).toBe(before);
+    expect((await req(`${url}/prepare`, { method: 'POST' })).status).toBe(403);
+    const preview = await (await req(`${url}/prepare`, { method: 'POST', headers: json })).json() as GatewayDeliveryReview; expect(preview.items[0].canConfirm).toBe(true);
+    const body = JSON.stringify({ action: 'confirm', revision: preview.revision, target: { kind: 'text', index: 0 }, remoteId: 'checked-in-app', acknowledgeChecked: true });
+    expect((await req(url, { method: 'POST', body })).status).toBe(403);
+    expect((await req(url, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status).toBe(403);
+    const confirmed = await (await req(url, { method: 'POST', headers: json, body })).json() as GatewayDeliveryReview; expect(confirmed.items[0].status).toBe('sent');
+    expect((await req(url, { method: 'POST', headers: json, body })).status).toBe(409);
+    const close = JSON.stringify({ action: 'finish-local', revision: confirmed.revision, acknowledgeNoSend: true });
+    expect((await req(url, { method: 'POST', headers: json, body: close })).status).toBe(200); expect((await req(url, { method: 'POST', headers: json, body: close })).status).toBe(409);
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8')) as { events: { operationId: string; dispatch: unknown; reply: { parts: { status: string }[] }; deliveryFinished: unknown }[] };
+    expect(saved.events[0].dispatch).toEqual(dispatch); expect(saved.events[0].operationId).toBe('native-operation'); expect(saved.events[0].reply.parts.map((part) => part.status)).toEqual(['sent', 'pending']); expect(saved.events[0].deliveryFinished).toBeDefined();
+    await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
+  });
+
   it('dismisses only a current paused unstarted request behind the existing request guards', async () => {
     const state = await (await req('/api/state')).json() as { project: { id: string } };
     const config = { name: 'Held request', platform: 'telegram', accountId: '9800000001', projectId: state.project.id, target: { kind: 'brain' },
