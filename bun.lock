@@ -12,7 +12,7 @@
         "@chat-adapter/discord": "4.44.0",
         "@chat-adapter/slack": "4.44.0",
         "@chat-adapter/telegram": "4.43.0",
-        "@chat-adapter/whatsapp": "4.43.0",
+        "@chat-adapter/whatsapp": "4.44.0",
         "@emoji-mart/data": "1.2.1",
         "@fontsource-variable/archivo": "5.3.0",
         "@fontsource-variable/cinzel": "5.3.0",
@@ -113,7 +113,7 @@
 
     "@chat-adapter/telegram": ["@chat-adapter/telegram@4.43.0", "", { "dependencies": { "@chat-adapter/shared": "4.43.0", "chat": "4.43.0" } }, "sha512-tBtRW7QzvF8pI5rrIUwEWesDMZLPaPdyhn9leTrC5J0B8cwb/uXvhgmrtaOQ5GzEQR8AnbIINGHyEY32nMeNLw=="],
 
-    "@chat-adapter/whatsapp": ["@chat-adapter/whatsapp@4.43.0", "", { "dependencies": { "@chat-adapter/shared": "4.43.0", "chat": "4.43.0" } }, "sha512-TNyIj02VxqV+5F2xC/+ua9fR5pfCJHBLQsCUUWAQ9n7BQoclItSehJ1obcI9rArKlzXM9Xs+4bgK7LzWuxWMJw=="],
+    "@chat-adapter/whatsapp": ["@chat-adapter/whatsapp@4.44.0", "", { "dependencies": { "@chat-adapter/shared": "4.44.0", "chat": "4.44.0" } }, "sha512-gxrZ5z5FQt2efEF4/kPguz+coLP5U23pLiZdEsWmoXC6J1WVoaEBi5I7LSAeZhoGLkDHFUUN2ERpvvSN85bNAQ=="],
 
     "@cloudflare/workerd-darwin-64": ["@cloudflare/workerd-darwin-64@1.20260730.1", "", { "os": "darwin", "cpu": "x64" }, "sha512-+MBHmPaiTe2KajryW0T24rZvWFxb41hD3d8anNzQqHzft6vSEb18+sp0znSwxgij7ApPhSM1+vhkNg4f3YMguA=="],
 
@@ -1531,7 +1531,7 @@
 
     "@chat-adapter/telegram/@chat-adapter/shared": ["@chat-adapter/shared@4.43.0", "", { "dependencies": { "chat": "4.43.0" } }, "sha512-uclU9sQLQa5f9pN9xpCHkMC7eypnIvXnZRnpgdAzltL2d0PhrsJlSPkijmc4Q4FzSfof4kh+gE6yAMFp/tNsQQ=="],
 
-    "@chat-adapter/whatsapp/@chat-adapter/shared": ["@chat-adapter/shared@4.43.0", "", { "dependencies": { "chat": "4.43.0" } }, "sha512-uclU9sQLQa5f9pN9xpCHkMC7eypnIvXnZRnpgdAzltL2d0PhrsJlSPkijmc4Q4FzSfof4kh+gE6yAMFp/tNsQQ=="],
+    "@chat-adapter/whatsapp/chat": ["chat@4.44.0", "", { "dependencies": { "@chat-adapter/catalog": "4.44.0", "@workflow/serde": "4.1.0-beta.2", "mdast-util-to-string": "^4.0.0", "remark-gfm": "^4.0.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "remend": "^1.2.1", "unified": "^11.0.5" }, "peerDependencies": { "ai": "^6.0.182 || ^7.0.0", "workflow": "^5.0.0-beta.35", "zod": "^3.0.0 || ^4.0.0" }, "optionalPeers": ["ai", "workflow", "zod"] }, "sha512-DGVc9yV1ifOJFpe8Pz6BAoOBVT7/iI/7kkMuB+ZUrpyQ1iw1ElibxyvYBx7tEo1qPl6w510+Acvt1XSVPSgKjA=="],
 
     "@cspotcode/source-map-support/@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.9", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.0.3", "@jridgewell/sourcemap-codec": "^1.4.10" } }, "sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ=="],
 
@@ -1612,6 +1612,8 @@
     "@chat-adapter/shared/chat/@chat-adapter/catalog": ["@chat-adapter/catalog@4.44.0", "", {}, "sha512-UtpW5mMgIjYBRDIgxJKh+tfnlFe0GjLsFG5MPPUDA5b/PggSOAt00TFr0xF6UIXXh1SaK3V1u3FiXyM2sdnaJQ=="],
 
     "@chat-adapter/slack/chat/@chat-adapter/catalog": ["@chat-adapter/catalog@4.44.0", "", {}, "sha512-UtpW5mMgIjYBRDIgxJKh+tfnlFe0GjLsFG5MPPUDA5b/PggSOAt00TFr0xF6UIXXh1SaK3V1u3FiXyM2sdnaJQ=="],
+
+    "@chat-adapter/whatsapp/chat/@chat-adapter/catalog": ["@chat-adapter/catalog@4.44.0", "", {}, "sha512-UtpW5mMgIjYBRDIgxJKh+tfnlFe0GjLsFG5MPPUDA5b/PggSOAt00TFr0xF6UIXXh1SaK3V1u3FiXyM2sdnaJQ=="],
 
     "form-data/mime-types/mime-db": ["mime-db@1.52.0", "", {}, "sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg=="],
 
