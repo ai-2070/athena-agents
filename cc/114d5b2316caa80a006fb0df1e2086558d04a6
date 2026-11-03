@@ -1,0 +1,51 @@
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_624ad595ba6b8e 20,494-506,526-527
+tests/server/gateway-discord.test.ts
+  s_3f5afab86a1bb3::t_11667950b689e9 24,303-328
+server/gateways/worker.ts
+  s_3f5afab86a1bb3::t_624ad595ba6b8e 27,128-129,145
+  s_3f5afab86a1bb3::t_3568121552ee60 52
+tests/server/gateway-telegram.test.ts
+  s_3f5afab86a1bb3::t_11667950b689e9 19,82-96
+shared/types.ts
+  s_3f5afab86a1bb3::t_435cf6737db7e4 350-387
+server/gateways/replies.ts
+  s_3f5afab86a1bb3::t_624ad595ba6b8e 5,28,34,38,60-62,66
+  s_3f5afab86a1bb3::t_3568121552ee60 18,72
+  s_3f5afab86a1bb3::t_c4f203ef7d389d 17,73
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_51d4461f559317 849-873,878
+  s_3f5afab86a1bb3::t_4c642aa1b4a11c 874-877,879-881
+server/gateways/state.ts
+  s_3f5afab86a1bb3::t_435cf6737db7e4 88-92
+server/gateways/outbox.ts
+  s_3f5afab86a1bb3::t_c4f203ef7d389d 176,180,183
+  s_3f5afab86a1bb3::t_8b8ce77fb0a90f 4,20,25-26,40-42,107
+  s_3f5afab86a1bb3::t_fdf132809515c7 1-3,5-19,21-24,27-39,43-72,74-76,78-93,95-106,108-172,187-188
+  s_3f5afab86a1bb3::t_3568121552ee60 73,77,94,173-175,177-179,181-182,184-186
+server/gateways/telegram.ts
+  s_3f5afab86a1bb3::t_c4f203ef7d389d 11,102,107-108
+tests/server/gateway-outbox.test.ts
+  s_3f5afab86a1bb3::t_8b8ce77fb0a90f 15
+  s_3f5afab86a1bb3::t_b4b0d4b9b84f59 1-14,16-159
+server/gateways/discord-transport.ts
+  s_3f5afab86a1bb3::t_3568121552ee60 32
+server/gateways/discord.ts
+  s_3f5afab86a1bb3::t_c4f203ef7d389d 15,283,290,305,313-319,329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cc114d5b2316caa80a006fb0df1e2086558d04a6",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
