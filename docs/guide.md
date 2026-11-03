@@ -526,6 +526,22 @@ links stay. Compact replay markers and daily byte totals stay too, so cleanup ca
 request or refill a file budget. These records do not expire; if their storage limit is reached, cleanup
 refuses to remove further receipts. There is no automatic purge of unresolved work.
 
+Removing an instance first saves a permanent removal record and blocks new gateway work. Athena
+stops its worker, claims exclusive ownership, then clears only that instance's local credentials
+and WhatsApp pairing. In-flight replies settle before ownership is released; an interrupted reply
+can remain uncertain. Native chats and work, saved input, uploaded files, byte accounting and
+approved Outbox receipts stay. Manage any native work still running through Athena's usual controls.
+Removal makes no messaging-service or relay-administration request.
+
+If storage or ownership prevents removal from finishing, its saved record keeps the instance
+blocked. Restarting Athena retries valid unfinished removals; the guarded local delete API can
+also be retried with the original instance ID. A broken removal record must be restored before
+cleanup can finish. A newly added instance gets a separate identity and history.
+Read-only recovery is available through the local API: `GET /api/gateways/retired` lists removal
+records and `GET /api/gateways/retired/:id/inbox` reads their saved inbox receipts. These reads
+do not claim ownership, classify interrupted receipts or enable a connection. Screens for reviewing
+removed instances and their remaining local actions are still planned, as is temporary-media retention.
+
 The sidebar's **Status** panel shows gateway connection state and messages needing review. Click an
 instance needing review to open its inbox, or a connection warning to open its setup. Its tooltip names
 the bound project. Up to five instances appear, with attention items first; **All gateways** opens the full

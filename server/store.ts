@@ -117,17 +117,23 @@ export interface GatewaySecrets {
 const GATEWAY_SECRETS_FILE = dataPath('gateway-secrets.json');
 
 export function getGatewaySecrets(instanceId: string): GatewaySecrets {
-  const records = readJSON<Record<string, GatewaySecrets>>(GATEWAY_SECRETS_FILE, {});
+  const records = gatewaySecretRecords();
   return Object.hasOwn(records, instanceId) ? records[instanceId] : {};
 }
 
 export function setGatewaySecrets(instanceId: string, value: GatewaySecrets | null): void {
   if (!/^[a-zA-Z0-9_-]+$/.test(instanceId)) throw new Error('Invalid gateway instance ID.');
-  const records = readJSON<Record<string, GatewaySecrets>>(GATEWAY_SECRETS_FILE, {});
+  const records = gatewaySecretRecords();
   if (value === null) delete records[instanceId];
   else Object.defineProperty(records, instanceId, { value, enumerable: true, configurable: true, writable: true });
   writeJSON(GATEWAY_SECRETS_FILE, records);
   emit('gateways', { id: instanceId });
+}
+
+function gatewaySecretRecords(): Record<string, GatewaySecrets> {
+  const records = fs.existsSync(GATEWAY_SECRETS_FILE) ? readJSON<Record<string, GatewaySecrets>>(GATEWAY_SECRETS_FILE) : {};
+  if (!records || typeof records !== 'object' || Array.isArray(records)) throw Object.assign(new Error('Saved gateway credentials are unreadable. Restore them before changing gateway setup.'), { status: 503 });
+  return records;
 }
 
 // A token the local MCP bridge uses to call back into the dashboard.

@@ -972,11 +972,34 @@ New gateway data does not need a legacy compatibility layer.*
   including closed-history projection after confirming a part and finishing locally. A WhatsApp
   recovery fixture failed once; its isolated 55-test rerun and the final full check passed with
   ownership checks unchanged. The web build, desktop staging and bundled desktop smoke passed.
-- Next: finish retired-instance recovery/deletion and temporary-media retention, then remaining
-  delivery/product controls and proactive platform coverage under the same approval policy.
-  Deleted instances retain private inbox receipts for recovery; the full deletion flow for retired
-  instances and temporary-media retention are pending. Real-account checks
-  on all four platforms and Windows/Linux verification remain outstanding. Offline checks run in CI.
+- Gateway deletion now saves a versioned, credential-free retirement record before draining its
+  worker. The record blocks intake, route capture, settings/credential edits and reconnects even
+  if the raw setup file survives a failure. Only after worker shutdown and exclusive account/state
+  claims does removal clear local credentials/pairing and the setup file. Worker shutdown retains
+  confirmed and uncertain results; no native work, private journals, quotas or uploaded files are
+  purged or replayed. Removal can preserve even unreadable SDK bytes without opening SDK state.
+- Interrupted removal is retryable using the original ID. Pending accounts stay reserved even if
+  the setup file was already removed. Completed removal is idempotent and cannot restore an old
+  identity. Startup resumes valid incomplete removals under ownership; a broken retirement record
+  remains blocked without delaying another instance's cleanup. Corrupt credential storage is
+  refused rather than replaced with an empty store that could erase other accounts.
+- Added read-only local APIs for safe retired identity metadata and validated saved inbox history.
+  Reads never take ownership or rewrite/classify receipts, and normal active-instance APIs remain
+  closed. Retirement metadata and native journals remain outside project exports/backups. Deletion
+  clears local pairing only; it makes no relay administration or messaging-service request.
+- Lifecycle/API fixtures cover all four platform records, token/pairing separation, worker drain
+  and shutdown failure, in-flight uncertainty without native replay, account/state ownership,
+  atomic-write/unlink failures, restart after setup removal, idempotence, corrupt journals/records
+  and credential storage, independent cleanup and guarded DELETE. Product recovery controls for
+  retired instances, legacy removed folders without retirement records and media retention remain
+  pending; this backend slice adds no new screen or real-account delivery claim.
+- Validation: `CI=1 bun run check` passed (273 files; 2,732 tests passed, one skipped). The web
+  build, desktop staging and bundled desktop smoke passed. These checks used isolated local
+  fixtures; no account was connected or revoked, and no provider message or relay request was sent.
+- Next: add retired-instance recovery/local-finish controls and temporary-media retention, then
+  remaining delivery/product controls and proactive platform coverage under the same approval policy.
+  Real-account checks on all four platforms and Windows/Linux verification remain outstanding.
+  Offline checks run in CI.
 
 ## Goal
 

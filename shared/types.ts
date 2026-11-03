@@ -94,6 +94,20 @@ export interface GatewayInstance {
   updatedAt: number;
 }
 
+/** Removing an instance keeps its identity and receipts, never its credentials. */
+export interface GatewayRetiredInstance {
+  version: 1;
+  id: string;
+  name: string;
+  platform: GatewayPlatform;
+  accountId: string;
+  projectId: string;
+  target: GatewayTarget;
+  routeGeneration: number;
+  startedAt: number;
+  completedAt?: number;
+}
+
 /** Queued work keeps this route even when the instance is edited. */
 export interface GatewayRoute {
   instanceId: string;

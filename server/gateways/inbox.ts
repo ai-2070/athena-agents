@@ -18,6 +18,7 @@ import { whatsAppRelayConnectionSchema } from '../../shared/gateway-whatsapp-rel
 import { completedGatewayDelivery, deliveryEntries, deliveryReview, deliveryTargetKey } from './delivery-review.ts';
 import { gatewayBindingRoot, gatewayWorkUnfinished, latestWorkReview, workBindingId, workReceiptsValid, workReview } from './work-review.ts';
 import { gatewayOutboxProtectedBindings } from './outbox.ts';
+import { gatewayRetirement } from './retirement.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -247,13 +248,21 @@ function albumReceiptsValid(journal: GatewayInboxJournal): boolean {
 }
 
 /** Atomic writers permit read-only diagnostics without taking the live worker's claim. */
-function savedGatewayInbox(instanceId: string): GatewayInboxJournal | undefined {
-  getGatewayInstance(instanceId);
+function readSavedGatewayInbox(instanceId: string): GatewayInboxJournal | undefined {
   const file = privateDataPath('gateways-runtime', instanceId, 'inbox.json');
   if (!fs.existsSync(file)) return undefined;
   const parsed = journalSchema.safeParse(readJSON(file));
   if (!parsed.success || !replayReceiptsValid(parsed.data) || !albumReceiptsValid(parsed.data) || !relayReceiptsValid(parsed.data) || !workReceiptsValid(parsed.data)) throw Object.assign(new Error('This gateway inbox is unreadable.'), { status: 503 });
   return parsed.data;
+}
+
+function savedGatewayInbox(instanceId: string): GatewayInboxJournal | undefined {
+  getGatewayInstance(instanceId); return readSavedGatewayInbox(instanceId);
+}
+
+export function gatewayRetiredInboxHistory(instanceId: string): GatewayInboxEvent[] {
+  if (!gatewayRetirement(instanceId)) throw Object.assign(new Error('No such removed gateway instance.'), { status: 404 });
+  return readSavedGatewayInbox(instanceId)?.events ?? [];
 }
 
 export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] { return savedGatewayInbox(instanceId)?.events ?? []; }

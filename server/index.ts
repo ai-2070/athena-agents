@@ -18,7 +18,8 @@ import * as gateways from './gateways/instances.ts';
 import { discordRecovery } from './gateways/discord-recovery.ts';
 import { whatsAppSetup } from './gateways/whatsapp-setup.ts';
 import { GatewaySupervisor } from './gateways/supervisor.ts';
-import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders, gatewayWorkReview } from './gateways/inbox.ts';
+import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRetiredInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders, gatewayWorkReview } from './gateways/inbox.ts';
+import { listGatewayRetirements } from './gateways/retirement.ts';
 import { telegramSetup } from './gateways/telegram-setup.ts';
 import { gatewayOutboxDestinations } from './gateways/outbox-owner.ts';
 import { readGatewayPostDelivery } from './gateways/outbox-posts.ts';
@@ -984,6 +985,8 @@ get('/api/gateways', async () => ({
   health: gatewaySupervisor.health(),
 }));
 post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(body));
+get('/api/gateways/retired', async () => ({ instances: listGatewayRetirements() }));
+get('/api/gateways/retired/:id/inbox', async ({ id }) => ({ events: gatewayRetiredInboxHistory(id) }));
 get('/api/gateways/targets/:projectId', async ({ projectId }) => gateways.gatewayTargets(projectId));
 get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
 get('/api/gateways/:id/inbox/:eventId/review', async ({ id, eventId }) => gatewayRequestReview(id, eventId));
@@ -1055,8 +1058,7 @@ post('/api/gateways/:id/inbox/:eventId/files/:index/skip', async ({ id, eventId,
   return { ok: true };
 });
 del('/api/gateways/:id', async ({ id }) => {
-  gateways.removeGatewayInstance(id);
-  await gatewaySupervisor.reconnect(id);
+  await gatewaySupervisor.removeInstance(id);
   return { ok: true };
 });
 get('/api/settings', async () => ({ settings: getSettings(), secrets: secretStatus() }));

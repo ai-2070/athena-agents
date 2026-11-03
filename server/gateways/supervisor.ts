@@ -3,11 +3,12 @@ import { gatewayNeedsReview, gatewayPlatformAvailable } from '../../shared/gatew
 import { bus, emit, listProjects } from '../store.ts';
 import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.ts';
 import { GatewayStateAdapter } from './state.ts';
-import { getGatewayInstance, listGatewayInstances } from './instances.ts';
+import { getGatewayInstance, listGatewayInstances, removeGatewayInstance, retireGatewayInstance } from './instances.ts';
+import { gatewayRetirement, gatewayRetirementIds } from './retirement.ts';
 import { reviewDiscordRecovery } from './discord-recovery.ts';
 import { checkWhatsAppSetup, finishWhatsAppPairing, pairWhatsApp, replaceWhatsAppPairing, reviewWhatsAppPairing } from './whatsapp-setup.ts';
 import { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecovery } from './whatsapp-recovery.ts';
-import { claimGatewayAccount } from './ownership.ts';
+import { claimGatewayAccount, claimGatewayState } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
 import { checkTelegramSetup, switchTelegramToPolling } from './telegram-setup.ts';
 import { GatewayOutboxLedger } from './outbox.ts';
@@ -298,7 +299,35 @@ export class GatewaySupervisor {
   start(): Promise<void> {
     if (this.closed) return Promise.resolve();
     if (!this.listening) { bus.on('event', this.changed); this.listening = true; }
-    return Promise.all(listGatewayInstances().map((instance) => this.reconnect(instance.id))).then(() => {});
+    let retired: string[] = [];
+    try {
+      retired = gatewayRetirementIds().filter((id) => {
+        try { const record = gatewayRetirement(id); return record !== undefined && record.completedAt === undefined; }
+        catch { return false; } // Keep a broken record blocked without delaying another instance's removal.
+      });
+    } catch { /* An unreadable directory cannot safely resume pending removals. */ }
+    return Promise.allSettled([...retired.map((id) => this.removeInstance(id)), ...listGatewayInstances().map((instance) => this.reconnect(instance.id))]).then(() => {});
+  }
+
+  removeInstance(instanceId: string): Promise<void> {
+    const task = this.pending.then(async () => {
+      if (this.closed) throw Object.assign(new Error('Restart Athena before continuing gateway removal.'), { status: 503 });
+      let saved = false;
+      let releaseAccount: (() => Promise<void>) | undefined; let releaseState: (() => Promise<void>) | undefined;
+      try {
+        const retired = retireGatewayInstance(instanceId); saved = true;
+        if (retired.completedAt !== undefined) return;
+        await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
+        releaseAccount = await claimGatewayAccount(retired.platform, retired.accountId);
+        releaseState = await claimGatewayState(instanceId);
+        removeGatewayInstance(instanceId);
+        this.statuses.delete(instanceId); this.reviews.delete(instanceId); this.changedInboxes.delete(instanceId);
+      } catch (error) {
+        if (!saved && error instanceof Error && 'status' in error && (error.status === 400 || error.status === 404 || error.status === 503)) throw error;
+        throw Object.assign(new Error('Gateway removal could not finish safely. Its saved receipts are kept. Check storage and ownership, then retry removal.'), { status: 503 });
+      } finally { await releaseState?.(); await releaseAccount?.(); }
+    });
+    this.pending = task.then(() => {}, () => {}); return task;
   }
 
   reconnect(instanceId: string): Promise<void> {
