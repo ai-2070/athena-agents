@@ -1,0 +1,75 @@
+tests/web/gateways.test.tsx
+  s_3f5afab86a1bb3::t_96eebb7f14dfed 36,186-207
+  s_3f5afab86a1bb3::t_2fdbe13581942a 208-214
+server/gateways/whatsapp.ts
+  s_3f5afab86a1bb3::t_8bad840461e6db 10,60-116,162,289,371
+tests/web/gateway-whatsapp-setup.test.tsx
+  s_3f5afab86a1bb3::t_c52ed1965aa40a 10
+  s_3f5afab86a1bb3::t_10f9ef20bf08ab 80
+  s_3f5afab86a1bb3::t_96eebb7f14dfed 1-9,11-79,81-82
+web/views/setup.tsx
+  s_3f5afab86a1bb3::t_ae0babe8375d7c 45
+scripts/gateways-whatsapp-media-smoke.ts
+  s_3f5afab86a1bb3::t_c52ed1965aa40a 35,96-104
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_187d3cd9b6acdf 637-641
+  s_3f5afab86a1bb3::t_7d7da635d938e3 615-636,645-647
+  s_3f5afab86a1bb3::t_07f3b0babdffb5 642-644
+tests/web/settings-page.test.tsx
+  s_3f5afab86a1bb3::t_ae0babe8375d7c 34-36
+server/gateways/whatsapp-recovery.ts
+  s_3f5afab86a1bb3::t_8bad840461e6db 28,47,54
+server/gateways/whatsapp-setup.ts
+  s_3f5afab86a1bb3::t_9b31bd109492dd 4,7-9,50-69
+  s_3f5afab86a1bb3::t_83edd55e21cdaa 70-71
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_9b31bd109492dd 1,8,151-152
+  s_3f5afab86a1bb3::t_8214b44c65ae7c 153
+server/index.ts
+  s_3f5afab86a1bb3::t_9b31bd109492dd 992
+web/views/gateways.tsx
+  s_3f5afab86a1bb3::t_2fdbe13581942a 159-160,163
+  s_3f5afab86a1bb3::t_475e7245d80dd5 11,29-30,45-47,60,65-66,68,72,74,77,80-86,91,97,109,112,114-116,134,138-141,145,151
+  s_3f5afab86a1bb3::t_3014b8a16ffa42 96
+  s_3f5afab86a1bb3::t_8ecc232dfd0a86 79,128,153-154,157-158,161-162,164,171,174,176
+web/views/gateway-whatsapp-setup.tsx
+  s_3f5afab86a1bb3::t_10f9ef20bf08ab 20,70
+  s_3f5afab86a1bb3::t_07b0e3fbd6129e 35
+  s_3f5afab86a1bb3::t_3014b8a16ffa42 1-19,21-34,36-69,71-86
+tests/server/gateway-whatsapp-check.test.ts
+  s_3f5afab86a1bb3::t_b073f1229f8e2d 28,36-38,46,79-92,117-119
+  s_3f5afab86a1bb3::t_45a84af3af1bc0 1-27,29-35,39-45,47-78,93-116,120-126
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_c52ed1965aa40a 275,283
+README.md
+  s_3f5afab86a1bb3::t_7014c79caaada8 256-259
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_c52ed1965aa40a 19,34
+docs/guide.md
+  s_3f5afab86a1bb3::t_7014c79caaada8 493-510
+relay/whatsapp/README.md
+  s_3f5afab86a1bb3::t_7d7da635d938e3 152-154
+  s_3f5afab86a1bb3::t_7014c79caaada8 12-15,78-79,212-239,264-265
+shared/types.ts
+  s_3f5afab86a1bb3::t_8bad840461e6db 235-240
+server/gateways/instances.ts
+  s_3f5afab86a1bb3::t_07b0e3fbd6129e 147
+  s_3f5afab86a1bb3::t_393ec8347054a5 149,151-152,156
+  s_3f5afab86a1bb3::t_8bad840461e6db 85-88,146,154-155,157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80fc566a0d968a08118523f1a0bc758a24910c58",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
