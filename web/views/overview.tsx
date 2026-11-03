@@ -139,12 +139,16 @@ function OverviewPage() {
   // the strip: chats and terminals of any project, side by side (one strip, saved in this browser)
   const [layout, setLayout] = useState<StripLayout | null>(null);
   const serial = useRef(0);
+  // the request the data shown came from, and for each pane the newest request asked when it was opened: a pane
+  // is left out as gone only by data asked for after it opened (a new terminal isn't in the reply already on its way)
+  const loadedFrom = useRef(0);
+  const openedAt = useRef(new Map<string, number>());
 
   const load = useCallback(async () => {
     const request = ++serial.current;
     try {
       const next = await GET<OverviewData>('/overview');
-      if (request === serial.current) (setData(next), setError(''));
+      if (request === serial.current) (loadedFrom.current = request, setData(next), setError(''));
     } catch (e) {
       if (request === serial.current) setError(e instanceof Error ? e.message : String(e));
     }
@@ -166,11 +170,17 @@ function OverviewPage() {
     if (layout || !active) return;
     const saved = loadLayout(STRIP);
     // (a strip saved for the open project before panes could come from any project)
-    setLayout(saved.columns.length ? saved : loadLayout(active, active));
+    const restored = saved.columns.length ? saved : loadLayout(active, active);
+    for (const ref of panesInOrder(restored)) openedAt.current.set(paneKey(ref), 0);
+    setLayout(restored);
   }, [active, layout]);
   useEffect(() => {
     if (!data || !layout) return;
-    const pruned = prune(layout, (ref) => !!data.projects.find((p) => p.id === ref.projectId)?.sessions.some((s) => s.kind === ref.kind && s.id === ref.id));
+    const keys = panesInOrder(layout).map(paneKey);
+    for (const key of keys) if (!openedAt.current.has(key)) openedAt.current.set(key, serial.current);
+    for (const key of [...openedAt.current.keys()]) if (!keys.includes(key)) openedAt.current.delete(key);
+    const known = (ref: PaneRef) => (openedAt.current.get(paneKey(ref)) ?? 0) >= loadedFrom.current;
+    const pruned = prune(layout, (ref) => known(ref) || !!data.projects.find((p) => p.id === ref.projectId)?.sessions.some((s) => s.kind === ref.kind && s.id === ref.id));
     if (pruned !== layout) setLayout(pruned);
   }, [data, layout]);
   useEffect(() => {

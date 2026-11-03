@@ -35,6 +35,8 @@ const session = (over: Partial<OverviewSession>): OverviewSession => ({ kind: 'a
 let data: OverviewData;
 let requests: { method: string; url: string; body?: unknown }[];
 let el: HTMLElement;
+// how long the server takes to answer /api/overview (0: at once)
+let slowOverview = 0;
 
 beforeEach(() => {
   localStorage.clear();
@@ -44,6 +46,7 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><section id="view"></section>';
   el = document.getElementById('view')!;
   requests = [];
+  slowOverview = 0;
   data = {
     active: 'p1',
     projects: [
@@ -66,7 +69,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     requests.push({ method: init.method || 'GET', url, body: init.body ? JSON.parse(String(init.body)) : undefined });
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
-    if (url === '/api/overview') return json(data);
+    if (url === '/api/overview') return slowOverview ? new Promise<Response>((r) => setTimeout(() => r(json(data)), slowOverview)) : json(data);
     if (url === '/api/task-board?project=all') return json({ projects: [], tasks: [
       { id: 'bt1', number: 4, title: 'Edit the intro', status: 'in_progress', projectId: 'p2', projectName: 'Podcast', assignee: 'agent:host', assigneeName: 'Host', work: { state: 'working' }, workerName: 'Host' },
       { id: 'bt2', number: 7, title: 'Order flour', status: 'todo', projectId: 'p1', projectName: 'Bakery', assignee: '' },
@@ -231,6 +234,17 @@ describe('the Overview', () => {
     act(() => overview.unmount());
     await open();
     expect(panes()).toEqual(['Writer']);
+  });
+
+  it('keeps a new terminal\'s pane while the overview that has it is still on its way', async () => {
+    await open();
+    slowOverview = 200;
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="New terminal in Bakery"]')!.click());
+    await settle(50);
+    // (not in the overview yet: it shows as "Terminal")
+    expect(panes()).toEqual(['Terminal']);
+    await settle(300);
+    expect(panes()).toEqual(['PowerShell 2']);
   });
 
   it('opens another project\'s agent and its Brain as panes that talk to that project, without opening it', async () => {
