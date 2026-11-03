@@ -112,11 +112,43 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
     selection.addRange(selected);
     changed();
   };
+  // The pill right before the caret (back) or right after it, past any empty text; null when there is none or text
+  // is selected. Browsers differ in what Backspace does next to a part that can't be edited, so the box does it itself.
+  const pillBeside = (back: boolean): HTMLElement | null => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !selection.isCollapsed || !editor.contains(selection.anchorNode)) return null;
+    const node = selection.anchorNode!;
+    const offset = selection.anchorOffset;
+    let next: Node | null;
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (back ? offset > 0 : offset < (node.textContent || '').length) return null;
+      next = back ? node.previousSibling : node.nextSibling;
+    } else next = back ? node.childNodes[offset - 1] ?? null : node.childNodes[offset] ?? null;
+    while (next && next.nodeType === Node.TEXT_NODE && !next.textContent) next = back ? next.previousSibling : next.nextSibling;
+    return next instanceof HTMLElement && next.dataset.mention ? next : null;
+  };
+  const removePill = (pill: HTMLElement) => {
+    const before = document.createRange();
+    before.selectNodeContents(editor);
+    before.setEndBefore(pill);
+    const at = plain(before.cloneContents()).length;
+    pill.remove();
+    changed();
+    input.setSelectionRange(at, at);
+  };
+
   editor.addEventListener('input', changed);
   editor.addEventListener('click', remember);
   editor.addEventListener('keyup', remember);
   editor.addEventListener('keydown', (event) => {
     if (event.target instanceof HTMLButtonElement) return;
+    // Backspace after a pill, or Delete before one, takes the whole pill
+    const pill = (event.key === 'Backspace' || event.key === 'Delete') && !event.isComposing ? pillBeside(event.key === 'Backspace') : null;
+    if (pill) {
+      event.preventDefault();
+      event.stopPropagation();
+      return removePill(pill);
+    }
     remember();
     const forwarded = new KeyboardEvent('keydown', { key: event.key, code: event.code, shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, isComposing: event.isComposing, bubbles: true, cancelable: true });
     input.dispatchEvent(forwarded);

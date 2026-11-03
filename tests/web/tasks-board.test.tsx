@@ -73,7 +73,9 @@ beforeEach(() => {
       const i = board.findIndex((t) => t.projectId === one[1] && t.id === one[2]);
       const { expectedUpdatedAt, ...change } = body as Partial<BoardTask> & { expectedUpdatedAt?: number };
       if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== board[i].updatedAt) return new Response(JSON.stringify({ error: 'This task changed meanwhile. Reload it before saving.' }), { status: 409 });
-      board[i] = { ...board[i], ...change, updatedAt: board[i].updatedAt + 1 };
+      // (and names who has it, as the server does)
+      const named = change.assignee === undefined ? {} : { assigneeName: ({ '': 'Unassigned', you: 'You', brain: 'The Brain', 'agent:x': 'Photographer' } as Record<string, string>)[change.assignee] };
+      board[i] = { ...board[i], ...change, ...named, updatedAt: board[i].updatedAt + 1 };
       return json({ task: board[i] });
     }
     if (url === '/api/task-board-draft') return json({ kind: 'comment', text: 'Is the oven here yet?' });
@@ -276,6 +278,23 @@ describe('the Tasks board', () => {
     expect(loads()).toBe(before + 1);
   });
 
+  it('gives a card to an agent from its mark, loading the project\'s agents and teams when it opens', async () => {
+    await open();
+    expect(requests.some((r) => r.url.startsWith('/api/task-board-people/'))).toBe(false);
+    const a = () => el.querySelector<HTMLElement>('[data-task-id="p1/a"]')!;
+    await act(async () => a().querySelector<HTMLButtonElement>('[aria-label="Unassigned. Assign to…"]')!.click());
+    await settle();
+    expect(requests.some((r) => r.url === '/api/task-board-people/p1')).toBe(true);
+    const items = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')];
+    expect(items.map((i) => i.textContent)).toEqual(['Unassigned', 'You', 'The Brain', '📷Photographer']);
+    await act(async () => items.at(-1)!.click());
+    await settle();
+    expect(requests.filter((r) => r.method === 'PUT').at(-1)).toMatchObject({ url: '/api/task-board/p1/a', body: { assignee: 'agent:x', expectedUpdatedAt: now } });
+    expect(a().querySelector('[title="Assigned to Photographer"]')).not.toBeNull();
+    // (opening it didn't open the task)
+    expect(location.hash).toBe('');
+  });
+
   it('works out a place between two cards', () => {
     expect(tasks.rankBetween(undefined, undefined)).toBe(0);
     expect(tasks.rankBetween(1, 2)).toBe(1.5);
@@ -287,7 +306,9 @@ describe('the Tasks board', () => {
 describe('a task\'s own page', () => {
   it('shows the task with its properties, and saves a new title when you leave it', async () => {
     await open(['p1', 'k']);
-    expect(el.querySelector('nav[aria-label="Breadcrumb"]')!.textContent).toBe('TasksBakery#5');
+    expect(el.querySelector('nav[aria-label="Breadcrumb"]')!.textContent).toBe('Tasks#5');
+    // (the project is in the details beside it)
+    expect(el.querySelector('aside[aria-label="Properties"]')!.textContent).toContain('ProjectBakery');
     expect(el.textContent).toContain('Waiting for the quote');
     expect(el.querySelector('[aria-label="Status: Blocked"]')).not.toBeNull();
     const title = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Title"]')!;
@@ -381,6 +402,30 @@ describe('a task\'s own page', () => {
     pillMentions(root, [who('agent', 'c', 'Café'), who('agent', 's', 'Trend Scout'), who('team', 't', 'Trend')]);
     expect([...root.querySelectorAll('.task-mention')].map((p) => p.textContent)).toEqual(['@Café', '@Trend Scout', '@Trend']);
     expect(root.querySelector('code')!.textContent).toBe('@Café');
+  });
+
+  it('opens the description, and a comment of yours, for editing on a double-click (not one from someone else)', async () => {
+    board[0] = { ...board[0], description: 'Use **real** butter, from [the farm](https://example.com).', comments: [
+      { id: 'c1', by: 'you', byName: 'You', text: 'Mine to change', at: now },
+      { id: 'c2', by: 'brain', byName: 'The Brain', text: 'From the Brain', at: now },
+    ] };
+    await open(['p1', 'a']);
+    const dbl = (target: Element) => act(async () => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    // (not on a link in it)
+    await dbl(el.querySelector('a[href="https://example.com"]')!);
+    expect(el.querySelector('textarea[aria-label="Description"]')).toBeNull();
+    await dbl(el.querySelector('strong')!);
+    const description = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Description"]')!;
+    expect(description.value).toBe('Use **real** butter, from [the farm](https://example.com).');
+    // the caret at the end, ready to add to it
+    expect([description.selectionStart, description.selectionEnd]).toEqual([description.value.length, description.value.length]);
+    const comment = (text: string) => [...el.querySelectorAll('section[aria-label="Activity"] li')].find((li) => li.textContent?.includes(text))!;
+    await dbl(comment('From the Brain').querySelector('.md')!);
+    expect(el.querySelector('textarea[aria-label="Edit comment"]')).toBeNull();
+    await dbl(comment('Mine to change').querySelector('.md')!);
+    const edit = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Edit comment"]')!;
+    expect(edit.value).toBe('Mine to change');
+    expect(edit.selectionStart).toBe('Mine to change'.length);
   });
 
   it('says so when the task is gone', async () => {
