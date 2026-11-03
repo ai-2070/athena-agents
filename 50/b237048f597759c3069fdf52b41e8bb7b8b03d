@@ -1,0 +1,71 @@
+tests/server/gateway-whatsapp-recovery.test.ts
+  s_3f5afab86a1bb3::t_f91bef4a54104d 241
+  s_3f5afab86a1bb3::t_eba0924665732c 12,51-53,121,183-192,194-215,226-230,233-240,242-269
+  s_3f5afab86a1bb3::t_c12591a0e46276 6,193
+  s_3f5afab86a1bb3::t_4acdf32ebe319c 231-232
+  s_3f5afab86a1bb3::t_7c588c9106816b 11,216-225
+  s_3f5afab86a1bb3::t_3ae2bfe4c6300a 270
+tests/server/gateway-whatsapp-consumer.test.ts
+  s_3f5afab86a1bb3::t_c12591a0e46276 6,8-9,20-22,74,116-140
+  s_d3db9ebe8d99bd::t_c96e9716e547f2 141
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_d3c0d43eccc407 809,825
+  s_3f5afab86a1bb3::t_b103dafe48401e 62-63,155-157,810-814,819-824,826-832,834,848
+web/views/gateway-whatsapp-setup.tsx
+  s_3f5afab86a1bb3::t_863b9396251390 16,21,31,33,36,70,72-83
+scripts/gateways-whatsapp-media-smoke.ts
+  s_3f5afab86a1bb3::t_7c588c9106816b 36,38,195-200
+server/gateways/whatsapp-recovery.ts
+  s_3f5afab86a1bb3::t_b103dafe48401e 57-66
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_b103dafe48401e 9,167-168
+  s_3f5afab86a1bb3::t_308238a92989a9 169-170
+tests/web/gateway-whatsapp-setup.test.tsx
+  s_3f5afab86a1bb3::t_267f4d2ebd9538 26,73-92
+docs/guide.md
+  s_3f5afab86a1bb3::t_d3c0d43eccc407 512-520
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_267f4d2ebd9538 275,292
+  s_3f5afab86a1bb3::t_4acdf32ebe319c 293-296
+README.md
+  s_3f5afab86a1bb3::t_d3c0d43eccc407 259-260
+relay/whatsapp/README.md
+  s_3f5afab86a1bb3::t_4acdf32ebe319c 352
+  s_3f5afab86a1bb3::t_d3c0d43eccc407 14-15,341-342,346-351,353-369
+  s_3f5afab86a1bb3::t_b08fda7bfb9193 370
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_5c6a2cb1575f95 670-673
+  s_3f5afab86a1bb3::t_7fb59e79e74e5b 645-658,660,662-664,674-675
+  s_3f5afab86a1bb3::t_f43de6e5d92469 665-669
+  s_3f5afab86a1bb3::t_96261e6dc61f05 659,661
+shared/types.ts
+  s_3f5afab86a1bb3::t_b103dafe48401e 208,214
+server/index.ts
+  s_3f5afab86a1bb3::t_b103dafe48401e 996
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_7c588c9106816b 20,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "50b237048f597759c3069fdf52b41e8bb7b8b03d",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_d3db9ebe8d99bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de341db3-73ea-4f45-882b-d0b5974fdcc3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
