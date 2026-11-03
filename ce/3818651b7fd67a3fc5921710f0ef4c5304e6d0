@@ -1,0 +1,23 @@
+tests/server/brain-chat.test.ts
+  s_6f0380c72fc1f3::t_a32e5da1aeaab0 4,202-214
+  s_6f0380c72fc1f3::t_3e9cd37ea6b4fa 215
+server/overseer.ts
+  s_6f0380c72fc1f3::t_a32e5da1aeaab0 2036-2037
+  s_6f0380c72fc1f3::t_7fedf91c0145f7 2038,2109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce3818651b7fd67a3fc5921710f0ef4c5304e6d0",
+  "prompts": {},
+  "sessions": {
+    "s_6f0380c72fc1f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a749ac26-5261-4d62-8ee9-ebdd7fb04e38",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
