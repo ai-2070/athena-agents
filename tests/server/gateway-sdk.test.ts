@@ -8,17 +8,18 @@ import { dataPath } from '../../server/util.ts';
 const exec = promisify(execFile);
 
 describe('pinned Chat SDK transport proof', () => {
-  it.each(['bun', process.execPath])('verifies Discord payloads and durable receipts under %s', async (runtime) => {
+  it.each(['bun', process.execPath])('verifies Discord Gateway recovery and durable receipts under %s', async (runtime) => {
     const { stdout } = await exec(runtime, ['scripts/gateways-discord-smoke.ts'], { env: process.env, timeout: 20000, windowsHide: true });
     expect(stdout).toContain('Discord verified identities, guild scopes, permissions, source replay and partial edits pass');
+    expect(stdout).toContain('Discord Gateway Identify, durable cursor, failed-write replay and Resume pass');
   });
 
-  it('bundles the Discord payload proof and runs it from read-only files outside the checkout', async () => {
+  it('bundles the Discord Gateway proof and runs it from read-only files outside the checkout', async () => {
     const directory = dataPath('discord-sdk-bundle'); fs.mkdirSync(directory, { recursive: true }); const file = path.join(directory, 'proof.mjs');
     await exec('bun', ['build', 'scripts/gateways-discord-smoke.ts', '--target=bun', '--outfile', file], { env: process.env, timeout: 20000, windowsHide: true });
     fs.chmodSync(file, 0o444); fs.chmodSync(directory, 0o555);
     try {
-      const { stdout } = await exec('bun', [file], { cwd: directory, env: process.env, timeout: 20000, windowsHide: true }); expect(stdout).toContain('Discord verified identities');
+      const { stdout } = await exec('bun', [file], { cwd: directory, env: process.env, timeout: 20000, windowsHide: true }); expect(stdout).toContain('Discord verified identities'); expect(stdout).toContain('Discord Gateway Identify, durable cursor, failed-write replay and Resume pass');
     } finally { fs.chmodSync(directory, 0o755); fs.chmodSync(file, 0o644); }
   });
 

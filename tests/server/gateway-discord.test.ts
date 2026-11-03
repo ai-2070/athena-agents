@@ -69,6 +69,17 @@ async function fixture(options: { users?: string[]; directMessages?: boolean; wr
 }
 
 describe('verified Discord event intake proof', () => {
+  it('cancels one disconnected Gateway dispatch without closing later verified intake', async () => {
+    const f = await fixture(); await f.chat.initialize();
+    let release!: () => void; const gate = new Promise<void>((resolve) => { release = resolve; }); f.gate(`/users/${ALICE}`, () => gate);
+    const abort = new AbortController(); const task = f.adapter.receiveDispatch('MESSAGE_CREATE', 'canceled-dispatch', message(), abort.signal);
+    try {
+      await expect.poll(() => f.calls.some((call) => call.path === `/users/${ALICE}`)).toBe(true);
+      abort.abort(); await expect(task).rejects.toThrow('Retry it before advancing recovery'); expect(f.inbox.list()).toHaveLength(0);
+    } finally { release(); f.clearGate(); }
+    expect((await f.receive(message()))?.input.sourceMessageId).toBe(FIRST);
+  });
+
   it('verifies bot/application identity and the Message content capability before accepting input', async () => {
     const f = await fixture(); await expect(f.receive(message())).rejects.toThrow('Verify the Discord bot'); await f.chat.initialize();
     expect(f.adapter.botUserId).toBe(f.instance.accountId); const saved = await f.receive(message());

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { DiscordAdapter } from '@chat-adapter/discord';
 import type { ChatInstance, Logger, WebhookOptions } from 'chat';
 import { z } from 'zod';
@@ -7,6 +8,8 @@ import { getGatewayInstance } from './instances.ts';
 import { gatewayInputAllowed } from './inbox.ts';
 import type { GatewayInbox } from './inbox.ts';
 import { GatewaySetupError } from './telegram.ts';
+import { DiscordGateway, discordGatewayDetails } from './discord-gateway.ts';
+import type { GatewayStateAdapter } from './state.ts';
 
 const id = z.string().refine(discordId, 'Invalid Discord ID.');
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -28,12 +31,13 @@ const channel = z.object({
 const quiet: Logger = { child: () => quiet, debug() {}, info() {}, warn() {}, error() {} };
 const view = 1n << 10n; const history = 1n << 16n;
 
-/** Trusted Gateway payload proof only; no socket listener or public callback is installed yet. */
+/** Verified message intake; the application worker remains disabled until delivery is ready. */
 export class DiscordIntakeAdapter extends DiscordAdapter {
   private readonly instanceId: string;
   private readonly inbox: GatewayInbox;
   private readonly signal: AbortSignal;
   private readonly abort = new AbortController();
+  private readonly dispatchSignal = new AsyncLocalStorage<AbortSignal>();
   private identity: { botId: string; appId: string } | undefined;
   private pending: Promise<void> = Promise.resolve();
   private queued = 0;
@@ -71,13 +75,23 @@ export class DiscordIntakeAdapter extends DiscordAdapter {
     await super.initialize(chat);
   }
 
+  createGateway(state: GatewayStateAdapter, options: { onDisconnect?: (error: Error) => void; testOrigin?: string } = {}): DiscordGateway {
+    this.assertOpen();
+    if (!this.identity || state.instanceId !== this.instanceId) throw new Error('Verify this Discord instance before connecting.');
+    return new DiscordGateway({ state, accountId: this.identity.botId, token: () => this.resolveBotToken(),
+      discover: () => this.read('/gateway/bot', discordGatewayDetails),
+      receive: (type, eventId, payload, signal) => this.receiveDispatch(type, eventId, payload, signal),
+      signal: this.signal, ...options,
+    });
+  }
+
   private assertOpen(): void {
-    this.signal.throwIfAborted();
+    this.signal.throwIfAborted(); this.dispatchSignal.getStore()?.throwIfAborted();
     if (this.closed) throw new Error('This Discord connection is closed.');
   }
 
   /** Caller must supply an authenticated Gateway dispatch and advance recovery only after this settles. */
-  receiveDispatch(type: string, eventId: string, payload: unknown): Promise<GatewayInboxEvent | null> {
+  receiveDispatch(type: string, eventId: string, payload: unknown, signal: AbortSignal = this.signal): Promise<GatewayInboxEvent | null> {
     this.assertOpen();
     if (!this.identity) return Promise.reject(new Error('Verify the Discord bot before receiving messages.'));
     if (this.queued >= 32) return Promise.reject(new Error('The Discord input queue is full. Retry without advancing recovery.'));
@@ -85,7 +99,7 @@ export class DiscordIntakeAdapter extends DiscordAdapter {
     // Detach caller-owned objects before waiting for any earlier event.
     const copy: unknown = structuredClone(safe.payload);
     this.queued++;
-    const task = this.pending.then(() => this.receive(safe.type, safe.eventId, copy)).catch(() => {
+    const task = this.pending.then(() => this.dispatchSignal.run(signal, () => this.receive(safe.type, safe.eventId, copy))).catch(() => {
       throw new Error('Discord could not verify or save this event. Retry it before advancing recovery.');
     }).finally(() => { this.queued--; });
     this.pending = task.then(() => {}, () => {});
@@ -182,7 +196,7 @@ export class DiscordIntakeAdapter extends DiscordAdapter {
   protected override async discordFetch(path: string, method: string, body?: unknown): Promise<Response> {
     this.assertOpen();
     const response = await fetch(`${this.apiBaseUrl}${path}`, { method, redirect: 'error', headers: { authorization: `Bot ${await this.resolveBotToken()}`, ...(body ? { 'content-type': 'application/json' } : {}) },
-      body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.any([this.signal, AbortSignal.timeout(15000)]),
+      body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.any([this.signal, this.dispatchSignal.getStore() ?? this.signal, AbortSignal.timeout(15000)]),
     });
     if (!response.ok) { await response.body?.cancel(); throw new Error('Discord could not verify this input. Check access, permissions and connection setup.'); }
     this.assertOpen(); return response;

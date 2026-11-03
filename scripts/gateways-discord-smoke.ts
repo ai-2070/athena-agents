@@ -1,4 +1,4 @@
-// Discord payload/REST proof only: no real Gateway socket, credentials or outgoing messages.
+// Local Discord REST and WebSocket proof: no real credentials or outgoing messages.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,6 +8,9 @@ import { once } from 'node:events';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Chat } from 'chat';
+import { WebSocketServer } from 'ws';
+import type WebSocket from 'ws';
+import type { GatewayDiscordState } from '../shared/types.ts';
 import type { Logger } from 'chat';
 
 // Set home before process startup: Bun caches homedir.
@@ -42,12 +45,14 @@ async function proof(): Promise<void> {
     fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: true });
   const state = new GatewayStateAdapter(instance.id); const inbox = new GatewayInbox(state); const calls: string[] = [];
   const input = { id: messageId, channel_id: channel, guild_id: guild, author: { id: actor }, type: 0, content: 'Proof input', mentions: [{ id: bot }], attachments: [] };
+  let gatewayOrigin = '';
   let edited = { ...input, content: 'Changed proof input' }; const failures: Error[] = [];
   const server = http.createServer((request, response) => {
     try {
       assert.equal(request.method, 'GET'); assert.equal(request.headers.authorization, 'Bot FAKE_BOT_TOKEN'); const endpoint = request.url ?? ''; calls.push(endpoint);
       let result: unknown;
       if (endpoint === '/users/@me') result = { id: bot, bot: true };
+      else if (endpoint === '/gateway/bot') result = { url: gatewayOrigin, shards: 1, session_start_limit: { total: 1000, remaining: 999, reset_after: 10000, max_concurrency: 1 } };
       else if (endpoint === '/oauth2/applications/@me') result = { id: bot, bot: { id: bot, bot: true }, flags: 1 << 19 };
       else if (endpoint === `/channels/${channel}`) result = { id: channel, guild_id: guild, type: 0, permission_overwrites: [] };
       else if (endpoint === `/guilds/${guild}/members/${bot}`) result = { user: { id: bot, bot: true }, roles: [] };
@@ -58,9 +63,38 @@ async function proof(): Promise<void> {
       response.setHeader('content-type', 'application/json'); response.end(JSON.stringify(result));
     } catch (error) { failures.push(error instanceof Error ? error : new Error(String(error))); response.writeHead(500); response.end(); }
   });
+  const sockets: WebSocket[] = []; const gatewayErrors: Error[] = []; let identifies = 0; let resumes = 0;
+  const wireInput = { ...input, id: '500000000000000003' }; const replayInput = { ...input, id: '500000000000000004' };
+  const socketServer = new WebSocketServer({ server });
+  const dispatch = (socket: WebSocket, sequence: number, type: string, payload: unknown) => socket.send(JSON.stringify({ op: 0, s: sequence, t: type, d: payload }));
+  socketServer.on('connection', (socket, request) => {
+    sockets.push(socket);
+    socket.on('message', (data) => {
+      try {
+        const value = JSON.parse(data.toString()) as { op: number; d: { token?: string; intents?: number; seq?: number; session_id?: string } };
+        if (value.op === 1) { socket.send(JSON.stringify({ op: 11, d: null })); return; }
+        assert.equal(request.url, '/?v=10&encoding=json'); assert.equal(value.d.token, 'FAKE_BOT_TOKEN');
+        if (value.op === 2) {
+          identifies++; assert.equal(value.d.intents, 1 | 512 | 4096 | 32768);
+          dispatch(socket, 1, 'READY', { v: 10, user: { id: bot, bot: true }, session_id: 'PRIVATE_PROOF_SESSION', resume_gateway_url: gatewayOrigin });
+        } else {
+          assert.equal(value.op, 6); resumes++; assert.equal(value.d.seq, 2); assert.equal(value.d.session_id, 'PRIVATE_PROOF_SESSION');
+          dispatch(socket, 3, 'MESSAGE_CREATE', replayInput); dispatch(socket, 4, 'RESUMED', {});
+        }
+      } catch (error) { failures.push(error instanceof Error ? error : new Error(String(error))); socket.terminate(); }
+    });
+    socket.send(JSON.stringify({ op: 10, d: { heartbeat_interval: 1000 } }));
+  });
+  const waitFor = async (condition: () => boolean) => {
+    const deadline = Date.now() + 4000;
+    while (!condition()) { assert.ok(Date.now() < deadline, 'Discord proof timed out'); await new Promise((resolve) => setTimeout(resolve, 10)); }
+  };
+  const cursor = () => JSON.parse(fs.readFileSync(state.discordGatewayFile(), 'utf8')) as GatewayDiscordState;
+  let gateway: ReturnType<InstanceType<typeof DiscordIntakeAdapter>['createGateway']> | undefined;
   let chat: Chat | undefined; let adapter: InstanceType<typeof DiscordIntakeAdapter> | undefined;
   try {
     server.listen(0, '127.0.0.1'); await once(server, 'listening'); const address = server.address(); assert.ok(address && typeof address !== 'string');
+    gatewayOrigin = `ws://127.0.0.1:${address.port}`;
     adapter = new DiscordIntakeAdapter(instance.id, inbox, 'FAKE_BOT_TOKEN', { apiUrl: `http://127.0.0.1:${address.port}` });
     chat = new Chat({ userName: 'Athena', adapters: { discord: adapter }, state, logger: quiet }); await chat.initialize();
     assert.equal(await adapter.receiveDispatch('MESSAGE_CREATE', 'denied', { ...input, author: { id: '999' } }), null); assert.equal(calls.length, 2);
@@ -73,9 +107,20 @@ async function proof(): Promise<void> {
     assert.equal(inbox.list()[0].status, 'needs-review'); assert.equal(inbox.claimNext(), null);
     assert.equal((await adapter.handleWebhook(new Request('http://localhost/not-used'))).status, 404);
     await assert.rejects(adapter.startGatewayListener({}));
-    await adapter.disconnect(); await chat.shutdown(); chat = undefined; await state.connect(); assert.equal(new GatewayInbox(state).list().length, 3); assert.deepEqual(failures, []);
+    gateway = adapter.createGateway(state, { testOrigin: gatewayOrigin, onDisconnect: (error) => gatewayErrors.push(error) }); await gateway.start();
+    dispatch(sockets[0], 2, 'MESSAGE_CREATE', wireInput); await waitFor(() => cursor().session?.sequence === 2);
+    const committed = fs.readFileSync(state.inboxFile(), 'utf8'); fs.writeFileSync(state.inboxFile(), '{broken');
+    dispatch(sockets[0], 3, 'MESSAGE_CREATE', replayInput); await waitFor(() => !gateway?.alive);
+    assert.equal(cursor().session?.sequence, 2); assert.equal(gatewayErrors.length, 1); await gateway.stop(); fs.writeFileSync(state.inboxFile(), committed);
+    gateway = adapter.createGateway(state, { testOrigin: gatewayOrigin }); await gateway.start();
+    assert.equal(cursor().session?.sequence, 4); assert.equal(inbox.list().length, 5); assert.equal(identifies, 1); assert.equal(resumes, 1);
+    dispatch(sockets[1], 5, 'MESSAGE_CREATE', wireInput); await waitFor(() => cursor().session?.sequence === 5); assert.equal(inbox.list().length, 5);
+    assert.ok(!fs.readFileSync(state.discordGatewayFile(), 'utf8').includes('FAKE_BOT_TOKEN')); await gateway.stop();
+    console.log('gateways: Discord Gateway Identify, durable cursor, failed-write replay and Resume pass');
+    await adapter.disconnect(); await chat.shutdown(); chat = undefined; await state.connect(); assert.equal(new GatewayInbox(state).list().length, 5); assert.deepEqual(failures, []);
     console.log('gateways: Discord verified identities, guild scopes, permissions, source replay and partial edits pass');
   } finally {
+    await gateway?.stop(); for (const socket of sockets) socket.terminate(); await new Promise<void>((resolve) => socketServer.close(() => resolve()));
     await adapter?.disconnect(); await chat?.shutdown(); await state.disconnect(); server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }

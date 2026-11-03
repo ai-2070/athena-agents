@@ -56,6 +56,17 @@ export interface GatewaySdkState {
   queues: Record<string, { enqueuedAt: number; expiresAt: number; message: SerializedMessage }[]>;
 }
 
+/** Private Discord resume state. Never returned by the instance API. */
+export interface GatewayDiscordState {
+  version: 1;
+  accountId: string;
+  intents: number;
+  identifiedAt?: number;
+  retryAt?: number;
+  session?: { id: string; url: string; sequence: number };
+  gap?: { at: number; reason: 'session-lost' };
+}
+
 export interface GatewayInbound {
   platform: GatewayPlatform;
   accountId: string;

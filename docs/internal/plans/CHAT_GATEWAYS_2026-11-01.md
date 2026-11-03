@@ -305,16 +305,31 @@ New gateway data does not need a legacy compatibility layer.*
   descriptors without CDN URLs or downloads. API calls are bounded, redacted and never automatically
   retried. Intake is serialized with at most 32 queued events, snapshots caller-owned payloads and
   drains on cancellation; a failed check/write rejects rather than reporting a committed event.
-- `bun run gateways:discord-smoke` proves identity, permissions, scopes, replay, attachment receipts
-  and partial edits against a fake local REST service under Bun, Node and a read-only bundled build
-  outside the checkout. It opens no real Gateway connection or platform messages. Discord differs
-  from Slack's acknowledgement contract: live integration must retain the last durably handled
-  dispatch sequence and resume from it, including after local write failure, before it can ship.
-  The SDK's default listener does not establish this application recovery boundary. See Discord's
-  [Gateway resume contract](https://docs.discord.com/developers/events/gateway),
-  [message dispatch/update fields](https://docs.discord.com/developers/events/gateway-events) and
-  [application intent capabilities](https://docs.discord.com/developers/resources/application).
-- Next: prove Discord live Gateway sequencing/recovery, then add replies, files and setup; implement
+- Added an explicit Discord WebSocket client with JSON/v10, fixed Discord Gateway hosts, bounded
+  packets and a 32-event/8 MiB FIFO. The SDK's stock listener remains blocked. Private instance state
+  stores the verified bot, intents, session ID, regional resume URL and last durably handled sequence;
+  tokens never enter that file or instance APIs. READY is saved before connection success. Subsequent
+  dispatches advance the cursor only after verified intake settles and its inbox write succeeds.
+  Heartbeats use the latest received sequence as Discord requires; Resume uses only the saved cursor.
+  Slow intake does not block heartbeat ACKs. Failed checks, storage errors, queue overflow or missing
+  heartbeat ACKs cancel pending REST checks and drop the socket without a normal session-invalidating
+  close. The owner must drain the client before releasing the instance claim.
+- New sessions check `/gateway/bot` for a single-shard allowance and save Identify spacing before
+  sending credentials. Reconnects use the saved regional URL/session/sequence without another
+  Identify. Rate limits and resumable Invalid Session responses persist retry deadlines. Expired or
+  invalid saved sessions retain an explicit recovery gap and do not silently start fresh; reviewing
+  that gap and explicitly starting a replacement session still needs product controls. Fatal token,
+  intent and shard errors report setup failure. Corrupted or foreign-account journals fail closed.
+- `bun run gateways:discord-smoke` proves identities, scopes, permissions, message edits and a live
+  local WebSocket Identify/Resume exchange under Bun, Node and a read-only bundled build outside
+  the checkout. A failed inbox write leaves its cursor unchanged; replay saves the missing message
+  without duplicating existing receipts. Unit tests also interrupt the interval between intake and
+  checkpoint, fail checkpoint writes, exercise cancellation, ordering, Identify allowance, recovery
+  gaps, heartbeat loss, backoff, payload bounds and untrusted hosts. No real Discord account,
+  platform message or application Discord worker is enabled. See Discord's
+  [Gateway lifecycle and resume contract](https://docs.discord.com/developers/events/gateway) and
+  [close codes](https://docs.discord.com/developers/topics/opcodes-and-status-codes).
+- Next: add Discord replies, files and setup, including explicit recovery-gap review; implement
   WhatsApp after that. Native-work override controls and explicit webhook
   switching still need product setup. Deleted instances retain private inbox receipts for recovery;
   the full deletion flow for retired instances is pending. Real-account text/file checks on all four platforms
