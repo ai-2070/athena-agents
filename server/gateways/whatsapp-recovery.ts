@@ -25,7 +25,7 @@ async function bounded<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> 
   try { return await Promise.race([promise, aborted]); } finally { signal.removeEventListener('abort', cancel); }
 }
 
-async function status(inbox: GatewayInbox, options: Options): Promise<GatewayWhatsAppRelayStatus> {
+export async function readWhatsAppRelayStatus(inbox: GatewayInbox, options: Options = {}): Promise<GatewayWhatsAppRelayStatus> {
   const instance = getGatewayInstance(inbox.instanceId); const secrets = getGatewaySecrets(instance.id); const connection = inbox.whatsAppRelayState()?.connection;
   if (instance.enabled || instance.platform !== 'whatsapp' || !connection || connection.phoneNumberId !== instance.accountId || secrets.whatsappPairing !== undefined || !/^[a-f0-9]{64}$/.test(secrets.relayKey ?? '')) return fail('Pause a fully paired WhatsApp instance before checking recovery.', 400);
   const signal = AbortSignal.timeout(options.timeoutMs ?? 10000); const url = `${connection.origin}/v1/status`;
@@ -44,13 +44,13 @@ async function status(inbox: GatewayInbox, options: Options): Promise<GatewayWha
 
 /** These checks use only the saved origin and pull key; never claim, ACK or administer the relay. */
 export async function inspectWhatsAppRecovery(inbox: GatewayInbox, options: Options = {}): Promise<GatewayWhatsAppRecovery> {
-  const remote = await status(inbox, options);
+  const remote = await readWhatsAppRelayStatus(inbox, options);
   if (getGatewayInstance(inbox.instanceId).enabled) return fail('Pause this WhatsApp instance before reviewing its relay.', 400);
   return saved(() => { inbox.recover(); return inbox.observeWhatsAppGap(remote); });
 }
 export async function reviewWhatsAppRecovery(inbox: GatewayInbox, body: unknown, options: Options = {}): Promise<GatewayWhatsAppRecovery> {
   const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeGap: z.literal(true) }).safeParse(body);
   if (!parsed.success || parsed.data.revision !== gatewayWhatsAppRecovery(inbox.instanceId).gap?.revision) return fail('This gap or its saved work changed. Reload and acknowledge the current gap.');
-  const remote = await status(inbox, options);
+  const remote = await readWhatsAppRelayStatus(inbox, options);
   return saved(() => inbox.reviewWhatsAppGap(remote, body));
 }

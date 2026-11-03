@@ -82,6 +82,10 @@ export function getGatewayInstance(instanceId: string): GatewayInstance {
   return requireInstance(instanceId);
 }
 
+export function checkGatewayDestination(instanceId: string): void {
+  const instance = requireInstance(instanceId); checkTarget(instance.projectId, instance.target);
+}
+
 /** Full replacement keeps unknown fields (including credentials) out of safe records. */
 export function saveGatewayInstance(input: unknown, instanceId?: string): GatewayInstance {
   const parsed = config.safeParse(input);
@@ -139,13 +143,18 @@ export function saveGatewayCredentials(instanceId: string, input: unknown): void
 
 /** Change one token without sending the other saved secret back to the browser. */
 export function updateGatewayCredentials(instanceId: string, input: unknown): void {
-  requireInstance(instanceId);
+  const instance = requireInstance(instanceId);
+  if (getGatewaySecrets(instanceId).whatsappPairing !== undefined) fail('Finish or review the pending WhatsApp pairing before changing credentials.');
   const token = z.string().trim().min(1).max(4096).nullable().optional();
-  const parsed = z.strictObject({ botToken: token, appToken: token }).safeParse(input);
+  const parsed = z.strictObject({ botToken: token, appToken: token, accessToken: token, signingSecret: token }).safeParse(input);
   if (!parsed.success) fail('Check the gateway credentials.');
+  const allowed = instance.platform === 'whatsapp' ? ['accessToken', 'signingSecret'] : ['botToken', 'appToken'];
+  if (Object.keys(parsed.data).some((key) => !allowed.includes(key))) fail('Check the gateway credentials.');
   const next = { ...getGatewaySecrets(instanceId) };
-  for (const key of ['botToken', 'appToken'] as const) if (parsed.data[key] !== undefined) {
-    if (parsed.data[key] === null) delete next[key]; else next[key] = parsed.data[key];
+  for (const key of ['botToken', 'appToken', 'accessToken', 'signingSecret'] as const) {
+    if (!(key in parsed.data)) continue;
+    const value = parsed.data[key];
+    if (value === null) delete next[key]; else if (value !== undefined) next[key] = value;
   }
   saveGatewayCredentials(instanceId, next);
 }

@@ -612,10 +612,39 @@ New gateway data does not need a legacy compatibility layer.*
   intake now captures one time frame and the full rerun passed. Desktop staging, the web build and
   desktop smoke passed. A scoped desktop/mobile finish review approved the control and confirmation;
   the existing design system is unchanged. Only synthetic preview data was used, then removed.
-- Next: implement WhatsApp Settings, read-only setup checks, and recovery for
-  identity/installation changes. Then
-  finish unified delivery and product controls. Read-only setup checks, native-work override controls
-  and explicit webhook switching still need product setup. Deleted instances retain private inbox
+- Added WhatsApp Settings configuration and relay setup while keeping the transport availability
+  gate closed. Each instance saves its own business phone, project, Brain/team/agent destination,
+  full-phone guard and file limits, always paused. Meta access tokens and app secrets have masked,
+  independent keep/replace/remove controls; partial updates preserve the private relay pull key.
+  Settings search and stable instance/relay links reach the new flow.
+- The relay panel exposes one-use pairing with starting-position confirmation, locally finishing
+  received keys, reviewing unknown outcomes only after remote revocation acknowledgement, and
+  exact observed retention-gap inspection/review. It never calls relay administration. A failed
+  pairing refreshes the saved outcome before another action, codes clear on exchange, and competing
+  actions/double clicks are blocked. Changed installations and invalid receipts still require
+  restoration rather than a reset; receiving/sending remain explicitly disabled.
+- Added a paused, exclusively owned read-only setup check. Fixed, bounded Graph `v25.0` GETs verify
+  the phone and business-account membership before a saved-origin relay status GET. Configuration,
+  secrets and local relay receipts must stay unchanged, and the remote installation/account/phone,
+  epoch and cursor must match saved state or its exact pending ACK/gap-review exception. The safe
+  result reports ready, pending acknowledgement or needs review without saving proof, clearing a
+  hold, initializing Chat, claiming/ACKing, downloading files, invoking work or sending. App-secret
+  presence is checked; signed webhook intake still proves whether it matches Meta.
+- Added account/relay fault, stale-check, pending-ACK, stalled-read, partial-secret, ownership,
+  local API guard and DOM coverage. The Bun/Node and read-only bundle proof now checks the paused
+  account/relay path and unchanged inbox bytes before enabling its synthetic transport. README,
+  guide and relay instructions describe setup, its limits and the interrupted/recovery paths.
+- A scoped finish review approved the editor, pairing, gap and confirmation states at desktop/mobile
+  sizes with no material findings. The existing design system is unchanged; only isolated synthetic
+  preview data was used and removed. This review does not prove dark rendering, keyboard behavior
+  or live transport readiness. The full check caught and fixed a Settings search ranking regression
+  so Telegram continues to find Gateways first; WhatsApp setup/relay/secret searches are covered too.
+- Validation: `CI=1 bun run check` passed (258 files; 2,508 tests passed, one skipped), followed by
+  successful desktop staging and bundled desktop smoke. The web build passed. No real Meta account,
+  relay deployment, provider messages or model calls were used for this slice.
+- Next: implement recovery for identity/installation changes, then finish unified delivery and
+  product controls. Native-work override controls and explicit webhook switching still need product
+  setup. Deleted instances retain private inbox
   receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks
   on all four platforms and Windows/Linux verification remain outstanding. Offline checks run in CI.
 

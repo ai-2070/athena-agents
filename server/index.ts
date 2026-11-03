@@ -989,6 +989,7 @@ post<unknown>('/api/gateways/:id/inbox/:eventId/dismiss', async ({ id, eventId }
 });
 get('/api/gateways/:id/discord-recovery', async ({ id }) => discordRecovery(id));
 get('/api/gateways/:id/whatsapp-setup', async ({ id }) => whatsAppSetup(id));
+post('/api/gateways/:id/whatsapp-setup/check', async ({ id }) => gatewaySupervisor.checkWhatsAppSetup(id));
 get('/api/gateways/:id/whatsapp-recovery', async ({ id }) => gatewayWhatsAppRecovery(id));
 post('/api/gateways/:id/whatsapp-recovery/inspect', async ({ id }) => gatewaySupervisor.inspectWhatsAppRecovery(id));
 post<unknown>('/api/gateways/:id/whatsapp-recovery', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppRecovery(id, body));

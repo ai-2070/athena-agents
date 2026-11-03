@@ -253,8 +253,10 @@ The separate [WhatsApp relay](relay/whatsapp/README.md) now has signed webhook i
 SQLite storage, one-time pairing, leased pull/ack recovery and revocation. `bun run relay:build`
 bundles the Worker; `bun run gateways:whatsapp-relay-smoke` checks two local Node/workerd processes
 and read-only Worker files with throwaway data. Deployment was checked with Wrangler's dry run;
-no real service was deployed. WhatsApp stays disabled in Athena until the local adapter, phone
-identity rules, files, replies and setup are implemented.
+no real service was deployed. In Settings → Gateways, WhatsApp instances can now save their own
+project, Brain/team/agent destination, phone guard and private Meta credentials, pair a relay and
+run read-only setup checks. Interrupted pairing and relay gaps have explicit review controls.
+Receiving and sending stay disabled pending the remaining recovery controls and acceptance checks.
 
 The Eve runtime replacement is being developed separately from the current API engine. Building
 the runtime uses Bun 1.4 or newer. `bun run eve:build` builds it and `bun run eve:smoke` checks

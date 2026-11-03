@@ -1,10 +1,12 @@
 import crypto from 'node:crypto';
 import type { ReadableStreamDefaultReader } from 'node:stream/web';
 import { z } from 'zod';
-import type { GatewayWhatsAppPairing, GatewayWhatsAppSetup } from '../../shared/types.ts';
+import type { GatewayWhatsAppCheck, GatewayWhatsAppPairing, GatewayWhatsAppSetup } from '../../shared/types.ts';
 import { relaySequence, whatsAppRelayConnectionSchema, whatsAppRelayOrigin, whatsAppRelayStatusSchema } from '../../shared/gateway-whatsapp-relay.ts';
 import { getGatewaySecrets, setGatewaySecrets } from '../store.ts';
-import { getGatewayInstance } from './instances.ts';
+import { checkGatewayDestination, getGatewayInstance } from './instances.ts';
+import { checkWhatsAppAccount } from './whatsapp.ts';
+import { readWhatsAppRelayStatus } from './whatsapp-recovery.ts';
 import { savedWhatsAppRelayState } from './inbox.ts';
 import type { GatewayInbox } from './inbox.ts';
 
@@ -43,6 +45,28 @@ export function whatsAppSetup(instanceId: string): GatewayWhatsAppSetup {
   instance(instanceId); const pending = receipt(instanceId); const state = savedWhatsAppRelayState(instanceId);
   return { paired: Boolean(state?.connection), pending: pending ? { phase: pending.phase, revision: revision(pending) } : null,
     recoveryRequired: Boolean(state?.recovery || pending?.phase === 'requesting') };
+}
+
+/** A current check, never an enable flag or stored permission to run or send. */
+export async function checkWhatsAppSetup(inbox: GatewayInbox, options: { testOrigin?: string; request?: PairRequest; timeoutMs?: number } = {}): Promise<GatewayWhatsAppCheck> {
+  const config = instance(inbox.instanceId, true); const setup = whatsAppSetup(config.id); const secrets = getGatewaySecrets(config.id);
+  if (!setup.paired || setup.pending || !/^[a-f0-9]{64}$/.test(secrets.relayKey ?? '') || config.senderPolicy.platform !== 'whatsapp' || !config.senderPolicy.allowedPhones.length
+    || !config.scope.directMessages || config.scope.conversationIds.length || config.scope.guildIds.length) return fail('Pair this paused instance, add allowed phone numbers and choose direct messages before checking setup.');
+  checkGatewayDestination(config.id);
+  const snapshot = JSON.stringify([config, secrets, inbox.whatsAppRelayState()]);
+  const current = () => {
+    if (snapshot !== JSON.stringify([instance(config.id, true), getGatewaySecrets(config.id), inbox.whatsAppRelayState()])) return fail('WhatsApp setup changed during the check. Reload and check it again.', 409);
+  };
+  try { await checkWhatsAppAccount(inbox, { testOrigin: options.testOrigin, timeoutMs: options.timeoutMs }); }
+  catch (error) { return fail(error instanceof Error ? error.message : 'The WhatsApp account could not be checked.'); }
+  current(); const remote = await readWhatsAppRelayStatus(inbox, { request: options.request, timeoutMs: options.timeoutMs }); current();
+  const saved = inbox.whatsAppRelayState()!; const connection = saved.connection!;
+  if (remote.installationId !== connection.installationId || remote.businessAccountId !== connection.businessAccountId || remote.phoneNumberId !== connection.phoneNumberId || remote.epoch !== connection.epoch
+    || remote.queuedEvents > 10000 || remote.queuedBytes > 67108864 || (!remote.queuedEvents && remote.queuedBytes)) return fail('The relay no longer matches the saved pairing. Restore it before connecting.', 409);
+  const pending = saved.receipt && !saved.receipt.confirmed;
+  const reviewed = saved.gapReview && !remote.gap && remote.cursor === saved.gapReview.through;
+  if (remote.cursor !== saved.cursor && !(pending && remote.cursor === saved.receipt!.sequence) && !reviewed) return fail('The relay cursor does not match the saved receipts. Review recovery before connecting.', 409);
+  return { checkedAt: Date.now(), account: 'verified', relay: remote.gap || saved.recovery ? 'needs-review' : pending ? 'acknowledgement-pending' : 'ready' };
 }
 
 async function bounded<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import type { GatewayInbound, GatewayInboxEvent, GatewayOutgoingFile } from '../../shared/types.ts';
 import { whatsAppMediaHash } from '../../shared/gateway-whatsapp.ts';
 import { getGatewayInstance } from './instances.ts';
+import { getGatewaySecrets } from '../store.ts';
 import { gatewayInputAllowed, GatewayFileLimitError } from './inbox.ts';
 import type { GatewayInbox } from './inbox.ts';
 import type { GatewayDownloadSource } from './files.ts';
@@ -56,6 +57,63 @@ async function aborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> 
   try { return await Promise.race([promise, stopped]); } finally { signal.removeEventListener('abort', cancel); }
 }
 
+async function json(response: Response, signal: AbortSignal): Promise<unknown> {
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    if (!response.body || !/^application\/json(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) throw unavailable();
+    const length = response.headers.get('content-length'); if (length !== null && (!/^\d+$/.test(length) || Number(length) > 65536)) throw unavailable();
+    reader = response.body.getReader(); const chunks: Buffer[] = []; let size = 0;
+    for (;;) { const part = await aborted(reader.read(), signal); if (part.done) break; size += part.value.byteLength; if (size > 65536) throw unavailable(); chunks.push(Buffer.from(part.value)); }
+    const bytes = Buffer.concat(chunks); const text = bytes.toString('utf8'); if (!Buffer.from(text).equals(bytes)) throw unavailable();
+    return JSON.parse(text) as unknown;
+  } finally { if (reader) { void reader.cancel().catch(() => {}); reader.releaseLock(); } else void response.body?.cancel().catch(() => {}); }
+}
+
+async function verifyAccount(phoneId: string, businessId: string, read: (path: string) => Promise<unknown>): Promise<void> {
+  const own = phone.parse(await read(`/${phoneId}?fields=id,display_phone_number`));
+  if (own.id !== phoneId) throw new Error('Wrong phone');
+  let after: string | undefined; const cursors = new Set<string>(); const seen = new Set<string>(); let found = false;
+  for (let page = 0; page < 10; page++) {
+    const list = phones.parse(await read(`/${businessId}/phone_numbers?fields=id,display_phone_number&limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`));
+    for (const item of list.data) {
+      if (seen.has(item.id)) throw new Error('Repeated phone'); seen.add(item.id);
+      if (item.id === own.id) found = true;
+    }
+    if (found || !list.paging?.next) break;
+    after = list.paging.cursors?.after;
+    if (!after || cursors.has(after)) throw new Error('Invalid phone page'); cursors.add(after);
+  }
+  if (!found) throw new Error('Phone not in business account');
+}
+
+/** Paused setup has its own read-only path; it never initializes or authorizes an SDK adapter. */
+export async function checkWhatsAppAccount(inbox: GatewayInbox, options: { signal?: AbortSignal; testOrigin?: string; timeoutMs?: number } = {}): Promise<void> {
+  const instance = getGatewayInstance(inbox.instanceId); const secrets = getGatewaySecrets(instance.id); const relay = inbox.whatsAppRelayState();
+  const connection = relay?.connection; const local = fixtureOrigin(options.testOrigin);
+  if (instance.enabled || instance.platform !== 'whatsapp' || !connection || connection.phoneNumberId !== instance.accountId || secrets.whatsappPairing !== undefined
+    || !id.safeParse(instance.accountId).success || !id.safeParse(connection.businessAccountId).success || !secrets.accessToken || secrets.accessToken.length > 4096 || /[\r\n]/.test(secrets.accessToken)
+    || !secrets.signingSecret || secrets.signingSecret.length < 16 || secrets.signingSecret.length > 512) throw new GatewaySetupError('Pause a paired WhatsApp instance and save its access token and app secret before checking setup.');
+  const snapshot = JSON.stringify([instance, secrets, relay]);
+  const current = () => {
+    if (snapshot !== JSON.stringify([getGatewayInstance(instance.id), getGatewaySecrets(instance.id), inbox.whatsAppRelayState()])) throw new GatewaySetupError('WhatsApp setup changed during the check. Reload and check it again.');
+  };
+  const signal = AbortSignal.any([AbortSignal.timeout(options.timeoutMs ?? 30000), ...(options.signal ? [options.signal] : [])]);
+  try {
+    await verifyAccount(instance.accountId, connection.businessAccountId, async (path) => {
+      current(); const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(10000)]);
+      const response = await aborted(fetch(`${local ?? 'https://graph.facebook.com'}/v25.0${path}`, { headers: { authorization: `Bearer ${secrets.accessToken}` }, redirect: 'error', credentials: 'omit', signal: requestSignal }), requestSignal);
+      try {
+        if (response.status !== 200 || response.redirected) throw new Error('Account check refused');
+        const value = await json(response, requestSignal); current(); return value;
+      } finally { void response.body?.cancel().catch(() => {}); }
+    });
+    current();
+  } catch (error) {
+    if (error instanceof GatewaySetupError) throw error;
+    throw new GatewaySetupError('The WhatsApp token could not verify this business phone. Check its account and permissions.');
+  }
+}
+
 /** The SDK supplies the adapter contract; durable relay intake and bounded file I/O stay explicit. */
 export class WhatsAppGatewayAdapter extends WhatsAppAdapter {
   private readonly instanceId: string;
@@ -101,20 +159,7 @@ export class WhatsAppGatewayAdapter extends WhatsAppAdapter {
   private async open(chat: ChatInstance): Promise<void> {
     this.verified = false;
     try {
-      this.context(); const own = phone.parse(await this.read(`/${this.phoneNumberId}?fields=id,display_phone_number`, this.signal));
-      if (own.id !== this.phoneNumberId) throw new Error('Wrong phone');
-      let after: string | undefined; const cursors = new Set<string>(); const seen = new Set<string>(); let found = false;
-      for (let page = 0; page < 10; page++) {
-        const list = phones.parse(await this.read(`/${this.businessAccountId}/phone_numbers?fields=id,display_phone_number&limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`, this.signal));
-        for (const item of list.data) {
-          if (seen.has(item.id)) throw new Error('Repeated phone'); seen.add(item.id);
-          if (item.id === own.id) found = true;
-        }
-        if (found || !list.paging?.next) break;
-        after = list.paging.cursors?.after;
-        if (!after || cursors.has(after)) throw new Error('Invalid phone page'); cursors.add(after);
-      }
-      if (!found) throw new Error('Phone not in business account');
+      this.context(); await verifyAccount(this.phoneNumberId, this.businessAccountId, (path) => this.read(path, this.signal));
       this.context(); await super.initialize(chat); this.context();
       // A new adapter never owns a send claimed before it finished connecting.
       for (const event of this.inbox.list()) {
@@ -241,7 +286,7 @@ export class WhatsAppGatewayAdapter extends WhatsAppAdapter {
         this.rateUntil = Date.now() + delay; throw new GatewaySendError('retry', delay);
       }
       let value: unknown;
-      try { value = await this.json(response, signal); }
+      try { value = await json(response, signal); }
       catch { throw new GatewaySendError(!response.ok && response.status >= 400 && response.status < 500 && response.status !== 408 ? 'failed' : upload ? 'failed' : 'uncertain'); }
       if (!response.ok) {
         if (response.status >= 400 && response.status < 500 && response.status !== 408) {
@@ -323,19 +368,8 @@ export class WhatsAppGatewayAdapter extends WhatsAppAdapter {
   private async read(path: string, external: AbortSignal): Promise<unknown> {
     this.context(); const signal = AbortSignal.any([this.signal, external, AbortSignal.timeout(10000)]);
     const response = await aborted(fetch(`${this.graphApiUrl}${path}`, { headers: { authorization: `Bearer ${this.accessToken}` }, redirect: 'error', credentials: 'omit', signal }), signal);
-    try { if (response.status !== 200 || response.redirected) throw unavailable(); return await this.json(response, signal); }
+    try { if (response.status !== 200 || response.redirected) throw unavailable(); return await json(response, signal); }
     finally { void response.body?.cancel().catch(() => {}); }
-  }
-  private async json(response: Response, signal: AbortSignal): Promise<unknown> {
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    try {
-      if (!response.body || !/^application\/json(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) throw unavailable();
-      const length = response.headers.get('content-length'); if (length !== null && (!/^\d+$/.test(length) || Number(length) > 65536)) throw unavailable();
-      reader = response.body.getReader(); const chunks: Buffer[] = []; let size = 0;
-      for (;;) { const part = await aborted(reader.read(), signal); if (part.done) break; size += part.value.byteLength; if (size > 65536) throw unavailable(); chunks.push(Buffer.from(part.value)); }
-      const bytes = Buffer.concat(chunks); const text = bytes.toString('utf8'); if (!Buffer.from(text).equals(bytes)) throw unavailable();
-      return JSON.parse(text) as unknown;
-    } finally { if (reader) { void reader.cancel().catch(() => {}); reader.releaseLock(); } else void response.body?.cancel().catch(() => {}); }
   }
 
   async disconnect(): Promise<void> {

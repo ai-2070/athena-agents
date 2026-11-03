@@ -32,7 +32,7 @@ if (!proofRoot) {
 async function proof(): Promise<void> {
   const { WhatsAppGatewayAdapter } = await import('../server/gateways/whatsapp.ts');
   const { whatsAppTransport } = await import('../server/gateways/whatsapp-transport.ts');
-  const { pairWhatsApp } = await import('../server/gateways/whatsapp-setup.ts');
+  const { pairWhatsApp, checkWhatsAppSetup } = await import('../server/gateways/whatsapp-setup.ts');
   const { inspectWhatsAppRecovery, reviewWhatsAppRecovery } = await import('../server/gateways/whatsapp-recovery.ts');
   const { WhatsAppRelayIntake } = await import('../server/gateways/whatsapp-intake.ts');
   const { GatewayInbox, gatewayRequestReview } = await import('../server/gateways/inbox.ts');
@@ -62,7 +62,6 @@ async function proof(): Promise<void> {
     return Response.json({ version: 1, installationId: crypto.randomUUID(), businessAccountId: business, phoneNumberId: phone, epoch, cursor: 0, gap: null, limits: relayLimits, queuedEvents: 0, queuedBytes: 0, token: 'a'.repeat(64) });
   } });
   assert.deepEqual(setup, { paired: true, pending: null, recoveryRequired: false }); assert.equal(instance.enabled, false);
-  saveGatewayInstance({ ...config, enabled: true }, instance.id);
   console.log('gateways: WhatsApp one-use pairing saves private keys and pins a paused instance');
   let origin = ''; let downloads = 0; let replyTo = 'wamid.media'; const errors: unknown[] = []; const calls: string[] = [];
   const posts: Record<string, unknown>[] = [];
@@ -94,6 +93,15 @@ async function proof(): Promise<void> {
     } catch (error) { errors.push(error); response.writeHead(500); response.end(); }
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening'); const address = server.address(); assert.ok(address && typeof address !== 'string'); origin = `http://127.0.0.1:${address.port}`;
+  const beforeCheck = fs.readFileSync(state.inboxFile(), 'utf8'); const paired = inbox.whatsAppRelayState()!.connection!;
+  const checked = await checkWhatsAppSetup(inbox, { testOrigin: origin, request: async (url, init) => {
+    assert.equal(url, `${paired.origin}/v1/status`); assert.equal(init.method, 'GET'); assert.equal(init.body, undefined);
+    assert.equal(new Headers(init.headers).get('authorization'), `Bearer ${'a'.repeat(64)}`);
+    return Response.json({ version: 1, installationId: paired.installationId, businessAccountId: business, phoneNumberId: phone, epoch, cursor: 0, gap: null, limits: relayLimits, queuedEvents: 0, queuedBytes: 0 });
+  } });
+  assert.equal(checked.account, 'verified'); assert.equal(checked.relay, 'ready'); assert.equal(fs.readFileSync(state.inboxFile(), 'utf8'), beforeCheck);
+  console.log('gateways: WhatsApp paused setup checks verify account and relay without intake or writes');
+  saveGatewayInstance({ ...config, enabled: true }, instance.id);
   const adapter = new WhatsAppGatewayAdapter(instance.id, inbox, { businessAccountId: business, accessToken: token, appSecret }, { testOrigin: origin });
   const chat = new Chat({ userName: 'Athena', adapters: { whatsapp: adapter }, state, logger: quiet });
   const processor = new GatewayFileProcessor(instance.id, inbox, (...args) => adapter.downloadFileSource(...args), new AbortController().signal);

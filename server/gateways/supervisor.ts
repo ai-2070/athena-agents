@@ -1,11 +1,11 @@
-import type { GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayWhatsAppRecovery, GatewayWhatsAppSetup, ServerEvent } from '../../shared/types.ts';
+import type { GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayWhatsAppCheck, GatewayWhatsAppRecovery, GatewayWhatsAppSetup, ServerEvent } from '../../shared/types.ts';
 import { gatewayNeedsReview, gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { bus, emit, listProjects } from '../store.ts';
 import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.ts';
 import { GatewayStateAdapter } from './state.ts';
 import { getGatewayInstance, listGatewayInstances } from './instances.ts';
 import { reviewDiscordRecovery } from './discord-recovery.ts';
-import { finishWhatsAppPairing, pairWhatsApp, reviewWhatsAppPairing } from './whatsapp-setup.ts';
+import { checkWhatsAppSetup, finishWhatsAppPairing, pairWhatsApp, reviewWhatsAppPairing } from './whatsapp-setup.ts';
 import { inspectWhatsAppRecovery, reviewWhatsAppRecovery } from './whatsapp-recovery.ts';
 import { claimGatewayAccount } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
@@ -147,6 +147,9 @@ export class GatewaySupervisor {
 
   pairWhatsApp(instanceId: string, body: unknown): Promise<GatewayWhatsAppSetup> {
     return this.whatsAppSetupTask(instanceId, (inbox) => pairWhatsApp(inbox, body));
+  }
+  checkWhatsAppSetup(instanceId: string): Promise<GatewayWhatsAppCheck> {
+    return this.whatsAppSetupTask(instanceId, (inbox) => checkWhatsAppSetup(inbox));
   }
   finishWhatsAppPairing(instanceId: string, body: unknown): Promise<GatewayWhatsAppSetup> {
     return this.whatsAppSetupTask(instanceId, (inbox) => finishWhatsAppPairing(inbox, body));

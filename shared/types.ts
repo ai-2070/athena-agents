@@ -232,6 +232,12 @@ export interface GatewayWhatsAppSetup {
   recoveryRequired: boolean;
 }
 
+export interface GatewayWhatsAppCheck {
+  checkedAt: number;
+  account: 'verified';
+  relay: 'ready' | 'acknowledgement-pending' | 'needs-review';
+}
+
 /** Scoped to one instance, business account and relay epoch; retired IDs are never reused. */
 export interface GatewayWhatsAppIdentities {
   businessAccountId: string;

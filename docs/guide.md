@@ -490,8 +490,24 @@ The separate [WhatsApp relay and deployment guide](../relay/whatsapp/README.md) 
 one-phone-per-deployment scope, signature checks, one-time pairing, queue limits and explicit gap
 review/revocation. It keeps Athena's port private and stores no outbound Meta token or model keys.
 `bun run gateways:whatsapp-relay-smoke` proves the bundled Worker across separate local processes;
-no real deployment or account is used. WhatsApp remains unavailable in Athena while its local
-adapter, phone identity guards, media, service-window delivery and setup are still being built.
+no real deployment or account is used. In **Settings → Gateways**, add a WhatsApp instance and choose
+its project, Brain/team/agent destination and allowed phone numbers. Save its business phone ID,
+access token and Meta app secret; blank secret fields keep saved values, and each removal control
+removes only that credential. Each business phone needs its own relay deployment.
+
+Open **Set up relay**, enter the relay HTTPS address, business account ID and a new one-use pairing
+code, then confirm the starting position. **Check setup** reads the Meta phone/account and saved
+relay status; it does not claim or acknowledge messages, download files, start work or send replies.
+It checks that an app secret is saved; a signed webhook is still needed to prove that secret works.
+A successful check is a current observation and leaves the instance paused. Receiving and sending
+remain disabled while the remaining recovery controls and acceptance checks are completed.
+
+If setup was interrupted, **Finish saved pairing** completes a locally saved key without exchanging
+the code again. **Pairing outcome unknown** requires revoking the pairing at the relay and reviewing
+its queue loss before clearing the local attempt and using a new code. For expired queued messages,
+**Check relay gap** saves the observed loss; ask the relay operator to review that exact gap before
+**Review gap locally**. Saved work and delivery receipts remain held for their own review. Changed
+installations or invalid receipts require restoration; gap review cannot reset them.
 
 ## License and credits
 

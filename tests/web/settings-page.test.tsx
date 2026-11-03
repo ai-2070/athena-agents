@@ -31,6 +31,9 @@ describe('searchSettings()', () => {
     expect(searchSettings('codex')[0].label).toBe('OpenAI Codex');
     expect(searchSettings('sender guard')[0].tab).toBe('gateways');
     expect(searchSettings('telegram')[0].tab).toBe('gateways');
+    expect(searchSettings('whatsapp setup')[0].tab).toBe('gateways');
+    expect(searchSettings('relay pairing')[0].tab).toBe('gateways');
+    expect(searchSettings('meta app secret')[0].tab).toBe('gateways');
     expect(searchSettings('nothing like this')).toEqual([]);
     expect(searchSettings('   ')).toEqual([]);
   });

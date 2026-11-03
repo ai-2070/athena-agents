@@ -33,7 +33,7 @@ beforeEach(() => {
     else if (url.endsWith('/inbox')) result = { events: [] };
     else if (url.endsWith('/credentials')) {
       if (failToken) return new Response(JSON.stringify({ error: 'Could not store token.' }), { status: 500 });
-      const instance = instances.find((item) => url.includes(item.id))!; if (method === 'POST') { for (const key of ['botToken', 'appToken']) if (Object.hasOwn(body, key)) { if (body[key] === null) delete instance.credentials[key]; else instance.credentials[key] = Boolean(body[key]); } } else instance.credentials = { botToken: Boolean(body.botToken) };
+      const instance = instances.find((item) => url.includes(item.id))!; if (method === 'POST') { for (const key of ['botToken', 'appToken', 'accessToken', 'signingSecret']) if (Object.hasOwn(body, key)) { if (body[key] === null) delete instance.credentials[key]; else instance.credentials[key] = Boolean(body[key]); } } else instance.credentials = { botToken: Boolean(body.botToken) };
       result = instance.credentials;
     } else if (method === 'POST' && url === '/api/gateways') {
       const instance = { ...body, id: `g${instances.length + 1}`, createdAt: 1, updatedAt: 1, routeGeneration: 1, credentials: {} } as unknown as typeof instances[number]; instances.push(instance); result = instance;
@@ -183,6 +183,35 @@ async function createDiscord() {
   await act(async () => button('Add Discord instance').click()); await settle();
   await type('Instance name', 'Discord work'); await type('Bot account ID', '100000000000000001'); await type('Bot token', 'private-discord-token');
 }
+
+async function createWhatsApp() {
+  await act(async () => button('Add WhatsApp instance').click()); await settle();
+  await type('Instance name', 'WhatsApp work'); await type('Business phone ID', '9900000001'); await type('Allowed phone numbers', '+436641234567\n+436649876543');
+  await type('Access token', 'private-meta-token'); await type('Meta app secret', 'private-meta-secret');
+}
+it('saves WhatsApp as a separate paused configuration with phone guards and private Meta credentials', async () => {
+  await open(); await createWhatsApp(); expect(input('Bot token')).toBeNull(); expect(input('Allowed groups and topics')).toBeNull();
+  await act(async () => button('Save instance').click()); await settle();
+  expect(instances[0]).toMatchObject({ platform: 'whatsapp', enabled: false, accountId: '9900000001', target: { kind: 'brain' }, senderPolicy: { platform: 'whatsapp', allowedPhones: ['+436641234567', '+436649876543'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] } });
+  const writes = requests.filter((item) => item.method !== 'GET'); expect(writes[0].body).not.toHaveProperty('accessToken'); expect(writes[0].body).not.toHaveProperty('signingSecret');
+  expect(writes[1]).toEqual({ url: '/api/gateways/g1/credentials', method: 'POST', body: { accessToken: 'private-meta-token', signingSecret: 'private-meta-secret' } });
+  expect(host.textContent).not.toContain('private-meta'); expect(button('Enable').disabled).toBe(true); expect(button('Set up relay')).toBeDefined();
+});
+it('keeps the WhatsApp pairing key when editing one credential and preserves independent instance targets', async () => {
+  await open(); await createWhatsApp(); await act(async () => button('Save instance').click()); await settle();
+  instances[0].credentials.relayKey = true; instances.push({ ...instances[0], id: 'g2', name: 'Other business phone', accountId: '9900000002', target: { kind: 'agent', id: 'a1' }, credentials: { ...instances[0].credentials } });
+  act(() => unmount()); location.hash = '#/settings?tab=gateways&instance=g2'; await open(); expect(input('Access token').value).toBe(''); expect(input('Meta app secret').value).toBe('');
+  await type('Access token', 'replacement'); await act(async () => button('Save instance').click()); await settle();
+  expect(requests.filter((item) => item.url.endsWith('/credentials')).at(-1)?.body).toEqual({ accessToken: 'replacement' });
+  expect(instances[1].credentials.relayKey).toBe(true); expect(instances[1].target).toEqual({ kind: 'agent', id: 'a1' }); expect(instances[0].target).toEqual({ kind: 'brain' });
+});
+it('removes one saved Meta credential without dropping the other credential or relay pairing', async () => {
+  await open(); await createWhatsApp(); await act(async () => button('Save instance').click()); await settle(); instances[0].credentials.relayKey = true;
+  await act(async () => button('Edit').click()); await settle(); await act(async () => button('Remove saved access token').click());
+  expect(input('Access token').disabled).toBe(true); await act(async () => button('Save instance').click()); await settle();
+  expect(requests.filter((item) => item.url.endsWith('/credentials')).at(-1)?.body).toEqual({ accessToken: null });
+  expect(instances[0].credentials.signingSecret).toBe(true); expect(instances[0].credentials.relayKey).toBe(true);
+});
 it('creates a paused Discord bot with explicit servers/channels, an optional user guard and a separate secret', async () => {
   await open(); await createDiscord(); expect(host.textContent).toContain('Empty allows any human'); expect(host.textContent).toContain('Message content intent');
   expect(host.querySelector('[aria-label="App token"]')).toBeNull(); await type('Allowed servers', '200000000000000001'); await type('Allowed channels and threads', '300000000000000001');

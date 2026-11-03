@@ -16,6 +16,7 @@ describe('pinned Chat SDK transport proof', () => {
     expect(stdout).toContain('WhatsApp one-use pairing saves private keys and pins a paused instance');
     expect(stdout).toContain('WhatsApp saved gap review survives restart and keeps prior work intact');
     expect(stdout).toContain('held request dismissal preserves its receipt without work or delivery');
+    expect(stdout).toContain('WhatsApp paused setup checks verify account and relay without intake or writes');
   });
 
   it('runs the bundled WhatsApp media adapter from read-only files outside the checkout', async () => {
@@ -30,6 +31,7 @@ describe('pinned Chat SDK transport proof', () => {
       expect(stdout).toContain('WhatsApp one-use pairing saves private keys and pins a paused instance');
       expect(stdout).toContain('WhatsApp saved gap review survives restart and keeps prior work intact');
       expect(stdout).toContain('held request dismissal preserves its receipt without work or delivery');
+      expect(stdout).toContain('WhatsApp paused setup checks verify account and relay without intake or writes');
     } finally { fs.chmodSync(directory, 0o755); fs.chmodSync(file, 0o644); }
   });
 

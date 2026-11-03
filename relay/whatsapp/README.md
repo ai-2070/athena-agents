@@ -9,9 +9,10 @@ exact phone guards, verified identity mappings and durable acknowledgement gates
 integration proof. The local Chat SDK adapter also checks the configured Meta phone/business account
 and saves hash-verified private media. Guarded replies and selected document uploads enforce the
 service window. The application transport joins these pieces under the gateway worker, and a
-paused-only local API can pair a new instance and review an observed retention gap. Settings,
-held-work controls and recovery from changed installations are still pending. Deploying this Worker
-does not enable a gateway.
+paused-only Settings flow can pair a new instance, check its account and relay, finish interrupted
+setup and review an observed retention gap. Unstarted held requests can be dismissed separately.
+Recovery from changed installations and the remaining work/delivery controls are still pending.
+Deploying this Worker does not enable a gateway.
 
 Each deployment serves **one Meta Business app and one business phone**. Use a separate deployment
 for each WhatsApp instance. An original webhook body may contain several entries; forwarding such a
@@ -74,8 +75,8 @@ The CLI below is pinned; use Node 24.22 or newer for deployment. Run it from the
    Pair it through `/v1/pair` before connecting Meta. Codes expire after ten minutes and work once.
    The pull token is returned only by that successful pairing response. Save it securely on the
    intended computer. A lost response needs an explicit administrative revoke/re-pair; the token
-   cannot be recovered from the relay. The local pairing API below can save the response directly;
-   the current Athena UI does not perform this step yet.
+   cannot be recovered from the relay. In Athena, use **Settings → Gateways → Set up relay** to
+   exchange the code and save the response privately; the local pairing API below does the same.
 5. In Meta's webhook settings, use `https://<your-worker>/webhooks/meta` and the same verification
    token. Subscribe to `messages` for the configured business phone. GET verification echoes only
    a valid numeric challenge. Every POST must carry the valid `X-Hub-Signature-256` for its exact
@@ -148,8 +149,9 @@ retry errors carry a safe retry time where known. Shutdown aborts and drains the
 then attempts a bounded lease release before giving up local ownership. A retention gap, changed
 epoch/account, unexpected cursor or invalid envelope saves a local review marker and holds queued
 work and pending delivery. Polling, ACK confirmation and manual message retries cannot clear it.
-Pairing/setup UI, explicit recovery controls and application worker integration remain pending;
-WhatsApp is still unavailable in Athena. No consumer operation calls the relay's administrative
+Settings now provides initial pairing and explicit retention-gap review, and the application worker
+integration has offline proof. Other recovery controls remain pending, so WhatsApp is still
+unavailable in Athena. No consumer operation calls the relay's administrative
 loss/revocation endpoints or advances a cursor just because status reported it.
 
 Local identity checks accept a business-scoped user ID only after a signed message or its unique,
@@ -207,7 +209,34 @@ native agents keep their ordinary stop/recovery semantics. The worker drains del
 releases the remote lease, then releases SDK state and account ownership. Temporary outages honor relay retry times; invalid
 credentials require setup, and gaps or changed pairing metadata require explicit recovery review.
 Reconnect never clears a recovery marker or re-runs an interrupted assignment automatically.
-The product availability gate remains closed until Settings and the remaining recovery controls are ready.
+The product availability gate remains closed pending the remaining recovery controls and acceptance checks.
+
+### Settings setup and checks
+
+In **Settings → Gateways**, add a WhatsApp instance with its own business phone ID, project,
+Brain/team/agent destination and allowed phone numbers in full international form. Save its Meta
+access token and app secret. Blank secret fields preserve saved credentials; the separate removal
+controls never remove the relay pull key. Receiving and sending remain disabled.
+
+Choose **Set up relay**, enter the HTTPS origin, business account ID and one-use code from the relay,
+then review and confirm the starting position. The instance stays paused. An interrupted response
+shows either **Finish saved pairing** or **Pairing outcome unknown**; follow the restoration or
+explicit revocation steps below instead of reusing a code.
+
+**Check setup** requires a paused, paired instance with credentials, allowed phones, direct messages
+and an existing project/destination. It verifies the Meta phone and business-account membership with
+bounded Graph `v25.0` GETs, then reads `/v1/status` from the saved relay. It checks the installation,
+phone, account, epoch and cursor against local receipts, and reports ready, pending acknowledgement
+or recovery needed. It saves no proof or intake changes, claims no lease, acknowledges no messages
+and performs no file, model or delivery work. A changed setup invalidates the check. The app secret's
+presence is checked; only signed webhook intake can prove the secret matches Meta. Connection will
+repeat account verification, and a check never grants permission to enable or send.
+
+The local endpoint is `POST /api/gateways/:id/whatsapp-setup/check`, with the normal `x-dash: 1` guard
+and exclusive local state/account ownership. It returns only a check time, `account: "verified"` and
+`relay: "ready"`, `"acknowledgement-pending"` or `"needs-review"`; credentials and relay metadata stay
+private. **Check relay gap** and **Review gap locally** expose the explicit gap flow below, without
+calling relay administration. Other holds require restoration rather than a gap reset.
 
 ### Local pairing API
 
@@ -232,8 +261,8 @@ paths, queries and fragments are refused. The response must match the instance's
 business account. Setup has a ten-second deadline and a 64 KiB response limit. It saves an attempt
 before the request, then atomically saves the returned pull key and its receipt in private gateway
 secrets. The code is never saved. A matching inbox binding follows; the instance stays paused.
-Remote gaps remain held for review. Meta access-token verification still happens on connection;
-pairing alone is not a successful Meta credential check.
+Remote gaps remain held for review. Meta access-token verification happens in the explicit read-only
+setup check and again on connection; pairing alone is not a successful Meta credential check.
 
 `GET /api/gateways/:id/whatsapp-setup` returns only `paired`, `recoveryRequired` and a pending phase
 with an opaque revision. Keys, account IDs and the private relay origin are omitted. If `pending.phase`
