@@ -78,7 +78,7 @@
     "@workflow/world-local": "5.2.0",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
-    "ai": "7.0.161",
+    "ai": "7.0.162",
     "dompurify": "3.4.17",
     "eve": "1.0.0-rc.2",
     "just-bash": "3.6.0",
