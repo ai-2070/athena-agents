@@ -194,4 +194,25 @@ describe('files of a project that isn\'t open', () => {
       setProjectFolders([], null);
     }
   });
+
+  it('outside every project folder, are looked up in the project whose chat shows them', async () => {
+    const { setProjectFolders, filesAt, fileUrl, fileSrc } = await import('../../web/client/connection.ts');
+    setProjectFolders([{ id: 'p1', brainPath: '/work/bakery' }, { id: 'p2', brainPath: '/work/pod' }], 'p1');
+    try {
+      // an agent's own workspace, in a pane of p2
+      expect(filesAt('/ws/painter/out.png', 'p2')).toBe('/p/p2');
+      expect(fileUrl('/ws/painter/out.png', 'p2')).toBe('/api/p/p2/file?path=%2Fws%2Fpainter%2Fout.png');
+      // the folder that holds it still decides, and the open project's chat stays as it was
+      expect(filesAt('/work/bakery/a.md', 'p2')).toBe('');
+      expect(filesAt('/ws/painter/out.png', 'p1')).toBe('');
+      expect(filesAt('/ws/painter/out.png')).toBe('');
+      // a tool's image, saved by the server in p2's data folder and linked as /api/file
+      const src = `/api/file?path=${encodeURIComponent('/data/projects/p2/tool-images/a/c/x.png')}`;
+      expect(fileSrc(src, 'p2')).toBe(`/api/p/p2/file?path=${encodeURIComponent('/data/projects/p2/tool-images/a/c/x.png')}`);
+      expect(fileSrc(src)).toBe(src);
+      expect(fileSrc('data:image/png;base64,AAAA', 'p2')).toBe('data:image/png;base64,AAAA');
+    } finally {
+      setProjectFolders([], null);
+    }
+  });
 });

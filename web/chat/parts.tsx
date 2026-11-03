@@ -2,7 +2,7 @@
 // markdown (or a Rich answer as live components), tool calls you can open (input, result, images),
 // file previews with Show in Explorer / Finder, and our own rows (COMPACTED marks, errors, notes).
 // Sizes: full (the chat page), compact (the floating window), mini (the Station panel, team turns).
-import { Component, Suspense, lazy, memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Component, Suspense, lazy, memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { DynamicToolUIPart } from 'ai';
 import { md, lightbox } from '../core.ts';
@@ -11,6 +11,8 @@ import { compactionMark } from '../compactmark.ts';
 import { filePreviews } from '../filepreview.tsx';
 import { findFileMentions } from '../mentions.ts';
 import { readOutput, readUser } from './messages.ts';
+import { ChatProject } from './project.ts';
+import { fileSrc } from '../client/connection.ts';
 import { useAppState } from '../ui/react.tsx';
 import { QuestionCard, questionFor } from '../questions.tsx';
 import type { QuestionOwner } from '../questions.tsx';
@@ -68,9 +70,10 @@ export const Markdown = memo(function Markdown({ text, className }: { text: stri
 });
 
 export function Previews({ paths, small }: { paths: readonly string[]; small?: boolean }) {
+  const project = useContext(ChatProject);
   const key = paths.join('\n');
   if (!paths.length) return null;
-  return <Dom make={() => filePreviews(paths, { compact: small })} deps={[key, small]} />;
+  return <Dom make={() => filePreviews(paths, { compact: small, project })} deps={[key, small, project]} />;
 }
 
 /** OpenUI Lang (a Rich answer) rather than markdown: it starts with a statement ("root = Card(…)", or
@@ -108,7 +111,9 @@ export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPa
   const done = part.state === 'output-available' || part.state === 'output-error';
   const failed = part.state === 'output-error';
   const out = part.state === 'output-available' ? readOutput(part.output) : null;
-  const images = out?.images || [];
+  // (a tool's images are saved in the chat's project: a pane of another project shows them from there)
+  const project = useContext(ChatProject);
+  const images = (out?.images || []).map((src) => fileSrc(src, project));
   const running = !done && busy;
   const mark = running ? <Dot tone="busy" /> : failed ? <span className="text-red">✕</span> : done ? <span className="text-ok">✓</span> : <span className="text-faint">·</span>;
   let input = '';

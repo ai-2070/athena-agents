@@ -25,6 +25,7 @@ import { Button } from '../ui/button.tsx';
 import { estimateHeight, messageSig } from './estimate.ts';
 import { chatTransport } from './transport.ts';
 import { projectAt } from '../client/connection.ts';
+import { ChatProject } from './project.ts';
 import { agentMentions, insertMention } from './mention.ts';
 import { attachMentionEditor } from './mentioneditor.ts';
 import type { MentionAgent } from './mention.ts';
@@ -763,7 +764,7 @@ export function ChatView(p: ChatViewProps) {
   );
 
   return (
-    <>
+    <ChatProject.Provider value={p.projectId}>
       {find}
       {variant !== 'mini' && <div className={compact ? '' : 'px-10 max-md:px-4'}><TaskPanel view={`agent:${agent.id}`} scope={{ kind: 'agent', id: agent.id }} chatId={chatId || undefined} projectId={p.projectId} /></div>}
       <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto py-2' : compact ? 'ac-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-14px),transparent_100%)] flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pt-1 pb-2' : 'messages'} onScroll={onScroll}>
@@ -855,7 +856,7 @@ export function ChatView(p: ChatViewProps) {
           </div>
         </div>
       )}
-    </>
+    </ChatProject.Provider>
   );
 }
 

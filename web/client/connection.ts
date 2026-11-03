@@ -61,17 +61,28 @@ export function setProjectFolders(list: readonly { id: string; brainPath?: strin
   folders = list.flatMap((p) => (p.brainPath ? [{ id: p.id, folder: folderOf(p.brainPath) }] : [])).sort((a, b) => b.folder.length - a.folder.length);
   openProjectId = open || '';
 }
-/** '/p/<project>' for a file inside a project that isn't open (the longest folder that holds it), else ''. */
-export function filesAt(path: string): string {
+/** '/p/<project>' for a file inside a project that isn't open (the longest folder that holds it), else ''.
+ *  project: whose chat it is in (an Overview pane): a file outside every project's folder (an agent's own workspace,
+ *  a tool's image) is looked up in that project. */
+export function filesAt(path: string, project?: string): string {
   const p = folderOf(path);
   const hit = folders.find((f) => p === f.folder || p.startsWith(`${f.folder}/`));
-  return hit && hit.id !== openProjectId ? projectAt(hit.id) : '';
+  const id = hit ? hit.id : project || '';
+  return id && id !== openProjectId ? projectAt(id) : '';
 }
 
-/** A file the server hands out (attachments, images, artifacts), for src and href. */
-export const fileUrl = (path: string): string => apiUrl(`${filesAt(path)}/file`, { path });
+/** A file the server hands out (attachments, images, artifacts), for src and href. project: as for filesAt. */
+export const fileUrl = (path: string, project?: string): string => apiUrl(`${filesAt(path, project)}/file`, { path });
 /** A PDF to read in a browser tab (fileUrl downloads it). */
-export const pdfViewUrl = (path: string): string => apiUrl(`${filesAt(path)}/file`, { path, view: 1 });
+export const pdfViewUrl = (path: string, project?: string): string => apiUrl(`${filesAt(path, project)}/file`, { path, view: 1 });
+/** An address the server wrote into a tool result ('/api/file?path=…': a tool's image), for a chat of a project that
+ *  may not be open: there it is that project's. */
+export function fileSrc(src: string, project?: string): string {
+  const m = /^\/api\/file\?(.*)$/s.exec(src);
+  if (!m) return src;
+  const path = new URLSearchParams(m[1]).get('path') || '';
+  return serverUrl(`/api${filesAt(path, project)}/file?${m[1]}`);
+}
 
 /** The ws:// (or wss://) address of a path on the server. */
 export function socketUrl(path: string, query?: Query): string {

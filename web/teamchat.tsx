@@ -15,6 +15,7 @@ import { projectAt } from './client/connection.ts';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { mentionPreviews } from './filepreview.tsx';
+import { ChatProject } from './chat/project.ts';
 import { modelChip } from './models.tsx';
 import { CollapseRoot, CollapseTrigger, CollapsePanel } from './ui/collapse.tsx';
 import { slideIn, reducedMotion } from './motion.ts';
@@ -367,6 +368,7 @@ function Work({ m }: { m: TeamMessage }) {
 
 /** One message. Memo: a message drawn once stays as it is while others arrive or stream in. */
 const Message = memo(function Message({ m, parent, author, team, lead, names, teams, onReply }: { m: TeamMessage; parent: TeamMessage | null; author: Agent | undefined; team: TeamRef | undefined; lead: boolean; names: string; teams: string; onReply: (m: TeamMessage) => void }) {
+  const project = useContext(TeamProject);
   const agentOf = useAgentOf();
   if (m.from === 'system') return <div className="text-center text-[12.5px] leading-[normal] font-normal text-faint py-1">{m.text}</div>;
   const brain = m.from === 'brain';
@@ -405,11 +407,11 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
         className="dom-contents"
         make={() => {
           // room above and below the file cards (the box stays hidden until its files are found)
-          const box = mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}` });
+          const box = mentionPreviews(m.text, m.attachments, { compact: true, key: `team:${m.id}`, project });
           box?.classList.add('my-2');
           return box;
         }}
-        deps={[m.id, m.text, JSON.stringify(m.attachments || [])]}
+        deps={[m.id, m.text, JSON.stringify(m.attachments || []), project]}
       />
       {m.turn && m.from !== 'user' && m.from !== 'system' ? <Work m={m} /> : null}
       {m.mentions?.length && m.from !== 'user' ? (
@@ -945,7 +947,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
 
 export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false, projectId }: TeamChatOptions = {}): TeamChatApi {
   const box: BoxRef = { input: null, pending: { focus: false, mentions: [] } };
-  const root = mountReact(container, <IconWeightProvider value="regular"><TeamProject.Provider value={projectId}><TeamChat teamId={teamId} height={height} fill={fill} box={box} projectId={projectId} /></TeamProject.Provider></IconWeightProvider>);
+  const root = mountReact(container, <IconWeightProvider value="regular"><TeamProject.Provider value={projectId}><ChatProject.Provider value={projectId}><TeamChat teamId={teamId} height={height} fill={fill} box={box} projectId={projectId} /></ChatProject.Provider></TeamProject.Provider></IconWeightProvider>);
   return {
     // (before the box is drawn, kept until it is)
     focus: () => (box.input ? box.input.focus() : (box.pending.focus = true)),

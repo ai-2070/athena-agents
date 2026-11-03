@@ -150,6 +150,14 @@ describe('in the chat', () => {
     expect(btn('Flat')).toBeTruthy();
   });
 
+  it('shows a tool\'s images from the chat\'s own project in a pane of another project', async () => {
+    const { ChatProject } = await import('../../web/chat/project.ts');
+    const src = `/api/file?path=${encodeURIComponent('/data/projects/p2/tool-images/a/c/x.png')}`;
+    const done = { type: 'dynamic-tool', toolName: 'screenshot', toolCallId: 't2', input: {}, state: 'output-available', output: { text: 'ok', images: [src] } } as DynamicToolUIPart;
+    await show(<ChatProject.Provider value="p2"><ToolCard part={done} variant="full" busy={false} /></ChatProject.Provider>);
+    expect(el.querySelector('img')!.getAttribute('src')).toBe(src.replace('/api/file', '/api/p/p2/file'));
+  });
+
   it('shows no card once the call is done', async () => {
     await show(<ToolCard part={{ ...part({ question: 'Which style?' }, 'output-available'), output: 'The user answered: "Flat"' } as DynamicToolUIPart} variant="full" busy={false} />);
     expect(el.querySelector('.question')).toBeNull();
