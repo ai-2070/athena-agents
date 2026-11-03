@@ -1,0 +1,63 @@
+relay/whatsapp/tsconfig.json
+  s_3f5afab86a1bb3::t_5f13118c72a0e1 1-5
+scripts/build-whatsapp-relay.ts
+  s_3f5afab86a1bb3::t_5f13118c72a0e1 1-8
+docs/guide.md
+  s_3f5afab86a1bb3::t_83612d9b41a7a9 479-485
+relay/whatsapp/worker.ts
+  s_3f5afab86a1bb3::t_4f9698f5b58e71 10,44,124,128,160,208
+  s_3f5afab86a1bb3::t_6eb84787df9f24 233,240
+  s_3f5afab86a1bb3::t_f2f16828820f21 181
+  s_3f5afab86a1bb3::t_c4826336d09078 213,234-239
+  s_3f5afab86a1bb3::t_aee2a33b7a6bc3 1-9,11-43,45-123,125-127,129-159,161-180,182-207,209-212,214-232,241-264
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_83612d9b41a7a9 385-417
+relay/whatsapp/wrangler.jsonc
+  s_3f5afab86a1bb3::t_5f13118c72a0e1 1-17
+shared/types.ts
+  s_3f5afab86a1bb3::t_5f13118c72a0e1 24-43,45-79
+  s_3f5afab86a1bb3::t_4f9698f5b58e71 44
+package.json
+  s_3f5afab86a1bb3::t_5db2e2cbebe9e0 55-56
+  s_3f5afab86a1bb3::t_5f13118c72a0e1 41,54
+  s_3f5afab86a1bb3::t_67eb021017d76d 106,119
+scripts/gateways-whatsapp-relay-smoke.ts
+  s_3f5afab86a1bb3::t_5db2e2cbebe9e0 1-73
+relay/whatsapp/protocol.ts
+  s_3f5afab86a1bb3::t_6eb84787df9f24 60,63
+  s_3f5afab86a1bb3::t_5f13118c72a0e1 1-59,61-62,64-93
+README.md
+  s_3f5afab86a1bb3::t_83612d9b41a7a9 250-256
+.gitignore
+  s_3f5afab86a1bb3::t_5f13118c72a0e1 20-24
+tests/server/gateway-sdk.test.ts
+  s_3f5afab86a1bb3::t_10ff1095ae036d 11-15
+tests/server/gateway-whatsapp-relay.test.ts
+  s_3f5afab86a1bb3::t_6eb84787df9f24 1-22,26-31,33-46,48-62,64,66-68,70-88,243
+  s_3f5afab86a1bb3::t_5db2e2cbebe9e0 69,150-151,178,184,187,192
+  s_3f5afab86a1bb3::t_9553a6d9b59f7c 24,32,234-240
+  s_3f5afab86a1bb3::t_83612d9b41a7a9 25,199-233
+  s_3f5afab86a1bb3::t_4f9698f5b58e71 23,63,65,89-149,152-177,179-183,185-186,188-191,193-198,241-242
+  s_3f5afab86a1bb3::t_66b8fb52025d55 47
+relay/whatsapp/README.md
+  s_3f5afab86a1bb3::t_f2f16828820f21 1-13,17-39,41-45,47-48,60-169
+  s_3f5afab86a1bb3::t_83612d9b41a7a9 14-16,40,46,49-59
+bun.lock
+  s_3f5afab86a1bb3::t_14fe56e649c820 52,65,119-132,161-162,193-246,299-304,429,439-440,707,799-800,989-990,1147-1148,1323-1324,1377-1378,1493-1494,1507-1510,1525-1526,1563-1564,1579-1582,1585-1586
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2008c2e015bbb434d818fa448feed9af6fd76390",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
