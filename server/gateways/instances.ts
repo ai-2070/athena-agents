@@ -131,6 +131,7 @@ const secrets = z.strictObject({
 
 export function saveGatewayCredentials(instanceId: string, input: unknown): void {
   requireInstance(instanceId);
+  if (getGatewaySecrets(instanceId).whatsappPairing !== undefined) fail('Finish or review the pending WhatsApp pairing before changing credentials.');
   const parsed = secrets.safeParse(input);
   if (!parsed.success) fail('Check the gateway credentials.');
   setGatewaySecrets(instanceId, parsed.data);
@@ -152,7 +153,7 @@ export function updateGatewayCredentials(instanceId: string, input: unknown): vo
 /** Presence only: no token suffixes or private connection details reach the browser. */
 export function gatewayCredentialStatus(instanceId: string): Record<string, boolean> {
   requireInstance(instanceId);
-  return Object.fromEntries(Object.entries(getGatewaySecrets(instanceId)).map(([key, value]) => [key, Boolean(value)]));
+  return Object.fromEntries(Object.entries(getGatewaySecrets(instanceId)).filter(([key]) => key !== 'whatsappPairing').map(([key, value]) => [key, Boolean(value)]));
 }
 
 export function removeGatewayInstance(instanceId: string): void {

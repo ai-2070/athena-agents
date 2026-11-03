@@ -16,6 +16,7 @@ import { EveOwnershipError } from './eve/ownership.ts';
 import { eveCoordinator } from './eve/coordinator.ts';
 import * as gateways from './gateways/instances.ts';
 import { discordRecovery } from './gateways/discord-recovery.ts';
+import { whatsAppSetup } from './gateways/whatsapp-setup.ts';
 import { GatewaySupervisor } from './gateways/supervisor.ts';
 import { gatewayInboxHistory } from './gateways/inbox.ts';
 import { PROVIDERS, listModels } from './providers.ts';
@@ -983,6 +984,10 @@ post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(
 get('/api/gateways/targets/:projectId', async ({ projectId }) => gateways.gatewayTargets(projectId));
 get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
 get('/api/gateways/:id/discord-recovery', async ({ id }) => discordRecovery(id));
+get('/api/gateways/:id/whatsapp-setup', async ({ id }) => whatsAppSetup(id));
+post<unknown>('/api/gateways/:id/whatsapp-pairing', async ({ id }, body) => gatewaySupervisor.pairWhatsApp(id, body));
+post<unknown>('/api/gateways/:id/whatsapp-pairing/finish', async ({ id }, body) => gatewaySupervisor.finishWhatsAppPairing(id, body));
+post<unknown>('/api/gateways/:id/whatsapp-pairing/review', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppPairing(id, body));
 post<unknown>('/api/gateways/:id/discord-recovery', async ({ id }, body) => {
   await gatewaySupervisor.reviewDiscordRecovery(id, body);
   return { gap: null };

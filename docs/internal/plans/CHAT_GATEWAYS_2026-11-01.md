@@ -547,7 +547,30 @@ New gateway data does not need a legacy compatibility layer.*
   or model invocation. WhatsApp remains unavailable in the product pending pairing and recovery controls.
 - Validation: full type checks and 2,377 tests passed (one skipped) with CI's two-worker limit;
   desktop staging, the web build and desktop smoke passed. No relay deployment or live account was used.
-- Next: implement WhatsApp pairing/setup UI and explicit recovery controls. Then
+- Added paused-only initial WhatsApp pairing APIs under the supervisor's exclusive state/account
+  ownership. Setup accepts a user-chosen HTTPS origin, exact business account and one-use code, with
+  explicit acknowledgement of the starting cursor. It refuses existing relay/conversation history,
+  follows no redirects and bounds the exchange to ten seconds/64 KiB. It saves an attempt before
+  I/O, then atomically saves the returned pull key and received receipt in private gateway secrets
+  before binding the empty inbox. Codes are never saved, and setup neither claims nor ACKs the relay,
+  sends messages, starts work nor verifies the Meta access token. The instance stays paused.
+- Added secret-free setup status and revision-checked local finish/review actions. A received key can
+  finish after an inbox write failure or restart without another exchange; a crash after inbox commit
+  is idempotent. Unknown exchanges cannot retry until the user acknowledges remote administrative
+  revocation and its queue loss. This local acknowledgement does not invoke or verify revocation.
+  Received keys and existing bindings cannot be abandoned by this action. Pending setup blocks
+  credential replacement and transport startup. Remote gaps stay held; no recovery marker is cleared.
+- Tests cover response/account/origin faults, bounded/stalled reads, save failures before/after the
+  remote exchange, stale revisions, pause/delete races, ownership and secret-free API responses.
+  The existing Bun/Node and bundled read-only proof now begins with the actual one-use pairing client.
+  Settings controls, read-only Meta setup checks and recovery for already paired relays remain pending;
+  WhatsApp stays unavailable in the product.
+- Validation: full checks passed with CI's two-worker limit (2,413 tests, one skipped). The initial
+  run hit an ownership-port collision and Miniflare oversized-request EPIPE; 139 focused tests and
+  the full rerun passed. After the final malformed-receipt guard, type checks and 74 focused tests
+  passed. Desktop staging, the web build and desktop smoke passed. No deployment or live account was used.
+- Next: implement WhatsApp Settings controls and explicit review of already paired relay gaps and
+  identity/installation changes. Then
   finish unified delivery and product controls. Read-only setup checks, native-work override controls
   and explicit webhook switching still need product setup. Deleted instances retain private inbox
   receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks

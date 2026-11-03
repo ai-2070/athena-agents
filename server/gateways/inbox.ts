@@ -147,14 +147,17 @@ function albumReceiptsValid(journal: GatewayInboxJournal): boolean {
 }
 
 /** Atomic writers permit read-only diagnostics without taking the live worker's claim. */
-export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] {
+function savedGatewayInbox(instanceId: string): GatewayInboxJournal | undefined {
   getGatewayInstance(instanceId);
   const file = privateDataPath('gateways-runtime', instanceId, 'inbox.json');
-  if (!fs.existsSync(file)) return [];
+  if (!fs.existsSync(file)) return undefined;
   const parsed = journalSchema.safeParse(readJSON(file));
   if (!parsed.success || !replayReceiptsValid(parsed.data) || !albumReceiptsValid(parsed.data) || !relayReceiptsValid(parsed.data)) throw Object.assign(new Error('This gateway inbox is unreadable.'), { status: 503 });
-  return parsed.data.events;
+  return parsed.data;
 }
+
+export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] { return savedGatewayInbox(instanceId)?.events ?? []; }
+export function savedWhatsAppRelayState(instanceId: string): GatewayWhatsAppIntakeState | undefined { return savedGatewayInbox(instanceId)?.whatsappRelay; }
 
 /** Only inputs from verified transport normalizers may reach this journal. */
 export function gatewayInputAllowed(instance: GatewayInstance, input: GatewayInbound): boolean {
@@ -702,6 +705,28 @@ export class GatewayInbox {
       || (state.connection && JSON.stringify(state.connection) !== JSON.stringify(connection)))) throw new Error('The relay pairing changed. Review recovery before reconnecting.');
     journal.whatsappRelay = { ...(state ?? { epoch: connection.epoch, cursor }), connection };
     this.commit(journal);
+  }
+
+  /** Setup cannot replace existing receipts or recover a different installation implicitly. */
+  assertNewWhatsAppPairing(): void {
+    const journal = this.read(); const instance = getGatewayInstance(this.state.instanceId);
+    if (instance.enabled || instance.platform !== 'whatsapp' || journal.whatsappRelay || journal.nextSequence !== 1 || journal.events.length || journal.bindings.length || journal.retired?.length) throw new Error('Pair a paused WhatsApp instance with no saved relay or conversations.');
+  }
+
+  finishWhatsAppPairing(connection: GatewayWhatsAppRelayConnection, cursor: number, gap: boolean): void {
+    const journal = this.read(); const instance = getGatewayInstance(this.state.instanceId);
+    if (instance.enabled || instance.platform !== 'whatsapp' || journal.nextSequence !== 1 || journal.events.length || journal.bindings.length || journal.retired?.length
+      || instance.accountId !== connection.phoneNumberId || !stamp.safeParse(cursor).success) throw new Error('Pair a paused WhatsApp instance with no saved conversations.');
+    const parsed = whatsAppRelayConnectionSchema.parse(connection);
+    const value: GatewayWhatsAppIntakeState = { epoch: parsed.epoch, cursor, connection: parsed,
+      ...(gap ? { recovery: { at: Date.now(), reason: 'gap' as const } } : {}) };
+    if (journal.whatsappRelay) {
+      const saved = journal.whatsappRelay;
+      if (saved.epoch !== value.epoch || saved.cursor !== cursor || saved.receipt || saved.identities
+        || JSON.stringify(saved.connection) !== JSON.stringify(parsed) || Boolean(saved.recovery) !== gap || (saved.recovery && saved.recovery.reason !== 'gap')) throw new Error('The saved relay pairing changed. Review it before continuing.');
+      return;
+    }
+    journal.whatsappRelay = value; this.commit(journal);
   }
 
   holdWhatsAppRelay(reason: NonNullable<GatewayWhatsAppIntakeState['recovery']>['reason']): void {

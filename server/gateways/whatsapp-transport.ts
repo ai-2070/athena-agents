@@ -12,7 +12,8 @@ const quiet: Logger = { child: () => quiet, debug() {}, info() {}, warn() {}, er
 
 export function whatsAppTransport(state: GatewayStateAdapter, inbox: GatewayInbox, activity: (connected: boolean) => void, signal: AbortSignal,
   options: { testOrigin?: string; request?: (url: string, init: RequestInit) => Promise<Response> } = {}): Transport {
-  const { accessToken, signingSecret, relayKey } = getGatewaySecrets(state.instanceId);
+  const { accessToken, signingSecret, relayKey, whatsappPairing } = getGatewaySecrets(state.instanceId);
+  if (whatsappPairing !== undefined) throw new GatewaySetupError('Finish or review the pending WhatsApp pairing before connecting.');
   const connection = inbox.whatsAppRelayState()?.connection;
   if (!accessToken || !signingSecret || !relayKey) throw new GatewaySetupError('Add the WhatsApp access token, app secret and relay pull key before connecting.');
   if (!connection) throw new WhatsAppRelayError('setup');

@@ -4,12 +4,13 @@ A separate Cloudflare Worker receives Meta webhooks and keeps a durable queue fo
 installation. Athena's dashboard stays on `127.0.0.1`; no tunnel, public dashboard route or model
 runtime runs here. SQLite-backed Durable Objects serialize queue changes across Worker replicas.
 
-This is the relay foundation. Athena cannot pair or enable WhatsApp yet. Local signature verification,
+This is the relay foundation. Athena cannot enable WhatsApp yet. Local signature verification,
 exact phone guards, verified identity mappings and durable acknowledgement gates have offline
 integration proof. The local Chat SDK adapter also checks the configured Meta phone/business account
 and saves hash-verified private media. Guarded replies and selected document uploads enforce the
-service window. The application transport now joins these pieces under the gateway worker; pairing,
-Settings and recovery controls are still pending. Deploying this Worker does not enable a gateway.
+service window. The application transport joins these pieces under the gateway worker, and a
+paused-only local API can pair a new instance. Settings and relay-gap recovery controls are still
+pending. Deploying this Worker does not enable a gateway.
 
 Each deployment serves **one Meta Business app and one business phone**. Use a separate deployment
 for each WhatsApp instance. An original webhook body may contain several entries; forwarding such a
@@ -72,7 +73,8 @@ The CLI below is pinned; use Node 24.22 or newer for deployment. Run it from the
    Pair it through `/v1/pair` before connecting Meta. Codes expire after ten minutes and work once.
    The pull token is returned only by that successful pairing response. Save it securely on the
    intended computer. A lost response needs an explicit administrative revoke/re-pair; the token
-   cannot be recovered from the relay. The current Athena UI does not perform this step yet.
+   cannot be recovered from the relay. The local pairing API below can save the response directly;
+   the current Athena UI does not perform this step yet.
 5. In Meta's webhook settings, use `https://<your-worker>/webhooks/meta` and the same verification
    token. Subscribe to `messages` for the configured business phone. GET verification echoes only
    a valid numeric challenge. Every POST must carry the valid `X-Hub-Signature-256` for its exact
@@ -204,7 +206,48 @@ native agents keep their ordinary stop/recovery semantics. The worker drains del
 releases the remote lease, then releases SDK state and account ownership. Temporary outages honor relay retry times; invalid
 credentials require setup, and gaps or changed pairing metadata require explicit recovery review.
 Reconnect never clears a recovery marker or re-runs an interrupted assignment automatically.
-The product availability gate remains closed until pairing and recovery controls are ready.
+The product availability gate remains closed until Settings and relay-gap recovery controls are ready.
+
+### Local pairing API
+
+Create and configure a paused WhatsApp instance before pairing. A new pairing requires an empty
+instance: it cannot replace a saved relay, conversation receipts or identity history. It takes the
+existing relay cursor as its starting point, so review any previous installation before continuing.
+No model run, message, relay claim or acknowledgement is made by setup.
+
+`POST /api/gateways/:id/whatsapp-pairing` uses the normal local `x-dash: 1` request guard and accepts:
+
+```json
+{
+  "origin": "https://your-relay.example",
+  "businessAccountId": "9000000001",
+  "code": "<one-use 64-character lowercase hex code>",
+  "acknowledgeStart": true
+}
+```
+
+Only the code goes to the fixed `/v1/pair` path on that HTTPS origin. Redirects, URL credentials,
+paths, queries and fragments are refused. The response must match the instance's phone and chosen
+business account. Setup has a ten-second deadline and a 64 KiB response limit. It saves an attempt
+before the request, then atomically saves the returned pull key and its receipt in private gateway
+secrets. The code is never saved. A matching inbox binding follows; the instance stays paused.
+Remote gaps remain held for review. Meta access-token verification still happens on connection;
+pairing alone is not a successful Meta credential check.
+
+`GET /api/gateways/:id/whatsapp-setup` returns only `paired`, `recoveryRequired` and a pending phase
+with an opaque revision. Keys, account IDs and the private relay origin are omitted. If `pending.phase`
+is `received`, send its current `revision` to `POST /api/gateways/:id/whatsapp-pairing/finish` to finish
+the local save after fixing storage. This makes no network request and is safe across a crash after
+the exact inbox binding was already saved. A pending attempt blocks credential replacement and
+transport startup, so partially saved setup cannot be used.
+
+If the phase is `requesting`, the remote outcome is unknown. No automatic retry or code reuse is
+allowed. Revoke the pairing at the relay, explicitly reviewing its queue loss as described below.
+Then `POST /api/gateways/:id/whatsapp-pairing/review` with the current `revision` and
+`acknowledgeRemoteRevoked: true` permits a fresh pairing code. This acknowledgement does not itself
+call the relay or verify an administrative revocation. It cannot discard a received key or replace
+an existing local relay binding. All mutation routes require the instance to be paused and acquire
+exclusive local state/account ownership. Stale revisions are refused.
 
 A consumer must claim a lease before pulling. A second claim, even with the same consumer UUID,
 is refused while the lease is active; pull/ack renew it. A lost claim response waits for lease expiry.

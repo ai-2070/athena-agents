@@ -31,6 +31,7 @@ if (!proofRoot) {
 async function proof(): Promise<void> {
   const { WhatsAppGatewayAdapter } = await import('../server/gateways/whatsapp.ts');
   const { whatsAppTransport } = await import('../server/gateways/whatsapp-transport.ts');
+  const { pairWhatsApp } = await import('../server/gateways/whatsapp-setup.ts');
   const { WhatsAppRelayIntake } = await import('../server/gateways/whatsapp-intake.ts');
   const { GatewayInbox } = await import('../server/gateways/inbox.ts');
   const { GatewayStateAdapter } = await import('../server/gateways/state.ts');
@@ -45,13 +46,22 @@ async function proof(): Promise<void> {
   const quiet: Logger = { child: () => quiet, debug() {}, info() {}, warn() {}, error() {} };
   const business = '9000000001'; const phone = '9200000001'; const fileId = '9300000001'; const actor = '436641234567';
   const appSecret = 'FAKE_WHATSAPP_APP_SECRET'; const token = 'FAKE_WHATSAPP_ACCESS_TOKEN'; const digest = crypto.createHash('sha256').update('hello').digest('hex');
-  const firstProject = listProjects()[0]; const instance = saveGatewayInstance({
+  const firstProject = listProjects()[0]; const config = {
     name: 'WhatsApp media proof', platform: 'whatsapp', accountId: phone, projectId: firstProject.id, target: { kind: 'brain' },
     senderPolicy: { platform: 'whatsapp', allowedPhones: [`+${actor}`] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
-    fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: true,
-  });
+    fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false,
+  }; const instance = saveGatewayInstance(config);
   const state = new GatewayStateAdapter(instance.id); await state.connect(); const inbox = new GatewayInbox(state); const epoch = crypto.randomUUID();
-  inbox.bindWhatsAppRelayConnection({ origin: 'https://relay.example', installationId: crypto.randomUUID(), businessAccountId: business, phoneNumberId: phone, epoch }, 0);
+  saveGatewayCredentials(instance.id, { accessToken: token, signingSecret: appSecret });
+  const relayLimits = { bodyBytes: 1048576, queueBytes: 16777216, queueEvents: 1000, replayEntries: 10000, retentionMs: 259200000, replayMs: 604800000, pairingMs: 600000, leaseMs: 60000, batchBytes: 2097152, batchEvents: 20 };
+  const setup = await pairWhatsApp(inbox, { origin: 'https://relay.example', businessAccountId: business, code: 'c'.repeat(64), acknowledgeStart: true }, { request: async (url, init) => {
+    assert.equal(url, 'https://relay.example/v1/pair'); assert.equal(init.redirect, 'error'); assert.equal(new Headers(init.headers).has('authorization'), false);
+    assert.deepEqual(JSON.parse(String(init.body)), { code: 'c'.repeat(64) });
+    return Response.json({ version: 1, installationId: crypto.randomUUID(), businessAccountId: business, phoneNumberId: phone, epoch, cursor: 0, gap: null, limits: relayLimits, queuedEvents: 0, queuedBytes: 0, token: 'a'.repeat(64) });
+  } });
+  assert.deepEqual(setup, { paired: true, pending: null, recoveryRequired: false }); assert.equal(instance.enabled, false);
+  saveGatewayInstance({ ...config, enabled: true }, instance.id);
+  console.log('gateways: WhatsApp one-use pairing saves private keys and pins a paused instance');
   let origin = ''; let downloads = 0; let replyTo = 'wamid.media'; const errors: unknown[] = []; const calls: string[] = [];
   const posts: Record<string, unknown>[] = [];
   const server = http.createServer(async (request, response) => {
@@ -134,7 +144,7 @@ async function proof(): Promise<void> {
     const connection = inbox.whatsAppRelayState()!.connection!;
     const metadata = () => ({ version: 1, installationId: connection.installationId, businessAccountId: business, phoneNumberId: phone, epoch,
       cursor, gap: null, queuedEvents: envelopes.length, queuedBytes: envelopes.length * 100,
-      limits: { bodyBytes: 1048576, queueBytes: 16777216, queueEvents: 1000, replayEntries: 10000, retentionMs: 259200000, replayMs: 604800000, pairingMs: 600000, leaseMs: 60000, batchBytes: 2097152, batchEvents: 20 } });
+      limits: relayLimits });
     const transport = whatsAppTransport(state, inbox, () => assert.fail('Unexpected transport disconnect'), signal, { testOrigin: origin, request: async (url, init) => {
       const address = new URL(url); assert.equal(address.origin, connection.origin); const headers = new Headers(init.headers);
       assert.equal(headers.get('authorization'), `Bearer ${'a'.repeat(64)}`); assert.equal(init.redirect, 'error');

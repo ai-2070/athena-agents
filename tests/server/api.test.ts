@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import type { GatewayHealth, GatewayInstance, GatewayDiscordRecovery } from '../../shared/types.ts';
+import type { GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayWhatsAppSetup } from '../../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 // set in beforeAll: a port nothing else is using (see startServer)
@@ -229,6 +229,39 @@ describe('API', () => {
 });
 
 describe('gateway configuration API', () => {
+  it('guards paused WhatsApp pairing finish and unknown-attempt review without exposing keys or private pairing metadata', async () => {
+    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const config = { name: 'WhatsApp pairing', platform: 'whatsapp', accountId: '9500000001', projectId: state.project.id, target: { kind: 'brain' },
+      senderPolicy: { platform: 'whatsapp', allowedPhones: ['+436641234567'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
+    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
+    const url = `/api/gateways/${instance.id}`; const file = path.join(tmp, 'data', 'gateway-secrets.json');
+    const records = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown> : {};
+    const connection = { origin: 'https://private-relay.example', installationId: '00000000-0000-4000-8000-000000000002', businessAccountId: '9000000001', phoneNumberId: instance.accountId, epoch: '00000000-0000-4000-8000-000000000001' };
+    records[instance.id] = { relayKey: 'b'.repeat(64), whatsappPairing: { phase: 'received', attemptId: '00000000-0000-4000-8000-000000000003', connection, cursor: 0, gap: false } };
+    fs.writeFileSync(file, JSON.stringify(records));
+    const text = await (await req(`${url}/whatsapp-setup`)).text(); expect(text).not.toContain('private-relay'); expect(text).not.toContain('b'.repeat(64)); expect(text).not.toContain(connection.epoch);
+    const preview = JSON.parse(text) as GatewayWhatsAppSetup; expect(preview).toMatchObject({ paired: false, pending: { phase: 'received' } });
+    const listing = await (await req('/api/gateways')).text(); expect(listing).not.toContain('whatsappPairing'); expect(listing).not.toContain('b'.repeat(64));
+    for (const suffix of ['/whatsapp-pairing', '/whatsapp-pairing/finish', '/whatsapp-pairing/review']) {
+      expect((await req(url + suffix, { method: 'POST', body: '{}' })).status).toBe(403);
+      expect((await req(url + suffix, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body: '{}' })).status).toBe(403);
+    }
+    expect((await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64) }) })).status).toBe(409);
+    const body = JSON.stringify({ revision: preview.pending!.revision });
+    expect(await (await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body })).json()).toEqual({ paired: true, pending: null, recoveryRequired: false });
+    expect((await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body })).status).toBe(409);
+    expect((await req(`${url}/whatsapp-pairing`, { method: 'POST', headers: json, body: '{}' })).status).toBe(400);
+    await req(url, { method: 'DELETE', headers: json });
+    const other = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify({ ...config, accountId: '9500000002' }) })).json() as GatewayInstance;
+    const current = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+    current[other.id] = { whatsappPairing: { phase: 'requesting', attemptId: '00000000-0000-4000-8000-000000000004', origin: 'https://relay.example', businessAccountId: '9000000001', phoneNumberId: other.accountId } }; fs.writeFileSync(file, JSON.stringify(current));
+    const pending = await (await req(`/api/gateways/${other.id}/whatsapp-setup`)).json() as GatewayWhatsAppSetup;
+    expect((await req(`/api/gateways/${other.id}/whatsapp-pairing/review`, { method: 'POST', headers: json, body: JSON.stringify({ revision: pending.pending!.revision }) })).status).toBe(409);
+    expect(await (await req(`/api/gateways/${other.id}/whatsapp-pairing/review`, { method: 'POST', headers: json, body: JSON.stringify({ revision: pending.pending!.revision, acknowledgeRemoteRevoked: true }) })).json()).toEqual({ paired: false, pending: null, recoveryRequired: false });
+    await req(`/api/gateways/${other.id}`, { method: 'DELETE', headers: json });
+  });
+
   it('guards explicit Discord recovery review and never exposes its private session', async () => {
     const state = await (await req('/api/state')).json() as { project: { id: string } };
     const config = { name: 'Discord recovery', platform: 'discord', accountId: '900000000000000001', projectId: state.project.id, target: { kind: 'brain' },

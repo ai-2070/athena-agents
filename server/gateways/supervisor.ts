@@ -1,10 +1,11 @@
-import type { GatewayHealth, GatewayReconciliation, GatewayStatus, ServerEvent } from '../../shared/types.ts';
+import type { GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayWhatsAppSetup, ServerEvent } from '../../shared/types.ts';
 import { gatewayNeedsReview, gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { bus, emit, listProjects } from '../store.ts';
 import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.ts';
 import { GatewayStateAdapter } from './state.ts';
 import { getGatewayInstance, listGatewayInstances } from './instances.ts';
 import { reviewDiscordRecovery } from './discord-recovery.ts';
+import { finishWhatsAppPairing, pairWhatsApp, reviewWhatsAppPairing } from './whatsapp-setup.ts';
 import { claimGatewayAccount } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
 
@@ -108,6 +109,32 @@ export class GatewaySupervisor {
       } finally { await state.disconnect(); await release?.(); }
     });
     this.pending = task.then(() => {}, () => {}); return task;
+  }
+
+  private whatsAppSetupTask(instanceId: string, work: (inbox: GatewayInbox) => GatewayWhatsAppSetup | Promise<GatewayWhatsAppSetup>): Promise<GatewayWhatsAppSetup> {
+    const task = this.pending.then(async () => {
+      const instance = getGatewayInstance(instanceId);
+      if (this.closed || instance.platform !== 'whatsapp' || instance.enabled) throw Object.assign(new Error('Pause this WhatsApp instance before changing its pairing.'), { status: 400 });
+      await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
+      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined;
+      try {
+        release = await claimGatewayAccount('whatsapp', instance.accountId); await state.connect();
+        const result = await work(new GatewayInbox(state));
+        const health: GatewayHealth = { instanceId, status: 'paused', reason: '', attempts: 0, updatedAt: Date.now() };
+        this.statuses.set(instanceId, health); emit('gateway-health', { ...health }); return result;
+      } finally { await state.disconnect(); await release?.(); }
+    });
+    this.pending = task.then(() => {}, () => {}); return task;
+  }
+
+  pairWhatsApp(instanceId: string, body: unknown): Promise<GatewayWhatsAppSetup> {
+    return this.whatsAppSetupTask(instanceId, (inbox) => pairWhatsApp(inbox, body));
+  }
+  finishWhatsAppPairing(instanceId: string, body: unknown): Promise<GatewayWhatsAppSetup> {
+    return this.whatsAppSetupTask(instanceId, (inbox) => finishWhatsAppPairing(inbox, body));
+  }
+  reviewWhatsAppPairing(instanceId: string, body: unknown): Promise<GatewayWhatsAppSetup> {
+    return this.whatsAppSetupTask(instanceId, (inbox) => reviewWhatsAppPairing(inbox, body));
   }
 
   async selectDocuments(instanceId: string, eventId: string, body: unknown): Promise<void> {

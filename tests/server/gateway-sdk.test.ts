@@ -13,6 +13,7 @@ describe('pinned Chat SDK transport proof', () => {
     expect(stdout).toContain('WhatsApp SDK account checks, ACK-gated private media, signed hash and bound project pass');
     expect(stdout).toContain('WhatsApp service-window replies and selected document upload pass');
     expect(stdout).toContain('WhatsApp paired transport reconnect, replay dedupe and guarded delivery pass');
+    expect(stdout).toContain('WhatsApp one-use pairing saves private keys and pins a paused instance');
   });
 
   it('runs the bundled WhatsApp media adapter from read-only files outside the checkout', async () => {
@@ -24,6 +25,7 @@ describe('pinned Chat SDK transport proof', () => {
       expect(stdout).toContain('WhatsApp SDK account checks, ACK-gated private media, signed hash and bound project pass');
       expect(stdout).toContain('WhatsApp service-window replies and selected document upload pass');
       expect(stdout).toContain('WhatsApp paired transport reconnect, replay dedupe and guarded delivery pass');
+      expect(stdout).toContain('WhatsApp one-use pairing saves private keys and pins a paused instance');
     } finally { fs.chmodSync(directory, 0o755); fs.chmodSync(file, 0o644); }
   });
 

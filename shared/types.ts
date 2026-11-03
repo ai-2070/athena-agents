@@ -207,6 +207,17 @@ export interface GatewayWhatsAppRelayConnection {
   epoch: string;
 }
 
+/** Private setup receipt, stored with gateway secrets so the returned pull key saves atomically. */
+export type GatewayWhatsAppPairing =
+  | { phase: 'requesting'; attemptId: string; origin: string; businessAccountId: string; phoneNumberId: string }
+  | { phase: 'received'; attemptId: string; connection: GatewayWhatsAppRelayConnection; cursor: number; gap: boolean };
+
+export interface GatewayWhatsAppSetup {
+  paired: boolean;
+  pending: null | { phase: GatewayWhatsAppPairing['phase']; revision: string };
+  recoveryRequired: boolean;
+}
+
 /** Scoped to one instance, business account and relay epoch; retired IDs are never reused. */
 export interface GatewayWhatsAppIdentities {
   businessAccountId: string;
