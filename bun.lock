@@ -29,7 +29,7 @@
         "@workflow/world-local": "5.2.0",
         "@xterm/addon-fit": "0.11.0",
         "@xterm/xterm": "6.0.0",
-        "ai": "7.0.161",
+        "ai": "7.0.162",
         "dompurify": "3.4.17",
         "eve": "1.0.0-rc.2",
         "just-bash": "3.6.0",
@@ -62,13 +62,10 @@
       },
     },
   },
-  "patchedDependencies": {
-    "@workflow/world-local@5.1.2": "patches/@workflow%2Fworld-local@5.1.2.patch",
-  },
   "packages": {
     "@ag-ui/core": ["@ag-ui/core@0.0.53", "", { "dependencies": { "zod": "^3.22.4" } }, "sha512-11UocR7fFdMWw503bWCX2IOK15vbWfxT11Mn9xOiPBVO/UVcn57ywGrlLL4UaBlPgmUTvuzr2yYR2ElSqiN2wQ=="],
 
-    "@ai-sdk/gateway": ["@ai-sdk/gateway@4.0.134", "", { "dependencies": { "@ai-sdk/provider": "4.0.35", "@ai-sdk/provider-utils": "5.0.73", "@vercel/oidc": "3.2.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-peyVRIn7rD7zm8kcnKrRnSiIuOXVp93vrrjqdK5TtRCBv4oBomVH5WQ9MinXkWVs5UdWEURJmTIM/qsGLnz65A=="],
+    "@ai-sdk/gateway": ["@ai-sdk/gateway@4.0.135", "", { "dependencies": { "@ai-sdk/provider": "4.0.35", "@ai-sdk/provider-utils": "5.0.74", "@vercel/oidc": "3.2.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-gnMpZP42WIhy24fpnbbtV7SBqEhYY8ZSMsfgoNRh5r41D1HwnJTm1k7d4uYSIpiaEb5J8IPTHVSzwgWmGoSFEA=="],
 
     "@ai-sdk/mcp": ["@ai-sdk/mcp@2.0.89", "", { "dependencies": { "@ai-sdk/provider": "4.0.35", "@ai-sdk/provider-utils": "5.0.73", "cross-spawn": "^7.0.6", "pkce-challenge": "^5.0.1" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-lJof6h5Cmdu1KOwhkxkFsfNZU8AEqjI/ip1m9jKUGDAaicWkJqS+TiUIgS9Qsyvr0J3p3jhU59THI46DqmzqJQ=="],
 
@@ -84,7 +81,7 @@
 
     "@asamuzakjp/dom-selector": ["@asamuzakjp/dom-selector@10.0.5", "", { "dependencies": { "bidi-js": "^1.1.0", "css-tree": "^3.2.1", "is-potential-custom-element-name": "^1.0.1", "lru-cache": "^11.5.3" } }, "sha512-EgmJ7oEaGQECTn3H3wmnQpEy4hKY66VvM7VQndwPIQob3p877BgbyOUE3EX0LgXQCciF2H8KMdR+RznqjMNOLw=="],
 
-    "@athena/eve-world": ["@athena/eve-world@file:runtime/eve-world", { "dependencies": { "@workflow/world": "5.0.5", "@workflow/world-local": "5.1.2" } }],
+    "@athena/eve-world": ["@athena/eve-world@file:runtime/eve-world", { "dependencies": { "@workflow/world": "5.0.5", "@workflow/world-local": "5.2.0" } }],
 
     "@babel/runtime": ["@babel/runtime@7.29.10", "", {}, "sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA=="],
 
@@ -496,7 +493,7 @@
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 
-    "ai": ["ai@7.0.161", "", { "dependencies": { "@ai-sdk/gateway": "4.0.134", "@ai-sdk/provider": "4.0.35", "@ai-sdk/provider-utils": "5.0.73" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-DcHxTJKuAqGFZST4RgE5nCfciY+P6ym9/TKq/5UHh0U/0d4V1k+1xvYSpMR5Rq+akjeerw5teL6AXJVwmoludg=="],
+    "ai": ["ai@7.0.162", "", { "dependencies": { "@ai-sdk/gateway": "4.0.135", "@ai-sdk/provider": "4.0.35", "@ai-sdk/provider-utils": "5.0.74" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-NPzL6/GmjjPwhzM1kGP9O60TfJ3uXV4Z4A/ztljxcJFAmRAFAjgk5mAHaikk3sE8NQo4NbRCiS+DgHinE2d0sQ=="],
 
     "ajv": ["ajv@8.20.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA=="],
 
@@ -1320,9 +1317,11 @@
 
     "@ag-ui/core/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
+    "@ai-sdk/gateway/@ai-sdk/provider-utils": ["@ai-sdk/provider-utils@5.0.74", "", { "dependencies": { "@ai-sdk/provider": "4.0.35", "@standard-schema/spec": "^1.1.0", "@workflow/serde": "4.1.0", "eventsource-parser": "^3.0.8", "undici": "^7.29.1" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-42R/bzs520oy3PMj8FI1KGegjLEjaUsNcaEltb6yxN0KnmhihWvlgMb19pEF8CKKqv6Bq6+qMVji8mtyrMubSQ=="],
+
     "@ai-sdk/provider-utils/undici": ["undici@7.30.1", "", {}, "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg=="],
 
-    "@athena/eve-world/@workflow/world-local": ["@workflow/world-local@5.1.2", "", { "dependencies": { "@vercel/queue": "0.8.0", "@workflow/errors": "5.0.5", "@workflow/utils": "5.0.2", "@workflow/world": "5.0.5", "async-sema": "3.1.1", "proper-lockfile": "4.1.2", "ulid": "~3.0.1", "undici": "7.30.0", "zod": "~4.5.4" }, "peerDependencies": { "@opentelemetry/api": "1" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-QGyWRpYfAVqnY2UWA4xjNuVdwlYsCURk4mgqyxV1R78KfVwq7OaV26XJbMADppiIr8eWVmxcgYOrAqw5jieT5g=="],
+    "@ai-sdk/react/ai": ["ai@7.0.161", "", { "dependencies": { "@ai-sdk/gateway": "4.0.134", "@ai-sdk/provider": "4.0.35", "@ai-sdk/provider-utils": "5.0.73" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-DcHxTJKuAqGFZST4RgE5nCfciY+P6ym9/TKq/5UHh0U/0d4V1k+1xvYSpMR5Rq+akjeerw5teL6AXJVwmoludg=="],
 
     "@openuidev/devtools/lucide-react": ["lucide-react@0.575.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-VuXgKZrk0uiDlWjGGXmKV6MSk9Yy4l10qgVvzGn2AWBx1Ylt0iBexKOAoA6I7JO3m+M9oeovJd3yYENfkUbOeg=="],
 
@@ -1347,6 +1346,8 @@
     "@workflow/world-local/undici": ["undici@7.30.0", "", {}, "sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ=="],
 
     "@workflow/world-local/zod": ["zod@4.5.4", "", {}, "sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA=="],
+
+    "ai/@ai-sdk/provider-utils": ["@ai-sdk/provider-utils@5.0.74", "", { "dependencies": { "@ai-sdk/provider": "4.0.35", "@standard-schema/spec": "^1.1.0", "@workflow/serde": "4.1.0", "eventsource-parser": "^3.0.8", "undici": "^7.29.1" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-42R/bzs520oy3PMj8FI1KGegjLEjaUsNcaEltb6yxN0KnmhihWvlgMb19pEF8CKKqv6Bq6+qMVji8mtyrMubSQ=="],
 
     "body-parser/content-type": ["content-type@2.1.0", "", {}, "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag=="],
 
@@ -1378,15 +1379,13 @@
 
     "type-is/content-type": ["content-type@2.1.0", "", {}, "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag=="],
 
-    "@athena/eve-world/@workflow/world-local/@vercel/queue": ["@vercel/queue@0.8.0", "", { "dependencies": { "@vercel/oidc": "^3.0.5", "minimatch": "^10.2.4", "mixpart": "0.0.6", "picocolors": "^1.1.1" }, "peerDependencies": { "@opentelemetry/api": "^1.0.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-Rwaoq8DbSN2/qVPMdHzBdBXqpoD2h2s7+gOSaE3Gff9XI1NjNh281uMesP30k1kbsnjgeaibLTSiuYDlNPlw+g=="],
+    "@ai-sdk/gateway/@ai-sdk/provider-utils/undici": ["undici@7.30.1", "", {}, "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg=="],
 
-    "@athena/eve-world/@workflow/world-local/@workflow/errors": ["@workflow/errors@5.0.5", "", { "dependencies": { "@workflow/utils": "5.0.2", "@workflow/world": "5.0.5", "ms": "2.1.3" } }, "sha512-aPf+vFXJRK5jOtbYg+o2q+x5PxeTXYLrCbi+Ftevdu5jklBxiW52ArfSyLtrkQv2fD1Xm6zU5D3qdQR/IqfaIw=="],
-
-    "@athena/eve-world/@workflow/world-local/undici": ["undici@7.30.0", "", {}, "sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ=="],
-
-    "@athena/eve-world/@workflow/world-local/zod": ["zod@4.5.4", "", {}, "sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA=="],
+    "@ai-sdk/react/ai/@ai-sdk/gateway": ["@ai-sdk/gateway@4.0.134", "", { "dependencies": { "@ai-sdk/provider": "4.0.35", "@ai-sdk/provider-utils": "5.0.73", "@vercel/oidc": "3.2.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-peyVRIn7rD7zm8kcnKrRnSiIuOXVp93vrrjqdK5TtRCBv4oBomVH5WQ9MinXkWVs5UdWEURJmTIM/qsGLnz65A=="],
 
     "@workflow/errors/@workflow/world/zod": ["zod@4.5.4", "", {}, "sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA=="],
+
+    "ai/@ai-sdk/provider-utils/undici": ["undici@7.30.1", "", {}, "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg=="],
 
     "hast-util-from-html/parse5/entities": ["entities@6.0.1", "", {}, "sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g=="],
   }
