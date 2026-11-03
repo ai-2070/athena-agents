@@ -11,8 +11,8 @@ and saves hash-verified private media. Guarded replies and selected document upl
 service window. The application transport joins these pieces under the gateway worker, and a
 paused-only Settings flow can pair a new instance, check its account and relay, finish interrupted
 setup and review an observed retention gap. Unstarted held requests can be dismissed separately.
-The original relay can be checked after restoration; accepting a replacement installation and the
-remaining work/delivery controls are still pending.
+The original relay can be checked after restoration, or explicitly replaced while preserving its
+receipts. The remaining work/delivery controls and acceptance checks are still pending.
 Deploying this Worker does not enable a gateway.
 
 Each deployment serves **one Meta Business app and one business phone**. Use a separate deployment
@@ -339,7 +339,7 @@ retry a send or start another model run. Those product controls remain pending.
 
 The local journal keeps up to 1,000 gap reviews without eviction; a full history refuses another
 review. Non-gap receipt holds and identity/epoch changes use the restoration check below; accepting
-an installation replacement still needs separate controls. Gap review cannot clear them, re-pair an existing inbox or replace
+an installation replacement uses its separate pairing flow below. Gap review cannot clear them, re-pair an existing inbox or replace
 its private conversation history. A gap already skipped remotely without a prior local observation
 also requires restoration rather than guessing the lost range.
 
@@ -367,6 +367,45 @@ envelope ID checked on connection; invalid signed bodies are still refused when 
 instance stays paused, and WhatsApp remains disabled. A full audit of 1,000 restorations refuses
 another review instead of discarding older entries. A gap hold uses its separate review flow; a
 non-gap hold with a new remote gap requires the original queue/receipts to be restored first.
+
+### Replace a lost relay
+
+If restoration is impossible, revoke or permanently stop the old relay and review its queue loss.
+For example, after losing a deployment's Durable Object data, create a fresh deployment for the
+same business account and phone, create a new one-use code, then choose **Replace relay** in Athena.
+The origin and installation may change; the business account and phone may not. A revoke/re-pair on
+the original installation also works with its new epoch. Current or previously archived epochs
+cannot be reused. This action never calls relay administration on the user's behalf.
+
+`GET /api/gateways/:id/whatsapp-replacement` returns only a current opaque revision and the number
+of archived bindings. A `null` revision means no saved binding or a full history. Send that revision,
+the new `origin`, `businessAccountId` and `code`, plus `acknowledgePreviousStopped: true` and
+`acknowledgeLoss: true`, to `POST /api/gateways/:id/whatsapp-pairing/replace`. The normal local request
+guards, pause requirement and exclusive ownership apply. A requesting marker saves before the
+one-use exchange; the returned key and received receipt save together in private secrets. Codes
+are never saved. An unknown outcome requires revoking the new pairing and explicitly reviewing
+that attempt. The old pull key is not restored when the unknown attempt is cleared.
+
+A received replacement is deliberately not finished automatically. Reload its saved preview, then
+send the pending revision and `acknowledgeLoss: true` to `/whatsapp-pairing/finish`. The revision
+includes the current instance and work journal, so changed work requires a fresh finish review.
+This step makes no network request. It atomically archives the old relay state and binds the new
+one; a crash before the private pending marker clears can finish idempotently after reloading.
+
+The instance ID, project, destination, source dedupe and charged byte accounting remain. Old cursors,
+pending ACKs, signed mappings, gaps, review audits and event receipts stay archived. They never
+authorize new intake or delivery; an unconfirmed old batch stays unconfirmed even if a new sequence
+has the same number. Unstarted old requests can still be explicitly dismissed, retaining dedupe.
+Running native agents keep their ordinary controls; replacement does not cancel or repeat them.
+
+Fresh signed messages after the finish boundary get new private conversation bindings. Older
+messages and identity updates are ignored without learning aliases. Previously active aliases
+lose their phone association and need fresh signed phone proof; retired aliases remain tombstones.
+Senders should message again after finishing (messages in the finish second are conservatively
+ignored). An already initialized SDK adapter also cannot operate across the epoch change. Old
+files, native work, sent prefixes and uncertain deliveries cannot run or send through the new relay.
+The history holds up to 100 prior relay states without eviction; a full history refuses replacement.
+The instance remains paused and WhatsApp receiving/sending remain disabled.
 
 The relay necessarily sees webhook content and holds Meta's verification secret. Use a deployment
 whose operator you trust. The outbound Meta access token, model keys, files and dashboard sessions

@@ -518,6 +518,21 @@ will fail the check. Pending acknowledgements still need their exact envelope pr
 saved work, files and delivery receipts stay held for separate review. This leaves the instance
 paused and does not enable WhatsApp. Retired sender aliases stay blocked.
 
+If the original deployment is gone, use **Replace relay** instead. Revoke or permanently stop the
+old relay and review its queued-message loss first. Enter the replacement's HTTPS address, the
+same business account ID and a new pairing code, then confirm **Pair replacement**. The new key
+is saved privately before **Finish replacement** asks for a separate review of the current work.
+If finishing is interrupted, reopen setup and finish the saved key; do not exchange the code again.
+An unknown replacement outcome requires revoking the new pairing before clearing that attempt.
+
+For example, after losing a relay deployment's stored data, deploy a fresh relay for the same business
+phone, create its pairing code and use this flow. The instance keeps its project, Brain/team/agent
+destination, receipt history and duplicate protection. Old requests, files and delivery receipts
+remain held; running native agents keep their controls in Athena. Senders must message again after
+finishing to establish fresh phone proof and start new private conversations. Delayed messages from
+before replacement are ignored. Retired sender IDs stay blocked, and pending acknowledgements are
+archived as unconfirmed. Setup still leaves WhatsApp disabled and the instance paused.
+
 ## License and credits
 
 Both are in the [README](../README.md#license).

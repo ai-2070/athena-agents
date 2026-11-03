@@ -199,6 +199,7 @@ export interface GatewayWhatsAppReceipt {
 export interface GatewayWhatsAppIntakeState {
   epoch: string;
   cursor: number;
+  startedAt?: number;
   receipt?: GatewayWhatsAppReceipt & { confirmed: boolean; accepted: number; ignored: number; unmatchedSenders: number };
   identities?: GatewayWhatsAppIdentities;
   connection?: GatewayWhatsAppRelayConnection;
@@ -225,13 +226,18 @@ export interface GatewayWhatsAppRelayConnection {
 
 /** Private setup receipt, stored with gateway secrets so the returned pull key saves atomically. */
 export type GatewayWhatsAppPairing =
-  | { phase: 'requesting'; attemptId: string; origin: string; businessAccountId: string; phoneNumberId: string }
-  | { phase: 'received'; attemptId: string; connection: GatewayWhatsAppRelayConnection; cursor: number; gap: boolean };
+  | { phase: 'requesting'; attemptId: string; origin: string; businessAccountId: string; phoneNumberId: string; replacement?: { epoch: string; revision: string } }
+  | { phase: 'received'; attemptId: string; connection: GatewayWhatsAppRelayConnection; cursor: number; gap: boolean; replacement?: { epoch: string; revision: string } };
 
 export interface GatewayWhatsAppSetup {
   paired: boolean;
-  pending: null | { phase: GatewayWhatsAppPairing['phase']; revision: string };
+  pending: null | { phase: GatewayWhatsAppPairing['phase']; revision: string; replacement?: true };
   recoveryRequired: boolean;
+}
+
+export interface GatewayWhatsAppReplacement {
+  revision: string | null;
+  retired: number;
 }
 
 export interface GatewayWhatsAppCheck {
@@ -312,6 +318,7 @@ export interface GatewayInboxJournal {
   retiredQuota?: { day: string; incomingBytes: number; outgoingBytes: number }[];
   retiredAlbums?: string[];
   whatsappRelay?: GatewayWhatsAppIntakeState;
+  whatsappRetired?: { at: number; attemptId: string; revision: string; state: GatewayWhatsAppIntakeState }[];
 }
 
 export interface GatewayHealth {

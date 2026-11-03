@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { GatewayDeliveryOutcome, GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayRequestReview, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, GatewayWhatsAppRecovery, GatewayWhatsAppRelayConnection, GatewayWhatsAppRelayStatus, UploadedFile } from '../../shared/types.ts';
-import { emit } from '../store.ts';
+import type { GatewayDeliveryOutcome, GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayRequestReview, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, GatewayWhatsAppRecovery, GatewayWhatsAppRelayConnection, GatewayWhatsAppRelayStatus, GatewayWhatsAppReplacement, UploadedFile } from '../../shared/types.ts';
+import { emit, getGatewaySecrets } from '../store.ts';
 import { readJSON, uid, writeJSON } from '../util.ts';
 import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
 import type { GatewayStateAdapter } from './state.ts';
@@ -54,13 +54,15 @@ const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
   })).max(10),
 });
 const replyPart = z.strictObject({ text: z.string().min(1).max(3000), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed']), attempts: stamp, remoteId: externalId.optional(), retryAt: stamp.optional() });
-const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
-  version: z.literal(1), nextSequence: stamp.positive(),
-  whatsappRelay: z.strictObject({ epoch: z.uuid(), cursor: stamp, receipt: intakeReceipt.optional(), identities: whatsAppIdentitiesSchema.optional(),
+const whatsAppStateSchema: z.ZodType<GatewayWhatsAppIntakeState> = z.strictObject({ epoch: z.uuid(), cursor: stamp, startedAt: stamp.optional(), receipt: intakeReceipt.optional(), identities: whatsAppIdentitiesSchema.optional(),
     connection: whatsAppRelayConnectionSchema.optional(), recovery: relayRecovery.optional(),
     gapReview: z.strictObject({ at: stamp, from: stamp, through: stamp, remoteCursor: stamp }).optional(),
     reviewedGaps: z.array(z.strictObject({ at: stamp, gapAt: stamp, from: stamp, through: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/), receipt: intakeReceipt.optional() })).min(1).max(1000).optional(),
-    restorations: z.array(z.strictObject({ at: stamp, heldAt: stamp, reason: z.enum(['cursor', 'epoch', 'installation', 'envelope']), revision: z.string().regex(/^[a-f0-9]{64}$/), remoteCursor: stamp })).min(1).max(1000).optional() }).optional(),
+    restorations: z.array(z.strictObject({ at: stamp, heldAt: stamp, reason: z.enum(['cursor', 'epoch', 'installation', 'envelope']), revision: z.string().regex(/^[a-f0-9]{64}$/), remoteCursor: stamp })).min(1).max(1000).optional() });
+const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
+  version: z.literal(1), nextSequence: stamp.positive(),
+  whatsappRelay: whatsAppStateSchema.optional(),
+  whatsappRetired: z.array(z.strictObject({ at: stamp, attemptId: z.uuid(), revision: z.string().regex(/^[a-f0-9]{64}$/), state: whatsAppStateSchema })).min(1).max(100).optional(),
   retired: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(100000).optional(),
   retiredAlbums: z.array(z.string().regex(/^[a-f0-9]{64}$/)).max(100000).optional(),
   retiredQuota: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), incomingBytes: stamp, outgoingBytes: stamp })).max(100000).optional(),
@@ -121,6 +123,18 @@ function replayReceiptsValid(journal: GatewayInboxJournal): boolean {
 }
 
 function relayReceiptsValid(journal: GatewayInboxJournal): boolean {
+  const retired = journal.whatsappRetired ?? []; const epochs = retired.map((item) => item.state.epoch);
+  if (retired.length && (!journal.whatsappRelay || epochs.includes(journal.whatsappRelay.epoch)
+    || new Set(epochs).size !== epochs.length || new Set(retired.map((item) => item.attemptId)).size !== retired.length)) return false;
+  const states = [journal.whatsappRelay, ...retired.map((item) => item.state)];
+  if (journal.events.some((event) => event.input.platform === 'whatsapp' && !states.some((state) => state?.epoch === event.relay?.epoch))) return false;
+  if (retired.some((item) => !relayEpochValid({ ...journal, whatsappRelay: item.state,
+    events: journal.events.filter((event) => event.relay?.epoch === item.state.epoch) })
+    || journal.events.some((event) => event.relay?.epoch === item.state.epoch && !['done', 'needs-review'].includes(event.status)))) return false;
+  return relayEpochValid({ ...journal, events: journal.events.filter((event) => event.input.platform !== 'whatsapp' || event.relay?.epoch === journal.whatsappRelay?.epoch) });
+}
+
+function relayEpochValid(journal: GatewayInboxJournal): boolean {
   const state = journal.whatsappRelay; const receipt = state?.receipt;
   const reviews = state?.reviewedGaps ?? [];
   if (new Set(reviews.map((review) => review.revision)).size !== reviews.length || reviews.some((review, index) => !state || review.through <= review.from || review.through > state.cursor
@@ -165,10 +179,11 @@ function requestReview(instance: GatewayInstance, journal: GatewayInboxJournal, 
   else if (event.dismissed) reason = 'This request was already dismissed.';
   else if (event.status !== 'needs-review' || !gatewayRequestUnstarted(event)) reason = 'Only held requests with no reserved or started work can be dismissed. Check any saved operation separately.';
   else if (event.input.platform === 'whatsapp') {
-    const relay = journal.whatsappRelay;
+    const archived = journal.whatsappRetired?.find((item) => item.state.epoch === event.relay?.epoch);
+    const relay = archived?.state ?? journal.whatsappRelay;
     const abandoned = relay?.reviewedGaps?.some((gap) => gap.receipt && !gap.receipt.confirmed && gap.receipt.sequence === event.relay?.sequence && gap.receipt.id === event.relay.id);
-    if (relay?.recovery) reason = 'Review the WhatsApp relay recovery before dismissing this request.';
-    else if (!event.relay?.confirmed && !abandoned) reason = 'Wait for the exact relay acknowledgement or review its saved retention gap first.';
+    if (!archived && relay?.recovery) reason = 'Review the WhatsApp relay recovery before dismissing this request.';
+    else if (!event.relay?.confirmed && !abandoned && !archived) reason = 'Wait for the exact relay acknowledgement or review its saved retention gap first.';
   }
   return { revision: digest([gatewayInboxRevision(instance, journal), event.id]), canDismiss: !reason, reason };
 }
@@ -201,6 +216,15 @@ function savedGatewayInbox(instanceId: string): GatewayInboxJournal | undefined 
 
 export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] { return savedGatewayInbox(instanceId)?.events ?? []; }
 export function savedWhatsAppRelayState(instanceId: string): GatewayWhatsAppIntakeState | undefined { return savedGatewayInbox(instanceId)?.whatsappRelay; }
+export function whatsAppReplacementRevision(instanceId: string): string | undefined {
+  const instance = getGatewayInstance(instanceId); const journal = savedGatewayInbox(instanceId);
+  return instance.platform === 'whatsapp' && journal?.whatsappRelay?.connection ? gatewayInboxRevision(instance, journal) : undefined;
+}
+export function gatewayWhatsAppReplacement(instanceId: string): GatewayWhatsAppReplacement {
+  const instance = getGatewayInstance(instanceId); const journal = savedGatewayInbox(instanceId); const retired = journal?.whatsappRetired?.length ?? 0;
+  if (instance.platform !== 'whatsapp') throw Object.assign(new Error('Choose a WhatsApp instance.'), { status: 400 });
+  return { revision: retired < 100 && journal?.whatsappRelay?.connection ? gatewayInboxRevision(instance, journal) : null, retired };
+}
 export function gatewayRequestReview(instanceId: string, eventId: string): GatewayRequestReview {
   const instance = getGatewayInstance(instanceId); const journal = savedGatewayInbox(instanceId);
   if (!journal) throw Object.assign(new Error('No such saved gateway message.'), { status: 404 });
@@ -639,9 +663,11 @@ export class GatewayInbox {
   }
 
   checkAccess(event: GatewayInboxEvent): GatewayInstance {
-    if (event.input.platform === 'whatsapp' && !event.relay?.confirmed) throw new Error('Wait for the relay acknowledgement before starting work.');
     if (event.input.platform === 'whatsapp') {
       const state = this.read().whatsappRelay;
+      if (getGatewaySecrets(this.state.instanceId).whatsappPairing !== undefined) throw new Error('Finish or review the pending WhatsApp pairing before continuing.');
+      if (!state || event.relay?.epoch !== state.epoch) throw new Error('This request belongs to a replaced relay. Ask the sender for a new message.');
+      if (!event.relay.confirmed) throw new Error('Wait for the relay acknowledgement before starting work.');
       if (state?.recovery) throw new Error('Review the WhatsApp relay recovery before continuing.');
       if (!whatsAppIdentityAllowed(event.input, state?.identities)) throw new Error('This WhatsApp identity changed. Review the sender before continuing.');
     }
@@ -759,6 +785,34 @@ export class GatewayInbox {
 
   whatsAppRelayState(): GatewayWhatsAppIntakeState | undefined { return this.read().whatsappRelay; }
 
+  assertWhatsAppReplacement(epoch: string, candidate?: GatewayWhatsAppRelayConnection): void {
+    const instance = getGatewayInstance(this.state.instanceId); const journal = this.read(); const saved = journal.whatsappRelay;
+    if (instance.platform !== 'whatsapp' || !saved?.connection || saved.epoch !== epoch || saved.connection.phoneNumberId !== instance.accountId
+      || (journal.whatsappRetired?.length ?? 0) >= 100) throw new Error('Choose a paired WhatsApp instance with room in its replacement history.');
+    if (candidate && (candidate.phoneNumberId !== instance.accountId || candidate.businessAccountId !== saved.connection.businessAccountId || candidate.epoch === epoch
+      || journal.whatsappRetired?.some((item) => item.state.epoch === candidate.epoch))) throw new Error('Use a new relay epoch for the same business account and phone.');
+  }
+
+  /** Old receipts remain immutable evidence; new work gets a separate conversation binding. */
+  replaceWhatsAppRelay(connection: GatewayWhatsAppRelayConnection, cursor: number, gap: boolean, attemptId: string, previous: { epoch: string; revision: string }): void {
+    const parsed = whatsAppRelayConnectionSchema.parse(connection); const journal = this.read(); const instance = getGatewayInstance(this.state.instanceId);
+    if (instance.enabled || instance.platform !== 'whatsapp' || !stamp.safeParse(cursor).success || !z.uuid().safeParse(attemptId).success) throw new Error('Pause this WhatsApp instance before finishing replacement.');
+    const existing = journal.whatsappRetired?.find((item) => item.attemptId === attemptId);
+    if (existing) {
+      const saved = journal.whatsappRelay;
+      if (existing.state.epoch !== previous.epoch || existing.revision !== previous.revision || !saved || saved.cursor !== cursor || saved.receipt
+        || JSON.stringify(saved.connection) !== JSON.stringify(parsed) || Boolean(saved.recovery) !== gap) throw new Error('The saved replacement changed. Restore it before continuing.');
+      return;
+    }
+    this.assertWhatsAppReplacement(previous.epoch, parsed); const saved = journal.whatsappRelay!; const at = Math.floor(Date.now() / 1000) * 1000;
+    for (const event of journal.events) if (event.relay?.epoch === saved.epoch) this.holdSource(event, 'This relay was replaced. Review the saved work in Athena; ask the sender for a new message.');
+    journal.whatsappRetired = [...(journal.whatsappRetired ?? []), { at: Date.now(), attemptId, revision: previous.revision, state: saved }];
+    journal.whatsappRelay = { epoch: parsed.epoch, cursor, connection: parsed, startedAt: at,
+      ...(saved.identities ? { identities: { ...saved.identities, users: saved.identities.users.map((user) => user.retired ? user : { ...user, phone: null, at }) } } : {}),
+      ...(gap ? { recovery: { at: Date.now(), reason: 'gap' as const } } : {}) };
+    this.commit(journal);
+  }
+
   /** Explicit pairing only. A later status response must never reset this saved binding or cursor. */
   bindWhatsAppRelayConnection(value: GatewayWhatsAppRelayConnection, cursor: number): void {
     const connection = whatsAppRelayConnectionSchema.parse(value); const journal = this.read();
@@ -874,9 +928,9 @@ export class GatewayInbox {
     let accepted = 0;
     for (const input of parsed) {
       const event = whatsAppIdentityAllowed(input, state.identities) ? this.record(journal, input, { ...receipt, confirmed: false }) : null;
-      if (event) accepted++; else counts.ignored++;
+      if (event && event.relay?.epoch === state.epoch) accepted++; else counts.ignored++;
     }
-    for (const event of journal.events) if (!whatsAppIdentityAllowed(event.input, state.identities)) this.holdSource(event, 'This WhatsApp identity changed. Review the sender before continuing.');
+    for (const event of journal.events) if (event.relay?.epoch === state.epoch && !whatsAppIdentityAllowed(event.input, state.identities)) this.holdSource(event, 'This WhatsApp identity changed. Review the sender before continuing.');
     state.receipt = intakeReceipt.parse({ ...receipt, confirmed: false, accepted, ...counts });
     this.commit(journal); return state.receipt;
   }
@@ -895,6 +949,7 @@ export class GatewayInbox {
   private record(journal: GatewayInboxJournal, input: GatewayInbound, relay?: GatewayInboxEvent['relay']): GatewayInboxEvent | null {
     const instance = getGatewayInstance(this.state.instanceId);
     if (!gatewayInputAllowed(instance, input)) return null;
+    if (input.platform === 'whatsapp' && journal.whatsappRelay?.startedAt !== undefined && (input.sentAt ?? 0) <= journal.whatsappRelay.startedAt) return null;
     const source = [instance.id, input.accountId, input.conversationId, input.threadId, input.sourceMessageId];
     if (input.platform === 'discord') source.push(input.guildId ?? '');
     const eventId = digest([...source, input.kind, ...(input.kind === 'edit' ? [input.sourceEventId] : [])]);
@@ -902,7 +957,8 @@ export class GatewayInbox {
     const duplicate = journal.events.find((event) => event.id === eventId);
     if (duplicate) return duplicate;
     const boundRoute = captureGatewayRoute(instance.id);
-    const bindingId = digest([instance.id, input.accountId, input.conversationId, input.threadId, boundRoute.generation, ...(input.platform === 'discord' ? [input.guildId ?? ''] : [])]);
+    const bindingId = digest([instance.id, input.accountId, input.conversationId, input.threadId, boundRoute.generation,
+      ...(input.platform === 'discord' ? [input.guildId ?? ''] : []), ...(input.platform === 'whatsapp' && journal.whatsappRetired?.length ? [journal.whatsappRelay!.epoch] : [])]);
     let binding = journal.bindings.find((item) => item.id === bindingId);
     // A new channel conversation needs a mention/reply. Topic scope is explicit and exact.
     if (!input.directMessage && !binding && !input.triggered) return null;

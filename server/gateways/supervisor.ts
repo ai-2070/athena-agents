@@ -5,7 +5,7 @@ import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.
 import { GatewayStateAdapter } from './state.ts';
 import { getGatewayInstance, listGatewayInstances } from './instances.ts';
 import { reviewDiscordRecovery } from './discord-recovery.ts';
-import { checkWhatsAppSetup, finishWhatsAppPairing, pairWhatsApp, reviewWhatsAppPairing } from './whatsapp-setup.ts';
+import { checkWhatsAppSetup, finishWhatsAppPairing, pairWhatsApp, replaceWhatsAppPairing, reviewWhatsAppPairing } from './whatsapp-setup.ts';
 import { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecovery } from './whatsapp-recovery.ts';
 import { claimGatewayAccount } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
@@ -147,6 +147,9 @@ export class GatewaySupervisor {
 
   pairWhatsApp(instanceId: string, body: unknown): Promise<GatewayWhatsAppSetup> {
     return this.whatsAppSetupTask(instanceId, (inbox) => pairWhatsApp(inbox, body));
+  }
+  replaceWhatsAppPairing(instanceId: string, body: unknown): Promise<GatewayWhatsAppSetup> {
+    return this.whatsAppSetupTask(instanceId, (inbox) => replaceWhatsAppPairing(inbox, body));
   }
   checkWhatsAppSetup(instanceId: string): Promise<GatewayWhatsAppCheck> {
     return this.whatsAppSetupTask(instanceId, (inbox) => checkWhatsAppSetup(inbox));

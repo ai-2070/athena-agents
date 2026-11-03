@@ -32,10 +32,10 @@ if (!proofRoot) {
 async function proof(): Promise<void> {
   const { WhatsAppGatewayAdapter } = await import('../server/gateways/whatsapp.ts');
   const { whatsAppTransport } = await import('../server/gateways/whatsapp-transport.ts');
-  const { pairWhatsApp, checkWhatsAppSetup } = await import('../server/gateways/whatsapp-setup.ts');
+  const { pairWhatsApp, checkWhatsAppSetup, replaceWhatsAppPairing, finishWhatsAppPairing, whatsAppSetup } = await import('../server/gateways/whatsapp-setup.ts');
   const { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecovery } = await import('../server/gateways/whatsapp-recovery.ts');
   const { WhatsAppRelayIntake } = await import('../server/gateways/whatsapp-intake.ts');
-  const { GatewayInbox, gatewayRequestReview, gatewayWhatsAppRecovery } = await import('../server/gateways/inbox.ts');
+  const { GatewayInbox, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement } = await import('../server/gateways/inbox.ts');
   const { GatewayStateAdapter } = await import('../server/gateways/state.ts');
   const { GatewayFileProcessor } = await import('../server/gateways/files.ts');
   const { GatewayReplies } = await import('../server/gateways/replies.ts');
@@ -208,6 +208,32 @@ async function proof(): Promise<void> {
     assert.ok(inbox.list()[2].dismissed); assert.equal(inbox.list()[2].operationId, undefined); assert.equal(posts.length, 6);
     saveGatewayInstance({ ...config, enabled: true }, instance.id); assert.equal(inbox.claimNext(), null);
     console.log('gateways: held request dismissal preserves its receipt without work or delivery');
+    const staleAdapter = new WhatsAppGatewayAdapter(instance.id, inbox, { businessAccountId: business, accessToken: token, appSecret }, { testOrigin: origin });
+    const staleChat = new Chat({ userName: 'Athena', adapters: { whatsapp: staleAdapter }, state, logger: quiet });
+    try {
+      await staleChat.initialize();
+      saveGatewayInstance(config, instance.id); const prior = JSON.stringify(inbox.list().map((event) => event.relay)); const nextEpoch = crypto.randomUUID();
+      await replaceWhatsAppPairing(inbox, { revision: gatewayWhatsAppReplacement(instance.id).revision, origin: 'https://replacement.example', businessAccountId: business, code: 'd'.repeat(64), acknowledgePreviousStopped: true, acknowledgeLoss: true }, { request: async (url, init) => {
+        assert.equal(url, 'https://replacement.example/v1/pair'); assert.equal(init.method, 'POST'); assert.deepEqual(JSON.parse(String(init.body)), { code: 'd'.repeat(64) });
+        return Response.json({ ...metadata(), version: 1, installationId: crypto.randomUUID(), epoch: nextEpoch, cursor: 0, gap: null, token: 'e'.repeat(64) });
+      } });
+      assert.equal(whatsAppSetup(instance.id).pending!.replacement, true); await state.disconnect(); await state.connect();
+      finishWhatsAppPairing(inbox, { revision: whatsAppSetup(instance.id).pending!.revision, acknowledgeLoss: true });
+      assert.equal(JSON.stringify(inbox.list().map((event) => event.relay)), prior); assert.equal(inbox.whatsAppRelayState()!.epoch, nextEpoch); assert.equal(inbox.whatsAppRelayState()!.cursor, 0);
+      saveGatewayInstance({ ...config, enabled: true }, instance.id); assert.throws(() => inbox.checkAccess(inbox.list()[0]), /replaced relay/); assert.equal(posts.length, 6);
+      const replacementRaw = JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: business, changes: [{ field: 'messages', value: {
+        messaging_product: 'whatsapp', metadata: { phone_number_id: phone }, messages: [{ id: 'wamid.replacement', from: actor, timestamp: String(inbox.whatsAppRelayState()!.startedAt! / 1000 + 2), type: 'text', text: { body: 'Fresh replacement request' } }],
+      } }] }] });
+      const replacementBody = Buffer.from(replacementRaw).toString('base64');
+      await intake.receive(nextEpoch, { sequence: 1, id: crypto.createHash('sha256').update(replacementBody).digest('hex'), receivedAt: Date.now(), expiresAt: Date.now() + 60000,
+        bodyBase64: replacementBody, signature: 'sha256=' + crypto.createHmac('sha256', appSecret).update(replacementRaw).digest('hex'), contentType: 'application/json' }, async (receipt) => ({ epoch: receipt.epoch, cursor: receipt.sequence }));
+      const replacementWork = inbox.claimNext()!; assert.equal(replacementWork.input.sourceMessageId, 'wamid.replacement'); assert.notEqual(replacementWork.bindingId, inbox.list()[0].bindingId);
+      inbox.beginDispatch(replacementWork.id, replacementWork.operationId!, await gatewayConversation(replacementWork, signal)); inbox.finishDispatch(replacementWork.id, replacementWork.operationId!, 'Fresh answer');
+      const replacementReply = inbox.claimReply()!;
+      const beforeStaleSend = calls.length;
+      await assert.rejects(staleAdapter.replyText(replacementReply.event, replacementReply.event.reply!.parts[replacementReply.index].text, signal)); assert.equal(posts.length, 6); assert.equal(calls.length, beforeStaleSend);
+      console.log('gateways: WhatsApp replacement saves a new key across restart and quarantines old receipts');
+    } finally { await staleAdapter.disconnect(); await staleChat.shutdown(); }
   } finally {
     await replies.stop(); await processor.stop(); await adapter.disconnect(); await chat.shutdown(); await state.disconnect();
     server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve()));

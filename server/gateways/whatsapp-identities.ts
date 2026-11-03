@@ -66,6 +66,8 @@ export class WhatsAppIdentities {
       if (at <= user.at || this.state.phoneChanges.some((change) => change.phone === phone && at <= change.at)) return null;
       user.phone = phone;
     }
+    // An unproven alias cannot move the clock past a later phone proof in the same second.
+    if (!user.phone) return null;
     if (at > user.at) { user.at = at; if (parentId) user.parentId = parentId; }
     return user.phone;
   }

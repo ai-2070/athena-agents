@@ -671,8 +671,46 @@ New gateway data does not need a legacy compatibility layer.*
   full run found a Discord fixture with no test socket; all 76 Discord tests and the full rerun
   passed without a source change. The web build, desktop staging and bundled desktop smoke passed.
   No real account, relay deployment or provider messages were used.
-- Next: implement explicit replacement of a lost/changed relay installation and remaining identity
-  recovery, then finish unified delivery and product controls. Native-work override controls and explicit webhook switching still need product
+- Added explicit lost-relay replacement on the same instance, business account and phone. The
+  safe preview exposes only an opaque revision and retired-binding count. Settings requires the
+  old relay revoked or permanently stopped and its queue loss reviewed, then exchanges one new
+  code with the same bounded HTTPS pairing client. A requesting marker saves before exchange;
+  the new key and received receipt save atomically. Unknown outcomes require revoking the new
+  pairing before review; the code is never reused or saved and the old pull key is not restored.
+- Replacement intentionally has a separate finish confirmation. Its revision includes current
+  settings and work, so changed work requires a fresh review after the key has been safely saved.
+  Finish makes no network request: it atomically archives the old relay state and binds a new,
+  never-before-used epoch, retaining original event IDs, dedupe and charged byte accounting. The
+  previous cursors, pending ACKs, identity mappings, gaps and audits remain private evidence. A
+  crash after that commit can finish the received key idempotently without archiving twice. Up to
+  100 prior bindings are retained without eviction; a full history refuses replacement.
+- Archived source requests cannot authorize work, file I/O or sending through the new epoch, even
+  if they were confirmed before replacement. Unconfirmed old batches stay unconfirmed when a new
+  sequence has the same number. Old unstarted requests can be dismissed explicitly without losing
+  their replay protection. Native operations, sent prefixes and uncertain delivery state remain;
+  replacement neither cancels nor repeats native agents. An already initialized SDK adapter is
+  also pinned to its original relay epoch.
+- Fresh signed messages after the finish boundary create separate private conversations with the
+  same project and Brain/team/agent target. Older messages and identity notices are ignored before
+  learning aliases. Active aliases require new signed phone proof; retired IDs stay tombstones.
+  An unproven alias no longer advances its verification time and blocks a later phone proof in the
+  same provider second. Receipts remain gated until the new relay confirms their exact envelope ID.
+- Added replacement, crash/write-failure, stale finish, ownership, archive-limit, foreign/reused
+  epoch, delayed-input, alias, duplicate, old-ACK, native-work/reply-prefix and local API guard tests.
+  DOM tests cover both confirmations, cancel, disabled/full states and unknown outcomes. The
+  Bun/Node and read-only bundle proof replaces a relay across restart, preserves old receipts,
+  admits a fresh separate conversation and refuses a stale SDK send before provider I/O. README,
+  guide and relay instructions include the flow, its limits and a lost-deployment example.
+- A scoped finish review approved the entry, form, both confirmations and saved-key state at
+  desktop/mobile sizes, plus the dark mobile state, with no material findings. A six-Tab keyboard
+  probe stayed in the finish confirmation and Escape closed it. Browser confirmations were
+  cancelled; only synthetic local setup was seeded and later removed. Unknown/error/archive states
+  have source and DOM evidence; no live provider or transport readiness is claimed.
+- Validation: `CI=1 bun run check` passed (259 files; 2,557 tests passed, one skipped). Web build,
+  desktop staging and bundled desktop smoke passed. No real account, deployment, provider message
+  or model call was used to exercise replacement.
+- Next: finish remaining identity recovery and unified delivery/product controls. Native-work
+  override controls and explicit webhook switching still need product
   setup. Deleted instances retain private inbox
   receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks
   on all four platforms and Windows/Linux verification remain outstanding. Offline checks run in CI.

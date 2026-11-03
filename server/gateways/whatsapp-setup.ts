@@ -7,7 +7,7 @@ import { getGatewaySecrets, setGatewaySecrets } from '../store.ts';
 import { checkGatewayDestination, getGatewayInstance } from './instances.ts';
 import { checkWhatsAppAccount } from './whatsapp.ts';
 import { readWhatsAppRelayStatus } from './whatsapp-recovery.ts';
-import { savedWhatsAppRelayState } from './inbox.ts';
+import { savedWhatsAppRelayState, whatsAppReplacementRevision } from './inbox.ts';
 import type { GatewayInbox } from './inbox.ts';
 
 type PairRequest = (url: string, init: RequestInit) => Promise<Response>;
@@ -17,11 +17,13 @@ const origin = z.string().max(2048).transform((value, ctx) => {
   try { return whatsAppRelayOrigin(value); } catch { ctx.addIssue({ code: 'custom', message: 'Choose the HTTPS address of the WhatsApp relay.' }); return z.NEVER; }
 });
 const receiptSchema: z.ZodType<GatewayWhatsAppPairing> = z.discriminatedUnion('phase', [
-  z.strictObject({ phase: z.literal('requesting'), attemptId: z.uuid(), origin, businessAccountId: account, phoneNumberId: account }),
-  z.strictObject({ phase: z.literal('received'), attemptId: z.uuid(), connection: whatsAppRelayConnectionSchema, cursor: relaySequence, gap: z.boolean() }),
+  z.strictObject({ phase: z.literal('requesting'), attemptId: z.uuid(), origin, businessAccountId: account, phoneNumberId: account, replacement: z.strictObject({ epoch: z.uuid(), revision: key }).optional() }),
+  z.strictObject({ phase: z.literal('received'), attemptId: z.uuid(), connection: whatsAppRelayConnectionSchema, cursor: relaySequence, gap: z.boolean(), replacement: z.strictObject({ epoch: z.uuid(), revision: key }).optional() }),
 ]);
 const fail = (message: string, status = 400): never => { throw Object.assign(new Error(message), { status }); };
 const revision = (value: GatewayWhatsAppPairing) => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const reviewRevision = (instanceId: string, value: GatewayWhatsAppPairing) => value.replacement
+  ? crypto.createHash('sha256').update(JSON.stringify([revision(value), whatsAppReplacementRevision(instanceId)])).digest('hex') : revision(value);
 
 function instance(instanceId: string, paused = false) {
   const value = getGatewayInstance(instanceId);
@@ -43,7 +45,7 @@ function save(instanceId: string, value: ReturnType<typeof getGatewaySecrets>): 
 /** Presence and an opaque review revision only; no keys, account IDs or private origin. */
 export function whatsAppSetup(instanceId: string): GatewayWhatsAppSetup {
   instance(instanceId); const pending = receipt(instanceId); const state = savedWhatsAppRelayState(instanceId);
-  return { paired: Boolean(state?.connection), pending: pending ? { phase: pending.phase, revision: revision(pending) } : null,
+  return { paired: Boolean(state?.connection), pending: pending ? { phase: pending.phase, revision: reviewRevision(instanceId, pending), ...(pending.replacement ? { replacement: true as const } : {}) } : null,
     recoveryRequired: Boolean(state?.recovery || pending?.phase === 'requesting') };
 }
 
@@ -115,9 +117,13 @@ export async function pairWhatsApp(inbox: GatewayInbox, body: unknown, options: 
 }
 
 export function finishWhatsAppPairing(inbox: GatewayInbox, body: unknown): GatewayWhatsAppSetup {
-  instance(inbox.instanceId, true); const parsed = z.strictObject({ revision: key }).safeParse(body); const pending = receipt(inbox.instanceId);
-  if (!parsed.success || pending?.phase !== 'received' || revision(pending) !== parsed.data.revision || !key.safeParse(getGatewaySecrets(inbox.instanceId).relayKey).success) return fail('This saved pairing changed. Reload and review it again.', 409);
-  try { inbox.finishWhatsAppPairing(pending.connection, pending.cursor, pending.gap); }
+  instance(inbox.instanceId, true); const parsed = z.strictObject({ revision: key, acknowledgeLoss: z.literal(true).optional() }).safeParse(body); const pending = receipt(inbox.instanceId);
+  if (!parsed.success || pending?.phase !== 'received' || reviewRevision(inbox.instanceId, pending) !== parsed.data.revision || (pending.replacement && !parsed.data.acknowledgeLoss)
+    || !key.safeParse(getGatewaySecrets(inbox.instanceId).relayKey).success) return fail('This saved pairing changed. Reload and review it again.', 409);
+  try {
+    if (pending.replacement) inbox.replaceWhatsAppRelay(pending.connection, pending.cursor, pending.gap, pending.attemptId, pending.replacement);
+    else inbox.finishWhatsAppPairing(pending.connection, pending.cursor, pending.gap);
+  }
   catch { return fail('The received pairing could not be bound. Keep it saved and check the paused instance and local storage.', 409); }
   const next = { ...getGatewaySecrets(inbox.instanceId) }; delete next.whatsappPairing; save(inbox.instanceId, next);
   return whatsAppSetup(inbox.instanceId);
@@ -126,8 +132,33 @@ export function finishWhatsAppPairing(inbox: GatewayInbox, body: unknown): Gatew
 /** Only an unknown exchange may be abandoned, after an explicit remote revocation acknowledgement. */
 export function reviewWhatsAppPairing(inbox: GatewayInbox, body: unknown): GatewayWhatsAppSetup {
   instance(inbox.instanceId, true); const parsed = z.strictObject({ revision: key, acknowledgeRemoteRevoked: z.literal(true) }).safeParse(body); const pending = receipt(inbox.instanceId);
-  if (!parsed.success || pending?.phase !== 'requesting' || revision(pending) !== parsed.data.revision) return fail('Review the current unknown pairing and revoke it at the relay before continuing.', 409);
-  try { inbox.assertNewWhatsAppPairing(); } catch { return fail('The local pairing changed. Restore it before reviewing this attempt.', 409); }
+  if (!parsed.success || pending?.phase !== 'requesting' || reviewRevision(inbox.instanceId, pending) !== parsed.data.revision) return fail('Review the current unknown pairing and revoke it at the relay before continuing.', 409);
+  try { if (pending.replacement) inbox.assertWhatsAppReplacement(pending.replacement.epoch); else inbox.assertNewWhatsAppPairing(); } catch { return fail('The local pairing changed. Restore it before reviewing this attempt.', 409); }
   const next = { ...getGatewaySecrets(inbox.instanceId) }; delete next.whatsappPairing; delete next.relayKey; save(inbox.instanceId, next);
   return whatsAppSetup(inbox.instanceId);
+}
+
+/** Two local stages preserve the new key across crashes without accepting changed work silently. */
+export async function replaceWhatsAppPairing(inbox: GatewayInbox, body: unknown, options: { request?: PairRequest; timeoutMs?: number } = {}): Promise<GatewayWhatsAppSetup> {
+  const parsed = z.strictObject({ revision: key, origin, businessAccountId: account, code: key, acknowledgePreviousStopped: z.literal(true), acknowledgeLoss: z.literal(true) }).safeParse(body);
+  if (!parsed.success) return fail('Review the stopped old relay, message loss and current saved work before choosing a replacement pairing code.');
+  const config = instance(inbox.instanceId, true); const secrets = getGatewaySecrets(config.id); const saved = inbox.whatsAppRelayState();
+  if (receipt(config.id) || !saved?.connection || parsed.data.revision !== whatsAppReplacementRevision(config.id)) return fail('This pairing or saved work changed. Reload before replacing the relay.', 409);
+  if (parsed.data.businessAccountId !== saved.connection.businessAccountId) return fail('The replacement must use the same business account and phone.');
+  try { inbox.assertWhatsAppReplacement(saved.epoch); } catch { return fail('This paused relay cannot be replaced. Check its saved binding and history.', 409); }
+  const pending: GatewayWhatsAppPairing = { phase: 'requesting', attemptId: crypto.randomUUID(), origin: parsed.data.origin, businessAccountId: parsed.data.businessAccountId,
+    phoneNumberId: config.accountId, replacement: { epoch: saved.epoch, revision: parsed.data.revision } };
+  save(config.id, { ...secrets, whatsappPairing: pending });
+  let value: unknown;
+  try { value = await exchange(parsed.data.origin, parsed.data.code, options.request ?? fetch, AbortSignal.timeout(options.timeoutMs ?? 10000)); }
+  catch { return fail('The replacement pairing outcome is unknown. Do not reuse the code. Revoke the new relay pairing before reviewing this attempt.', 409); }
+  const result = whatsAppRelayStatusSchema.extend({ token: key }).safeParse(value);
+  if (!result.success || result.data.phoneNumberId !== config.accountId || result.data.businessAccountId !== parsed.data.businessAccountId
+    || result.data.queuedEvents > 10000 || result.data.queuedBytes > 67108864 || (!result.data.queuedEvents && result.data.queuedBytes)) return fail('The replacement response did not match. Revoke the new pairing before reviewing this attempt.', 409);
+  const { installationId, businessAccountId, phoneNumberId, epoch, cursor, gap } = result.data;
+  const connection = { origin: parsed.data.origin, installationId, businessAccountId, phoneNumberId, epoch };
+  try { inbox.assertWhatsAppReplacement(saved.epoch, connection); } catch { return fail('The replacement epoch is not new or its binding changed. Revoke the new pairing before reviewing this attempt.', 409); }
+  if (JSON.stringify(receipt(config.id)) !== JSON.stringify(pending)) return fail('The replacement attempt changed. Review it before continuing.', 409);
+  save(config.id, { ...getGatewaySecrets(config.id), relayKey: result.data.token, whatsappPairing: { phase: 'received', attemptId: pending.attemptId, connection, cursor, gap: Boolean(gap), replacement: pending.replacement } });
+  return whatsAppSetup(config.id);
 }
