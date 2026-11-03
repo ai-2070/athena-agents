@@ -25,6 +25,10 @@ vi.mock('../../web/terminalview.tsx', async () => {
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = (ms = 40) => act(() => new Promise((r) => setTimeout(r, ms)));
 class FakeSocket {
+  static last: FakeSocket | null = null;
+  constructor() {
+    FakeSocket.last = this;
+  }
   onopen: (() => void) | null = null;
   onclose: (() => void) | null = null;
   onmessage: ((m: MessageEvent<string>) => void) | null = null;
@@ -234,6 +238,18 @@ describe('the Overview', () => {
     act(() => overview.unmount());
     await open();
     expect(panes()).toEqual(['Writer']);
+  });
+
+  it('reads the overview again while a reply streams, not only once it stops', async () => {
+    await open();
+    const asked = () => requests.filter((r) => r.url === '/api/overview').length;
+    const before = asked();
+    // a run event every 100 ms for 2.5 s: each one alone would put the reload off again
+    for (let i = 0; i < 25; i++) {
+      await act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'run', ts: 0 }) } as MessageEvent<string>));
+      await settle(100);
+    }
+    expect(asked()).toBeGreaterThan(before);
   });
 
   it('keeps a new terminal\'s pane while the overview that has it is still on its way', async () => {

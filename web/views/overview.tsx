@@ -155,8 +155,17 @@ function OverviewPage() {
   }, []);
   useEffect(() => {
     void load();
+    // a moment after the last change, and at least every 2 s while changes keep coming (a streaming reply sends
+    // one every few ms)
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const soon = () => (clearTimeout(timer), (timer = setTimeout(() => void load(), 300)));
+    let first = 0;
+    const fire = () => ((timer = undefined), void load());
+    const soon = () => {
+      const now = Date.now();
+      if (!timer) first = now;
+      clearTimeout(timer);
+      timer = setTimeout(fire, Math.max(0, Math.min(300, first + 2000 - now)));
+    };
     const off = onEvent((e) => CHANGES.has(e.type) && soon());
     const offReconnect = onReconnect(soon);
     // (times like "2 min ago" move on)
