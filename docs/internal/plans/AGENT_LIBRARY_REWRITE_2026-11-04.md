@@ -2,6 +2,19 @@
 
 4 November 2026. Approved the same day with the answers below; work has started.
 
+## Status (4 November, later)
+
+- **Step 1 is in:** `library/athena-agents/` with its standard, the record of where each old file went, and the format
+  checks in `tests/server/library.test.ts`.
+- **The 5 samples are written and reviewed**, waiting for the user's OK on the style. A reviewer agent fact-checked
+  them and cut repetition. Each old and new version then answered the same 3 tasks through Claude Code (Sonnet, with
+  the instructions passed as the dashboard's claude engine passes them), and judges who didn't know which was which
+  compared each pair. **The new versions won 12 of 15, lost 2 and tied 1**: LinkedIn Writer, UX Researcher and Code
+  Reviewer won all three, Financial Analyst two, Technical Artist one plus a tie. Both losses came from building more
+  than was asked, so the standard now says to deliver what was asked and offer extras in a line.
+- **Decided since:** every agent starts with `shell` (the user's call) and `agents`; descriptions are about 30 words;
+  files wrap at 120 characters; platform limits come only from the platform's own docs.
+
 ## In short
 
 The Agency's 283 agent files (`library/agency-agents/`, copied from msitarzewski/agency-agents) were written by a
@@ -74,7 +87,7 @@ skills: requesting-code-review, independent-review
 | `color` | Hex, mid-tone, readable on white and near-black (the upstream files have `cyan`, `neon-cyan`) |
 | `specialty` | Lower-case phrase that finishes "You are Code Reviewer, …" in `buildSystemPrompt` |
 | `group` | An id from `groups.json` (id and label, in the order the Library's chips show them) |
-| `tools` | The tool groups it starts with, from `TOOL_GROUPS` (`server/tools.ts`). Replaces `suggestTools`. A starting set, not a limit: the user or the Brain can add more, and the agent uses whatever it has |
+| `tools` | The tool groups it starts with, from `TOOL_GROUPS` (`server/tools.ts`). Replaces `suggestTools`. Every agent has `shell` (the user's call). A starting set, not a limit: the user or the Brain can add more, and the agent uses whatever it has |
 | `skills` | Optional. Bundled skill slugs it starts with, on the same terms. Hiring keeps only the ones in the user's skill library |
 | `engine` | Optional. Only where the agent needs one (Mail Assistant: `claude-code`, for the Gmail connector) |
 | `starter` | `true` on Athena's 8. The Home page's "add the starter team" hires these |
@@ -354,7 +367,7 @@ old division they were saved with.
 
 - `tests/server/library.test.ts`, for the new folder (step 1, and rewritten at the switch):
   - every file has name, description, emoji, a hex colour, specialty and a group from `groups.json`;
-  - every tool is in `TOOL_GROUPS`, and every skill is bundled or built-in;
+  - every tool is in `TOOL_GROUPS`, every agent has `shell`, and every skill is bundled or built-in;
   - slugs are unique and match the file name;
   - exactly 8 have `starter: true` (from the Athena batch on);
   - each file is 40 to 180 lines;

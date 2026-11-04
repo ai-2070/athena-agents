@@ -120,13 +120,17 @@ describe("Athena's agents", () => {
       for (const k of Object.keys(meta)) expect(KEYS.has(k), `${at}: unknown key "${k}"`).toBe(true);
       expect(meta.name, at).toBeTruthy();
       expect(meta.description, at).toBeTruthy();
+      // the Brain reads every description when it picks teammates
+      expect(meta.description.split(/\s+/).length, `${at}: description too long`).toBeLessThanOrEqual(35);
       expect(meta.emoji, at).toBeTruthy();
       expect(meta.color, at).toMatch(/^#[0-9a-f]{6}$/i);
       // it finishes "You are <name>, <specialty>."
       expect(meta.specialty, at).toMatch(/^[a-z][^\n]*[^.]$/);
       expect(meta.group, at).toBe(group);
       const a = library.libraryAgents().find((x) => x.file === file)!;
-      expect(a.tools.length, `${at}: no tools`).toBeGreaterThan(0);
+      // every agent can run a command and ask a teammate when its work needs one
+      expect(a.tools, `${at}: no shell`).toContain('shell');
+      expect(a.tools, `${at}: no agents`).toContain('agents');
       for (const t of a.tools) expect(tools.has(t), `${at}: unknown tool group "${t}"`).toBe(true);
       for (const s of a.skills) expect(skills.has(s), `${at}: unknown skill "${s}"`).toBe(true);
       if (a.engine) expect(ENGINE_IDS, at).toContain(a.engine);
@@ -147,6 +151,12 @@ describe("Athena's agents", () => {
       expect(body.trimStart(), at).not.toMatch(/^(?:#.*\n+)?You are\b/);
       expect(body, `${at}: emoji in a heading`).not.toMatch(/^#{1,6}\s.*\p{Extended_Pictographic}/mu);
       expect(body, at).not.toMatch(/Identity & Memory|Success Metrics|\bYou remember\b/i);
+      // wrapped at 120 characters, tables and code blocks aside
+      let code = false;
+      for (const [i, line] of body.split(/\r?\n/).entries()) {
+        if (/^\s*```/.test(line)) code = !code;
+        else if (!code && !line.startsWith('|')) expect(line.length, `${at}: body line ${i + 1} is ${line.length} characters`).toBeLessThanOrEqual(120);
+      }
       // a role is a starting point, not a fence, and the model's limits come from its tools at run time
       expect(body, `${at}: fences the role in`).not.toMatch(/outside (?:of )?your (?:scope|role|remit)|\bnot your (?:job|role)\b|\byou (?:cannot|can't|are unable to|are not able to) (?:see|view|browse|run code|execute|access the internet|open files)\b/i);
     }
