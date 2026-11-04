@@ -429,10 +429,19 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   active.set(runId, entry);
   if ((!from || userInitiated) && depth === 0 && !parentRunId) userWorkHook?.(agent, chat, text || `Work on the attached files: ${attachmentNames(attachments)}`);
   // Saving skips chats deleted while the run was going.
-  const persist = () =>
+  // Tool calls and their results are saved a moment later, together: a run with many tool calls rewrote
+  // the whole chat file for every one of them. (Open tabs see each event at once either way.)
+  let toolSave: ReturnType<typeof setTimeout> | null = null;
+  const persist = () => {
+    if (toolSave) clearTimeout(toolSave);
+    toolSave = null;
     inProject(() => {
       if (!chat._deleted) chats.save(chat);
     });
+  };
+  const persistSoon = () => {
+    toolSave ??= setTimeout(persist, 1000);
+  };
 
   const reset = chat.items.findLastIndex((i) => i.type === 'meta' && i.reset);
   const imported = new Set(chat.items.slice(reset + 1).flatMap((i) => i.type === 'user' && i.teamMessageId ? [i.teamMessageId] : []));
@@ -474,17 +483,17 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     } else if (ev.kind === 'tool') {
       current = null;
       pushItem(chat, { type: 'tool', id: ev.id, name: ev.name, args: ev.args, result: null, status: 'running' });
-      persist();
+      persistSoon();
     } else if (ev.kind === 'tool_result') {
       // its images as files next to the chat: the chat (and what's streamed) keeps only their links
       if (ev.images?.length) ev.images = keepToolImages(agent.id, chat.id, ev.images);
-      const it = [...chat.items].reverse().find((i): i is ChatItemOf<'tool'> => i.type === 'tool' && i.id === ev.id);
+      const it = chat.items.findLast((i): i is ChatItemOf<'tool'> => i.type === 'tool' && i.id === ev.id);
       if (it) {
         const result = String(ev.text ?? '');
         const taskResult = /(?:^|[_:])Task(?:Create|Update)$/.test(it.name);
         Object.assign(it, { result: taskResult ? result : result.slice(0, 30000), images: ev.images || [], isError: !!ev.isError, status: ev.isError ? 'error' : 'done' });
       }
-      persist();
+      persistSoon();
     } else if (ev.kind === 'model') {
       const fresh = agentStore.get(agent.id);
       if (fresh && fresh.lastModel !== ev.model) agentStore.save({ ...fresh, lastModel: ev.model, lastModelAt: Date.now() });
@@ -591,7 +600,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
         const billing = eveBillingItem(runId);
         if (billing && !chat.items.some((item) => item.sourceId === billing.sourceId)) chat.items.push(billing);
         persist();
-      }
+      } else if (toolSave) persist();
       void eveRuntime.retireBindings().catch(() => {});
       active.delete(runId);
       if (!suspended) cancelForRun(runId, { keepOutcomeChecks: true });
