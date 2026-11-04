@@ -73,6 +73,20 @@ export function parseAuthStatus(out: string): boolean | null {
   }
 }
 
+// What makes Claude Code use something other than your Claude login (code.claude.com/docs/en/authentication,
+// "Authentication precedence"): an API key or bearer token, another endpoint, or an Anthropic profile. Cloud
+// providers (CLAUDE_CODE_USE_BEDROCK...) are a company's own set-up and stay. CLAUDE_CODE_OAUTH_TOKEN stays too:
+// it is a subscription token from `claude setup-token`, sometimes the only sign-in on the PC.
+export const LOGIN_OVERRIDES = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_PROFILE', 'ANTHROPIC_FEDERATION_RULE_ID', 'ANTHROPIC_ORGANIZATION_ID'];
+
+/** The environment without the variables that would win over your Claude login. Windows names are
+ *  case-insensitive, so any spelling goes. */
+export function withoutLoginOverrides(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = { ...env };
+  for (const k of Object.keys(out)) if (LOGIN_OVERRIDES.includes(k.toUpperCase())) delete out[k];
+  return out;
+}
+
 let versionCache: string | null = null;
 // The CLI's own answer, checked at most once a minute. On macOS the login lives in the Keychain,
 // so ~/.claude/.credentials.json alone would say "not signed in" there.
@@ -85,15 +99,18 @@ export function status(): EngineStatus['claude-code'] {
   }
   if (exe && Date.now() - authCache.at > 60_000) {
     authCache.at = Date.now();
-    runCmd('claude', ['auth', 'status', '--json'], { timeout: 20000 }).then((r) => {
+    // asked without an API key in the environment, which `auth status` would count as signed in
+    const unset = Object.fromEntries(Object.keys(process.env).filter((k) => LOGIN_OVERRIDES.includes(k.toUpperCase())).map((k) => [k, undefined]));
+    runCmd('claude', ['auth', 'status', '--json'], { timeout: 20000, env: unset }).then((r) => {
       const was = authCache.value;
       authCache.value = parseAuthStatus(r.stdout);
       // open pages ask again, so the selector picks Claude Code up without a reload
       if (was !== authCache.value) emit('engines');
     });
   }
-  // older CLIs without `auth status` fall back to the credentials file
-  const loggedIn = authCache.value ?? (fs.existsSync(path.join(HOME, '.claude', '.credentials.json')) || !!process.env.ANTHROPIC_API_KEY);
+  // older CLIs without `auth status` fall back to the credentials file. A key in the environment
+  // doesn't count: runs on "My Claude login" leave it out, and keys from Settings are counted on the page.
+  const loggedIn = authCache.value ?? fs.existsSync(path.join(HOME, '.claude', '.credentials.json'));
   return { installed: !!exe, path: exe, loggedIn, version: versionCache === 'checking' ? null : versionCache };
 }
 
@@ -124,7 +141,10 @@ export function prepareFiles(agent: Agent, systemPrompt: string, runId = ''): Cl
 
 export function claudeEnv(agent: Agent): NodeJS.ProcessEnv {
   // Tool calls may wait for your approval, or run long renders: give them an hour.
-  const env: NodeJS.ProcessEnv = { ...process.env, MCP_TOOL_TIMEOUT: process.env.MCP_TOOL_TIMEOUT || '3600000' };
+  // Only the sign-in picked for this agent: on your Claude login, a key left in the environment would win
+  // over it and claude.ai's connectors (Gmail, Calendar) would quietly not load; with a key from Settings,
+  // a leftover token or endpoint would win over that.
+  const env = withoutLoginOverrides({ ...process.env, MCP_TOOL_TIMEOUT: process.env.MCP_TOOL_TIMEOUT || '3600000' });
   const s = getSecrets();
   if (agent.claudeAuth === 'anthropic') {
     if (!s.anthropicKey) throw new Error('Add an Anthropic API key in Settings, or switch this agent to your Claude login.');

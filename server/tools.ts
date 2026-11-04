@@ -2,7 +2,7 @@
 // Risk decides when you're asked first: autonomy "ask" checks low + high, "auto" checks high only, "full" never asks.
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, insideRoots, asOpened, runnable } from './util.ts';
+import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, insideRoots, asOpened, runnable, commandShell } from './util.ts';
 import * as assetLib from './assets.ts';
 import type { AssetSource, AssetKind } from './assets.ts';
 import { mayaScript, houdiniScript, sibling, sbsrenderArgs, openscadArgs, prusaSlicerArgs, nvttArgs, handbrakeArgs, GPU_FIELDS, formatGpus } from './dcc.ts';
@@ -113,7 +113,7 @@ export const TOOL_GROUPS: ToolGroup[] = [
   { id: 'files', label: 'Files', description: 'Read and write files in its workspace and folders you allow.' },
   { id: 'orca', label: 'Orca', description: 'Run Orca CLI commands (worktrees, terminals, its browser).' },
   { id: 'world', label: 'Voxel world', description: 'Build the voxel world around the Station (places, props, prefabs to place many times) and keep its WORLD.md up to date.' },
-  { id: 'shell', label: 'Shell', description: 'Run any PowerShell command. Powerful: you are asked each time unless autonomy is Full.' },
+  { id: 'shell', label: 'Shell', description: 'Run any command in the PC\'s shell (PowerShell, or bash on macOS and Linux). Powerful: you are asked each time unless autonomy is Full.' },
 ];
 
 export function workspaceOf(agent: { workspace?: string }): string {
@@ -214,7 +214,7 @@ const TOOLS: ToolDef[] = [
     name: 'save_artifact',
     group: 'core',
     risk: 'none',
-    description: 'Hand in a finished result that is not an outgoing post or email: a written answer, a file or a folder (a render, a report, a cut video). It appears in the Outbox page under Artifacts with who made it, which team it was for and when. Give either path (full path of a file or folder inside the project) or text (the result, in Markdown). Posts and emails go to the Outbox instead.',
+    description: 'Hand in a finished result that is not an outgoing post or email: a written answer, a file or a folder (a render, a report, a cut video). It appears on the Artifacts page with who made it, which team it was for and when. Give either path (full path of a file or folder inside the project) or text (the result, in Markdown). Posts and emails go to the Outbox instead.',
     parameters: obj({ title: str('Short name for the result'), path: str('Full path of the file or folder'), text: str('The result itself, when it is text'), note: str('One line: what it is or how to use it') }, ['title']),
     run: async ({ title, path: target, text, note }: { title: string; path?: string; text?: string; note?: string }, ctx) => {
       const { addArtifact } = await import('./artifacts.ts');
@@ -736,11 +736,12 @@ const TOOLS: ToolDef[] = [
     name: 'ffmpeg',
     group: 'media',
     risk: 'high', // it can overwrite any file; "Always allow" it for your video agents
-    description: 'Run ffmpeg with the given arguments (no shell). Always pass -y and absolute output paths. Example args: ["-y","-i","C:/in.mp4","-ss","5","-t","10","C:/out.mp4"].',
+    description: 'Run ffmpeg with the given arguments (no shell). Pass -n (never overwrite), or -y only for files you made in this task: ffmpeg cannot tell two spellings of one path apart, so -y could overwrite the original. Use absolute paths; relative ones start in your workspace. Example args: ["-n","-i","C:/in.mp4","-ss","5","-t","10","C:/out.mp4"].',
     parameters: obj({ args: { type: 'array', items: { type: 'string' } } }, ['args']),
     run: async ({ args }: { args: string[] }, ctx) => {
       if (!which('ffmpeg')) throw new Error('ffmpeg is not installed.');
-      const r = await run('ffmpeg', ['-hide_banner', ...args], { timeout: 60 * 60_000, signal: ctx.signal });
+      // in the workspace, so relative paths and two-pass logs don't land in the app's own (read-only) folder
+      const r = await run('ffmpeg', ['-hide_banner', ...args], { cwd: workspaceOf(ctx.agent), timeout: 60 * 60_000, signal: ctx.signal });
       return { text: `${r.code === 0 ? 'Done' : `ffmpeg failed (exit ${r.code})`}\n${truncate(r.stderr.split(/\r?\n/).slice(-40).join('\n'), 6000)}`, isError: r.code !== 0 };
     },
   },
@@ -761,13 +762,13 @@ const TOOLS: ToolDef[] = [
       const exe = programExe('handbrakecli') || which('HandBrakeCLI');
       if (!exe) throw new Error('HandBrakeCLI was not found. It is a separate free download from handbrake.fr/downloads2.php (the HandBrake window app is not enough); then set its path in Settings or put it on PATH.');
       if (list_presets) {
-        const r = await run(exe, ['--preset-list'], { timeout: 60000 });
+        const r = await run(exe, ['--preset-list'], { cwd: workspaceOf(ctx.agent), timeout: 60000 });
         return { text: truncate((r.stdout + '\n' + r.stderr).trim(), 10000) };
       }
       if (!input || !output) throw new Error('Give input and output.');
       const out = writablePath(ctx, output);
       ctx.progress?.('HandBrake is encoding…');
-      const r = await run(exe, handbrakeArgs({ input: readablePath(ctx, input), output: out, preset, quality, encoder }), { timeout: 4 * 60 * 60_000, signal: ctx.signal });
+      const r = await run(exe, handbrakeArgs({ input: readablePath(ctx, input), output: out, preset, quality, encoder }), { cwd: workspaceOf(ctx.agent), timeout: 4 * 60 * 60_000, signal: ctx.signal });
       const ok = r.code === 0 && exists(out);
       return { text: `${ok ? `Saved ${out}` : `HandBrake failed (exit ${r.code})`}\n${truncate(r.stderr.split(/\r?\n/).filter((l) => l.trim() && !/^Encoding: task/.test(l)).slice(-25).join('\n'), 5000)}`, isError: !ok };
     },
@@ -782,7 +783,7 @@ const TOOLS: ToolDef[] = [
       const exe = programExe('imagemagick');
       if (!exe) throw new Error('ImageMagick is not installed (imagemagick.org/script/download.php), or set its path in Settings.');
       if (!Array.isArray(args) || !args.length) throw new Error('Give the arguments as a list.');
-      const r = await run(exe, args.map(String), { timeout: 30 * 60_000, signal: ctx.signal });
+      const r = await run(exe, args.map(String), { cwd: workspaceOf(ctx.agent), timeout: 30 * 60_000, signal: ctx.signal });
       return { text: `${r.code === 0 ? 'Done' : `ImageMagick failed (exit ${r.code})`}\n${truncate((r.stdout + '\n' + r.stderr).trim(), 6000)}`, isError: r.code !== 0 };
     },
   },
@@ -792,8 +793,8 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: 'Show duration, streams and format of an audio or video file.',
     parameters: obj({ file: str('Absolute path') }, ['file']),
-    run: async ({ file }: { file: string }) => {
-      const r = await run('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', file], { timeout: 60000 });
+    run: async ({ file }: { file: string }, ctx) => {
+      const r = await run('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', file], { cwd: workspaceOf(ctx.agent), timeout: 60000 });
       return { text: truncate(r.stdout || r.stderr, 8000) };
     },
   },
@@ -1095,10 +1096,14 @@ const TOOLS: ToolDef[] = [
     name: 'run_command',
     group: 'shell',
     risk: 'high',
-    description: 'Run a PowerShell command on this PC and return its output. Starts in your workspace.',
-    parameters: obj({ command: str('PowerShell command'), cwd: str('Working folder'), timeout_sec: { type: 'number' } }, ['command']),
+    // the shell this PC has, looked up the first time the description is read
+    get description() {
+      return `Run a ${commandShell().name} command on this PC and return its output. Starts in your workspace.`;
+    },
+    parameters: obj({ command: str('The command, in this PC\'s shell'), cwd: str('Working folder'), timeout_sec: { type: 'number' } }, ['command']),
     run: async ({ command, cwd, timeout_sec = 300 }: { command: string; cwd?: string; timeout_sec?: number }, ctx) => {
-      const r = await run('powershell', ['-NoProfile', '-NonInteractive', '-Command', command], { cwd: cwd || workspaceOf(ctx.agent), timeout: timeout_sec * 1000, signal: ctx.signal });
+      const sh = commandShell();
+      const r = await run(sh.exe, sh.args(command), { cwd: cwd || workspaceOf(ctx.agent), timeout: timeout_sec * 1000, signal: ctx.signal });
       return { text: truncate(`exit ${r.code}\n${r.stdout}${r.stderr ? `\n[stderr]\n${r.stderr}` : ''}`, 20000), isError: r.code !== 0 };
     },
   },
