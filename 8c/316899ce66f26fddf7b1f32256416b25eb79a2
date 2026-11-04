@@ -1,0 +1,59 @@
+library/athena-agents/games/narrative-designer.md
+  s_113f5bf511efd5::t_b5c29bda665d6e 36-38,124
+  s_113f5bf511efd5::t_46c49bbfe6b6d2 90-91
+  s_113f5bf511efd5::t_5e93d9e5b88fab 56
+  s_113f5bf511efd5::t_2a0f896a361a24 16-18,28-29,48-49,52,78-83,102-104,110-113,126,171-172,196-205
+  s_113f5bf511efd5::t_158f11f70ea905 114,188-189
+  s_113f5bf511efd5::t_9743e522a6010b 147-148
+  s_113f5bf511efd5::t_81242a98b7bda8 1-2,4-15,19-27,30-35,39-47,50-51,53-55,57-77,84-89,92-101,105-109,115-123,125,127-139,141-146,149-170,173-182,190-195,206-207
+  s_113f5bf511efd5::t_36a3da02152639 3,140
+  s_113f5bf511efd5::t_93adfe6ec96c09 183-187
+library/athena-agents/games/game-designer.md
+  s_09ac87e46cf718::t_32ccf01589f96e 43-44
+  s_113f5bf511efd5::t_93abdc2b827c38 26-28,51-53,127-129,132,160-161,176-181,183-185
+  s_113f5bf511efd5::t_676f2325662349 33-35
+  s_113f5bf511efd5::t_969254837658f4 62-66,116-118
+  s_113f5bf511efd5::t_07b5df45a7cf50 71-72
+  s_113f5bf511efd5::t_8c86411fabd74d 105-107
+  s_113f5bf511efd5::t_fc3cb8dc4dad62 1-25,29-32,36-42,46-50,54-61,67-70,73-85,99-104,108-115,119-126,130-131,133-159,162-175,182,186-188
+  s_113f5bf511efd5::t_dc38df29ff0728 88-98
+  s_113f5bf511efd5::t_bf9f5de1683155 45
+  s_113f5bf511efd5::t_808e9ebe0704b7 86-87
+library/athena-agents/games/blender-add-on-engineer.md
+  s_113f5bf511efd5::t_32aa5f2ec723c3 94-96,160,215
+  s_113f5bf511efd5::t_9073069807341d 191
+  s_113f5bf511efd5::t_7d8bcbb1ac5802 37,152,196-198
+  s_113f5bf511efd5::t_951aee904774a9 153
+  s_113f5bf511efd5::t_11ba22cf8cbec5 44-47
+  s_113f5bf511efd5::t_c1eb685e41c220 154-155,162,169
+  s_113f5bf511efd5::t_776b451f0f108c 158
+  s_113f5bf511efd5::t_6d9fa5170a8496 1-15,18-36,41-43,48-93,97-151,156-157,159,161,163-168,170-190,192-195,199-201,204-214,217-225
+  s_113f5bf511efd5::t_934369aca270f9 38-40
+  s_113f5bf511efd5::t_169d3231855a95 16-17
+  s_113f5bf511efd5::t_e80715aea50491 202-203
+  s_113f5bf511efd5::t_72165438626a98 216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c316899ce66f26fddf7b1f32256416b25eb79a2",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_113f5bf511efd5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33eb0f9d-82ca-4708-b62e-673ddb2ee4f8",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
