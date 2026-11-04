@@ -22,7 +22,6 @@ import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { engineCapabilities } from './capabilities.ts';
-import { canSteer, sendSteer } from '../eve/steer.ts';
 import { activeEveRuns, invalidateConversation, lateSteers, updateSteer, readRun as readEveRun, sessionBindings, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
 import { eveBillingItem, eveUsage } from '../eve/usage.ts';
 import { eveRuntime } from '../eve/runtime.ts';
@@ -80,6 +79,28 @@ export interface EngineResult {
 export interface Engine<S = unknown> {
   run(args: EngineRunArgs): Promise<EngineResult>;
   status(): S;
+  /** an engine that can take a message into the turn going on (steering), instead of stopping it */
+  steer?: TurnSteering;
+}
+
+/** A message for the turn going on. */
+export interface TurnMessage {
+  id: string;
+  text: string;
+  attachments?: string[];
+  from?: string | null;
+  /** a team message's id: the agent's next turn doesn't bring it again */
+  teamMessageId?: string;
+}
+
+export interface TurnSteering {
+  /** whether this run's turn can take a message right now */
+  can(runId: string): boolean;
+  /** sends it into the turn; throws when it wasn't taken (it then goes the ordinary way) */
+  send(runId: string, message: TurnMessage): Promise<void>;
+  /** the engine says when it reads the message (a steer event): the chat shows it then, where it came in.
+   *  Otherwise the chat shows it as it is sent. */
+  saysWhenRead?: boolean;
 }
 
 /** One chat item of a given type, e.g. ChatItemOf<'tool'>. */
@@ -512,7 +533,12 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   const onEvent = (ev: RunEvent) => inProject(() => onEventIn(ev));
   const onEventIn = (ev: RunEvent) => {
     if (ev.kind === 'text' || ev.kind === 'tool') heard = true;
-    if (ev.kind === 'text') {
+    if (ev.kind === 'steer') {
+      // the engine read a message sent while it worked: it shows here, where it came in
+      current = null;
+      pushItem(chat, { type: 'steer', steerId: ev.id, text: ev.text, runId, ...(ev.attachments?.length ? { attachments: ev.attachments } : {}), ...(ev.from ? { from: ev.from } : {}), ...(ev.teamMessageId ? { teamMessageId: ev.teamMessageId } : {}) });
+      persist();
+    } else if (ev.kind === 'text') {
       if (!current) current = pushItem(chat, { type: 'assistant', text: '' });
       current.text += ev.text;
       saveSoon();
@@ -697,6 +723,8 @@ const steers = new Map<string, Promise<unknown>>();
  *  ends; null if it was taken back first (/stop). */
 export interface Steered {
   runId: string | Promise<string | null>;
+  /** it joined the turn going on: its id (the stream that sent it already shows it) */
+  steerId?: string;
 }
 
 /** A message sent while the chat works changes its course: the run going now stops (its /queue messages
@@ -757,16 +785,17 @@ function joinTurn(runs: [string, RunEntry][], text: string, attachments: string[
   if (runs.length !== 1 || !canJoin(...runs[0]!)) return null;
   const [runId, entry] = runs[0]!;
   // (the message is in the chat and on the run before this returns: nothing waits before it is saved)
-  return joinRun(runId, entry, { text, attachments }).then((ok) => {
-    if (!ok) return null;
+  return joinRun(runId, entry, { text, attachments }).then((steerId) => {
+    if (!steerId) return null;
     // it ended while the message went: Eve starts the next turn with it
     if (!active.has(runId) && !takeOverSteers(runId, entry)) carryOn(projectId, entry.chatId);
-    return { runId };
+    return { runId, steerId };
   });
 }
 
 /** Whether this run's engine can take a message into its turn right now. */
-const canJoin = (runId: string, entry: RunEntry): boolean => engineCapabilities(entry.agent.engine).steersTurns && !entry.stopRequested && canSteer(runId);
+const steeringOf = (engine: EngineId): TurnSteering | undefined => (ENGINES[engine] as Engine | undefined)?.steer;
+const canJoin = (runId: string, entry: RunEntry): boolean => !entry.stopRequested && !!steeringOf(entry.agent.engine)?.can(runId);
 
 /** What a message that joins a turn says, and where it came from (a team message's id, so the agent's
  *  next turn doesn't bring it again). */
@@ -781,31 +810,35 @@ export interface JoiningMessage {
  *  mid-turn. False: it can't, or didn't (stop it and send the message the ordinary way). */
 export function joinChatTurn(chatId: string, message: JoiningMessage, projectId: string = here()): Promise<boolean> {
   const runs = runsIn(projectId, chatId);
-  return runs.length === 1 && canJoin(...runs[0]!) ? joinRun(runs[0]![0], runs[0]![1], message) : Promise.resolve(false);
+  return runs.length === 1 && canJoin(...runs[0]!) ? joinRun(runs[0]![0], runs[0]![1], message).then((id) => !!id) : Promise.resolve(false);
 }
 
-async function joinRun(runId: string, entry: RunEntry, { text, attachments = [], from = null, teamMessageId }: JoiningMessage): Promise<boolean> {
+/** Sends the message into the run's turn. Its id when the turn took it; null when it didn't. */
+async function joinRun(runId: string, entry: RunEntry, { text, attachments = [], from = null, teamMessageId }: JoiningMessage): Promise<string | null> {
+  const steering_ = steeringOf(entry.agent.engine)!;
   const key = chatKey(entry.projectId, entry.chatId);
   const chat = entry.chat;
   const steerId = uid('s');
   const extra = { ...(attachments.length ? { attachments } : {}), ...(from ? { from } : {}) };
-  // (shown at once; nothing else starts in the chat while it is sent)
+  // nothing else starts in the chat while it is sent; an engine that doesn't say when it reads it: shown at once
   steering.add(key);
-  withProject(entry.project, () => {
-    pushItem(chat, { type: 'steer', steerId, text, runId, ...extra, ...(teamMessageId ? { teamMessageId } : {}) });
-    if (!chat._deleted) chats.save(chat);
-  });
-  emit('run', { runId, agentId: entry.agentId, chatId: chat.id, projectId: entry.projectId, event: { kind: 'steer', id: steerId, text, ...extra } });
-  try {
-    await sendSteer(runId, { id: steerId, text, attachments, ...(from ? { from } : {}), ...(teamMessageId ? { teamMessageId } : {}) });
-    return true;
-  } catch {
-    // Eve didn't take it: it goes the ordinary way, and the chat shows it there instead
+  if (!steering_.saysWhenRead) {
     withProject(entry.project, () => {
+      pushItem(chat, { type: 'steer', steerId, text, runId, ...extra, ...(teamMessageId ? { teamMessageId } : {}) });
+      if (!chat._deleted) chats.save(chat);
+    });
+    emit('run', { runId, agentId: entry.agentId, chatId: chat.id, projectId: entry.projectId, event: { kind: 'steer', id: steerId, text, ...extra } });
+  }
+  try {
+    await steering_.send(runId, { id: steerId, text, attachments, ...(from ? { from } : {}), ...(teamMessageId ? { teamMessageId } : {}) });
+    return steerId;
+  } catch {
+    // not taken: it goes the ordinary way, and the chat shows it there instead
+    if (!steering_.saysWhenRead) withProject(entry.project, () => {
       chat.items = chat.items.filter((item) => !(item.type === 'steer' && item.steerId === steerId));
       if (!chat._deleted) chats.save(chat);
     });
-    return false;
+    return null;
   } finally {
     steering.delete(key);
   }

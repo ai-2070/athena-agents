@@ -99,13 +99,15 @@ export interface StreamRunOptions {
   items?: readonly ChatItem[];
   /** How often a keep-alive comment goes out while a tool runs (ms). */
   keepAliveMs?: number;
+  /** the message this stream's request sent into the turn going on: the view shows it already */
+  ownSteer?: string;
 }
 
 // a run you stopped (or stopped for your new message) didn't fail
 const STOPPED = new Set(['Stopped.', 'Stopped to take your new message.']);
 
 /** Streams the run into the response until it ends (or the browser goes away). */
-export function streamRun(res: http.ServerResponse, { chatId, runId, items = [], keepAliveMs = 15_000, waiting = 'Waiting…' }: StreamRunOptions): Promise<void> {
+export function streamRun(res: http.ServerResponse, { chatId, runId, items = [], keepAliveMs = 15_000, waiting = 'Waiting…', ownSteer }: StreamRunOptions): Promise<void> {
   res.writeHead(200, { ...UI_MESSAGE_STREAM_HEADERS, 'cache-control': 'no-store' });
   const write = (chunk: UIMessageChunk) => res.write(`data: ${JSON.stringify(chunk)}\n\n`);
   const w = new TurnChunks(write);
@@ -128,6 +130,7 @@ export function streamRun(res: http.ServerResponse, { chatId, runId, items = [],
     const listen = (ev: ServerEvent) => {
       if (ev.type !== 'run' || ev.chatId !== chatId || id == null || ev.runId !== id) return;
       const e = ev.event as RunEvent;
+      if (e.kind === 'steer' && e.id === ownSteer) return;
       // a run that failed ends the stream with the AI SDK's error (useChat's onError); "Stopped." is you
       if (e.kind === 'error' && e.text && !STOPPED.has(e.text)) write({ type: 'error', errorText: e.text });
       if (e.kind === 'done' || e.kind === 'error') end();

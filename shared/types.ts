@@ -903,7 +903,7 @@ export type RunEvent =
   | { kind: 'start'; text: string; from?: string | null; attachments?: string[] }
   | { kind: 'text'; text: string }
   /** a message that joined the turn going on (a steer item in the chat) */
-  | { kind: 'steer'; id: string; text: string; from?: string | null; attachments?: string[] }
+  | { kind: 'steer'; id: string; text: string; from?: string | null; attachments?: string[]; teamMessageId?: string }
   | { kind: 'tool'; id: string; name: string; args?: Record<string, unknown> }
   | { kind: 'tool_result'; id: string; text?: string; isError?: boolean; images?: string[] }
   | { kind: 'status'; text: string }
@@ -1171,8 +1171,6 @@ export interface EngineCapabilities {
   directTools: boolean;
   inlineAttachmentText: boolean;
   durableSession: boolean;
-  /** a message can join a turn while it works, instead of stopping it */
-  steersTurns: boolean;
 }
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };

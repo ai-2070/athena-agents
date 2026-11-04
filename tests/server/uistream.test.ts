@@ -21,7 +21,7 @@ beforeAll(async () => {
     const url = new URL(req.url!, 'http://x');
     const runId = url.searchParams.get('run') || 'r1';
     const later = url.searchParams.has('later') ? new Promise<string | null>((r) => (startLater = r)) : null;
-    void streamRun(res, { chatId: 'c1', runId: later ?? runId, items: replayItems, keepAliveMs: 20, waiting: 'Waiting for it to stop…' });
+    void streamRun(res, { chatId: 'c1', runId: later ?? runId, items: replayItems, keepAliveMs: 20, waiting: 'Waiting for it to stop…', ...(url.searchParams.get('own') ? { ownSteer: url.searchParams.get('own')! } : {}) });
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -116,6 +116,18 @@ describe('a message that joined the turn', () => {
     const parts = last.parts.filter((p) => p.type !== 'step-start');
     expect(parts.map((p) => (p.type === 'text' ? p.text : p.type === 'data-steer' ? `> ${(p.data as { text: string }).text}` : p.type))).toEqual(['Starting. ', '> also make it blue', 'Blue it is. ', '> and bigger', 'Done.']);
     expect(parts[3]).toMatchObject({ type: 'data-steer', data: { steerId: 's2', text: 'and bigger', attachments: ['/u/a.png'] } });
+  });
+});
+
+describe('the message a stream sent into the turn', () => {
+  it('is left out of that stream: the view that sent it shows it already', async () => {
+    replayItems = [];
+    const { last } = await read('r4&own=s9', async () => {
+      run({ kind: 'steer', id: 's9', text: 'mine' }, 'r4');
+      run({ kind: 'steer', id: 's8', text: 'another tab' }, 'r4');
+      run({ kind: 'done', text: '' }, 'r4');
+    });
+    expect(last.parts.flatMap((p) => (p.type === 'data-steer' ? [(p.data as { text: string }).text] : []))).toEqual(['another tab']);
   });
 });
 

@@ -4,12 +4,19 @@ import { eveRuntime } from '../eve/runtime.ts';
 import { eveCoordinator } from '../eve/coordinator.ts';
 import { prepareAdmission, submitAdmission, validAdmission } from '../eve/admission.ts';
 import { eveClient, stopEveRun, retireEveBindings } from '../eve/recovery.ts';
+import { canSteer, sendSteer } from '../eve/steer.ts';
 import { adoptRun, readBinding, readRun } from '../eve/state.ts';
 import { status } from '../providers.ts';
-import type { EngineRunArgs, EngineResult } from './index.ts';
+import type { EngineRunArgs, EngineResult, TurnSteering } from './index.ts';
 import { eveUsage } from '../eve/usage.ts';
 export { status };
 export const durable = true;
+
+/** A message sent while it works joins the turn going on (server/eve/steer.ts). */
+export const steer: TurnSteering = {
+  can: (runId) => canSteer(runId),
+  send: async (runId, message) => void (await sendSteer(runId, { ...message, attachments: message.attachments || [] })),
+};
 
 /** Delivery retries are transport recovery; Eve owns every model and tool step. */
 export async function run({ runId, signal, adopt, depth }: EngineRunArgs): Promise<EngineResult> {
