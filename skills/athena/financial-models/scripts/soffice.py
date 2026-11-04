@@ -244,7 +244,7 @@ def scan_errors(path: Path, limit: int) -> dict:
         for row in ws.iter_rows():
             for cell in row:
                 text = cell.value
-                is_formula = cell.data_type == "f" or (isinstance(text, str) and text.startswith("="))
+                is_formula = cell.data_type == "f"  # text that only starts with "=" is stored as text
                 count += is_formula
                 if isinstance(text, str) and text.upper().startswith(("=TABLE(", "=MULTIPLE.OPERATIONS(")):
                     tables.append(f"{ws.title}!{cell.coordinate}")

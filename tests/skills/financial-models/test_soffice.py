@@ -211,6 +211,17 @@ def test_recalc_fills_in_results(run, tmp_path, libreoffice):
     assert scratch_left(tmp_path) == []
 
 
+def test_recalc_counts_only_real_formulas(run, tmp_path, libreoffice):
+    src = small_book(tmp_path / "model.xlsx")
+    wb = load_workbook(src)
+    # a label that only starts with "=", stored as text
+    wb["Model"]["B1"] = "=label"
+    wb["Model"]["B1"].data_type = "s"
+    wb.save(src)
+    r = run(SKILL, SOFFICE, "recalc", src, "-o", tmp_path / "model-calc.xlsx")
+    assert r.json()["formulas"] == 3
+
+
 def test_recalc_lists_error_cells_with_hints(run, tmp_path, libreoffice):
     src = small_book(tmp_path / "broken.xlsx", broken=True)
     r = run(SKILL, SOFFICE, "recalc", src, "-o", tmp_path / "broken-calc.xlsx", ok=False)
