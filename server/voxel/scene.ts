@@ -11,7 +11,7 @@ import type { Vec3, VoxelWorld, WorldBuilder, WorldEffect, WorldEffectKind, Worl
 
 export const SCENE_LIMITS = { lights: 32, effects: 24 };
 export const EFFECT_KINDS: WorldEffectKind[] = ['petals', 'leaves', 'snow', 'rain', 'fireflies', 'embers', 'sparks', 'smoke', 'steam', 'mist', 'dust', 'birds'];
-const WEATHER = ['none', 'snow', 'rain', 'petals', 'leaves', 'dust'] as const;
+export const WEATHER = ['none', 'snow', 'rain', 'petals', 'leaves', 'dust'] as const;
 
 const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
 const num = (v: unknown, what: string, min: number, max: number): number => {

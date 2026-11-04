@@ -6,6 +6,7 @@ import { newAgent } from '../../server/library.ts';
 import { decide, listApprovals, setReviewer } from '../../server/approvals.ts';
 import { saveSettings } from '../../server/store.ts';
 import { shownWorld } from '../../server/voxel/link.ts';
+import { KEEP_WORLD_MD } from '../../server/voxel/worldmd.ts';
 import { buildSystemPrompt } from '../../server/engines/index.ts';
 
 const tick = () => new Promise((r) => setTimeout(r, 10));
@@ -21,16 +22,32 @@ const kenji = newAgent({ name: 'Kenji', toolGroups: ['world'], autonomy: 'auto' 
 describe('world tools', () => {
   it('come with the "world" tool group, with honest risks', () => {
     const names = toolDefs(mira).map((t) => t.name);
-    expect(names).toEqual(expect.arrayContaining(['world_info', 'world_build', 'world_object', 'world_undo', 'world_prefab', 'world_light', 'world_effect', 'world_environment', 'world_md_read', 'world_md_section', 'world_md_write']));
+    expect(names).toEqual(expect.arrayContaining(['world_info', 'world_build', 'world_steps', 'world_object', 'world_undo', 'world_prefab', 'world_light', 'world_effect', 'world_environment', 'world_md_read', 'world_md_section', 'world_md_write']));
     expect(toolDefs(newAgent({ name: 'Plain', toolGroups: [] })).some((t) => t.name.startsWith('world_'))).toBe(false);
     const risk = Object.fromEntries(allTools().map((t) => [t.name, t.risk]));
     expect(risk).toMatchObject({ world_info: 'none', world_build: 'low', world_object: 'varies', world_prefab: 'varies', world_light: 'varies', world_effect: 'varies', world_environment: 'low', world_md_read: 'none' });
-    // the step language, prefabs and placing are in the build tool's description; nothing ready-made
+    // the common steps, prefabs and placing are in the build tool's description; nothing ready-made
     const build = toolDefs(mira).find((t) => t.name === 'world_build')!;
     expect(build.description).toMatch(/"voxel_size": 0.1/);
     expect(build.description).toMatch(/\{"place": "Palm tree"/);
-    expect(build.description).toMatch(/nothing comes ready-made/);
+    expect(build.description).toMatch(/Nothing comes ready-made/);
     expect(build.description).not.toMatch(/torii|generator/i);
+  });
+
+  it('the whole group stays small: what every request of a builder carries', () => {
+    // measured like docs/internal/plans/TOOL_OPTIMIZATION_2026-11-04.md: 24,888 characters before it was slimmed
+    const group = new Map(allTools().map((t) => [t.name, t.group]));
+    const world = toolDefs(mira).filter((t) => group.get(t.name) === 'world');
+    const size = world.reduce((n, t) => n + JSON.stringify({ name: t.name, description: t.description, input_schema: t.parameters }).length, 0);
+    expect(world).toHaveLength(18);
+    expect(size).toBeLessThan(16_900);
+  });
+
+  it('says when to update WORLD.md once, in the instructions: not in the tools or their answers', async () => {
+    expect(buildSystemPrompt(mira)).toContain(KEEP_WORLD_MD);
+    for (const t of toolDefs(mira).filter((d) => d.name.startsWith('world_'))) expect(t.description).not.toMatch(/Story so far/);
+    const r = await callTool(mira, 'world_build', { object: 'Lily pad', steps: [{ box: [1, 1, 1], use: 'leaves' }] });
+    expect(r.text).not.toMatch(/WORLD\.md|Story so far/);
   });
 
   it('an agent builds without asking, and the answer says what it made', async () => {
@@ -111,7 +128,8 @@ describe('a diorama, not a level', () => {
     expect(buildSystemPrompt(mira)).toContain(DIORAMA);
     expect(buildSystemPrompt(mira)).toContain(BUILD_ORDER);
     expect(BUILD_ORDER).toMatch(/first the shape of the terrain .* then the buildings .* then the props/);
-    expect(toolDefs(mira).find((t) => t.name === 'world_build')!.description).toMatch(/a diorama to look at \(nobody walks through it or plays it/);
+    // the tool says it in a few words; the instructions above have the whole of it
+    expect(toolDefs(mira).find((t) => t.name === 'world_build')!.description).toMatch(/a diorama to look at, not a level to play/);
     expect((await callTool(mira, 'world_info', {})).text).toMatch(/The world is a diorama to look at/);
     const designer = agents.save(newAgent({ name: 'Level Designer', toolGroups: ['files'] }));
     const builder = agents.save(mira);

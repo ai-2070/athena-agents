@@ -181,6 +181,9 @@ export function writeWorldMdSection(worldId: string, section: string, content: u
   return writeWorldMd(worldId, editSection(readWorldMd(worldId), section, text, append));
 }
 
+/** When builders update WORLD.md. Said once, in their instructions (not in the tools or their results). */
+export const KEEP_WORLD_MD = 'Keep it up to date: after you build a place or dress a character, update its section with world_md_section and add one line to "Story so far".';
+
 /** WORLD.md for a builder's instructions: cut to WORLD_MD_SHOWN. */
 export function worldMdContext(worldId: string, worldName: string): string {
   const text = readWorldMd(worldId).trim();
@@ -188,7 +191,7 @@ export function worldMdContext(worldId: string, worldName: string): string {
   return `\n# The voxel world: ${worldName}
 ${DIORAMA}
 ${BUILD_ORDER}
-WORLD.md says what this world is. Read it before you build, build in its style, and keep it up to date: after you build a place or dress a character, update its section with world_md_section and add one line to "Story so far".
+WORLD.md says what this world is. Read it before you build and build in its style. ${KEEP_WORLD_MD}
 <world-md>
 ${cut ? `${text.slice(0, WORLD_MD_SHOWN)}\n… (${(text.length - WORLD_MD_SHOWN).toLocaleString('en-US')} more characters: read it all with world_md_read)` : text}
 </world-md>`;
