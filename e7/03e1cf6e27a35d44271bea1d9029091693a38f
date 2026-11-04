@@ -1,0 +1,19 @@
+docs/internal/plans/HERMES_SKILLS_REWRITE_2026-11-04.md
+  s_09ac87e46cf718::t_bdadb976f62cf3 5-47,458-473
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e703e1cf6e27a35d44271bea1d9029091693a38f",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
