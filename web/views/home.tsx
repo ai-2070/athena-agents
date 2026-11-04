@@ -248,7 +248,7 @@ function Onboarding({ d }: { d: AppState }) {
     { done: d.engines['claude-code'].installed || (d.secrets.openrouterKey.set || !!d.secrets.veniceKey?.set), text: 'Pick how agents think: use Claude Code on this PC, or add an OpenRouter or Venice key for API models.', href: '#/settings', cta: 'Settings' },
     { done: false, text: 'Add agents: start with the Athena team, or hire specialists from the Agent library.', href: '#/library', cta: 'Open library' },
     { done: d.accounts.x.length > 0, text: 'Connect your X account so agents can draft posts for you to approve.', href: '#/settings?tab=connections', cta: 'Connections' },
-    { done: false, text: 'Give agents more abilities: browser control, files, GitHub and any MCP server.', href: '#/settings?tab=mcp', cta: 'Tools & MCP' },
+    { done: false, text: 'Give agents more abilities: browser control, files, GitHub and any MCP server.', href: '#/settings?tab=mcp', cta: 'MCP servers' },
   ];
   return (
     <div className="panel mb-8">

@@ -609,7 +609,7 @@ function ConnectionPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id
           ) : null}
           {it.mcp ? (
             <ButtonLink variant="ghost" size="small" href="#/settings?tab=mcp">
-              Tools &amp; MCP
+              MCP servers
             </ButtonLink>
           ) : null}
           {['openrouter', 'venice', 'lmstudio', 'ollama'].includes(it.id) ? (

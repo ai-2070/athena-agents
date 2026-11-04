@@ -90,7 +90,7 @@ describe('the Overview page', () => {
   it('with no agents, shows the steps to get started', async () => {
     state.data = { ...base, runs: [], agents: [] } as unknown as AppState;
     await open();
-    expect([...el.querySelectorAll('.home-steps li .btn.ghost')].map((a) => a.textContent)).toEqual(['Settings', 'Open library', 'Connections', 'Tools & MCP']);
+    expect([...el.querySelectorAll('.home-steps li .btn.ghost')].map((a) => a.textContent)).toEqual(['Settings', 'Open library', 'Connections', 'MCP servers']);
     expect(el.querySelector('.home-steps [aria-label="done"]')).not.toBeNull();
   });
 
