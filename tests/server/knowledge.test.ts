@@ -2,8 +2,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { addKnowledgeFile, knowledgeContext, knowledgeFiles, readKnowledge, searchKnowledge } from '../../server/knowledge.ts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { addKnowledgeFile, clearKnowledgeCache, knowledgeCache, knowledgeContext, knowledgeFiles, knowledgeRoots, readKnowledge, removeKnowledgeFile, searchKnowledge } from '../../server/knowledge.ts';
+import { projectData } from '../../server/store.ts';
+import { toolsForAgent } from '../../server/tools.ts';
 
 describe('knowledge files', () => {
   it('reads the plain text files in a linked folder', () => {
@@ -99,5 +101,138 @@ describe('knowledge search', () => {
     expect(ctx).toContain('You have 1 reference files (31 KB)');
     expect(ctx).toContain(`- ${path.join(path.basename(agent.knowledge.folders[0]), 'big.md')} (31 KB)`);
     expect(ctx).not.toContain('eta eta');
+  });
+});
+
+describe('knowledge kept between calls', () => {
+  const real = { ...knowledgeCache };
+  afterEach(() => {
+    Object.assign(knowledgeCache, real);
+    clearKnowledgeCache();
+    vi.restoreAllMocks();
+  });
+  const folderWith = (prefix: string, files: Record<string, string>): string => {
+    const folder = fs.mkdtempSync(path.join(os.homedir(), prefix));
+    for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(folder, name), text);
+    return folder;
+  };
+  // Make the files look a minute old: a file changed in the last moments is always read again.
+  const settle = (...files: string[]) => {
+    const old = new Date(Date.now() - 60_000);
+    for (const f of files) fs.utimesSync(f, old, old);
+  };
+  // Which files are read from disk while fn runs.
+  const reads = (fn: () => void): string[] => {
+    const spy = vi.spyOn(fs, 'readFileSync');
+    try {
+      fn();
+      return spy.mock.calls
+        .map(([p]) => (typeof p === 'string' ? path.basename(p) : ''))
+        .filter((n) => n.endsWith('.md'))
+        .sort();
+    } finally {
+      spy.mockRestore();
+    }
+  };
+  const labels = (agent: Parameters<typeof knowledgeFiles>[0]) =>
+    knowledgeFiles(agent)
+      .map((f) => f.label)
+      .sort();
+
+  it("lists files added or removed through the dashboard at once, and a linked folder's other changes after a few seconds", () => {
+    let now = 1_000_000;
+    knowledgeCache.now = () => now;
+    const folder = folderWith('kb-window-', { 'first.md': 'first' });
+    const agent = { id: 'kb-window', knowledge: { folders: [folder] } };
+    const base = path.basename(folder);
+    expect(labels(agent)).toEqual([path.join(base, 'first.md')]);
+    addKnowledgeFile(agent.id, 'mine.md', 'my note');
+    expect(labels(agent)).toEqual(['mine.md', path.join(base, 'first.md')].sort());
+    removeKnowledgeFile(agent.id, 'mine.md');
+    expect(labels(agent)).toEqual([path.join(base, 'first.md')]);
+    // another folder linked: a new list at once
+    const other = folderWith('kb-window-other-', { 'other.md': 'other' });
+    expect(labels({ ...agent, knowledge: { folders: [folder, other] } })).toEqual([path.join(base, 'first.md'), path.join(path.basename(other), 'other.md')].sort());
+    // changed outside the dashboard: shown once the list's time is up
+    fs.writeFileSync(path.join(folder, 'second.md'), 'second');
+    expect(labels(agent)).toEqual([path.join(base, 'first.md')]);
+    now += knowledgeCache.listMs - 1;
+    expect(labels(agent)).toEqual([path.join(base, 'first.md')]);
+    now += 1;
+    expect(labels(agent)).toEqual([path.join(base, 'first.md'), path.join(base, 'second.md')].sort());
+  });
+
+  it("doesn't make a knowledge folder just by looking", () => {
+    const agent = { id: 'kb-nobody' };
+    const dir = projectData('knowledge', agent.id);
+    expect(knowledgeFiles(agent)).toEqual([]);
+    expect(knowledgeContext(agent)).toBe('');
+    expect(searchKnowledge(agent, 'anything')).toEqual([]);
+    expect(() => readKnowledge(agent, 'x.md')).toThrow(/No knowledge file/);
+    expect(knowledgeRoots(agent)).toEqual([]);
+    expect(toolsForAgent({ id: agent.id, name: 'Nobody', toolGroups: [] }).map((t) => t.name)).not.toContain('knowledge_search');
+    expect(fs.existsSync(dir)).toBe(false);
+    // the folder is made when a file is added, and then it is one the agent may read
+    addKnowledgeFile(agent.id, 'note.md', 'hello');
+    expect(knowledgeRoots(agent)).toEqual([dir]);
+    expect(toolsForAgent({ id: agent.id, name: 'Nobody', toolGroups: [] }).map((t) => t.name)).toContain('knowledge_search');
+  });
+
+  it('searches again reading only the files that changed, with the same results', () => {
+    const folder = folderWith('kb-reread-', { 'one.md': 'omega in one\nmore', 'two.md': 'omega omega in two' });
+    const agent = { id: 'kb-reread', knowledge: { folders: [folder] } };
+    settle(path.join(folder, 'one.md'), path.join(folder, 'two.md'));
+    let first: ReturnType<typeof searchKnowledge> = [];
+    expect(reads(() => (first = searchKnowledge(agent, 'omega')))).toEqual(['one.md', 'two.md']);
+    let again: ReturnType<typeof searchKnowledge> = [];
+    expect(reads(() => (again = searchKnowledge(agent, 'omega')))).toEqual([]);
+    expect(again).toEqual(first);
+    expect(reads(() => knowledgeContext(agent))).toEqual([]);
+    // edited outside the dashboard: read again at once, even while the list is kept
+    fs.writeFileSync(path.join(folder, 'one.md'), 'omega omega omega in one, longer');
+    expect(reads(() => (again = searchKnowledge(agent, 'omega')))).toEqual(['one.md']);
+    expect(again[0]).toMatchObject({ file: path.join(path.basename(folder), 'one.md'), text: 'omega omega omega in one, longer' });
+    expect(knowledgeContext(agent)).toContain('omega omega omega in one, longer');
+  });
+
+  it('keeps no more text than its limit, dropping the least recently used', () => {
+    const folder = folderWith('kb-limit-', { 'a.md': `theta ${'a'.repeat(94)}`, 'b.md': `theta ${'b'.repeat(94)}` });
+    const agent = { id: 'kb-cap', knowledge: { folders: [folder] } };
+    settle(path.join(folder, 'a.md'), path.join(folder, 'b.md'));
+    const first = searchKnowledge(agent, 'theta');
+    expect(reads(() => expect(searchKnowledge(agent, 'theta')).toEqual(first))).toEqual([]);
+    // room for one of the two (200 bytes each): every search reads both again, with the same answer
+    clearKnowledgeCache();
+    knowledgeCache.maxBytes = 300;
+    expect(reads(() => expect(searchKnowledge(agent, 'theta')).toEqual(first))).toEqual(['a.md', 'b.md']);
+    expect(reads(() => expect(searchKnowledge(agent, 'theta')).toEqual(first))).toEqual(['a.md', 'b.md']);
+    // a file bigger than the limit is never kept
+    knowledgeCache.maxBytes = 100;
+    clearKnowledgeCache();
+    searchKnowledge(agent, 'theta');
+    expect(reads(() => searchKnowledge(agent, 'theta'))).toEqual(['a.md', 'b.md']);
+  });
+
+  it('never reads a listed file that became a link while the list was kept', (ctx) => {
+    const base = fs.mkdtempSync(path.join(os.homedir(), 'kb-swap-'));
+    const folder = path.join(base, 'kb');
+    fs.mkdirSync(folder);
+    const secret = path.join(base, 'secret.txt');
+    fs.writeFileSync(secret, 'swap-sentinel-4242');
+    fs.writeFileSync(path.join(folder, 'reference.md'), 'harmless');
+    const agent = { id: 'kb-swap', knowledge: { folders: [folder] } };
+    expect(knowledgeFiles(agent)).toHaveLength(1);
+    fs.rmSync(path.join(folder, 'reference.md'));
+    try {
+      fs.symlinkSync(secret, path.join(folder, 'reference.md'));
+    } catch (e) {
+      // file links need admin rights on Windows
+      if ((e as NodeJS.ErrnoException).code === 'EPERM') return ctx.skip();
+      throw e;
+    }
+    expect(knowledgeFiles(agent)).toHaveLength(1);
+    expect(knowledgeContext(agent)).not.toContain('swap-sentinel');
+    expect(searchKnowledge(agent, 'swap-sentinel-4242')).toEqual([]);
+    expect(readKnowledge(agent, 'reference.md').text).not.toContain('swap-sentinel');
   });
 });
