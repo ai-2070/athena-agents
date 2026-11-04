@@ -1,0 +1,45 @@
+server/eve/counts.ts
+  s_e149d0ba305b10::t_2fac7b623ee711 1,3-6
+  s_e149d0ba305b10::t_e96dd2f0244278 2
+server/eve/operations.ts
+  s_e149d0ba305b10::t_d787c6718b4a11 6,28-32,118
+  s_e149d0ba305b10::t_1c7125477b9759 2-4,11-12,14,16,19-27,33-67,71,75-80,84-85,97
+server/eve/transcript.ts
+  s_e149d0ba305b10::t_73f730bb2e07bf 7,23-24,45,49
+server/eve/admission.ts
+  s_e149d0ba305b10::t_95d45694ca7e31 8,12,16,35-44,46-51,55-56,160,186,194
+server/eve/records.ts
+  s_e149d0ba305b10::t_871aa84176435b 11,72
+  s_e149d0ba305b10::t_321a5940d2a4f1 83-84
+  s_e149d0ba305b10::t_066a9943999d7c 1-10,12-71,73-82,85-131
+server/eve/runtime.ts
+  s_e149d0ba305b10::t_e96dd2f0244278 7,33-34
+tests/server/eve-calls.test.ts
+  s_e149d0ba305b10::t_e96dd2f0244278 5-6
+  s_e149d0ba305b10::t_642311119a8f50 1-4,7-67
+server/eve/bridge.ts
+  s_e149d0ba305b10::t_e96dd2f0244278 13,16,18,24,26,39,139,151,192
+server/eve/state.ts
+  s_e149d0ba305b10::t_77a2278bee4bcb 4,10-11,21,23-27,29-32,34,43-45,50-53,64,72,115,120,125-142,146-148,151-157,159-164,166-170,182-183,191,197,206,218,231,235,242,254,261,268,275,277
+  s_e149d0ba305b10::t_d787c6718b4a11 22,28,149-150,202-203,205
+  s_e149d0ba305b10::t_daaf1af4d6b875 158,165,201,230
+  s_e149d0ba305b10::t_e96dd2f0244278 226
+server/eve/recovery.ts
+  s_e149d0ba305b10::t_73f730bb2e07bf 5,7,27,99,102,136,164,184,216,235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fcb0edfad3fe6a557a2306a1dc2a9f0770ee8b28",
+  "prompts": {},
+  "sessions": {
+    "s_e149d0ba305b10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d2cbea5-1c6f-4a57-ac49-224888c6c687",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
