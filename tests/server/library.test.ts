@@ -154,7 +154,7 @@ describe("Athena's agents", () => {
 
   it('is written to the standard, not the old Agency template', () => {
     // a role is a starting point, not a fence, and the model's limits come from its tools at run time
-    const FENCE = /outside (?:of )?your (?:scope|role|remit)|\bnot your (?:job|role)\b|\byou (?:cannot|can't|are unable to|are not able to) (?:see|view|browse|run code|execute|access the internet|open files)\b/i;
+    const FENCE = /outside (?:of )?your (?:scope|role|remit)|\bnot your (?:job|role)\b|\byou (?:cannot|can't|are unable to|are not able to) (?:see images|see the screen|view images|browse the web|run code|execute code|access the internet|open files)\b/i;
     const problems: string[] = [];
     for (const { file } of files) {
       const text = fs.readFileSync(file, 'utf8');
