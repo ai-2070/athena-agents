@@ -26,7 +26,7 @@ export function taskTools(): ToolDef[] {
   return [
     {
       name: 'TaskCreate', group: 'core', risk: 'none',
-      description: 'Create saved tasks. Either provide one task (subject, description, optional activeForm, metadata, scope, owner) or {tasks:[...]} with a non-empty array of task objects, without single-task fields. No per-call task-count cap. Batches process in order, keep successes and return an indexed success or error per item; do not retry successes. Batch successes give taskId/status/updatedAt; TaskGet reads full details. Default list: your current team or own list. owner is empty, brain, agent:<id> or team:<id>. Records work; does not start a run.',
+      description: 'Create saved tasks. Either provide one task (subject, description, optional activeForm, metadata, scope, owner) or {tasks:[...]} with a non-empty array of task objects, without single-task fields. No per-call task-count cap. Batches process in order, keep successes and return an indexed success or error per item; do not retry successes. Batch successes give taskId/status/updatedAt; TaskGet reads full details. Default list: your current team or own list. owner is empty, brain, agent:<id> or team:<id>. Put acceptance criteria in the description. Records work; does not start a run.',
       parameters: bulkSchema(create, ['subject', 'description']),
       run: async (args, ctx) => ({ text: JSON.stringify(await inContext(ctx, (a) => runTaskBatch(args, (item) => createTask(item as unknown as TaskCreateInput, a)) ?? { task: createTask(args as unknown as TaskCreateInput, a) })) }),
     },

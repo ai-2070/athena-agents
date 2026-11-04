@@ -2,7 +2,7 @@
 // Risk decides when you're asked first: autonomy "ask" checks low + high, "auto" checks high only, "full" never asks.
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, insideRoots, asOpened, runnable } from './util.ts';
+import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, truncateMiddle, tmpFile, openWithShell, launchDetached, exists, which, insideRoots, asOpened, runnable } from './util.ts';
 import * as assetLib from './assets.ts';
 import type { AssetSource, AssetKind } from './assets.ts';
 import { mayaScript, houdiniScript, sibling, sbsrenderArgs, openscadArgs, prusaSlicerArgs, nvttArgs, handbrakeArgs, GPU_FIELDS, formatGpus } from './dcc.ts';
@@ -128,10 +128,10 @@ export const TOOL_GROUPS: ToolGroup[] = [
   { id: 'media', label: 'FFmpeg, HandBrake and ImageMagick', description: 'Convert, cut and inspect audio and video, shrink videos with HandBrake presets, edit images in bulk with ImageMagick.' },
   { id: 'social', label: 'Social', description: 'Draft X and Reddit posts (they wait in the Outbox unless auto-post is on), read posts, mentions and subreddits, Telegram, Discord.' },
   { id: 'agents', label: 'Delegate', description: 'Ask other agents and Hermes profiles for help.' },
-  { id: 'files', label: 'Files', description: 'Read and write files in its workspace and folders you allow.' },
+  { id: 'files', label: 'Files', description: 'Read, change and search files in its workspace and folders you allow. For API models (Eve): Claude Code, Codex and the other coding engines use their own file tools.' },
   { id: 'orca', label: 'Orca', description: 'Run Orca CLI commands (worktrees, terminals, its browser).' },
   { id: 'world', label: 'Voxel world', description: 'Build the voxel world around the Station (places, props, prefabs to place many times) and keep its WORLD.md up to date.' },
-  { id: 'shell', label: 'Shell', description: 'Run any PowerShell command. Powerful: you are asked each time unless autonomy is Full.' },
+  { id: 'shell', label: 'Shell', description: 'Run any command (PowerShell on Windows, your shell on Mac and Linux). Powerful: you are asked each time unless autonomy is Full. For API models (Eve): the coding engines use their own.' },
 ];
 
 export function workspaceOf(agent: { workspace?: string }): string {
@@ -167,6 +167,9 @@ const isGatewayConversation = (id: string | null | undefined): boolean => !!id &
 /** The chat a tool call runs in (to tell which team it is for). */
 const chatOf = async (ctx: ToolContext): Promise<string | null> => (await import('./engines/index.ts')).runInfo(ctx.runId)?.chatId ?? null;
 const str = (description: string): JSONSchema => ({ type: 'string', description });
+// X bills each read: a model asking for "all of them" gets a page
+const X_LIMIT: JSONSchema = { type: 'number', description: 'How many, 5-50 (default 10)' };
+const xLimit = (n: unknown): number => Math.min(Math.max(Math.round(Number(n) || 10), 5), 50);
 const obj = (properties: Record<string, JSONSchema>, required: string[] = []): JSONSchema => ({ type: 'object', properties, required });
 
 const TOOLS: ToolDef[] = [
@@ -335,7 +338,8 @@ const TOOLS: ToolDef[] = [
     name: 'request_tool',
     group: 'core',
     risk: 'none',
-    description: `Ask for a set of tools you don't have yet, when your task needs them. The Brain (the project's overseer) checks the request and may pass it to the user. If it is given, you keep those tools and can use them right away. Say plainly what you need them for. For things that aren't tools (a login, a key, an account, a program to install), ask the user with ask_user instead. The sets:\n${TOOL_GROUPS.map((g) => `- ${g.id} (${g.label}): ${g.description}`).join('\n')}`,
+    // (each set's long description goes to whoever decides, in the approval; the model only needs to pick one)
+    description: `Ask for a set of tools you don't have yet, when your task needs them. The Brain (the project's overseer) checks the request and may pass it to the user. If it is given, you keep those tools and can use them right away. Say plainly what you need them for. For things that aren't tools (a login, a key, an account, a program to install), ask the user with ask_user instead. The sets: ${TOOL_GROUPS.map((g) => (g.label.toLowerCase() === g.id ? g.id : `${g.id} (${g.label})`)).join(', ')}.`,
     parameters: obj(
       {
         tools: { type: 'string', enum: TOOL_GROUPS.map((g) => g.id), description: 'Which set of tools, e.g. "files".' },
@@ -428,7 +432,7 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: 'Is ComfyUI running, its queue and GPU memory.',
     parameters: obj({}),
-    run: async () => ({ text: JSON.stringify(await comfy.queueStatus(), null, 2) }),
+    run: async () => ({ text: JSON.stringify(await comfy.queueStatus()) }),
   },
   {
     name: 'comfyui_start',
@@ -452,7 +456,7 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: 'Show which inputs a workflow has (keyed "nodeId.input") and which nodes hold the positive/negative prompt.',
     parameters: obj({ workflow: str('Workflow name') }, ['workflow']),
-    run: async ({ workflow }: { workflow: string }) => ({ text: JSON.stringify(await comfy.describeWorkflow(workflow), null, 2) }),
+    run: async ({ workflow }: { workflow: string }) => ({ text: JSON.stringify(await comfy.describeWorkflow(workflow)) }),
   },
   {
     name: 'comfyui_run',
@@ -874,16 +878,16 @@ const TOOLS: ToolDef[] = [
     group: 'social',
     risk: 'none',
     description: "Read a connected account's recent posts with likes, reposts and replies. (Each X read is billed by X.)",
-    parameters: obj({ account: str('Handle'), limit: { type: 'number' } }),
-    run: async ({ account, limit = 10 }: { account?: string; limit?: number }) => ({ text: JSON.stringify(await social.xRecentPosts(account, limit), null, 2) }),
+    parameters: obj({ account: str('Handle'), limit: X_LIMIT }),
+    run: async ({ account, limit }: { account?: string; limit?: number }) => ({ text: JSON.stringify(await social.xRecentPosts(account, xLimit(limit))) }),
   },
   {
     name: 'x_mentions',
     group: 'social',
     risk: 'none',
     description: 'Read recent mentions of a connected account. (Each X read is billed by X.)',
-    parameters: obj({ account: str('Handle'), limit: { type: 'number' } }),
-    run: async ({ account, limit = 10 }: { account?: string; limit?: number }) => ({ text: JSON.stringify(await social.xMentions(account, limit), null, 2) }),
+    parameters: obj({ account: str('Handle'), limit: X_LIMIT }),
+    run: async ({ account, limit }: { account?: string; limit?: number }) => ({ text: JSON.stringify(await social.xMentions(account, xLimit(limit))) }),
   },
   {
     name: 'reddit_read',
@@ -891,7 +895,7 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: 'Read posts from a subreddit (hot, new, top this week, rising): titles, scores, comment counts, links.',
     parameters: obj({ subreddit: str('e.g. LocalLLaMA'), sort: str('hot, new, top or rising'), limit: { type: 'number' } }, ['subreddit']),
-    run: async ({ subreddit, sort = 'hot', limit = 10 }: { subreddit: string; sort?: string; limit?: number }) => ({ text: JSON.stringify(await reddit.readSubreddit(subreddit, sort, limit), null, 2) }),
+    run: async ({ subreddit, sort = 'hot', limit = 10 }: { subreddit: string; sort?: string; limit?: number }) => ({ text: JSON.stringify(await reddit.readSubreddit(subreddit, sort, limit)) }),
   },
   {
     name: 'reddit_search',
@@ -899,7 +903,7 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: 'Search Reddit (optionally inside one subreddit) for posts from the last month.',
     parameters: obj({ query: str('What to look for'), subreddit: str('Optional subreddit'), limit: { type: 'number' } }, ['query']),
-    run: async ({ query, subreddit = '', limit = 10 }: { query: string; subreddit?: string; limit?: number }) => ({ text: JSON.stringify(await reddit.searchReddit(query, subreddit, limit), null, 2) }),
+    run: async ({ query, subreddit = '', limit = 10 }: { query: string; subreddit?: string; limit?: number }) => ({ text: JSON.stringify(await reddit.searchReddit(query, subreddit, limit)) }),
   },
   {
     name: 'reddit_comments',
@@ -907,14 +911,14 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: "Read a Reddit post and its top comments (give the post URL or id).",
     parameters: obj({ post: str('Post URL or id') }, ['post']),
-    run: async ({ post }: { post: string }) => ({ text: JSON.stringify(await reddit.postComments(post), null, 2) }),
+    run: async ({ post }: { post: string }) => ({ text: JSON.stringify(await reddit.postComments(post)) }),
   },
   {
     name: 'reddit_draft_post',
     group: 'social',
     risk: 'none',
     description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit, unless that account has auto-post on, in which case it is published straight away. Follow the subreddit rules; no spam or self-promotion where it is not allowed.',
-    parameters: obj({ subreddit: str('Subreddit, e.g. LocalLLaMA'), title: str('Post title'), text: str('Post body (markdown)'), link: str('Or a link to share instead of text'), account: str('Which of your Reddit accounts') }, ['subreddit', 'title']),
+    parameters: obj({ subreddit: str('Subreddit, e.g. LocalLLaMA'), title: str('Post title'), text: str('Post body (markdown)'), link: str('Or a link to share instead of text'), account: str('Which of your Reddit accounts'), note: str('Why this post, for the reviewer') }, ['subreddit', 'title']),
     run: async ({ subreddit, title, text, link, account, note }: { subreddit: string; title: string; text?: string; link?: string; account?: string; note?: string }, ctx) => {
       const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : `Saved to the Outbox for approval (id ${r.id}).` };
@@ -1121,11 +1125,13 @@ const TOOLS: ToolDef[] = [
     name: 'run_command',
     group: 'shell',
     risk: 'high',
-    description: 'Run a PowerShell command on this PC and return its output. Starts in your workspace.',
-    parameters: obj({ command: str('PowerShell command'), cwd: str('Working folder'), timeout_sec: { type: 'number' } }, ['command']),
-    run: async ({ command, cwd, timeout_sec = 300 }: { command: string; cwd?: string; timeout_sec?: number }, ctx) => {
-      const r = await run('powershell', ['-NoProfile', '-NonInteractive', '-Command', command], { cwd: cwd || workspaceOf(ctx.agent), timeout: timeout_sec * 1000, signal: ctx.signal });
-      return { text: truncate(`exit ${r.code}\n${r.stdout}${r.stderr ? `\n[stderr]\n${r.stderr}` : ''}`, 20000), isError: r.code !== 0 };
+    description: `Run a ${IS_WIN ? 'PowerShell' : 'shell'} command on this computer and return its exit code and output (the start and the end of long output). Starts in your workspace.`,
+    parameters: obj({ command: str(IS_WIN ? 'PowerShell command' : 'Shell command'), cwd: str('Working folder'), timeout_sec: { type: 'number', description: 'Up to 3600 (default 300)' } }, ['command']),
+    run: async ({ command, cwd, timeout_sec }: { command: string; cwd?: string; timeout_sec?: number }, ctx) => {
+      const [exe, args] = shellCommand(String(command ?? ''));
+      const timeout = Math.min(Math.max(Number(timeout_sec) || 300, 1), 3600) * 1000;
+      const r = await run(exe, args, { cwd: cwd || workspaceOf(ctx.agent), timeout, signal: ctx.signal });
+      return { text: `exit ${r.code}\n${truncateMiddle(r.stdout, 16000)}${r.stderr ? `\n[stderr]\n${truncateMiddle(r.stderr, 4000)}` : ''}`, isError: r.code !== 0 };
     },
   },
   // ---------- always on ----------
@@ -1159,6 +1165,7 @@ async function toolAccessRequest(ctx: ToolContext, id: string, why: string): Pro
   if (!agentStore.get(ctx.agent.id)) return { result: { text: "Only the dashboard's agents can ask for tools. Ask the user with ask_user instead.", isError: true } };
   const { runInfo } = await import('./engines/index.ts');
   const run = ctx.runId ? runInfo(ctx.runId) : null;
+  if (OWN_TOOL_GROUPS.has(group.id) && hasOwnFileTools(agentStore.get(ctx.agent.id)?.engine)) return { result: { text: 'Your engine has its own tools for files and commands: use those.' } };
   if ([...(ctx.agent.toolGroups || []), ...(run?.agent.toolGroups || [])].includes(group.id)) return { result: { text: `You already have the ${group.label} tools.` } };
   return { group, request: {
     kind: 'tools',
@@ -1362,6 +1369,11 @@ function htmlToText(html: string): string {
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
     .trim();
+}
+
+// PowerShell on Windows; elsewhere the user's own shell, as a login shell so its PATH (Homebrew and so on) is there.
+function shellCommand(command: string): [string, string[]] {
+  return IS_WIN ? ['powershell', ['-NoProfile', '-NonInteractive', '-Command', command]] : [process.env.SHELL || '/bin/sh', ['-lc', command]];
 }
 
 // Run a Python script with a program's own Python (mayapy, hython) and return what it printed.
