@@ -1,0 +1,68 @@
+library/athena-agents/research/statistician.md
+  s_113f5bf511efd5::t_a1a103b9f3640d 26-36,38-43,70,79-80,82-85,117-118,122-124,170-173,178-181,202-203,234-241
+  s_113f5bf511efd5::t_d1a6d23137f7ee 87-90
+  s_113f5bf511efd5::t_2222976fd0d581 1-25,37,44-60,66-69,71-78,81,86,91,96-100,104-116,119-121,125-169,174,177,182-201,204-233
+  s_113f5bf511efd5::t_d64a5a4fe84550 101
+  s_113f5bf511efd5::t_5a9ade93b16daa 61-65
+  s_113f5bf511efd5::t_cd314475999750 175-176
+  s_113f5bf511efd5::t_9a27eeea87a705 102-103
+  s_113f5bf511efd5::t_15450ff4af611e 92-95
+library/athena-agents/research/executive-summary-writer.md
+  s_113f5bf511efd5::t_21a0e35d63dc4c 164-166
+  s_113f5bf511efd5::t_d882fb0c72f442 76
+  s_113f5bf511efd5::t_ca233b6ccec7a4 1-43,54-61,63-75,80-163,167-179,181,185,188-196
+  s_113f5bf511efd5::t_17873699daadb4 180
+  s_113f5bf511efd5::t_abe0f537f4f02a 77-79
+  s_113f5bf511efd5::t_87183456c6999f 44-48
+  s_113f5bf511efd5::t_33a54aeb26d556 182-184,186-187
+  s_113f5bf511efd5::t_7c6e17b544120f 49-53
+  s_113f5bf511efd5::t_d6096045d42e23 62
+library/athena-agents/research/business-strategist.md
+  s_113f5bf511efd5::t_52c9a834a0d693 129-130
+  s_113f5bf511efd5::t_bffba30f3d55b0 66-70
+  s_113f5bf511efd5::t_9531e4e3f38eda 63
+  s_113f5bf511efd5::t_5d82dfe14962b4 87-89
+  s_113f5bf511efd5::t_fc29b170dc485a 35-42,44-48
+  s_113f5bf511efd5::t_809b73c76e5b0b 1-34,43,49-62,64-65,71-72,76-80,84-86,90-128,131-180
+  s_113f5bf511efd5::t_abb657ce9c9d04 74-75
+  s_113f5bf511efd5::t_158caa3e18ac4c 81-83
+  s_113f5bf511efd5::t_39b041d37147d0 73
+library/athena-agents/research/tool-evaluator.md
+  s_113f5bf511efd5::t_af9396da8ee8ef 57
+  s_113f5bf511efd5::t_8427e66ef3f491 1-40,46,49-56,65-66,70-78,83-92,95-110,112-197
+  s_113f5bf511efd5::t_422fe1a5854caf 58-64
+  s_113f5bf511efd5::t_001a15f79b9379 111
+  s_113f5bf511efd5::t_7f2607d3b8cfb2 67-69
+  s_113f5bf511efd5::t_101c8153450e5e 41-44,47-48
+  s_113f5bf511efd5::t_d287ea9b422093 79-82
+  s_113f5bf511efd5::t_084c74c1064b70 93-94
+  s_09ac87e46cf718::t_ee6e8fc5d1b6da 45
+library/athena-agents/research/data-analyst.md
+  s_113f5bf511efd5::t_f1fcec40927c4c 1-25,33-43,46-59,64-65,69,73-75,81-83,93-102,105-113,120-158,160-169,171-190,194-198
+  s_113f5bf511efd5::t_4a4aabf847299e 26-32,44-45,60-63,66-68,70-72,76-80,84-92,103-104,116-119,159,170,191-193
+  s_113f5bf511efd5::t_81b594edc7ced0 114-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a542caabcc6862ae1e524ac6cc0329ec4940fa34",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_113f5bf511efd5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33eb0f9d-82ca-4708-b62e-673ddb2ee4f8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
