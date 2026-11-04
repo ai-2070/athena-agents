@@ -1115,6 +1115,8 @@ export interface Settings {
   maxToolSteps: number;
   costLimitUsdPerRun: number;
   contextWindowTokens: number;
+  /** A longer tool result keeps its start and end for the model; the whole text is saved in outputs. 0 = no limit. */
+  toolResultChars: number;
   /** Models starred in the model picker: they get their own tab at the front. */
   favoriteModels: FavoriteModel[];
   activeProject?: string;
@@ -1134,6 +1136,24 @@ export interface VeniceAccountInfo {
 }
 
 // ---------- engines ----------
+/** How one tool was used, counted on this computer only (data/tool-stats.json). */
+export interface ToolStat {
+  name: string;
+  calls: number;
+  errors: number;
+  denied: number;
+  /** Results that were longer than the limit and reached the model shortened. */
+  clipped: number;
+  /** Calls that asked you (or the Brain) first. */
+  asked: number;
+  totalMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  totalChars: number;
+  maxChars: number;
+  lastAt: number;
+}
+
 export interface EngineCapabilities {
   nativeSession: boolean;
   directTools: boolean;

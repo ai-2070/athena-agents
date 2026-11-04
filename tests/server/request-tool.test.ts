@@ -7,7 +7,8 @@ import { callTool, toolsForAgent } from '../../server/tools.ts';
 import type { Approval } from '../../shared/types.ts';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
-const coder = () => agents.save(newAgent({ name: 'Coder', toolGroups: [] }));
+// (an API model: the coding engines have their own file tools and are told to use those)
+const coder = () => agents.save({ ...newAgent({ name: 'Coder', toolGroups: [] }), engine: 'eve' });
 
 afterEach(() => {
   setReviewer(null);
@@ -55,9 +56,23 @@ describe('request_tool', () => {
     const agent = coder();
     expect((await callTool(agent, 'request_tool', { tools: 'rockets', why: 'x' })).text).toMatch(/no "rockets" set/);
     expect((await callTool(agent, 'request_tool', { tools: 'files', why: ' ' })).text).toMatch(/Say what you need/);
-    const has = agents.save(newAgent({ name: 'Filer', toolGroups: ['files'] }));
+    const has = agents.save({ ...newAgent({ name: 'Filer', toolGroups: ['files'] }), engine: 'eve' });
     expect((await callTool(has, 'request_tool', { tools: 'files', why: 'x' })).text).toMatch(/already have/);
     expect((await callTool({ id: '_external', name: 'Outside' }, 'request_tool', { tools: 'files', why: 'x' })).text).toMatch(/Only the dashboard's agents/);
     expect(listApprovals()).toHaveLength(0);
+  });
+
+  it('tells an agent on a coding engine to use its own file and command tools', async () => {
+    setReviewer(async () => ({ approve: true, reason: '' }));
+    const agent = agents.save({ ...newAgent({ name: 'Native', toolGroups: [] }), engine: 'claude-code' });
+    for (const tools of ['files', 'shell']) expect((await callTool(agent, 'request_tool', { tools, why: 'to read the notes' })).text).toMatch(/own tools for files and commands/);
+    expect(listApprovals()).toHaveLength(0);
+    expect(agents.get(agent.id)!.toolGroups).toEqual([]);
+  });
+
+  it('lists every set briefly', () => {
+    const tool = toolsForAgent(newAgent({ name: 'Plain', toolGroups: [] })).find((t) => t.name === 'request_tool')!;
+    expect(tool.description).toMatch(/The sets: programs, browser, .*world \(Voxel world\), shell\.$/);
+    expect(tool.description.length).toBeLessThan(900);
   });
 });

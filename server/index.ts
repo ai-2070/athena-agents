@@ -84,6 +84,7 @@ import * as files from './files.ts';
 import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
+import { saveToolStats, toolStats } from './toolstats.ts';
 import type { RestoreResult } from './projectsync.ts';
 import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
 
@@ -905,6 +906,8 @@ post('/api/codex/refresh', async () => {
 
 // ---------- tools & programs ----------
 get('/api/tools', async () => ({ groups: tools.TOOL_GROUPS, tools: tools.allTools() }));
+// how each tool has been used (counted on this computer only)
+get('/api/tool-stats', async () => toolStats());
 get('/api/programs', async (_p, _b, q) => programs.discoverPrograms(!!q.force));
 get('/api/programs/all', async () => programs.startMenuApps(true));
 post<{ program: string; file?: string }>('/api/programs/launch', async (_p, body) => {
@@ -1304,7 +1307,7 @@ get('/api/internal/tools', async (_p, _b, q) => {
   const run = engines.runInfo(q.run);
   return inRunProject(run, () => {
     const agent = bridgeAgent(run, q.agent);
-    const list = tools.toolDefs(agent);
+    const list = tools.toolDefs(agent, { conversationId: run?.conversationId, engine: agent.engine });
     if (agent.engine === 'claude-code')
       list.push({
         name: 'permission_prompt',
@@ -1321,7 +1324,7 @@ post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown
     const agent = bridgeAgent(run, body.agent);
     const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
     if (body.name === 'permission_prompt') return { text: JSON.stringify(await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId)) };
-    const r = await tools.callTool(agent, body.name, body.args || {}, ctx);
+    const r = tools.clipForModel(await tools.callTool(agent, body.name, body.args || {}, ctx), body.name, ctx.runId);
     // MCP takes pictures as data only: ComfyUI's result links are read here, so the agent sees them too
     return r.images?.length ? { ...r, images: await inlineToolImages(r.images) } : r;
   });
@@ -1676,7 +1679,14 @@ const shutdown = () => {
   stopping = true;
   terms.closeAll();
   // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
-  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns()]).finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => process.exit(0));
+  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns()]).finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => {
+    try {
+      saveToolStats();
+    } catch {
+      /* the numbers are only a help */
+    }
+    process.exit(0);
+  });
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

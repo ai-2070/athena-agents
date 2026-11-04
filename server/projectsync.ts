@@ -10,9 +10,10 @@ import { updateProject } from './projects.ts';
 import { savedOpacity } from '../shared/look.ts';
 import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON, realTarget, uid } from './util.ts';
 import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir, checkVersion, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
-import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
+import { getSkill, forgetSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
 import { cleanMemoryVersion, isMemoryOwner, putMemory, MEMORY_FILE, MEMORY_MAX } from './memory.ts';
+import { clearKnowledgeCache } from './knowledge.ts';
 import type { Version } from './versions.ts';
 import { getWorld, worldDir, WORLD_ID } from './voxel/store.ts';
 import { setLink, usedBy } from './voxel/link.ts';
@@ -313,7 +314,10 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   }
   // (copyTree skips links below this folder: a linked file or folder isn't a plain file or folder)
   const knowledge = savedPath(folder, 'knowledge');
-  if (knowledge) copyTree(knowledge, projectDir(id, 'knowledge'), KNOWLEDGE_CAP * 4);
+  if (knowledge) {
+    copyTree(knowledge, projectDir(id, 'knowledge'), KNOWLEDGE_CAP * 4);
+    clearKnowledgeCache();
+  }
   const marks = savedPath(folder, 'team-marks');
   if (marks) copyTree(marks, projectDir(id, 'team-marks'), MARKS_CAP * 2);
   restoreMemory(folder, id);
@@ -472,6 +476,7 @@ function restoreSkills(folder: string, projectName: string): { added: string[]; 
     }
     // (copyTree skips links below the skill's folder)
     budget -= copyTree(src, skillDir(slug), budget);
+    forgetSkill(slug);
     if (!getSkill(slug)) {
       fs.rmSync(skillDir(slug), { recursive: true, force: true });
       continue;

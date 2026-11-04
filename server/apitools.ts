@@ -1,5 +1,6 @@
 // The API runtimes share tool names and account routing.
 import { toolDefs } from './tools.ts';
+import type { ToolScope } from './tools.ts';
 import * as mcp from './mcp.ts';
 import type { Agent, RunEvent } from '../shared/types.ts';
 
@@ -21,8 +22,8 @@ export function mcpToolName(server: string, tool: string, taken: { has(name: str
   return name;
 }
 
-export async function gatherTools(agent: Agent, onEvent: (ev: RunEvent) => void): Promise<{ defs: ToolDef[]; route: Map<string, ToolRoute> }> {
-  const defs: ToolDef[] = toolDefs(agent).map((t): ToolDef => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+export async function gatherTools(agent: Agent, onEvent: (ev: RunEvent) => void, scope: ToolScope = { engine: agent.engine }): Promise<{ defs: ToolDef[]; route: Map<string, ToolRoute> }> {
+  const defs: ToolDef[] = toolDefs(agent, scope).map((t): ToolDef => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
   const route = new Map<string, ToolRoute>(defs.map((d): [string, ToolRoute] => [d.function.name, { kind: 'builtin', name: d.function.name }]));
   const servers = mcp.listServers();
   // (a server you turned off isn't started or offered)

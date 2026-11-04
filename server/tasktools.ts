@@ -26,7 +26,7 @@ export function taskTools(): ToolDef[] {
   return [
     {
       name: 'TaskCreate', group: 'core', risk: 'none',
-      description: 'Create saved tasks. Either provide one task (subject, description, optional activeForm, metadata, scope, owner) or {tasks:[...]} with a non-empty array of task objects, without single-task fields. No per-call task-count cap. Batches process in order, keep successes and return an indexed success or error per item; do not retry successes. Batch successes give taskId/status/updatedAt; TaskGet reads full details. Default list: your current team or own list. owner is empty, brain, agent:<id> or team:<id>. Records work; does not start a run.',
+      description: 'Create saved tasks: one (subject, description, optional activeForm, metadata, scope, owner), or several as {tasks:[...]} without the single-task fields. A batch runs in order with no size cap and returns an indexed result per item (taskId/status/updatedAt, or an error); successes stay saved, so retry only the failures. TaskGet reads full details. Default list: your current team or your own. owner is empty, brain, agent:<id> or team:<id>. Put acceptance criteria in the description. Records work; does not start a run.',
       parameters: bulkSchema(create, ['subject', 'description']),
       run: async (args, ctx) => ({ text: JSON.stringify(await inContext(ctx, (a) => runTaskBatch(args, (item) => createTask(item as unknown as TaskCreateInput, a)) ?? { task: createTask(args as unknown as TaskCreateInput, a) })) }),
     },
@@ -42,7 +42,7 @@ export function taskTools(): ToolDef[] {
     },
     {
       name: 'TaskUpdate', group: 'core', risk: (args) => args.status === 'deleted' || (Array.isArray(args.tasks) && args.tasks.some((t: unknown) => !!t && typeof t === 'object' && 'status' in t && t.status === 'deleted')) ? 'high' : 'none',
-      description: 'Update one task by taskId, or {tasks:[...]} with a non-empty array of updates, without single-task fields. No per-call task-count cap. Batches process in order and return indexed taskId/status/updatedAt or errors; successes persist, so retry only failed items. Complete prerequisites before dependent updates. Claim with owner agent:<your id> and status in_progress; completed only after verification. States: pending/in_progress/completed/deleted. addBlockedBy/addBlocks or removeBlockedBy/removeBlocks edit links. metadata merges; null removes a key. Claims stay exclusive. Any deletion gates the whole call for approval.',
+      description: 'Update one task by taskId, or several as {tasks:[...]} without the single-task fields. A batch runs in order with no size cap and returns an indexed taskId/status/updatedAt or error per item; successes stay saved, so retry only the failures, and finish prerequisites before the tasks that depend on them. Claim with owner agent:<your id> and status in_progress; set completed only after checking the result. States: pending, in_progress, completed, deleted. addBlockedBy/addBlocks and removeBlockedBy/removeBlocks change links; metadata merges (null removes a key). Claims are exclusive. Any deletion asks for approval of the whole call.',
       parameters: bulkSchema(update, ['taskId']),
       run: async (args, ctx) => ({ text: JSON.stringify(await inContext(ctx, (a) => {
         const batch = runTaskBatch(args, (item) => updateTask(item as unknown as TaskUpdateInput, a));

@@ -6,6 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { HOME, IS_WIN, BRIDGE_SCRIPT, PORT, dataPath, readJSON, writeJSON, which, exists } from './util.ts';
 import { emit, log, internalToken, agents, workflows, listProjects, withProject } from './store.ts';
@@ -968,6 +969,11 @@ function resolveCommand(command: string, args: string[]): { command: string; arg
 
 // ---------- live connections ----------
 const clients = new Map<string, Promise<Client>>();
+// Only the connection that closed: an old one closing after a settings change must not drop the new one
+// (the next call would start yet another server and leave this one running).
+const dropClient = (name: string, job: Promise<Client>) => {
+  if (clients.get(name) === job) clients.delete(name);
+};
 
 // test: the Test button may start a server that is turned off; agents may not
 async function connect(name: string, { test = false } = {}): Promise<Client> {
@@ -991,14 +997,18 @@ async function connect(name: string, { test = false } = {}): Promise<Client> {
         // Older servers only speak SSE.
         const c2 = new Client({ name: 'athena-agents', version: '0.1.0' });
         await c2.connect(new SSEClientTransport(url, { requestInit }));
-        c2.onclose = () => clients.delete(name);
+        c2.onclose = () => dropClient(name, job);
         return c2;
       }
     }
     // A server that crashed is started fresh next time.
-    client.onclose = () => clients.delete(name);
+    client.onclose = () => dropClient(name, job);
     return client;
-  })();
+  })().then((client) => {
+    // (its tool list is asked for again once it says the list changed)
+    client.setNotificationHandler(ToolListChangedNotificationSchema, async () => forgetTools(name, client));
+    return client;
+  });
   clients.set(name, job);
   try {
     return await job;
@@ -1011,6 +1021,7 @@ async function connect(name: string, { test = false } = {}): Promise<Client> {
 export async function disconnect(name: string) {
   const job = clients.get(name);
   clients.delete(name);
+  forgetTools(name);
   if (job) {
     try {
       (await job).close();
@@ -1020,10 +1031,29 @@ export async function disconnect(name: string) {
   }
 }
 
+// Each connection's tool list, kept until the server says it changed (tools/list_changed), the connection
+// ends (a new one asks again: saving or removing a server disconnects it) or a few minutes pass.
+// Agents' tool lists are built on every model step and tool call; asking each server every time was slow.
+const toolLists = new Map<string, { client: Client; at: number; tools: Promise<McpTool[]> }>();
+const TOOL_LIST_MS = 5 * 60_000;
+
+function forgetTools(name: string, client?: Client): void {
+  if (!client || toolLists.get(name)?.client === client) toolLists.delete(name);
+}
+
+/** The server's tools. test (the Test button) always asks the server again. */
 export async function listTools(name: string, { test = false } = {}): Promise<McpTool[]> {
   const client = await connect(name, { test });
-  const r = await withTimeout(client.listTools(), 60000, `${name} took too long to list its tools`);
-  return r.tools || [];
+  const kept = toolLists.get(name);
+  if (!test && kept && kept.client === client && Date.now() - kept.at < TOOL_LIST_MS) return kept.tools;
+  const tools = withTimeout(client.listTools(), 60000, `${name} took too long to list its tools`).then((r) => r.tools || []);
+  const entry = { client, at: Date.now(), tools };
+  toolLists.set(name, entry);
+  // (a failed answer isn't kept)
+  tools.catch(() => {
+    if (toolLists.get(name) === entry) toolLists.delete(name);
+  });
+  return tools;
 }
 
 /** Whether a server is there and switched on (agents only get those). */

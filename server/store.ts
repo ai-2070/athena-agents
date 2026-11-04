@@ -51,6 +51,7 @@ const DEFAULT_SETTINGS: Settings = {
   maxToolSteps: 16,
   costLimitUsdPerRun: 2,
   contextWindowTokens: 0,
+  toolResultChars: 24_000,
   favoriteModels: [],
   defaultWorld: '',
 };
@@ -408,6 +409,16 @@ export const chats = {
       .map((n) => readJSON<Chat>(path.join(dir, n)))
       .filter((c): c is Chat => Boolean(c))
       .map(({ id, title, updatedAt, createdAt, items, teamId, conversationId }) => ({ id, title, updatedAt, createdAt, count: items?.length || 0, teamId: teamId || null, ...(conversationId ? { conversationId } : {}) }))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  },
+  /** Every chat whole, newest first, each file read once (list and then get would read it twice). Only
+   *  chats saved under their own id: what get would find. */
+  all(agentId: string): Chat[] {
+    const dir = this.dir(agentId);
+    return listFiles(dir, (n) => n.endsWith('.json'))
+      .map((n) => ({ n, chat: readJSON<Chat>(path.join(dir, n)) }))
+      .filter((x): x is { n: string; chat: Chat } => !!x.chat && typeof x.chat.id === 'string' && SAFE_ID.test(x.chat.id) && x.n === `${x.chat.id}.json`)
+      .map((x) => x.chat)
       .sort((a, b) => b.updatedAt - a.updatedAt);
   },
   get(agentId: string, chatId: string | null | undefined): Chat | null {

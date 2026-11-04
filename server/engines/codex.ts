@@ -146,49 +146,88 @@ export function terminalPromptFile(agent: Agent, systemPrompt: string): string {
   return file;
 }
 
-export function codexArgs(agent: Agent, { runId = '', interactive = false, promptFile = '' }: { runId?: string; interactive?: boolean; promptFile?: string } = {}): string[] {
+// Codex passes variables on from its own environment to MCP servers (env_vars, env_http_headers) since about 0.136.
+const secretsInEnv = (version: string | null | undefined): boolean => {
+  const m = /(\d+)\.(\d+)/.exec(version || '');
+  return !!m && (Number(m[1]) > 0 || Number(m[2]) >= 136);
+};
+
+/** Codex's arguments, and the variables its environment needs (the MCP servers' keys). */
+export function codexLaunch(agent: Agent, { runId = '', interactive = false, promptFile = '', version = status().version }: { runId?: string; interactive?: boolean; promptFile?: string; version?: string | null } = {}): { args: string[]; env: Record<string, string> } {
+  const env: Record<string, string> = {};
   const args: string[] = interactive ? [] : ['exec', '--json', '--skip-git-repo-check'];
   args.push('-C', workspaceOf(agent));
   if (agent.model) args.push('-m', agent.model);
   const effort = effortFor('codex', agent.effort);
   if (effort) args.push('-c', `model_reasoning_effort=${tstr(effort)}`);
   if (promptFile) args.push('-c', `developer_instructions=${tstr(`Your agent instructions are in ${promptFile}. Read that file before anything else and follow it for this whole session.`)}`);
-  // the dashboard's own tools, plus the agent's MCP servers
-  const bridge = { DASH_PORT: String(PORT), DASH_TOKEN: internalToken(), DASH_AGENT: agent.id, ...(runId ? { DASH_RUN: runId } : {}) };
+  // The dashboard's own tools. Its token stays off the command line, where any program on this computer could
+  // read it: the bridge reads it from the data folder (made here if it isn't there yet).
+  internalToken();
+  const bridge = { DASH_PORT: String(PORT), DASH_DATA: dataPath(), DASH_AGENT: agent.id, ...(runId ? { DASH_RUN: runId } : {}) };
   args.push('-c', `mcp_servers.dashboard.command=${tstr(process.execPath)}`);
   args.push('-c', `mcp_servers.dashboard.args=[${tstr(BRIDGE_SCRIPT)}]`);
   args.push('-c', `mcp_servers.dashboard.env=${ttable(bridge)}`);
   args.push('-c', 'mcp_servers.dashboard.tool_timeout_sec=3600');
+  // The agent's MCP servers. Their keys (env, headers) go in Codex's own environment when it can pass them on
+  // from there, named on the command line instead of written out; the commands it runs don't see them.
   const servers = listServers();
+  const byEnv = secretsInEnv(version);
+  const hidden: string[] = [];
+  const taken = new Map<string, string>();
   for (const name of agent.mcpServers || []) {
     const cfg = servers[name];
     if (!cfg || cfg.enabled === false || !/^[\w-]+$/.test(name)) continue;
     if (cfg.type === 'stdio') {
       args.push('-c', `mcp_servers.${name}.command=${tstr(cfg.command)}`);
       args.push('-c', `mcp_servers.${name}.args=[${(cfg.args || []).map(tstr).join(',')}]`);
-      if (Object.keys(cfg.env || {}).length) args.push('-c', `mcp_servers.${name}.env=${ttable(cfg.env)}`);
+      const vars = Object.entries(cfg.env || {});
+      // (a variable is passed on by its own name: two servers that want different values for one name keep theirs on the command line)
+      const clash = vars.some(([k, v]) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) || (taken.has(k) && taken.get(k) !== String(v)));
+      if (byEnv && vars.length && !clash) {
+        for (const [k, v] of vars) {
+          taken.set(k, String(v));
+          env[k] = String(v);
+          hidden.push(k);
+        }
+        args.push('-c', `mcp_servers.${name}.env_vars=[${vars.map(([k]) => JSON.stringify(k)).join(',')}]`);
+      } else if (vars.length) args.push('-c', `mcp_servers.${name}.env=${ttable(cfg.env || {})}`);
     } else {
       args.push('-c', `mcp_servers.${name}.url=${tstr(cfg.url)}`);
-      if (Object.keys(cfg.headers || {}).length) args.push('-c', `mcp_servers.${name}.http_headers=${ttable(cfg.headers)}`);
+      const headers = Object.entries(cfg.headers || {});
+      if (byEnv && headers.length) {
+        const named = Object.fromEntries(headers.map(([h, v], i) => {
+          const key = `ATHENA_MCP_SECRET_${name.replace(/-/g, '_').toUpperCase()}_${i}`;
+          env[key] = String(v);
+          hidden.push(key);
+          return [h, key];
+        }));
+        args.push('-c', `mcp_servers.${name}.env_http_headers=${ttable(named)}`);
+      } else if (headers.length) args.push('-c', `mcp_servers.${name}.http_headers=${ttable(cfg.headers || {})}`);
     }
   }
+  if (hidden.length) args.push('-c', `shell_environment_policy.exclude=[${hidden.map((k) => JSON.stringify(k)).join(',')}]`);
   // autonomy → Codex sandbox
   const mode = agent.autonomy || 'auto';
   if (mode === 'full') args.push('--dangerously-bypass-approvals-and-sandbox');
   // --approve-for-me already means the workspace-write sandbox, and Codex refuses it alongside -s
   else if (mode === 'auto') args.push(...(interactive ? ['-s', 'workspace-write'] : ['--approve-for-me']));
   else args.push('-s', 'read-only');
-  return args;
+  return { args, env };
+}
+
+export function codexArgs(agent: Agent, opts: { runId?: string; interactive?: boolean; promptFile?: string; version?: string | null } = {}): string[] {
+  return codexLaunch(agent, opts).args;
 }
 
 export async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: EngineRunArgs): Promise<EngineResult> {
   if (!which('codex')) throw new Error('OpenAI Codex is not installed. Install it in Settings > General (or run: npm install -g @openai/codex), then sign in with "codex login".');
-  const args = codexArgs(agent, { runId });
+  const { args, env } = codexLaunch(agent, { runId, version: (await checkedStatus()).version });
   if (chat.sessionId) args.push('resume', chat.sessionId, '-');
   else args.push('-');
   // Codex keeps its own system prompt; the agent brief goes with the first message.
   const prompt = chat.sessionId ? text : `<agent-instructions>\n${systemPrompt}\n</agent-instructions>\n\n${text}`;
-  const child = spawnCommand('codex', args, { cwd: workspaceOf(agent), stdio: ['pipe', 'pipe', 'pipe'] });
+  const child = spawnCommand('codex', args, { cwd: workspaceOf(agent), stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...env } });
   const onAbort = () => killTree(child);
   signal.addEventListener('abort', onAbort);
   let buf = '';

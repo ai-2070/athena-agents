@@ -5,14 +5,16 @@ import { agents, chats, withProject } from '../store.ts';
 import { readExecution } from '../execution.ts';
 import { cleanAttachments, safeUploadsRoot, withAttachments } from '../uploads.ts';
 import { estimateTokens } from '../context.ts';
-import { listFiles, readPlain, realTarget, isInside, writeJSON } from '../util.ts';
+import { listFiles, realTarget, isInside } from '../util.ts';
 import { privateDataPath } from '../private.ts';
 import { canonical } from '../../shared/canonical.ts';
 import { beginRun, bindSession, conversationBinding, invalidateConversation, readRun, recordAdmissionReceipt, sessionContext, setRunStatus, settleRun } from './state.ts';
-import type { EveAdmissionRecord, EveMessagePart, ExecutionRun, Project } from '../../shared/types.ts';
+import type { EveAdmissionRecord, EveMessagePart, EveModelSelection, ExecutionRun, Project } from '../../shared/types.ts';
 import type { Client } from 'eve/client';
 import { selectEveModel } from './model.ts';
 import { fileTokens } from './media.ts';
+import { RecordFiles } from './records.ts';
+import { buildInstructions, keepInstructions } from './snapshot.ts';
 
 import { EVE_GENERATION } from './version.ts';
 export { EVE_GENERATION } from './version.ts';
@@ -31,15 +33,33 @@ export function messageTokens(parts: readonly EveMessagePart[]): number {
   }, 0);
 }
 
+// Inputs can hold large attachments: only some whole records stay in memory. A changed file is checked again.
+const files = new RecordFiles<EveAdmissionRecord, Pick<EveAdmissionRecord, 'status' | 'selection'>>({
+  maxBytes: 16 * 1024 * 1024,
+  summarize: (record) => ({ status: record.status, selection: record.selection }),
+  check: (record, saved) => {
+    if (record.id !== path.basename(saved, '.json') || record.fingerprint !== hash(identity(record)) || record.messageHash !== hash(record.message)) throw new Error('The saved Eve input changed.');
+  },
+});
+const idOk = (id: string) => /^[\w-]{1,120}$/.test(id);
+
 export function readAdmission(id: string): EveAdmissionRecord | null {
-  if (!/^[\w-]{1,120}$/.test(id)) return null;
-  const record = readPlain<EveAdmissionRecord | null>(file(id), null);
-  if (record && (record.id !== id || record.fingerprint !== hash(identity(record)) || record.messageHash !== hash(record.message))) throw new Error('The saved Eve input changed.');
-  return record;
+  return idOk(id) ? files.read(file(id)) : null;
+}
+
+/** The turn's pinned model options, without reading its saved input again. */
+export function admissionSelection(id: string): EveModelSelection | null {
+  return idOk(id) ? files.summary(file(id))?.selection || null : null;
 }
 
 export function pendingAdmissions(): EveAdmissionRecord[] {
-  return listFiles(privateDataPath('runtime', 'eve', 'admissions'), (name) => name.endsWith('.json')).map((name) => readAdmission(name.slice(0, -5))).filter((item): item is EveAdmissionRecord => !!item && item.status === 'prepared');
+  return listFiles(privateDataPath('runtime', 'eve', 'admissions'), (name) => name.endsWith('.json')).map((name) => name.slice(0, -5))
+    .filter((id) => idOk(id) && files.summary(file(id))?.status === 'prepared').map((id) => readAdmission(id)).filter((item): item is EveAdmissionRecord => !!item && item.status === 'prepared');
+}
+
+/** For retention only. */
+export function removeAdmission(id: string): void {
+  if (idOk(id)) files.remove(file(id));
 }
 
 function receiptFor(runId: string): ExecutionRun {
@@ -123,11 +143,11 @@ export async function prepareAdmission(runId: string, project: Project): Promise
       history.push({ id: key, role: 'user', text: item.text });
     }
     const message = messageParts(receipt);
-    const [{ buildSystemPrompt }, { richSection }, { gatherTools }] = await Promise.all([import('../engines/index.ts'), import('../richanswers.ts'), import('../apitools.ts')]);
+    const { gatherTools } = await import('../apitools.ts');
     const current = sessionContext(binding.id);
-    const [{ defs }, rich] = await Promise.all([gatherTools(current.agent, () => {}), richSection(current.agent, chat, receipt.depth)]);
+    const [{ defs }, instructions] = await Promise.all([gatherTools(current.agent, () => {}, { engine: 'eve', conversationId: chat.conversationId }), buildInstructions(current.agent, chat, receipt.depth)]);
     const window = selection.contextWindow;
-    const standing = JSON.stringify({ instructions: buildSystemPrompt(current.agent) + rich, tools: defs });
+    const standing = JSON.stringify({ instructions, tools: defs });
     const envelope = Math.max(estimateTokens(standing), Math.ceil(Buffer.byteLength(standing) / 4)) + 1024;
     const addressed = messageTokens(message);
     // Eve retains at most 20k tokens or half its remaining compaction threshold for the current input.
@@ -141,9 +161,11 @@ export async function prepareAdmission(runId: string, project: Project): Promise
     if (receiptFor(runId).stopRequested || receiptFor(runId).status !== 'running') throw new Error('Stopped.');
     sessionContext(binding.id);
     beginRun(runId, binding.id, receipt.depth, receipt.parentRunId);
+    // The run sends the instructions measured here, built once for the whole run.
+    keepInstructions(runId, instructions);
     const input = { id: runId, bindingId: binding.id, mode: binding.sessionId ? 'send' : 'create', sessionId: binding.sessionId, message, history, historyKeys, selection, messageHash: hash(message), status: 'prepared', createdAt: Date.now() } satisfies Omit<EveAdmissionRecord, 'fingerprint'>;
     const record: EveAdmissionRecord = { ...input, fingerprint: hash(identity({ ...input, fingerprint: '' })) };
-    writeJSON(file(runId), record);
+    files.write(file(runId), record);
     setRunStatus(runId, 'running');
     return record;
   });
@@ -169,7 +191,7 @@ export async function submitAdmission(input: EveAdmissionRecord, client: Client,
   });
   if (!response.ok) {
     if (response.status >= 400 && response.status < 500 && ![408, 409, 429].includes(response.status)) {
-      writeJSON(file(input.id), { ...current, status: 'cancelled' });
+      files.write(file(input.id), { ...current, status: 'cancelled' });
       settleRun(input.id, 'failed', '', 'Eve could not accept this saved input.');
     }
     throw new Error('Eve could not acknowledge the saved input.');
@@ -177,5 +199,5 @@ export async function submitAdmission(input: EveAdmissionRecord, client: Client,
   const receipt: unknown = await response.json();
   if (!receipt || typeof receipt !== 'object' || !('sessionId' in receipt) || typeof receipt.sessionId !== 'string' || !('deliveryId' in receipt) || typeof receipt.deliveryId !== 'string' || input.sessionId && receipt.sessionId !== input.sessionId) throw new Error('Eve returned an invalid input receipt.');
   recordAdmissionReceipt(input.id, receipt.sessionId, receipt.deliveryId, input.historyKeys);
-  writeJSON(file(input.id), { ...current, status: 'accepted' });
+  files.write(file(input.id), { ...current, status: 'accepted' });
 }

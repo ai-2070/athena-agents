@@ -33,9 +33,8 @@ export function searchConversations(agentId: string, args: ConversationSearch, c
     hits.push({ ...hit, title: hit.title.slice(0, 200), author: hit.author.slice(0, 256), excerpt: text.slice(Math.max(0, at - 120), at + 400) });
   };
   if (scope !== 'team') {
-    for (const summary of chats.list(agentId)) {
-      const chat = chats.get(agentId, summary.id);
-      if (!chat || chat.conversationId !== conversationId) continue;
+    for (const chat of chats.all(agentId)) {
+      if (chat.conversationId !== conversationId) continue;
       chat.items.forEach((item, i) => match({ source: 'own', conversationId: chat.id, title: chat.title, messageId: String(i), author: item.type === 'user' ? item.from || 'user' : item.type === 'assistant' ? agentId : item.type, ts: item.ts || chat.createdAt }, ownText(item)));
     }
   }
@@ -50,8 +49,14 @@ export function searchConversations(agentId: string, args: ConversationSearch, c
   }
   hits.sort((a, b) => b.ts - a.ts || a.conversationId.localeCompare(b.conversationId) || a.messageId.localeCompare(b.messageId));
   const page = hits.slice(offset, offset + limit);
-  // Leave room below the engines' tool-result limits, including JSON escaping.
-  while (page.length > 1 && JSON.stringify(page).length > 18000) page.pop();
+  // Leave room below the engines' tool-result limits, including JSON escaping. (The page as JSON is "[",
+  // its hits as JSON with commas between them, and "]": each hit is measured once.)
+  const sizes = page.map((h) => JSON.stringify(h).length);
+  let size = sizes.reduce((n, s) => n + s, 1 + page.length);
+  while (page.length > 1 && size > 18000) {
+    page.pop();
+    size -= sizes.pop()! + 1;
+  }
   return { hits: page, total: hits.length, nextOffset: offset + page.length < hits.length ? offset + page.length : null };
 }
 

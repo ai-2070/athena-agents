@@ -363,6 +363,8 @@ function clearMemory(chat: Chat): void {
   delete chat.context;
 }
 
+const COMPUTER = process.platform === 'win32' ? 'Windows PC' : process.platform === 'darwin' ? 'Mac' : 'Linux computer';
+
 export function buildSystemPrompt(agent: Agent): string {
   // the day only: the instructions stay the same all day, so the provider's prompt cache can reuse them
   // and the chat after them (with the time in here, every message started a new cache)
@@ -376,12 +378,13 @@ export function buildSystemPrompt(agent: Agent): string {
     memoryContext(agent),
     worldPrompt(tools),
     skillsPrompt(agent),
-    'Use search_conversations to find earlier work in your own chats or your teams\' shared conversations in this project. Use read_conversation on a search hit to read the saved original; continue with nextOffset until you have the text you need. Search past decisions before guessing about earlier work.',
-    'Use the dashboard TaskCreate, TaskGet, TaskList and TaskUpdate tools for work with several steps. TaskCreate/TaskUpdate accept one task or {tasks:[...]} with no per-call task-count cap, processed in order with per-item results; retry only failures because successes stay saved. Keep acceptance criteria in descriptions, claim ready tasks before starting, and mark completed only after checking the result. Read TaskList on each turn to recover saved work. Respect blockedBy dependencies and other owners. Use the dashboard MCP task tools, not a harness-local task list, so the user and team share the same records. Task creation and assignment record work; they do not start another agent. Delegate with ask_agent or team mentions when needed.',
-    'When the user\'s message asks for real work (something to build, fix, write, research or change), call the dashboard set_goal tool once at the start with what done looks like and how it can be checked; the Brain then checks your work against it after each turn. Skip it for greetings, thanks and questions you answer right away. In a team chat, the lead sets the goal.',
+    // (what each tool does is in its own description: only what no description says goes here)
+    'Before guessing about earlier work, look it up with search_conversations and read_conversation.',
+    'Plan work with several steps in the dashboard\'s task tools (TaskCreate, TaskList, TaskUpdate), not a task list of your own, so the user and your team see the same records. Read TaskList at the start of each turn.',
+    'When the user\'s message asks for real work, call set_goal once at the start (in a team chat, the lead does).',
     accountsPrompt(agent.mcpServers || []),
     `\n# Where you are
-You are one of several agents on the user's personal dashboard, running on their Windows PC (user folder ${HOME}).
+You are one of several agents on the user's personal dashboard, running on their ${COMPUTER} (user folder ${HOME}).
 You work on the project "${project.name}". Its Brain is the folder ${project.brainPath}: the project's files, notes${project.repo ? ` and its GitHub repo (${project.repo})` : ''}. Look there first for context (BRAIN.md, notes/, docs) and keep your work in it.
 Your workspace folder is ${workspaceOf(agent)}; save files you make there unless told otherwise.
 Today is ${date}. (For the exact time, check the clock with a command if you can.)
@@ -426,10 +429,19 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   active.set(runId, entry);
   if ((!from || userInitiated) && depth === 0 && !parentRunId) userWorkHook?.(agent, chat, text || `Work on the attached files: ${attachmentNames(attachments)}`);
   // Saving skips chats deleted while the run was going.
-  const persist = () =>
+  // Tool calls and their results are saved a moment later, together: a run with many tool calls rewrote
+  // the whole chat file for every one of them. (Open tabs see each event at once either way.)
+  let toolSave: ReturnType<typeof setTimeout> | null = null;
+  const persist = () => {
+    if (toolSave) clearTimeout(toolSave);
+    toolSave = null;
     inProject(() => {
       if (!chat._deleted) chats.save(chat);
     });
+  };
+  const persistSoon = () => {
+    toolSave ??= setTimeout(persist, 1000);
+  };
 
   const reset = chat.items.findLastIndex((i) => i.type === 'meta' && i.reset);
   const imported = new Set(chat.items.slice(reset + 1).flatMap((i) => i.type === 'user' && i.teamMessageId ? [i.teamMessageId] : []));
@@ -471,17 +483,17 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     } else if (ev.kind === 'tool') {
       current = null;
       pushItem(chat, { type: 'tool', id: ev.id, name: ev.name, args: ev.args, result: null, status: 'running' });
-      persist();
+      persistSoon();
     } else if (ev.kind === 'tool_result') {
       // its images as files next to the chat: the chat (and what's streamed) keeps only their links
       if (ev.images?.length) ev.images = keepToolImages(agent.id, chat.id, ev.images);
-      const it = [...chat.items].reverse().find((i): i is ChatItemOf<'tool'> => i.type === 'tool' && i.id === ev.id);
+      const it = chat.items.findLast((i): i is ChatItemOf<'tool'> => i.type === 'tool' && i.id === ev.id);
       if (it) {
         const result = String(ev.text ?? '');
         const taskResult = /(?:^|[_:])Task(?:Create|Update)$/.test(it.name);
         Object.assign(it, { result: taskResult ? result : result.slice(0, 30000), images: ev.images || [], isError: !!ev.isError, status: ev.isError ? 'error' : 'done' });
       }
-      persist();
+      persistSoon();
     } else if (ev.kind === 'model') {
       const fresh = agentStore.get(agent.id);
       if (fresh && fresh.lastModel !== ev.model) agentStore.save({ ...fresh, lastModel: ev.model, lastModelAt: Date.now() });
@@ -588,7 +600,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
         const billing = eveBillingItem(runId);
         if (billing && !chat.items.some((item) => item.sourceId === billing.sourceId)) chat.items.push(billing);
         persist();
-      }
+      } else if (toolSave) persist();
       void eveRuntime.retireBindings().catch(() => {});
       active.delete(runId);
       if (!suspended) cancelForRun(runId, { keepOutcomeChecks: true });

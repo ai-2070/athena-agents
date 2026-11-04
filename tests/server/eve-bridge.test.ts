@@ -8,6 +8,7 @@ import { eveConfiguration, eveTool, eveToolPolicy, openEveBridge } from '../../s
 import { decide, listApprovals } from '../../server/approvals.ts';
 import { dataPath, ensureDir } from '../../server/util.ts';
 import { stopEveRun } from '../../server/eve/recovery.ts';
+import { writeMemory } from '../../server/memory.ts';
 
 describe('the private Eve tool bridge', () => {
   it('resolves current project permissions and keeps credentials out of the persisted run', async () => {
@@ -75,5 +76,22 @@ describe('the private Eve tool bridge', () => {
     setRunStatus('next-run', 'running');
     await expect(eveTool(binding.id, 'session', 'edited-run', 'late-call', 'write_file', args)).rejects.toThrow('active run');
     await stopEveRun('next-run');
+  });
+
+  it('hands the model a long result shortened, and keeps that same text in the receipt', async () => {
+    const agent = agents.save(newAgent({ engine: 'eve', name: 'Long memory', toolGroups: [], autonomy: 'full' }));
+    writeMemory(agent.id, `FIRST ${'note '.repeat(9_000)} LAST`);
+    const chat = chats.create(agent.id, 'Long');
+    const binding = bindSession(agent, chat, activeProject(), 'proof');
+    beginRun('long-run', binding.id);
+    setRunStatus('long-run', 'running');
+    const result = await eveTool(binding.id, 'session', 'long-run', 'memory-call', 'memory_read', {});
+    expect(result.text.length).toBeLessThan(25_000);
+    expect(result.text).toMatch(/^FIRST/);
+    expect(result.text).toMatch(/LAST$/);
+    expect(result.text).toMatch(/whole result is saved in/);
+    // a redelivered call gets the same shortened text
+    expect((await eveTool(binding.id, 'session', 'long-run', 'memory-call', 'memory_read', {})).text).toBe(result.text);
+    await stopEveRun('long-run');
   });
 });

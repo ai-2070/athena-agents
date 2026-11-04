@@ -481,6 +481,14 @@ export async function ping(url: string, timeout = 1500): Promise<boolean> {
   }
 }
 
+/** Like truncate, but keeps the start and the end: a command's error is usually at the end. */
+export function truncateMiddle(s: unknown, n = 20000): string {
+  const str = String(s ?? '');
+  if (str.length <= n) return str;
+  const head = Math.ceil(n * 0.6);
+  return `${str.slice(0, head)}\n…[${str.length - n} characters left out here]…\n${str.slice(str.length - (n - head))}`;
+}
+
 export function truncate(s: unknown, n = 20000): string {
   const str = String(s ?? '');
   return str.length > n ? str.slice(0, n) + `\n…[${str.length - n} more characters cut]` : str;
