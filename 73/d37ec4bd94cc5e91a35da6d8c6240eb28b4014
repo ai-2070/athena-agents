@@ -1,0 +1,73 @@
+skills/athena/github/references/pr-workflow.md
+  s_09ac87e46cf718::t_4a8c849658e32d 18-19,30-31,37,48-52,55,64-65,68,71-72,78,83-90
+  s_09ac87e46cf718::t_4e49a14b9c6de2 1-14,20-29,32-36,38-47,53-54,56-63,66-67,69-70,73-77,79-82,91-92
+  s_09ac87e46cf718::t_d082a93047d185 15-17
+skills/athena/github/templates/pr-body-change.md
+  s_09ac87e46cf718::t_1ed8f402102255 1-29
+skills/athena/github/templates/pr-body-fix.md
+  s_09ac87e46cf718::t_8c4a639c3692a4 1-28
+skills/athena/github/references/pr-review.md
+  s_09ac87e46cf718::t_ed1ca500413b60 1-10,12-15,19-21,29-40,42-86,90-93,96-99
+  s_09ac87e46cf718::t_e98a6a5d2c5945 22-23
+  s_09ac87e46cf718::t_a8ba0e4a3bf3e5 11,16-18,24-28
+  s_09ac87e46cf718::t_3c9d77fa5bf3f0 41
+  s_09ac87e46cf718::t_6cf7c08033bbf4 87-89,94-95
+skills/athena/github/references/ci-troubleshooting.md
+  s_09ac87e46cf718::t_5f5805d35f918d 27
+  s_09ac87e46cf718::t_ad9c128f20a4ef 1-26,28-75,78-80
+  s_09ac87e46cf718::t_0c6f3f7450ecd8 76-77
+skills/athena/github/references/auth.md
+  s_09ac87e46cf718::t_f2317eb6f14666 1-25,31-34,43-87
+  s_09ac87e46cf718::t_d358349a6702c3 26-30
+  s_09ac87e46cf718::t_d92c7cb7716a8d 35-42
+skills/athena/github/references/commit-messages.md
+  s_09ac87e46cf718::t_8cc235db2e357e 1-50
+skills/athena/github/SKILL.md
+  s_09ac87e46cf718::t_8a5ad69db41f3b 121-122,124-125
+  s_09ac87e46cf718::t_2e47e01a47e4cc 17
+  s_09ac87e46cf718::t_9f27a70f9f8cfc 41-43
+  s_09ac87e46cf718::t_36dcbae0eb8df9 94-96
+  s_09ac87e46cf718::t_72180b1d681ac8 87-89
+  s_09ac87e46cf718::t_93c0f8f892804e 18-19
+  s_09ac87e46cf718::t_5bbf481aef944a 1-16,20-30,32-40,44-86,90-93,97-99,102-114,118-120,123,126-146
+  s_09ac87e46cf718::t_7e0139a0acd616 100-101
+  s_09ac87e46cf718::t_749dc27eac3d8d 115-117
+  s_09ac87e46cf718::t_bb9f59a47be8b0 31
+skills/athena/github/references/issues.md
+  s_09ac87e46cf718::t_ba0d7a7651a545 1-18,21-36,39-75
+  s_09ac87e46cf718::t_6df735cac76be4 37-38
+  s_09ac87e46cf718::t_06d77efe66b753 19-20
+  s_09ac87e46cf718::t_b4d4218f5ad003 76-77
+skills/athena/github/references/gh-api.md
+  s_09ac87e46cf718::t_230a697a05d7ee 1-32,35-65
+  s_09ac87e46cf718::t_8392e0c2034c5d 33-34
+skills/athena/github/templates/issue.md
+  s_09ac87e46cf718::t_fe4c1959e6a1b7 3-26,28-46
+  s_09ac87e46cf718::t_7d51c117f9f8e6 1-2,27
+skills/athena/github/references/issue-to-pr.md
+  s_09ac87e46cf718::t_42b78c9b6c63ed 60-63
+  s_09ac87e46cf718::t_2e758e98bd8b50 1-14,18-28,35-59,64-70,76-81
+  s_09ac87e46cf718::t_11fbeab239295c 71-75
+  s_09ac87e46cf718::t_58e7b870a96738 15-17
+  s_09ac87e46cf718::t_d6aa3f98573e35 29-34
+skills/athena/github/references/repos-and-releases.md
+  s_09ac87e46cf718::t_deaeada32beade 50-53,58-60
+  s_09ac87e46cf718::t_7ea74bef750922 1-33,36-49,54-57,61-93
+  s_09ac87e46cf718::t_9dc9c763d60368 34-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "73d37ec4bd94cc5e91a35da6d8c6240eb28b4014",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
