@@ -153,8 +153,8 @@ Models and their tools keep getting better, so the files are written to age well
 
 ## The list: 80 from The Agency, plus Athena's 8
 
-Approved as listed. Each line: the new agent, then the old files it takes over (a record of where each one went, and the credit). 136 of the 283 old files fold into
-these 80; the other 147 are left out (see below). Slugs drop the division prefix (`frontend-developer`). ★ marks
+Approved as listed. Each line: the new agent, then the old files it takes over (a record of where each one went, and the credit). 134 of the 283 old files fold into
+these 80; the other 149 are left out (see below). Slugs drop the division prefix (`frontend-developer`). ★ marks
 Athena's 8.
 
 ### Engineering (26)
@@ -216,7 +216,7 @@ Athena's 8.
 - **Unity Developer**: one agent for Unity instead of four. Replaces `unity-architect`, `unity-editor-tool-developer`, `unity-multiplayer-engineer`, `unity-shader-graph-artist`
 - **Unreal Developer**: Replaces `unreal-systems-engineer`, `unreal-multiplayer-architect`, `unreal-technical-artist`, `unreal-world-builder`
 - **Godot Developer**: Replaces `godot-gameplay-scripter`, `godot-multiplayer-engineer`, `godot-shader-developer`
-- **Roblox Developer**: Replaces `roblox-systems-scripter`, `roblox-experience-designer`, `roblox-avatar-creator`
+- **Three.js Developer**: 3D on the web, WebXR included (in place of a Roblox Developer, at the user's request on 4 November). Replaces `xr-immersive-developer`
 
 ### Marketing and social (15)
 
@@ -281,15 +281,16 @@ Athena's 8.
 - **Investment Researcher**: Replaces `finance-investment-researcher`
 - **Pricing Analyst**: Replaces `specialized-pricing-analyst`
 
-### Left out (147)
+### Left out (149)
 
 - **China's platforms and market** (20): WeChat (2), Douyin, Xiaohongshu, Bilibili, Weibo, Zhihu, Kuaishou, Baidu, Feishu,
   GaussDB, China networking, Chinese e-commerce, blogs and podcasts, livestream selling, private-domain marketing,
   government presales, China's healthcare ad law.
 - **Tied to one product** (12): Drupal and WordPress (5 between them), Filament, ServiceNow, Salesforce, USWDS, Solidity,
   Jira, OrgScript.
-- **Whole divisions that don't fit yet** (29): GIS (13), spatial computing and XR (6), academic except the Statistician (5),
-  healthcare (3, plus 2 in Specialized).
+- **Whole divisions that don't fit yet** (28): GIS (13), spatial computing and XR (5; the WebXR one went to the Three.js
+  Developer), academic except the Statistician (5), healthcare (3, plus 2 in Specialized).
+- **Roblox** (3): the user swapped the Roblox Developer for a Three.js Developer.
 - **One industry's front office** (11): hospitality, real estate, loans, legal billing, legal intake, medical billing,
   retail returns, HR onboarding, recruitment, accounts payable, IT service management.
 - **The rest** (75): narrow roles or ones close to the 80, such as identity graphs, ATS validators, PDF compilers,
