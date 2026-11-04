@@ -4,7 +4,7 @@ import { log } from '../store.ts';
 import { privateDataPath } from '../private.ts';
 import { openEveBridge } from './bridge.ts';
 import { startEveHost } from './host.ts';
-import { activeEveRuns, eveRuns, readBinding, sessionBindings } from './state.ts';
+import { readBinding, runEnded, runSummaries, sessionBindings } from './state.ts';
 import { prepareEveRecovery, recoverEveRuns, retireEveBindings } from './recovery.ts';
 import { claimEveRuntime, EveOwnershipError } from './ownership.ts';
 import type { EveHost } from './host.ts';
@@ -30,7 +30,8 @@ export function eveRuntimeFiles(root = ROOT): { entry: string; templates: string
   return { entry, templates };
 }
 
-const hasSavedWork = () => sessionBindings().some((binding) => binding.sessionId && !binding.runtimeEnded) || activeEveRuns().length > 0 || eveRuns().some((run) => {
+const hasSavedWork = () => sessionBindings().some((binding) => binding.sessionId && !binding.runtimeEnded) || runSummaries().some((run) => {
+  if (!runEnded(run.status)) return true;
   const binding = readBinding(run.bindingId);
   return run.status === 'stopped' && !!binding?.sessionId && !binding.runtimeEnded;
 });

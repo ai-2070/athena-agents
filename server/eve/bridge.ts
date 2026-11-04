@@ -10,18 +10,20 @@ import { callTool, gate, needsApproval, toolApprovalPlan, toolApprovalRequest } 
 import { approvalFingerprint, cancelDurableApproval, durableApproval, ensureDurableApproval } from '../approvals.ts';
 import type { ApprovalRequest } from '../approvals.ts';
 import * as mcp from '../mcp.ts';
-import { activeEveRuns, attachSession, readRun, recordCharge, recordConfiguration, recordCostBaseline, recordLimit, sessionContext, setRunStatus } from './state.ts';
+import { attachSession, readRun, readRunSummary, recordCharge, recordConfiguration, recordCostBaseline, recordLimit, sessionContext, setRunStatus, workingRunOf } from './state.ts';
 import { executeOperation, operationId, prepareOperation, readOperation, saveOperation } from './operations.ts';
 import { canonical } from '../../shared/canonical.ts';
-import { admissionHistory, readAdmission } from './admission.ts';
+import { admissionHistory, admissionSelection } from './admission.ts';
 import { selectEveModel } from './model.ts';
+import { eveCounts } from './counts.ts';
 import type { EveRuntimeConfiguration } from '../../shared/types.ts';
 
 const schema = z.record(z.string(), z.json());
 
 function invocationContext(bindingId: string, sessionId: string, runId?: string) {
+  eveCounts.contexts++;
   const context = sessionContext(bindingId);
-  const run = activeEveRuns().find((item) => item.bindingId === bindingId && (item.status === 'running' || item.status === 'waiting'));
+  const run = workingRunOf(bindingId, runId);
   if (!run) throw new Error('This Eve conversation has no active run.');
   if (runId && run.id !== runId) throw new Error('This Eve call does not belong to the active run.');
   if (!context.binding.sessionId) attachSession(bindingId, sessionId);
@@ -34,7 +36,7 @@ export async function eveConfiguration(bindingId: string, sessionId: string, nat
   const costBaseline = recordCostBaseline(run.id, nativeCost);
   return withProject(project, async () => {
     const [{ buildSystemPrompt }, { richSection }] = await Promise.all([import('../engines/index.ts'), import('../richanswers.ts')]);
-    const selection = readAdmission(run.id)?.selection || await selectEveModel(agent, chat);
+    const selection = admissionSelection(run.id) || await selectEveModel(agent, chat);
     const provider = providerOf({ ...agent, provider: selection.provider });
     if (provider.base !== selection.baseUrl) throw new Error('The model address changed during this turn. Start a new turn to use it.');
     const { defs } = await gatherTools(agent, () => {}, { engine: 'eve', conversationId: chat.conversationId });
@@ -134,7 +136,7 @@ export async function eveTool(bindingId: string, sessionId: string, runId: strin
         approvalDecision: async (request: ApprovalRequest) => {
           const saved = readOperation(id);
           const decision = durableApproval(id)?.decision;
-          if (signal?.aborted || !['running', 'waiting'].includes(readRun(run.id)?.status || '') || !saved?.approvalChecks?.includes(approvalFingerprint(request)) || !decision?.approved) return { approved: false, message: 'This action is not covered by the saved approval. Make a new call for the current target.' };
+          if (signal?.aborted || !['running', 'waiting'].includes(readRunSummary(run.id)?.status || '') || !saved?.approvalChecks?.includes(approvalFingerprint(request)) || !decision?.approved) return { approved: false, message: 'This action is not covered by the saved approval. Make a new call for the current target.' };
           return { ...decision, always: saved.approvalChecks.length === 1 && decision.always };
         },
       };
@@ -146,7 +148,7 @@ export async function eveTool(bindingId: string, sessionId: string, runId: strin
     });
     const operation = readOperation(id);
     if (operation?.status === 'uncertain') {
-      if (['running', 'waiting'].includes(readRun(run.id)?.status || '')) setRunStatus(run.id, 'interrupted');
+      if (['running', 'waiting'].includes(readRunSummary(run.id)?.status || '')) setRunStatus(run.id, 'interrupted');
       ensureDurableApproval(`reconcile:${id}`, { kind: 'workflow', title: `Check the outcome of ${name}`, detail: 'This tool may already have made changes. Check its outcome before starting more work. Allow to mark this check done; this run stays interrupted and the tool will not be repeated.', agentId: agent.id, agentName: agent.name, data: { tool: name, args, runId: run.id, outcomeCheck: true } });
     }
     return result;
@@ -187,7 +189,7 @@ export async function openEveBridge() {
       if (request.url === '/billing') {
         if (!body.input.runId || !body.input.charge) throw new Error('A saved run and model charge are required.');
         const { run } = invocationContext(body.binding, body.input.sessionId!, body.input.runId);
-        if (readAdmission(run.id)?.selection.provider !== 'venice') throw new Error('This run does not use Venice billing.');
+        if (admissionSelection(run.id)?.provider !== 'venice') throw new Error('This run does not use Venice billing.');
         recordCharge(run.id, body.input.charge);
         response.writeHead(200, { 'content-type': 'application/json' }).end('{}');
         return;
