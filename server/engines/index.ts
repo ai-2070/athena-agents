@@ -25,6 +25,7 @@ import { engineCapabilities } from './capabilities.ts';
 import { activeEveRuns, invalidateConversation, lateSteers, updateSteer, readRun as readEveRun, sessionBindings, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
 import { eveBillingItem, eveUsage } from '../eve/usage.ts';
 import { eveRuntime } from '../eve/runtime.ts';
+import { missedSteers } from '../eve/steer.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import { clearWork, stopChatWork } from '../briefs.ts';
 import { admitExecution, interruptExecutions, readExecution, saveExecutionQueue, updateExecution } from '../execution.ts';
@@ -132,6 +133,8 @@ export interface RunEntry {
   /** stopped for a new message that a team steer takes care of (its chat's queue and loop go as for Stop) */
   forMessage?: boolean;
   stopRequested?: boolean;
+  /** messages sent into its turn that its engine hasn't read yet (one that says when it reads them) */
+  unread?: Map<string, JoiningMessage>;
 }
 
 /** What a running agent is doing right now (liveActivity()). */
@@ -537,7 +540,9 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   const onEventIn = (ev: RunEvent) => {
     if (ev.kind === 'text' || ev.kind === 'tool') heard = true;
     if (ev.kind === 'steer') {
-      // the engine read a message sent while it worked: it shows here, where it came in
+      // the engine read a message sent while it worked: it shows here, where it came in (and no longer waits to go next)
+      entry.unread?.delete(ev.id);
+      if (depth === 0) unqueue(chat.id, ev.id, project.id);
       current = null;
       pushItem(chat, { type: 'steer', steerId: ev.id, text: ev.text, runId, ...(ev.attachments?.length ? { attachments: ev.attachments } : {}), ...(ev.from ? { from: ev.from } : {}), ...(ev.teamMessageId ? { teamMessageId: ev.teamMessageId } : {}) });
       persist();
@@ -672,6 +677,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       } else if (toolSave) persist();
       void eveRuntime.retireBindings().catch(() => {});
       active.delete(runId);
+      unreadAtEnd(runId, entry);
       if (!suspended) cancelForRun(runId, { keepOutcomeChecks: true });
       emit('runs');
       const stopped = controller.signal.aborted;
@@ -833,6 +839,8 @@ async function joinRun(runId: string, entry: RunEntry, { text, attachments = [],
     pushItem(chat, { type: 'steer', steerId, text, runId, ...extra, ...(teamMessageId ? { teamMessageId } : {}) });
     if (!chat._deleted) chats.save(chat);
   });
+  // one shown when read: kept until then (in the queue, first, for your own chat), so it is never lost
+  else holdUnread(runId, entry, steerId, { text, attachments, from, ...(teamMessageId ? { teamMessageId } : {}) });
   try {
     await steering_.send(runId, { id: steerId, text, attachments, ...(from ? { from } : {}), ...(teamMessageId ? { teamMessageId } : {}) });
     if (!steering_.saysWhenRead) emit('run', { runId, agentId: entry.agentId, chatId: chat.id, projectId: entry.projectId, event: { kind: 'steer', id: steerId, text, ...extra, ...(teamMessageId ? { teamMessageId } : {}) } });
@@ -843,10 +851,60 @@ async function joinRun(runId: string, entry: RunEntry, { text, attachments = [],
       chat.items = chat.items.filter((item) => !(item.type === 'steer' && item.steerId === steerId));
       if (!chat._deleted) chats.save(chat);
     });
+    else {
+      entry.unread?.delete(steerId);
+      if (entry.depth === 0) unqueue(chat.id, steerId, entry.projectId);
+    }
     return null;
   } finally {
     steering.delete(key);
   }
+}
+
+/** A message the engine will say it read: until then it waits first in your chat's queue, marked as sent, so
+ *  Stop gives it back, a restart keeps it, and a turn that ends without reading it sends it next. */
+function holdUnread(runId: string, entry: RunEntry, steerId: string, message: JoiningMessage): void {
+  (entry.unread ||= new Map()).set(steerId, message);
+  if (entry.depth > 0) return;
+  const key = chatKey(entry.projectId, entry.chatId);
+  const w = waiting.get(key) || { agentId: entry.agentId, project: entry.project, items: [], priority: [], paused: false };
+  const q: QueuedMessage = { id: steerId, text: message.text, ...(message.attachments?.length ? { attachments: message.attachments } : {}), ...(message.from ? { from: message.from } : {}), ts: Date.now(), reading: runId };
+  const at = w.items.findIndex((x) => !w.priority.includes(x.id));
+  w.items.splice(at === -1 ? w.items.length : at, 0, q);
+  w.priority.push(q.id);
+  waiting.set(key, w);
+  emitQueue(entry.agentId, entry.chatId, entry.projectId);
+}
+
+// a team's messages its member's turn ended without reading (by run): the team sends them again (missedMessages)
+const missedReads = new Map<string, JoiningMessage[]>();
+
+/** The run ended: messages it never read go next. In your chat they are first in the queue already (as
+ *  ordinary queued messages now); a team's come back to the team. */
+function unreadAtEnd(runId: string, entry: RunEntry): void {
+  if (!entry.unread?.size) return;
+  const left = [...entry.unread.values()];
+  entry.unread.clear();
+  if (entry.depth > 0) {
+    missedReads.set(runId, left);
+    // (collected as the team's turn ends; never kept for long)
+    setTimeout(() => missedReads.delete(runId), 10 * 60_000).unref?.();
+    return;
+  }
+  const w = waiting.get(chatKey(entry.projectId, entry.chatId));
+  if (!w?.items.some((q) => q.reading === runId)) return;
+  w.items = w.items.map((q) => (q.reading === runId ? (({ reading: _, ...rest }) => rest)(q) : q));
+  emitQueue(entry.agentId, entry.chatId, entry.projectId);
+}
+
+/** A team turn's messages from you that its agent ended without reading (they missed its turn): Eve's, which
+ *  leave its session, and those an engine that says when it reads them never did. They go to it next. */
+export async function missedMessages(runId: string): Promise<{ steerId?: string; teamMessageId?: string }[]> {
+  const eve = await missedSteers(runId);
+  const read = missedReads.get(runId) || [];
+  missedReads.delete(runId);
+  // (Eve's are in the turn's work as steer items: steerId says which)
+  return [...eve.map((s) => ({ steerId: s.id, ...(s.teamMessageId ? { teamMessageId: s.teamMessageId } : {}) })), ...read.map((m) => (m.teamMessageId ? { teamMessageId: m.teamMessageId } : {}))];
 }
 
 /** Messages sent into a turn that ended before it took them: Eve starts the next turn with the first (and
@@ -928,7 +986,9 @@ export function recoverExecution(): void {
       continue;
     }
     if (queue.paused) stopChatWork(queue.chatId, project.id);
-    if (queue.items.length) waiting.set(chatKey(project.id, queue.chatId), { agentId: queue.agentId, project, items: queue.items, priority: queue.priority, paused: queue.paused });
+    // (one a run had been sent and not read: that run is gone, so it is an ordinary queued message now)
+    const items = queue.items.map((q) => (q.reading ? (({ reading: _, ...rest }) => rest)(q) : q));
+    if (items.length) waiting.set(chatKey(project.id, queue.chatId), { agentId: queue.agentId, project, items, priority: queue.priority, paused: queue.paused });
   }
 }
 
@@ -973,7 +1033,8 @@ function queueFirst(agent: Agent, chat: Chat, text: string, attachments: string[
 export function editQueued(chatId: string, id: string, text: unknown, projectId: string = here()): QueuedMessage | null {
   const w = waiting.get(chatKey(projectId, chatId));
   const q = w?.items.find((x) => x.id === id);
-  if (!w || !q) return null;
+  // (one sent into the turn already: changing it here wouldn't change what it reads)
+  if (!w || !q || q.reading) return null;
   q.text = queuedEdit(text, !!q.attachments?.length);
   emitQueue(w.agentId, chatId, projectId);
   return q;

@@ -210,6 +210,13 @@ export async function run({ agent, chat, text, signal, onEvent, systemPrompt, ru
 // the runs whose Claude Code still reads its input: a message sent while it works goes in here
 const reading = new Map<string, (message: TurnMessage) => boolean>();
 
+/** How long Claude may stay quiet after answering, with a message it hasn't said it read, before its input
+ *  closes: it isn't going to read it (the message then goes next, as its own turn). */
+export const READ_WAIT = { ms: 10_000 };
+
+/** What an echoed message says (a string, or text blocks). */
+const echoedText = (content: unknown): string => (typeof content === 'string' ? content : Array.isArray(content) ? content.map((b: { text?: unknown }) => (typeof b?.text === 'string' ? b.text : '')).join('\n') : '');
+
 /** A message sent while it works goes into the turn: Claude reads it at its next step. */
 export const steer: TurnSteering = {
   can: (runId) => reading.has(runId),
@@ -221,8 +228,10 @@ export const steer: TurnSteering = {
 
 async function runClaude({ agent, chat, text, signal, onEvent, files, attachments = [], runId }: Pick<EngineRunArgs, 'agent' | 'chat' | 'text' | 'signal' | 'onEvent' | 'runId'> & { files: ClaudeFiles; attachments?: string[] }): Promise<EngineResult> {
   const dirs = uploadsDirArgs(agent, chat, attachments);
-  // a message with files sent later needs the uploads folder open to Claude from the start
-  const seesUploads = dirs.length > 0 || !uploadsDirArgs(agent, chat, ['(any)']).length;
+  // a message with files sent later needs the uploads folder open to Claude from the start (it is, or it is
+  // in the workspace already)
+  const uploads = safeUploadsRoot();
+  const seesUploads = dirs.length > 0 || !uploads || isInside(workspaceOf(agent), uploads);
   const args = [...claudeArgs(agent, files), ...dirs];
   if (chat.sessionId) args.push('--resume', chat.sessionId);
   const child = spawnCommand('claude', args, { cwd: workspaceOf(agent), env: claudeEnv(agent), stdio: ['pipe', 'pipe', 'pipe'] });
@@ -233,14 +242,20 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
   let stderr = '';
   // (cast: TypeScript can't see the callback below set it)
   let result = null as ClaudeStreamMsg | null;
-  // one result per turn: a message it read after answering made one more
+  // one result per turn: a message it read after answering made one more (the run's answer is all of theirs)
   let cachedTotal = 0;
+  const answers: string[] = [];
+  // after an answer, with a message it hasn't said it read: closes its input if it stays quiet
+  let quiet: ReturnType<typeof setTimeout> | undefined;
   // messages sent while it works that it hasn't read yet (by the uuid they went in with)
   const unread = new Map<string, TurnMessage>();
   const write = (uuid: string, content: string) => child.stdin!.write(`${JSON.stringify({ type: 'user', uuid, message: { role: 'user', content } })}\n`);
+  // (the message it was started with: its echo is no message sent while it works)
+  const first = crypto.randomUUID();
   let open = true;
   // done once it answered and nothing waits to be read: its input closes, and it exits
   const close = () => {
+    clearTimeout(quiet);
     if (!open) return;
     open = false;
     reading.delete(runId);
@@ -260,17 +275,23 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
   let context = 0;
 
   const handle = (msg: ClaudeStreamMsg) => {
+    // (it says something: it is working, so not done with what it was sent)
+    clearTimeout(quiet);
     if (msg.session_id && !gotSession) {
       chat.sessionId = msg.session_id;
       gotSession = true;
     }
     if (msg.parent_tool_use_id) return; // inside a Claude sub-agent: the parent's tool call shows it
     if (msg.type === 'user' && msg.isReplay) {
-      // it read a message sent while it worked: the chat shows it here
-      const m = msg.uuid ? unread.get(msg.uuid) : undefined;
-      if (!m || !msg.uuid) return;
-      unread.delete(msg.uuid);
-      onEvent({ kind: 'steer', id: m.id, text: m.text, ...(m.attachments?.length ? { attachments: m.attachments } : {}), ...(m.from ? { from: m.from } : {}), ...(m.teamMessageId ? { teamMessageId: m.teamMessageId } : {}) });
+      // it read a message sent while it worked: the chat shows it here. (One echo may carry several
+      // messages that waited together: the others count as read too.)
+      if (msg.uuid === first) return;
+      const said = echoedText(msg.message?.content);
+      const read = [...unread].filter(([uuid, m]) => uuid === msg.uuid || (!!m.text && said.includes(m.text)));
+      for (const [uuid, m] of read) {
+        unread.delete(uuid);
+        onEvent({ kind: 'steer', id: m.id, text: m.text, ...(m.attachments?.length ? { attachments: m.attachments } : {}), ...(m.from ? { from: m.from } : {}), ...(m.teamMessageId ? { teamMessageId: m.teamMessageId } : {}) });
+      }
       return;
     }
     if (msg.type === 'stream_event') {
@@ -298,8 +319,10 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
     } else if (msg.type === 'result') {
       result = msg;
       cachedTotal += Number(msg.usage?.cache_read_input_tokens || 0);
-      // a message sent as it answered: it reads that next, as one more turn
+      if (!msg.is_error && msg.result) answers.push(msg.result);
+      // a message sent as it answered: it reads that next, as one more turn (unless it stays quiet)
       if (!unread.size) close();
+      else quiet = setTimeout(close, READ_WAIT.ms);
     } else if (msg.type === 'system' && msg.subtype === 'compact_boundary') {
       context = 0;
       onEvent({ kind: 'compacted', trigger: msg.compact_metadata?.trigger, tokensBefore: msg.compact_metadata?.pre_tokens });
@@ -336,7 +359,7 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
     if (stderr.length < 200_000) stderr += d;
   });
   child.stdin!.on('error', () => {});
-  write(crypto.randomUUID(), text);
+  write(first, text);
 
   const code = await new Promise<number | null>((resolve) => {
     child.on('close', resolve);
@@ -346,11 +369,12 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
     });
   });
   parseLines(true);
+  clearTimeout(quiet);
   open = false;
   reading.delete(runId);
   signal.removeEventListener('abort', onAbort);
   if (signal.aborted) throw new Error('Stopped.');
-  if (result && unread.size) throw new Error('Claude Code ended before it read your last message. Send it again.');
+  // (a message it never read isn't lost: the run's owner sends it next)
   if (!result) {
     const msg = `Claude Code exited (${code}) without an answer.${stderr ? `\n${stderr.trim().slice(-1500)}` : ''}`;
     // A resumed session that no longer exists: a new one, with the chat so far.
@@ -365,7 +389,7 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
   const window = Math.max(0, ...Object.values(result.modelUsage || {}).map((m) => Number(m?.contextWindow) || 0));
   // (each turn's tokens are its own; the cost is the whole process's so far)
   const cached = cachedTotal;
-  return { text: result.result || '', cost: agent.claudeAuth && agent.claudeAuth !== 'login' ? result.total_cost_usd || 0 : 0, ...(cached ? { cached } : {}), ...(context ? { context } : {}), ...(window ? { window } : {}) };
+  return { text: answers.join('\n\n') || result.result || '', cost: agent.claudeAuth && agent.claudeAuth !== 'login' ? result.total_cost_usd || 0 : 0, ...(cached ? { cached } : {}), ...(context ? { context } : {}), ...(window ? { window } : {}) };
 }
 
 function prettyTool(name: string): string {

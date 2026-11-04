@@ -504,6 +504,8 @@ export interface QueuedMessage {
   replyTo?: string | null;
   /** who it is from when not you (e.g. the Brain following up on a goal) */
   from?: string;
+  /** sent into this run's turn, which hasn't read it yet: it leaves the queue once read, else goes next */
+  reading?: string;
   ts: number;
 }
 

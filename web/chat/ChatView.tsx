@@ -763,6 +763,8 @@ export function ChatView(p: ChatViewProps) {
       onOrder={orderQueued}
       onLeave={() => input.current?.focus()}
       onLost={(_q, text) => keepEdit(text)}
+      // (sent into the turn going on: it leaves the list once read, or goes next if the turn ends first)
+      hint={(q) => (q.reading ? 'Sent. It reads this at its next step' : null)}
     />
   );
 

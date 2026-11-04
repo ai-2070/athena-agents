@@ -10,8 +10,7 @@
 import { BUILD_ORDER, DIORAMA } from './voxel/diorama.ts';
 import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject, getSettings, withProject, listProjects } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath, settledWithin } from './util.ts';
-import { askAgent, hasBackgroundWork, joinChatTurn, nativeRunPromise, runInfo, stopChat, stopChildren, forgetChat, isStopping, RunStopped } from './engines/index.ts';
-import { missedSteers } from './eve/steer.ts';
+import { askAgent, hasBackgroundWork, joinChatTurn, missedMessages, nativeRunPromise, runInfo, stopChat, stopChildren, forgetChat, isStopping, RunStopped } from './engines/index.ts';
 import { readRun as readEveRun } from './eve/state.ts';
 import { readExecution } from './execution.ts';
 import { activeTeamAssignment, readRelayWork, readTeamWork, saveRelayWork, saveTeamWork } from './teamwork.ts';
@@ -894,10 +893,10 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
   }
   // your messages sent into its turn that it ended before reading leave that turn, so it doesn't show them as
   // read nor count them as had (before the reply marks where the turn's work ends)
-  const missed = await missedSteers(delivery.runId);
-  const session = missed.length ? chats.get(agent.id, chatId) : null;
+  const missed = await missedMessages(delivery.runId);
+  const session = missed.some((m) => m.steerId) ? chats.get(agent.id, chatId) : null;
   if (session) {
-    const ids = new Set(missed.map((m) => m.id));
+    const ids = new Set(missed.map((m) => m.steerId));
     session.items = session.items.filter((i) => !(i.type === 'steer' && ids.has(i.steerId)));
     chats.save(session);
   }
