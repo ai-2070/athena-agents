@@ -1,0 +1,52 @@
+shared/commands.ts
+  s_81bb6233ec37d7::t_1a975fecd766bd 106-107
+  s_81bb6233ec37d7::t_5c8265948661f8 3,102-105
+tests/server/goals.test.ts
+  s_81bb6233ec37d7::t_22a8263989d273 8-9,12,24,32,91,558-635
+  s_81bb6233ec37d7::t_97433f2af33038 636
+web/chatcommands.ts
+  s_81bb6233ec37d7::t_1a975fecd766bd 92
+  s_81bb6233ec37d7::t_cdd4a3996e09ee 5
+web/teamchat.tsx
+  s_81bb6233ec37d7::t_1a975fecd766bd 187,606
+  s_81bb6233ec37d7::t_cdd4a3996e09ee 25
+shared/types.ts
+  s_81bb6233ec37d7::t_5c8265948661f8 1773-1775
+  s_81bb6233ec37d7::t_0b1ba9449f9ac5 1776-1777
+docs/guide.md
+  s_81bb6233ec37d7::t_db3dc8c982d594 102,280
+server/briefs.ts
+  s_81bb6233ec37d7::t_5c8265948661f8 4,54,56
+server/tools.ts
+  s_81bb6233ec37d7::t_0b1ba9449f9ac5 31,152
+server/irc.ts
+  s_81bb6233ec37d7::t_2a692cc82183b1 59,99-100,106-107,109-110,118,122,124,150-159
+  s_81bb6233ec37d7::t_0b1ba9449f9ac5 120-121
+server/engines/index.ts
+  s_81bb6233ec37d7::t_152c028a8d6658 381
+tests/web/chatview.test.tsx
+  s_81bb6233ec37d7::t_d31a316e95cbec 479-485
+docs/internal/plans/WORK_COMPLETION_2026-11-01.md
+  s_81bb6233ec37d7::t_e0c40efd3e2b67 7-8
+web/chat/ChatView.tsx
+  s_81bb6233ec37d7::t_cdd4a3996e09ee 34
+  s_81bb6233ec37d7::t_1a975fecd766bd 232,421,726
+server/goaltool.ts
+  s_81bb6233ec37d7::t_e7b6cf13505975 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "56c9498e0e06850caf8d180a41dd3e43326cb056",
+  "prompts": {},
+  "sessions": {
+    "s_81bb6233ec37d7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "237639e3-025e-4687-a3f8-bf5fb46ee62f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
