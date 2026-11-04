@@ -40,6 +40,7 @@ beforeEach(() => {
     if (url === '/api/activity') return json([{ ts: Date.now(), kind: 'run', text: 'Writer finished' }]);
     if (url === '/api/programs') return json([{ id: 'comfyui', name: 'ComfyUI', icon: '🧩', installed: true, running: true, serviceUrl: 'http://127.0.0.1:8188', version: null }]);
     if (url === '/api/agents/a2/chats' && method === 'POST') return json({ id: 'c9' });
+    if (url === '/api/library') return json({ agents: [{ slug: 'coordinator', starter: true }, { slug: 'code-reviewer', starter: false }, { slug: 'researcher', starter: true }], hermes: [], claude: [] });
     return json({ ok: true });
   });
   connectEvents();
@@ -91,5 +92,14 @@ describe('the Overview page', () => {
     await open();
     expect([...el.querySelectorAll('.home-steps li .btn.ghost')].map((a) => a.textContent)).toEqual(['Settings', 'Open library', 'Connections', 'Tools & MCP']);
     expect(el.querySelector('.home-steps [aria-label="done"]')).not.toBeNull();
+  });
+
+  it('"Add Athena team" hires the library agents marked as the starter team', async () => {
+    state.data = { ...base, runs: [], agents: [] } as unknown as AppState;
+    await open();
+    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.home-steps button')].find((b) => b.textContent === 'Add Athena team')!.click());
+    await settle();
+    expect(requests.filter((r) => r.url === '/api/library/hire').map((r) => r.body)).toEqual([{ source: 'library', slug: 'coordinator' }, { source: 'library', slug: 'researcher' }]);
+    expect(location.hash).toBe('#/agents');
   });
 });

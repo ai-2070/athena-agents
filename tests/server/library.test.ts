@@ -1,12 +1,13 @@
-// The Agency comes with the dashboard (library/agency-agents in the repo): no download, no data folder needed.
+// The Agent library comes with the dashboard (library/athena-agents in the repo): no download, no data folder needed.
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import * as library from '../../server/library.ts';
-import { agents } from '../../server/store.ts';
+import { agents, saveSettings } from '../../server/store.ts';
 import { ROOT, parseFrontmatter } from '../../server/util.ts';
 import { TOOL_GROUPS } from '../../server/tools.ts';
-import { shippedSkillSlugs } from '../../server/skills.ts';
+import { saveSkill, shippedSkillSlugs } from '../../server/skills.ts';
+import { LIBRARY_ROLE_LINE, buildSystemPrompt } from '../../server/engines/index.ts';
 import type { EngineId } from '../../shared/types.ts';
 
 // The bundled library test must not wait on an installed Hermes CLI.
@@ -15,63 +16,56 @@ vi.mock('../../server/engines/hermes.ts', async (orig) => ({
   listProfiles: async () => [],
 }));
 
-const bundled = path.join(ROOT, 'library', 'agency-agents');
-
-describe('the bundled Agency library', () => {
-  it('lists every specialist straight from the repo, with an empty data folder', () => {
-    const list = library.agencyAgents();
-    expect(list.length).toBeGreaterThan(250);
-    for (const a of list) {
-      expect(a.name).toBeTruthy();
-      expect(a.description).toBeTruthy();
-      expect(fs.existsSync(a.file)).toBe(true);
-      expect(a.file.startsWith(bundled)).toBe(true);
-    }
-  });
-
-  it('has every division that divisions.json names, and no others', () => {
-    const named = Object.keys(JSON.parse(fs.readFileSync(path.join(bundled, 'divisions.json'), 'utf8')).divisions as Record<string, unknown>).sort();
-    const onDisk = fs
-      .readdirSync(bundled, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name)
-      .sort();
-    expect(onDisk).toEqual(named);
-    const used = new Set(library.agencyAgents().map((a) => a.division));
-    expect([...used].sort()).toEqual(named);
-  });
-
-  it("lists the security division's agents (their files are named security-*.md)", () => {
-    const security = library.agencyAgents().filter((a) => a.division === 'security');
-    expect(security.length).toBe(fs.readdirSync(path.join(bundled, 'security')).filter((f) => f.endsWith('.md')).length);
-    expect(security.map((a) => a.slug)).toContain('security-appsec-engineer');
-  });
-
-  it('gives each specialist its own slug, since hiring looks one up by slug', () => {
-    const slugs = library.agencyAgents().map((a) => a.slug);
-    expect(new Set(slugs).size).toBe(slugs.length);
-  });
-
-  it('shows up in the library index without file paths', async () => {
+describe('hiring from the Agent library', () => {
+  it('lists the agents in the library index without file paths, and nothing else', async () => {
     const idx = await library.libraryIndex();
-    expect(idx.agency.agents.length).toBe(library.agencyAgents().length);
-    expect(idx.agency.agents[0]).not.toHaveProperty('file');
-    expect(idx.agency).not.toHaveProperty('installed');
+    expect(Object.keys(idx).sort()).toEqual(['agents', 'claude', 'hermes']);
+    expect(idx.agents.map((a) => a.slug)).toEqual(library.libraryAgents().map((a) => a.slug));
+    for (const a of idx.agents) expect(a).not.toHaveProperty('file');
   });
 
-  it('hires a specialist with its written instructions, and leaves the bundled file alone', () => {
-    const pick = library.agencyAgents().find((a) => a.division === 'engineering')!;
+  it("copies the file's text, tools, skills you have and source into a new agent, and leaves the file alone", () => {
+    // one with two or more skills, so one is in your skill library and the others aren't
+    const pick = library.libraryAgents().find((a) => a.skills.length > 1)!;
     const before = fs.readFileSync(pick.file, 'utf8');
-    const hired = library.hireFromAgency(pick.slug);
-    expect(hired.name).toBe(pick.name);
-    expect(hired.source).toEqual({ type: 'agency', slug: pick.slug, division: 'engineering' });
+    const have = saveSkill({ name: pick.skills[0], description: 'Use it for the test.', body: 'Steps.' })!;
+    expect(have.slug).toBe(pick.skills[0]);
+    const hired = library.hireFromLibrary(pick.slug);
+    expect(hired).toMatchObject({ name: pick.name, emoji: pick.emoji, color: pick.color, specialty: pick.specialty, description: pick.description });
     expect(hired.systemPrompt).toBe(parseFrontmatter(before).body.trim());
+    expect(hired.toolGroups).toEqual(pick.tools);
+    expect(hired.skills).toEqual([pick.skills[0]]);
+    expect(hired.source).toEqual({ type: 'library', slug: pick.slug, division: pick.group });
     expect(agents.get(hired.id)?.name).toBe(pick.name);
     expect(fs.readFileSync(pick.file, 'utf8')).toBe(before);
   });
 
-  it('refuses a specialist that is not in the library', () => {
-    expect(() => library.hireFromAgency('no-such-specialist')).toThrow('not in the library');
+  it("runs on the agent's own engine when its file names one, else on your default; what you pick wins", () => {
+    const own = library.libraryAgents().find((a) => a.engine)!;
+    const plain = library.libraryAgents().find((a) => !a.engine)!;
+    saveSettings({ defaults: { engine: 'codex' } });
+    try {
+      expect(library.hireFromLibrary(own.slug).engine).toBe(own.engine);
+      expect(library.hireFromLibrary(plain.slug).engine).toBe('codex');
+      expect(library.hireFromLibrary(own.slug, { engine: 'eve', model: 'some/model' })).toMatchObject({ engine: 'eve', model: 'some/model' });
+    } finally {
+      saveSettings({ defaults: { engine: 'claude-code' } });
+    }
+  });
+
+  it('refuses an agent that is not in the library', () => {
+    expect(() => library.hireFromLibrary('no-such-specialist')).toThrow('not in the library');
+  });
+
+  it("tells a library hire, and no other agent, that its role is a starting point", () => {
+    const hired = library.hireFromLibrary(library.libraryAgents()[0].slug);
+    const prompt = buildSystemPrompt(hired);
+    expect(prompt).toContain(LIBRARY_ROLE_LINE);
+    // right after its own instructions
+    expect(prompt.indexOf(LIBRARY_ROLE_LINE)).toBe(prompt.indexOf(hired.systemPrompt) + hired.systemPrompt.length + 1);
+    expect(buildSystemPrompt(library.newAgent({ name: 'Mine', systemPrompt: 'Do my thing.' }))).not.toContain(LIBRARY_ROLE_LINE);
+    expect(buildSystemPrompt(library.newAgent({ name: 'Made by the Brain', source: { type: 'brain' } }))).not.toContain(LIBRARY_ROLE_LINE);
+    expect(buildSystemPrompt(library.newAgent({ name: 'Old hire', source: { type: 'agency', slug: 'engineering-code-reviewer', division: 'engineering' } }))).not.toContain(LIBRARY_ROLE_LINE);
   });
 });
 
@@ -85,8 +79,8 @@ describe('Claude Code subagents', () => {
   });
 });
 
-// Athena's agents (library/athena-agents) replace The Agency. Its README.md has the standard each file follows; these
-// checks catch what can be caught mechanically. Whether the writing is good is for review.
+// Athena's agents (library/athena-agents). Its README.md has the standard each file follows; these checks catch
+// what can be caught mechanically. Whether the writing is good is for review.
 describe("Athena's agents", () => {
   const dir = path.join(ROOT, 'library', 'athena-agents');
   const groups = (JSON.parse(fs.readFileSync(path.join(dir, 'groups.json'), 'utf8')) as { groups: { id: string; label: string }[] }).groups;
@@ -123,7 +117,7 @@ describe("Athena's agents", () => {
       for (const k of Object.keys(meta)) check(KEYS.has(k), `unknown key "${k}"`);
       check(meta.name, 'no name');
       check(meta.description, 'no description');
-      // the Brain reads every description when it picks teammates
+      // one short sentence for the card
       check((meta.description || '').split(/\s+/).length <= 35, 'description too long');
       check(!/[.!?;]\s+[A-Z]/.test(meta.description || ''), 'description is more than one sentence');
       check(meta.emoji, 'no emoji');

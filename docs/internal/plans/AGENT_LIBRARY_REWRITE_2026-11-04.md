@@ -2,7 +2,59 @@
 
 4 November 2026. Approved the same day with the answers below; work has started.
 
-## Status (4 November, later)
+## Status (4 November, done)
+
+**All of it is done**: the 88 agents are written, reviewed and committed, the dashboard uses them (step 2, the switch),
+and `library/agency-agents/` is deleted. Every agent was written by one agent from the standard and a shared brief, then
+checked by a second one against the rules and the facts (version-sensitive facts against the vendors' own pages), and
+the format checks in `tests/server/library.test.ts` passed. Changes from the plan below, all the user's calls unless
+noted:
+
+- **A Three.js Developer replaced the Roblox Developer.** The three Roblox files are left out; the old WebXR agent
+  went to the Three.js Developer.
+- **No length limit.** The first cap of 150 lines was dropped when most files hit it. Files run about 150 to 300 lines;
+  reviewers cut textbook knowledge and repetition rather than counting lines.
+- **Every agent starts with `shell` and `agents`**, has its own emoji, and a description of one sentence.
+- **The Brain picks teammates by name and specialty** (`slug | name | specialty`), not by the longer description, to
+  keep its instructions short.
+
+## Found along the way
+
+Problems in the dashboard itself that writers and reviewers noticed. None are fixed here.
+
+- **ComfyUI** (`server/comfyui.ts`): `findPromptNodes` traces a ConditioningZeroOut negative back to the positive text
+  node, so `comfyui_run` writes the negative over the main prompt. It also drops a negative silently when the workflow
+  has no negative node, and never reports the seed it picked. `server/programs.ts` may miss the new Comfy Desktop
+  folders (`%LOCALAPPDATA%\Comfy-Desktop`).
+- **Claude login** (`server/engines/claude.ts`): "My Claude login" doesn't clear an `ANTHROPIC_API_KEY` already in the
+  environment, which quietly turns off claude.ai connectors (Gmail, Calendar); `status()` counts that key as logged in.
+- **Shell tool** (`server/tools.ts`, `run_command`): always runs `powershell`, so Windows PowerShell 5.1 even when 7 is
+  installed, and on macOS or Linux the program usually doesn't exist (`pwsh` is the cross-platform name).
+- **X and the Outbox:** `buildSystemPrompt` says X posts wait in the Outbox, which isn't true with auto-post on; with
+  auto-post on, replies go out at once although X requires approval for AI reply bots. The 280-character check counts
+  code points, not X's weighting (CJK and emoji count 2, a link 23). The tool descriptions don't mention X's 2026 API
+  limits (replies only to posts that mention or quote the account; quote posts gone for self-serve apps). Images go up
+  without alt text.
+- **Reddit:** `reddit_draft_post` uses a `note` it doesn't declare; drafts can't set a flair or the Brand Affiliate tag;
+  no tool reads a subreddit's rules or sidebar.
+- **ffmpeg and ImageMagick tools:** the ffmpeg description says "Always pass -y", which can overwrite an original under
+  another path (suggest "-n, or -y only for files you made"). Both tools run in the server's working folder, so
+  relative paths and two-pass logs land there, which is read-only in the desktop app.
+- **Tool images:** past 6 per call or 5 MB each they're dropped without notice; engines other than Claude Code have no
+  tool to look at an image file.
+- **MCP** (`server/mcp.ts`): the client speaks the 2025 protocol; a stdio server's error output is thrown away; listing
+  tools gives up after 60 s and a call after 10 minutes whatever progress it reports; any Streamable HTTP failure (a
+  401 included) falls back to SSE and only the SSE error is shown, and the first client isn't closed. The page is called
+  "MCP servers" in Settings but "Tools & MCP" on its own title, the Home checklist and the Station link.
+- **Voxel world** (`server/voxel/tools.ts`): the ownership checks don't cover redefining a shared material, rebuilding a
+  prefab others placed, or republishing over someone else's library prefab.
+- **Smaller:** `save_artifact` says results appear "in the Outbox page under Artifacts" (it's its own page); the Brave
+  search preset says its key is free (Brave reportedly moved to credits in 2026).
+- **Bundled skills** (copied unchanged, so worth reporting upstream): Hermes's `xlsx` converter saves text starting
+  with `=` as a live formula even with `--no-infer`, and its type guessing drops leading zeros; several Hermes skills
+  (`spike`, `reddit-reading`, `grounded-citations`, `youtube-content`, `obsidian`) assume Hermes's own tools or paths.
+
+## Status (4 November, earlier)
 
 - **Step 1 is in:** `library/athena-agents/` with its standard, the record of where each old file went, and the format
   checks in `tests/server/library.test.ts`.

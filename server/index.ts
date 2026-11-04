@@ -860,17 +860,16 @@ del('/api/presets/:id', async ({ id }) => (presets.deletePreset(id), { ok: true 
 post<{ withAgents?: unknown } | null>('/api/workflows/:id/clone', async ({ id }, body) => presets.cloneTeam(id, { withAgents: !!body?.withAgents }));
 
 // ---------- library ----------
-get('/api/library', async () => ({ ...(await library.libraryIndex()), starters: library.STARTERS.map(({ name, emoji, specialty }) => ({ name, emoji, specialty })) }));
-get('/api/library/agency/:slug', async ({ slug }) => {
-  const a = need(library.agencyAgents().find((x) => x.slug === slug));
-  return { ...a, body: fs.readFileSync(a.file, 'utf8') };
+get('/api/library', async () => library.libraryIndex());
+get('/api/library/agent/:slug', async ({ slug }) => {
+  const { file, ...a } = need(library.libraryAgents().find((x) => x.slug === slug));
+  return { ...a, body: fs.readFileSync(file, 'utf8') };
 });
-post<{ source?: string; slug: string; profile: string; name: string; overrides?: Partial<Agent> }>('/api/library/hire', async (_p, body) => {
+post<{ source?: string; slug: string; profile: string; overrides?: Partial<Agent> }>('/api/library/hire', async (_p, body) => {
   const o = body.overrides || {};
-  if (body.source === 'agency') return library.hireFromAgency(body.slug, o);
+  if (body.source === 'library') return library.hireFromLibrary(body.slug, o);
   if (body.source === 'hermes') return library.hireHermesProfile(body.profile, o);
   if (body.source === 'claude') return library.importClaudeSubagent(body.slug);
-  if (body.source === 'starter') return library.createStarter(body.name, o);
   throw new HttpError(400, 'Unknown library source');
 });
 

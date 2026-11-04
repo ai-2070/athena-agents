@@ -87,7 +87,7 @@ describe('the agents list', () => {
 });
 
 describe('the overview: kinds of agents and their models', () => {
-  const lib = (id: string, name: string, division: string, extra: Partial<Agent> = {}) => ({ ...base, id, name, specialty: '', engine: 'claude-code', autonomy: 'auto', source: { type: 'agency', division }, ...extra }) as unknown as Agent;
+  const lib = (id: string, name: string, division: string, extra: Partial<Agent> = {}) => ({ ...base, id, name, specialty: '', engine: 'claude-code', autonomy: 'auto', source: { type: 'library', division }, ...extra }) as unknown as Agent;
   const cardNames = () => [...el.querySelectorAll('.card-title')].map((t) => t.textContent);
   beforeEach(() => {
     state.data!.agents = [writer, coder, lib('a3', 'Seller', 'sales'), lib('a4', 'Seller 2', 'sales', { model: 'opus' }), lib('a5', 'Mapper', 'gis')];

@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { GET, POST, attempt, ago, navigate, approvalCard } from '../core.ts';
 import { Avatar, DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
-import type { ActivityEntry, AppState, Chat } from '../../shared/types.ts';
+import type { ActivityEntry, AppState, Chat, LibraryAgentListing } from '../../shared/types.ts';
 import { appIconStyle, appIconUrl } from '../appicons.ts';
 
 /** One entry of GET /api/programs (only the fields this page reads). */
@@ -20,9 +20,9 @@ interface ProgramInfo {
   serviceUrl: string | null;
   version: string | null;
 }
-/** GET /api/library: only the starters are used here. */
+/** GET /api/library: only which agents are the starter team is used here. */
 interface LibraryStarters {
-  starters?: { name: string }[];
+  agents?: Pick<LibraryAgentListing, 'slug' | 'starter'>[];
 }
 
 const SERVICES = ['comfyui', 'lmstudio', 'ollama', 'netdesk', 'orca', 'blender', 'premiere', 'photoshop'];
@@ -237,16 +237,16 @@ function QuickTask({ d }: { d: AppState }) {
 
 function Onboarding({ d }: { d: AppState }) {
   const [adding, setAdding] = useState(false);
-  // One click: Coordinator, X Writer, Image Maker, 3D Artist, Video Editor, Researcher.
+  // One click: the library's agents marked starter (Coordinator, X Writer, Image Maker, Researcher…).
   const addStarterTeam = async () => {
     setAdding(true);
     const lib = await GET<LibraryStarters>('/library').catch(() => null);
-    for (const s of lib?.starters || []) await attempt(() => POST('/library/hire', { source: 'starter', name: s.name }));
+    for (const a of (lib?.agents || []).filter((x) => x.starter)) await attempt(() => POST('/library/hire', { source: 'library', slug: a.slug }));
     navigate('#/agents');
   };
   const steps = [
     { done: d.engines['claude-code'].installed || (d.secrets.openrouterKey.set || !!d.secrets.veniceKey?.set), text: 'Pick how agents think: use Claude Code on this PC, or add an OpenRouter or Venice key for API models.', href: '#/settings', cta: 'Settings' },
-    { done: false, text: 'Add agents: start with ready-made ones, or hire specialists from the library of 270+.', href: '#/library', cta: 'Open library' },
+    { done: false, text: 'Add agents: start with the Athena team, or hire specialists from the Agent library.', href: '#/library', cta: 'Open library' },
     { done: d.accounts.x.length > 0, text: 'Connect your X account so agents can draft posts for you to approve.', href: '#/settings?tab=connections', cta: 'Connections' },
     { done: false, text: 'Give agents more abilities: browser control, files, GitHub and any MCP server.', href: '#/settings?tab=mcp', cta: 'Tools & MCP' },
   ];

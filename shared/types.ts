@@ -373,8 +373,9 @@ export interface RunBilling {
 
 // ---------- agents ----------
 export interface AgentSource {
-  type: 'custom' | 'agency' | 'starter' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
+  type: 'custom' | 'library' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
   slug?: string;
+  /** a library hire's group (older hires: their old library's division) */
   division?: string;
   preset?: string;
   profile?: string;
@@ -1425,6 +1426,27 @@ export interface PresetListing {
   lead: string | null;
   skills: string[];
   savedAt: number;
+}
+
+/** One of the Agent library's agents (library/athena-agents), as GET /api/library lists it: not hired yet. */
+export interface LibraryAgentListing {
+  slug: string;
+  name: string;
+  description: string;
+  emoji: string;
+  color: string;
+  specialty: string;
+  /** its group's id and label (groups.json) */
+  group: string;
+  groupLabel: string;
+  /** the tool groups it starts with */
+  tools: string[];
+  /** the skills it starts with */
+  skills: string[];
+  /** '' unless it needs one engine */
+  engine: string;
+  /** one of the starter team the Home page adds in one click */
+  starter: boolean;
 }
 
 // ---------- versions (skills, agents, teams) ----------

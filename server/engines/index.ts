@@ -363,6 +363,9 @@ function clearMemory(chat: Chat): void {
   delete chat.context;
 }
 
+/** Added after the instructions of an agent hired from the Agent library (and no other): its role is a starting point. */
+export const LIBRARY_ROLE_LINE = "Your role is where you are strongest, not a limit: take on nearby work you can do well with the tools you have, and when the work needs a tool you don't have, ask for it with request_tool.";
+
 export function buildSystemPrompt(agent: Agent): string {
   // the day only: the instructions stay the same all day, so the provider's prompt cache can reuse them
   // and the chat after them (with the time in here, every message started a new cache)
@@ -372,6 +375,7 @@ export function buildSystemPrompt(agent: Agent): string {
   return [
     `You are ${agent.name}${agent.specialty ? `, ${agent.specialty}` : ''}.`,
     agent.systemPrompt || '',
+    agent.source?.type === 'library' ? LIBRARY_ROLE_LINE : '',
     knowledgeContext(agent),
     memoryContext(agent),
     worldPrompt(tools),

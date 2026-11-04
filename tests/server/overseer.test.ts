@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { applyActions, parseActions, withGoalTools } from '../../server/overseer.ts';
+import { applyActions, catalog, parseActions, withGoalTools } from '../../server/overseer.ts';
 import { agents, workflows, activeProject } from '../../server/store.ts';
-import { newAgent } from '../../server/library.ts';
+import { libraryAgents, newAgent } from '../../server/library.ts';
 import { ensureBrain } from '../../server/projects.ts';
 
 describe('parseActions()', () => {
@@ -231,10 +231,33 @@ describe("a team's tools follow its work", () => {
   });
 });
 
-describe('the Athena agents', () => {
-  it("our coordinator isn't named like the Agency's Chief of Staff", async () => {
-    const { STARTERS } = await import('../../server/library.ts');
-    expect(STARTERS.map((x) => x.name)).toContain('Coordinator');
-    expect(STARTERS.map((x) => x.name)).not.toContain('Chief of Staff');
+describe('the Brain and the Agent library', () => {
+  it('sees every library agent, one line each: slug | name | what it does', () => {
+    const lines = catalog().split('\n');
+    expect(lines[0]).toContain('{"library":"<slug>"}');
+    expect(lines.slice(1)).toEqual(libraryAgents().map((a) => `${a.slug} | ${a.name} | ${a.specialty}`));
+    expect(catalog()).not.toMatch(/starter|ATHENA AGENTS/);
+  });
+
+  it('{"library": slug} hires that agent once, and asking again uses the one it hired', () => {
+    const pick = libraryAgents()[0];
+    // hired from an older library: not the same agent, so it isn't reused
+    newAgent({ name: pick.name, source: { type: 'agency', slug: pick.slug, division: pick.group } });
+    const before = agents.list().length;
+    const first = applyActions([{ do: 'hire', members: [{ library: pick.slug }] }]);
+    expect(first.done.map((d) => d.kind)).toEqual(['hired']);
+    expect(agents.list().length).toBe(before + 1);
+    const hired = agents.list().filter((a) => a.source?.type === 'library' && a.source.slug === pick.slug);
+    expect(hired).toHaveLength(1);
+    const again = applyActions([{ do: 'create_team', name: 'Library crew', members: [{ library: pick.slug }] }]);
+    expect(again.done.map((d) => d.kind)).toEqual(['team']);
+    expect(agents.list().length).toBe(before + 1);
+    expect(workflows.list().find((w) => w.name === 'Library crew')!.members).toEqual([hired[0].id]);
+  });
+
+  it('hires nobody for a slug the library does not have', () => {
+    const before = agents.list().length;
+    applyActions([{ do: 'hire', members: [{ library: 'no-such-agent' }] }]);
+    expect(agents.list().length).toBe(before);
   });
 });
