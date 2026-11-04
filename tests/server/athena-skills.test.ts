@@ -128,6 +128,8 @@ describe.each(ids)('the skill %s', (id) => {
       if (!f.endsWith('.md')) continue;
       expect(text, `${f}: a Hermes tool`).not.toMatch(HERMES_TOOL);
       for (const gone of GONE) expect(text, `${f}: names the skill ${gone}, which doesn't ship`).not.toContain(`\`${gone}\``);
+      // a planned skill that isn't written yet doesn't ship either
+      for (const later of planned.filter((p) => !ids.includes(p))) expect(text, `${f}: names ${later}, which isn't written yet`).not.toContain(`\`${later}\``);
       // ids written as `read_skill name="…"` must exist
       for (const m of text.matchAll(/read_skill\s+name="([^"]+)"/g)) expect(shipped.has(m[1]), `${f}: no skill ${m[1]}`).toBe(true);
     }

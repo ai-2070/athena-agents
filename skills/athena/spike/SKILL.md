@@ -10,8 +10,8 @@ least that answers honestly, pushes past the easy case, and closes each spike wi
 real build. Finding out that an idea fails is a good result, learned at the cheapest moment.
 
 Not every question needs one. If the docs or the code would settle it, read them. How something should look or feel is
-a job for `sketch` (throwaway design mockups), and when the doubt is what to build rather than whether it can work,
-`grill-me` questions the plan first.
+a job for a design mockup (`figcraft` makes ones the user can keep editing), and when the doubt is what to build
+rather than whether it can work, `grill-me` questions the plan first.
 
 ## Before you start
 

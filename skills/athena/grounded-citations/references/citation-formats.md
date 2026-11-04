@@ -17,7 +17,7 @@ plain link in the sentence instead.
 
 ## A Markdown file or a wiki page
 
-`render --in-place` as in SKILL.md. A set of pages (`llm-wiki`, an `obsidian` vault) shares one sources list for the
+`render --in-place` as in SKILL.md. A set of pages (`llm-wiki`, an Obsidian vault) shares one sources list for the
 whole set, so [7] is the same source on every page: render each page on its own and it lists only the numbers that
 page cites. Don't start a new list per page.
 

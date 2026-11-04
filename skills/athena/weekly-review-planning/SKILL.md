@@ -14,8 +14,8 @@ with its reason. Nothing in the user's calendar, task tools or mail changes unti
 - **Where things live.** The first time, ask which calendars, task lists, notes, mailboxes and chats the user keeps,
   and which list counts when two disagree; keep the answer and this review's date in your memory, so the next review
   starts from them. Reach each through what you have: a server on the dashboard's MCP page (Todoist, Linear, Notion,
-  ClickUp, Jira, Himalaya for an IMAP mailbox), an account connector (`oo`, `composio`) or one the engine brings, the
-  dashboard's Tasks board (the Brain reads it), notes in the workspace (`obsidian` for a vault), and mail via `email`.
+  ClickUp, Jira), an account connector (`oo`, `composio`) or one the engine brings, the dashboard's Tasks board (the
+  Brain reads it), notes in the workspace or an Obsidian vault, and mail via `email`.
 - **What you can't reach** stays out of the plan, and the page says so. Adding a server or signing in is the user's
   call: ask, or have them paste the week's events or an exported calendar instead.
 - **The window.** Since the last review (or the past seven days) and the next one to two weeks, in the user's time zone

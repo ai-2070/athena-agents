@@ -26,7 +26,7 @@ the user can open in Obsidian or any Markdown viewer.
   it isn't there, ask for the path rather than search the home folder.
 - **The check script** needs Python 3.10 or newer and nothing else. Run it in a shell as
   `python <skill folder>/scripts/wiki_lint.py …` (`py` on Windows if `python` isn't found).
-- To read the wiki as an Obsidian vault, sync it to other devices, or set Obsidian up for it, see `obsidian`.
+- The wiki is plain Markdown with `[[wikilinks]]`, so Obsidian opens its folder as a vault as it is.
 
 ## How it's laid out
 
