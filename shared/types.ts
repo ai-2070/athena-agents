@@ -468,6 +468,19 @@ export interface GatewayIncomingFile {
   reason?: string;
 }
 
+/** Private ownership of upload scratch files, recorded before streaming any bytes. */
+export interface GatewayUploadReservation {
+  version: 1;
+  instanceId: string;
+  projectId: string;
+  eventId: string;
+  batch: string;
+  root: string;
+  createdAt: number;
+  target: { name: string; dev: number; ino: number; birthtimeMs: number };
+  temporary: { name: string; dev: number; ino: number; birthtimeMs: number };
+}
+
 /** One atomic receipt includes its binding and route; transport acknowledgement follows this write. */
 export interface GatewayInboxJournal {
   version: 1;

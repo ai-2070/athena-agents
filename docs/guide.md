@@ -573,7 +573,20 @@ the removed connection blocked. Removal must be complete first, and another proc
 account or private state blocks the change. SDK state and saved credentials are not read or rewritten.
 Late gateway callbacks cannot reopen closed delivery or tracking. Queued requests, edits and album
 members keep their saved evidence without a local-finish action. Manual delivery confirmations for
-removed instances and temporary-media retention remain planned.
+removed instances remain planned.
+
+New gateway downloads record their temporary files privately before saving any bytes. After removal
+finishes, Athena waits at least 24 hours, then checks at startup and hourly for leftover partial files,
+empty name reservations and uploads interrupted before their saved receipt. It removes only files
+whose original project, batch and file identity still match those records. Files edited after removal,
+replacement files, links, unknown files and older uploads without ownership records stay untouched.
+Missing projects or unreadable ownership/inbox records also prevent cleanup; recover the records
+before a later check. Another process owning the gateway account or state blocks that check.
+
+Saved attachments stay in their project, including files on held or failed requests. Selected outgoing
+files, chat history, replay/quota markers and delivery receipts remain. This policy clears temporary
+leftovers. SDK state and credentials are not
+opened by this cleanup. Filesystems without usable file identities keep their leftovers for recovery.
 
 The sidebar's **Status** panel shows gateway connection state and messages needing review. Click an
 instance needing review to open its inbox, or a connection warning to open its setup. Its tooltip names

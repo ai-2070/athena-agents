@@ -1093,8 +1093,31 @@ New gateway data does not need a legacy compatibility layer.*
   overflow was not established. Only the shown local states have visual approval.
 - Final validation: `CI=1 bun run check` passed (277 files; 2,786 tests passed, one skipped).
   The web build, desktop staging and bundled desktop smoke passed.
-- Next: finish temporary-media retention, then
-  remaining delivery/product controls and proactive platform coverage under the same approval policy.
+- Added private per-transfer ownership records before any gateway upload source bytes are written.
+  Both the empty reserved destination and temporary file record their device, inode and birth time,
+  alongside the original project, batch and source receipt. A failed proof write cancels saving before
+  streaming. Successful receipt commits release their proof; an interrupted release stays recoverable.
+  At 10,000 retained ownership entries, new saves stop before streaming; larger or corrupt stores
+  require recovery instead of dropping old ownership evidence.
+- Removed instances receive a 24-hour grace period after completed removal. Startup and hourly
+  checks acquire account/state ownership, recheck removal identity and validate ownership/inbox
+  evidence before deleting scratch. Only matching old regular files can be removed, including a
+  renamed upload without its receipt. Saved incoming files (even failed/held), selected outgoing
+  files, files edited after removal, replacements, links, unknown files and legacy batches without
+  proof remain intact.
+  Missing/moved projects, changed source/batch proof, unusable file identities and corrupt records
+  retain bytes. A blocked instance does not prevent other instances from completing their checks.
+- Cleanup does not instantiate SDK state, read credentials, start work or contact a provider. It never
+  rewrites native inputs, replay/quota markers, saved attachment records or Outbox evidence. Failed
+  unlinks keep the ownership record for an idempotent later retry. Shutdown cancels the hourly timer.
+- Added coverage for grace periods, partial/rename crashes, saved and unproven files, original-project
+  startup, replacements and symlinks, ownership conflicts and removal races, corrupt records, failed
+  proof writes/unlinks, broken SDK/credential storage and timer shutdown. No UI changed in this slice.
+- Final validation: focused checks passed (4 files; 58 tests). `CI=1 bun run check` passed
+  (278 files; 2,806 tests passed, one skipped). An earlier full run hit the existing ownership-port
+  collision during Discord fixture setup; the unchanged 78-test Discord file and full rerun passed.
+  The web build, desktop staging and bundled desktop smoke passed.
+- Next: remaining delivery/product controls and proactive platform coverage under the same approval policy.
   Real-account checks on all four platforms and Windows/Linux verification remain outstanding.
   Offline checks run in CI.
 

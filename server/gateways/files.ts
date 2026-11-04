@@ -8,6 +8,7 @@ import { insideRoots } from '../util.ts';
 import { withGatewayRoute } from './instances.ts';
 import type { GatewayInbox } from './inbox.ts';
 import { GatewayFileLimitError } from './inbox.ts';
+import { recordGatewayUploadReservation } from './media-retention.ts';
 
 export interface GatewayDownloadSource {
   source: AsyncIterable<Uint8Array>;
@@ -122,9 +123,12 @@ export class GatewayFileProcessor {
             const fallback = media.kind === 'image' ? 'image.jpg' : media.kind === 'audio' ? 'audio.ogg' : media.kind === 'video' ? 'video.mp4' : 'file.bin';
             const name = uploads.cleanName(media.name || fallback) || fallback;
             this.inbox.checkAccess(event);
-            const saved = await uploads.receiveSource(source.source, event.fileBatch!, `${file.index + 1}-${name}`, { maxBytes: attempt.budget, declaredBytes: source.declaredBytes, signal: this.signal });
+            let releaseReservation: (() => void) | undefined;
+            const saved = await uploads.receiveSource(source.source, event.fileBatch!, `${file.index + 1}-${name}`, { maxBytes: attempt.budget, declaredBytes: source.declaredBytes, signal: this.signal,
+              reserved: (target, temporary) => { releaseReservation = recordGatewayUploadReservation(event, target, temporary); } });
             const hash = await hashFile(saved.path, this.signal);
             this.inbox.finishTransfer(event.id, file.index, attempt.id, saved, hash);
+            try { releaseReservation?.(); } catch { /* A saved receipt protects its file if proof cleanup must wait. */ }
           } finally { await source.cancel?.().catch(() => {}); }
         } catch (error) {
           const limit = error instanceof GatewayFileLimitError || (error instanceof Error && 'status' in error && error.status === 413);

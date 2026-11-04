@@ -15,6 +15,7 @@ import { GatewayOutboxLedger, reviewRetiredGatewayOutbox } from './outbox.ts';
 import { checkGatewayPostDelivery } from './outbox-posts.ts';
 import { privateDataPath } from '../private.ts';
 import type { GatewayRetiredFinishReview } from '../../shared/types.ts';
+import { cleanRetiredGatewayMedia, GATEWAY_MEDIA_RETENTION_MS } from './media-retention.ts';
 
 /** Settings changes restart only their instance; transport failures never expose raw SDK errors. */
 export class GatewaySupervisor {
@@ -25,6 +26,7 @@ export class GatewaySupervisor {
   private pending: Promise<void> = Promise.resolve();
   private closed = false;
   private listening = false;
+  private mediaTimer: ReturnType<typeof setInterval> | undefined;
   private readonly worker: (instanceId: string, health: (value: GatewayHealth) => void) => GatewayWorker;
 
   constructor(worker = (instanceId: string, health: (value: GatewayHealth) => void) => new GatewayWorker(instanceId, { health })) {
@@ -301,7 +303,11 @@ export class GatewaySupervisor {
 
   start(): Promise<void> {
     if (this.closed) return Promise.resolve();
-    if (!this.listening) { bus.on('event', this.changed); this.listening = true; }
+    if (!this.listening) {
+      bus.on('event', this.changed); this.listening = true;
+      this.mediaTimer = setInterval(() => { void this.cleanRetiredMedia(); }, 60 * 60 * 1000);
+      this.mediaTimer.unref();
+    }
     let retired: string[] = [];
     try {
       retired = gatewayRetirementIds().filter((id) => {
@@ -309,7 +315,23 @@ export class GatewaySupervisor {
         catch { return false; } // Keep a broken record blocked without delaying another instance's removal.
       });
     } catch { /* An unreadable directory cannot safely resume pending removals. */ }
-    return Promise.allSettled([...retired.map((id) => this.removeInstance(id)), ...listGatewayInstances().map((instance) => this.reconnect(instance.id))]).then(() => {});
+    return Promise.allSettled([...retired.map((id) => this.removeInstance(id)), ...listGatewayInstances().map((instance) => this.reconnect(instance.id))]).then(() => this.cleanRetiredMedia()).then(() => {});
+  }
+
+  /** Retry local scratch cleanup on startup and hourly; one blocked instance cannot delay the rest. */
+  async cleanRetiredMedia(): Promise<{ removed: number; blocked: number }> {
+    let ids: string[];
+    try { ids = gatewayRetirementIds(); } catch { return { removed: 0, blocked: 1 }; }
+    let removed = 0; let blocked = 0;
+    for (const id of ids) {
+      if (this.closed) break;
+      try {
+        const retired = gatewayRetirement(id);
+        if (retired?.completedAt === undefined || Date.now() - retired.completedAt < GATEWAY_MEDIA_RETENTION_MS) continue;
+        removed += (await this.retiredReviewTask(id, () => cleanRetiredGatewayMedia(id))).removed;
+      } catch { blocked++; }
+    }
+    return { removed, blocked };
   }
 
   removeInstance(instanceId: string): Promise<void> {
@@ -398,6 +420,7 @@ export class GatewaySupervisor {
 
   async stop(): Promise<void> {
     this.closed = true;
+    clearInterval(this.mediaTimer); this.mediaTimer = undefined;
     bus.off('event', this.changed);
     await this.pending;
     await Promise.all([...this.workers.values()].map((worker) => worker.stop()));
