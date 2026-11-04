@@ -1,0 +1,57 @@
+skills/athena/maps/references/services.md
+  s_09ac87e46cf718::t_2bcd3f18058afc 1-98
+  s_09ac87e46cf718::t_8bd9389ad87d35 99-100
+tests/skills/maps/test_maps_tool.py
+  s_09ac87e46cf718::t_3d833fefb9d3a3 1-462
+tests/skills/maps/conftest.py
+  s_09ac87e46cf718::t_70ae9b15b677ed 50
+  s_09ac87e46cf718::t_191f0a08fb6686 1-49,51-84,91-166
+  s_09ac87e46cf718::t_6ce9708d51dd81 85-90
+skills/athena/maps/SKILL.md
+  s_09ac87e46cf718::t_4292eed10a2880 1-129
+  s_09ac87e46cf718::t_d954490a57134e 130-131
+skills/athena/maps/scripts/maps_tool.py
+  s_09ac87e46cf718::t_3d32e895a31a18 1-1076
+  s_09ac87e46cf718::t_4032707ed2281b 1077-1102
+skills/athena/maps/references/categories.md
+  s_09ac87e46cf718::t_d7ecedb80c8e06 1-138
+  s_09ac87e46cf718::t_d21a14d4684c80 139-141
+tests/skills/maps/responses/nominatim_reverse_eiffel_tower.json
+  s_09ac87e46cf718::t_ef77b2d909c367 1-35
+tests/skills/maps/responses/nominatim_reverse_open_sea.json
+  s_09ac87e46cf718::t_ee89bba6d47c84 1-3
+tests/skills/maps/responses/nominatim_search_eiffel_tower.json
+  s_09ac87e46cf718::t_f3ac7358bbef1f 1-68
+tests/skills/maps/responses/nominatim_search_tokyo_station.json
+  s_09ac87e46cf718::t_233e342134758b 1-33
+tests/skills/maps/responses/osrm_bike_eiffel_tower_to_louvre.json
+  s_09ac87e46cf718::t_8403137b16ac08 1-292
+tests/skills/maps/responses/osrm_car_eiffel_tower_to_louvre.json
+  s_09ac87e46cf718::t_fe6091f969dccd 1-311
+tests/skills/maps/responses/osrm_foot_eiffel_tower_to_louvre.json
+  s_09ac87e46cf718::t_0ad111020d1a4c 1-1156
+tests/skills/maps/responses/osrm_noroute.json
+  s_09ac87e46cf718::t_11f5eb81473ea0 1-4
+tests/skills/maps/responses/overpass_churches_paris.json
+  s_09ac87e46cf718::t_7ae16baf54682a 1-140
+tests/skills/maps/responses/overpass_pharmacies_tokyo.json
+  s_09ac87e46cf718::t_2a3b0630ba72ff 1-111
+tests/skills/requirements.txt
+  s_09ac87e46cf718::t_b7248ddcb8be81 21-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "624f78ce07e5b7310d6021d873ed8cdc15c25319",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
