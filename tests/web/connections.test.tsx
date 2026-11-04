@@ -107,6 +107,12 @@ describe('the Outbox', () => {
     expect(el.textContent).toContain('Waiting for you (0)');
   });
 
+  it("shows each image's alt text, and the file name when there is none", async () => {
+    posts = [post({ imageAlt: { 'C:\\out\\a.png': 'A red bike against a wall' } })];
+    await openOutbox();
+    expect([...el.querySelectorAll('img')].map((i) => i.getAttribute('alt'))).toEqual(['A red bike against a wall', 'b.png']);
+  });
+
   it('sends a draft back to its team with your note', async () => {
     await openOutbox();
     const discuss = btn(el, 'Discuss with team');

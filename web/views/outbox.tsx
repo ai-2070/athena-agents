@@ -214,7 +214,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
             return (
               <div key={f} className="flex flex-col gap-1.5">
                 <div className="relative">
-                  <img className="max-h-30 max-w-45 rounded-[8px] block" src={url} alt={name} title={f} />
+                  <img className="max-h-30 max-w-45 rounded-[8px] block" src={url} alt={p.imageAlt?.[f] || name} title={p.imageAlt?.[f] || f} />
                   {editable ? (
                     <Button variant="ghost" size="tiny" className="absolute top-1 right-1" title="Take this image off the post" aria-label={`Take ${name} off the post`} onClick={() => setImages(images.filter((x) => x !== f))}>
                       ✕
