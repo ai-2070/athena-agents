@@ -16,9 +16,9 @@ import { icon } from '../icons.ts';
 import { Dot } from '../ui/marks.tsx';
 
 import { TaskPanel } from '../tasks.tsx';
-import { Dom, MessageView, isRichCode } from './parts.tsx';
+import { Dom, Handoffs, MessageView, isRichCode } from './parts.tsx';
 import type { Variant } from './parts.tsx';
-import { beforeTurn, searchText, toUIMessages, userParts } from './messages.ts';
+import { beforeTurn, handoffMap, handoffsIn, searchText, toUIMessages, userParts } from './messages.ts';
 import { WINDOW_FROM, Windowed } from './window.tsx';
 import { useFind } from '../ui/find.tsx';
 import { Button } from '../ui/button.tsx';
@@ -584,6 +584,9 @@ export function ChatView(p: ChatViewProps) {
   const windowed = variant !== 'mini' && shown.length >= WINDOW_FROM;
   const lastId = messages[messages.length - 1]?.id;
   const owner = useMemo(() => ({ agentId: agent.id, chatId }), [agent.id, chatId]);
+  // (await_agent shows the agent its handle went to: the same map while words stream in)
+  const handoffKey = handoffsIn(messages);
+  const handoffs = useMemo(() => handoffMap(handoffKey), [handoffKey]);
   const row = (m: ChatMessage) => {
     return (
       <MessageView
@@ -765,6 +768,7 @@ export function ChatView(p: ChatViewProps) {
 
   return (
     <ChatProject.Provider value={p.projectId}>
+      <Handoffs.Provider value={handoffs}>
       {find}
       {variant !== 'mini' && <div className={compact ? '' : 'px-10 max-md:px-4'}><TaskPanel view={`agent:${agent.id}`} scope={{ kind: 'agent', id: agent.id }} chatId={chatId || undefined} projectId={p.projectId} /></div>}
       <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto py-2' : compact ? 'ac-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-14px),transparent_100%)] flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pt-1 pb-2' : 'messages'} onScroll={onScroll}>
@@ -856,6 +860,7 @@ export function ChatView(p: ChatViewProps) {
           </div>
         </div>
       )}
+      </Handoffs.Provider>
     </ChatProject.Provider>
   );
 }

@@ -71,6 +71,6 @@ describe('commandChips()', () => {
     commandChips(el, { loop: null, goal: null, onStopLoop, onClearGoal });
     expect(el.classList.contains('hidden')).toBe(true);
     expect(loopLine({ text: '', every: null, times: 5, done: 1, next: null })).toBe('after each answer · 1 of 5 sent');
-    expect(goalLine({ followUps: 0 } as BrainBrief)).toBe('the Brain checks the work after each turn');
+    expect(goalLine({ followUps: 0 } as BrainBrief)).toBe('The Brain checks the work after each turn.');
   });
 });

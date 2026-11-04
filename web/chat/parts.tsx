@@ -2,7 +2,7 @@
 // markdown (or a Rich answer as live components), tool calls you can open (input, result, images),
 // file previews with Show in Explorer / Finder, and our own rows (COMPACTED marks, errors, notes).
 // Sizes: full (the chat page), compact (the floating window), mini (the Station panel, team turns).
-import { Component, Suspense, lazy, memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Component, Suspense, createContext, lazy, memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { DynamicToolUIPart } from 'ai';
 import { md, lightbox } from '../core.ts';
@@ -10,10 +10,12 @@ import { Dot } from '../ui/marks.tsx';
 import { compactionMark } from '../compactmark.ts';
 import { filePreviews } from '../filepreview.tsx';
 import { findFileMentions } from '../mentions.ts';
-import { readOutput, readUser } from './messages.ts';
+import { readOutput, readUser, toolBase } from './messages.ts';
 import { ChatProject } from './project.ts';
 import { fileSrc } from '../client/connection.ts';
-import { useAppState } from '../ui/react.tsx';
+import { Avatar, useAppState } from '../ui/react.tsx';
+import { useProjectAgents } from '../projectagents.ts';
+import { findAgent } from '../../shared/agentref.ts';
 import { QuestionCard, projectQuestions, questionFor } from '../questions.tsx';
 import type { QuestionOwner } from '../questions.tsx';
 import type { ChatMessage, ChatPart } from './messages.ts';
@@ -108,6 +110,53 @@ const brief = (input: unknown): string =>
 // the tool calls you opened: a long chat draws a message again when you scroll back to it, still open
 const openTools = new Set<string>();
 
+/** Who each ask_agent handle in the chat went to (handle → agent), for await_agent (handoffsIn in messages.ts). */
+export const Handoffs = createContext<ReadonlyMap<string, string>>(new Map());
+
+/** An agent a tool call is about: its icon and name (as named, when it can't be found). */
+function AgentTag({ name }: { name: string }) {
+  const project = useContext(ChatProject);
+  const ours = useAppState()?.agents;
+  const theirs = useProjectAgents(project);
+  const found = findAgent((project ? theirs : ours) || [], name);
+  const agent = 'agent' in found ? found.agent : null;
+  return (
+    <span className="tool-agent inline-flex min-w-0 items-center gap-1.5 align-middle font-sans text-dim [&_.avatar]:size-4.5 [&_.avatar]:rounded-[5px] [&_.avatar]:text-[10px]">
+      {agent ? <Avatar agent={agent} /> : null}
+      <span className="truncate">{agent?.name || name.replace(/\s*\[[^\]]+\]$/, '')}</span>
+    </span>
+  );
+}
+
+/** The summary's text after the tool's name: the agents for ask_agent and await_agent, else what it was about. */
+function ToolAbout({ part }: { part: DynamicToolUIPart }) {
+  const handoffs = useContext(Handoffs);
+  const base = toolBase(part.toolName);
+  const input = (part.input && typeof part.input === 'object' ? part.input : {}) as { agent?: unknown; message?: unknown; handle?: unknown; handles?: unknown };
+  if (base === 'ask_agent' && typeof input.agent === 'string' && input.agent.trim()) {
+    const message = typeof input.message === 'string' ? input.message.slice(0, 140) : '';
+    return (
+      <span className="targ">
+        <AgentTag name={input.agent} />
+        {message ? ` · ${message}` : null}
+      </span>
+    );
+  }
+  if (base === 'await_agent') {
+    const ids = Array.isArray(input.handles) && input.handles.length ? input.handles.map(String) : typeof input.handle === 'string' && input.handle ? [input.handle] : [];
+    const names = ids.map((id) => handoffs.get(id));
+    // (one it can't place, such as a handle from before a Clear memory: the handle, as before)
+    if (ids.length && names.every((n): n is string => !!n)) {
+      return (
+        <span className="targ inline-flex items-center gap-2.5">
+          {[...new Set(names)].map((n) => <AgentTag key={n} name={n} />)}
+        </span>
+      );
+    }
+  }
+  return <span className="targ">{brief(part.input)}</span>;
+}
+
 /** A tool call: its name and what it was about, opening to its input and result (and images below). */
 export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPart; variant: Variant; busy: boolean; owner?: QuestionOwner | null }) {
   const [open, setOpen] = useState(() => openTools.has(part.toolCallId));
@@ -148,7 +197,7 @@ export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPa
         <summary>
           {mark}
           <span className="tname">{part.toolName}</span>
-          <span className="targ">{brief(part.input)}</span>
+          <ToolAbout part={part} />
         </summary>
         <div className="tbody">
           <div className="label">Input</div>
