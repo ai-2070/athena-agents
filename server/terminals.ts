@@ -7,7 +7,7 @@ import { which, uid, IS_WIN, HOME } from './util.ts';
 import { activeProject, emit, log } from './store.ts';
 import { prepareFiles, claudeArgs, claudeEnv } from './engines/claude.ts';
 import { hermesArgs } from './engines/hermes.ts';
-import { codexArgs, terminalPromptFile } from './engines/codex.ts';
+import { codexLaunch, terminalPromptFile } from './engines/codex.ts';
 import { terminalArgs as piTerminalArgs, bridgeEnv } from './engines/pi.ts';
 import { openclawTerminalArgs } from './engines/openclaw.ts';
 import { buildSystemPrompt } from './engines/index.ts';
@@ -66,7 +66,9 @@ export function createTerminal({ kind = 'shell', agent = null, command = null, a
       argv = hermesArgs(agent, { interactive: true });
     } else if (agent.engine === 'codex') {
       cmd = 'codex';
-      argv = codexArgs(agent, { interactive: true, promptFile: terminalPromptFile(agent, buildSystemPrompt(agent)) });
+      const launch = codexLaunch(agent, { interactive: true, promptFile: terminalPromptFile(agent, buildSystemPrompt(agent)) });
+      argv = launch.args;
+      env = { ...process.env, ...launch.env };
     } else if (agent.engine === 'pi' || agent.engine === 'omp') {
       cmd = agent.engine;
       argv = piTerminalArgs(agent.engine, agent, buildSystemPrompt(agent));

@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type { ChatItem } from '../../shared/types.ts';
 import { newAgent } from '../../server/library.ts';
 import { saveServer } from '../../server/mcp.ts';
-import { codexArgs, terminalPromptFile } from '../../server/engines/codex.ts';
+import { internalToken } from '../../server/store.ts';
+import { dataPath } from '../../server/util.ts';
+import { codexArgs, codexLaunch, terminalPromptFile } from '../../server/engines/codex.ts';
 import { turnActivity } from '../../server/engines/index.ts';
 import { codexWindow } from '../../server/status.ts';
 
@@ -14,11 +16,42 @@ describe('codex args', () => {
   it('passes headers of HTTP MCP servers on as http_headers', () => {
     saveServer('gh', { type: 'http', url: 'https://example.com/mcp', headers: { Authorization: 'Bearer abc', 'X-Api-Key': 'k"1' } });
     saveServer('plain', { type: 'http', url: 'https://example.com/other' });
-    const c = overrides(codexArgs(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['gh', 'plain'] })));
+    // (an older Codex: it can't take them from its environment)
+    const c = overrides(codexArgs(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['gh', 'plain'] }), { version: '0.120.0' }));
     expect(c).toContain('mcp_servers.gh.url="https://example.com/mcp"');
     expect(c).toContain('mcp_servers.gh.http_headers={Authorization="Bearer abc",X-Api-Key="k\\"1"}');
     // no empty table for a server without headers
     expect(c.some((x) => x.startsWith('mcp_servers.plain.http_headers'))).toBe(false);
+  });
+
+  it("keeps the dashboard's token off the command line", () => {
+    const { args, env } = codexLaunch(newAgent({ name: 'Coder', engine: 'codex' }), { runId: 'r1', version: '0.120.0' });
+    const token = internalToken();
+    expect(args.join(' ')).not.toContain(token);
+    expect(Object.values(env)).not.toContain(token);
+    const bridge = overrides(args).find((x) => x.startsWith('mcp_servers.dashboard.env='))!;
+    expect(bridge).toContain(`DASH_DATA=${JSON.stringify(dataPath())}`);
+    expect(bridge).not.toContain('DASH_TOKEN');
+  });
+
+  it("puts MCP servers' keys in Codex's environment, hidden from the commands it runs", () => {
+    saveServer('gh', { type: 'http', url: 'https://example.com/mcp', headers: { Authorization: 'Bearer abc' } });
+    saveServer('local', { type: 'stdio', command: 'node', args: ['server.js'], env: { SERVICE_KEY: 's3cret' } });
+    const { args, env } = codexLaunch(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['gh', 'local'] }), { version: '0.166.0' });
+    expect(args.join(' ')).not.toMatch(/s3cret|Bearer abc/);
+    const c = overrides(args);
+    expect(c).toContain('mcp_servers.gh.env_http_headers={Authorization="ATHENA_MCP_SECRET_GH_0"}');
+    expect(c).toContain('mcp_servers.local.env_vars=["SERVICE_KEY"]');
+    expect(env).toEqual({ ATHENA_MCP_SECRET_GH_0: 'Bearer abc', SERVICE_KEY: 's3cret' });
+    expect(c).toContain('shell_environment_policy.exclude=["ATHENA_MCP_SECRET_GH_0","SERVICE_KEY"]');
+  });
+
+  it('keeps a variable two servers want with different values on the command line for the second', () => {
+    saveServer('one', { type: 'stdio', command: 'node', args: ['a.js'], env: { TOKEN_X: 'first' } });
+    saveServer('two', { type: 'stdio', command: 'node', args: ['b.js'], env: { TOKEN_X: 'second' } });
+    const { args, env } = codexLaunch(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['one', 'two'] }), { version: '0.166.0' });
+    expect(env.TOKEN_X).toBe('first');
+    expect(overrides(args)).toContain('mcp_servers.two.env={TOKEN_X="second"}');
   });
 
   it('points the interactive terminal at a file with the agent instructions', () => {
