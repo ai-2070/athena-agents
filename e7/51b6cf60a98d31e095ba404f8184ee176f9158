@@ -1,0 +1,22 @@
+tests/web/mcp.test.tsx
+  s_19012a1c42905e::t_dc9b73d4f62e70 123-130
+web/views/mcp.tsx
+  s_19012a1c42905e::t_9cfd15bcb421ff 16-17,20-25,27,296
+  s_19012a1c42905e::t_dc9b73d4f62e70 297
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e751b6cf60a98d31e095ba404f8184ee176f9158",
+  "prompts": {},
+  "sessions": {
+    "s_19012a1c42905e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db804380-52c8-4e69-862a-be2af3c5a544",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
