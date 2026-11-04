@@ -1,0 +1,497 @@
+tests/server/comfyui-run.test.ts
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-299
+tests/skills/rss-feeds/answers/reddit-thread.atom
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1
+skills/athena/xlsx/references/create-spec.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-160
+docs/guide.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 226,230,325,334
+tests/skills/stocks/responses/twelvedata_symbol_search.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-47
+skills/athena/email/references/himalaya.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-243
+tests/server/png.test.ts
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-42
+tests/skills/xlsx/test_shared.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-60
+tests/skills/arxiv/responses/search-and.xml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-115
+skills/athena/systematic-debugging/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-172
+skills/athena/docx/references/create-spec.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-105
+tests/skills/maps/responses/osrm_bike_eiffel_tower_to_louvre.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-292
+skills/athena/comfyui/references/first-inpaint.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-142
+tests/skills/maps/responses/osrm_foot_eiffel_tower_to_louvre.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-1156
+tests/skills/stocks/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-229
+server/tools.ts
+  s_3a4acb3c2ecc92::t_442b4c401ec0e8 439,455,465,469,474,477-480
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 441,462-464,472-473,475-476,481-484,489-504,506-507,509-514,1243-1244,1312
+  s_3a4acb3c2ecc92::t_cdbdcfd1058f3d 1245
+tests/skills/jupyter-notebook/test_kernel.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-395
+skills/athena/pdf/references/archival-and-security.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-106
+skills/athena/docx/references/revisions-and-comments.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-106
+tests/skills/arxiv/responses/id-mixed.xml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-78
+tests/skills/rss-feeds/test_feeds.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-441
+skills/athena/financial-models/scripts/soffice.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-333
+skills/athena/fastmcp/templates/database_server.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-157
+server/comfyui.ts
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 5-6,8,10,34-35,37-39,41-43,47-55,58-72,74-75,78,89,92,95-120,126,137-138,146-148,166-178,211-249,251-315,318-320,322-323,325-347,349-390,392-431,434-439,441-444,472-521,523-533,535-543,549,554-555,557-568,577,588-590,605,612-736,789-827
+skills/athena/financial-models/references/three-statement.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-143
+skills/athena/powerpoint/references/editing-internals.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-124
+tests/skills/powerpoint/test_pptx_deck.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-502
+tests/server/athena-skills.test.ts
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-159
+README.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 138
+skills/athena/pdf/references/forms.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-149
+tests/server/bundled-skills.test.ts
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 13,16-23,47-51,77-79,154-163
+skills/athena/email/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-139
+skills/athena/pdf/references/extraction-and-ocr.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-120
+tests/skills/llm-wiki/test_wiki_lint.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-248
+skills/athena/fastmcp/references/calling-servers.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-47
+skills/athena/github/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-146
+skills/athena/github/references/repos-and-releases.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-93
+tests/skills/pdf/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-105
+tests/server/shell-tool.test.ts
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 2-14,16-19,21-24,28-38
+  s_3a4acb3c2ecc92::t_7f633e03858e9a 1,15,20,25-27
+tests/skills/youtube-content/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-107
+skills/athena/llm-wiki/references/lint.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-96
+tests/skills/arxiv/responses/error-start.xml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-19
+tests/skills/stocks/responses/sec_submissions_CIK0000320193-submissions-001.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-82
+tests/skills/youtube-content/responses/player_bot_check.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-21
+skills/athena/docx/scripts/docx_tool.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-2256
+skills/athena/xlsx/scripts/soffice.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-333
+skills/athena/github/references/issues.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-77
+tests/skills/rss-feeds/answers/rdf.xml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-22
+skills/athena/maps/references/categories.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-141
+tests/web/connections.test.tsx
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 188-189
+tests/skills/stocks/test_market_data.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-402
+skills/athena/fastmcp/templates/api_wrapper.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-159
+skills/athena/grounded-citations/references/citation-formats.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-74
+skills/athena/financial-models/references/comps.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-109
+skills/athena/arxiv/scripts/arxiv_search.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-967
+skills/athena/arxiv/references/semantic-scholar.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-115
+skills/athena/comfyui/scripts/comfy_upload.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-330
+tests/skills/rss-feeds/answers/hnrss.xml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-16
+docs/internal/plans/HERMES_SKILLS_REWRITE_2026-11-04.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-471
+skills/athena/docker-management/references/dockerfile-review.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-154
+skills/athena/financial-models/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-199
+AGENTS.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 30-32,57
+skills/athena/decisions/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-131
+tests/skills/arxiv/responses/search-withdrawn.xml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-57
+skills/athena/github/references/ci-troubleshooting.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-80
+skills/athena/github/templates/pr-body-fix.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-28
+skills/athena/spike/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-132
+skills/athena/requesting-code-review/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-148
+skills/athena/comfyui/scripts/comfy_check.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-652
+tests/server/comfyui-convert.test.ts
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-214
+skills/athena/humanizer/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-168
+skills/athena/pdf/scripts/pdf_tool.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-1043
+skills/athena/systematic-debugging/references/repro-loops.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-102
+skills/athena/github/templates/issue.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-46
+tests/skills/arxiv/responses/s2-batch.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1
+skills/athena/docx/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-170
+tests/skills/comfyui/test_comfy_check.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-354
+skills/athena/github/references/issue-to-pr.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-81
+tests/skills/youtube-content/responses/player_asr_only.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-216
+tests/skills/pdf/test_pdf_create.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-165
+tests/skills/comfyui/responses/models.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-13
+skills/athena/jupyter-notebook/scripts/kernel.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-1007
+tests/skills/arxiv/responses/id-solv-int.xml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-30
+skills/athena/financial-models/references/filings.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-110
+tests/skills/arxiv/responses/id-versioned.xml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-47
+skills/athena/comfyui/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-191
+tests/skills/arxiv/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-236
+skills/athena/powerpoint/references/deck-spec.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-203
+skills/athena/github/templates/pr-body-change.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-29
+skills/athena/comfyui/references/workflow-format.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-150
+skills/athena/dogfood/references/issue-taxonomy.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-86
+skills/athena/github/references/pr-workflow.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-92
+tests/skills/stocks/responses/sec_companyconcept_CIK0001306965_ifrs-full_Revenue.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-65
+server/programs.ts
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 5,127-212,215-229,252-253,255,259-262
+tests/skills/docx/test_docx_tool.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-588
+tests/skills/financial-models/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-116
+tests/server/comfyui-desktop.test.ts
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-112
+tests/skills/arxiv/responses/bibtex-missing.bib
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1
+tests/skills/powerpoint/test_pptx_tool.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-206
+skills/athena/github/references/commit-messages.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-50
+tests/skills/arxiv/responses/id-old-hep-th.xml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-38
+tests/skills/stocks/responses/twelvedata_time_series.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-162
+tests/skills/powerpoint/test_shared.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-79
+tests/skills/arxiv/responses/s2-docs.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-280
+tests/skills/pdf/test_shared.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-107
+skills/athena/docx/scripts/soffice.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-333
+tests/skills/maps/responses/overpass_pharmacies_tokyo.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-111
+skills/athena/rest-graphql-debug/references/requests-by-shell.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-142
+skills/athena/requesting-code-review/references/gates-by-language.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-97
+skills/athena/powerpoint/scripts/pptx_deck.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-1946
+skills/athena/action-items/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-140
+skills/athena/test-driven-development/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-122
+skills/athena/github/references/auth.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-87
+tests/skills/xlsx/test_xlsx_tool.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-463
+skills/athena/pdf/scripts/pdf_forms.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-1345
+tests/skills/maps/responses/nominatim_reverse_open_sea.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-3
+tests/skills/comfyui/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-249
+tests/skills/requirements.txt
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-25
+tests/skills/arxiv/responses/bibtex-2402.03300.bib
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-9
+tests/skills/youtube-content/responses/player_no_captions.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-11
+tests/skills/pdf/test_pdf_forms.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-407
+skills/athena/maps/scripts/maps_tool.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-1102
+skills/athena/xlsx/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-171
+server/skills.ts
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 543-544,549-550,556,559-560,563,567,585-586,588,594-595
+  s_3a4acb3c2ecc92::t_0a951dad6ca753 596
+skills/athena/arxiv/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-140
+skills/athena/rest-graphql-debug/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-164
+tests/skills/arxiv/responses/s2-429.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1
+tests/skills/maps/responses/osrm_car_eiffel_tower_to_louvre.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-311
+skills/athena/comfyui/references/api.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-118
+skills/athena/ast-grep/references/recipes.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-175
+web/views/connections.tsx
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 234
+tests/skills/comfyui/test_comfy_upload.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-214
+tests/skills/powerpoint/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-258
+skills/athena/ast-grep/references/rules.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-233
+skills/athena/pdf/scripts/pdf_create.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-512
+tests/skills/rss-feeds/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-138
+skills/athena/xlsx/references/restructuring.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-118
+tests/skills/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-67
+skills/athena/humanizer/references/patterns.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-435
+tests/skills/youtube-content/responses/watch_captcha.html
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-159
+server/png.ts
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-162
+skills/athena/youtube-content/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-116
+skills/athena/github/references/pr-review.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-99
+skills/athena/financial-models/references/lbo.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-121
+tests/skills/rss-feeds/answers/feed.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-25
+tests/skills/rss-feeds/answers/reddit-404.atom
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1
+skills/athena/powerpoint/scripts/soffice.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-333
+tests/skills/rss-feeds/answers/reddit-sub.atom
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1
+tests/skills/youtube-content/responses/player_age_restricted.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-12
+tests/skills/comfyui/responses/object_info.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-91
+skills/athena/maps/references/services.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-100
+tests/skills/rss-feeds/answers/plain.html
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-14
+tests/skills/youtube-content/fake/sitecustomize.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-61
+tests/skills/youtube-content/responses/player_unavailable.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-7
+tests/skills/arxiv/responses/id-2402.03300.xml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-56
+skills/athena/maps/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-131
+skills/athena/financial-models/scripts/check_model.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-325
+skills/athena/jupyter-notebook/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-130
+skills/athena/replaced.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-213
+tests/skills/maps/responses/osrm_noroute.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-4
+tests/skills/youtube-content/responses/player_unplayable.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-21
+tests/skills/stocks/responses/twelvedata_quote.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-59
+skills/athena/weekly-review-planning/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-90
+tests/skills/docx/test_docx_create.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-200
+tests/skills/stocks/responses/sec_companyconcept_CIK0000320193_us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-159
+tests/skills/youtube-content/responses/player_ok.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-255
+tests/skills/rss-feeds/answers/blog.html
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-15
+tests/skills/maps/responses/nominatim_search_eiffel_tower.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-68
+tests/skills/stocks/responses/tiingo.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-62
+skills/athena/LICENSE-hermes-agent
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-21
+tests/skills/arxiv/test_arxiv_search.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-416
+skills/athena/stocks/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-132
+tests/skills/maps/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-166
+tests/skills/xlsx/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-163
+skills/athena/stocks/scripts/market_data.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-1024
+skills/athena/pdf/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-172
+tests/skills/xlsx/test_xlsx_create.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-129
+skills/athena/youtube-content/scripts/youtube_transcript.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-625
+skills/athena/grounded-citations/references/fact-checking.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-93
+skills/athena/rss-feeds/references/reddit.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-77
+skills/athena/rss-feeds/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-128
+skills/athena/fastmcp/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-170
+tests/skills/financial-models/test_soffice.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-275
+skills/athena/email/references/connectors.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-87
+tests/skills/maps/responses/overpass_churches_paris.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-140
+tests/skills/youtube-content/test_youtube_transcript.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-395
+tests/skills/comfyui/responses/getmappings.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-6
+skills/athena/financial-models/references/dcf.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-156
+.github/workflows/ci.yml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 63-85
+tests/skills/maps/test_maps_tool.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-462
+skills/athena/comfyui/references/setup-and-deps.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-156
+skills/athena/docker-management/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-153
+tests/skills/grounded-citations/test_sources.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-529
+skills/athena/xlsx/scripts/xlsx_tool.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-2234
+tests/skills/pdf/test_pdf_tool.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-399
+skills/athena/powerpoint/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-152
+tests/skills/rss-feeds/answers/releases.atom
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-44
+skills/athena/llm-wiki/references/templates.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-251
+skills/athena/llm-wiki/scripts/wiki_lint.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-630
+skills/athena/xlsx/scripts/xlsx_create.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-1044
+tests/skills/arxiv/responses/bibtex-versioned.bib
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-9
+skills/athena/powerpoint/scripts/pptx_tool.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-1075
+tests/skills/stocks/responses/sec_submissions_CIK0000320193.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-198
+skills/athena/llm-wiki/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-147
+tests/skills/youtube-content/responses/player_po_token.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-229
+skills/athena/fastmcp/templates/file_processor.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-167
+tests/skills/maps/responses/nominatim_search_tokyo_station.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-33
+tests/skills/pytest.ini
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-6
+skills/athena/ast-grep/references/cli.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-94
+tests/skills/docx/test_shared.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-50
+.gitignore
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 25-28
+skills/athena/grill-me/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-111
+skills/athena/fastmcp/references/fastmcp-cli.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-94
+tests/skills/rss-feeds/answers/sloppy.xml
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-35
+tests/skills/youtube-content/responses/consent.html
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1
+tests/skills/youtube-content/responses/watch.html
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1
+tests/skills/maps/responses/nominatim_reverse_eiffel_tower.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-35
+skills/athena/rest-graphql-debug/references/status-playbook.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-105
+skills/athena/grounded-citations/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-160
+tests/skills/rss-feeds/answers/footer.html
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-12
+tests/skills/rss-feeds/answers/reddit-user.atom
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1
+skills/athena/docx/scripts/docx_create.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-795
+skills/athena/github/references/gh-api.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-65
+tests/skills/docx/conftest.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-197
+tests/skills/financial-models/test_check_model.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-253
+tests/skills/rss-feeds/answers/reddit-search.atom
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1
+skills/athena/dogfood/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-153
+skills/athena/grounded-citations/scripts/sources.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-1171
+tests/server/tool-budget.test.ts
+  s_3a4acb3c2ecc92::t_8a67715ac4b4d6 20,22
+skills/athena/dogfood/templates/report.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-82
+tests/skills/arxiv/responses/bibtex-old.bib
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-10
+skills/athena/rss-feeds/scripts/feeds.py
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-1183
+skills/athena/financial-models/references/conventions.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-173
+skills/athena/ast-grep/SKILL.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-150
+skills/athena/README.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-257
+skills/athena/financial-models/references/merger.md
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-118
+tests/skills/stocks/responses/sec_company_tickers.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-47
+tests/skills/stocks/responses/sec_companyfacts_CIK0000320193.json
+  s_3a4acb3c2ecc92::t_260a73fdf7093e 1-286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8096e1e268105f1cd93cfce265100f1c5b46cc1d",
+  "prompts": {},
+  "sessions": {
+    "s_3a4acb3c2ecc92": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bbad748-deb9-4507-a6b1-5b7812c43912",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
