@@ -13,7 +13,8 @@
   Reviewer won all three, Financial Analyst two, Technical Artist one plus a tie. Both losses came from building more
   than was asked, so the standard now says to deliver what was asked and offer extras in a line.
 - **Decided since:** every agent starts with `shell` (the user's call) and `agents`; descriptions are about 30 words;
-  files wrap at 120 characters; platform limits come only from the platform's own docs.
+  files wrap at 120 characters; platform limits come only from the platform's own docs; no length limit (the user
+  dropped the 150-line cap when most files hit it).
 
 ## In short
 
@@ -94,7 +95,8 @@ skills: requesting-code-review, independent-review
 
 ### Body
 
-60 to 150 lines; most will land around 100. Plain headings in sentence case, no emoji. The headings below are a guide,
+No length limit (the user's call on 4 November, after most files hit the first cap of 150 lines): as long as the role's
+judgment needs, with no padding or repetition. Plain headings in sentence case, no emoji. The headings below are a guide,
 not a form to fill in: a section with nothing specific to say is left out.
 
 - **Opening paragraph (no heading).** What this agent is for, who it works for, and what good work looks like in
@@ -343,7 +345,8 @@ One commit, once all 88 are written:
   `{ type: 'library', slug, division: group }` so the agent charts (`web/agentstats.ts`) group it. Delete
   `agencyAgents`, `hireFromAgency`, `suggestTools`, `STARTERS`, `Starter` and `createStarter`.
 - `server/engines/index.ts`: `buildSystemPrompt` adds the shared line for agents whose source is `library`: their role
-  is where they're strongest, not a limit, so they take on nearby work they can do well with the tools they have.
+  is where they're strongest, not a limit, so they take on nearby work they can do well with the tools they have, and
+  ask for a tool they don't have (`request_tool`, which every agent has) when the work needs it.
 - `shared/types.ts`: a `LibraryAgentListing` type for the page; `'library'` replaces `'agency'` and `'starter'` among the
   source types.
 - `server/index.ts`: `GET /api/library` returns `agents` (the new list), `hermes` and `claude`, with no `agency` or
@@ -370,7 +373,7 @@ old division they were saved with.
   - every tool is in `TOOL_GROUPS`, every agent has `shell`, and every skill is bundled or built-in;
   - slugs are unique and match the file name;
   - exactly 8 have `starter: true` (from the Athena batch on);
-  - each file is 40 to 180 lines;
+  - each file is at least 40 lines, and under 400 only to catch a runaway file;
   - none has the old template's tells: emoji headings, "Identity & Memory", "Success Metrics", "You remember",
     an opening "You are **";
   - none fences the role in ("outside your scope", "not your job") or states the model's limits ("you can't browse");

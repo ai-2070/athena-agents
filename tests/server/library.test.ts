@@ -136,7 +136,8 @@ describe("Athena's agents", () => {
       if (a.engine) expect(ENGINE_IDS, at).toContain(a.engine);
       if (meta.starter) expect(meta.starter, at).toBe('true');
     }
-    expect(library.libraryAgents().filter((a) => a.starter).length).toBeLessThanOrEqual(8);
+    // the Home page's starter team
+    expect(library.libraryAgents().filter((a) => a.starter).map((a) => a.name).sort()).toEqual(['3D Artist', 'Coordinator', 'Image Maker', 'Mail Assistant', 'Researcher', 'Video Editor', 'World Builder', 'X Writer']);
   });
 
   it("is written to the standard, not the old Agency template", () => {
@@ -146,7 +147,8 @@ describe("Athena's agents", () => {
       const at = path.relative(dir, file);
       const lines = text.split(/\r?\n/).length;
       expect(lines, `${at}: ${lines} lines`).toBeGreaterThanOrEqual(40);
-      expect(lines, `${at}: ${lines} lines`).toBeLessThanOrEqual(180);
+      // no length limit; this only catches a runaway file
+      expect(lines, `${at}: ${lines} lines`).toBeLessThanOrEqual(400);
       // the dashboard already says "You are <name>, <specialty>."
       expect(body.trimStart(), at).not.toMatch(/^(?:#.*\n+)?You are\b/);
       expect(body, `${at}: emoji in a heading`).not.toMatch(/^#{1,6}\s.*\p{Extended_Pictographic}/mu);
