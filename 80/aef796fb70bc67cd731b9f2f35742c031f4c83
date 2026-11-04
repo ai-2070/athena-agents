@@ -1,0 +1,23 @@
+docs/guide.md
+  s_09ac87e46cf718::t_6b6743a59ffd43 294
+tests/web/preseticons.test.ts
+  s_09ac87e46cf718::t_dec22f6becfc0c 6
+web/preseticons.ts
+  s_09ac87e46cf718::t_67a4dfcbfe97c8 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80aef796fb70bc67cd731b9f2f35742c031f4c83",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
