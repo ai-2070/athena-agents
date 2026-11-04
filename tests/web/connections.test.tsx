@@ -185,6 +185,8 @@ describe('Connections', () => {
     const sections = [...el.querySelectorAll('.settings-section h2')].map((heading) => heading.textContent);
     expect(sections.slice(-2)).toEqual(['Reddit accounts', 'Your Reddit app (one-time setup)']);
     expect(sections.indexOf('Discord')).toBeLessThan(sections.indexOf('Reddit accounts'));
+    // Reddit has reviewed new apps since November 2025, so setting one up may take a wait
+    expect(el.textContent).toContain("may need Reddit's approval first");
     for (const name of ['X accounts', 'Telegram', 'Discord']) {
       const heading = [...el.querySelectorAll('.settings-section h2')].find((h) => h.textContent === name)!;
       expect(heading.querySelector('svg')?.getAttribute('width')).toBe('17');
