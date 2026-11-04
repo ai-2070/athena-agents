@@ -1,0 +1,1261 @@
+web/routinemention.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 37-39,185,187-189,194
+web/client/connection.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 47-50,54-75,77-85
+library/athena-agents/marketing/email-marketer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-230
+tests/skills/youtube-content/responses/player_unavailable.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-7
+library/athena-agents/business/grant-writer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-183
+library/athena-agents/engineering/prompt-engineer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-185
+skills/athena/docx/scripts/docx_create.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-795
+web/views/home.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1,10,23,25,240,244,249,251
+tests/web/chat-usage.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-21
+tests/server/xtext.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-52
+tests/web/connections.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 60-62,88-96,110-115,204-205
+shared/types.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 558,560,689-690,837-838,951-953,955-956,1089-1090,1134-1135,1222-1223,1239-1240,1318-1319,1339-1356,1457-1462,1467-1481,1577-1578,1671-1691,1745,1833-2016,2035-2039
+tests/server/fixtures/fake-mcp-lists.mjs
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-24
+tests/server/overview.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-93
+tests/skills/maps/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-166
+skills/athena/README.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-257
+library/athena-agents/engineering/technical-writer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-162
+server/voxel/prefabs.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 15,216-217,288,301-315,355
+tests/server/tool-budget.test.ts
+  s_a35cc1dee36eb2::t_4be62f039b7f90 25
+  s_a35cc1dee36eb2::t_3b71879bd32ba9 21-23
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-20,24,26-45
+tests/skills/youtube-content/responses/player_no_captions.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-11
+tests/web/station-clock.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-33
+shared/routines.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7-8,10-17
+library/athena-agents/engineering/backend-architect.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-286
+server/uploads.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 108-109,177,185
+  s_a35cc1dee36eb2::t_0cad827510b107 107
+skills/athena/docx/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-170
+web/builder.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 11,18,48-49,195-196,201,203-211,218-219,244,295-300,303-309,343,409
+web/views/overview.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-958
+server/taskboard.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-372
+web/views/stationclock.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-25
+library/athena-agents/engineering/software-architect.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-222
+tests/web/teamchat-turns.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 216-262
+web/phosphor.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 10-21,217-228
+library/athena-agents/business/coordinator.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-149
+web/views/library.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-2,5,14,17,35,40-41,44,46-48,84-85,104-148,168,172,178,181,191,201,245,247-248,250-251,255,260,262-264,268-269,278,282,440,442,444
+server/util.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 227-251,509-515
+  s_a35cc1dee36eb2::t_5add14551eab61 516
+library/athena-agents/design/brand-guardian.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-225
+skills/athena/youtube-content/scripts/youtube_transcript.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-625
+tests/server/web-and-delegation.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-91
+skills/athena/comfyui/references/first-inpaint.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-142
+web/styles/app.css
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 104-105
+web/views/terminals.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 8,10-11,14-15,89-98,107-112
+tests/skills/stocks/test_market_data.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-402
+skills/athena/grill-me/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-111
+skills/athena/financial-models/references/filings.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-110
+skills/athena/grounded-citations/scripts/sources.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1171
+skills/athena/rest-graphql-debug/references/status-playbook.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-105
+library/athena-agents/sales/deal-strategist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-169
+tests/skills/arxiv/responses/s2-429.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1
+library/athena-agents/engineering/minimal-change-engineer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-158
+skills/athena/docx/references/create-spec.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-105
+skills/athena/financial-models/scripts/soffice.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-333
+tests/server/file-tools-parts.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-147
+server/apitools.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 3,25-26
+tests/skills/maps/responses/overpass_pharmacies_tokyo.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-111
+tests/web/overviewlayout.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-113
+tests/skills/powerpoint/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-258
+web/views/routines.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 3-4,14,18,20-21,203-205,221,223-225,234-239,291-292,296,305-306,310,312-314,317-324,326-329,338-344,347-348,355-356,360,362,366,368-393,395-408,410-416,424-454,456-457,463-464,469,472-479,482-535,537-538,543-544,546-572
+library/athena-agents/product/product-manager.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-166
+web/ui/popover.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-2,16
+tests/skills/maps/responses/osrm_bike_eiffel_tower_to_louvre.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-292
+scripts/build-desktop.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 16-18
+tests/server/codex-run.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7,86-102
+  s_a35cc1dee36eb2::t_9eb21073a7be59 103
+library/athena-agents/LICENSE-agency-agents
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-21
+tests/server/library.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1,6,8-11,19-20,22-24,27-29,31-34,36-38,43-68,81-174
+  s_a35cc1dee36eb2::t_2bbfbf6592c014 175
+server/programs.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5,127-212,215-229,252-253,255,259-262
+tests/skills/arxiv/responses/s2-docs.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-280
+tests/skills/rss-feeds/answers/hnrss.xml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-16
+skills/athena/arxiv/references/semantic-scholar.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-115
+library/athena-agents/games/unity-developer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-242
+tests/web/groupD-pickers.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 148,162,228,272,316,523-561
+  s_a35cc1dee36eb2::t_443a61f53c6f07 562
+tests/server/teams.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4,10-13,227-236
+server/workflows.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 28
+tests/skills/arxiv/responses/id-versioned.xml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-47
+web/views/connections.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 205
+tests/web/teamchat-teams.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 81-83
+tests/web/dock.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 54,65-67,90-110,248
+web/brandimages.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 3,12-41,43-44,46,52
+skills/athena/ast-grep/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-150
+skills/athena/pdf/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-172
+skills/athena/powerpoint/references/deck-spec.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-203
+tests/skills/arxiv/responses/s2-batch.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1
+library/athena-agents/marketing/paid-social-strategist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-245
+docs/internal/plans/EVE_API_ENGINE_2026-11-01.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 267
+web/core.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 6,75
+skills/athena/financial-models/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-199
+skills/athena/github/references/pr-workflow.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-92
+tests/skills/rss-feeds/answers/reddit-search.atom
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1
+library/athena-agents/marketing/pr-manager.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-175
+tests/skills/rss-feeds/answers/plain.html
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-14
+skills/athena/pdf/scripts/pdf_forms.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1345
+library/athena-agents/games/world-builder.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-152
+tests/server/claude-args.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 2-22,64-128
+src-tauri/src/look.rs
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-119
+tests/skills/stocks/responses/twelvedata_time_series.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-162
+tests/server/eve-retention.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-139
+server/projects.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4,7,10-13,219-249,288
+library/athena-agents/media/image-maker.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-154
+web/chatwin.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 917
+tests/server/comfyui-run.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-299
+web/ui/report.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-29
+library/athena-agents/business/notes-steward.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-199
+skills/athena/comfyui/scripts/comfy_upload.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-330
+tests/skills/xlsx/test_xlsx_create.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-129
+library/athena-agents/engineering/security-architect.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-268
+tests/server/rename-folders.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1,8,13-19,21-23,26-27,29,32-39,41
+skills/athena/rest-graphql-debug/references/requests-by-shell.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-142
+tests/skills/youtube-content/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-107
+web/teamchat.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 8-9,13-14,18,21,26,64-65,115-119,142,154-156,188,205,233,277,349-362,368,372,379-390,393-395,399-400,425-430,439,443,445,458-459,469,492,494-497,524,571-572,579,588,597,600,612,634-635,638,649,677,693,736,826,828-830,950,977,979
+AGENTS.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 8,30-32,57-58
+server/questions.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5,9,124-130,133,197-199
+tests/server/eve-calls.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-174
+skills/athena/decisions/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-131
+tests/skills/pdf/test_pdf_create.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-165
+tests/web/chatcommands.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 74
+web/agentstats.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4-5,20-23,35,37
+web/views/chat.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 6-8,12,113,115-118,139-151,153,155-161,163-166,168-184,186-197,199-230,232,236-264,277-281
+  s_a35cc1dee36eb2::t_c1a153071ae2b1 282-283
+web/views/setup.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 23-24,38-39,130,186,262
+web/views/station.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 23,27,32,41,233,360-361,369,594,597,901,955,962,988,2333,2338,2351,2353-2356,2364-2365,2466-2471,3879-3880,4016-4022,4178
+web/theme.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 34-38
+library/athena-agents/marketing/social-media-strategist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-201
+tests/skills/jupyter-notebook/test_kernel.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-395
+web/backup.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 141
+web/chat/transport.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 26-27,31,42-43,47-49
+server/goaltool.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-35
+docs/guide.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 27,39-50,65,76,100,107-109,115,132-172,189-206,227,231,255,259,264,290,293,326,335-337,353-354,357,382,386,390,415,419,423,444,458,669
+tests/skills/pdf/test_pdf_tool.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-399
+skills/athena/xlsx/references/create-spec.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-160
+tests/server/tool-output.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-51
+tests/skills/docx/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-197
+tests/server/execution.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 101-110
+tests/skills/youtube-content/responses/consent.html
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1
+web/agentchat.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 8,14,37,39-42,49,56,65,91,98,107-113,127,137-138,143
+library/athena-agents/games/unreal-developer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-257
+server/webread.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-134
+server/voxel/build.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 162-163,381-383
+library/athena-agents/media/video-editor.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-198
+skills/athena/comfyui/references/setup-and-deps.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-156
+skills/athena/rss-feeds/references/reddit.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-77
+docs/internal/plans/WORK_COMPLETION_2026-11-01.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7-8
+skills/athena/financial-models/scripts/check_model.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-325
+skills/athena/arxiv/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-140
+library/athena-agents/product/feedback-synthesizer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-183
+scripts/mac-icon.swift
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-48
+renovate.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5-16
+library/athena-agents/sales/support-responder.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-183
+skills/athena/github/templates/pr-body-fix.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-28
+skills/athena/weekly-review-planning/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-90
+skills/athena/xlsx/references/restructuring.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-118
+web/ui/agentselect.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 25
+skills/athena/financial-models/references/lbo.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-121
+web/styles/components.css
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 155,178-180,182-183,351-352,362
+skills/athena/rss-feeds/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-128
+server/engines/index.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 25,28,32,55-64,83-104,133-134,136-137,177,248,277-278,283,295,302,314,328-330,409-412,422,427-430,433,437,448-459,463,490-495,499-502,504-505,507,521,528-529,541-549,556,560,566,611,615,652-655,660-661,664,677,680,686-687,710,735-736,761-765,791-932,949,963,989-991,1036-1037,1153,1259-1260,1263-1266
+tests/web/agent-effort.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 63-66
+public/index.html
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 15,19,21
+skills/athena/github/references/repos-and-releases.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-93
+skills/athena/llm-wiki/scripts/wiki_lint.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-630
+skills/athena/github/references/issues.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-77
+skills/athena/github/references/gh-api.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-65
+skills/athena/maps/references/services.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-100
+tests/server/brain-chat.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4,202-214
+  s_a35cc1dee36eb2::t_04160703bb4516 215
+tests/server/social-posting.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-203
+tests/server/toolimages.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5,43-63
+  s_a35cc1dee36eb2::t_b4a807e4808691 64-65
+tests/server/shell-tool.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-37
+tests/skills/requirements.txt
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-25
+skills/athena/humanizer/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-168
+web/chat/ChatView.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 19,21,27-28,30,34,39,72-76,90-97,146,162,165-166,172,181,218,227,232,298,353,364,370,372,380,389,394,420-421,453,458,511,514,541-549,587-589,620,622-631,729,766-767,772-773,775,787-792,794-795,865-866
+web/chat/messages.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7-9,27-28,84-104,107,110-113,134
+tests/skills/rss-feeds/answers/rdf.xml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-22
+server/uistream.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 67-68,75,102-105,112,135,147-148
+skills/athena/grounded-citations/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-160
+library/athena-agents/engineering/senior-developer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-211
+skills/athena/github/templates/issue.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-46
+tests/skills/stocks/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-229
+web/ui/overlays.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 26-27,149,152-153,185,188
+.github/workflows/ci.yml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 26,35-43,63-85,98,116-124,128-135
+  s_a35cc1dee36eb2::t_02d2814f799d3c 136
+web/navlimits.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 55-56,59,61
+library/athena-agents/games/godot-developer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-260
+web/history.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7,92-93,96,101,109,181-185,187,192-193
+skills/athena/financial-models/references/merger.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-118
+library/athena-agents/engineering/data-engineer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-224
+tests/server/voxel-script.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-2,13,17
+tests/skills/xlsx/test_xlsx_tool.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-463
+skills/athena/llm-wiki/references/templates.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-251
+server/approvals.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 6,77,89-97,108,145
+.gitignore
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 25-28
+web/terminalview.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-79
+tests/skills/maps/responses/osrm_car_eiffel_tower_to_louvre.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-311
+tests/web/brainpane.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-100
+tests/web/tasks-board.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-522
+library/athena-agents/engineering/mcp-builder.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-239
+tests/server/conversation-search.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1,140-189
+  s_a35cc1dee36eb2::t_a7350a2c56356d 190
+skills/athena/github/references/issue-to-pr.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-81
+skills/athena/maps/scripts/maps_tool.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1102
+server/briefs.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4,54,56
+server/eve/admission.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7-8,12,16-17,36-45,47-52,56-62,83-89,92,136-137,139-142,152,154,156,170-171,174,200,208
+web/autosize.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-32
+web/views/mcp.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1,16-17,20-25,27,33-35,276-277,280-285,287-288,296-297,314-325,468
+skills/athena/email/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-139
+library/athena-agents/research/data-analyst.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-198
+server/boardwork.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-375
+tests/skills/arxiv/responses/search-and.xml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-115
+tests/skills/grounded-citations/test_sources.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-529
+server/irc.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 59,99-100,106-107,109-110,118,120-122,124,150-159,469,478-482
+skills/athena/systematic-debugging/references/repro-loops.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-102
+library/athena-agents/marketing/tiktok-strategist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-187
+tests/web/attach-tray.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 78-87
+web/projectlist.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-70
+tests/skills/maps/test_maps_tool.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-462
+tests/web/builder-pick.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 46,49-51
+server/reddit.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 83,226-271,282
+tests/skills/comfyui/test_comfy_check.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-354
+server/overview.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-154
+server/voxel/worldmd.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 184-186,194
+library/athena-agents/business/document-maker.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-239
+web/ui/emojipicker.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 51
+web/brainpane.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-255
+tests/server/uistream.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 24,103-141
+  s_a35cc1dee36eb2::t_001b30b3bcf78c 142
+library/athena-agents/engineering/ai-engineer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-255
+tests/skills/maps/responses/nominatim_reverse_open_sea.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-3
+tests/skills/arxiv/responses/id-2402.03300.xml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-56
+library/athena-agents/marketing/search-ads-strategist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-220
+skills/athena/jupyter-notebook/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-130
+patches/@workflow%2Fworld-local@5.2.0.patch
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-132
+tests/skills/youtube-content/responses/watch_captcha.html
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-159
+docs/internal/plans/HERMES_SKILLS_REWRITE_2026-11-04.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-471
+server/knowledge.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 41,43-44,57-64,67-68,81-181,186-187,197-198,203,209,226-227,250-251,253,258,260-261
+server/eve/operations.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 2-4,6,11-12,14,16,19-67,71,75-80,84-90,102,123
+skills/athena/spike/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-132
+server/projectsync.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 13,16,23,47-48,213,308,317-320,479,580
+tests/web/chatview.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 479-485
+server/voxel/diorama.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7,12-14
+tests/skills/youtube-content/fake/sitecustomize.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-61
+skills/athena/financial-models/references/conventions.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-173
+skills/athena/action-items/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-140
+tests/server/eve-bridge.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 11,80-95
+  s_a35cc1dee36eb2::t_1dd6a53a266318 96
+library/athena-agents/marketing/growth-hacker.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-187
+library/athena-agents/sales/offer-strategist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-197
+server/voxel/script.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1
+library/athena-agents/business/financial-analyst.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-145
+LICENSE-MIT
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 3
+library/athena-agents/business/mail-assistant.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-155
+skills/athena/powerpoint/scripts/soffice.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-333
+src-tauri/src/main.rs
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 11,67-69,96-100,249-257,266
+web/look.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 26,43-46,69-70
+library/athena-agents/sales/proposal-writer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-194
+shared/xtext.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-61
+server/engines/claude.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 2-5,9,13,16,58-60,70-95,97-99,106-119,150-153,169-170,196,204,210-235,245-270,278-279,285-296,321-325,362,372-374,377,390-392
+web/ui/dropdown.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 28
+server/png.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-162
+tests/skills/arxiv/responses/error-start.xml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-19
+web/views/tasks.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1078
+skills/athena/LICENSE-hermes-agent
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-21
+tests/server/steer-join.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-201
+web/memory.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 8,50-52,57-58,68,91,106,130,218-220,222,226,230-232,258-259
+tests/server/knowledge.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5-8,39-238
+tests/server/tool-limits.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-61
+server/voxel/exchange.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 69,80,89
+tests/skills/rss-feeds/answers/reddit-sub.atom
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1
+tests/skills/xlsx/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-163
+skills/athena/powerpoint/scripts/pptx_tool.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1075
+web/views/outbox.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 17,22-24,62-63,221,250
+library/athena-agents/engineering/code-reviewer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-145
+web/chat/parts.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5,10,14-20,55-57,79,82,114-160,167-169,179-184,187,201,271-286,290,304-325
+library/athena-agents/engineering/site-reliability-engineer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-247
+docs/internal/plans/OVERVIEW_REVIEW_2026-11-03.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-182
+library/athena-agents/design/ux-researcher.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-145
+tests/skills/docx/test_docx_tool.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-588
+skills/athena/maps/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-131
+tests/skills/youtube-content/responses/player_asr_only.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-216
+shared/commands.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 3,102-107
+skills/athena/comfyui/scripts/comfy_check.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-652
+tests/skills/arxiv/responses/search-withdrawn.xml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-57
+skills/athena/comfyui/references/workflow-format.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-150
+skills/athena/github/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-146
+tests/server/queue.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7-11,199
+tests/server/store.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 2,90-104
+  s_a35cc1dee36eb2::t_5c334f7a101b32 105-106
+library/athena-agents/sales/outbound-strategist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-178
+server/taskdraft.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-35
+library/athena-agents/product/meeting-notes-taker.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-178
+tests/server/athena-skills.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-159
+tests/skills/maps/responses/osrm_noroute.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-4
+library/athena-agents/product/project-manager.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-188
+public/brand/engines/venice-dark.svg
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-4
+tests/server/taskdraft.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-40
+tests/web/client.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 180-218
+skills/athena/fastmcp/references/calling-servers.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-47
+library/athena-agents/engineering/penetration-tester.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-134
+web/taskmotion.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-74
+skills/athena/stocks/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-132
+library/athena-agents/business/operations-manager.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-225
+tests/server/eve-coordinator.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 2,129-147
+  s_a35cc1dee36eb2::t_f2cfe9ec7ea931 148-149
+server/handoffs.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 91-95,99-135
+tests/skills/stocks/responses/sec_companyconcept_CIK0000320193_us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-159
+server/teams.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 13,307-308,328,367-372,836,894-904,906,912-913,963-981,986-987,991,998
+library/athena-agents/engineering/accessibility-auditor.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-230
+tests/skills/stocks/responses/sec_submissions_CIK0000320193.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-198
+server/index.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 36,50-55,91,143-156,282-290,504-508,558-604,661-662,868-871,873,875,912-913,1350,1367,1369-1371,1570-1574,1578,1581,1583,1585,1591,1598,1604,1610,1693,1724-1731
+tests/server/backup.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 27,49
+tests/skills/docx/test_shared.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-50
+tests/server/voxel-builder-session.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 9,62,64-70,78-81
+tests/skills/arxiv/responses/bibtex-2402.03300.bib
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-9
+tests/skills/stocks/responses/sec_companyconcept_CIK0001306965_ifrs-full_Revenue.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-65
+library/athena-agents/product/trend-researcher.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-202
+runtime/eve/package.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7-10
+library/athena-agents/games/narrative-designer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-207
+docs/internal/plans/TASK_PICKUP_2026-11-03.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-358
+library/athena-agents/marketing/linkedin-writer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-136
+skills/athena/docx/scripts/soffice.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-333
+tests/skills/xlsx/test_shared.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-60
+library/athena-agents/README.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-269
+tests/server/questions.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 172-188
+tests/server/boardwork.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-287
+tests/skills/maps/responses/nominatim_search_tokyo_station.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-33
+tests/skills/pdf/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-105
+tests/server/taskboard.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-211
+library/athena-agents/business/investment-researcher.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-165
+tests/skills/stocks/responses/sec_submissions_CIK0000320193-submissions-001.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-82
+web/projectagents.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-16
+.github/workflows/desktop.yml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 76,95-110,146
+server/eve/retention.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-49
+web/attach.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 12,153-155,208,220,234,240,249,255,289-290,347-349,392,414,425
+skills/athena/github/references/pr-review.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-99
+package.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 2,63-64,67-70,84,87-89,92-93,95,98,108-110,121,124,126,129
+server/eve/bridge.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 6,10-11,15,18,20-22,25,28,30,38-62,64,67,70-72,83-84,92-96,101-102,108-110,131,135,146-150,154,156-157,161-169,183,187-188,192-201,205,246,253-256
+tests/skills/comfyui/responses/getmappings.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-6
+server/eve/counts.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-6
+public/brand/engines/venice.svg
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-3
+server/voxel/tools.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5,7-8,14,18-19,22,24,31-37,55-56,58-62,65-68,124-171,180-188,194,201,212,230-237,244-245,252-269,271-278,281,283-289,300-301,314,317-326,351,365,368-369,371-372,374,377,405-408,410,425,428-440,458,461-471,489,491-500,514,516,518-521,529,586,590-594,612,615,617,642,645-658,683,686,688-689,691-693,716,729,732-734,757-758,781
+tests/skills/stocks/responses/sec_companyfacts_CIK0000320193.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-286
+skills/athena/test-driven-development/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-122
+skills/athena/youtube-content/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-116
+docs/desktop.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 25,58-84
+  s_a35cc1dee36eb2::t_7565b43d5d0f8f 85
+web/ui/skeleton.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-19
+tests/skills/stocks/responses/tiingo.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-62
+scripts/desktop-smoke.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 46
+skills/athena/llm-wiki/references/lint.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-96
+tests/server/styles.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 32-36
+tests/skills/pdf/test_shared.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-107
+skills/athena/maps/references/categories.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-141
+docs/internal/plans/TOOL_OPTIMIZATION_2026-11-04.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-362
+skills/athena/ast-grep/references/rules.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-233
+tests/skills/stocks/responses/twelvedata_symbol_search.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-47
+skills/athena/powerpoint/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-152
+skills/athena/fastmcp/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-170
+tests/server/mcp-tool-lists.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-45
+server/terminals.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7,10,38,69-71,93
+tests/server/uploads.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 81,83-85
+skills/athena/pdf/scripts/pdf_create.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-512
+server/eve/snapshot.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-47
+tests/skills/stocks/responses/twelvedata_quote.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-59
+tests/web/brand.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 10,62-99
+tests/server/bundled-skills.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 13,16-23,47-51,77-79,154-163
+tests/server/comfyui-convert.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-214
+tests/skills/powerpoint/test_pptx_deck.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-502
+web/chat/TurnView.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7,9,16-17,31-32,38-39,51,71-77
+skills/athena/xlsx/scripts/xlsx_tool.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-2234
+skills/athena/pdf/references/forms.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-149
+web/tasks.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4-5,18-22,25,27,44-45,51,66,71,77,90,95,98,119,134,144,151-152
+tests/server/setup.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 11
+skills/athena/stocks/scripts/market_data.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1024
+library/athena-agents/engineering/codebase-guide.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-173
+server/tasktools.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 29,45
+tests/server/groupC-engines-status.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 6-8,19-20,27-55
+  s_a35cc1dee36eb2::t_5487bc4d4212f8 56
+library/athena-agents/marketing/seo-specialist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-203
+tests/skills/arxiv/responses/id-old-hep-th.xml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-38
+library/athena-agents/research/researcher.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-152
+tests/skills/rss-feeds/answers/reddit-thread.atom
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1
+server/eve/records.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-131
+tests/web/questions.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 35-36,155-171
+  s_a35cc1dee36eb2::t_59b789bfe5e867 172
+server/toolimages.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 41-44,46-48,50-53,55-58,61-67,74,77,80-88,91-106
+  s_a35cc1dee36eb2::t_22ce3f4f971c16 107
+tests/server/api.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 509,650-672,734-803,835-839
+tests/server/skills.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4,11-42,111-235
+  s_a35cc1dee36eb2::t_16ab1e9786b736 236
+skills/athena/financial-models/references/three-statement.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-143
+tests/skills/arxiv/responses/bibtex-old.bib
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-10
+web/chat/project.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-5
+skills/athena/financial-models/references/dcf.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-156
+tests/server/eve-state.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 6,40-54
+  s_a35cc1dee36eb2::t_d11ba75d4fbf15 55-57
+web/views/stationdata.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 10,245-250
+  s_a35cc1dee36eb2::t_12a478df0ca97d 251
+server/tools.ts
+  s_a35cc1dee36eb2::t_965a5bab5ea672 1002-1003,1014-1015,1022-1023
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5,10,16-17,21,27,34,89-102,110-113,134,137,166-169,173-175,180,245,257,269,278-308,344-345,419-424,434,440,442,456,458,463-466,470,473-485,490-505,507-509,511-517,806,810-811,832,838,853,863-864,886-887,892-893,895,899,901,921-922,928-930,938,946,954-962,968-984,1046-1048,1055-1059,1066-1075,1079,1157-1159,1162,1169-1203,1207-1214,1221,1231-1276,1295-1306,1340,1372,1375,1377-1392,1394-1408,1411-1412,1445,1498-1504,1511-1512,1515,1517-1554,1562
+tests/skills/rss-feeds/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-138
+tests/server/desktop.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 92-96,101-102,105-107,109,113-114,121-122,130-133,136
+tests/server/fresh-profile.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 3
+library/athena-agents/business/translator.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-199
+server/engines/codex.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 149-157,164-167,172-173,175-177,184-194,197-206,209,216-220,225,230
+tests/server/brandmarks.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-22
+tests/server/png.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-42
+server/engines/eve.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4,8-9,11-12,17-25,27-28,35,40,49-83,86,94,97
+skills/athena/comfyui/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-191
+tests/skills/arxiv/responses/id-solv-int.xml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-30
+tests/skills/youtube-content/test_youtube_transcript.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-395
+tests/web/mcp.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 123-130,155-170
+  s_a35cc1dee36eb2::t_1ea0e20d6a2a1f 171
+library/athena-agents/business/legal-document-reviewer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-199
+tests/server/file-tools.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 81-122
+web/views/stationpanel.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7,33-34,612,904-905,907-914,917-920,975-1010
+skills/athena/email/references/connectors.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-87
+server/store.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 16-19,54,159-166,420-427
+  s_a35cc1dee36eb2::t_818263d077241b 428-429
+tests/skills/maps/responses/overpass_churches_paris.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-140
+skills/athena/comfyui/references/api.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-118
+server/skillinstall.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 9,71,120,200
+tests/skills/rss-feeds/answers/footer.html
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-12
+tests/skills/youtube-content/responses/watch.html
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1
+tests/skills/maps/responses/nominatim_reverse_eiffel_tower.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-35
+docs/internal/plans/CODE_REVIEW_2026-11-03.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-59
+skills/athena/grounded-citations/references/citation-formats.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-74
+tests/server/comfyui-seeds.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-93
+tests/web/agentstats.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 9,12-13,15,22,32
+tests/web/library.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1,6,10,17-23,39,67,83,86,88-90,93,103,107-109,124-125,130,132-148,157,163,179,182,208-210
+tests/web/newproject-glass.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 13
+tests/server/goals.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 8-9,12,24,32,91,315-316,560-637
+  s_a35cc1dee36eb2::t_038ae06811fbd2 638
+tests/web/projectlist.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-86
+server/comfyui.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5-6,8,10,34-35,37-39,41-43,47-55,58-72,74-75,78,89,92,95-120,126,133-139,143,145-146,153,155-157,175-187,220-258,260-324,327-329,331-332,334-385,387-399,401-440,443-448,450-453,481-530,532-542,544-552,558,563-564,566-577,584-591,594,605-607,622,629-753,806-844
+library/athena-agents/engineering/performance-benchmarker.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-227
+server/toolstats.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-81
+skills/athena/replaced.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-213
+tests/skills/powerpoint/test_shared.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-79
+library/athena-agents/design/ui-designer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-199
+tests/server/routines.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 6,9,11,14-21,141-154
+skills/athena/xlsx/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-171
+tests/web/chat-page.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 22,56-71,86-91,93-94,97,102-106,112-117
+tests/skills/comfyui/test_comfy_upload.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-214
+skills/athena/pdf/references/archival-and-security.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-106
+skills/athena/ast-grep/references/recipes.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-175
+library/athena-agents/games/blender-add-on-engineer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-225
+tests/server/steer-progress.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-111
+server/library.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-2,5,8,11,13-14,27-41,51,57-63,67-70,84,127-129,131-134,141,144-147,150
+tests/server/claude-steer.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-225
+server/backup.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4,15,26-27,64,67-69,71,125-126,146-147,393,405,419,422-438,590,607,761,843-845
+tests/skills/financial-models/test_soffice.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-275
+tests/server/voxel-reach.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-138
+scripts/build-icons.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 67,69
+web/overviewlayout.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-215
+runtime/eve-world/package.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 8-9
+tests/skills/maps/responses/nominatim_search_eiffel_tower.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-68
+tests/server/shell-media-tools.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-95
+web/chatcommands.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5,81,92
+tests/server/request-tool.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 10-11,59,64-77
+tests/skills/rss-feeds/answers/reddit-404.atom
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1
+src-tauri/Cargo.toml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 2,5
+skills/athena/rss-feeds/scripts/feeds.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1183
+tests/skills/maps/responses/osrm_foot_eiffel_tower_to_louvre.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1156
+tests/skills/rss-feeds/answers/sloppy.xml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-35
+server/mcp.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5,8-11,203,974-1038,1047,1050-1058,1060,1066-1069,1071-1080,1085,1087-1091,1097,1104,1114-1136,1139-1156,1172-1178
+skills/athena/fastmcp/references/fastmcp-cli.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-94
+skills/athena/docker-management/references/dockerfile-review.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-154
+server/eve/steer.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-60
+skills/athena/pdf/references/extraction-and-ocr.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-120
+library/athena-agents/games/game-designer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-188
+server/overseer.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 11,44,86,95-100,331-338,456,543-546,585,591,594-595,613-616,655,1122-1124,1126-1133,1223,1225-1226,1370-1399,2026-2028,2099,2114
+web/taskboard.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-458
+library/athena-agents/business/resume-tailor.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-186
+skills/athena/financial-models/references/comps.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-109
+server/filetools.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-204
+library/athena-agents/design/ux-architect.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-234
+skills/athena/fastmcp/templates/file_processor.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-167
+skills/athena/grounded-citations/references/fact-checking.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-93
+tests/skills/rss-feeds/test_feeds.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-441
+library/athena-agents/media/3d-artist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-153
+runtime/eve-world/README.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 3,9,16-19
+  s_a35cc1dee36eb2::t_31b914bfbb46ab 20
+library/athena-agents/design/ui-finish-reviewer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-191
+docs/internal/plans/AGENT_LIBRARY_REWRITE_2026-11-04.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-481
+docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-297
+skills/athena/arxiv/scripts/arxiv_search.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-967
+library/athena-agents/engineering/application-security-engineer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-233
+skills/athena/github/references/commit-messages.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-50
+skills/athena/powerpoint/references/editing-internals.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-124
+tests/server/comfyui-desktop.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-112
+server/eve/coordinator.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 156
+server/eve/state.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4,10-13,16-18,25-36,38,47-49,54-57,68,76,119,124,129-150,154-178,190-191,195-199,202-204,210,214-216,218-219,231,239-241,245-246,250,257,269,276,283,290-350
+tests/server/comfy-folders.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-72
+server/skills.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 58-59,62,101-103,111-162,174-175,177,185,196-197,243,307,333,440,543-544,549-550,556,559-560,563,567,585-586,588,594-596,636,656,661-662,665-669,685,709-710,714,730-733,735
+tests/skills/arxiv/responses/bibtex-versioned.bib
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-9
+tests/skills/pdf/test_pdf_forms.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-407
+tests/skills/youtube-content/responses/player_age_restricted.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-12
+tests/skills/comfyui/responses/models.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-13
+server/eve/transcript.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7,23-24,45,49,68-69
+skills/athena/fastmcp/templates/api_wrapper.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-159
+tests/skills/comfyui/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-249
+tests/skills/docx/test_docx_create.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-200
+tests/skills/rss-feeds/answers/feed.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-25
+web/icons.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 10
+library/athena-agents/business/bookkeeper.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-208
+library/athena-agents/marketing/youtube-strategist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-213
+tests/web/chat-stopped.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-79
+tests/skills/youtube-content/responses/player_po_token.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-229
+web/questions.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5-6,35-38,53-56,64,72
+server/eve/media.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1,35-36
+web/chat/mentioneditor.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4-7,24-27,42,54,59-61,68,102-110,125-149,155-161,166-167,194-195,200-203
+tests/web/dropdown.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 8,97-103,107-117
+library/athena-agents/engineering/reality-checker.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-164
+scripts/build-css.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7,11-14,19-23
+scripts/desktop-updates.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 27,31-32
+tests/skills/arxiv/responses/id-mixed.xml
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-78
+server/conversations.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 12,36-38,52-59
+skills/athena/xlsx/scripts/xlsx_create.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1044
+tests/skills/powerpoint/test_pptx_tool.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-206
+tests/skills/rss-feeds/answers/reddit-user.atom
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1
+tests/web/station-panel.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 9,75-80,159,172,175-190,193-194,197-199,201-204
+tests/skills/rss-feeds/answers/releases.atom
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-44
+tests/web/autosize.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-45
+docs/internal/plans/REMOTE_APP_PLAN.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7
+tests/web/mentioneditor.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1,15-32,42-72,94-114
+  s_a35cc1dee36eb2::t_dc5d673875f649 115
+tests/skills/comfyui/responses/object_info.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-91
+web/ui/formsection.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-36
+library/athena-agents/engineering/api-tester.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-205
+skills/athena/dogfood/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-153
+public/brand/engines/README.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 6,12
+public/brand/engines/pi.svg
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 2-4
+tests/skills/financial-models/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-116
+library/athena-agents/engineering/database-optimizer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-307
+skills/athena/docker-management/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-153
+tests/skills/financial-models/test_check_model.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-253
+library/athena-agents/engineering/devops-automator.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-219
+library/athena-agents/business/chief-of-staff.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-173
+skills/athena/docx/references/revisions-and-comments.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-106
+server/boardfiles.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-103
+skills/athena/dogfood/references/issue-taxonomy.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-86
+tests/web/settings-page.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 32-34,55-64
+  s_a35cc1dee36eb2::t_2cf9da197d77d7 65-66
+web/models.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 6,12,196-198,207,268-269,272-274,278-280,306-309,312-313,316-318,320,322,343-348,387,393,419,454,458,463-464,474,481,484,503-504,527,538,672-721,774-778,796-797,802,807-823
+library/athena-agents/marketing/content-creator.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-179
+tests/web/overview.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-418
+server/codexlimits.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 132
+tests/server/voxel-tools.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4,9-10,26-28,32,36,40-55,85-118,168-169
+library/athena-agents/engineering/secrets-hygiene-engineer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-222
+skills/athena/ast-grep/references/cli.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-94
+library/athena-agents/engineering/frontend-developer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-250
+web/client/http.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 2,24,26,38,82
+library/athena-agents/games/technical-artist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-150
+skills/athena/llm-wiki/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-147
+tests/server/tool-scope.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-63
+skills/athena/systematic-debugging/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-172
+skills/athena/xlsx/scripts/soffice.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-333
+library/athena-agents/groups.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-14
+tests/web/agentchat.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 25-28,33-104
+  s_a35cc1dee36eb2::t_21ecfc5dc03421 105
+tests/server/eve-model.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 57
+library/athena-agents/marketing/ai-search-optimizer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-210
+skills/athena/rest-graphql-debug/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-164
+tests/skills/youtube-content/responses/player_bot_check.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-21
+tests/web/models.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 3,55-67
+  s_a35cc1dee36eb2::t_4b80e66f78bc0f 68-69
+README.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5,8-9,13-16,19,21,23-26,28,30,32,34-38,40,42,44,46,48-51,53,55,57,59,61-68,70,72,74-78,80,82,84,86,88,90,92,94,96,98,100,102,104,106,108,110,112,114,116,118,120,122,124,126,128,130,132,134,136-140,142,144,146,148,150-152,154-158,160,162,164-166,168,172,175-178,181,183,187,189,193
+server/eve/recovery.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 5,7,27,99,102,136,164,184,216,235
+src-tauri/tauri.conf.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 3,5,36-37
+tests/skills/youtube-content/responses/player_ok.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-255
+server/social.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 3,16,54,80-81,96-98,277-278,288,299,306,374-399,420-423,425,439,453-454,459,462-463,495-496,500
+  s_a35cc1dee36eb2::t_0cad827510b107 400
+public/brand/engines/pi-dark.svg
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-5
+skills/athena/requesting-code-review/SKILL.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-148
+server/voxel/reach.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-118
+web/views/programs.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 68
+server/eve/runtime.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7,10,21-22,26-27,38-39,53,86,112-124,151,176
+tests/skills/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-67
+web/views/settings.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 14,177-179,235
+library/athena-agents/research/executive-summary-writer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-196
+server/eve/projection.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1,17-19,25-26
+web/views/agents.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 12,18,24,164,179-180,307-310,313-331,357-391,438,440-443,445-463,466-485,493,495,497-506,508-509,511,514-522,524-537,540-555,557-589,591-604,606-611,633-635,637,665,713,763-764,796,811,824,876,882,891,899-900,902-903,906-907
+library/athena-agents/engineering/ai-code-security-auditor.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-219
+tests/skills/rss-feeds/answers/blog.html
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-15
+library/athena-agents/business/pricing-analyst.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-237
+tests/web/programs.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 66
+library/athena-agents/research/tool-evaluator.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-197
+skills/athena/github/references/auth.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-87
+skills/athena/github/templates/pr-body-change.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-29
+library/athena-agents/research/business-strategist.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-180
+skills/athena/requesting-code-review/references/gates-by-language.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-97
+src-tauri/.gitignore
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7-8
+tests/server/overseer.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 6,8,234-261
+library/athena-agents/marketing/book-co-author.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-226
+server/engines/pi.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 4,336
+skills/athena/powerpoint/scripts/pptx_deck.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1946
+tests/skills/arxiv/conftest.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-236
+tests/skills/llm-wiki/test_wiki_lint.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-248
+library/athena-agents/engineering/mobile-app-builder.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-251
+tests/web/agents-page.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 90,146-158,216
+library/athena-agents/engineering/test-automation-engineer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-211
+web/app.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 10-11,28,33,66,71,80-82,97-98,100,111-112,132-137,179-183,188-189,191,197
+skills/athena/github/references/ci-troubleshooting.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-80
+skills/athena/fastmcp/templates/database_server.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-157
+tests/skills/arxiv/responses/bibtex-missing.bib
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1
+tests/skills/pytest.ini
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-6
+tests/web/chat-agenttools.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-61
+skills/athena/email/references/himalaya.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-243
+skills/athena/humanizer/references/patterns.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-435
+tests/web/routines-page.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 34,48-49,67-69,95-97,110-128,185-200,209-213,215-223
+web/filepreview.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 14,33-35,39,48-54,57-58,61-64,66,69,118,120,129,133,135-138,148-149,152-153,166-167,180,194-195,203,215,222,232,241,249,253,264,268,275-276,281,293,296-297,300
+web/ui/select.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 3,11-12,15-17,29,34,39
+library/athena-agents/research/statistician.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-241
+skills/athena/dogfood/templates/report.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-82
+tests/skills/youtube-content/responses/player_unplayable.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-21
+library/athena-agents/games/three-js-developer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-284
+tests/web/home.test.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 43,93,96-103
+  s_a35cc1dee36eb2::t_c698905830a60a 104
+web/dock.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 6-7,412,443-445,830-832,846-847
+web/projects.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 7-8,18,94,133,145-150,152-155,157,222,230,244,347-388,460-461,464-465,467,470-493,511,513,523-528,531-533,536-542,557,573-580,582,601-621,632-645,647-654,656-673
+web/attachmenu.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 11-12,18,20
+tests/server/mcp-connect.test.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-118
+skills/athena/jupyter-notebook/scripts/kernel.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1007
+tests/skills/arxiv/test_arxiv_search.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-416
+tests/skills/stocks/responses/sec_company_tickers.json
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-47
+web/projectmenu.tsx
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 85
+skills/athena/docx/scripts/docx_tool.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-2256
+library/athena-agents/marketing/x-writer.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-151
+server/context.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 30,94-99,104,107
+server/voxel/scene.ts
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 14
+skills/athena/pdf/scripts/pdf_tool.py
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-1043
+library/athena-agents/marketing/reddit-community-builder.md
+  s_a35cc1dee36eb2::t_e08dae06a3df9d 1-187
+bun.lock
+  s_a35cc1dee36eb2::t_bed0af681b361e 6,8-9,12-15,29,32-34,37-38,40,43,53-55,66,69,71,76,81,83,85,89,91,97,109,111,113,115,117,119,131,287,293,433,435,447,449,451,453,455,457,459,461,463,465,467,469,471,473,477,481,605,607,609,613,619,621,631,689,823,995,997,999,1001,1003,1005,1007,1009,1011,1013,1015,1017,1035,1039,1385,1481,1529-1530,1541-1544,1609,1611-1613
+src-tauri/Cargo.lock
+  s_a35cc1dee36eb2::t_a1a66209f87aec 181-194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bfc3f0131412d77b3ddb258a6bcd2fdd58bc79ed",
+  "prompts": {},
+  "sessions": {
+    "s_a35cc1dee36eb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "deb62cda-93dc-4b2b-8b52-3b90b23410ac",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
