@@ -57,8 +57,9 @@ const openOutbox = async () => {
 };
 
 describe('chars()', () => {
-  it('counts an emoji as one, as X does', () => {
-    expect(chars('hi 👋')).toBe(4);
+  it('counts as X does: an emoji is two, a link 23', () => {
+    expect(chars('hi 👋')).toBe(5);
+    expect(chars('see https://example.com/a/long/path')).toBe(27);
   });
 });
 
@@ -84,6 +85,15 @@ describe('the Outbox', () => {
     const count = text.parentElement!.querySelector('.tabular-nums')!;
     expect(count.textContent).toBe('281/280');
     expect(count.classList.contains('text-red')).toBe(true);
+    await type(text, '日本'.repeat(70) + '!');
+    expect(count.textContent).toBe('281/280');
+  });
+
+  it("shows X's character count only on X posts", async () => {
+    posts = [post({ platform: 'reddit', images: undefined, reddit: { kind: 'post', subreddit: 'test', title: 'Hi' } })];
+    await openOutbox();
+    const text = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Text"]')!;
+    expect(text.parentElement!.querySelector('.tabular-nums')).toBeNull();
   });
 
   it('approves with your edits and without the image you took off', async () => {
@@ -95,6 +105,12 @@ describe('the Outbox', () => {
     expect(requests.find((r) => r.url === '/api/outbox/p1/approve')!.body).toEqual({ parts: ['Hello there'], images: ['C:\\out\\b.png'] });
     expect(document.getElementById('toasts')!.textContent).toContain('Posted ✓');
     expect(el.textContent).toContain('Waiting for you (0)');
+  });
+
+  it("shows each image's alt text, and the file name when there is none", async () => {
+    posts = [post({ imageAlt: { 'C:\\out\\a.png': 'A red bike against a wall' } })];
+    await openOutbox();
+    expect([...el.querySelectorAll('img')].map((i) => i.getAttribute('alt'))).toEqual(['A red bike against a wall', 'b.png']);
   });
 
   it('sends a draft back to its team with your note', async () => {
@@ -185,6 +201,8 @@ describe('Connections', () => {
     const sections = [...el.querySelectorAll('.settings-section h2')].map((heading) => heading.textContent);
     expect(sections.slice(-2)).toEqual(['Reddit accounts', 'Your Reddit app (one-time setup)']);
     expect(sections.indexOf('Discord')).toBeLessThan(sections.indexOf('Reddit accounts'));
+    // Reddit has reviewed new apps since November 2025, so setting one up may take a wait
+    expect(el.textContent).toContain("may need Reddit's approval first");
     for (const name of ['X accounts', 'Telegram', 'Discord']) {
       const heading = [...el.querySelectorAll('.settings-section h2')].find((h) => h.textContent === name)!;
       expect(heading.querySelector('svg')?.getAttribute('width')).toBe('17');

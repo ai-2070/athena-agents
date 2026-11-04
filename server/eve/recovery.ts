@@ -2,9 +2,9 @@ import { Client } from 'eve/client';
 import { cancelForRun, durableApproval, ensureDurableApproval } from '../approvals.ts';
 import { listProjects, questions, withProject } from '../store.ts';
 import { closeQuestion, WAIT_MS } from '../questions.ts';
-import { eveRuns, markSessionEnded, readBinding, readRun, retireSession, sessionBindings, sessionContext, setRunStatus, settleRun, stageTerminal, transcriptContext } from './state.ts';
+import { markSessionEnded, readBinding, readRun, retireSession, runSummaries, sessionBindings, sessionContext, setRunStatus, settleRun, stageTerminal, transcriptContext } from './state.ts';
 import { EVE_GENERATION } from './version.ts';
-import { operationsForRun, readOperation, reconcileOperations, saveOperation } from './operations.ts';
+import { operationsForRun, operationSummaries, readOperation, reconcileOperations, saveOperation } from './operations.ts';
 import { EveProjectionError, projectEvent } from './projection.ts';
 import { pendingAdmissions, submitAdmission, validAdmission } from './admission.ts';
 import { readExecution } from '../execution.ts';
@@ -24,7 +24,7 @@ function cancelQuestions(runId: string) {
     const project = binding && listProjects().find((item) => item.id === binding.projectId);
     if (!project) return;
     withProject(project, () => {
-      for (const operation of operationsForRun(runId)) {
+      for (const operation of operationSummaries(runId)) {
         const question = operation.questionId && questions.get(operation.questionId);
         if (question && question.runId === runId && question.status === 'waiting') closeQuestion(question.id, 'The run was stopped or interrupted.');
       }
@@ -96,10 +96,10 @@ export function observeEveEvent(runId: string, event: SessionStreamEvent) {
   } else if (event.type === 'session.ended') {
     stageTerminal(runId, { line: event.meta.position.line, status: event.data.outcome === 'failed' ? 'failed' : current.pendingTerminal?.status || 'interrupted', parts: current.pendingTerminal?.parts || [], error: event.data.error?.message || current.pendingTerminal?.error || 'The Eve session ended before this turn finished.' });
   } else if (event.type === 'turn.paused' && event.data.turnId === current.turnId) {
-    const waiting = event.data.awaiting.some(({ interactionId }) => operationsForRun(runId).some((operation) => operation.interactionId === interactionId && !operation.interactionSettled));
+    const waiting = event.data.awaiting.some(({ interactionId }) => operationSummaries(runId).some((operation) => operation.interactionId === interactionId && !operation.interactionSettled));
     setRunStatus(runId, waiting ? 'waiting' : 'running');
   } else if (event.type === 'interaction.settled') {
-    const waiting = operationsForRun(runId).some((operation) => operation.interactionId && !operation.interactionSettled);
+    const waiting = operationSummaries(runId).some((operation) => operation.interactionId && !operation.interactionSettled);
     setRunStatus(runId, waiting ? 'waiting' : 'running');
   }
   const ready = readRun(runId)!;
@@ -133,7 +133,7 @@ export async function deliverApprovalDecisions(runId: string, client: Client): P
   if (!run || !['running', 'waiting'].includes(run.status)) return;
   const { binding, project } = sessionContext(run.bindingId);
   if (!binding.sessionId) return;
-  for (const operation of operationsForRun(runId)) {
+  for (const operation of operationSummaries(runId)) {
     if (!operation.interactionId || operation.interactionSettled || operation.responseDeliveryId) continue;
     const approval = durableApproval(operation.id);
     const question = operation.questionId ? withProject(project, () => questions.get(operation.questionId!)) : null;
@@ -161,7 +161,7 @@ export function prepareEveRecovery(): void {
       if (binding.runtimeVersion !== EVE_GENERATION || owner.agent.engine !== 'eve' || owner.chat.sessionEngine && owner.chat.sessionEngine !== 'eve') retireSession(binding.id);
     } catch { retireSession(binding.id); }
   }
-  for (const run of eveRuns()) {
+  for (const run of runSummaries()) {
     if (run.status === 'completed' || run.status === 'failed') continue;
     if (run.status === 'stopped') {
       cancelForRun(run.id);
@@ -181,7 +181,7 @@ export function prepareEveRecovery(): void {
       continue;
     }
     reconcileOperations(run.id);
-    if (run.status === 'interrupted' || ((!binding.sessionId || !run.deliveryId) && !validAdmission(run.id)) || operationsForRun(run.id).some((operation) => operation.status === 'uncertain')) {
+    if (run.status === 'interrupted' || ((!binding.sessionId || !run.deliveryId) && !validAdmission(run.id)) || operationSummaries(run.id).some((operation) => operation.status === 'uncertain')) {
       setRunStatus(run.id, 'interrupted');
       cancelForRun(run.id, { keepOutcomeChecks: true });
       cancelQuestions(run.id);
@@ -213,7 +213,7 @@ export function prepareEveRecovery(): void {
     }
     return canResume(run.parentRunId, projectId, seen);
   };
-  for (const run of eveRuns().filter((item) => ['queued', 'running', 'waiting'].includes(item.status))) {
+  for (const run of runSummaries().filter((item) => ['queued', 'running', 'waiting'].includes(item.status))) {
     const { project } = sessionContext(run.bindingId);
     if (canResume(run.id, project.id)) continue;
     setRunStatus(run.id, 'interrupted');
@@ -232,7 +232,7 @@ export async function recoverEveRuns(host: Pick<EveHost, 'url' | 'token'>): Prom
     await submitAdmission(input, eveClient(host, input.bindingId));
   }
   const recovered: { runId: string; status: string }[] = [];
-  for (const run of eveRuns()) {
+  for (const run of runSummaries()) {
     if (run.status === 'completed' || run.status === 'failed') continue;
     const client = eveClient(host, run.bindingId);
     const binding = readBinding(run.bindingId);

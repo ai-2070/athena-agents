@@ -33,7 +33,7 @@ import * as openclawEngine from './engines/openclaw.ts';
 import { clearWhichCache, which } from './util.ts';
 import { aboutInfo } from './about.ts';
 import * as tools from './tools.ts';
-import { inlineToolImages } from './toolimages.ts';
+import { inlineToolImagesNoted, withImageNote } from './toolimages.ts';
 import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
@@ -47,7 +47,12 @@ import { savedOpacity } from '../shared/look.ts';
 import * as commands from './commands.ts';
 import { openGoal, clearWork, listBriefs } from './briefs.ts';
 import * as tasksMod from './tasks.ts';
-import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
+import * as taskBoard from './taskboard.ts';
+import { overview } from './overview.ts';
+import * as boardWork from './boardwork.ts';
+import { filesFromRequest, taskFilePath } from './boardfiles.ts';
+import { draftBoardText } from './taskdraft.ts';
+import type { TaskCreateInput, TaskQuery, TaskUpdateInput, BoardDraftInput } from '../shared/types.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
@@ -83,6 +88,7 @@ import * as files from './files.ts';
 import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
+import { saveToolStats, toolStats } from './toolstats.ts';
 import type { RestoreResult } from './projectsync.ts';
 import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
 
@@ -133,6 +139,20 @@ const postFile = (p: string, h: Handler<string>) => route('POST', p, h, true);
 const put = <B = Body>(p: string, h: Handler<B>) => route('PUT', p, h);
 const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
 const gatewaySupervisor = new GatewaySupervisor();
+
+// The routes an Overview pane uses for a project that isn't open (/api/p/<projectId>/…): an agent's chats and its
+// details, a team's thread, a chat's tasks, the questions its agents ask, the Brain's chat, MEMORY.md and its
+// versions, attached files, and showing that project's files.
+// Everything else (projects, settings, keys, backups) stays global.
+const SCOPED = /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|workflows|tasks(\/[\w-]+)?|questions(\/[\w-]+\/(answer|dismiss))?|brain\/(history|stream|steer)|memory\/[\w-]+|versions\/memory\/[^/]+(\/[^/]+(\/restore)?)?|uploads(\/[\w-]+)?|file|files\/(info|open|reveal))$/;
+function scopedRoute(pathname: string): { project: Project; path: string } | null {
+  const m = /^\/api\/p\/([^/]+)(\/.*)$/.exec(pathname);
+  if (!m) return null;
+  const project = store.listProjects().find((p) => p.id === decodeURIComponent(m[1]));
+  if (!project) throw new HttpError(404, 'That project is unavailable.');
+  if (!SCOPED.test(m[2])) throw new HttpError(404, `${m[2]} isn't available for another project.`);
+  return { project, path: `/api${m[2]}` };
+}
 
 class HttpError extends Error {
   status: number;
@@ -259,6 +279,15 @@ post<Parameters<typeof projects.createProject>[0] | null>('/api/projects', async
 });
 // The start screen: shown once each time the dashboard starts, until you pick or create a project.
 let launcherPending = true;
+// The Overview's Files panel: one folder of any project (?path= from the project folder), and opening a folder of it
+// in VS Code or the file manager. (They name their project, as project routes do.)
+get('/api/projects/:id/folder', async ({ id }, _b, q) => projects.folderListing(q.path || '', need(store.listProjects().find((p) => p.id === id))));
+post<{ app?: string; path?: unknown }>('/api/projects/:id/open', async ({ id }, body) => {
+  const dir = projects.brainFolder(body.path, need(store.listProjects().find((p) => p.id === id)));
+  if (body.app === 'vscode') return { message: await programs.launchProgram('vscode', { file: dir }) };
+  openWithShell(dir);
+  return { ok: true };
+});
 get('/api/projects/overview', async () => ({ ...projects.overview(projectSync.peek), showLauncher: launcherPending }));
 post('/api/projects/save', async () => projectSync.saveProject(store.activeProject().id));
 // The start screen closed; picking the project that is open already lands here too.
@@ -472,8 +501,11 @@ post('/api/agents/:id/duplicate', async ({ id }) => {
   return library.newAgent({ ...rest, name: `${a.name} (copy)` });
 });
 post('/api/agents/:id/export-claude', async ({ id }) => ({ file: library.exportToClaude(need(agents.get(id))) }));
-post('/api/agents/:id/open-workspace', async ({ id }) => {
-  openWithShell(tools.workspaceOf(need(agents.get(id))));
+// app 'vscode': in VS Code (an Overview pane's Open folder in VS Code), else in the file manager
+post<{ app?: string }>('/api/agents/:id/open-workspace', async ({ id }, body) => {
+  const dir = tools.workspaceOf(need(agents.get(id)));
+  if (body?.app === 'vscode') return { message: await programs.launchProgram('vscode', { file: dir }) };
+  openWithShell(dir);
   return { ok: true };
 });
 
@@ -523,6 +555,53 @@ post<TaskCreateInput & { chatId?: unknown }>('/api/tasks', async (_p, body) => {
   return { task: tasksMod.createTask(body, { admin: true, scope, ...(brief ? { briefId: brief.id } : {}) }) };
 });
 put<TaskUpdateInput>('/api/tasks/:id', async ({ id }, body) => ({ task: tasksMod.updateTask({ ...body, taskId: id }, { admin: true, scope: { kind: 'brain' } }) }));
+// the Tasks board (the project's own tasks, not the agents' step lists): one project's or every project's
+// (?project=all), each changed in the project it belongs to
+get('/api/task-board', async (_p, _b, q) => taskBoard.taskBoard(q.project || 'all'));
+// the Overview page: every project's agents, teams, the Brain and tasks being worked on, at a glance
+get('/api/overview', async () => overview());
+get('/api/task-board-people/:projectId', async ({ projectId }) => taskBoard.boardPeople(projectId));
+// A task you make In progress for an agent or team, or move there, starts its work (boardwork.ts); moving it away
+// or giving it to someone else stops it. Files are uploads of the open project, copied into the task's own.
+const boardProject = (id: string) => need(store.listProjects().find((p) => p.id === id));
+post<taskBoard.BoardInput & { files?: unknown }>('/api/task-board/:projectId', async ({ projectId }, body) => {
+  const files = await filesFromRequest(boardProject(projectId), body?.files);
+  const task = taskBoard.addBoardTask(projectId, body || {}, 'you', files);
+  return { task: task.status === 'in_progress' && /^(agent|team):/.test(task.assignee) ? await boardWork.startWork(projectId, task.id) : task };
+});
+get('/api/task-board/:projectId/:id', async ({ projectId, id }) => ({ task: taskBoard.boardTask(projectId, id) }));
+put<taskBoard.BoardInput & { expectedUpdatedAt?: unknown; files?: unknown }>('/api/task-board/:projectId/:id', async ({ projectId, id }, body) => {
+  const before = need(taskBoard.savedBoardTask(projectId, id));
+  const files = body?.files === undefined ? undefined : await filesFromRequest(boardProject(projectId), body.files, before.files);
+  const after = taskBoard.changeBoardTask(projectId, id, body || {}, files);
+  return { task: await boardWork.afterUserChange(projectId, before, after) };
+});
+post('/api/task-board/:projectId/:id/start', async ({ projectId, id }) => ({ task: await boardWork.startWork(projectId, id) }));
+post('/api/task-board/:projectId/:id/stop', async ({ projectId, id }) => ({ task: boardWork.stopWork(projectId, id) }));
+post<{ operationId?: unknown }>('/api/task-board/:projectId/:id/check', async ({ projectId, id }, body) => ({ task: boardWork.checkWork(projectId, id, body?.operationId) }));
+// A file on a task or one of its comments (?path= as the task lists it), from the task's own project.
+get('/api/task-board-file/:projectId/:id', async ({ projectId, id }, _b, q, res) => {
+  const p = boardProject(projectId);
+  const t = need(taskBoard.savedBoardTask(projectId, id));
+  const listed = [...(t.files || []), ...(t.comments || []).flatMap((c) => c.files || [])].some((f) => f.path === q.path);
+  const file = listed ? taskFilePath(p, q.path) : null;
+  if (!file) throw new HttpError(404, 'That file is missing.');
+  sendFileSafely(res, file);
+  return undefined;
+});
+put<{ ranks?: unknown }>('/api/task-board-ranks', async (_p, body) => (taskBoard.rerankBoardTasks(body?.ranks), { ok: true }));
+del('/api/task-board/:projectId/:id', async ({ projectId, id }) => (boardWork.stopWork(projectId, id), taskBoard.removeBoardTask(projectId, id), { ok: true }));
+post<{ text?: unknown; files?: unknown }>('/api/task-board/:projectId/:id/comments', async ({ projectId, id }, body) => {
+  const files = await filesFromRequest(boardProject(projectId), body?.files ?? []);
+  const task = taskBoard.addBoardComment(projectId, id, body?.text, 'you', files);
+  // (while an agent or team works on it, your comment reaches them too)
+  void boardWork.passToWorker(projectId, id, `A new comment on the task from you:\n\n${typeof body?.text === 'string' ? body.text : ''}`, files).catch(() => {});
+  return { task };
+});
+put<{ text?: unknown }>('/api/task-board/:projectId/:id/comments/:cid', async ({ projectId, id, cid }, body) => ({ task: taskBoard.changeBoardComment(projectId, id, cid, body?.text) }));
+del('/api/task-board/:projectId/:id/comments/:cid', async ({ projectId, id, cid }) => ({ task: taskBoard.changeBoardComment(projectId, id, cid, null) }));
+// "Draft with the Brain": a title and description, or a comment, put back in the box (nothing saved)
+post<BoardDraftInput>('/api/task-board-draft', async (_p, body) => draftBoardText(body));
 del('/api/agents/:id/chats/:cid', async ({ id, cid }) => {
   engines.forgetChat(cid);
   clearWork('agent', id, cid);
@@ -579,8 +658,8 @@ post<{ text?: unknown; attachments?: unknown; steer?: unknown }>('/api/agents/:i
   const text = String(body.text || '').trim();
   const attachments = uploads.cleanAttachments(body.attachments);
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
-  const { runId } = body.steer === true ? await engines.steerChat(a, c, text, { attachments }) : engines.startRun(a, c, text, { attachments });
-  await uistream.streamRun(res, { chatId: c.id, runId, waiting: `Waiting for ${a.name} to stop…` });
+  const { runId, steerId } = body.steer === true ? await engines.steerChat(a, c, text, { attachments }) : { ...engines.startRun(a, c, text, { attachments }), steerId: undefined };
+  await uistream.streamRun(res, { chatId: c.id, runId, waiting: `Waiting for ${a.name} to stop…`, ...(steerId ? { ownSteer: steerId } : {}), live: engines.runActive });
   return undefined;
 });
 get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
@@ -786,17 +865,16 @@ del('/api/presets/:id', async ({ id }) => (presets.deletePreset(id), { ok: true 
 post<{ withAgents?: unknown } | null>('/api/workflows/:id/clone', async ({ id }, body) => presets.cloneTeam(id, { withAgents: !!body?.withAgents }));
 
 // ---------- library ----------
-get('/api/library', async () => ({ ...(await library.libraryIndex()), starters: library.STARTERS.map(({ name, emoji, specialty }) => ({ name, emoji, specialty })) }));
-get('/api/library/agency/:slug', async ({ slug }) => {
-  const a = need(library.agencyAgents().find((x) => x.slug === slug));
-  return { ...a, body: fs.readFileSync(a.file, 'utf8') };
+get('/api/library', async () => library.libraryIndex());
+get('/api/library/agent/:slug', async ({ slug }) => {
+  const { file, ...a } = need(library.libraryAgents().find((x) => x.slug === slug));
+  return { ...a, body: fs.readFileSync(file, 'utf8') };
 });
-post<{ source?: string; slug: string; profile: string; name: string; overrides?: Partial<Agent> }>('/api/library/hire', async (_p, body) => {
+post<{ source?: string; slug: string; profile: string; overrides?: Partial<Agent> }>('/api/library/hire', async (_p, body) => {
   const o = body.overrides || {};
-  if (body.source === 'agency') return library.hireFromAgency(body.slug, o);
+  if (body.source === 'library') return library.hireFromLibrary(body.slug, o);
   if (body.source === 'hermes') return library.hireHermesProfile(body.profile, o);
   if (body.source === 'claude') return library.importClaudeSubagent(body.slug);
-  if (body.source === 'starter') return library.createStarter(body.name, o);
   throw new HttpError(400, 'Unknown library source');
 });
 
@@ -831,6 +909,8 @@ post('/api/codex/refresh', async () => {
 
 // ---------- tools & programs ----------
 get('/api/tools', async () => ({ groups: tools.TOOL_GROUPS, tools: tools.allTools() }));
+// how each tool has been used (counted on this computer only)
+get('/api/tool-stats', async () => toolStats());
 get('/api/programs', async (_p, _b, q) => programs.discoverPrograms(!!q.force));
 get('/api/programs/all', async () => programs.startMenuApps(true));
 post<{ program: string; file?: string }>('/api/programs/launch', async (_p, body) => {
@@ -1267,7 +1347,7 @@ get('/api/internal/tools', async (_p, _b, q) => {
   const run = engines.runInfo(q.run);
   return inRunProject(run, () => {
     const agent = bridgeAgent(run, q.agent);
-    const list = tools.toolDefs(agent);
+    const list = tools.toolDefs(agent, { conversationId: run?.conversationId, engine: agent.engine });
     if (agent.engine === 'claude-code')
       list.push({
         name: 'permission_prompt',
@@ -1284,9 +1364,11 @@ post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown
     const agent = bridgeAgent(run, body.agent);
     const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
     if (body.name === 'permission_prompt') return { text: JSON.stringify(await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId)) };
-    const r = await tools.callTool(agent, body.name, body.args || {}, ctx);
+    const r = tools.clipForModel(await tools.callTool(agent, body.name, body.args || {}, ctx), body.name, ctx.runId);
     // MCP takes pictures as data only: ComfyUI's result links are read here, so the agent sees them too
-    return r.images?.length ? { ...r, images: await inlineToolImages(r.images) } : r;
+    if (!r.images?.length) return r;
+    const { images, note } = await inlineToolImagesNoted(r.images);
+    return { ...r, images, text: withImageNote(r.text, note) };
   });
 });
 
@@ -1485,42 +1567,47 @@ const server = http.createServer(async (req, res) => {
         // Other websites can't add this header without a CORS preflight, which we never allow.
         throw new HttpError(403, 'Missing x-dash header');
       }
+      // /api/p/<projectId>/…: a route run inside that project (an Overview pane of a project that isn't open).
+      // It names its project, so the open-project guard below doesn't apply; only the routes a pane uses take it.
+      const scope = scopedRoute(url.pathname);
+      const pathname = scope ? scope.path : url.pathname;
+      const inScope = <T>(fn: () => T): T => (scope ? store.withProject(scope.project, fn) : fn());
       // A change made for the project the page shows, after another one was opened (in this tab or another):
       // refused, so it can't land in the wrong project. Project routes name their project themselves.
       const pageProject = req.headers['x-dash-project'];
-      if (!internal && req.method !== 'GET' && typeof pageProject === 'string' && pageProject && !url.pathname.startsWith('/api/projects') && pageProject !== store.activeProject().id) {
+      if (!scope && !internal && req.method !== 'GET' && typeof pageProject === 'string' && pageProject && !url.pathname.startsWith('/api/projects') && pageProject !== store.activeProject().id) {
         throw new HttpError(409, 'Another project was opened meanwhile. Nothing was changed; try again.');
       }
-      if (url.pathname === '/api/comfyui/view') return await comfy.proxyView(Object.fromEntries(url.searchParams), res);
+      if (pathname === '/api/comfyui/view') return await comfy.proxyView(Object.fromEntries(url.searchParams), res);
       // an attached file: the raw bytes, streamed to disk (the router only reads JSON bodies)
-      const upload = req.method === 'POST' && /^\/api\/uploads\/([\w-]+)$/.exec(url.pathname);
+      const upload = req.method === 'POST' && /^\/api\/uploads\/([\w-]+)$/.exec(pathname);
       if (upload) {
-        const saved = await uploads.receive(req, upload[1], url.searchParams.get('path') || '');
+        const saved = await inScope(() => uploads.receive(req, upload[1], url.searchParams.get('path') || ''));
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(JSON.stringify(saved));
       }
       for (const r of routes) {
         if (r.method !== req.method) continue;
-        const m = r.re.exec(url.pathname);
+        const m = r.re.exec(pathname);
         if (!m) continue;
         const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
         let out: unknown;
         if (r.raw) {
           const file = await receiveFile(req, FILE_LIMIT);
           try {
-            out = await r.handler(params, file, Object.fromEntries(url.searchParams), res);
+            out = await inScope(() => r.handler(params, file, Object.fromEntries(url.searchParams), res));
           } finally {
             fs.rmSync(file, { force: true });
           }
         } else {
           const body = req.method === 'GET' || req.method === 'DELETE' ? {} : await readBody(req);
-          out = await r.handler(params, body, Object.fromEntries(url.searchParams), res);
+          out = await inScope(() => r.handler(params, body, Object.fromEntries(url.searchParams), res));
         }
         if (out === undefined && res.headersSent) return;
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(JSON.stringify(out ?? null));
       }
-      throw new HttpError(404, `No API route ${req.method} ${url.pathname}`);
+      throw new HttpError(404, `No API route ${req.method} ${pathname}`);
     }
     if (req.method === 'GET' && serveStatic(url, res)) return;
     res.writeHead(404);
@@ -1603,6 +1690,7 @@ learning.startLearning();
 irc.startIrc();
 eveCoordinator.start();
 await gatewaySupervisor.start();
+boardWork.boardWork.start();
 void irc.recoverWork().catch((e: unknown) => store.log('error', `Couldn't resume saved work: ${e instanceof Error ? e.message : String(e)}`));
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
@@ -1633,7 +1721,14 @@ const shutdown = () => {
   stopping = true;
   terms.closeAll();
   // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
-  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns()]).finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => process.exit(0));
+  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns()]).finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => {
+    try {
+      saveToolStats();
+    } catch {
+      /* the numbers are only a help */
+    }
+    process.exit(0);
+  });
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

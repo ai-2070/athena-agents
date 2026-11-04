@@ -3,6 +3,7 @@
 // With "The Brain approves" on (the default), the Brain looks first: it allows routine, on-task
 // actions itself and only passes the risky or unclear ones on to you.
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { emit, log, getSettings, activeProject, listProjects, withProject } from './store.ts';
 import { listFiles, readPlain, uid, writeJSON } from './util.ts';
 import { privateDataPath } from './private.ts';
@@ -73,6 +74,7 @@ function restoreDurable(record: DurableApprovalRecord) {
   }
   const timer = setTimeout(() => finish(record.id, { approved: false, message: 'The approval expired.' }), Math.max(1, record.expiresAt - Date.now()));
   timer.unref();
+  record.item.projectId ??= record.projectId;
   pending.set(record.id, { item: record.item, resolve: () => {}, timer, reviewing: false, durable: record });
   if (record.expiresAt <= Date.now()) finish(record.id, { approved: false, message: 'The approval expired.' });
 }
@@ -82,6 +84,15 @@ function restoreDurableApprovals() {
     const record = durableById(name.slice(0, -5));
     if (record) restoreDurable(record);
   }
+}
+
+/** For Eve's retention: forget a decided consent once its run's receipts go. One still waiting stays. */
+export function removeDurableApproval(operationId: string): boolean {
+  const id = durableId(operationId);
+  const record = durableById(id);
+  if (!record || !record.decision || pending.has(id)) return false;
+  fs.rmSync(durableFile(id), { force: true });
+  return true;
 }
 
 /** Persist a request without waiting in an ordinary tool executor. Eve parks the call itself. */
@@ -94,7 +105,7 @@ export function ensureDurableApproval(operationId: string, request: ApprovalRequ
     restoreDurable(existing);
     return durableById(id) || existing;
   }
-  const item: Approval = { id, kind: request.kind || 'tool', title: request.title, detail: request.detail || '', agentId: request.agentId || null, agentName: request.agentName || '', data: request.data || {}, editable: request.editable ?? null, createdAt: Date.now() };
+  const item: Approval = { id, kind: request.kind || 'tool', title: request.title, detail: request.detail || '', agentId: request.agentId || null, agentName: request.agentName || '', data: request.data || {}, editable: request.editable ?? null, createdAt: Date.now(), projectId: activeProject().id };
   const reviewing = brainChecks(item);
   const record: DurableApprovalRecord = { id, operationId, fingerprint, item, projectId: activeProject().id, expiresAt: Date.now() + (request.timeoutMs ?? 30 * 60_000), reviewing };
   writeJSON(durableFile(id), record);
@@ -131,7 +142,7 @@ export function requestApproval(request: ApprovalRequest): Promise<ApprovalDecis
   const { kind = 'tool', title, detail = '', agentId = null, agentName = '', data = {}, editable = null, timeoutMs = 30 * 60_000 } = request;
   const id = uid('ap');
   return new Promise((resolve) => {
-    const item: Approval = { id, kind, title, detail, agentId, agentName, data, editable, createdAt: Date.now() };
+    const item: Approval = { id, kind, title, detail, agentId, agentName, data, editable, createdAt: Date.now(), projectId: activeProject().id };
     const timer = setTimeout(() => finish(id, { approved: false, message: 'No answer within 30 minutes, so it was skipped.' }), timeoutMs);
     const review = brainChecks(item);
     pending.set(id, { item, resolve, timer, reviewing: review });

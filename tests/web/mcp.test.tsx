@@ -120,6 +120,14 @@ describe('the MCP servers tab', () => {
     expect(requests.some((r) => r.url === '/api/mcp-preset')).toBe(false);
   });
 
+  it('gives each added server its mark, a copy its service\'s, without touching the title', async () => {
+    servers = { ...servers, 'oomol-work': { type: 'http', command: '', args: [], env: {}, url: 'https://example.com/mcp', headers: {}, kind: 'oomol', label: 'Work' } };
+    await open();
+    const rows = [...el.querySelectorAll('.mcp-server')];
+    expect(rows.map((r) => r.querySelector('.title')!.textContent)).toEqual(['playwright', 'oomol-work']);
+    for (const row of rows) expect(row.querySelector('.mcp-mark svg, .mcp-mark img')).not.toBeNull();
+  });
+
   it('finds a preset by its name or what it does', async () => {
     const preset = (name: string, title: string, description: string) => ({ name, title, description, ready: true, installed: false, type: 'http', url: `https://${name}.example.com/mcp`, headers: {} });
     mcpMore = { presets: [preset('sentry', 'Sentry', 'Errors and stack traces.'), preset('kiwi', 'Flights (Kiwi.com)', 'Search flights.')] };
@@ -142,6 +150,23 @@ describe('the MCP servers tab', () => {
     await settle();
     expect(el.querySelector('.mcp-server .pill.ok')!.textContent).toBe('2 tools');
     expect(el.querySelector('.mcp-tools')!.textContent).toBe('click · type');
+  });
+
+  it("shows why a server didn't start, with what it printed apart", async () => {
+    await open();
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: `Couldn't start MCP server "playwright": MCP error -32000: Connection closed\n\nWhat it printed:\nError: Cannot find module 'x'` }), { status: 500 }));
+    await act(async () => btn(el, 'Test').click());
+    await settle();
+    const box = el.querySelector('.mcp-test-failed')!;
+    expect(box.textContent).toContain('Connection closed');
+    expect(box.querySelector('.mcp-output')!.textContent).toBe("Error: Cannot find module 'x'");
+    expect(box.textContent).toContain('Check the command');
+    // (no toast on top: the row says it)
+    expect(document.querySelector('#toasts')!.textContent).toBe('');
+  });
+
+  it('calls the page MCP servers', () => {
+    expect(mcp.title()).toBe('MCP servers');
   });
 
   it('adds a remote server from the form, then lists it', async () => {

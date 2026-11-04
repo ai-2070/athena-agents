@@ -48,7 +48,7 @@ export function EmojiPicker({ value, onChange, children }: { value: string; onCh
     <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger className={buttonClass('ghost', undefined, 'size-15! rounded-[14px] p-0!')} aria-label="Choose emoji" title="Choose emoji">{children}</Popover.Trigger>
         <Popover.Portal>
-          <Popover.Positioner className="z-96 outline-none" side="bottom" align="start" sideOffset={6} collisionPadding={8}>
+          <Popover.Positioner positionMethod="fixed" className="z-96 outline-none" side="bottom" align="start" sideOffset={6} collisionPadding={8}>
             <Popover.Popup aria-label="Choose emoji" className="st-menu dd static w-[min(320px,calc(100vw-16px))] max-w-none p-2">
               <input aria-label="Search emoji" placeholder="Search emoji" value={query} onChange={(event) => { setQuery(event.target.value); setActive(null); }} className="w-full rounded-ctl border border-line-2 bg-bg px-3 py-2 text-[13.5px] text-ink placeholder:text-faint" />
               {!query.trim() && <div aria-label="Emoji categories" className="mt-2 flex gap-1 overflow-x-auto pb-1">

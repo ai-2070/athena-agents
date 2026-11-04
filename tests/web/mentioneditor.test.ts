@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { attachMentionEditor } from '../../web/chat/mentioneditor.ts';
 
 let dispose: (() => void) | undefined;
@@ -12,6 +12,24 @@ const open = (text: string) => {
 };
 
 describe('inline mention editor', () => {
+  it('never sets the hidden textarea\'s own selection (WebKit would move focus to it)', () => {
+    const native = vi.spyOn(HTMLTextAreaElement.prototype, 'setSelectionRange');
+    const { input, editor } = open('Ask @Ana to help');
+    editor.focus();
+    const range = document.createRange();
+    range.setStart(editor.lastChild!, 3);
+    range.collapse(true);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    editor.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    editor.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
+    input.setSelectionRange(2, 2);
+    expect(native).not.toHaveBeenCalled();
+    expect(input.selectionStart).toBe(2);
+    expect(document.activeElement).toBe(editor);
+    native.mockRestore();
+  });
+
   it('keeps chips between the words they were inserted into', () => {
     const { input, editor } = open('Ask @Ana to help #Design today');
     expect([...editor.childNodes].map((n) => n.textContent)).toEqual(['Ask ', '@Ana', ' to help ', '#Design', ' today']);
@@ -19,6 +37,37 @@ describe('inline mention editor', () => {
     editor.querySelector<HTMLButtonElement>('[aria-label="Remove @Ana"]')!.click();
     expect(input.value).toBe('Ask  to help #Design today');
     expect(editor.querySelector('[data-mention="#Design"]')).not.toBeNull();
+  });
+
+  it('takes a whole pill away with Backspace after it or Delete before it, also at the end', () => {
+    const key = (editor: HTMLElement, k: string) => editor.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+    const { input, editor } = open('Ask @Ana to help #Design');
+    input.focus();
+    // right after "@Ana"
+    input.setSelectionRange(8, 8);
+    key(editor, 'Backspace');
+    expect(input.value).toBe('Ask  to help #Design');
+    expect(input.selectionStart).toBe(4);
+    // a pill that ends the text
+    input.setSelectionRange(input.value.length, input.value.length);
+    key(editor, 'Backspace');
+    expect(input.value).toBe('Ask  to help ');
+    expect(editor.querySelector('[data-mention]')).toBeNull();
+
+    // (one box at a time)
+    dispose?.();
+    document.body.replaceChildren();
+    const other = open('Hi @Ana there');
+    other.input.focus();
+    other.input.setSelectionRange(3, 3);
+    key(other.editor, 'Delete');
+    expect(other.input.value).toBe('Hi  there');
+    // in the middle of text, Backspace is the browser's own
+    other.input.setSelectionRange(2, 2);
+    const plain = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true });
+    other.editor.dispatchEvent(plain);
+    expect(plain.defaultPrevented).toBe(false);
+    expect(other.input.value).toBe('Hi  there');
   });
 
   it('tracks the caret and replaces a suggestion in the middle of a message', () => {
@@ -40,6 +89,28 @@ describe('inline mention editor', () => {
     editor.dispatchEvent(key);
     expect(key.defaultPrevented).toBe(true);
     expect(input.value).toBe('@Ana hi');
+  });
+
+  it('puts an icon before a pill that has one', () => {
+    const input = document.createElement('textarea');
+    input.value = 'Ask @Ana and @Design with @Brand voice';
+    document.body.append(input);
+    dispose = attachMentionEditor(input, () => ['@Ana', { tag: '@Design', icon: 'users' }, { tag: '@Brand voice', icon: 'puzzle' }]);
+    const pill = (m: string) => document.querySelector(`[data-mention="${m}"]`)!;
+    expect(pill('@Ana').firstElementChild?.tagName.toLowerCase()).toBe('button');
+    expect(pill('@Design').firstElementChild?.tagName.toLowerCase()).toBe('svg');
+    expect(pill('@Brand voice').firstElementChild?.tagName.toLowerCase()).toBe('svg');
+    expect(input.value).toBe('Ask @Ana and @Design with @Brand voice');
+  });
+
+  it('puts a new line in as text when the box does not take Enter itself', () => {
+    const { input, editor } = open('@Ana hi');
+    input.focus();
+    input.setSelectionRange(7, 7);
+    const key = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    editor.dispatchEvent(key);
+    expect(key.defaultPrevented).toBe(true);
+    expect(input.value).toBe('@Ana hi\n');
   });
 
   it('shows changes made by textarea helpers and restores the textarea on cleanup', () => {

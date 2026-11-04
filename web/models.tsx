@@ -3,12 +3,13 @@
 // oh-my-pi and OpenClaw,
 // and how hard the model thinks (effort). The chips and the picker are React now: a chip is still the plain button
 // callers pass around (React draws what is inside it), and the picker mounts against the chip it opened from.
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.ts';
 import { engineConfigured } from './engineavailability.ts';
+import { slideSegment } from './segmotion.ts';
 import { brandImage } from './brandimages.ts';
 import { appIcon, appIconUrl } from './appicons.ts';
 import { brandPath, logo } from './icons.ts';
@@ -192,8 +193,9 @@ function makeChip(title: string, face: () => ReactNode): { chip: HTMLButtonEleme
   return { chip, draw };
 }
 
-// A chip showing an agent's model; click it to switch (model or what it runs on).
-export function modelChip(agent: Agent, { onChange, compact = false }: { onChange?: (agent: Agent) => void; compact?: boolean } = {}): HTMLButtonElement {
+// A chip showing an agent's model; click it to switch (model or what it runs on). at: '/p/<project>' for an agent of a
+// project that isn't open (projectAt).
+export function modelChip(agent: Agent, { onChange, compact = false, at = '' }: { onChange?: (agent: Agent) => void; compact?: boolean; at?: string } = {}): HTMLButtonElement {
   const { chip, draw } = makeChip('Switch model', () => {
     const mi = modelInfo(agent);
     return <ChipFace brand={mi.brand} engine={agent.engine} label={mi.short} effort={effortOf(agent)} latest={mi.latest && !compact} />;
@@ -202,7 +204,7 @@ export function modelChip(agent: Agent, { onChange, compact = false }: { onChang
     e.stopPropagation();
     openModelPicker(chip, agent, async (patch) => {
       const sameOne = sameModel(agent, patch);
-      const r = await attempt(() => PUT<Agent>(`/agents/${agent.id}`, patch));
+      const r = await attempt(() => PUT<Agent>(`${at}/agents/${agent.id}`, patch));
       if (!r) return false;
       Object.assign(agent, patch);
       flushSync(draw);
@@ -263,17 +265,19 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
 
 // ---------- the picker's rows, tabs and boxes ----------
 const STAR_CLASS = 'flex-none grid place-items-center size-7 mr-0.5 rounded-[6px] text-faint cursor-pointer opacity-0 [transition:opacity_.15s,color_.15s,background_.15s] group-hover:opacity-100 focus-visible:opacity-100 hover:text-accent hover:bg-panel-2 [&.on]:opacity-100 [&.on]:text-accent [&.on_.ico-svg]:fill-current [@media(hover:none)]:opacity-100';
-const EFFORT_LEVEL_CLASS = 'flex-1 min-w-0 py-1.5 px-0.5 border border-line rounded-ctl text-dim font-sans text-[12px] font-medium leading-[normal] cursor-pointer whitespace-nowrap [transition:border-color_.15s,color_.15s,background_.15s] hover:text-ink hover:bg-panel-2 [&.on]:border-accent [&.on]:text-accent [&.on]:bg-accent/10';
-const TAB_CLASS = "flex flex-col items-center gap-1 py-2 px-0.5 border border-line rounded-[8px] text-dim font-sans text-[11.5px] font-medium leading-[normal] cursor-pointer [transition:border-color_.15s,color_.15s,background_.15s] hover:text-ink hover:bg-panel-2 [&.on]:border-accent [&.on]:text-accent [&.on]:bg-accent/10 [&.cur]:after:content-[''] [&.cur]:after:size-1.25 [&.cur]:after:rounded-full [&.cur]:after:bg-accent";
+const EFFORT_LEVEL_CLASS = "relative isolate flex-1 min-w-0 py-1.5 px-1 rounded-[7px] text-dim font-sans text-[12px] font-medium leading-[normal] cursor-pointer whitespace-nowrap [transition:color_.15s] hover:text-ink [&.on]:text-ink [&.on]:before:absolute [&.on]:before:inset-0 [&.on]:before:-z-10 [&.on]:before:origin-top-left [&.on]:before:rounded-[inherit] [&.on]:before:bg-panel [&.on]:before:shadow-raised [&.on]:before:content-['']";
+const TAB_CLASS = "relative flex h-15 min-w-0 flex-col items-center justify-center gap-1.5 px-1 border border-line rounded-[10px] text-dim font-sans text-[11.5px] font-medium leading-[normal] cursor-pointer [transition:border-color_.15s,color_.15s,background_.15s,box-shadow_.15s] hover:text-ink hover:bg-panel-2 hover:border-line-2 [&>span:last-child]:max-w-full [&>span:last-child]:truncate [&.on]:border-accent [&.on]:text-ink [&.on]:bg-accent/10 [&.on]:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)] [&.cur]:after:content-[''] [&.cur]:after:absolute [&.cur]:after:top-1.5 [&.cur]:after:right-1.5 [&.cur]:after:size-1.5 [&.cur]:after:rounded-full [&.cur]:after:bg-ok";
 const MISSING_CLASS = 'flex items-center gap-2 mx-1.5 mb-1.5 px-2.25 py-1.75 rounded-[8px] text-[12px] text-amber bg-amber/10';
 const SHORT: Record<Effort, string> = { minimal: 'Min', low: 'Low', medium: 'Med', high: 'High', xhigh: 'X-High', max: 'Max' };
+/** A model row: its mark in a small tile, its name over where it runs, a check when it is the one in use. */
+const ROW_CLASS = 'flex-1 min-w-0 gap-3! py-2! px-2! rounded-[9px]! disabled:opacity-50 disabled:cursor-not-allowed [&.on]:bg-accent/8 [&.on]:text-ink';
+const ROW_TILE = 'grid size-8 flex-none place-items-center rounded-[8px] border border-line bg-panel-2 text-icon';
 /** How the class of a row is spelled: the markers a test or the app looks up, then the look. */
 const classes = (...parts: (string | false)[]) => parts.filter(Boolean).join(' ');
 
-/** The mark on a row: a check when it is the model in use, else its brand logo or a cpu icon. */
-function RowMark({ active, brand }: { active: boolean; brand: string | null }) {
-  if (active) return <Icon name="check" size={15} />;
-  return <BrandMark brand={brand} size={14} fallback={<Icon name="cpu" size={15} />} />;
+/** The mark on a row: its brand logo or a cpu icon, in a small tile. */
+function RowMark({ brand }: { brand: string | null }) {
+  return <span className={ROW_TILE}><BrandMark brand={brand} size={15} fallback={<Icon name="cpu" size={15} />} /></span>;
 }
 
 /** The star that saves a model as a favorite (saved in Settings, so every picker shows it). */
@@ -299,16 +303,23 @@ function FavStar({ choice, onChanged }: { choice: ModelChoice; onChanged: () => 
   );
 }
 
+/** What is typed in the picker's search box: rows that don't match it draw nothing. */
+const SearchQuery = createContext('');
+const matches = (q: string, ...words: (string | null | undefined)[]) => !q || words.join(' ').toLowerCase().includes(q);
+
 /** One model in the list: its name and where it runs, and the star beside it. */
 function Row({ label, sub, active, choice, brand = null, disabled = false, onPick, onChanged }: { label: string; sub: string | null; active: boolean; choice: ModelChoice; brand?: string | null; disabled?: boolean; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
+  const q = useContext(SearchQuery);
+  if (!matches(q, label, sub, choice.model)) return null;
   return (
     <div className="model-row group flex items-center gap-0.5">
-      <button type="button" disabled={disabled} className={classes('st-menu-item', active && 'on', 'flex-1 min-w-0 disabled:opacity-50 disabled:cursor-not-allowed')} onClick={() => onPick(choice)}>
-        <RowMark active={active} brand={brand} />
-        <span className="flex-1 min-w-0">
+      <button type="button" disabled={disabled} aria-current={active || undefined} className={classes('st-menu-item', active && 'on', ROW_CLASS)} onClick={() => onPick(choice)}>
+        <RowMark brand={brand} />
+        <span className="flex-1 min-w-0 truncate font-medium">
           {label}
-          {sub ? <span className="model-sub">{sub}</span> : null}
+          {sub ? <span className="model-sub font-normal">{sub}</span> : null}
         </span>
+        {active ? <Icon name="check" size={15} className="text-accent!" /> : null}
       </button>
       <FavStar choice={choice} onChanged={onChanged} />
     </div>
@@ -329,7 +340,12 @@ function FreeInput({ placeholder, onSubmit }: { placeholder: string; onSubmit: (
     el.addEventListener('keydown', key);
     return () => el.removeEventListener('keydown', key);
   }, [onSubmit]);
-  return <input ref={box} className={SEARCH} placeholder={placeholder} />;
+  return (
+    <label className="relative mt-2 block border-t border-line pt-2">
+      <span className="pointer-events-none absolute top-1/2 left-3 mt-1 -translate-y-1/2 text-faint"><Icon name="keyboard" size={14} /></span>
+      <input ref={box} className={`${SEARCH} my-0! pl-8.5!`} placeholder={placeholder} />
+    </label>
+  );
 }
 
 /** A line saying something isn't set up on this PC yet, and the way to Settings. */
@@ -368,13 +384,13 @@ function LevelButton({ value, shown, onPick }: { value: Effort | ''; shown: Effo
         onPick(value);
       }}
     >
-      {value ? SHORT[value] : 'Default'}
+      {value ? SHORT[value] : 'Auto'}
     </button>
   );
 }
 
 /** The models a server on this PC offers (LM Studio, Ollama, a custom one): its own list, and a box to type one. */
-function LocalSection({ provider, label, howToStart = '', cur, onPick, onChanged }: { provider: string; label: string; howToStart?: string; cur: ModelTarget; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
+function LocalSection({ provider, label, howToStart = '', typeIn = false, cur, onPick, onChanged }: { provider: string; label: string; howToStart?: string; typeIn?: boolean; cur: ModelTarget; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
   const [ids, setIds] = useState<string[] | null>(null);
   useEffect(() => {
     let live = true;
@@ -400,7 +416,7 @@ function LocalSection({ provider, label, howToStart = '', cur, onPick, onChanged
           <div className="model-sub px-2.5 py-1">{`No models found. Is ${label} running?${howToStart ? ` (${howToStart})` : ''}`}</div>
         )}
       </div>
-      <FreeInput placeholder={`or type a ${label} model id and press Enter`} onSubmit={(m) => onPick({ engine: 'eve', provider, model: m })} />
+      {typeIn ? <FreeInput placeholder={`or type a ${label} model id and press Enter`} onSubmit={(m) => onPick({ engine: 'eve', provider, model: m })} /> : null}
     </>
   );
 }
@@ -435,64 +451,41 @@ function ClaudeBody({ cur, close, onPick, onChanged }: { cur: ModelTarget; close
 }
 
 function VeniceBody({ cur, models, error, close, onPick, onChanged }: { cur: ModelTarget; models: ModelListing[] | null; error: string | null; close: () => void; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
-  const [query, setQuery] = useState('');
+  const query = useContext(SearchQuery);
   const current = cur.engine === 'eve' && cur.provider === 'venice' ? cur.model : '';
   const list = models || [];
   const pool: ModelListing[] = current && !list.some((m) => m.id === current) ? [{ id: current, name: current }, ...list] : list;
-  const shown = pool.filter((m) => `${m.id} ${m.name || ''}`.toLowerCase().includes(query.toLowerCase())).slice(0, 80);
+  const shown = pool.filter((m) => `${m.id} ${m.name || ''}`.toLowerCase().includes(query)).slice(0, 80);
   return <>
     {state.data?.secrets?.veniceKey?.set ? null : <Missing text="Add your Venice key to run a model." find="Venice key" close={close} />}
     <div className="st-menu-head">Venice</div>
-    <input className={SEARCH} aria-label="Search Venice models" placeholder="Search Venice models" value={query} onChange={(e) => setQuery(e.target.value)} />
     {models === null && !error ? <p className="model-sub px-2.5 py-1" role="status">Loading Venice models…</p> : null}
-    {error ? <p className="model-sub px-2.5 py-1" role="status">{error} You can enter a model id below.</p> : null}
-    {models && !models.length ? <p className="model-sub px-2.5 py-1">No Venice models found. Enter a model id below or try again later.</p> : null}
-    {models?.length && !shown.length ? <p className="model-sub px-2.5 py-1">No models match this search.</p> : null}
+    {error ? <p className="model-sub px-2.5 py-1" role="status">{error} You can type a model id in the box above.</p> : null}
+    {models && !models.length ? <p className="model-sub px-2.5 py-1">No Venice models found. Type a model id in the box above, or try again later.</p> : null}
     <div className="model-list">{shown.map((m) => <Row key={m.id} label={m.name || m.id}
       sub={[m.id, m.price ? `$${m.price.in.toFixed(2)} / $${m.price.out.toFixed(2)} per M tokens` : '', m.context ? `${Math.round(m.context / 1000)}k context` : '', m.tools === false ? 'No tool use' : '', m.offline ? 'Temporarily unavailable' : ''].filter(Boolean).join(' · ')}
       active={m.id === current} disabled={m.offline} choice={{ engine: 'eve', provider: 'venice', model: m.id }} onPick={onPick} onChanged={onChanged} />)}</div>
-    <FreeInput placeholder="or enter a Venice model id and press Enter" onSubmit={(model) => onPick({ engine: 'eve', provider: 'venice', model })} />
   </>;
 }
 
 /** OpenRouter: its own list (as much as the server knows), the picks everyone wants, and any server on this PC. */
 function OpenRouterBody({ cur, local, close, onPick, onChanged }: { cur: ModelTarget; local: boolean; close: () => void; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
   const hasKey = !!state.data?.secrets?.openrouterKey?.set;
-  const [q, setQ] = useState('');
+  const q = useContext(SearchQuery);
   const [all, setAll] = useState<ModelListing[]>([]);
-  const search = useRef<HTMLInputElement>(null);
   useEffect(() => {
     let live = true;
     GET<ModelListing[]>('/models?engine=eve&provider=openrouter')
       .then((ms) => { if (live) setAll(ms); })
       .catch(() => {});
-    const focus = setTimeout(() => search.current?.focus(), 30);
-    return () => { live = false; clearTimeout(focus); };
+    return () => { live = false; };
   }, []);
   const pool: ModelListing[] = all.length ? all : OPENROUTER_PICKS.map((id) => ({ id, name: id }));
-  const ql = q.toLowerCase();
-  const shown = (ql ? pool.filter((m) => `${m.id} ${m.name}`.toLowerCase().includes(ql)) : pool.filter((m) => OPENROUTER_PICKS.includes(m.id) || m.id === cur.model).concat(pool.filter((m) => !OPENROUTER_PICKS.includes(m.id)).slice(0, 25))).slice(0, 60);
-  // Enter picks whatever id is in the box (a listener on the box itself, so it is read off the element)
-  useEffect(() => {
-    const el = search.current;
-    if (!el) return;
-    const key = (e: KeyboardEvent) => {
-      const v = el.value.trim();
-      if (e.key === 'Enter' && v) onPick({ engine: 'eve', provider: 'openrouter', model: v });
-    };
-    el.addEventListener('keydown', key);
-    return () => el.removeEventListener('keydown', key);
-  }, [onPick]);
+  const shown = (q ? pool.filter((m) => `${m.id} ${m.name}`.toLowerCase().includes(q)) : pool.filter((m) => OPENROUTER_PICKS.includes(m.id) || m.id === cur.model).concat(pool.filter((m) => !OPENROUTER_PICKS.includes(m.id)).slice(0, 25))).slice(0, 60);
   return (
     <>
       {hasKey ? null : <Missing text="Add your OpenRouter key first." find="OpenRouter key" close={close} />}
       <div className="st-menu-head">OpenRouter</div>
-      <input
-        ref={search}
-        className={SEARCH}
-        placeholder="Search 300+ models (gpt, gemini, llama, deepseek…)"
-        onInput={(e) => setQ(e.currentTarget.value)}
-      />
       <div className="model-list">
         {shown.map((m) => (
           <Row
@@ -507,8 +500,8 @@ function OpenRouterBody({ cur, local, close, onPick, onChanged }: { cur: ModelTa
           />
         ))}
       </div>
-      {local ? <LocalSection provider="ollama" label="Ollama" cur={cur} onPick={onPick} onChanged={onChanged} /> : null}
-      {local ? <LocalSection provider="custom" label="Custom server" cur={cur} onPick={onPick} onChanged={onChanged} /> : null}
+      {local ? <LocalSection provider="ollama" label="Ollama" typeIn cur={cur} onPick={onPick} onChanged={onChanged} /> : null}
+      {local ? <LocalSection provider="custom" label="Custom server" typeIn cur={cur} onPick={onPick} onChanged={onChanged} /> : null}
     </>
   );
 }
@@ -523,7 +516,6 @@ function HermesBody({ cur, close, onPick, onChanged }: { cur: ModelTarget; close
       <div className="st-menu-head">Hermes</div>
       <Row label="The profile's own model" sub="whatever your Hermes profile uses" active={same('')} choice={{ engine: 'hermes', model: '' }} onPick={onPick} onChanged={onChanged} />
       {OPENROUTER_PICKS.slice(1).map((id) => <Row key={id} label={id.split('/').pop()!} sub={id} active={same(id)} choice={{ engine: 'hermes', model: id }} brand="claude" onPick={onPick} onChanged={onChanged} />)}
-      <FreeInput placeholder="or type a model id and press Enter" onSubmit={(m) => onPick({ engine: 'hermes', model: m })} />
     </>
   );
 }
@@ -532,9 +524,8 @@ function HermesBody({ cur, close, onPick, onChanged }: { cur: ModelTarget; close
 function CliBody({ engine, cur, close, onPick, onChanged }: { engine: 'pi' | 'omp' | 'openclaw'; cur: ModelTarget; close: () => void; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
   const eng: Partial<EngineStatus> = state.data?.engines || {};
   const t = CLI_TABS[engine]!;
-  const [q, setQ] = useState('');
+  const q = useContext(SearchQuery);
   const [all, setAll] = useState<ModelListing[] | null>(null);
-  const search = useRef<HTMLInputElement>(null);
   useEffect(() => {
     let live = true;
     GET<ModelListing[]>(`/models?engine=${engine}`).then(
@@ -544,30 +535,12 @@ function CliBody({ engine, cur, close, onPick, onChanged }: { engine: 'pi' | 'om
     return () => { live = false; };
   }, [engine]);
   const same = (model: string) => cur.engine === engine && String(cur.model || '') === model;
-  const ql = q.toLowerCase();
-  const shown = (ql && all ? all.filter((m) => `${m.id} ${m.name}`.toLowerCase().includes(ql)) : all || []).slice(0, 60);
-  // Enter picks whatever id is in the box (a listener on the box itself, so it is read off the element)
-  useEffect(() => {
-    const el = search.current;
-    if (!el) return;
-    const key = (e: KeyboardEvent) => {
-      const v = el.value.trim();
-      if (e.key === 'Enter' && v) onPick({ engine, model: v });
-    };
-    el.addEventListener('keydown', key);
-    return () => el.removeEventListener('keydown', key);
-  }, [engine, onPick]);
+  const shown = (q && all ? all.filter((m) => `${m.id} ${m.name}`.toLowerCase().includes(q)) : all || []).slice(0, 60);
   return (
     <>
       {eng[engine] && !eng[engine].installed ? <Missing text={`${t.name} is not installed on this PC.`} find={t.find} close={close} /> : null}
       <div className="st-menu-head">{t.name}</div>
       <Row label={t.own} sub="whatever it is set to use" active={same('')} choice={{ engine, model: '' }} onPick={onPick} onChanged={onChanged} />
-      <input
-        ref={search}
-        className={SEARCH}
-        placeholder="Search its models, or type a provider/model id and press Enter"
-        onInput={(e) => setQ(e.currentTarget.value)}
-      />
       <div className="model-list">
         {all === null ? (
           <div className="model-sub px-2.5 py-1">Looking for models…</div>
@@ -607,7 +580,6 @@ function CodexBody({ cur, close, onPick, onChanged }: { cur: ModelTarget; close:
           all.filter((m) => m.id).map((m) => <Row key={m.id} label={m.name || m.id} sub={m.description ? `${m.id} · ${m.description}` : m.id} active={same(m.id)} choice={{ engine: 'codex', model: m.id }} brand="openai" onPick={onPick} onChanged={onChanged} />)
         )}
       </div>
-      <FreeInput placeholder="or type a model id and press Enter" onSubmit={(m) => onPick({ engine: 'codex', model: m })} />
     </>
   );
 }
@@ -697,6 +669,56 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
     if (ok === false && asked.current === value) setLevel(before);
   };
 
+  // the search box: it filters this tab's list; Enter takes what is typed as a model id on this tab
+  const [query, setQuery] = useState('');
+  const search = useRef<HTMLInputElement>(null);
+  const typedChoice = (model: string): ModelChoice | null =>
+    tab === 'fav' ? null
+    : tab === 'eve' ? { engine: 'eve', provider: 'openrouter', model }
+    : tab === 'venice' ? { engine: 'eve', provider: 'venice', model }
+    : tab === 'lmstudio' ? { engine: 'eve', provider: 'lmstudio', model }
+    : { engine: tab, model };
+  const pickRef = useRef(pick);
+  pickRef.current = pick;
+  const typedRef = useRef(typedChoice);
+  typedRef.current = typedChoice;
+  // (the box appears with the popup, a moment after the picker is made: a ref callback sets it up then.
+  // A listener on the box itself, and the id read off it, as typing leaves it)
+  const searchBox = useCallback((el: HTMLInputElement | null) => {
+    search.current = el;
+    if (!el) return;
+    const key = (e: KeyboardEvent) => {
+      const v = el.value.trim();
+      if (e.key !== 'Enter' || !v) return;
+      e.preventDefault();
+      const choice = typedRef.current(v);
+      if (choice) return pickRef.current(choice);
+      // Favorites take no new id: Enter picks the first one that matches
+      menu.current?.querySelector<HTMLButtonElement>('.model-body .model-row button.st-menu-item:not(:disabled)')?.click();
+    };
+    el.addEventListener('keydown', key);
+    const focus = setTimeout(() => el.focus({ preventScroll: true }), 30);
+    return () => {
+      el.removeEventListener('keydown', key);
+      clearTimeout(focus);
+    };
+  }, []);
+  // nothing in the list matches: say so, and what Enter will do
+  const [noMatch, setNoMatch] = useState(false);
+  useLayoutEffect(() => {
+    const none = !!query.trim() && !menu.current?.querySelector('.model-body .model-row');
+    if (none !== noMatch) setNoMatch(none);
+  });
+  // the effort plate slides from the level it was on to the new one
+  const effortRow = useRef<HTMLDivElement>(null);
+  const lastLevel = useRef<HTMLButtonElement | null>(null);
+  useLayoutEffect(() => {
+    const on = effortRow.current?.querySelector<HTMLButtonElement>('.model-effort-level.on') ?? null;
+    slideSegment(lastLevel.current, on);
+    lastLevel.current = on;
+  }, [shown, tab]);
+  const tabName = tab === 'fav' ? 'favorites' : tab === 'eve' ? 'OpenRouter models' : `${TABS.find((t) => t.engine === tab)?.label || ''} models`;
+
   const menu = useRef<HTMLDivElement>(null);
   // Escape closes the picker and hands focus back; a click anywhere else closes it (the plain-DOM menu did both itself)
   useEffect(() => {
@@ -749,8 +771,11 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
         finalFocus={false}
         className="model-menu data-[ending-style]:pointer-events-none"
       >
-        <div className="st-menu-head">{title}</div>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(66px,1fr))] gap-1.5 pt-1 px-2 pb-3">
+        <div className="flex-none px-3 pt-3 pb-2.5">
+          <div className="st-menu-head truncate p-0! text-[13.5px]! font-semibold! text-ink!">{title}</div>
+          <div className="mt-0.5 text-[12px] text-faint">Where it runs, how hard it thinks, and which model</div>
+        </div>
+        <div className="grid flex-none grid-cols-4 gap-1.5 px-3 pb-3">
           {shownTabs.map((t) => (
             <button
               key={t.engine}
@@ -768,18 +793,34 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
             </button>
           ))}
         </div>
-        {shownTabs.length && (provider !== 'venice' || levels.length) ? <div className="px-2 pb-3 border-b border-line mb-1.5">
-          <div className="flex items-center gap-1.5 px-1 pb-2 font-sans text-[12px] font-medium leading-[normal] text-dim">
+        {shownTabs.length && (provider !== 'venice' || levels.length) ? <div className="flex-none px-3 pb-2.5">
+          <div className="flex items-center gap-1.5 pb-2 font-sans text-[12px] font-medium leading-[normal] text-dim">
             <Icon name="gauge" size={13} />
             <span>Effort</span>
             <span className="ml-auto font-normal text-faint">{live ? 'how hard it thinks' : 'for the model you pick here'}</span>
           </div>
-          <div className="flex gap-1" role="group" aria-label="Effort">
+          <div ref={effortRow} className="flex gap-0.5 rounded-[9px] border border-line bg-ink/[0.03] p-0.5" role="group" aria-label="Effort">
             <LevelButton value="" shown={shown} onPick={(v) => void changeEffort(v)} />
             {levels.map((level) => <LevelButton key={level} value={level} shown={shown} onPick={(v) => void changeEffort(v)} />)}
           </div>
         </div> : null}
-        <div className="model-body max-h-95 overflow-y-auto">{body}</div>
+        <div className="flex-none border-b border-line px-3 pb-3">
+          <label className="relative block">
+            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint"><Icon name="search" size={14} /></span>
+            <input
+              ref={searchBox}
+              className={`${SEARCH} my-0! pl-8.5!`}
+              aria-label="Search models"
+              placeholder={tab === 'fav' ? 'Search your favorites' : `Search ${tabName}, or type an id and press Enter`}
+              value={query}
+              onChange={(e) => setQuery(e.currentTarget.value)}
+            />
+          </label>
+        </div>
+        <div className="model-body min-h-0 flex-1 overflow-y-auto px-1.5 py-1.5">
+          <SearchQuery.Provider value={query.trim().toLowerCase()}>{body}</SearchQuery.Provider>
+          {noMatch ? <p className="model-sub px-2.5 py-2 whitespace-normal!">{typedChoice(query.trim()) ? `Nothing here matches. Press Enter to use "${query.trim()}" as the model id.` : 'None of your favorites match.'}</p> : null}
+        </div>
       </PopoverContent>
     </PopoverRoot>
   );

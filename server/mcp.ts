@@ -2,10 +2,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import type { Stream } from 'node:stream';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { StreamableHTTPClientTransport, StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { SSEClientTransport, SseError } from '@modelcontextprotocol/sdk/client/sse.js';
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
+import { ErrorCode, McpError, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { HOME, IS_WIN, BRIDGE_SCRIPT, PORT, dataPath, readJSON, writeJSON, which, exists } from './util.ts';
 import { emit, log, internalToken, agents, workflows, listProjects, withProject } from './store.ts';
@@ -197,7 +200,7 @@ export const PRESETS: McpPreset[] = [
   {
     name: 'brave-search',
     title: 'Web search (Brave)',
-    description: 'Search the web, news, images and videos. Needs a free Brave Search API key: add it as BRAVE_API_KEY after adding.',
+    description: 'Search the web, news, images and videos. Needs a Brave Search API key (brave.com/search/api; signing up asks for a card, and a few dollars of searches each month are free): add it as BRAVE_API_KEY after adding.',
     type: 'stdio',
     command: 'npx',
     args: ['-y', '@brave/brave-search-mcp-server'],
@@ -968,6 +971,71 @@ function resolveCommand(command: string, args: string[]): { command: string; arg
 
 // ---------- live connections ----------
 const clients = new Map<string, Promise<Client>>();
+// Only the connection that closed: an old one closing after a settings change must not drop the new one
+// (the next call would start yet another server and leave this one running).
+const dropClient = (name: string, job: Promise<Client>) => {
+  if (clients.get(name) === job) clients.delete(name);
+};
+
+/** How long a server may go quiet on a request, and the most a request may take in all. Each progress report
+ *  the server sends starts the quiet time again, up to the most. (Tests make them short.) */
+export const TIMEOUTS = { list: 60_000, listMax: 5 * 60_000, call: 10 * 60_000, callMax: 60 * 60_000 };
+
+// ---------- what a local server printed ----------
+// A local server says why it failed on its error output (stderr), so the end of it is kept for each server.
+// It is read all the time: an unread pipe fills up and freezes the server process.
+const OUTPUT_MAX = 4000;
+const OUTPUT_LINES = 20;
+const outputs = new Map<string, string>();
+// marks where the server's own words start in an error, for the page to show them apart
+export const OUTPUT_MARK = '\n\nWhat it printed:\n';
+
+/** The last lines a local server printed on its error output ('' when none), keys taken out. */
+export function serverOutput(name: string): string {
+  const all = outputs.get(name) || '';
+  // (a line cut off at the front is dropped)
+  const lines = (all.length >= OUTPUT_MAX ? all.slice(all.indexOf('\n') + 1) : all).split(/\r?\n/).map((l) => l.trimEnd());
+  while (lines.length && !lines[lines.length - 1]) lines.pop();
+  return lines.slice(-OUTPUT_LINES).join('\n').trim();
+}
+
+// Keeps the end of a stream as the server's output, with its keys hidden. Resolves when the stream ends.
+function keepOutput(name: string, stream: Stream | null, cfg: McpServerConfig): Promise<void> {
+  outputs.set(name, '');
+  if (!stream) return Promise.resolve();
+  // a server may print its own key back (a "bad key: sk-…" line); the page must not see it
+  const keys = [...Object.entries(cfg.env || {}).filter(([k]) => SECRET_NAME.test(k)).map(([, v]) => v), ...Object.values(cfg.headers || {})].filter((v) => v && v.length >= 4 && !/YOUR_/.test(v));
+  const hide = (s: string) => keys.reduce((t, k) => t.split(k).join(HIDDEN), s);
+  return new Promise((resolve) => {
+    stream.on('data', (chunk: Buffer | string) => {
+      const was = outputs.get(name) ?? '';
+      outputs.set(name, hide(was + chunk.toString()).slice(-OUTPUT_MAX));
+    });
+    stream.on('end', () => resolve());
+    stream.on('close', () => resolve());
+    stream.on('error', () => resolve());
+  });
+}
+
+/** An error's text with the end of what the server printed, when it printed anything. */
+function withOutput(name: string, msg: string): string {
+  const out = serverOutput(name);
+  return out && !msg.includes(OUTPUT_MARK) ? `${msg}${OUTPUT_MARK}${out}` : msg;
+}
+
+const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** The status a link's server refused us with because it wants a sign-in or a key (401/403), or 0. */
+function authStatus(e: unknown): number {
+  if (e instanceof UnauthorizedError) return 401;
+  if ((e instanceof StreamableHTTPError || e instanceof SseError) && (e.code === 401 || e.code === 403)) return e.code;
+  const m = /\(HTTP (401|403)\)/.exec(errText(e));
+  return m ? Number(m[1]) : 0;
+}
+
+const needsSignIn = (status: number) =>
+  `The server needs a sign-in or a key (it answered ${status} ${status === 401 ? 'Unauthorized' : 'Forbidden'}). Put your key or token in its headers (Edit it), and check it is still valid. A server that signs in through the browser can be added through mcp-remote instead.`;
 
 // test: the Test button may start a server that is turned off; agents may not
 async function connect(name: string, { test = false } = {}): Promise<Client> {
@@ -976,41 +1044,64 @@ async function connect(name: string, { test = false } = {}): Promise<Client> {
   if (cfg.enabled === false && !test) throw new Error(`The MCP server "${name}" is turned off.`);
   if (clients.has(name)) return clients.get(name)!;
   const job = (async () => {
-    const client = new Client({ name: 'blacksite', version: '0.1.0' });
+    const client = new Client({ name: 'athena-agents', version: '0.1.0' });
     if (cfg.type === 'stdio') {
       const { command, args } = resolveCommand(cfg.command, cfg.args || []);
-      // stderr ignored: an unread pipe fills up and freezes the server process.
-      const transport = new StdioClientTransport({ command, args, env: { ...process.env, ...(cfg.env || {}) } as Record<string, string>, stderr: 'ignore' });
-      await client.connect(transport);
+      const transport = new StdioClientTransport({ command, args, env: { ...process.env, ...(cfg.env || {}) } as Record<string, string>, stderr: 'pipe' });
+      const printed = keepOutput(name, transport.stderr, cfg);
+      try {
+        await client.connect(transport);
+      } catch (e) {
+        // (what it printed just before it quit may still be on its way)
+        await Promise.race([printed, wait(300)]);
+        throw e;
+      }
     } else {
+      outputs.delete(name);
       const url = new URL(cfg.url);
       const requestInit = { headers: cfg.headers || {} };
       try {
         await client.connect(new StreamableHTTPClientTransport(url, { requestInit }));
       } catch (e) {
+        await client.close().catch(() => {});
+        // a refused key won't work the older way either
+        const status = authStatus(e);
+        if (status) throw new Error(needsSignIn(status));
         // Older servers only speak SSE.
-        const c2 = new Client({ name: 'blacksite', version: '0.1.0' });
-        await c2.connect(new SSEClientTransport(url, { requestInit }));
-        c2.onclose = () => clients.delete(name);
+        const c2 = new Client({ name: 'athena-agents', version: '0.1.0' });
+        try {
+          await c2.connect(new SSEClientTransport(url, { requestInit }));
+        } catch (e2) {
+          await c2.close().catch(() => {});
+          const status2 = authStatus(e2);
+          if (status2) throw new Error(needsSignIn(status2));
+          throw new Error(`It didn't connect the current way (Streamable HTTP: ${errText(e)}) or the older way (SSE: ${errText(e2)}).`);
+        }
+        c2.onclose = () => dropClient(name, job);
         return c2;
       }
     }
     // A server that crashed is started fresh next time.
-    client.onclose = () => clients.delete(name);
+    client.onclose = () => dropClient(name, job);
     return client;
-  })();
+  })().then((client) => {
+    // (its tool list is asked for again once it says the list changed)
+    client.setNotificationHandler(ToolListChangedNotificationSchema, async () => forgetTools(name, client));
+    return client;
+  });
   clients.set(name, job);
   try {
     return await job;
   } catch (e) {
     clients.delete(name);
-    throw new Error(`Couldn't start MCP server "${name}": ${(e as Error).message}`);
+    throw new Error(withOutput(name, `Couldn't start MCP server "${name}": ${errText(e)}`));
   }
 }
 
 export async function disconnect(name: string) {
   const job = clients.get(name);
   clients.delete(name);
+  forgetTools(name);
   if (job) {
     try {
       (await job).close();
@@ -1020,10 +1111,49 @@ export async function disconnect(name: string) {
   }
 }
 
+const seconds = (ms: number) => (ms >= 60_000 ? `${Math.round(ms / 60_000)} minute${ms >= 90_000 ? 's' : ''}` : `${Math.round(ms / 1000)} s`);
+
+/** A request's error in plain words: a timeout says which limit it hit, and what the server printed goes with it. */
+function requestError(name: string, what: string, e: unknown): Error {
+  if (e instanceof McpError && e.code === ErrorCode.RequestTimeout) {
+    const data = (e.data || {}) as { timeout?: number; maxTotalTimeout?: number };
+    const why = data.maxTotalTimeout ? `it went on for over ${seconds(data.maxTotalTimeout)} in all` : `no word from it for ${seconds(data.timeout || 0)}`;
+    return new Error(withOutput(name, `${what} took too long: ${why}.`));
+  }
+  return new Error(withOutput(name, errText(e)));
+}
+
+// Each connection's tool list, kept until the server says it changed (tools/list_changed), the connection
+// ends (a new one asks again: saving or removing a server disconnects it) or a few minutes pass.
+// Agents' tool lists are built on every model step and tool call; asking each server every time was slow.
+const toolLists = new Map<string, { client: Client; at: number; tools: Promise<McpTool[]> }>();
+const TOOL_LIST_MS = 5 * 60_000;
+
+function forgetTools(name: string, client?: Client): void {
+  if (!client || toolLists.get(name)?.client === client) toolLists.delete(name);
+}
+
+/** The server's tools. test (the Test button) always asks the server again. */
 export async function listTools(name: string, { test = false } = {}): Promise<McpTool[]> {
   const client = await connect(name, { test });
-  const r = await withTimeout(client.listTools(), 60000, `${name} took too long to list its tools`);
-  return r.tools || [];
+  const kept = toolLists.get(name);
+  if (!test && kept && kept.client === client && Date.now() - kept.at < TOOL_LIST_MS) return kept.tools;
+  // (asking for progress is what makes a server send it; each report resets the quiet time)
+  const tools = client
+    .listTools(undefined, { timeout: TIMEOUTS.list, maxTotalTimeout: TIMEOUTS.listMax, resetTimeoutOnProgress: true, onprogress: () => {} })
+    .then(
+      (r) => r.tools || [],
+      (e: unknown) => {
+        throw requestError(name, `${name} listing its tools`, e);
+      },
+    );
+  const entry = { client, at: Date.now(), tools };
+  toolLists.set(name, entry);
+  // (a failed answer isn't kept)
+  tools.catch(() => {
+    if (toolLists.get(name) === entry) toolLists.delete(name);
+  });
+  return tools;
 }
 
 /** Whether a server is there and switched on (agents only get those). */
@@ -1039,8 +1169,13 @@ export async function callTool(server: string, tool: string, args?: Record<strin
   const client = await untilStopped(connect(server), signal, stopped);
   // (stopped while it connected: the call is never sent)
   if (signal?.aborted) throw stopped();
-  // The SDK's return type also covers the old { toolResult } shape; servers today send CallToolResult.
-  const r = (await withTimeout(client.callTool({ name: tool, arguments: args || {} }, undefined, { timeout: 10 * 60_000, resetTimeoutOnProgress: true, ...(signal ? { signal } : {}) }), 10 * 60_000, `${server}.${tool} took over 10 minutes`)) as CallToolResult;
+  let r: CallToolResult;
+  try {
+    // The SDK's return type also covers the old { toolResult } shape; servers today send CallToolResult.
+    r = (await client.callTool({ name: tool, arguments: args || {} }, undefined, { timeout: TIMEOUTS.call, maxTotalTimeout: TIMEOUTS.callMax, resetTimeoutOnProgress: true, onprogress: () => {}, ...(signal ? { signal } : {}) })) as CallToolResult;
+  } catch (e) {
+    throw requestError(server, `${server}.${tool}`, e);
+  }
   const texts: string[] = [];
   const images: string[] = [];
   for (const c of r.content || []) {
@@ -1067,10 +1202,6 @@ function untilStopped<T>(p: Promise<T>, signal: AbortSignal | undefined, err: ()
       (e: unknown) => (signal.removeEventListener('abort', onStop), reject(e)),
     );
   });
-}
-
-function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
-  return Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
 }
 
 export async function testServer(name: string): Promise<{ name: string; description: string }[]> {

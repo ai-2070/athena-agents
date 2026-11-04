@@ -7,6 +7,7 @@ import { VSCodeIcon } from '../../web/ui/fileicons.tsx';
 import { brandMark } from '../../web/brand.ts';
 import { BrandMark } from '../../web/views/about.tsx';
 import { setConnection } from '../../web/client/connection.ts';
+import { brandColor } from '../../web/icons.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 afterEach(() => setConnection());
@@ -56,5 +57,43 @@ it('uses the official VS Code ribbon for the folder action', async () => {
     expect(image.alt).toBe('');
   } finally {
     act(() => root.unmount());
+  }
+});
+
+it("uses the white pi and Venice marks on a dark page and swaps marks already shown when the look changes", async () => {
+  const root = document.documentElement;
+  const shown = programIcon('pi', 'pi', 15) as HTMLImageElement;
+  document.body.append(shown);
+  try {
+    expect(shown.getAttribute('src')).toBe('/brand/engines/pi.svg');
+    root.dataset.theme = 'dark';
+    await new Promise((r) => setTimeout(r, 0));
+    expect(shown.getAttribute('src')).toBe('/brand/engines/pi-dark.svg');
+    expect((mark('pi', 15) as HTMLImageElement).getAttribute('src')).toBe('/brand/engines/pi-dark.svg');
+    expect((mark('venice', 15) as HTMLImageElement).getAttribute('src')).toBe('/brand/engines/venice-dark.svg');
+    // marks without a dark copy stay as they are
+    expect((mark('omp', 15) as HTMLImageElement).getAttribute('src')).toBe('/brand/engines/omp.svg');
+    root.dataset.theme = 'light';
+    await new Promise((r) => setTimeout(r, 0));
+    expect(shown.getAttribute('src')).toBe('/brand/engines/pi.svg');
+  } finally {
+    shown.remove();
+    root.removeAttribute('data-theme');
+  }
+});
+
+it('draws the OpenAI and Codex marks in black on a light page and white on a dark one, never purple', () => {
+  const root = document.documentElement;
+  const fills = () => [appLogo('openai', 15), mark('codex', 15), programIcon('codex', 'codex', 15)].map((el) => (el as SVGSVGElement).querySelector('path')!.getAttribute('fill'));
+  try {
+    root.dataset.theme = 'light';
+    for (const fill of fills()) expect(fill?.toLowerCase()).not.toBe('#412991');
+    expect(brandColor('openai')).toBe('#000000');
+    root.dataset.theme = 'dark';
+    for (const fill of fills()) expect(fill?.toLowerCase()).not.toBe('#412991');
+    expect(brandColor('openai')).toBe('#e6e8e0');
+    expect(brandColor('codex')).toBe('#e6e8e0');
+  } finally {
+    root.removeAttribute('data-theme');
   }
 });

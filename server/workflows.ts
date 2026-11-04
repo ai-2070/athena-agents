@@ -25,7 +25,7 @@ interface RunControl {
   abort: () => void;
 }
 
-/** A step in a template: `agent` is a starter's name, matched to one of your agents when it's created. */
+/** A step in a template: `agent` is the name of one of the starter team, matched to one of your agents when it's created. */
 interface TemplateStep {
   type: string;
   agent?: string;

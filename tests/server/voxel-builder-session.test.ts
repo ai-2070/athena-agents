@@ -6,7 +6,7 @@ import { newAgent } from '../../server/library.ts';
 import { agents, saveSettings } from '../../server/store.ts';
 import { shownWorld } from '../../server/voxel/link.ts';
 import { readObject, readPrefab } from '../../server/voxel/store.ts';
-import { STEPS_HELP, STEP_TOPICS } from '../../server/voxel/tools.ts';
+import { COMMON_STEPS, STEP_TOPICS } from '../../server/voxel/tools.ts';
 
 saveSettings({ look: { stationLook: 'world' } });
 const a = agents.save(newAgent({ name: 'Builder', toolGroups: ['world'], autonomy: 'full' }));
@@ -59,12 +59,15 @@ describe('a builder session in map units', () => {
 });
 
 describe('the step help', () => {
-  it("world_build's description has the common steps and points to world_steps for the rest", () => {
+  it("world_build's description has only the common steps and points to world_steps for the rest", () => {
     const build = toolDefs(a).find((t) => t.name === 'world_build')!;
-    expect(build.description).toContain(STEPS_HELP);
-    expect(STEPS_HELP.length).toBeLessThan(2200);
-    expect(STEPS_HELP).toMatch(/"units": "map"/);
-    expect(STEPS_HELP).toMatch(/world_steps/);
+    expect(build.description).toContain(COMMON_STEPS);
+    expect(COMMON_STEPS.length).toBeLessThan(800);
+    expect(COMMON_STEPS).toMatch(/world_steps/);
+    // map units are the parameter's to explain; the full reference isn't repeated here
+    expect(build.parameters.properties!.units.description).toMatch(/"map" \(recommended\)/);
+    for (const topic of Object.values(STEP_TOPICS)) expect(build.description).not.toContain(topic);
+    for (const verb of ['stairs', 'snow_cover', 'unplace', 'heightmap']) expect(build.description).not.toContain(`"${verb}"`);
   });
 
   it('world_steps has every topic, and all of them together', async () => {
@@ -72,6 +75,10 @@ describe('the step help', () => {
     const all = await call('world_steps', {});
     for (const t of Object.values(STEP_TOPICS)) expect(all).toContain(t);
     for (const verb of ['stairs', 'arch', 'snow_cover', 'unplace', 'stamp', 'heightmap']) expect(all).toContain(`"${verb}"`);
+    // what the build, script and animation tools leave out is here
+    expect(await call('world_steps', { topic: 'script' })).toMatch(/ellipsoid\(p, \[rx, ry, rz\], opts\).*materialAt\(x, y, z\).*Example/s);
+    expect(await call('world_steps', { topic: 'characters' })).toMatch(/"tracks": \{"left arm": \[\{"t": 0/);
+    expect(await call('world_steps', { topic: 'materials' })).toMatch(/skin dark/);
     const bad = await callTool(a, 'world_steps', { topic: 'dragons' });
     expect(bad).toMatchObject({ isError: true, text: expect.stringMatching(/Topics: units, state/) });
   });

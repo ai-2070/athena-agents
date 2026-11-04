@@ -21,7 +21,7 @@ beforeAll(async () => {
     const url = new URL(req.url!, 'http://x');
     const runId = url.searchParams.get('run') || 'r1';
     const later = url.searchParams.has('later') ? new Promise<string | null>((r) => (startLater = r)) : null;
-    void streamRun(res, { chatId: 'c1', runId: later ?? runId, items: replayItems, keepAliveMs: 20, waiting: 'Waiting for it to stop…' });
+    void streamRun(res, { chatId: 'c1', runId: later ?? runId, items: replayItems, keepAliveMs: 20, waiting: 'Waiting for it to stop…', ...(url.searchParams.get('own') ? { ownSteer: url.searchParams.get('own')! } : {}), ...(url.searchParams.has('ended') ? { live: () => false } : {}) });
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -97,6 +97,46 @@ describe('streamRun()', () => {
     expect(parts.map((p) => (p.type === 'text' ? p.text : (p as { toolName: string }).toolName))).toEqual(['Reading the brief. ', 'read_file', 'write_file', 'All done.']);
     expect(parts[1]).toMatchObject({ state: 'output-available', output: { text: 'the brief', images: [] } });
     expect(parts[2]).toMatchObject({ state: 'output-available', output: { text: 'written', images: [] } });
+  });
+});
+
+describe('a message that joined the turn', () => {
+  it('shows where it came in, in the replay and live', async () => {
+    replayItems = [
+      { type: 'user', text: 'the long job' },
+      { type: 'assistant', text: 'Starting. ' },
+      { type: 'steer', steerId: 's1', text: 'also make it blue', runId: 'r3' },
+    ];
+    const { last } = await read('r3', async () => {
+      run({ kind: 'text', text: 'Blue it is. ' }, 'r3');
+      run({ kind: 'steer', id: 's2', text: 'and bigger', attachments: ['/u/a.png'] }, 'r3');
+      run({ kind: 'text', text: 'Done.' }, 'r3');
+      run({ kind: 'done', text: '' }, 'r3');
+    });
+    const parts = last.parts.filter((p) => p.type !== 'step-start');
+    expect(parts.map((p) => (p.type === 'text' ? p.text : p.type === 'data-steer' ? `> ${(p.data as { text: string }).text}` : p.type))).toEqual(['Starting. ', '> also make it blue', 'Blue it is. ', '> and bigger', 'Done.']);
+    expect(parts[3]).toMatchObject({ type: 'data-steer', data: { steerId: 's2', text: 'and bigger', attachments: ['/u/a.png'] } });
+  });
+});
+
+describe('the message a stream sent into the turn', () => {
+  it('is left out of that stream: the view that sent it shows it already', async () => {
+    replayItems = [];
+    const { last } = await read('r4&own=s9', async () => {
+      run({ kind: 'steer', id: 's9', text: 'mine' }, 'r4');
+      run({ kind: 'steer', id: 's8', text: 'another tab' }, 'r4');
+      run({ kind: 'done', text: '' }, 'r4');
+    });
+    expect(last.parts.flatMap((p) => (p.type === 'data-steer' ? [(p.data as { text: string }).text] : []))).toEqual(['another tab']);
+  });
+});
+
+describe('streamRun() for a run that already ended', () => {
+  it('ends at once, instead of waiting for a done that went before it listened', async () => {
+    replayItems = [];
+    // (nothing drives it: a stream that waited would never end, and the test would time out)
+    const { last } = await read('r5&ended', async () => {});
+    expect(last.parts.filter((p) => p.type !== 'step-start')).toEqual([]);
   });
 });
 

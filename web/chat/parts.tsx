@@ -2,17 +2,22 @@
 // markdown (or a Rich answer as live components), tool calls you can open (input, result, images),
 // file previews with Show in Explorer / Finder, and our own rows (COMPACTED marks, errors, notes).
 // Sizes: full (the chat page), compact (the floating window), mini (the Station panel, team turns).
-import { Component, Suspense, lazy, memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Component, Suspense, createContext, lazy, memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { DynamicToolUIPart } from 'ai';
 import { md, lightbox } from '../core.ts';
 import { Dot } from '../ui/marks.tsx';
+import { ReportLine, splitReport } from '../ui/report.tsx';
 import { compactionMark } from '../compactmark.ts';
 import { filePreviews } from '../filepreview.tsx';
 import { findFileMentions } from '../mentions.ts';
-import { readOutput, readUser } from './messages.ts';
-import { useAppState } from '../ui/react.tsx';
-import { QuestionCard, questionFor } from '../questions.tsx';
+import { readOutput, readUser, toolBase } from './messages.ts';
+import { ChatProject } from './project.ts';
+import { fileSrc } from '../client/connection.ts';
+import { Avatar, useAppState } from '../ui/react.tsx';
+import { useProjectAgents } from '../projectagents.ts';
+import { findAgent } from '../../shared/agentref.ts';
+import { QuestionCard, projectQuestions, questionFor } from '../questions.tsx';
 import type { QuestionOwner } from '../questions.tsx';
 import type { ChatMessage, ChatPart } from './messages.ts';
 import type { CompactionItem } from '../../shared/types.ts';
@@ -47,6 +52,9 @@ const ST_CMP = 'st-msg cmp self-stretch border-t border-dashed border-line-2 pt-
 
 export type Variant = 'full' | 'compact' | 'mini';
 
+// what a stopped run says (chats saved before stops were marked say only this)
+const STOP_LINES = new Set(['Stopped.', 'Stopped to take your new message.']);
+
 /** A piece of the page built with plain DOM (approval cards, the COMPACTED mark, file previews…). */
 export const Dom = memo(
   function Dom({ make, deps, className }: { make: () => Node | null; deps: readonly unknown[]; className?: string }) {
@@ -68,9 +76,10 @@ export const Markdown = memo(function Markdown({ text, className }: { text: stri
 });
 
 export function Previews({ paths, small }: { paths: readonly string[]; small?: boolean }) {
+  const project = useContext(ChatProject);
   const key = paths.join('\n');
   if (!paths.length) return null;
-  return <Dom make={() => filePreviews(paths, { compact: small })} deps={[key, small]} />;
+  return <Dom make={() => filePreviews(paths, { compact: small, project })} deps={[key, small, project]} />;
 }
 
 /** OpenUI Lang (a Rich answer) rather than markdown: it starts with a statement ("root = Card(…)", or
@@ -102,13 +111,62 @@ const brief = (input: unknown): string =>
 // the tool calls you opened: a long chat draws a message again when you scroll back to it, still open
 const openTools = new Set<string>();
 
+/** Who each ask_agent handle in the chat went to (handle → agent), for await_agent (handoffsIn in messages.ts). */
+export const Handoffs = createContext<ReadonlyMap<string, string>>(new Map());
+
+/** An agent a tool call is about: its icon and name (as named, when it can't be found). */
+function AgentTag({ name }: { name: string }) {
+  const project = useContext(ChatProject);
+  const ours = useAppState()?.agents;
+  const theirs = useProjectAgents(project);
+  const found = findAgent((project ? theirs : ours) || [], name);
+  const agent = 'agent' in found ? found.agent : null;
+  return (
+    <span className="tool-agent inline-flex min-w-0 items-center gap-1.5 align-middle font-sans text-dim [&_.avatar]:size-4.5 [&_.avatar]:rounded-[5px] [&_.avatar]:text-[10px]">
+      {agent ? <Avatar agent={agent} /> : null}
+      <span className="truncate">{agent?.name || name.replace(/\s*\[[^\]]+\]$/, '')}</span>
+    </span>
+  );
+}
+
+/** The summary's text after the tool's name: the agents for ask_agent and await_agent, else what it was about. */
+function ToolAbout({ part }: { part: DynamicToolUIPart }) {
+  const handoffs = useContext(Handoffs);
+  const base = toolBase(part.toolName);
+  const input = (part.input && typeof part.input === 'object' ? part.input : {}) as { agent?: unknown; message?: unknown; handle?: unknown; handles?: unknown };
+  if (base === 'ask_agent' && typeof input.agent === 'string' && input.agent.trim()) {
+    const message = typeof input.message === 'string' ? input.message.slice(0, 140) : '';
+    return (
+      <span className="targ">
+        <AgentTag name={input.agent} />
+        {message ? ` · ${message}` : null}
+      </span>
+    );
+  }
+  if (base === 'await_agent') {
+    const ids = Array.isArray(input.handles) && input.handles.length ? input.handles.map(String) : typeof input.handle === 'string' && input.handle ? [input.handle] : [];
+    const names = ids.map((id) => handoffs.get(id));
+    // (one it can't place, such as a handle from before a Clear memory: the handle, as before)
+    if (ids.length && names.every((n): n is string => !!n)) {
+      return (
+        <span className="targ inline-flex items-center gap-2.5">
+          {[...new Set(names)].map((n) => <AgentTag key={n} name={n} />)}
+        </span>
+      );
+    }
+  }
+  return <span className="targ">{brief(part.input)}</span>;
+}
+
 /** A tool call: its name and what it was about, opening to its input and result (and images below). */
 export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPart; variant: Variant; busy: boolean; owner?: QuestionOwner | null }) {
   const [open, setOpen] = useState(() => openTools.has(part.toolCallId));
   const done = part.state === 'output-available' || part.state === 'output-error';
   const failed = part.state === 'output-error';
   const out = part.state === 'output-available' ? readOutput(part.output) : null;
-  const images = out?.images || [];
+  // (a tool's images are saved in the chat's project: a pane of another project shows them from there)
+  const project = useContext(ChatProject);
+  const images = (out?.images || []).map((src) => fileSrc(src, project));
   const running = !done && busy;
   const mark = running ? <Dot tone="busy" /> : failed ? <span className="text-red">✕</span> : done ? <span className="text-ok">✓</span> : <span className="text-faint">·</span>;
   let input = '';
@@ -118,12 +176,15 @@ export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPa
     input = String(part.input);
   }
   const small = variant !== 'full';
-  // ask_user while the agent waits: answer right here (it's in the Outbox too)
-  const asked = useAppState()?.questions;
-  const question = part.toolName === 'ask_user' && !done ? questionFor(asked, part.input, owner) : null;
+  // ask_user while the agent waits: answer right here (it's in the Outbox too). A chat of a project that isn't open
+  // looks in that project's questions (a copied project's have the same agents and chats), and answers there.
+  const waits = part.toolName === 'ask_user' && !done;
+  const ours = useAppState()?.questions;
+  const theirs = projectQuestions.use(waits ? project : undefined);
+  const question = waits ? questionFor(project ? theirs : ours, part.input, owner) : null;
   return (
     <div className={small ? 'flex flex-col gap-1.5' : 'flex flex-col gap-2'}>
-      {question ? <QuestionCard q={question} place="chat" /> : null}
+      {question ? <QuestionCard q={question} place="chat" project={project} /> : null}
       <details
         className={`tool${failed ? ' error' : ''}${small ? ' small [&>summary]:px-3 [&>summary]:py-2' : ''}`}
         open={open}
@@ -137,7 +198,7 @@ export function ToolCard({ part, variant, busy, owner }: { part: DynamicToolUIPa
         <summary>
           {mark}
           <span className="tname">{part.toolName}</span>
-          <span className="targ">{brief(part.input)}</span>
+          <ToolAbout part={part} />
         </summary>
         <div className="tbody">
           <div className="label">Input</div>
@@ -207,20 +268,26 @@ export interface MessageViewProps {
   owner?: QuestionOwner | null;
 }
 
+/** Your message (or another agent's to this one), with its files. joined: sent while it worked, and taken into that turn. */
+function UserBubble({ text, attachments, from, variant, dim, joined = false }: { text: string; attachments: readonly string[]; from?: string | null; variant: Variant; dim: boolean; joined?: boolean }) {
+  const paths = [...attachments, ...findFileMentions(text)];
+  const cls = variant === 'compact' ? AC_USER : variant === 'mini' ? ST_USER : 'msg user';
+  return (
+    <>
+      <div className={`${cls}${joined ? ' joined' : ''}${dim ? ' compacted' : ''}`}>
+        {from && variant === 'full' ? <div className="from">from {from}</div> : null}
+        {text ? variant === 'compact' ? <div>{text}</div> : text : null}
+      </div>
+      {joined ? <div className="joined-note -mt-1 self-end text-[12px] leading-[normal] text-faint">Read while it worked</div> : null}
+      {paths.length ? <Previews paths={paths} small={variant !== 'full'} /> : null}
+    </>
+  );
+}
+
 export function MessageView({ m, variant, busy, streaming, dim, onSend, owner }: MessageViewProps) {
   if (m.role === 'user') {
     const { text, attachments } = readUser(m);
-    const paths = [...attachments, ...findFileMentions(text)];
-    const cls = variant === 'compact' ? AC_USER : variant === 'mini' ? ST_USER : 'msg user';
-    return (
-      <>
-        <div className={`${cls}${dim ? ' compacted' : ''}`}>
-          {m.metadata?.from && variant === 'full' ? <div className="from">from {m.metadata.from}</div> : null}
-          {text ? variant === 'compact' ? <div>{text}</div> : text : null}
-        </div>
-        {paths.length ? <Previews paths={paths} small={variant !== 'full'} /> : null}
-      </>
-    );
+    return <UserBubble text={text} attachments={attachments} from={m.metadata?.from} variant={variant} dim={dim} />;
   }
   const lastText = m.parts.findLastIndex((p) => p.type === 'text');
   return (
@@ -234,8 +301,28 @@ export function MessageView({ m, variant, busy, streaming, dim, onSend, owner }:
           if (variant === 'mini') return <div key={key} className={ST_CMP} title="The engine shortened its active memory. Original messages remain saved and searchable.">Compacted</div>;
           return <Dom key={key} make={() => compactionMark(it, { compact: variant === 'compact' })} deps={[it.id, variant]} />;
         }
-        if (p.type === 'data-error') return <div key={key} className={(p.data as { text: string }).text.trim() === 'Stopped.' ? 'self-stretch py-2 text-center text-[13px] text-dim' : variant === 'full' ? 'msg error' : variant === 'compact' ? AC_ERR : ST_ERR}>{(p.data as { text: string }).text}</div>;
-        if (p.type === 'data-meta') return variant === 'full' ? <div key={key} className="msg meta">{(p.data as { text: string }).text}</div> : null;
+        if (p.type === 'data-error') {
+          // a stop (yours, or to take your new message) isn't a failure: a quiet line, the work above it kept
+          const e = p.data as { text: string; stopped?: string };
+          const quiet = !!e.stopped || STOP_LINES.has(e.text.trim());
+          return <div key={key} className={quiet ? 'st-stopped self-stretch py-2 text-center text-[13px] text-dim' : variant === 'full' ? 'msg error' : variant === 'compact' ? AC_ERR : ST_ERR}>{e.text}</div>;
+        }
+        if (p.type === 'data-steer') {
+          const s = p.data as { text: string; from?: string | null; attachments?: string[] };
+          return <UserBubble key={key} text={s.text} attachments={s.attachments || []} from={s.from} variant={variant} dim={dim} joined />;
+        }
+        if (p.type === 'data-meta') {
+          if (variant !== 'full') return null;
+          const text = (p.data as { text: string }).text;
+          // a long report under a heading ("Delegated work finished:" and the answers): the heading, the report on request
+          const split = splitReport(text);
+          if (!split) return <div key={key} className="msg meta">{text}</div>;
+          return (
+            <ReportLine key={key} heading={split.heading} lineClass="msg meta">
+              <Dom make={() => md(split.report)} deps={[split.report]} className="text-[13.5px] leading-[1.6] wrap-anywhere text-ink" />
+            </ReportLine>
+          );
+        }
         return null;
       })}
     </>

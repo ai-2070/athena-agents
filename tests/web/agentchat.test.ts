@@ -22,9 +22,84 @@ describe('renderAgentChat()', () => {
     const tab = renderAgentChat(el, 'a1');
     // (what chatwin.ts does a moment after opening a tab: the chat is still loading)
     tab.focus();
-    for (let i = 0; i < 100 && document.activeElement?.tagName !== 'TEXTAREA'; i++) await settle();
-    expect(document.activeElement).toBe(el.querySelector('textarea'));
+    // (the box you type in is the pill editor that takes the textarea's place)
+    const box = () => el.querySelector('[role="textbox"][contenteditable="true"]');
+    for (let i = 0; i < 100 && (!box() || document.activeElement !== box()); i++) await settle();
+    expect(document.activeElement).toBe(box());
     tab.destroy();
+  });
+});
+
+describe('the agent chat box', () => {
+  it('shows an @mention of another agent as a pill, not the agent it talks to', async () => {
+    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }, { id: 'a2', name: 'Writer', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
+    vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(url === '/api/agents/a1/chats' ? [] : {}), { headers: { 'content-type': 'application/json' } }));
+    const el = document.createElement('div');
+    document.body.append(el);
+    const tab = renderAgentChat(el, 'a1');
+    for (let i = 0; i < 100 && !el.querySelector('[role="textbox"][contenteditable="true"]'); i++) await settle();
+    const box = el.querySelector<HTMLTextAreaElement>('textarea')!;
+    await act(async () => {
+      box.value = 'Ask @Writer and @Scout';
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const editor = el.querySelector<HTMLElement>('[role="textbox"][contenteditable="true"]')!;
+    expect([...editor.querySelectorAll('[data-mention]')].map((p) => p.getAttribute('data-mention'))).toEqual(['@Writer']);
+    tab.destroy();
+  });
+});
+
+describe('a chat of a project that isn\'t open (an Overview pane)', () => {
+  it('finds its agent in that project, and its requests and files go there', async () => {
+    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      urls.push(url);
+      const body = url === '/api/p/p2/agents' ? [{ id: 'far', name: 'Far writer', engine: 'eve', model: 'm', provider: 'custom' }] : url.endsWith('/chats') ? [] : {};
+      return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+    });
+    const el = document.createElement('div');
+    document.body.append(el);
+    const tab = renderAgentChat(el, 'far', { projectId: 'p2' });
+    for (let i = 0; i < 100 && !el.querySelector('[role="textbox"][contenteditable="true"]'); i++) await settle();
+    expect(el.querySelector('[role="textbox"][contenteditable="true"]')).not.toBeNull();
+    expect(urls).toContain('/api/p/p2/agents');
+    expect(urls).toContain('/api/p/p2/agents/far/chats');
+    expect(urls).not.toContain('/api/agents/far/chats');
+    for (let i = 0; i < 50 && !urls.includes('/api/p/p2/agents/far/commands'); i++) await settle();
+    expect(urls).toContain('/api/p/p2/agents/far/commands');
+    // its MEMORY.md is read from that project
+    if (!document.getElementById('modal-root')) document.body.append(Object.assign(document.createElement('div'), { id: 'modal-root' }));
+    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('MEMORY.md'))!.click());
+    for (let i = 0; i < 20 && !urls.includes('/api/p/p2/memory/far'); i++) await settle();
+    expect(urls).toContain('/api/p/p2/memory/far');
+    expect(urls).not.toContain('/api/memory/far');
+    document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+    // (no Full page link: that page is the open project's)
+    expect(el.textContent).not.toContain('Full page');
+    tab.destroy();
+  });
+
+  it("doesn't take its twin's run in the open project for its own (a copied project has the same ids)", async () => {
+    const run = (projectId: string) => ({ id: 'r1', agentId: 'far', chatId: 'c1', projectId, startedAt: 1, agentName: 'Far writer', parentRunId: null });
+    vi.stubGlobal('fetch', async (url: string) => {
+      const body = url === '/api/p/p2/agents' ? [{ id: 'far', name: 'Far writer', engine: 'eve', model: 'm', provider: 'custom' }] : url.endsWith('/chats') ? [{ id: 'c1', title: 'Mine' }] : url.endsWith('/chats/c1') ? { id: 'c1', title: 'Mine', items: [] } : url.endsWith('/commands') ? [] : {};
+      return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+    });
+    const working = async (projectId: string) => {
+      state.data = { runs: [run(projectId)], approvals: [], agents: [], project: { id: 'p1' }, settings: {} } as unknown as AppState;
+      const el = document.createElement('div');
+      document.body.append(el);
+      const tab = renderAgentChat(el, 'far', { projectId: 'p2' });
+      for (let i = 0; i < 100 && !el.querySelector('[role="textbox"][contenteditable="true"]'); i++) await settle();
+      await settle();
+      const stop = !!el.querySelector('button[aria-label="Stop"]');
+      tab.destroy();
+      el.remove();
+      return stop;
+    };
+    expect(await working('p1')).toBe(false);
+    expect(await working('p2')).toBe(true);
   });
 });
 

@@ -78,6 +78,9 @@ describe('a team chat with other teams', () => {
     await act(async () => opt.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
     expect(box.value).toBe('#Design ');
     expect(el.querySelector('[data-mention="#Design"]')?.textContent).toBe('#Design');
+    // a team's pill has the team icon, in the box and in a message
+    expect(el.querySelector('[data-mention="#Design"] svg')).not.toBeNull();
+    expect(el.querySelector('.tc-mention.tc-team svg')).not.toBeNull();
     await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Remove #Design"]')!.click());
     expect(el.querySelector('[aria-label="Remove #Design"]')).toBeNull();
     await act(async () => el.querySelector<HTMLButtonElement>('.tc-mention.tc-team')!.click());

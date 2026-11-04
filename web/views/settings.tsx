@@ -11,7 +11,7 @@ import { FieldRow, Row, Section, Segmented, SwitchRow } from '../ui/controls.tsx
 import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { logo } from '../icons.ts';
 import { ProgramGlyph, ProgramLabel } from '../ui/programmark.tsx';
-import { serverUrl } from '../client/connection.ts';
+import { brandSrc, followTheme } from '../brandimages.ts';
 import type { AppState, EngineStatus, SecretKey, SecretStatus, Settings, Terminal, VeniceAccountInfo } from '../../shared/types.ts';
 
 /** What POST /api/settings/test-openrouter passes on from OpenRouter's /key endpoint. */
@@ -174,6 +174,9 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
         <FieldRow label="Context window (tokens)" hint="Leave empty to use the model or engine's reported window. A request that does not fit is rejected without dropping its original text." size="sm">
           <input className="font-mono" type="number" min={0} step={1000} defaultValue={s.contextWindowTokens || ''} placeholder="auto" onChange={(e) => setP('contextWindowTokens', Number(e.target.value) || 0)} />
         </FieldRow>
+        <FieldRow label="Longest tool result (characters)" hint="A longer result reaches the agent with its start and end, and the whole text is saved in outputs for it to read in parts. 0 = no limit." size="sm">
+          <input className="font-mono" type="number" min={0} step={1000} defaultValue={s.toolResultChars ?? 24000} onChange={(e) => setP('toolResultChars', Math.max(0, Number(e.target.value) || 0))} />
+        </FieldRow>
       </Section>
 
       <Section title="Local and custom models" description="Models that run on this PC, or on a server you point to.">
@@ -229,7 +232,7 @@ function SavedSwitch({ field, initial, on, off, reload, title, description }: { 
 /** A provider's mark, bundled locally so it also works offline. */
 function Mark({ brand, glyph, engine }: { brand?: string; glyph?: string; engine?: 'hermes' | 'pi' | 'omp' | 'openclaw' | 'venice' }) {
   const size = engine === 'pi' ? 15 : 17;
-  if (engine) return <span className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2"><img src={serverUrl(`/brand/engines/${engine}.svg`)} width={size} height={size} alt="" aria-hidden="true" className="object-contain" /></span>;
+  if (engine) return <span className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2"><img ref={(el) => { if (el) followTheme(el, engine); }} src={brandSrc(engine) ?? undefined} width={size} height={size} alt="" aria-hidden="true" className="object-contain" /></span>;
   // near-black brand colours (Anthropic, OpenAI) draw in the text colour, so they show on a dark page too
   const color = brand && DARK_BRANDS.has(brand) ? 'currentColor' : null;
   return <DomNode as="span" className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2 font-sans text-[16px] leading-none font-semibold text-ink [&_svg]:size-[17px]" make={() => (brand && logo(brand, 18, color)) || document.createTextNode(glyph || '•')} deps={[brand, glyph]} />;

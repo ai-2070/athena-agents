@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { dataPath, ensureDir, run, which, writeJSON } from './util.ts';
 import { emit, log } from './store.ts';
-import { listSkills, getSkill, skillDir, skillVersionsDir, skillFromText, uniqueSlug, isSkillSlug, skillExtraFiles, skillFilesHash, copySkillFiles } from './skills.ts';
+import { listSkills, getSkill, forgetSkill, skillDir, skillVersionsDir, skillFromText, uniqueSlug, isSkillSlug, skillExtraFiles, skillFilesHash, copySkillFiles } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
 import { keepVersion, versionFilesDir } from './versions.ts';
 import type { SkillInstallResult, SkillOrigin } from '../shared/types.ts';
@@ -68,7 +68,7 @@ async function token(): Promise<string | null> {
 }
 async function headers(): Promise<Record<string, string>> {
   const t = await token();
-  return { 'user-agent': 'blacksite', accept: 'application/vnd.github+json', ...(t ? { authorization: `Bearer ${t}` } : {}) };
+  return { 'user-agent': 'athena-agents', accept: 'application/vnd.github+json', ...(t ? { authorization: `Bearer ${t}` } : {}) };
 }
 async function api<T>(p: string): Promise<{ ok: boolean; status: number; json: T | null }> {
   const r = await fetch(`https://api.github.com${p}`, { headers: await headers(), signal: AbortSignal.timeout(TIMEOUT) });
@@ -117,7 +117,7 @@ const safeRel = (rel: string) => rel.length > 0 && rel.length < 300 && !rel.spli
 async function download(link: GitHubLink, ref: string, file: string): Promise<Buffer> {
   const url = `https://raw.githubusercontent.com/${link.owner}/${link.repo}/${ref.split('/').map(encodeURIComponent).join('/')}/${file.split('/').map(encodeURIComponent).join('/')}`;
   const t = await token();
-  const r = await fetch(url, { headers: { 'user-agent': 'blacksite', ...(t ? { authorization: `Bearer ${t}` } : {}) }, signal: AbortSignal.timeout(TIMEOUT) });
+  const r = await fetch(url, { headers: { 'user-agent': 'athena-agents', ...(t ? { authorization: `Bearer ${t}` } : {}) }, signal: AbortSignal.timeout(TIMEOUT) });
   if (!r.ok) throw new Error(`couldn't download ${file} (${r.status})`);
   const buf = Buffer.from(await r.arrayBuffer());
   if (buf.length > MAX_FILE) throw new Error(`${file} is too big`);
@@ -197,6 +197,7 @@ export async function installFromGitHub(url: string, { proceed = () => true }: {
         }
         fs.rmSync(skillDir(slug), { recursive: true, force: true });
         fs.renameSync(tmp, skillDir(slug));
+        forgetSkill(slug);
         const s = getSkill(slug)!;
         result.installed.push({ slug, name: s.name, updated: Boolean(before), files: files.length });
         log('skill', `${before ? 'Updated' : 'Installed'} the skill "${s.name}" from ${origin.repo}`);

@@ -1,6 +1,7 @@
 // Work the Brain handed to teams and agents, per project, so it can follow up and see what is open.
 import { activeProject, emit, questions } from './store.ts';
 import { readJSON, writeJSON, dataPath, uid } from './util.ts';
+import { showsGoal } from '../shared/commands.ts';
 import type { BrainBrief } from '../shared/types.ts';
 
 // Keep unresolved assignments as well as the latest finished ones.
@@ -50,9 +51,9 @@ export function updateBrief(id: string, patch: Partial<BrainBrief>, pid = active
   return list[at];
 }
 
-/** Your open /goal in an agent's chat, or a team's. */
+/** The open goal in an agent's chat, or a team's: yours, or work the agent, lead or Brain recognized. */
 export const openGoal = (kind: BrainBrief['kind'], targetId: string, chatId: string | null = null, pid = activeProject().id): BrainBrief | null =>
-  listBriefs(pid).findLast((x) => x.status === 'open' && !!x.goal && x.kind === kind && x.targetId === targetId && (kind === 'team' || x.chatId === chatId)) || null;
+  listBriefs(pid).findLast((x) => x.status === 'open' && showsGoal(x) && x.kind === kind && x.targetId === targetId && (kind === 'team' || x.chatId === chatId)) || null;
 
 /** The open brief to a team or an agent (the newest). */
 export const openBrief = (kind: BrainBrief['kind'], targetId: string, pid = activeProject().id): BrainBrief | null =>

@@ -1,6 +1,8 @@
 // The Agents page's overview: what kinds of agents the project has and which models they run on.
 import { defaultModelForEngine } from '../shared/modeldefaults.ts';
 import { ENGINE_LABEL } from './core.ts';
+import { ACCENTS } from './look.ts';
+import { lightDark } from './theme.ts';
 import type { Agent, Settings } from '../shared/types.ts';
 
 /** One slice of a chart: a category or a model, how many agents, and its colour (categories only). */
@@ -15,12 +17,10 @@ export interface Slice {
   rest?: Slice[];
 }
 
-// One hue, the accent picked in Settings > Appearance: the biggest category is the strongest and each next one steps
-// lighter (the slices come biggest first), so the chart is quiet on white and on near-black and follows the
-// accent. They are CSS colours, so the page's theme swaps them. A seventh category and beyond fold into Other,
-// in a neutral grey.
-const tint = (pct: number): string => `color-mix(in srgb, var(--color-accent) ${pct}%, var(--color-panel))`;
-export const CATEGORY_COLORS = [100, 74, 56, 42, 32, 24].map(tint);
+// The six accent colours of Settings > Appearance (Aegean, Olive, Gold, Terracotta, Amethyst, Slate), each in its
+// light and its dark tone, so they read on white and on near-black. A seventh category and beyond fold into
+// Other, in a neutral grey.
+export const CATEGORY_COLORS = ACCENTS.map((a) => lightDark(a.light.c, a.dark.c));
 export const OTHER_COLOR = 'color-mix(in srgb, var(--color-ink) 30%, var(--color-panel))';
 
 const UPPER = new Set(['gis', 'ai', 'ui', 'ux', 'qa', 'seo', 'xr', 'vr', 'ar']);
@@ -32,9 +32,9 @@ export const divisionLabel = (id: string): string =>
     .map((w) => (UPPER.has(w.toLowerCase()) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)))
     .join(' ');
 
-const FROM: Record<string, string> = { brain: 'Made by the Brain', hermes: 'From Hermes', openclaw: 'From OpenClaw', claude: 'From Claude Code', starter: 'Athena agents', preset: 'Ready-made teams' };
+const FROM: Record<string, string> = { brain: 'Made by the Brain', hermes: 'From Hermes', openclaw: 'From OpenClaw', claude: 'From Claude Code', preset: 'Ready-made teams' };
 
-/** An agent's category: its Library division, else where it came from ("Your own" when you made it). */
+/** An agent's category: its Agent library group, else where it came from ("Your own" when you made it). */
 export function agentCategory(a: Pick<Agent, 'source'>): { id: string; label: string } {
   const div = a.source?.division;
   if (div) return { id: `division:${div}`, label: divisionLabel(div) };

@@ -31,6 +31,11 @@ export function onThemeChange(fn: (dark: boolean) => void): () => void {
   };
 }
 
+/** A colour with a light and a dark tone, for inline styles. Not light-dark(): Safari has it only from 17.5, and the
+ *  macOS 13 desktop app runs on an older one. The stylesheet's build (scripts/build-css.ts) sets these two variables
+ *  wherever the colour scheme is chosen, so this follows it the same way. */
+export const lightDark = (light: string, dark: string): string => `var(--lightningcss-light, ${light}) var(--lightningcss-dark, ${dark})`;
+
 /** One colour of the page's palette as the browser resolved it now (--color-ink, say), for canvases that can't use var(). */
 export function themeColor(name: string, fallback = '#000000'): string {
   return getComputedStyle(document.documentElement).getPropertyValue(`--color-${name}`).trim() || fallback;

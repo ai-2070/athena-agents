@@ -1,0 +1,78 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/gDH37J5oQhKneCEtR+L32FWCAf8</id>
+  <title>arXiv Query: search_query=&amp;id_list=2402.03300v1,hep-th/0601001,2402.99999&amp;start=0&amp;max_results=10</title>
+  <updated>2026-11-04T06:05:11Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=&amp;start=0&amp;max_results=10&amp;id_list=2402.03300v1,hep-th/0601001,2402.99999" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>10</opensearch:itemsPerPage>
+  <opensearch:totalResults>2</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/hep-th/0601001v2</id>
+    <title>The String Landscape, Black Holes and Gravity as the Weakest Force</title>
+    <updated>2006-02-21T21:11:34Z</updated>
+    <link href="https://arxiv.org/abs/hep-th/0601001v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/hep-th/0601001v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>  We conjecture a general upper bound on the strength of gravity relative to gauge forces in quantum gravity. This implies, in particular, that in a four-dimensional theory with gravity and a U(1) gauge field with gauge coupling g, there is a new ultraviolet scale Lambda=g M_{Pl}, invisible to the low-energy effective field theorist, which sets a cutoff on the validity of the effective theory. Moreover, there is some light charged particle with mass smaller than or equal to Lambda. The bound is motivated by arguments involving holography and absence of remnants, the (in) stability of black holes as well as the non-existence of global symmetries in string theory. A sharp form of the conjecture is that there are always light "elementary" electric and magnetic objects with a mass/charge ratio smaller than the corresponding ratio for macroscopic extremal black holes, allowing extremal black holes to decay. This conjecture is supported by a number of non-trivial examples in string theory. It implies the necessary presence of new physics beneath the Planck scale, not far from the GUT scale, and explains why some apparently natural models of inflation resist an embedding in string theory.</summary>
+    <category term="hep-th" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="gr-qc" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2006-01-02T14:30:51Z</published>
+    <arxiv:comment>20 pages, LaTeX, 5 EPS figures; v2: minor corrections</arxiv:comment>
+    <arxiv:primary_category term="hep-th"/>
+    <arxiv:journal_ref>JHEP 0706:060,2007</arxiv:journal_ref>
+    <author>
+      <name>Nima Arkani-Hamed</name>
+    </author>
+    <author>
+      <name>Lubos Motl</name>
+    </author>
+    <author>
+      <name>Alberto Nicolis</name>
+    </author>
+    <author>
+      <name>Cumrun Vafa</name>
+    </author>
+    <arxiv:doi>10.1088/1126-6708/2007/06/060</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1088/1126-6708/2007/06/060" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2402.03300v1</id>
+    <title>DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models</title>
+    <updated>2024-02-05T18:55:32Z</updated>
+    <link href="https://arxiv.org/abs/2402.03300v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2402.03300v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Mathematical reasoning poses a significant challenge for language models due to its complex and structured nature. In this paper, we introduce DeepSeekMath 7B, which continues pre-training DeepSeek-Coder-Base-v1.5 7B with 120B math-related tokens sourced from Common Crawl, together with natural language and code data. DeepSeekMath 7B has achieved an impressive score of 51.7% on the competition-level MATH benchmark without relying on external toolkits and voting techniques, approaching the performance level of Gemini-Ultra and GPT-4. Self-consistency over 64 samples from DeepSeekMath 7B achieves 60.9% on MATH. The mathematical reasoning capability of DeepSeekMath is attributed to two key factors: First, we harness the significant potential of publicly available web data through a meticulously engineered data selection pipeline. Second, we introduce Group Relative Policy Optimization (GRPO), a variant of Proximal Policy Optimization (PPO), that enhances mathematical reasoning abilities while concurrently optimizing the memory usage of PPO.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2024-02-05T18:55:32Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Zhihong Shao</name>
+    </author>
+    <author>
+      <name>Peiyi Wang</name>
+    </author>
+    <author>
+      <name>Qihao Zhu</name>
+    </author>
+    <author>
+      <name>Runxin Xu</name>
+    </author>
+    <author>
+      <name>Junxiao Song</name>
+    </author>
+    <author>
+      <name>Mingchuan Zhang</name>
+    </author>
+    <author>
+      <name>Y. K. Li</name>
+    </author>
+    <author>
+      <name>Y. Wu</name>
+    </author>
+    <author>
+      <name>Daya Guo</name>
+    </author>
+  </entry>
+</feed>

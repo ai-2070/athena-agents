@@ -66,6 +66,7 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
   if (v0?.min && v0.max && (v0.min.some((n) => n < -R) || v0.max.some((n) => n >= R))) throw bad(`That model is ${span.join('×')} voxels and stands on its base, so it reaches past ${R} voxels from its middle (the most the build tools can edit). Bring it in at a bigger voxel size.`);
   if (worldVoxels(w) + count > WORLD_LIMITS.voxels) throw bad(`The world has no room for ${fmt(count)} more voxels.`);
   const now = Date.now();
+  const colours = `${materials.length} colours${materials.length ? `, as the materials "${materials[0].name}"${materials.length > 1 ? ` to "${materials[materials.length - 1].name}"` : ''} (recolour them with {"material": …} steps)` : ''}`;
   if (req.as === 'prefab') {
     if (count > WORLD_LIMITS.prefabVoxels || span.some((n) => n > WORLD_LIMITS.prefabSide)) throw bad(`A prefab is at most ${WORLD_LIMITS.prefabSide} voxels a side and ${fmt(WORLD_LIMITS.prefabVoxels)} voxels; bring this in as an object.`);
     const p: VoxelPrefabMeta = { id: uid('p'), name, description: `from ${path.basename(req.file)}`, tags: ['imported'], by: req.by, volumes, pivot: [0, 0, 0], size: [0, 0, 0], createdAt: now, updatedAt: now, voxelsAt: now };
@@ -76,7 +77,7 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
     w.built = true;
     remember(w.id, { by: req.by, kind: 'prefab', what: `brought in the prefab ${name} from a .vox file`, objectId: p.id, metaBefore: null });
     saveWorld(w, { prefabs: [p.id], by: req.by.name });
-    return `Brought "${path.basename(req.file)}" in as the prefab "${name}": ${fmt(count)} voxels at voxel size ${size}, ${p.size.join('×')} map units, ${materials.length} colours. Place copies with {"place": "${name}"}.`;
+    return `Brought "${path.basename(req.file)}" in as the prefab "${name}": ${fmt(count)} voxels at voxel size ${size}, ${p.size.join('×')} map units, ${colours}. Place copies with {"place": "${name}"}.`;
   }
   if (w.objects.length >= WORLD_LIMITS.objects) throw bad(`This world has ${WORLD_LIMITS.objects} objects, the most it can hold.`);
   const o: VoxelObjectMeta = { id: uid('o'), name, by: req.by, anchor: cleanAnchor(req.anchor), position: Array.isArray(req.position) && req.position.length === 3 ? (req.position.map(Number) as Vec3) : [0, 0, 0], rotation: 0, scale: 1, volumes, createdAt: now, updatedAt: now, voxelsAt: now };
@@ -85,7 +86,7 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
   w.built = true;
   remember(w.id, { by: req.by, what: `brought in ${name} from a .vox file`, objectId: o.id, metaBefore: null });
   saveWorld(w, { objects: [o.id], by: req.by.name, builder: req.by, added: count });
-  return `Brought "${path.basename(req.file)}" in as the object "${name}": ${fmt(count)} voxels at voxel size ${size}, ${materials.length} colours, at ${o.position.join(', ')}.`;
+  return `Brought "${path.basename(req.file)}" in as the object "${name}": ${fmt(count)} voxels at voxel size ${size}, ${colours}, at ${o.position.join(', ')}.`;
 }
 
 // ---------- out ----------

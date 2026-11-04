@@ -1,5 +1,6 @@
 // A fresh data folder (a new install, or the desktop app beside the browser version) makes its default
 // project in a "My workspace" folder that may already hold a saved copy. That copy is loaded, not saved over.
+// Here the folder is the one made when the app was called Blacksite: it is still the one used.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

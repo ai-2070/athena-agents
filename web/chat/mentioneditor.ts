@@ -1,7 +1,10 @@
 // An editable rich view of the textarea. The textarea remains the plain-text source for chat helpers.
 import { icon } from '../icons.ts';
 
-export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => string[]): () => void {
+/** A name the box shows as a pill, with an icon before it if it has one (a team, a skill). */
+export type MentionTag = string | { tag: string; icon?: string };
+
+export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => MentionTag[]): () => void {
   const wasFocused = document.activeElement === input;
   const editor = document.createElement('div');
   editor.className = `${input.className} whitespace-pre-wrap overflow-y-auto`;
@@ -18,6 +21,10 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => stri
   const value = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!;
   const focus = input.focus;
   const range = input.setSelectionRange;
+  // The caret, as the textarea's selectionStart / selectionEnd, is kept here and never set on the hidden textarea:
+  // in WebKit (Safari, the macOS app) setting a textarea's selection moves focus to it, which took focus away from
+  // this box on every click and key.
+  let sel = { start: input.value.length, end: input.value.length };
   const plain = (node: Node): string => {
     if (node instanceof HTMLElement && node.dataset.mention) return node.dataset.mention;
     if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
@@ -32,7 +39,7 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => stri
     before.selectNodeContents(editor);
     before.setEnd(selected.startContainer, selected.startOffset);
     const start = plain(before.cloneContents()).length;
-    range.call(input, start, start + plain(selected.cloneContents()).length);
+    sel = { start, end: start + plain(selected.cloneContents()).length };
   };
   let syncing = false;
   const changed = () => {
@@ -44,19 +51,21 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => stri
   };
   const draw = () => {
     const text = input.value;
-    const known = tags().sort((a, b) => b.length - a.length);
+    const known = tags().map((t) => (typeof t === 'string' ? { tag: t } : t)).sort((a, b) => b.tag.length - a.tag.length);
     editor.replaceChildren();
     let start = 0;
     for (let i = 0; i < text.length; i++) {
       if (i && !/\s/.test(text[i - 1])) continue;
-      const tag = known.find((t) => text.slice(i, i + t.length).toLowerCase() === t.toLowerCase() && (!text[i + t.length] || /[\s.,!?;:]/.test(text[i + t.length])));
-      if (!tag) continue;
+      const found = known.find(({ tag: t }) => text.slice(i, i + t.length).toLowerCase() === t.toLowerCase() && (!text[i + t.length] || /[\s.,!?;:]/.test(text[i + t.length])));
+      if (!found) continue;
+      const tag = found.tag;
       editor.append(document.createTextNode(text.slice(start, i)));
       const chip = document.createElement('span');
       chip.contentEditable = 'false';
       chip.setAttribute('contenteditable', 'false');
       chip.dataset.mention = text.slice(i, i + tag.length);
       chip.className = 'inline-flex items-center gap-1 rounded-ctl bg-accent/10 px-1.5 text-accent font-medium align-baseline';
+      if (found.icon) chip.append(icon(found.icon, 11));
       chip.append(document.createTextNode(chip.dataset.mention));
       const remove = document.createElement('button');
       remove.type = 'button';
@@ -90,9 +99,15 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => stri
     selection?.removeAllRanges();
     selection?.addRange(next);
   };
-  Object.defineProperty(input, 'value', { configurable: true, get: () => value.get!.call(input) as string, set: (text: string) => { value.set!.call(input, text); draw(); } });
-  input.focus = () => { editor.focus(); place(input.selectionStart, input.selectionEnd); };
-  input.setSelectionRange = (start, end, direction) => { range.call(input, start, end, direction); place(start ?? 0, end ?? start ?? 0); };
+  // (setting the text puts the caret at its end, as a textarea does)
+  Object.defineProperty(input, 'value', { configurable: true, get: () => value.get!.call(input) as string, set: (text: string) => { value.set!.call(input, text); sel = { start: text.length, end: text.length }; draw(); } });
+  Object.defineProperty(input, 'selectionStart', { configurable: true, get: () => sel.start, set: (v: number) => { sel = { start: v, end: Math.max(v, sel.end) }; } });
+  Object.defineProperty(input, 'selectionEnd', { configurable: true, get: () => sel.end, set: (v: number) => { sel = { start: Math.min(sel.start, v), end: v }; } });
+  input.focus = () => { editor.focus(); place(sel.start, sel.end); };
+  input.setSelectionRange = (start, end) => {
+    sel = { start: start ?? 0, end: end ?? start ?? 0 };
+    place(sel.start, sel.end);
+  };
   const insertText = (text: string) => {
     if (typeof document.execCommand === 'function' && document.execCommand('insertText', false, text)) return;
     const selection = window.getSelection();
@@ -107,16 +122,49 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => stri
     selection.addRange(selected);
     changed();
   };
+  // The pill right before the caret (back) or right after it, past any empty text; null when there is none or text
+  // is selected. Browsers differ in what Backspace does next to a part that can't be edited, so the box does it itself.
+  const pillBeside = (back: boolean): HTMLElement | null => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !selection.isCollapsed || !editor.contains(selection.anchorNode)) return null;
+    const node = selection.anchorNode!;
+    const offset = selection.anchorOffset;
+    let next: Node | null;
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (back ? offset > 0 : offset < (node.textContent || '').length) return null;
+      next = back ? node.previousSibling : node.nextSibling;
+    } else next = back ? node.childNodes[offset - 1] ?? null : node.childNodes[offset] ?? null;
+    while (next && next.nodeType === Node.TEXT_NODE && !next.textContent) next = back ? next.previousSibling : next.nextSibling;
+    return next instanceof HTMLElement && next.dataset.mention ? next : null;
+  };
+  const removePill = (pill: HTMLElement) => {
+    const before = document.createRange();
+    before.selectNodeContents(editor);
+    before.setEndBefore(pill);
+    const at = plain(before.cloneContents()).length;
+    pill.remove();
+    changed();
+    input.setSelectionRange(at, at);
+  };
+
   editor.addEventListener('input', changed);
   editor.addEventListener('click', remember);
   editor.addEventListener('keyup', remember);
   editor.addEventListener('keydown', (event) => {
     if (event.target instanceof HTMLButtonElement) return;
+    // Backspace after a pill, or Delete before one, takes the whole pill
+    const pill = (event.key === 'Backspace' || event.key === 'Delete') && !event.isComposing ? pillBeside(event.key === 'Backspace') : null;
+    if (pill) {
+      event.preventDefault();
+      event.stopPropagation();
+      return removePill(pill);
+    }
     remember();
     const forwarded = new KeyboardEvent('keydown', { key: event.key, code: event.code, shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, isComposing: event.isComposing, bubbles: true, cancelable: true });
     input.dispatchEvent(forwarded);
     if (forwarded.defaultPrevented) event.preventDefault();
-    else if (event.key === 'Enter' && event.shiftKey) { event.preventDefault(); insertText('\n'); }
+    // a new line as text, not the <div> the browser would add (a box that sends on Enter has taken it already)
+    else if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); insertText('\n'); }
     event.stopPropagation();
   });
   editor.addEventListener('paste', (event) => {
@@ -143,10 +191,15 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => stri
     input.removeEventListener('input', syncFromInput);
     attributes.disconnect();
     delete (input as unknown as Record<string, unknown>).value;
+    delete (input as unknown as Record<string, unknown>).selectionStart;
+    delete (input as unknown as Record<string, unknown>).selectionEnd;
     input.focus = focus;
     input.setSelectionRange = range;
     input.hidden = false;
     editor.remove();
-    if (focused) focus.call(input);
+    if (focused) {
+      focus.call(input);
+      range.call(input, sel.start, sel.end);
+    }
   };
 }

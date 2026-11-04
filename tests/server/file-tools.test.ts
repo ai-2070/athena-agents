@@ -78,6 +78,48 @@ describe('file tools', () => {
   });
 });
 
+// a 1×1 PNG
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+
+describe('view_image', () => {
+  it('gives a picture in the workspace back as an image, typed by its bytes', async () => {
+    const { workspace, agent } = setup();
+    fs.writeFileSync(path.join(workspace, 'render.dat'), PNG);
+    const r = await callTool(agent, 'view_image', { path: 'render.dat' });
+    expect(r.isError).toBe(false);
+    expect(r.images).toEqual([`data:image/png;base64,${PNG.toString('base64')}`]);
+    expect(r.text).toContain('image/png');
+  });
+
+  it('refuses a file outside the allowed folders, one that is not a picture, and one over 5 MB', async () => {
+    const { workspace, outside, agent } = setup();
+    fs.writeFileSync(path.join(outside, 'private.png'), PNG);
+    const out = await callTool(agent, 'view_image', { path: path.join(outside, 'private.png') });
+    expect(out.isError).toBe(true);
+    expect(out.images || []).toEqual([]);
+    expect((await callTool(agent, 'view_image', { path: 'notes.txt' })).text).toMatch(/not a PNG, JPEG, WebP or GIF/);
+    fs.writeFileSync(path.join(workspace, 'huge.png'), Buffer.concat([PNG, Buffer.alloc(5 * 1024 * 1024)]));
+    expect((await callTool(agent, 'view_image', { path: 'huge.png' })).text).toMatch(/up to 5 MB/);
+  });
+
+  it.runIf(linksWork)('refuses a link that points outside', async () => {
+    const { workspace, outside, agent } = setup();
+    fs.writeFileSync(path.join(outside, 'private.png'), PNG);
+    fs.symlinkSync(path.join(outside, 'private.png'), path.join(workspace, 'link.png'));
+    const r = await callTool(agent, 'view_image', { path: 'link.png' });
+    expect(r.isError).toBe(true);
+    expect(r.images || []).toEqual([]);
+  });
+
+  it('asks no approval, like read_file', async () => {
+    const { workspace } = setup();
+    fs.writeFileSync(path.join(workspace, 'a.png'), PNG);
+    const asking: ToolAgent = { id: 'files-asking', name: 'Files', toolGroups: ['files'], autonomy: 'ask', workspace, knowledge: { folders: [] } };
+    expect((await callTool(asking, 'view_image', { path: 'a.png' })).images).toHaveLength(1);
+    expect(listApprovals()).toEqual([]);
+  });
+});
+
 describe('realTarget() / insideRoots()', () => {
   it('place a new file under its nearest real folder', () => {
     const { workspace } = setup();

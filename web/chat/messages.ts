@@ -4,7 +4,9 @@
 //   user           → user message: a text part, and file parts for what was attached
 //   assistant text → assistant message; the tool calls after it (in the same turn) are its
 //                    dynamic-tool parts (output: { text, images })
-//   error, meta, compaction → an assistant message with one data part (data-error / data-meta / data-compaction)
+//   error, meta, compaction, steer → an assistant message with one data part (data-error / data-meta / data-compaction /
+//                    data-steer: a message you sent that joined the turn, drawn like your own messages);
+//                    the cost and token lines are left out
 // A live run streams in as one assistant message (server/uistream.ts) and is replaced by the saved
 // items once it ends.
 import type { DynamicToolUIPart, UIMessage } from 'ai';
@@ -22,6 +24,8 @@ export interface MessageData {
   error: Extract<ChatItem, { type: 'error' }>;
   meta: Extract<ChatItem, { type: 'meta' }>;
   compaction: CompactionItem;
+  /** a message you sent that joined the turn going on */
+  steer: Pick<Extract<ChatItem, { type: 'steer' }>, 'steerId' | 'text' | 'from' | 'attachments'>;
   [k: string]: unknown;
 }
 export type ChatMessage = UIMessage<MessageMeta, MessageData>;
@@ -77,10 +81,35 @@ export function readOutput(output: unknown): ToolOutput {
   return { text: typeof output === 'string' ? output : output == null ? '' : JSON.stringify(output, null, 2), images: [] };
 }
 
+/** A tool's own name, without the prefix an engine adds to MCP tools (mcp__dashboard__await_agent → await_agent). */
+export const toolBase = (name: string): string => name.replace(/^mcp__[^_]+(?:_[^_]+)*__/, '');
+
+/** Who each ask_agent handle went to (handle → the agent as ask_agent named it), from the ask_agent calls in
+ *  these messages, so await_agent can show the agent rather than its handle. One line per handle: a key that
+ *  stays the same while other parts stream in. */
+export function handoffsIn(messages: readonly Pick<ChatMessage, 'parts'>[]): string {
+  const lines: string[] = [];
+  for (const m of messages) for (const p of m.parts) {
+    if (p.type !== 'dynamic-tool' || toolBase(p.toolName) !== 'ask_agent' || p.state !== 'output-available') continue;
+    const sent = /Sent to (.+?) \(handle ([\w-]+)\)/.exec(readOutput(p.output).text);
+    if (!sent) continue;
+    const named = (p.input as { agent?: unknown } | null)?.agent;
+    lines.push(`${sent[2]}\t${typeof named === 'string' && named.trim() ? named.trim() : sent[1]}`);
+  }
+  return lines.join('\n');
+}
+
+/** handoffsIn's lines as a map. */
+export const handoffMap = (lines: string): ReadonlyMap<string, string> => new Map(lines ? lines.split('\n').map((l) => l.split('\t') as [string, string]) : []);
+
 /** What a message says, for the search (Ctrl+F): its text, and the names of the tools it used. */
 export function searchText(m: Pick<ChatMessage, 'parts'>): string {
-  return m.parts.map((p) => (p.type === 'text' || p.type === 'reasoning' ? p.text : p.type === 'dynamic-tool' ? p.toolName : '')).join('\n');
+  return m.parts.map((p) => (p.type === 'text' || p.type === 'reasoning' ? p.text : p.type === 'dynamic-tool' ? p.toolName : p.type === 'data-steer' ? (p.data as { text: string }).text : '')).join('\n');
 }
+
+// The cost and token line saved after a run ("$0.0000 · 11392 from cache"): kept in the chat, not shown.
+const USAGE = /^(Memory summary · )?(Estimated \$|\$\d|Cost unavailable|Cost not reported|Usage · )/;
+export const isUsageLine = (it: ChatItem): boolean => it.type === 'meta' && !it.reset && (!!it.billing || USAGE.test(it.text));
 
 export function toUIMessages(items: readonly ChatItem[], from = 0, to = items.length): ChatMessage[] {
   const out: ChatMessage[] = [];
@@ -102,6 +131,7 @@ export function toUIMessages(items: readonly ChatItem[], from = 0, to = items.le
       continue;
     }
     open = null;
+    if (isUsageLine(it)) continue;
     if (it.type === 'user') out.push({ id: `m-${seq}`, role: 'user', parts: userParts(it.text, it.attachments), metadata: { seq, from: it.from || null } });
     else out.push({ id: `m-${seq}`, role: 'assistant', parts: [{ type: `data-${it.type}`, data: it } as ChatPart], metadata: { seq } });
   }

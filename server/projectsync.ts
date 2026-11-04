@@ -10,15 +10,17 @@ import { updateProject } from './projects.ts';
 import { savedOpacity } from '../shared/look.ts';
 import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON, realTarget, uid } from './util.ts';
 import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir, checkVersion, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
-import { getSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
+import { getSkill, forgetSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
 import { cleanMemoryVersion, isMemoryOwner, putMemory, MEMORY_FILE, MEMORY_MAX } from './memory.ts';
+import { clearKnowledgeCache } from './knowledge.ts';
 import type { Version } from './versions.ts';
 import { getWorld, worldDir, WORLD_ID } from './voxel/store.ts';
 import { setLink, usedBy } from './voxel/link.ts';
 import { WORLD_MD_MAX } from './voxel/worldmd.ts';
 import { rebase } from './backup.ts';
 import { restoredTasks } from './tasks.ts';
+import { restoredBoard } from './taskboard.ts';
 import type { Agent, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
 
 /** The last auto-save of a project (AppState.projectSaved). */
@@ -42,6 +44,8 @@ export interface SavedProjectFile {
   layout: unknown;
   brainChat: unknown;
   tasks?: unknown;
+  /** the Tasks board */
+  board?: unknown;
 }
 
 /** What a folder holds, if the dashboard saved a project in it. */
@@ -206,6 +210,7 @@ export function saveProject(id: string): SaveStatus | null {
       layout: readPlain<unknown>(projectDir(id, 'layout.json'), {}),
       brainChat: readPlain<unknown>(projectDir(id, 'brain-chat.json'), { messages: [] }),
       tasks: readPlain<unknown>(projectDir(id, 'tasks.json'), { tasks: [] }),
+      board: readPlain<unknown>(projectDir(id, 'board.json'), { tasks: [] }),
     });
     // team chat threads and the files you gave agents as knowledge (mirrored: what's deleted here goes there too)
     copyTree(projectDir(id, 'teamchats'), path.join(out, 'teamchats'), Infinity, { base: out, mirror: true });
@@ -300,6 +305,7 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   if (j.layout) writeJSON(projectDir(id, 'layout.json'), j.layout);
   if (j.brainChat) writeJSON(projectDir(id, 'brain-chat.json'), j.brainChat);
   if (j.tasks) writeJSON(projectDir(id, 'tasks.json'), restoredTasks(j.tasks));
+  if (j.board) writeJSON(projectDir(id, 'board.json'), restoredBoard(j.board));
   for (const n of jsonFiles(savedPath(folder, 'teamchats') || '')) {
     const src = savedPath(folder, 'teamchats', n);
     if (!src || !fs.lstatSync(src).isFile()) continue;
@@ -308,7 +314,10 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   }
   // (copyTree skips links below this folder: a linked file or folder isn't a plain file or folder)
   const knowledge = savedPath(folder, 'knowledge');
-  if (knowledge) copyTree(knowledge, projectDir(id, 'knowledge'), KNOWLEDGE_CAP * 4);
+  if (knowledge) {
+    copyTree(knowledge, projectDir(id, 'knowledge'), KNOWLEDGE_CAP * 4);
+    clearKnowledgeCache();
+  }
   const marks = savedPath(folder, 'team-marks');
   if (marks) copyTree(marks, projectDir(id, 'team-marks'), MARKS_CAP * 2);
   restoreMemory(folder, id);
@@ -467,6 +476,7 @@ function restoreSkills(folder: string, projectName: string): { added: string[]; 
     }
     // (copyTree skips links below the skill's folder)
     budget -= copyTree(src, skillDir(slug), budget);
+    forgetSkill(slug);
     if (!getSkill(slug)) {
       fs.rmSync(skillDir(slug), { recursive: true, force: true });
       continue;
@@ -567,7 +577,7 @@ function restoreWorld(folder: string, id: string): boolean {
 }
 
 // Save after anything in the project changes.
-const WATCH = new Set(['agents', 'workflows', 'routines', 'tasks', 'layout', 'team', 'knowledge', 'memory', 'brain-chat', 'chats', 'skills']);
+const WATCH = new Set(['agents', 'workflows', 'routines', 'tasks', 'board', 'layout', 'team', 'knowledge', 'memory', 'brain-chat', 'chats', 'skills']);
 export function startAutoSave() {
   const fresh = takeNewDefaultProject();
   if (fresh) adoptSavedFolder(fresh.id);

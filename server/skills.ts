@@ -55,9 +55,11 @@ function compose({ name, description, body }: { name: string; description: strin
   return `---\nname: ${yamlString(name)}\ndescription: ${yamlString(description.replace(/\s+/g, ' '))}\n---\n\n${String(body || '').trim()}\n`;
 }
 
-function filesIn(dir: string): SkillFile[] {
+// (dirs gets each folder looked into, with its stamp from just before it was read)
+function filesIn(dir: string, dirs?: Map<string, Stamp>): SkillFile[] {
   const out: SkillFile[] = [];
   const walk = (d: string, rel: string) => {
+    dirs?.set(d, stampOf(d, false));
     let list: fs.Dirent[] = [];
     try {
       list = fs.readdirSync(d, { withFileTypes: true });
@@ -96,7 +98,9 @@ function writeSkillMd(dir: string, text: string) {
   fs.writeFileSync(file, text);
 }
 
-function readDir(dir: string, source: Skill['source']): (Skill & { dir: string }) | null {
+type SkillInDir = Skill & { dir: string };
+
+function readDir(dir: string, source: Skill['source'], dirs?: Map<string, Stamp>): SkillInDir | null {
   const file = path.join(dir, 'SKILL.md');
   if (!exists(file)) return null;
   // a library skill's SKILL.md that is a link could show (and later write over) any file on the PC
@@ -104,7 +108,58 @@ function readDir(dir: string, source: Skill['source']): (Skill & { dir: string }
   const { meta, body } = parse(fs.readFileSync(file, 'utf8'));
   const slug = path.basename(dir);
   const origin = readJSON<SkillOrigin | null>(path.join(dir, '.source.json'), null);
-  return { slug, name: meta.name || slug, description: meta.description || '', body, source, dir, files: filesIn(dir), updatedAt: fs.statSync(file).mtimeMs, ...(origin?.repo ? { origin } : {}) };
+  return { slug, name: meta.name || slug, description: meta.description || '', body, source, dir, files: filesIn(dir, dirs), updatedAt: fs.statSync(file).mtimeMs, ...(origin?.repo ? { origin } : {}) };
+}
+
+// ---------- skills read once and kept ----------
+// Every prompt lists the agent's skills, and read_skill opens one, so a skill read from its folder is
+// kept until its SKILL.md, its .source.json or one of its folders changes (a file added, removed or
+// renamed changes its folder). The dashboard's own writes forget it at once (forgetSkill). An extra
+// file changed in place by something else keeps its old size in the list until the skill changes.
+interface Stamp {
+  stamp: string;
+  mtime: number;
+}
+const NO_STAMP: Stamp = { stamp: '-', mtime: 0 };
+// (lstat for a library SKILL.md and for folders, as readDir and filesIn look at them: a link isn't followed)
+function stampOf(p: string, follow: boolean): Stamp {
+  try {
+    const st = follow ? fs.statSync(p) : fs.lstatSync(p);
+    return { stamp: `${st.isFile() ? 'f' : st.isDirectory() ? 'd' : 'o'}:${st.mtimeMs}:${st.size}:${st.ino}`, mtime: st.mtimeMs };
+  } catch {
+    return NO_STAMP;
+  }
+}
+// File times are coarse on some disks (2 s on FAT), so a change made in the same tick as the read could
+// leave the stamp as it was: a skill changed that recently is read again until it is older.
+const SETTLED_MS = 2000;
+const keptSkills = new Map<string, { stamp: string; dirs: string[]; skill: SkillInDir }>();
+const keyOf = (dir: string, source: Skill['source']) => `${source}:${dir}`;
+const headOf = (dir: string, source: Skill['source']): Stamp[] => [stampOf(path.join(dir, 'SKILL.md'), source !== 'library'), stampOf(path.join(dir, '.source.json'), true)];
+const joined = (stamps: Iterable<Stamp>): string => [...stamps].map((s) => s.stamp).join('|');
+// (a copy, so a caller changing it can't change what is kept)
+const copied = (s: SkillInDir): SkillInDir => ({ ...s, files: [...s.files] });
+
+function readSkill(dir: string, source: Skill['source']): SkillInDir | null {
+  const key = keyOf(dir, source);
+  const was = keptSkills.get(key);
+  if (was && joined([...headOf(dir, source), ...was.dirs.map((d) => stampOf(d, false))]) === was.stamp) return copied(was.skill);
+  keptSkills.delete(key);
+  // stamped before reading, so a change while it is read shows next time
+  const at = Date.now();
+  const head = headOf(dir, source);
+  const dirs = new Map<string, Stamp>();
+  const s = readDir(dir, source, dirs);
+  const stamps = [...head, ...dirs.values()];
+  if (s && at - stamps.reduce((n, x) => Math.max(n, x.mtime), 0) > SETTLED_MS) keptSkills.set(key, { stamp: joined(stamps), dirs: [...dirs.keys()], skill: copied(s) });
+  return s;
+}
+
+/** Forget what is kept of a library skill (or of every skill) after its folder was changed. Every
+ *  write to the library calls it, so the next read comes from disk. */
+export function forgetSkill(slug?: string): void {
+  if (slug === undefined) keptSkills.clear();
+  else keptSkills.delete(keyOf(path.join(LIB(), slug), 'library'));
 }
 
 /** A SKILL.md's text as a skill's version (name, description, instructions). */
@@ -116,9 +171,10 @@ export function skillFromText(text: string, slug: string): SkillVersionItem {
 // Every skill in the library (with what it's used by is worked out on the page).
 export function listSkills(): SkillSummary[] {
   const out: SkillSummary[] = [];
-  for (const e of fs.readdirSync(LIB(), { withFileTypes: true })) {
+  const lib = LIB();
+  for (const e of fs.readdirSync(lib, { withFileTypes: true })) {
     if (!e.isDirectory() || !SAFE.test(e.name)) continue;
-    const s = readDir(path.join(LIB(), e.name), 'library');
+    const s = readSkill(path.join(lib, e.name), 'library');
     if (s) out.push({ ...s, body: undefined, dir: undefined, preview: s.body.slice(0, 280) });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
@@ -126,7 +182,7 @@ export function listSkills(): SkillSummary[] {
 
 export function getSkill(slug: string): SkillDetail | null {
   if (!SAFE.test(String(slug))) return null;
-  const s = readDir(path.join(LIB(), slug), 'library');
+  const s = readSkill(path.join(LIB(), slug), 'library');
   return s ? { ...s, dir: undefined } : null;
 }
 
@@ -137,8 +193,8 @@ export function claudeSkills(): ClaudeSkill[] {
   return fs
     .readdirSync(CLAUDE_DIR, { withFileTypes: true })
     .filter((e) => e.isDirectory())
-    .map((e) => readDir(path.join(CLAUDE_DIR, e.name), 'claude'))
-    .filter((s): s is Skill & { dir: string } => Boolean(s))
+    .map((e) => readSkill(path.join(CLAUDE_DIR, e.name), 'claude'))
+    .filter((s): s is SkillInDir => Boolean(s))
     .map(({ slug, name, description, files }) => ({ slug, name, description, files: files.length, inLibrary: have.has(slugify(slug)) }));
 }
 
@@ -184,6 +240,7 @@ export function saveSkill({ slug, name, description, body }: { slug?: string; na
   const text = String(body || '').slice(0, SKILL_BODY_MAX);
   if (before) keepVersion(skillVersionsDir(id), versionItem(before), { slug: id, name, description, body: text.trim() });
   writeSkillMd(dir, compose({ name, description, body: text }));
+  forgetSkill(id);
   emit('skills', { slug: id });
   return getSkill(id);
 }
@@ -247,6 +304,7 @@ export function deleteSkill(slug: string) {
     if (v && extra.length) copySkillFiles(dir, versionFilesDir(skillVersionsDir(slug), v.id));
   }
   fs.rmSync(dir, { recursive: true, force: true });
+  forgetSkill(slug);
   emit('skills', { slug, removed: true });
 }
 
@@ -272,6 +330,7 @@ export function restoreSkill(item: SkillVersionItem, versionId: string): SkillDe
     for (const rel of skillExtraFiles(dir)) fs.rmSync(path.join(dir, ...rel.split('/')), { force: true });
     if (kept && exists(kept)) copySkillFiles(kept, dir);
   }
+  forgetSkill(item.slug);
   pruneVersions(vdir);
   emit('skills', { slug: item.slug });
   return getSkill(item.slug);
@@ -378,7 +437,7 @@ A busy scene (a street in front of a stock exchange, the Nile with temples and b
 - Voxel size is per object and can change mid-build with {"voxel_size": …}: ground 0.5, buildings 0.25 (the world default), props 0.125, people and fine detail 0.08-0.1. One object can mix sizes.
 - Give world_build "units": "map" and every position and size in the steps is in map units, the same numbers as world_info and your team's plans: no dividing. Without it, steps count in voxels of the current size (a 1.7 tall person at voxel size 0.1 is 17 voxels); the examples below are in voxels.
 - world_steps has every step there is, by topic (shapes, regions, finishing, prefabs, characters, materials).
-- Repetitive or procedural work is easier as a program: world_script runs JavaScript with box(), path(), place(), set(), loops, random() and noise(), in map units. A lane of cottages that each differ is one loop; a tree that branches is a small recursive function.
+- Repetitive or procedural work is easier as a program: world_build with "code" runs JavaScript with box(), path(), place(), set(), loops, random() and noise(), in map units (world_steps "script" lists every function). A lane of cottages that each differ is one loop; a tree that branches is a small recursive function.
 - One call changes at most 250,000 voxels and places 2,000 copies; a world holds 4,000,000 voxels and 20,000 copies. Big flat ground at a small voxel size uses voxels up fast: use 0.5 for it. Copies don't count towards the voxel limit, so repeat with prefabs rather than building the same thing again.
 
 ## How to build things that look good
@@ -481,40 +540,31 @@ Read \`result.launch\`: \`outcome.handle\` is the agent's handle, \`outcome.kind
   },
 ];
 
-// Whole skill folders that come with the dashboard: skills/<dir>/<slug>/ in this repo, copied from a
-// GitHub repo. Each keeps that repo as its origin, so "Download again" updates it like an installed one.
+// Whole skill folders that come with the dashboard: skills/<dir>/<slug>/ in this repo. Most are copied from a
+// GitHub repo and keep it as their origin, so "Download again" updates them like an installed one.
 // `under` is the folder in that repo that holds the skill folders ('' = its top level): the origin's
 // path must be the skill's real path there, or "Download again" would add a second copy.
 // `private`: the repo isn't public, so its skills come without a link back to it (no "from" label,
 // no "Download again").
-// `nested`: the skill folders sit deeper, in the repo's own folders (Hermes: skills/<category>/<skill>,
-// optional-skills/<category>/<skill>), kept as they are so each one's path in the repo is its path here.
-const BUNDLED: { dir: string; repo: string; ref: string; under: string; private?: boolean; nested?: boolean }[] = [
+// `athena` holds the dashboard's own skills (its README has the standard they follow).
+const BUNDLED: { dir: string; repo: string; ref: string; under: string; private?: boolean }[] = [
   { dir: 'storytold', repo: 'hermes-pro/storytold-skills', ref: 'main', under: '' },
   { dir: 'oomol', repo: 'oomol-lab/oo-cli', ref: 'main', under: 'contrib/skills/shared' },
   { dir: 'composio', repo: 'ComposioHQ/skills', ref: 'main', under: 'skills' },
   { dir: 'orca', repo: 'stablyai/orca', ref: 'main', under: 'skills' },
   { dir: 'subagent-skills', repo: 'ai-2070/subagent-skills', ref: 'master', under: '', private: true },
-  { dir: 'hermes', repo: 'NousResearch/hermes-agent', ref: 'main', under: '', nested: true },
+  { dir: 'athena', repo: 'ai-2070/athena-agents', ref: 'main', under: 'skills/athena', private: true },
 ];
 
-/** The skill folders under a bundle's folder, as paths relative to it ("productivity/pdf"). A folder with a
- *  SKILL.md is a skill; with `nested`, one without is looked into (a few levels down). */
-function bundleSkillDirs(base: string, nested: boolean, rel = '', depth = 0): string[] {
+/** The skill folders in a bundle's folder: the ones with a SKILL.md. */
+function bundleSkillDirs(base: string): string[] {
   let list: fs.Dirent[] = [];
   try {
-    list = fs.readdirSync(rel ? path.join(base, ...rel.split('/')) : base, { withFileTypes: true });
+    list = fs.readdirSync(base, { withFileTypes: true });
   } catch {
     return [];
   }
-  const out: string[] = [];
-  for (const e of list) {
-    if (!e.isDirectory() || !SAFE.test(e.name)) continue;
-    const at = rel ? `${rel}/${e.name}` : e.name;
-    if (exists(path.join(base, ...at.split('/'), 'SKILL.md'))) out.push(at);
-    else if (nested && depth < 3) out.push(...bundleSkillDirs(base, nested, at, depth + 1));
-  }
-  return out;
+  return list.filter((e) => e.isDirectory() && SAFE.test(e.name) && exists(path.join(base, e.name, 'SKILL.md'))).map((e) => e.name);
 }
 /** The folder in this repo that holds the bundled skill folders. */
 export const bundledSkillsRoot = (): string => path.join(ROOT, 'skills');
@@ -532,14 +582,17 @@ export function bundledSkills(): BundledSkill[] {
   const out: BundledSkill[] = [];
   for (const b of BUNDLED) {
     const base = path.join(bundledSkillsRoot(), b.dir);
-    for (const rel of bundleSkillDirs(base, !!b.nested)) {
-      const at = b.under ? `${b.under}/${rel}` : rel;
+    for (const slug of bundleSkillDirs(base)) {
+      const at = b.under ? `${b.under}/${slug}` : slug;
       const origin = b.private ? undefined : { url: `https://github.com/${b.repo}/tree/${b.ref}/${at}`, repo: b.repo, ref: b.ref, path: at };
-      out.push({ slug: path.posix.basename(rel), dir: path.join(base, ...rel.split('/')), repo: b.repo, ...(origin ? { origin } : {}) });
+      out.push({ slug, dir: path.join(base, slug), repo: b.repo, ...(origin ? { origin } : {}) });
     }
   }
   return out.sort((a, b) => a.slug.localeCompare(b.slug));
 }
+
+/** Every skill the dashboard comes with: its own and the bundled ones. */
+export const shippedSkillSlugs = (): string[] => [...BUILTIN.map((b) => b.slug), ...bundledSkills().map((b) => b.slug)];
 
 export function ensureBuiltinSkills() {
   const marker = path.join(LIB(), '.builtin.json');
@@ -580,6 +633,7 @@ export function ensureBuiltinSkills() {
     now.push(b.slug);
   }
   if (now.length !== added.length) writeJSON(marker, { added: now });
+  forgetSkill();
 }
 
 // Copy one of your Claude Code skills (folder and files) into the library.
@@ -599,16 +653,21 @@ export function importClaudeSkill(name: string): SkillDetail | null {
     fs.rmSync(tmp, { recursive: true, force: true });
     throw e;
   }
+  forgetSkill(id);
   log('skill', `Imported the skill "${getSkill(id)?.name || id}" from Claude Code`);
   return getSkill(id);
 }
 
-// Where a skill's file is on disk, checked to be inside the skill.
-function skillFilePath(slug: string, rel: unknown): string {
+// A skill's folder as its real path (for fileInSkill).
+function skillRoot(slug: string): string {
   const s = getSkill(slug);
   if (!s) throw new Error(`No skill "${slug}".`);
+  return fs.realpathSync(path.join(LIB(), slug));
+}
+
+// Where a skill's file is on disk, checked to be inside the skill's folder (root, a real path).
+function fileInSkill(root: string, rel: unknown): string {
   // compare real paths, so a link inside the skill can't point outside it
-  const root = fs.realpathSync(path.join(LIB(), slug));
   let abs: string;
   try {
     abs = fs.realpathSync(path.resolve(root, String(rel || '')));
@@ -623,7 +682,7 @@ const FILE_SHOWN = 60000;
 // Read a file that belongs to a skill (for read_skill with a file), from line `from` on, as much as
 // fits. A file that doesn't fit says where to go on.
 export function readSkillFile(slug: string, rel: unknown, from = 1): string {
-  const text = fs.readFileSync(skillFilePath(slug, rel), 'utf8');
+  const text = fs.readFileSync(fileInSkill(skillRoot(slug), rel), 'utf8');
   if (from <= 1 && text.length <= FILE_SHOWN) return text;
   const lines = text.split('\n');
   const start = Math.min(Math.max(1, Math.floor(from) || 1), lines.length);
@@ -647,10 +706,12 @@ export function searchSkill(slug: string, find: string, rel?: unknown): string {
     re = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   }
   const files = rel ? [String(rel)] : ['SKILL.md', ...s.files.map((f) => f.path)];
+  // (the skill is read once: every file is checked against the same folder)
+  const root = fs.realpathSync(path.join(LIB(), slug));
   const hits: string[] = [];
   let total = 0;
   for (const f of files) {
-    const abs = skillFilePath(slug, f);
+    const abs = fileInSkill(root, f);
     if (fs.statSync(abs).size > 10 * 1024 * 1024) continue;
     const text = fs.readFileSync(abs, 'utf8');
     if (!rel && text.includes('\0')) continue; // not text
@@ -666,9 +727,12 @@ export function searchSkill(slug: string, find: string, rel?: unknown): string {
 // Find a skill by slug or name (agents may use either).
 export function findSkill(key: unknown): SkillDetail | null {
   const k = String(key || '').trim().toLowerCase();
-  // by slug, or by its display name (then load the full skill, body included)
+  // by slug first (one folder), else by its display name or the name written as a slug (the whole
+  // library), then load the full skill, body included
+  const bySlug = getSkill(k);
+  if (bySlug) return bySlug;
   const hit = listSkills().find((s) => s.name.toLowerCase() === k || s.slug === slugify(k));
-  return getSkill(k) || (hit ? getSkill(hit.slug) : null);
+  return hit ? getSkill(hit.slug) : null;
 }
 
 // The skills an agent has right now: its own, its team's (passed in), and the project's.

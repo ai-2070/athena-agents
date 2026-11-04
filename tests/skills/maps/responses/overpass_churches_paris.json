@@ -1,0 +1,140 @@
+{
+ "version": 0.6,
+ "generator": "Overpass API 0.7.62.11 87bfad18",
+ "osm3s": {
+  "timestamp_osm_base": "2026-11-04T06:03:50Z",
+  "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+ },
+ "elements": [
+  {
+   "type": "node",
+   "id": 3032793634,
+   "lat": 48.8527313,
+   "lon": 2.3035652,
+   "tags": {
+    "access": "private",
+    "amenity": "place_of_worship",
+    "building": "chapel",
+    "denomination": "catholic",
+    "name": "Chapelle Saint-Louis",
+    "religion": "christian",
+    "wikidata": "Q26203260"
+   }
+  },
+  {
+   "type": "node",
+   "id": 3111840468,
+   "lat": 48.8658427,
+   "lon": 2.3087201,
+   "tags": {
+    "amenity": "place_of_worship",
+    "community": "AA",
+    "community:fr": "Assomptionnistes",
+    "community:gender": "male",
+    "contact:city": "Paris",
+    "contact:housenumber": "10",
+    "contact:phone": "+33 1 77 45 89 11",
+    "contact:postcode": "75008",
+    "contact:street": "Rue François 1er",
+    "denomination": "catholic",
+    "name": "Communauté assomptionniste Saint-Vincent-de-Paul",
+    "religion": "christian",
+    "wikidata": "Q61972004",
+    "wikipedia": "fr:Adveniat Paris"
+   }
+  },
+  {
+   "type": "way",
+   "id": 15912913,
+   "center": {
+    "lat": 48.8509237,
+    "lon": 2.2966106
+   },
+   "tags": {
+    "amenity": "place_of_worship",
+    "architect": "Émile Brunet",
+    "building": "church",
+    "check_date": "2026-09-08",
+    "denomination": "catholic",
+    "name": "Église Saint-Léon",
+    "note": "Label patrimoine d'intérêt régional",
+    "ref:FR:CEF": "75115_14",
+    "religion": "christian",
+    "source:architect": "data.iledefrance.fr:Région Île-de-France - 2022-05",
+    "start_date": "1934",
+    "wheelchair": "yes",
+    "wikidata": "Q3582470"
+   }
+  },
+  {
+   "type": "way",
+   "id": 54118568,
+   "center": {
+    "lat": 48.8486035,
+    "lon": 2.2912517
+   },
+   "tags": {
+    "amenity": "place_of_worship",
+    "building": "church",
+    "denomination": "catholic",
+    "name": "Chapelle Notre-Dame de Grâce",
+    "ref:FR:CEF": "75115_01",
+    "religion": "christian",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2010",
+    "wikidata": "Q27042066"
+   }
+  },
+  {
+   "type": "way",
+   "id": 64955027,
+   "center": {
+    "lat": 48.855637,
+    "lon": 2.3125832
+   },
+   "tags": {
+    "alt_name": "Église des soldats",
+    "alt_name:de": "Soldatenkirche",
+    "amenity": "place_of_worship",
+    "building": "cathedral",
+    "building:levels": "5",
+    "check_date": "2026-09-20",
+    "denomination": "catholic",
+    "height": "33",
+    "name": "Cathédrale Saint-Louis des Invalides",
+    "name:ar": "كاتدرائية سانت لويس دي ليزانفاليد",
+    "name:en": "Saint Louis of Les Invalids Cathedral",
+    "name:eo": "Katedralo Saint-Louis-des-Invalides",
+    "name:fr": "Cathédrale Saint-Louis des Invalides",
+    "name:zh": "圣路易荣军教堂",
+    "note": "invalides.org/pages/historique.html",
+    "ref:FR:CEF": "75107_03",
+    "religion": "christian",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010",
+    "tourism": "attraction",
+    "wikidata": "Q4992220",
+    "wikipedia": "fr:Cathédrale Saint-Louis-des-Invalides"
+   }
+  },
+  {
+   "type": "way",
+   "id": 69049385,
+   "center": {
+    "lat": 48.8621157,
+    "lon": 2.3068946
+   },
+   "tags": {
+    "amenity": "place_of_worship",
+    "building": "chapel",
+    "building:levels": "1",
+    "denomination": "protestant",
+    "name": "Église Américaine",
+    "name:br": "Iliz Amerikan",
+    "name:fr": "Église Américaine",
+    "phone": "+33 1 40 62 05 00",
+    "religion": "christian",
+    "website": "https://www.acparis.org/",
+    "wikidata": "Q3408708"
+   }
+  }
+ ]
+}

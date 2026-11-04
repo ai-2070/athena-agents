@@ -1,0 +1,13 @@
+{
+  "//": "GET /models/<folder> answers, keyed by folder; GET /models lists the keys. Files in subfolders use the server's own slash.",
+  "checkpoints": ["sd_xl_base_1.0.safetensors", "SDXL/juggernaut_xl.safetensors"],
+  "configs": [],
+  "loras": [],
+  "vae": ["ae.safetensors"],
+  "text_encoders": ["clip_l.safetensors"],
+  "diffusion_models": ["flux1-dev.safetensors"],
+  "clip_vision": [],
+  "embeddings": ["easynegative.safetensors", "styles/watercolor.pt"],
+  "upscale_models": ["4x-UltraSharp.pth"],
+  "ipadapter": ["ip-adapter_sdxl_vit-h.safetensors"]
+}

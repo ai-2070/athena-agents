@@ -75,6 +75,16 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('attachTray()', () => {
+  it('uploads into another project when it is a pane of a project that isn\'t open', async () => {
+    const tray = attachTray({ project: 'p2' });
+    tray.add(files('notes.txt'));
+    await flush();
+    expect(open()[0].url).toBe('/api/p/p2/uploads/b1?path=notes.txt');
+    expect((vi.mocked(fetch).mock.calls[0][0] as string)).toBe('/api/p/p2/uploads');
+    await finishAll();
+    expect(await tray.ready()).toEqual(['/up/notes.txt']);
+  });
+
   it('uploads at most 4 files at once, across every chip', async () => {
     const tray = attachTray();
     tray.add(files(...Array.from({ length: 10 }, (_, i) => `f${i}.txt`)));

@@ -1,0 +1,111 @@
+{
+ "version": 0.6,
+ "generator": "Overpass API 0.7.62.11 87bfad18",
+ "osm3s": {
+  "timestamp_osm_base": "2026-11-04T06:02:51Z",
+  "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+ },
+ "elements": [
+  {
+   "type": "node",
+   "id": 2065895673,
+   "lat": 35.6813069,
+   "lon": 139.7636463,
+   "tags": {
+    "addr:block_number": "4",
+    "addr:city": "千代田区",
+    "addr:country": "JP",
+    "addr:housenumber": "1",
+    "addr:neighbourhood": "丸の内二丁目",
+    "addr:postcode": "100-0005",
+    "addr:province": "東京都",
+    "amenity": "pharmacy",
+    "branch": "丸の内店",
+    "brand": "トモズ",
+    "brand:en": "Tomod's",
+    "brand:ja": "トモズ",
+    "brand:wikidata": "Q7820097",
+    "brand:wikipedia": "ja:トモズ",
+    "fax": "+81-3-52207717",
+    "healthcare": "pharmacy",
+    "level": "-1",
+    "name": "トモズ",
+    "name:en": "Tomod's",
+    "name:ja": "トモズ",
+    "name:ja_rm": "Amerikan Famashi",
+    "opening_hours": "Mo-Sa 10:30-21:00; Su,PH 10:00-20:00",
+    "operator": "住商ドラッグストアーズ",
+    "phone": "+81-3-52207716",
+    "shop": "chemist",
+    "source": "(URL) 2012",
+    "website": "https://www.tomods.jp/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 10538350880,
+   "lat": 35.6824035,
+   "lon": 139.7732697,
+   "tags": {
+    "amenity": "pharmacy",
+    "brand": "welcia",
+    "brand:en": "welcia",
+    "brand:ja": "ウエルシア薬局",
+    "brand:wikidata": "Q11288687",
+    "check_date": "2023-01-11",
+    "healthcare": "pharmacy",
+    "name": "ウエルシア薬局",
+    "name:en": "Welcia",
+    "name:ja": "ウエルシア薬局",
+    "shop": "chemist",
+    "wheelchair": "yes"
+   }
+  },
+  {
+   "type": "node",
+   "id": 11562462458,
+   "lat": 35.6823332,
+   "lon": 139.773195,
+   "tags": {
+    "amenity": "pharmacy",
+    "check_date": "2024-01-29",
+    "healthcare": "pharmacy",
+    "level": "0",
+    "name": "B.B.O.N"
+   }
+  },
+  {
+   "type": "node",
+   "id": 11562658178,
+   "lat": 35.6820876,
+   "lon": 139.7719374,
+   "tags": {
+    "amenity": "pharmacy",
+    "brand": "さくら薬局",
+    "brand:en": "Sakura Pharmacy",
+    "brand:ja": "さくら薬局",
+    "brand:wikidata": "Q11299021",
+    "check_date": "2024-01-29",
+    "healthcare": "pharmacy",
+    "level": "0",
+    "name": "さくら薬局",
+    "name:en": "Sakura Pharmacy",
+    "name:ja": "さくら薬局",
+    "wheelchair": "yes"
+   }
+  },
+  {
+   "type": "node",
+   "id": 13269464959,
+   "lat": 35.6848375,
+   "lon": 139.7672152,
+   "tags": {
+    "amenity": "pharmacy",
+    "check_date": "2025-10-30",
+    "healthcare": "pharmacy",
+    "name": "クオール薬局",
+    "wheelchair": "no"
+   }
+  }
+ ]
+}

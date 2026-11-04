@@ -65,7 +65,7 @@ const CATS: [string, string][] = [
   ['print', '3D printing'],
   ['nvidia', 'NVIDIA'],
   ['browser', 'Browsers'],
-  ['dev', 'Developer'],
+  ['dev', 'Developer tools'],
   ['office', 'Other'],
 ];
 

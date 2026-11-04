@@ -1,16 +1,16 @@
 // Projects: create, switch, and look inside a project's Brain folder (files, notes, GitHub).
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ensureDir, exists, insideRoots, isPlainDir, run, slugify, uid, which, dataPath } from './util.ts';
+import { HOME, ensureDir, exists, insideRoots, isPlainDir, realTarget, run, slugify, uid, which, dataPath } from './util.ts';
 import { listProjects, saveProjects, activeProject, setActiveProject, log } from './store.ts';
 import { toPercent } from '../shared/look.ts';
-import type { Project } from '../shared/types.ts';
+import type { Project, FolderEntry, FolderListing } from '../shared/types.ts';
 import type { ProjectPeek } from './projectsync.ts';
 
-const PROJECTS_ROOT = path.join(HOME, 'Documents', 'Blacksite');
-// Where projects went before the app was called Blacksite. They stay there (each project knows its
-// own folder); this is only searched for project folders the dashboard doesn't know yet.
-const OLD_PROJECTS_ROOT = path.join(HOME, 'Documents', 'My Dashboard');
+const PROJECTS_ROOT = path.join(HOME, 'Documents', 'Athena Agents');
+// Where projects went under the app's old names (Blacksite, My Dashboard). They stay there (each project
+// knows its own folder); these are only searched for project folders the dashboard doesn't know yet.
+const OLD_PROJECTS_ROOTS = [path.join(HOME, 'Documents', 'Blacksite'), path.join(HOME, 'Documents', 'My Dashboard')];
 const SKIP = new Set(['node_modules', '.git', '.next', 'dist', 'build', '.venv', '__pycache__', '.cache']);
 
 export function projectsRoot(): string {
@@ -216,6 +216,37 @@ export function brainFolder(sub: unknown, p: Project = activeProject()): string 
   return real;
 }
 
+/** One folder of a project (its folders first; build outputs, dependencies and .git left out). */
+export function folderListing(sub: unknown, p: Project = activeProject(), max = 1000): FolderListing {
+  // (real paths on both sides: the project folder itself can sit under a link, as /var does on a Mac)
+  const dir = realTarget(brainFolder(sub, p)) || brainFolder(sub, p);
+  const root = realTarget(ensureBrain(p)) || ensureBrain(p);
+  const rel = path.relative(root, dir).split(path.sep).join('/');
+  let list: fs.Dirent[] = [];
+  try {
+    list = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    /* unreadable: empty */
+  }
+  const entries: FolderEntry[] = [];
+  for (const e of list) {
+    if (SKIP.has(e.name) || e.isSymbolicLink()) continue;
+    const full = path.join(dir, e.name);
+    const dirEntry = e.isDirectory();
+    let size: number | undefined;
+    if (!dirEntry) {
+      try {
+        size = fs.statSync(full).size;
+      } catch {
+        continue;
+      }
+    }
+    entries.push({ name: e.name, dir: dirEntry, ...(size !== undefined ? { size } : {}), path: full, rel: rel ? `${rel}/${e.name}` : e.name });
+  }
+  entries.sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
+  return { rel, entries: entries.slice(0, max), more: Math.max(0, entries.length - max) };
+}
+
 export async function gitPull(p: Project = activeProject()): Promise<string> {
   const r = await run('git', ['-C', p.brainPath, 'pull', '--ff-only'], { timeout: 5 * 60_000 });
   if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().slice(-500));
@@ -254,7 +285,7 @@ export function overview(peek: (folder: string) => ProjectPeek | null = () => nu
   };
   const known = new Set(list.map((p) => path.resolve(p.brainPath).toLowerCase()));
   const found: FoundFolder[] = [];
-  for (const root of [PROJECTS_ROOT, OLD_PROJECTS_ROOT]) {
+  for (const root of [PROJECTS_ROOT, ...OLD_PROJECTS_ROOTS]) {
     try {
       for (const e of fs.readdirSync(root, { withFileTypes: true })) {
         if (!e.isDirectory()) continue;

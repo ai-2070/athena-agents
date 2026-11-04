@@ -3,14 +3,14 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GET, POST, PUT, DEL, attempt, navigate, ago, confirmBox, promptBox, ENGINE_LABEL } from '../core.ts';
 import { openTerminal } from './agents.tsx';
-import { memoryButton } from '../memory.tsx';
-import { buttonClass } from '../ui/classes.ts';
+import { openMemory } from '../memory.tsx';
+import { iconButtonClass } from '../ui/classes.ts';
+import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
 import { modelChip, modelInfo } from '../models.tsx';
 import { kTokens } from '../../shared/context.ts';
 import { attachTray } from '../attach.tsx';
-import { Avatar, DomNode, Icon, reactPage } from '../ui/react.tsx';
+import { Avatar, Icon, reactPage } from '../ui/react.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
-import { Pill } from '../ui/marks.tsx';
 import type { PageContext } from '../ui/react.tsx';
 import type { AgentDetail } from './agents.tsx';
 import type { ChatViewApi } from '../chat/ChatView.tsx';
@@ -110,7 +110,12 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
     [agent.id, loadMemory],
   );
 
+  // a new chat only when there is something to start fresh from: an empty one is used again
   const newChat = async () => {
+    const isEmpty = (id: string) => chats.find((c) => c.id === id)?.count === 0;
+    if (isEmpty(chat.id)) return api.current?.focus();
+    const empty = chats.find((c) => c.count === 0);
+    if (empty) return navigate(`#/agents/${agent.id}/${empty.id}`);
     const c = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
     if (c) navigate(`#/agents/${agent.id}/${c.id}`);
   };
@@ -131,64 +136,132 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
   const tools = agent.tools || [];
   const info = modelInfo(agent);
   const how = memory ? `${memory.estimated ? 'Estimated context use. ' : ''}${ENGINE_LABEL[agent.engine] || 'The engine'} manages its own memory.` : '';
+  const full = !!memory && memory.tokens >= memory.window * 0.85;
+  // a search box once the list is long; the chats grouped by the day they were last used
+  const [find, setFind] = useState('');
+  const q = find.trim().toLowerCase();
+  // empty chats aren't listed (the open one is, so you can see where you are)
+  const listed = chats.filter((c) => c.count > 0 || c.id === chat.id);
+  const shown = q ? listed.filter((c) => (c.title || 'Chat').toLowerCase().includes(q)) : listed;
+  const groups: { day: string; list: ChatSummary[] }[] = [];
+  for (const c of shown) {
+    const day = dayOf(c.updatedAt);
+    if (groups.at(-1)?.day === day) groups.at(-1)!.list.push(c);
+    else groups.push({ day, list: [c] });
+  }
   return (
-    <div className="grid h-[calc(100vh-56px)] grid-rows-[minmax(0,1fr)] grid-cols-[260px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
+    <div className="grid h-[calc(100vh-56px)] grid-rows-[minmax(0,1fr)] grid-cols-[280px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
       <aside className="flex min-h-0 flex-col border-r border-line bg-bg max-md:border-r-0 max-md:border-b">
-        <div className="border-b border-line px-5 pt-6 pb-5">
-          <div className="flex items-center gap-3">
-            <Avatar agent={agent} lg />
-            <div className="min-w-0 flex-1 text-[15px] leading-[1.3] font-semibold wrap-anywhere">{agent.name}</div>
-          </div>
-          {agent.specialty ? <p className="hint mt-3 mb-0">{agent.specialty}</p> : null}
-          <div className="mt-4 flex flex-col gap-1 text-[12px] leading-[1.4] text-dim">
-            <span>{info.name}</span>
-            <span className="text-faint">{info.where}</span>
-          </div>
-          <div className="mt-5 flex flex-col gap-2">
-            <Button size="small" className="w-full justify-center" onClick={() => void newChat()}>+ New chat</Button>
-            <div className="grid grid-cols-2 gap-2">
-              <ButtonLink variant="ghost" size="tiny" className={`justify-center ${agent.engine === 'eve' ? 'col-span-2' : ''}`} href={`#/agents/${agent.id}/edit`}>Edit</ButtonLink>
-              {agent.engine !== 'eve' ? (
-                <Button variant="ghost" size="tiny" className="justify-center" title="Open this agent in a live terminal" onClick={() => void openTerminal(agent)}><Icon name="terminal" size={13} />Terminal</Button>
-              ) : null}
-              <DomNode as="span" className="col-span-2" make={() => memoryButton(agent.id, agent.name, { size: 'tiny', class: 'w-full justify-center' })} deps={[agent.id]} />
+        <div className="border-b border-line px-4 pt-5 pb-4">
+          <div className="flex items-start gap-3">
+            <Avatar agent={agent} />
+            <div className="min-w-0 flex-1 pt-0.5">
+              <div className="truncate text-[15px] leading-[1.3] font-semibold text-ink" title={agent.name}>{agent.name}</div>
+              {agent.specialty ? <p className="m-0 mt-0.5 line-clamp-2 text-[12.5px] leading-[1.45] text-dim">{agent.specialty}</p> : null}
             </div>
           </div>
-          <details className="mt-4">
-            <summary className="label cursor-pointer text-dim">{`${tools.length} tools`}</summary>
-            <div className="hint chat-tools mt-2 font-mono text-[11.5px] leading-[1.8]">{tools.join(' · ')}</div>
-          </details>
+          <div className="mt-3 flex min-w-0 items-center gap-1.5 text-[12px] text-dim" title={info.where}>
+            <Icon name="cpu" size={13} className="flex-none text-faint" />
+            <span className="truncate">{info.name}</span>
+            <span className="truncate text-faint">{`· ${info.where.split(' · ')[0]}`}</span>
+          </div>
+          {/* New chat, then the agent's own things as a row of icon buttons */}
+          <div className="mt-4 flex items-center gap-1.5">
+            <Button size="small" className="flex-1 justify-center" onClick={() => void newChat()}>
+              <Icon name="plus" size={14} />
+              New chat
+            </Button>
+            <ButtonLink variant="ghost" size="small" className="size-8! px-0!" href={`#/agents/${agent.id}/edit`} title="Edit the agent" aria-label="Edit the agent">
+              <Icon name="pencil" size={14} />
+            </ButtonLink>
+            {agent.engine !== 'eve' ? (
+              <Button variant="ghost" size="small" className="size-8! px-0!" title="Open this agent in a live terminal" aria-label="Open in a terminal" onClick={() => void openTerminal(agent)}>
+                <Icon name="terminal" size={14} />
+              </Button>
+            ) : null}
+            <Button variant="ghost" size="small" className="size-8! px-0!" title="MEMORY.md: what it remembers across chats" aria-label="MEMORY.md" onClick={() => openMemory(agent.id, agent.name)}>
+              <Icon name="file-text" size={14} />
+            </Button>
+          </div>
+          {tools.length ? (
+            <details className="group/tools mt-3">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-ctl py-1 text-[12px] text-dim hover:text-ink [&::-webkit-details-marker]:hidden">
+                <Icon name="wrench" size={13} className="text-faint" />
+                {`${tools.length} tool${tools.length === 1 ? '' : 's'}`}
+                <Icon name="chevron-down" size={12} className="ml-auto text-faint transition-transform duration-200 group-open/tools:rotate-180" />
+              </summary>
+              <div className="chat-tools mt-2 flex max-h-40 flex-wrap gap-1 overflow-y-auto">
+                {tools.map((t) => <code key={t} className="rounded-[6px] border border-line bg-panel-2 px-1.5 py-0.5 font-mono text-[11px] text-dim">{t}</code>)}
+              </div>
+            </details>
+          ) : null}
         </div>
-        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-4 max-md:max-h-48 max-md:flex-none" aria-label="Chats">
-          <div className="label px-2 pb-2 text-faint">Chats</div>
-          {chats.map((c) => (
-            <a key={c.id} className={c.id === chat.id ? 'on block rounded-[10px] bg-panel px-3 py-3 text-[13px] text-ink shadow-[inset_0_1px_0_var(--glass-spec)]' : 'block rounded-[10px] px-3 py-3 text-[13px] text-dim hover:bg-panel hover:text-ink'} aria-current={c.id === chat.id ? 'page' : undefined} href={`#/agents/${agent.id}/${c.id}`}>
-              <span className="t block truncate font-medium">{c.title || 'Chat'}</span>
-              <span className="mt-1 block text-[11.5px] leading-[normal] text-faint">{`${ago(c.updatedAt)} · ${c.count} items`}</span>
-            </a>
+        <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2.5 pt-3 pb-4 max-md:max-h-56 max-md:flex-none" aria-label="Chats">
+          <div className="flex items-baseline justify-between px-2 pb-2 text-[12px] font-medium text-dim">
+            <span>Chats</span>
+            <span className="text-faint tabular-nums">{listed.length}</span>
+          </div>
+          {listed.length > 8 ? (
+            <label className="relative mx-1 mb-2 block">
+              <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-faint"><Icon name="search" size={13} /></span>
+              <input className="h-8! py-0! pl-8! text-[12.5px]!" aria-label="Find a chat" placeholder="Find a chat" value={find} onChange={(e) => setFind(e.currentTarget.value)} />
+            </label>
+          ) : null}
+          {groups.map((g) => (
+            <div key={g.day} className="mb-2 flex flex-col gap-px">
+              <div className="px-2 pt-1.5 pb-1 text-[11px] font-medium text-faint">{g.day}</div>
+              {g.list.map((c) => {
+                const on = c.id === chat.id;
+                const routine = /^Routine: /.test(c.title || '');
+                return (
+                  <a
+                    key={c.id}
+                    className={`group/chat flex items-center gap-2.5 rounded-ctl px-2 py-1.5 text-[13px] [transition:background-color_0.12s,color_0.12s] ${on ? 'on bg-ink/[0.06] text-ink' : 'text-dim hover:bg-ink/[0.04] hover:text-ink'}`}
+                    aria-current={on ? 'page' : undefined}
+                    href={`#/agents/${agent.id}/${c.id}`}
+                    title={`${c.title || 'Chat'} · ${c.count} item${c.count === 1 ? '' : 's'}`}
+                  >
+                    <Icon name={routine ? 'repeat' : 'message-circle'} size={14} className={`flex-none ${on ? 'text-accent' : 'text-faint'}`} />
+                    <span className={`t min-w-0 flex-1 truncate ${on ? 'font-medium' : ''}`}>{c.title || 'Chat'}</span>
+                    <span className="flex-none text-[11px] text-faint tabular-nums">{ago(c.updatedAt)}</span>
+                  </a>
+                );
+              })}
+            </div>
           ))}
+          {q && !shown.length ? <p className="m-0 px-2 py-3 text-[12.5px] text-faint">No chat matches.</p> : null}
         </nav>
       </aside>
       <div className="flex min-h-0 min-w-0 flex-col [&_.composer]:border-0 [&_.composer]:bg-transparent">
-        <div className="chat-head flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-line px-8 py-3 max-md:px-4">
-          <div className="min-w-0 flex-1">
-            <span className="chat-title text-[14px] font-semibold text-ink">{chat.title || 'Chat'}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {memory ? (
-              <Pill
-                tone={memory.tokens >= memory.window * 0.85 ? 'warn' : 'dim'}
-                className="mem relative cursor-default overflow-hidden tabular-nums"
-                title={`About ${kTokens(memory.tokens)} of ${kTokens(memory.window)} tokens. ${how} (Settings > Context).`}
-              >
-                <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--color-accent)_26%,transparent),color-mix(in_srgb,var(--color-accent)_9%,transparent))]" style={{ width: `${Math.max(0, Math.min(100, memory.percent))}%` }} />
-                <span className="relative">{`Memory ${memory.percent}%`}</span>
-              </Pill>
-            ) : null}
-            <Button size="tiny" variant="ghost" onClick={() => void rename()}>Rename</Button>
-            <Button size="tiny" variant="ghost" title="Keep the messages here but start the agent fresh" onClick={() => void resetMemory()}>Clear memory</Button>
-            <Button size="tiny" variant="danger" onClick={() => void removeChat()}>Delete</Button>
-          </div>
+        <div className="chat-head flex min-h-14 items-center gap-3 border-b border-line px-8 py-2.5 max-md:px-4">
+          <button type="button" className="group/title flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left" title="Rename this chat" onClick={() => void rename()}>
+            <span className="chat-title truncate text-[14px] font-semibold text-ink">{chat.title || 'Chat'}</span>
+            <Icon name="pencil" size={13} className="flex-none text-faint opacity-0 transition-opacity group-hover/title:opacity-100 group-focus-visible/title:opacity-100" />
+          </button>
+          {memory ? (
+            // how full the chat's memory is: a thin bar and a number, amber when nearly full
+            <span
+              className={`mem flex flex-none cursor-default items-center gap-2 text-[12px] tabular-nums ${full ? 'warn text-amber' : 'text-dim'}`}
+              title={`About ${kTokens(memory.tokens)} of ${kTokens(memory.window)} tokens. ${how} (Settings > Context).`}
+            >
+              Memory
+              <span className="relative h-1.5 w-14 overflow-hidden rounded-full bg-ink/[0.08] max-sm:hidden">
+                <span aria-hidden="true" className={`absolute inset-y-0 left-0 rounded-full ${full ? 'bg-amber' : 'bg-accent'}`} style={{ width: `${Math.max(0, Math.min(100, memory.percent))}%` }} />
+              </span>
+              {`${memory.percent}%`}
+            </span>
+          ) : null}
+          <Dropdown>
+            <DropdownTrigger className={iconButtonClass('inset', 'flex-none')} aria-label="Chat options" title="Rename, clear memory or delete">
+              <Icon name="ellipsis" size={16} />
+            </DropdownTrigger>
+            <DropdownContent align="end" className="min-w-48">
+              <DropdownItem icon="pencil" onClick={() => void rename()}>Rename</DropdownItem>
+              <DropdownItem icon="rotate-ccw" title="Keep the messages here but start the agent fresh" onClick={() => void resetMemory()}>Clear memory</DropdownItem>
+              <DropdownSeparator />
+              <DropdownItem icon="trash-2" danger onClick={() => void removeChat()}>Delete</DropdownItem>
+            </DropdownContent>
+          </Dropdown>
         </div>
         {/* the reading column: the messages and the composer below them sit here, centred on the page */}
         <div className="chat-body mx-auto flex min-h-0 w-full max-w-[760px] flex-1 flex-col">
@@ -199,6 +272,13 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
       </div>
     </div>
   );
+}
+
+/** The heading a chat goes under in the list, by the day it was last used. */
+export function dayOf(t: number, now = Date.now()): string {
+  const start = (x: number) => new Date(x).setHours(0, 0, 0, 0);
+  const days = Math.round((start(now) - start(t)) / 86_400_000);
+  return days <= 0 ? 'Today' : days === 1 ? 'Yesterday' : days < 7 ? 'This week' : days < 31 ? 'This month' : 'Older';
 }
 
 export const flush = true;

@@ -80,7 +80,7 @@ const SCOPES = 'identity submit read history mysubreddits';
 const load = () => readJSON<AccountsFile>(ACCOUNTS_FILE, { x: {} });
 const save = (a: AccountsFile) => writeJSON(ACCOUNTS_FILE, a);
 
-const userAgent = (username = '') => `windows:blacksite:0.1.0 (by /u/${username || getSettings().reddit?.username || 'blacksite'})`;
+const userAgent = (username = '') => `windows:athena-agents:0.1.0 (by /u/${username || getSettings().reddit?.username || 'athena-agents'})`;
 
 export function redditAccounts(): RedditAccount[] {
   return Object.values(load().reddit || {}).map(({ id, username, autopost, connectedAt, icon }) => ({ id, username, autopost: !!autopost, connectedAt, icon }));
@@ -223,6 +223,52 @@ export async function postComments(post: string, limit = 15): Promise<{ post: Re
   return { post: top ? brief(top) : null, comments };
 }
 
+interface RedditRule {
+  short_name?: string;
+  description?: string;
+  kind?: string;
+  violation_reason?: string;
+}
+interface RedditAbout {
+  data?: { display_name?: string; title?: string; public_description?: string; description?: string; submit_text?: string; subscribers?: number; over18?: boolean; submission_type?: string };
+}
+
+/** A subreddit's rules and its sidebar, as the reddit_rules tool returns them. */
+export interface SubredditRules {
+  subreddit: string;
+  title: string;
+  subscribers: number | null;
+  nsfw: boolean;
+  /** what may be posted: any, link or self */
+  allows: string;
+  summary: string;
+  rules: { name: string; text: string; appliesTo: string }[];
+  /** what the subreddit shows on its submit page */
+  submitText: string;
+  sidebar: string;
+}
+
+const RULE_KINDS: Record<string, string> = { all: 'posts and comments', link: 'posts', comment: 'comments' };
+
+/** A subreddit's rules (/about/rules) and its sidebar and description (/about). Read-only. */
+export async function subredditRules(subreddit: string): Promise<SubredditRules> {
+  const sr = String(subreddit || '').replace(/^\/?r\//, '').replace(/\/$/, '');
+  if (!/^\w{2,21}$/.test(sr)) throw new Error('Which subreddit? e.g. "LocalLLaMA"');
+  const [rules, about] = await Promise.all([read<{ rules?: RedditRule[] }>(`/r/${sr}/about/rules`), read<RedditAbout>(`/r/${sr}/about`)]);
+  const d = about.data || {};
+  return {
+    subreddit: d.display_name || sr,
+    title: d.title || '',
+    subscribers: typeof d.subscribers === 'number' ? d.subscribers : null,
+    nsfw: !!d.over18,
+    allows: d.submission_type || 'any',
+    summary: d.public_description || '',
+    rules: (rules.rules || []).map((r) => ({ name: r.short_name || '', text: String(r.description || '').slice(0, 1500), appliesTo: RULE_KINDS[r.kind || 'all'] || 'posts and comments' })),
+    submitText: String(d.submit_text || '').slice(0, 3000),
+    sidebar: String(d.description || '').slice(0, 6000),
+  };
+}
+
 // Publishing (only from the Outbox, after you approve).
 export async function publish(item: Pick<OutboxItem, 'accountId' | 'parts' | 'reddit'>): Promise<{ id: string | undefined; url: string | null | undefined }> {
   const r: Partial<NonNullable<OutboxPost['reddit']>> = item.reddit || {};
@@ -233,7 +279,7 @@ export async function publish(item: Pick<OutboxItem, 'accountId' | 'parts' | 're
     const c = res.json?.data?.things?.[0]?.data;
     return { id: c?.name, url: c?.permalink ? `https://www.reddit.com${c.permalink}` : null };
   }
-  const form = { sr: r.subreddit, title: r.title, api_type: 'json', kind: r.link ? 'link' : 'self', ...(r.link ? { url: r.link } : { text: item.parts.join('\n\n') }) };
+  const form = { sr: r.subreddit, title: r.title, api_type: 'json', kind: r.link ? 'link' : 'self', ...(r.link ? { url: r.link } : { text: item.parts.join('\n\n') }), ...(r.flairId ? { flair_id: r.flairId } : {}), ...(r.flairText ? { flair_text: r.flairText } : {}) };
   const res = await api<RedditSubmitAnswer>(String(item.accountId), 'POST', '/api/submit', form);
   const errs = res.json?.errors || [];
   if (errs.length) throw new Error(errs.map((e) => e.join(' ')).join('; '));

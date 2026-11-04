@@ -5,7 +5,7 @@ view, read `README.md`; `docs/guide.md` is the long version of it.
 
 ## What this is
 
-**Athena Agents** (called Blacksite until the redesign; the package, bundle identifier and data folders still use that name): a local, login-free command center for AI agents. A Bun + TypeScript server
+**Athena Agents** (called Blacksite until the redesign; the server still finds project and backup folders made under that name): a local, login-free command center for AI agents. A Bun + TypeScript server
 (`server/`) on `127.0.0.1:4800` and a browser app (`web/`) bundled into `public/dist`. All user
 state is plain JSON under `data/` (git-ignored). Mainly used on Windows; CI also runs on Linux.
 
@@ -27,7 +27,9 @@ bun scripts/build-desktop.ts && bun run desktop:smoke   # run the bundled server
 
 Single test file: `bunx vitest run tests/server/skills.test.ts`.
 CI (`.github/workflows/ci.yml`) runs typecheck, test and build on ubuntu and windows. All three must pass.
-Its "Desktop app" job also stages the desktop app, runs the smoke test and checks the Rust code.
+Its "Desktop app" job also stages the desktop app, runs the smoke test and checks the Rust code, and its "Skill scripts"
+job runs the tests of the scripts that come with the skills (`python -m pytest tests/skills`, Python 3.10, after
+`pip install -r tests/skills/requirements.txt`).
 `.github/workflows/desktop.yml` builds the installers (on `v*` tags, or by hand).
 
 ## Layout
@@ -52,8 +54,8 @@ Its "Desktop app" job also stages the desktop app, runs the smoke test and check
 | `web/styles/` | Tailwind CSS 4. `app.css` is the entry (theme tokens, layers, keyframes), `base.css` styles bare elements and holds the dark-theme token overrides, `components.css` has the pieces used everywhere (`btn`, `card`, `pill`, `modal`, `md` for Markdown…). The build writes `public/dist/app.css` |
 | `web/theme.ts`, `web/brand.ts`, `web/look.ts` | Light or dark (`isDark()`, `onThemeChange()`, `themeColor()`), the Athena helmet mark, and Settings › Appearance (the accents, each with a light and a dark tone) |
 | `public/` | `index.html`. `public/dist` is build output, never edit it |
-| `skills/` | Skill folders that come with the dashboard (`storytold`, `oomol`, `composio`, `orca`, `subagent-skills`, `hermes`), copied unchanged from GitHub: each folder's `README.md` says from where and which commit. `hermes` keeps Hermes's own category folders (`nested` in `BUNDLED`). `BUNDLED` in `server/skills.ts` lists them; `ensureBuiltinSkills` adds them to the library. Skills the dashboard writes itself (Self-improvement, Start agents in Orca) are in `BUILTIN` there instead |
-| `library/agency-agents/` | The Agency's agent files (the Library's specialists), copied unchanged from GitHub: its `README.md` says from where and which commit. `server/library.ts` reads the folder directly |
+| `skills/` | Skill folders that come with the dashboard. `athena` holds the dashboard's own, written to the standard in its `README.md` (their scripts' tests are in `tests/skills/`). `storytold`, `oomol`, `composio`, `orca` and `subagent-skills` are copied unchanged from GitHub: each folder's `README.md` says from where and which commit. `BUNDLED` in `server/skills.ts` lists them; `ensureBuiltinSkills` adds them to the library. Skills the dashboard writes in code (Self-improvement, Start agents in Orca) are in `BUILTIN` there instead |
+| `library/athena-agents/` | The Agent library's agents: one Markdown file each, in one folder per group (`groups.json`). Its `README.md` is the standard every file follows (frontmatter, body, the rules) and records where the roles came from; `tests/server/library.test.ts` checks the format. `server/library.ts` reads the folder directly, and hiring copies a file's text, tools, skills and engine into a new agent |
 | `tests/server`, `tests/web` | Vitest: server in Node, web in happy-dom |
 | `src-tauri/` | The desktop app (Tauri 2, Rust): starts the bundled server with a bundled Bun and shows it. `docs/desktop.md` explains it |
 | `scripts/build-desktop.ts` | Fills `src-tauri/app/` (server bundled with `Bun.build`, page, skills, library, node-pty) and `src-tauri/binaries/` (Bun) |

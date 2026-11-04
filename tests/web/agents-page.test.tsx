@@ -87,7 +87,7 @@ describe('the agents list', () => {
 });
 
 describe('the overview: kinds of agents and their models', () => {
-  const lib = (id: string, name: string, division: string, extra: Partial<Agent> = {}) => ({ ...base, id, name, specialty: '', engine: 'claude-code', autonomy: 'auto', source: { type: 'agency', division }, ...extra }) as unknown as Agent;
+  const lib = (id: string, name: string, division: string, extra: Partial<Agent> = {}) => ({ ...base, id, name, specialty: '', engine: 'claude-code', autonomy: 'auto', source: { type: 'library', division }, ...extra }) as unknown as Agent;
   const cardNames = () => [...el.querySelectorAll('.card-title')].map((t) => t.textContent);
   beforeEach(() => {
     state.data!.agents = [writer, coder, lib('a3', 'Seller', 'sales'), lib('a4', 'Seller 2', 'sales', { model: 'opus' }), lib('a5', 'Mapper', 'gis')];
@@ -141,6 +141,19 @@ describe('the agent editor', () => {
     const effort = el.querySelector('[aria-label="Effort"]')!.closest('.field')!;
     expect(effort.parentElement!.querySelector('[role="combobox"]')).not.toBeNull();
     expect(effort.parentElement!.querySelector('input')).not.toBeNull();
+  });
+
+  it('shows the engine and autonomy as tiles you pick, and saves the choice', async () => {
+    await open(['a1', 'edit']);
+    const checked = (label: string) => el.querySelector(`[aria-label="${label}"] [aria-checked="true"]`)?.textContent;
+    expect(checked('Brain')).toBe('Claude Code');
+    expect(checked('Autonomy')).toContain('Auto');
+    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('[aria-label="Autonomy"] button')].find((b) => b.textContent?.startsWith('Ask first'))!.click());
+    expect(checked('Autonomy')).toContain('Ask first');
+    expect(el.textContent).toContain('Not saved yet');
+    await act(async () => btn(el, 'Save').click());
+    await settle();
+    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toMatchObject({ autonomy: 'ask' });
   });
 
   it('enables Save once something changes, and saves the agent', async () => {
@@ -200,7 +213,7 @@ describe('the agent editor', () => {
 
   it('a folder linked as knowledge stays linked when you then save the agent', async () => {
     await open(['a1', 'edit']);
-    await act(async () => btn(el, '+ Link a folder').click());
+    await act(async () => btn(el, 'Link a folder').click());
     const path = document.querySelector<HTMLInputElement>('#modal-root .modal-body input')!;
     await type(path, 'C:\\brand');
     await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());

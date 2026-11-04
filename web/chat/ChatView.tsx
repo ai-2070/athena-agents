@@ -16,24 +16,27 @@ import { icon } from '../icons.ts';
 import { Dot } from '../ui/marks.tsx';
 
 import { TaskPanel } from '../tasks.tsx';
-import { Dom, MessageView, isRichCode } from './parts.tsx';
+import { Dom, Handoffs, MessageView, isRichCode } from './parts.tsx';
 import type { Variant } from './parts.tsx';
-import { beforeTurn, searchText, toUIMessages, userParts } from './messages.ts';
+import { beforeTurn, handoffMap, handoffsIn, searchText, toUIMessages, userParts } from './messages.ts';
 import { WINDOW_FROM, Windowed } from './window.tsx';
 import { useFind } from '../ui/find.tsx';
 import { Button } from '../ui/button.tsx';
 import { estimateHeight, messageSig } from './estimate.ts';
 import { chatTransport } from './transport.ts';
+import { projectAt } from '../client/connection.ts';
+import { ChatProject } from './project.ts';
 import { agentMentions, insertMention } from './mention.ts';
+import { attachMentionEditor } from './mentioneditor.ts';
 import type { MentionAgent } from './mention.ts';
 import { agentRef } from '../../shared/agentref.ts';
 import { queuedText } from '../../shared/queue.ts';
-import { parseCommand, slashSuggestions } from '../../shared/commands.ts';
+import { goalText, parseCommand, showsGoal, slashSuggestions } from '../../shared/commands.ts';
 import type { SlashOption } from '../../shared/commands.ts';
 import { goalLine, loopLine } from '../chatcommands.ts';
 import { QueuedList, keepLostEdit } from '../queuedlist.tsx';
 import type { ChatMessage } from './messages.ts';
-import type { AppState, BrainBrief, Chat, ChatItem, LoopInfo, QueuedMessage } from '../../shared/types.ts';
+import type { AppState, BrainBrief, Chat, ChatItem, LoopInfo, QueuedMessage, Agent } from '../../shared/types.ts';
 
 export { isRichCode };
 
@@ -66,6 +69,11 @@ export interface ChatViewProps {
   /** The chat as it was (re)loaded, or made by the first message. */
   onChat?: (chat: Chat) => void;
   apiRef?: { current: ChatViewApi | null };
+  /** The agents of the chat's project, when it isn't the open one (an Overview pane): the ones @ offers. */
+  agents?: Agent[];
+  /** The chat's project, when it isn't the open one (an Overview pane): its requests go there, and runs, approvals
+   *  and events of other projects (a copied project has the same agent and chat ids) are left out. */
+  projectId?: string;
 }
 
 /** The page's shared state (agents, runs, approvals), kept current. */
@@ -79,6 +87,14 @@ export { chatTransport, streamUrl } from './transport.ts';
 
 export function ChatView(p: ChatViewProps) {
   const { agent } = p;
+  const at = projectAt(p.projectId);
+  /** Whether a run, approval or event (by its project) is this chat's: the pane's project, or the open one. */
+  const ours = (projectId: unknown) => {
+    const mine = p.projectId || state.data?.project?.id;
+    return !projectId || !mine || projectId === mine;
+  };
+  const oursRef = useRef(ours);
+  oursRef.current = ours;
   const variant: Variant = p.variant || (p.compact ? 'compact' : 'full');
   const compact = variant !== 'full';
   const tray = p.tray || null;
@@ -127,7 +143,7 @@ export function ChatView(p: ChatViewProps) {
 
   // the server answered the last send (so it has the message): a failure after that is the run's, not the send's
   const accepted = useRef(false);
-  const transport = useMemo(() => chatTransport(agent.id, () => chatIdRef.current, () => (accepted.current = true)), [agent.id]);
+  const transport = useMemo(() => chatTransport(agent.id, () => chatIdRef.current, () => (accepted.current = true), at), [agent.id, at]);
   const { messages, setMessages, sendMessage, status, stop: stopStream, resumeStream } = useChat<ChatMessage>({
     id: viewId,
     transport,
@@ -143,17 +159,17 @@ export function ChatView(p: ChatViewProps) {
   const streamingRef = useRef(streaming);
   streamingRef.current = streaming;
 
-  const serverRunning = !!chatId && !!app?.runs.some((r) => r.chatId === chatId);
+  const serverRunning = !!chatId && !!app?.runs.some((r) => r.chatId === chatId && ours(r.projectId));
   const busy = streaming || serverRunning;
   // it works for a team or another agent here: they wait on its answer, so a message can't change its course
-  const helping = !!chatId && !!app?.runs.some((r) => r.chatId === chatId && (r.depth ?? 0) > 0);
-  const approvals = (app?.approvals || []).filter((a) => a.agentId === agent.id);
+  const helping = !!chatId && !!app?.runs.some((r) => r.chatId === chatId && ours(r.projectId) && (r.depth ?? 0) > 0);
+  const approvals = (app?.approvals || []).filter((a) => a.agentId === agent.id && ours(a.projectId));
 
   // the saved chat, shown as it is. after: a stream just ended (its flag may not have caught up yet)
   const reload = useCallback(async (after = false) => {
     const id = chatIdRef.current;
     if (!id) return;
-    const saved = await GET<Chat>(`/agents/${agent.id}/chats/${id}`).catch(() => null);
+    const saved = await GET<Chat>(`${at}/agents/${agent.id}/chats/${id}`).catch(() => null);
     if (!saved || chatIdRef.current !== id) return;
     setItems(saved.items);
     setQueued(saved.queued || []);
@@ -162,7 +178,7 @@ export function ChatView(p: ChatViewProps) {
     // (while a stream is going it keeps its own message; the saved chat comes when it ends)
     if (after || !streamingRef.current) setMessages(toUIMessages(saved.items));
     onChat.current?.(saved);
-  }, [agent.id, setMessages]);
+  }, [agent.id, at, setMessages]);
 
   // pick up a run going in this chat: the messages before its turn, then the turn streamed in
   const following = useRef(false);
@@ -199,7 +215,7 @@ export function ChatView(p: ChatViewProps) {
   useEffect(() => {
     void (async () => {
       await reload();
-      if (chatIdRef.current && state.data?.runs.some((r) => r.chatId === chatIdRef.current)) await follow();
+      if (chatIdRef.current && state.data?.runs.some((r) => r.chatId === chatIdRef.current && oursRef.current(r.projectId))) await follow();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -208,11 +224,12 @@ export function ChatView(p: ChatViewProps) {
   useEffect(
     () =>
       onEvent((ev) => {
+        if (!oursRef.current(ev.projectId)) return;
         // your /goal here: the Brain followed up, or it is reached, stuck or dropped
         if (ev.type === 'brief') {
           const b = ev.brief as BrainBrief;
           if (b.kind !== 'agent' || !b.goal || !chatIdRef.current || b.chatId !== chatIdRef.current) return;
-          return void setGoal((g) => (b.status === 'open' ? b : g?.id === b.id ? null : g));
+          return void setGoal((g) => (b.status === 'open' && showsGoal(b) ? b : g?.id === b.id ? null : g));
         }
         if (!chatIdRef.current || ev.chatId !== chatIdRef.current) return;
         if (ev.type === 'compacted' || ev.type === 'chat-note') {
@@ -278,7 +295,7 @@ export function ChatView(p: ChatViewProps) {
         }
         // a new conversation: make the chat first
         if (!chatIdRef.current) {
-          const made = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
+          const made = await attempt(() => POST<Chat>(`${at}/agents/${agent.id}/chats`));
           if (!made) {
             if (typed == null && box) restore(text);
             return;
@@ -333,7 +350,7 @@ export function ChatView(p: ChatViewProps) {
       pastes.sync();
       refill();
       const taken = tray?.take() || [];
-      const r = await attempt(() => POST<{ runId?: string; queued?: QueuedMessage }>(`/agents/${agent.id}/chats/${id}/queue`, { text, attachments }));
+      const r = await attempt(() => POST<{ runId?: string; queued?: QueuedMessage }>(`${at}/agents/${agent.id}/chats/${id}/queue`, { text, attachments }));
       if (!r) {
         restore(`/queue ${text}`);
         tray?.put(taken);
@@ -344,15 +361,15 @@ export function ChatView(p: ChatViewProps) {
     } finally {
       queueing.current = false;
     }
-  }, [agent.id, tray, pastes, refill, restore]);
+  }, [agent.id, at, tray, pastes, refill, restore]);
   const unqueue = useCallback(
     (q: QueuedMessage) => {
       const id = chatIdRef.current;
       if (!id) return;
       setQueued((list) => list.filter((x) => x.id !== q.id));
-      void attempt(() => DEL(`/agents/${agent.id}/chats/${id}/queue/${q.id}`));
+      void attempt(() => DEL(`${at}/agents/${agent.id}/chats/${id}/queue/${q.id}`));
     },
-    [agent.id],
+    [agent.id, at],
   );
   const keepEdit = (text: string) => keepLostEdit(text, input.current, restore);
   const editQueued = async (q: QueuedMessage, text: string) => {
@@ -360,7 +377,7 @@ export function ChatView(p: ChatViewProps) {
     if (!id) return;
     const put = (t: string) => setQueued((list) => list.map((x) => (x.id === q.id ? { ...x, text: t } : x)));
     put(text);
-    const r = await attempt(() => PUT<{ queued: QueuedMessage | null }>(`/agents/${agent.id}/chats/${id}/queue/${q.id}`, { text }));
+    const r = await attempt(() => PUT<{ queued: QueuedMessage | null }>(`${at}/agents/${agent.id}/chats/${id}/queue/${q.id}`, { text }));
     // not saved: it shows what will go after all; already sent: the change comes to the box
     if (!r) put(q.text);
     else if (r.queued === null) keepEdit(text);
@@ -369,12 +386,12 @@ export function ChatView(p: ChatViewProps) {
     const id = chatIdRef.current;
     if (!id) return;
     setQueued((list) => ids.map((x) => list.find((q) => q.id === x)).filter((q): q is QueuedMessage => !!q));
-    void attempt(() => POST(`/agents/${agent.id}/chats/${id}/queue/order`, { ids }));
+    void attempt(() => POST(`${at}/agents/${agent.id}/chats/${id}/queue/order`, { ids }));
   };
   // the chat, made now if this is a new conversation (for a command that needs one)
   const ensureChat = async (): Promise<string | null> => {
     if (chatIdRef.current) return chatIdRef.current;
-    const made = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
+    const made = await attempt(() => POST<Chat>(`${at}/agents/${agent.id}/chats`));
     if (!made) return null;
     chatIdRef.current = made.id;
     setChatId(made.id);
@@ -400,8 +417,8 @@ export function ChatView(p: ChatViewProps) {
     if (name === 'stop') return void stop();
     const id = await ensureChat();
     if (!id) return back();
-    const base = `/agents/${agent.id}/chats/${id}`;
-    if (name === 'goal' && !rest) return void toast(goal ? `Goal: ${goal.goal || goal.text}` : 'No goal yet. Type /goal and what done looks like.');
+    const base = `${at}/agents/${agent.id}/chats/${id}`;
+    if (name === 'goal' && !rest) return void toast(goal ? `Goal: ${goalText(goal)}` : 'No goal yet. Type /goal and what done looks like.');
     if (name === 'loop') {
       // (with the files in the tray: each loop message carries them; not when it is ended)
       const off = /^(off|stop|end|cancel)$/i.test(rest);
@@ -433,12 +450,12 @@ export function ChatView(p: ChatViewProps) {
     const id = chatIdRef.current;
     void stopStream();
     if (!id) return;
-    const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`/agents/${agent.id}/chats/${id}/stop`));
+    const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`${at}/agents/${agent.id}/chats/${id}/stop`));
     // what you queued comes back to the box, so stopping never loses it
     const back = r?.unqueued || [];
     if (back.length) restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
     if (back.some((q) => q.attachments?.length)) toast('Your queued messages are back in the box. Attach their files again.');
-  }, [agent.id, stopStream, restore]);
+  }, [agent.id, at, stopStream, restore]);
 
   if (p.apiRef)
     p.apiRef.current = {
@@ -491,10 +508,10 @@ export function ChatView(p: ChatViewProps) {
   // / for commands: a menu above the box while it holds just "/" and the start of a name
   const [slash, setSlash] = useState<{ options: SlashOption[]; active: number } | null>(null);
   useEffect(() => {
-    void GET<{ name: string; about: string }[]>(`/agents/${agent.id}/commands`)
+    void GET<{ name: string; about: string }[]>(`${at}/agents/${agent.id}/commands`)
       .then((list) => setHarness(Array.isArray(list) ? list : []))
       .catch(() => {});
-  }, [agent.id]);
+  }, [agent.id, at]);
   const lookForSlash = () => {
     const options = slashSuggestions(input.current?.value || '', 'agent', harness);
     setSlash((was) => (options.length ? { options, active: was && was.options.length === options.length ? Math.min(was.active, options.length - 1) : 0 } : null));
@@ -521,7 +538,15 @@ export function ChatView(p: ChatViewProps) {
     e.preventDefault();
     return true;
   };
-  const others = app?.agents || [];
+  const others = p.agents || app?.agents || [];
+  // @ mentions of other agents show as pills while you write, as in team chats
+  const othersRef = useRef(others);
+  othersRef.current = others;
+  useEffect(() => {
+    const box = input.current;
+    if (!box) return;
+    return attachMentionEditor(box, () => othersRef.current.filter((a) => a.id !== agent.id && a.name.trim()).map((a) => `@${agentRef(a, othersRef.current)}`));
+  }, [agent.id, at]);
   // (it can only hand work on with ask_agent, which the Delegate tools give it)
   const canDelegate = !!others.find((a) => a.id === agent.id)?.toolGroups?.includes('agents');
   const lookForMention = () => {
@@ -559,6 +584,9 @@ export function ChatView(p: ChatViewProps) {
   const windowed = variant !== 'mini' && shown.length >= WINDOW_FROM;
   const lastId = messages[messages.length - 1]?.id;
   const owner = useMemo(() => ({ agentId: agent.id, chatId }), [agent.id, chatId]);
+  // (await_agent shows the agent its handle went to: the same map while words stream in)
+  const handoffKey = handoffsIn(messages);
+  const handoffs = useMemo(() => handoffMap(handoffKey), [handoffKey]);
   const row = (m: ChatMessage) => {
     return (
       <MessageView
@@ -589,8 +617,18 @@ export function ChatView(p: ChatViewProps) {
   const doing = lastPart?.type === 'dynamic-tool' && lastPart.state !== 'output-available' && lastPart.state !== 'output-error' ? `Using ${lastPart.toolName}…` : lastPart?.type === 'text' ? 'Writing…' : '';
   const generic = !statusText || /^(Thinking|Working)…$/.test(statusText);
   const statusLine = (approvals.length && busy ? `Waiting for you: ${approvals[0].title}` : '') || (generic && doing) || statusText || (busy ? 'Working…' : '');
+  // (click, keyup and blur are read on the box around it: the pill editor that takes the textarea's place gets them)
   const composer = (
-    <div className="relative flex min-w-0 flex-1">
+    <div
+      className="relative flex min-w-0 flex-1"
+      onClick={lookForMention}
+      onKeyUp={(e) => {
+        if (/^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) lookForMention();
+      }}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) (setMention(null), setSlash(null));
+      }}
+    >
       <textarea
         ref={input}
         className={variant === 'mini' ? 'max-h-50 min-h-11.5 flex-1 resize-none' : `dock-input w-full ${COMPOSER_TEXT}`}
@@ -618,11 +656,6 @@ export function ChatView(p: ChatViewProps) {
           t.style.height = 'auto';
           t.style.height = `${t.scrollHeight + 2}px`;
         }}
-        onClick={lookForMention}
-        onKeyUp={(e) => {
-          if (/^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) lookForMention();
-        }}
-        onBlur={() => (setMention(null), setSlash(null))}
       />
       {slash ? (
         <div className="tc-suggest slash-menu" role="listbox">
@@ -693,7 +726,7 @@ export function ChatView(p: ChatViewProps) {
             <Dom make={() => icon('target', 13)} deps={[]} />
             <span className="min-w-0 flex-1 truncate">
               <b>Goal: </b>
-              {goal.goal || goal.text}
+              {goalText(goal)}
             </span>
             <span className="hint">{goalLine(goal)}</span>
             <button type="button" className="tc-act" title="Drop this goal" aria-label="Drop this goal" onClick={() => void command('goal', 'clear', false)}>
@@ -730,13 +763,16 @@ export function ChatView(p: ChatViewProps) {
       onOrder={orderQueued}
       onLeave={() => input.current?.focus()}
       onLost={(_q, text) => keepEdit(text)}
+      // (sent into the turn going on: it leaves the list once read, or goes next if the turn ends first)
+      hint={(q) => (q.reading ? 'Sent. It reads this at its next step' : null)}
     />
   );
 
   return (
-    <>
+    <ChatProject.Provider value={p.projectId}>
+      <Handoffs.Provider value={handoffs}>
       {find}
-      {variant !== 'mini' && <div className={compact ? '' : 'px-10 max-md:px-4'}><TaskPanel view={`agent:${agent.id}`} scope={{ kind: 'agent', id: agent.id }} chatId={chatId || undefined} /></div>}
+      {variant !== 'mini' && <div className={compact ? '' : 'px-10 max-md:px-4'}><TaskPanel view={`agent:${agent.id}`} scope={{ kind: 'agent', id: agent.id }} chatId={chatId || undefined} projectId={p.projectId} /></div>}
       <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto py-2' : compact ? 'ac-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-14px),transparent_100%)] flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pt-1 pb-2' : 'messages'} onScroll={onScroll}>
         {empty ? (
           variant === 'mini' ? (
@@ -748,16 +784,16 @@ export function ChatView(p: ChatViewProps) {
               <p className="hint mt-1.5 mb-0">{agent.specialty || ''}</p>
             </div>
           ) : (
-            <div className="empty-chat m-auto w-full max-w-[440px] py-12 text-center text-dim">
-              <div className="mx-auto grid size-15 place-items-center rounded-[16px] border border-line bg-panel text-[32px] leading-none shadow-[inset_0_1px_0_var(--glass-spec)]">{agent.emoji || '🤖'}</div>
-              <p className="mt-5 mb-0 text-[16px] font-medium text-ink">
-                Ask {agent.name} anything{agent.specialty ? `. Good at: ${agent.specialty}` : ''}.
-              </p>
-              <div className="mt-5 flex flex-col gap-2">
+            <div className="empty-chat m-auto w-full max-w-[520px] py-12 text-center text-dim">
+              <div className="mx-auto grid size-14 place-items-center rounded-[16px] border border-line bg-panel text-[30px] leading-none shadow-[inset_0_1px_0_var(--glass-spec)]">{agent.emoji || '🤖'}</div>
+              <p className="mt-5 mb-0 text-[17px] font-semibold tracking-tight text-ink">Ask {agent.name} anything</p>
+              {agent.specialty ? <p className="mx-auto mt-1.5 mb-0 max-w-[44ch] text-[13.5px] leading-normal text-dim">{agent.specialty}</p> : null}
+              {/* a few things to try: each puts its words in the message box */}
+              <div className={`mt-7 grid gap-2 text-left ${suggestions(agent).length > 1 ? 'sm:grid-cols-2' : 'mx-auto max-w-[300px]'}`}>
                 {suggestions(agent).map((t) => (
-                  <button key={t} className="flex w-full cursor-pointer items-center gap-3 rounded-[10px] border border-line bg-panel px-4 py-3 text-left text-[13px] text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-[transform,background-color,color] duration-150 active:scale-[0.98] motion-reduce:transition-none hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
+                  <button key={t} className="group/try flex w-full cursor-pointer items-start gap-2.5 rounded-box border border-line bg-panel px-3.5 py-3 text-left text-[13px] leading-snug text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-[transform,background-color,color,border-color] duration-150 active:scale-[0.98] motion-reduce:transition-none hover:border-line-2 hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
+                    <Dom className="mt-px flex-none text-faint group-hover/try:text-accent" make={() => icon('sparkles', 14)} deps={[]} />
                     <span className="min-w-0 flex-1">{t}</span>
-                    <Dom make={() => icon('chevron-right', 14)} deps={[]} />
                   </button>
                 ))}
               </div>
@@ -826,7 +862,8 @@ export function ChatView(p: ChatViewProps) {
           </div>
         </div>
       )}
-    </>
+      </Handoffs.Provider>
+    </ChatProject.Provider>
   );
 }
 

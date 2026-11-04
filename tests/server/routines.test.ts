@@ -3,13 +3,21 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
-import { agents, saveSettings, workflows } from '../../server/store.ts';
+import { agents, bus, saveSettings, workflows } from '../../server/store.ts';
 import { getThread, postUserMessage } from '../../server/teams.ts';
 import { saveSkill } from '../../server/skills.ts';
-import { checkRoutineSchedules, getRoutine, listRuns, routineTargets, saveRoutine, startRoutine } from '../../server/routines.ts';
+import { checkRoutineSchedules, deleteRoutine, getRoutine, listRuns, routineTargets, saveRoutine, startRoutine } from '../../server/routines.ts';
 import { due } from '../../server/workflows.ts';
-import { cleanSchedule, scheduleSummary, timeText, findMentions, mentionQuery, renameMentions } from '../../shared/routines.ts';
+import { cleanSchedule, scheduleSummary, timeText, findMentions, mentionPattern, mentionQuery, renameMentions } from '../../shared/routines.ts';
 import type { RoutineMention, RoutineRun, Team } from '../../shared/types.ts';
+
+describe('mentionPattern()', () => {
+  it('finds any of the names by findMentions\' rules, longest first, and nothing with no names', () => {
+    const re = mentionPattern(['Trend', 'Trend Scout', ' ']);
+    expect([...'@Trend Scout, @Trendy, bob@Trend, (@trend)'.matchAll(re)].map((m) => m[2])).toEqual(['Trend Scout', 'trend']);
+    expect('@ anything'.match(mentionPattern([]))).toBeNull();
+  });
+});
 
 describe('findMentions()', () => {
   const c: RoutineMention[] = [
@@ -130,6 +138,20 @@ const waitFor = async (fn: () => boolean) => {
 };
 
 describe('a routine', () => {
+  it('tells open tabs when it is saved or deleted (the Station counts a team\'s routines)', () => {
+    const seen: unknown[] = [];
+    const listen = (ev: { type: string; id?: unknown }) => ev.type === 'routines' && seen.push(ev.id);
+    bus.on('event', listen);
+    try {
+      agent('Teller');
+      const r = saveRoutine({ name: 'Tell', text: '@Teller says hi' });
+      deleteRoutine(r.id);
+      expect(seen).toEqual([r.id, r.id]);
+    } finally {
+      bus.off('event', listen);
+    }
+  });
+
   it('keeps its mentions up to date when things are renamed or deleted', () => {
     const scout = agent('Scout');
     const temp = agent('Temp');

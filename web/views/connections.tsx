@@ -202,6 +202,7 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
           <RowActions>
             <Button size="small" onClick={() => void saveReddit()}>Save</Button>
           </RowActions>
+          <PanelNote>Since November 2025 Reddit reviews new apps before they can use its API, so a new one may need Reddit's approval first, which can take days. An app made before then keeps working.</PanelNote>
         </Section>
       </Sections>
     </div>

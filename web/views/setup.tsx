@@ -20,6 +20,8 @@ interface Tab {
   id: TabId;
   label: string;
   Page: ComponentType;
+  /** Out of the tab row and the search for now; its link still opens it. */
+  hidden?: boolean;
 }
 /** One searchable setting. */
 interface IndexEntry {
@@ -33,7 +35,8 @@ interface IndexEntry {
 const TABS: Tab[] = [
   { id: 'general', label: 'General & keys', Page: GeneralTab },
   { id: 'connections', label: 'Connections', Page: ConnectionsTab },
-  { id: 'gateways', label: 'Gateways', Page: GatewaysTab },
+  // (hidden for now; #/settings?tab=gateways still opens it)
+  { id: 'gateways', label: 'Gateways', Page: GatewaysTab, hidden: true },
   { id: 'mcp', label: 'MCP servers', Page: McpTab },
   { id: 'programs', label: 'Programs', Page: ProgramsTab },
   { id: 'look', label: 'Appearance', Page: LookTab },
@@ -124,7 +127,7 @@ export function searchSettings(query: string): IndexEntry[] {
   const qv = norm(query);
   if (!qv) return [];
   const words = qv.split(' ');
-  return INDEX.map((it) => {
+  return INDEX.filter((it) => !TABS.find((t) => t.id === it.tab)?.hidden).map((it) => {
     const hay = norm(`${it.label} ${it.find} ${it.words}`);
     if (!words.every((w) => hay.includes(w))) return null;
     return { it, score: norm(it.label).startsWith(qv) ? 0 : norm(it.label).includes(qv) ? 1 : 2 };
@@ -180,7 +183,7 @@ function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
       </div>
       <Autocomplete.Portal>
         {/* placed by its positioner, so no position of its own */}
-        <Autocomplete.Positioner anchor={anchor} align="end" sideOffset={6} className="z-60 outline-none">
+        <Autocomplete.Positioner positionMethod="fixed" anchor={anchor} align="end" sideOffset={6} collisionPadding={8} className="z-60 outline-none">
           <Autocomplete.Popup className="glass st-menu w-[max(var(--anchor-width),320px)] max-w-(--available-width) outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
             <Autocomplete.List>
               {(hit: Hit) => (
@@ -256,7 +259,7 @@ function SettingsPage() {
   return (
     <Tabs
       label="Settings"
-      tabs={TABS.map((t) => ({ value: t.id, label: t.label }))}
+      tabs={TABS.filter((t) => !t.hidden || t.id === tab).map((t) => ({ value: t.id, label: t.label }))}
       value={tab}
       onChange={(t) => go(t)}
       rowClassName="mb-9 flex flex-wrap items-end gap-4 border-b border-line max-[761px]:flex-col max-[761px]:flex-nowrap max-[761px]:items-stretch max-[761px]:gap-2 [&>.tabs]:-mb-px [&>.tabs]:min-w-0 [&>.tabs]:flex-1 [&>.tabs]:border-b-0"

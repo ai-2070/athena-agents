@@ -13,7 +13,10 @@ ensureDir(DATA);
 // Everything that happens is broadcast to open browser tabs through this bus.
 export const bus = new EventEmitter<{ event: [ServerEvent] }>();
 bus.setMaxListeners(100);
-export const emit = (type: string, payload: Record<string, unknown> = {}) => bus.emit('event', { type, ...payload, ts: Date.now() });
+// (a chat's events say which project they are from: a copied project has the same agent, team and chat ids)
+const PROJECT_EVENTS = new Set(['run', 'queue', 'loop', 'compacted', 'chat-note', 'brief', 'team']);
+export const emit = (type: string, payload: Record<string, unknown> = {}) =>
+  bus.emit('event', { type, ...(PROJECT_EVENTS.has(type) && !('projectId' in payload) ? { projectId: activeProject().id } : {}), ...payload, ts: Date.now() });
 
 // ---------- settings (safe to show) and secrets (never sent to the browser) ----------
 const SETTINGS_FILE = dataPath('settings.json');
@@ -48,6 +51,7 @@ const DEFAULT_SETTINGS: Settings = {
   maxToolSteps: 16,
   costLimitUsdPerRun: 2,
   contextWindowTokens: 0,
+  toolResultChars: 24_000,
   favoriteModels: [],
   defaultWorld: '',
 };
@@ -152,7 +156,14 @@ export function internalToken(): string {
 // A project has its own agents, branches, runs and chats (data/projects/<id>/) and a Brain:
 // a real folder with the project's files, notes and (optionally) its GitHub repo.
 const PROJECTS_FILE = dataPath('projects.json');
-const DEFAULT_PROJECT = (): Project => ({ id: 'default', name: 'My workspace', brainPath: path.join(HOME, 'Documents', 'Blacksite', 'My workspace'), repo: '', createdAt: Date.now() });
+const DEFAULT_PROJECT = (): Project => ({ id: 'default', name: 'My workspace', brainPath: defaultBrain(), repo: '', createdAt: Date.now() });
+// The default project's folder. One made when the app was called Blacksite is used if it's there, so a
+// fresh profile (the desktop app beside the browser version) still finds the copy saved in it.
+function defaultBrain(): string {
+  const now = path.join(HOME, 'Documents', 'Athena Agents', 'My workspace');
+  const before = path.join(HOME, 'Documents', 'Blacksite', 'My workspace');
+  return !exists(now) && exists(before) ? before : now;
+}
 
 let madeDefault = false;
 export function listProjects(): Project[] {
@@ -404,6 +415,16 @@ export const chats = {
       .map((n) => readJSON<Chat>(path.join(dir, n)))
       .filter((c): c is Chat => Boolean(c))
       .map(({ id, title, updatedAt, createdAt, items, teamId, conversationId }) => ({ id, title, updatedAt, createdAt, count: items?.length || 0, teamId: teamId || null, ...(conversationId ? { conversationId } : {}) }))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  },
+  /** Every chat whole, newest first, each file read once (list and then get would read it twice). Only
+   *  chats saved under their own id: what get would find. */
+  all(agentId: string): Chat[] {
+    const dir = this.dir(agentId);
+    return listFiles(dir, (n) => n.endsWith('.json'))
+      .map((n) => ({ n, chat: readJSON<Chat>(path.join(dir, n)) }))
+      .filter((x): x is { n: string; chat: Chat } => !!x.chat && typeof x.chat.id === 'string' && SAFE_ID.test(x.chat.id) && x.n === `${x.chat.id}.json`)
+      .map((x) => x.chat)
       .sort((a, b) => b.updatedAt - a.updatedAt);
   },
   get(agentId: string, chatId: string | null | undefined): Chat | null {

@@ -4,7 +4,7 @@ import { liveChat } from '../engines/index.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { markProjected, readRun, transcriptContext } from './state.ts';
 import { EveProjectionError } from './projection.ts';
-import { readAdmission } from './admission.ts';
+import { admissionSelection } from './admission.ts';
 import { measuredBy } from '../context.ts';
 import { readExecution } from '../execution.ts';
 import type { RunEvent } from '../../shared/types.ts';
@@ -20,7 +20,8 @@ export function projectTranscript(runId: string): void {
     for (let i = run.projected || 0; i < run.events.length; i++) {
       const fact = run.events[i]!;
       const sourceId = `eve:${runId}:${fact.id}`;
-      let event: RunEvent = fact.event;
+      // Saved runs are shared and frozen; the chat and listeners get their own copy.
+      let event: RunEvent = structuredClone(fact.event);
       let publish = false;
       if (event.kind === 'tool_result') {
         const callId = event.id;
@@ -41,11 +42,11 @@ export function projectTranscript(runId: string): void {
         if (event.kind === 'text') chat.items.push({ type: 'assistant', text: event.text, sourceId, ts });
         else if (event.kind === 'tool') chat.items.push({ type: 'tool', id: event.id, name: event.name, args: event.args, result: null, status: 'running', sourceId, ts });
         else if (event.kind === 'usage') {
-          const cost = readAdmission(runId)?.selection.provider === 'venice' ? 'Usage' : event.costUsd === undefined ? 'Cost not reported' : `$${event.costUsd.toFixed(4)}`;
+          const cost = admissionSelection(runId)?.provider === 'venice' ? 'Usage' : event.costUsd === undefined ? 'Cost not reported' : `$${event.costUsd.toFixed(4)}`;
           const tokens = event.inputTokens + event.outputTokens;
           chat.items.push({ type: 'meta', text: `${event.summary ? 'Memory summary · ' : ''}${cost} · ${tokens} tokens${event.cacheReadTokens ? ` · ${event.cacheReadTokens} from cache` : ''}`, sourceId, ts });
           if (!event.summary) {
-            const selection = readAdmission(runId)?.selection;
+            const selection = admissionSelection(runId);
             const engine = readExecution().runs.find((receipt) => receipt.id === runId)?.engine || agent.engine;
             const measured = { ...agent, engine, model: selection?.model || agent.model, provider: selection?.provider || agent.provider };
             const window = selection?.contextWindow;
@@ -64,8 +65,8 @@ export function projectTranscript(runId: string): void {
       if (!publish) continue;
       if (event.kind === 'compacted') {
         const item = chat.items.find((item) => item.sourceId === sourceId);
-        if (item?.type === 'compaction') emit('compacted', { agentId: agent.id, chatId: chat.id, itemId: item.id });
-      } else emit('run', { runId, agentId: agent.id, chatId: chat.id, event, eventId: sourceId });
+        if (item?.type === 'compaction') emit('compacted', { agentId: agent.id, chatId: chat.id, projectId: project.id, itemId: item.id });
+      } else emit('run', { runId, agentId: agent.id, chatId: chat.id, projectId: project.id, event, eventId: sourceId });
     }
   });
 }

@@ -1,22 +1,26 @@
-// The Library page (React, Base UI): tabs, search and division, hiring, presets, and leaving it early.
+// The Library page (React, Base UI): tabs, search and groups, reading and hiring an agent, presets, and leaving it early.
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
 import * as library from '../../web/views/library.tsx';
-import type { AppState } from '../../shared/types.ts';
+import type { AppState, LibraryAgentListing } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const agency = (n: number) =>
+const athena = (n: number): LibraryAgentListing[] =>
   Array.from({ length: n }, (_, i) => ({
     slug: `a${i}`,
     name: i === 0 ? 'Brand Guardian' : `Agent ${i}`,
     description: i === 0 ? 'protects the brand' : 'does things',
     emoji: '🤖',
     color: '',
-    vibe: '',
-    division: i % 2 ? 'design' : 'engineering',
-    divisionLabel: i % 2 ? 'Design' : 'Engineering',
+    specialty: 'helps',
+    group: i % 2 ? 'design' : 'engineering',
+    groupLabel: i % 2 ? 'Design' : 'Engineering',
+    tools: ['files', 'shell', 'agents'],
+    skills: [],
+    engine: '',
+    starter: i === 2,
   }));
 let lib: Record<string, unknown>;
 let presets: Record<string, unknown>[];
@@ -32,7 +36,7 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><section id="view"></section>';
   el = document.getElementById('view')!;
   location.hash = '#/library';
-  lib = { agency: { agents: agency(3) }, hermes: [], claude: [], starters: [{ name: 'Writer', emoji: '✍️', specialty: 'Writes' }] };
+  lib = { agents: athena(3), hermes: [], claude: [] };
   presets = [];
   requests = [];
   slowLibrary = null;
@@ -60,6 +64,7 @@ beforeEach(() => {
     if (url === '/api/models?engine=eve&provider=venice') return json([{ id: 'venice-chat', name: 'Venice Chat', reasoningEfforts: ['low', 'high'] }]);
     if (url.startsWith('/api/models?')) return json([]);
     if (url === '/api/library/hire') return json({ id: 'new-1', name: 'Hired' });
+    if (url === '/api/library/agent/a0') return json({ slug: 'a0', name: 'Brand Guardian', body: '---\nname: Brand Guardian\n---\n\nKeep the brand **consistent**.' });
     if (url.startsWith('/api/presets/') && method === 'DELETE') return json({ ok: true });
     return json({});
   });
@@ -75,18 +80,17 @@ const open = async () => {
 };
 
 describe('Library page', () => {
-  it('opens on The Agency with labelled tabs, and remembers the tab you picked', async () => {
+  it('opens on Athena with labelled tabs, and remembers the tab you picked', async () => {
     await open();
     const tabs = [...el.querySelectorAll<HTMLElement>('[role="tab"]')];
-    expect(tabs.map((t) => t.textContent)).toEqual(['Athena (1)', 'The Agency (3)', 'Hermes profiles (0)', 'Claude Code subagents (0)', 'Your presets (0)']);
+    expect(tabs.map((t) => t.textContent)).toEqual(['Athena (3)', 'Hermes profiles (0)', 'Claude Code subagents (0)', 'Your presets (0)']);
     expect(el.querySelector('[role="tablist"]')!.getAttribute('aria-label')).toBe('Agent library');
-    expect(tabs[1].classList.contains('on')).toBe(true);
-    expect(tabs[1].getAttribute('aria-selected')).toBe('true');
-    await click(tabs[0]);
-    expect(el.querySelector('.card-title')!.textContent).toBe('Writer');
+    expect(tabs[0].classList.contains('on')).toBe(true);
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    await click(tabs[2]);
     act(() => library.unmount());
     await open();
-    expect(el.querySelector('[role="tab"].on')!.textContent).toBe('Athena (1)');
+    expect(el.querySelector('[role="tab"].on')!.textContent).toBe('Claude Code subagents (0)');
   });
 
   it('opens on Your presets from a ?tab=presets link', async () => {
@@ -96,11 +100,13 @@ describe('Library page', () => {
     expect(el.textContent).toContain('No presets yet.');
   });
 
-  it('narrows The Agency by search and by division', async () => {
+  it('narrows the agents by search, by group and to the starter team', async () => {
     await open();
     const titles = () => [...el.querySelectorAll('.card-title')].map((t) => t.textContent);
     expect(titles()).toEqual(['Brand Guardian', 'Agent 1', 'Agent 2']);
-    const search = el.querySelector<HTMLInputElement>('input[aria-label="Search the specialists"]')!;
+    expect([...el.querySelectorAll('[aria-label="Group"] button')].map((b) => b.textContent)).toEqual(['All', 'Starter team', 'Engineering', 'Design']);
+    const search = el.querySelector<HTMLInputElement>('input[aria-label="Search the agents"]')!;
+    expect(search.placeholder).toMatch(/^Search 3 agents/);
     await act(async () => {
       const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
       set.call(search, 'brand');
@@ -115,15 +121,31 @@ describe('Library page', () => {
     await click(buttons('Design')[0]);
     expect(titles()).toEqual(['Agent 1']);
     expect(buttons('Design')[0].classList.contains('on')).toBe(true);
+    await click(buttons('Starter team')[0]);
+    expect(titles()).toEqual(['Agent 2']);
     await click(buttons('All')[0]);
     expect(titles()).toHaveLength(3);
   });
 
-  it('caps The Agency at 240 cards and says how many there are', async () => {
-    lib.agency = { agents: agency(250) };
+  it("reads an agent's instructions, without its frontmatter, and hires it from there", async () => {
     await open();
-    expect(el.querySelectorAll('.card')).toHaveLength(240);
-    expect(el.textContent).toContain('Showing 240 of 250. Search to narrow down.');
+    await click(buttons('Read')[0]);
+    await settle();
+    const dialog = document.querySelector<HTMLElement>('.modal')!;
+    expect(dialog.textContent).toContain('Keep the brand consistent.');
+    expect(dialog.textContent).not.toContain('name: Brand Guardian');
+    await click([...dialog.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Hire')!);
+    await settle();
+    expect(requests.find((r) => r.url === '/api/library/hire')!.body).toMatchObject({ source: 'library', slug: 'a0' });
+  });
+
+  it('shows each engine\'s logo next to its name under "Runs on"', async () => {
+    state.data!.engineList.push({ id: 'pi', label: 'pi' } as AppState['engineList'][number]);
+    await open();
+    const options = [...el.querySelectorAll<HTMLButtonElement>('[aria-label="Runs on"] button')];
+    expect(options.map((b) => b.textContent)).toEqual(['Claude Code', 'Codex', 'pi']);
+    for (const option of options) expect(option.querySelector('svg, img')).not.toBeNull();
+    expect(options[2].querySelector('img')!.getAttribute('src')).toBe('/brand/engines/pi.svg');
   });
 
   it('hires on the engine picked under "Runs on", then offers Chat and Edit', async () => {
@@ -132,20 +154,15 @@ describe('Library page', () => {
     await click(el.querySelector<HTMLButtonElement>('.card .btn.small')!);
     await settle();
     const hireCall = requests.find((r) => r.url === '/api/library/hire')!;
-    expect(hireCall.body).toEqual({ source: 'agency', slug: 'a0', overrides: { engine: 'codex', model: '' } });
+    expect(hireCall.body).toEqual({ source: 'library', slug: 'a0', overrides: { engine: 'codex', model: '' } });
     const foot = el.querySelector('.card .card-foot')!;
     expect([...foot.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Chat', 'Edit']);
     expect(document.getElementById('toasts')!.textContent).toContain('Brand Guardian joined your team');
   });
 
-  it.each([
-    { source: 'agency', effort: 'high' },
-    { source: 'starter', effort: 'high' },
-    { source: 'agency', effort: '' },
-  ])('keeps effort "$effort" when hiring a $source agent with Venice', async ({ source, effort }) => {
+  it.each([{ effort: 'high' }, { effort: '' }])('keeps effort "$effort" when hiring with Venice', async ({ effort }) => {
     state.data!.engineList.push({ id: 'eve', label: 'API model' } as AppState['engineList'][number]);
     await open();
-    if (source === 'starter') await click(el.querySelector<HTMLElement>('[role="tab"]')!);
     await click(buttons('API model')[0]);
     await click(buttons('Choose API model')[0]);
     const veniceTab = [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === 'Venice')!;
@@ -159,10 +176,10 @@ describe('Library page', () => {
     expect(el.textContent).toContain('Venice · venice-chat');
     await click(buttons('Venice · venice-chat')[0]);
     await settle();
-    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe(effort ? 'High' : 'Default');
+    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe(effort ? 'High' : 'Auto');
     await click([...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) => b.textContent?.includes('Venice Chat'))!);
     await click(el.querySelector<HTMLButtonElement>('.card .btn.small')!);
-    expect(requests.find((r) => r.url === '/api/library/hire')?.body).toMatchObject({ source, overrides: { engine: 'eve', provider: 'venice', model: 'venice-chat', effort } });
+    expect(requests.find((r) => r.url === '/api/library/hire')?.body).toMatchObject({ source: 'library', overrides: { engine: 'eve', provider: 'venice', model: 'venice-chat', effort } });
   });
 
   it('deletes a preset only after you confirm', async () => {
@@ -188,7 +205,9 @@ describe('Library page', () => {
     let finish!: () => void;
     slowLibrary = new Promise((r) => (finish = r));
     await open();
-    expect(el.textContent).toBe('Loading library…');
+    // the page's shape while it loads, with what is loading for screen readers
+    expect(el.querySelector('[role="status"]')!.textContent).toContain('Loading library…');
+    expect(el.querySelectorAll('.cards .card').length).toBeGreaterThan(0);
     act(() => library.unmount());
     finish();
     await settle();

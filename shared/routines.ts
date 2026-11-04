@@ -4,8 +4,17 @@ import type { RoutineMention, Schedule } from './types.ts';
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // A letter, mark, digit or _ in any script, so "@Café" doesn't match the start of "@Caféé".
 const WORD = '[\\p{L}\\p{M}\\p{N}_]';
+// what may come before an @: the start, or anything but a word or another @
+const LEAD = '(^|[^\\p{L}\\p{M}\\p{N}_@])';
 // @Name, not inside a word or right after another @, and not followed by more of a word
-const mentionRe = (name: string) => new RegExp(`(^|[^\\p{L}\\p{M}\\p{N}_@])@${esc(name)}(?!${WORD})`, 'giu');
+const mentionRe = (name: string) => new RegExp(`${LEAD}@${esc(name)}(?!${WORD})`, 'giu');
+
+/** Any of the names as an @mention, by the rules findMentions uses: group 1 is what comes before the @, group 2 the
+ *  name as written. Longer names are tried first, so "@Trend Scout" isn't read as "@Trend". */
+export function mentionPattern(names: readonly string[]): RegExp {
+  const alts = names.filter((n) => n.trim()).sort((a, b) => b.length - a.length).map(esc);
+  return alts.length ? new RegExp(`${LEAD}@(${alts.join('|')})(?!${WORD})`, 'giu') : /(?!)/gu;
+}
 const wordOrAt = new RegExp(`${WORD}|@`, 'u');
 
 /** The candidates the text mentions, in the order they first appear. Longest names are matched first

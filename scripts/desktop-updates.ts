@@ -24,12 +24,12 @@ export interface UpdaterManifest {
 
 const ARCH = { x64: 'x86_64', arm64: 'aarch64' } as const;
 
-/** A bundle's name in the release: no spaces (GitHub would turn them into dots anyway, and the URL
+/** A bundle's name in the release: hyphens for spaces (GitHub would turn them into dots, and the URL
  *  in latest.json must match), and the macOS update named after its CPU, as the .dmg already is. */
 export function releaseName(file: string, triple: string, version: string): string {
   const t = desktopTarget(triple);
-  if (file.endsWith('.app.tar.gz')) return `${file.slice(0, -'.app.tar.gz'.length)}_${version}_${t.cpu === 'arm64' ? 'aarch64' : 'x64'}.app.tar.gz`.replace(/ /g, '.');
-  return file.replace(/ /g, '.');
+  if (file.endsWith('.app.tar.gz')) return `${file.slice(0, -'.app.tar.gz'.length)}_${version}_${t.cpu === 'arm64' ? 'aarch64' : 'x64'}.app.tar.gz`.replace(/ /g, '-');
+  return file.replace(/ /g, '-');
 }
 
 /** The platform keys a target's signed files serve. Windows installs from the NSIS installer unless

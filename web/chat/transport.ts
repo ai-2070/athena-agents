@@ -23,11 +23,12 @@ export const dashFetch: typeof fetch = async (input, init) => {
   return new Response(message || `${res.status} ${res.statusText}`, { status: res.status, statusText: res.statusText });
 };
 
-export const streamUrl = (agentId: string, chatId: string): string => apiUrl(`/agents/${agentId}/chats/${chatId}/stream`);
+/** at: '/p/<project>' for an agent of a project that isn't open (projectAt). */
+export const streamUrl = (agentId: string, chatId: string, at = ''): string => apiUrl(`${at}/agents/${agentId}/chats/${chatId}/stream`);
 
 /** One agent's chats: a send posts only the new message (the server keeps the history); a resume
  *  picks up the run going in the chat. accepted: the server took a request (it answered with a stream). */
-export function chatTransport(agentId: string, chatId: () => string | null, accepted?: () => void): DefaultChatTransport<ChatMessage> {
+export function chatTransport(agentId: string, chatId: () => string | null, accepted?: () => void, at = ''): DefaultChatTransport<ChatMessage> {
   return new DefaultChatTransport<ChatMessage>({
     api: apiUrl('/agents'),
     fetch: accepted
@@ -38,12 +39,12 @@ export function chatTransport(agentId: string, chatId: () => string | null, acce
         }
       : dashFetch,
     // (steer: sent while it works, it stops the run going now and goes next)
-    prepareSendMessagesRequest: ({ messages, body }) => ({ api: streamUrl(agentId, chatId() || 'none'), body: { ...readUser(messages[messages.length - 1]), ...(body?.steer === true ? { steer: true } : {}) } }),
-    prepareReconnectToStreamRequest: () => ({ api: streamUrl(agentId, chatId() || 'none') }),
+    prepareSendMessagesRequest: ({ messages, body }) => ({ api: streamUrl(agentId, chatId() || 'none', at), body: { ...readUser(messages[messages.length - 1]), ...(body?.steer === true ? { steer: true } : {}) } }),
+    prepareReconnectToStreamRequest: () => ({ api: streamUrl(agentId, chatId() || 'none', at) }),
   });
 }
 
-/** The Brain: one question, its answer streamed (server/uistream.ts streamBrain). */
-export function brainTransport(body: { text: string; project: string | null; attachments: string[]; goal?: boolean }): DefaultChatTransport<UIMessage> {
-  return new DefaultChatTransport<UIMessage>({ api: apiUrl('/brain/stream'), fetch: dashFetch, prepareSendMessagesRequest: () => ({ body }) });
+/** The Brain: one question, its answer streamed (server/uistream.ts streamBrain). at: another project's Brain. */
+export function brainTransport(body: { text: string; project: string | null; attachments: string[]; goal?: boolean }, at = ''): DefaultChatTransport<UIMessage> {
+  return new DefaultChatTransport<UIMessage>({ api: apiUrl(`${at}/brain/stream`), fetch: dashFetch, prepareSendMessagesRequest: () => ({ body }) });
 }

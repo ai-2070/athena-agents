@@ -2,11 +2,11 @@
 // a place they are stuck. Each waits in the Outbox with its choices as buttons and a box for an answer
 // in your own words. The agent waits a while for it; answered later, the answer goes to its chat (or
 // its team chat) as a new message, so nothing you answer is lost.
-import { agents, chats, questions, workflows, log, activeProject, withProject } from './store.ts';
+import { agents, chats, questions, workflows, log, activeProject, listProjects, withProject } from './store.ts';
 import { uid } from './util.ts';
 import { privateTeamDefinition } from './private-conversations.ts';
 import { canonical } from '../shared/canonical.ts';
-import type { AgentQuestion } from '../shared/types.ts';
+import type { AgentQuestion, Project } from '../shared/types.ts';
 
 export const MAX_CHOICES = 8;
 /** How long ask_user waits for your answer before the agent ends its turn (approvals wait as long). */
@@ -121,9 +121,16 @@ export function answerResult({ choice, text }: { choice: string; text: string })
  * Your answer: a choice you clicked, what you wrote, or both. Goes straight to the agent while it waits;
  * otherwise as a new message in its chat (a team's chat: to the team, naming the agent).
  */
+/** The project a question was asked in: the open one, else the one that has it (an Overview pane of another project). */
+function projectOfQuestion(id: string): Project {
+  const open = activeProject();
+  if (questions.get(id)) return open;
+  return listProjects().find((p) => p.id !== open.id && withProject(p, () => !!questions.get(id))) || open;
+}
+
 export function answerQuestion(id: string, answer: UserAnswer): Promise<AgentQuestion> {
   // (delivering it can take a moment: it is saved in the question's own project all the same)
-  return withProject(activeProject(), () => answerNow(id, answer));
+  return withProject(projectOfQuestion(id), () => answerNow(id, answer));
 }
 
 // questions an answer is on its way to (`<project id>/<question id>`): a second answer or a dismissal waits its turn
@@ -187,6 +194,9 @@ async function deliver(q: AgentQuestion, answer: { choice: string; text: string 
 
 /** You don't want to answer: an agent still waiting hears so. */
 export function dismissQuestion(id: string): AgentQuestion {
+  return withProject(projectOfQuestion(id), () => dismissNow(id));
+}
+function dismissNow(id: string): AgentQuestion {
   const q = questions.get(id);
   if (!q) throw Object.assign(new Error('No such question.'), { status: 404 });
   // (an answer on its way wins: it would only be written over)

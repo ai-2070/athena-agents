@@ -22,3 +22,7 @@ release/
 relay/whatsapp/dist/
 relay/whatsapp/.wrangler/
 relay/whatsapp/.dev.vars*
+
+# Python, from running the skills' scripts and their tests
+__pycache__/
+.pytest_cache/

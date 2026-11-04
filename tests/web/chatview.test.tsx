@@ -476,6 +476,13 @@ describe('the agent chat (AI SDK)', () => {
     // the goal reached: its chip goes
     await wsEvent({ type: 'brief', projectId: 'p', brief: { id: 'b1', kind: 'agent', targetId: 'a1', chatId: 'c1', name: 'Renderer', text: 'x', goal: 'x', ts: 0, followUps: 1, status: 'done' } });
     expect(el.querySelector('.cmd-chip.goal')).toBeNull();
+    // an ordinary message nobody has called work yet (it may be a simple question): no chip
+    const plain = { id: 'b2', kind: 'agent', targetId: 'a1', chatId: 'c1', name: 'Renderer', text: 'go', goal: 'go', automatic: true, ts: 0, followUps: 0, status: 'open' };
+    await wsEvent({ type: 'brief', projectId: 'p', brief: plain });
+    expect(el.querySelector('.cmd-chip.goal')).toBeNull();
+    // the agent set it with set_goal: the chip shows what done looks like
+    await wsEvent({ type: 'brief', projectId: 'p', brief: { ...plain, recognized: true, doneWhen: 'the render is saved' } });
+    expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('Goal: the render is saved');
     // none of them was sent to the agent as a message
     expect(requests.filter((r) => r.method === 'POST' && r.url.endsWith('/stream'))).toHaveLength(1);
   });

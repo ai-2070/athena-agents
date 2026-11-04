@@ -20,15 +20,16 @@ import { backgroundUrl, logoUrl, modelUrl, projectMark } from '../projectlogo.ts
 import { loadModel } from '../modelviewer.ts';
 import { teamMarkUrl, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { neighbours, stepIndex, floorDirection, shortName } from '../projectnav.ts';
-import { slideIn, slideOut } from '../motion.ts';
+import { reducedMotion, slideIn, slideOut } from '../motion.ts';
 import { icon, logo, brandPath } from '../icons.ts';
 import { brandMark } from '../brand.ts';
 import { pal, refreshPalette, watchPalette, brandTone, mutedTone, mix, alpha, INK } from './stationpalette.ts';
+import { everySecond } from './stationclock.ts';
 import { appIconImage } from '../appicons.ts';
 import { engineKey } from '../agentstats.ts';
 import { openProjectMenu } from '../projects.tsx';
 import { teamSteps } from '../../shared/teams.ts';
-import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, toolIntegration, stepLinks, connectorLook, setClaudeConnectors } from './stationdata.ts';
+import { routineCounts, wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, toolIntegration, stepLinks, connectorLook, setClaudeConnectors } from './stationdata.ts';
 import type { AvailableIntegration, Headbar, MapPick, Program, TeamView } from './stationdata.ts';
 import { mountStationPanel } from './stationpanel.tsx';
 import type { StationPanelApi } from './stationpanel.tsx';
@@ -37,7 +38,7 @@ import type { MenuEntry, StationMenu } from './stationmenu.tsx';
 import type { WorldView } from '../voxel/view.ts';
 import type { WorldLayer } from '../voxel/worldlayer.ts';
 import type { AgentTarget, SkinHost } from '../voxel/skins.ts';
-import type { ActivityEntry, Agent, AppState, Chat, Project, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
+import type { ActivityEntry, Agent, AppState, Chat, Project, Routine, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
 
 // ---------- types ----------
 /** A workflow run (GET /api/workflow-runs, /api/workflow-active and the 'workflow-run' event). */
@@ -229,7 +230,7 @@ interface LabelSpec {
 interface Label extends LabelSpec {
   world: THREE.Vector3;
   /** what was last written to its style (written again only when it changes) */
-  shown?: { display: string; transform: string; origin: string };
+  shown?: { display: string; transform: string; origin: string; placed?: boolean };
 }
 type PickType = 'agent' | 'branch' | 'bench' | 'brain' | 'int';
 /** A dashed wire from a header tile to a desk. */
@@ -356,6 +357,8 @@ interface StationState {
   layout: StationLayout;
   teamState: Record<string, TeamState>;
   teamLast: Record<string, TeamMessage | null | undefined>;
+  /** How many routines mention each team (its card shows the number). */
+  teamRoutines?: Record<string, number>;
   onKey: (e: KeyboardEvent) => void;
   onDocDown: (e: PointerEvent) => void;
   onPaste: (e: ClipboardEvent) => void;
@@ -363,7 +366,7 @@ interface StationState {
   offState?: () => void;
   offConnection?: () => void;
   headTimer?: ReturnType<typeof setInterval>;
-  clockTimer?: ReturnType<typeof setInterval>;
+  stopClock?: () => void;
   usageTimer?: ReturnType<typeof setInterval>;
   progTimer?: ReturnType<typeof setInterval>;
   usageIdx?: number;
@@ -588,8 +591,10 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
   if (n === 'reddit_draft_post') return A('Reddit', `drafting a post for r/${String(args.subreddit || '').replace(/^\/?r\//, '')}`, args.title || '', 'reddit', '#ff4500');
   if (n === 'reddit_draft_comment') return A('Reddit', 'drafting a comment', args.text || '', 'reddit', '#ff4500');
   if (n === 'reddit_read' || n === 'reddit_search' || n === 'reddit_comments') return A('Reddit', n === 'reddit_search' ? 'searching' : 'reading', args.subreddit ? `r/${args.subreddit}` : args.query || args.post || '', 'reddit', '#ff4500');
+  if (n === 'reddit_rules') return A('Reddit', 'reading the rules', args.subreddit ? `r/${String(args.subreddit).replace(/^\/?r\//, '')}` : '', 'reddit', '#ff4500');
   if (n === 'discord_send') return A('Discord', 'posting', args.text || '', 'discord', '#7d86ff');
   if (n === 'Bash' || n === 'run_command') return A('Terminal', 'running', args.command || '', null, '');
+  if (n === 'view_image') return A('Files', 'looking at', base(args.path), null, '#a9d3e2');
   if (['Read', 'read_file', 'knowledge_read'].includes(n)) return A('Files', 'reading', base(args.file_path || args.path || args.file), null, '#a9d3e2');
   if (['Write', 'Edit', 'write_file', 'NotebookEdit'].includes(n)) return A('Files', 'writing', base(args.file_path || args.path), null, '#a9d3e2');
   if (['Glob', 'Grep', 'list_files', 'knowledge_search'].includes(n)) return A('Files', 'searching', args.pattern || args.query || args.path || '', null, '#a9d3e2');
@@ -893,7 +898,7 @@ export async function render(el: HTMLElement): Promise<void> {
   }
   loadHeadbar();
   S.headTimer = setInterval(loadHeadbar, 60_000);
-  S.clockTimer = setInterval(tickClock, 1000);
+  S.stopClock = everySecond(tickClock);
   // usage of each connected provider, one after another
   S.usageTimer = setInterval(() => {
     if ((S?.headbar?.usages?.length || 0) > 1) {
@@ -947,13 +952,14 @@ function teamView(w: TeamListing): TeamView {
 }
 
 async function loadData(): Promise<void> {
-  const [progs, wfs, runs, active, layout] = await Promise.all([GET<Program[]>('/programs').catch((): Program[] => []), GET<TeamListing[]>('/workflows').catch((): TeamListing[] => []), GET<WorkflowRun[]>('/workflow-runs').catch((): WorkflowRun[] => []), GET<WorkflowRun[]>('/workflow-active').catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({}))]);
+  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([GET<Program[]>('/programs').catch((): Program[] => []), GET<TeamListing[]>('/workflows').catch((): TeamListing[] => []), GET<WorkflowRun[]>('/workflow-runs').catch((): WorkflowRun[] => []), GET<WorkflowRun[]>('/workflow-active').catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({})), GET<Routine[]>('/routines').catch((): Routine[] => [])]);
   if (!S) return;
   S.layout = layout || {};
   S.progs = progs;
   S.workflows = wfs.map(teamView);
   S.teamState = Object.fromEntries(wfs.map((w) => [w.id, w.state || { working: [], queued: [] }]));
   S.teamLast = Object.fromEntries(wfs.filter((w) => w.last).map((w) => [w.id, w.last]));
+  S.teamRoutines = routineCounts(routineList);
   S.wfRuns = runs;
   S.active = new Map(active.map((r) => [r.workflowId, r]));
   shareTeams();
@@ -979,7 +985,7 @@ export function unmount(): void {
   S.ro?.disconnect();
   clearInterval(S.progTimer);
   clearInterval(S.headTimer);
-  clearInterval(S.clockTimer);
+  S.stopClock?.();
   clearInterval(S.usageTimer);
   window.removeEventListener('keydown', S.onKey);
   if (floorPick?.timer) clearTimeout(floorPick.timer);
@@ -2324,11 +2330,12 @@ function drawBranchCard(wfId: string): void {
   const last = S.teamLast?.[wfId];
   const nameOf = (id: string) => (id === 'user' ? 'You' : id === 'system' ? '' : id === 'brain' ? 'Brain' : state.data?.agents.find((a) => a.id === id)?.name || '');
   const lead = wf.lead ? nameOf(wf.lead) : '';
+  const routines = S.teamRoutines?.[wfId] || 0;
   b.card.classList.toggle('live', ts.working.length > 0);
   b.card.classList.toggle('needs', false);
   mount(
     b.card,
-    h('div', { class: BRANCH_NAME }, h('span.st-dot'), wf.name),
+    h('div', { class: BRANCH_NAME }, wf.name),
     h(
       'div',
       { class: 'flex items-baseline gap-1.5 mt-3 mb-0.5' },
@@ -2341,10 +2348,12 @@ function drawBranchCard(wfId: string): void {
     last ? h('div', { class: 'text-[12px] text-dim leading-[1.45] mt-1.5 mb-0.5 line-clamp-2' }, h('b', { class: 'text-ink font-semibold' }, nameOf(last.from) || 'Team'), ' ', String(last.text).replace(/\s+/g, ' ').slice(0, 90), h('span.hint', ` · ${ago(last.ts)}`)) : null,
     h(
       'div',
-      { class: 'mt-3 text-[12px] leading-[normal] font-medium text-faint' },
+      { class: 'mt-3 flex items-center gap-3 text-[12px] leading-[normal] font-medium text-faint' },
       ts.working.length
-        ? h('span', { class: 'text-accent group-[.needs]/card:text-amber' }, `● ${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} next` : ''}`)
-        : h('span', wf.enabled && wf.schedule && wf.schedule.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : last ? 'Quiet' : 'Say hi to the team'),
+        ? h('span', { class: 'min-w-0 truncate text-accent group-[.needs]/card:text-amber' }, `● ${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} next` : ''}`)
+        : h('span', { class: 'min-w-0 truncate' }, wf.enabled && wf.schedule && wf.schedule.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : last ? 'Quiet' : 'Say hi to the team'),
+      // the routines that mention the team (Setup lists them)
+      routines ? h('span', { class: 'st-routines ml-auto inline-flex flex-none items-center gap-1 text-dim', title: `${routines} routine${routines === 1 ? '' : 's'} mention this team` }, icon('repeat', 12), `${routines} routine${routines === 1 ? '' : 's'}`) : null,
     ),
   );
 }
@@ -2352,6 +2361,8 @@ function drawBranchCard(wfId: string): void {
 // ---------- labels ----------
 function addLabel(l: LabelSpec & { world?: THREE.Vector3 }): void {
   assertMounted(S);
+  // hidden until the map has put it in its place (else it sits in the top left corner for a moment)
+  l.el.style.visibility = 'hidden';
   S.labels.append(l.el);
   l.el.addEventListener('contextmenu', (ev) => {
     ev.preventDefault();
@@ -2452,6 +2463,12 @@ function placeLabels(): void {
     if (!hide) {
       const transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(${tx}%, ${ty}%) scale(${sc.toFixed(3)})`;
       if (shown.transform !== transform) l.el.style.transform = shown.transform = transform;
+      // the first time it has a real place (the map has a size): show it, fading in
+      if (!shown.placed && S.w > 0 && S.h > 0) {
+        shown.placed = true;
+        l.el.style.visibility = '';
+        if (!reducedMotion() && typeof l.el.animate === 'function') l.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
+      }
     }
   }
   S.labels.dataset.zoom = z > 1.6 ? 'near' : z < 0.75 ? 'far' : 'mid';
@@ -3859,7 +3876,8 @@ function drawHud(): void {
       d.runs.length || S.active.size ? h('div', { class: `${STAT} max-md:hidden` }, h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)), 'working') : null,
       needs ? domButton({ variant: 'ghost', size: 'small', class: 'glass border-amber', onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: 'font-semibold tabular-nums text-amber' }, String(needs)), 'Needs you') : null,
       d.agents.length
-        ? domButton({ size: 'small', onclick: newBranch }, icon('users', 14), 'New team')
+        ? // quiet until pointed at: the page's text colour on nothing, the accent behind it on hover
+          domButton({ variant: 'plain', size: 'small', class: 'text-ink! hover:bg-accent! hover:text-on-accent! focus-visible:bg-accent! focus-visible:text-on-accent!', onclick: newBranch }, icon('users', 14), 'New team')
         : null,
     ),
   );
@@ -3993,6 +4011,13 @@ function drawFeed(): void {
     h('div', { class: 'flex items-center gap-2 mb-2 text-[12px] leading-[normal] font-medium text-dim', role: 'status' }, domDot(S.liveConnected ? 'on' : 'warn', { class: '[box-shadow:none]' }), S.liveConnected ? 'Live' : 'Reconnecting…'),
     S.feed.map((f, i) => h('div', { style: { opacity: String(1 - i * 0.12) }, class: f.kind === 'error' ? `${FEED_ITEM} text-red` : `${FEED_ITEM} text-ink` }, h('span', { class: 'flex-none w-14 text-faint' }, ago(f.ts)), f.text)),
   );
+}
+
+async function reloadRoutineCounts(): Promise<void> {
+  const list = await GET<Routine[]>('/routines').catch(() => null);
+  if (!S || !list) return;
+  S.teamRoutines = routineCounts(list);
+  for (const id of S.branches.keys()) drawBranchCard(id);
 }
 
 async function reloadWorkflows(): Promise<void> {
@@ -4150,6 +4175,7 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
   if (!S) return;
   const d = state.data;
   if (ev.type === 'workflows') return reloadWorkflows();
+  if (ev.type === 'routines') return reloadRoutineCounts();
   // the voxel world changed (a build, a move, WORLD.md, another project's world picked), or another project opened
   if (ev.type === 'world' || ev.type === 'project') S.worldLayer?.refresh(ev.type === 'world' ? ev : undefined);
   // a builder plays an animation on an agent's character

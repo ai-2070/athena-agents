@@ -5,10 +5,11 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ask, clearHistory } from '../../server/overseer.ts';
 import { recoverWork, startIrc } from '../../server/irc.ts';
-import { addBrief, listBriefs } from '../../server/briefs.ts';
+import { addBrief, listBriefs, openGoal } from '../../server/briefs.ts';
+import { goalTool } from '../../server/goaltool.ts';
 import { goalInChat, goalInTeam, resumeBrain, stopBrain } from '../../server/commands.ts';
 import { newAgent } from '../../server/library.ts';
-import { activeRuns, startRun, queueMessage, stopChat, forgetChat } from '../../server/engines/index.ts';
+import { activeRuns, chatRunId, startRun, queueMessage, stopChat, forgetChat } from '../../server/engines/index.ts';
 import { agents, chats, questions, saveSettings, workflows } from '../../server/store.ts';
 import { clearThread, getThread, postUserMessage, stopTeam, teamState } from '../../server/teams.ts';
 import { addQuestion, answerQuestion } from '../../server/questions.ts';
@@ -20,6 +21,7 @@ import type { ChatItem, Team } from '../../shared/types.ts';
 const verdicts: (string | Promise<string> | Error)[] = [];
 const answers: (string | Promise<string>)[] = [];
 const checked: string[] = [];
+const checkedSystems: string[] = [];
 const brainRequests: string[] = [];
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
@@ -27,6 +29,7 @@ vi.mock('../../server/brain.ts', async (orig) => ({
   think: async (system: string, user: string) => {
     if (system.includes('Decide whether the brief is done')) {
       checked.push(user);
+      checkedSystems.push(system);
       const v = verdicts.shift();
       if (v instanceof Error) throw v;
       return await v ?? '{"done":true,"summary":"Looks done."}';
@@ -85,6 +88,7 @@ beforeEach(() => {
   clearHistory();
   verdicts.length = 0;
   checked.length = 0;
+  checkedSystems.length = 0;
   brainRequests.length = 0;
 });
 
@@ -308,6 +312,8 @@ describe('ordinary assignments keep going automatically', () => {
     await until(() => briefIn(c.id)?.status === 'done');
     expect(checked.at(-1)).toContain('Delegated work finished:');
     expect(checked.at(-1)).toContain('Holder worked on it.');
+    // (by name, not by id)
+    expect(checked.at(-1)).toContain('**Holder:**');
   });
 
   it('Stop also stops background delegates after their parent turn has ended', async () => {
@@ -549,5 +555,84 @@ describe('/stop and /resume in the Brain chat', () => {
     expect(b.goal).toBe('the site loads in under a second');
     await until(() => listBriefs().find((x) => x.id === b.id)?.status === 'done');
     expect(checked.at(-1)).toContain('the site loads in under a second');
+  });
+});
+
+describe('simple questions are not goals', () => {
+  const setGoal = (a: { id: string; name: string }, chatId: string, goal: string) => goalTool().run({ goal }, { agent: a, runId: chatRunId(a.id, chatId) });
+
+  it('a question the reply answers closes quietly: no goal, no note', async () => {
+    const a = agent('Answerer'); const c = chats.create(a.id);
+    verdicts.push('{"assignment":false,"done":true,"summary":"Answered the question."}');
+    startRun(a, c, 'What does parseCommand do?');
+    expect(openGoal('agent', a.id, c.id)).toBeNull();
+    await until(() => briefIn(c.id)?.status === 'done');
+    expect(briefIn(c.id).recognized).toBeFalsy();
+    expect(checkedSystems[0]).toContain('assignment: false when');
+    expect(notes(a.id, c.id).filter((n) => n.includes('finished'))).toEqual([]);
+    expect(users(a.id, c.id)).toHaveLength(1);
+  });
+
+  it('work the Brain recognizes at its check becomes the chat goal and is followed up', async () => {
+    const a = agent('Recognized'); const c = chats.create(a.id);
+    verdicts.push(JSON.stringify({ assignment: true, done: false, progress: 'Part one', followUp: 'Add the tests.', summary: 'Half done.' }));
+    startRun(a, c, 'Add a help command.');
+    await until(() => briefIn(c.id)?.status === 'done');
+    expect(briefIn(c.id)).toMatchObject({ recognized: true, followUps: 1 });
+    // (once recognized, the next check doesn't ask again)
+    expect(checkedSystems[1]).not.toContain('assignment: false when');
+    await until(() => notes(a.id, c.id).some((n) => n.startsWith('Recognized finished.')));
+  });
+
+  it('the agent sets the goal with set_goal: it shows at once and the check reads it beside your words', async () => {
+    const a = agent('Holder'); const c = chats.create(a.id);
+    startRun(a, c, 'Add a help command.');
+    await until(() => held.length > 0);
+    expect(openGoal('agent', a.id, c.id)).toBeNull();
+    const r = await setGoal(a, c.id, 'The help command lists every command.');
+    expect(r.text).toContain('Goal set');
+    expect(openGoal('agent', a.id, c.id)).toMatchObject({ recognized: true, doneWhen: 'The help command lists every command.', goal: 'Add a help command.' });
+    held.shift()!();
+    await until(() => briefIn(c.id)?.status === 'done');
+    expect(checkedSystems[0]).not.toContain('assignment: false when');
+    expect(checked[0]).toContain('WHAT DONE LOOKS LIKE, AS THE AGENT SET IT');
+    expect(checked[0]).toContain("THE USER'S GOAL (done only when met):\nAdd a help command.");
+  });
+
+  it('set_goal leaves your own /goal as it is', async () => {
+    const a = agent('Holder'); const c = chats.create(a.id);
+    const { goal } = goalInChat(a.id, c.id, 'the build is green');
+    await until(() => held.length > 0);
+    expect((await setGoal(a, c.id, 'Something else.')).text).toContain('The user already set the goal: the build is green');
+    expect(openGoal('agent', a.id, c.id)).toMatchObject({ id: goal!.id, goal: 'the build is green' });
+    expect(openGoal('agent', a.id, c.id)?.doneWhen).toBeUndefined();
+    goalInChat(a.id, c.id, 'clear');
+    held.shift()!();
+    await until(() => !activeRuns().some((x) => x.chatId === c.id));
+  });
+
+  it('in a team only the lead sets the goal', async () => {
+    const lead = agent('Leadgoal'); const member = agent('Holder');
+    const t = workflows.save({ name: `Set goal team ${Date.now()}`, members: [lead.id, member.id], lead: lead.id, steps: [] } as Partial<Team>);
+    const b = addBrief({ kind: 'team', targetId: t.id, name: t.name, text: 'Make the report.', goal: 'Make the report.', automatic: true, origin: 'chat', ts: Date.now() });
+    const c = chats.create(member.id); c.teamId = t.id; chats.save(c);
+    startRun(member, c, 'Your part of the report.', { from: 'the team' });
+    await until(() => held.length > 0);
+    expect((await setGoal(member, c.id, 'A report.')).text).toContain("The team's lead sets its goal");
+    expect(listBriefs().find((x) => x.id === b.id)?.recognized).toBeFalsy();
+    held.shift()!();
+    await until(() => !activeRuns().some((x) => x.chatId === c.id));
+    clearThread(t.id);
+  });
+
+  it('with follow-ups off, set_goal keeps nothing and says so', async () => {
+    saveSettings({ brainFollowsUp: false });
+    const a = agent('Holder'); const c = chats.create(a.id);
+    startRun(a, c, 'Add a help command.');
+    await until(() => held.length > 0);
+    expect((await setGoal(a, c.id, 'Done when it works.')).text).toContain('Completion checks are off');
+    expect(listBriefs().some((x) => x.chatId === c.id)).toBe(false);
+    held.shift()!();
+    await until(() => !activeRuns().some((x) => x.chatId === c.id));
   });
 });

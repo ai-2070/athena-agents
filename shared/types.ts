@@ -555,8 +555,9 @@ export interface RunBilling {
 
 // ---------- agents ----------
 export interface AgentSource {
-  type: 'custom' | 'agency' | 'starter' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
+  type: 'custom' | 'library' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
   slug?: string;
+  /** a library hire's group (older hires: their old library's division) */
   division?: string;
   preset?: string;
   profile?: string;
@@ -685,6 +686,8 @@ export interface QueuedMessage {
   replyTo?: string | null;
   /** who it is from when not you (e.g. the Brain following up on a goal) */
   from?: string;
+  /** sent into this run's turn, which hasn't read it yet: it leaves the queue once read, else goes next */
+  reading?: string;
   ts: number;
 }
 
@@ -831,6 +834,8 @@ export interface TeamMessage {
   /** An agent's reply: where its turn is in the agent's own session for this team (its steps and tool
    *  calls are items from..to of that chat), so the team chat can show the work behind it. */
   turn?: { chatId: string; from: number; to: number };
+  /** An agent's turn that was stopped before it finished (steer: to take your new message). Its work so far is in turn. */
+  stopped?: 'stop' | 'steer';
   /** Files and folders attached to the message (paths in the project's uploads/ folder). */
   attachments?: string[];
   [k: string]: unknown;
@@ -943,8 +948,12 @@ export interface Project {
 export type ChatItem = (
   | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string; runId?: string }
   | { type: 'assistant'; text: string; ts?: number }
+  /** A message sent while the agent worked that it took into the turn going on (it didn't stop):
+   *  part of that turn, so the turn still starts at its user message. */
+  | { type: 'steer'; steerId: string; text: string; from?: string | null; attachments?: string[]; ts?: number; runId?: string; teamMessageId?: string }
   | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number; resultSourceId?: string }
-  | { type: 'error'; text: string; ts?: number; runId?: string }
+  /** stopped: the run was stopped before it finished (steer: to take a new message), not a failure */
+  | { type: 'error'; text: string; ts?: number; runId?: string; stopped?: 'stop' | 'steer' }
   /** reset: "Clear memory" (the agent starts fresh after it) */
   | { type: 'meta'; text: string; ts?: number; reset?: boolean; billing?: RunBilling }
   | CompactionItem) & { sourceId?: string };
@@ -1077,6 +1086,8 @@ export interface ChatSummary {
 export type RunEvent =
   | { kind: 'start'; text: string; from?: string | null; attachments?: string[] }
   | { kind: 'text'; text: string }
+  /** a message that joined the turn going on (a steer item in the chat) */
+  | { kind: 'steer'; id: string; text: string; from?: string | null; attachments?: string[]; teamMessageId?: string }
   | { kind: 'tool'; id: string; name: string; args?: Record<string, unknown> }
   | { kind: 'tool_result'; id: string; text?: string; isError?: boolean; images?: string[] }
   | { kind: 'status'; text: string }
@@ -1120,6 +1131,8 @@ export interface Approval {
   createdAt: number;
   /** Why the Brain passed this on to you instead of allowing it (Settings > The Brain approves). */
   brainNote?: string;
+  /** the project the request came from (older ones: missing) */
+  projectId?: string;
 }
 
 export interface ApprovalDecision {
@@ -1206,6 +1219,8 @@ export interface OutboxPost {
   gatewayProgress?: GatewayOutboxProgress;
   /** Image files (full paths inside the project's folders) that go with the first part. X only. */
   images?: string[];
+  /** Alt text (a description for people who can't see it) by image path. X only. */
+  imageAlt?: Record<string, string>;
   status: 'pending' | 'posting' | 'posted' | 'failed' | 'rejected' | 'returned' | string;
   agentId?: string | null;
   /** The team the draft was written for (named at the time); where Send back to the team goes. */
@@ -1221,7 +1236,8 @@ export interface OutboxPost {
   note?: string;
   url?: string;
   to?: string;
-  reddit?: { kind: 'post' | 'comment'; subreddit?: string; title?: string; link?: string; parent?: string };
+  /** Reddit: a post or a comment; a post may carry a flair (a template id from the subreddit and/or its text). */
+  reddit?: { kind: 'post' | 'comment'; subreddit?: string; title?: string; link?: string; parent?: string; flairId?: string; flairText?: string };
   createdAt?: number;
   updatedAt?: number;
   [k: string]: unknown;
@@ -1299,6 +1315,8 @@ export interface Settings {
   maxToolSteps: number;
   costLimitUsdPerRun: number;
   contextWindowTokens: number;
+  /** A longer tool result keeps its start and end for the model; the whole text is saved in outputs. 0 = no limit. */
+  toolResultChars: number;
   /** Models starred in the model picker: they get their own tab at the front. */
   favoriteModels: FavoriteModel[];
   activeProject?: string;
@@ -1318,6 +1336,24 @@ export interface VeniceAccountInfo {
 }
 
 // ---------- engines ----------
+/** How one tool was used, counted on this computer only (data/tool-stats.json). */
+export interface ToolStat {
+  name: string;
+  calls: number;
+  errors: number;
+  denied: number;
+  /** Results that were longer than the limit and reached the model shortened. */
+  clipped: number;
+  /** Calls that asked you (or the Brain) first. */
+  asked: number;
+  totalMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  totalChars: number;
+  maxChars: number;
+  lastAt: number;
+}
+
 export interface EngineCapabilities {
   nativeSession: boolean;
   directTools: boolean;
@@ -1418,8 +1454,29 @@ export interface EveRunRecord {
   error?: string;
   endedAt?: number;
   pendingTerminal?: { line: number; status: 'completed' | 'failed' | 'stopped' | 'interrupted'; parts: string[]; error?: string };
+  /** Messages sent into this run's turn while it worked (saved before they are sent). */
+  steers?: EveSteer[];
+  /** Other deliveries its turn took in (the steers', recorded even before a steer learns its delivery) */
+  joinedDeliveries?: string[];
+  /** it follows a turn Eve started with a late steer: what came before that turn's message isn't its own */
+  adopted?: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+/** A message sent into a running Eve turn. One the turn took is in joinedDeliveries; a delivered one that
+ *  missed the turn (it ended first) starts the next turn, which a new run (adoptedBy) follows. */
+export interface EveSteer {
+  id: string;
+  text: string;
+  attachments: string[];
+  from?: string | null;
+  teamMessageId?: string;
+  deliveryId: string | null;
+  adoptedBy?: string;
+  /** it never reached Eve, or missed a team turn: the message went the ordinary way instead */
+  dropped?: boolean;
+  at: number;
 }
 
 /** One acknowledged model response, including charges that preceded a lost native checkpoint. */
@@ -1517,6 +1574,8 @@ export interface Terminal {
   exited: boolean;
   exitCode: number | null;
   command: string;
+  /** the project open when it was made (the Overview lists it there) */
+  projectId?: string;
 }
 
 /** GET /api/state: everything the browser needs to draw. */
@@ -1609,6 +1668,27 @@ export interface PresetListing {
   savedAt: number;
 }
 
+/** One of the Agent library's agents (library/athena-agents), as GET /api/library lists it: not hired yet. */
+export interface LibraryAgentListing {
+  slug: string;
+  name: string;
+  description: string;
+  emoji: string;
+  color: string;
+  specialty: string;
+  /** its group's id and label (groups.json) */
+  group: string;
+  groupLabel: string;
+  /** the tool groups it starts with */
+  tools: string[];
+  /** the skills it starts with */
+  skills: string[];
+  /** '' unless it needs one engine */
+  engine: string;
+  /** one of the starter team the Home page adds in one click */
+  starter: boolean;
+}
+
 // ---------- versions (skills, agents, teams) ----------
 export type VersionKind = 'skill' | 'agent' | 'team' | 'memory';
 /** Who replaced a version: you, the Brain, or an agent (its own MEMORY.md). */
@@ -1662,7 +1742,7 @@ export interface MemoryInfo {
 }
 
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'task' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; taskId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string };
+export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'task' | 'board' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; taskId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string; /** a task on the Tasks board it added or changed */ boardTask?: { projectId: string; id: string } };
 /** A tool the Brain used while it answered (it reads the project's files). */
 export interface BrainStep {
   id: string;
@@ -1750,6 +1830,190 @@ export interface TaskQuery {
   limit?: number;
 }
 
+// ---------- the Tasks board ----------
+/** The board's columns, in order (any can move to any other). */
+export type BoardStatus = 'todo' | 'in_progress' | 'in_review' | 'blocked' | 'done';
+export type BoardPriority = 'urgent' | 'high' | 'normal' | 'low';
+/**
+ * A task on the Tasks board (data/projects/<id>/board.json): work you track for the project, with a
+ * description, a status, a priority and someone who has it. Not the step lists agents keep in their chats.
+ */
+export interface ProjectTask {
+  id: string;
+  /** #12: counts up in each project */
+  number: number;
+  title: string;
+  description: string;
+  status: BoardStatus;
+  priority: BoardPriority;
+  /** '' (no one), 'you', 'brain', 'agent:<id>' or 'team:<id>' */
+  assignee: string;
+  /** its place in its column (smaller is higher) */
+  rank: number;
+  /** why it is Blocked (only while it is) */
+  blockedReason?: string;
+  /** 'you', 'brain' or 'agent:<id>' */
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+  /** when it went to Done */
+  doneAt?: number;
+  /** what people said about it, oldest first (Markdown) */
+  comments?: TaskComment[];
+  /** files attached to the task itself */
+  files?: TaskFile[];
+  /** the agent's or team's work on it: the one going now, or the last one */
+  work?: TaskWork;
+}
+
+/** A file on a task or a comment: a copy in the task's own project's uploads folder (path relative to it). */
+export interface TaskFile {
+  path: string;
+  name: string;
+  size: number;
+  sha256?: string;
+  /** 'you' or 'agent:<id>' */
+  by: string;
+  at: number;
+}
+
+/** Where a task's work stands. starting: saved, not started yet. waiting: it needs your OK for a step. */
+export type TaskWorkState = 'starting' | 'working' | 'waiting' | 'review' | 'blocked' | 'stopped' | 'needs-review';
+
+/** An agent or team working on a task, in a conversation of its own (board-<taskId>). One at a time. */
+export interface TaskWork {
+  /** chosen before anything starts: the run's id or the team message's id */
+  operationId: string;
+  conversationId: string;
+  /** who was given it: an agent, or a team (its private thread for this task) */
+  target: { kind: 'agent' | 'team'; id: string };
+  /** the agent's private chat for this task */
+  chatId?: string;
+  /** the team's private thread for this task */
+  teamId?: string;
+  runId?: string;
+  messageId?: string;
+  startedAt: number;
+  state: TaskWorkState;
+  endedAt?: number;
+  /** what to check, for needs-review; the reason, for blocked */
+  note?: string;
+}
+/** A comment on a board task: from you, the Brain or an agent. */
+export interface TaskComment {
+  id: string;
+  /** 'you', 'brain' or 'agent:<id>' */
+  by: string;
+  /** Markdown */
+  text: string;
+  at: number;
+  editedAt?: number;
+  files?: TaskFile[];
+}
+/** A comment as the task page shows it: with its writer's name. */
+export interface BoardComment extends TaskComment {
+  byName: string;
+  byEmoji?: string;
+}
+/** A board task as the board shows it: with its project and the names of who has it and who made it. The
+ *  board's list carries only how many comments it has; the task's own page gets them. */
+export interface BoardTask extends Omit<ProjectTask, 'comments'> {
+  commentCount: number;
+  /** the task's files and its comments' */
+  fileCount: number;
+  comments?: BoardComment[];
+  projectId: string;
+  projectName: string;
+  assigneeName: string;
+  assigneeEmoji?: string;
+  assigneeColor?: string;
+  creatorName: string;
+  /** who works on it, by name (with work) */
+  workerName?: string;
+}
+/** GET /api/task-board: the cards, and every project with how many open tasks it has. */
+export interface TaskBoardData {
+  projects: { id: string; name: string; open: number }[];
+  tasks: BoardTask[];
+}
+/** One thing on the Overview page's sidebar: an agent, a team, the Brain, or a board task being worked on. */
+export interface OverviewSession {
+  kind: 'agent' | 'team' | 'brain' | 'task' | 'terminal';
+  /** the agent's, team's or task's id ('brain' for the Brain) */
+  id: string;
+  name: string;
+  emoji?: string;
+  color?: string;
+  /** an agent's engine (its mark) */
+  engine?: EngineId;
+  /** working: running now. needs-you: an approval, a question or a stopped check waits for you. */
+  status: 'working' | 'needs-you' | 'idle';
+  /** what needs you, in a few words */
+  why?: string;
+  /** when it last changed (0: never) */
+  updatedAt: number;
+  /** an agent's newest chat */
+  chatId?: string;
+  /** a task's #number */
+  number?: number;
+  /** a terminal whose program has ended */
+  ended?: boolean;
+}
+/** A project on the Overview page, with its sessions and how many work or need you. */
+export interface OverviewProject {
+  id: string;
+  name: string;
+  sessions: OverviewSession[];
+  working: number;
+  needsYou: number;
+  /** open tasks on its board */
+  boardOpen: number;
+}
+/** GET /api/overview: every project at a glance (names and times only, no chat contents). */
+export interface OverviewData {
+  /** the project open now */
+  active: string;
+  projects: OverviewProject[];
+}
+/** One entry of a project folder, as the Overview's Files panel lists it. */
+export interface FolderEntry {
+  name: string;
+  dir: boolean;
+  /** bytes (files only) */
+  size?: number;
+  /** the full path */
+  path: string;
+  /** the path from the project folder ('/'-separated) */
+  rel: string;
+}
+/** GET /api/projects/:id/folder: one folder of a project, its folders first. */
+export interface FolderListing {
+  /** the folder's path from the project folder ('' for the project folder itself) */
+  rel: string;
+  entries: FolderEntry[];
+  /** entries left out past the limit */
+  more: number;
+}
+/** POST /api/task-board-draft: the Brain drafts a task's title and description, or a comment. */
+export interface BoardDraftInput {
+  projectId: string;
+  kind: 'task' | 'comment';
+  /** the task a comment (or a task's new description) is for */
+  taskId?: string;
+  title?: string;
+  description?: string;
+  /** the comment written so far */
+  text?: string;
+  /** what the user wants it to say */
+  instruction?: string;
+}
+export type BoardDraft = { kind: 'task'; title: string; description: string } | { kind: 'comment'; text: string };
+/** Who a project's tasks can go to (the new task window and the task page). */
+export interface BoardPeople {
+  agents: { id: string; name: string; emoji?: string; color?: string }[];
+  teams: { id: string; name: string }[];
+}
+
 /** Work the Brain handed to a team or an agent, and how its follow-up went (data/projects/<id>/brain-briefs.json). */
 export interface BrainBrief {
   id: string;
@@ -1768,6 +2032,11 @@ export interface BrainBrief {
   status: 'open' | 'done' | 'blocked' | 'stuck' | 'stopped' | 'replaced' | 'cleared';
   /** Created from an ordinary assignment; no command is needed. */
   automatic?: boolean;
+  /** An automatic brief the agent (set_goal), the team's lead or the Brain's check saw as real work:
+   *  only then does it show as a goal. Until then it may still turn out to be a simple question. */
+  recognized?: boolean;
+  /** What done looks like, as the agent or the team's lead put it with set_goal (the user's words stay in goal). */
+  doneWhen?: string;
   revision?: number;
   stalled?: number;
   /** Evidence of the last advance, for detecting repeated claims of progress. */

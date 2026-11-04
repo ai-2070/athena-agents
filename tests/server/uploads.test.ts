@@ -78,9 +78,11 @@ describe('receiving files', () => {
     await expect(receive(body('x'), '../x', 'a.md')).rejects.toThrow(/Bad upload batch/);
   });
 
-  it('refuses a file that says it is too big', async () => {
+  it('takes a file of any size, and keeps a limit a caller passes (a gateway\'s)', async () => {
     const { batch } = newBatch();
-    await expect(receive(body('x', { 'content-length': String(600 * 1024 * 1024) }), batch, 'big.bin')).rejects.toThrow(/over 500 MB/);
+    const big = await receive(body('x', { 'content-length': String(600 * 1024 * 1024) }), batch, 'big.bin');
+    expect(fs.readFileSync(big.path, 'utf8')).toBe('x');
+    await expect(receiveSource(body('x'), batch, 'capped.bin', { declaredBytes: 2 * 1024 * 1024, maxBytes: 1024 * 1024 })).rejects.toThrow(/over 1 MB/);
   });
 });
 
