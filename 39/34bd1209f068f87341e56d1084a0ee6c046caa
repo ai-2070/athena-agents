@@ -1,0 +1,32 @@
+skills/athena/comfyui/SKILL.md
+  s_09ac87e46cf718::t_fb878dc46ce8f4 6
+  s_09ac87e46cf718::t_3368917a259c0d 3,8-13,17-23,29-32,48-54,91-108,112,115-119,131-137,155-156,189-191
+README.md
+  s_09ac87e46cf718::t_b085a89e52ef7e 138
+docs/guide.md
+  s_09ac87e46cf718::t_bf31f834428143 313,322
+skills/athena/comfyui/references/api.md
+  s_09ac87e46cf718::t_3d58fec3cfe2ba 31-32,76-77
+skills/athena/comfyui/references/first-inpaint.md
+  s_09ac87e46cf718::t_62b174f64c7c2f 50-51
+skills/athena/comfyui/references/setup-and-deps.md
+  s_09ac87e46cf718::t_00b155f54cb079 29-31,33-38,67-70
+skills/athena/comfyui/references/workflow-format.md
+  s_09ac87e46cf718::t_f5537ecdcd47f1 14-21,64-65,72-74,120-121,142-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3934bd1209f068f87341e56d1084a0ee6c046caa",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
