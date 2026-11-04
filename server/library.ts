@@ -22,6 +22,27 @@ export interface AgencyAgent {
   file: string;
 }
 
+/** One of Athena's agents (library/athena-agents), not hired yet. */
+export interface LibraryAgent {
+  slug: string;
+  name: string;
+  description: string;
+  emoji: string;
+  color: string;
+  specialty: string;
+  group: string;
+  groupLabel: string;
+  /** the tool groups it starts with */
+  tools: string[];
+  /** the skills it starts with */
+  skills: string[];
+  /** '' unless it needs one engine */
+  engine: string;
+  /** one of the starter team the Home page adds in one click */
+  starter: boolean;
+  file: string;
+}
+
 /** A Claude Code subagent (~/.claude/agents/<slug>.md). */
 export interface ClaudeSubagent {
   slug: string;
@@ -81,6 +102,52 @@ export function agencyAgents(): AgencyAgent[] {
   for (const d of listDirs(AGENCY_DIR)) if (!SKIP_DIRS.has(d) && !d.startsWith('.') && (!known.size || known.has(d))) visit(path.join(AGENCY_DIR, d), d);
   agencyCache = out.sort((a, b) => a.division.localeCompare(b.division) || a.name.localeCompare(b.name));
   return agencyCache;
+}
+
+// Athena's agents: the rewritten library that replaces The Agency (its README.md has the standard each file follows).
+// Only the folders groups.json names are read, in its order.
+const LIBRARY_DIR = path.join(ROOT, 'library', 'athena-agents');
+const commaList = (v: string | undefined): string[] => (v || '').split(',').map((x) => x.trim()).filter(Boolean);
+
+let libraryCache: LibraryAgent[] | null = null;
+export function libraryAgents(): LibraryAgent[] {
+  if (libraryCache) return libraryCache;
+  const groups = readJSON<{ groups?: { id?: string; label?: string }[] }>(path.join(LIBRARY_DIR, 'groups.json'), {}).groups || [];
+  const out: LibraryAgent[] = [];
+  for (const g of groups) {
+    if (!g.id) continue;
+    const dir = path.join(LIBRARY_DIR, g.id);
+    const here: LibraryAgent[] = [];
+    for (const f of listFiles(dir, (n) => n.endsWith('.md'))) {
+      const file = path.join(dir, f);
+      let text = '';
+      try {
+        text = fs.readFileSync(file, 'utf8');
+      } catch {
+        continue;
+      }
+      const { meta } = parseFrontmatter(text);
+      if (!meta.name) continue;
+      here.push({
+        slug: f.replace(/\.md$/, ''),
+        name: meta.name,
+        description: meta.description || '',
+        emoji: meta.emoji || '🤖',
+        color: meta.color || '',
+        specialty: meta.specialty || '',
+        group: meta.group || g.id,
+        groupLabel: g.label || g.id,
+        tools: commaList(meta.tools),
+        skills: commaList(meta.skills),
+        engine: meta.engine || '',
+        starter: meta.starter === 'true',
+        file,
+      });
+    }
+    out.push(...here.sort((a, b) => a.name.localeCompare(b.name)));
+  }
+  libraryCache = out;
+  return libraryCache;
 }
 
 export function claudeSubagents(): ClaudeSubagent[] {

@@ -1,6 +1,6 @@
 # Agent library: rewrite the specialists, then retire The Agency
 
-4 November 2026. Draft for review. Nothing is written or changed yet.
+4 November 2026. Approved the same day with the answers below; work has started.
 
 ## In short
 
@@ -14,10 +14,13 @@ Decided with the user:
 | Question | Answer |
 |---|---|
 | Shape | Better agent files: one Markdown file per agent, as today. Hiring copies its text into a new agent |
-| Which ones | A shortlist of about 80 (below). The user approves or edits it before any writing starts |
+| Which ones | The 80 below, approved as listed |
+| Groups | 9: Testing and Security are part of Engineering, and Finance of Business and finance |
 | Where | A new folder. `library/agency-agents/` stays unchanged until the last step, then it is deleted |
 | Athena's 8 | Rewritten into the same folder, to the same standard. One list in the Library |
 | Agents already hired | Left alone. They keep their copy of the old text and keep working |
+| Backwards compatibility | None. The Agency keeps working untouched until the switch at the end. Nothing matches old hires or old slugs to the new agents, and nothing hides old entries in between |
+| Shared line | Agents hired from the new library get one more sentence from the dashboard: their role is where they're strongest, not a limit. Agents people wrote themselves don't |
 | Review | 5 samples first for the user to approve the style, then batches of about 10. A second agent checks each file and the user skims each batch |
 | Scope | A role is where an agent is strongest, not a fence. As models and their tools get better, agents take on nearby work themselves instead of refusing it or handing it off (see [Roles are a starting point](#roles-are-a-starting-point)) |
 
@@ -61,7 +64,6 @@ specialty: reviews code changes and says what to fix first
 group: engineering
 tools: files, programs, agents
 skills: requesting-code-review, independent-review
-replaces: engineering-code-reviewer
 ---
 ```
 
@@ -71,12 +73,11 @@ replaces: engineering-code-reviewer
 | `description` | One sentence: what it does and when you'd pick it. The card shows it, and the Brain reads it when it picks a teammate |
 | `color` | Hex, mid-tone, readable on white and near-black (the upstream files have `cyan`, `neon-cyan`) |
 | `specialty` | Lower-case phrase that finishes "You are Code Reviewer, …" in `buildSystemPrompt` |
-| `group` | An id from `groups.json` (label, Lucide icon, colour), the chips in the Library |
+| `group` | An id from `groups.json` (id and label, in the order the Library's chips show them) |
 | `tools` | The tool groups it starts with, from `TOOL_GROUPS` (`server/tools.ts`). Replaces `suggestTools`. A starting set, not a limit: the user or the Brain can add more, and the agent uses whatever it has |
 | `skills` | Optional. Bundled skill slugs it starts with, on the same terms. Hiring keeps only the ones in the user's skill library |
 | `engine` | Optional. Only where the agent needs one (Mail Assistant: `claude-code`, for the Gmail connector) |
 | `starter` | `true` on Athena's 8. The Home page's "add the starter team" hires these |
-| `replaces` | The old Agency slugs (and `starter:<Name>` for Athena's 8) this agent takes over. Used for the Brain's reuse check and for credit |
 
 ### Body
 
@@ -137,11 +138,11 @@ Models and their tools keep getting better, so the files are written to age well
 
 ## The list: 80 from The Agency, plus Athena's 8
 
-For the user to edit. Each line: the new agent, then the old files it takes over. 136 of the 283 old files fold into
+Approved as listed. Each line: the new agent, then the old files it takes over (a record of where each one went, and the credit). 136 of the 283 old files fold into
 these 80; the other 147 are left out (see below). Slugs drop the division prefix (`frontend-developer`). ★ marks
 Athena's 8.
 
-### Engineering (16)
+### Engineering (26)
 
 - **Software Architect**: system design, trade-offs, decision records. Replaces `engineering-software-architect`, `specialized-master-plan-architect`
 - **Backend Architect**: services, APIs, data models. Replaces `engineering-backend-architect`, `engineering-api-platform-engineer`
@@ -160,7 +161,7 @@ Athena's 8.
 - **MCP Builder**: writes MCP servers for agents. Replaces `specialized-mcp-builder`
 - **Technical Writer**: docs, READMEs, tutorials. Replaces `engineering-technical-writer`
 
-### Testing (5)
+#### Testing
 
 - **Reality Checker**: "show me it works": checks claims against evidence before anything is called done. Replaces `testing-reality-checker`, `testing-evidence-collector`
 - **API Tester**: Replaces `testing-api-tester`
@@ -168,7 +169,7 @@ Athena's 8.
 - **Accessibility Auditor**: WCAG and assistive technology, Section 508 included. Replaces `testing-accessibility-auditor`, `engineering-section-508-specialist`
 - **Performance Benchmarker**: Replaces `testing-performance-benchmarker`
 
-### Security (5)
+#### Security
 
 - **Application Security Engineer**: secure code review and threat models for an app. Replaces `security-appsec-engineer`, `security-senior-secops`
 - **AI Code Security Auditor**: the holes that AI-written apps tend to have. Replaces `security-ai-generated-code-auditor`
@@ -245,14 +246,7 @@ Athena's 8.
 - **Business Strategist**: Replaces `business-strategist`
 - **Tool Evaluator**: which app or service to use, and why. Replaces `testing-tool-evaluator`
 
-### Finance (4)
-
-- **Financial Analyst**: models, budgets, forecasts. Replaces `finance-financial-analyst`, `finance-fpa-analyst`, `support-finance-tracker`
-- **Bookkeeper**: Replaces `finance-bookkeeper-controller`
-- **Investment Researcher**: Replaces `finance-investment-researcher`
-- **Pricing Analyst**: Replaces `specialized-pricing-analyst`
-
-### Business and people (10)
+### Business and finance (14)
 
 - ★ **Coordinator**: plans the work and hands pieces to teammates. Replaces `starter:Coordinator`, `agents-orchestrator`
 - ★ **Mail Assistant**: Replaces `starter:Mail Assistant`
@@ -264,6 +258,13 @@ Athena's 8.
 - **Translator**: any pair of languages, not only Spanish and English. Replaces `language-translator`
 - **Document Maker**: PDF, Word, Excel and PowerPoint files. Replaces `specialized-document-generator`
 - **Notes Steward**: keeps a knowledge base of linked notes (Zettelkasten). Replaces `zk-steward`
+
+#### Finance
+
+- **Financial Analyst**: models, budgets, forecasts. Replaces `finance-financial-analyst`, `finance-fpa-analyst`, `support-finance-tracker`
+- **Bookkeeper**: Replaces `finance-bookkeeper-controller`
+- **Investment Researcher**: Replaces `finance-investment-researcher`
+- **Pricing Analyst**: Replaces `specialized-pricing-analyst`
 
 ### Left out (147)
 
@@ -283,13 +284,12 @@ Close calls, the first to swap in if you want different ones: Tax Strategist, De
 Engineer, Multi-Agent Systems Architect, Level Designer, Compliance Auditor, Incident Responder (security), Personal
 Growth Mentor, Global Podcast Strategist, Internationalization Engineer.
 
-Any of them can be added back. The full mapping of the 283 old slugs (where each one went, or "left out") goes into the
-new folder's README in the first commit.
+Any of them can be added back. The new folder's README records where each of the 283 old files went, or that it was left out.
 
 ## How the writing goes
 
-1. **The user approves this list** (edits welcome).
-2. **Plumbing** (code, below), with one placeholder agent so the tests have something to read.
+1. **The list is approved** (done).
+2. **The new folder, its reader and the format checks** (step 1 below).
 3. **5 samples** across very different kinds of work: Code Reviewer, LinkedIn Writer, UX Researcher, Financial Analyst,
    Technical Artist. For each one, hire the old and the new version on a second dashboard with a throwaway data
    folder (`DASH_DATA=<scratch> bun server/index.ts --port 4900 --no-open`) and give both the same three tasks with
@@ -297,9 +297,8 @@ new folder's README in the first commit.
    it (ask the Code Reviewer to fix what it found too, or the LinkedIn Writer for the X version as well). The new
    version should take the third one on. That's 30 short runs. The user sees one pair of answers per sample, the files and
    the standard, and says what to change. The standard is then fixed in the README.
-4. **Batches of about 10**, in this order: Athena's 8 (this batch also removes `STARTERS`, see below); engineering;
-   testing and security; design and product; marketing (two batches); sales, support and research; finance and
-   business; games. For each batch:
+4. **Batches of about 10**, in this order: Athena's 8; engineering; testing and security; design and product;
+   marketing (two batches); sales, support and research; business and finance; games. For each batch:
    - one writer subagent per agent, all at once. Each gets the standard, the old files it replaces (as a list of
      topics only), what the dashboard adds to every prompt, the tool groups and skills it may use, and the rule to
      check version facts against current docs;
@@ -307,66 +306,69 @@ new folder's README in the first commit.
      including anything that fences the role in (refusing nearby work, "only" rules, claims about what the model
      can't do);
    - I fix what it found, run `bun run check`, and commit. The user skims the batch.
-5. **Retire The Agency** (below) once all 88 are in.
+5. **The switch** (step 2 below) once all 88 are in.
 
 ## Code changes
 
-### Step 1: the new folder next to the old one
+No backwards compatibility: until the switch, the new folder is only read by its tests, and The Agency, the Athena tab
+and the Brain work exactly as they do today. The switch then moves everything over in one commit.
 
-- `library/athena-agents/`: one folder per group, `groups.json`, `README.md` (the standard, the old-to-new mapping and
-  the credit), and upstream's MIT `LICENSE` kept as `LICENSE-agency-agents`, since the role list came from there.
-- `server/library.ts`: `libraryAgents()` reads the new folder (same reader as `agencyAgents()`, plus the new keys) and
-  `hireFromLibrary(slug)` takes tools, skills and engine from the frontmatter. While both exist, `agencyAgents()` hides
-  any old slug that a new agent `replaces`, so nothing shows up twice.
-- `shared/types.ts`: a `LibraryAgentListing` type for the page, and `'library'` as a source type. A hire's source is
-  `{ type: 'library', slug, division: group }`, so the agent charts (`web/agentstats.ts`) group it.
-- `server/index.ts`: `GET /api/library` returns `agents` (the new list) next to `agency`, `hermes` and `claude`.
-  `GET /api/library/agent/:slug` returns the body for the preview, and `POST /api/library/hire` takes `source: 'library'`.
-- `server/overseer.ts`: the Brain's catalogue lists the new agents first (`slug | name | specialty`), and
-  `{"library":"<slug>"}` looks in the new list before the old one. The reuse check also matches an agent hired under
-  an old slug in `replaces` or as an old starter of the same name, so the Brain doesn't hire a second copy of a role
-  someone already has.
-- `web/views/library.tsx`: the Athena tab becomes the full list: search, group chips (a "Starter team" chip first),
-  cards, preview, Hire. The Agency tab stays until step 3, with the replaced entries hidden.
+### Step 1: the new folder and its checks
 
-### Step 2: with the Athena batch
+- `library/athena-agents/`: one folder per group, `groups.json`, `README.md` (the standard, where each old file went,
+  and the credit), and upstream's MIT `LICENSE` kept as `LICENSE-agency-agents`, since the role list came from there.
+- `server/library.ts`: `libraryAgents()` reads the new folder (name, description, emoji, colour, specialty, group,
+  tools, skills, engine, starter). Nothing else calls it yet.
+- `server/skills.ts`: export the built-in skill slugs, so the tests can check each agent's skills exist.
+- `tests/server/library.test.ts`: the format checks (see Tests).
 
-- Remove `STARTERS`, `Starter` and `createStarter` from `server/library.ts`; the 8 are files now.
-- `server/overseer.ts`: drop the `{"starter": …}` member and the separate ATHENA AGENTS list from the Brain's prompt. The
-  catalogue becomes one list.
+### Step 2: the switch
+
+One commit, once all 88 are written:
+
+- `server/library.ts`: `hireFromLibrary(slug)` takes tools, skills and engine from the frontmatter, with source
+  `{ type: 'library', slug, division: group }` so the agent charts (`web/agentstats.ts`) group it. Delete
+  `agencyAgents`, `hireFromAgency`, `suggestTools`, `STARTERS`, `Starter` and `createStarter`.
+- `server/engines/index.ts`: `buildSystemPrompt` adds the shared line for agents whose source is `library`: their role
+  is where they're strongest, not a limit, so they take on nearby work they can do well with the tools they have.
+- `shared/types.ts`: a `LibraryAgentListing` type for the page; `'library'` replaces `'agency'` and `'starter'` among the
+  source types.
+- `server/index.ts`: `GET /api/library` returns `agents` (the new list), `hermes` and `claude`, with no `agency` or
+  `starters`. `GET /api/library/agent/:slug` replaces `/api/library/agency/:slug`, and `POST /api/library/hire`
+  takes `source: 'library'` in place of `'agency'` and `'starter'`.
+- `server/overseer.ts`: one catalogue (`slug | name | specialty`) hired with `{"library":"<slug>"}`; the
+  `{"starter": …}` member and the separate ATHENA AGENTS list go. The reuse check matches the new source only.
+- `web/views/library.tsx`: one Athena tab with all 88: search, group chips (a "Starter team" chip first), cards,
+  preview, Hire. The Agency tab and its types go.
 - `web/views/home.tsx`: "add the starter team" hires the agents marked `starter: true`.
-- `tests/server/overseer.test.ts` checks `STARTERS` today; it checks the 8 starter files instead.
-
-### Step 3: retire The Agency
-
-- Delete `library/agency-agents/`, `agencyAgents`, `hireFromAgency`, `suggestTools`, `/api/library/agency/:slug`, the
-  `agency` part of `/api/library`, the Agency tab and its types, and the hiding from step 1.
-- Keep `'agency'` and `'starter'` as known source types. Old hires still show "from agency (slug)" on their page and
-  still count in the charts.
+- Delete `library/agency-agents/`.
 - `scripts/build-desktop.ts` copies all of `library/`, so nothing changes there; `bun run desktop:smoke` confirms it.
 
 ### Agents already hired
 
-Left alone, as decided. Their text is a copy, so deleting the old folder doesn't touch them. Nothing in the code reads
-an old Agency file after hiring, except the Brain's reuse check, which step 1 covers.
+Left alone, as decided, and nothing is kept for them. Their text is a copy, so deleting the old folder doesn't touch
+them. They no longer count as library hires: the Brain won't reuse them for a role, and the charts list them by the
+old division they were saved with.
 
 ## Tests
 
-- `tests/server/library.test.ts`, rewritten for the new folder:
+- `tests/server/library.test.ts`, for the new folder (step 1, and rewritten at the switch):
   - every file has name, description, emoji, a hex colour, specialty and a group from `groups.json`;
   - every tool is in `TOOL_GROUPS`, and every skill is bundled or built-in;
   - slugs are unique and match the file name;
-  - exactly 8 have `starter: true`;
+  - exactly 8 have `starter: true` (from the Athena batch on);
   - each file is 40 to 180 lines;
   - none has the old template's tells: emoji headings, "Identity & Memory", "Success Metrics", "You remember",
     an opening "You are **";
-  - none has fence phrases ("outside your scope", "not your job", "you cannot", "only handle");
-  - hiring copies the body, tools, skills and engine, and leaves the file alone.
-- While both folders exist, a test that a replaced old slug no longer shows in The Agency's list.
-- `tests/server/overseer.test.ts`: the catalogue lists the new agents; `{"library": slug}` hires one; an agent hired
-  under an old slug or as an old starter is reused, not hired again.
-- `tests/web/library.test.tsx`: one list, group chips, the "Starter team" chip, preview, and hiring sends `source: 'library'`.
-- A Home page test that the starter team hires the 8.
+  - none fences the role in ("outside your scope", "not your job") or states the model's limits ("you can't browse");
+  - no frontmatter key outside the list above;
+  - hiring copies the body, tools, skills and engine, and leaves the file alone (at the switch).
+- At the switch:
+  - `tests/server/overseer.test.ts`: the catalogue lists the 88; `{"library": slug}` hires one, and a second ask
+    for the same slug reuses it;
+  - a test that library hires get the shared line and other agents don't;
+  - `tests/web/library.test.tsx`: one list, group chips, the "Starter team" chip, preview, and hiring sends `source: 'library'`;
+  - a Home page test that the starter team hires the 8.
 
 The tests check the format; whether the writing is any good is for the reviewer agent and the user.
 
@@ -382,23 +384,15 @@ The tests check the format; whether the writing is any good is for the reviewer 
 
 ## Commits
 
-Each one passes `bun run check` on its own and could be merged by itself.
+Each one passes `bun run check` on its own.
 
-1. `Library: a new folder of ready-made agents next to The Agency`
+1. `Library: a new folder for the rewritten agents, with checks on how each is written`
 2. `Library: five rewritten agents to settle the style`
-3. `Library: Athena's eight agents are files now, in the same list`
-4. `Library: rewrite the engineering agents`, and one more per batch
-5. `Library: retire The Agency; the 88 rewritten agents are the whole library`
+3. `Library: Athena's eight agents as files`, then one commit per batch (`Library: rewrite the engineering agents`…)
+4. `Library: switch to the 88 rewritten agents and retire The Agency`
 
-## Open questions
+## Settled
 
-1. **The list.** Add, cut or merge anything. In particular: should one "China market" agent stand in for the ~25
-   China-platform agents, and does any left-out division (GIS, healthcare, XR) matter to your users?
-2. **Group names and order.** Twelve groups as above, or fewer (testing into engineering, finance into business)?
-3. **Plainer names?** The plan keeps familiar job titles. Some could be plainer ("Reality Checker" → "Fact Checker").
-4. **The Brain and old hires.** The plan has the Brain reuse an old hire for the same role, so there are no
-   duplicates. The other choice is that it always hires the new version.
-5. **One shared line for room to grow?** Besides each file's "Beyond your role", `buildSystemPrompt` could add one
-   sentence to every agent ("Your role is where you're strongest, not a limit: take on nearby work you can do well
-   with the tools you have"). Then how far agents reach can be widened later in one place instead of 88 files. It
-   would also reach agents people made themselves, which is why it's a question.
+Answered on 4 November: the list goes ahead as is (no China market agent for now); 9 groups; familiar job titles stay,
+and names can still change when the samples are reviewed; no backwards compatibility; the shared line goes to
+library hires only.

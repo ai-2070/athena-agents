@@ -541,6 +541,9 @@ export function bundledSkills(): BundledSkill[] {
   return out.sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
+/** Every skill the dashboard comes with: its own and the bundled ones. */
+export const shippedSkillSlugs = (): string[] => [...BUILTIN.map((b) => b.slug), ...bundledSkills().map((b) => b.slug)];
+
 export function ensureBuiltinSkills() {
   const marker = path.join(LIB(), '.builtin.json');
   const added = readJSON<{ added: string[] }>(marker, { added: [] }).added;
