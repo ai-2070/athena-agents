@@ -122,6 +122,7 @@ describe("Athena's agents", () => {
       expect(meta.description, at).toBeTruthy();
       // the Brain reads every description when it picks teammates
       expect(meta.description.split(/\s+/).length, `${at}: description too long`).toBeLessThanOrEqual(35);
+      expect(meta.description, `${at}: description is more than one sentence`).not.toMatch(/[.!?;]\s+[A-Z]/);
       expect(meta.emoji, at).toBeTruthy();
       expect(meta.color, at).toMatch(/^#[0-9a-f]{6}$/i);
       // it finishes "You are <name>, <specialty>."
