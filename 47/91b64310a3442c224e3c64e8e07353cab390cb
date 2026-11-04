@@ -1,0 +1,29 @@
+skills/athena/grounded-citations/references/fact-checking.md
+  s_09ac87e46cf718::t_920eb4f08235fd 1-93
+tests/skills/grounded-citations/test_sources.py
+  s_09ac87e46cf718::t_ec6831c45e6dd3 1-512
+  s_09ac87e46cf718::t_bd2560188dda9e 513-529
+skills/athena/grounded-citations/references/citation-formats.md
+  s_09ac87e46cf718::t_13295ac53efb25 1-74
+skills/athena/grounded-citations/scripts/sources.py
+  s_09ac87e46cf718::t_cb6591d051103d 1-1132
+  s_09ac87e46cf718::t_24c371e6f4d500 1133-1171
+skills/athena/grounded-citations/SKILL.md
+  s_09ac87e46cf718::t_9d6df3a7b4e4d4 1-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4791b64310a3442c224e3c64e8e07353cab390cb",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
