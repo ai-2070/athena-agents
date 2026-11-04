@@ -9,6 +9,7 @@ import { activeTeamAssignment } from '../teamwork.ts';
 import { EVE_GENERATION } from './version.ts';
 import { RecordFiles } from './records.ts';
 import { eveCounts } from './counts.ts';
+import { forgetRunSnapshot } from './snapshot.ts';
 import type { Agent, Chat, EveModelCharge, EveRunRecord, EveRunStatus, EveSessionBinding, Project, RunEvent } from '../../shared/types.ts';
 
 const idOk = (id: string) => /^[a-zA-Z0-9_-]{1,120}$/.test(id);
@@ -130,9 +131,13 @@ const terminal = runEnded;
 
 // The run each binding is working on, so a bridge call checks one file instead of listing every run.
 const workingRuns = new Map<string, string>();
+// The definition each working run last recorded, so an unchanged one is neither hashed nor saved again.
+const configurations = new Map<string, string>();
 
 function forgetRunMemory(run: Pick<EveRunRecord, 'id' | 'bindingId'>): void {
   if (workingRuns.get(run.bindingId) === run.id) workingRuns.delete(run.bindingId);
+  configurations.delete(run.id);
+  forgetRunSnapshot(run.id);
 }
 
 function saveRun(run: EveRunRecord): EveRunRecord {
@@ -184,11 +189,16 @@ export function beginRun(id: string, bindingId: string, depth = 0, parentRunId: 
 }
 
 export function recordConfiguration(id: string, definition: unknown): void {
+  const saved = readRunSummary(id);
+  if (!saved) throw new Error('No such Eve run.');
+  if (terminal(saved.status)) throw new Error('A finished Eve run cannot change configuration.');
+  const text = JSON.stringify(definition);
+  if (configurations.get(id) === text) return;
   const run = readRun(id);
   if (!run) throw new Error('No such Eve run.');
-  if (terminal(run.status)) throw new Error('A finished Eve run cannot change configuration.');
-  const version = crypto.createHash('sha256').update(JSON.stringify(definition)).digest('hex');
+  const version = crypto.createHash('sha256').update(text).digest('hex');
   if (run.configurationVersions.at(-1) !== version) saveRun({ ...run, configurationVersions: [...run.configurationVersions, version], updatedAt: Date.now() });
+  configurations.set(id, text);
 }
 
 export function recordLimit(id: string, limitReason: string): void {

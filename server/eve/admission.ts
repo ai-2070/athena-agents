@@ -14,6 +14,7 @@ import type { Client } from 'eve/client';
 import { selectEveModel } from './model.ts';
 import { fileTokens } from './media.ts';
 import { RecordFiles } from './records.ts';
+import { buildInstructions, keepInstructions } from './snapshot.ts';
 
 import { EVE_GENERATION } from './version.ts';
 export { EVE_GENERATION } from './version.ts';
@@ -137,11 +138,11 @@ export async function prepareAdmission(runId: string, project: Project): Promise
       history.push({ id: key, role: 'user', text: item.text });
     }
     const message = messageParts(receipt);
-    const [{ buildSystemPrompt }, { richSection }, { gatherTools }] = await Promise.all([import('../engines/index.ts'), import('../richanswers.ts'), import('../apitools.ts')]);
+    const { gatherTools } = await import('../apitools.ts');
     const current = sessionContext(binding.id);
-    const [{ defs }, rich] = await Promise.all([gatherTools(current.agent, () => {}, { engine: 'eve', conversationId: chat.conversationId }), richSection(current.agent, chat, receipt.depth)]);
+    const [{ defs }, instructions] = await Promise.all([gatherTools(current.agent, () => {}, { engine: 'eve', conversationId: chat.conversationId }), buildInstructions(current.agent, chat, receipt.depth)]);
     const window = selection.contextWindow;
-    const standing = JSON.stringify({ instructions: buildSystemPrompt(current.agent) + rich, tools: defs });
+    const standing = JSON.stringify({ instructions, tools: defs });
     const envelope = Math.max(estimateTokens(standing), Math.ceil(Buffer.byteLength(standing) / 4)) + 1024;
     const addressed = messageTokens(message);
     // Eve retains at most 20k tokens or half its remaining compaction threshold for the current input.
@@ -155,6 +156,8 @@ export async function prepareAdmission(runId: string, project: Project): Promise
     if (receiptFor(runId).stopRequested || receiptFor(runId).status !== 'running') throw new Error('Stopped.');
     sessionContext(binding.id);
     beginRun(runId, binding.id, receipt.depth, receipt.parentRunId);
+    // The run sends the instructions measured here, built once for the whole run.
+    keepInstructions(runId, instructions);
     const input = { id: runId, bindingId: binding.id, mode: binding.sessionId ? 'send' : 'create', sessionId: binding.sessionId, message, history, historyKeys, selection, messageHash: hash(message), status: 'prepared', createdAt: Date.now() } satisfies Omit<EveAdmissionRecord, 'fingerprint'>;
     const record: EveAdmissionRecord = { ...input, fingerprint: hash(identity({ ...input, fingerprint: '' })) };
     files.write(file(runId), record);
