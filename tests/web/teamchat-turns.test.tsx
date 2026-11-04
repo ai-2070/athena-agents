@@ -246,11 +246,11 @@ describe('team chat turns', () => {
     document.body.append(el);
     open = renderTeamChat(el, 't1');
     await settle();
-    const report = el.querySelector('.tc-report')!;
+    const report = el.querySelector('.report-line')!;
     expect(report.firstElementChild!.textContent).toBe('Delegated work for @Maker finished.');
     expect(el.textContent).not.toContain('Honeycomb');
     // a plain line has nothing to open
-    expect(el.querySelectorAll('.tc-report')).toHaveLength(1);
+    expect(el.querySelectorAll('.report-line')).toHaveLength(1);
     expect(el.textContent).toContain('Stopped. Nothing new will start until you write again.');
     const trigger = report.querySelector<HTMLButtonElement>('button')!;
     expect(trigger.textContent).toBe('Show the report');

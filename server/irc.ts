@@ -466,7 +466,7 @@ function ended(e: RunEnd): void {
     withProject(pending.project, () => {
       const g = listBriefs().findLast((b) => b.status === 'open' && b.kind === 'agent' && b.targetId === pending.end.agentId && b.chatId === pending.end.chatId);
       if (g) {
-        if (children.length) addChatNote(pending.end.agentId, pending.end.chatId, `Delegated work finished:\n${children.map(([, child]) => `${child.agentId}: ${child.stopped ? 'Stopped.' : child.failed ? 'Failed.' : child.answer}`).join('\n\n')}`);
+        if (children.length) addChatNote(pending.end.agentId, pending.end.chatId, `Delegated work finished:\n${children.map(([, child]) => `**${agents.get(child.agentId)?.name || 'A member'}:** ${child.stopped ? 'Stopped.' : child.failed ? 'Failed.' : child.answer}`).join('\n\n')}`);
         void agentFinished(g.id, pending.project.id, pending.end.answer, pending.end.stopped, pending.end.failed);
       }
     });

@@ -18,6 +18,7 @@ import { mentionPreviews } from './filepreview.tsx';
 import { ChatProject } from './chat/project.ts';
 import { modelChip } from './models.tsx';
 import { CollapseRoot, CollapseTrigger, CollapsePanel } from './ui/collapse.tsx';
+import { ReportLine, splitReport } from './ui/report.tsx';
 import { slideIn, reducedMotion } from './motion.ts';
 import { useFind } from './ui/find.tsx';
 import { queuedText } from '../shared/queue.ts';
@@ -375,26 +376,15 @@ function Work({ m, shown = false }: { m: TeamMessage; shown?: boolean }) {
   );
 }
 
-/** A line from the dashboard. One that heads a long report ("Delegated work for @X finished:" and the
- *  answer under it) shows just its heading: the agents read the whole report, you open it if you want it. */
+/** A line from the dashboard. One that heads a long report shows just its heading; the report opens under it. */
 function SystemLine({ text, names, teams }: { text: string; names: string; teams: string }) {
-  const [open, setOpen] = useState(false);
   const line = 'text-center text-[12.5px] leading-[normal] font-normal text-faint py-1';
-  const split = /^([^\n]*):\n+([\s\S]*\S[\s\S]*)$/.exec(text);
+  const split = splitReport(text);
   if (!split) return <div className={line}>{text}</div>;
   return (
-    <CollapseRoot className="tc-report flex flex-col items-center" open={open} onOpenChange={setOpen}>
-      <div className={line}>{split[1]}.</div>
-      <CollapseTrigger className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint transition-colors duration-200 ease-in-out hover:text-ink">
-        <Icon name="chevron-down" size={12} className={`transition-transform duration-200 ease-in-out ${open ? 'rotate-180' : ''}`} />
-        {open ? 'Hide the report' : 'Show the report'}
-      </CollapseTrigger>
-      <CollapsePanel className="w-full">
-        <div className="mt-2 rounded-box border border-line bg-panel px-4 py-3 text-left">
-          <DomNode className="dom-contents" make={() => textWithMentions(split[2], names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[text, names, teams]} />
-        </div>
-      </CollapsePanel>
-    </CollapseRoot>
+    <ReportLine heading={split.heading} lineClass={line}>
+      <DomNode className="dom-contents" make={() => textWithMentions(split.report, names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[text, names, teams]} />
+    </ReportLine>
   );
 }
 

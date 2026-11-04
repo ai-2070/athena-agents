@@ -55,3 +55,25 @@ describe('a message that joined the turn', () => {
     expect(el.querySelectorAll('.msg.error')).toHaveLength(0);
   });
 });
+
+describe('a dashboard note that heads a report', () => {
+  it('shows its heading, and the report only when opened', async () => {
+    const el = await draw([
+      { type: 'user', text: 'finish the goal with a helper' },
+      { type: 'meta', text: 'Delegated work finished:\n**Holder:** Nine rows, each with a live job post.' },
+      { type: 'meta', text: 'Goal reached.' },
+    ]);
+    const report = el.querySelector('.report-line')!;
+    expect(report.querySelector('.msg.meta')!.textContent).toBe('Delegated work finished.');
+    expect(el.textContent).not.toContain('Nine rows');
+    expect(el.querySelectorAll('.report-line')).toHaveLength(1);
+    expect([...el.querySelectorAll('.msg.meta')].map((n) => n.textContent)).toEqual(['Delegated work finished.', 'Goal reached.']);
+    const trigger = report.querySelector<HTMLButtonElement>('button')!;
+    expect(trigger.textContent).toBe('Show the report');
+    await act(async () => trigger.click());
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(trigger.textContent).toBe('Hide the report');
+    expect(report.querySelector('strong')!.textContent).toBe('Holder:');
+    expect(report.textContent).toContain('Nine rows, each with a live job post.');
+  });
+});

@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import type { DynamicToolUIPart } from 'ai';
 import { md, lightbox } from '../core.ts';
 import { Dot } from '../ui/marks.tsx';
+import { ReportLine, splitReport } from '../ui/report.tsx';
 import { compactionMark } from '../compactmark.ts';
 import { filePreviews } from '../filepreview.tsx';
 import { findFileMentions } from '../mentions.ts';
@@ -310,7 +311,18 @@ export function MessageView({ m, variant, busy, streaming, dim, onSend, owner }:
           const s = p.data as { text: string; from?: string | null; attachments?: string[] };
           return <UserBubble key={key} text={s.text} attachments={s.attachments || []} from={s.from} variant={variant} dim={dim} joined />;
         }
-        if (p.type === 'data-meta') return variant === 'full' ? <div key={key} className="msg meta">{(p.data as { text: string }).text}</div> : null;
+        if (p.type === 'data-meta') {
+          if (variant !== 'full') return null;
+          const text = (p.data as { text: string }).text;
+          // a long report under a heading ("Delegated work finished:" and the answers): the heading, the report on request
+          const split = splitReport(text);
+          if (!split) return <div key={key} className="msg meta">{text}</div>;
+          return (
+            <ReportLine key={key} heading={split.heading} lineClass="msg meta">
+              <Dom make={() => md(split.report)} deps={[split.report]} className="text-[13.5px] leading-[1.6] wrap-anywhere text-ink" />
+            </ReportLine>
+          );
+        }
         return null;
       })}
     </>
