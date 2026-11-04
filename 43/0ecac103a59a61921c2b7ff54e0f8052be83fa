@@ -1,0 +1,27 @@
+skills/athena/docx/scripts/soffice.py
+  s_09ac87e46cf718::t_bfa2c70fc50734 247
+skills/athena/financial-models/scripts/soffice.py
+  s_09ac87e46cf718::t_c08178a312ddb6 247
+skills/athena/powerpoint/scripts/soffice.py
+  s_09ac87e46cf718::t_1f23cc75b98784 247
+skills/athena/xlsx/scripts/soffice.py
+  s_09ac87e46cf718::t_b17a33f5228a63 247
+tests/skills/financial-models/test_soffice.py
+  s_09ac87e46cf718::t_1ccaf28b2cbaec 214-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "430ecac103a59a61921c2b7ff54e0f8052be83fa",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
