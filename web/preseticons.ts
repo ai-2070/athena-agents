@@ -11,7 +11,7 @@ const LINES: Record<string, string> = {
   'aws-knowledge': 'server', 'twilio-docs': 'library-big', kiwi: 'globe', monday: 'workflow',
   craft: 'notepad', fireflies: 'waveform', gamma: 'layout-grid', composio: 'plug', semgrep: 'shield-check',
   globalping: 'network', amplitude: 'gauge', 'twelve-data': 'gauge', attio: 'users', close: 'users',
-  klaviyo: 'mail', tripo: 'cube-transparent', meshy: 'shapes', '3d-printer': 'printer',
+  klaviyo: 'mail', himalaya: 'mail', tripo: 'cube-transparent', meshy: 'shapes', '3d-printer': 'printer',
   reaper: 'faders', musescore: 'music-notes', topaz: 'zoom-in',
 };
 
