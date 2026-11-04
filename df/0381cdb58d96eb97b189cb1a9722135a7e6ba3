@@ -1,0 +1,22 @@
+server/engines/claude.ts
+  s_f11a271ca2b1d6::t_b12e715eaa4d21 6,64-75,77-79,86-96
+tests/server/claude-args.test.ts
+  s_f11a271ca2b1d6::t_ae2d78932976bd 3,45-56
+  s_f11a271ca2b1d6::t_e28cfb08a2e6a4 57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "df0381cdb58d96eb97b189cb1a9722135a7e6ba3",
+  "prompts": {},
+  "sessions": {
+    "s_f11a271ca2b1d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b8c09a8-9a58-47e1-843e-ebef49e571b1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
