@@ -1,0 +1,80 @@
+library/athena-agents/business/translator.md
+  s_113f5bf511efd5::t_7a26549d4fba81 101-106
+  s_113f5bf511efd5::t_14d7f27be8bc46 26-30,32-39
+  s_113f5bf511efd5::t_961aa4b2663b0f 9
+  s_113f5bf511efd5::t_518a680845cb0e 1-8,10-25,31,40-47,54-55,59-100,107-113,129-178,182-192,195-199
+  s_113f5bf511efd5::t_3d4cde5d447f99 48-53,56
+  s_113f5bf511efd5::t_2cc801537cc254 179-181
+  s_113f5bf511efd5::t_e37ca36b798d3d 57-58
+  s_113f5bf511efd5::t_646bc3d80130a4 193-194
+  s_113f5bf511efd5::t_9afcdb035b7151 121-128
+  s_113f5bf511efd5::t_8a7515502c492a 114-120
+library/athena-agents/business/chief-of-staff.md
+  s_113f5bf511efd5::t_9bb39a3f825699 29
+  s_113f5bf511efd5::t_14fb8e073ed8da 57-58
+  s_113f5bf511efd5::t_39d19109afe9c1 1-28,30-56,62-75,86-173
+  s_113f5bf511efd5::t_f8fa44a8805915 78-81
+  s_113f5bf511efd5::t_53490e940ae0b8 59
+  s_113f5bf511efd5::t_38a89998881293 60-61
+  s_113f5bf511efd5::t_ea55d63341c178 82-85
+  s_113f5bf511efd5::t_a1c2d11cb89d56 76-77
+library/athena-agents/business/operations-manager.md
+  s_113f5bf511efd5::t_bbcecb6591a04b 45-48
+  s_113f5bf511efd5::t_80c05ab4124fe1 135-136
+  s_113f5bf511efd5::t_bf263ac598266f 121-125,127-128
+  s_113f5bf511efd5::t_575952de1af321 28
+  s_113f5bf511efd5::t_6845015d5cb6a8 144-145
+  s_113f5bf511efd5::t_ca0820895fc3d3 1-27,33-44,53-63,77-90,95-105,109-120,126,129-134,137-143,146-178,181-225
+  s_113f5bf511efd5::t_5b48aa71330aac 106-108
+  s_113f5bf511efd5::t_102cb12ad9bbe1 49-52
+  s_113f5bf511efd5::t_92bdd2d93d7c39 30-32
+  s_113f5bf511efd5::t_c51a4bdef319f9 29
+  s_113f5bf511efd5::t_aaab145caeca19 64-76
+  s_113f5bf511efd5::t_02a7050f6b170a 91-94
+  s_113f5bf511efd5::t_ad8d830e3f3cdb 179-180
+library/athena-agents/business/document-maker.md
+  s_113f5bf511efd5::t_1afeca33cf7245 110-111,115-118
+  s_113f5bf511efd5::t_81241ea53933b1 27-28
+  s_113f5bf511efd5::t_83acc39891258f 38-42
+  s_113f5bf511efd5::t_aca488f9a4c487 57-59,63-65
+  s_113f5bf511efd5::t_018d06d011a344 134,149,220-222,233-234
+  s_113f5bf511efd5::t_b27f784b52e95b 1-26,29-37,43-48,53-56,60-62,66-77,83-88,95,103-109,112-114,119-133,135-137,142,145-148,150-151,154-155,158-164,167-217,223-226,235-239
+  s_113f5bf511efd5::t_a92421380b46d2 49-52
+  s_113f5bf511efd5::t_bbfd8098db2122 78-82
+  s_113f5bf511efd5::t_6cdbbf864da594 89-94,96-102
+  s_113f5bf511efd5::t_a23e7a7e821ddf 138-141,143-144
+  s_113f5bf511efd5::t_c14e9a82410820 152-153,156-157
+  s_113f5bf511efd5::t_02fb307e15d0ba 165-166
+  s_113f5bf511efd5::t_676fcac8b263ec 218-219
+  s_113f5bf511efd5::t_95e48ddfcdb1bd 227-232
+library/athena-agents/business/notes-steward.md
+  s_113f5bf511efd5::t_e31ecd592cfb5b 196
+  s_113f5bf511efd5::t_bdb914b7d01f52 74-75
+  s_113f5bf511efd5::t_4a358a69b4c513 95-98
+  s_113f5bf511efd5::t_0c82dec153d691 61-68
+  s_113f5bf511efd5::t_f2d48140d44b34 1-40,44-47,52-57,69-73,76-79,83-90,93-94,99-106,108-144,147-187,192-195,197-199
+  s_113f5bf511efd5::t_042e6edc0e4bbb 107
+  s_113f5bf511efd5::t_f83ae4c41b4635 145-146
+  s_113f5bf511efd5::t_4f8ee4e017de75 188-191
+  s_113f5bf511efd5::t_26f5c149ff5fa5 80-82
+  s_113f5bf511efd5::t_41b38b5b453721 48-51
+  s_113f5bf511efd5::t_43bef6d23dda59 41-43
+  s_113f5bf511efd5::t_148fb05024b456 58-60
+  s_113f5bf511efd5::t_0b83c7e3321ee5 91-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a92cfb94023fad1a261a6861a7085d724521f963",
+  "prompts": {},
+  "sessions": {
+    "s_113f5bf511efd5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33eb0f9d-82ca-4708-b62e-673ddb2ee4f8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
