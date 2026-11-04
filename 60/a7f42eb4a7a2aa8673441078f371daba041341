@@ -1,0 +1,108 @@
+library/athena-agents/design/ui-designer.md
+  s_113f5bf511efd5::t_9d07233a901e61 160
+  s_113f5bf511efd5::t_38371238afd6ef 38-39
+  s_113f5bf511efd5::t_1a39ee2fa3612d 40-42
+  s_113f5bf511efd5::t_e17416376ef418 67-68,70-73,77-78,80-84,88-89
+  s_09ac87e46cf718::t_862bfe0776eee3 4
+  s_113f5bf511efd5::t_cebc9c9e29f6a0 1-3,5-8,10-23,27-37,43-46,51-53,57-66,69,74-76,79,85-87,90-98,104,107-113,116-159,161-191,195-200
+  s_113f5bf511efd5::t_dc0b947c100259 24-26
+  s_113f5bf511efd5::t_19095a0f7d0b60 102-103
+  s_113f5bf511efd5::t_859a5683b3a85b 192-194
+  s_113f5bf511efd5::t_e27627de393e61 54-56
+  s_113f5bf511efd5::t_a463d936152246 114-115
+  s_113f5bf511efd5::t_5e0246a7c0965e 47-49
+  s_113f5bf511efd5::t_ab5efb733d6fdb 50
+  s_113f5bf511efd5::t_04f693a4875289 99-101
+  s_113f5bf511efd5::t_8c0bfdb49b4796 105-106
+  s_113f5bf511efd5::t_f1728b981408ec 9
+library/athena-agents/product/meeting-notes-taker.md
+  s_113f5bf511efd5::t_628a16d32f31f6 1-43,47-84,87-160,162-164,168-170,173-178
+  s_113f5bf511efd5::t_51559b0a4113b2 44-46,85-86,161,165-167,171-172
+tests/server/library.test.ts
+  s_09ac87e46cf718::t_862bfe0776eee3 147-149
+library/athena-agents/engineering/security-architect.md
+  s_09ac87e46cf718::t_862bfe0776eee3 4
+library/athena-agents/design/ux-architect.md
+  s_113f5bf511efd5::t_e272538d85f1e1 136-140
+  s_113f5bf511efd5::t_735232cd0c3eca 65-66
+  s_113f5bf511efd5::t_2d6af1d0129932 1-3,5-8,10-16,19-42,44-51,54-64,67-69,72-97,100-108,111-123,126-135,141-152,155-235
+  s_113f5bf511efd5::t_b516a41ebe0f66 109-110
+  s_113f5bf511efd5::t_680440cdc3e826 43
+  s_113f5bf511efd5::t_be5fd707c0cfd3 98-99
+  s_113f5bf511efd5::t_0038bb6b5e1fd0 124-125
+  s_113f5bf511efd5::t_ed68940109d105 52-53
+  s_09ac87e46cf718::t_862bfe0776eee3 4
+  s_113f5bf511efd5::t_b5fe556e32b8a5 9
+  s_113f5bf511efd5::t_4dd2bcd61b8637 17-18,153-154
+  s_113f5bf511efd5::t_9b2d585ae267c9 70-71
+library/athena-agents/product/product-manager.md
+  s_113f5bf511efd5::t_dec8f0d7bb07cc 1-8,10-30,39-40,52-54,56,61-78,80-81,87-122,126-162,164
+  s_113f5bf511efd5::t_ef92b8d0d8f3f5 9,31-38,41-51,55,57-60,79,82-86,123-125,163,165-166
+library/athena-agents/design/ux-researcher.md
+  s_09ac87e46cf718::t_862bfe0776eee3 9
+library/athena-agents/product/trend-researcher.md
+  s_113f5bf511efd5::t_527ce8fc813da6 1-20,24-46,51-55,62-65,74-75,80-94,97-98,102,115-116,128-152,155-160,167-169,172-194,197
+  s_113f5bf511efd5::t_59a0a091ee9ff3 61
+  s_113f5bf511efd5::t_267bc63c889a84 21-23,195-196
+  s_113f5bf511efd5::t_55028622bfe759 127
+  s_113f5bf511efd5::t_d54fdcc167f91b 123-126
+  s_113f5bf511efd5::t_36852e3c2edf6d 100-101
+  s_113f5bf511efd5::t_adcef57fe0202a 66-73,153-154
+  s_09ac87e46cf718::t_f265c16a2403ff 103-114
+  s_113f5bf511efd5::t_06c0712827b68d 58-60
+  s_113f5bf511efd5::t_bae6d66ba41049 47-50,56-57,76-79,95-96,99,117-122,161-162,198-202
+  s_113f5bf511efd5::t_7b35119358995f 163-166,170-171
+library/athena-agents/product/project-manager.md
+  s_113f5bf511efd5::t_63c108745b02a1 73
+  s_113f5bf511efd5::t_c1ff5878913745 1-38,41-42,53-57,68-69,74-81,84-183,185-188
+  s_113f5bf511efd5::t_4eb270c53c50c7 39-40
+  s_113f5bf511efd5::t_1c53a9962cdc33 43-48,50-52,58-60,64-67,70-72,82-83,184
+  s_113f5bf511efd5::t_922fed0523f6fc 49
+  s_113f5bf511efd5::t_0276d9e97e951d 61-63
+library/athena-agents/design/brand-guardian.md
+  s_113f5bf511efd5::t_3f5b533a9546e4 117
+  s_113f5bf511efd5::t_648c9d77d2c2c8 65-68
+  s_09ac87e46cf718::t_862bfe0776eee3 5
+  s_113f5bf511efd5::t_3f5906c52738be 191
+  s_113f5bf511efd5::t_7bf1c21263f4a6 192-193
+  s_113f5bf511efd5::t_e795b7bb4d04c4 1-4,6-64,69-116,118-190,194-219,222-225
+  s_113f5bf511efd5::t_2870d7c1fa048d 220-221
+library/athena-agents/design/ui-finish-reviewer.md
+  s_113f5bf511efd5::t_8d3c75c64f5417 189-191
+  s_113f5bf511efd5::t_6e0271cdc4937e 35-36
+  s_09ac87e46cf718::t_862bfe0776eee3 4-5
+  s_113f5bf511efd5::t_a2625fc93d4a0a 114
+  s_113f5bf511efd5::t_302cd5a6926265 181-182
+  s_113f5bf511efd5::t_783eedb2309eb0 1-2,6-32,37-46,51-54,58-79,84-113,115-180,183-188
+  s_09ac87e46cf718::t_f947cfe9bfa281 33-34,47-50,80
+  s_113f5bf511efd5::t_f1f857ba0e3e56 81-83
+  s_113f5bf511efd5::t_2a78837d5858de 55-57
+  s_113f5bf511efd5::t_aba87e6dae2d04 3
+library/athena-agents/product/feedback-synthesizer.md
+  s_113f5bf511efd5::t_73c45c52648cbe 1-3,5-15,17-143,148-160,167-183
+  s_113f5bf511efd5::t_ed6be40db37106 4,16,144-147,161-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "60a7f42eb4a7a2aa8673441078f371daba041341",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_113f5bf511efd5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33eb0f9d-82ca-4708-b62e-673ddb2ee4f8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
