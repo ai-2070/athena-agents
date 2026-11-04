@@ -76,6 +76,49 @@ describe('skills library', () => {
   });
 });
 
+describe('finding and searching a skill', () => {
+  it('finds a skill by its id, its name or its name written as an id', () => {
+    const s = make('Quarterly report', 'Use for the quarterly report.', 'Report steps.');
+    // a skill whose name is another skill's id: the id wins
+    const other = skills.saveSkill({ name: s!.slug, description: 'Named like an id.', body: 'Other steps.' })!;
+    expect(other.slug).not.toBe(s!.slug);
+    expect(skills.findSkill(s!.slug)?.body).toContain('Report steps.');
+    expect(skills.findSkill('  QUARTERLY report ')?.slug).toBe(s!.slug);
+    expect(skills.findSkill(other.slug)?.slug).toBe(other.slug);
+    expect(skills.findSkill('Quarterly-Report!')?.slug).toBe(s!.slug);
+    expect(skills.findSkill('no such skill')).toBeNull();
+  });
+
+  it('searches SKILL.md and its text files line by line, skipping files that are not text', () => {
+    const s = make('Searchable', 'Use when searching.', 'Intro\nRun the TOOL first.\nThen stop.');
+    const dir = dataPath('skills', s!.slug);
+    fs.mkdirSync(path.join(dir, 'references'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'references', 'commands.md'), 'tool list\nnothing here\nanother tool');
+    fs.writeFileSync(path.join(dir, 'data.bin'), 'tool\0binary');
+    fs.writeFileSync(path.join(dir, '.hidden.md'), 'tool hidden');
+    const out = skills.searchSkill(s!.slug, 'tool');
+    expect(out.split('\n').sort()).toEqual(['SKILL.md:7: Run the TOOL first.', 'references/commands.md:1: tool list', 'references/commands.md:3: another tool'].sort());
+    expect(skills.searchSkill(s!.slug, 'tool', 'references/commands.md')).toBe('references/commands.md:1: tool list\nreferences/commands.md:3: another tool');
+    // one file asked for by name is searched even when it isn't text
+    expect(skills.searchSkill(s!.slug, 'binary', 'data.bin')).toBe('data.bin:1: tool\0binary');
+    // not a regular expression: searched for as plain words
+    expect(skills.searchSkill(s!.slug, 'TOOL first.(')).toBe("No line in the skill's files matches \"TOOL first.(\".");
+    expect(skills.searchSkill(s!.slug, 'the tool f')).toBe('SKILL.md:7: Run the TOOL first.');
+    expect(() => skills.searchSkill(s!.slug, 'tool', '../brand-voice/SKILL.md')).toThrow(/not part of the skill|no file/);
+    expect(() => skills.searchSkill(s!.slug, 'tool', 'missing.md')).toThrow('The skill has no file "missing.md".');
+    expect(() => skills.searchSkill('no-such-skill', 'tool')).toThrow('No skill "no-such-skill".');
+  });
+
+  it('shows the first 120 matching lines and says how many there were', () => {
+    const s = make('Many lines', 'Use for many lines.', Array.from({ length: 150 }, (_, i) => `match ${i}`).join('\n'));
+    const out = skills.searchSkill(s!.slug, 'match');
+    const lines = out.split('\n');
+    expect(lines[0]).toBe('SKILL.md:6: match 0');
+    expect(lines[119]).toBe('SKILL.md:125: match 119');
+    expect(lines.at(-1)).toBe('[First 120 of 150 matching lines: search for something narrower.]');
+  });
+});
+
 describe('who gets which skill', () => {
   it('combines the agent, its team and the project, without duplicates', () => {
     const a = make('Agent skill');

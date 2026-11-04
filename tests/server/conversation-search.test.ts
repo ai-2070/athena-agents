@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -134,5 +135,53 @@ describe('conversation search tools', () => {
     expect(searchConversations(me.id, { query: 'AFTER_CLONE' }).total).toBe(0);
     expect(() => readConversation(me.id, { source: 'team', conversationId: team.id, messageId: 'after-clone' })).toThrow('not available');
     expect(withProject(a, () => searchConversations(me.id, { query: 'AFTER_CLONE' }).total)).toBe(2);
+  });
+});
+
+describe('conversation search results', () => {
+  it('orders hits newest first, then by conversation and message, and skips broken and private chats', () => {
+    const me = newAgent({ name: 'Orderer', toolGroups: [] });
+    const a = chats.create(me.id, 'Chat A');
+    a.items.push({ type: 'user', text: 'KIWI one', ts: 10, from: 'Ana' }, { type: 'assistant', text: 'And KIWI two', ts: 30 }, { type: 'user', text: 'no fruit', ts: 40 });
+    chats.save(a);
+    const b = chats.create(me.id, 'Chat B');
+    b.items.push({ type: 'user', text: 'kiwi three', ts: 30 }, { type: 'tool', id: 't', name: 'web_fetch', args: { url: 'kiwi.example' }, result: 'ok', status: 'done', ts: 20 }, { type: 'assistant', text: 'kiwi without a time' });
+    chats.save(b);
+    // a private conversation's chat is searched only inside that conversation
+    const p = chats.create(me.id, 'Private', null, 'conv-kiwi');
+    p.items.push({ type: 'user', text: 'KIWI private', ts: 50 });
+    chats.save(p);
+    fs.writeFileSync(path.join(chats.dir(me.id), 'broken.json'), '{ not json');
+    const [first, second] = [a.id, b.id].sort((x, y) => x.localeCompare(y));
+    const r = searchConversations(me.id, { query: 'kiwi', scope: 'own' });
+    expect(r.total).toBe(5);
+    expect(r.nextOffset).toBeNull();
+    expect(r.hits.map((h) => [h.conversationId, h.messageId, h.ts])).toEqual([
+      [b.id, '2', b.createdAt],
+      [first, first === a.id ? '1' : '0', 30],
+      [second, second === a.id ? '1' : '0', 30],
+      [b.id, '1', 20],
+      [a.id, '0', 10],
+    ]);
+    expect(r.hits.find((h) => h.conversationId === a.id && h.messageId === '1')).toEqual({ source: 'own', conversationId: a.id, title: 'Chat A', messageId: '1', author: me.id, ts: 30, excerpt: 'And KIWI two' });
+    expect(r.hits.find((h) => h.conversationId === a.id && h.messageId === '0')?.author).toBe('Ana');
+    expect(r.hits.find((h) => h.conversationId === b.id && h.messageId === '1')).toMatchObject({ author: 'tool', excerpt: 'web_fetch\n{"url":"kiwi.example"}\nok' });
+    const inside = searchConversations(me.id, { query: 'kiwi', scope: 'own' }, 'conv-kiwi');
+    expect(inside.hits.map((h) => [h.conversationId, h.messageId])).toEqual([[p.id, '0']]);
+  });
+
+  it("trims a page of big hits to fit the engines' limit and goes on from there", () => {
+    const me = newAgent({ name: 'Trimmer', toolGroups: [] });
+    const c = chats.create(me.id, 'Escapes');
+    for (let i = 0; i < 20; i++) c.items.push({ type: 'user', text: `FIG ${i} ${'\u0001'.repeat(600)}`, ts: 100 + i });
+    chats.save(c);
+    const first = searchConversations(me.id, { query: 'fig', scope: 'own', limit: 20 });
+    expect(first.total).toBe(20);
+    expect(first.hits).toHaveLength(7);
+    expect(first.nextOffset).toBe(7);
+    expect(JSON.stringify(first.hits).length).toBeLessThanOrEqual(18000);
+    const next = searchConversations(me.id, { query: 'fig', scope: 'own', limit: 20, offset: first.nextOffset! });
+    expect(JSON.stringify([...first.hits, next.hits[0]]).length).toBeGreaterThan(18000);
+    expect(next.hits[0].messageId).toBe('12');
   });
 });
