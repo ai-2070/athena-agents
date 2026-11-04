@@ -1,0 +1,57 @@
+skills/athena/rss-feeds/SKILL.md
+  s_09ac87e46cf718::t_5b95325c4cb633 1-17,20-128
+  s_09ac87e46cf718::t_6058f5a4cc0b59 18-19
+tests/skills/rss-feeds/answers/reddit-thread.atom
+  s_09ac87e46cf718::t_18ee9d1851422b 1
+tests/skills/rss-feeds/answers/releases.atom
+  s_09ac87e46cf718::t_efd8ead8ec04df 1-44
+tests/skills/rss-feeds/conftest.py
+  s_09ac87e46cf718::t_3774dfe52cd8c3 1-138
+tests/skills/rss-feeds/answers/rdf.xml
+  s_09ac87e46cf718::t_f3ccdf09cc42da 1-22
+tests/skills/rss-feeds/answers/reddit-search.atom
+  s_09ac87e46cf718::t_6057ab5a33e912 1
+tests/skills/rss-feeds/answers/blog.html
+  s_09ac87e46cf718::t_d9ab799c5fff3b 1-15
+skills/athena/rss-feeds/scripts/feeds.py
+  s_09ac87e46cf718::t_cd6bc22c714bea 1-1158
+  s_09ac87e46cf718::t_c91793f3072193 1159-1183
+tests/skills/rss-feeds/answers/reddit-sub.atom
+  s_09ac87e46cf718::t_8de3b65c8ba259 1
+tests/skills/rss-feeds/answers/hnrss.xml
+  s_09ac87e46cf718::t_dba3889874f2ba 1-16
+tests/skills/rss-feeds/answers/footer.html
+  s_09ac87e46cf718::t_854f8b3192ee7e 1-12
+tests/skills/rss-feeds/answers/reddit-user.atom
+  s_09ac87e46cf718::t_d17b1ed3538b5c 1
+tests/skills/rss-feeds/answers/reddit-404.atom
+  s_09ac87e46cf718::t_bb5f2b053e3c80 1
+tests/skills/rss-feeds/answers/plain.html
+  s_09ac87e46cf718::t_06c2d2575ced83 1-14
+tests/skills/rss-feeds/answers/sloppy.xml
+  s_09ac87e46cf718::t_56dce8fbe7d6e0 1-35
+skills/athena/rss-feeds/references/reddit.md
+  s_09ac87e46cf718::t_47df3d61a43154 1-56,59-77
+  s_09ac87e46cf718::t_b75961e2a85a0a 57-58
+tests/skills/rss-feeds/test_feeds.py
+  s_09ac87e46cf718::t_e6682d4cd403a9 1-429
+  s_09ac87e46cf718::t_c276d15b32f496 430-441
+tests/skills/rss-feeds/answers/feed.json
+  s_09ac87e46cf718::t_7f9f45028b3dd4 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d07fa12c5e65fcda3d4d2921266f60bbfbfb49fb",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
