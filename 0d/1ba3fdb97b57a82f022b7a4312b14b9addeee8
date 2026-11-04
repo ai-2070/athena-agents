@@ -1,0 +1,25 @@
+web/teamchat.tsx
+  s_1b11d89095959f::t_75c2aa276d1930 378-400
+  s_1b11d89095959f::t_a7c08552288cd4 405
+server/irc.ts
+  s_1b11d89095959f::t_1a4a09b24836a4 478-480,482
+  s_1b11d89095959f::t_e1dff28a527da6 481
+tests/web/teamchat-turns.test.tsx
+  s_1b11d89095959f::t_a08bd05bf84cce 240-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0d1ba3fdb97b57a82f022b7a4312b14b9addeee8",
+  "prompts": {},
+  "sessions": {
+    "s_1b11d89095959f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d49f2ce0-cbfa-4dd7-a622-9f86d517f98b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
