@@ -27,7 +27,9 @@ bun scripts/build-desktop.ts && bun run desktop:smoke   # run the bundled server
 
 Single test file: `bunx vitest run tests/server/skills.test.ts`.
 CI (`.github/workflows/ci.yml`) runs typecheck, test and build on ubuntu and windows. All three must pass.
-Its "Desktop app" job also stages the desktop app, runs the smoke test and checks the Rust code.
+Its "Desktop app" job also stages the desktop app, runs the smoke test and checks the Rust code, and its "Skill scripts"
+job runs the tests of the scripts that come with the skills (`python -m pytest tests/skills`, Python 3.10, after
+`pip install -r tests/skills/requirements.txt`).
 `.github/workflows/desktop.yml` builds the installers (on `v*` tags, or by hand).
 
 ## Layout

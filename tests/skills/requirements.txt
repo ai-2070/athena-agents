@@ -1,0 +1,12 @@
+# What the skills' scripts and their tests need. CI installs this on Python 3.10, the oldest version the skills promise.
+pytest==9.2.0
+# pdf
+pypdf==6.21.4
+pdfplumber==0.11.10
+reportlab==5.1.0
+pypdfium2==5.14.0
+pillow==12.3.0
+cryptography==50.0.2
+# comfyui: Pillow (above) for masks; the rest is the standard library
+# financial-models (and soffice.py, which docx, xlsx and powerpoint will copy)
+openpyxl==3.1.5
