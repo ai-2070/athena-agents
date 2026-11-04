@@ -17,6 +17,7 @@ import { agentFetch } from './agentfetch.ts';
 import { accountOf } from './mcp.ts';
 import { knownPrograms, launchProgram, launchTarget, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
+import { MODEL_MAX_BYTES, imageType } from './toolimages.ts';
 import * as social from './social.ts';
 import * as reddit from './reddit.ts';
 import * as kb from './knowledge.ts';
@@ -432,7 +433,7 @@ const TOOLS: ToolDef[] = [
     name: 'comfyui_run',
     group: 'comfyui',
     risk: 'low',
-    description: 'Run a ComfyUI workflow and wait for the results. Set prompt/negative to replace the prompt text, inputs to change anything else ({"3.steps": 30, "5.width": 1024}). Seeds are randomized unless you set them.',
+    description: 'Run a ComfyUI workflow and wait for the results. Set prompt/negative to replace the prompt text, inputs to change anything else ({"3.steps": 30, "5.width": 1024}). Seeds are randomized unless you set them; the result lists the seed each sampler used, so pass those in inputs to make the same picture again.',
     parameters: obj(
       {
         workflow: str('Workflow name'),
@@ -446,8 +447,9 @@ const TOOLS: ToolDef[] = [
     run: async ({ workflow, prompt, negative, inputs, randomize_seed = true }: ComfyRunArgs, ctx) => {
       const r = await comfy.runWorkflow({ workflow, prompt, negative, inputs, randomizeSeed: randomize_seed, signal: ctx.signal, onProgress: (s: number) => ctx.progress?.(`ComfyUI working… ${s}s`) });
       const imgs = r.files.filter((f) => f.kind === 'images').map((f) => f.url);
+      const seeds = r.seeds.length ? `\nSeeds (to repeat: inputs ${JSON.stringify(Object.fromEntries(r.seeds.map((s) => [`${s.node}.${s.input}`, s.value])))}):\n${r.seeds.map((s) => `- ${s.node}.${s.input} = ${s.value} (${s.title})`).join('\n')}` : '';
       return {
-        text: `Done in ${r.seconds}s. Files:\n${r.files.map((f) => `- ${f.filename} (${f.kind}, ${f.type}${f.subfolder ? `/${f.subfolder}` : ''})`).join('\n')}${r.warnings.length ? `\nWarnings:\n${r.warnings.join('\n')}` : ''}`,
+        text: `Done in ${r.seconds}s. Files:\n${r.files.map((f) => `- ${f.filename} (${f.kind}, ${f.type}${f.subfolder ? `/${f.subfolder}` : ''})`).join('\n')}${seeds}${r.warnings.length ? `\nWarnings:\n${r.warnings.join('\n')}` : ''}`,
         images: imgs,
       };
     },
@@ -1062,6 +1064,25 @@ const TOOLS: ToolDef[] = [
       const { abs, real, ok } = resolveInside(ctx.agent, p);
       if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
       return { text: truncate(fs.readFileSync(real, 'utf8'), 60000) };
+    },
+  },
+  {
+    name: 'view_image',
+    group: 'files',
+    risk: 'none',
+    description: `Look at a picture file and see it: a render, an ImageMagick or FFmpeg result, a frame taken from a video, a screenshot. PNG, JPEG, WebP or GIF up to ${MODEL_MAX_BYTES / 1024 / 1024} MB, in your workspace, outputs, knowledge or allowed folders. Convert other formats to PNG, and shrink bigger pictures, first.`,
+    parameters: obj({ path: str('Image file path') }, ['path']),
+    run: async ({ path: p }: { path: string }, ctx) => {
+      const { abs, real, ok } = resolveInside(ctx.agent, p);
+      if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
+      const stat = fs.statSync(real);
+      if (!stat.isFile()) throw new Error(`${abs} is not a file.`);
+      const mb = MODEL_MAX_BYTES / 1024 / 1024;
+      if (stat.size > MODEL_MAX_BYTES) throw new Error(`${abs} is ${(stat.size / 1024 / 1024).toFixed(1)} MB; view_image takes pictures up to ${mb} MB. Save a smaller copy first (for example with ImageMagick: -resize 1600x1600).`);
+      const bytes = fs.readFileSync(real);
+      const mime = imageType(bytes);
+      if (!mime) throw new Error(`${abs} is not a PNG, JPEG, WebP or GIF picture. Convert it to PNG first.`);
+      return { text: `${abs} (${mime}, ${Math.ceil(bytes.length / 1024)} KB)`, images: [`data:${mime};base64,${bytes.toString('base64')}`] };
     },
   },
   {

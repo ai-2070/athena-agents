@@ -29,7 +29,7 @@ import * as openclawEngine from './engines/openclaw.ts';
 import { clearWhichCache, which } from './util.ts';
 import { aboutInfo } from './about.ts';
 import * as tools from './tools.ts';
-import { inlineToolImages } from './toolimages.ts';
+import { inlineToolImagesNoted, withImageNote } from './toolimages.ts';
 import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
@@ -1322,7 +1322,9 @@ post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown
     if (body.name === 'permission_prompt') return { text: JSON.stringify(await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId)) };
     const r = await tools.callTool(agent, body.name, body.args || {}, ctx);
     // MCP takes pictures as data only: ComfyUI's result links are read here, so the agent sees them too
-    return r.images?.length ? { ...r, images: await inlineToolImages(r.images) } : r;
+    if (!r.images?.length) return r;
+    const { images, note } = await inlineToolImagesNoted(r.images);
+    return { ...r, images, text: withImageNote(r.text, note) };
   });
 });
 

@@ -125,20 +125,76 @@ function topaz(folder: RegExp, exes: string[]): Detected {
 }
 
 // ---------- known programs ----------
+// Where ComfyUI keeps things. Two desktop apps write different records:
+// - the old ComfyUI desktop app: %APPDATA%\ComfyUI\config.json, whose basePath holds user\ and output\;
+// - the newer Comfy Desktop: %APPDATA%\Comfy Desktop\installations.json lists every install
+//   (installPath, with ComfyUI inside it; an adopted old install keeps its adoptedBaseDir), and
+//   settings.json there may name the shared output folder. Its own folders (ComfyUI-Installs,
+//   ComfyUI-Shared) sit under %LOCALAPPDATA%\Comfy-Desktop for new users and the home folder for older ones.
+// The environment is read on each call (not at load), so tests can point it at a throwaway folder.
+const appDataRoot = (): string =>
+  process.env.APPDATA || (IS_WIN ? path.join(HOME, 'AppData', 'Roaming') : process.platform === 'darwin' ? path.join(HOME, 'Library', 'Application Support') : process.env.XDG_CONFIG_HOME || path.join(HOME, '.config'));
+const comfyDesktopDirs = (): string[] => [
+  path.join(appDataRoot(), 'Comfy Desktop'),
+  // (on Linux it uses its package name, its records under the XDG data folder)
+  ...(IS_WIN || process.platform === 'darwin' ? [] : [path.join(process.env.XDG_DATA_HOME || path.join(HOME, '.local', 'share'), 'comfyui-desktop-2'), path.join(appDataRoot(), 'comfyui-desktop-2')]),
+];
+const comfyDataRoots = (): string[] => [path.join(process.env.LOCALAPPDATA || path.join(HOME, 'AppData', 'Local'), 'Comfy-Desktop'), HOME];
+
+interface ComfyInstall {
+  installPath?: unknown;
+  adoptedBaseDir?: unknown;
+  outputDir?: unknown;
+  useSharedOutput?: unknown;
+}
+const nonEmpty = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
+function comfyInstalls(): ComfyInstall[] {
+  const out: ComfyInstall[] = [];
+  for (const dir of comfyDesktopDirs()) {
+    const list = readJSON<unknown>(path.join(dir, 'installations.json'), null);
+    if (Array.isArray(list)) out.push(...list.filter((i): i is ComfyInstall => !!i && typeof i === 'object'));
+  }
+  return out;
+}
+
+// The ComfyUI folders (each with user\ and output\ inside), most likely first.
+function comfyBases(): string[] {
+  const bases: string[] = [];
+  const old = nonEmpty(readJSON<ComfyConfig>(path.join(appDataRoot(), 'ComfyUI', 'config.json'), null)?.basePath);
+  if (old) bases.push(old);
+  for (const inst of comfyInstalls()) {
+    const adopted = nonEmpty(inst.adoptedBaseDir);
+    if (adopted) bases.push(adopted);
+    const at = nonEmpty(inst.installPath);
+    if (at) bases.push(path.join(at, 'ComfyUI'), at);
+  }
+  // installs that aren't in a record (one removed from the list, or a record that can't be read)
+  for (const root of comfyDataRoots()) {
+    const installs = path.join(root, 'ComfyUI-Installs');
+    for (const d of listDirs(installs)) bases.push(path.join(installs, d, 'ComfyUI'));
+  }
+  bases.push(path.join(HOME, 'ComfyUI'));
+  return bases;
+}
+
 function comfyWorkflowDirs(): string[] {
   const s = getSettings();
-  const dirs = [...(s.comfyui.workflowDirs || [])];
-  const cfg = readJSON<ComfyConfig>(path.join(ROAMING, 'ComfyUI', 'config.json'), null);
-  if (cfg?.basePath) dirs.push(path.join(cfg.basePath, 'user', 'default', 'workflows'));
-  dirs.push(path.join(HOME, 'ComfyUI-Installs', 'ComfyUI', 'ComfyUI', 'user', 'default', 'workflows'));
-  dirs.push(path.join(HOME, 'ComfyUI', 'user', 'default', 'workflows'));
+  const dirs = [...(s.comfyui.workflowDirs || []), ...comfyBases().map((b) => path.join(b, 'user', 'default', 'workflows'))];
   return [...new Set(dirs)].filter(exists);
 }
 export function comfyOutputDirs(): string[] {
-  const cfg = readJSON<ComfyConfig>(path.join(ROAMING, 'ComfyUI', 'config.json'), null);
-  return [cfg?.basePath && path.join(cfg.basePath, 'output'), path.join(HOME, 'ComfyUI-Shared', 'output'), path.join(HOME, 'ComfyUI-Installs', 'ComfyUI', 'ComfyUI', 'output')].filter(
-    (p): p is string => !!p && exists(p),
-  );
+  const dirs: string[] = [];
+  for (const dir of comfyDesktopDirs()) {
+    const shared = nonEmpty(readJSON<{ outputDir?: unknown }>(path.join(dir, 'settings.json'), null)?.outputDir);
+    if (shared) dirs.push(shared);
+  }
+  for (const inst of comfyInstalls()) {
+    const own = nonEmpty(inst.outputDir);
+    if (own && inst.useSharedOutput === false) dirs.push(own);
+  }
+  dirs.push(...comfyDataRoots().map((r) => path.join(r, 'ComfyUI-Shared', 'output')));
+  dirs.push(...comfyBases().map((b) => path.join(b, 'output')));
+  return [...new Set(dirs)].filter(exists);
 }
 export { comfyWorkflowDirs };
 

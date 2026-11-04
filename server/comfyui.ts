@@ -71,9 +71,17 @@ export interface RunWorkflowOptions {
   onProgress?: (seconds: number) => void;
   signal?: AbortSignal | null;
 }
+/** A seed a run used, per node (a sampler's seed, a RandomNoise node's noise_seed). */
+export interface ComfySeed {
+  node: string;
+  title: string;
+  input: string;
+  value: number;
+}
 export interface RunWorkflowQueued {
   promptId: string;
   queued: true;
+  seeds: ComfySeed[];
   warnings: string[];
 }
 export interface RunWorkflowDone {
@@ -81,6 +89,7 @@ export interface RunWorkflowDone {
   workflow: string;
   files: ComfyResultFile[];
   seconds: number;
+  seeds: ComfySeed[];
   warnings: string[];
 }
 
@@ -219,26 +228,32 @@ export async function describeWorkflow(name: string | undefined) {
   return { workflow: workflow.name, file: workflow.file, prompts: findPromptNodes(api), editable, warnings };
 }
 
-// Which text nodes feed a sampler's positive and negative inputs.
+// Which text nodes feed a sampler's positive and negative inputs. A negative made by ConditioningZeroOut
+// (an empty one, often built from the positive prompt) or one that leads back to the positive's own
+// text node is no negative node: writing a negative there would replace the prompt.
 function findPromptNodes(api: ApiWorkflow): { positive: string | null; negative: string | null } {
   const res: { positive: string | null; negative: string | null } = { positive: null, negative: null };
+  const link = (v: unknown): v is [string, number] => Array.isArray(v) && typeof v[0] === 'string';
   for (const n of Object.values(api)) {
     for (const key of ['positive', 'negative'] as const) {
-      const ref = n.inputs?.[key] as [string, number] | undefined;
-      if (Array.isArray(ref) && !res[key]) {
-        let target = api[ref[0]];
-        let id = ref[0];
-        // walk through conditioning helpers to the text encoder
-        for (let i = 0; i < 6 && target && !('text' in (target.inputs || {})); i++) {
-          const next = Object.values(target.inputs || {}).find((v): v is [string, number] => Array.isArray(v));
-          if (!next) break;
-          id = next[0];
-          target = api[id];
-        }
-        if (target && 'text' in target.inputs) res[key] = id;
+      const ref = n.inputs?.[key];
+      if (!link(ref) || res[key]) continue;
+      let id = ref[0];
+      let target: ApiNode | undefined = api[id];
+      // walk through conditioning helpers to the text encoder; a helper with its own positive and
+      // negative (ControlNet apply) is followed along the same side
+      for (let i = 0; i < 6 && target && target.class_type !== 'ConditioningZeroOut' && !('text' in (target.inputs || {})); i++) {
+        const inputs: Record<string, unknown> = target.inputs || {};
+        const same = inputs[key];
+        const next = link(same) ? same : Object.values(inputs).find(link);
+        if (!next) break;
+        id = next[0];
+        target = api[id];
       }
+      if (target && target.class_type !== 'ConditioningZeroOut' && 'text' in target.inputs) res[key] = id;
     }
   }
+  if (res.negative && res.negative === res.positive) res.negative = null;
   return res;
 }
 
@@ -254,6 +269,7 @@ export async function runWorkflow({ workflow, prompt, negative, inputs = {}, ran
     api[p.positive]!.inputs.text = prompt;
   }
   if (negative != null && p.negative) api[p.negative].inputs.text = negative;
+  else if (negative?.trim()) warnings.push('This workflow has no negative prompt node, so the negative prompt was not used.');
   for (const [key, value] of Object.entries(inputs || {})) {
     const [id, ...rest] = key.split('.');
     const field = rest.join('.');
@@ -263,6 +279,14 @@ export async function runWorkflow({ workflow, prompt, negative, inputs = {}, ran
   if (randomizeSeed) {
     for (const [id, n] of Object.entries(api)) {
       for (const k of ['seed', 'noise_seed']) if (typeof n.inputs[k] === 'number' && !(`${id}.${k}` in inputs)) n.inputs[k] = Math.floor(Math.random() * 2 ** 48);
+    }
+  }
+  // the seeds as sent, so a picture worth keeping can be made again
+  const seeds: ComfySeed[] = [];
+  for (const [id, n] of Object.entries(api)) {
+    for (const k of ['seed', 'noise_seed']) {
+      const value = n.inputs[k];
+      if (typeof value === 'number') seeds.push({ node: id, title: n._meta?.title || n.class_type, input: k, value });
     }
   }
   for (const n of Object.values(api)) delete n._meta;
@@ -278,7 +302,7 @@ export async function runWorkflow({ workflow, prompt, negative, inputs = {}, ran
     throw new Error(`ComfyUI rejected the workflow: ${err}`);
   });
   const promptId = res.prompt_id;
-  if (!wait) return { promptId, queued: true as const, warnings };
+  if (!wait) return { promptId, queued: true as const, seeds, warnings };
   const started = Date.now();
   while (Date.now() - started < timeoutSec * 1000) {
     await new Promise((r) => setTimeout(r, 1500));
@@ -302,7 +326,7 @@ export async function runWorkflow({ workflow, prompt, negative, inputs = {}, ran
           }
         }
       }
-      return { promptId, workflow: w.name, files, seconds: Math.round((Date.now() - started) / 1000), warnings };
+      return { promptId, workflow: w.name, files, seconds: Math.round((Date.now() - started) / 1000), seeds, warnings };
     }
     onProgress?.(Math.round((Date.now() - started) / 1000));
   }
