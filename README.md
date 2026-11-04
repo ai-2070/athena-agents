@@ -137,6 +137,7 @@ Connect agents to programs and services with the Model Context Protocol. Add ser
 - **Routines:** work you want done again and again, run by hand or on a schedule.
 - **Programs:** the Programs page finds creative and CAD apps on your computer (Blender, Photoshop, DaVinci Resolve, GIMP, OpenSCAD…) so agents can use them.
 - **History:** every agent, team, skill and memory keeps its last 50 versions, so any change can be undone.
+- **Built-in tools:** files (read in parts, edit, find, search), web pages as Markdown, commands, delegating to other agents, and more. Long results keep their start and end, with the whole text saved for the agent to read.
 
 The [full guide](docs/guide.md) covers all of it in detail.
 

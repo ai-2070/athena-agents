@@ -36,6 +36,18 @@ Claude Code and Codex receive dashboard tools through an MCP bridge; API-model a
 
 pi and oh-my-pi run their own tools (files, shell, edits) without asking, whatever the agent's autonomy says. OpenClaw follows its own approval settings. Each chat keeps its own pi, oh-my-pi or OpenClaw session. OpenClaw goes through its Gateway when it is running; otherwise it answers on this PC.
 
+Claude Code, Codex, pi, oh-my-pi, Hermes and OpenClaw have their own tools for files and commands, so they don't also get the dashboard's **Files** and **Shell** tools: those two switches are for API-model agents. Every other dashboard tool reaches them as usual. Codex gets the dashboard's tools without the bridge's key on its command line; with Codex 0.136 or later, the keys of your MCP servers go in its environment instead, hidden from the commands it runs.
+
+## Built-in tools
+
+- **Files** (API-model agents): `read_file` reads a long file in parts and several files in one call. `edit_file` changes part of a file without writing all of it again. `find_files` finds files by name (`*.md`, `notes/**/*.txt`), and `search_files` finds the lines that match. They stay inside the agent's workspace and the folders you allow, and never follow links out of them.
+- **Browser:** `fetch_url` returns a page as Markdown, in parts of up to 50,000 characters. The next part comes from a copy kept for ten minutes, not a new download.
+- **Shell:** `run_command` uses PowerShell on Windows and your own shell on Mac and Linux. Long output keeps its start and its end, where errors usually are.
+- **Delegate:** `await_agent` can wait for several helpers at once, until the first is done or all of them. `ask_agent` can wait for a quick answer in the same call.
+- **Long results:** a tool result longer than **Settings → General & keys → Context → Longest tool result** (24,000 characters by default) reaches the agent with its start and its end. The whole text is saved in `outputs/tool-results` for a week, where the agent can read the rest. Tools that already read in parts, and task lists, are not shortened.
+- **Board and gateway tools** show up only in the conversations they work in: a Tasks board task, or a gateway conversation.
+- **Tool stats:** the dashboard counts how each tool is used (calls, errors, time and result size) in `data/tool-stats.json`. The numbers stay on this computer.
+
 ## Venice models
 
 In **Settings → General & keys → API keys**, save a Venice inference key from [Venice API settings](https://venice.ai/settings/api). **Test** checks the saved key without generating an answer. It shows access, expiration and any available USD, DIEM and bundled-credit balances separately. A valid key can still have blocked access or no credits. Remove or replace the key in the same row. Keys stay in the server's secret store and are excluded from project folders and backups.
