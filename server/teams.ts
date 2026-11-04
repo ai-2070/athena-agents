@@ -883,9 +883,10 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
     if (loadChat(team.id, pid).sessions[agent.id] !== chatId) chats.remove(agent.id, chatId);
     return;
   }
-  const mentions = parseMentions(team, text, agent.id);
+  // (a stopped turn hands nothing on)
+  const mentions = stopped ? [] : parseMentions(team, text, agent.id);
   const to = chats.get(agent.id, chatId)?.items.length ?? from;
-  const msg = post(team, { id: `reply-${delivery.runId}`, from: agent.id, text: text || '(no answer)', mentions, ...(to > delivery.from ? { turn: { chatId, from: delivery.from, to } } : {}) });
+  const msg = post(team, { id: `reply-${delivery.runId}`, from: agent.id, text: text || '(no answer)', mentions, ...(to > delivery.from ? { turn: { chatId, from: delivery.from, to } } : {}), ...(stopped ? { stopped: item.steered ? 'steer' as const : 'stop' as const } : {}) });
   const worked = text.length >= CHATTER_CHARS || (chats.get(agent.id, chatId)?.items.slice(delivery.from, to) || []).some((i) => i.type === 'tool');
   r.episode.chatter = worked ? 0 : (r.episode.chatter || 0) + 1;
   // (its read mark stays where this turn started: what others wrote meanwhile is new to it next turn;
@@ -948,7 +949,7 @@ async function steerNow(team: Team, text: string | null | undefined, opts: PostO
   state(team);
   try {
     for (const id of working) {
-      if (sessions[id]) stopChat(sessions[id]);
+      if (sessions[id]) stopChat(sessions[id], undefined, { forMessage: true });
     }
     // their "(stopped…)" replies land before your message, so the thread reads in order
     await settledWithin(

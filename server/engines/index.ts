@@ -97,6 +97,8 @@ export interface RunEntry {
   agent: Agent;
   /** stopped for a new message from you: its /queue messages and loop stay */
   steered?: boolean;
+  /** stopped for a new message that a team steer takes care of (its chat's queue and loop go as for Stop) */
+  forMessage?: boolean;
   stopRequested?: boolean;
 }
 
@@ -236,12 +238,13 @@ export function finishNativeRun(runId: string): void {
     const stopped = native.status === 'stopped';
     const failed = native.status === 'failed' || native.status === 'interrupted';
     const answer = native.answer || '';
-    const error = stopped ? 'Stopped.' : native.limitReason || (native.status === 'failed' ? 'Eve could not finish this work. Check the model connection and the saved results before continuing.' : native.error || 'Eve could not finish this work. Check what was done before continuing.');
+    const forMessage = stopped && !!(entry.steered || entry.forMessage || saved.steered);
+    const error = stopped ? (forMessage ? 'Stopped to take your new message.' : 'Stopped.') : native.limitReason || (native.status === 'failed' ? 'Eve could not finish this work. Check the model connection and the saved results before continuing.' : native.error || 'Eve could not finish this work. Check what was done before continuing.');
     const chat = entry.chat;
     if (!chat._deleted && agentStore.get(entry.agentId) && chats.get(entry.agentId, chat.id)) {
       if (native.status !== 'completed') {
         const sourceId = `eve:${runId}:terminal`;
-        if (!chat.items.some((item) => item.sourceId === sourceId)) chat.items.push({ type: 'error', text: error, ts: Date.now(), runId, sourceId });
+        if (!chat.items.some((item) => item.sourceId === sourceId)) chat.items.push({ type: 'error', text: error, ts: Date.now(), runId, sourceId, ...(stopped ? { stopped: forMessage ? 'steer' as const : 'stop' as const } : {}) });
         for (const item of chat.items) if (item.type === 'tool' && item.status === 'running') Object.assign(item, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
       }
       finishMemoryReset(chat, runId);
@@ -402,6 +405,18 @@ function pushItem<T extends ChatItem>(chat: Chat, item: T): T {
   return chat.items[chat.items.length - 1] as T;
 }
 
+/** What an agent is told when its last turn was stopped partway (its steps so far are in its session). */
+export const STOP_NOTE: Record<'stop' | 'steer', string> = {
+  steer: '<turn-note>\nYour last turn was stopped partway so you could read the new message below. What you did before the stop is done and kept: build on it, change course where the message says to, and don\'t start over or redo finished steps.\n</turn-note>\n\n',
+  stop: '<turn-note>\nThe user stopped your last turn before it finished. What you did before the stop is kept; check it before redoing anything.\n</turn-note>\n\n',
+};
+
+/** Whether the turn before the next one was stopped partway (the last thing in the chat, cost lines aside). */
+export function stoppedBefore(items: readonly ChatItem[]): 'stop' | 'steer' | null {
+  const last = items.findLast((i) => i.type !== 'meta');
+  return last?.type === 'error' && last.stopped ? last.stopped : null;
+}
+
 // Start answering a message in a chat. Returns immediately with the run id.
 // The run belongs to the project it starts in (see withProject): opening another project meanwhile
 // doesn't move its chat, tool calls or files there.
@@ -446,6 +461,8 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
     toolSave ??= setTimeout(persist, 1000);
   };
 
+  // the turn before this one was stopped partway: the agent is told, so it builds on what it did
+  const cut = stoppedBefore(chat.items);
   const reset = chat.items.findLastIndex((i) => i.type === 'meta' && i.reset);
   const imported = new Set(chat.items.slice(reset + 1).flatMap((i) => i.type === 'user' && i.teamMessageId ? [i.teamMessageId] : []));
   const added: TeamContextMessage[] = [];
@@ -468,6 +485,8 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   const prompt = withAttachments(text, attachments, { inline: engineCapabilities(agent.engine).inlineAttachmentText ? 24000 : 0 });
 
   let current: ChatItemOf<'assistant'> | null = null; // assistant item being streamed
+  // the engine has started on the message (written or called a tool): its own session has it
+  let heard = false;
   let lastSave = 0;
   const saveSoon = () => {
     if (Date.now() - lastSave > 1500) {
@@ -479,6 +498,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   // (engines call this from their own callbacks: pinned again so it never depends on where they come from)
   const onEvent = (ev: RunEvent) => inProject(() => onEventIn(ev));
   const onEventIn = (ev: RunEvent) => {
+    if (ev.kind === 'text' || ev.kind === 'tool') heard = true;
     if (ev.kind === 'text') {
       if (!current) current = pushItem(chat, { type: 'assistant', text: '' });
       current.text += ev.text;
@@ -541,7 +561,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
         if (!cli) return prompt;
         const window = await contextInfo.contextWindow(agent, chat);
         const input = chat.reseed ? contextInfo.seedPrompt(chat.items, prompt, window, systemPrompt)
-          : memoryNote + (added.length ? `${added.map((m) => m.text).join('\n\n')}\n\n` : '') + prompt;
+          : memoryNote + (cut ? STOP_NOTE[cut] : '') + (added.length ? `${added.map((m) => m.text).join('\n\n')}\n\n` : '') + prompt;
         if (contextInfo.estimateTokens(systemPrompt + input) > window * 0.85) throw new Error('The full request does not fit this model. Choose a larger-context model or clear memory. No original messages were discarded.');
         return input;
       };
@@ -582,15 +602,19 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       const stopped = controller.signal.aborted;
       failed = !stopped;
       // A failed CLI turn may never have received its imported messages. Replay saved memory on retry.
-      if (context && !engineCapabilities(agent.engine).directTools) {
+      // One stopped after it got going had them: its session keeps what it did (a steer carries on from there).
+      const cliTurn = !engineCapabilities(agent.engine).directTools;
+      if (cliTurn && stopped && heard && chat.sessionId) delete chat.reseed;
+      else if (cliTurn && added.length) {
         chat.sessionId = null;
         chat.reseed = true;
       }
       const interrupted = closing && !entry.stopRequested;
-      const msg = interrupted ? 'The dashboard closed before this work finished. Check what was done before continuing.' : stopped ? (entry.steered ? 'Stopped to take your new message.' : 'Stopped.') : (e as Error).message || String(e);
+      const forMessage = !!(entry.steered || entry.forMessage);
+      const msg = interrupted ? 'The dashboard closed before this work finished. Check what was done before continuing.' : stopped ? (forMessage ? 'Stopped to take your new message.' : 'Stopped.') : (e as Error).message || String(e);
       updateExecution(runId, { status: interrupted ? 'interrupted' : stopped ? 'stopped' : 'failed', error: msg, endedAt: Date.now() });
       for (const it of chat.items) if (it.type === 'tool' && it.status === 'running') Object.assign(it, { status: 'error', isError: true, result: stopped ? '(stopped)' : '(did not finish)' });
-      pushItem(chat, { type: 'error', text: msg, runId });
+      pushItem(chat, { type: 'error', text: msg, runId, ...(stopped && !interrupted ? { stopped: forMessage ? 'steer' as const : 'stop' as const } : {}) });
       persist();
       send({ kind: 'error', text: msg });
       if (!stopped) log('error', `${agent.name}: ${msg}`, { agentId: agent.id, chatId: chat.id });
@@ -1030,10 +1054,14 @@ export function stopChildren(parentRunId: string) {
   for (const [id, r] of active) if (r.ancestors.includes(parentRunId)) stopRun(id);
 }
 
-export function stopChat(chatId: string, projectId: string = here()) {
+/** forMessage: stopped to take a new message (a team steer): the chat says so, and its next turn builds on this one. */
+export function stopChat(chatId: string, projectId: string = here(), { forMessage = false }: { forMessage?: boolean } = {}) {
   unqueue(chatId, undefined, projectId);
   stopChatWork(chatId, projectId);
-  for (const [id, run] of active) if (run.projectId === projectId && (run.chatId === chatId || run.ownerChatId === chatId)) stopRun(id);
+  for (const [id, run] of active) if (run.projectId === projectId && (run.chatId === chatId || run.ownerChatId === chatId)) {
+    if (forMessage) run.forMessage = true;
+    stopRun(id);
+  }
 }
 
 // A chat deleted while running: stop it and make sure nothing writes it back.

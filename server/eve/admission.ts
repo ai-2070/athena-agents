@@ -4,7 +4,7 @@ import path from 'node:path';
 import { agents, chats, withProject } from '../store.ts';
 import { readExecution } from '../execution.ts';
 import { cleanAttachments, safeUploadsRoot, withAttachments } from '../uploads.ts';
-import { estimateTokens } from '../context.ts';
+import { estimateTokens, stopMark } from '../context.ts';
 import { listFiles, realTarget, isInside } from '../util.ts';
 import { privateDataPath } from '../private.ts';
 import { canonical } from '../../shared/canonical.ts';
@@ -132,7 +132,7 @@ export async function prepareAdmission(runId: string, project: Project): Promise
         if (history.some((entry) => entry.id === key)) continue;
         if (item.type === 'user' && item.teamMessageId) historyKeys.push(key);
         const text = item.type === 'user' ? `${item.from ? `${item.from}:\n` : ''}${item.text}${item.attachments?.length ? `\n\nHistorical attachments (use the file tools to read them):\n${item.attachments.join('\n')}` : ''}`
-          : item.type === 'assistant' ? item.text : item.type === 'tool' ? `Previous tool ${item.name}\nInput: ${JSON.stringify(item.args || {})}\nResult: ${item.result ?? '(unfinished)'}` : '';
+          : item.type === 'assistant' ? item.text : item.type === 'tool' ? `Previous tool ${item.name}\nInput: ${JSON.stringify(item.args || {})}\nResult: ${item.result ?? '(unfinished)'}` : stopMark(item);
         if (text.trim()) history.push({ id: key, role: item.type === 'user' ? 'user' : 'assistant', text });
       }
     } else for (const item of receipt.context || []) {

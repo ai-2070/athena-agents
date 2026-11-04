@@ -192,7 +192,7 @@ describe('steering an agent chat: a message while it works', () => {
     await steerChat(a, c, 'change of plan');
     expect(queuedMessages(c.id).map((q) => q.text)).toEqual(['then tidy up']);
     expect(running(c.id)).toBe(true);
-    expect(chats.get(a.id, c.id)!.items.some((i) => i.type === 'error' && i.text === 'Stopped to take your new message.')).toBe(true);
+    expect(chats.get(a.id, c.id)!.items.find((i) => i.type === 'error')).toMatchObject({ text: 'Stopped to take your new message.', stopped: 'steer' });
     expect(await release()).toContain('change of plan');
     expect(await release()).toContain('then tidy up');
     await until(() => !running(c.id));

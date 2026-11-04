@@ -49,6 +49,9 @@ const ST_CMP = 'st-msg cmp self-stretch border-t border-dashed border-line-2 pt-
 
 export type Variant = 'full' | 'compact' | 'mini';
 
+// what a stopped run says (chats saved before stops were marked say only this)
+const STOP_LINES = new Set(['Stopped.', 'Stopped to take your new message.']);
+
 /** A piece of the page built with plain DOM (approval cards, the COMPACTED mark, file previews…). */
 export const Dom = memo(
   function Dom({ make, deps, className }: { make: () => Node | null; deps: readonly unknown[]; className?: string }) {
@@ -242,7 +245,12 @@ export function MessageView({ m, variant, busy, streaming, dim, onSend, owner }:
           if (variant === 'mini') return <div key={key} className={ST_CMP} title="The engine shortened its active memory. Original messages remain saved and searchable.">Compacted</div>;
           return <Dom key={key} make={() => compactionMark(it, { compact: variant === 'compact' })} deps={[it.id, variant]} />;
         }
-        if (p.type === 'data-error') return <div key={key} className={(p.data as { text: string }).text.trim() === 'Stopped.' ? 'self-stretch py-2 text-center text-[13px] text-dim' : variant === 'full' ? 'msg error' : variant === 'compact' ? AC_ERR : ST_ERR}>{(p.data as { text: string }).text}</div>;
+        if (p.type === 'data-error') {
+          // a stop (yours, or to take your new message) isn't a failure: a quiet line, the work above it kept
+          const e = p.data as { text: string; stopped?: string };
+          const quiet = !!e.stopped || STOP_LINES.has(e.text.trim());
+          return <div key={key} className={quiet ? 'st-stopped self-stretch py-2 text-center text-[13px] text-dim' : variant === 'full' ? 'msg error' : variant === 'compact' ? AC_ERR : ST_ERR}>{e.text}</div>;
+        }
         if (p.type === 'data-meta') return variant === 'full' ? <div key={key} className="msg meta">{(p.data as { text: string }).text}</div> : null;
         return null;
       })}
