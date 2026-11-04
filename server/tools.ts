@@ -28,6 +28,7 @@ import * as skills from './skills.ts';
 import { findAgent } from '../shared/agentref.ts';
 import * as voxel from './voxel/tools.ts';
 import { taskTools } from './tasktools.ts';
+import { goalTool } from './goaltool.ts';
 import type { Agent, ToolGroup } from '../shared/types.ts';
 
 /** none: never asks. low: asks when autonomy is "ask". high: asks unless autonomy is "full". */
@@ -148,6 +149,7 @@ const obj = (properties: Record<string, JSONSchema>, required: string[] = []): J
 
 const TOOLS: ToolDef[] = [
   ...taskTools(),
+  goalTool(),
   // ---------- skills (every agent; the list it has is in its instructions) ----------
   {
     name: 'read_skill',

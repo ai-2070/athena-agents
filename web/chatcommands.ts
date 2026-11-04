@@ -2,7 +2,7 @@
 // "/", and the loop and goal chips above the box. (The agent chat is React: web/chat/ChatView.tsx.)
 import { h, mount } from './core.ts';
 import { icon } from './icons.ts';
-import { loopPace, slashSuggestions } from '../shared/commands.ts';
+import { goalText, loopPace, slashSuggestions } from '../shared/commands.ts';
 import type { ChatKind, SlashOption } from '../shared/commands.ts';
 import type { BrainBrief, LoopInfo } from '../shared/types.ts';
 
@@ -89,7 +89,7 @@ export function commandChips(el: HTMLElement, { loop, goal, onStopLoop, onClearG
   mount(
     el,
     goal
-      ? h('div.cmd-chip.goal', icon('target', 13), h('span', { class: CHIP_TEXT }, h('b', 'Goal: '), goal.goal || goal.text), h('span.hint', goalLine(goal)), h('button.tc-act', { title: 'Drop this goal', 'aria-label': 'Drop this goal', onclick: onClearGoal }, icon('x', 12)))
+      ? h('div.cmd-chip.goal', icon('target', 13), h('span', { class: CHIP_TEXT }, h('b', 'Goal: '), goalText(goal)), h('span.hint', goalLine(goal)), h('button.tc-act', { title: 'Drop this goal', 'aria-label': 'Drop this goal', onclick: onClearGoal }, icon('x', 12)))
       : null,
     loop ? h('div.cmd-chip.loop', icon('repeat', 13), h('span', { class: CHIP_TEXT }, h('b', 'Loop: '), loop.text), h('span.hint', loopLine(loop)), h('button.tc-act', { title: 'Stop the loop', 'aria-label': 'Stop the loop', onclick: onStopLoop }, icon('x', 12))) : null,
   );
