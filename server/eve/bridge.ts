@@ -7,7 +7,8 @@ import type { ToolRoute } from '../apitools.ts';
 import { providerOf } from '../providers.ts';
 import { questions, withProject } from '../store.ts';
 import { addQuestion, answerResult } from '../questions.ts';
-import { callTool, gate, needsApproval, toolApprovalPlan, toolApprovalRequest } from '../tools.ts';
+import { callTool, clipForModel, gate, needsApproval, toolApprovalPlan, toolApprovalRequest } from '../tools.ts';
+import { recordAsked, recordToolCall } from '../toolstats.ts';
 import { approvalFingerprint, cancelDurableApproval, durableApproval, ensureDurableApproval } from '../approvals.ts';
 import type { ApprovalRequest } from '../approvals.ts';
 import * as mcp from '../mcp.ts';
@@ -118,6 +119,7 @@ async function checkCall(bindingId: string, sessionId: string, runId: string, ca
         detail: plan.requests.map((item) => `${item.title}\n${item.detail || ''}`).join('\n\n'),
         data: { tool: name, args, runId: run.id, checks },
       });
+      if (!previous) recordAsked(name);
       const approval = ensureDurableApproval(operation.id, request);
       saveOperation({ ...operation, approvalChecks: operation.approvalChecks || checks, approvalId: approval.id, status: approval.decision ? approval.decision.approved ? 'prepared' : 'cancelled' : 'waiting' });
       if (!approval.decision) {
@@ -169,11 +171,21 @@ export async function eveTool(bindingId: string, sessionId: string, runId: strin
           return { ...decision, always: saved.approvalChecks.length === 1 && decision.always };
         },
       };
-      if (target.kind === 'builtin') return callTool(fresh.agent, target.name, effective, context);
+      // (what the model gets back stays within the result limit; the receipt keeps exactly that)
+      if (target.kind === 'builtin') return clipForModel(await callTool(fresh.agent, target.name, effective, context), target.name, run.id);
       if (!fresh.agent.mcpServers.includes(target.server) || !mcp.isEnabled(target.server)) return { text: 'This MCP account is no longer available.', isError: true, denied: true };
       const refused = await gate(fresh.agent, name, target.risk, effective, { ...context, mcpServer: target.server });
       if (signal?.aborted) return { text: 'Stopped.', isError: true, denied: true };
-      return refused || mcp.callTool(target.server, target.name, effective, { signal });
+      if (refused) return refused;
+      const started = Date.now();
+      try {
+        const answer = await mcp.callTool(target.server, target.name, effective, { signal });
+        recordToolCall(name, { ms: Date.now() - started, chars: answer.text.length, isError: answer.text.startsWith('ERROR: ') });
+        return clipForModel(answer, name, run.id);
+      } catch (e) {
+        recordToolCall(name, { ms: Date.now() - started, chars: 0, isError: true });
+        throw e;
+      }
     });
     const operation = readOperation(id);
     if (operation?.status === 'uncertain') {
