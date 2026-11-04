@@ -1,0 +1,75 @@
+skills/athena/arxiv/references/semantic-scholar.md
+  s_09ac87e46cf718::t_3b071ca15b0a35 16-18
+  s_09ac87e46cf718::t_6a373e1a10aee3 57-58
+  s_09ac87e46cf718::t_6b926587dabe7d 14-15
+  s_09ac87e46cf718::t_3e57fe37aabcc1 1-13,19-56,59-115
+skills/athena/arxiv/SKILL.md
+  s_09ac87e46cf718::t_90f2bb2dc04636 54-55
+  s_09ac87e46cf718::t_5998c3715f1448 1-12,22,25-28,30,33-36,40-41,43-46,48-50,56-57,64-66,70,75-83,87-89,94-105,111-113,120-122,128-130,134-137
+  s_09ac87e46cf718::t_33f85451ddb6e0 14-17
+  s_09ac87e46cf718::t_b670d2695fd190 126
+  s_09ac87e46cf718::t_f0e140b9fe1cf1 115-119
+  s_09ac87e46cf718::t_0724fff5976b9b 61-63
+  s_09ac87e46cf718::t_6a151c28252c5b 13,18-20,24,29,31-32,37-39,42,47,51-53,59-60,67-69,71,84-86,90-91,106-108,114,123-125,131-133,138-140
+  s_09ac87e46cf718::t_26d0c0cc5ccd87 21,23,58,72-74,92-93,109-110,127
+tests/skills/arxiv/test_arxiv_search.py
+  s_09ac87e46cf718::t_70d8d9c7d39d08 1-394
+  s_09ac87e46cf718::t_4ff7f02aac4347 395-416
+skills/athena/arxiv/scripts/arxiv_search.py
+  s_09ac87e46cf718::t_8972bdd48b4b9e 574-577
+  s_09ac87e46cf718::t_d5502e28d3a247 611
+  s_09ac87e46cf718::t_0156c134eb125a 234-236
+  s_09ac87e46cf718::t_393461c5e619e5 1-233,237-573,578-610,612,616-965
+  s_09ac87e46cf718::t_3c486bf0cc5f4f 613-615
+  s_09ac87e46cf718::t_5137ebf1e3e1bb 966-967
+tests/skills/arxiv/responses/s2-docs.json
+  s_09ac87e46cf718::t_b7abd2f7e6f29c 1-89
+  s_09ac87e46cf718::t_66cc80373f4c02 90-280
+tests/skills/arxiv/conftest.py
+  s_09ac87e46cf718::t_4617e7afdcf35d 1-223
+  s_09ac87e46cf718::t_7b872cf16074d3 224-236
+tests/skills/arxiv/responses/bibtex-2402.03300.bib
+  s_09ac87e46cf718::t_42c0a1c2f3bb57 1-9
+tests/skills/arxiv/responses/bibtex-missing.bib
+  s_09ac87e46cf718::t_cc0c5225d2cff0 1
+tests/skills/arxiv/responses/bibtex-old.bib
+  s_09ac87e46cf718::t_a027427b739dca 1-10
+tests/skills/arxiv/responses/bibtex-versioned.bib
+  s_09ac87e46cf718::t_ab4036f5e0abf0 1-9
+tests/skills/arxiv/responses/error-start.xml
+  s_09ac87e46cf718::t_f9b2431324fc1c 1-19
+tests/skills/arxiv/responses/id-2402.03300.xml
+  s_09ac87e46cf718::t_9b9f18c7f7439b 1-56
+tests/skills/arxiv/responses/id-mixed.xml
+  s_09ac87e46cf718::t_335ddfad2b6c55 1-78
+tests/skills/arxiv/responses/id-old-hep-th.xml
+  s_09ac87e46cf718::t_74f4be7a599a9f 1-38
+tests/skills/arxiv/responses/id-solv-int.xml
+  s_09ac87e46cf718::t_e82ce33153a08a 1-30
+tests/skills/arxiv/responses/id-versioned.xml
+  s_09ac87e46cf718::t_6742066e17022e 1-47
+tests/skills/arxiv/responses/s2-429.json
+  s_09ac87e46cf718::t_49f9efaae7bf41 1
+tests/skills/arxiv/responses/s2-batch.json
+  s_09ac87e46cf718::t_75d57d981b22a1 1
+tests/skills/arxiv/responses/search-and.xml
+  s_09ac87e46cf718::t_a0c920c3623cc3 1-115
+tests/skills/arxiv/responses/search-withdrawn.xml
+  s_09ac87e46cf718::t_8e46ecbe8350c1 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "01e1d682ed2637bc88e42b6d8c3da7e6cb926af6",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
