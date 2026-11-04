@@ -1,0 +1,31 @@
+AGENTS.md
+  s_09ac87e46cf718::t_25ea806fc79b24 57
+docs/guide.md
+  s_09ac87e46cf718::t_7caca708cd6c2e 214
+docs/internal/plans/HERMES_SKILLS_REWRITE_2026-11-04.md
+  s_09ac87e46cf718::t_3229ea1a025354 12,25-26
+server/skills.ts
+  s_09ac87e46cf718::t_04bdc538960b17 14,490-491,497,529,540,554,560-562,564-567,569,576
+skills/athena/replaced.json
+  s_09ac87e46cf718::t_42cd8758b027a2 2,10,14,18,22,26,30,34,38,42,46,50,54,58,62,66,70,74,78,82,86,90,94,98,102,106,110,114,118,122,126,130,134,138,142,146,150,154,158,162,166,170,174,178,182,186,190,194,198,202,206,210
+tests/server/athena-skills.test.ts
+  s_09ac87e46cf718::t_137a58c2999f47 11
+tests/server/bundled-skills.test.ts
+  s_09ac87e46cf718::t_4ee5b949735083 47-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "41ae1a7af06fc88bf58c20f8496111c6a3ef5d04",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
