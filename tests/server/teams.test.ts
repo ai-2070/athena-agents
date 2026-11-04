@@ -220,6 +220,16 @@ describe('steering: a message while the team works', () => {
     ]);
     // (the queued one is an ordinary message: the lead takes it)
     expect(getThread(team.id).messages[5].from).toBe(other.id);
+    // the stopped turn is marked, hands nothing on, and keeps where its work is
+    const cut = getThread(team.id).messages.find((m) => m.from === slow.id)!;
+    expect(cut).toMatchObject({ stopped: 'steer', mentions: [] });
+    expect(cut.turn).toBeTruthy();
+    const session = chats.get(slow.id, cut.turn!.chatId)!;
+    expect(session.items.slice(cut.turn!.from, cut.turn!.to).at(-1)).toMatchObject({ type: 'error', text: 'Stopped to take your new message.', stopped: 'steer' });
+    // its next turn builds on that: it sees what it did so far, and where it was cut off
+    const next = contexts.Slow.find((c) => c.includes('Change of plan'))!;
+    expect(next).toContain('@Slow do the long job');
+    expect(next).toContain('My turn was stopped here, before it finished, to take the next message.');
     expect(msg.text).toBe('Change of plan: do the short one');
     expect(teamState(team.id).held).toEqual([]);
   }, 15000);

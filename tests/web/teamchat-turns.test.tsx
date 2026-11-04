@@ -213,6 +213,30 @@ describe('team chat turns', () => {
     expect(requests.filter((request) => request === 'GET /api/agents/lead/chats/lead-chat')).toHaveLength(loaded);
   });
 
+  it('a turn stopped for your new message keeps its work on show, with a quiet line instead of a reply', async () => {
+    missed = [
+      { id: 'm2', ts: 2, from: 'lead', text: '(stopped to take your new message)', stopped: 'steer', mentions: [], turn: { chatId: 'lead-chat', from: 0, to: 3 } },
+      // (saved before stops were marked: read from its text)
+      { id: 'm3', ts: 3, from: 'lead', text: '(stopped)', mentions: [] },
+    ];
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    const lines = [...el.querySelectorAll('.tc-stopped')].map((n) => n.textContent);
+    expect(lines).toEqual(['Stopped to take your new message. Its work so far is kept.', 'Stopped. Its work so far is kept.']);
+    expect(el.textContent).not.toContain('(stopped');
+    // its work is open from the start (no click), the steps it got done
+    const work = el.querySelectorAll('.tc-work')[1]!;
+    const trigger = work.querySelector<HTMLButtonElement>('button')!;
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(trigger.textContent).toBe('Hide the work');
+    for (let i = 0; i < 100 && !work.querySelector('details.tool'); i++) await settle();
+    expect(work.querySelector('details.tool .tname')!.textContent).toBe('read_file');
+    await act(async () => trigger.click());
+    expect(trigger.textContent).toBe('Show the work');
+  });
+
   it('a long message folds with Show more; a short one does not', async () => {
     // (happy-dom has no layout: the lead's reply is made to measure tall)
     const tall = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {

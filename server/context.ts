@@ -91,6 +91,12 @@ export async function contextWindow(agent: ModelOf, chat?: Chat | null): Promise
 }
 
 
+/** Where a turn was stopped partway, as the agent reads it in a rebuilt memory (so it carries on rather than starts over). */
+export function stopMark(item: ChatItem): string {
+  if (item.type !== 'error' || !item.stopped) return '';
+  return item.stopped === 'steer' ? '(My turn was stopped here, before it finished, to take the next message. The steps above are done.)' : '(The user stopped my turn here, before it finished. The steps above are done.)';
+}
+
 /** A fresh CLI session receives every retained original after Clear memory, without clipping. */
 export function seedPrompt(items: ChatItem[], prompt: string, window: number, system = ''): string {
   const current = items.findLastIndex((item) => item.type === 'user');
@@ -98,6 +104,7 @@ export function seedPrompt(items: ChatItem[], prompt: string, window: number, sy
     if (item.type === 'user') return [`${item.from || 'User'}: ${item.text}${item.attachments?.length ? `\nAttachments: ${item.attachments.join(', ')}` : ''}`];
     if (item.type === 'assistant') return [`Assistant: ${item.text}`];
     if (item.type === 'tool') return [`Tool ${item.name}\nInput: ${JSON.stringify(item.args || {})}\nResult: ${item.result ?? '(unfinished)'}`];
+    if (stopMark(item)) return [`Assistant: ${stopMark(item)}`];
     return [];
   }).join('\n\n');
   const input = history ? `Earlier conversation (original messages):\n${history}\n\nCurrent request:\n${prompt}` : prompt;

@@ -650,6 +650,8 @@ export interface TeamMessage {
   /** An agent's reply: where its turn is in the agent's own session for this team (its steps and tool
    *  calls are items from..to of that chat), so the team chat can show the work behind it. */
   turn?: { chatId: string; from: number; to: number };
+  /** An agent's turn that was stopped before it finished (steer: to take your new message). Its work so far is in turn. */
+  stopped?: 'stop' | 'steer';
   /** Files and folders attached to the message (paths in the project's uploads/ folder). */
   attachments?: string[];
   [k: string]: unknown;
@@ -763,7 +765,8 @@ export type ChatItem = (
   | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string; runId?: string }
   | { type: 'assistant'; text: string; ts?: number }
   | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number; resultSourceId?: string }
-  | { type: 'error'; text: string; ts?: number; runId?: string }
+  /** stopped: the run was stopped before it finished (steer: to take a new message), not a failure */
+  | { type: 'error'; text: string; ts?: number; runId?: string; stopped?: 'stop' | 'steer' }
   /** reset: "Clear memory" (the agent starts fresh after it) */
   | { type: 'meta'; text: string; ts?: number; reset?: boolean; billing?: RunBilling }
   | CompactionItem) & { sourceId?: string };

@@ -78,6 +78,27 @@ export function readOutput(output: unknown): ToolOutput {
   return { text: typeof output === 'string' ? output : output == null ? '' : JSON.stringify(output, null, 2), images: [] };
 }
 
+/** A tool's own name, without the prefix an engine adds to MCP tools (mcp__dashboard__await_agent → await_agent). */
+export const toolBase = (name: string): string => name.replace(/^mcp__[^_]+(?:_[^_]+)*__/, '');
+
+/** Who each ask_agent handle went to (handle → the agent as ask_agent named it), from the ask_agent calls in
+ *  these messages, so await_agent can show the agent rather than its handle. One line per handle: a key that
+ *  stays the same while other parts stream in. */
+export function handoffsIn(messages: readonly Pick<ChatMessage, 'parts'>[]): string {
+  const lines: string[] = [];
+  for (const m of messages) for (const p of m.parts) {
+    if (p.type !== 'dynamic-tool' || toolBase(p.toolName) !== 'ask_agent' || p.state !== 'output-available') continue;
+    const sent = /Sent to (.+?) \(handle ([\w-]+)\)/.exec(readOutput(p.output).text);
+    if (!sent) continue;
+    const named = (p.input as { agent?: unknown } | null)?.agent;
+    lines.push(`${sent[2]}\t${typeof named === 'string' && named.trim() ? named.trim() : sent[1]}`);
+  }
+  return lines.join('\n');
+}
+
+/** handoffsIn's lines as a map. */
+export const handoffMap = (lines: string): ReadonlyMap<string, string> => new Map(lines ? lines.split('\n').map((l) => l.split('\t') as [string, string]) : []);
+
 /** What a message says, for the search (Ctrl+F): its text, and the names of the tools it used. */
 export function searchText(m: Pick<ChatMessage, 'parts'>): string {
   return m.parts.map((p) => (p.type === 'text' || p.type === 'reasoning' ? p.text : p.type === 'dynamic-tool' ? p.toolName : '')).join('\n');
