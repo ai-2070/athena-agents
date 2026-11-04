@@ -4,7 +4,8 @@
 //   user           → user message: a text part, and file parts for what was attached
 //   assistant text → assistant message; the tool calls after it (in the same turn) are its
 //                    dynamic-tool parts (output: { text, images })
-//   error, meta, compaction → an assistant message with one data part (data-error / data-meta / data-compaction)
+//   error, meta, compaction → an assistant message with one data part (data-error / data-meta / data-compaction);
+//                    the cost and token lines are left out
 // A live run streams in as one assistant message (server/uistream.ts) and is replaced by the saved
 // items once it ends.
 import type { DynamicToolUIPart, UIMessage } from 'ai';
@@ -82,6 +83,10 @@ export function searchText(m: Pick<ChatMessage, 'parts'>): string {
   return m.parts.map((p) => (p.type === 'text' || p.type === 'reasoning' ? p.text : p.type === 'dynamic-tool' ? p.toolName : '')).join('\n');
 }
 
+// The cost and token line saved after a run ("$0.0000 · 11392 from cache"): kept in the chat, not shown.
+const USAGE = /^(Memory summary · )?(Estimated \$|\$\d|Cost unavailable|Cost not reported|Usage · )/;
+export const isUsageLine = (it: ChatItem): boolean => it.type === 'meta' && !it.reset && (!!it.billing || USAGE.test(it.text));
+
 export function toUIMessages(items: readonly ChatItem[], from = 0, to = items.length): ChatMessage[] {
   const out: ChatMessage[] = [];
   // the assistant message the next tool calls belong to (only within a turn)
@@ -102,6 +107,7 @@ export function toUIMessages(items: readonly ChatItem[], from = 0, to = items.le
       continue;
     }
     open = null;
+    if (isUsageLine(it)) continue;
     if (it.type === 'user') out.push({ id: `m-${seq}`, role: 'user', parts: userParts(it.text, it.attachments), metadata: { seq, from: it.from || null } });
     else out.push({ id: `m-${seq}`, role: 'assistant', parts: [{ type: `data-${it.type}`, data: it } as ChatPart], metadata: { seq } });
   }

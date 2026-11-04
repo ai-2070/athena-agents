@@ -50,7 +50,7 @@ The model list shows prices and context size, flags models without tool use and 
 
 Venice uses Athena's agent and Brain instructions with Venice's added system prompt disabled. Venice's built-in search, scraping and character features are not enabled. This integration covers chat, including supported image attachments; it does not add Venice image generation, video, audio, embeddings or wallet authentication.
 
-The Station's usage readout shows available Venice balances separately from Claude, Codex and OpenRouter. After a run, chat usage distinguishes reported USD and DIEM charges from an **estimated USD equivalent** based on token counts and catalog prices. An estimate is not a USD debit. If neither reported cost nor an estimate is available, the chat says **Cost unavailable**.
+The Station's usage readout shows available Venice balances separately from Claude, Codex and OpenRouter. Each run's usage is still recorded, telling reported USD and DIEM charges apart from an **estimated USD equivalent** based on token counts and catalog prices (an estimate is not a USD debit), but the chat no longer shows a cost and token line after each reply.
 
 **Cost limit per message** stops API runs between model steps after a known cost passes the limit. Venice uses a USD-equivalent estimate when needed, including for DIEM-funded runs. A single answer can exceed the limit. If cost information is missing, the monetary limit cannot be measured; the tool-step limit still applies. This is a local stop, not a hard spending cap at Venice.
 
