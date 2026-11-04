@@ -1,0 +1,49 @@
+docs/guide.md
+  s_3f5afab86a1bb3::t_b46d880c60f544 575-576,618-630
+  s_3f5afab86a1bb3::t_dab012fb4fb6dd 631
+web/views/gateway-outbox-delivery.tsx
+  s_3f5afab86a1bb3::t_e5fc00c47d023d 39,45,58,64,74,80,87-88
+  s_3f5afab86a1bb3::t_5bcd144850a3d1 11-12
+  s_3f5afab86a1bb3::t_806825db633f10 49
+tests/web/gateway-outbox-delivery.test.tsx
+  s_3f5afab86a1bb3::t_7aabcd201b1920 25-26,84-109
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_76e107a09e051e 240
+README.md
+  s_3f5afab86a1bb3::t_b46d880c60f544 260-261
+server/gateways/outbox-posts.ts
+  s_3f5afab86a1bb3::t_20bb14130e8845 8,79-84
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_b46d880c60f544 1062-1069,1072-1085,1096
+  s_3f5afab86a1bb3::t_1cdf28de11806f 1070-1071,1086-1093
+  s_3f5afab86a1bb3::t_54d774697504b6 1094-1095
+server/index.ts
+  s_3f5afab86a1bb3::t_482eb94ae57440 22,1123,1126-1128,1141-1142
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_482eb94ae57440 14-15,336,356,360-368
+  s_3f5afab86a1bb3::t_6ed20710c9ff6f 346
+tests/server/gateway-retired-outbox.test.ts
+  s_3f5afab86a1bb3::t_b4d7435c616a54 5,74-78
+  s_3f5afab86a1bb3::t_877d38ace735e4 23
+  s_3f5afab86a1bb3::t_76e107a09e051e 1-4,6-22,24-73,79-110
+shared/types.ts
+  s_3f5afab86a1bb3::t_20bb14130e8845 426
+server/gateways/outbox.ts
+  s_3f5afab86a1bb3::t_20bb14130e8845 12-13,80,84-97,135-158,182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f69ec1f09e370d8a01b58ce1959a8bfa1be6650d",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
