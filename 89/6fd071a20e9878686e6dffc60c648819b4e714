@@ -1,0 +1,32 @@
+skills/athena/action-items/SKILL.md
+  s_09ac87e46cf718::t_7e373208fb0424 1-8,11-13,18-21,23-42,48-65,68-77,81-85,87-92,94-103,108-112,116-117,124-128,131,134-140
+  s_09ac87e46cf718::t_7efe705634be3e 43-44
+  s_09ac87e46cf718::t_534cf2e3b9419c 66-67
+  s_09ac87e46cf718::t_f40391523d213f 104-107
+  s_09ac87e46cf718::t_d1a3e2e92f5f0d 130,132-133
+  s_09ac87e46cf718::t_5a800f8e9df33c 22
+  s_09ac87e46cf718::t_263987bc459f31 9-10
+  s_09ac87e46cf718::t_07f7af8b5eceb4 78-80
+  s_09ac87e46cf718::t_d6797ed1506f30 113-115,118-123
+  s_09ac87e46cf718::t_24883c0c1343d7 129
+  s_09ac87e46cf718::t_c31968ab514252 45-47
+  s_09ac87e46cf718::t_ee05960fcda97f 86
+  s_09ac87e46cf718::t_9aac0681d978cc 93
+  s_09ac87e46cf718::t_166a8013789e48 14-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "896fd071a20e9878686e6dffc60c648819b4e714",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
