@@ -31,7 +31,7 @@ import { attachMentionEditor } from './mentioneditor.ts';
 import type { MentionAgent } from './mention.ts';
 import { agentRef } from '../../shared/agentref.ts';
 import { queuedText } from '../../shared/queue.ts';
-import { parseCommand, slashSuggestions } from '../../shared/commands.ts';
+import { goalText, parseCommand, showsGoal, slashSuggestions } from '../../shared/commands.ts';
 import type { SlashOption } from '../../shared/commands.ts';
 import { goalLine, loopLine } from '../chatcommands.ts';
 import { QueuedList, keepLostEdit } from '../queuedlist.tsx';
@@ -229,7 +229,7 @@ export function ChatView(p: ChatViewProps) {
         if (ev.type === 'brief') {
           const b = ev.brief as BrainBrief;
           if (b.kind !== 'agent' || !b.goal || !chatIdRef.current || b.chatId !== chatIdRef.current) return;
-          return void setGoal((g) => (b.status === 'open' ? b : g?.id === b.id ? null : g));
+          return void setGoal((g) => (b.status === 'open' && showsGoal(b) ? b : g?.id === b.id ? null : g));
         }
         if (!chatIdRef.current || ev.chatId !== chatIdRef.current) return;
         if (ev.type === 'compacted' || ev.type === 'chat-note') {
@@ -418,7 +418,7 @@ export function ChatView(p: ChatViewProps) {
     const id = await ensureChat();
     if (!id) return back();
     const base = `${at}/agents/${agent.id}/chats/${id}`;
-    if (name === 'goal' && !rest) return void toast(goal ? `Goal: ${goal.goal || goal.text}` : 'No goal yet. Type /goal and what done looks like.');
+    if (name === 'goal' && !rest) return void toast(goal ? `Goal: ${goalText(goal)}` : 'No goal yet. Type /goal and what done looks like.');
     if (name === 'loop') {
       // (with the files in the tray: each loop message carries them; not when it is ended)
       const off = /^(off|stop|end|cancel)$/i.test(rest);
@@ -723,7 +723,7 @@ export function ChatView(p: ChatViewProps) {
             <Dom make={() => icon('target', 13)} deps={[]} />
             <span className="min-w-0 flex-1 truncate">
               <b>Goal: </b>
-              {goal.goal || goal.text}
+              {goalText(goal)}
             </span>
             <span className="hint">{goalLine(goal)}</span>
             <button type="button" className="tc-act" title="Drop this goal" aria-label="Drop this goal" onClick={() => void command('goal', 'clear', false)}>

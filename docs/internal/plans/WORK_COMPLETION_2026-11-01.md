@@ -4,6 +4,8 @@
 
 **Task integration, 1 November 2026.** [Shared task tools and chat UI](TASK_TOOLS_2026-11-01.md) adds saved task evidence to completion reviews. An assignment with unfinished linked tasks continues even when the evaluator says done. A completed task list still needs the usual result check; blockers still request user action.
 
+**Simple questions, 4 November 2026.** Every plain message used to show as a goal (“Goal: hi”) and end with a “finished” note. Now an ordinary message is tracked as before but shows as a goal only once it is recognized as work: the agent (or a team's lead) calls `set_goal` with what done looks like (`doneWhen`, kept beside the user's words, which stay the completion condition), or else the first completion check answers `assignment` as well, and a greeting or answered question closes quietly. Brain delegations and `/goal` count as recognized.
+
 ## Requirement and comparison
 
 An ordinary assignment should finish without the user typing a continuation command. The Brain should verify the result, continue missing work, or stop with a concrete request for user action when the request cannot advance. A plan or partial result is not completion.

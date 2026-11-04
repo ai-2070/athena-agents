@@ -22,7 +22,7 @@ import { slideIn, reducedMotion } from './motion.ts';
 import { useFind } from './ui/find.tsx';
 import { queuedText } from '../shared/queue.ts';
 import { TaskPanel } from './tasks.tsx';
-import { parseCommand } from '../shared/commands.ts';
+import { goalText, parseCommand, showsGoal } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
 import type { SlashMenu } from './chatcommands.ts';
 import { Avatar, DomNode, Icon, IconWeightProvider, mountReact, useAppState } from './ui/react.tsx';
@@ -184,7 +184,7 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
       if (ev.type === 'brief') {
         const b = ev.brief as BrainBrief;
         if (b.kind !== 'team' || b.targetId !== teamId || !b.goal) return;
-        if (b.status === 'open') c.goal = b;
+        if (b.status === 'open' && showsGoal(b)) c.goal = b;
         else if (c.goal?.id === b.id) c.goal = null;
         bump();
       }
@@ -603,7 +603,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     if (name === 'clear') return void ((await clear()) || restore(typed));
     if (name === 'goal' && !rest) {
       const r = await attempt(() => GET<TeamChatResponse>(`${at}/teams/${teamId}/chat`));
-      return void (r && toast(r.goal ? `Goal: ${r.goal.goal || r.goal.text}` : 'No goal yet. Type /goal and what done looks like.'));
+      return void (r && toast(r.goal ? `Goal: ${goalText(r.goal)}` : 'No goal yet. Type /goal and what done looks like.'));
     }
     type Done = { goal?: BrainBrief | null; queued?: QueuedMessage };
     const r = await attempt(() => POST<Done>(`${at}/teams/${teamId}/${name}`, name === 'goal' ? { text: rest } : {}));

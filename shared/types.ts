@@ -1770,6 +1770,11 @@ export interface BrainBrief {
   status: 'open' | 'done' | 'blocked' | 'stuck' | 'stopped' | 'replaced' | 'cleared';
   /** Created from an ordinary assignment; no command is needed. */
   automatic?: boolean;
+  /** An automatic brief the agent (set_goal), the team's lead or the Brain's check saw as real work:
+   *  only then does it show as a goal. Until then it may still turn out to be a simple question. */
+  recognized?: boolean;
+  /** What done looks like, as the agent or the team's lead put it with set_goal (the user's words stay in goal). */
+  doneWhen?: string;
   revision?: number;
   stalled?: number;
   /** Evidence of the last advance, for detecting repeated claims of progress. */

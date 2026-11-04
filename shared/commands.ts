@@ -1,5 +1,6 @@
 // The / commands you can type in a chat (agent, team or Brain chat): what each one does, the
 // suggestions shown while you type "/", and reading what follows a command.
+import type { BrainBrief } from './types.ts';
 
 export type ChatKind = 'agent' | 'team' | 'brain';
 
@@ -98,3 +99,9 @@ export function loopPace(every: number | null): string {
   for (const [ms, u] of units) if (every % ms === 0) return `every ${every / ms}${u}`;
   return `every ${Math.round(every / 1000)}s`;
 }
+
+/** A brief that shows as a goal in its chat: your /goal, the Brain's handed-out work, or an ordinary message
+ *  the agent, the lead or the Brain saw as real work (not a greeting or a simple question). */
+export const showsGoal = (b: Pick<BrainBrief, 'goal' | 'automatic' | 'recognized'>): boolean => !!b.goal && (!b.automatic || !!b.recognized);
+/** What the goal chip says: the agent's or lead's "done looks like", else your words. */
+export const goalText = (b: Pick<BrainBrief, 'goal' | 'doneWhen' | 'text'>): string => b.doneWhen || b.goal || b.text;
