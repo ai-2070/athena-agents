@@ -1,0 +1,35 @@
+skills/athena/fastmcp/references/fastmcp-cli.md
+  s_09ac87e46cf718::t_c4b2d3fdda811a 1-3,5,9-11,25-26,28-31,34-38,40,42-44,48-56,59-61,67-75,79-81,89-91
+  s_09ac87e46cf718::t_3d4d9bbdcd6474 4,6-8,12-24,27,32-33,39,41,45-47,57-58,62-66,76-78,82-88,92-94
+skills/athena/fastmcp/templates/api_wrapper.py
+  s_09ac87e46cf718::t_5cfe28f6fa089b 1-159
+skills/athena/fastmcp/templates/file_processor.py
+  s_09ac87e46cf718::t_92cc9f8006046c 1-160
+  s_09ac87e46cf718::t_1c834193bebe7b 161-167
+skills/athena/fastmcp/SKILL.md
+  s_09ac87e46cf718::t_1b3438b224c444 1-16,21-41,44-49,52,56-59,62-97,101-115,118-119,121-128,137-170
+  s_09ac87e46cf718::t_32f199dd23c971 98-100
+  s_09ac87e46cf718::t_b09150d659daa3 18-19
+  s_09ac87e46cf718::t_d248425f01772f 17,20,42-43,50-51,53-55,60-61,116-117,120,129-136
+skills/athena/fastmcp/references/calling-servers.md
+  s_09ac87e46cf718::t_2d3aa78ff4a3d0 1-47
+skills/athena/fastmcp/templates/database_server.py
+  s_09ac87e46cf718::t_7eec957fd5966a 1-155
+  s_09ac87e46cf718::t_75aeb59006c828 156-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3669aeac06c18146e08a70c2da9f0f154a9f0409",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
