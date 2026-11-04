@@ -1,0 +1,31 @@
+tests/web/chatcommands.test.ts
+  s_4c8d7f63ec0802::t_e70c1e664dd043 74
+web/chatcommands.ts
+  s_4c8d7f63ec0802::t_ff59268d2f960c 81
+web/chat/parts.tsx
+  s_4c8d7f63ec0802::t_eddfc0c9e51bdc 5,13,16-18,113-159,200
+tests/web/chat-agenttools.test.tsx
+  s_4c8d7f63ec0802::t_493cd084097069 1-61
+web/chat/TurnView.tsx
+  s_4c8d7f63ec0802::t_a1de1d02c75164 7,9,38-39,71-77
+web/chat/ChatView.tsx
+  s_4c8d7f63ec0802::t_a1de1d02c75164 19,21,587-589,771,863
+web/chat/messages.ts
+  s_4c8d7f63ec0802::t_c192aa9276338c 81-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "29a788d6444faa4154fd90f4d5215fadd34bdce4",
+  "prompts": {},
+  "sessions": {
+    "s_4c8d7f63ec0802": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fbf869fd-bc35-4553-b28f-bf381c08706e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
