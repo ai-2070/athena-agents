@@ -475,7 +475,11 @@ function ended(e: RunEnd): void {
   if (e.ownerChatId && e.ownerAgentId && e.ownerChatId !== e.chatId) {
     const owner = chats.get(e.ownerAgentId, e.ownerChatId);
     if (owner?.teamId) {
-      if (!e.stopped) postSystem(owner.teamId, `Delegated work for @${agents.get(e.ownerAgentId)?.name || 'a member'} finished:\n${e.failed ? 'Failed.' : e.answer}`);
+      if (!e.stopped) {
+        // the team (and the lead's next turn) reads the whole answer; the chat shows it folded under its first line
+        const who = `@${agents.get(e.ownerAgentId)?.name || 'a member'}`;
+        postSystem(owner.teamId, e.failed ? `Delegated work for ${who} failed.` : e.answer.trim() ? `Delegated work for ${who} finished:\n${e.answer}` : `Delegated work for ${who} finished.`);
+      }
       if (!hasBackgroundWork(owner.id)) teamBackgroundFinished(owner.teamId);
     } else if (owner && !hasBackgroundWork(owner.id)) {
       const brief = listBriefs().findLast((b) => b.status === 'open' && b.chatId === owner.id && b.targetId === e.ownerAgentId);

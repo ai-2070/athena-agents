@@ -375,11 +375,34 @@ function Work({ m, shown = false }: { m: TeamMessage; shown?: boolean }) {
   );
 }
 
+/** A line from the dashboard. One that heads a long report ("Delegated work for @X finished:" and the
+ *  answer under it) shows just its heading: the agents read the whole report, you open it if you want it. */
+function SystemLine({ text, names, teams }: { text: string; names: string; teams: string }) {
+  const [open, setOpen] = useState(false);
+  const line = 'text-center text-[12.5px] leading-[normal] font-normal text-faint py-1';
+  const split = /^([^\n]*):\n+([\s\S]*\S[\s\S]*)$/.exec(text);
+  if (!split) return <div className={line}>{text}</div>;
+  return (
+    <CollapseRoot className="tc-report flex flex-col items-center" open={open} onOpenChange={setOpen}>
+      <div className={line}>{split[1]}.</div>
+      <CollapseTrigger className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint transition-colors duration-200 ease-in-out hover:text-ink">
+        <Icon name="chevron-down" size={12} className={`transition-transform duration-200 ease-in-out ${open ? 'rotate-180' : ''}`} />
+        {open ? 'Hide the report' : 'Show the report'}
+      </CollapseTrigger>
+      <CollapsePanel className="w-full">
+        <div className="mt-2 rounded-box border border-line bg-panel px-4 py-3 text-left">
+          <DomNode className="dom-contents" make={() => textWithMentions(split[2], names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[text, names, teams]} />
+        </div>
+      </CollapsePanel>
+    </CollapseRoot>
+  );
+}
+
 /** One message. Memo: a message drawn once stays as it is while others arrive or stream in. */
 const Message = memo(function Message({ m, parent, author, team, lead, names, teams, onReply }: { m: TeamMessage; parent: TeamMessage | null; author: Agent | undefined; team: TeamRef | undefined; lead: boolean; names: string; teams: string; onReply: (m: TeamMessage) => void }) {
   const project = useContext(TeamProject);
   const agentOf = useAgentOf();
-  if (m.from === 'system') return <div className="text-center text-[12.5px] leading-[normal] font-normal text-faint py-1">{m.text}</div>;
+  if (m.from === 'system') return <SystemLine text={m.text} names={names} teams={teams} />;
   const brain = m.from === 'brain';
   // a message from another team (#Team): in that team's colour
   const relay = m.relay;

@@ -237,6 +237,29 @@ describe('team chat turns', () => {
     expect(trigger.textContent).toBe('Show the work');
   });
 
+  it("a delegated member's report shows as one line, with the report behind Show the report", async () => {
+    missed = [
+      { id: 's1', ts: 2, from: 'system', text: 'Delegated work for @Maker finished:\n**1. Honeycomb** fits: a new Marketing Ops role.', mentions: [] },
+      { id: 's2', ts: 3, from: 'system', text: 'Stopped. Nothing new will start until you write again.', mentions: [] },
+    ];
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    const report = el.querySelector('.tc-report')!;
+    expect(report.firstElementChild!.textContent).toBe('Delegated work for @Maker finished.');
+    expect(el.textContent).not.toContain('Honeycomb');
+    // a plain line has nothing to open
+    expect(el.querySelectorAll('.tc-report')).toHaveLength(1);
+    expect(el.textContent).toContain('Stopped. Nothing new will start until you write again.');
+    const trigger = report.querySelector<HTMLButtonElement>('button')!;
+    expect(trigger.textContent).toBe('Show the report');
+    await act(async () => trigger.click());
+    await settle();
+    expect(trigger.textContent).toBe('Hide the report');
+    expect(report.querySelector('strong')!.textContent).toBe('1. Honeycomb');
+  });
+
   it('a long message folds with Show more; a short one does not', async () => {
     // (happy-dom has no layout: the lead's reply is made to measure tall)
     const tall = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
