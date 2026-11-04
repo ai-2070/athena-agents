@@ -51,6 +51,7 @@ const DEFAULT_SETTINGS: Settings = {
   maxToolSteps: 16,
   costLimitUsdPerRun: 2,
   contextWindowTokens: 0,
+  toolResultChars: 24_000,
   favoriteModels: [],
   defaultWorld: '',
 };

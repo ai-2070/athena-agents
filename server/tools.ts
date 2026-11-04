@@ -23,6 +23,7 @@ import * as reddit from './reddit.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import { withActor } from './versions.ts';
+import { recordClipped, recordToolCall } from './toolstats.ts';
 import { ensureBrain } from './projects.ts';
 import { safeUploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
@@ -1408,11 +1409,50 @@ export async function callTool(agent: ToolAgent, calledAs: string, rawArgs: Tool
   const refused = await gate(agent, allowName, risk, args, ctx, describeCall(name, args));
   if (refused) return refused;
   if (ctx.signal?.aborted) return { text: 'Stopped.', isError: true };
+  const started = Date.now();
+  let result: ToolResult;
   try {
     const r = await tool.run(args, { ...ctx, agent });
-    return { text: String(r?.text ?? ''), images: r?.images || [], isError: !!r?.isError, ...(r?.denied ? { denied: true } : {}) };
+    result = { text: String(r?.text ?? ''), images: r?.images || [], isError: !!r?.isError, ...(r?.denied ? { denied: true } : {}) };
   } catch (e) {
-    return { text: `Error: ${(e as Error).message}`, isError: true };
+    result = { text: `Error: ${(e as Error).message}`, isError: true };
+  }
+  recordToolCall(name, { ms: Date.now() - started, chars: result.text.length, isError: result.isError, denied: result.denied });
+  return result;
+}
+
+// Tools that read in parts already answer at a size the model chose (and task batches must stay whole).
+const PAGED = new Set(['read_file', 'fetch_url', 'read_conversation', 'read_skill', 'knowledge_read', 'TaskCreate', 'TaskUpdate']);
+const SAVED_DAYS = 7;
+let prunedAt = 0;
+
+/** What the model gets back from a tool. A result over the limit (Settings › Context) keeps its start and its end;
+ *  the whole text is saved in outputs/tool-results, where the agent can read the rest in parts. */
+export function clipForModel(r: ToolResult, name: string, runId?: string | null): ToolResult {
+  const most = Math.floor(Number(getSettings().toolResultChars) || 0);
+  if (most <= 0 || r.text.length <= most || PAGED.has(name)) return r;
+  const dir = ensureDir(dataPath('outputs', 'tool-results'));
+  const file = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}-${String(runId || 'call').replace(/[^\w-]/g, '').slice(0, 40)}-${name.replace(/[^\w-]/g, '_').slice(0, 60)}.txt`);
+  fs.writeFileSync(file, r.text);
+  pruneSavedResults(dir);
+  recordClipped(name);
+  const head = Math.ceil(most * 0.7);
+  const tail = most - head;
+  return { ...r, text: `${r.text.slice(0, head)}\n\n…[${r.text.length - most} characters left out here. The whole result is saved in ${file}: read the rest there in parts if you need it.]…\n\n${r.text.slice(r.text.length - tail)}` };
+}
+
+// (saved results older than a week go: the chat keeps its own copy)
+function pruneSavedResults(dir: string): void {
+  if (Date.now() - prunedAt < 24 * 60 * 60_000) return;
+  prunedAt = Date.now();
+  for (const name of fs.readdirSync(dir)) {
+    const p = path.join(dir, name);
+    try {
+      const st = fs.lstatSync(p);
+      if (st.isFile() && Date.now() - st.mtimeMs > SAVED_DAYS * 24 * 60 * 60_000) fs.rmSync(p, { force: true });
+    } catch {
+      /* gone */
+    }
   }
 }
 
