@@ -26,13 +26,16 @@ and a Comfy Cloud card. What matters to an agent:
 - Each install's ComfyUI listens on 8188 unless its launch arguments say otherwise, and by default Desktop moves it to
   the next free port when 8188 is taken. Installs carried over from Legacy Desktop keep that app's port, 8000. The
   dashboard tries both; any other port goes into Settings › ComfyUI address.
-- Desktop starts nothing on its own unless "Auto-launch on startup" names an install ("Last used instance" works).
-  Without it, the dashboard's start tool only opens Desktop's window.
+- Desktop starts nothing on its own unless "Auto-launch on startup" names an install ("Last used instance" works),
+  and only after its first-run setup is done. The dashboard's start tool reads those settings and says what the user
+  needs to do when no ComfyUI will come up. Opening Desktop while it's open only brings its window forward.
 - Installs live under `%LOCALAPPDATA%\Comfy-Desktop\ComfyUI-Installs` (older ones under
-  `%USERPROFILE%\ComfyUI-Installs`), each with its workflows in `<install>\ComfyUI\user\default\workflows`. The
-  shared models, input and output folders are in `ComfyUI-Shared` next to it. Desktop's settings and its
-  `logs\app.log` are in `%APPDATA%\Comfy Desktop`; each install's own console is in its Manage panel, on the Terminal
-  tab.
+  `%USERPROFILE%\ComfyUI-Installs`, and under `<drive>:\Comfy-Desktop` when Desktop itself is installed on another
+  drive), each with its workflows in `<install>\ComfyUI\user\default\workflows`. The shared models, input and output
+  folders are in `ComfyUI-Shared` next to it; an install can keep its own instead. Desktop's settings, its list of
+  installs (`installations.json`) and its `logs\app.log` are in `%APPDATA%\Comfy Desktop`; each install's own log is
+  `<install>\logs\comfyui.log`, and its console is in its Manage panel, on the Terminal tab. The dashboard finds the
+  workflows and results of every install that list names.
 - By default it starts ComfyUI with ComfyUI-Manager turned on (`--enable-manager`), so missing node packs can be
   installed from inside ComfyUI.
 
@@ -61,8 +64,10 @@ From the dashboard's shell, anything long goes in the background: `comfy launch 
 
 ## On macOS and Linux
 
-Comfy Desktop also comes for macOS 13 or newer on Apple Silicon, and for Linux as a `.deb` or an AppImage. comfy-cli
-works the same way (`comfy --skip-prompt install --m-series` on Apple Silicon). Installing by hand from the GitHub repo
+Comfy Desktop also comes for macOS 13 or newer on Apple Silicon, and for Linux as a `.deb` or an AppImage. There its
+installs go in `~/ComfyUI-Installs` and the shared folders in `~/ComfyUI-Shared`; its settings and list of installs
+are in `~/Library/Application Support/Comfy Desktop` on a Mac, `~/.config/comfyui-desktop-2` and
+`~/.local/share/comfyui-desktop-2` on Linux. comfy-cli works the same way (`comfy --skip-prompt install --m-series` on Apple Silicon). Installing by hand from the GitHub repo
 (git clone, then its requirements into a virtual environment) is for developers; docs.comfy.org/installation has the
 current steps for each GPU.
 

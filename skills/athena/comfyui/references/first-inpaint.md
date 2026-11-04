@@ -47,8 +47,8 @@ Ask before each download, naming the file and its size. How to download is in `r
 - Look for it in the workspace; if it isn't there, ask the user where it is. Don't search their home folder.
 - In ComfyUI the user drags the photo file onto the template's Load Image node, or uses the node's "choose file to
   upload". That copies it into ComfyUI's input folder and leaves the original where it was. Where the agent reaches
-  ComfyUI, it can upload the photo itself (`scripts/comfy_upload.py`) and tell the user which name to pick in the
-  node's list.
+  ComfyUI, its run tool sends the photo (and a mask, when there is one) with the run; to have the user pick it in the
+  node's list instead, upload it with `scripts/comfy_upload.py` and tell them the name it prints.
 - A phone photo is many times the size these models work at, which makes the run slow or run out of memory and the
   result worse. Add a **Scale Image to Total Pixels** node: Load Image's IMAGE into its `image`, and its IMAGE into the
   template node's `pixels` (VAE Encode (for Inpainting)'s on the light route) in place of the link from Load Image.

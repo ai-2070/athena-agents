@@ -310,6 +310,7 @@ Agents use some of them directly when you switch on that tool group for the agen
 
 | Tools | What agents can do |
 |---|---|
+| **ComfyUI** | Run your saved ComfyUI workflows with a new prompt, settings and input pictures (with a mask for inpainting), and get the pictures, video, audio and 3D files back. The agent also hears which parts ComfyUI left out and why. Start ComfyUI Desktop and wait for it; when Desktop won't start ComfyUI by itself, the agent tells you what to click. Workflows are found in every install Comfy Desktop knows of, and in the extra folders you add in **Settings → Programs**. |
 | **Maya** | Run Maya Python without opening the window: build scenes, key animation, render and export. Open Maya with a scene. |
 | **Houdini** | Run Houdini Python (hython): build node networks, simulate, render and export. Open Houdini with a .hip file. |
 | **Substance 3D** | Render a Substance material (.sbsar) to texture maps at the size you want, using Designer's sbsrender. Open Painter (with remote scripting on, for the Substance Painter MCP server), Designer or Sampler. |
@@ -318,7 +319,7 @@ Agents use some of them directly when you switch on that tool group for the agen
 | **Free asset libraries** | Search Poly Haven and ambientCG and download HDRIs, PBR textures (one file per map) and models into the project. Everything there is CC0: free for any use, no credit needed. No key needed. |
 | **FFmpeg, HandBrake and ImageMagick** | Cut and convert video and audio with ffmpeg. Shrink or convert videos with HandBrake presets (needs the free HandBrakeCLI download). Resize, convert and batch-edit images with ImageMagick. |
 
-Running Maya or Houdini Python, ffmpeg or ImageMagick counts as running code or overwriting files, so you are asked first unless autonomy is Full. The texture, asset, OpenSCAD, slicing and HandBrake tools only read and write in the agent's workspace and the folders you allow.
+Running Maya or Houdini Python, ffmpeg or ImageMagick counts as running code or overwriting files, so you are asked first unless autonomy is Full. So does sending pictures to a ComfyUI on another computer; to a ComfyUI on this one, the agent only sends files from its workspace and the folders you allow. The texture, asset, OpenSCAD, slicing and HandBrake tools only read and write in the agent's workspace and the folders you allow.
 
 For live control of an open program, add its MCP server, for example Maya, Houdini, Substance 3D Painter, GIMP, Krita, Audacity, REAPER, OBS, FreeCAD, Rhino or your 3D printer. Each one says what to turn on in the program first.
 

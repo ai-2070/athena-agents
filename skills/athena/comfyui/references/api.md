@@ -28,8 +28,8 @@ sign-in. Every route below also answers with an `/api` prefix (`/api/prompt`), w
 | `POST /free` | `{"unload_models": true, "free_memory": true}` unloads models from GPU memory |
 | `GET /ws?clientId=<id>` | WebSocket of progress events (`execution_start`, `executing`, `progress`, `executed`, `execution_success`, `execution_error`, `execution_interrupted`); a job's events go to the socket whose `clientId` it was submitted with |
 
-Uploads and the dependency check have scripts (`scripts/comfy_upload.py`, `scripts/comfy_check.py`); use those rather
-than hand-made multipart requests.
+The run tool uploads input pictures and masks itself; for other uploads and for the dependency check there are
+scripts (`scripts/comfy_upload.py`, `scripts/comfy_check.py`). Use those rather than hand-made multipart requests.
 
 ## Submitting a workflow
 
@@ -73,7 +73,8 @@ Poll `GET /history/<prompt_id>` every few seconds; it stays `{}` until the job f
 ```
 
 Outputs are listed by the node that made them: under `images` (ComfyUI's own video nodes too, marked `animated`),
-`audio`, `3d`, or a custom node's own key such as `gifs`. Fetch each with `/view`, quoting the URL in PowerShell
+`audio`, `3d`, or a custom node's own key such as `gifs`. The old Preview 3D node gives a path in the output folder as
+`result[0]` instead. The dashboard's run tool returns all of these, `gifs` and `videos` included. Fetch each with `/view`, quoting the URL in PowerShell
 because of the `&`:
 
 ```powershell

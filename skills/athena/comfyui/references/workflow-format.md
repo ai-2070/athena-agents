@@ -11,10 +11,14 @@ Checked against ComfyUI 0.44 and its current frontend (November 2026).
 | Settings | `widgets_values`, a list in widget order (or an object, for some custom nodes) | Named: `"steps": 30` |
 | Runs as is | No: it has to be converted using the server's node list | Yes: it's what `POST /prompt` takes |
 
-The dashboard converts editor files itself when describing or running them, but not subgraphs, the dotted inputs
-below or legacy group nodes (named `workflow>...`). For those, export from ComfyUI itself, or try comfy-cli's
-converter: `comfy run --workflow wf.json --print-prompt` prints the API form without running it (it needs a reachable
-ComfyUI). To read an editor file, the nodes' `properties` are worth a look: `cnr_id` and `ver` name the node pack and
+The dashboard converts editor files itself when describing or running them, the way ComfyUI's editor does: values
+by name in files saved since July 2026 (`widgets_values_named`), else in widget order; the dotted inputs below;
+subgraphs, whose inner nodes become `<instance id>:<inner id>` (`"12:5"`, nested `"12:7:3"`); bypassed nodes passed
+through by type. It can't convert old-style group nodes (named `workflow>...`) or a subgraph whose definition is
+missing, and says so; nodes whose widgets come from a node pack's own JavaScript may come out wrong. The editor picks
+one option from `{a|b}` choices in a prompt before sending it; the dashboard sends the text as it is. When the
+conversion warns, export from ComfyUI itself, or try comfy-cli's converter: `comfy run --workflow wf.json
+--print-prompt` prints the API form without running it (it needs a reachable ComfyUI). To read an editor file, the nodes' `properties` are worth a look: `cnr_id` and `ver` name the node pack and
 version that made each node (`comfy-core` is ComfyUI itself), `aux_id` a GitHub repo, and `models` the files a
 template expects, each with `name`, `url` and `directory`.
 
@@ -57,15 +61,17 @@ same type. Everything else (numbers, text, dropdown choices) is a value you can 
 - **How much changes**: `denoise` on the sampler (or the scheduler node). At 1.0 the sampler starts from pure noise;
   lower values keep more of the input latent, which is what image to image wants.
 - **Inputs**: `LoadImage.image`, `LoadImageMask.image` and `channel`, `LoadVideo.file`, `LoadAudio.audio` name a file
-  in ComfyUI's input folder (`subfolder/name` when it's in a subfolder). Upload with `scripts/comfy_upload.py` and use
-  the value it prints.
+  in ComfyUI's input folder (`subfolder/name` when it's in a subfolder). The run tool's `images` sends a file and sets
+  that input; `scripts/comfy_upload.py` prints the value to set by hand.
 
 ## Dynamic inputs keep dotted names
 
 Newer nodes grow inputs as you use them, and their API keys carry a dot: a math node's values are `values.a`,
 `values.b`; a resize node's mode-specific settings are `resize_type.width`, `resize_type.height`, `resize_type.crop`.
 Those strings are the real keys. Keep them as they are, never nested (`{"values": {"a": ...}}`) or cut down to
-`width`. In the dashboard's run settings they become `"12.resize_type.width": 1024`.
+`width`. In the dashboard's run settings they become `"12.resize_type.width": 1024`. An editor file saves a dynamic
+dropdown's value followed by the chosen option's settings (`["scale dimensions", 512, 512, "center", "area"]`), so a
+different option means different keys: after changing `resize_type`, set the keys of the new option too.
 
 ## Nodes that exist only in the editor
 
@@ -111,8 +117,8 @@ ones. The usual types:
 | `invalid_input_type` | A value that can't be turned into the input's type (text where a number goes) | Fix the value |
 | `prompt_no_outputs` | Nothing saves or previews a result | Keep (or add) a Save Image or similar node |
 
-When only some outputs fail, ComfyUI runs the others and still answers 200, listing the failures in `node_errors`. A
-run that returns fewer files than the workflow saves has hit this.
+When only some outputs fail, ComfyUI runs the others and still answers 200, listing the failures in `node_errors`.
+The dashboard's run tool lists those under "Left out by ComfyUI".
 
 Errors while running come later, in the job's history (`references/api.md`): the failing node's id and type, the
 exception and its traceback. ComfyUI adds its own hint to out-of-memory errors.
@@ -133,8 +139,8 @@ What a mask means depends on the node that reads it:
   and the mask beside the original, and its latent is the original's, so a lower `denoise` keeps more of what was
   there. **Set Latent Noise Mask** also keeps the original under the mask, suits smaller changes at lower `denoise`
   with any model, and keeps soft edges.
-- `/upload/mask` (and `scripts/comfy_upload.py --mask-onto`) writes a copy of an uploaded image with the mask as its
-  transparency. The two pictures have to be the same size there.
+- `/upload/mask` (used by the run tool's `mask`, and `scripts/comfy_upload.py --mask-onto`) writes a copy of an
+  uploaded image with the mask as its transparency. The two pictures have to be the same size there.
 
 Grey levels in a mask blend the new and the old where the node keeps them, which hides the seam.
 
