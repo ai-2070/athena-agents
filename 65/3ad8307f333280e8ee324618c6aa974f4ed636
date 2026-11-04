@@ -1,0 +1,52 @@
+server/uploads.ts
+  s_3f5afab86a1bb3::t_0728bea0d184a0 108,133,135-138,142
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_27ea831d28ccb5 1096,1116-1119
+  s_3f5afab86a1bb3::t_b23f9f6f35941d 1100-1101,1106-1107
+  s_3f5afab86a1bb3::t_816168ab977cf7 1097-1099,1102-1105,1108-1115,1120
+server/gateways/files.ts
+  s_3f5afab86a1bb3::t_bd15ad2788b9fa 11,127
+  s_3f5afab86a1bb3::t_1432a6b16347a4 126,128,131
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_1432a6b16347a4 18,29,306-310,318-334,423
+shared/types.ts
+  s_3f5afab86a1bb3::t_0728bea0d184a0 471-483
+tests/server/gateway-files.test.ts
+  s_3f5afab86a1bb3::t_816168ab977cf7 15,53
+README.md
+  s_3f5afab86a1bb3::t_816168ab977cf7 262
+docs/guide.md
+  s_3f5afab86a1bb3::t_816168ab977cf7 576-587,589
+  s_3f5afab86a1bb3::t_b23f9f6f35941d 588
+server/gateways/media-retention.ts
+  s_3f5afab86a1bb3::t_54025df627a972 46
+  s_3f5afab86a1bb3::t_571c3cefebb49c 83-84
+  s_3f5afab86a1bb3::t_bd15ad2788b9fa 1-23,26-37,39-41,43-44,51-69,71,76-77,81-82,85-91,93-95,97,99-107
+  s_3f5afab86a1bb3::t_5a7d78a70870a2 42
+  s_3f5afab86a1bb3::t_394aee55f6e5e5 96
+  s_3f5afab86a1bb3::t_1432a6b16347a4 38,45,47-50,78,98
+  s_3f5afab86a1bb3::t_317046ddb76b74 24-25,70,72-75,79-80,92
+tests/server/gateway-media-retention.test.ts
+  s_3f5afab86a1bb3::t_571c3cefebb49c 7,49,109-118
+  s_3f5afab86a1bb3::t_394aee55f6e5e5 30-31,43,51,56,62-63,77,85,98
+  s_3f5afab86a1bb3::t_c07bb3c52542b0 1-6,8-16,18-29,32-42,44-48,50,52-55,57-61,64-76,78-84,86-97,99-108,119-124,153-166
+  s_3f5afab86a1bb3::t_d556c8c24ec841 17,128,131,133-152
+  s_3f5afab86a1bb3::t_32ad6b98157b18 125-127,129-130
+  s_3f5afab86a1bb3::t_816168ab977cf7 132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "653ad8307f333280e8ee324618c6aa974f4ed636",
+  "prompts": {},
+  "sessions": {
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
