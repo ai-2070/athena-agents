@@ -1,5 +1,5 @@
-// world_script: a builder's JavaScript program, sealed off in QuickJS, builds through the same build as
-// world_build (limits, all-or-nothing, undo). What it can and can't do, and what it says when it goes wrong.
+// world_build with "code": a builder's JavaScript program, sealed off in QuickJS, builds through the same build as
+// its steps (limits, all-or-nothing, undo). What it can and can't do, and what it says when it goes wrong.
 import { describe, expect, it } from 'vitest';
 import { callTool } from '../../server/tools.ts';
 import { newAgent } from '../../server/library.ts';
@@ -10,11 +10,11 @@ import { SCRIPT_LIMITS } from '../../server/voxel/script.ts';
 
 saveSettings({ look: { stationLook: 'world' } });
 const a = agents.save(newAgent({ name: 'Coder', toolGroups: ['world'], autonomy: 'full' }));
-const script = (args: Record<string, unknown>) => callTool(a, 'world_script', args);
+const script = (args: Record<string, unknown>) => callTool(a, 'world_build', args);
 const obj = (name: string) => shownWorld().world?.objects.find((o) => o.name === name);
 const data = (name: string) => readObject(shownWorld().world!.id, obj(name)!.id);
 
-describe('world_script', () => {
+describe('building with code', () => {
   it('builds the same voxels as the same steps by hand, in map units', async () => {
     const r = await script({ object: 'Row', code: 'use("stone");\nfor (let i = 0; i < 4; i++) box([i * 2, 0, 0], [1, 1 + i, 1]);' });
     expect(r.isError, r.text).toBeFalsy();

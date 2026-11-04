@@ -1,11 +1,12 @@
 // The agents' world tools: building is low risk, changing what someone else built asks first,
 // and a whole WORLD.md rewrite needs a fresh read.
 import { afterEach, describe, expect, it } from 'vitest';
-import { callTool, toolDefs, allTools } from '../../server/tools.ts';
+import { callTool, toolDefs, allTools, riskOf } from '../../server/tools.ts';
 import { newAgent } from '../../server/library.ts';
 import { decide, listApprovals, setReviewer } from '../../server/approvals.ts';
 import { saveSettings } from '../../server/store.ts';
 import { shownWorld } from '../../server/voxel/link.ts';
+import { worldApprovalChecks } from '../../server/voxel/tools.ts';
 import { KEEP_WORLD_MD } from '../../server/voxel/worldmd.ts';
 import { buildSystemPrompt } from '../../server/engines/index.ts';
 
@@ -23,6 +24,8 @@ describe('world tools', () => {
   it('come with the "world" tool group, with honest risks', () => {
     const names = toolDefs(mira).map((t) => t.name);
     expect(names).toEqual(expect.arrayContaining(['world_info', 'world_build', 'world_steps', 'world_object', 'world_undo', 'world_prefab', 'world_light', 'world_effect', 'world_environment', 'world_md_read', 'world_md_section', 'world_md_write']));
+    // building with code is part of world_build now; the old name is only an alias, never listed
+    expect(names).not.toContain('world_script');
     expect(toolDefs(newAgent({ name: 'Plain', toolGroups: [] })).some((t) => t.name.startsWith('world_'))).toBe(false);
     const risk = Object.fromEntries(allTools().map((t) => [t.name, t.risk]));
     expect(risk).toMatchObject({ world_info: 'none', world_build: 'low', world_object: 'varies', world_prefab: 'varies', world_light: 'varies', world_effect: 'varies', world_environment: 'low', world_md_read: 'none' });
@@ -39,8 +42,8 @@ describe('world tools', () => {
     const group = new Map(allTools().map((t) => [t.name, t.group]));
     const world = toolDefs(mira).filter((t) => group.get(t.name) === 'world');
     const size = world.reduce((n, t) => n + JSON.stringify({ name: t.name, description: t.description, input_schema: t.parameters }).length, 0);
-    expect(world).toHaveLength(18);
-    expect(size).toBeLessThan(16_900);
+    expect(world).toHaveLength(17);
+    expect(size).toBeLessThan(15_600);
   });
 
   it('says when to update WORLD.md once, in the instructions: not in the tools or their answers', async () => {
@@ -77,6 +80,40 @@ describe('world tools', () => {
     decide(listApprovals()[0].id, { approved: true });
     expect((await del).text).toMatch(/Deleted "Pond"/);
     expect((await callTool(mira, 'world_undo', {})).text).toMatch(/Undid: Mira deleted Pond/);
+  });
+
+  it('building with code is as low risk as steps, and changing what someone else built asks first either way', async () => {
+    const code = 'use("stone"); box([0, 0, 0], [1, 1, 1]);';
+    expect(riskOf('world_build', { object: 'Anything', steps: [{ box: [1, 1, 1] }] })).toBe('low');
+    expect(riskOf('world_build', { object: 'Anything', code })).toBe('low');
+    // Eve's checkpoint reads the same checks: Pond is Mira's
+    expect(worldApprovalChecks('world_build', { object: 'Pond', code }, { agent: kenji })).toMatchObject([{ name: 'world_change_others', risk: 'high' }]);
+    expect(worldApprovalChecks('world_build', { object: 'Pond', code }, { agent: mira })).toEqual([]);
+    expect(worldApprovalChecks('world_build', { prefab: 'Kenji lamp', code }, { agent: kenji })).toEqual([]);
+    // its own new object: no question
+    expect((await callTool(kenji, 'world_build', { object: 'Kenji stone', code })).text).toMatch(/Built "Kenji stone"/);
+    expect(listApprovals()).toHaveLength(0);
+    const pending = callTool(kenji, 'world_build', { object: 'Pond', code });
+    await tick();
+    expect(listApprovals()[0]).toMatchObject({ title: expect.stringMatching(/world_change_others/), detail: expect.stringMatching(/change "Pond", which Mira built/) });
+    decide(listApprovals()[0].id, { approved: false });
+    expect(await pending).toMatchObject({ isError: true, denied: true });
+    expect((await callTool(kenji, 'world_build', { object: 'Kenji stone', code, steps: [{ box: [1, 1, 1] }] })).text).toMatch(/Give "steps" or "code", not both/);
+    expect((await callTool(kenji, 'world_build', { object: 'Kenji stone' })).text).toMatch(/Give "steps" .* or "code"/);
+  });
+
+  it('world_script, the old name of building with code, still works with its old arguments (saved workflow steps use it)', async () => {
+    const r = await callTool(kenji, 'world_script', { object: 'Old script', code: 'use("wood"); box([0, 0, 0], [1, 1, 1]);', seed: 3 });
+    expect(r.isError, r.text).toBe(false);
+    expect(r.text).toMatch(/Built "Old script"/);
+    // it never took steps; they are left out as before instead of clashing with the code
+    expect((await callTool(kenji, 'world_script', { object: 'Old script 2', code: 'use("wood"); box([0, 0, 0], [1, 1, 1]);', steps: [{ teleport: true }] })).isError).toBe(false);
+    // and it asks the same before changing someone else's object
+    const pending = callTool(kenji, 'world_script', { object: 'Pond', code: 'use("stone"); box([0, 0, 0], [1, 1, 1]);' });
+    await tick();
+    expect(listApprovals()[0]?.title).toMatch(/world_change_others/);
+    decide(listApprovals()[0].id, { approved: false });
+    expect((await pending).isError).toBe(true);
   });
 
   it("deleting someone else's object asks once, and the model can't pick another project's world", async () => {

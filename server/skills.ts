@@ -437,7 +437,7 @@ A busy scene (a street in front of a stock exchange, the Nile with temples and b
 - Voxel size is per object and can change mid-build with {"voxel_size": …}: ground 0.5, buildings 0.25 (the world default), props 0.125, people and fine detail 0.08-0.1. One object can mix sizes.
 - Give world_build "units": "map" and every position and size in the steps is in map units, the same numbers as world_info and your team's plans: no dividing. Without it, steps count in voxels of the current size (a 1.7 tall person at voxel size 0.1 is 17 voxels); the examples below are in voxels.
 - world_steps has every step there is, by topic (shapes, regions, finishing, prefabs, characters, materials).
-- Repetitive or procedural work is easier as a program: world_script runs JavaScript with box(), path(), place(), set(), loops, random() and noise(), in map units. A lane of cottages that each differ is one loop; a tree that branches is a small recursive function.
+- Repetitive or procedural work is easier as a program: world_build with "code" runs JavaScript with box(), path(), place(), set(), loops, random() and noise(), in map units (world_steps "script" lists every function). A lane of cottages that each differ is one loop; a tree that branches is a small recursive function.
 - One call changes at most 250,000 voxels and places 2,000 copies; a world holds 4,000,000 voxels and 20,000 copies. Big flat ground at a small voxel size uses voxels up fast: use 0.5 for it. Copies don't count towards the voxel limit, so repeat with prefabs rather than building the same thing again.
 
 ## How to build things that look good
