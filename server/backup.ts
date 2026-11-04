@@ -12,7 +12,7 @@ import zlib from 'node:zlib';
 import { HOME, IS_WIN, dataPath, ensureDir, exists, insideRoots, isPlainDir, readJSON, readPlain, realTarget, slugify, writeJSON } from './util.ts';
 import { listProjects, emit, log } from './store.ts';
 import { createProject, projectsRoot, removeProject, setBackground, setLogo, updateProject } from './projects.ts';
-import { isSkillSlug, skillsLibrary, skillDir, skillVersionsDir, skillVersionItem } from './skills.ts';
+import { forgetSkill, isSkillSlug, skillsLibrary, skillDir, skillVersionsDir, skillVersionItem } from './skills.ts';
 import { checkVersion, listVersions, pruneVersions, versionFilesDir, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
 import type { Version } from './versions.ts';
 import { cleanMemoryVersion, isMemoryOwner, putMemory } from './memory.ts';
@@ -758,6 +758,7 @@ function restoreSkills(list: BackupData['skills']): { added: number; same: numbe
     }
     const target = ensureDir(path.join(lib, map.get(s.slug) || s.slug));
     for (const f of s.files) writePacked(target, f);
+    forgetSkill(path.basename(target));
     if (!map.has(s.slug)) added++;
   }
   return { added, same, renamed, map };

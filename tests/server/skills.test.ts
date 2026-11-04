@@ -1,12 +1,44 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as skills from '../../server/skills.ts';
 import { dataPath } from '../../server/util.ts';
 import { activeProject, saveProjects, listProjects } from '../../server/store.ts';
 
 const make = (name: string, description = `Use for ${name}.`, body = `Steps for ${name}.`) => skills.saveSkill({ name, description, body });
+
+// Make every file and folder in a skill look a minute old: a skill changed in the last moments is
+// always read again (file times can be coarse), so only an older one is kept.
+const settle = (dir: string) => {
+  const old = new Date(Date.now() - 60_000);
+  const walk = (d: string) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(path.join(d, e.name));
+      fs.utimesSync(path.join(d, e.name), old, old);
+    }
+  };
+  walk(dir);
+  fs.utimesSync(dir, old, old);
+};
+// How often each of a skill's files is read from disk while fn runs (files that aren't there don't count).
+const reads = (dir: string, fn: () => void): Record<string, number> => {
+  const real = fs.realpathSync(dir);
+  const spy = vi.spyOn(fs, 'readFileSync');
+  try {
+    fn();
+    const count: Record<string, number> = {};
+    spy.mock.calls.forEach(([p], i) => {
+      if (typeof p !== 'string' || spy.mock.results[i].type !== 'return') return;
+      const rel = [path.relative(dir, p), path.relative(real, p)].find((r) => r && !r.startsWith('..') && !path.isAbsolute(r));
+      if (rel) count[rel.split(path.sep).join('/')] = (count[rel.split(path.sep).join('/')] || 0) + 1;
+    });
+    return count;
+  } finally {
+    spy.mockRestore();
+  }
+};
+afterEach(() => vi.restoreAllMocks());
 
 describe('skills library', () => {
   it('needs a name and a "when to use it" line', () => {
@@ -116,6 +148,89 @@ describe('finding and searching a skill', () => {
     expect(lines[0]).toBe('SKILL.md:6: match 0');
     expect(lines[119]).toBe('SKILL.md:125: match 119');
     expect(lines.at(-1)).toBe('[First 120 of 150 matching lines: search for something narrower.]');
+  });
+});
+
+describe('reading skills once', () => {
+  const handMade = (slug: string, body: string) => {
+    const dir = dataPath('skills', slug);
+    fs.mkdirSync(path.join(dir, 'references'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'SKILL.md'), `---\nname: ${slug}\ndescription: Use it.\n---\n${body}`);
+    fs.writeFileSync(path.join(dir, 'references', 'a.md'), 'first reference');
+    settle(dir);
+    return dir;
+  };
+
+  it('keeps a skill it has read until something in its folder changes', () => {
+    const dir = handMade('kept-skill', 'Old steps.');
+    expect(reads(dir, () => skills.getSkill('kept-skill'))).toEqual({ 'SKILL.md': 1 });
+    // read once more for the prompt, the list and read_skill: nothing comes from disk
+    expect(reads(dir, () => {
+      expect(skills.getSkill('kept-skill')?.body).toBe('Old steps.');
+      expect(skills.listSkills().find((s) => s.slug === 'kept-skill')?.preview).toBe('Old steps.');
+      expect(skills.findSkill('kept-skill')?.files.map((f) => f.path)).toEqual(['references/a.md']);
+      expect(skills.skillsPrompt({ skills: ['kept-skill'] })).toContain('kept-skill: Use it. [id: kept-skill; has 1 extra file]');
+    })).toEqual({});
+    // edited by hand
+    fs.writeFileSync(path.join(dir, 'SKILL.md'), '---\nname: kept-skill\ndescription: Use it.\n---\nNew steps, longer.');
+    expect(skills.getSkill('kept-skill')?.body).toBe('New steps, longer.');
+    settle(dir);
+    skills.getSkill('kept-skill');
+    // a file added in a folder of the skill
+    fs.writeFileSync(path.join(dir, 'references', 'b.md'), 'second');
+    expect(skills.getSkill('kept-skill')?.files.map((f) => f.path).sort()).toEqual(['references/a.md', 'references/b.md']);
+    settle(dir);
+    skills.getSkill('kept-skill');
+    // where it was installed from
+    fs.writeFileSync(path.join(dir, '.source.json'), JSON.stringify({ url: 'https://github.com/o/r', repo: 'o/r', ref: 'main', path: '', installedAt: 1 }));
+    expect(skills.getSkill('kept-skill')?.origin?.repo).toBe('o/r');
+    // gone
+    fs.rmSync(dir, { recursive: true, force: true });
+    expect(skills.getSkill('kept-skill')).toBeNull();
+    expect(skills.findSkill('kept-skill')).toBeNull();
+  });
+
+  it('reads a skill changed in the last moments again', () => {
+    const s = make('Fresh skill');
+    const dir = dataPath('skills', s!.slug);
+    expect(reads(dir, () => {
+      skills.getSkill(s!.slug);
+      skills.getSkill(s!.slug);
+    })).toEqual({ 'SKILL.md': 2 });
+  });
+
+  it("sees the dashboard's own changes at once", () => {
+    const s = make('Edited skill', 'Use for edits.', 'First text.');
+    const dir = dataPath('skills', s!.slug);
+    settle(dir);
+    expect(skills.getSkill(s!.slug)?.body.trim()).toBe('First text.');
+    skills.saveSkill({ slug: s!.slug, name: 'Edited skill', description: 'Use for edits.', body: 'Second text.' });
+    expect(skills.getSkill(s!.slug)?.body.trim()).toBe('Second text.');
+    expect(skills.skillsPrompt({ skills: [s!.slug] })).toContain('Edited skill: Use for edits.');
+    settle(dir);
+    skills.getSkill(s!.slug);
+    skills.restoreSkill({ slug: s!.slug, name: 'Edited skill', description: 'Use for old edits.', body: 'First text.' }, 'none');
+    expect(skills.findSkill('edited skill')).toMatchObject({ description: 'Use for old edits.' });
+    settle(dir);
+    skills.getSkill(s!.slug);
+    skills.deleteSkill(s!.slug);
+    expect(skills.getSkill(s!.slug)).toBeNull();
+    expect(skills.listSkills().some((x) => x.slug === s!.slug)).toBe(false);
+  });
+
+  it("gives each caller its own copy, so changing one doesn't change the kept skill", () => {
+    handMade('copied-skill', 'Steps.');
+    skills.getSkill('copied-skill');
+    skills.getSkill('copied-skill')!.files.push({ path: 'made-up.md', size: 1 });
+    expect(skills.getSkill('copied-skill')?.files.map((f) => f.path)).toEqual(['references/a.md']);
+  });
+
+  it('searches with one read of the skill and of each file', () => {
+    const dir = handMade('searched-skill', 'Find the needle here.');
+    skills.getSkill('searched-skill');
+    let out = '';
+    expect(reads(dir, () => (out = skills.searchSkill('searched-skill', 'needle|reference')))).toEqual({ 'SKILL.md': 1, 'references/a.md': 1 });
+    expect(out).toBe('SKILL.md:5: Find the needle here.\nreferences/a.md:1: first reference');
   });
 });
 
