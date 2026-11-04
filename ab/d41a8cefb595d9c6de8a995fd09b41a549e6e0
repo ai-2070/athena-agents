@@ -1,0 +1,44 @@
+skills/athena/powerpoint/SKILL.md
+  s_09ac87e46cf718::t_9a05aabca7636b 1-150
+  s_09ac87e46cf718::t_455e2280c6f18c 151-152
+skills/athena/powerpoint/references/editing-internals.md
+  s_09ac87e46cf718::t_164207434839da 1-122
+  s_09ac87e46cf718::t_982dafe8b6f708 123-124
+tests/skills/powerpoint/conftest.py
+  s_09ac87e46cf718::t_e26d0817110240 1-250
+  s_09ac87e46cf718::t_a495dbb3000733 251-258
+tests/skills/powerpoint/test_pptx_deck.py
+  s_09ac87e46cf718::t_aa68489f883736 1-405
+  s_09ac87e46cf718::t_7fe5ac51817351 406-502
+skills/athena/powerpoint/scripts/pptx_tool.py
+  s_09ac87e46cf718::t_77a004342050a9 1-1043
+  s_09ac87e46cf718::t_784c5b97a07230 1044-1075
+tests/skills/powerpoint/test_shared.py
+  s_09ac87e46cf718::t_fe61f89e153f95 1-79
+tests/skills/powerpoint/test_pptx_tool.py
+  s_09ac87e46cf718::t_8be7ac3241c8e3 1-206
+skills/athena/powerpoint/references/deck-spec.md
+  s_09ac87e46cf718::t_f470c65984ef97 1-203
+skills/athena/powerpoint/scripts/pptx_deck.py
+  s_09ac87e46cf718::t_2e55abe42c264d 1-1946
+skills/athena/powerpoint/scripts/soffice.py
+  s_09ac87e46cf718::t_9d972abd6fc0e2 1-333
+tests/skills/requirements.txt
+  s_09ac87e46cf718::t_4e52cb9cd5db44 24-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "abd41a8cefb595d9c6de8a995fd09b41a549e6e0",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
