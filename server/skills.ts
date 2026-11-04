@@ -151,7 +151,7 @@ function readSkill(dir: string, source: Skill['source']): SkillInDir | null {
   const dirs = new Map<string, Stamp>();
   const s = readDir(dir, source, dirs);
   const stamps = [...head, ...dirs.values()];
-  if (s && at - Math.max(...stamps.map((x) => x.mtime)) > SETTLED_MS) keptSkills.set(key, { stamp: joined(stamps), dirs: [...dirs.keys()], skill: copied(s) });
+  if (s && at - stamps.reduce((n, x) => Math.max(n, x.mtime), 0) > SETTLED_MS) keptSkills.set(key, { stamp: joined(stamps), dirs: [...dirs.keys()], skill: copied(s) });
   return s;
 }
 
