@@ -11,7 +11,7 @@ import { activeProject, agents, workflows, listProjects, getSettings, saveSettin
 import { updateProject } from './projects.ts';
 import { orcaInstalled } from './programs.ts';
 import crypto from 'node:crypto';
-import { keepVersion, pruneVersions, versionFilesDir, withActor } from './versions.ts';
+import { keepVersion, pruneVersions, versionFilesDir } from './versions.ts';
 import type { ClaudeSkill, Project, Skill, SkillFile, SkillListing, SkillOrigin } from '../shared/types.ts';
 
 /** A skill as getSkill returns it (dir is cleared so it never reaches the browser). */
@@ -487,15 +487,14 @@ Read \`result.launch\`: \`outcome.handle\` is the agent's handle, \`outcome.kind
 // path must be the skill's real path there, or "Download again" would add a second copy.
 // `private`: the repo isn't public, so its skills come without a link back to it (no "from" label,
 // no "Download again").
-// `updates`: the dashboard's own skills, which update with the dashboard instead: a copy the user hasn't changed
-// is replaced by the version that ships (ensureBuiltinSkills).
-const BUNDLED: { dir: string; repo: string; ref: string; under: string; private?: boolean; updates?: boolean }[] = [
+// `athena` holds the dashboard's own skills (its README has the standard they follow).
+const BUNDLED: { dir: string; repo: string; ref: string; under: string; private?: boolean }[] = [
   { dir: 'storytold', repo: 'hermes-pro/storytold-skills', ref: 'main', under: '' },
   { dir: 'oomol', repo: 'oomol-lab/oo-cli', ref: 'main', under: 'contrib/skills/shared' },
   { dir: 'composio', repo: 'ComposioHQ/skills', ref: 'main', under: 'skills' },
   { dir: 'orca', repo: 'stablyai/orca', ref: 'main', under: 'skills' },
   { dir: 'subagent-skills', repo: 'ai-2070/subagent-skills', ref: 'master', under: '', private: true },
-  { dir: 'athena', repo: 'ai-2070/athena-agents', ref: 'main', under: 'skills/athena', private: true, updates: true },
+  { dir: 'athena', repo: 'ai-2070/athena-agents', ref: 'main', under: 'skills/athena', private: true },
 ];
 
 /** The skill folders in a bundle's folder: the ones with a SKILL.md. */
@@ -517,8 +516,6 @@ export interface BundledSkill {
   dir: string;
   repo: string;
   origin?: Omit<SkillOrigin, 'installedAt'>;
-  /** one of the dashboard's own, kept up to date where the user hasn't changed it */
-  updates?: boolean;
 }
 
 /** The bundled skills: each one's folder, and where it was copied from. */
@@ -529,7 +526,7 @@ export function bundledSkills(): BundledSkill[] {
     for (const slug of bundleSkillDirs(base)) {
       const at = b.under ? `${b.under}/${slug}` : slug;
       const origin = b.private ? undefined : { url: `https://github.com/${b.repo}/tree/${b.ref}/${at}`, repo: b.repo, ref: b.ref, path: at };
-      out.push({ slug, dir: path.join(base, slug), repo: b.repo, ...(origin ? { origin } : {}), ...(b.updates ? { updates: true } : {}) });
+      out.push({ slug, dir: path.join(base, slug), repo: b.repo, ...(origin ? { origin } : {}) });
     }
   }
   return out.sort((a, b) => a.slug.localeCompare(b.slug));
@@ -538,75 +535,9 @@ export function bundledSkills(): BundledSkill[] {
 /** Every skill the dashboard comes with: its own and the bundled ones. */
 export const shippedSkillSlugs = (): string[] => [...BUILTIN.map((b) => b.slug), ...bundledSkills().map((b) => b.slug)];
 
-// ---------- keeping the dashboard's own skills up to date ----------
-/** One fingerprint for a skill folder: SKILL.md and every extra file but .source.json, line endings read as \n (a
- *  Windows copy of the app may have \r\n). Equal fingerprints mean the user's copy is exactly one the dashboard added. */
-export function skillFingerprint(dir: string): string {
-  const h = crypto.createHash('sha256');
-  // latin1 keeps every byte as it is, so binary files hash the same on both sides
-  const text = (file: string) => fs.readFileSync(file).toString('latin1').replace(/\r\n/g, '\n');
-  h.update(text(path.join(dir, 'SKILL.md')), 'latin1');
-  for (const rel of skillExtraFiles(dir)) {
-    if (rel === '.source.json') continue;
-    h.update('\0').update(rel).update('\0').update(text(path.join(dir, ...rel.split('/'))), 'latin1');
-  }
-  return h.digest('hex');
-}
-
-/** The fingerprints of the Hermes skills the dashboard used to ship, by id (skills/athena/replaced.json). */
-function hermesFingerprints(): Map<string, string> {
-  const r = readJSON<{ skills?: Record<string, { fingerprint?: unknown }> }>(path.join(bundledSkillsRoot(), 'athena', 'replaced.json'), {});
-  return new Map(Object.entries(r.skills || {}).flatMap(([id, s]) => (typeof s.fingerprint === 'string' ? [[id, s.fingerprint] as [string, string]] : [])));
-}
-
-/** Copy a bundled skill into a fresh folder in tmp (so a failed copy leaves no half skill). */
-function stageBundled(b: BundledSkill): string {
-  const tmp = ensureDir(dataPath('tmp', `bundled-${b.slug}-${Date.now()}`));
-  try {
-    fs.copyFileSync(path.join(b.dir, 'SKILL.md'), path.join(tmp, 'SKILL.md'));
-    copySkillFiles(b.dir, tmp);
-    if (b.origin) writeJSON(path.join(tmp, '.source.json'), { ...b.origin, installedAt: Date.now() } satisfies SkillOrigin);
-    return tmp;
-  } catch (e) {
-    fs.rmSync(tmp, { recursive: true, force: true });
-    throw e;
-  }
-}
-
-// Put the version that ships in place of an unchanged copy. The old one stays in the skill's History with its files
-// (and where it came from), so it can be brought back.
-function updateBundledCopy(b: BundledSkill) {
-  const lib = path.join(LIB(), b.slug);
-  const tmp = stageBundled(b);
-  const before = getSkill(b.slug);
-  if (before) {
-    const vdir = skillVersionsDir(b.slug);
-    const files = skillExtraFiles(lib);
-    const after = skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), b.slug);
-    const v = withActor('you', () => keepVersion(vdir, { ...versionItem(before), files, filesHash: skillFilesHash(lib) }, after), { note: 'Before the dashboard brought it up to date', force: true });
-    if (v && files.length) copySkillFiles(lib, versionFilesDir(vdir, v.id));
-  }
-  // moved aside first, so the skill is never missing if the swap fails halfway
-  const old = `${lib}.old-${Date.now()}`;
-  fs.renameSync(lib, old);
-  try {
-    fs.renameSync(tmp, lib);
-  } catch (e) {
-    fs.renameSync(old, lib);
-    fs.rmSync(tmp, { recursive: true, force: true });
-    throw e;
-  }
-  fs.rmSync(old, { recursive: true, force: true });
-  emit('skills', { slug: b.slug });
-}
-
 export function ensureBuiltinSkills() {
   const marker = path.join(LIB(), '.builtin.json');
-  const state = readJSON<{ added: string[]; shipped?: Record<string, string> }>(marker, { added: [] });
-  const added = state.added;
-  // the fingerprint of each of the dashboard's own skills as it was last added or brought up to date
-  const shipped: Record<string, string> = { ...state.shipped };
-  let changed = false;
+  const added = readJSON<{ added: string[] }>(marker, { added: [] }).added;
   const now = [...added];
   for (const b of BUILTIN) {
     if (added.includes(b.slug)) continue;
@@ -616,57 +547,33 @@ export function ensureBuiltinSkills() {
     }
     now.push(b.slug);
   }
-  let hermes: Map<string, string> | null = null;
   for (const b of bundledSkills()) {
-    const lib = path.join(LIB(), b.slug);
-    // one of the dashboard's own, already in the library: brought up to date if it's exactly a copy the dashboard
-    // added (this version's last one, or the Hermes skill it replaced); a copy the user changed is theirs
-    if (b.updates && exists(path.join(lib, 'SKILL.md'))) {
-      const ships = skillFingerprint(b.dir);
-      const have = skillFingerprint(lib);
-      hermes ??= hermesFingerprints();
-      if (have === ships) {
-        if (shipped[b.slug] !== ships) {
-          shipped[b.slug] = ships;
-          changed = true;
-        }
-      } else if (have === shipped[b.slug] || have === hermes.get(b.slug)) {
-        try {
-          updateBundledCopy(b);
-          shipped[b.slug] = ships;
-          changed = true;
-          log('skill', `Brought the skill "${b.slug}" up to date (the old one is in its History)`);
-        } catch (e) {
-          log('skill', `Couldn't bring the skill "${b.slug}" up to date: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-      if (!added.includes(b.slug)) now.push(b.slug);
-      continue;
-    }
     if (added.includes(b.slug)) {
       // added before its repo was marked private: drop the link back to it
       if (!b.origin) {
-        const src = path.join(lib, '.source.json');
+        const src = path.join(LIB(), b.slug, '.source.json');
         if (readJSON<Partial<SkillOrigin>>(src, {}).repo === b.repo) fs.rmSync(src, { force: true });
       }
       continue;
     }
     // a skill of the same id already in the library is the user's: leave it be
-    if (!exists(lib)) {
+    if (!exists(path.join(LIB(), b.slug))) {
+      // copied into a fresh folder first, so a failed copy leaves no half skill (and is tried again next start)
+      const tmp = ensureDir(dataPath('tmp', `bundled-${b.slug}-${Date.now()}`));
       try {
-        fs.renameSync(stageBundled(b), lib);
+        fs.copyFileSync(path.join(b.dir, 'SKILL.md'), path.join(tmp, 'SKILL.md'));
+        copySkillFiles(b.dir, tmp);
+        if (b.origin) writeJSON(path.join(tmp, '.source.json'), { ...b.origin, installedAt: Date.now() } satisfies SkillOrigin);
+        fs.renameSync(tmp, path.join(LIB(), b.slug));
       } catch (e) {
+        fs.rmSync(tmp, { recursive: true, force: true });
         log('skill', `Couldn't add the skill "${b.slug}" that comes with the dashboard: ${e instanceof Error ? e.message : String(e)}`);
         continue;
-      }
-      if (b.updates) {
-        shipped[b.slug] = skillFingerprint(lib);
-        changed = true;
       }
     }
     now.push(b.slug);
   }
-  if (now.length !== added.length || changed) writeJSON(marker, { added: now, ...(Object.keys(shipped).length ? { shipped } : {}) });
+  if (now.length !== added.length) writeJSON(marker, { added: now });
 }
 
 // Copy one of your Claude Code skills (folder and files) into the library.

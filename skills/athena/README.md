@@ -172,9 +172,6 @@ skill that makes or changes files holds to this, and says so where it matters:
    length, that every file is named, no other agents' tool names or Hermes paths, no shouting, no unknown skill ids, no
    title heading, no text copied from the old skill. Whether the writing is good is for review.
 
-The dashboard brings a user's copy up to date when they haven't changed it, and keeps the old text in the skill's
-History; a copy they changed is left alone.
-
 ## Where the Hermes skills went
 
 From [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) at commit

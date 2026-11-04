@@ -6,7 +6,6 @@ import * as skills from '../../server/skills.ts';
 import { parseGitHubUrl } from '../../server/skillinstall.ts';
 import { callTool } from '../../server/tools.ts';
 import { dataPath } from '../../server/util.ts';
-import { listVersions } from '../../server/versions.ts';
 
 const agent = { id: 'a1', name: 'Tester' };
 
@@ -45,11 +44,11 @@ describe('bundled skills', () => {
     expect(origin['orca-cli']).toMatchObject({ repo: 'stablyai/orca', path: 'skills/orca-cli' });
     // its repo isn't public, so no link back to it
     expect(origin['independent-review']).toBeUndefined();
-    // nor to the dashboard's own, which come with it and update with it
-    const own = skills.bundledSkills().filter((b) => b.updates).map((b) => b.slug);
-    expect(own).toContain('pdf');
-    expect(skills.bundledSkills().filter((b) => !b.origin && !b.updates).map((b) => b.slug).sort()).toEqual(['commissioning-a-reviewer', 'delegating-to-subagents', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']);
-    for (const b of skills.bundledSkills()) if (b.updates) expect(b.origin, b.slug).toBeUndefined();
+    // nor to the dashboard's own (skills/athena)
+    const own = (b: skills.BundledSkill) => b.dir.startsWith(path.join(skills.bundledSkillsRoot(), 'athena') + path.sep);
+    expect(skills.bundledSkills().filter(own).map((b) => b.slug)).toContain('pdf');
+    expect(skills.bundledSkills().filter((b) => !b.origin && !own(b)).map((b) => b.slug).sort()).toEqual(['commissioning-a-reviewer', 'delegating-to-subagents', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']);
+    for (const b of skills.bundledSkills()) if (own(b)) expect(b.origin, b.slug).toBeUndefined();
   });
 
   it("are added once, keep where they came from, and don't replace a skill of yours", () => {
@@ -162,84 +161,5 @@ describe('read_skill on long files', () => {
     expect(r.text).toContain(`python ${dir}/scripts/maps_client.py search`);
     expect(r.text).toContain(`, or ${dir}/scripts/maps_client.py.`);
     expect(r.text).toContain(`Files with this skill, in its folder ${dir} (`);
-  });
-});
-
-// The dashboard's own skills (skills/athena) update with it: a copy nobody changed is replaced by the version that
-// ships, and the old one stays in its History.
-describe("the dashboard's own skills", () => {
-  const marker = () => dataPath('skills', '.builtin.json');
-  const fingerprints = (): Record<string, { now: string | null; fingerprint: string }> => JSON.parse(fs.readFileSync(path.join(skills.bundledSkillsRoot(), 'athena', 'replaced.json'), 'utf8')).skills;
-
-  /** Turn the library's copy of a skill into an older one the dashboard added, as if from an earlier release. */
-  function makeOld(slug: string, body: string, extra: Record<string, string> = {}) {
-    const lib = dataPath('skills', slug);
-    fs.rmSync(lib, { recursive: true, force: true });
-    fs.mkdirSync(lib, { recursive: true });
-    fs.writeFileSync(path.join(lib, 'SKILL.md'), `---\nname: Old ${slug}\ndescription: The old one.\n---\n${body}\n`);
-    for (const [rel, text] of Object.entries(extra)) {
-      fs.mkdirSync(path.dirname(path.join(lib, rel)), { recursive: true });
-      fs.writeFileSync(path.join(lib, rel), text);
-    }
-    return skills.skillFingerprint(lib);
-  }
-
-  it('remember the fingerprint of every Hermes skill they replaced', () => {
-    const all = fingerprints();
-    expect(Object.keys(all)).toHaveLength(51);
-    for (const [id, s] of Object.entries(all)) expect(s.fingerprint, id).toMatch(/^[0-9a-f]{64}$/);
-  });
-
-  it('replace a copy nobody changed, keep the old one with its files in History, and drop its link back', async () => {
-    skills.ensureBuiltinSkills();
-    const old = makeOld('pdf', 'Run scripts/old_pdf_helper.py.', { 'scripts/old_pdf_helper.py': 'print("old")\n', '.source.json': JSON.stringify({ url: 'https://github.com/NousResearch/hermes-agent/tree/main/skills/productivity/pdf', repo: 'NousResearch/hermes-agent', ref: 'main', path: 'skills/productivity/pdf', installedAt: 1 }) });
-    // the dashboard added it (as the Hermes copy did): its fingerprint is one the dashboard knows
-    const state = JSON.parse(fs.readFileSync(marker(), 'utf8'));
-    fs.writeFileSync(marker(), JSON.stringify({ ...state, shipped: { ...state.shipped, pdf: old } }));
-    skills.ensureBuiltinSkills();
-    const now = skills.getSkill('pdf')!;
-    expect(now.name).not.toBe('Old pdf');
-    expect(now.files.map((f) => f.path)).toContain('scripts/pdf_tool.py');
-    expect(now.files.map((f) => f.path)).not.toContain('scripts/old_pdf_helper.py');
-    expect(now.origin).toBeFalsy();
-    expect(skills.skillFingerprint(dataPath('skills', 'pdf'))).toBe(skills.skillFingerprint(path.join(skills.bundledSkillsRoot(), 'athena', 'pdf')));
-    // the old text and its files are kept, and bringing it back brings the files back
-    const kept = listVersions<skills.SkillVersionItem>(skills.skillVersionsDir('pdf'));
-    const before = kept.find((v) => v.item.name === 'Old pdf')!;
-    expect(before.note).toBe('Before the dashboard brought it up to date');
-    skills.restoreSkill(before.item, before.id);
-    expect(skills.getSkill('pdf')?.files.map((f) => f.path)).toContain('scripts/old_pdf_helper.py');
-    // a later start leaves the restored one alone: it's no longer a copy the dashboard added
-    skills.ensureBuiltinSkills();
-    expect(skills.getSkill('pdf')?.name).toBe('Old pdf');
-  });
-
-  it('leave a copy the user changed alone', () => {
-    skills.ensureBuiltinSkills();
-    const old = makeOld('spike', 'The old one.');
-    const state = JSON.parse(fs.readFileSync(marker(), 'utf8'));
-    fs.writeFileSync(marker(), JSON.stringify({ ...state, shipped: { ...state.shipped, spike: old } }));
-    // the user edited it after it was added
-    fs.appendFileSync(dataPath('skills', 'spike', 'SKILL.md'), 'My own note.\n');
-    skills.ensureBuiltinSkills();
-    expect(skills.getSkill('spike')?.name).toBe('Old spike');
-    expect(skills.getSkill('spike')?.body).toContain('My own note.');
-  });
-
-  it("leave a copy alone whose skill went away or was merged into another", () => {
-    skills.ensureBuiltinSkills();
-    makeOld('dcf-model', 'The old DCF skill.');
-    skills.ensureBuiltinSkills();
-    expect(skills.getSkill('dcf-model')?.name).toBe('Old dcf-model');
-    expect(fingerprints()['dcf-model'].now).toBe('financial-models');
-  });
-
-  it("record what they added, and stay deleted once deleted", () => {
-    skills.ensureBuiltinSkills();
-    const state = JSON.parse(fs.readFileSync(marker(), 'utf8')) as { added: string[]; shipped: Record<string, string> };
-    expect(state.shipped.humanizer).toBe(skills.skillFingerprint(path.join(skills.bundledSkillsRoot(), 'athena', 'humanizer')));
-    skills.deleteSkillEverywhere('humanizer');
-    skills.ensureBuiltinSkills();
-    expect(skills.getSkill('humanizer')).toBeNull();
   });
 });

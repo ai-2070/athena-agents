@@ -1,6 +1,5 @@
 // Athena's skills (skills/athena) replace the copies of Hermes Agent's skills. Its README.md has the standard each one
 // follows; these checks catch what can be caught mechanically. Whether the writing is good is for review.
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -9,7 +8,7 @@ import { ROOT, parseFrontmatter } from '../../server/util.ts';
 
 const dir = path.join(ROOT, 'skills', 'athena');
 const testsDir = path.join(ROOT, 'tests', 'skills');
-const replaced = JSON.parse(fs.readFileSync(path.join(dir, 'replaced.json'), 'utf8')) as { skills: Record<string, { now: string | null; path: string; sha256: string }> };
+const replaced = JSON.parse(fs.readFileSync(path.join(dir, 'replaced.json'), 'utf8')) as { skills: Record<string, { now: string | null; path: string }> };
 const planned = [...new Set(Object.values(replaced.skills).flatMap((s) => (s.now ? [s.now] : [])))].sort();
 const ids = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
 
@@ -51,12 +50,6 @@ describe("Athena's skills", () => {
     expect(planned).toHaveLength(39);
     const readme = fs.readFileSync(path.join(dir, 'README.md'), 'utf8');
     for (const old of Object.keys(replaced.skills)) expect(readme, old).toContain(`\`${old}\``);
-    // the fingerprints are of the SKILL.md the dashboard shipped (while that folder is still here)
-    if (!fs.existsSync(hermes)) return;
-    for (const [old, s] of Object.entries(replaced.skills)) {
-      const text = fs.readFileSync(path.join(hermes, ...s.path.split('/'), 'SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
-      expect(crypto.createHash('sha256').update(text).digest('hex'), old).toBe(s.sha256);
-    }
   });
 
   it('has a folder only for the planned ids, and test folders only for its skills', () => {

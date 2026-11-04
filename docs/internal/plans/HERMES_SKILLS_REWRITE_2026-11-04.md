@@ -9,8 +9,7 @@ review pass that the five samples had was skipped for the other 25.
 
 Done:
 
-- **Step 1:** `skills/athena/` with its standard (`README.md`), `replaced.json` (where each of the 51 went, with
-  fingerprints of each Hermes skill as shipped), the format checks in `tests/server/athena-skills.test.ts`, the script
+- **Step 1:** `skills/athena/` with its standard (`README.md`), `replaced.json` (where each of the 51 went), the format checks in `tests/server/athena-skills.test.ts`, the script
   tests in `tests/skills/` (about 750, Python 3.10) and a "Skill scripts" CI job on Linux and Windows.
 - **The 5 samples**, written, tried, reviewed and fixed: systematic-debugging, pdf, financial-models, humanizer, comfyui.
   In blind trials (two real tasks each, Claude Code on Sonnet, old skills against new, judged with the run folders'
@@ -23,9 +22,8 @@ Done:
   - research: arxiv, grounded-citations, llm-wiki, rss-feeds (with reddit-reading), youtube-content, maps;
   - everyday work: email (with email-inbox-triage and himalaya), action-items, weekly-review-planning, decisions.
 - **The switch (step 2):** `BUNDLED` ships `skills/athena` (private, no link back) in place of the Hermes copies, and
-  `skills/hermes/` is deleted. On start, a copy whose SKILL.md and files are exactly what the dashboard added (the old
-  Hermes copy, or a later Athena one, by fingerprint) is replaced by the version that ships, with the old one kept in
-  the skill's History, files included; a copy the user changed, and a copy of an id that went away, are left alone.
+  `skills/hermes/` is deleted. No migration: the dashboard is pre-release, so copies already in a library are left as
+  they are (decided after the PR opened; the update-on-start code that was written for it was removed).
 - **Follow-ups done:** the dashboard's ComfyUI tools (pictures and masks with a run, `node_errors` in a 200 answer, 3D
   outputs, prompts in SDXL, Flux, SD3 and BasicGuider graphs, V3 inputs and subgraphs in the editor-format converter,
   the new Comfy Desktop's folders and ports, what `comfyui_start` does when Desktop won't launch a server);
