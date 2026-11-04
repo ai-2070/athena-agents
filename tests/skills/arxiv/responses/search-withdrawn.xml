@@ -1,0 +1,57 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/2uTTv9y2BwYZRJ4JfxDGjI0vYBY</id>
+  <title>arXiv Query: search_query=co:withdrawn&amp;id_list=&amp;start=0&amp;max_results=3</title>
+  <updated>2026-11-04T06:02:56Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=co:withdrawn&amp;start=0&amp;max_results=3&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>3</opensearch:itemsPerPage>
+  <opensearch:totalResults>7404</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/0910.4008v2</id>
+    <title>Characterising weakly almost periodic functionals on the measure algebra</title>
+    <updated>2009-11-11T09:24:00Z</updated>
+    <link href="https://arxiv.org/abs/0910.4008v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/0910.4008v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>  This paper has been withdrawn, as it should not have been a new submission. Please instead see the latest version of arXiv:0904.0436.</summary>
+    <category term="math.FA" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2009-10-21T07:34:21Z</published>
+    <arxiv:comment>Withdrawn</arxiv:comment>
+    <arxiv:primary_category term="math.FA"/>
+    <author>
+      <name>Matthew Daws</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1003.2568v2</id>
+    <title>New Common Proper Motion Pairs Containing White Dwarfs from SDSS Data</title>
+    <updated>2012-03-30T20:50:56Z</updated>
+    <link href="https://arxiv.org/abs/1003.2568v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1003.2568v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Spectroscopically identified white dwarfs from the SDSS data release 1 are matched against SDSS data release 1 proper motion survey in the search for common proper motion companions</summary>
+    <category term="astro-ph.SR" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2010-03-12T16:03:14Z</published>
+    <arxiv:comment>withdrawn</arxiv:comment>
+    <arxiv:primary_category term="astro-ph.SR"/>
+    <arxiv:journal_ref>JDSO, 1, 41 (2005)</arxiv:journal_ref>
+    <author>
+      <name>John Greaves</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/math/9911108v6</id>
+    <title>On Quantization of the Geometric Langlands Correspondence I</title>
+    <updated>2000-12-14T16:01:48Z</updated>
+    <link href="https://arxiv.org/abs/math/9911108v6" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/math/9911108v6" rel="related" type="application/pdf" title="pdf"/>
+    <summary>  This paper has been withdrawn due to non-clearness of some technical points, as well as lack of a reasonable statement of quantization conjecture.</summary>
+    <category term="math.AG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="math.QA" scheme="http://arxiv.org/schemas/atom"/>
+    <published>1999-11-15T14:57:36Z</published>
+    <arxiv:comment>Withdrawn</arxiv:comment>
+    <arxiv:primary_category term="math.AG"/>
+    <author>
+      <name>A. Stoyanovsky</name>
+    </author>
+  </entry>
+</feed>
