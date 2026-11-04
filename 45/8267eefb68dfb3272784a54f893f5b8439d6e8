@@ -1,0 +1,24 @@
+docs/guide.md
+  s_6da3a21952454e::t_ad8df73a2aeba6 53
+tests/web/chat-usage.test.ts
+  s_6da3a21952454e::t_508125d99b5e31 1-16,18-21
+  s_6da3a21952454e::t_d82c334f240a36 17
+web/chat/messages.ts
+  s_6da3a21952454e::t_804510fe4578a7 7-8,86-89,110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "458267eefb68dfb3272784a54f893f5b8439d6e8",
+  "prompts": {},
+  "sessions": {
+    "s_6da3a21952454e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c02add4-c1a1-4460-98d2-189cb76f4dfe",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
