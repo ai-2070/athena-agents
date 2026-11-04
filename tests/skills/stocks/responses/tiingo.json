@@ -1,0 +1,62 @@
+{
+ "//": "Recorded Tiingo answers (tiingo-python's test fixtures): the daily metadata and daily prices of GOOGL",
+ "meta": {
+  "GOOGL": {
+   "endDate": "2017-10-06",
+   "startDate": "2004-08-19",
+   "exchangeCode": "NASDAQ",
+   "name": "Alphabet Inc.(\"Google\") - Class A",
+   "description": "Google Inc. (Google) is a global technology company.",
+   "ticker": "GOOGL"
+  }
+ },
+ "prices": {
+  "GOOGL": [
+   {
+    "date": "2015-01-02T00:00:00.000Z",
+    "close": 529.55,
+    "high": 535.8,
+    "low": 527.88,
+    "open": 532.6,
+    "volume": 1327870,
+    "adjClose": 529.55,
+    "adjHigh": 535.8,
+    "adjLow": 527.88,
+    "adjOpen": 532.6,
+    "adjVolume": 1327870,
+    "divCash": 0.0,
+    "splitFactor": 1.0
+   },
+   {
+    "date": "2015-01-05T00:00:00.000Z",
+    "close": 519.46,
+    "high": 527.9899,
+    "low": 517.75,
+    "open": 527.15,
+    "volume": 2059119,
+    "adjClose": 519.46,
+    "adjHigh": 527.9899,
+    "adjLow": 517.75,
+    "adjOpen": 527.15,
+    "adjVolume": 2059119,
+    "divCash": 0.0,
+    "splitFactor": 1.0
+   },
+   {
+    "date": "2018-04-12T00:00:00+00:00",
+    "adjClose": 1037.29,
+    "adjHigh": 1044.65,
+    "adjLow": 1026.05,
+    "adjOpen": 1031.47,
+    "adjVolume": 1644794,
+    "close": 1037.29,
+    "divCash": 0.0,
+    "high": 1044.65,
+    "low": 1026.05,
+    "open": 1031.47,
+    "splitFactor": 1.0,
+    "volume": 1644794
+   }
+  ]
+ }
+}

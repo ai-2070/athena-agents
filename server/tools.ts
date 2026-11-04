@@ -436,9 +436,9 @@ const TOOLS: ToolDef[] = [
     name: 'comfyui_start',
     group: 'comfyui',
     risk: 'low',
-    description: 'Start ComfyUI (the desktop app). It takes a little while before it accepts jobs; check with comfyui_status.',
+    description: 'Start ComfyUI (its desktop app) and wait up to two minutes for it to take jobs. Says if it came up, or what the user must do if the app starts no ComfyUI by itself.',
     parameters: obj({}),
-    run: async () => ({ text: await comfy.startComfy() }),
+    run: async (_args, ctx) => ({ text: await comfy.startComfy({ waitSec: 120, signal: ctx.signal, onProgress: (s: number) => ctx.progress?.(`Waiting for ComfyUI… ${s}s`) }) }),
   },
   {
     name: 'comfyui_list_workflows',
@@ -452,30 +452,66 @@ const TOOLS: ToolDef[] = [
     name: 'comfyui_describe_workflow',
     group: 'comfyui',
     risk: 'none',
-    description: 'Show which inputs a workflow has (keyed "nodeId.input") and which nodes hold the positive/negative prompt.',
+    description: 'Show a workflow\'s inputs (keyed "nodeId.input") and its prompt text nodes: the inputs prompt and negative replace (promptInputs, negativeInputs).',
     parameters: obj({ workflow: str('Workflow name') }, ['workflow']),
     run: async ({ workflow }: { workflow: string }) => ({ text: JSON.stringify(await comfy.describeWorkflow(workflow)) }),
   },
   {
     name: 'comfyui_run',
     group: 'comfyui',
-    risk: 'low',
-    description: 'Run a ComfyUI workflow and wait for the results. Set prompt/negative to replace the prompt text, inputs to change anything else ({"3.steps": 30, "5.width": 1024}). Seeds are randomized unless you set them.',
+    // Sending pictures copies the user's files into ComfyUI: on this computer that is like writing a file; to a ComfyUI
+    // on another computer (Settings › ComfyUI address) the files leave this one, so that needs a yes.
+    risk: ({ images }: { images?: unknown }) => (Array.isArray(images) && images.length && !comfy.onThisComputer() ? 'high' : 'low'),
+    description: 'Run a ComfyUI workflow and wait for its files (pictures, video, audio, 3D). prompt/negative replace the prompt text, inputs change anything else ({"3.steps": 30}), images sends input pictures to its Load Image nodes (image to image, inpainting, upscaling). Seeds are randomized unless set. Also lists nodes ComfyUI left out for failing its checks.',
     parameters: obj(
       {
         workflow: str('Workflow name'),
-        prompt: str('Positive prompt text'),
+        prompt: str('Positive prompt (fills every text field of the prompt node, e.g. clip_l and t5xxl)'),
         negative: str('Negative prompt text'),
         inputs: { type: 'object', description: 'Other changes as {"nodeId.input": value}' },
+        images: {
+          type: 'array',
+          description: 'Input pictures, each set on a Load Image node',
+          items: obj(
+            {
+              file: str('Path in your workspace or a folder you may read'),
+              node: str('Its Load Image (or Load Video/Audio) node, e.g. "10". Leave out if there is only one'),
+              mask: str('Optional PNG mask, same size; becomes the picture\'s transparency (Load Image\'s MASK output)'),
+              mask_kind: { type: 'string', enum: ['white', 'transparent'], description: 'white (default): white marks the area to repaint; transparent: transparent pixels do' },
+            },
+            ['file'],
+          ),
+        },
         randomize_seed: { type: 'boolean' },
       },
       ['workflow'],
     ),
-    run: async ({ workflow, prompt, negative, inputs, randomize_seed = true }: ComfyRunArgs, ctx) => {
-      const r = await comfy.runWorkflow({ workflow, prompt, negative, inputs, randomizeSeed: randomize_seed, signal: ctx.signal, onProgress: (s: number) => ctx.progress?.(`ComfyUI working… ${s}s`) });
+    run: async ({ workflow, prompt, negative, inputs, images, randomize_seed = true }: ComfyRunArgs, ctx) => {
+      // the pictures go through the same folder check as the file tools
+      const readable = (p: unknown, what: string): string => {
+        if (!p || typeof p !== 'string') throw new Error(`${what} needs its file's path.`);
+        const { abs, real, ok } = resolveInside(ctx.agent, p);
+        if (!ok) throw new Error(`${what} ${abs} is outside the folders this agent may use.`);
+        if (!fs.statSync(real, { throwIfNoEntry: false })?.isFile()) throw new Error(`${what} ${abs} isn't a file.`);
+        return real;
+      };
+      const pictures = (Array.isArray(images) ? images : []).map((im) => ({
+        file: readable(im?.file, 'The picture'),
+        node: im?.node != null ? String(im.node) : undefined,
+        mask: im?.mask ? readable(im.mask, 'The mask') : undefined,
+        maskKind: im?.mask_kind,
+      }));
+      const r = await comfy.runWorkflow({ workflow, prompt, negative, inputs, images: pictures, randomizeSeed: randomize_seed, signal: ctx.signal, onProgress: (s: number) => ctx.progress?.(`ComfyUI working… ${s}s`) });
       const imgs = r.files.filter((f) => f.kind === 'images').map((f) => f.url);
+      const sent = r.uploaded.map((u) => `- ${path.basename(u.file)}${u.mask ? ` with the mask ${path.basename(u.mask)}` : ''} as "${u.value}" into ${u.input}`);
+      const left = comfy.describeNodeErrors(r.nodeErrors).map((l) => `- ${l}`);
       return {
-        text: `Done in ${r.seconds}s. Files:\n${r.files.map((f) => `- ${f.filename} (${f.kind}, ${f.type}${f.subfolder ? `/${f.subfolder}` : ''})`).join('\n')}${r.warnings.length ? `\nWarnings:\n${r.warnings.join('\n')}` : ''}`,
+        text: [
+          `Done in ${r.seconds}s. Files:\n${r.files.map((f) => `- ${f.filename} (${f.kind}, ${f.type}${f.subfolder ? `/${f.subfolder}` : ''})`).join('\n') || '(none)'}`,
+          sent.length ? `Sent to ComfyUI:\n${sent.join('\n')}` : '',
+          left.length ? `Left out by ComfyUI (the rest ran):\n${left.join('\n')}` : '',
+          r.warnings.length ? `Warnings:\n${r.warnings.join('\n')}` : '',
+        ].filter(Boolean).join('\n'),
         images: imgs,
       };
     },
@@ -1204,7 +1240,9 @@ const TOOLS: ToolDef[] = [
     run: async ({ command, cwd, timeout_sec }: { command: string; cwd?: string; timeout_sec?: number }, ctx) => {
       const [exe, args] = shellCommand(String(command ?? ''));
       const timeout = Math.min(Math.max(Number(timeout_sec) || 300, 1), 3600) * 1000;
-      const r = await run(exe, args, { cwd: cwd || workspaceOf(ctx.agent), timeout, signal: ctx.signal });
+      // Python run from here prints UTF-8: the pipe is the Windows code page otherwise, and a name like "Łukasz" crashes it
+      const env = { PYTHONUTF8: process.env.PYTHONUTF8 ?? '1' };
+      const r = await run(exe, args, { cwd: cwd || workspaceOf(ctx.agent), timeout, signal: ctx.signal, env });
       return { text: `exit ${r.code}\n${truncateMiddle(r.stdout, 16000)}${r.stderr ? `\n[stderr]\n${truncateMiddle(r.stderr, 4000)}` : ''}`, isError: r.code !== 0 };
     },
   },
@@ -1271,7 +1309,7 @@ async function requestTools(ctx: ToolContext, id: string, why: string): Promise<
 }
 
 type LaunchArgs = { program: string; file?: string; args?: string[] };
-type ComfyRunArgs = { workflow: string; prompt?: string; negative?: string; inputs?: Record<string, unknown>; randomize_seed?: boolean };
+type ComfyRunArgs = { workflow: string; prompt?: string; negative?: string; inputs?: Record<string, unknown>; images?: { file?: string; node?: string | number; mask?: string; mask_kind?: 'white' | 'transparent' }[]; randomize_seed?: boolean };
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 const ALIASES = new Map(TOOLS.flatMap((t) => (t.aliases || []).map((a): [string, { tool: ToolDef; alias: ToolAlias }] => [a.name, { tool: t, alias: a }])));

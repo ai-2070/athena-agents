@@ -1,0 +1,21 @@
+{
+ "playabilityStatus": {
+  "status": "CUSTOM",
+  "reason": "Custom Reason",
+  "errorScreen": {
+   "playerErrorMessageRenderer": {
+    "subreason": {
+     "runs": [
+      {
+       "text": "Sub Reason 1"
+      },
+      {
+       "text": "Sub Reason 2"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "videoDetails": {}
+}

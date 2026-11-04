@@ -540,40 +540,31 @@ Read \`result.launch\`: \`outcome.handle\` is the agent's handle, \`outcome.kind
   },
 ];
 
-// Whole skill folders that come with the dashboard: skills/<dir>/<slug>/ in this repo, copied from a
-// GitHub repo. Each keeps that repo as its origin, so "Download again" updates it like an installed one.
+// Whole skill folders that come with the dashboard: skills/<dir>/<slug>/ in this repo. Most are copied from a
+// GitHub repo and keep it as their origin, so "Download again" updates them like an installed one.
 // `under` is the folder in that repo that holds the skill folders ('' = its top level): the origin's
 // path must be the skill's real path there, or "Download again" would add a second copy.
 // `private`: the repo isn't public, so its skills come without a link back to it (no "from" label,
 // no "Download again").
-// `nested`: the skill folders sit deeper, in the repo's own folders (Hermes: skills/<category>/<skill>,
-// optional-skills/<category>/<skill>), kept as they are so each one's path in the repo is its path here.
-const BUNDLED: { dir: string; repo: string; ref: string; under: string; private?: boolean; nested?: boolean }[] = [
+// `athena` holds the dashboard's own skills (its README has the standard they follow).
+const BUNDLED: { dir: string; repo: string; ref: string; under: string; private?: boolean }[] = [
   { dir: 'storytold', repo: 'hermes-pro/storytold-skills', ref: 'main', under: '' },
   { dir: 'oomol', repo: 'oomol-lab/oo-cli', ref: 'main', under: 'contrib/skills/shared' },
   { dir: 'composio', repo: 'ComposioHQ/skills', ref: 'main', under: 'skills' },
   { dir: 'orca', repo: 'stablyai/orca', ref: 'main', under: 'skills' },
   { dir: 'subagent-skills', repo: 'ai-2070/subagent-skills', ref: 'master', under: '', private: true },
-  { dir: 'hermes', repo: 'NousResearch/hermes-agent', ref: 'main', under: '', nested: true },
+  { dir: 'athena', repo: 'ai-2070/athena-agents', ref: 'main', under: 'skills/athena', private: true },
 ];
 
-/** The skill folders under a bundle's folder, as paths relative to it ("productivity/pdf"). A folder with a
- *  SKILL.md is a skill; with `nested`, one without is looked into (a few levels down). */
-function bundleSkillDirs(base: string, nested: boolean, rel = '', depth = 0): string[] {
+/** The skill folders in a bundle's folder: the ones with a SKILL.md. */
+function bundleSkillDirs(base: string): string[] {
   let list: fs.Dirent[] = [];
   try {
-    list = fs.readdirSync(rel ? path.join(base, ...rel.split('/')) : base, { withFileTypes: true });
+    list = fs.readdirSync(base, { withFileTypes: true });
   } catch {
     return [];
   }
-  const out: string[] = [];
-  for (const e of list) {
-    if (!e.isDirectory() || !SAFE.test(e.name)) continue;
-    const at = rel ? `${rel}/${e.name}` : e.name;
-    if (exists(path.join(base, ...at.split('/'), 'SKILL.md'))) out.push(at);
-    else if (nested && depth < 3) out.push(...bundleSkillDirs(base, nested, at, depth + 1));
-  }
-  return out;
+  return list.filter((e) => e.isDirectory() && SAFE.test(e.name) && exists(path.join(base, e.name, 'SKILL.md'))).map((e) => e.name);
 }
 /** The folder in this repo that holds the bundled skill folders. */
 export const bundledSkillsRoot = (): string => path.join(ROOT, 'skills');
@@ -591,14 +582,17 @@ export function bundledSkills(): BundledSkill[] {
   const out: BundledSkill[] = [];
   for (const b of BUNDLED) {
     const base = path.join(bundledSkillsRoot(), b.dir);
-    for (const rel of bundleSkillDirs(base, !!b.nested)) {
-      const at = b.under ? `${b.under}/${rel}` : rel;
+    for (const slug of bundleSkillDirs(base)) {
+      const at = b.under ? `${b.under}/${slug}` : slug;
       const origin = b.private ? undefined : { url: `https://github.com/${b.repo}/tree/${b.ref}/${at}`, repo: b.repo, ref: b.ref, path: at };
-      out.push({ slug: path.posix.basename(rel), dir: path.join(base, ...rel.split('/')), repo: b.repo, ...(origin ? { origin } : {}) });
+      out.push({ slug, dir: path.join(base, slug), repo: b.repo, ...(origin ? { origin } : {}) });
     }
   }
   return out.sort((a, b) => a.slug.localeCompare(b.slug));
 }
+
+/** Every skill the dashboard comes with: its own and the bundled ones. */
+export const shippedSkillSlugs = (): string[] => [...BUILTIN.map((b) => b.slug), ...bundledSkills().map((b) => b.slug)];
 
 export function ensureBuiltinSkills() {
   const marker = path.join(LIB(), '.builtin.json');

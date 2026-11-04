@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+<title>Tom & Jerry's&nbsp;Workshop</title>
+<link>https://workshop.example.net/</link>
+<description>A hand-written feed</description>
+<item>
+<title>Shelves & brackets</title>
+<link>https://workshop.example.net/shelves</link>
+<description>Oak&nbsp;shelves &mdash; with brackets.</description>
+<pubDate>Mon, 02 Nov 2026 10:00:00 GMT</pubDate>
+<guid>https://workshop.example.net/shelves</guid>
+</item>
+<item>
+<title>A date nobody can read</title>
+<link>https://workshop.example.net/someday</link>
+<description>Posted whenever.</description>
+<pubDate>sometime last week</pubDate>
+<guid>https://workshop.example.net/someday</guid>
+</item>
+<item>
+<title>No date at all</title>
+<link>https://workshop.example.net/undated</link>
+<description>Undated.</description>
+<guid>https://workshop.example.net/undated</guid>
+</item>
+<item>
+<title>Old post</title>
+<link>https://workshop.example.net/old</link>
+<description>From last year.</description>
+<pubDate>Fri, 07 Nov 2025 08:00:00 GMT</pubDate>
+<guid>https://workshop.example.net/old</guid>
+</item>
+</channel>
+</rss>

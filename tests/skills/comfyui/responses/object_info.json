@@ -1,0 +1,91 @@
+{
+  "CheckpointLoaderSimple": {
+    "input": {"required": {"ckpt_name": [["sd_xl_base_1.0.safetensors", "SDXL/juggernaut_xl.safetensors"], {"tooltip": "The name of the checkpoint (model) to load."}]}},
+    "input_order": {"required": ["ckpt_name"]},
+    "output": ["MODEL", "CLIP", "VAE"], "output_is_list": [false, false, false], "output_name": ["MODEL", "CLIP", "VAE"],
+    "name": "CheckpointLoaderSimple", "display_name": "Load Checkpoint", "description": "", "python_module": "nodes",
+    "category": "loaders", "output_node": false
+  },
+  "CLIPTextEncode": {
+    "input": {"required": {"text": ["STRING", {"multiline": true, "dynamicPrompts": true}], "clip": ["CLIP", {}]}},
+    "input_order": {"required": ["text", "clip"]},
+    "output": ["CONDITIONING"], "output_is_list": [false], "output_name": ["CONDITIONING"],
+    "name": "CLIPTextEncode", "display_name": "CLIP Text Encode (Prompt)", "description": "", "python_module": "nodes",
+    "category": "conditioning", "output_node": false
+  },
+  "KSampler": {
+    "input": {"required": {
+      "model": ["MODEL", {}],
+      "seed": ["INT", {"default": 0, "min": 0, "max": 18446744073709551615, "control_after_generate": true}],
+      "steps": ["INT", {"default": 20, "min": 1, "max": 10000}],
+      "cfg": ["FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step": 0.1, "round": 0.01}],
+      "sampler_name": [["euler", "euler_ancestral", "dpmpp_2m", "dpmpp_2m_sde"], {}],
+      "scheduler": [["simple", "normal", "karras", "exponential"], {}],
+      "positive": ["CONDITIONING", {}],
+      "negative": ["CONDITIONING", {}],
+      "latent_image": ["LATENT", {}],
+      "denoise": ["FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}]
+    }},
+    "input_order": {"required": ["model", "seed", "steps", "cfg", "sampler_name", "scheduler", "positive", "negative", "latent_image", "denoise"]},
+    "output": ["LATENT"], "output_is_list": [false], "output_name": ["LATENT"],
+    "name": "KSampler", "display_name": "KSampler", "description": "", "python_module": "nodes",
+    "category": "sampling", "output_node": false
+  },
+  "EmptyLatentImage": {
+    "input": {"required": {"width": ["INT", {"default": 512, "min": 16, "max": 16384, "step": 8}], "height": ["INT", {"default": 512, "min": 16, "max": 16384, "step": 8}], "batch_size": ["INT", {"default": 1, "min": 1, "max": 4096}]}},
+    "output": ["LATENT"], "output_name": ["LATENT"], "name": "EmptyLatentImage", "display_name": "Empty Latent Image",
+    "python_module": "nodes", "category": "latent", "output_node": false
+  },
+  "VAEDecode": {
+    "input": {"required": {"samples": ["LATENT", {}], "vae": ["VAE", {}]}},
+    "output": ["IMAGE"], "output_name": ["IMAGE"], "name": "VAEDecode", "display_name": "VAE Decode",
+    "python_module": "nodes", "category": "latent", "output_node": false
+  },
+  "SaveImage": {
+    "input": {"required": {"images": ["IMAGE", {}], "filename_prefix": ["STRING", {"default": "ComfyUI"}]}, "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"}},
+    "output": [], "output_name": [], "name": "SaveImage", "display_name": "Save Image",
+    "python_module": "nodes", "category": "image", "output_node": true
+  },
+  "LoadImage": {
+    "input": {"required": {"image": [["photo.png", "street.jpg"], {"image_upload": true}]}},
+    "output": ["IMAGE", "MASK"], "output_name": ["IMAGE", "MASK"], "name": "LoadImage", "display_name": "Load Image",
+    "python_module": "nodes", "category": "image", "output_node": false
+  },
+  "LoadImageMask": {
+    "input": {"required": {"image": [["photo.png", "street.jpg"], {"image_upload": true}], "channel": [["alpha", "red", "green", "blue"], {}]}},
+    "output": ["MASK"], "output_name": ["MASK"], "name": "LoadImageMask", "display_name": "Load Image (as Mask)",
+    "python_module": "nodes", "category": "mask", "output_node": false
+  },
+  "UNETLoader": {
+    "input": {"required": {"unet_name": [["flux1-dev.safetensors"], {}], "weight_dtype": [["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"], {}]}},
+    "output": ["MODEL"], "output_name": ["MODEL"], "name": "UNETLoader", "display_name": "Load Diffusion Model",
+    "python_module": "nodes", "category": "advanced/loaders", "output_node": false
+  },
+  "DualCLIPLoader": {
+    "input": {"required": {"clip_name1": [["clip_l.safetensors"], {}], "clip_name2": [["clip_l.safetensors"], {}], "type": [["sdxl", "sd3", "flux", "hunyuan_video"], {}]}},
+    "output": ["CLIP"], "output_name": ["CLIP"], "name": "DualCLIPLoader", "display_name": "DualCLIPLoader",
+    "python_module": "nodes", "category": "advanced/loaders", "output_node": false
+  },
+  "VAELoader": {
+    "input": {"required": {"vae_name": [["ae.safetensors", "pixel_space"], {}]}},
+    "output": ["VAE"], "output_name": ["VAE"], "name": "VAELoader", "display_name": "Load VAE",
+    "python_module": "nodes", "category": "loaders", "output_node": false
+  },
+  "UpscaleModelLoader": {
+    "input": {"required": {"model_name": ["COMBO", {"multiselect": false, "options": ["4x-UltraSharp.pth"]}]}},
+    "input_order": {"required": ["model_name"]},
+    "output": ["UPSCALE_MODEL"], "output_is_list": [false], "output_name": ["UPSCALE_MODEL"],
+    "name": "UpscaleModelLoader", "display_name": "Load Upscale Model", "python_module": "comfy_extras.nodes_upscale_model",
+    "category": "loaders", "output_node": false
+  },
+  "LoadVideo": {
+    "input": {"required": {"file": ["COMBO", {"multiselect": false, "options": ["clip.mp4"], "video_upload": true}]}},
+    "output": ["VIDEO"], "output_name": ["VIDEO"], "name": "LoadVideo", "display_name": "Load Video",
+    "python_module": "comfy_extras.nodes_video", "category": "image/video", "output_node": false
+  },
+  "IPAdapterModelLoader": {
+    "input": {"required": {"ipadapter_file": [["ip-adapter_sdxl_vit-h.safetensors"]]}},
+    "output": ["IPADAPTER"], "output_name": ["IPADAPTER"], "name": "IPAdapterModelLoader", "display_name": "IPAdapter Model Loader",
+    "python_module": "custom_nodes.ComfyUI_IPAdapter_plus", "category": "ipadapter/loaders", "output_node": false
+  }
+}

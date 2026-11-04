@@ -1,0 +1,6 @@
+{
+  "comfyui_ipadapter_plus": [["IPAdapter", "IPAdapterAdvanced", "IPAdapterModelLoader", "IPAdapterUnifiedLoader"], {"title_aux": "ComfyUI_IPAdapter_plus"}],
+  "comfyui-kjnodes": [["GetImageSizeAndCount", "ImageResizeKJ", "SomethingToString"], {"title_aux": "KJNodes for ComfyUI"}],
+  "https://github.com/example/comfyui-fork-kjnodes": [["ImageResizeKJ"], {"title_aux": "KJNodes fork"}],
+  "comfyui-acme": [["Acme_Blur"], {"title_aux": "Acme nodes", "nodename_pattern": "^Acme_"}]
+}

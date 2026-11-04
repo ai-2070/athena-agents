@@ -10,14 +10,17 @@ import { dataPath } from '../../server/util.ts';
 const agent = { id: 'a1', name: 'Tester' };
 
 describe('bundled skills', () => {
-  it('include the storytold, OOMOL, Composio, Orca, subagent and Hermes skills', () => {
+  it("include the storytold, OOMOL, Composio, Orca and subagent skills, and the dashboard's own", () => {
     const slugs = skills.bundledSkills().map((b) => b.slug);
     expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env', 'delegating-to-subagents', 'commissioning-a-reviewer', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']));
-    // Hermes: the ones that fit any agent on Windows, from its built-in and optional skills
-    expect(slugs).toEqual(expect.arrayContaining(['systematic-debugging', 'test-driven-development', 'github', 'pdf', 'docx', 'xlsx', 'powerpoint', 'dcf-model', 'arxiv', 'maps', 'excalidraw', 'manim-video', 'himalaya', 'obsidian', 'one-three-one-rule']));
-    expect(slugs).toHaveLength(85);
-    // not the ones only for Hermes itself, the Mac-only ones, or the ones that get around safety checks
-    for (const s of ['hermes-agent', 'honcho', 'apple-notes', 'imessage', 'godmode', 'obliteratus', 'scrapling']) expect(slugs).not.toContain(s);
+    // the dashboard's own (skills/athena), which replaced the copies of Hermes Agent's skills
+    expect(slugs).toEqual(expect.arrayContaining(['systematic-debugging', 'test-driven-development', 'github', 'pdf', 'financial-models', 'humanizer', 'comfyui', 'email', 'action-items', 'decisions', 'fastmcp']));
+    const own = fs.readdirSync(path.join(skills.bundledSkillsRoot(), 'athena'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
+    expect(slugs).toEqual(expect.arrayContaining(own));
+    expect(slugs.filter((s) => !own.includes(s))).toHaveLength(34);
+    // the Hermes ones that were merged into others or cut don't come back
+    for (const s of ['dcf-model', 'excel-author', 'mcporter', 'reddit-reading', 'himalaya', 'one-three-one-rule', 'duckduckgo-search']) expect(slugs).not.toContain(s);
+    expect(fs.existsSync(path.join(skills.bundledSkillsRoot(), 'hermes'))).toBe(false);
     // only Orca's current name for its Linear skill, not the old one too
     expect(slugs).not.toContain('linear-tickets');
     // only the subagent skills that fit any agent, not the ones for one repo or for oh-my-pi
@@ -39,12 +42,13 @@ describe('bundled skills', () => {
     expect(origin.oo).toMatchObject({ repo: 'oomol-lab/oo-cli', path: 'contrib/skills/shared/oo' });
     expect(origin.composio).toMatchObject({ repo: 'ComposioHQ/skills', path: 'skills/composio' });
     expect(origin['orca-cli']).toMatchObject({ repo: 'stablyai/orca', path: 'skills/orca-cli' });
-    // Hermes keeps its skills in category folders, built-in and optional apart
-    expect(origin.pdf).toMatchObject({ repo: 'NousResearch/hermes-agent', path: 'skills/productivity/pdf', url: 'https://github.com/NousResearch/hermes-agent/tree/main/skills/productivity/pdf' });
-    expect(origin.excalidraw).toMatchObject({ repo: 'NousResearch/hermes-agent', path: 'optional-skills/creative/excalidraw' });
     // its repo isn't public, so no link back to it
     expect(origin['independent-review']).toBeUndefined();
-    expect(skills.bundledSkills().filter((b) => !b.origin).map((b) => b.slug).sort()).toEqual(['commissioning-a-reviewer', 'delegating-to-subagents', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']);
+    // nor to the dashboard's own (skills/athena)
+    const own = (b: skills.BundledSkill) => b.dir.startsWith(path.join(skills.bundledSkillsRoot(), 'athena') + path.sep);
+    expect(skills.bundledSkills().filter(own).map((b) => b.slug)).toContain('pdf');
+    expect(skills.bundledSkills().filter((b) => !b.origin && !own(b)).map((b) => b.slug).sort()).toEqual(['commissioning-a-reviewer', 'delegating-to-subagents', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']);
+    for (const b of skills.bundledSkills()) if (own(b)) expect(b.origin, b.slug).toBeUndefined();
   });
 
   it("are added once, keep where they came from, and don't replace a skill of yours", () => {
@@ -70,9 +74,9 @@ describe('bundled skills', () => {
     // these descriptions are double-quoted YAML holding single quotes and dashes
     expect(skills.getSkill('independent-review')?.description).toMatch(/^Use when acting as the independent reviewer .* 'review this candidate', .*not code review of a PR for style\.$/);
     expect(skills.getSkill('cadcraft')?.name).toBe('My CAD notes');
-    // a Hermes skill from a category folder comes whole, with its scripts
-    expect(skills.getSkill('pdf')?.files.map((f) => f.path)).toContain('scripts/pdf_create.py');
-    expect(skills.getSkill('pdf')?.origin).toMatchObject({ repo: 'NousResearch/hermes-agent', path: 'skills/productivity/pdf' });
+    // one of the dashboard's own comes whole, with its scripts, and no link back
+    expect(skills.getSkill('pdf')?.files.map((f) => f.path)).toContain('scripts/pdf_tool.py');
+    expect(skills.getSkill('pdf')?.origin).toBeFalsy();
     // nothing half-copied left behind
     expect(fs.readdirSync(dataPath('tmp')).filter((x) => x.startsWith('bundled-'))).toEqual([]);
   });
@@ -147,15 +151,15 @@ describe('read_skill on long files', () => {
   });
 
   it("points where Hermes keeps a skill (~/.hermes/skills/<category>/<id>) at the skill in the library, and names its folder", async () => {
-    skills.ensureBuiltinSkills();
-    const dir = (slug: string) => skills.skillDir(slug).split(path.sep).join('/');
-    const maps = await callTool(agent, 'read_skill', { name: 'maps' });
-    expect(maps.text).not.toContain('.hermes/skills');
-    expect(maps.text).toContain(`${dir('maps')}/scripts/maps_client.py`);
-    expect(maps.text).toContain(`Files with this skill, in its folder ${dir('maps')} (`);
-    // in a category folder
-    const pixel = await callTool(agent, 'read_skill', { name: 'pixel-art' });
-    expect(pixel.text).not.toContain('.hermes/skills');
-    expect(pixel.text).toContain(`${dir('pixel-art')}/scripts`);
+    // a Hermes skill the user installed from GitHub themselves
+    const s = skills.saveSkill({ name: 'Map lookups', description: 'Use for map lookups.', body: 'Run python ~/.hermes/skills/productivity/map-lookups/scripts/maps_client.py search "x", or ${HOME}/.hermes/skills/map-lookups/scripts/maps_client.py.' })!;
+    fs.mkdirSync(dataPath('skills', s.slug, 'scripts'), { recursive: true });
+    fs.writeFileSync(dataPath('skills', s.slug, 'scripts', 'maps_client.py'), 'print(1)\n');
+    const dir = skills.skillDir(s.slug).split(path.sep).join('/');
+    const r = await callTool(agent, 'read_skill', { name: s.slug });
+    expect(r.text).not.toContain('.hermes/skills');
+    expect(r.text).toContain(`python ${dir}/scripts/maps_client.py search`);
+    expect(r.text).toContain(`, or ${dir}/scripts/maps_client.py.`);
+    expect(r.text).toContain(`Files with this skill, in its folder ${dir} (`);
   });
 });
