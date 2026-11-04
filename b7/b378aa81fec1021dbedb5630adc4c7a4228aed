@@ -1,0 +1,42 @@
+tests/server/athena-skills.test.ts
+  s_09ac87e46cf718::t_429f2b9c3602ba 126-151
+  s_09ac87e46cf718::t_b86f0e37372deb 16-17,21
+  s_09ac87e46cf718::t_8f953db95c5445 1-15,18-20,22-81,86-125,152-164
+  s_09ac87e46cf718::t_4427e5e33f2aae 82-85
+.github/workflows/ci.yml
+  s_09ac87e46cf718::t_70cd19bae80efc 63-85
+server/skills.ts
+  s_09ac87e46cf718::t_64bfdf606a531d 544-546
+.gitignore
+  s_09ac87e46cf718::t_4baf966685f97b 25-28
+AGENTS.md
+  s_09ac87e46cf718::t_8c5d5a924be134 30-32
+skills/athena/LICENSE-hermes-agent
+  s_09ac87e46cf718::t_bf321a228e844b 1-21
+skills/athena/README.md
+  s_09ac87e46cf718::t_3298b7ebe3d91d 1-252
+skills/athena/replaced.json
+  s_09ac87e46cf718::t_00a30a8ca1aa6b 1-264
+tests/skills/conftest.py
+  s_09ac87e46cf718::t_511de5055a1612 1-67
+tests/skills/pytest.ini
+  s_09ac87e46cf718::t_c093e941f200b3 1-6
+tests/skills/requirements.txt
+  s_09ac87e46cf718::t_9e8a746ffa4d7a 1-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b7b378aa81fec1021dbedb5630adc4c7a4228aed",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
