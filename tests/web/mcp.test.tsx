@@ -120,6 +120,14 @@ describe('the MCP servers tab', () => {
     expect(requests.some((r) => r.url === '/api/mcp-preset')).toBe(false);
   });
 
+  it('gives each added server its mark, a copy its service\'s, without touching the title', async () => {
+    servers = { ...servers, 'oomol-work': { type: 'http', command: '', args: [], env: {}, url: 'https://example.com/mcp', headers: {}, kind: 'oomol', label: 'Work' } };
+    await open();
+    const rows = [...el.querySelectorAll('.mcp-server')];
+    expect(rows.map((r) => r.querySelector('.title')!.textContent)).toEqual(['playwright', 'oomol-work']);
+    for (const row of rows) expect(row.querySelector('.mcp-mark svg, .mcp-mark img')).not.toBeNull();
+  });
+
   it('finds a preset by its name or what it does', async () => {
     const preset = (name: string, title: string, description: string) => ({ name, title, description, ready: true, installed: false, type: 'http', url: `https://${name}.example.com/mcp`, headers: {} });
     mcpMore = { presets: [preset('sentry', 'Sentry', 'Errors and stack traces.'), preset('kiwi', 'Flights (Kiwi.com)', 'Search flights.')] };

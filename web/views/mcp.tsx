@@ -13,13 +13,18 @@ import { DomNode, reactPage } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import type { McpServerInfo, McpSuggestion, ToolGroup } from '../../shared/types.ts';
 
-function PresetTitle({ name, title }: { name: string; title: string }) {
+/** A server's mark in a small tile: its brand, or an icon for what it does (redrawn when the theme changes). */
+function ServiceMark({ name }: { name: string }) {
   const [theme, setTheme] = useState(0);
   useEffect(() => onThemeChange(() => setTheme((n) => n + 1)), []);
+  return <span aria-hidden="true" className="mcp-mark grid size-8 shrink-0 place-items-center rounded-ctl bg-panel-2 text-ink">
+    <DomNode as="span" className="flex" make={() => presetIcon(name)} deps={[name, theme]} />
+  </span>;
+}
+
+function PresetTitle({ name, title }: { name: string; title: string }) {
   return <div className="card-title flex items-center gap-2.5">
-    <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-ctl bg-panel-2 text-ink">
-      <DomNode as="span" className="flex" make={() => presetIcon(name)} deps={[name, theme]} />
-    </span>
+    <ServiceMark name={name} />
     <span>{title}</span>
   </div>;
 }
@@ -288,6 +293,8 @@ function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: Mcp
   return (
     <div className="mcp-server px-5 py-4">
       <div className="flex flex-wrap items-center gap-2">
+        {/* (a copy of a ready-made server shows its service's mark) */}
+        <span className="mr-1.5 flex"><ServiceMark name={info?.kind || cfg.kind || name} /></span>
         <div className="min-w-0 flex-1">
           <div className="title flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
             {info?.title || name}
