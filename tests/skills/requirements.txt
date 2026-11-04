@@ -10,3 +10,5 @@ cryptography==50.0.2
 # comfyui: Pillow (above) for masks; the rest is the standard library
 # financial-models (and soffice.py, which docx, xlsx and powerpoint will copy)
 openpyxl==3.1.5
+# youtube-content
+youtube-transcript-api==1.2.4
