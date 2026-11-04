@@ -1,6 +1,6 @@
 # Faster, cheaper built-in tools and tool calls
 
-4 November 2026. Plan only: nothing is implemented yet. Branch `LZL0/tool-optimization`.
+4 November 2026. Branch `LZL0/tool-optimization`. Phases 0–4 are implemented; see [Results](#results) at the end. Phases 5 and 6 were decided against for now, from the measurements.
 
 The goal is that agents spend less time and money per tool call, need fewer calls per task, and never
 get flooded by one oversized result. Safety does not change: every check in "Security boundaries"
@@ -291,4 +291,72 @@ Made on 4 November 2026:
 Codex gets the internal token, and the env and headers of every stdio and HTTP MCP server, as `-c` arguments on
 its command line (`server/engines/codex.ts:157-172`). Other programs on the machine can read command lines
 (`ps`), so these values could leak. Passing them through the environment or a private config file would
-avoid that. This should be fixed separately.
+avoid that. **Fixed** in the same branch: see Results.
+
+## Results
+
+Measured on 4 November 2026, with the tool lists as the model gets them (`tests/server/tool-budget.test.ts`).
+
+### Sizes
+
+| What the model gets | Before | After |
+|---|---|---|
+| Core tools, which every agent carries | 19 tools, 15 969 characters (≈4 400 tokens) | 15 tools, 11 978 (≈3 300 tokens), 25% less |
+| Voxel world group | 18 tools, 24 888 | 17 tools, 15 476 (≈4 300 tokens), 38% less |
+| `request_tool` | 2 596 | 1 103 |
+| Every group, Eve agent | 91 tools, 62 931 | 87 tools, 52 893, with three new file tools included |
+| Every group, Claude Code agent | the same 62 931 | 80 tools, 49 275 (its own file and shell tools aren't doubled) |
+
+The core list stays above the 3 000-token target. Most of what is left is the Task tools' schemas, which follow
+Claude Code's published shape: single-task fields plus a `tasks` list with the same fields. Sharing them through
+`$defs` would save about 600 characters, but some local OpenAI-compatible servers handle `$ref` badly. The budget
+test now fails when any group grows past its ceiling.
+
+### Repeated work, for one Eve step with one tool call (21 saved runs, from `tests/server/eve-calls.test.ts`)
+
+| | Before | After |
+|---|---|---|
+| System-prompt builds | 4 per step | 1 per run |
+| Tool-list builds | 7 | 6, now without MCP requests while nothing changed (lists are kept per connection) |
+| Run-file reads | 219 | 0 |
+| Operation-file reads | 26 | 0 |
+
+The instructions stay the same for a whole turn, so the prompt cache no longer breaks when MEMORY.md or WORLD.md
+change mid-run. Eve receipts of runs that ended more than 30 days ago are removed when they can no longer be needed.
+Still open: `/configuration` lists tools on all four calls of a step, because only the worker's tools resolver
+needs them and changing that means changing the worker's protocol. With MCP lists kept, those calls are cheap.
+
+### What changed, by item
+
+- **Phase 0:**
+  - the size budget test;
+  - Eve call counts (`server/eve/counts.ts`, used by tests);
+  - local tool stats: calls, errors, refusals, approvals asked, clipped results, p50/p95 time and result size, saved in `data/tool-stats.json`, readable at `GET /api/tool-stats`.
+- **Phase 1:** all items, 1.1 to 1.11.
+  - **Fixed along the way:** an old MCP connection closing after a settings change dropped the new one, which started a third server and left one running.
+- **Phase 2:** all items.
+  - The world merge (decision 3) put `world_script` into `world_build`, with `world_script` kept as an alias.
+  - `world_light` with `world_effect`, and the three `world_md_*` tools, stay separate. Merging them would make the tools harder to use: different fields and limits, different risks, and the same shape as the `memory_*` tools.
+- **Phase 3:** all items.
+  - The new tools: `edit_file`, `find_files`, `search_files`.
+  - Improved tools: `read_file` (in parts, several files), `list_files` (depth, sizes), `fetch_url` (Markdown, parts, kept ten minutes, 5 MB cap), `run_command` (the right shell on each platform, start and end of output), `await_agent` (several handles), `ask_agent` (`wait_seconds`).
+  - Smaller fixes: X reads capped at 50, and `reddit_draft_post`'s `note` added to its schema.
+- **Phase 4:**
+  - Settings › Context › Longest tool result, 24 000 characters by default.
+  - It applies to the MCP bridge and to Eve's built-in and MCP results.
+  - Full results are kept for a week in `outputs/tool-results`.
+- **Codex keys:**
+  - The bridge reads its token from the data folder, so the token is never on Codex's command line.
+  - With Codex 0.136 or later, MCP servers' env and headers go through `env_vars` and `env_http_headers`, hidden from the commands Codex runs (`shell_environment_policy.exclude`).
+
+### Phases 5 and 6, decided from the measurements
+
+- **Phase 5, loading groups on demand: not now.**
+  - A typical Eve agent (Files, Browser, Delegate) now carries 27 tools and 18 294 characters (≈5 100 tokens), and most of that is core tools every agent needs.
+  - World builders use their world tools on almost every step, so holding those back saves nothing.
+  - Each group loaded later would cost an extra call and a prompt-cache break per conversation.
+  - Revisit if the tool stats show agents with several large groups they rarely use.
+- **Phase 6, judging ffmpeg and ImageMagick risk by their arguments: not yet.**
+  - It weakens a security boundary, and nothing measured how often those approvals come up.
+  - The tool stats now count the calls that waited for approval (`asked`).
+  - Decide once they show these approvals are a real cost, with a security review and tests that try to get around it.
