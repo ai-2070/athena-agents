@@ -23,11 +23,11 @@ function load(): Map<string, Live> {
   if (live) return live;
   const saved = readJSON<Saved | null>(file(), null);
   since = saved?.since || Date.now();
-  live = new Map((saved?.tools || []).map((t) => [t.name, { ...t, times: [] }]));
+  live = new Map((saved?.tools || []).map((t) => [t.name, { ...blank(t.name), ...t, times: [] }]));
   return live;
 }
 
-const blank = (name: string): Live => ({ name, calls: 0, errors: 0, denied: 0, clipped: 0, totalMs: 0, p50Ms: 0, p95Ms: 0, totalChars: 0, maxChars: 0, lastAt: 0, times: [] });
+const blank = (name: string): Live => ({ name, calls: 0, errors: 0, denied: 0, clipped: 0, asked: 0, totalMs: 0, p50Ms: 0, p95Ms: 0, totalChars: 0, maxChars: 0, lastAt: 0, times: [] });
 const at = (sorted: number[], q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0;
 
 /** One finished call. */
@@ -47,13 +47,16 @@ export function recordToolCall(name: string, r: { ms: number; chars: number; isE
   saveSoon();
 }
 
-export function recordClipped(name: string): void {
+const count = (name: string, field: 'clipped' | 'asked') => {
   const stats = load();
   const s = stats.get(name) || blank(name);
-  s.clipped++;
+  s[field] = (s[field] || 0) + 1;
   stats.set(name, s);
   saveSoon();
-}
+};
+export const recordClipped = (name: string): void => count(name, 'clipped');
+/** A call that waited for a yes: these show where approvals slow agents down. */
+export const recordAsked = (name: string): void => count(name.replace(/:high$/, ''), 'asked');
 
 /** Every tool's numbers, most used first. */
 export function toolStats(): Saved {

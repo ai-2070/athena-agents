@@ -23,7 +23,7 @@ import * as reddit from './reddit.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import { withActor } from './versions.ts';
-import { recordClipped, recordToolCall } from './toolstats.ts';
+import { recordAsked, recordClipped, recordToolCall } from './toolstats.ts';
 import { ensureBrain } from './projects.ts';
 import { safeUploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
@@ -1344,6 +1344,7 @@ export function toolApprovalRequest(agent: ToolAgent, name: string, args: ToolAr
 // Ask when the agent's autonomy says so; null lets the tool go ahead.
 export async function gate(agent: ToolAgent, name: string, risk: Risk, args: ToolArgs, ctx: ToolRunInfo = {}, detail: string | null | undefined = null): Promise<ToolResult | null> {
   if (!needsApproval(agent, risk, name)) return null;
+  if (!ctx.approvalDecision) recordAsked(name);
   const d = await (ctx.approvalDecision || requestApproval)(toolApprovalRequest(agent, name, args, ctx, detail));
   if (!d.approved) return { text: `The user said no${d.message ? `: ${d.message}` : ''}. Don't retry the same thing; ask what they want instead.`, isError: true, denied: true };
   if (d.always && agent.id && !agent.id.startsWith('_')) {

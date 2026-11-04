@@ -47,6 +47,14 @@ describe('tool stats', () => {
     expect(tools.find((t) => t.name === 'read_skill')).toMatchObject({ calls: 1, errors: 1 });
     clipForModel({ text: long }, 'notify_user', null);
     expect(toolStats().tools.find((t) => t.name === 'notify_user')!.clipped).toBe(1);
+    // a call that waited for a yes counts as asked
+    const ask = { id: 'asker', name: 'Asker', toolGroups: ['shell'], autonomy: 'ask' as const };
+    const pending = callTool(ask, 'run_command', { command: 'echo hi' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(toolStats().tools.find((t) => t.name === 'run_command')!.asked).toBe(1);
+    const { listApprovals, decide } = await import('../../server/approvals.ts');
+    for (const a of listApprovals()) decide(a.id, { approved: false });
+    await pending;
     saveToolStats();
     expect(JSON.parse(fs.readFileSync(dataPath('tool-stats.json'), 'utf8')).tools.some((t: { name: string }) => t.name === 'notify_user')).toBe(true);
   });

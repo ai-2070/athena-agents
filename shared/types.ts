@@ -1144,6 +1144,8 @@ export interface ToolStat {
   denied: number;
   /** Results that were longer than the limit and reached the model shortened. */
   clipped: number;
+  /** Calls that asked you (or the Brain) first. */
+  asked: number;
   totalMs: number;
   p50Ms: number;
   p95Ms: number;
