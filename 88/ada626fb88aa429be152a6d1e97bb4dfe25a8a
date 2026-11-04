@@ -1,0 +1,24 @@
+tests/server/conversation-search.test.ts
+  s_e149d0ba305b10::t_b8d40646b4a5af 171-173
+server/store.ts
+  s_e149d0ba305b10::t_43bd8464ef0201 414-423
+server/conversations.ts
+  s_e149d0ba305b10::t_60dbfeebb9e928 52-59
+  s_e149d0ba305b10::t_21c7a9b87c249b 36-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88ada626fb88aa429be152a6d1e97bb4dfe25a8a",
+  "prompts": {},
+  "sessions": {
+    "s_e149d0ba305b10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d2cbea5-1c6f-4a57-ac49-224888c6c687",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
