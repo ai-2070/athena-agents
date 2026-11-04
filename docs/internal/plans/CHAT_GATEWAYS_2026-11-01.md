@@ -1022,7 +1022,44 @@ New gateway data does not need a legacy compatibility layer.*
 - Final validation: `CI=1 bun run check` passed (274 files; 2,742 tests passed, one skipped).
   The web build, desktop staging and bundled desktop smoke passed. The existing running web
   watcher overlapped one manual build; its clean rerun and final desktop staging succeeded.
-- Next: add retired-instance local-finish controls and temporary-media retention, then
+- Added removed-instance **Review local finish** for completed native answers and reserved/started
+  native work. GET returns an opaque revision of the retirement identity and validated full journal,
+  original source/target and saved operation/conversation IDs, plus current text/file/notice outcomes.
+  It performs no ownership claim, receipt recovery, SDK opening, credential read or native-status check.
+- Mutations require completed removal and exclusive account/private-state ownership, recheck the
+  retirement after asynchronous claims, and validate the exact displayed revision and strict body.
+  Selected-request recovery is a separate revisioned POST before closure. The same journal validator
+  protects live and retired paths, including replay, quota, album and WhatsApp ACK evidence; no
+  unavailable platform is enabled. Corrupt SDK or unrelated credential storage cannot force a reset.
+- Completed delivery uses the existing permanent `deliveryFinished`/audit proof, including notice-only
+  unresolved delivery. Started/reserved work uses the existing `workKept` proof and sequence cutoff;
+  other saved requests in that conversation stay held. The live keep/recovery paths share the same
+  small mutation helpers. The selected native operation/dispatch, original input, confirmed IDs,
+  attempts, file charges, SDK state and unrelated Outbox receipts stay intact. Late callbacks cannot reopen tracking
+  or delivery. Queued requests, edits and album members remain read-only evidence here.
+- The Settings review shows original source/target, saved native IDs and individual delivery outcomes,
+  explicit interrupted-receipt recovery, reloadable failures and permanent closure time. A shared
+  confirmation names original chat/message/project and warns that native work may still run or
+  uncertain delivery may already have arrived. Cancel, duplicate clicks, stale reads and unmount are
+  guarded; this view grants no send, reconnect, native replay or manual-confirmation capability.
+- Added server/API/DOM checks for source identity, fresh revisions/acknowledgements, atomic writes,
+  ownership conflicts and recheck races, preserved evidence, strict WhatsApp relay proof, notice-only
+  closure, Brain/agent/team native work, unknown admission, queued requests, late callbacks, corrupt
+  SDK/credentials and UI cancellation/failure/reload. Synthetic archived fixtures exercise all four
+  platform labels without establishing real-account delivery acceptance.
+- A fresh scoped finish reviewer approved fourteen light/dark desktop/phone captures of original
+  source/work IDs, interrupted receipt recovery, retained outcomes, native-work warnings, permanent
+  closure and both confirmations. Six settled Tab samples stayed inside the confirmation; Escape
+  closed it. In isolated synthetic state, real local UI/API actions recovered and closed delivery
+  and native tracking. The confirmed prefix ID stayed intact, the pending tail kept zero attempts,
+  the selected dispatches/inputs, file reservations, SDK bytes and unrelated Outbox bytes stayed
+  unchanged, and a queued sibling stayed held without an operation. Remaining instances stayed
+  paused. The preview recorded zero external/provider attempts, stopped, and its data/home/Chrome
+  profile were removed. Unshown states have source/test evidence, not visual approval; this does
+  not enable WhatsApp or establish real-account delivery acceptance.
+- Final validation: `CI=1 bun run check` passed (276 files; 2,770 tests passed, one skipped).
+  The web build, desktop staging and bundled desktop smoke passed.
+- Next: finish retired Outbox closure and temporary-media retention, then
   remaining delivery/product controls and proactive platform coverage under the same approval policy.
   Real-account checks on all four platforms and Windows/Linux verification remain outstanding.
   Offline checks run in CI.

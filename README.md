@@ -237,6 +237,8 @@ Completed or dismissed inbox receipts can be removed after confirmation. Native 
 Removing an instance blocks new gateway work and clears its local credentials after the worker stops.
 Saved receipts stay under **View removed instances → View saved history**. Athena retries unfinished
 removal after a restart; **Retry removal** lets you finish it there after checking storage and ownership.
+For a saved answer or native operation, **Review local finish** closes its remaining gateway delivery
+or tracking permanently. Saved evidence stays, and native work keeps its usual controls in Athena.
 Delegated files stay tied to their source run and workspace; revoked access holds delivery for review.
 Slow requests show a short working notice; approvals stay in Athena. Uncertain sends need review before retrying.
 For Telegram, **Set up Telegram** checks the bot and webhook while paused. After stopping the previous

@@ -487,6 +487,11 @@ describe('gateway configuration API', () => {
     expect(await (await req(`/api/gateways/retired/${one.id}/inbox`)).json()).toEqual({ events: [] });
     expect((await req(`/api/gateways/${one.id}/inbox`)).status).toBe(404);
     expect((await req('/api/gateways/retired/missing/inbox')).status).toBe(404);
+    expect((await req(`/api/gateways/retired/${one.id}/inbox/missing/local-finish`)).status).toBe(404);
+    for (const suffix of ['local-finish', 'local-finish/prepare']) {
+      expect((await req(`/api/gateways/retired/${one.id}/inbox/missing/${suffix}`, { method: 'POST' })).status).toBe(403);
+      expect((await req(`/api/gateways/retired/${one.id}/inbox/missing/${suffix}`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64) }) })).status).toBe(404);
+    }
     expect((await req(`/api/gateways/${one.id}`, { method: 'DELETE', headers: json })).status).toBe(200);
     const remaining = await (await req('/api/gateways')).json() as { instances: GatewayInstance[] };
     expect(remaining.instances.some((instance) => instance.id === one.id)).toBe(false);

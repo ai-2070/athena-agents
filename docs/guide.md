@@ -554,8 +554,26 @@ stays blocked, and receipts remain. Cancel or close the history before confirmin
 unchanged. Failed reads and failed cleanup show separate reload/retry controls. A direct link uses
 `#/settings?tab=gateways&retired=<instance-id>`; `retired=all` opens the list. Removed history can
 load even when active gateway credentials need recovery. Legacy deleted folders without a removal
-record need separate recovery. Delivery reconciliation/local finish for removed instances and
-temporary-media retention are still planned.
+record need separate recovery.
+
+Expand a saved answer or native operation and choose **Review local finish**. Opening the review
+only reads the original source, destination, native work IDs and current saved delivery receipts.
+For a completed answer, **Finish locally** permanently closes its remaining text, file and notice
+delivery. Confirmed IDs, uncertain results, waiting parts and byte reservations remain as evidence.
+For reserved or started work without a final answer, the same action permanently keeps its work in
+Athena and closes future gateway tracking, replies and files. Other saved requests in that conversation
+stay held. Native work may still be running; manage it through Athena's usual controls first. A saved
+reservation does not prove that native admission failed or that the work completed.
+
+If saved sends still say they were in flight, choose **Recover interrupted receipts** explicitly
+before finishing. This classifies only the selected request's interrupted receipts locally. The
+review then needs a fresh receipt revision. **Finish locally** asks for confirmation naming the
+original chat, message and project. It cannot be undone. It sends nothing, starts no work and keeps
+the removed connection blocked. Removal must be complete first, and another process owning the
+account or private state blocks the change. SDK state and saved credentials are not read or rewritten.
+Late gateway callbacks cannot reopen closed delivery or tracking. Queued requests, edits and album
+members keep their saved evidence without a local-finish action. Removed-instance Outbox closure,
+manual delivery confirmations and temporary-media retention remain planned.
 
 The sidebar's **Status** panel shows gateway connection state and messages needing review. Click an
 instance needing review to open its inbox, or a connection warning to open its setup. Its tooltip names

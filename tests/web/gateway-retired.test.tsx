@@ -76,6 +76,16 @@ it('reads original source, destination and per-part evidence without delivery or
   expect(requests.filter((item) => item.method !== 'GET')).toEqual([]);
 });
 
+it('opens local-finish review for the selected saved receipt without mutating history', async () => {
+  const original = globalThis.fetch;
+  vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+    if (url.endsWith('/local-finish')) { requests.push({ url, method: init.method || 'GET' }); return Response.json({ revision: 'a'.repeat(64), kind: 'delivery', reason: '', canFinish: true, needsPrepare: false, heldRequests: 0, source: { platform: 'telegram', actor: 'Morgan', conversationId: '123', threadId: '', messageId: '42', projectId: 'original-project', target: { kind: 'brain' } }, items: [] }); }
+    return original(url, init);
+  });
+  await open('one'); await click('Review local finish'); expect(requests).toContainEqual({ url: '/api/gateways/retired/one/inbox/event-one/local-finish', method: 'GET' });
+  expect(button('Finish locally')).toBeDefined(); expect(requests.every((item) => item.method === 'GET')).toBe(true); await click('Back to saved history'); expect(host.textContent).toContain('Original message one');
+});
+
 it('opens a removed deep link even if active credentials prevent the active listing from loading', async () => {
   failActive = true; await open('one'); expect(host.textContent).toContain('Active gateway credentials need recovery'); expect(host.textContent).toContain('Saved inbox receipts'); expect(host.textContent).toContain('Removed one');
   expect(requests.some((item) => item.url === '/api/gateways/retired/one/inbox')).toBe(true);

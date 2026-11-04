@@ -12,6 +12,8 @@ import { claimGatewayAccount, claimGatewayState } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
 import { checkTelegramSetup, switchTelegramToPolling } from './telegram-setup.ts';
 import { GatewayOutboxLedger } from './outbox.ts';
+import { privateDataPath } from '../private.ts';
+import type { GatewayRetiredFinishReview } from '../../shared/types.ts';
 
 /** Settings changes restart only their instance; transport failures never expose raw SDK errors. */
 export class GatewaySupervisor {
@@ -328,6 +330,33 @@ export class GatewaySupervisor {
       } finally { await releaseState?.(); await releaseAccount?.(); }
     });
     this.pending = task.then(() => {}, () => {}); return task;
+  }
+
+  private retiredFinishTask(instanceId: string, work: (inbox: GatewayInbox) => GatewayRetiredFinishReview): Promise<GatewayRetiredFinishReview> {
+    const task = this.pending.then(async () => {
+      let releaseAccount: (() => Promise<void>) | undefined; let releaseState: (() => Promise<void>) | undefined;
+      try {
+        const retired = gatewayRetirement(instanceId);
+        if (!retired) throw Object.assign(new Error('No such removed gateway instance.'), { status: 404 });
+        if (this.closed || retired.completedAt === undefined) throw Object.assign(new Error('Finish removing this instance before changing its saved receipts.'), { status: 409 });
+        await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
+        releaseAccount = await claimGatewayAccount(retired.platform, retired.accountId); releaseState = await claimGatewayState(instanceId);
+        if (this.closed || JSON.stringify(gatewayRetirement(instanceId)) !== JSON.stringify(retired)) throw Object.assign(new Error('The removal record changed. Reload before finishing locally.'), { status: 409 });
+        return work(new GatewayInbox({ instanceId, inboxFile: () => privateDataPath('gateways-runtime', instanceId, 'inbox.json') }));
+      } catch (error) {
+        if (error instanceof Error && 'status' in error && (error.status === 400 || error.status === 404 || error.status === 409 || error.status === 503)) throw error;
+        throw Object.assign(new Error('Saved receipts could not be finished safely. Check storage and ownership, then reload the local-finish review.'), { status: 503 });
+      } finally { await releaseState?.(); await releaseAccount?.(); }
+    });
+    this.pending = task.then(() => {}, () => {}); return task;
+  }
+
+  prepareRetiredFinish(instanceId: string, eventId: string, body: unknown): Promise<GatewayRetiredFinishReview> {
+    return this.retiredFinishTask(instanceId, (inbox) => inbox.prepareRetiredFinish(eventId, body));
+  }
+
+  finishRetired(instanceId: string, eventId: string, body: unknown): Promise<GatewayRetiredFinishReview> {
+    return this.retiredFinishTask(instanceId, (inbox) => inbox.finishRetired(eventId, body));
   }
 
   reconnect(instanceId: string): Promise<void> {

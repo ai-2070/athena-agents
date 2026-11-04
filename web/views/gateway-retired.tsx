@@ -5,6 +5,7 @@ import { Pill } from '../ui/marks.tsx';
 import { FieldRow, PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
 import { useServerEvents } from '../ui/react.tsx';
 import type { GatewayInboxEvent, GatewayReplyPart, GatewayRetiredInstance } from '../../shared/types.ts';
+import { GatewayRetiredFinishView } from './gateway-retired-finish.tsx';
 
 const platforms = { telegram: 'Telegram', slack: 'Slack', discord: 'Discord', whatsapp: 'WhatsApp' };
 const status = { pending: 'Waiting when saved', sending: 'Saved in-flight receipt', sent: 'Confirmed', uncertain: 'Delivery uncertain', failed: 'Failed', skipped: 'Skipped' };
@@ -16,7 +17,7 @@ const textClass = 'm-0 max-h-48 overflow-auto whitespace-pre-wrap [overflow-wrap
 
 // Operate extension: keep Settings' rows and light/dark tokens. Read identity, then saved evidence.
 // The first view lists blocked instances; history disclosures keep long receipts out of the way.
-// Only unfinished removal has a confirmed action. Native work and delivery controls stay separate.
+// Removal retry and receipt-local finish have separate confirmations; neither reconnects or sends.
 export function GatewayRetiredView({ id, select, close, changed }: {
   id: string; select: (id: string) => void; close: () => void; changed: () => Promise<void>;
 }) {
@@ -35,7 +36,7 @@ export function GatewayRetiredView({ id, select, close, changed }: {
   const selected = records?.find((record) => record.id === id);
   const term = query.trim().toLocaleLowerCase();
   const shown = (records || []).filter((record) => [record.name, record.id, record.accountId, record.platform, record.projectId].some((value) => value.toLocaleLowerCase().includes(term)));
-  return <Section title="Removed instances" description="Connections stay blocked. Read their saved history or finish an interrupted removal."
+  return <Section title="Removed instances" description="Connections stay blocked. Read saved history, finish local receipts or complete an interrupted removal."
     action={<Button size="small" variant="ghost" onClick={close}>Close removed instances</Button>}>
     <Row title={id ? 'Saved instance history' : 'Saved removal records'} description="Opening history only reads local receipts. It never starts work, sends a message or reconnects an account.">
       {id && <Button size="small" variant="ghost" onClick={() => select('')}>Back to removed instances</Button>}
@@ -61,6 +62,7 @@ export function GatewayRetiredView({ id, select, close, changed }: {
 function RetiredHistory({ record, changed }: { record: GatewayRetiredInstance; changed: () => Promise<void> }) {
   const [events, setEvents] = useState<GatewayInboxEvent[] | null>(null); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false); const [limit, setLimit] = useState(25);
+  const [finishId, setFinishId] = useState('');
   const mounted = useRef(false); const request = useRef(0); const active = useRef(false);
   const load = useCallback(async () => {
     const version = ++request.current;
@@ -94,15 +96,17 @@ function RetiredHistory({ record, changed }: { record: GatewayRetiredInstance; c
     {notice && <div role="status" className="px-5 py-4 text-dim">{notice}</div>}
     {error && <div role="alert" className="px-5 py-4 text-red [overflow-wrap:anywhere]">{error}</div>}
     {record.completedAt === undefined && <Row title="Finish local removal" description="Check storage and any other Athena process using this account. Retrying removal preserves saved history and makes no messaging-service or relay-administration request."><Button size="small" variant="danger" disabled={busy} onClick={() => void remove()}>Retry removal</Button></Row>}
+    {finishId ? <GatewayRetiredFinishView key={finishId} instanceId={record.id} eventId={finishId} close={() => setFinishId('')} changed={load} /> : <>
     <Row title="Saved inbox receipts" description="These are historical gateway records. In-flight statuses are preserved as saved; opening history does not classify them or check the messaging app."><Button size="small" variant="ghost" disabled={busy} onClick={() => void load()}>Reload saved history</Button></Row>
     {!events && !error && <Row title={<span role="status">Loading saved messages…</span>} />}
     {events && !events.length && <Row title="No saved inbox messages" description="This instance has no remaining inbox receipts. Native chats and approved Outbox receipts are kept separately." />}
-    {ordered.slice(0, limit).map((event) => <SavedReceipt key={event.id} event={event} />)}
+    {ordered.slice(0, limit).map((event) => <SavedReceipt key={event.id} event={event} reviewFinish={setFinishId} />)}
     {ordered.length > limit && <RowActions><Button size="small" variant="ghost" onClick={() => setLimit((before) => before + 25)}>Show 25 more messages</Button></RowActions>}
+    </>}
   </>;
 }
 
-function SavedReceipt({ event }: { event: GatewayInboxEvent }) {
+function SavedReceipt({ event, reviewFinish }: { event: GatewayInboxEvent; reviewFinish: (id: string) => void }) {
   const native = event.dispatch?.conversation;
   return <details className="px-5 py-4">
     <summary className="cursor-pointer rounded-ctl text-[14px] [overflow-wrap:anywhere] focus-visible:outline-2 focus-visible:outline-accent">
@@ -114,6 +118,7 @@ function SavedReceipt({ event }: { event: GatewayInboxEvent }) {
       <p className="m-0 text-dim">Sender <code>{event.input.actor.id}</code> · Chat <code>{event.input.conversationId}</code>{event.input.threadId && <> · Thread <code>{event.input.threadId}</code></>}. Saved project <code>{event.route.projectId}</code> · {event.route.target.kind === 'brain' ? 'The Brain' : <>{event.route.target.kind} <code>{event.route.target.id}</code></>}.</p>
       {event.input.text && <p tabIndex={0} aria-label="Saved original message" className={textClass}>{event.input.text}</p>}
       {event.reason && <p className="m-0 text-dim">{event.reason}</p>}
+      {event.operationId && event.input.kind === 'message' && (!event.input.mediaGroupId || event.album?.leaderId === event.id) && ['running', 'needs-review', 'done'].includes(event.status) && <div><Button size="small" variant="ghost" onClick={() => reviewFinish(event.id)}>Review local finish</Button></div>}
       {event.operationId && <div className="text-dim">Operation <code>{event.operationId}</code>{event.dispatch?.runId && <div>Run <code>{event.dispatch.runId}</code></div>}{event.dispatch?.messageId && <div>Native message <code>{event.dispatch.messageId}</code></div>}{native && <div>Private conversation <code>{native.conversationId}</code>{native.kind === 'agent' && <> · Agent <code>{native.agentId}</code> · Chat <code>{native.chatId}</code></>}{native.kind === 'team' && <> · Team <code>{native.teamId}</code></>}</div>}</div>}
       {event.album && <p className="m-0 text-dim">Saved album {event.album.leaderId === event.id ? 'leader' : 'member'} · Receipt <code>{event.album.leaderId}</code>{event.album.memberIds && <> · {event.album.memberIds.length} messages</>}.</p>}
       {event.files?.length ? <div><h3 className="m-0 mb-2 text-[13px] font-medium">Incoming files</h3>{event.files.map((file) => <p key={file.index} className="my-2">{file.file?.name || event.input.media[file.index]?.name || `Attachment ${file.index + 1}`} · {incomingStatus[file.status]}{file.reason && <span className="block text-dim">{file.reason}</span>}</p>)}</div> : null}

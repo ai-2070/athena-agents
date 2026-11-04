@@ -18,7 +18,7 @@ import * as gateways from './gateways/instances.ts';
 import { discordRecovery } from './gateways/discord-recovery.ts';
 import { whatsAppSetup } from './gateways/whatsapp-setup.ts';
 import { GatewaySupervisor } from './gateways/supervisor.ts';
-import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRetiredInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders, gatewayWorkReview } from './gateways/inbox.ts';
+import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRetiredInboxHistory, gatewayRetiredFinishReview, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders, gatewayWorkReview } from './gateways/inbox.ts';
 import { listGatewayRetirements } from './gateways/retirement.ts';
 import { telegramSetup } from './gateways/telegram-setup.ts';
 import { gatewayOutboxDestinations } from './gateways/outbox-owner.ts';
@@ -987,6 +987,9 @@ get('/api/gateways', async () => ({
 post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(body));
 get('/api/gateways/retired', async () => ({ instances: listGatewayRetirements() }));
 get('/api/gateways/retired/:id/inbox', async ({ id }) => ({ events: gatewayRetiredInboxHistory(id) }));
+get('/api/gateways/retired/:id/inbox/:eventId/local-finish', async ({ id, eventId }) => gatewayRetiredFinishReview(id, eventId));
+post<unknown>('/api/gateways/retired/:id/inbox/:eventId/local-finish/prepare', async ({ id, eventId }, body) => gatewaySupervisor.prepareRetiredFinish(id, eventId, body));
+post<unknown>('/api/gateways/retired/:id/inbox/:eventId/local-finish', async ({ id, eventId }, body) => gatewaySupervisor.finishRetired(id, eventId, body));
 get('/api/gateways/targets/:projectId', async ({ projectId }) => gateways.gatewayTargets(projectId));
 get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
 get('/api/gateways/:id/inbox/:eventId/review', async ({ id, eventId }) => gatewayRequestReview(id, eventId));

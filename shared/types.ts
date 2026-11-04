@@ -231,6 +231,20 @@ export interface GatewayDeliveryReview {
   items: { target: GatewayDeliveryTarget; label: string; text?: string; status: GatewayOutgoingFile['status']; remoteId?: string; canConfirm: boolean; confirmedAt?: number }[];
 }
 
+export interface GatewayRetiredFinishReview {
+  revision: string;
+  kind: 'delivery' | 'work' | 'unavailable';
+  reason: string;
+  canFinish: boolean;
+  needsPrepare: boolean;
+  closedAt?: number;
+  source: GatewayDeliveryReview['source'];
+  operationId?: string;
+  native?: GatewayWorkReview['native'];
+  heldRequests: number;
+  items: { label: string; text?: string; status: GatewayOutgoingFile['status']; remoteId?: string }[];
+}
+
 export interface GatewayTelegramSetupState {
   version: 1;
   check?: { at: number; configRevision: string; revision: string; fingerprint: string; webhook: boolean; host?: string; pendingUpdates: number };

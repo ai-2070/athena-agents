@@ -19,6 +19,8 @@ import { completedGatewayDelivery, deliveryEntries, deliveryReview, deliveryTarg
 import { gatewayBindingRoot, gatewayWorkUnfinished, latestWorkReview, workBindingId, workReceiptsValid, workReview } from './work-review.ts';
 import { gatewayOutboxProtectedBindings } from './outbox.ts';
 import { gatewayRetirement } from './retirement.ts';
+import { retiredFinishReview } from './retired-finish.ts';
+import type { GatewayRetiredFinishReview } from '../../shared/types.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -265,6 +267,10 @@ export function gatewayRetiredInboxHistory(instanceId: string): GatewayInboxEven
   return readSavedGatewayInbox(instanceId)?.events ?? [];
 }
 
+export function gatewayRetiredFinishReview(instanceId: string, eventId: string): GatewayRetiredFinishReview {
+  return new GatewayInbox({ instanceId, inboxFile: () => privateDataPath('gateways-runtime', instanceId, 'inbox.json') }).retiredFinishReview(eventId);
+}
+
 export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] { return savedGatewayInbox(instanceId)?.events ?? []; }
 export function savedWhatsAppRelayState(instanceId: string): GatewayWhatsAppIntakeState | undefined { return savedGatewayInbox(instanceId)?.whatsappRelay; }
 export function whatsAppReplacementRevision(instanceId: string): string | undefined {
@@ -334,11 +340,11 @@ export function gatewayInputAllowed(instance: GatewayInstance, input: GatewayInb
   return instance.scope.conversationIds.includes(scope);
 }
 
-/** Its SDK adapter must stay connected: both files share the same exclusive instance claim. */
+/** Mutations need the instance claim, held by a live SDK adapter or a retired-review caller. */
 export class GatewayInbox {
-  private readonly state: GatewayStateAdapter;
+  private readonly state: Pick<GatewayStateAdapter, 'instanceId' | 'inboxFile'>;
 
-  constructor(state: GatewayStateAdapter) { this.state = state; }
+  constructor(state: Pick<GatewayStateAdapter, 'instanceId' | 'inboxFile'>) { this.state = state; }
 
   get instanceId(): string { return this.state.instanceId; }
 
@@ -383,6 +389,43 @@ export class GatewayInbox {
 
   list(): GatewayInboxEvent[] { return this.read().events; }
 
+  private retiredSnapshot(eventId: string) {
+    const retired = gatewayRetirement(this.state.instanceId);
+    if (!retired) throw Object.assign(new Error('No such removed gateway instance.'), { status: 404 });
+    let journal: GatewayInboxJournal;
+    try { journal = this.read(); } catch { throw Object.assign(new Error('The saved inbox receipts could not be reviewed safely. Restore them before continuing.'), { status: 503 }); }
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event) throw Object.assign(new Error('No such saved gateway receipt.'), { status: 404 });
+    return { journal, event, preview: retiredFinishReview(retired, journal, event) };
+  }
+
+  retiredFinishReview(eventId: string): GatewayRetiredFinishReview { return this.retiredSnapshot(eventId).preview; }
+
+  prepareRetiredFinish(eventId: string, body: unknown): GatewayRetiredFinishReview {
+    const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/) }).safeParse(body);
+    const { journal, preview } = this.retiredSnapshot(eventId);
+    if (!parsed.success || parsed.data.revision !== preview.revision || !preview.needsPrepare) throw Object.assign(new Error('The saved receipts changed or cannot be recovered here. Reload the local-finish review.'), { status: 409 });
+    this.recoverJournal(journal, eventId); return this.retiredFinishReview(eventId);
+  }
+
+  finishRetired(eventId: string, body: unknown): GatewayRetiredFinishReview {
+    const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeNoSend: z.literal(true), acknowledgeMayStillRun: z.literal(true) }).safeParse(body);
+    const { journal, event, preview } = this.retiredSnapshot(eventId);
+    if (!parsed.success || parsed.data.revision !== preview.revision || !preview.canFinish) throw Object.assign(new Error(preview.reason || 'The saved receipts changed. Reload the local-finish review.'), { status: 409 });
+    if (preview.kind === 'delivery') {
+      const at = Date.now(); event.deliveryReviews = [...(event.deliveryReviews ?? []), { at, revision: parsed.data.revision, action: 'finish-local' }]; event.deliveryFinished = { at, revision: parsed.data.revision };
+    } else if (preview.kind === 'work') this.keepWorkLocal(journal, event, parsed.data.revision);
+    else throw Object.assign(new Error('This receipt cannot be finished here.'), { status: 409 });
+    try { this.commit(journal); } catch { throw Object.assign(new Error('Local finish could not be saved. Check storage and reload its receipts.'), { status: 503 }); }
+    return this.retiredFinishReview(eventId);
+  }
+
+  private keepWorkLocal(journal: GatewayInboxJournal, event: GatewayInboxEvent, revision: string): void {
+    const roots = new Map(journal.bindings.map((item) => [item.id, item.rootId ?? item.id])); const root = gatewayBindingRoot(journal, event.bindingId);
+    event.workKept = { at: Date.now(), revision, throughSequence: journal.nextSequence - 1, serial: Math.max(0, ...journal.events.map((item) => item.workKept?.serial ?? 0)) + 1 };
+    for (const item of journal.events) if (roots.get(item.bindingId) === root) this.holdSource(item, 'An operator kept earlier work in Athena. Ask the sender for a new message in the fresh conversation.');
+  }
+
   prepareWorkReview(eventId: string): GatewayWorkReview {
     const instance = getGatewayInstance(this.state.instanceId); const event = this.read().events.find((item) => item.id === eventId);
     if (instance.enabled) throw Object.assign(new Error('Pause this gateway before recovering interrupted work receipts.'), { status: 400 });
@@ -396,9 +439,7 @@ export class GatewayInbox {
     const preview = workReview(instance, journal, event, digest([gatewayInboxRevision(instance, journal), event.id]));
     const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeMayStillRun: z.literal(true), acknowledgeFreshConversation: z.literal(true), acknowledgeNoReply: z.literal(true) }).safeParse(body);
     if (!parsed.success || parsed.data.revision !== preview.revision || !preview.canKeep) throw Object.assign(new Error(preview.reason || 'This request or its saved work changed. Reload and review the current receipts.'), { status: 409 });
-    const roots = new Map(journal.bindings.map((item) => [item.id, item.rootId ?? item.id])); const root = gatewayBindingRoot(journal, event.bindingId);
-    event.workKept = { at: Date.now(), revision: parsed.data.revision, throughSequence: journal.nextSequence - 1, serial: Math.max(0, ...journal.events.map((item) => item.workKept?.serial ?? 0)) + 1 };
-    for (const item of journal.events) if (roots.get(item.bindingId) === root) this.holdSource(item, 'An operator kept earlier work in Athena. Ask the sender for a new message in the fresh conversation.');
+    this.keepWorkLocal(journal, event, parsed.data.revision);
     try { this.commit(journal); } catch { throw Object.assign(new Error('The work review could not be saved. Check storage and reload its receipts.'), { status: 503 }); }
     return gatewayWorkReview(instance.id, eventId);
   }
@@ -1212,7 +1253,10 @@ export class GatewayInbox {
 
   /** Interrupted work requires reconciliation with its saved operation ID, never a blind second run. */
   recover(eventId?: string): void {
-    const journal = this.read();
+    this.recoverJournal(this.read(), eventId);
+  }
+
+  private recoverJournal(journal: GatewayInboxJournal, eventId?: string): void {
     let changed = false;
     for (const event of journal.events) {
       if (event.deliveryFinished || event.workKept || (eventId !== undefined && event.id !== eventId)) continue;
