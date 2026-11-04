@@ -1,0 +1,52 @@
+server/tools.ts
+  s_113f5bf511efd5::t_e37572d66b07a2 1069-1075,1082,1086
+  s_113f5bf511efd5::t_3bb6b5741f8f74 20
+  s_113f5bf511efd5::t_f578912048d234 436
+  s_113f5bf511efd5::t_0bff896384dfff 450,452
+  s_113f5bf511efd5::t_5c8f41a4e82c5b 1076-1081
+  s_113f5bf511efd5::t_c0988ab5190fcf 1083-1085
+  s_113f5bf511efd5::t_f7c87dc9d1b922 1087
+server/comfyui.ts
+  s_113f5bf511efd5::t_ef21dfb7381b41 74-80,84,92,231-233,236,239-251,253,256,272,284-291,305,329
+server/toolimages.ts
+  s_113f5bf511efd5::t_f3d9a3bc8b770e 96-104
+  s_113f5bf511efd5::t_05a7088a106c02 81,84-85
+  s_113f5bf511efd5::t_461c41a6667198 41-44,46-48,50-53,55-58,61-67,74,77,80,82-83,86-88,91-95,105-106
+  s_113f5bf511efd5::t_f7f7e99e607c74 107
+tests/server/comfy-folders.test.ts
+  s_113f5bf511efd5::t_0c493ce8f71ef6 1-79
+tests/server/toolimages.test.ts
+  s_113f5bf511efd5::t_8fcb38ab62aa76 5,43-63
+  s_113f5bf511efd5::t_479abac5b0fefc 64-65
+server/index.ts
+  s_113f5bf511efd5::t_a564baa752b7da 32,1325-1327
+tests/server/api.test.ts
+  s_113f5bf511efd5::t_63a3b05d110c41 712-716
+tests/server/comfyui-run.test.ts
+  s_113f5bf511efd5::t_4de7541ba1a794 1-92
+server/eve/media.ts
+  s_113f5bf511efd5::t_05a7088a106c02 1,35-36
+server/programs.ts
+  s_113f5bf511efd5::t_9bcbdbb94494fe 150,163,166,168,188,192,196
+  s_113f5bf511efd5::t_9a6cfff3c9eda2 128-149,151-162,164-165,167,169-179,182,186-187,189-191,193-195,197
+tests/server/file-tools.test.ts
+  s_113f5bf511efd5::t_8fcb38ab62aa76 81-122
+tests/server/eve-model.test.ts
+  s_113f5bf511efd5::t_8fcb38ab62aa76 57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d2c848430edb2675497efe28ed2cba712143ab91",
+  "prompts": {},
+  "sessions": {
+    "s_113f5bf511efd5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33eb0f9d-82ca-4708-b62e-673ddb2ee4f8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
