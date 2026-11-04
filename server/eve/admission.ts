@@ -125,7 +125,7 @@ export async function prepareAdmission(runId: string, project: Project): Promise
     const message = messageParts(receipt);
     const [{ buildSystemPrompt }, { richSection }, { gatherTools }] = await Promise.all([import('../engines/index.ts'), import('../richanswers.ts'), import('../apitools.ts')]);
     const current = sessionContext(binding.id);
-    const [{ defs }, rich] = await Promise.all([gatherTools(current.agent, () => {}), richSection(current.agent, chat, receipt.depth)]);
+    const [{ defs }, rich] = await Promise.all([gatherTools(current.agent, () => {}, { engine: 'eve', conversationId: chat.conversationId }), richSection(current.agent, chat, receipt.depth)]);
     const window = selection.contextWindow;
     const standing = JSON.stringify({ instructions: buildSystemPrompt(current.agent) + rich, tools: defs });
     const envelope = Math.max(estimateTokens(standing), Math.ceil(Buffer.byteLength(standing) / 4)) + 1024;

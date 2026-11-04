@@ -1304,7 +1304,7 @@ get('/api/internal/tools', async (_p, _b, q) => {
   const run = engines.runInfo(q.run);
   return inRunProject(run, () => {
     const agent = bridgeAgent(run, q.agent);
-    const list = tools.toolDefs(agent);
+    const list = tools.toolDefs(agent, { conversationId: run?.conversationId, engine: agent.engine });
     if (agent.engine === 'claude-code')
       list.push({
         name: 'permission_prompt',

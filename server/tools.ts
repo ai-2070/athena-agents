@@ -83,6 +83,20 @@ export interface ToolContext extends ToolRunInfo {
 // Declared as methods so each tool can name the arguments it expects (the model's JSON is taken as that shape).
 type RiskOf = { bivarianceHack(args: ToolArgs): Risk }['bivarianceHack'];
 
+/** What a tool list depends on besides the agent. */
+export interface ToolScope {
+  /** The run's private conversation: "board-<task id>" for a Tasks board task, a gateway's conversation otherwise. */
+  conversationId?: string | null;
+  /** The agent's engine: engines with their own file and shell tools don't get the dashboard's too. */
+  engine?: string;
+}
+
+/** An earlier name of a tool (saved workflow steps still use it); args turns its arguments into the tool's. */
+export interface ToolAlias {
+  name: string;
+  args?: (args: ToolArgs) => ToolArgs;
+}
+
 export interface ToolDef {
   name: string;
   group: string;
@@ -90,6 +104,10 @@ export interface ToolDef {
   description: string;
   parameters: JSONSchema;
   run(args: ToolArgs, ctx: ToolContext): Promise<ToolResult>;
+  /** Listed only where it can work. A call is still checked by the tool itself, wherever it comes from. */
+  when?: (scope: ToolScope) => boolean;
+  /** Earlier names: accepted when called, never shown to the model. */
+  aliases?: ToolAlias[];
 }
 
 /** What the engines and the MCP bridge tell the model about a tool. */
@@ -141,6 +159,10 @@ function resolveInside(agent: ToolAgent, p: string | undefined, { write = false 
 
 // Programs that run whatever they are given.
 const INTERPRETERS = /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bun|deno|ruby|perl|php|java|javaw|osascript|bash|sh|zsh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
+
+const isBoardConversation = (id: string | null | undefined): boolean => !!id && id.startsWith('board-');
+/** Gateway conversations (and the Brain's private work for one) are the other private conversations. */
+const isGatewayConversation = (id: string | null | undefined): boolean => !!id && !isBoardConversation(id);
 
 /** The chat a tool call runs in (to tell which team it is for). */
 const chatOf = async (ctx: ToolContext): Promise<string | null> => (await import('./engines/index.ts')).runInfo(ctx.runId)?.chatId ?? null;
@@ -226,6 +248,7 @@ const TOOLS: ToolDef[] = [
     name: 'prepare_gateway_files',
     group: 'core',
     risk: 'none',
+    when: (s) => isGatewayConversation(s.conversationId),
     description: 'Inspect specific finished files for this active gateway assignment. Returns paths, names, sizes and SHA-256 hashes without sending them. Only your own workspace and safe project uploads are eligible. Use send_gateway_files with the returned paths and hashes to request delivery; ordinary artifacts and tool images are not sent automatically.',
     parameters: obj({ paths: { type: 'array', items: str('Absolute path of a finished file'), minItems: 1, maxItems: 10 } }, ['paths']),
     run: async (args, ctx) => {
@@ -237,6 +260,7 @@ const TOOLS: ToolDef[] = [
     name: 'send_gateway_files',
     group: 'core',
     risk: 'high',
+    when: (s) => isGatewayConversation(s.conversationId),
     description: 'Request delivery of explicitly chosen finished files to the sender of this active gateway assignment. Pass the paths and SHA-256 hashes returned by prepare_gateway_files. Uses the normal approval policy, refuses changed bytes, and queues files after the final answer. The destination cannot be changed. One immutable selection per assignment; the result confirms selection, not remote delivery. Never retry an uncertain delivery with another tool call; review it in Athena.',
     parameters: obj({ files: { type: 'array', minItems: 1, maxItems: 10, items: obj({ path: str('Absolute path returned by prepare_gateway_files'), sha256: str('SHA-256 returned by prepare_gateway_files') }, ['path', 'sha256']) } }, ['files']),
     run: async (args, ctx) => {
@@ -251,6 +275,7 @@ const TOOLS: ToolDef[] = [
     name: 'board_task',
     group: 'core',
     risk: 'none',
+    when: (s) => isBoardConversation(s.conversationId),
     description: 'Only when you work on a Tasks board task: read it again, with its description, the latest comments and the names of its files.',
     parameters: obj({}),
     run: async (_args, ctx) => {
@@ -262,6 +287,7 @@ const TOOLS: ToolDef[] = [
     name: 'board_reply',
     group: 'core',
     risk: 'none',
+    when: (s) => isBoardConversation(s.conversationId),
     description: 'Only when you work on a Tasks board task: comment on it (Markdown), attach finished files by their full paths (your workspace or the project uploads), and move it to in_review when it is done or to blocked with a reason when you can\'t finish it. Never to done: the user does that.',
     parameters: obj({
       text: str('Your comment: what you did, found or made (Markdown)'),
@@ -1167,17 +1193,44 @@ type LaunchArgs = { program: string; file?: string; args?: string[] };
 type ComfyRunArgs = { workflow: string; prompt?: string; negative?: string; inputs?: Record<string, unknown>; randomize_seed?: boolean };
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
+const ALIASES = new Map(TOOLS.flatMap((t) => (t.aliases || []).map((a): [string, { tool: ToolDef; alias: ToolAlias }] => [a.name, { tool: t, alias: a }])));
 
-export function toolsForAgent(agent: ToolAgent): ToolDef[] {
-  const groups = new Set(['core', ...(agent.toolGroups || [])]);
-  if (kb.knowledgeFiles(agent).length) groups.add('knowledge');
-  // a memory of its own: real agents only (not stand-ins like workflows or outside MCP clients)
-  if (memory.hasMemory(agent)) groups.add('memory');
-  return TOOLS.filter((t) => groups.has(t.group));
+/** A tool by its name or an earlier one, with the arguments in its current shape. */
+function resolveTool(name: string, args: ToolArgs): { tool: ToolDef | undefined; args: ToolArgs } {
+  const tool = BY_NAME.get(name);
+  if (tool) return { tool, args };
+  const old = ALIASES.get(name);
+  return old ? { tool: old.tool, args: old.alias.args ? old.alias.args(args) : args } : { tool: undefined, args };
 }
 
-export function toolDefs(agent: ToolAgent): ToolSpec[] {
-  return toolsForAgent(agent).map(({ name, description, parameters }) => ({ name, description, parameters }));
+// The dashboard's file and shell tools do what these engines' own tools already do: listing both only makes
+// the model choose. (Their own tools ask through the same approvals; Eve has none of its own.)
+const OWN_TOOL_GROUPS = new Set(['files', 'shell']);
+const hasOwnFileTools = (engine: string | undefined): boolean => !!engine && engine !== 'eve';
+
+/** May this agent use the tool at all. Cheap: the knowledge folders are only looked at for knowledge tools. */
+function mayUse(agent: ToolAgent, tool: ToolDef): boolean {
+  if (tool.group === 'core' || (agent.toolGroups || []).includes(tool.group)) return true;
+  // a memory of its own: real agents only (not stand-ins like workflows or outside MCP clients)
+  if (tool.group === 'memory') return memory.hasMemory(agent);
+  if (tool.group === 'knowledge') return kb.knowledgeFiles(agent).length > 0;
+  return false;
+}
+
+export function toolsForAgent(agent: ToolAgent, scope: ToolScope = {}): ToolDef[] {
+  const own = hasOwnFileTools(scope.engine);
+  let knowledge: boolean | undefined;
+  return TOOLS.filter((t) => {
+    if (own && OWN_TOOL_GROUPS.has(t.group)) return false;
+    if (t.when && !t.when(scope)) return false;
+    if (t.group !== 'knowledge') return mayUse(agent, t);
+    knowledge ??= mayUse(agent, t);
+    return knowledge;
+  });
+}
+
+export function toolDefs(agent: ToolAgent, scope: ToolScope = {}): ToolSpec[] {
+  return toolsForAgent(agent, scope).map(({ name, description, parameters }) => ({ name, description, parameters }));
 }
 
 export const allTools = (): { name: string; group: string; risk: Risk | 'varies'; description: string }[] =>
@@ -1262,11 +1315,13 @@ export async function toolApprovalPlan(agent: ToolAgent, name: string, args: Too
 }
 
 // Run a tool for an agent, asking the user first when its settings say so.
-export async function callTool(agent: ToolAgent, name: string, args: ToolArgs = {}, ctx: ToolRunInfo = {}): Promise<ToolResult> {
-  const tool = BY_NAME.get(name);
-  if (!tool) throw new Error(`Unknown tool ${name}`);
-  if (!toolsForAgent(agent).includes(tool)) throw new Error(`${agent.name} isn't allowed to use ${name}. Turn on the "${tool.group}" tools for it.`);
-  args = args && typeof args === 'object' ? args : {};
+export async function callTool(agent: ToolAgent, calledAs: string, rawArgs: ToolArgs = {}, ctx: ToolRunInfo = {}): Promise<ToolResult> {
+  const resolved = resolveTool(calledAs, rawArgs && typeof rawArgs === 'object' ? rawArgs : {});
+  const tool = resolved.tool;
+  if (!tool) throw new Error(`Unknown tool ${calledAs}`);
+  const name = tool.name;
+  if (!mayUse(agent, tool)) throw new Error(`${agent.name} isn't allowed to use ${name}. Turn on the "${tool.group}" tools for it.`);
+  const args = resolved.args && typeof resolved.args === 'object' ? resolved.args : {};
   const risk = riskOf(tool, args);
   // For tools whose risk depends on arguments, "Always allow" only skips the low-risk form.
   const allowName = toolApprovalName(name, args);

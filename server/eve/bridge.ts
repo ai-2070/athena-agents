@@ -37,7 +37,7 @@ export async function eveConfiguration(bindingId: string, sessionId: string, nat
     const selection = readAdmission(run.id)?.selection || await selectEveModel(agent, chat);
     const provider = providerOf({ ...agent, provider: selection.provider });
     if (provider.base !== selection.baseUrl) throw new Error('The model address changed during this turn. Start a new turn to use it.');
-    const { defs } = await gatherTools(agent, () => {});
+    const { defs } = await gatherTools(agent, () => {}, { engine: 'eve', conversationId: chat.conversationId });
     const headers = { ...provider.headers };
     delete headers.authorization;
     delete headers['content-type'];
@@ -58,13 +58,13 @@ export async function eveConfiguration(bindingId: string, sessionId: string, nat
 }
 
 export async function eveToolPolicy(bindingId: string, sessionId: string, runId: string, callId: string, name: string, args: Record<string, unknown>): Promise<{ status: 'approved' | 'user-approval' | 'denied'; reason?: string }> {
-  const { project, agent, run } = invocationContext(bindingId, sessionId, runId);
+  const { project, agent, run, chat } = invocationContext(bindingId, sessionId, runId);
   return withProject(project, async () => {
     const saved = readOperation(operationId(bindingId, sessionId, runId, callId));
     if (saved && (saved.name !== name || canonical(saved.args) !== canonical(args) || saved.runId !== run.id)) throw new Error('The tool call changed its saved operation.');
     if (saved?.status === 'completed') return { status: 'approved' };
     if (saved?.status === 'cancelled' || saved?.status === 'uncertain') return { status: 'denied', reason: 'This operation cannot be repeated. Check its outcome in Athena.' };
-    const { route } = await gatherTools(agent, () => {});
+    const { route } = await gatherTools(agent, () => {}, { engine: 'eve', conversationId: chat.conversationId });
     const target = route.get(name);
     if (!target) throw new Error('This tool is no longer available to the agent.');
     const fresh = invocationContext(bindingId, sessionId, runId);
@@ -113,11 +113,11 @@ export async function eveToolPolicy(bindingId: string, sessionId: string, runId:
 export async function eveTool(bindingId: string, sessionId: string, runId: string, callId: string, name: string, args: Record<string, unknown>, signal?: AbortSignal) {
   const policy = await eveToolPolicy(bindingId, sessionId, runId, callId, name, args);
   if (policy.status !== 'approved') return { text: policy.reason || 'This tool is waiting for approval in Athena.', isError: true, denied: true };
-  const { project, agent, run } = invocationContext(bindingId, sessionId, runId);
+  const { project, agent, run, chat } = invocationContext(bindingId, sessionId, runId);
   const id = operationId(bindingId, sessionId, runId, callId);
   return withProject(project, async () => {
     const result = await executeOperation(id, async () => {
-      const { route } = await gatherTools(agent, () => {});
+      const { route } = await gatherTools(agent, () => {}, { engine: 'eve', conversationId: chat.conversationId });
       const target = route.get(name);
       if (!target) return { text: 'This tool is no longer available.', isError: true, denied: true };
       const fresh = invocationContext(bindingId, sessionId, runId);
