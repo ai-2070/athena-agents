@@ -1,0 +1,45 @@
+tests/skills/docx/test_docx_create.py
+  s_09ac87e46cf718::t_67ace2ed3d17f6 1-199
+  s_09ac87e46cf718::t_7b1428c71ce282 200
+skills/athena/docx/SKILL.md
+  s_09ac87e46cf718::t_f4a19a5283d23f 1-170
+skills/athena/docx/references/create-spec.md
+  s_09ac87e46cf718::t_328cd2653696d3 1-104
+  s_09ac87e46cf718::t_55baf1b98ab531 105
+skills/athena/docx/scripts/docx_tool.py
+  s_09ac87e46cf718::t_113cca6313b2b5 1-2213
+  s_09ac87e46cf718::t_9a134118b74afb 2214-2256
+tests/skills/docx/conftest.py
+  s_09ac87e46cf718::t_857435040d5520 1-190
+  s_09ac87e46cf718::t_d8cdbc58230edf 191-197
+tests/skills/docx/test_docx_tool.py
+  s_09ac87e46cf718::t_a06daa0e7bad11 1-501
+  s_09ac87e46cf718::t_15b94de9678785 502-588
+skills/athena/docx/references/revisions-and-comments.md
+  s_09ac87e46cf718::t_04a4ed1cff6f92 1-105
+  s_09ac87e46cf718::t_ec7fd9d407c7fe 106
+skills/athena/docx/scripts/docx_create.py
+  s_09ac87e46cf718::t_cbced13404c563 1-795
+skills/athena/docx/scripts/soffice.py
+  s_09ac87e46cf718::t_29e33852dea6fb 1-333
+tests/skills/docx/test_shared.py
+  s_09ac87e46cf718::t_ea62622c7e1a0d 1-50
+tests/skills/requirements.txt
+  s_09ac87e46cf718::t_5e43f28ace85cf 19-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "25f381de2fe258d3579b211b597a3807eceaee40",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
