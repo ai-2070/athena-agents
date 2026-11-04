@@ -57,6 +57,11 @@ export function pendingAdmissions(): EveAdmissionRecord[] {
     .filter((id) => idOk(id) && files.summary(file(id))?.status === 'prepared').map((id) => readAdmission(id)).filter((item): item is EveAdmissionRecord => !!item && item.status === 'prepared');
 }
 
+/** For retention only. */
+export function removeAdmission(id: string): void {
+  if (idOk(id)) files.remove(file(id));
+}
+
 function receiptFor(runId: string): ExecutionRun {
   const receipt = readExecution().runs.find((item) => item.id === runId);
   if (!receipt) throw new Error('This Eve input has no saved run owner.');

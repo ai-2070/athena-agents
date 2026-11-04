@@ -3,6 +3,7 @@
 // With "The Brain approves" on (the default), the Brain looks first: it allows routine, on-task
 // actions itself and only passes the risky or unclear ones on to you.
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { emit, log, getSettings, activeProject, listProjects, withProject } from './store.ts';
 import { listFiles, readPlain, uid, writeJSON } from './util.ts';
 import { privateDataPath } from './private.ts';
@@ -83,6 +84,15 @@ function restoreDurableApprovals() {
     const record = durableById(name.slice(0, -5));
     if (record) restoreDurable(record);
   }
+}
+
+/** For Eve's retention: forget a decided consent once its run's receipts go. One still waiting stays. */
+export function removeDurableApproval(operationId: string): boolean {
+  const id = durableId(operationId);
+  const record = durableById(id);
+  if (!record || !record.decision || pending.has(id)) return false;
+  fs.rmSync(durableFile(id), { force: true });
+  return true;
 }
 
 /** Persist a request without waiting in an ordinary tool executor. Eve parks the call itself. */

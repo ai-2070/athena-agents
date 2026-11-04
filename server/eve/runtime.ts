@@ -7,6 +7,7 @@ import { startEveHost } from './host.ts';
 import { readBinding, runEnded, runSummaries, sessionBindings } from './state.ts';
 import { prepareEveRecovery, recoverEveRuns, retireEveBindings } from './recovery.ts';
 import { claimEveRuntime, EveOwnershipError } from './ownership.ts';
+import { removeOldEveReceipts } from './retention.ts';
 import type { EveHost } from './host.ts';
 
 type Bridge = Awaited<ReturnType<typeof openEveBridge>>;
@@ -17,8 +18,12 @@ export interface EveRuntimeDependencies {
   prepare(): void;
   recover(host: EveHost): Promise<unknown>;
   hasWork(): boolean;
+  /** Removes old saved receipts: once when the runtime first starts, then daily while it owns them. */
+  tidy?(): void;
   retryMs?: number;
 }
+
+const DAY = 24 * 60 * 60 * 1000;
 
 /** Source and relocated desktop builds share the same supervisor and bundled Bun. */
 export function eveRuntimeFiles(root = ROOT): { entry: string; templates: string } {
@@ -45,6 +50,7 @@ export class EveRuntime {
   private release: (() => Promise<void>) | undefined;
   private readonly abort = new AbortController();
   private retry: ReturnType<typeof setTimeout> | undefined;
+  private daily: ReturnType<typeof setInterval> | undefined;
   private attempts = 0;
   private readonly dependencies: EveRuntimeDependencies;
 
@@ -77,6 +83,7 @@ export class EveRuntime {
       this.release ||= await this.dependencies.claim?.();
       // A worker starts its saved queue immediately; reconcile before launching it.
       this.dependencies.prepare();
+      this.startTidying();
       this.abort.signal.throwIfAborted();
       this.bridge ||= await this.dependencies.bridge();
       this.abort.signal.throwIfAborted();
@@ -100,6 +107,19 @@ export class EveRuntime {
       if (error instanceof EveOwnershipError) throw error;
       throw new Error('Eve could not restore saved work. Check that its runtime is built, then try again.');
     }
+  }
+
+  // Only the process that owns the data folder's Eve runtime removes its receipts.
+  private startTidying(): void {
+    if (this.daily || !this.dependencies.tidy) return;
+    const tidy = () => {
+      if (this.abort.signal.aborted || !this.release) return;
+      try { this.dependencies.tidy?.(); }
+      catch { log('error', 'Eve could not remove old saved receipts. It will try again tomorrow.'); }
+    };
+    this.daily = setInterval(tidy, DAY);
+    this.daily.unref();
+    tidy();
   }
 
   private scheduleRetry(): void {
@@ -128,6 +148,7 @@ export class EveRuntime {
     this.abort.abort();
     clearTimeout(this.retry);
     this.retry = undefined;
+    clearInterval(this.daily);
     await this.starting?.catch(() => {});
     try { await host?.close(); }
     finally {
@@ -152,4 +173,5 @@ export const eveRuntime = new EveRuntime({
   prepare: prepareEveRecovery,
   recover: recoverEveRuns,
   hasWork: hasSavedWork,
+  tidy: () => { removeOldEveReceipts(); },
 });

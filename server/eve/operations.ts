@@ -85,6 +85,11 @@ export function saveOperation(operation: EveToolOperation): EveToolOperation {
   return files.write(file(operation.id), { ...operation, updatedAt: Date.now() });
 }
 
+/** For retention only. */
+export function removeOperation(id: string): void {
+  if (ID.test(id)) files.remove(file(id));
+}
+
 export function prepareOperation(input: Pick<EveToolOperation, 'runId' | 'bindingId' | 'sessionId' | 'callId' | 'name' | 'args' | 'origin' | 'risk'>): EveToolOperation {
   if (!input.callId || !input.sessionId) throw new Error('An Eve operation needs a session and call identity.');
   const id = operationId(input.bindingId, input.sessionId, input.runId, input.callId);

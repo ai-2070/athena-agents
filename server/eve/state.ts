@@ -233,7 +233,9 @@ export function setRunStatus(id: string, status: EveRunStatus, deliveryId?: stri
   if (!run) throw new Error('No such Eve run.');
   if (terminal(run.status) && status !== run.status) throw new Error('A finished Eve run cannot start again.');
   if (deliveryId && run.deliveryId && run.deliveryId !== deliveryId) throw new Error('An Eve run cannot change its delivery.');
-  return saveRun({ ...run, status, ...(deliveryId ? { deliveryId } : {}), updatedAt: Date.now() });
+  // Nothing changes, so nothing is written: a finished run keeps the time it ended.
+  if (run.status === status && (!deliveryId || run.deliveryId === deliveryId)) return run;
+  return saveRun({ ...run, status, ...(deliveryId ? { deliveryId } : {}), ...(terminal(status) && !run.endedAt ? { endedAt: Date.now() } : {}), updatedAt: Date.now() });
 }
 
 export function activeEveRuns(): EveRunRecord[] {
@@ -285,3 +287,11 @@ export function stageTerminal(id: string, pendingTerminal: NonNullable<EveRunRec
   saveRun({ ...run, pendingTerminal });
 }
 
+/** For retention: the run's own file. Its operations and admission are removed by their modules. */
+export function removeRun(id: string): void {
+  if (!idOk(id)) return;
+  const run = readRunSummary(id);
+  runFiles.remove(runPath(id));
+  if (run) forgetRunMemory(run);
+  else forgetRunSnapshot(id);
+}
