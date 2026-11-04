@@ -168,6 +168,9 @@ describe('conversation search results', () => {
     expect(r.hits.find((h) => h.conversationId === b.id && h.messageId === '1')).toMatchObject({ author: 'tool', excerpt: 'web_fetch\n{"url":"kiwi.example"}\nok' });
     const inside = searchConversations(me.id, { query: 'kiwi', scope: 'own' }, 'conv-kiwi');
     expect(inside.hits.map((h) => [h.conversationId, h.messageId])).toEqual([[p.id, '0']]);
+    // a copy of a chat under another file name is not searched (read_conversation couldn't open it there)
+    fs.copyFileSync(path.join(chats.dir(me.id), `${a.id}.json`), path.join(chats.dir(me.id), 'copy-of-a.json'));
+    expect(searchConversations(me.id, { query: 'kiwi', scope: 'own' })).toEqual(r);
   });
 
   it("trims a page of big hits to fit the engines' limit and goes on from there", () => {
