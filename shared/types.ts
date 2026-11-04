@@ -1023,6 +1023,8 @@ export interface OutboxPost {
   parts: string[];
   /** Image files (full paths inside the project's folders) that go with the first part. X only. */
   images?: string[];
+  /** Alt text (a description for people who can't see it) by image path. X only. */
+  imageAlt?: Record<string, string>;
   status: 'pending' | 'posting' | 'posted' | 'failed' | 'rejected' | 'returned' | string;
   agentId?: string | null;
   /** The team the draft was written for (named at the time); where Send back to the team goes. */
@@ -1038,7 +1040,8 @@ export interface OutboxPost {
   note?: string;
   url?: string;
   to?: string;
-  reddit?: { kind: 'post' | 'comment'; subreddit?: string; title?: string; link?: string; parent?: string };
+  /** Reddit: a post or a comment; a post may carry a flair (a template id from the subreddit and/or its text). */
+  reddit?: { kind: 'post' | 'comment'; subreddit?: string; title?: string; link?: string; parent?: string; flairId?: string; flairText?: string };
   createdAt?: number;
   updatedAt?: number;
   [k: string]: unknown;

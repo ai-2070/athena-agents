@@ -57,8 +57,9 @@ const openOutbox = async () => {
 };
 
 describe('chars()', () => {
-  it('counts an emoji as one, as X does', () => {
-    expect(chars('hi 👋')).toBe(4);
+  it('counts as X does: an emoji is two, a link 23', () => {
+    expect(chars('hi 👋')).toBe(5);
+    expect(chars('see https://example.com/a/long/path')).toBe(27);
   });
 });
 
@@ -84,6 +85,15 @@ describe('the Outbox', () => {
     const count = text.parentElement!.querySelector('.tabular-nums')!;
     expect(count.textContent).toBe('281/280');
     expect(count.classList.contains('text-red')).toBe(true);
+    await type(text, '日本'.repeat(70) + '!');
+    expect(count.textContent).toBe('281/280');
+  });
+
+  it("shows X's character count only on X posts", async () => {
+    posts = [post({ platform: 'reddit', images: undefined, reddit: { kind: 'post', subreddit: 'test', title: 'Hi' } })];
+    await openOutbox();
+    const text = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Text"]')!;
+    expect(text.parentElement!.querySelector('.tabular-nums')).toBeNull();
   });
 
   it('approves with your edits and without the image you took off', async () => {

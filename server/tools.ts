@@ -818,20 +818,22 @@ const TOOLS: ToolDef[] = [
     name: 'x_draft_post',
     group: 'social',
     risk: 'none',
-    description: 'Write a post (or thread) for X. It goes to the Outbox where the user approves, edits or rejects it; it is only published straight away if that account has auto-post on. Each part max 280 characters. Attach up to 4 images (full paths of PNG/JPEG/WebP files in the project, e.g. ones you rendered) with images; they go on the first post.',
+    description:
+      "Write a post (or thread) for X. It goes to the Outbox where the user approves, edits or rejects it; it is only published straight away if that account has auto-post on. A reply (reply_to) always waits for the user, even with auto-post on. Each part max 280 characters as X counts them: emoji and most non-Latin letters (Chinese, Japanese, Korean…) count 2, a link 23. Attach up to 4 images (full paths of PNG/JPEG/WebP files in the project, e.g. ones you rendered) with images; they go on the first post. Give each image alt text (a short description for people who can't see it). X's API limits: you can only reply to a post whose author mentioned or quoted this account, and quote posts aren't possible.",
     parameters: obj(
       {
         text: str('The post'),
         thread: { type: 'array', items: { type: 'string' }, description: 'For a thread: every part in order (instead of text)' },
         images: { type: 'array', items: { type: 'string' }, description: 'Full paths of up to 4 image files (PNG, JPEG, WebP, max 5 MB each) to attach to the first post' },
+        image_alt: { type: 'array', items: { type: 'string' }, description: 'Alt text for each image, in the same order as images (up to 1,000 characters each)' },
         account: str('Handle to post as (default: first connected)'),
-        reply_to: str('Tweet ID to reply to'),
+        reply_to: str('ID of the post to reply to (only one whose author mentioned or quoted this account)'),
         note: str('Why this post, for the reviewer'),
       },
     ),
-    run: async ({ text, thread, images, account, reply_to, note }: { text?: string; thread?: string[]; images?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
+    run: async ({ text, thread, images, image_alt, account, reply_to, note }: { text?: string; thread?: string[]; images?: string[]; image_alt?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
       // images only from the folders this agent may read, not every agent's workspace
-      const r = await social.draftPost({ platform: 'x', text, thread, images, imageRoots: allowedRoots(ctx.agent), account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
+      const r = await social.draftPost({ platform: 'x', text, thread, images, imageAlt: image_alt, imageRoots: allowedRoots(ctx.agent), account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : r.status === 'failed' ? `Auto-post failed: ${r.error}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
@@ -858,7 +860,7 @@ const TOOLS: ToolDef[] = [
     name: 'x_mentions',
     group: 'social',
     risk: 'none',
-    description: 'Read recent mentions of a connected account. (Each X read is billed by X.)',
+    description: 'Read recent mentions of a connected account: the posts it may reply to (X lets it reply only where the author mentioned or quoted it). (Each X read is billed by X.)',
     parameters: obj({ account: str('Handle'), limit: { type: 'number' } }),
     run: async ({ account, limit = 10 }: { account?: string; limit?: number }) => ({ text: JSON.stringify(await social.xMentions(account, limit), null, 2) }),
   },
@@ -887,14 +889,34 @@ const TOOLS: ToolDef[] = [
     run: async ({ post }: { post: string }) => ({ text: JSON.stringify(await reddit.postComments(post), null, 2) }),
   },
   {
+    name: 'reddit_rules',
+    group: 'social',
+    risk: 'none',
+    description: "Read a subreddit's rules and its sidebar (description, what may be posted, posting guidelines). Read them before drafting a post or comment there.",
+    parameters: obj({ subreddit: str('e.g. LocalLLaMA') }, ['subreddit']),
+    run: async ({ subreddit }: { subreddit: string }) => ({ text: JSON.stringify(await reddit.subredditRules(subreddit), null, 2) }),
+  },
+  {
     name: 'reddit_draft_post',
     group: 'social',
     risk: 'none',
-    description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit, unless that account has auto-post on, in which case it is published straight away. Follow the subreddit rules; no spam or self-promotion where it is not allowed.',
-    parameters: obj({ subreddit: str('Subreddit, e.g. LocalLLaMA'), title: str('Post title'), text: str('Post body (markdown)'), link: str('Or a link to share instead of text'), account: str('Which of your Reddit accounts') }, ['subreddit', 'title']),
-    run: async ({ subreddit, title, text, link, account, note }: { subreddit: string; title: string; text?: string; link?: string; account?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
-      return { text: r.status === 'posted' ? `Posted: ${r.url}` : `Saved to the Outbox for approval (id ${r.id}).` };
+    description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit, unless that account has auto-post on, in which case it is published straight away. Follow the subreddit rules (reddit_rules reads them); no spam or self-promotion where it is not allowed. If the subreddit wants a flair, give flair_id and/or flair_text.',
+    parameters: obj(
+      {
+        subreddit: str('Subreddit, e.g. LocalLLaMA'),
+        title: str('Post title'),
+        text: str('Post body (markdown)'),
+        link: str('Or a link to share instead of text'),
+        account: str('Which of your Reddit accounts'),
+        flair_id: str("The flair's template id in that subreddit (up to 36 characters)"),
+        flair_text: str('The flair text (up to 64 characters)'),
+        note: str('Why this post, for the reviewer'),
+      },
+      ['subreddit', 'title'],
+    ),
+    run: async ({ subreddit, title, text, link, account, note, flair_id, flair_text }: { subreddit: string; title: string; text?: string; link?: string; account?: string; note?: string; flair_id?: string; flair_text?: string }, ctx) => {
+      const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, flairId: flair_id, flairText: flair_text, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
+      return { text: r.status === 'posted' ? `Posted: ${r.url}` : r.status === 'failed' ? `Auto-post failed: ${r.error}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
   {
