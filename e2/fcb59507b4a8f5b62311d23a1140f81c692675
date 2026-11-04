@@ -1,0 +1,25 @@
+renovate.json
+  s_e149d0ba305b10::t_b11903709d8704 11-15
+runtime/eve/package.json
+  s_e149d0ba305b10::t_894f406efe5f3f 8
+package.json
+  s_e149d0ba305b10::t_894f406efe5f3f 95
+bun.lock
+  s_e149d0ba305b10::t_7be9cb3d04a7eb 40,297,393,395,397,399,401,403,405,407,409,411,413,415,417,419,421,703-704,749-750,799,823,839-840,925-926,935-936,1171-1173,1219-1220,1301,1303,1441-1442,1461-1462,1577-1578
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e2fcb59507b4a8f5b62311d23a1140f81c692675",
+  "prompts": {},
+  "sessions": {
+    "s_e149d0ba305b10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d2cbea5-1c6f-4a57-ac49-224888c6c687",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
