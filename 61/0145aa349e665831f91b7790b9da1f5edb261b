@@ -1,0 +1,25 @@
+skills/athena/email/references/connectors.md
+  s_09ac87e46cf718::t_77747471617945 1-87
+skills/athena/email/SKILL.md
+  s_09ac87e46cf718::t_e819fef8936d0c 1-139
+skills/athena/email/references/himalaya.md
+  s_09ac87e46cf718::t_5d25a77f151d7b 209-212
+  s_09ac87e46cf718::t_e1c839a7709967 26-30,32-38
+  s_09ac87e46cf718::t_8a3c552474ba81 1-25,31,39-208,213-243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "610145aa349e665831f91b7790b9da1f5edb261b",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
