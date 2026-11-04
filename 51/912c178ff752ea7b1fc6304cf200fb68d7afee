@@ -1,0 +1,32 @@
+server/voxel/prefabs.ts
+  s_113f5bf511efd5::t_c29853a46e6c38 15,216-217,288,301-315,355
+server/voxel/tools.ts
+  s_113f5bf511efd5::t_4e74da978af870 17-18,23,114-124,126-145,148-151,153,155-157,159-161,170-176,182,189,218-225,259-260,296-297,420-423,425
+  s_113f5bf511efd5::t_e15746348b0dc1 125,146-147,154
+  s_113f5bf511efd5::t_679b4f61a64ef2 152,158,263,303
+  s_113f5bf511efd5::t_93c08a24366692 240,380
+server/voxel/reach.ts
+  s_113f5bf511efd5::t_679b4f61a64ef2 50-51,53
+  s_113f5bf511efd5::t_efd007d31dcf78 1-49,52,54-59,63,65-73,78,80-86,90,92,96,99-118
+  s_113f5bf511efd5::t_71de217f5d4444 60-62,64,74-77,79,87-89,91,93-95,97-98
+server/voxel/build.ts
+  s_113f5bf511efd5::t_ca724862d7693f 162-163,381-383
+tests/server/voxel-reach.test.ts
+  s_113f5bf511efd5::t_f0e9a352a801e0 1-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "51912c178ff752ea7b1fc6304cf200fb68d7afee",
+  "prompts": {},
+  "sessions": {
+    "s_113f5bf511efd5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33eb0f9d-82ca-4708-b62e-673ddb2ee4f8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
