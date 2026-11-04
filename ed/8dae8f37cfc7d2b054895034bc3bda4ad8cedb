@@ -1,0 +1,37 @@
+tests/web/home.test.tsx
+  s_113f5bf511efd5::t_9a0100941855d1 93
+tests/server/mcp-connect.test.ts
+  s_113f5bf511efd5::t_b6d80107fd523f 1-118
+server/mcp.ts
+  s_113f5bf511efd5::t_549e2f834e43a0 203
+  s_113f5bf511efd5::t_10470840f7ead1 8-11
+  s_113f5bf511efd5::t_06a2035ddc204c 5,975-1034,1045-1053,1055,1061-1064,1067-1074,1088,1104-1115,1118-1124,1140-1146
+tests/web/mcp.test.tsx
+  s_113f5bf511efd5::t_4cb996df3a580e 147-163
+web/views/home.tsx
+  s_113f5bf511efd5::t_9b1303f0d362ae 251
+web/views/stationpanel.tsx
+  s_113f5bf511efd5::t_9b1303f0d362ae 612
+web/views/mcp.tsx
+  s_113f5bf511efd5::t_9b1303f0d362ae 1,28-30,271-272,275-280,282-283,307-318,461
+server/engines/pi.ts
+  s_113f5bf511efd5::t_9b1303f0d362ae 4,336
+web/views/agents.tsx
+  s_113f5bf511efd5::t_320f9b11ea7afa 796,811
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ed8dae8f37cfc7d2b054895034bc3bda4ad8cedb",
+  "prompts": {},
+  "sessions": {
+    "s_113f5bf511efd5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33eb0f9d-82ca-4708-b62e-673ddb2ee4f8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
