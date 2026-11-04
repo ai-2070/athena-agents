@@ -1,7 +1,7 @@
 // Tool output: commands keep their start and end, run in the platform's shell, and schemas say what tools read.
 import { describe, it, expect } from 'vitest';
 import { callTool, toolDefs } from '../../server/tools.ts';
-import { truncateMiddle } from '../../server/util.ts';
+import { commandShell, truncateMiddle } from '../../server/util.ts';
 
 const shell = { id: 'shell-agent', name: 'Sheller', toolGroups: ['shell', 'social'], autonomy: 'full' as const };
 
@@ -26,7 +26,7 @@ describe('run_command', () => {
   });
 
   it('keeps the end of long output, where errors usually are', async () => {
-    const command = process.platform === 'win32' ? '1..4000 | ForEach-Object { "line $_" }; "LAST-LINE"' : 'for i in $(seq 1 4000); do echo "line $i"; done; echo LAST-LINE';
+    const command = /PowerShell/.test(commandShell().name) ? '1..4000 | ForEach-Object { "line $_" }; "LAST-LINE"' : 'for i in $(seq 1 4000); do echo "line $i"; done; echo LAST-LINE';
     const r = await callTool(shell, 'run_command', { command });
     expect(r.text).toContain('line 1');
     expect(r.text).toContain('LAST-LINE');
@@ -35,7 +35,7 @@ describe('run_command', () => {
 
   it('names the shell it uses', () => {
     const tool = toolDefs(shell).find((t) => t.name === 'run_command')!;
-    expect(tool.description).toContain(process.platform === 'win32' ? 'PowerShell' : 'shell command');
+    expect(tool.description).toContain(`Run a ${commandShell().name} command`);
   });
 });
 

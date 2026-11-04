@@ -17,9 +17,11 @@ function sizes() {
 }
 
 // Characters. Lower these when a change makes the tools smaller; raise one only on purpose.
-// (comfyui went from 1 500 to 2 450 when comfyui_run learned to send input pictures and masks)
+// (comfyui went from 1 500 to 2 450 when comfyui_run learned to send input pictures and masks; social from 5 100 to
+// 5 800 for X's alt text, reply limits and character count, Reddit flair and reddit_rules; files from 3 300 to 3 600
+// for view_image)
 const BUDGET: Record<string, number> = {
-  world: 15_600, core: 13_800, social: 5_100, files: 3_300, comfyui: 2_450, agents: 2_300, media: 2_000, assets: 1_750,
+  world: 15_600, core: 13_800, social: 5_800, files: 3_600, comfyui: 2_450, agents: 2_300, media: 2_000, assets: 1_750,
   cad: 1_500, substance: 1_450, adobe: 1_200, programs: 1_050, nvidia: 1_000, browser: 1_000, memory: 950, maya: 950,
   houdini: 900, blender: 900, shell: 500, orca: 300, knowledge: 600,
 };

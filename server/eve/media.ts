@@ -1,4 +1,4 @@
-import { inlineToolImages } from '../toolimages.ts';
+import { inlineToolImagesNoted, withImageNote } from '../toolimages.ts';
 import { inflateSync } from 'node:zlib';
 import type { ToolResult } from '../tools.ts';
 import type { EveToolResult } from '../../shared/types.ts';
@@ -32,7 +32,6 @@ export function fileTokens(mediaType: string, encoded: string): number {
 /** Capture model bytes inside the operation receipt, so replay cannot reread a changed image. */
 export async function captureToolImages(result: ToolResult): Promise<EveToolResult> {
   if (!result.images?.length) return result;
-  const modelImages = await inlineToolImages(result.images);
-  const missing = result.images.length - modelImages.length;
-  return { ...result, modelImages, text: result.text + (missing ? `\n\n${missing} image(s) could not be supplied to the model (limit: six images, 5 MB each). Inspect the saved result or request smaller images.` : '') };
+  const { images: modelImages, note } = await inlineToolImagesNoted(result.images);
+  return { ...result, modelImages, text: withImageNote(result.text, note) };
 }

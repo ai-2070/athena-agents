@@ -54,7 +54,7 @@ describe('Eve model controls', () => {
     expect(messages[1]).toMatchObject({ tool_call_id: 'one', content: 'Screenshot' });
     expect(JSON.stringify(messages.at(-1))).toContain('data:image/png;base64,YQ==');
     const unavailable = await captureToolImages({ text: 'Result', images: ['https://untrusted.invalid/image.png'] });
-    expect(unavailable.text).toContain('could not be supplied to the model');
+    expect(unavailable.text).toBe('Result\n\n1 image was left out of what you see: 1 that could not be read as a PNG, JPEG, WebP or GIF of at most 5 MB. Ask for fewer or smaller images if you need them.');
     expect(unavailable.modelImages).toEqual([]);
   });
   it('does not grant another model call because subtracting decimal costs rounds down', () => {

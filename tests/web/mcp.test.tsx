@@ -144,6 +144,23 @@ describe('the MCP servers tab', () => {
     expect(el.querySelector('.mcp-tools')!.textContent).toBe('click · type');
   });
 
+  it("shows why a server didn't start, with what it printed apart", async () => {
+    await open();
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: `Couldn't start MCP server "playwright": MCP error -32000: Connection closed\n\nWhat it printed:\nError: Cannot find module 'x'` }), { status: 500 }));
+    await act(async () => btn(el, 'Test').click());
+    await settle();
+    const box = el.querySelector('.mcp-test-failed')!;
+    expect(box.textContent).toContain('Connection closed');
+    expect(box.querySelector('.mcp-output')!.textContent).toBe("Error: Cannot find module 'x'");
+    expect(box.textContent).toContain('Check the command');
+    // (no toast on top: the row says it)
+    expect(document.querySelector('#toasts')!.textContent).toBe('');
+  });
+
+  it('calls the page MCP servers', () => {
+    expect(mcp.title()).toBe('MCP servers');
+  });
+
   it('adds a remote server from the form, then lists it', async () => {
     await open();
     await act(async () => btn(el, '+ Add server').click());

@@ -12,7 +12,7 @@ import { newVolume } from '../../shared/voxel.ts';
 import { readObject, readPrefab, saveWorld, writeObject, writePrefab, worldVoxels } from './store.ts';
 import { changeWorld, shownWorld } from './link.ts';
 import { ANIM_LIMITS, cleanClip, skinUses } from './characters.ts';
-import { WORLD_LIMITS, cleanPivot, findObject, findPrefab, nesting, pivotOf as pivotFrom, placedCopies, prefabSize, remember, volumesMeta } from './build.ts';
+import { WORLD_LIMITS, cleanPivot, findObject, findPrefab, nesting, ownsObject, pivotOf as pivotFrom, placedCopies, prefabSize, remember, volumesMeta } from './build.ts';
 import type { AnimationClip, PrefabInstance, Vec3, VoxelMaterial, VoxelObjectData, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
 
 const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
@@ -213,6 +213,8 @@ export interface LibraryPrefab {
   description: string;
   tags: string[];
   by: string;
+  /** who published it (entries published before this was kept have only the name) */
+  builder?: WorldBuilder;
   fromWorld: string;
   size: Vec3;
   voxels: number;
@@ -283,6 +285,7 @@ export function putLibraryEntry(raw: unknown): 'added' | 'same' | null {
     description: String(e.description ?? '').slice(0, 300),
     tags: Array.isArray(e.tags) ? e.tags.map(String).slice(0, 12) : [],
     by: String(e.by ?? '').slice(0, 80),
+    ...(cleanBuilder(e.builder) ? { builder: cleanBuilder(e.builder)! } : {}),
     fromWorld: String(e.fromWorld ?? '').slice(0, 80),
     size: Array.isArray(e.size) && e.size.length === 3 ? (e.size.map(Number) as Vec3) : [0, 0, 0],
     voxels: Number(e.voxels) || 0,
@@ -293,6 +296,21 @@ export function putLibraryEntry(raw: unknown): 'added' | 'same' | null {
   };
   writeJSON(libFile(entry.id), entry);
   return 'added';
+}
+
+function cleanBuilder(v: unknown): WorldBuilder | null {
+  const b = v as Partial<WorldBuilder> | null;
+  if (!b || typeof b !== 'object' || (b.kind !== 'agent' && b.kind !== 'brain' && b.kind !== 'user') || typeof b.name !== 'string') return null;
+  return { kind: b.kind, ...(typeof b.id === 'string' ? { id: b.id.slice(0, 80) } : {}), name: b.name.slice(0, 80) };
+}
+
+/** The library entry a prefab by this name would replace when published, and whether `by` published it. */
+export function libraryEntryFor(name: string, by: WorldBuilder): { id: string; name: string; by: string; mine: boolean } | null {
+  const e = library().find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
+  if (!e) return null;
+  // (an older entry knows only its publisher's name)
+  const mine = e.builder ? ownsObject(by, { by: e.builder }) : by.kind !== 'agent' || e.by === by.name;
+  return { id: e.id, name: e.name, by: e.by, mine };
 }
 
 /** The library's prefabs without their voxels (for the page). */
@@ -334,7 +352,7 @@ export function publishPrefab(req: { by: WorldBuilder; prefab: string; project?:
   const map = new Map(order.map((v, i) => [v, i + 1]));
   // the same name again replaces that entry
   const existing = library().find((x) => x.name.toLowerCase() === p.name.toLowerCase());
-  const entry: LibraryPrefab = { id: existing?.id || uid('lp'), name: p.name, description: p.description, tags: p.tags, by: req.by.name, fromWorld: w.name, size: p.size, voxels: count(p), palette, data: remap(data, map), ...(p.pivotAt !== undefined ? { pivotAt: p.pivotAt } : {}), ...(p.animations && Object.keys(p.animations).length ? { animations: structuredClone(p.animations) } : {}), createdAt: Date.now() };
+  const entry: LibraryPrefab = { id: existing?.id || uid('lp'), name: p.name, description: p.description, tags: p.tags, by: req.by.name, builder: req.by, fromWorld: w.name, size: p.size, voxels: count(p), palette, data: remap(data, map), ...(p.pivotAt !== undefined ? { pivotAt: p.pivotAt } : {}), ...(p.animations && Object.keys(p.animations).length ? { animations: structuredClone(p.animations) } : {}), createdAt: Date.now() };
   writeJSON(libFile(entry.id), entry);
   return `${existing ? 'Updated' : 'Published'} "${p.name}" in the prefab library: every world can take it now (world_prefab action "import").`;
 }

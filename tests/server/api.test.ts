@@ -709,6 +709,11 @@ describe('agent runs and projects', () => {
       expect(r.isError).toBe(false);
       expect(fs.readFileSync(path.join(a.brainPath, 'bridge.txt'), 'utf8')).toBe('via-bridge');
       expect(fs.existsSync(path.join(b.brainPath, 'bridge.txt'))).toBe(false);
+      // a picture comes back as data, which is all MCP takes
+      const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+      fs.writeFileSync(path.join(a.brainPath, 'render.png'), Buffer.from(png, 'base64'));
+      const seen = await (await req('/api/internal/tools/call', { method: 'POST', headers: internal, body: JSON.stringify({ agent: agent.id, run: runId, name: 'view_image', args: { path: 'render.png' } }) })).json();
+      expect(seen.images).toEqual([`data:image/png;base64,${png}`]);
     } finally {
       release();
       await new Promise<void>((r) => model.close(() => r()));

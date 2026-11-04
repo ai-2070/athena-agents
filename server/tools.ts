@@ -2,7 +2,7 @@
 // Risk decides when you're asked first: autonomy "ask" checks low + high, "auto" checks high only, "full" never asks.
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, truncateMiddle, tmpFile, openWithShell, launchDetached, exists, which, insideRoots, asOpened, runnable } from './util.ts';
+import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, truncateMiddle, tmpFile, openWithShell, launchDetached, exists, which, insideRoots, asOpened, runnable, commandShell } from './util.ts';
 import * as assetLib from './assets.ts';
 import type { AssetSource, AssetKind } from './assets.ts';
 import { mayaScript, houdiniScript, sibling, sbsrenderArgs, openscadArgs, prusaSlicerArgs, nvttArgs, handbrakeArgs, GPU_FIELDS, formatGpus } from './dcc.ts';
@@ -18,6 +18,7 @@ import * as files from './filetools.ts';
 import { accountOf } from './mcp.ts';
 import { knownPrograms, launchProgram, launchTarget, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
+import { MODEL_MAX_BYTES, imageType } from './toolimages.ts';
 import * as social from './social.ts';
 import * as reddit from './reddit.ts';
 import * as kb from './knowledge.ts';
@@ -133,7 +134,7 @@ export const TOOL_GROUPS: ToolGroup[] = [
   { id: 'files', label: 'Files', description: 'Read, change and search files in its workspace and folders you allow. For API models (Eve): Claude Code, Codex and the other coding engines use their own file tools.' },
   { id: 'orca', label: 'Orca', description: 'Run Orca CLI commands (worktrees, terminals, its browser).' },
   { id: 'world', label: 'Voxel world', description: 'Build the voxel world around the Station (places, props, prefabs to place many times) and keep its WORLD.md up to date.' },
-  { id: 'shell', label: 'Shell', description: 'Run any command (PowerShell on Windows, your shell on Mac and Linux). Powerful: you are asked each time unless autonomy is Full. For API models (Eve): the coding engines use their own.' },
+  { id: 'shell', label: 'Shell', description: 'Run any command (PowerShell on Windows, bash on Mac and Linux). Powerful: you are asked each time unless autonomy is Full. For API models (Eve): the coding engines use their own.' },
 ];
 
 export function workspaceOf(agent: { workspace?: string }): string {
@@ -241,7 +242,7 @@ const TOOLS: ToolDef[] = [
     name: 'save_artifact',
     group: 'core',
     risk: 'none',
-    description: 'Hand in a finished result that is not an outgoing post or email: a written answer, a file or a folder (a render, a report, a cut video). It appears in the Outbox page under Artifacts with who made it, which team it was for and when. Give either path (full path of a file or folder inside the project) or text (the result, in Markdown). Posts and emails go to the Outbox instead.',
+    description: 'Hand in a finished result that is not an outgoing post or email: a written answer, a file or a folder (a render, a report, a cut video). It appears on the Artifacts page with who made it, which team it was for and when. Give either path (full path of a file or folder inside the project) or text (the result, in Markdown). Posts and emails go to the Outbox instead.',
     parameters: obj({ title: str('Short name for the result'), path: str('Full path of the file or folder'), text: str('The result itself, when it is text'), note: str('One line: what it is or how to use it') }, ['title']),
     run: async ({ title, path: target, text, note }: { title: string; path?: string; text?: string; note?: string }, ctx) => {
       const { addArtifact } = await import('./artifacts.ts');
@@ -462,7 +463,7 @@ const TOOLS: ToolDef[] = [
     // Sending pictures copies the user's files into ComfyUI: on this computer that is like writing a file; to a ComfyUI
     // on another computer (Settings › ComfyUI address) the files leave this one, so that needs a yes.
     risk: ({ images }: { images?: unknown }) => (Array.isArray(images) && images.length && !comfy.onThisComputer() ? 'high' : 'low'),
-    description: 'Run a ComfyUI workflow and wait for its files (pictures, video, audio, 3D). prompt/negative replace the prompt text, inputs change anything else ({"3.steps": 30}), images sends input pictures to its Load Image nodes (image to image, inpainting, upscaling). Seeds are randomized unless set. Also lists nodes ComfyUI left out for failing its checks.',
+    description: 'Run a ComfyUI workflow and wait for its files (pictures, video, audio, 3D). prompt/negative replace the prompt text, inputs change anything else ({"3.steps": 30}), images sends input pictures to its Load Image nodes (image to image, inpainting, upscaling). Seeds are randomized unless set; the result lists them, to repeat a picture. Also lists nodes ComfyUI left out for failing its checks.',
     parameters: obj(
       {
         workflow: str('Workflow name'),
@@ -505,9 +506,11 @@ const TOOLS: ToolDef[] = [
       const imgs = r.files.filter((f) => f.kind === 'images').map((f) => f.url);
       const sent = r.uploaded.map((u) => `- ${path.basename(u.file)}${u.mask ? ` with the mask ${path.basename(u.mask)}` : ''} as "${u.value}" into ${u.input}`);
       const left = comfy.describeNodeErrors(r.nodeErrors).map((l) => `- ${l}`);
+      const seeds = r.seeds.length ? `Seeds (to repeat: inputs ${JSON.stringify(Object.fromEntries(r.seeds.map((s) => [`${s.node}.${s.input}`, s.value])))}):\n${r.seeds.map((s) => `- ${s.node}.${s.input} = ${s.value} (${s.title})`).join('\n')}` : '';
       return {
         text: [
           `Done in ${r.seconds}s. Files:\n${r.files.map((f) => `- ${f.filename} (${f.kind}, ${f.type}${f.subfolder ? `/${f.subfolder}` : ''})`).join('\n') || '(none)'}`,
+          seeds,
           sent.length ? `Sent to ComfyUI:\n${sent.join('\n')}` : '',
           left.length ? `Left out by ComfyUI (the rest ran):\n${left.join('\n')}` : '',
           r.warnings.length ? `Warnings:\n${r.warnings.join('\n')}` : '',
@@ -800,11 +803,12 @@ const TOOLS: ToolDef[] = [
     name: 'ffmpeg',
     group: 'media',
     risk: 'high', // it can overwrite any file; "Always allow" it for your video agents
-    description: 'Run ffmpeg with the given arguments (no shell). Always pass -y and absolute output paths. Example args: ["-y","-i","C:/in.mp4","-ss","5","-t","10","C:/out.mp4"].',
+    description: 'Run ffmpeg with the given arguments (no shell). Pass -n (never overwrite); -y only on files you made in this task. Relative paths start in your workspace. Example args: ["-n","-i","C:/in.mp4","-ss","5","-t","10","C:/out.mp4"].',
     parameters: obj({ args: { type: 'array', items: { type: 'string' } } }, ['args']),
     run: async ({ args }: { args: string[] }, ctx) => {
       if (!which('ffmpeg')) throw new Error('ffmpeg is not installed.');
-      const r = await run('ffmpeg', ['-hide_banner', ...args], { timeout: 60 * 60_000, signal: ctx.signal });
+      // in the workspace, so relative paths and two-pass logs don't land in the app's own (read-only) folder
+      const r = await run('ffmpeg', ['-hide_banner', ...args], { cwd: workspaceOf(ctx.agent), timeout: 60 * 60_000, signal: ctx.signal });
       return { text: `${r.code === 0 ? 'Done' : `ffmpeg failed (exit ${r.code})`}\n${truncate(r.stderr.split(/\r?\n/).slice(-40).join('\n'), 6000)}`, isError: r.code !== 0 };
     },
   },
@@ -825,13 +829,13 @@ const TOOLS: ToolDef[] = [
       const exe = programExe('handbrakecli') || which('HandBrakeCLI');
       if (!exe) throw new Error('HandBrakeCLI was not found. It is a separate free download from handbrake.fr/downloads2.php (the HandBrake window app is not enough); then set its path in Settings or put it on PATH.');
       if (list_presets) {
-        const r = await run(exe, ['--preset-list'], { timeout: 60000 });
+        const r = await run(exe, ['--preset-list'], { cwd: workspaceOf(ctx.agent), timeout: 60000 });
         return { text: truncate((r.stdout + '\n' + r.stderr).trim(), 10000) };
       }
       if (!input || !output) throw new Error('Give input and output.');
       const out = writablePath(ctx, output);
       ctx.progress?.('HandBrake is encoding…');
-      const r = await run(exe, handbrakeArgs({ input: readablePath(ctx, input), output: out, preset, quality, encoder }), { timeout: 4 * 60 * 60_000, signal: ctx.signal });
+      const r = await run(exe, handbrakeArgs({ input: readablePath(ctx, input), output: out, preset, quality, encoder }), { cwd: workspaceOf(ctx.agent), timeout: 4 * 60 * 60_000, signal: ctx.signal });
       const ok = r.code === 0 && exists(out);
       return { text: `${ok ? `Saved ${out}` : `HandBrake failed (exit ${r.code})`}\n${truncate(r.stderr.split(/\r?\n/).filter((l) => l.trim() && !/^Encoding: task/.test(l)).slice(-25).join('\n'), 5000)}`, isError: !ok };
     },
@@ -846,7 +850,7 @@ const TOOLS: ToolDef[] = [
       const exe = programExe('imagemagick');
       if (!exe) throw new Error('ImageMagick is not installed (imagemagick.org/script/download.php), or set its path in Settings.');
       if (!Array.isArray(args) || !args.length) throw new Error('Give the arguments as a list.');
-      const r = await run(exe, args.map(String), { timeout: 30 * 60_000, signal: ctx.signal });
+      const r = await run(exe, args.map(String), { cwd: workspaceOf(ctx.agent), timeout: 30 * 60_000, signal: ctx.signal });
       return { text: `${r.code === 0 ? 'Done' : `ImageMagick failed (exit ${r.code})`}\n${truncate((r.stdout + '\n' + r.stderr).trim(), 6000)}`, isError: r.code !== 0 };
     },
   },
@@ -856,8 +860,8 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: 'Show duration, streams and format of an audio or video file.',
     parameters: obj({ file: str('Absolute path') }, ['file']),
-    run: async ({ file }: { file: string }) => {
-      const r = await run('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', file], { timeout: 60000 });
+    run: async ({ file }: { file: string }, ctx) => {
+      const r = await run('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', file], { cwd: workspaceOf(ctx.agent), timeout: 60000 });
       return { text: truncate(r.stdout || r.stderr, 8000) };
     },
   },
@@ -879,20 +883,22 @@ const TOOLS: ToolDef[] = [
     name: 'x_draft_post',
     group: 'social',
     risk: 'none',
-    description: 'Write a post (or thread) for X. It goes to the Outbox where the user approves, edits or rejects it; it is only published straight away if that account has auto-post on. Each part max 280 characters. Attach up to 4 images (full paths of PNG/JPEG/WebP files in the project, e.g. ones you rendered) with images; they go on the first post.',
+    description:
+      "Write a post (or thread) for X. It waits in the Outbox for the user to approve, edit or reject, unless the account has auto-post on; a reply (reply_to) always waits. Each part max 280 characters as X counts them: emoji and Chinese, Japanese or Korean letters count 2, a link 23. Up to 4 images go on the first post; give each alt text. X only lets you reply where the author mentioned or quoted this account, and quote posts aren't possible.",
     parameters: obj(
       {
         text: str('The post'),
         thread: { type: 'array', items: { type: 'string' }, description: 'For a thread: every part in order (instead of text)' },
-        images: { type: 'array', items: { type: 'string' }, description: 'Full paths of up to 4 image files (PNG, JPEG, WebP, max 5 MB each) to attach to the first post' },
+        images: { type: 'array', items: { type: 'string' }, description: 'Full paths of up to 4 PNG, JPEG or WebP files in the project (5 MB each)' },
+        image_alt: { type: 'array', items: { type: 'string' }, description: "Each image's alt text (a short description for people who can't see it), in order; up to 1,000 characters" },
         account: str('Handle to post as (default: first connected)'),
-        reply_to: str('Tweet ID to reply to'),
+        reply_to: str('ID of the post to reply to'),
         note: str('Why this post, for the reviewer'),
       },
     ),
-    run: async ({ text, thread, images, account, reply_to, note }: { text?: string; thread?: string[]; images?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
+    run: async ({ text, thread, images, image_alt, account, reply_to, note }: { text?: string; thread?: string[]; images?: string[]; image_alt?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
       // images only from the folders this agent may read, not every agent's workspace
-      const r = await social.draftPost({ platform: 'x', text, thread, images, imageRoots: allowedRoots(ctx.agent), account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
+      const r = await social.draftPost({ platform: 'x', text, thread, images, imageAlt: image_alt, imageRoots: allowedRoots(ctx.agent), account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : r.status === 'failed' ? `Auto-post failed: ${r.error}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
@@ -919,7 +925,7 @@ const TOOLS: ToolDef[] = [
     name: 'x_mentions',
     group: 'social',
     risk: 'none',
-    description: 'Read recent mentions of a connected account. (Each X read is billed by X.)',
+    description: 'Read recent mentions of a connected account: the posts it may reply to. (Each X read is billed by X.)',
     parameters: obj({ account: str('Handle'), limit: X_LIMIT }),
     run: async ({ account, limit }: { account?: string; limit?: number }) => ({ text: JSON.stringify(await social.xMentions(account, xLimit(limit))) }),
   },
@@ -948,14 +954,34 @@ const TOOLS: ToolDef[] = [
     run: async ({ post }: { post: string }) => ({ text: JSON.stringify(await reddit.postComments(post)) }),
   },
   {
+    name: 'reddit_rules',
+    group: 'social',
+    risk: 'none',
+    description: "Read a subreddit's rules and sidebar (what may be posted, posting guidelines) before drafting there.",
+    parameters: obj({ subreddit: str('e.g. LocalLLaMA') }, ['subreddit']),
+    run: async ({ subreddit }: { subreddit: string }) => ({ text: JSON.stringify(await reddit.subredditRules(subreddit), null, 2) }),
+  },
+  {
     name: 'reddit_draft_post',
     group: 'social',
     risk: 'none',
-    description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit, unless that account has auto-post on, in which case it is published straight away. Follow the subreddit rules; no spam or self-promotion where it is not allowed.',
-    parameters: obj({ subreddit: str('Subreddit, e.g. LocalLLaMA'), title: str('Post title'), text: str('Post body (markdown)'), link: str('Or a link to share instead of text'), account: str('Which of your Reddit accounts'), note: str('Why this post, for the reviewer') }, ['subreddit', 'title']),
-    run: async ({ subreddit, title, text, link, account, note }: { subreddit: string; title: string; text?: string; link?: string; account?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
-      return { text: r.status === 'posted' ? `Posted: ${r.url}` : `Saved to the Outbox for approval (id ${r.id}).` };
+    description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit, unless that account has auto-post on (then it is published at once). Follow the subreddit rules (reddit_rules); no spam or self-promotion where not allowed. Give flair_id and/or flair_text if the subreddit wants a flair.',
+    parameters: obj(
+      {
+        subreddit: str('Subreddit, e.g. LocalLLaMA'),
+        title: str('Post title'),
+        text: str('Post body (markdown)'),
+        link: str('Or a link to share instead of text'),
+        account: str('Which of your Reddit accounts'),
+        flair_id: str("The flair's template id (up to 36 characters)"),
+        flair_text: str('The flair text (up to 64 characters)'),
+        note: str('Why this post, for the reviewer'),
+      },
+      ['subreddit', 'title'],
+    ),
+    run: async ({ subreddit, title, text, link, account, note, flair_id, flair_text }: { subreddit: string; title: string; text?: string; link?: string; account?: string; note?: string; flair_id?: string; flair_text?: string }, ctx) => {
+      const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, flairId: flair_id, flairText: flair_text, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
+      return { text: r.status === 'posted' ? `Posted: ${r.url}` : r.status === 'failed' ? `Auto-post failed: ${r.error}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
   {
@@ -1158,6 +1184,25 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'view_image',
+    group: 'files',
+    risk: 'none',
+    description: `See a picture file (a render, an FFmpeg or ImageMagick result, a video frame, a screenshot): PNG, JPEG, WebP or GIF up to ${MODEL_MAX_BYTES / 1024 / 1024} MB, in a folder you may read. Convert other formats to PNG and shrink bigger ones first.`,
+    parameters: obj({ path: str('Image file path') }, ['path']),
+    run: async ({ path: p }: { path: string }, ctx) => {
+      const { abs, real, ok } = resolveInside(ctx.agent, p);
+      if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
+      const stat = fs.statSync(real);
+      if (!stat.isFile()) throw new Error(`${abs} is not a file.`);
+      const mb = MODEL_MAX_BYTES / 1024 / 1024;
+      if (stat.size > MODEL_MAX_BYTES) throw new Error(`${abs} is ${(stat.size / 1024 / 1024).toFixed(1)} MB; view_image takes pictures up to ${mb} MB. Save a smaller copy first (for example with ImageMagick: -resize 1600x1600).`);
+      const bytes = fs.readFileSync(real);
+      const mime = imageType(bytes);
+      if (!mime) throw new Error(`${abs} is not a PNG, JPEG, WebP or GIF picture. Convert it to PNG first.`);
+      return { text: `${abs} (${mime}, ${Math.ceil(bytes.length / 1024)} KB)`, images: [`data:${mime};base64,${bytes.toString('base64')}`] };
+    },
+  },
+  {
     name: 'write_file',
     group: 'files',
     risk: 'low',
@@ -1235,14 +1280,17 @@ const TOOLS: ToolDef[] = [
     name: 'run_command',
     group: 'shell',
     risk: 'high',
-    description: `Run a ${IS_WIN ? 'PowerShell' : 'shell'} command on this computer and return its exit code and output (the start and the end of long output). Starts in your workspace.`,
-    parameters: obj({ command: str(IS_WIN ? 'PowerShell command' : 'Shell command'), cwd: str('Working folder'), timeout_sec: { type: 'number', description: 'Up to 3600 (default 300)' } }, ['command']),
+    // the shell this computer has, looked up the first time the description is read
+    get description() {
+      return `Run a ${commandShell().name} command on this computer and return its exit code and output (the start and the end of long output). Starts in your workspace.`;
+    },
+    parameters: obj({ command: str("The command, in this computer's shell"), cwd: str('Working folder'), timeout_sec: { type: 'number', description: 'Up to 3600 (default 300)' } }, ['command']),
     run: async ({ command, cwd, timeout_sec }: { command: string; cwd?: string; timeout_sec?: number }, ctx) => {
-      const [exe, args] = shellCommand(String(command ?? ''));
+      const sh = commandShell();
       const timeout = Math.min(Math.max(Number(timeout_sec) || 300, 1), 3600) * 1000;
       // Python run from here prints UTF-8: the pipe is the Windows code page otherwise, and a name like "Łukasz" crashes it
       const env = { PYTHONUTF8: process.env.PYTHONUTF8 ?? '1' };
-      const r = await run(exe, args, { cwd: cwd || workspaceOf(ctx.agent), timeout, signal: ctx.signal, env });
+      const r = await run(sh.exe, sh.args(String(command ?? '')), { cwd: cwd || workspaceOf(ctx.agent), timeout, signal: ctx.signal, env });
       return { text: `exit ${r.code}\n${truncateMiddle(r.stdout, 16000)}${r.stderr ? `\n[stderr]\n${truncateMiddle(r.stderr, 4000)}` : ''}`, isError: r.code !== 0 };
     },
   },
@@ -1505,11 +1553,6 @@ function describeCall(name: string, args: ToolArgs): string | undefined {
 }
 
 // ---------- helpers ----------
-// PowerShell on Windows; elsewhere the user's own shell, as a login shell so its PATH (Homebrew and so on) is there.
-function shellCommand(command: string): [string, string[]] {
-  return IS_WIN ? ['powershell', ['-NoProfile', '-NonInteractive', '-Command', command]] : [process.env.SHELL || '/bin/sh', ['-lc', command]];
-}
-
 // Run a Python script with a program's own Python (mayapy, hython) and return what it printed.
 async function runPython(exe: string, script: string, ctx: ToolContext): Promise<ToolResult> {
   if (!exists(exe)) throw new Error(`${path.basename(exe)} was not found next to the program.`);

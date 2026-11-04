@@ -130,9 +130,17 @@ export interface RunWorkflowOptions {
   onProgress?: (seconds: number) => void;
   signal?: AbortSignal | null;
 }
+/** A seed a run used, per node (a sampler's seed, a RandomNoise node's noise_seed). */
+export interface ComfySeed {
+  node: string;
+  title: string;
+  input: string;
+  value: number;
+}
 export interface RunWorkflowQueued {
   promptId: string;
   queued: true;
+  seeds: ComfySeed[];
   warnings: string[];
   uploaded: ComfyUploaded[];
   nodeErrors: Record<string, ComfyNodeError>;
@@ -142,6 +150,7 @@ export interface RunWorkflowDone {
   workflow: string;
   files: ComfyResultFile[];
   seconds: number;
+  seeds: ComfySeed[];
   warnings: string[];
   uploaded: ComfyUploaded[];
   /** Nodes ComfyUI left out because they failed its checks, with the outputs that needed them. */
@@ -572,6 +581,14 @@ export async function runWorkflow({ workflow, prompt, negative, inputs = {}, ima
       for (const k of ['seed', 'noise_seed']) if (typeof n.inputs[k] === 'number' && !(`${id}.${k}` in inputs)) n.inputs[k] = Math.floor(Math.random() * 2 ** 48);
     }
   }
+  // the seeds as sent, so a picture worth keeping can be made again
+  const seeds: ComfySeed[] = [];
+  for (const [id, n] of Object.entries(api)) {
+    for (const k of ['seed', 'noise_seed']) {
+      const value = n.inputs[k];
+      if (typeof value === 'number') seeds.push({ node: id, title: n._meta?.title || n.class_type, input: k, value });
+    }
+  }
   for (const n of Object.values(api)) delete n._meta;
   const clientId = crypto.randomUUID();
   const res = await fetchJSON<{ prompt_id: string; node_errors?: Record<string, ComfyNodeError> }>(`${url}/prompt`, {
@@ -587,7 +604,7 @@ export async function runWorkflow({ workflow, prompt, negative, inputs = {}, ima
   const promptId = res.prompt_id;
   // A 200 answer can still list nodes that failed: ComfyUI runs the outputs that passed and drops the rest.
   const nodeErrors = res.node_errors && typeof res.node_errors === 'object' ? res.node_errors : {};
-  if (!wait) return { promptId, queued: true as const, warnings, uploaded, nodeErrors };
+  if (!wait) return { promptId, queued: true as const, seeds, warnings, uploaded, nodeErrors };
   const started = Date.now();
   while (Date.now() - started < timeoutSec * 1000) {
     await new Promise((r) => setTimeout(r, 1500));
@@ -602,7 +619,7 @@ export async function runWorkflow({ workflow, prompt, negative, inputs = {}, ima
       throw new Error(`ComfyUI failed: ${msg?.exception_message || 'see the ComfyUI console'}`);
     }
     if (entry?.outputs && (entry.status?.completed || Object.keys(entry.outputs).length)) {
-      return { promptId, workflow: w.name, files: outputFiles(entry.outputs), seconds: Math.round((Date.now() - started) / 1000), warnings, uploaded, nodeErrors };
+      return { promptId, workflow: w.name, files: outputFiles(entry.outputs), seconds: Math.round((Date.now() - started) / 1000), seeds, warnings, uploaded, nodeErrors };
     }
     onProgress?.(Math.round((Date.now() - started) / 1000));
   }

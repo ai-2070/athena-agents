@@ -14,12 +14,13 @@ import { Section, Sections } from '../ui/controls.tsx';
 import { Pill } from '../ui/marks.tsx';
 import type { PillTone } from '../ui/marks.tsx';
 import { QuestionCard } from '../questions.tsx';
+import { xLength, X_MAX_LENGTH } from '../../shared/xtext.ts';
 import type { AgentQuestion, OutboxPost } from '../../shared/types.ts';
 
 /** X's limit for one post. */
-const LIMIT = 280;
-/** Characters as X counts them (an emoji is one). */
-export const chars = (text: string): number => [...text].length;
+const LIMIT = X_MAX_LENGTH;
+/** Characters as X counts them (an emoji or a Chinese letter is two, a link 23). */
+export const chars = (text: string): number => xLength(text);
 
 /** Puts an image on the clipboard (as a PNG, which is what pasting into a post accepts). */
 async function copyImage(url: string): Promise<void> {
@@ -213,7 +214,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
             return (
               <div key={f} className="flex flex-col gap-1.5">
                 <div className="relative">
-                  <img className="max-h-30 max-w-45 rounded-[8px] block" src={url} alt={name} title={f} />
+                  <img className="max-h-30 max-w-45 rounded-[8px] block" src={url} alt={p.imageAlt?.[f] || name} title={p.imageAlt?.[f] || f} />
                   {editable ? (
                     <Button variant="ghost" size="tiny" className="absolute top-1 right-1" title="Take this image off the post" aria-label={`Take ${name} off the post`} onClick={() => setImages(images.filter((x) => x !== f))}>
                       ✕
@@ -242,7 +243,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
               />
               <div className="flex flex-wrap items-center gap-3 justify-between">
                 <span className="hint">{parts.length > 1 ? `Part ${i + 1}` : ''}</span>
-                <span className={`hint tabular-nums ${chars(t) > LIMIT ? 'text-red' : ''}`}>{`${chars(t)}/${LIMIT}`}</span>
+                {p.platform === 'x' ? <span className={`hint tabular-nums ${chars(t) > LIMIT ? 'text-red' : ''}`}>{`${chars(t)}/${LIMIT}`}</span> : null}
               </div>
             </div>
           ))}
