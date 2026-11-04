@@ -38,29 +38,72 @@ export function splitContent(content: unknown): { text: string; images: string[]
   return { text: texts.join('\n'), images };
 }
 
+/** What a model is sent of a tool result's images: at most this many, each at most MODEL_MAX_BYTES. */
+export const MODEL_MAX_IMAGES = 6;
+export const MODEL_MAX_BYTES = 5 * 1024 * 1024;
+
 /** A tool result's images as data: URIs, for a model or an MCP client to see: the data: ones as they are,
- *  and the dashboard's ComfyUI result links read from ComfyUI. A few, each at most 5 MB; others left out. */
-export async function inlineToolImages(images: readonly string[] | undefined, max = 6): Promise<string[]> {
+ *  and the dashboard's ComfyUI result links read from ComfyUI. A few, each at most 5 MB; the note says
+ *  how many were left out and why ('' when none were), for the tool result's text. */
+export async function inlineToolImagesNoted(images: readonly string[] | undefined, max = MODEL_MAX_IMAGES): Promise<{ images: string[]; note: string }> {
   const out: string[] = [];
-  const limit = 5 * 1024 * 1024;
+  const limit = MODEL_MAX_BYTES;
+  let tooMany = 0;
+  let tooBig = 0;
+  let unreadable = 0;
   for (const src of images || []) {
-    if (out.length >= max) break;
-    const m = /^data:([\w/+.-]+);base64,(.*)$/s.exec(src);
-    if (m) {
-      if (EXT[m[1].toLowerCase()] && m[2].length <= (limit * 4) / 3 + 4) out.push(src);
+    if (out.length >= max) {
+      tooMany++;
       continue;
     }
-    if (!src.startsWith('/api/comfyui/view?')) continue;
+    const m = /^data:([\w/+.-]+);base64,(.*)$/s.exec(src);
+    if (m) {
+      if (!EXT[m[1].toLowerCase()]) unreadable++;
+      else if (m[2].length > (limit * 4) / 3 + 4) tooBig++;
+      else out.push(src);
+      continue;
+    }
+    if (!src.startsWith('/api/comfyui/view?')) {
+      unreadable++;
+      continue;
+    }
     try {
       const { viewImage } = await import('./comfyui.ts');
       const img = await viewImage(src, limit);
       if (img) out.push(`data:${img.mime};base64,${img.bytes.toString('base64')}`);
+      else unreadable++;
     } catch {
       /* ComfyUI went away: the picture stays a link in the chat */
+      unreadable++;
     }
   }
-  return out;
+  const left = tooMany + tooBig + unreadable;
+  const mb = `${Math.round(limit / 1024 / 1024)} MB`;
+  const why = [
+    tooMany && `${tooMany} past the limit of ${max} per tool call`,
+    tooBig && `${tooBig} over ${mb}`,
+    unreadable && `${unreadable} that could not be read as a PNG, JPEG, WebP or GIF of at most ${mb}`,
+  ].filter(Boolean);
+  const note = left ? `${left} image${left === 1 ? ' was' : 's were'} left out of what you see: ${why.join(', ')}. Ask for fewer or smaller images if you need them.` : '';
+  return { images: out, note };
 }
+
+/** inlineToolImagesNoted's images alone. */
+export async function inlineToolImages(images: readonly string[] | undefined, max = MODEL_MAX_IMAGES): Promise<string[]> {
+  return (await inlineToolImagesNoted(images, max)).images;
+}
+
+/** A picture's type from its first bytes (not its name): PNG, JPEG, GIF or WebP, else null. */
+export function imageType(bytes: Buffer): string | null {
+  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (bytes.length >= 6 && /^GIF8[79]a$/.test(bytes.subarray(0, 6).toString('latin1'))) return 'image/gif';
+  if (bytes.length >= 12 && bytes.subarray(0, 4).toString('latin1') === 'RIFF' && bytes.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
+  return null;
+}
+
+/** A tool result's text with the note after it. */
+export const withImageNote = (text: string, note: string): string => (note ? (text ? `${text}\n\n${note}` : note) : text);
 
 /** Saves the data: images of a tool result next to the chat and gives their links instead (any other
  *  link stays as it is). Too big, not an image, or unsaveable: left out. */

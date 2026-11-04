@@ -97,7 +97,7 @@ Chats open in floating windows. Drag tabs between windows, snap them side by sid
 
 ### The Outbox: nothing goes out without you
 
-When an agent needs a decision, its question lands here with the choices as buttons and a box to answer in your own words. Drafts for X and Reddit wait here too: approve, edit, talk it over with the team, or reject. Permission requests for risky steps show up under **Needs you**.
+When an agent needs a decision, its question lands here with the choices as buttons and a box to answer in your own words. Drafts for X and Reddit wait here too: approve, edit, talk it over with the team, or reject. X replies always wait for you, even with auto-post on. Permission requests for risky steps show up under **Needs you**.
 
 ![The Outbox: a question from the Market Researcher about pricing, with three choices, above X drafts waiting for approval](docs/images/outbox.png)
 
@@ -121,7 +121,7 @@ Every agent has its own instructions, knowledge, memory, model, skills, tools an
 
 ### Agent library
 
-Hire a specialist with its instructions already written. Athena's own agents are made for this app's tools (a Coordinator, an X Writer, an Image Maker, a World Builder…), and The Agency's 270+ specialists come with it. You can also use your Hermes profiles, Claude Code subagents and your own presets.
+Hire a specialist with its instructions already written. 88 agents come with the app, written for it and its tools: engineers, designers, marketers, researchers, a bookkeeper, a World Builder for the voxel world and more. Each one starts with the tools and skills its work needs, and takes on nearby work too: its role is where it's strongest, not a limit. **Add Athena team** on Home hires the starter team (a Coordinator, an X Writer, an Image Maker, a Researcher…) in one click. You can also use your Hermes profiles, Claude Code subagents and your own presets.
 
 ![The Agent library: specialists by category, with a choice of which engine they run on](docs/images/library.png)
 
@@ -186,8 +186,8 @@ Read [`AGENTS.md`](AGENTS.md) for the code layout, conventions and security rule
 
 Athena Agents is yours to use under either the [MIT license](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), whichever you prefer. Anything you contribute is offered under the same two licenses unless you say otherwise.
 
-Some bundled parts keep their own licenses: the skills in `skills/` and The Agency's agents in `library/agency-agents/` (each folder's `README.md` says where it's from), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos belong to their owners.
+Some bundled parts keep their own licenses: the skills in `skills/` (each folder's `README.md` says where it's from), the list of roles the Agent library started from (MIT, in `library/athena-agents/LICENSE-agency-agents`), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos belong to their owners.
 
 ## Credits
 
-Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Agent library includes specialists from [agency-agents](https://github.com/msitarzewski/agency-agents).
+Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Agent library started from the roles in [agency-agents](https://github.com/msitarzewski/agency-agents).

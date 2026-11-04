@@ -591,8 +591,10 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
   if (n === 'reddit_draft_post') return A('Reddit', `drafting a post for r/${String(args.subreddit || '').replace(/^\/?r\//, '')}`, args.title || '', 'reddit', '#ff4500');
   if (n === 'reddit_draft_comment') return A('Reddit', 'drafting a comment', args.text || '', 'reddit', '#ff4500');
   if (n === 'reddit_read' || n === 'reddit_search' || n === 'reddit_comments') return A('Reddit', n === 'reddit_search' ? 'searching' : 'reading', args.subreddit ? `r/${args.subreddit}` : args.query || args.post || '', 'reddit', '#ff4500');
+  if (n === 'reddit_rules') return A('Reddit', 'reading the rules', args.subreddit ? `r/${String(args.subreddit).replace(/^\/?r\//, '')}` : '', 'reddit', '#ff4500');
   if (n === 'discord_send') return A('Discord', 'posting', args.text || '', 'discord', '#7d86ff');
   if (n === 'Bash' || n === 'run_command') return A('Terminal', 'running', args.command || '', null, '');
+  if (n === 'view_image') return A('Files', 'looking at', base(args.path), null, '#a9d3e2');
   if (['Read', 'read_file', 'knowledge_read'].includes(n)) return A('Files', 'reading', base(args.file_path || args.path || args.file), null, '#a9d3e2');
   if (['Write', 'Edit', 'write_file', 'NotebookEdit'].includes(n)) return A('Files', 'writing', base(args.file_path || args.path), null, '#a9d3e2');
   if (['Glob', 'Grep', 'list_files', 'knowledge_search'].includes(n)) return A('Files', 'searching', args.pattern || args.query || args.path || '', null, '#a9d3e2');

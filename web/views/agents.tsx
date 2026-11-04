@@ -793,7 +793,7 @@ function EngineFields({ a, d, set, fit }: {
           {pick('Hermes profile', a.hermesProfile || '', [{ value: '', label: 'default' }, ...profiles.filter((p) => p.name !== 'default').map((p) => ({ value: p.name, label: `${p.name} (${p.model})` }))], (v) => set('hermesProfile', v), 'The profile brings its own memory, skills and tools.')}
           {model('Model override', "Leave empty to use the profile's model.")}
         </div>
-        <p className="hint">Hermes uses its own tools. To give it the dashboard tools too, use "Give Hermes the dashboard tools" on the Tools &amp; MCP page.</p>
+        <p className="hint">Hermes uses its own tools. To give it the dashboard tools too, use "Give Hermes the dashboard tools" on the MCP servers page.</p>
       </>
     );
   else if (a.engine === 'pi' || a.engine === 'omp') {
@@ -808,7 +808,7 @@ function EngineFields({ a, d, set, fit }: {
             <p className="hint">{st.installed ? `Found${st.version ? ` · ${st.version}` : ''}` : `Not installed yet: ${a.engine === 'pi' ? 'npm install -g @earendil-works/pi-coding-agent' : 'bun install -g @oh-my-pi/pi-coding-agent'}`}</p>
           </div>
         </div>
-        <p className="hint">{`${name} works in the workspace folder with its own tools (read, bash, edit, write…) and runs them without asking, whatever the autonomy below says. Sign it in to a model provider in a terminal (/login). For the dashboard tools too, use "Give pi and oh-my-pi the dashboard tools" on the Tools & MCP page.`}</p>
+        <p className="hint">{`${name} works in the workspace folder with its own tools (read, bash, edit, write…) and runs them without asking, whatever the autonomy below says. Sign it in to a model provider in a terminal (/login). For the dashboard tools too, use "Give pi and oh-my-pi the dashboard tools" on the MCP servers page.`}</p>
       </>
     );
   } else if (a.engine === 'openclaw')

@@ -29,7 +29,7 @@ import * as openclawEngine from './engines/openclaw.ts';
 import { clearWhichCache, which } from './util.ts';
 import { aboutInfo } from './about.ts';
 import * as tools from './tools.ts';
-import { inlineToolImages } from './toolimages.ts';
+import { inlineToolImagesNoted, withImageNote } from './toolimages.ts';
 import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
@@ -861,17 +861,16 @@ del('/api/presets/:id', async ({ id }) => (presets.deletePreset(id), { ok: true 
 post<{ withAgents?: unknown } | null>('/api/workflows/:id/clone', async ({ id }, body) => presets.cloneTeam(id, { withAgents: !!body?.withAgents }));
 
 // ---------- library ----------
-get('/api/library', async () => ({ ...(await library.libraryIndex()), starters: library.STARTERS.map(({ name, emoji, specialty }) => ({ name, emoji, specialty })) }));
-get('/api/library/agency/:slug', async ({ slug }) => {
-  const a = need(library.agencyAgents().find((x) => x.slug === slug));
-  return { ...a, body: fs.readFileSync(a.file, 'utf8') };
+get('/api/library', async () => library.libraryIndex());
+get('/api/library/agent/:slug', async ({ slug }) => {
+  const { file, ...a } = need(library.libraryAgents().find((x) => x.slug === slug));
+  return { ...a, body: fs.readFileSync(file, 'utf8') };
 });
-post<{ source?: string; slug: string; profile: string; name: string; overrides?: Partial<Agent> }>('/api/library/hire', async (_p, body) => {
+post<{ source?: string; slug: string; profile: string; overrides?: Partial<Agent> }>('/api/library/hire', async (_p, body) => {
   const o = body.overrides || {};
-  if (body.source === 'agency') return library.hireFromAgency(body.slug, o);
+  if (body.source === 'library') return library.hireFromLibrary(body.slug, o);
   if (body.source === 'hermes') return library.hireHermesProfile(body.profile, o);
   if (body.source === 'claude') return library.importClaudeSubagent(body.slug);
-  if (body.source === 'starter') return library.createStarter(body.name, o);
   throw new HttpError(400, 'Unknown library source');
 });
 
@@ -1326,7 +1325,9 @@ post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown
     if (body.name === 'permission_prompt') return { text: JSON.stringify(await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId)) };
     const r = tools.clipForModel(await tools.callTool(agent, body.name, body.args || {}, ctx), body.name, ctx.runId);
     // MCP takes pictures as data only: ComfyUI's result links are read here, so the agent sees them too
-    return r.images?.length ? { ...r, images: await inlineToolImages(r.images) } : r;
+    if (!r.images?.length) return r;
+    const { images, note } = await inlineToolImagesNoted(r.images);
+    return { ...r, images, text: withImageNote(r.text, note) };
   });
 });
 

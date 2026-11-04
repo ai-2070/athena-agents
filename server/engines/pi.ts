@@ -1,7 +1,7 @@
 // pi and oh-my-pi engines: one `pi --mode json` (or `omp --mode json`) run per message, continuing the
 // chat's own session. The two share one event stream (oh-my-pi is built on pi), so one engine serves both.
 // They bring their own tools (read, bash, edit, write…), run them without asking, and get the dashboard
-// tools once the bridge is added to their mcp.json (addBridge: Tools & MCP page).
+// tools once the bridge is added to their mcp.json (addBridge: the MCP servers page).
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -333,7 +333,7 @@ export function ensureBridge(flavor: PiFlavor): { added: string } | { problem: s
       const cfg = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) as { mcpServers?: Record<string, typeof entry> } | null;
       entry = cfg?.mcpServers?.dashboard;
     } catch {
-      return { problem: `${file} isn't valid JSON, so the dashboard wasn't added to it. Fix it, then use Tools & MCP to add the dashboard.` };
+      return { problem: `${file} isn't valid JSON, so the dashboard wasn't added to it. Fix it, then use the MCP servers page to add the dashboard.` };
     }
   }
   // a program by name is found on the PATH; one by path must be there (a hand-made entry is kept when it works)

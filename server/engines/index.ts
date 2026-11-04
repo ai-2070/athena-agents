@@ -364,6 +364,8 @@ function clearMemory(chat: Chat): void {
 }
 
 const COMPUTER = process.platform === 'win32' ? 'Windows PC' : process.platform === 'darwin' ? 'Mac' : 'Linux computer';
+/** Added after the instructions of an agent hired from the Agent library (and no other): its role is a starting point. */
+export const LIBRARY_ROLE_LINE = "Your role is where you are strongest, not a limit: take on nearby work you can do well with the tools you have, and when the work needs a tool you don't have, ask for it with request_tool.";
 
 export function buildSystemPrompt(agent: Agent): string {
   // the day only: the instructions stay the same all day, so the provider's prompt cache can reuse them
@@ -374,6 +376,7 @@ export function buildSystemPrompt(agent: Agent): string {
   return [
     `You are ${agent.name}${agent.specialty ? `, ${agent.specialty}` : ''}.`,
     agent.systemPrompt || '',
+    agent.source?.type === 'library' ? LIBRARY_ROLE_LINE : '',
     knowledgeContext(agent),
     memoryContext(agent),
     worldPrompt(tools),
@@ -388,7 +391,7 @@ You are one of several agents on the user's personal dashboard, running on their
 You work on the project "${project.name}". Its Brain is the folder ${project.brainPath}: the project's files, notes${project.repo ? ` and its GitHub repo (${project.repo})` : ''}. Look there first for context (BRAIN.md, notes/, docs) and keep your work in it.
 Your workspace folder is ${workspaceOf(agent)}; save files you make there unless told otherwise.
 Today is ${date}. (For the exact time, check the clock with a command if you can.)
-${tools.includes('ask_user') ? 'When you need the user (a decision, a choice between options, something only they know or can do) or you are stuck, call ask_user with the question and short choices to click. Don\'t just ask in your reply: they may not be watching this chat.\n' : ''}${tools.includes('x_draft_post') ? 'Posts you write for X go to the Outbox for the user to approve; say so when you draft one.\n' : ''}${tools.includes('ask_agent') ? 'You can hand sub-tasks to teammates with ask_agent (see list_agents): it returns a handle at once, and await_agent gets the answer. Hand out independent tasks together so they run in parallel, and collect every answer before you finish. When the user writes @Name (or @Name [id] when names are shared), they mean that agent: give it its part with ask_agent.\n' : ''}Be direct. When you finish a task, say what you did and where the results are.`,
+${tools.includes('ask_user') ? 'When you need the user (a decision, a choice between options, something only they know or can do) or you are stuck, call ask_user with the question and short choices to click. Don\'t just ask in your reply: they may not be watching this chat.\n' : ''}${tools.includes('x_draft_post') ? 'Posts you write for X wait in the Outbox for the user to approve, unless that account has auto-post on (then they go out at once); replies and DMs always wait. Say which happened when you draft one.\n' : ''}${tools.includes('ask_agent') ? 'You can hand sub-tasks to teammates with ask_agent (see list_agents): it returns a handle at once, and await_agent gets the answer. Hand out independent tasks together so they run in parallel, and collect every answer before you finish. When the user writes @Name (or @Name [id] when names are shared), they mean that agent: give it its part with ask_agent.\n' : ''}Be direct. When you finish a task, say what you did and where the results are.`,
   ]
     .filter(Boolean)
     .join('\n');

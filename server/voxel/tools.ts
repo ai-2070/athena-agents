@@ -15,12 +15,13 @@ import { BUILD_ORDER, DIORAMA, DIORAMA_TINY } from './diorama.ts';
 import { requestLook } from './look.ts';
 import { exportFiles, importVox, writeFiles, writePicture } from './exchange.ts';
 import { objectMap } from './describe.ts';
-import { changePrefab, deletePrefab, importPrefab, libraryList, prefabList, publishPrefab, savePrefabFrom } from './prefabs.ts';
+import { changePrefab, deletePrefab, importPrefab, libraryEntryFor, libraryList, prefabList, publishPrefab, savePrefabFrom } from './prefabs.ts';
+import { copiesByOthers, materialUsers, othersText, redefinedInScript, redefinedInSteps } from './reach.ts';
 import { shownWorld } from './link.ts';
 import { worldInfo } from './describe.ts';
 import { KEEP_WORLD_MD, readWorldMd, worldMdStamp, writeWorldMd, writeWorldMdSection, worldMdContext } from './worldmd.ts';
 import type { JSONSchema, Risk, ToolArgs, ToolContext, ToolDef, ToolResult, ToolRunInfo, ToolAgent } from '../tools.ts';
-import type { WorldBuilder, WorldLookView } from '../../shared/types.ts';
+import type { VoxelWorld, WorldBuilder, WorldLookView } from '../../shared/types.ts';
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
@@ -120,6 +121,54 @@ function othersCheck(ctx: ToolContext, ref: unknown, doing: string, kind: 'objec
   return { name: 'world_change_others', risk: 'high', detail: `${ctx.agent.name} wants to ${doing} "${target.name}", which ${target.by.name} built.`, scope: { worldId: shown.world.id, kind, id: target.id, by: target.by } };
 }
 
+// The palette is the whole world's: changing a material others built with changes their builds too.
+function paletteCheck(ctx: ToolContext, args: ToolArgs, script: boolean): WorldApprovalCheck | null {
+  const shown = shownWorld();
+  if (!shown.world || shown.how === 'carried') return null;
+  const names = script ? redefinedInScript(shown.world.palette, args.code) : redefinedInSteps(shown.world.palette, args.steps);
+  const users = materialUsers(shown.world, builderOf(ctx), names);
+  if (!users.size) return null;
+  const list = [...users.keys()].sort();
+  const work = [...new Map([...users.values()].flat().map((x) => [x.where, x])).values()];
+  const by = [...new Map(work.map((x) => [`${x.by.kind}:${x.by.id || x.by.name}`, x.by])).values()];
+  const them = list.length > 1 ? 'them' : 'it';
+  return { name: 'world_change_others', risk: 'high', detail: `${ctx.agent.name} wants to change the material${list.length > 1 ? 's' : ''} ${list.map((n) => `"${n}"`).join(', ')}, which other builders used too: ${othersText(work)}. Everything made of ${them} would change.`, scope: { worldId: shown.world.id, kind: 'material', materials: list, by } };
+}
+
+// A prefab's copies stand in other builders' work: rebuilding it changes every copy.
+function copiesCheck(ctx: ToolContext, ref: unknown): WorldApprovalCheck | null {
+  const shown = shownWorld();
+  if (!shown.world || shown.how === 'carried') return null;
+  const p = findPrefab(shown.world, ref);
+  // (someone else's prefab is asked about as a whole already)
+  if (!p || !ownsObject(builderOf(ctx), p)) return null;
+  const work = copiesByOthers(shown.world, builderOf(ctx), p.id);
+  if (!work.length) return null;
+  const by = [...new Map(work.map((x) => [`${x.by.kind}:${x.by.id || x.by.name}`, x.by])).values()];
+  return { name: 'world_change_others', risk: 'high', detail: `${ctx.agent.name} wants to change the prefab "${p.name}", which other builders placed copies of: ${othersText(work)}. Every copy would change.`, scope: { worldId: shown.world.id, kind: 'prefab-copies', id: p.id, by } };
+}
+
+// Publishing under a name already in the library replaces that entry: someone else's asks first.
+function publishCheck(ctx: ToolContext, ref: unknown): WorldApprovalCheck | null {
+  const w = shownWorld().world;
+  const p = w ? findPrefab(w, ref) : null;
+  const e = p ? libraryEntryFor(p.name, builderOf(ctx)) : null;
+  if (!p || !e || e.mine) return null;
+  return { name: 'world_change_others', risk: 'high', detail: `${ctx.agent.name} wants to publish "${p.name}" to the prefab library, which replaces the "${e.name}" that ${e.by} published there.`, scope: { kind: 'library', id: e.id, by: e.by } };
+}
+
+/** Refuses a build that changes a material other builders used when the user wasn't asked about it
+ *  (a script can name one in a way that can't be read before it runs). */
+function materialGuard(ctx: ToolContext, asked: WorldApprovalCheck[], script: boolean): ((w: VoxelWorld, changed: string[]) => void) | undefined {
+  if (shownWorld().how === 'carried') return undefined;
+  const ok = new Set(asked.flatMap((c) => (c.scope?.kind === 'material' && Array.isArray(c.scope.materials) ? c.scope.materials.map(String) : [])));
+  return (w, changed) => {
+    const users = materialUsers(w, builderOf(ctx), changed.filter((n) => !ok.has(n)));
+    const [name, work] = [...users][0] || [];
+    if (name && work) throw new BuildError(`It would change the material "${name}", which other builders used too (${othersText(work)}). ${script ? `Write its name out in the code, like material("${name}", …), so the user can be asked` : 'Call again so the user can be asked'}, or give your material a new name.`);
+  };
+}
+
 function skinCheck(ctx: ToolContext, args: ToolArgs): WorldApprovalCheck | null {
   const { to, id, hidden } = args;
   if (to !== 'agent' && to !== 'team' && to !== 'brain') return null;
@@ -128,19 +177,28 @@ function skinCheck(ctx: ToolContext, args: ToolArgs): WorldApprovalCheck | null 
   return mine ? null : { name: 'world_skin_others', risk: 'high', detail: `${ctx.agent.name} wants to change how ${target.name} looks in the voxel world${hidden === true ? ' (take it off the map)' : ''}.`, scope: { worldId: shownWorld().world?.id || null, kind: to, id: target.id } };
 }
 
+/** A build's ownership checks: whose object or prefab it is, whose copies of it stand elsewhere, whose materials it changes. */
+function buildChecks(args: ToolArgs, ctx: ToolContext): WorldApprovalCheck[] {
+  const own = args.prefab ? othersCheck(ctx, args.prefab, 'change the prefab', 'prefab') : othersCheck(ctx, args.object, 'change');
+  const copies = args.prefab ? copiesCheck(ctx, args.prefab) : null;
+  // (a call with code is a script: world_script became world_build's "code")
+  const script = typeof args.code === 'string' && args.code !== '';
+  return [own, copies, paletteCheck(ctx, args, script)].filter((c): c is WorldApprovalCheck => !!c);
+}
+
 /** The same ownership checks are used before the native wait and immediately before a change. */
 export function worldApprovalChecks(name: string, args: ToolArgs, ctx: ToolContext): WorldApprovalCheck[] {
   let check: WorldApprovalCheck | null = null;
   switch (name) {
-    case 'world_build':
-      check = args.prefab ? othersCheck(ctx, args.prefab, 'change the prefab', 'prefab') : othersCheck(ctx, args.object, 'change');
-      break;
+    case 'world_build': case 'world_script':
+      return buildChecks(args, ctx);
     case 'world_object':
       if (args.duplicate !== true && args.delete !== true) check = othersCheck(ctx, args.object, 'change');
       break;
     case 'world_prefab':
       if (args.action === 'save' && args.replace) check = othersCheck(ctx, args.from, 'change');
       if (args.action === 'change') check = othersCheck(ctx, args.prefab, 'change the prefab', 'prefab');
+      if (args.action === 'publish') check = publishCheck(ctx, args.prefab);
       break;
     case 'world_animate':
       if (args.action === 'set' || args.action === 'remove') check = othersCheck(ctx, args.prefab, 'change the animations of', 'prefab');
@@ -169,6 +227,14 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
     const check = othersCheck(ctx, ref, doing, kind);
     return check ? gate(ctx.agent, check.name!, check.risk, args, { ...ctx, approvalScope: check.scope }, check.detail) : null;
   };
+  // asks about each check in turn; the first no stops there
+  const checksFirst = async (ctx: ToolContext, args: ToolArgs, checks: WorldApprovalCheck[]): Promise<ToolResult | null> => {
+    for (const check of checks) {
+      const refused = await gate(ctx.agent, check.name!, check.risk, args, { ...ctx, approvalScope: check.scope }, check.detail);
+      if (refused) return refused;
+    }
+    return null;
+  };
 
   return [
     {
@@ -183,7 +249,7 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_build',
       group: 'world',
       risk: 'low',
-      description: `Build in the voxel world (${DIORAMA_TINY}) on an object, or with "prefab" on a prefab: a small model (a tree, a person, a lamp) made once and placed many times. Nothing comes ready-made. Give "steps", or "code": JavaScript for repetitive or procedural builds (cottages that each differ, branching trees, terrain from noise). A call works whole or changes nothing. Changing what another builder made asks the user first.\n${COMMON_STEPS}`,
+      description: `Build in the voxel world (${DIORAMA_TINY}) on an object, or with "prefab" on a prefab: a small model (a tree, a person, a lamp) made once and placed many times. Nothing comes ready-made. Give "steps", or "code": JavaScript for repetitive or procedural builds (cottages that each differ, branching trees, terrain from noise). A call works whole or changes nothing. Changing what another builder made, a material they used, or a prefab they placed copies of asks the user first.\n${COMMON_STEPS}`,
       parameters: obj({
         object: str('The object to build on (a new name makes one)'),
         prefab: str('Or a prefab (a new name makes one), built around the origin on y = 0, front +z'),
@@ -208,7 +274,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
         const code = given(a.code);
         if (code && given(a.steps)) return { text: 'Give "steps" or "code", not both.', isError: true };
         if (!code && !given(a.steps)) return { text: 'Give "steps" (a list of build steps) or "code" (a JavaScript program).', isError: true };
-        const refused = a.prefab ? await othersFirst(ctx, args, a.prefab, 'change the prefab', 'prefab') : await othersFirst(ctx, args, a.object, 'change');
+        const checks = buildChecks(args, ctx);
+        const refused = await checksFirst(ctx, args, checks);
         if (refused) return refused;
         try {
           const target = { by: builderOf(ctx), object: a.object, prefab: a.prefab, description: a.description, tags: a.tags, pivot: a.pivot, anchor: a.anchor, position: a.position, voxelSize: a.voxel_size };
@@ -217,8 +284,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
           if (code) {
             const qjs = await loadSandbox();
             const seed = a.seed === undefined ? 1 : Math.round(Number(a.seed)) || 1;
-            r = build({ ...target, steps: [], drive: (api) => void (printed = runScript(qjs, String(a.code ?? ''), api, seed).log), seed });
-          } else r = build({ ...target, steps: a.steps, units: a.units, seed: a.seed });
+            r = build({ ...target, steps: [], drive: (api) => void (printed = runScript(qjs, String(a.code ?? ''), api, seed).log), seed, materialsOk: materialGuard(ctx, checks, true) });
+          } else r = build({ ...target, steps: a.steps, units: a.units, seed: a.seed, materialsOk: materialGuard(ctx, checks, false) });
           log('world', `${ctx.agent.name} ${r.created ? 'built' : 'changed'} ${r.kind === 'prefab' ? 'the prefab ' : ''}"${r.object.name}" in the world${code ? ' with a script' : ''}`, { agentId: ctx.agent.id });
           return { text: `${r.text}${printed.length ? `\nThe script's log:\n${printed.join('\n')}` : ''}` };
         } catch (e) {
@@ -295,7 +362,7 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_prefab',
       group: 'world',
       risk: ({ action }: { action?: string }) => (action === 'delete' ? 'high' : 'low'),
-      description: 'Prefabs: small models made once and placed many times. "list": this world\'s, where each is used. "save": one from an object or a box of it. "change". "delete": only when no copy is placed. "publish": to the library every world shares. "library": search it. "import": take one from it. Build new ones with world_build "prefab".',
+      description: 'Prefabs: small models made once and placed many times. "list": this world\'s, where each is used. "save": one from an object or a box of it. "change". "delete": only when no copy is placed. "publish": to the library every world shares (replacing someone else\'s entry asks first). "library": search it. "import": take one from it. Build new ones with world_build "prefab".',
       parameters: obj(
         {
           action: oneOf(['list', 'save', 'change', 'delete', 'publish', 'library', 'import']),
@@ -335,8 +402,12 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
             }
             case 'delete':
               return { text: deletePrefab({ by, prefab: String(a.prefab || '') }) };
-            case 'publish':
+            case 'publish': {
+              const check = publishCheck(ctx, a.prefab);
+              const refused = check ? await checksFirst(ctx, args, [check]) : null;
+              if (refused) return refused;
               return { text: publishPrefab({ by, prefab: String(a.prefab || '') }) };
+            }
             case 'import':
               return { text: importPrefab({ by, name: String(a.name || a.prefab || ''), as: a.name && a.prefab ? a.prefab : undefined }).text };
             default:

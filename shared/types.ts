@@ -373,8 +373,9 @@ export interface RunBilling {
 
 // ---------- agents ----------
 export interface AgentSource {
-  type: 'custom' | 'agency' | 'starter' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
+  type: 'custom' | 'library' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
   slug?: string;
+  /** a library hire's group (older hires: their old library's division) */
   division?: string;
   preset?: string;
   profile?: string;
@@ -1022,6 +1023,8 @@ export interface OutboxPost {
   parts: string[];
   /** Image files (full paths inside the project's folders) that go with the first part. X only. */
   images?: string[];
+  /** Alt text (a description for people who can't see it) by image path. X only. */
+  imageAlt?: Record<string, string>;
   status: 'pending' | 'posting' | 'posted' | 'failed' | 'rejected' | 'returned' | string;
   agentId?: string | null;
   /** The team the draft was written for (named at the time); where Send back to the team goes. */
@@ -1037,7 +1040,8 @@ export interface OutboxPost {
   note?: string;
   url?: string;
   to?: string;
-  reddit?: { kind: 'post' | 'comment'; subreddit?: string; title?: string; link?: string; parent?: string };
+  /** Reddit: a post or a comment; a post may carry a flair (a template id from the subreddit and/or its text). */
+  reddit?: { kind: 'post' | 'comment'; subreddit?: string; title?: string; link?: string; parent?: string; flairId?: string; flairText?: string };
   createdAt?: number;
   updatedAt?: number;
   [k: string]: unknown;
@@ -1445,6 +1449,27 @@ export interface PresetListing {
   lead: string | null;
   skills: string[];
   savedAt: number;
+}
+
+/** One of the Agent library's agents (library/athena-agents), as GET /api/library lists it: not hired yet. */
+export interface LibraryAgentListing {
+  slug: string;
+  name: string;
+  description: string;
+  emoji: string;
+  color: string;
+  specialty: string;
+  /** its group's id and label (groups.json) */
+  group: string;
+  groupLabel: string;
+  /** the tool groups it starts with */
+  tools: string[];
+  /** the skills it starts with */
+  skills: string[];
+  /** '' unless it needs one engine */
+  engine: string;
+  /** one of the starter team the Home page adds in one click */
+  starter: boolean;
 }
 
 // ---------- versions (skills, agents, teams) ----------

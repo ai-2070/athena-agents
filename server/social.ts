@@ -1,5 +1,6 @@
 // Social accounts. X uses OAuth 2.0 with your own X developer app (PKCE, tokens stay in ./data).
 // Every post an agent writes lands in the Outbox and waits for you, unless you turn on auto-post for that account.
+// Replies and DMs always wait for you: X's automation rules don't allow AI replies sent without your OK.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,6 +9,7 @@ import { viewable, kindOf } from './files.ts';
 import { teamOf } from './artifacts.ts';
 import { getSettings, getSecrets, outbox as outboxStore, emit, log, activeProject, withProject } from './store.ts';
 import * as reddit from './reddit.ts';
+import { xLength, X_MAX_LENGTH } from '../shared/xtext.ts';
 import type { FetchError } from './util.ts';
 import type { Collection } from './store.ts';
 import type { Accounts, OutboxPost, XAccount } from '../shared/types.ts';
@@ -45,6 +47,7 @@ export interface OutboxItem {
   accountLabel?: string;
   parts: string[];
   images?: string[];
+  imageAlt?: Record<string, string>;
   status: OutboxPost['status'] | 'posting';
   agentId?: string | null;
   agentName?: string;
@@ -70,6 +73,8 @@ export interface DraftInput {
   thread?: string[] | null;
   /** Image files to attach to the first part (X only, up to 4, 5 MB each). */
   images?: string[] | null;
+  /** Alt text for each image, in the same order (X only, up to 1,000 characters each). */
+  imageAlt?: (string | null | undefined)[] | null;
   /** The folders those images may come from: an agent's own readable folders (default: every folder the page may show). */
   imageRoots?: string[];
   replyTo?: string | null;
@@ -83,6 +88,9 @@ export interface DraftInput {
   title?: string;
   link?: string;
   parent?: string;
+  /** Reddit post: the subreddit's flair template id (up to 36 characters) and/or the flair text (up to 64). */
+  flairId?: string;
+  flairText?: string;
 }
 
 /** What you changed when approving: the parts (X) and the title (Reddit). */
@@ -259,7 +267,8 @@ async function xCall<T>(accountId: string, method: string, pathname: string, bod
 }
 
 // Upload one image for a tweet. Needs the media.write permission: accounts connected before it was added must be reconnected.
-async function xUploadImage(accountId: string, file: string): Promise<string> {
+// The alt text, if any, is added to the uploaded image (POST /2/media/metadata) before the post is made.
+async function xUploadImage(accountId: string, file: string, alt = ''): Promise<string> {
   const token = await xToken(accountId);
   const type = ({ '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' } as Record<string, string>)[path.extname(file).toLowerCase()] || 'image/png';
   const form = new FormData();
@@ -269,6 +278,7 @@ async function xUploadImage(accountId: string, file: string): Promise<string> {
     const r = await fetchJSON<{ data?: { id?: string }; media_id_string?: string }>(`${X_API}/media/upload`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: form, timeout: 60000 });
     const id = r.data?.id || r.media_id_string;
     if (!id) throw new Error('X did not return a media id');
+    if (alt) await fetchJSON(`${X_API}/media/metadata`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ id, metadata: { alt_text: { text: alt } } }) });
     return id;
   } catch (e) {
     const err = e as FetchError;
@@ -279,14 +289,14 @@ async function xUploadImage(accountId: string, file: string): Promise<string> {
 
 // Post one tweet or a thread (each part replies to the one before).
 // Already-posted parts (doneIds) are skipped, so a retry continues a half-posted thread.
-async function xPublish(accountId: string, parts: string[], replyTo: string | null | undefined, doneIds: string[] = [], images: string[] = [], onPart: (ids: string[]) => void = () => {}) {
+async function xPublish(accountId: string, parts: string[], replyTo: string | null | undefined, doneIds: string[] = [], images: string[] = [], onPart: (ids: string[]) => void = () => {}, imageAlt: Record<string, string> = {}) {
   const acc = loadAccounts().x[accountId];
   if (!acc) throw new Error('That X account is no longer connected.');
   const ids = [...doneIds];
   let parent = ids.at(-1) || replyTo || null;
   for (const text of parts.slice(ids.length)) {
     // the images go on the first tweet of the post
-    const media = !ids.length && images.length ? { media: { media_ids: await Promise.all(images.map((p) => xUploadImage(accountId, p))) } } : {};
+    const media = !ids.length && images.length ? { media: { media_ids: await Promise.all(images.map((p) => xUploadImage(accountId, p, imageAlt[p]))) } } : {};
     const res = await xCall<{ data: { id: string } }>(accountId, 'POST', '/tweets', { text, ...media, ...(parent ? { reply: { in_reply_to_tweet_id: parent } } : {}) });
     ids.push(res.data.id);
     parent = res.data.id;
@@ -354,7 +364,33 @@ export function checkImages(platform: string, images: unknown, roots?: string[])
   });
 }
 
-export async function draftPost({ platform = 'x', account, text, thread = null, images = null, imageRoots, replyTo = null, to = null, agentId = null, chatId = null, agentName = '', note = '', subreddit = '', title = '', link = '', parent = '' }: DraftInput): Promise<OutboxItem & { autoPosted?: boolean }> {
+const X_ALT_MAX = 1000;
+/** Alt text by real image path (real: what checkImages gave for images): the nth alt goes with the nth image. */
+function pairImageAlt(images: unknown, alts: unknown, real: string[]): Record<string, string> {
+  const raw = Array.isArray(images) ? images : [];
+  const altList = Array.isArray(alts) ? alts : [];
+  // the same images checkImages kept, in the same order
+  const keep = raw.map((p, i) => [p, altList[i]] as const).filter(([p]) => typeof p === 'string' && !!p.trim());
+  const out: Record<string, string> = {};
+  keep.forEach(([, a], i) => {
+    const text = typeof a === 'string' ? a.trim() : '';
+    if (!text) return;
+    if ([...text].length > X_ALT_MAX) throw new Error(`Alt text can be at most ${X_ALT_MAX} characters on X.`);
+    out[real[i]] = text;
+  });
+  return out;
+}
+
+/** The first part that is over X's limit, with its length as X counts it. */
+export function xTooLong(parts: string[]): { part: string; length: number } | null {
+  for (const part of parts) {
+    const length = xLength(part);
+    if (length > X_MAX_LENGTH) return { part, length };
+  }
+  return null;
+}
+
+export async function draftPost({ platform = 'x', account, text, thread = null, images = null, imageAlt = null, imageRoots, replyTo = null, to = null, agentId = null, chatId = null, agentName = '', note = '', subreddit = '', title = '', link = '', parent = '', flairId = '', flairText = '' }: DraftInput): Promise<OutboxItem & { autoPosted?: boolean }> {
   const team = agentId ? teamOf(agentId, chatId) : null;
   const teamFields = team ? { teamId: team.id, teamName: team.name } : {};
   // Reddit: a post (subreddit + title + text or link) or a comment (parent = post/comment id or URL)
@@ -374,8 +410,12 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
       if (!String(title).trim()) throw new Error('A Reddit post needs a title.');
       if (!body && !link) throw new Error('Add the post text or a link.');
     }
+    const fid = isComment ? '' : String(flairId || '').trim();
+    const ftext = isComment ? '' : String(flairText || '').trim();
+    if (fid.length > 36) throw new Error('A flair id is at most 36 characters (Reddit gives it with the subreddit\'s flairs).');
+    if (ftext.length > 64) throw new Error('Flair text can be at most 64 characters.');
     const label = isComment ? `u/${acc.username} · comment` : `u/${acc.username} → r/${sr}`;
-    const item = outbox.save({ id: uid('p'), platform: 'reddit', accountId: acc.id, accountLabel: label, parts: [body || link], reddit: { kind: isComment ? 'comment' : 'post', subreddit: sr, title: String(title).trim().slice(0, 300), link: link || '', parent: parentId }, agentId, agentName, ...teamFields, note, status: 'pending' });
+    const item = outbox.save({ id: uid('p'), platform: 'reddit', accountId: acc.id, accountLabel: label, parts: [body || link], reddit: { kind: isComment ? 'comment' : 'post', subreddit: sr, title: String(title).trim().slice(0, 300), link: link || '', parent: parentId, ...(fid ? { flairId: fid } : {}), ...(ftext ? { flairText: ftext } : {}) }, agentId, agentName, ...teamFields, note, status: 'pending' });
     log('social', `${agentName || 'You'} drafted a Reddit ${isComment ? 'comment' : 'post'} (${label})`, { agentId });
     if (acc.autopost) return { ...(await approvePost(item.id)), autoPosted: true };
     return item;
@@ -383,6 +423,7 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
   const parts = (thread && thread.length ? thread : [text]).map((t) => String(t || '').trim()).filter(Boolean);
   if (!parts.length) throw new Error('The post is empty.');
   const imagePaths = checkImages(platform, images, imageRoots);
+  const alts = imagePaths.length && imageAlt?.length ? pairImageAlt(images, imageAlt, imagePaths) : {};
   let accountId: string | null = null;
   let accountLabel = platform;
   if (platform === 'x_dm') {
@@ -396,16 +437,17 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
     return item; // DMs always wait for you, even with auto-post on
   }
   if (platform === 'x') {
-    const tooLong = parts.find((p) => [...p].length > 280);
-    if (tooLong) throw new Error(`A post is ${[...tooLong].length} characters; X allows 280. Shorten it or split it into a thread.`);
+    const tooLong = xTooLong(parts);
+    if (tooLong) throw new Error(`A post is ${tooLong.length} characters as X counts them (emoji and most non-Latin letters count 2, a link 23); X allows ${X_MAX_LENGTH}. Shorten it or split it into a thread.`);
     const acc = resolveXAccount(account);
     accountId = acc.id;
     accountLabel = `@${acc.username}`;
   }
-  const item = outbox.save({ id: uid('p'), platform, accountId, accountLabel, parts, ...(imagePaths.length ? { images: imagePaths } : {}), replyTo, agentId, agentName, ...teamFields, note, status: 'pending' });
+  const item = outbox.save({ id: uid('p'), platform, accountId, accountLabel, parts, ...(imagePaths.length ? { images: imagePaths } : {}), ...(Object.keys(alts).length ? { imageAlt: alts } : {}), replyTo, agentId, agentName, ...teamFields, note, status: 'pending' });
   log('social', `${agentName || 'You'} drafted a ${platform} post for ${accountLabel}`, { agentId });
   const acc = platform === 'x' ? loadAccounts().x[String(accountId)] : null;
-  if (acc?.autopost) {
+  // a reply always waits for you, even with auto-post on (X allows AI replies only with your OK)
+  if (acc?.autopost && !replyTo) {
     const done = await approvePost(item.id);
     return { ...done, autoPosted: true };
   }
@@ -436,10 +478,12 @@ async function approveIn(key: string, id: string, edits: ApproveEdits | null): P
   outbox.save(item);
   try {
     if (item.platform === 'x') {
+      const tooLong = xTooLong(item.parts.slice(posted));
+      if (tooLong) throw new Error(`A part is ${tooLong.length} characters as X counts them; X allows ${X_MAX_LENGTH}. Shorten it first.`);
       const r = await xPublish(String(item.accountId), item.parts, item.replyTo, item.postIds || [], item.images || [], (ids) => {
         item.postIds = [...ids];
         outbox.save(item);
-      });
+      }, item.imageAlt || {});
       Object.assign(item, { status: 'posted', url: r.url, postIds: r.ids, postedAt: Date.now(), error: null });
     } else if (item.platform === 'x_dm') {
       const r = await xSendDm(String(item.accountId), String(item.to), item.parts.join('\n\n'));

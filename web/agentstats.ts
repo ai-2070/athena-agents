@@ -32,9 +32,9 @@ export const divisionLabel = (id: string): string =>
     .map((w) => (UPPER.has(w.toLowerCase()) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)))
     .join(' ');
 
-const FROM: Record<string, string> = { brain: 'Made by the Brain', hermes: 'From Hermes', openclaw: 'From OpenClaw', claude: 'From Claude Code', starter: 'Athena agents', preset: 'Ready-made teams' };
+const FROM: Record<string, string> = { brain: 'Made by the Brain', hermes: 'From Hermes', openclaw: 'From OpenClaw', claude: 'From Claude Code', preset: 'Ready-made teams' };
 
-/** An agent's category: its Library division, else where it came from ("Your own" when you made it). */
+/** An agent's category: its Agent library group, else where it came from ("Your own" when you made it). */
 export function agentCategory(a: Pick<Agent, 'source'>): { id: string; label: string } {
   const div = a.source?.division;
   if (div) return { id: `division:${div}`, label: divisionLabel(div) };

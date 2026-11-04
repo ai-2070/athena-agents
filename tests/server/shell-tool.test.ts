@@ -1,4 +1,4 @@
-// The shell tool (run_command): what it hands the shell (PowerShell on Windows, the user's shell elsewhere).
+// The shell tool (run_command): what it hands the shell it picked (commandShell).
 import { describe, expect, it, vi } from 'vitest';
 import type { RunOptions } from '../../server/util.ts';
 
@@ -12,7 +12,7 @@ vi.mock('../../server/util.ts', async (orig) => ({
 }));
 
 const { callTool } = await import('../../server/tools.ts');
-const IS_WIN = process.platform === 'win32';
+const { commandShell } = await import('../../server/util.ts');
 // the user has said yes to this tool for good, so no approval is asked for
 const agent = { id: 'a1', name: 'Tester', toolGroups: ['shell'], alwaysAllow: ['run_command'] };
 
@@ -22,9 +22,8 @@ describe('run_command', () => {
     try {
       delete process.env.PYTHONUTF8;
       await callTool(agent, 'run_command', { command: 'python make_report.py' });
-      expect(calls.at(-1)).toMatchObject(IS_WIN
-        ? { cmd: 'powershell', args: ['-NoProfile', '-NonInteractive', '-Command', 'python make_report.py'] }
-        : { cmd: process.env.SHELL || '/bin/sh', args: ['-lc', 'python make_report.py'] });
+      const sh = commandShell();
+      expect(calls.at(-1)).toMatchObject({ cmd: sh.exe, args: sh.args('python make_report.py') });
       expect(calls.at(-1)?.opts.env).toEqual({ PYTHONUTF8: '1' });
 
       process.env.PYTHONUTF8 = '0';

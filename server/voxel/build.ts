@@ -159,6 +159,8 @@ export interface BuildRequest {
   seed?: unknown;
   /** the project whose world it is (default: the active one) */
   project?: string;
+  /** told the existing palette materials the build changes (names), before anything is written: throws to refuse */
+  materialsOk?: (w: VoxelWorld, changed: string[]) => void;
 }
 
 export interface BuildReport {
@@ -376,6 +378,9 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
     if (copies > WORLD_LIMITS.copies) throw new BuildError(`This would make ${fmt(copies)} placed copies in the world; it can hold ${fmt(WORLD_LIMITS.copies)}.`);
   }
   if (outcome.placed > 0) drawnCheck(w, kind, t, outcome.instances);
+  // the palette is the whole world's: a changed material changes it everywhere it is used
+  const materials = paletteChanges(w.palette, palette);
+  req.materialsOk?.(w, materials.filter((m) => m.before).map((m) => m.after.name));
 
   const metaBefore = created ? null : structuredClone(t);
   const instancesChanged = outcome.placed > 0 || outcome.unplaced > 0;
@@ -397,7 +402,6 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
     if (req.description !== undefined) p.description = String(req.description).slice(0, 300);
     if (Array.isArray(req.tags)) p.tags = [...new Set(req.tags.map((x) => String(x).trim().toLowerCase()).filter(Boolean))].slice(0, 12);
   } else if (created) w.objects.push(t as VoxelObjectMeta);
-  const materials = paletteChanges(w.palette, palette);
   w.palette = palette;
   w.built = true;
   remember(w.id, { by: req.by, kind, what: `${created ? 'built' : 'changed'} ${kind === 'prefab' ? 'the prefab ' : ''}${t.name}`, objectId: t.id, metaBefore, chunks: outcome.before, ...(instancesChanged ? { instancesBefore: data?.instances || [] } : {}), ...(materials.length ? { materials } : {}) });
