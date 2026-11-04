@@ -1,0 +1,43 @@
+server/engines/claude.ts
+  s_4c8d7f63ec0802::t_5923b89bbc7618 2-5,13,16,58-60,169-170,204,210-226,236-255,268-275,300-302,339,349-350,353,366-367
+  s_4c8d7f63ec0802::t_ad16f07786cd10 196
+server/engines/capabilities.ts
+  s_4c8d7f63ec0802::t_9e61ef50dd7348 3,11
+server/index.ts
+  s_4c8d7f63ec0802::t_79c34fedcda64f 657-658
+tests/server/uistream.test.ts
+  s_4c8d7f63ec0802::t_79c34fedcda64f 24,122-129
+  s_4c8d7f63ec0802::t_50e923f1b2b2ec 130
+  s_4c8d7f63ec0802::t_b0c1ad3e4bd0d6 131-133
+server/engines/index.ts
+  s_4c8d7f63ec0802::t_e291c8629300c8 797-798,818
+  s_4c8d7f63ec0802::t_75ad3948dcccdd 536-541,726-727,788-789,792,813,816-817,823,825-831,833-834,836-837,841
+  s_4c8d7f63ec0802::t_9e61ef50dd7348 82-103
+shared/types.ts
+  s_4c8d7f63ec0802::t_9e61ef50dd7348 906
+server/engines/eve.ts
+  s_4c8d7f63ec0802::t_e291c8629300c8 7,10,15-19
+  s_4c8d7f63ec0802::t_9a39287dfb0c03 20
+tests/server/claude-steer.test.ts
+  s_4c8d7f63ec0802::t_666bfc4bab8020 1-148
+server/uistream.ts
+  s_4c8d7f63ec0802::t_79c34fedcda64f 102-103,110,133
+docs/guide.md
+  s_4c8d7f63ec0802::t_f719d613f57600 107-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ac171ea58303c1c46f0e9f7291c8363db698c231",
+  "prompts": {},
+  "sessions": {
+    "s_4c8d7f63ec0802": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fbf869fd-bc35-4553-b28f-bf381c08706e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
