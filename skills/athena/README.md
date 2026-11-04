@@ -65,7 +65,12 @@ characters outside code blocks and tables.
    - JSON, code and message bodies go in files (`--body-file`, `--data-binary @body.json`, rule files), because 5.1
      strips quotes inside arguments to programs;
    - `curl.exe`, not `curl` (an alias for `Invoke-WebRequest`), and no `&&`;
-   - long-running servers start in the background (the programs tools, or `Start-Process`), never in the foreground;
+   - `npx.cmd` and `npm.cmd`: npm installs `npx.ps1` beside them, PowerShell prefers it, and Windows' default policy
+     blocks scripts;
+   - text files (configs, `.gitignore`, JSON, code) are written with the file tools, not `>` or `Out-File`, which write
+     UTF-16 in 5.1 (git, Python and most programs misread it);
+   - long-running servers start in the background (the programs tools, or `Start-Process`), never in the foreground,
+     listen on `127.0.0.1` only unless the user asks otherwise, and are stopped when the work is done;
    - nothing interactive: no `-it`, no `logs -f`, no sign-in that opens a browser and waits;
    - installs that can't stop at a prompt: `winget install --id <id> --accept-source-agreements
      --accept-package-agreements`; a line with `sudo` is for the user to run, not the agent;
@@ -100,7 +105,10 @@ skill that makes or changes files holds to this, and says so where it matters:
 
 - **Working files** go in a subfolder of the workspace, deleted before the agent reports. The user's folder ends with
   what they asked for (and a backup, if one was made): no build scripts, recalculated copies or intermediate files, and
-  nothing in `/tmp`, beside the workspace or in the skill's folder.
+  nothing in `/tmp`, beside the workspace or in the skill's folder. When the workspace is a code repository, a scratch
+  folder inside it holds a `.gitignore` of `*` (written with the file tools), so git ignores it without any tracked file
+  changing; a copy of the code itself (a baseline to test against) goes outside the repository, where the user agrees,
+  so test runners don't find the tests twice.
 - **Before changing a user's file in place**, make one backup, before the first change, and check afterwards that it
   differs from the result. Otherwise the originals stay untouched, and the agent tells the user so.
 - **No copy that undoes the request**: an editable copy beside the locked form, the unredacted file beside the redacted
