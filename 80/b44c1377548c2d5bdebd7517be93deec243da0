@@ -1,0 +1,43 @@
+tests/server/social-posting.test.ts
+  s_113f5bf511efd5::t_04e8e7b0d51d0b 1-99,101-203
+  s_113f5bf511efd5::t_894f1960f01c18 100
+server/reddit.ts
+  s_113f5bf511efd5::t_622ed8d2fb06ca 226-271,282
+server/engines/index.ts
+  s_113f5bf511efd5::t_228d5fc5900141 392
+server/social.ts
+  s_113f5bf511efd5::t_894f1960f01c18 368-369,372,426
+  s_113f5bf511efd5::t_51a216de8463ec 3,12,50,76-77,91-93,270-271,281,292,299,367,370-371,373-393,413-416,418,440-441,446,449-450,481-482,486
+shared/types.ts
+  s_113f5bf511efd5::t_0de128fa381da7 1026-1027
+  s_113f5bf511efd5::t_4a2e0031f05835 1043-1044
+tests/server/xtext.test.ts
+  s_113f5bf511efd5::t_db73c150302fb6 1-52
+web/views/outbox.tsx
+  s_113f5bf511efd5::t_952f41fc947a69 17,21-23,246
+shared/xtext.ts
+  s_113f5bf511efd5::t_d4e237e4e80c2e 1-61
+tests/web/connections.test.tsx
+  s_113f5bf511efd5::t_efbb0d3851bb61 60-62,88-96
+server/tools.ts
+  s_113f5bf511efd5::t_f00d599d651ce0 892-898,903-919
+  s_113f5bf511efd5::t_bd2036d3dc4f58 821-822,828,830,834,836
+  s_113f5bf511efd5::t_74eeb35b6a001e 863
+  s_113f5bf511efd5::t_e3e061cf73a001 891
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80b44c1377548c2d5bdebd7517be93deec243da0",
+  "prompts": {},
+  "sessions": {
+    "s_113f5bf511efd5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33eb0f9d-82ca-4708-b62e-673ddb2ee4f8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
