@@ -1,0 +1,68 @@
+tests/server/gateway-retired-finish.test.ts
+  s_3f5afab86a1bb3::t_3c9babdaf87d38 68,76-78
+  s_3f5afab86a1bb3::t_15e1362b4abf34 69-75
+  s_3f5afab86a1bb3::t_44aa4abf263075 1-67,79-87,93-135
+  s_3f5afab86a1bb3::t_ab8c0f41d8c570 88-92
+server/gateways/supervisor.ts
+  s_3f5afab86a1bb3::t_005e9c804e57f2 15-16,335-360
+  s_19012a1c42905e::t_768ae695447d3d 361
+server/gateways/inbox.ts
+  s_3f5afab86a1bb3::t_784dc21cf7a7f3 22-23,270-273,345,347,393-398,400-401,404-405,407,409-412,414-428,442
+  s_3f5afab86a1bb3::t_9fe003dbe4fcb0 392,399,402-403,406,408,413,1256-1259
+  s_3f5afab86a1bb3::t_9011909736c993 343
+docs/guide.md
+  s_3f5afab86a1bb3::t_35685cf4cc2cb6 557-576
+docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md
+  s_3f5afab86a1bb3::t_8ab72bf9275276 1050-1059
+  s_3f5afab86a1bb3::t_35685cf4cc2cb6 1025-1036,1039-1049,1062
+  s_3f5afab86a1bb3::t_d8c50af9763425 1037-1038,1060-1061
+README.md
+  s_3f5afab86a1bb3::t_a45f5a117c7f0d 240-241
+tests/server/api.test.ts
+  s_3f5afab86a1bb3::t_9011909736c993 490-494
+server/gateways/retired-finish.ts
+  s_3f5afab86a1bb3::t_14510226a0de61 31
+  s_3f5afab86a1bb3::t_005e9c804e57f2 16-17,19,27
+  s_3f5afab86a1bb3::t_784dc21cf7a7f3 1-15,18,20-26,28-30,32-34
+web/views/gateway-retired-finish.tsx
+  s_3f5afab86a1bb3::t_ab8c0f41d8c570 36,49,55
+  s_3f5afab86a1bb3::t_dad8975a5e13fd 1-35,37-48,50-54,56-60
+web/views/gateway-retired.tsx
+  s_3f5afab86a1bb3::t_dad8975a5e13fd 8,65,99,103,105,109,121
+  s_3f5afab86a1bb3::t_ab8c0f41d8c570 39
+  s_3f5afab86a1bb3::t_c67ceede38dbb0 20
+server/index.ts
+  s_3f5afab86a1bb3::t_005e9c804e57f2 21,990-992
+tests/web/gateway-retired-finish.test.tsx
+  s_3f5afab86a1bb3::t_c67ceede38dbb0 1-7,9-34,36-84
+  s_3f5afab86a1bb3::t_57f6e10037fb30 8
+  s_3f5afab86a1bb3::t_3c9babdaf87d38 35
+tests/web/gateway-retired.test.tsx
+  s_3f5afab86a1bb3::t_c67ceede38dbb0 79-88
+shared/types.ts
+  s_3f5afab86a1bb3::t_784dc21cf7a7f3 234-247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "01e5b02a0b7635e96911ca2416c6aad0d4b8f5a7",
+  "prompts": {},
+  "sessions": {
+    "s_19012a1c42905e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db804380-52c8-4e69-862a-be2af3c5a544",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_3f5afab86a1bb3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19a15-5737-76e3-a512-ef4e85eab60e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
