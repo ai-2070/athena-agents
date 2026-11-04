@@ -7,13 +7,14 @@ import * as assetLib from './assets.ts';
 import type { AssetSource, AssetKind } from './assets.ts';
 import { mayaScript, houdiniScript, sibling, sbsrenderArgs, openscadArgs, prusaSlicerArgs, nvttArgs, handbrakeArgs, GPU_FIELDS, formatGpus } from './dcc.ts';
 import { agents as agentStore, chats, getSettings, emit, log } from './store.ts';
-import { startHandoff, awaitHandoff, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } from './handoffs.ts';
+import { startHandoff, awaitHandoff, awaitHandoffs, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } from './handoffs.ts';
 
 /** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */
 const HERMES_WAIT_S = 240;
 import { requestApproval } from './approvals.ts';
 import type { ApprovalDecision, ApprovalRequest } from './approvals.ts';
-import { agentFetch } from './agentfetch.ts';
+import { readPage, pagePart, PAGE_CHARS, PAGE_MAX_CHARS } from './webread.ts';
+import * as files from './filetools.ts';
 import { accountOf } from './mcp.ts';
 import { knownPrograms, launchProgram, launchTarget, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
@@ -413,16 +414,12 @@ const TOOLS: ToolDef[] = [
     name: 'fetch_url',
     group: 'browser',
     risk: 'none',
-    description: 'Download a web page or API response and return its readable text (scripts and styles removed). For interactive browsing add the Playwright MCP server.',
-    parameters: obj({ url: str('http(s) URL'), max_chars: { type: 'number' } }, ['url']),
-    run: async ({ url, max_chars = 20000 }: { url: string; max_chars?: number }) => {
-      if (!/^https?:\/\//i.test(url)) throw new Error('Only http(s) URLs.');
-      // (never the dashboard itself, not even through a redirect)
-      const { res, url: final } = await agentFetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) athena-agents/0.1.0' }, signal: AbortSignal.timeout(30000) });
-      const type = res.headers.get('content-type') || '';
-      let body = await res.text();
-      if (/html/i.test(type)) body = htmlToText(body);
-      return { text: `HTTP ${res.status} ${final}\n\n${truncate(body, max_chars)}` };
+    description: `Download a web page or API response and return its readable text, as Markdown (scripts, menus and footers left out). Long pages come in parts: continue with offset (the page is kept for ten minutes, so that is quick). For interactive browsing add the Playwright MCP server.`,
+    parameters: obj({ url: str('http(s) URL'), offset: { type: 'number', description: 'Character to start from, for the next part (default 0)' }, max_chars: { type: 'number', description: `Characters per part (default ${PAGE_CHARS}, at most ${PAGE_MAX_CHARS})` } }, ['url']),
+    run: async ({ url, offset, max_chars }: { url: string; offset?: number; max_chars?: number }, ctx) => {
+      if (!/^https?:\/\//i.test(String(url))) throw new Error('Only http(s) URLs.');
+      const page = await readPage(String(url), ctx.runId || `agent:${ctx.agent.id}`, ctx.signal);
+      return { text: pagePart(page, offset, max_chars) };
     },
   },
   // ---------- ComfyUI ----------
@@ -971,30 +968,40 @@ const TOOLS: ToolDef[] = [
     group: 'agents',
     risk: 'none',
     description:
-      'Give a task to another agent. It starts at once and you get a handle back right away (the answer is not in it): keep working, then get the answer with await_agent. To run several tasks in parallel, send them all first, then await each. Say exactly what you need back. A task you hand off is theirs: don\'t also do it yourself.',
-    parameters: obj({ agent: str('Agent name, id, or "Name [id]" as list_agents shows it'), message: str('The task or question') }, ['agent', 'message']),
-    run: async ({ agent, message }: { agent: string; message: string }, ctx) => {
+      'Give a task to another agent. It starts at once and you get a handle back right away: keep working, then get the answer with await_agent. To run several tasks in parallel, send them all first, then await them together. For a quick question, set wait_seconds to get the answer in this same call. Say exactly what you need back. A task you hand off is theirs: don\'t also do it yourself.',
+    parameters: obj({ agent: str('Agent name, id, or "Name [id]" as list_agents shows it'), message: str('The task or question'), wait_seconds: { type: 'number', description: 'Optional: wait this long for the answer now (up to 600)' } }, ['agent', 'message']),
+    run: async ({ agent, message, wait_seconds }: { agent: string; message: string; wait_seconds?: number }, ctx) => {
       if ((ctx.depth || 0) >= 3) throw new Error('Too many agents deep; answer this yourself.');
       const found = findAgent(agentStore.list(), agent);
       if ('error' in found) throw new Error(found.error);
       const target = found.agent;
       if (target.id === ctx.agent.id) throw new Error("That's you.");
       const h = await startHandoff(ctx.agent, target, String(message || ''), { depth: (ctx.depth || 0) + 1, parentRunId: ctx.runId, signal: ctx.signal });
-      return { text: `Sent to ${target.name} (handle ${h.id}). They are working on it now. Get the answer with await_agent and handle "${h.id}".` };
+      const sent = `Sent to ${target.name} (handle ${h.id}).`;
+      const wait = Math.min(Number(wait_seconds) || 0, 600, agentStore.get(ctx.agent.id)?.engine === 'hermes' ? HERMES_WAIT_S : 600);
+      if (wait < 1) return { text: `${sent} They are working on it now. Get the answer with await_agent and handle "${h.id}".` };
+      const r = await awaitHandoff(h.id, ctx.agent.id, wait, ctx.signal);
+      return { ...r, text: `${sent}\n${r.text}` };
     },
   },
   {
     name: 'await_agent',
     group: 'agents',
     risk: 'none',
-    description: `Get the answer to a task you gave with ask_agent. Waits up to wait_seconds (default ${DEFAULT_WAIT_S}, at most ${MAX_WAIT_S}); if they are still working, call it again with the same handle until they finish. When their answer is a question, a blocker or something only the user can decide, that is the outcome: pass it on instead of waiting for more. Without a handle: lists your handoffs.`,
-    parameters: obj({ handle: str('The handle ask_agent gave you'), wait_seconds: { type: 'number', description: `How long to wait for the answer this time (1-${MAX_WAIT_S})` } }),
-    run: async ({ handle, wait_seconds }: { handle?: string; wait_seconds?: number }, ctx) => {
-      if (!handle) return { text: listHandoffs(ctx.agent.id) };
+    description: `Get the answer to a task you gave with ask_agent. Waits up to wait_seconds (default ${DEFAULT_WAIT_S}, at most ${MAX_WAIT_S}); if they are still working, call it again until they finish. With handles it waits for several at once: until the first is done, or every one with all. When their answer is a question, a blocker or something only the user can decide, that is the outcome: pass it on instead of waiting for more. Without a handle: lists your handoffs.`,
+    parameters: obj({
+      handle: str('The handle ask_agent gave you'),
+      handles: { type: 'array', items: { type: 'string' }, description: 'Several handles, instead of handle' },
+      all: { type: 'boolean', description: 'With handles: wait for every one, not just the first' },
+      wait_seconds: { type: 'number', description: `How long to wait for the answer this time (1-${MAX_WAIT_S})` },
+    }),
+    run: async ({ handle, handles, all, wait_seconds }: { handle?: string; handles?: unknown; all?: boolean; wait_seconds?: number }, ctx) => {
+      const ids = Array.isArray(handles) && handles.length ? handles.map(String) : handle ? [handle] : [];
+      if (!ids.length) return { text: listHandoffs(ctx.agent.id) };
       // Hermes gives up on an MCP call after 5 minutes: wait less, and it calls again
       const hermes = agentStore.get(ctx.agent.id)?.engine === 'hermes';
       const wait = hermes ? Math.min(HERMES_WAIT_S, Number(wait_seconds) || HERMES_WAIT_S) : wait_seconds;
-      return awaitHandoff(handle, ctx.agent.id, wait, ctx.signal);
+      return ids.length === 1 ? awaitHandoff(ids[0]!, ctx.agent.id, wait, ctx.signal) : awaitHandoffs(ids, ctx.agent.id, { all: !!all, waitS: wait, signal: ctx.signal });
     },
   },
   {
@@ -1072,32 +1079,52 @@ const TOOLS: ToolDef[] = [
     name: 'list_files',
     group: 'files',
     risk: 'none',
-    description: 'List a folder (relative paths start in your workspace).',
-    parameters: obj({ path: str('Folder (default: workspace)') }),
-    run: async ({ path: p = '.' }: { path?: string }, ctx) => {
+    description: 'List a folder: sub-folders, and files with their sizes (relative paths start in your workspace). depth lists folders inside it too.',
+    parameters: obj({ path: str('Folder (default: workspace)'), depth: { type: 'number', description: 'Folder levels to list, 1-5 (default 1)' } }),
+    run: async ({ path: p = '.', depth }: { path?: string; depth?: number }, ctx) => {
       const { abs, real, ok } = resolveInside(ctx.agent, p);
       if (!ok) throw new Error(`${abs} is outside the folders this agent may use. Add it in Settings > Allowed folders.`);
-      const items = fs.readdirSync(real, { withFileTypes: true }).slice(0, 500);
-      return { text: `${abs}\n${items.map((d) => `${d.isDirectory() ? '[dir] ' : ''}${d.name}`).join('\n')}` };
+      return { text: files.listFolder(real, abs, depth) };
     },
   },
   {
     name: 'read_file',
     group: 'files',
     risk: 'none',
-    description: 'Read a text file (workspace, knowledge, outputs or allowed folders).',
-    parameters: obj({ path: str('File path') }, ['path']),
-    run: async ({ path: p }: { path: string }, ctx) => {
-      const { abs, real, ok } = resolveInside(ctx.agent, p);
-      if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
-      return { text: truncate(fs.readFileSync(real, 'utf8'), 60000) };
+    description: `Read a text file (workspace, knowledge, outputs or allowed folders). A long file comes in parts of up to ${files.READ_LINES} lines: continue with offset. paths reads up to 10 files in one call.`,
+    parameters: obj({
+      path: str('File path'),
+      paths: { type: 'array', items: { type: 'string' }, maxItems: 10, description: 'Several files at once, instead of path' },
+      offset: { type: 'number', description: 'First line to read (default 1)' },
+      limit: { type: 'number', description: `How many lines (default and most ${files.READ_LINES})` },
+    }),
+    run: async ({ path: p, paths, offset, limit }: { path?: string; paths?: unknown; offset?: number; limit?: number }, ctx) => {
+      const list = Array.isArray(paths) && paths.length ? paths.slice(0, 10).map(String) : p ? [String(p)] : [];
+      if (!list.length) throw new Error('Give path (or paths).');
+      const read = (file: string, chars?: number) => {
+        const { abs, real, ok } = resolveInside(ctx.agent, file);
+        if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
+        return files.readText(real, abs, { offset, limit, chars });
+      };
+      if (list.length === 1) return { text: read(list[0]!) };
+      // several: each gets its share, so one long file can't crowd out the rest
+      const share = Math.floor(60_000 / list.length);
+      return { text: list.map((file) => {
+        let body: string;
+        try {
+          body = read(file, share);
+        } catch (e) {
+          body = `Error: ${(e as Error).message}`;
+        }
+        return `===== ${file} =====\n${body}`;
+      }).join('\n\n') };
     },
   },
   {
     name: 'write_file',
     group: 'files',
     risk: 'low',
-    description: 'Create or overwrite a text file in your workspace or an allowed folder. Returns the full path.',
+    description: 'Create or overwrite a text file in your workspace or an allowed folder. Returns the full path. To change part of a file, use edit_file.',
     parameters: obj({ path: str('File path (relative = workspace)'), content: str('File contents') }, ['path', 'content']),
     run: async ({ path: p, content }: { path: string; content: string }, ctx) => {
       const { abs, real, ok } = resolveInside(ctx.agent, p, { write: true });
@@ -1105,6 +1132,52 @@ const TOOLS: ToolDef[] = [
       ensureDir(path.dirname(real));
       fs.writeFileSync(real, content);
       return { text: `Wrote ${abs} (${Buffer.byteLength(content)} bytes)` };
+    },
+  },
+  {
+    name: 'edit_file',
+    group: 'files',
+    // like write_file: it changes a file in the folders the agent may write to
+    risk: 'low',
+    description: 'Change part of a text file, without sending all of it again: each edit replaces old (the exact text, there exactly once; set all to replace every one) with new. Edits apply in order, and if one does not fit nothing is changed. Read the file first.',
+    parameters: obj(
+      {
+        path: str('File path (relative = workspace)'),
+        edits: { type: 'array', minItems: 1, items: obj({ old: str('The exact text to replace, with enough around it to be found only once'), new: str('The text to put there instead'), all: { type: 'boolean', description: 'Replace every match' } }, ['old', 'new']) },
+      },
+      ['path', 'edits'],
+    ),
+    run: async ({ path: p, edits }: { path: string; edits: files.FileEdit[] }, ctx) => {
+      const { abs, real, ok } = resolveInside(ctx.agent, p, { write: true });
+      if (!ok) throw new Error(`${abs} is outside the folders this agent may write to.`);
+      if (!exists(real)) throw new Error(`${abs} does not exist. Create it with write_file.`);
+      const r = files.applyEdits(fs.readFileSync(real, 'utf8'), edits);
+      fs.writeFileSync(real, r.text);
+      return { text: `Edited ${abs}: ${r.replaced} replacement${r.replaced === 1 ? '' : 's'}.` };
+    },
+  },
+  {
+    name: 'find_files',
+    group: 'files',
+    risk: 'none',
+    description: 'Find files by name in your workspace or an allowed folder, newest first, e.g. pattern "*.md" (any folder), "notes/**/*.txt" or "report-*.{pdf,docx}".',
+    parameters: obj({ pattern: str('Name pattern: * any characters, ** any folders, ? one character, {a,b} either'), path: str('Folder to look in (default: workspace)') }, ['pattern']),
+    run: async ({ pattern, path: p = '.' }: { pattern: string; path?: string }, ctx) => {
+      const { abs, real, ok } = resolveInside(ctx.agent, p);
+      if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
+      return { text: files.findFiles(real, abs, String(pattern ?? '')) };
+    },
+  },
+  {
+    name: 'search_files',
+    group: 'files',
+    risk: 'none',
+    description: 'Search the text files in your workspace or an allowed folder (or one file) for lines that match words or a regular expression, any case. Returns file:line: text. Narrow it with glob, e.g. "*.md".',
+    parameters: obj({ query: str('Words or a regular expression'), path: str('Folder or file to search (default: workspace)'), glob: str('Only files whose name matches, e.g. "*.ts" or "docs/**/*.md"') }, ['query']),
+    run: async ({ query, path: p = '.', glob }: { query: string; path?: string; glob?: string }, ctx) => {
+      const { abs, real, ok } = resolveInside(ctx.agent, p);
+      if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
+      return { text: files.searchFiles(real, abs, String(query ?? ''), glob ? String(glob) : undefined) };
     },
   },
   // ---------- orca ----------
@@ -1347,30 +1420,12 @@ function describeCall(name: string, args: ToolArgs): string | undefined {
   if (name === 'run_command') return args.command as string | undefined;
   if (name.endsWith('_run_script') || name.endsWith('_run_python')) return args.code as string | undefined;
   if (name === 'write_file') return `${args.path}\n\n${String(args.content || '').slice(0, 1500)}`;
+  if (name === 'edit_file') return `${args.path}\n\n${(Array.isArray(args.edits) ? args.edits : []).map((e: { old?: unknown; new?: unknown }) => `- ${String(e?.old ?? '')}\n+ ${String(e?.new ?? '')}`).join('\n\n').slice(0, 1500)}`;
   if (name === 'ffmpeg' || name === 'orca' || name === 'imagemagick') return `${name} ${((args.args as string[] | undefined) || []).join(' ')}`;
   return JSON.stringify(args, null, 2);
 }
 
 // ---------- helpers ----------
-function htmlToText(html: string): string {
-  const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1]?.trim();
-  return (title ? `Title: ${title}\n\n` : '') + html
-    .replace(/<(script|style|noscript|svg|head)[\s\S]*?<\/\1>/gi, '')
-    .replace(/<\/(p|div|h[1-6]|li|tr|br|section|article|header|footer)>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n\s*\n\s*\n+/g, '\n\n')
-    .trim();
-}
-
 // PowerShell on Windows; elsewhere the user's own shell, as a login shell so its PATH (Homebrew and so on) is there.
 function shellCommand(command: string): [string, string[]] {
   return IS_WIN ? ['powershell', ['-NoProfile', '-NonInteractive', '-Command', command]] : [process.env.SHELL || '/bin/sh', ['-lc', command]];
