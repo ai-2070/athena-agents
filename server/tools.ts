@@ -1098,7 +1098,9 @@ const TOOLS: ToolDef[] = [
     description: 'Run a PowerShell command on this PC and return its output. Starts in your workspace.',
     parameters: obj({ command: str('PowerShell command'), cwd: str('Working folder'), timeout_sec: { type: 'number' } }, ['command']),
     run: async ({ command, cwd, timeout_sec = 300 }: { command: string; cwd?: string; timeout_sec?: number }, ctx) => {
-      const r = await run('powershell', ['-NoProfile', '-NonInteractive', '-Command', command], { cwd: cwd || workspaceOf(ctx.agent), timeout: timeout_sec * 1000, signal: ctx.signal });
+      // Python run from here prints UTF-8: the pipe is the Windows code page otherwise, and a name like "Łukasz" crashes it
+      const env = { PYTHONUTF8: process.env.PYTHONUTF8 ?? '1' };
+      const r = await run('powershell', ['-NoProfile', '-NonInteractive', '-Command', command], { cwd: cwd || workspaceOf(ctx.agent), timeout: timeout_sec * 1000, signal: ctx.signal, env });
       return { text: truncate(`exit ${r.code}\n${r.stdout}${r.stderr ? `\n[stderr]\n${r.stderr}` : ''}`, 20000), isError: r.code !== 0 };
     },
   },
