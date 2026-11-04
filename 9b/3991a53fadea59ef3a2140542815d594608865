@@ -1,0 +1,49 @@
+tests/skills/stocks/conftest.py
+  s_09ac87e46cf718::t_76e8b0bb4e324c 1-229
+skills/athena/stocks/scripts/market_data.py
+  s_09ac87e46cf718::t_4e8b06a18d82a4 1-1019
+  s_09ac87e46cf718::t_26d1b2de442270 1020-1024
+tests/skills/stocks/test_market_data.py
+  s_09ac87e46cf718::t_1d78dff5faca22 1-383
+  s_09ac87e46cf718::t_c774d97cb2482a 384-402
+skills/athena/stocks/SKILL.md
+  s_09ac87e46cf718::t_ee76588f598df2 63-64
+  s_09ac87e46cf718::t_f98313e8834583 1-57,70-132
+  s_09ac87e46cf718::t_f889ddc0e7c87e 58-62,65-69
+tests/skills/stocks/responses/sec_company_tickers.json
+  s_09ac87e46cf718::t_4e2e047d57535f 1-47
+tests/skills/stocks/responses/sec_companyconcept_CIK0000320193_us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax.json
+  s_09ac87e46cf718::t_d9517c68a8ee2b 1-159
+tests/skills/stocks/responses/sec_companyconcept_CIK0001306965_ifrs-full_Revenue.json
+  s_09ac87e46cf718::t_326203e0a6e422 1-65
+tests/skills/stocks/responses/sec_companyfacts_CIK0000320193.json
+  s_09ac87e46cf718::t_53dd95b2098cf1 1-286
+tests/skills/stocks/responses/sec_submissions_CIK0000320193-submissions-001.json
+  s_09ac87e46cf718::t_a8984e7b814d64 1-82
+tests/skills/stocks/responses/sec_submissions_CIK0000320193.json
+  s_09ac87e46cf718::t_b3d3212c64e80d 1-198
+tests/skills/stocks/responses/tiingo.json
+  s_09ac87e46cf718::t_44e0660f40df69 1-62
+tests/skills/stocks/responses/twelvedata_quote.json
+  s_09ac87e46cf718::t_ac3eecb6cf489e 1-59
+tests/skills/stocks/responses/twelvedata_symbol_search.json
+  s_09ac87e46cf718::t_f072d5c1072710 1-47
+tests/skills/stocks/responses/twelvedata_time_series.json
+  s_09ac87e46cf718::t_0fd91e72339b03 1-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9b3991a53fadea59ef3a2140542815d594608865",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
