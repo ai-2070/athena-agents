@@ -111,57 +111,68 @@ describe("Athena's agents", () => {
     expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
+  // Both checks list every problem in every file, so one half-written file doesn't hide the others.
   it('gives every agent what the card, the hire and the Brain need', () => {
     const tools = new Set(TOOL_GROUPS.map((g) => g.id));
     const skills = new Set(shippedSkillSlugs());
+    const problems: string[] = [];
     for (const { group, file } of files) {
       const { meta } = parseFrontmatter(fs.readFileSync(file, 'utf8'));
       const at = path.relative(dir, file);
-      for (const k of Object.keys(meta)) expect(KEYS.has(k), `${at}: unknown key "${k}"`).toBe(true);
-      expect(meta.name, at).toBeTruthy();
-      expect(meta.description, at).toBeTruthy();
+      const check = (ok: unknown, why: string) => void (ok || problems.push(`${at}: ${why}`));
+      for (const k of Object.keys(meta)) check(KEYS.has(k), `unknown key "${k}"`);
+      check(meta.name, 'no name');
+      check(meta.description, 'no description');
       // the Brain reads every description when it picks teammates
-      expect(meta.description.split(/\s+/).length, `${at}: description too long`).toBeLessThanOrEqual(35);
-      expect(meta.description, `${at}: description is more than one sentence`).not.toMatch(/[.!?;]\s+[A-Z]/);
-      expect(meta.emoji, at).toBeTruthy();
-      expect(meta.color, at).toMatch(/^#[0-9a-f]{6}$/i);
+      check((meta.description || '').split(/\s+/).length <= 35, 'description too long');
+      check(!/[.!?;]\s+[A-Z]/.test(meta.description || ''), 'description is more than one sentence');
+      check(meta.emoji, 'no emoji');
+      check(/^#[0-9a-f]{6}$/i.test(meta.color || ''), 'colour is not a hex');
       // it finishes "You are <name>, <specialty>."
-      expect(meta.specialty, at).toMatch(/^[a-z][^\n]*[^.]$/);
-      expect(meta.group, at).toBe(group);
-      const a = library.libraryAgents().find((x) => x.file === file)!;
+      check(/^[a-z][^\n]*[^.]$/.test(meta.specialty || ''), 'specialty is not a lower-case phrase without a full stop');
+      check(meta.group === group, `group "${meta.group}" is not its folder`);
+      const a = library.libraryAgents().find((x) => x.file === file);
+      if (!a) {
+        problems.push(`${at}: not listed`);
+        continue;
+      }
       // every agent can run a command and ask a teammate when its work needs one
-      expect(a.tools, `${at}: no shell`).toContain('shell');
-      expect(a.tools, `${at}: no agents`).toContain('agents');
-      for (const t of a.tools) expect(tools.has(t), `${at}: unknown tool group "${t}"`).toBe(true);
-      for (const s of a.skills) expect(skills.has(s), `${at}: unknown skill "${s}"`).toBe(true);
-      if (a.engine) expect(ENGINE_IDS, at).toContain(a.engine);
-      if (meta.starter) expect(meta.starter, at).toBe('true');
+      check(a.tools.includes('shell'), 'no shell');
+      check(a.tools.includes('agents'), 'no agents');
+      for (const t of a.tools) check(tools.has(t), `unknown tool group "${t}"`);
+      for (const sk of a.skills) check(skills.has(sk), `unknown skill "${sk}"`);
+      check(!a.engine || (ENGINE_IDS as readonly string[]).includes(a.engine), `unknown engine "${a.engine}"`);
+      check(!meta.starter || meta.starter === 'true', 'starter is not "true"');
     }
+    expect(problems).toEqual([]);
     // the Home page's starter team
     expect(library.libraryAgents().filter((a) => a.starter).map((a) => a.name).sort()).toEqual(['3D Artist', 'Coordinator', 'Image Maker', 'Mail Assistant', 'Researcher', 'Video Editor', 'World Builder', 'X Writer']);
   });
 
-  it("is written to the standard, not the old Agency template", () => {
+  it('is written to the standard, not the old Agency template', () => {
+    // a role is a starting point, not a fence, and the model's limits come from its tools at run time
+    const FENCE = /outside (?:of )?your (?:scope|role|remit)|\bnot your (?:job|role)\b|\byou (?:cannot|can't|are unable to|are not able to) (?:see|view|browse|run code|execute|access the internet|open files)\b/i;
+    const problems: string[] = [];
     for (const { file } of files) {
       const text = fs.readFileSync(file, 'utf8');
       const { body } = parseFrontmatter(text);
       const at = path.relative(dir, file);
+      const check = (ok: boolean, why: string) => void (ok || problems.push(`${at}: ${why}`));
       const lines = text.split(/\r?\n/).length;
-      expect(lines, `${at}: ${lines} lines`).toBeGreaterThanOrEqual(40);
-      // no length limit; this only catches a runaway file
-      expect(lines, `${at}: ${lines} lines`).toBeLessThanOrEqual(400);
+      // no length limit; the upper bound only catches a runaway file
+      check(lines >= 40 && lines <= 400, `${lines} lines`);
       // the dashboard already says "You are <name>, <specialty>."
-      expect(body.trimStart(), at).not.toMatch(/^(?:#.*\n+)?You are\b/);
-      expect(body, `${at}: emoji in a heading`).not.toMatch(/^#{1,6}\s.*\p{Extended_Pictographic}/mu);
-      expect(body, at).not.toMatch(/Identity & Memory|Success Metrics|\bYou remember\b/i);
+      check(!/^(?:#.*\n+)?You are\b/.test(body.trimStart()), 'opens with "You are"');
+      check(!/^#{1,6}\s.*\p{Extended_Pictographic}/mu.test(body), 'emoji in a heading');
+      check(!/Identity & Memory|Success Metrics|\bYou remember\b/i.test(body), 'old Agency template wording');
+      check(!FENCE.test(body), 'fences the role in');
       // wrapped at 120 characters, tables and code blocks aside
       let code = false;
       for (const [i, line] of body.split(/\r?\n/).entries()) {
         if (/^\s*```/.test(line)) code = !code;
-        else if (!code && !line.startsWith('|')) expect(line.length, `${at}: body line ${i + 1} is ${line.length} characters`).toBeLessThanOrEqual(120);
+        else if (!code && !line.startsWith('|')) check(line.length <= 120, `body line ${i + 1} is ${line.length} characters`);
       }
-      // a role is a starting point, not a fence, and the model's limits come from its tools at run time
-      expect(body, `${at}: fences the role in`).not.toMatch(/outside (?:of )?your (?:scope|role|remit)|\bnot your (?:job|role)\b|\byou (?:cannot|can't|are unable to|are not able to) (?:see|view|browse|run code|execute|access the internet|open files)\b/i);
     }
+    expect(problems).toEqual([]);
   });
 });
