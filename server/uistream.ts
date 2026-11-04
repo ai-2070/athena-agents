@@ -64,12 +64,15 @@ export class TurnChunks {
     else if (e.kind === 'tool') this.tool(e.id, e.name, e.args);
     else if (e.kind === 'tool_result') this.result(e.id, e.text, e.images, e.isError);
     else if (e.kind === 'status') this.status(e.text);
+    // a message that joined the turn: shown where it came in
+    else if (e.kind === 'steer') this.data('steer', { steerId: e.id, text: e.text, ...(e.from ? { from: e.from } : {}), ...(e.attachments?.length ? { attachments: e.attachments } : {}) });
   }
   /** The turn so far, from the saved items (everything after the last message to the agent). */
   replay(items: readonly ChatItem[]): void {
     const from = items.findLastIndex((i) => i.type === 'user') + 1;
     for (const it of items.slice(from)) {
       if (it.type === 'assistant') this.text(it.text);
+      else if (it.type === 'steer') this.data('steer', { steerId: it.steerId, text: it.text, ...(it.from ? { from: it.from } : {}), ...(it.attachments?.length ? { attachments: it.attachments } : {}) });
       else if (it.type === 'tool') {
         this.tool(it.id, it.name, it.args);
         if (it.result != null && it.status !== 'running') this.result(it.id, it.result, it.images, it.isError);
@@ -96,13 +99,17 @@ export interface StreamRunOptions {
   items?: readonly ChatItem[];
   /** How often a keep-alive comment goes out while a tool runs (ms). */
   keepAliveMs?: number;
+  /** the message this stream's request sent into the turn going on: the view shows it already */
+  ownSteer?: string;
+  /** whether the run is still going: one that ended before the stream began ends it at once */
+  live?: (runId: string) => boolean;
 }
 
 // a run you stopped (or stopped for your new message) didn't fail
 const STOPPED = new Set(['Stopped.', 'Stopped to take your new message.']);
 
 /** Streams the run into the response until it ends (or the browser goes away). */
-export function streamRun(res: http.ServerResponse, { chatId, runId, items = [], keepAliveMs = 15_000, waiting = 'Waiting…' }: StreamRunOptions): Promise<void> {
+export function streamRun(res: http.ServerResponse, { chatId, runId, items = [], keepAliveMs = 15_000, waiting = 'Waiting…', ownSteer, live }: StreamRunOptions): Promise<void> {
   res.writeHead(200, { ...UI_MESSAGE_STREAM_HEADERS, 'cache-control': 'no-store' });
   const write = (chunk: UIMessageChunk) => res.write(`data: ${JSON.stringify(chunk)}\n\n`);
   const w = new TurnChunks(write);
@@ -125,6 +132,7 @@ export function streamRun(res: http.ServerResponse, { chatId, runId, items = [],
     const listen = (ev: ServerEvent) => {
       if (ev.type !== 'run' || ev.chatId !== chatId || id == null || ev.runId !== id) return;
       const e = ev.event as RunEvent;
+      if (e.kind === 'steer' && e.id === ownSteer) return;
       // a run that failed ends the stream with the AI SDK's error (useChat's onError); "Stopped." is you
       if (e.kind === 'error' && e.text && !STOPPED.has(e.text)) write({ type: 'error', errorText: e.text });
       if (e.kind === 'done' || e.kind === 'error') end();
@@ -136,6 +144,8 @@ export function streamRun(res: http.ServerResponse, { chatId, runId, items = [],
     bus.on('event', listen);
     const alive = setInterval(() => res.write(': keep-alive\n\n'), keepAliveMs);
     res.on('close', () => end(false));
+    // (it ended before anyone listened: its done event went already)
+    if (id != null && live && !live(id)) return void end();
     if (typeof runId !== 'string') {
       w.status(waiting);
       // (its first events come later: a run streams only once its engine answers)

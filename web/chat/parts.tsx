@@ -267,20 +267,26 @@ export interface MessageViewProps {
   owner?: QuestionOwner | null;
 }
 
+/** Your message (or another agent's to this one), with its files. joined: sent while it worked, and taken into that turn. */
+function UserBubble({ text, attachments, from, variant, dim, joined = false }: { text: string; attachments: readonly string[]; from?: string | null; variant: Variant; dim: boolean; joined?: boolean }) {
+  const paths = [...attachments, ...findFileMentions(text)];
+  const cls = variant === 'compact' ? AC_USER : variant === 'mini' ? ST_USER : 'msg user';
+  return (
+    <>
+      <div className={`${cls}${joined ? ' joined' : ''}${dim ? ' compacted' : ''}`}>
+        {from && variant === 'full' ? <div className="from">from {from}</div> : null}
+        {text ? variant === 'compact' ? <div>{text}</div> : text : null}
+      </div>
+      {joined ? <div className="joined-note -mt-1 self-end text-[12px] leading-[normal] text-faint">Read while it worked</div> : null}
+      {paths.length ? <Previews paths={paths} small={variant !== 'full'} /> : null}
+    </>
+  );
+}
+
 export function MessageView({ m, variant, busy, streaming, dim, onSend, owner }: MessageViewProps) {
   if (m.role === 'user') {
     const { text, attachments } = readUser(m);
-    const paths = [...attachments, ...findFileMentions(text)];
-    const cls = variant === 'compact' ? AC_USER : variant === 'mini' ? ST_USER : 'msg user';
-    return (
-      <>
-        <div className={`${cls}${dim ? ' compacted' : ''}`}>
-          {m.metadata?.from && variant === 'full' ? <div className="from">from {m.metadata.from}</div> : null}
-          {text ? variant === 'compact' ? <div>{text}</div> : text : null}
-        </div>
-        {paths.length ? <Previews paths={paths} small={variant !== 'full'} /> : null}
-      </>
-    );
+    return <UserBubble text={text} attachments={attachments} from={m.metadata?.from} variant={variant} dim={dim} />;
   }
   const lastText = m.parts.findLastIndex((p) => p.type === 'text');
   return (
@@ -299,6 +305,10 @@ export function MessageView({ m, variant, busy, streaming, dim, onSend, owner }:
           const e = p.data as { text: string; stopped?: string };
           const quiet = !!e.stopped || STOP_LINES.has(e.text.trim());
           return <div key={key} className={quiet ? 'st-stopped self-stretch py-2 text-center text-[13px] text-dim' : variant === 'full' ? 'msg error' : variant === 'compact' ? AC_ERR : ST_ERR}>{e.text}</div>;
+        }
+        if (p.type === 'data-steer') {
+          const s = p.data as { text: string; from?: string | null; attachments?: string[] };
+          return <UserBubble key={key} text={s.text} attachments={s.attachments || []} from={s.from} variant={variant} dim={dim} joined />;
         }
         if (p.type === 'data-meta') return variant === 'full' ? <div key={key} className="msg meta">{(p.data as { text: string }).text}</div> : null;
         return null;

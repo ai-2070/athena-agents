@@ -12,7 +12,7 @@ import { recordAsked, recordToolCall } from '../toolstats.ts';
 import { approvalFingerprint, cancelDurableApproval, durableApproval, ensureDurableApproval } from '../approvals.ts';
 import type { ApprovalRequest } from '../approvals.ts';
 import * as mcp from '../mcp.ts';
-import { attachSession, readRun, readRunSummary, recordCharge, recordConfiguration, recordCostBaseline, recordLimit, sessionContext, setRunStatus, workingRunOf } from './state.ts';
+import { attachSession, awaitingTakeover, readRun, readRunSummary, recordCharge, recordConfiguration, recordCostBaseline, recordLimit, sessionContext, setRunStatus, workingRunOf } from './state.ts';
 import { executeOperation, operationId, prepareOperation, readOperation, saveOperation } from './operations.ts';
 import { canonical } from '../../shared/canonical.ts';
 import { admissionHistory, admissionSelection } from './admission.ts';
@@ -47,8 +47,21 @@ function modelOf(runId: string, agent: Agent, chat: Chat): Promise<EveModelSelec
   return admitted ? Promise.resolve(admitted) : runSelection(runId, () => selectEveModel(agent, chat));
 }
 
+/** A turn Eve started with a message that arrived as the turn before it ended asks for its settings before a run
+ *  follows it: it waits a moment for that run (takeOverSteers) rather than failing. */
+async function startingContext(bindingId: string, sessionId: string) {
+  for (let waited = 0; ; waited += 100) {
+    try {
+      return invocationContext(bindingId, sessionId);
+    } catch (error) {
+      if (waited >= 15000 || !awaitingTakeover(bindingId)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+}
+
 export async function eveConfiguration(bindingId: string, sessionId: string, nativeCost = 0): Promise<EveRuntimeConfiguration> {
-  const { binding, project, agent, chat, run } = invocationContext(bindingId, sessionId);
+  const { binding, project, agent, chat, run } = await startingContext(bindingId, sessionId);
   const costBaseline = recordCostBaseline(run.id, nativeCost);
   return withProject(project, async () => {
     const selection = await modelOf(run.id, agent, chat);

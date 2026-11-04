@@ -1,4 +1,4 @@
-import { readRun, recordEvents, recordTurn } from './state.ts';
+import { joinDelivery, readRun, recordEvents, recordTurn } from './state.ts';
 import { operationsForRun, saveOperation } from './operations.ts';
 import { cancelDurableApproval } from '../approvals.ts';
 import type { SessionStreamEvent } from 'eve/client';
@@ -14,11 +14,16 @@ export function projectEvent(runId: string, source: SessionStreamEvent): { id: s
   if (!run) throw new Error('No such Eve run.');
   const position = source.meta.position;
   if (run.cursor && (position.line < run.cursor.line || position.line === run.cursor.line && position.index <= run.cursor.index)) return [];
+  // (a run following a turn Eve started with a late message reads from that message on: the end of the
+  // turn before, still going when the message came, isn't its own)
+  if (run.adopted && !run.turnId && source.type !== 'delivery.consumed') return recordEvents(runId, position, []);
   const events: RunEvent[] = [];
   let partId: string | undefined;
   switch (source.type) {
     case 'delivery.consumed':
       if (source.data.deliveryId === run.deliveryId) recordTurn(runId, source.data.turnId);
+      // a message sent while it worked, taken into its turn
+      else if (run.turnId && source.data.turnId === run.turnId) joinDelivery(runId, source.data.deliveryId);
       break;
     case 'interaction.opened': {
       const subject = source.data.subject;
