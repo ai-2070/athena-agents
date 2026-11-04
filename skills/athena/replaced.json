@@ -1,5 +1,5 @@
 {
-  "//": "Where each Hermes skill went. sha256 is its SKILL.md as the dashboard shipped it (line endings as \\n), so an installed copy nobody changed can be brought up to date.",
+  "//": "Where each Hermes skill went. sha256 is its SKILL.md as the dashboard shipped it (line endings as \\n); fingerprint is the whole folder's (server/skills.ts skillFingerprint), so an installed copy nobody changed is brought up to date.",
   "from": {
     "repo": "NousResearch/hermes-agent",
     "commit": "80057598ae39567800b34ebd637f52cc83d11945"
@@ -8,257 +8,308 @@
     "3-statement-model": {
       "now": "financial-models",
       "path": "optional-skills/finance/3-statement-model",
-      "sha256": "157f7c8a3ffce31280853d31dc4dcb5af0872165a8b6f5dd340c328e9190a85d"
+      "sha256": "157f7c8a3ffce31280853d31dc4dcb5af0872165a8b6f5dd340c328e9190a85d",
+      "fingerprint": "c2aeea9e8caaeee3e5f7bf51f2a55dcac107279d737458ee76fd8fc5142aba2d"
     },
     "architecture-diagram": {
       "now": "concept-diagrams",
       "path": "skills/creative/architecture-diagram",
-      "sha256": "0e7e2736aafe052e409c2ad27863d51ef3007c116711e584033787ccb5d99d3f"
+      "sha256": "0e7e2736aafe052e409c2ad27863d51ef3007c116711e584033787ccb5d99d3f",
+      "fingerprint": "384912d304d1678053375518b8bc599cae637e20d1090f9ff238053ee2074979"
     },
     "arxiv": {
       "now": "arxiv",
       "path": "skills/research/arxiv",
-      "sha256": "9b41877bcb64166dc2355a43aedd3198c3e5214af67f09e1d1b717a989d92f72"
+      "sha256": "9b41877bcb64166dc2355a43aedd3198c3e5214af67f09e1d1b717a989d92f72",
+      "fingerprint": "e423cb9255ef83eb9bc661469ef106071d1464696f5067b696a0cccc287a2d53"
     },
     "ast-grep": {
       "now": "ast-grep",
       "path": "optional-skills/software-development/ast-grep",
-      "sha256": "e5404b443ee1b74da558d1ea6d3bfac888061a93561138adf500c0a4b124fe47"
+      "sha256": "e5404b443ee1b74da558d1ea6d3bfac888061a93561138adf500c0a4b124fe47",
+      "fingerprint": "bbca563331883bf8d75fa14bdbc6e11dd65eff96a848fe7e81f6f2953133e094"
     },
     "comfyui": {
       "now": "comfyui",
       "path": "optional-skills/creative/comfyui",
-      "sha256": "1013a06bf6accc0cbcb43a7dbb6e31130ed7e692b4db454877ccb38fbe66815e"
+      "sha256": "1013a06bf6accc0cbcb43a7dbb6e31130ed7e692b4db454877ccb38fbe66815e",
+      "fingerprint": "1c0ccb2c1d631b58aaff25d4169b6ca64b7d67bc313b66625c4e0e9439ad14c0"
     },
     "comps-analysis": {
       "now": "financial-models",
       "path": "optional-skills/finance/comps-analysis",
-      "sha256": "e2f8bef4c256c053e0a482704a5c4dfed5df2a1f37dffb1c663a3fd0c90273d7"
+      "sha256": "e2f8bef4c256c053e0a482704a5c4dfed5df2a1f37dffb1c663a3fd0c90273d7",
+      "fingerprint": "e2f8bef4c256c053e0a482704a5c4dfed5df2a1f37dffb1c663a3fd0c90273d7"
     },
     "concept-diagrams": {
       "now": "concept-diagrams",
       "path": "optional-skills/creative/concept-diagrams",
-      "sha256": "ae9bea1de66fb6e10a03520356458f7b3abf10fee5bd74d056f9ffce408bd558"
+      "sha256": "ae9bea1de66fb6e10a03520356458f7b3abf10fee5bd74d056f9ffce408bd558",
+      "fingerprint": "50ccc589b631afedd4feefa3904565d72343ff9f773476228ffa21e96da10b0c"
     },
     "dcf-model": {
       "now": "financial-models",
       "path": "optional-skills/finance/dcf-model",
-      "sha256": "511ed28a3d1d602c71af7a0892dbbccf629e1e5505af84824a6c893d1ecba28d"
+      "sha256": "511ed28a3d1d602c71af7a0892dbbccf629e1e5505af84824a6c893d1ecba28d",
+      "fingerprint": "73772999de4ce90d4bd93f9caeadd30a4c103172813f278f779e352d0b552278"
     },
     "decision-questionnaire": {
       "now": "decisions",
       "path": "optional-skills/productivity/decision-questionnaire",
-      "sha256": "84a781708b86a797e41d4a0b9234d4da48f95d14fc9cee23a0eb2cf8574e8ca2"
+      "sha256": "84a781708b86a797e41d4a0b9234d4da48f95d14fc9cee23a0eb2cf8574e8ca2",
+      "fingerprint": "84a781708b86a797e41d4a0b9234d4da48f95d14fc9cee23a0eb2cf8574e8ca2"
     },
     "design-md": {
       "now": "design-md",
       "path": "skills/creative/design-md",
-      "sha256": "7ed56bba40ffc9573fa51b33b2424f37fb5f774e9ecb7e76e737797afd0b62ae"
+      "sha256": "7ed56bba40ffc9573fa51b33b2424f37fb5f774e9ecb7e76e737797afd0b62ae",
+      "fingerprint": "ed8e948080efa832dcbb063f1bb5f2021908dbe40da6b56b6e35fb06e0f45339"
     },
     "docker-management": {
       "now": "docker-management",
       "path": "optional-skills/devops/docker-management",
-      "sha256": "6425a2cf3f682f4b6812522dcb7ceaea7dab9ba0fbf159fb900280edc5f69e50"
+      "sha256": "6425a2cf3f682f4b6812522dcb7ceaea7dab9ba0fbf159fb900280edc5f69e50",
+      "fingerprint": "6425a2cf3f682f4b6812522dcb7ceaea7dab9ba0fbf159fb900280edc5f69e50"
     },
     "document-to-action-items": {
       "now": "action-items",
       "path": "skills/productivity/document-to-action-items",
-      "sha256": "8a7556754aca2a7d04d38847131fb4db8d6705fa2106fcb154279e26117b41ee"
+      "sha256": "8a7556754aca2a7d04d38847131fb4db8d6705fa2106fcb154279e26117b41ee",
+      "fingerprint": "8a7556754aca2a7d04d38847131fb4db8d6705fa2106fcb154279e26117b41ee"
     },
     "docx": {
       "now": "docx",
       "path": "skills/productivity/docx",
-      "sha256": "9678b14d5e7841d588b969f6a4696cd46bcc46c3e4ac1479edc7656a051aa5ff"
+      "sha256": "9678b14d5e7841d588b969f6a4696cd46bcc46c3e4ac1479edc7656a051aa5ff",
+      "fingerprint": "b073309ba3c10aefc0ae04c13a9d98cf92a2c044fdb788ccb3f0ff348d4d8215"
     },
     "dogfood": {
       "now": "dogfood",
       "path": "skills/software-development/dogfood",
-      "sha256": "b0c93d87d160da63ad489743880bdcee634ccb7f5b68c15a668ef80048b37916"
+      "sha256": "b0c93d87d160da63ad489743880bdcee634ccb7f5b68c15a668ef80048b37916",
+      "fingerprint": "8a1099997a87475bf04161f3bcd74aa6197f9f6c90e1c5ba95e71397796f8cac"
     },
     "duckduckgo-search": {
       "now": null,
       "path": "optional-skills/research/duckduckgo-search",
-      "sha256": "ea5ee32dee8ba94efc7e733086c0c71d23135850ca3dd8d377822c0c6fe31939"
+      "sha256": "ea5ee32dee8ba94efc7e733086c0c71d23135850ca3dd8d377822c0c6fe31939",
+      "fingerprint": "3b3f2bfb743e7de1fc7b530f060d53789aa86ebee4fa17facb9e1a4d794a1452"
     },
     "email-inbox-triage": {
       "now": "email",
       "path": "skills/email/email-inbox-triage",
-      "sha256": "deeade1bb70f8835b2f3158980030b8aa41bb1ea6f798631451c89cfd632bcc8"
+      "sha256": "deeade1bb70f8835b2f3158980030b8aa41bb1ea6f798631451c89cfd632bcc8",
+      "fingerprint": "deeade1bb70f8835b2f3158980030b8aa41bb1ea6f798631451c89cfd632bcc8"
     },
     "excalidraw": {
       "now": "excalidraw",
       "path": "optional-skills/creative/excalidraw",
-      "sha256": "cb0558445251fc1087a99dd85b445b83565a98aef6d3e0874641000f7e89e253"
+      "sha256": "cb0558445251fc1087a99dd85b445b83565a98aef6d3e0874641000f7e89e253",
+      "fingerprint": "976d15c86a228bcd2c70938d1a409e021d53b5b746058d43e54bdb65cd295865"
     },
     "excel-author": {
       "now": "financial-models",
       "path": "optional-skills/finance/excel-author",
-      "sha256": "f0228fe29411fc841dde1b93fe26965fade3431f396517027b610d4cf4a57988"
+      "sha256": "f0228fe29411fc841dde1b93fe26965fade3431f396517027b610d4cf4a57988",
+      "fingerprint": "1a680cc1bbd75f5adde02713024c1e3b158fc2132303f88d3f48e7b3792cd22b"
     },
     "fastmcp": {
       "now": "fastmcp",
       "path": "optional-skills/mcp/fastmcp",
-      "sha256": "f4072408b8b5e4bf170deae0db48534ea838f45200f86c8735f595331180cc08"
+      "sha256": "f4072408b8b5e4bf170deae0db48534ea838f45200f86c8735f595331180cc08",
+      "fingerprint": "e7e63fde884f0e0baedc6c4c00a38a6daf1615aed8b50e1057b3e7ab9eff603f"
     },
     "github": {
       "now": "github",
       "path": "skills/software-development/github",
-      "sha256": "9d70e7c842fe7db75b5a50526552a69862f5bcfc1e59aa93785241649a09d5a3"
+      "sha256": "9d70e7c842fe7db75b5a50526552a69862f5bcfc1e59aa93785241649a09d5a3",
+      "fingerprint": "44d21bc0bacaf2d62c5b055f3278fe990a0fc1c79798dff93fe5c49aa1618a33"
     },
     "grill-me": {
       "now": "grill-me",
       "path": "optional-skills/software-development/grill-me",
-      "sha256": "6e3b3b81c1ad3a0b3ba3d36ec725e376d225e7867bfbf23a5129cf245e94bb0c"
+      "sha256": "6e3b3b81c1ad3a0b3ba3d36ec725e376d225e7867bfbf23a5129cf245e94bb0c",
+      "fingerprint": "6e3b3b81c1ad3a0b3ba3d36ec725e376d225e7867bfbf23a5129cf245e94bb0c"
     },
     "grounded-citations": {
       "now": "grounded-citations",
       "path": "skills/research/grounded-citations",
-      "sha256": "1e022ba6244fc68825127183d4632263f47d64dc857ea8d65c5e86d605b74f38"
+      "sha256": "1e022ba6244fc68825127183d4632263f47d64dc857ea8d65c5e86d605b74f38",
+      "fingerprint": "e7effab811bbd9dcba48a7d17d90271139222e24ad6c67045f8dfefd5da32ed1"
     },
     "himalaya": {
       "now": "email",
       "path": "skills/email/himalaya",
-      "sha256": "0f6c9bb4c0a5c4f4627e139b6beb2b1ba0addd7145895196528b8125929e3837"
+      "sha256": "0f6c9bb4c0a5c4f4627e139b6beb2b1ba0addd7145895196528b8125929e3837",
+      "fingerprint": "9dcfe769549d0972b1d8de4178fc6f51d44a382bfd267090b2747d13380074da"
     },
     "humanizer": {
       "now": "humanizer",
       "path": "skills/creative/humanizer",
-      "sha256": "887d5e3467a682da9b166e5293007f8bbbc299f8a6718ae00f26161b7d062b04"
+      "sha256": "887d5e3467a682da9b166e5293007f8bbbc299f8a6718ae00f26161b7d062b04",
+      "fingerprint": "1813693fe3ebc26814aa2d999d918b0e7452235b0571f9d0789447ced7ca9ac2"
     },
     "hyperframes": {
       "now": "hyperframes",
       "path": "optional-skills/creative/hyperframes",
-      "sha256": "65f32ac7049ce5cf2fd6f70290597f13a17817e093dbc6d2c3bc020355693728"
+      "sha256": "65f32ac7049ce5cf2fd6f70290597f13a17817e093dbc6d2c3bc020355693728",
+      "fingerprint": "38adbfe03051f0a1084b2ee243a00a0d43b5b6ea53021467bb3bf81c5a0f924d"
     },
     "jupyter-notebook": {
       "now": "jupyter-notebook",
       "path": "optional-skills/data-science/jupyter-notebook",
-      "sha256": "d6cde84618f8c741f8f61eeb3100afdbd2a8b5485ea2e0b1a28d8b6880eefa37"
+      "sha256": "d6cde84618f8c741f8f61eeb3100afdbd2a8b5485ea2e0b1a28d8b6880eefa37",
+      "fingerprint": "d6cde84618f8c741f8f61eeb3100afdbd2a8b5485ea2e0b1a28d8b6880eefa37"
     },
     "lbo-model": {
       "now": "financial-models",
       "path": "optional-skills/finance/lbo-model",
-      "sha256": "57e90190be3c405d8eb4b30698180aaeed82f5d10469ba507534a1e4730b7099"
+      "sha256": "57e90190be3c405d8eb4b30698180aaeed82f5d10469ba507534a1e4730b7099",
+      "fingerprint": "57e90190be3c405d8eb4b30698180aaeed82f5d10469ba507534a1e4730b7099"
     },
     "llm-wiki": {
       "now": "llm-wiki",
       "path": "skills/research/llm-wiki",
-      "sha256": "0229e37c1783fcac5b77cfb3242703666cf4aa472d2ae85b6bd5279756b515b6"
+      "sha256": "0229e37c1783fcac5b77cfb3242703666cf4aa472d2ae85b6bd5279756b515b6",
+      "fingerprint": "0229e37c1783fcac5b77cfb3242703666cf4aa472d2ae85b6bd5279756b515b6"
     },
     "manim-video": {
       "now": "manim-video",
       "path": "skills/creative/manim-video",
-      "sha256": "467376469fc2043e2674a843509f8eea52660791e76fb2e142074ecd4abc7e69"
+      "sha256": "467376469fc2043e2674a843509f8eea52660791e76fb2e142074ecd4abc7e69",
+      "fingerprint": "b5e409778d59ba215d0af94b3b2dc0f07a30881098e56afc8c2574df7e5927c8"
     },
     "maps": {
       "now": "maps",
       "path": "skills/productivity/maps",
-      "sha256": "775ef9f79be9cd147bc81e0c4a4ef952230a04736a6082f44dbac78554ef89ab"
+      "sha256": "775ef9f79be9cd147bc81e0c4a4ef952230a04736a6082f44dbac78554ef89ab",
+      "fingerprint": "c2cdde899acf7b31bb70b3e7e39a5e6069594edb58e5b2eaac7938498bf06896"
     },
     "mcporter": {
       "now": "fastmcp",
       "path": "optional-skills/mcp/mcporter",
-      "sha256": "39be15caad8f01f0e32ace926807876c772796d04e128739b250a442f5772305"
+      "sha256": "39be15caad8f01f0e32ace926807876c772796d04e128739b250a442f5772305",
+      "fingerprint": "39be15caad8f01f0e32ace926807876c772796d04e128739b250a442f5772305"
     },
     "meeting-action-items": {
       "now": "action-items",
       "path": "skills/productivity/meeting-action-items",
-      "sha256": "1902f782551da96ee1f9b34d6f13af627f06150a498d874b0cc2a75d06d35aa8"
+      "sha256": "1902f782551da96ee1f9b34d6f13af627f06150a498d874b0cc2a75d06d35aa8",
+      "fingerprint": "1902f782551da96ee1f9b34d6f13af627f06150a498d874b0cc2a75d06d35aa8"
     },
     "merger-model": {
       "now": "financial-models",
       "path": "optional-skills/finance/merger-model",
-      "sha256": "947c68f8e9d31c124ae37fc5da95a794c0e206e4a4f577f26ca2fe0512e44755"
+      "sha256": "947c68f8e9d31c124ae37fc5da95a794c0e206e4a4f577f26ca2fe0512e44755",
+      "fingerprint": "947c68f8e9d31c124ae37fc5da95a794c0e206e4a4f577f26ca2fe0512e44755"
     },
     "obsidian": {
       "now": "obsidian",
       "path": "skills/note-taking/obsidian",
-      "sha256": "7aea4e8f89f94ab2876d79898d10a5d4cdab31390c53f72ad6934b071179f826"
+      "sha256": "7aea4e8f89f94ab2876d79898d10a5d4cdab31390c53f72ad6934b071179f826",
+      "fingerprint": "7aea4e8f89f94ab2876d79898d10a5d4cdab31390c53f72ad6934b071179f826"
     },
     "one-three-one-rule": {
       "now": "decisions",
       "path": "optional-skills/communication/one-three-one-rule",
-      "sha256": "31ae7d7c5fc127d7f49d3282c3f93e3e3c3afa295f9bbd6660cc88ca9248248b"
+      "sha256": "31ae7d7c5fc127d7f49d3282c3f93e3e3c3afa295f9bbd6660cc88ca9248248b",
+      "fingerprint": "31ae7d7c5fc127d7f49d3282c3f93e3e3c3afa295f9bbd6660cc88ca9248248b"
     },
     "p5js": {
       "now": "p5js",
       "path": "skills/creative/p5js",
-      "sha256": "3b39b75303e082af69b3f4e2deab7a55b27d60293eff6a561fb627188194a33e"
+      "sha256": "3b39b75303e082af69b3f4e2deab7a55b27d60293eff6a561fb627188194a33e",
+      "fingerprint": "76f89b98652c009902acfeb726ad061360e23799aa5e66c0ba453d2d6446fc92"
     },
     "pdf": {
       "now": "pdf",
       "path": "skills/productivity/pdf",
-      "sha256": "c16b9c159a3a0b49353bfcd10c498b02aef3d319207b1019aa7dc8db129d06ab"
+      "sha256": "c16b9c159a3a0b49353bfcd10c498b02aef3d319207b1019aa7dc8db129d06ab",
+      "fingerprint": "6f53fe50135dc63c32e9490418a14975f9adbae42000d1b4d3684ceaae4c6f1d"
     },
     "pixel-art": {
       "now": "pixel-art",
       "path": "optional-skills/creative/pixel-art",
-      "sha256": "eae06833ec560c7061e5c168a83fb564832c58f14c13c836c585fa013fd07aed"
+      "sha256": "eae06833ec560c7061e5c168a83fb564832c58f14c13c836c585fa013fd07aed",
+      "fingerprint": "2f572c0a2a8ed1d0229ba9ee3fa2388c619207dc00d74c111cceffa11b4e48bc"
     },
     "powerpoint": {
       "now": "powerpoint",
       "path": "skills/productivity/powerpoint",
-      "sha256": "b71d29d9809c4464d7f8d10afabf4f22f6a26c647cf7aacb6f9faf196ebe82f2"
+      "sha256": "b71d29d9809c4464d7f8d10afabf4f22f6a26c647cf7aacb6f9faf196ebe82f2",
+      "fingerprint": "d602ced8f35d66f7ee292caa495f4a5bdef72857950b88a4ce297e15c3e801b8"
     },
     "reddit-reading": {
       "now": "rss-feeds",
       "path": "optional-skills/social-media/reddit-reading",
-      "sha256": "e97bc4c1bae5302ed1e00c18e2f60181e9ea29489705ed979cdac077c2955cc6"
+      "sha256": "e97bc4c1bae5302ed1e00c18e2f60181e9ea29489705ed979cdac077c2955cc6",
+      "fingerprint": "b077f5bb7b40953abdc67cbfd5fe833130326dd908e5b69611b3e7a100530010"
     },
     "requesting-code-review": {
       "now": "requesting-code-review",
       "path": "skills/software-development/requesting-code-review",
-      "sha256": "1e26ced9f05e357950e035b93ad1a937dd8a9e578a44d3c8d4fa734a09b7f814"
+      "sha256": "1e26ced9f05e357950e035b93ad1a937dd8a9e578a44d3c8d4fa734a09b7f814",
+      "fingerprint": "1e26ced9f05e357950e035b93ad1a937dd8a9e578a44d3c8d4fa734a09b7f814"
     },
     "rest-graphql-debug": {
       "now": "rest-graphql-debug",
       "path": "optional-skills/software-development/rest-graphql-debug",
-      "sha256": "18228139612c555dbb4a53b74039dadb53cb1163507dd9325a4fcfa3326e475d"
+      "sha256": "18228139612c555dbb4a53b74039dadb53cb1163507dd9325a4fcfa3326e475d",
+      "fingerprint": "18228139612c555dbb4a53b74039dadb53cb1163507dd9325a4fcfa3326e475d"
     },
     "rss-feeds": {
       "now": "rss-feeds",
       "path": "optional-skills/research/rss-feeds",
-      "sha256": "bdd3a7c1005cb7f1a5266b31fb464fc50d6c7b3389ad888a1e4341467be82ff8"
+      "sha256": "bdd3a7c1005cb7f1a5266b31fb464fc50d6c7b3389ad888a1e4341467be82ff8",
+      "fingerprint": "e2e13d6a8c140cb1a1ad1c1eb858e86facf4a5fc3c46d083110719db1a120d7f"
     },
     "sketch": {
       "now": "sketch",
       "path": "optional-skills/creative/sketch",
-      "sha256": "4137245d0dcdd69c477d35ae30d10ddce6411f9c411aee68301b43644a31b008"
+      "sha256": "4137245d0dcdd69c477d35ae30d10ddce6411f9c411aee68301b43644a31b008",
+      "fingerprint": "4137245d0dcdd69c477d35ae30d10ddce6411f9c411aee68301b43644a31b008"
     },
     "spike": {
       "now": "spike",
       "path": "skills/software-development/spike",
-      "sha256": "573d8fc0d6699eaf5308e742402bc02c883152ffeebe14607f164c6c538495c2"
+      "sha256": "573d8fc0d6699eaf5308e742402bc02c883152ffeebe14607f164c6c538495c2",
+      "fingerprint": "573d8fc0d6699eaf5308e742402bc02c883152ffeebe14607f164c6c538495c2"
     },
     "stocks": {
       "now": "stocks",
       "path": "optional-skills/finance/stocks",
-      "sha256": "6321095d5501cdd22a90e17ccae09efccbf9ad3d435961272bdd7c5947f73c64"
+      "sha256": "6321095d5501cdd22a90e17ccae09efccbf9ad3d435961272bdd7c5947f73c64",
+      "fingerprint": "ea41606582775c5b77548c25bb574f73974dc3ecbf712a2327167fef4cc4080a"
     },
     "systematic-debugging": {
       "now": "systematic-debugging",
       "path": "skills/software-development/systematic-debugging",
-      "sha256": "bd480f51a2e9969c88544003c30b7539b7df0b7358703f99b0495514c2dd878a"
+      "sha256": "bd480f51a2e9969c88544003c30b7539b7df0b7358703f99b0495514c2dd878a",
+      "fingerprint": "bd480f51a2e9969c88544003c30b7539b7df0b7358703f99b0495514c2dd878a"
     },
     "test-driven-development": {
       "now": "test-driven-development",
       "path": "skills/software-development/test-driven-development",
-      "sha256": "649e6ab89bd8aaad2f9b162c60321f227cff8a8cda56393f07a81d1c6825a692"
+      "sha256": "649e6ab89bd8aaad2f9b162c60321f227cff8a8cda56393f07a81d1c6825a692",
+      "fingerprint": "649e6ab89bd8aaad2f9b162c60321f227cff8a8cda56393f07a81d1c6825a692"
     },
     "weekly-review-planning": {
       "now": "weekly-review-planning",
       "path": "skills/productivity/weekly-review-planning",
-      "sha256": "a689257facb937cfca9bc5507dd9e729f287f0cd3f6abbf73448eb25f73fbaab"
+      "sha256": "a689257facb937cfca9bc5507dd9e729f287f0cd3f6abbf73448eb25f73fbaab",
+      "fingerprint": "a689257facb937cfca9bc5507dd9e729f287f0cd3f6abbf73448eb25f73fbaab"
     },
     "xlsx": {
       "now": "xlsx",
       "path": "skills/productivity/xlsx",
-      "sha256": "b302d7ac997843a757ab3c11513ea012889ebdae32f842edb44faa9a4485f19b"
+      "sha256": "b302d7ac997843a757ab3c11513ea012889ebdae32f842edb44faa9a4485f19b",
+      "fingerprint": "281515033ea2f212da204f0f961506dc6eba0bc7e284f2edc84cee18b71121b5"
     },
     "youtube-content": {
       "now": "youtube-content",
       "path": "skills/media/youtube-content",
-      "sha256": "b556a0d2a220b46b80eb011619f0c951404f4d6e2edcc8b4847faec512b55132"
+      "sha256": "b556a0d2a220b46b80eb011619f0c951404f4d6e2edcc8b4847faec512b55132",
+      "fingerprint": "c29d03a6453131dc67fabb52410029b8bd2eaf975c9918af4e448c6dfddbc09a"
     }
   }
 }
