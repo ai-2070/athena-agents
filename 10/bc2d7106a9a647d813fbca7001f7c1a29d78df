@@ -1,0 +1,31 @@
+skills/athena/llm-wiki/references/lint.md
+  s_09ac87e46cf718::t_c73038026dfa59 1-95
+  s_09ac87e46cf718::t_af346229a8b122 96
+skills/athena/llm-wiki/SKILL.md
+  s_09ac87e46cf718::t_2348d97ec9973a 1-146
+  s_09ac87e46cf718::t_cd7c0e55457f5e 147
+skills/athena/llm-wiki/references/templates.md
+  s_09ac87e46cf718::t_3b4757048999e9 1-251
+tests/skills/llm-wiki/test_wiki_lint.py
+  s_09ac87e46cf718::t_b39afc00c0d9bd 1-228
+  s_09ac87e46cf718::t_172f1c0d5403fc 229-248
+skills/athena/llm-wiki/scripts/wiki_lint.py
+  s_09ac87e46cf718::t_0945836607405c 1-606
+  s_09ac87e46cf718::t_773ac14fc01d73 607-630
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "10bc2d7106a9a647d813fbca7001f7c1a29d78df",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
