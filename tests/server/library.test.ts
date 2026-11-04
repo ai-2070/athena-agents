@@ -144,6 +144,9 @@ describe("Athena's agents", () => {
       check(!a.engine || (ENGINE_IDS as readonly string[]).includes(a.engine), `unknown engine "${a.engine}"`);
       check(!meta.starter || meta.starter === 'true', 'starter is not "true"');
     }
+    // each agent's emoji is its avatar on the cards
+    const emoji = files.map(({ file }) => parseFrontmatter(fs.readFileSync(file, 'utf8')).meta.emoji);
+    for (const e of new Set(emoji)) if (emoji.filter((x) => x === e).length > 1) problems.push(`emoji ${e} is used by more than one agent`);
     expect(problems).toEqual([]);
     // the Home page's starter team
     expect(library.libraryAgents().filter((a) => a.starter).map((a) => a.name).sort()).toEqual(['3D Artist', 'Coordinator', 'Image Maker', 'Mail Assistant', 'Researcher', 'Video Editor', 'World Builder', 'X Writer']);
