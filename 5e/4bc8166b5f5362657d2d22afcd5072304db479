@@ -1,0 +1,25 @@
+tests/server/fixtures/fake-mcp-lists.mjs
+  s_e149d0ba305b10::t_5629cfe4fa3d85 1-24
+server/mcp.ts
+  s_e149d0ba305b10::t_b8deacbc28655b 9,1007-1009,1011,1024,1034-1044,1047-1056
+  s_e149d0ba305b10::t_4b3327408640c0 972-976,1000,1005
+  s_e149d0ba305b10::t_ebf70099381a36 1006
+tests/server/mcp-tool-lists.test.ts
+  s_e149d0ba305b10::t_5629cfe4fa3d85 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5e4bc8166b5f5362657d2d22afcd5072304db479",
+  "prompts": {},
+  "sessions": {
+    "s_e149d0ba305b10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d2cbea5-1c6f-4a57-ac49-224888c6c687",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
