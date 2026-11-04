@@ -4,7 +4,8 @@
 //   user           → user message: a text part, and file parts for what was attached
 //   assistant text → assistant message; the tool calls after it (in the same turn) are its
 //                    dynamic-tool parts (output: { text, images })
-//   error, meta, compaction → an assistant message with one data part (data-error / data-meta / data-compaction);
+//   error, meta, compaction, steer → an assistant message with one data part (data-error / data-meta / data-compaction /
+//                    data-steer: a message you sent that joined the turn, drawn like your own messages);
 //                    the cost and token lines are left out
 // A live run streams in as one assistant message (server/uistream.ts) and is replaced by the saved
 // items once it ends.
@@ -23,6 +24,8 @@ export interface MessageData {
   error: Extract<ChatItem, { type: 'error' }>;
   meta: Extract<ChatItem, { type: 'meta' }>;
   compaction: CompactionItem;
+  /** a message you sent that joined the turn going on */
+  steer: Pick<Extract<ChatItem, { type: 'steer' }>, 'steerId' | 'text' | 'from' | 'attachments'>;
   [k: string]: unknown;
 }
 export type ChatMessage = UIMessage<MessageMeta, MessageData>;
@@ -101,7 +104,7 @@ export const handoffMap = (lines: string): ReadonlyMap<string, string> => new Ma
 
 /** What a message says, for the search (Ctrl+F): its text, and the names of the tools it used. */
 export function searchText(m: Pick<ChatMessage, 'parts'>): string {
-  return m.parts.map((p) => (p.type === 'text' || p.type === 'reasoning' ? p.text : p.type === 'dynamic-tool' ? p.toolName : '')).join('\n');
+  return m.parts.map((p) => (p.type === 'text' || p.type === 'reasoning' ? p.text : p.type === 'dynamic-tool' ? p.toolName : p.type === 'data-steer' ? (p.data as { text: string }).text : '')).join('\n');
 }
 
 // The cost and token line saved after a run ("$0.0000 · 11392 from cache"): kept in the chat, not shown.

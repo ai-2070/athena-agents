@@ -22,13 +22,14 @@ import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { engineCapabilities } from './capabilities.ts';
-import { activeEveRuns, invalidateConversation, readRun as readEveRun, sessionBindings, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
+import { canSteer, sendSteer } from '../eve/steer.ts';
+import { activeEveRuns, invalidateConversation, lateSteers, updateSteer, readRun as readEveRun, sessionBindings, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
 import { eveBillingItem, eveUsage } from '../eve/usage.ts';
 import { eveRuntime } from '../eve/runtime.ts';
 import { richFor, richSection } from '../richanswers.ts';
 import { clearWork, stopChatWork } from '../briefs.ts';
 import { admitExecution, interruptExecutions, readExecution, saveExecutionQueue, updateExecution } from '../execution.ts';
-import type { ActiveRun, Agent, Chat, ChatItem, EngineId, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunBilling, RunEvent, RunAccess, TeamContextMessage } from '../../shared/types.ts';
+import type { ActiveRun, Agent, Chat, ChatItem, EngineId, EveSteer, EngineInfo, EngineStatus, LoopInfo, Project, QueuedMessage, RunBilling, RunEvent, RunAccess, TeamContextMessage } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../../shared/queue.ts';
 
@@ -51,6 +52,16 @@ export interface EngineRunArgs {
   runId: string;
   systemPrompt: string;
   attachments: string[];
+  /** Eve: follow a turn Eve already started with a late steer's message, instead of sending one */
+  adopt?: Adoption;
+}
+
+/** A turn Eve started with a message that missed the turn before it (see takeOverSteers). */
+export interface Adoption {
+  bindingId: string;
+  deliveryId: string;
+  /** later messages that also missed it: the new turn may take them in */
+  steers: EveSteer[];
 }
 
 /** What an engine's run() resolves to. cost is in USD (or a labeled USD-equivalent estimate). context: how full the model's memory was at the
@@ -139,6 +150,7 @@ export interface StartRunOptions {
   reservedRunId?: string;
   queueId?: string;
   workAccess?: RunAccess;
+  adopt?: Adoption;
 }
 
 /** What a team adds while an agent works for it (tools, MCP servers, skills). */
@@ -209,7 +221,7 @@ export function restoreNativeRun(runId: string, stop: () => Promise<void>): bool
   };
   withProject(project, () => {
     if (!chat.items.some((item) => item.type === 'user' && item.runId === runId)) {
-      const imported = new Set(chat.items.flatMap((item) => item.type === 'user' && item.teamMessageId ? [item.teamMessageId] : []));
+      const imported = new Set(chat.items.flatMap((item) => (item.type === 'user' || item.type === 'steer') && item.teamMessageId ? [item.teamMessageId] : []));
       for (const item of saved.context || []) if (!imported.has(item.id)) {
         chat.items.push({ type: 'user', text: item.text, from: item.from, teamMessageId: item.id, ts: item.ts });
         imported.add(item.id);
@@ -256,6 +268,7 @@ export function finishNativeRun(runId: string): void {
     active.delete(runId);
     restored.delete(runId);
     const steered = stopped && !!(entry.steered || saved.steered);
+    const tookOver = !stopped && !steering.has(chatKey(entry.projectId, chat.id)) && takeOverSteers(runId, entry);
     if (native.status === 'interrupted') {
       stopChatWork(entry.ownerChatId, entry.projectId);
       const queue = waiting.get(chatKey(entry.projectId, chat.id));
@@ -274,7 +287,7 @@ export function finishNativeRun(runId: string): void {
       else if (failed) job.reject(new Error(error));
       else job.resolve(answer);
       if (stopped && !steered) unqueue(chat.id, undefined, entry.projectId);
-      else if (native.status !== 'interrupted' && !steering.has(chatKey(entry.projectId, chat.id))) carryOn(entry.projectId, chat.id);
+      else if (native.status !== 'interrupted' && !tookOver && !steering.has(chatKey(entry.projectId, chat.id))) carryOn(entry.projectId, chat.id);
     }
   });
 }
@@ -420,7 +433,7 @@ export function stoppedBefore(items: readonly ChatItem[]): 'stop' | 'steer' | nu
 // Start answering a message in a chat. Returns immediately with the run id.
 // The run belongs to the project it starts in (see withProject): opening another project meanwhile
 // doesn't move its chat, tool calls or files there.
-export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null, context, reservedRunId, queueId, workAccess, userInitiated = false }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
+export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, from = null, attachments = [], parentRunId = null, context, reservedRunId, queueId, workAccess, userInitiated = false, adopt }: StartRunOptions = {}): { runId: string; promise: Promise<string>; signal: AbortSignal } {
   if (closing) throw new Error('The dashboard is stopping.');
   const project = activeProject();
   const key = chatKey(project.id, chat.id);
@@ -464,7 +477,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   // the turn before this one was stopped partway: the agent is told, so it builds on what it did
   const cut = stoppedBefore(chat.items);
   const reset = chat.items.findLastIndex((i) => i.type === 'meta' && i.reset);
-  const imported = new Set(chat.items.slice(reset + 1).flatMap((i) => i.type === 'user' && i.teamMessageId ? [i.teamMessageId] : []));
+  const imported = new Set(chat.items.slice(reset + 1).flatMap((i) => (i.type === 'user' || i.type === 'steer') && i.teamMessageId ? [i.teamMessageId] : []));
   const added: TeamContextMessage[] = [];
   for (const m of context || []) {
     if (imported.has(m.id)) continue;
@@ -565,7 +578,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
         if (contextInfo.estimateTokens(systemPrompt + input) > window * 0.85) throw new Error('The full request does not fit this model. Choose a larger-context model or clear memory. No original messages were discarded.');
         return input;
       };
-      const go = async () => engine.run({ agent, chat, text: await seeded(), signal: controller.signal, onEvent, depth, runId, systemPrompt, attachments });
+      const go = async () => engine.run({ agent, chat, text: await seeded(), signal: controller.signal, onEvent, depth, runId, systemPrompt, attachments, ...(adopt ? { adopt } : {}) });
       let result: EngineResult;
       try { result = await go(); }
       catch (error) {
@@ -635,6 +648,8 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       const stopped = controller.signal.aborted;
       // stopped for a new message from you: that message is next, and a /goal is checked after it instead
       const steered = stopped && !!entry.steered;
+      // a message you sent into this turn arrived as it ended: the next turn starts with it, and a run follows that
+      const tookOver = !stopped && !suspended && !steering.has(key) && takeOverSteers(runId, entry);
       try {
         if (!steered && !suspended) {
           updateExecution(runId, { completionClaimed: true });
@@ -657,7 +672,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
         stopLoop(chat.id, 'Loop stopped.', project.id);
       } else {
         loopRunEnded(project.id, chat.id, runId, failed);
-        carryOn(project.id, chat.id);
+        if (!tookOver) carryOn(project.id, chat.id);
       }
     }
   });
@@ -706,6 +721,11 @@ async function steerNow(agent: Agent, chat: Chat, text: string, attachments: str
   const runs = runsIn(projectId, chat.id);
   if (runs.some(([, r]) => r.depth > 0)) throw httpError(409, `${agent.name} is working for a team or another agent in this chat. Stop it there, or /queue your message for when it is done.`);
   if (!runs.length) return { runId: startRun(agent, chat, text, { attachments }).runId };
+  // an agent whose engine can take a message mid-turn (Eve): it joins the turn going on, nothing stops.
+  // (decided at once: a message that can't join is saved in the queue below before anything waits)
+  const joining = joinTurn(runs, text, attachments, projectId);
+  const joined = joining && (await joining);
+  if (joined) return joined;
   steering.add(key);
   // Save the new input before stopping its predecessor, including a crash during the wait.
   const started = queueFirst(agent, chat, text, attachments);
@@ -729,6 +749,89 @@ async function steerNow(agent: Agent, chat: Chat, text: string, attachments: str
   // still ending: this message goes first, the moment it has
   carryOn(projectId, chat.id);
   return { runId: ended ? (await started) ?? Promise.resolve(null) : started };
+}
+
+/** The message joins the turn going on, when its engine can take one mid-turn: the chat shows it in the
+ *  turn, and the run carries on with it. null: it can't (the caller stops the run and sends it next). */
+function joinTurn(runs: [string, RunEntry][], text: string, attachments: string[], projectId: string): Promise<Steered | null> | null {
+  if (runs.length !== 1 || !canJoin(...runs[0]!)) return null;
+  const [runId, entry] = runs[0]!;
+  // (the message is in the chat and on the run before this returns: nothing waits before it is saved)
+  return joinRun(runId, entry, { text, attachments }).then((ok) => {
+    if (!ok) return null;
+    // it ended while the message went: Eve starts the next turn with it
+    if (!active.has(runId) && !takeOverSteers(runId, entry)) carryOn(projectId, entry.chatId);
+    return { runId };
+  });
+}
+
+/** Whether this run's engine can take a message into its turn right now. */
+const canJoin = (runId: string, entry: RunEntry): boolean => engineCapabilities(entry.agent.engine).steersTurns && !entry.stopRequested && canSteer(runId);
+
+/** What a message that joins a turn says, and where it came from (a team message's id, so the agent's
+ *  next turn doesn't bring it again). */
+export interface JoiningMessage {
+  text: string;
+  attachments?: string[];
+  from?: string | null;
+  teamMessageId?: string;
+}
+
+/** A team's message for the turn this chat's agent is working on now, when its engine can take one
+ *  mid-turn. False: it can't, or didn't (stop it and send the message the ordinary way). */
+export function joinChatTurn(chatId: string, message: JoiningMessage, projectId: string = here()): Promise<boolean> {
+  const runs = runsIn(projectId, chatId);
+  return runs.length === 1 && canJoin(...runs[0]!) ? joinRun(runs[0]![0], runs[0]![1], message) : Promise.resolve(false);
+}
+
+async function joinRun(runId: string, entry: RunEntry, { text, attachments = [], from = null, teamMessageId }: JoiningMessage): Promise<boolean> {
+  const key = chatKey(entry.projectId, entry.chatId);
+  const chat = entry.chat;
+  const steerId = uid('s');
+  const extra = { ...(attachments.length ? { attachments } : {}), ...(from ? { from } : {}) };
+  // (shown at once; nothing else starts in the chat while it is sent)
+  steering.add(key);
+  withProject(entry.project, () => {
+    pushItem(chat, { type: 'steer', steerId, text, runId, ...extra, ...(teamMessageId ? { teamMessageId } : {}) });
+    if (!chat._deleted) chats.save(chat);
+  });
+  emit('run', { runId, agentId: entry.agentId, chatId: chat.id, projectId: entry.projectId, event: { kind: 'steer', id: steerId, text, ...extra } });
+  try {
+    await sendSteer(runId, { id: steerId, text, attachments, ...(from ? { from } : {}), ...(teamMessageId ? { teamMessageId } : {}) });
+    return true;
+  } catch {
+    // Eve didn't take it: it goes the ordinary way, and the chat shows it there instead
+    withProject(entry.project, () => {
+      chat.items = chat.items.filter((item) => !(item.type === 'steer' && item.steerId === steerId));
+      if (!chat._deleted) chats.save(chat);
+    });
+    return false;
+  } finally {
+    steering.delete(key);
+  }
+}
+
+/** Messages sent into a turn that ended before it took them: Eve starts the next turn with the first (and
+ *  may take the rest into that turn). A new run follows it, so its work shows and counts like any turn.
+ *  True when one did. Not for work for a team or another agent: they wait on the answer they asked for. */
+function takeOverSteers(runId: string, entry: Pick<RunEntry, 'agentId' | 'chat' | 'project' | 'depth'>): boolean {
+  if (entry.depth > 0 || closing) return false;
+  const late = lateSteers(runId);
+  const chat = entry.chat;
+  const agent = agentStore.get(entry.agentId);
+  const eve = readEveRun(runId);
+  if (!late.length || !agent || !eve || chat._deleted || runsIn(entry.project.id, chat.id).length) return false;
+  const [first, ...rest] = late as [EveSteer, ...EveSteer[]];
+  return withProject(entry.project, () => {
+    // the messages move from the turn that missed them to the one they start
+    const ids = new Set(late.map((s) => s.id));
+    chat.items = chat.items.filter((item) => !(item.type === 'steer' && ids.has(item.steerId)));
+    const next = startRun(agent, chat, first.text, { attachments: first.attachments, from: first.from || null, adopt: { bindingId: eve.bindingId, deliveryId: first.deliveryId!, steers: rest } });
+    for (const s of late) updateSteer(runId, s.id, { adoptedBy: next.runId });
+    for (const s of rest) pushItem(chat, { type: 'steer', steerId: s.id, text: s.text, runId: next.runId, ...(s.attachments.length ? { attachments: s.attachments } : {}) });
+    if (rest.length) chats.save(chat);
+    return true;
+  });
 }
 
 // ---------- /queue: messages that wait for the chat to be free ----------
@@ -761,7 +864,7 @@ export function recoverExecution(): void {
       const chat = chats.get(run.agentId, run.chatId);
       if (!chat) return;
       if (!chat.items.some((item) => item.type === 'user' && item.runId === run.id)) {
-        const imported = new Set(chat.items.flatMap((item) => item.type === 'user' && item.teamMessageId ? [item.teamMessageId] : []));
+        const imported = new Set(chat.items.flatMap((item) => (item.type === 'user' || item.type === 'steer') && item.teamMessageId ? [item.teamMessageId] : []));
         for (const m of run.context || []) if (!imported.has(m.id)) {
           chat.items.push({ type: 'user', text: m.text, from: m.from, ts: m.ts, teamMessageId: m.id });
           imported.add(m.id);

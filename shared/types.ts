@@ -764,6 +764,9 @@ export interface Project {
 export type ChatItem = (
   | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string; runId?: string }
   | { type: 'assistant'; text: string; ts?: number }
+  /** A message sent while the agent worked that it took into the turn going on (it didn't stop):
+   *  part of that turn, so the turn still starts at its user message. */
+  | { type: 'steer'; steerId: string; text: string; from?: string | null; attachments?: string[]; ts?: number; runId?: string; teamMessageId?: string }
   | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number; resultSourceId?: string }
   /** stopped: the run was stopped before it finished (steer: to take a new message), not a failure */
   | { type: 'error'; text: string; ts?: number; runId?: string; stopped?: 'stop' | 'steer' }
@@ -899,6 +902,8 @@ export interface ChatSummary {
 export type RunEvent =
   | { kind: 'start'; text: string; from?: string | null; attachments?: string[] }
   | { kind: 'text'; text: string }
+  /** a message that joined the turn going on (a steer item in the chat) */
+  | { kind: 'steer'; id: string; text: string; from?: string | null; attachments?: string[] }
   | { kind: 'tool'; id: string; name: string; args?: Record<string, unknown> }
   | { kind: 'tool_result'; id: string; text?: string; isError?: boolean; images?: string[] }
   | { kind: 'status'; text: string }
@@ -1166,6 +1171,8 @@ export interface EngineCapabilities {
   directTools: boolean;
   inlineAttachmentText: boolean;
   durableSession: boolean;
+  /** a message can join a turn while it works, instead of stopping it */
+  steersTurns: boolean;
 }
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -1261,8 +1268,29 @@ export interface EveRunRecord {
   error?: string;
   endedAt?: number;
   pendingTerminal?: { line: number; status: 'completed' | 'failed' | 'stopped' | 'interrupted'; parts: string[]; error?: string };
+  /** Messages sent into this run's turn while it worked (saved before they are sent). */
+  steers?: EveSteer[];
+  /** Other deliveries its turn took in (the steers', recorded even before a steer learns its delivery) */
+  joinedDeliveries?: string[];
+  /** it follows a turn Eve started with a late steer: what came before that turn's message isn't its own */
+  adopted?: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+/** A message sent into a running Eve turn. One the turn took is in joinedDeliveries; a delivered one that
+ *  missed the turn (it ended first) starts the next turn, which a new run (adoptedBy) follows. */
+export interface EveSteer {
+  id: string;
+  text: string;
+  attachments: string[];
+  from?: string | null;
+  teamMessageId?: string;
+  deliveryId: string | null;
+  adoptedBy?: string;
+  /** it never reached Eve, or missed a team turn: the message went the ordinary way instead */
+  dropped?: boolean;
+  at: number;
 }
 
 /** One acknowledged model response, including charges that preceded a lost native checkpoint. */

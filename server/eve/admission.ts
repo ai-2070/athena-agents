@@ -80,11 +80,16 @@ export function validAdmission(runId: string): boolean {
 }
 
 function messageParts(receipt: ExecutionRun): EveMessagePart[] {
-  const attachments = cleanAttachments(receipt.attachments);
-  if (attachments.length !== receipt.attachments.length) throw new Error('An attached file is missing or outside this project. Attach it again before continuing.');
+  return eveMessage(receipt.text, receipt.attachments);
+}
+
+/** A message for Eve: its text (small text files inline) and the attached files' bytes. */
+export function eveMessage(text: string, saved: readonly string[]): EveMessagePart[] {
+  const attachments = cleanAttachments([...saved]);
+  if (attachments.length !== saved.length) throw new Error('An attached file is missing or outside this project. Attach it again before continuing.');
   const root = safeUploadsRoot();
   const realRoot = root && realTarget(root);
-  const parts: EveMessagePart[] = [{ type: 'text', text: withAttachments(receipt.text, attachments, { inline: 24000 }) || 'Please examine the attached files.' }];
+  const parts: EveMessagePart[] = [{ type: 'text', text: withAttachments(text, attachments, { inline: 24000 }) || 'Please examine the attached files.' }];
   let total = 0;
   for (const attachment of attachments) {
     const target = realTarget(attachment);
@@ -128,12 +133,13 @@ export async function prepareAdmission(runId: string, project: Project): Promise
       const before = upto < 0 ? chat.items : chat.items.slice(0, upto);
       const reset = before.findLastIndex((item) => item.type === 'meta' && item.reset);
       for (const [i, item] of before.slice(reset + 1).entries()) {
-        const key = item.type === 'user' && item.teamMessageId ? `team:${item.teamMessageId}` : `chat:${reset + 1 + i}`;
+        const asked = item.type === 'user' || item.type === 'steer';
+        const key = asked && item.teamMessageId ? `team:${item.teamMessageId}` : `chat:${reset + 1 + i}`;
         if (history.some((entry) => entry.id === key)) continue;
-        if (item.type === 'user' && item.teamMessageId) historyKeys.push(key);
-        const text = item.type === 'user' ? `${item.from ? `${item.from}:\n` : ''}${item.text}${item.attachments?.length ? `\n\nHistorical attachments (use the file tools to read them):\n${item.attachments.join('\n')}` : ''}`
+        if (asked && item.teamMessageId) historyKeys.push(key);
+        const text = asked ? `${item.from ? `${item.from}:\n` : ''}${item.text}${item.attachments?.length ? `\n\nHistorical attachments (use the file tools to read them):\n${item.attachments.join('\n')}` : ''}`
           : item.type === 'assistant' ? item.text : item.type === 'tool' ? `Previous tool ${item.name}\nInput: ${JSON.stringify(item.args || {})}\nResult: ${item.result ?? '(unfinished)'}` : stopMark(item);
-        if (text.trim()) history.push({ id: key, role: item.type === 'user' ? 'user' : 'assistant', text });
+        if (text.trim()) history.push({ id: key, role: asked ? 'user' : 'assistant', text });
       }
     } else for (const item of receipt.context || []) {
       const key = `team:${item.id}`;

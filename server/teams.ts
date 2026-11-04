@@ -10,7 +10,8 @@
 import { BUILD_ORDER, DIORAMA } from './voxel/diorama.ts';
 import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject, getSettings, withProject, listProjects } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath, settledWithin } from './util.ts';
-import { askAgent, hasBackgroundWork, nativeRunPromise, runInfo, stopChat, stopChildren, forgetChat, isStopping, RunStopped } from './engines/index.ts';
+import { askAgent, hasBackgroundWork, joinChatTurn, nativeRunPromise, runInfo, stopChat, stopChildren, forgetChat, isStopping, RunStopped } from './engines/index.ts';
+import { missedSteers } from './eve/steer.ts';
 import { readRun as readEveRun } from './eve/state.ts';
 import { readExecution } from './execution.ts';
 import { activeTeamAssignment, readRelayWork, readTeamWork, saveRelayWork, saveTeamWork } from './teamwork.ts';
@@ -304,6 +305,8 @@ interface PostOptions {
   attachments?: string[];
   /** who takes it when it names nobody and replies to nobody (the agents a steer stopped) */
   to?: string[];
+  /** members who took it into the turn they are working on (a steer): with nobody in to, nobody else starts on it */
+  joined?: string[];
   /** stops it before anyone starts on it (a routine that was stopped) */
   signal?: AbortSignal;
 }
@@ -323,7 +326,7 @@ function postAndRoute(teamId: string, from: string, text: string | null | undefi
   return here(() => routeMessage(teamId, from, text, opts));
 }
 
-async function routeMessage(teamId: string, from: string, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [], relay, to = [], signal, track = true, sender, messageId = uid('m') }: PostOptions & { relay?: TeamRelay }): Promise<TeamMessage> {
+async function routeMessage(teamId: string, from: string, text: string | null | undefined, { replyTo = null, route = null, skills = [], attachments = [], relay, to = [], joined = [], signal, track = true, sender, messageId = uid('m') }: PostOptions & { relay?: TeamRelay }): Promise<TeamMessage> {
   if (signal?.aborted) throw new RunStopped();
   const team = getTeam(teamId);
   if (!team) throw new Error('No such team.');
@@ -362,6 +365,12 @@ async function routeMessage(teamId: string, from: string, text: string | null | 
     if (parent && team.members.includes(parent.from)) targets = [parent.from];
   }
   if (!targets.length) targets = to.filter((id) => team.members.includes(id));
+  if (!targets.length && joined.length) {
+    r.pending = r.pending?.filter((q) => q.id !== messageId);
+    state(team);
+    log('team', `You → ${team.name} (taken into the work going on): ${(text || attachmentNames(attachments)).slice(0, 100)}`);
+    return msg;
+  }
   if (!targets.length && text) {
     // it needs a service only one member has (GitHub, Blender, posting on X…): that member
     const sole = soleHolder(text, team.members.map((id) => agents.get(id)).filter((a): a is Agent => Boolean(a)));
@@ -825,7 +834,7 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
   // Stable source ids survive compaction. Older clipped sessions import the retained transcript once.
   const history = chats.get(agent.id, chatId)?.items || [];
   const reset = history.findLastIndex((i) => i.type === 'meta' && i.reset);
-  const imported = new Set(history.slice(reset + 1).flatMap((i) => i.type === 'user' && i.teamMessageId ? [i.teamMessageId] : []));
+  const imported = new Set(history.slice(reset + 1).flatMap((i) => (i.type === 'user' || i.type === 'steer') && i.teamMessageId ? [i.teamMessageId] : []));
   const fresh = c.messages.filter((m) => !imported.has(m.id));
   const name = (m: TeamMessage) => {
     const id = m.from;
@@ -892,6 +901,8 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
   // (its read mark stays where this turn started: what others wrote meanwhile is new to it next turn;
   // its own reply is left out of that by itself)
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'end' } });
+  // your messages sent into its turn that it ended before reading: it takes them next, as an ordinary turn
+  for (const missed of await missedSteers(delivery.runId)) if (missed.teamMessageId) enqueue(team, agent.id, missed.teamMessageId, true, false, item.skills);
   if (stopped) return;
   enqueueMany(team, mentions, msg.id, false, false, item.skills);
   // it asked the Brain: the Brain's answer comes back to it
@@ -941,26 +952,42 @@ async function steerNow(team: Team, text: string | null | undefined, opts: PostO
   const sessions = loadChat(team.id).sessions;
   r.steering = true;
   const messageId = opts.messageId || uid('m');
-  for (const id of working) {
+  const body = String(text || '').trim();
+  // (saved before anything waits, for a restart: then everyone working gets it the ordinary way)
+  (r.pending ||= []).push({ id: messageId, from: 'user', text: body, replyTo: opts.replyTo || null, attachments: opts.attachments || [], skills: opts.skills || [], to: working, track: opts.track !== false });
+  state(team);
+  // Whoever is working takes it into the turn they are on, when their engine can (nothing stops): a message
+  // for them, not one that names someone, replies to a message, or asks the Brain or another team.
+  const joined: string[] = [];
+  const plain = !parseMentions(team, body).length && !opts.replyTo && !mentionsBrain(body) && !teamsNamed(team, body).length;
+  if (plain) {
+    const sender = opts.sender || 'You (the user)';
+    const said = teamMessage({ id: messageId, ts: Date.now(), from: 'user', text: body, mentions: [], ...(opts.attachments?.length ? { attachments: opts.attachments } : {}) }, () => sender);
+    try {
+      for (const id of working) if (sessions[id] && (await joinChatTurn(sessions[id], { text: said, attachments: opts.attachments || [], from: sender, teamMessageId: messageId }))) joined.push(id);
+    } catch {
+      /* not taken: they stop for it below */
+    }
+  }
+  const stopping = working.filter((id) => !joined.includes(id));
+  for (const id of stopping) {
     const turn = r.current?.get(id);
     if (turn) turn.steered = true;
   }
-  (r.pending ||= []).push({ id: messageId, from: 'user', text: String(text || '').trim(), replyTo: opts.replyTo || null, attachments: opts.attachments || [], skills: opts.skills || [], to: working, track: opts.track !== false });
-  state(team);
   try {
-    for (const id of working) {
+    for (const id of stopping) {
       if (sessions[id]) stopChat(sessions[id], undefined, { forMessage: true });
     }
     // their "(stopped…)" replies land before your message, so the thread reads in order
     await settledWithin(
-      working.map((id) => r.ends?.get(id)),
+      stopping.map((id) => r.ends?.get(id)),
       STEER_WAIT_MS,
     );
   } finally {
     r.steering = false;
   }
   try {
-    return await postAndRoute(team.id, 'user', text, { ...opts, messageId, to: working });
+    return await postAndRoute(team.id, 'user', text, { ...opts, messageId, to: stopping, joined });
   } finally {
     // (whatever waited while the turns ended goes on now)
     pump(team.id);

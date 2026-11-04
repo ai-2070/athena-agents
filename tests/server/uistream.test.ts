@@ -100,6 +100,25 @@ describe('streamRun()', () => {
   });
 });
 
+describe('a message that joined the turn', () => {
+  it('shows where it came in, in the replay and live', async () => {
+    replayItems = [
+      { type: 'user', text: 'the long job' },
+      { type: 'assistant', text: 'Starting. ' },
+      { type: 'steer', steerId: 's1', text: 'also make it blue', runId: 'r3' },
+    ];
+    const { last } = await read('r3', async () => {
+      run({ kind: 'text', text: 'Blue it is. ' }, 'r3');
+      run({ kind: 'steer', id: 's2', text: 'and bigger', attachments: ['/u/a.png'] }, 'r3');
+      run({ kind: 'text', text: 'Done.' }, 'r3');
+      run({ kind: 'done', text: '' }, 'r3');
+    });
+    const parts = last.parts.filter((p) => p.type !== 'step-start');
+    expect(parts.map((p) => (p.type === 'text' ? p.text : p.type === 'data-steer' ? `> ${(p.data as { text: string }).text}` : p.type))).toEqual(['Starting. ', '> also make it blue', 'Blue it is. ', '> and bigger', 'Done.']);
+    expect(parts[3]).toMatchObject({ type: 'data-steer', data: { steerId: 's2', text: 'and bigger', attachments: ['/u/a.png'] } });
+  });
+});
+
 describe('streamRun() for a run that starts later', () => {
   it('says it is waiting, then streams that run once it starts (nothing from before)', async () => {
     replayItems = [];

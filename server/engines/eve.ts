@@ -4,7 +4,7 @@ import { eveRuntime } from '../eve/runtime.ts';
 import { eveCoordinator } from '../eve/coordinator.ts';
 import { prepareAdmission, submitAdmission, validAdmission } from '../eve/admission.ts';
 import { eveClient, stopEveRun, retireEveBindings } from '../eve/recovery.ts';
-import { readBinding, readRun } from '../eve/state.ts';
+import { adoptRun, readBinding, readRun } from '../eve/state.ts';
 import { status } from '../providers.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 import { eveUsage } from '../eve/usage.ts';
@@ -12,7 +12,8 @@ export { status };
 export const durable = true;
 
 /** Delivery retries are transport recovery; Eve owns every model and tool step. */
-export async function run({ runId, signal }: EngineRunArgs): Promise<EngineResult> {
+export async function run({ runId, signal, adopt, depth }: EngineRunArgs): Promise<EngineResult> {
+  if (adopt) return follow(runId, signal, adopt, depth);
   const project = activeProject();
   let host = await eveRuntime.ready();
   signal.throwIfAborted();
@@ -49,5 +50,30 @@ export async function run({ runId, signal }: EngineRunArgs): Promise<EngineResul
   } finally {
     signal.removeEventListener('abort', stopped);
     if (signal.aborted && !isStopping()) await stopEveRun(runId, eveClient(host, input.bindingId)).catch(() => {});
+  }
+}
+
+/** A turn Eve already started with a message that missed the turn before it: nothing to send, only to follow. */
+async function follow(runId: string, signal: AbortSignal, adopt: NonNullable<EngineRunArgs['adopt']>, depth: number): Promise<EngineResult> {
+  const host = await eveRuntime.ready();
+  signal.throwIfAborted();
+  adoptRun(runId, adopt.bindingId, adopt.deliveryId, depth, null, adopt.steers);
+  const stopped = () => { if (!isStopping()) void stopEveRun(runId); };
+  signal.addEventListener('abort', stopped, { once: true });
+  try {
+    let aborted = () => {};
+    try {
+      await Promise.race([eveCoordinator.follow(runId), new Promise<never>((_, reject) => {
+        aborted = () => reject(new Error('Stopped.'));
+        if (signal.aborted) aborted();
+        else signal.addEventListener('abort', aborted, { once: true });
+      })]);
+    } finally { signal.removeEventListener('abort', aborted); }
+    const result = readRun(runId);
+    if (signal.aborted || result?.status !== 'completed') throw new Error(result?.limitReason || 'Eve could not finish this work. Check its saved results before continuing.');
+    return { text: result.answer || '', ...eveUsage(runId) };
+  } finally {
+    signal.removeEventListener('abort', stopped);
+    if (signal.aborted && !isStopping()) await stopEveRun(runId, eveClient(host, adopt.bindingId)).catch(() => {});
   }
 }

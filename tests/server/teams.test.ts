@@ -1,11 +1,15 @@
 // Teams as group chats, end to end with a fake model: you → lead → @teammate → back to the lead.
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { bus, chats, saveSettings, workflows } from '../../server/store.ts';
 import { MAX_CHATTER, TURN_ASK, briefing, editQueuedTeam, getThread, orderQueuedTeam, parseMentions, postUserMessage, queueUserMessage, steerTeam, stopTeam, teamState } from '../../server/teams.ts';
 import type { ServerEvent, Team } from '../../shared/types.ts';
+
+// The steering here is the stop-and-go-next way (every engine that can't take a message mid-turn): Eve's
+// joining a turn is in steer-join.test.ts.
+vi.mock('../../server/eve/steer.ts', async (orig) => ({ ...(await orig<typeof import('../../server/eve/steer.ts')>()), canSteer: () => false }));
 
 // a fake OpenAI-compatible model: the Lead hands off to the Maker, the Maker reports back, the Lead wraps up
 let server: http.Server;

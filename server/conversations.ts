@@ -9,7 +9,7 @@ const pageNumber = (value: unknown, fallback: number, max: number) => typeof val
 function ownText(item: ChatItem): string {
   if (item.type === 'tool') return ['search_conversations', 'read_conversation'].includes(item.name) ? '' : `${item.name}\n${JSON.stringify(item.args ?? {})}\n${item.result || ''}`;
   if (item.type === 'compaction') return ''; // Search the originals rather than copies in checkpoints.
-  return item.text + (item.type === 'user' && item.attachments?.length ? `\nAttached: ${item.attachments.join(', ')}` : '');
+  return item.text + ((item.type === 'user' || item.type === 'steer') && item.attachments?.length ? `\nAttached: ${item.attachments.join(', ')}` : '');
 }
 
 function memberTeams(agentId: string, teamId?: string, conversationId?: string) {
@@ -35,7 +35,7 @@ export function searchConversations(agentId: string, args: ConversationSearch, c
   if (scope !== 'team') {
     for (const chat of chats.all(agentId)) {
       if (chat.conversationId !== conversationId) continue;
-      chat.items.forEach((item, i) => match({ source: 'own', conversationId: chat.id, title: chat.title, messageId: String(i), author: item.type === 'user' ? item.from || 'user' : item.type === 'assistant' ? agentId : item.type, ts: item.ts || chat.createdAt }, ownText(item)));
+      chat.items.forEach((item, i) => match({ source: 'own', conversationId: chat.id, title: chat.title, messageId: String(i), author: item.type === 'user' || item.type === 'steer' ? item.from || 'user' : item.type === 'assistant' ? agentId : item.type, ts: item.ts || chat.createdAt }, ownText(item)));
     }
   }
   if (scope !== 'own') {

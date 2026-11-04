@@ -10,9 +10,12 @@ import { EVE_GENERATION } from './version.ts';
 import { RecordFiles } from './records.ts';
 import { eveCounts } from './counts.ts';
 import { forgetRunSnapshot } from './snapshot.ts';
-import type { Agent, Chat, EveModelCharge, EveRunRecord, EveRunStatus, EveSessionBinding, Project, RunEvent } from '../../shared/types.ts';
+import type { Agent, Chat, EveModelCharge, EveRunRecord, EveRunStatus, EveSessionBinding, EveSteer, Project, RunEvent } from '../../shared/types.ts';
 
 const idOk = (id: string) => /^[a-zA-Z0-9_-]{1,120}$/.test(id);
+// messages Eve took that its turn didn't (yet), and no run follows
+// (one still being sent counts too: Eve may have it already)
+const unfollowed = (run: Pick<EveRunRecord, 'steers' | 'joinedDeliveries'>): EveSteer[] => (run.steers || []).filter((steer) => !(steer.deliveryId && run.joinedDeliveries?.includes(steer.deliveryId)) && !steer.adoptedBy && !steer.dropped);
 function privatePath(...parts: string[]): string {
   return privateDataPath('runtime', 'eve', ...parts);
 }
@@ -20,13 +23,13 @@ const bindingPath = (id: string) => privatePath('bindings', `${id}.json`);
 const runPath = (id: string) => privatePath('runs', `${id}.json`);
 
 /** What listings and the bridge's per-call checks need from a run, without its events. */
-export type EveRunSummary = Pick<EveRunRecord, 'id' | 'bindingId' | 'depth' | 'parentRunId' | 'deliveryId' | 'status' | 'projected' | 'costBaseline' | 'endedAt' | 'updatedAt'> & { events: number };
+export type EveRunSummary = Pick<EveRunRecord, 'id' | 'bindingId' | 'depth' | 'parentRunId' | 'deliveryId' | 'status' | 'projected' | 'costBaseline' | 'endedAt' | 'updatedAt'> & { events: number; late: number };
 
 // Bindings are small: the summary is the whole record.
 const bindingFiles = new RecordFiles<EveSessionBinding, EveSessionBinding>({ maxBytes: 0, summarize: (binding) => binding });
 const runFiles = new RecordFiles<EveRunRecord, EveRunSummary>({
   maxBytes: 24 * 1024 * 1024,
-  summarize: (run) => ({ id: run.id, bindingId: run.bindingId, depth: run.depth, parentRunId: run.parentRunId, deliveryId: run.deliveryId, status: run.status, projected: run.projected, costBaseline: run.costBaseline, endedAt: run.endedAt, updatedAt: run.updatedAt, events: Array.isArray(run.events) ? run.events.length : 0 }),
+  summarize: (run) => ({ id: run.id, bindingId: run.bindingId, depth: run.depth, parentRunId: run.parentRunId, deliveryId: run.deliveryId, status: run.status, projected: run.projected, costBaseline: run.costBaseline, endedAt: run.endedAt, updatedAt: run.updatedAt, events: Array.isArray(run.events) ? run.events.length : 0, late: unfollowed(run).length }),
   readFromDisk: () => { eveCounts.runReads++; },
 });
 const saveBinding = (binding: EveSessionBinding): EveSessionBinding => bindingFiles.write(bindingPath(binding.id), binding);
@@ -285,6 +288,56 @@ export function stageTerminal(id: string, pendingTerminal: NonNullable<EveRunRec
   const run = readRun(id);
   if (!run || terminal(run.status)) return;
   saveRun({ ...run, pendingTerminal });
+}
+
+// ---------- messages that join a running turn (server/eve/steer.ts) ----------
+/** Saved before it is sent, so a restart knows Eve may have it. */
+export function recordSteer(id: string, steer: EveSteer): void {
+  const run = readRun(id);
+  if (!run || terminal(run.status)) throw new Error('This Eve run is no longer working.');
+  if (run.steers?.some((item) => item.id === steer.id)) return;
+  saveRun({ ...run, steers: [...(run.steers || []), steer], updatedAt: Date.now() });
+}
+
+/** A steer's progress: delivered, joined the turn, followed by another run, or never sent. */
+export function updateSteer(id: string, steerId: string, change: Pick<Partial<EveSteer>, 'deliveryId' | 'adoptedBy' | 'dropped'>): EveSteer | null {
+  const run = readRun(id);
+  const steer = run?.steers?.find((item) => item.id === steerId);
+  if (!run || !steer) return null;
+  const next = { ...steer, ...change };
+  saveRun({ ...run, steers: run.steers!.map((item) => (item.id === steerId ? next : item)) });
+  return next;
+}
+
+/** Another delivery the run's turn took in: a message sent while it worked. */
+export function joinDelivery(id: string, deliveryId: string): void {
+  const run = readRun(id);
+  if (!run || run.joinedDeliveries?.includes(deliveryId)) return;
+  saveRun({ ...run, joinedDeliveries: [...(run.joinedDeliveries || []), deliveryId] });
+}
+
+/** Whether the run's turn took this delivery in. */
+export const joinedTurn = (id: string, deliveryId: string): boolean => !!readRun(id)?.joinedDeliveries?.includes(deliveryId);
+
+/** Delivered messages the ended run's turn didn't take: Eve starts the next turn with the first. Not after
+ *  Stop or a restart that interrupted it (the session went with them). */
+export function lateSteers(id: string): EveSteer[] {
+  const run = readRun(id);
+  return run && (run.status === 'completed' || run.status === 'failed') ? unfollowed(run).filter((steer) => steer.deliveryId) : [];
+}
+
+/** The binding's last run ended with a message Eve starts its next turn with, before a run follows it. */
+export function awaitingTakeover(bindingId: string): boolean {
+  // (a minute at most: one a crash left unsent never holds the conversation up)
+  const recent = Date.now() - 60_000;
+  return runSummaries().some((run) => run.bindingId === bindingId && run.late > 0 && (run.status === 'completed' || run.status === 'failed') && unfollowed(readRun(run.id) || {}).some((steer) => steer.at > recent));
+}
+
+/** A run that follows a turn Eve already started (with a late steer's message): no input of its own to send. */
+export function adoptRun(id: string, bindingId: string, deliveryId: string, depth = 0, parentRunId: string | null = null, steers: EveSteer[] = []): EveRunRecord {
+  const run = beginRun(id, bindingId, depth, parentRunId);
+  saveRun({ ...run, adopted: true, ...(steers.length ? { steers } : {}), updatedAt: Date.now() });
+  return setRunStatus(id, 'running', deliveryId);
 }
 
 /** For retention: the run's own file. Its operations and admission are removed by their modules. */

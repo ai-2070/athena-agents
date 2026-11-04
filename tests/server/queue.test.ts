@@ -4,7 +4,11 @@ import { newBatch } from '../../server/uploads.ts';
 // /queue: a message typed while an agent (or a team) works waits, then goes once it is done.
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
+// The steering here is the stop-and-go-next way (every engine that can't take a message mid-turn): Eve's
+// joining a turn is in steer-join.test.ts.
+vi.mock('../../server/eve/steer.ts', async (orig) => ({ ...(await orig<typeof import('../../server/eve/steer.ts')>()), canSteer: () => false }));
 import { newAgent } from '../../server/library.ts';
 import { chats, saveSettings, workflows } from '../../server/store.ts';
 import { activeRuns, askAgent, editQueued, loopOf, orderQueued, queueMessage, queuedMessages, startLoop, steerChat, stopChat, unqueue } from '../../server/engines/index.ts';

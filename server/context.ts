@@ -27,7 +27,7 @@ export function estimateTokens(input: unknown): number {
 
 /** How much room an item takes in the agent's memory, word for word. */
 export function itemTokens(it: ChatItem): number {
-  if (it.type === 'user' || it.type === 'assistant' || it.type === 'error') return estimateTokens(it.text) + 4;
+  if (it.type === 'user' || it.type === 'steer' || it.type === 'assistant' || it.type === 'error') return estimateTokens(it.text) + 4;
   if (it.type === 'tool') return estimateTokens(it.name) + estimateTokens(it.args == null ? '' : typeof it.args === 'string' ? it.args : JSON.stringify(it.args)) + estimateTokens(it.result || '') + 8;
   return 0; // meta and compaction markers are not sent to the agent
 }
@@ -101,7 +101,7 @@ export function stopMark(item: ChatItem): string {
 export function seedPrompt(items: ChatItem[], prompt: string, window: number, system = ''): string {
   const current = items.findLastIndex((item) => item.type === 'user');
   const history = items.slice(memoryStart(items), current < 0 ? items.length : current).flatMap((item) => {
-    if (item.type === 'user') return [`${item.from || 'User'}: ${item.text}${item.attachments?.length ? `\nAttachments: ${item.attachments.join(', ')}` : ''}`];
+    if (item.type === 'user' || item.type === 'steer') return [`${item.from || 'User'}: ${item.text}${item.attachments?.length ? `\nAttachments: ${item.attachments.join(', ')}` : ''}`];
     if (item.type === 'assistant') return [`Assistant: ${item.text}`];
     if (item.type === 'tool') return [`Tool ${item.name}\nInput: ${JSON.stringify(item.args || {})}\nResult: ${item.result ?? '(unfinished)'}`];
     if (stopMark(item)) return [`Assistant: ${stopMark(item)}`];

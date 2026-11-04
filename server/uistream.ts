@@ -64,12 +64,15 @@ export class TurnChunks {
     else if (e.kind === 'tool') this.tool(e.id, e.name, e.args);
     else if (e.kind === 'tool_result') this.result(e.id, e.text, e.images, e.isError);
     else if (e.kind === 'status') this.status(e.text);
+    // a message that joined the turn: shown where it came in
+    else if (e.kind === 'steer') this.data('steer', { steerId: e.id, text: e.text, ...(e.from ? { from: e.from } : {}), ...(e.attachments?.length ? { attachments: e.attachments } : {}) });
   }
   /** The turn so far, from the saved items (everything after the last message to the agent). */
   replay(items: readonly ChatItem[]): void {
     const from = items.findLastIndex((i) => i.type === 'user') + 1;
     for (const it of items.slice(from)) {
       if (it.type === 'assistant') this.text(it.text);
+      else if (it.type === 'steer') this.data('steer', { steerId: it.steerId, text: it.text, ...(it.from ? { from: it.from } : {}), ...(it.attachments?.length ? { attachments: it.attachments } : {}) });
       else if (it.type === 'tool') {
         this.tool(it.id, it.name, it.args);
         if (it.result != null && it.status !== 'running') this.result(it.id, it.result, it.images, it.isError);

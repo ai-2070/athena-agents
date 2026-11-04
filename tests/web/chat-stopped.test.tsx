@@ -1,4 +1,5 @@
-// A stopped run in an agent chat: a quiet line (yours, or to take your new message), not a red error.
+// A stopped run in an agent chat: a quiet line (yours, or to take your new message), not a red error. And a
+// message that joined the turn going on: drawn like your own, inside that turn.
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
@@ -37,5 +38,20 @@ describe('a stopped run in the chat', () => {
     expect([...el.querySelectorAll('.st-stopped')].map((n) => n.textContent)).toEqual(['Stopped to take your new message.', 'Stopped.']);
     expect([...el.querySelectorAll('.msg.error')].map((n) => n.textContent)).toEqual(['rate limited']);
     expect(el.querySelector('details.tool .tname')!.textContent).toBe('read_file');
+  });
+});
+
+describe('a message that joined the turn', () => {
+  it('looks like your own message, inside the turn, with a quiet note', async () => {
+    const el = await draw([
+      { type: 'user', text: 'the long job' },
+      { type: 'tool', id: 't1', name: 'read_file', args: { path: 'a.md' }, result: 'a', status: 'done' },
+      { type: 'steer', steerId: 's1', text: 'also make it blue' },
+      { type: 'assistant', text: 'Blue it is.' },
+    ]);
+    expect([...el.querySelectorAll('.msg.user')].map((n) => n.textContent)).toEqual(['the long job', 'also make it blue']);
+    expect(el.querySelector('.msg.user.joined')!.textContent).toBe('also make it blue');
+    expect(el.querySelector('.joined-note')!.textContent).toBe('Read while it worked');
+    expect(el.querySelectorAll('.msg.error')).toHaveLength(0);
   });
 });
