@@ -1,0 +1,90 @@
+library/athena-agents/engineering/code-reviewer.md
+  s_113f5bf511efd5::t_1ecaf40bc53ebf 111-112
+  s_113f5bf511efd5::t_ea1cde534237eb 62
+  s_113f5bf511efd5::t_8743b997c5fdcd 77
+  s_113f5bf511efd5::t_51cfafbb1338ba 3
+  s_113f5bf511efd5::t_8681e26a160e0d 136-138
+  s_113f5bf511efd5::t_b3c787449f543e 47-51
+  s_113f5bf511efd5::t_24cb88694f0388 70-74,78,80,82
+  s_113f5bf511efd5::t_e277a6841ff9a2 143-145
+  s_113f5bf511efd5::t_40f80bea853bad 1-2,4-37,39-46,52-61,63-69,79,81,83-110,113-135,139-142
+  s_113f5bf511efd5::t_f1c73097fc80d5 75-76
+  s_113f5bf511efd5::t_6ba5c788bcffd6 38
+library/athena-agents/games/technical-artist.md
+  s_113f5bf511efd5::t_34d17e532993d6 97
+  s_113f5bf511efd5::t_41d78a79d453d7 1-2,4-5,7,9-11,17-21,33-35,43-44,50-52,56-58,62-67,71-78,80-82,84-86,101-112,116-129,136-141
+  s_113f5bf511efd5::t_9549201b2241cd 91
+  s_113f5bf511efd5::t_7be71ca0349b2c 12-16,27-30,87-90,133-134
+  s_113f5bf511efd5::t_d535b8fb44f0a0 142-143
+  s_113f5bf511efd5::t_b787e84b7932e8 147-150
+  s_113f5bf511efd5::t_a21a4806b67e4f 144-146
+  s_113f5bf511efd5::t_72186ad898194f 22-25,31-32,36-42,48,53,59-61,79,83,92-93,99-100,113-115,130-132
+  s_113f5bf511efd5::t_4f93296cf9feda 26,45-47,49,54-55,68-70,94-96,135
+  s_113f5bf511efd5::t_cacc24fb71fdf8 6
+  s_113f5bf511efd5::t_51cfafbb1338ba 3,8
+  s_113f5bf511efd5::t_98ee4214dd2b0c 98
+library/athena-agents/design/ux-researcher.md
+  s_113f5bf511efd5::t_92a76cf268abf5 8
+  s_113f5bf511efd5::t_9b91cc8b4de00a 1-2,4-7,9-22,24-55,58-71,74-81,85-91,94-113,116-119,121-145
+  s_113f5bf511efd5::t_963e42734971f8 92-93
+  s_113f5bf511efd5::t_b865165ac1af73 114
+  s_113f5bf511efd5::t_ce4024c0a365f9 120
+  s_113f5bf511efd5::t_5ea70e9221025a 115
+  s_113f5bf511efd5::t_276ded48f5ec97 23
+  s_113f5bf511efd5::t_51cfafbb1338ba 3
+  s_113f5bf511efd5::t_eb177a8de8c8e4 56-57
+  s_113f5bf511efd5::t_7c7ecea6ca3164 72-73
+  s_113f5bf511efd5::t_3703196ae3b323 82-84
+library/athena-agents/marketing/linkedin-writer.md
+  s_113f5bf511efd5::t_51cfafbb1338ba 3,8
+  s_113f5bf511efd5::t_affc6b0ec5970f 34-35
+  s_113f5bf511efd5::t_f92655bddab528 81-83
+  s_113f5bf511efd5::t_8a3d183e80076e 49
+  s_113f5bf511efd5::t_b787e84b7932e8 33,112-113
+  s_113f5bf511efd5::t_d420e4e8f53af4 55-56
+  s_113f5bf511efd5::t_f5a5370c5f221c 125
+  s_113f5bf511efd5::t_95ea3eb9bba88f 1-2,4-7,9-32,36-40,42-48,50-54,57-80,84-111,114-124,126-136
+  s_79e73002982b24::t_ece305b8400a96 41
+tests/server/library.test.ts
+  s_113f5bf511efd5::t_be4a86e1028fac 132
+  s_113f5bf511efd5::t_9dbb28f305e3bc 123-124,131,133,154-159
+library/athena-agents/business/financial-analyst.md
+  s_113f5bf511efd5::t_b787e84b7932e8 137-138
+  s_113f5bf511efd5::t_51cfafbb1338ba 3
+  s_113f5bf511efd5::t_7eabf8f7320475 6,8,12-16,20-38,40-59,63-69,73-84,86-87,89-91,97-98,104-105,109-120,126-127,130,132-133,139-141,143-145
+  s_113f5bf511efd5::t_1346ec7d8b638d 39
+  s_113f5bf511efd5::t_aa81b21a94fbec 1-2,4-5,7,9-11,17-19,60-62,85,88,92-96,99-100,103,106-108,121-125,128-129,131,134-136,142
+  s_113f5bf511efd5::t_8087d6ce84bc7e 70-72
+  s_113f5bf511efd5::t_2fe062099174b1 101-102
+library/athena-agents/README.md
+  s_113f5bf511efd5::t_b787e84b7932e8 82-84
+  s_113f5bf511efd5::t_1744f02dc9926d 22,27,35,39,46-48,60-61,65-66,91-92,100-101,107-109
+  s_113f5bf511efd5::t_0f75dfe1dd6cc3 28
+docs/internal/plans/AGENT_LIBRARY_REWRITE_2026-11-04.md
+  s_113f5bf511efd5::t_be4a86e1028fac 90,370
+  s_113f5bf511efd5::t_35ffd131a43dfe 5-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1f50bdcb328ab4fa556f87e5737b3fa25ed87a29",
+  "prompts": {},
+  "sessions": {
+    "s_113f5bf511efd5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33eb0f9d-82ca-4708-b62e-673ddb2ee4f8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_79e73002982b24": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b40d3501-2bfa-4da1-85f5-8da248608c9d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
