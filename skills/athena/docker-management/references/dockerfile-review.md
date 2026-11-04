@@ -64,14 +64,14 @@ the final stage copies `node_modules`. `dist/server.js` and port 3000 stand in f
 
 ```dockerfile
 # syntax=docker/dockerfile:1
-FROM python:3.14-slim AS build
+FROM python:3.15-slim AS build
 WORKDIR /src
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
-FROM python:3.14-slim
+FROM python:3.15-slim
 ENV PATH="/opt/venv/bin:$PATH" PYTHONUNBUFFERED=1
 RUN useradd --create-home app
 COPY --from=build /opt/venv /opt/venv
