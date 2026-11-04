@@ -2,22 +2,49 @@
 
 4 November 2026. The user answered the open questions the same day (see [Settled](#settled)).
 
-## Status (4 November, later)
+## Status (4 November, end of day)
 
-- **Step 1 is in:** `skills/athena/` with its standard (`README.md`), `replaced.json` (where each of the 51 went, with a
-  fingerprint of each Hermes SKILL.md as shipped), the format checks in `tests/server/athena-skills.test.ts`, the script
-  tests' setup in `tests/skills/`, and a "Skill scripts" CI job (Python 3.10, Linux and Windows).
-- **The 5 samples are written, reviewed and fixed**, waiting for the user's OK on the style: systematic-debugging, pdf,
-  financial-models, humanizer, comfyui.
-- **Trials:** each sample got two real tasks, run through Claude Code (Sonnet) once with the old skills and once with
-  the new, then judged blind (folder names masked): **the new skills won 9 of 10.** pdf, humanizer, financial-models and
-  comfyui won both their tasks; systematic-debugging split one-one. The first round of judging leaked the run folders'
-  names, so all five were judged again with them masked; the verdicts above are from the second round.
-- **What the trials taught** went into the README: "Working with the user's files" (scratch work in a subfolder that's
-  removed; one backup before changing a user's file; no copy that undoes the request; check what the user stressed;
-  read-only git, never `git stash`; ask instead of inventing), and the reviewers' script rules (one decoder for
-  PowerShell's encodings, exit codes 0/1/2, `os.replace`, safe names from inside files, network rules).
-- **The tests now also fail** a title heading in SKILL.md and any 10-word run of prose shared with the old skill.
+**30 of the 39 skills are written and ship; `skills/hermes/` is deleted.** Nine are skipped for now (below), and the
+review pass that the five samples had was skipped for the other 25.
+
+Done:
+
+- **Step 1:** `skills/athena/` with its standard (`README.md`), `replaced.json` (where each of the 51 went, with
+  fingerprints of each Hermes skill as shipped), the format checks in `tests/server/athena-skills.test.ts`, the script
+  tests in `tests/skills/` (about 750, Python 3.10) and a "Skill scripts" CI job on Linux and Windows.
+- **The 5 samples**, written, tried, reviewed and fixed: systematic-debugging, pdf, financial-models, humanizer, comfyui.
+  In blind trials (two real tasks each, Claude Code on Sonnet, old skills against new, judged with the run folders'
+  names masked) **the new skills won 9 of 10**: pdf, humanizer, financial-models and comfyui won both their tasks,
+  systematic-debugging split one-one. What the trials and the two reviewers taught went into the README's standard.
+- **25 more, written to the updated standard**, each passing the format checks and its own script tests:
+  - coding: test-driven-development, spike, requesting-code-review, github, dogfood, ast-grep, grill-me,
+    rest-graphql-debug, docker-management, jupyter-notebook, fastmcp (with mcporter);
+  - documents and finance: docx, xlsx, powerpoint (the three copy financial-models' LibreOffice helper), stocks;
+  - research: arxiv, grounded-citations, llm-wiki, rss-feeds (with reddit-reading), youtube-content, maps;
+  - everyday work: email (with email-inbox-triage and himalaya), action-items, weekly-review-planning, decisions.
+- **The switch (step 2):** `BUNDLED` ships `skills/athena` (private, no link back) in place of the Hermes copies, and
+  `skills/hermes/` is deleted. On start, a copy whose SKILL.md and files are exactly what the dashboard added (the old
+  Hermes copy, or a later Athena one, by fingerprint) is replaced by the version that ships, with the old one kept in
+  the skill's History, files included; a copy the user changed, and a copy of an id that went away, are left alone.
+- **Follow-ups done:** the dashboard's ComfyUI tools (pictures and masks with a run, `node_errors` in a 200 answer, 3D
+  outputs, prompts in SDXL, Flux, SD3 and BasicGuider graphs, V3 inputs and subgraphs in the editor-format converter,
+  the new Comfy Desktop's folders and ports, what `comfyui_start` does when Desktop won't launch a server);
+  `PYTHONUTF8=1` in the shell tool; a note on the Connections page that Reddit reviews new apps since November 2025.
+
+Skipped for now:
+
+- **Nine skills not written yet**, so they don't ship until they are: **obsidian**, and the creative ones
+  **design-md**, **concept-diagrams** (taking in architecture-diagram), **excalidraw**, **sketch**, **p5js**,
+  **manim-video**, **pixel-art** and **hyperframes**. Their audits are in this plan's list. People who already have the
+  Hermes copies keep them (nothing removes a skill from a library); new installs don't get them. The format test
+  fails any shipped skill that names one of these in backticks.
+- **The batch reviews**: the second agent that checked the samples' text and scripts against the standard and the
+  facts (and found real bugs in the samples' scripts) didn't run for the 25 later skills, and they weren't tried
+  against the old ones. Each passed the mechanical checks and its own tests; the writers checked facts against current
+  docs and package sources and listed what they couldn't confirm.
+- **Windows runs**: the scripts' Windows-only paths (jupyter-notebook's kernel launch and interrupt, the LibreOffice
+  helper's Windows lookup, PowerShell quoting in the skills' commands) haven't run on Windows; the "Skill scripts" CI
+  job is their first test there.
 
 ## In short
 
@@ -428,12 +455,19 @@ written fresh, with tests in CI; untouched installed copies are brought up to da
 
 Follow-ups noticed on the way, not part of this plan:
 
-- ComfyUI tools (`server/comfyui.ts`, `server/tools.ts`): `comfyui_run` takes no input images (the main reason the skill
-  still has an upload script), ignores `node_errors` in a 200 answer so dropped outputs go unreported, and doesn't return
-  3D outputs; prompt detection misses `text_g`/`text_l`, `clip_l`/`t5xxl` and BasicGuider graphs; the editor-to-API
-  converter skips V3 dynamic inputs and subgraphs; the workflow and output folders miss the new Comfy Desktop's
-  `%LOCALAPPDATA%\Comfy-Desktop\ComfyUI-Installs\<name>\…` and `…\ComfyUI-Shared\output`; `comfyui_start` only opens
-  Desktop unless its auto-launch setting is on.
-- Set `PYTHONUTF8=1` in the dashboard's shell tool.
-- Add Himalaya's MCP server to the MCP catalogue.
-- Reddit's November 2025 policy means new users can't make the API app the dashboard's Reddit connection needs.
+- Done in this branch: the ComfyUI tools, `PYTHONUTF8=1`, and the Reddit note (see Status).
+- **Himalaya's MCP server** (`himalaya mcp`) isn't in any release yet (2.2.1 has no such command; it's in Himalaya's
+  development version). It was added to the MCP catalogue and taken out again; add it when a release ships it.
+- **The Programs page doesn't show ComfyUI's `node_errors`** (the run tool reports them; `server/index.ts` doesn't pass
+  them on).
+- **`www.sec.gov` refuses the dashboard's page reader**, which sends no contact in its User-Agent (`data.sec.gov`
+  answers). A User-Agent with the user's contact would let agents read filings pages without a shell.
+- **The agent library being rewritten on `LZL0/skills`** names ten skill ids that are gone (excel-author,
+  3-statement-model, dcf-model, comps-analysis, reddit-reading, duckduckgo-search, meeting-action-items,
+  one-three-one-rule, decision-questionnaire, architecture-diagram; see "Ids that go away") and some of the nine
+  skipped ones. Whichever branch merges second updates the agent files.
+- **maps uses the public Nominatim**, whose usage policy has clauses about AI tools: the skill paces itself, tells the
+  user it's Nominatim and links the policy, and never builds the public services into an app. A user decision whether
+  that's acceptable, or whether to point it at a self-hosted Nominatim.
+- `tests/skills/docx/conftest.py` puts the real python-docx back ahead of the test folder named `docx` (pytest's import
+  mode registers the folder under that name).
