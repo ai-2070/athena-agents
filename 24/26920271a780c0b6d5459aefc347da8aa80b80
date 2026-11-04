@@ -1,0 +1,46 @@
+tests/skills/xlsx/conftest.py
+  s_09ac87e46cf718::t_44e568b0261969 142,149-154
+  s_09ac87e46cf718::t_776c236e93cccd 1-141,143-148,155-163
+tests/skills/xlsx/test_xlsx_tool.py
+  s_09ac87e46cf718::t_2ab1100a0075d0 423-424
+  s_09ac87e46cf718::t_ae0888c74808e0 1-422,425-462
+  s_09ac87e46cf718::t_a089098eb6b2fe 463
+skills/athena/xlsx/scripts/xlsx_create.py
+  s_09ac87e46cf718::t_76385f68a7ea30 1-586
+  s_09ac87e46cf718::t_3a10374440e370 587-1044
+skills/athena/xlsx/SKILL.md
+  s_09ac87e46cf718::t_000d5ffa1bbeed 1-26,29-166
+  s_09ac87e46cf718::t_9c0f6cc840ee09 27-28
+  s_09ac87e46cf718::t_5d8956a6a1fd9a 167-171
+tests/skills/xlsx/test_xlsx_create.py
+  s_09ac87e46cf718::t_75651cc17b7166 1-129
+skills/athena/xlsx/scripts/xlsx_tool.py
+  s_09ac87e46cf718::t_342ade313c262e 1350-1352,1354
+  s_09ac87e46cf718::t_0778304358e919 1-1349,1353,1355-2207
+  s_09ac87e46cf718::t_a14837d1b69ed0 2208-2234
+tests/skills/xlsx/test_shared.py
+  s_09ac87e46cf718::t_94adca52665335 1-60
+skills/athena/xlsx/references/create-spec.md
+  s_09ac87e46cf718::t_6b66af5a19cbcb 1-160
+skills/athena/xlsx/references/restructuring.md
+  s_09ac87e46cf718::t_a9fe34b7a04659 1-100,103-118
+  s_09ac87e46cf718::t_521e7e65411682 101-102
+skills/athena/xlsx/scripts/soffice.py
+  s_09ac87e46cf718::t_4d1a123a957969 1-333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2426920271a780c0b6d5459aefc347da8aa80b80",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
