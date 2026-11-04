@@ -1,0 +1,49 @@
+tests/server/queue.test.ts
+  s_4c8d7f63ec0802::t_1a85a4a159fdd5 195
+server/teams.ts
+  s_4c8d7f63ec0802::t_5b452de60bd8a7 886-887,889,952
+tests/web/teamchat-turns.test.tsx
+  s_4c8d7f63ec0802::t_ecdfa8fe31b257 216-239
+server/context.ts
+  s_4c8d7f63ec0802::t_ac65cccac1f53f 94-99,107
+shared/types.ts
+  s_4c8d7f63ec0802::t_288698c183eb3f 653-654,768-769
+web/chat/parts.tsx
+  s_4c8d7f63ec0802::t_0a0462ae67c65d 52-54,248-252
+  s_4c8d7f63ec0802::t_162b0ceadad8b8 253
+server/engines/index.ts
+  s_4c8d7f63ec0802::t_11b45fe49db666 241-242,247
+  s_4c8d7f63ec0802::t_506c349ae2c8d8 606-608
+  s_4c8d7f63ec0802::t_a961caa5749559 100-101,408-419,464-465,488-489,501,564,605,613-614,617,1057-1058,1061-1064
+tests/web/chat-stopped.test.tsx
+  s_4c8d7f63ec0802::t_8292e9444d9462 1-41
+tests/server/steer-progress.test.ts
+  s_4c8d7f63ec0802::t_b6587f52c9c080 1-17,19,22-111
+  s_4c8d7f63ec0802::t_b8a1c3002f8530 18,20-21
+web/teamchat.tsx
+  s_4c8d7f63ec0802::t_da51ebc13babdd 348-360,367,386-387,412-417,432
+server/eve/admission.ts
+  s_4c8d7f63ec0802::t_43036c0c789249 7
+  s_4c8d7f63ec0802::t_ac65cccac1f53f 135
+tests/server/teams.test.ts
+  s_4c8d7f63ec0802::t_1a85a4a159fdd5 223-227,229-230,232
+  s_4c8d7f63ec0802::t_87c67b865307d0 228,231
+docs/guide.md
+  s_4c8d7f63ec0802::t_0e85215ef1d826 108-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7b00706b74b98390ea33dbd90aa97e6a0775b93f",
+  "prompts": {},
+  "sessions": {
+    "s_4c8d7f63ec0802": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fbf869fd-bc35-4553-b28f-bf381c08706e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
