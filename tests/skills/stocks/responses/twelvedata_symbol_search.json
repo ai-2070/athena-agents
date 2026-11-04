@@ -1,0 +1,47 @@
+{
+ "SHEL": {
+  "data": [
+   {
+    "symbol": "SHEL",
+    "instrument_name": "Shell plc",
+    "exchange": "LSE",
+    "mic_code": "XLON",
+    "exchange_timezone": "Europe/London",
+    "instrument_type": "Common Stock",
+    "country": "United Kingdom",
+    "currency": "GBp"
+   },
+   {
+    "symbol": "SHEL",
+    "instrument_name": "Shell plc American Depositary Shares (Each representing two Ordinary shares)",
+    "exchange": "NYSE",
+    "mic_code": "XNYS",
+    "exchange_timezone": "America/New_York",
+    "instrument_type": "American Depositary Receipt",
+    "country": "United States",
+    "currency": "USD"
+   },
+   {
+    "symbol": "SHEL",
+    "instrument_name": "Shell Pakistan Ltd.",
+    "exchange": "PSX",
+    "mic_code": "XKAR",
+    "exchange_timezone": "Asia/Karachi",
+    "instrument_type": "Common Stock",
+    "country": "Pakistan",
+    "currency": "PKR"
+   },
+   {
+    "symbol": "SHEL",
+    "instrument_name": "Shell plc CEDear",
+    "exchange": "BCBA",
+    "mic_code": "XBUE",
+    "exchange_timezone": "America/Argentina/Buenos_Aires",
+    "instrument_type": "Depositary Receipt",
+    "country": "Argentina",
+    "currency": "ARS"
+   }
+  ],
+  "status": "ok"
+ }
+}

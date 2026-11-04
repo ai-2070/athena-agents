@@ -17,8 +17,9 @@ function sizes() {
 }
 
 // Characters. Lower these when a change makes the tools smaller; raise one only on purpose.
+// (comfyui went from 1 500 to 2 450 when comfyui_run learned to send input pictures and masks)
 const BUDGET: Record<string, number> = {
-  world: 15_600, core: 13_800, social: 5_100, files: 3_300, agents: 2_300, media: 2_000, assets: 1_750, comfyui: 1_500,
+  world: 15_600, core: 13_800, social: 5_100, files: 3_300, comfyui: 2_450, agents: 2_300, media: 2_000, assets: 1_750,
   cad: 1_500, substance: 1_450, adobe: 1_200, programs: 1_050, nvidia: 1_000, browser: 1_000, memory: 950, maya: 950,
   houdini: 900, blender: 900, shell: 500, orca: 300, knowledge: 600,
 };

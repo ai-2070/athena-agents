@@ -2,7 +2,7 @@
 // checks which local services are up, and launches things.
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, IS_WIN, exists, listDirs, walk, which, run, ping, launchDetached, openWithShell, readJSON } from './util.ts';
+import { HOME, IS_WIN, exists, listDirs, listFiles, walk, which, run, ping, launchDetached, openWithShell, readJSON } from './util.ts';
 import { getSettings, emit } from './store.ts';
 
 /** A Start Menu shortcut. folder is relative to the Start Menu's Programs folder. */
@@ -124,23 +124,110 @@ function topaz(folder: RegExp, exes: string[]): Detected {
   return { exe: null, shortcut: startMenuFind(new RegExp(`^topaz.*${folder.source}`, 'i'))?.shortcut || null };
 }
 
-// ---------- known programs ----------
-function comfyWorkflowDirs(): string[] {
-  const s = getSettings();
-  const dirs = [...(s.comfyui.workflowDirs || [])];
-  const cfg = readJSON<ComfyConfig>(path.join(ROAMING, 'ComfyUI', 'config.json'), null);
-  if (cfg?.basePath) dirs.push(path.join(cfg.basePath, 'user', 'default', 'workflows'));
-  dirs.push(path.join(HOME, 'ComfyUI-Installs', 'ComfyUI', 'ComfyUI', 'user', 'default', 'workflows'));
-  dirs.push(path.join(HOME, 'ComfyUI', 'user', 'default', 'workflows'));
+// ---------- ComfyUI's folders ----------
+
+/** Where to look for ComfyUI and Comfy Desktop's files: this computer's folders, or a test's. */
+export interface ComfyPlaces {
+  home: string;
+  /** %LOCALAPPDATA% */
+  local: string;
+  /** %APPDATA% */
+  roaming: string;
+  platform: NodeJS.Platform;
+}
+const PLACES: ComfyPlaces = { home: HOME, local: LOCAL, roaming: ROAMING, platform: process.platform };
+
+/** One ComfyUI that the new Comfy Desktop manages (a record of its installations.json; only the fields used here). */
+export interface ComfyDesktopInstall {
+  id?: string;
+  name?: string;
+  installPath?: string;
+  /** standalone, portable, git, desktop (an old Legacy Desktop it starts), cloud or remote */
+  sourceId?: string;
+  adopted?: boolean;
+  adoptedBaseDir?: string;
+  /** Left out means yes. */
+  useSharedOutput?: boolean;
+  outputDir?: string;
+  lastLaunchedAt?: number;
+}
+/** The new Comfy Desktop's settings.json (only the fields used here). */
+export interface ComfyDesktopSettings {
+  outputDir?: string;
+  /** "none" (the default, also when left out), "last", or an install's id. */
+  autoLaunchOnStartup?: string;
+  firstUseCompleted?: boolean;
+}
+
+// The new Comfy Desktop (the multi-install app from mid-2026, Comfy-Org/Comfy-Desktop) keeps its settings and its list
+// of installs in Electron's folder for "Comfy Desktop" on Windows and macOS, and in XDG folders on Linux
+// (src/main/lib/paths.ts there). Its port-locks folder lists the ports of the ComfyUIs it has running.
+function desktopDirs(at: ComfyPlaces): { data: string; config: string; state: string } {
+  if (at.platform === 'win32' || at.platform === 'darwin') {
+    const d = at.platform === 'win32' ? path.join(at.roaming, 'Comfy Desktop') : path.join(at.home, 'Library', 'Application Support', 'Comfy Desktop');
+    return { data: d, config: d, state: d };
+  }
+  const xdg = (key: string, ...rel: string[]) => path.join(process.env[key] || path.join(at.home, ...rel), 'comfyui-desktop-2');
+  return { data: xdg('XDG_DATA_HOME', '.local', 'share'), config: xdg('XDG_CONFIG_HOME', '.config'), state: xdg('XDG_STATE_HOME', '.local', 'state') };
+}
+
+/** The new Comfy Desktop's installs and settings; settings is null when it isn't on this computer. */
+export function comfyDesktop(at: ComfyPlaces = PLACES): { installs: ComfyDesktopInstall[]; settings: ComfyDesktopSettings | null } {
+  const d = desktopDirs(at);
+  const list = readJSON<unknown>(path.join(d.data, 'installations.json'), null);
+  const installs = Array.isArray(list) ? list.filter((r): r is ComfyDesktopInstall => !!r && typeof r === 'object') : [];
+  const settings = readJSON<ComfyDesktopSettings | null>(path.join(d.config, 'settings.json'), null);
+  return { installs, settings: settings && typeof settings === 'object' ? settings : installs.length || exists(d.data) ? {} : null };
+}
+
+/** Ports Comfy Desktop has a ComfyUI listening on (it moves one to a free port when 8188 is taken). */
+export function comfyDesktopPorts(at: ComfyPlaces = PLACES): number[] {
+  return listFiles(path.join(desktopDirs(at).state, 'port-locks'), (n) => /^port-\d+\.json$/.test(n)).map((n) => Number(/\d+/.exec(n)![0]));
+}
+
+// Where Comfy Desktop puts installs and their shared folders by default: %LOCALAPPDATA%\Comfy-Desktop on Windows since
+// June 2026, the home folder before that (and on macOS and Linux). An install's own ComfyUI is in <install>\ComfyUI.
+const desktopRoots = (at: ComfyPlaces): string[] => (at.platform === 'win32' ? [path.join(at.local, 'Comfy-Desktop'), at.home] : [at.home]);
+const installsIn = (root: string): string[] => listDirs(path.join(root, 'ComfyUI-Installs')).map((d) => path.join(root, 'ComfyUI-Installs', d, 'ComfyUI'));
+// The Legacy Desktop's config.json names its one install's folder (basePath).
+function legacyBase(at: ComfyPlaces): string | null {
+  const dir = at.platform === 'darwin' ? path.join(at.home, 'Library', 'Application Support', 'ComfyUI') : path.join(at.roaming, 'ComfyUI');
+  return readJSON<ComfyConfig>(path.join(dir, 'config.json'), null)?.basePath || null;
+}
+// The ComfyUI folders of Desktop's installs on this computer (Comfy Cloud and remote ones have none).
+function desktopComfyDirs(installs: ComfyDesktopInstall[]): string[] {
+  return installs.flatMap((r) => {
+    if (r.adopted && r.adoptedBaseDir) return [r.adoptedBaseDir];
+    if (!r.installPath || ['cloud', 'remote', 'desktop'].includes(r.sourceId || '')) return [];
+    // standalone and portable installs have ComfyUI in a subfolder; a git install may be ComfyUI itself
+    return [path.join(r.installPath, 'ComfyUI'), r.installPath];
+  });
+}
+
+/** The folders ComfyUI saves workflows in: Settings › Extra ComfyUI workflow folders, the Legacy Desktop's install, the
+ *  new Comfy Desktop's installs (from its list, and in its default places), and a plain install in the home folder. */
+export function comfyWorkflowDirs(at: ComfyPlaces = PLACES): string[] {
+  const legacy = legacyBase(at);
+  const comfys = [...(legacy ? [legacy] : []), ...desktopComfyDirs(comfyDesktop(at).installs), ...desktopRoots(at).flatMap(installsIn), path.join(at.home, 'ComfyUI')];
+  const dirs = [...(getSettings().comfyui.workflowDirs || []), ...comfys.map((c) => path.join(c, 'user', 'default', 'workflows'))];
   return [...new Set(dirs)].filter(exists);
 }
-export function comfyOutputDirs(): string[] {
-  const cfg = readJSON<ComfyConfig>(path.join(ROAMING, 'ComfyUI', 'config.json'), null);
-  return [cfg?.basePath && path.join(cfg.basePath, 'output'), path.join(HOME, 'ComfyUI-Shared', 'output'), path.join(HOME, 'ComfyUI-Installs', 'ComfyUI', 'ComfyUI', 'output')].filter(
-    (p): p is string => !!p && exists(p),
-  );
+
+/** The folders ComfyUI saves results in: the Legacy Desktop's, the new Desktop's shared output folder (where its
+ *  installs save unless set otherwise) and the installs' own, and the default places of both. */
+export function comfyOutputDirs(at: ComfyPlaces = PLACES): string[] {
+  const legacy = legacyBase(at);
+  const { installs, settings } = comfyDesktop(at);
+  const own = installs.flatMap((r) => (r.useSharedOutput === false ? (r.outputDir ? [r.outputDir] : desktopComfyDirs([r]).map((c) => path.join(c, 'output'))) : []));
+  const dirs = [
+    ...(legacy ? [path.join(legacy, 'output')] : []),
+    ...(settings?.outputDir ? [settings.outputDir] : []),
+    ...own,
+    ...desktopRoots(at).flatMap((root) => [path.join(root, 'ComfyUI-Shared', 'output'), ...installsIn(root).map((c) => path.join(c, 'output'))]),
+  ];
+  // the browser may show files from these, so never a whole drive or the home folder (a setting gone wrong)
+  return [...new Set(dirs)].filter((p) => exists(p) && path.parse(path.resolve(p)).root !== path.resolve(p) && path.resolve(p) !== path.resolve(at.home));
 }
-export { comfyWorkflowDirs };
 
 const CATALOG: CatalogEntry[] = [
   // AI tools
@@ -162,13 +249,17 @@ const CATALOG: CatalogEntry[] = [
     category: 'ai',
     detect: () => {
       const s = getSettings();
+      // Comfy Desktop's Start Menu entry ("Comfy Desktop", or "ComfyUI" for the Legacy Desktop); on a Mac, its app
+      const app = process.platform === 'darwin' ? first(...['Comfy Desktop.app', 'ComfyUI.app'].flatMap((a) => [path.join('/Applications', a), path.join(HOME, 'Applications', a)])) : null;
       const lnk = startMenuFind(/^comfy/i);
-      return { exe: s.paths.comfyui || null, shortcut: lnk?.shortcut || null };
+      return { exe: s.paths.comfyui || null, shortcut: lnk?.shortcut || app };
     },
     service: async () => {
       const s = getSettings();
-      for (const url of [s.comfyui.url, 'http://127.0.0.1:8188', 'http://127.0.0.1:8000'].filter(Boolean)) {
-        if (await ping(`${url.replace(/\/$/, '')}/system_stats`, 1200)) return url.replace(/\/$/, '');
+      // the address set in Settings, ComfyUI's and the Legacy Desktop's ports, then any port Comfy Desktop moved one to
+      const urls = [s.comfyui.url, 'http://127.0.0.1:8188', 'http://127.0.0.1:8000', ...comfyDesktopPorts().map((p) => `http://127.0.0.1:${p}`)].filter(Boolean).map((u) => u.replace(/\/$/, ''));
+      for (const url of new Set(urls)) {
+        if (await ping(`${url}/system_stats`, 1200)) return url;
       }
       return null;
     },

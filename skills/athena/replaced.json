@@ -1,0 +1,213 @@
+{
+  "//": "Where each Hermes skill went.",
+  "from": {
+    "repo": "NousResearch/hermes-agent",
+    "commit": "80057598ae39567800b34ebd637f52cc83d11945"
+  },
+  "skills": {
+    "3-statement-model": {
+      "now": "financial-models",
+      "path": "optional-skills/finance/3-statement-model"
+    },
+    "architecture-diagram": {
+      "now": "concept-diagrams",
+      "path": "skills/creative/architecture-diagram"
+    },
+    "arxiv": {
+      "now": "arxiv",
+      "path": "skills/research/arxiv"
+    },
+    "ast-grep": {
+      "now": "ast-grep",
+      "path": "optional-skills/software-development/ast-grep"
+    },
+    "comfyui": {
+      "now": "comfyui",
+      "path": "optional-skills/creative/comfyui"
+    },
+    "comps-analysis": {
+      "now": "financial-models",
+      "path": "optional-skills/finance/comps-analysis"
+    },
+    "concept-diagrams": {
+      "now": "concept-diagrams",
+      "path": "optional-skills/creative/concept-diagrams"
+    },
+    "dcf-model": {
+      "now": "financial-models",
+      "path": "optional-skills/finance/dcf-model"
+    },
+    "decision-questionnaire": {
+      "now": "decisions",
+      "path": "optional-skills/productivity/decision-questionnaire"
+    },
+    "design-md": {
+      "now": "design-md",
+      "path": "skills/creative/design-md"
+    },
+    "docker-management": {
+      "now": "docker-management",
+      "path": "optional-skills/devops/docker-management"
+    },
+    "document-to-action-items": {
+      "now": "action-items",
+      "path": "skills/productivity/document-to-action-items"
+    },
+    "docx": {
+      "now": "docx",
+      "path": "skills/productivity/docx"
+    },
+    "dogfood": {
+      "now": "dogfood",
+      "path": "skills/software-development/dogfood"
+    },
+    "duckduckgo-search": {
+      "now": null,
+      "path": "optional-skills/research/duckduckgo-search"
+    },
+    "email-inbox-triage": {
+      "now": "email",
+      "path": "skills/email/email-inbox-triage"
+    },
+    "excalidraw": {
+      "now": "excalidraw",
+      "path": "optional-skills/creative/excalidraw"
+    },
+    "excel-author": {
+      "now": "financial-models",
+      "path": "optional-skills/finance/excel-author"
+    },
+    "fastmcp": {
+      "now": "fastmcp",
+      "path": "optional-skills/mcp/fastmcp"
+    },
+    "github": {
+      "now": "github",
+      "path": "skills/software-development/github"
+    },
+    "grill-me": {
+      "now": "grill-me",
+      "path": "optional-skills/software-development/grill-me"
+    },
+    "grounded-citations": {
+      "now": "grounded-citations",
+      "path": "skills/research/grounded-citations"
+    },
+    "himalaya": {
+      "now": "email",
+      "path": "skills/email/himalaya"
+    },
+    "humanizer": {
+      "now": "humanizer",
+      "path": "skills/creative/humanizer"
+    },
+    "hyperframes": {
+      "now": "hyperframes",
+      "path": "optional-skills/creative/hyperframes"
+    },
+    "jupyter-notebook": {
+      "now": "jupyter-notebook",
+      "path": "optional-skills/data-science/jupyter-notebook"
+    },
+    "lbo-model": {
+      "now": "financial-models",
+      "path": "optional-skills/finance/lbo-model"
+    },
+    "llm-wiki": {
+      "now": "llm-wiki",
+      "path": "skills/research/llm-wiki"
+    },
+    "manim-video": {
+      "now": "manim-video",
+      "path": "skills/creative/manim-video"
+    },
+    "maps": {
+      "now": "maps",
+      "path": "skills/productivity/maps"
+    },
+    "mcporter": {
+      "now": "fastmcp",
+      "path": "optional-skills/mcp/mcporter"
+    },
+    "meeting-action-items": {
+      "now": "action-items",
+      "path": "skills/productivity/meeting-action-items"
+    },
+    "merger-model": {
+      "now": "financial-models",
+      "path": "optional-skills/finance/merger-model"
+    },
+    "obsidian": {
+      "now": "obsidian",
+      "path": "skills/note-taking/obsidian"
+    },
+    "one-three-one-rule": {
+      "now": "decisions",
+      "path": "optional-skills/communication/one-three-one-rule"
+    },
+    "p5js": {
+      "now": "p5js",
+      "path": "skills/creative/p5js"
+    },
+    "pdf": {
+      "now": "pdf",
+      "path": "skills/productivity/pdf"
+    },
+    "pixel-art": {
+      "now": "pixel-art",
+      "path": "optional-skills/creative/pixel-art"
+    },
+    "powerpoint": {
+      "now": "powerpoint",
+      "path": "skills/productivity/powerpoint"
+    },
+    "reddit-reading": {
+      "now": "rss-feeds",
+      "path": "optional-skills/social-media/reddit-reading"
+    },
+    "requesting-code-review": {
+      "now": "requesting-code-review",
+      "path": "skills/software-development/requesting-code-review"
+    },
+    "rest-graphql-debug": {
+      "now": "rest-graphql-debug",
+      "path": "optional-skills/software-development/rest-graphql-debug"
+    },
+    "rss-feeds": {
+      "now": "rss-feeds",
+      "path": "optional-skills/research/rss-feeds"
+    },
+    "sketch": {
+      "now": "sketch",
+      "path": "optional-skills/creative/sketch"
+    },
+    "spike": {
+      "now": "spike",
+      "path": "skills/software-development/spike"
+    },
+    "stocks": {
+      "now": "stocks",
+      "path": "optional-skills/finance/stocks"
+    },
+    "systematic-debugging": {
+      "now": "systematic-debugging",
+      "path": "skills/software-development/systematic-debugging"
+    },
+    "test-driven-development": {
+      "now": "test-driven-development",
+      "path": "skills/software-development/test-driven-development"
+    },
+    "weekly-review-planning": {
+      "now": "weekly-review-planning",
+      "path": "skills/productivity/weekly-review-planning"
+    },
+    "xlsx": {
+      "now": "xlsx",
+      "path": "skills/productivity/xlsx"
+    },
+    "youtube-content": {
+      "now": "youtube-content",
+      "path": "skills/media/youtube-content"
+    }
+  }
+}

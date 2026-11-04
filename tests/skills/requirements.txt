@@ -1,0 +1,25 @@
+# What the skills' scripts and their tests need. CI installs this on Python 3.10, the oldest version the skills promise.
+pytest==9.2.0
+# pdf
+pypdf==6.21.4
+pdfplumber==0.11.10
+reportlab==5.1.0
+pypdfium2==5.14.0
+pillow==12.3.0
+cryptography==50.0.2
+# comfyui: Pillow (above) for masks; the rest is the standard library
+# financial-models, and soffice.py, which docx, xlsx and powerpoint copy
+openpyxl==3.1.5
+# youtube-content
+youtube-transcript-api==1.2.4
+# jupyter-notebook
+ipykernel==7.3.0
+jupyter_client==8.10.0
+psutil==7.2.2
+# docx (python-docx brings lxml)
+python-docx==1.2.0
+# maps: time zones worked out offline (tzdata is what zoneinfo needs on Windows)
+timezonefinder==8.2.0
+tzdata==2026.6
+# powerpoint
+python-pptx==1.0.2
