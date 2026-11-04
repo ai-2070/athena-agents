@@ -1,0 +1,22 @@
+tests/server/shell-tool.test.ts
+  s_09ac87e46cf718::t_d3b09ebb66ed8b 1-34
+  s_09ac87e46cf718::t_4cef09d0599673 35
+server/tools.ts
+  s_09ac87e46cf718::t_7086e66f03eb93 1101-1103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "205d0288ec27fba27207ee4f4e0acff547168b28",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
