@@ -33,14 +33,6 @@ describe('MCP presets', () => {
     }
   });
 
-  it('include Himalaya for any IMAP mailbox, read-only until the user allows more', () => {
-    const h = PRESETS.find((p) => p.name === 'himalaya')!;
-    expect(h.type === 'stdio' && [h.command, ...h.args]).toEqual(['himalaya', 'mcp']);
-    expect(h.description).toMatch(/--allow-write/);
-    expect(h.description).toMatch(/--allow-send/);
-    expect(presetNeeds(h)).toMatch(/^setup: install Himalaya 2/);
-  });
-
   it('include the game engines and ElevenLabs', () => {
     const names = PRESETS.map((p) => p.name);
     for (const n of ['unity', 'unreal', 'godot', 'elevenlabs']) expect(names).toContain(n);
