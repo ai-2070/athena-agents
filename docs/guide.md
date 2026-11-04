@@ -539,8 +539,23 @@ also be retried with the original instance ID. A broken removal record must be r
 cleanup can finish. A newly added instance gets a separate identity and history.
 Read-only recovery is available through the local API: `GET /api/gateways/retired` lists removal
 records and `GET /api/gateways/retired/:id/inbox` reads their saved inbox receipts. These reads
-do not claim ownership, classify interrupted receipts or enable a connection. Screens for reviewing
-removed instances and their remaining local actions are still planned, as is temporary-media retention.
+do not claim ownership, classify interrupted receipts or enable a connection.
+
+In **Settings → Gateways**, choose **View removed instances**. Find the old instance by name,
+platform, account, project or instance ID, then choose **View saved history**. The view shows its
+original identity and destination, source messages, saved native operation/conversation IDs,
+answers and per-part text, notice and file receipts. Confirmed IDs and uncertain or in-flight
+statuses stay as saved. Long histories show 25 entries at a time; expand a message to read its details.
+These are historical gateway records, not a live native-status or messaging-app check.
+
+If removal is unfinished, **Retry removal** asks you to confirm the exact instance and account
+before draining its worker and clearing its local credentials under ownership. The connection
+stays blocked, and receipts remain. Cancel or close the history before confirming to leave removal
+unchanged. Failed reads and failed cleanup show separate reload/retry controls. A direct link uses
+`#/settings?tab=gateways&retired=<instance-id>`; `retired=all` opens the list. Removed history can
+load even when active gateway credentials need recovery. Legacy deleted folders without a removal
+record need separate recovery. Delivery reconciliation/local finish for removed instances and
+temporary-media retention are still planned.
 
 The sidebar's **Status** panel shows gateway connection state and messages needing review. Click an
 instance needing review to open its inbox, or a connection warning to open its setup. Its tooltip names

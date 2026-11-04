@@ -996,7 +996,33 @@ New gateway data does not need a legacy compatibility layer.*
 - Validation: `CI=1 bun run check` passed (273 files; 2,732 tests passed, one skipped). The web
   build, desktop staging and bundled desktop smoke passed. These checks used isolated local
   fixtures; no account was connected or revoked, and no provider message or relay request was sent.
-- Next: add retired-instance recovery/local-finish controls and temporary-media retention, then
+- Added **Settings → Gateways → View removed instances**, with literal metadata search, bounded
+  list/history rendering and stable `retired` deep links. Each instance's history shows its saved
+  account/project/target, input, native operation/conversation IDs, answer, album linkage and separate
+  text/notice/file outcomes. Confirmed IDs and historical in-flight/uncertain states stay intact.
+  Long text scrolls within disclosures. The view grants no intake, send, native replay or reconnect.
+- Unfinished retirement offers a shared confirmation naming the exact instance/account before
+  retrying guarded DELETE. Cancel, duplicate clicks, selection changes and unmount cannot submit a
+  different instance. Success refreshes metadata; storage/ownership failure keeps the connection
+  blocked with a retryable inline error. Active setup stays separate. Read-only retired deep links
+  load independently even when active credentials prevent the active listing from loading.
+- Added DOM fixtures for GET-only discovery/history, independent deep links, original metadata and
+  delivery IDs, cancelled/duplicate/unmounted removal, failure/reload, empty/missing records, long
+  escaped content, search/paging and stale history responses after changing selection. Retired
+  receipt reconciliation and permanent local-finish actions remain pending.
+- A fresh scoped finish reviewer approved twelve light/dark desktop/phone captures covering the
+  list, original history, lower text/notice receipts, unfinished removal and its shared confirmation.
+  Six settled Tab samples stayed within the dialog; Escape closed it. A real local API exercise in
+  isolated synthetic state finished an ownership-blocked removal, kept saved native inbox bytes
+  unchanged and left remaining instances paused. It recorded zero external/provider attempts, then
+  its server stopped and temporary data/home/Chrome profile were removed. The existing Settings
+  shell's small phone overflow is also present with this view closed; target content fits. Unshown
+  states have source/test evidence, not visual approval. This does not enable WhatsApp or establish
+  real-account delivery acceptance.
+- Final validation: `CI=1 bun run check` passed (274 files; 2,742 tests passed, one skipped).
+  The web build, desktop staging and bundled desktop smoke passed. The existing running web
+  watcher overlapped one manual build; its clean rerun and final desktop staging succeeded.
+- Next: add retired-instance local-finish controls and temporary-media retention, then
   remaining delivery/product controls and proactive platform coverage under the same approval policy.
   Real-account checks on all four platforms and Windows/Linux verification remain outstanding.
   Offline checks run in CI.

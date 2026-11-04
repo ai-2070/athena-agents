@@ -235,7 +235,8 @@ one assignment includes every saved file and caption. Later parts or edits hold 
 The sidebar's **Status** panel links gateway warnings to the relevant inbox or instance setup.
 Completed or dismissed inbox receipts can be removed after confirmation. Native chats, files, replay protection and byte accounting stay intact.
 Removing an instance blocks new gateway work and clears its local credentials after the worker stops.
-Saved receipts stay for recovery; Athena retries unfinished removal after a restart.
+Saved receipts stay under **View removed instances → View saved history**. Athena retries unfinished
+removal after a restart; **Retry removal** lets you finish it there after checking storage and ownership.
 Delegated files stay tied to their source run and workspace; revoked access holds delivery for review.
 Slow requests show a short working notice; approvals stay in Athena. Uncertain sends need review before retrying.
 For Telegram, **Set up Telegram** checks the bot and webhook while paused. After stopping the previous

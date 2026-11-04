@@ -10,6 +10,7 @@ import { DiscordRecoveryView } from './gateway-discord-recovery.tsx';
 import { GatewayInboxView } from './gateway-inbox.tsx';
 import { WhatsAppSetupView } from './gateway-whatsapp-setup.tsx';
 import { TelegramSetupView } from './gateway-telegram-setup.tsx';
+import { GatewayRetiredView } from './gateway-retired.tsx';
 import type { GatewayHealth, GatewayInstance, GatewayTarget, GatewayTargets } from '../../shared/types.ts';
 
 type Listed = GatewayInstance & { credentials: Record<string, boolean>; targetName?: string };
@@ -32,6 +33,10 @@ export function GatewaysTab() {
   const [telegram, setTelegram] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<string | null>(null);
   const [inbox, setInbox] = useState<string | null>(null);
+  const [retired, setRetired] = useState<string | null>(() => {
+    const params = new URLSearchParams(location.hash.split('?')[1] || '');
+    return params.has('retired') ? params.get('retired') === 'all' ? '' : params.get('retired') || '' : null;
+  });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const mounted = useRef(false); const request = useRef(0); const linked = useRef(false);
@@ -43,6 +48,7 @@ export function GatewaysTab() {
       setListing(gateways); setProjects(all.projects); setError('');
       if (!linked.current) {
         linked.current = true;
+        if (new URLSearchParams(location.hash.split('?')[1] || '').has('retired')) return;
         const id = new URLSearchParams(location.hash.split('?')[1] || '').get('instance');
         if (id) { const found = gateways.instances.find((item) => item.id === id); if (found && (found.platform === 'whatsapp' || gatewayPlatformAvailable(found.platform))) setEditor(found); else setError('This gateway is unavailable. Choose an instance below.'); }
         const relayId = new URLSearchParams(location.hash.split('?')[1] || '').get('relay');
@@ -68,7 +74,8 @@ export function GatewaysTab() {
   const closeInbox = () => { setInbox(null); history.replaceState(null, '', '#/settings?tab=gateways'); };
   const closeRelay = () => { setRelay(null); history.replaceState(null, '', '#/settings?tab=gateways'); };
   const closeTelegram = () => { setTelegram(null); history.replaceState(null, '', '#/settings?tab=gateways'); };
-  const panelOpen = editor !== null || recovery !== null || relay !== null || telegram !== null;
+  const panelOpen = editor !== null || recovery !== null || relay !== null || telegram !== null || retired !== null;
+  const selectRetired = (id: string) => { setInbox(null); setRetired(id); history.replaceState(null, '', `#/settings?tab=gateways&retired=${encodeURIComponent(id || 'all')}`); };
   const recoveryInstance = listing?.instances.find((instance) => instance.id === recovery);
   const relayInstance = listing?.instances.find((instance) => instance.id === relay && instance.platform === 'whatsapp');
   const inboxInstance = listing?.instances.find((instance) => instance.id === inbox);
@@ -95,6 +102,7 @@ export function GatewaysTab() {
           })()}>Delete</Button>
         </Row>;
       })}
+      <Row title="Removed instances" description="Read saved history and finish an interrupted removal. Old connections stay blocked."><Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => selectRetired('')}>View removed instances</Button></Row>
       <PanelNote>Telegram, Slack and Discord are available for testing. WhatsApp setup is available, but receiving and sending remain disabled. Review Telegram and Discord follow-ups in Outbox. Approvals are reviewed in Athena.</PanelNote>
     </Section>
     {editor && <GatewayEditor key={typeof editor === 'string' ? editor : editor.id} platform={typeof editor === 'string' ? editor : editor.platform} instance={typeof editor === 'string' ? null : editor} projects={projects} close={close} saved={async () => { close(); await load(); }} />}
@@ -106,6 +114,7 @@ export function GatewaysTab() {
     {inbox && listing && !inboxInstance && <Row title="This gateway is no longer available"><Button size="small" variant="ghost" onClick={closeInbox}>Close inbox</Button></Row>}
     {telegramInstance && <TelegramSetupView key={telegramInstance.id} instance={telegramInstance} close={closeTelegram} edit={() => edit(telegramInstance)} changed={load} pause={async () => { await PUT(`/gateways/${telegramInstance.id}`, { ...gatewayConfig(telegramInstance), enabled: false }); await load(); }} />}
     {telegram && listing && !telegramInstance && <Row title="This Telegram instance is no longer available"><Button size="small" variant="ghost" onClick={closeTelegram}>Close setup</Button></Row>}
+    {retired !== null && <GatewayRetiredView id={retired} select={selectRetired} close={() => { setRetired(null); history.replaceState(null, '', '#/settings?tab=gateways'); }} changed={load} />}
   </div>;
 }
 
