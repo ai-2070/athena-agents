@@ -655,7 +655,7 @@ post<{ text?: unknown; attachments?: unknown; steer?: unknown }>('/api/agents/:i
   const attachments = uploads.cleanAttachments(body.attachments);
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
   const { runId, steerId } = body.steer === true ? await engines.steerChat(a, c, text, { attachments }) : { ...engines.startRun(a, c, text, { attachments }), steerId: undefined };
-  await uistream.streamRun(res, { chatId: c.id, runId, waiting: `Waiting for ${a.name} to stop…`, ...(steerId ? { ownSteer: steerId } : {}) });
+  await uistream.streamRun(res, { chatId: c.id, runId, waiting: `Waiting for ${a.name} to stop…`, ...(steerId ? { ownSteer: steerId } : {}), live: engines.runActive });
   return undefined;
 });
 get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {

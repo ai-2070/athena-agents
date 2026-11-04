@@ -21,7 +21,7 @@ beforeAll(async () => {
     const url = new URL(req.url!, 'http://x');
     const runId = url.searchParams.get('run') || 'r1';
     const later = url.searchParams.has('later') ? new Promise<string | null>((r) => (startLater = r)) : null;
-    void streamRun(res, { chatId: 'c1', runId: later ?? runId, items: replayItems, keepAliveMs: 20, waiting: 'Waiting for it to stop…', ...(url.searchParams.get('own') ? { ownSteer: url.searchParams.get('own')! } : {}) });
+    void streamRun(res, { chatId: 'c1', runId: later ?? runId, items: replayItems, keepAliveMs: 20, waiting: 'Waiting for it to stop…', ...(url.searchParams.get('own') ? { ownSteer: url.searchParams.get('own')! } : {}), ...(url.searchParams.has('ended') ? { live: () => false } : {}) });
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -128,6 +128,15 @@ describe('the message a stream sent into the turn', () => {
       run({ kind: 'done', text: '' }, 'r4');
     });
     expect(last.parts.flatMap((p) => (p.type === 'data-steer' ? [(p.data as { text: string }).text] : []))).toEqual(['another tab']);
+  });
+});
+
+describe('streamRun() for a run that already ended', () => {
+  it('ends at once, instead of waiting for a done that went before it listened', async () => {
+    replayItems = [];
+    // (nothing drives it: a stream that waited would never end, and the test would time out)
+    const { last } = await read('r5&ended', async () => {});
+    expect(last.parts.filter((p) => p.type !== 'step-start')).toEqual([]);
   });
 });
 

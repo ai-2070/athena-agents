@@ -101,13 +101,15 @@ export interface StreamRunOptions {
   keepAliveMs?: number;
   /** the message this stream's request sent into the turn going on: the view shows it already */
   ownSteer?: string;
+  /** whether the run is still going: one that ended before the stream began ends it at once */
+  live?: (runId: string) => boolean;
 }
 
 // a run you stopped (or stopped for your new message) didn't fail
 const STOPPED = new Set(['Stopped.', 'Stopped to take your new message.']);
 
 /** Streams the run into the response until it ends (or the browser goes away). */
-export function streamRun(res: http.ServerResponse, { chatId, runId, items = [], keepAliveMs = 15_000, waiting = 'Waiting…', ownSteer }: StreamRunOptions): Promise<void> {
+export function streamRun(res: http.ServerResponse, { chatId, runId, items = [], keepAliveMs = 15_000, waiting = 'Waiting…', ownSteer, live }: StreamRunOptions): Promise<void> {
   res.writeHead(200, { ...UI_MESSAGE_STREAM_HEADERS, 'cache-control': 'no-store' });
   const write = (chunk: UIMessageChunk) => res.write(`data: ${JSON.stringify(chunk)}\n\n`);
   const w = new TurnChunks(write);
@@ -142,6 +144,8 @@ export function streamRun(res: http.ServerResponse, { chatId, runId, items = [],
     bus.on('event', listen);
     const alive = setInterval(() => res.write(': keep-alive\n\n'), keepAliveMs);
     res.on('close', () => end(false));
+    // (it ended before anyone listened: its done event went already)
+    if (id != null && live && !live(id)) return void end();
     if (typeof runId !== 'string') {
       w.status(waiting);
       // (its first events come later: a run streams only once its engine answers)

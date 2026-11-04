@@ -328,9 +328,10 @@ export function lateSteers(id: string): EveSteer[] {
 
 /** The binding's last run ended with a message Eve starts its next turn with, before a run follows it. */
 export function awaitingTakeover(bindingId: string): boolean {
-  // (a minute at most: one a crash left unsent never holds the conversation up)
+  // (a minute at most after the turn ended, however long ago the message went: one a crash left unsent
+  // never holds the conversation up)
   const recent = Date.now() - 60_000;
-  return runSummaries().some((run) => run.bindingId === bindingId && run.late > 0 && (run.status === 'completed' || run.status === 'failed') && unfollowed(readRun(run.id) || {}).some((steer) => steer.at > recent));
+  return runSummaries().some((run) => run.bindingId === bindingId && run.late > 0 && (run.status === 'completed' || run.status === 'failed') && (run.endedAt || 0) > recent);
 }
 
 /** A run that follows a turn Eve already started (with a late steer's message): no input of its own to send. */

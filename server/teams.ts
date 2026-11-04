@@ -892,6 +892,15 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
     if (loadChat(team.id, pid).sessions[agent.id] !== chatId) chats.remove(agent.id, chatId);
     return;
   }
+  // your messages sent into its turn that it ended before reading leave that turn, so it doesn't show them as
+  // read nor count them as had (before the reply marks where the turn's work ends)
+  const missed = await missedSteers(delivery.runId);
+  const session = missed.length ? chats.get(agent.id, chatId) : null;
+  if (session) {
+    const ids = new Set(missed.map((m) => m.id));
+    session.items = session.items.filter((i) => !(i.type === 'steer' && ids.has(i.steerId)));
+    chats.save(session);
+  }
   // (a stopped turn hands nothing on)
   const mentions = stopped ? [] : parseMentions(team, text, agent.id);
   const to = chats.get(agent.id, chatId)?.items.length ?? from;
@@ -902,7 +911,7 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
   // its own reply is left out of that by itself)
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'end' } });
   // your messages sent into its turn that it ended before reading: it takes them next, as an ordinary turn
-  for (const missed of await missedSteers(delivery.runId)) if (missed.teamMessageId) enqueue(team, agent.id, missed.teamMessageId, true, false, item.skills);
+  for (const m of missed) if (m.teamMessageId) enqueue(team, agent.id, m.teamMessageId, true, false, item.skills);
   if (stopped) return;
   enqueueMany(team, mentions, msg.id, false, false, item.skills);
   // it asked the Brain: the Brain's answer comes back to it

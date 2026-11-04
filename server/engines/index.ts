@@ -289,7 +289,7 @@ export function finishNativeRun(runId: string): void {
     active.delete(runId);
     restored.delete(runId);
     const steered = stopped && !!(entry.steered || saved.steered);
-    const tookOver = !stopped && !steering.has(chatKey(entry.projectId, chat.id)) && takeOverSteers(runId, entry);
+    const tookOver = !stopped && !steering.has(chatKey(entry.projectId, chat.id)) && !!takeOverSteers(runId, entry);
     if (native.status === 'interrupted') {
       stopChatWork(entry.ownerChatId, entry.projectId);
       const queue = waiting.get(chatKey(entry.projectId, chat.id));
@@ -321,6 +321,9 @@ const runsIn = (projectId: string, chatId: string): [string, RunEntry][] => [...
 
 // chats where a new message waits for the run it stopped to end: it goes next, so nothing else starts meanwhile
 const steering = new Set<string>();
+
+/** Whether this run is going now (in this dashboard). */
+export const runActive = (runId: string): boolean => active.has(runId);
 
 export function activeRuns(): ActiveRun[] {
   return [...active.entries()].map(([id, r]) => ({ id, agentId: r.agentId, chatId: r.chatId, projectId: r.projectId, startedAt: r.startedAt, agentName: r.agentName, parentRunId: r.parentRunId || null, depth: r.depth }));
@@ -675,7 +678,7 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       // stopped for a new message from you: that message is next, and a /goal is checked after it instead
       const steered = stopped && !!entry.steered;
       // a message you sent into this turn arrived as it ended: the next turn starts with it, and a run follows that
-      const tookOver = !stopped && !suspended && !steering.has(key) && takeOverSteers(runId, entry);
+      const tookOver = !stopped && !suspended && !steering.has(key) && !!takeOverSteers(runId, entry);
       try {
         if (!steered && !suspended) {
           updateExecution(runId, { completionClaimed: true });
@@ -785,11 +788,14 @@ function joinTurn(runs: [string, RunEntry][], text: string, attachments: string[
   if (runs.length !== 1 || !canJoin(...runs[0]!)) return null;
   const [runId, entry] = runs[0]!;
   // (the message is in the chat and on the run before this returns: nothing waits before it is saved)
-  return joinRun(runId, entry, { text, attachments }).then((steerId) => {
+  return joinRun(runId, entry, { text, attachments }).then((steerId): Steered | null => {
     if (!steerId) return null;
-    // it ended while the message went: Eve starts the next turn with it
-    if (!active.has(runId) && !takeOverSteers(runId, entry)) carryOn(projectId, entry.chatId);
-    return { runId, steerId };
+    if (active.has(runId)) return { runId, steerId };
+    // it ended while the message went: the stream follows the run Eve's next turn starts with it, or
+    // (none: the turn took it after all, or it goes the ordinary way) ends at once
+    const next = takeOverSteers(runId, entry) ?? readEveRun(runId)?.steers?.find((s) => s.id === steerId)?.adoptedBy ?? null;
+    if (!next) carryOn(projectId, entry.chatId);
+    return { runId: next ?? Promise.resolve(null), steerId };
   });
 }
 
@@ -820,17 +826,16 @@ async function joinRun(runId: string, entry: RunEntry, { text, attachments = [],
   const chat = entry.chat;
   const steerId = uid('s');
   const extra = { ...(attachments.length ? { attachments } : {}), ...(from ? { from } : {}) };
-  // nothing else starts in the chat while it is sent; an engine that doesn't say when it reads it: shown at once
+  // nothing else starts in the chat while it is sent; an engine that doesn't say when it reads it: saved at
+  // once, and shown once the engine has it (one it didn't take is never shown in the turn)
   steering.add(key);
-  if (!steering_.saysWhenRead) {
-    withProject(entry.project, () => {
-      pushItem(chat, { type: 'steer', steerId, text, runId, ...extra, ...(teamMessageId ? { teamMessageId } : {}) });
-      if (!chat._deleted) chats.save(chat);
-    });
-    emit('run', { runId, agentId: entry.agentId, chatId: chat.id, projectId: entry.projectId, event: { kind: 'steer', id: steerId, text, ...extra } });
-  }
+  if (!steering_.saysWhenRead) withProject(entry.project, () => {
+    pushItem(chat, { type: 'steer', steerId, text, runId, ...extra, ...(teamMessageId ? { teamMessageId } : {}) });
+    if (!chat._deleted) chats.save(chat);
+  });
   try {
     await steering_.send(runId, { id: steerId, text, attachments, ...(from ? { from } : {}), ...(teamMessageId ? { teamMessageId } : {}) });
+    if (!steering_.saysWhenRead) emit('run', { runId, agentId: entry.agentId, chatId: chat.id, projectId: entry.projectId, event: { kind: 'steer', id: steerId, text, ...extra, ...(teamMessageId ? { teamMessageId } : {}) } });
     return steerId;
   } catch {
     // not taken: it goes the ordinary way, and the chat shows it there instead
@@ -846,14 +851,14 @@ async function joinRun(runId: string, entry: RunEntry, { text, attachments = [],
 
 /** Messages sent into a turn that ended before it took them: Eve starts the next turn with the first (and
  *  may take the rest into that turn). A new run follows it, so its work shows and counts like any turn.
- *  True when one did. Not for work for a team or another agent: they wait on the answer they asked for. */
-function takeOverSteers(runId: string, entry: Pick<RunEntry, 'agentId' | 'chat' | 'project' | 'depth'>): boolean {
-  if (entry.depth > 0 || closing) return false;
+ *  The new run's id when one did. Not for work for a team or another agent: they wait on the answer they asked for. */
+function takeOverSteers(runId: string, entry: Pick<RunEntry, 'agentId' | 'chat' | 'project' | 'depth'>): string | null {
+  if (entry.depth > 0 || closing) return null;
   const late = lateSteers(runId);
   const chat = entry.chat;
   const agent = agentStore.get(entry.agentId);
   const eve = readEveRun(runId);
-  if (!late.length || !agent || !eve || chat._deleted || runsIn(entry.project.id, chat.id).length) return false;
+  if (!late.length || !agent || !eve || chat._deleted || runsIn(entry.project.id, chat.id).length) return null;
   const [first, ...rest] = late as [EveSteer, ...EveSteer[]];
   return withProject(entry.project, () => {
     // the messages move from the turn that missed them to the one they start
@@ -861,9 +866,9 @@ function takeOverSteers(runId: string, entry: Pick<RunEntry, 'agentId' | 'chat' 
     chat.items = chat.items.filter((item) => !(item.type === 'steer' && ids.has(item.steerId)));
     const next = startRun(agent, chat, first.text, { attachments: first.attachments, from: first.from || null, adopt: { bindingId: eve.bindingId, deliveryId: first.deliveryId!, steers: rest } });
     for (const s of late) updateSteer(runId, s.id, { adoptedBy: next.runId });
-    for (const s of rest) pushItem(chat, { type: 'steer', steerId: s.id, text: s.text, runId: next.runId, ...(s.attachments.length ? { attachments: s.attachments } : {}) });
+    for (const s of rest) pushItem(chat, { type: 'steer', steerId: s.id, text: s.text, runId: next.runId, ...(s.attachments.length ? { attachments: s.attachments } : {}), ...(s.from ? { from: s.from } : {}), ...(s.teamMessageId ? { teamMessageId: s.teamMessageId } : {}) });
     if (rest.length) chats.save(chat);
-    return true;
+    return next.runId;
   });
 }
 

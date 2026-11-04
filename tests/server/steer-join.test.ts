@@ -7,7 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { chats, saveSettings, workflows } from '../../server/store.ts';
 import { getThread, postUserMessage, steerTeam, teamState } from '../../server/teams.ts';
-import { activeRuns, queueMessage, steerChat } from '../../server/engines/index.ts';
+import { activeRuns, queueMessage, startRun, steerChat } from '../../server/engines/index.ts';
+import { ADOPT_WAIT } from '../../server/engines/eve.ts';
 import { readRun } from '../../server/eve/state.ts';
 import { readExecution } from '../../server/execution.ts';
 import type { ChatItem, Team } from '../../shared/types.ts';
@@ -120,6 +121,25 @@ describe('a message while an API-model agent works', () => {
     expect(readRun(followed)).toMatchObject({ status: 'completed', adopted: true, deliveryId: readRun(first!.id)!.steers![0]!.deliveryId });
   }, 40000);
 
+  it('a run following a turn Eve never starts gives up instead of waiting forever', async () => {
+    const a = agent('Ghost');
+    const c = chats.create(a.id);
+    queueMessage(a, c, 'hello');
+    (await next('hello')).release();
+    await until(() => !running(c.id).length);
+    const bindingId = readRun(readExecution().runs.find((r) => r.chatId === c.id)!.id)!.bindingId;
+    const wait = ADOPT_WAIT.ms;
+    ADOPT_WAIT.ms = 300;
+    try {
+      const { promise } = startRun(a, c, 'a message Eve never had', { adopt: { bindingId, deliveryId: 'never-delivered', steers: [] } });
+      await promise;
+      await until(() => !running(c.id).length);
+    } finally {
+      ADOPT_WAIT.ms = wait;
+    }
+    expect(said(chats.get(a.id, c.id)!.items).at(-1)).toBe('error: Eve did not start the turn with your message. Send it again.');
+  }, 40000);
+
   it('with nothing going, it is an ordinary message', async () => {
     const a = agent('Idle');
     const c = chats.create(a.id);
@@ -172,5 +192,10 @@ describe('a message while a team works', () => {
     const names = { [worker.id]: 'Writer' };
     // (one reply for each turn: the one it was writing, then the one with your message)
     expect(thread(team, names)).toEqual(['user: write the long one', 'user: and a short summary', expect.stringMatching(/^Writer: Here is the long one: re: /), expect.stringMatching(/^Writer: re: /)]);
+    // the turn that missed it doesn't show it as read: it shows in the turn that took it
+    const [missed, took] = getThread(team.id).messages.slice(2);
+    const work = (m: typeof missed) => chats.get(worker.id, m!.turn!.chatId)!.items.slice(m!.turn!.from, m!.turn!.to);
+    expect(work(missed).some((i) => i.type === 'steer')).toBe(false);
+    expect(said(work(took))[0]).toMatch(/and a short summary/);
   }, 40000);
 });
