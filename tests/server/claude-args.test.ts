@@ -1,6 +1,6 @@
 // How an agent's autonomy maps to Claude Code's permission mode.
 import { describe, expect, it } from 'vitest';
-import { claudeArgs } from '../../server/engines/claude.ts';
+import { claudeArgs, parseAuthStatus } from '../../server/engines/claude.ts';
 import { newAgent } from '../../server/library.ts';
 import type { Agent } from '../../shared/types.ts';
 
@@ -40,5 +40,18 @@ describe('claudeArgs() questions', () => {
 
   it('keeps it in a terminal, where you are there to answer', () => {
     expect(claudeArgs(agent('auto'), { ...files, interactive: true })).not.toContain('--disallowedTools');
+  });
+});
+
+describe('parseAuthStatus()', () => {
+  it("reads the login from `claude auth status`, which also knows about the macOS Keychain", () => {
+    expect(parseAuthStatus('{\n  "loggedIn": true,\n  "authMethod": "claude.ai"\n}\n')).toBe(true);
+    expect(parseAuthStatus('{"loggedIn": false}')).toBe(false);
+  });
+
+  it('gives up on output it does not understand, so the credentials file decides', () => {
+    expect(parseAuthStatus("error: unknown command 'auth'")).toBeNull();
+    expect(parseAuthStatus('{"authMethod": "claude.ai"}')).toBeNull();
+    expect(parseAuthStatus('{ not json')).toBeNull();
   });
 });

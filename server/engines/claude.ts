@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { dataPath, ensureDir, which, spawnCommand, killTree, run as runCmd, HOME, isInside } from '../util.ts';
-import { getSecrets } from '../store.ts';
+import { getSecrets, emit } from '../store.ts';
 import { claudeMcpConfig } from '../mcp.ts';
 import { workspaceOf } from '../tools.ts';
 import { knowledgeRoots } from '../knowledge.ts';
@@ -61,14 +61,39 @@ interface ClaudeUsage {
   output_tokens?: number;
 }
 
+/** What `claude auth status` (JSON) says about the login, or null if it didn't answer in JSON. */
+export function parseAuthStatus(out: string): boolean | null {
+  const start = out.indexOf('{');
+  if (start < 0) return null;
+  try {
+    const j: unknown = JSON.parse(out.slice(start, out.lastIndexOf('}') + 1));
+    return j && typeof j === 'object' && 'loggedIn' in j && typeof j.loggedIn === 'boolean' ? j.loggedIn : null;
+  } catch {
+    return null;
+  }
+}
+
 let versionCache: string | null = null;
+// The CLI's own answer, checked at most once a minute. On macOS the login lives in the Keychain,
+// so ~/.claude/.credentials.json alone would say "not signed in" there.
+const authCache: { at: number; value: boolean | null } = { at: 0, value: null };
 export function status(): EngineStatus['claude-code'] {
   const exe = which('claude');
   if (exe && !versionCache) {
     versionCache = 'checking';
     runCmd('claude', ['--version'], { timeout: 20000 }).then((r) => (versionCache = r.stdout.trim() || 'unknown'));
   }
-  const loggedIn = fs.existsSync(path.join(HOME, '.claude', '.credentials.json')) || !!process.env.ANTHROPIC_API_KEY;
+  if (exe && Date.now() - authCache.at > 60_000) {
+    authCache.at = Date.now();
+    runCmd('claude', ['auth', 'status', '--json'], { timeout: 20000 }).then((r) => {
+      const was = authCache.value;
+      authCache.value = parseAuthStatus(r.stdout);
+      // open pages ask again, so the selector picks Claude Code up without a reload
+      if (was !== authCache.value) emit('engines');
+    });
+  }
+  // older CLIs without `auth status` fall back to the credentials file
+  const loggedIn = authCache.value ?? (fs.existsSync(path.join(HOME, '.claude', '.credentials.json')) || !!process.env.ANTHROPIC_API_KEY);
   return { installed: !!exe, path: exe, loggedIn, version: versionCache === 'checking' ? null : versionCache };
 }
 
