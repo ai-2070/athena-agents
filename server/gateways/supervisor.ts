@@ -11,7 +11,8 @@ import { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecover
 import { claimGatewayAccount, claimGatewayState } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
 import { checkTelegramSetup, switchTelegramToPolling } from './telegram-setup.ts';
-import { GatewayOutboxLedger } from './outbox.ts';
+import { GatewayOutboxLedger, reviewRetiredGatewayOutbox } from './outbox.ts';
+import { checkGatewayPostDelivery } from './outbox-posts.ts';
 import { privateDataPath } from '../private.ts';
 import type { GatewayRetiredFinishReview } from '../../shared/types.ts';
 
@@ -332,7 +333,7 @@ export class GatewaySupervisor {
     this.pending = task.then(() => {}, () => {}); return task;
   }
 
-  private retiredFinishTask(instanceId: string, work: (inbox: GatewayInbox) => GatewayRetiredFinishReview): Promise<GatewayRetiredFinishReview> {
+  private retiredReviewTask<T>(instanceId: string, work: () => T): Promise<T> {
     const task = this.pending.then(async () => {
       let releaseAccount: (() => Promise<void>) | undefined; let releaseState: (() => Promise<void>) | undefined;
       try {
@@ -342,7 +343,7 @@ export class GatewaySupervisor {
         await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
         releaseAccount = await claimGatewayAccount(retired.platform, retired.accountId); releaseState = await claimGatewayState(instanceId);
         if (this.closed || JSON.stringify(gatewayRetirement(instanceId)) !== JSON.stringify(retired)) throw Object.assign(new Error('The removal record changed. Reload before finishing locally.'), { status: 409 });
-        return work(new GatewayInbox({ instanceId, inboxFile: () => privateDataPath('gateways-runtime', instanceId, 'inbox.json') }));
+        return await work();
       } catch (error) {
         if (error instanceof Error && 'status' in error && (error.status === 400 || error.status === 404 || error.status === 409 || error.status === 503)) throw error;
         throw Object.assign(new Error('Saved receipts could not be finished safely. Check storage and ownership, then reload the local-finish review.'), { status: 503 });
@@ -352,11 +353,19 @@ export class GatewaySupervisor {
   }
 
   prepareRetiredFinish(instanceId: string, eventId: string, body: unknown): Promise<GatewayRetiredFinishReview> {
-    return this.retiredFinishTask(instanceId, (inbox) => inbox.prepareRetiredFinish(eventId, body));
+    return this.retiredReviewTask(instanceId, () => new GatewayInbox({ instanceId, inboxFile: () => privateDataPath('gateways-runtime', instanceId, 'inbox.json') }).prepareRetiredFinish(eventId, body));
   }
 
   finishRetired(instanceId: string, eventId: string, body: unknown): Promise<GatewayRetiredFinishReview> {
-    return this.retiredFinishTask(instanceId, (inbox) => inbox.finishRetired(eventId, body));
+    return this.retiredReviewTask(instanceId, () => new GatewayInbox({ instanceId, inboxFile: () => privateDataPath('gateways-runtime', instanceId, 'inbox.json') }).finishRetired(eventId, body));
+  }
+
+  prepareRetiredOutbox(instanceId: string, projectId: string, postId: string, body: unknown): Promise<void> {
+    return this.retiredReviewTask(instanceId, () => { checkGatewayPostDelivery(instanceId, projectId, postId); reviewRetiredGatewayOutbox(instanceId, projectId, postId, body, true); });
+  }
+
+  finishRetiredOutbox(instanceId: string, projectId: string, postId: string, body: unknown): Promise<void> {
+    return this.retiredReviewTask(instanceId, () => { checkGatewayPostDelivery(instanceId, projectId, postId); reviewRetiredGatewayOutbox(instanceId, projectId, postId, body, false); });
   }
 
   reconnect(instanceId: string): Promise<void> {

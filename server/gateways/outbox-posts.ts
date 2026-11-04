@@ -5,6 +5,7 @@ import { activeProject, outbox } from '../store.ts';
 import { approveGatewayOutbox, prepareGatewayOutbox } from './outbox-owner.ts';
 import { gatewayOutboxDeliveryReview, gatewayOutboxReviewRevision, readGatewayOutboxDeliveries } from './outbox.ts';
 import { getGatewayInstance } from './instances.ts';
+import { gatewayRetirement } from './retirement.ts';
 
 const destination = z.strictObject({ instanceId: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/), eventId: z.string().regex(/^[a-f0-9]{64}$/) });
 const partsSchema = z.array(z.string().min(1).max(100000)).min(1).max(100);
@@ -75,7 +76,12 @@ export function readGatewayPostDelivery(id: string): GatewayOutboxDeliveryReview
     throw Object.assign(new Error('The saved Outbox delivery receipts are missing or changed. Restore them before reviewing delivery.'), { status: 409 });
   }
   let instance: GatewayInstance | undefined; try { instance = getGatewayInstance(entry.instanceId); } catch { /* Removed instances keep their delivery evidence. */ }
-  return gatewayOutboxDeliveryReview(instance, entry);
+  return gatewayOutboxDeliveryReview(instance, entry, instance ? undefined : gatewayRetirement(entry.instanceId));
+}
+
+export function checkGatewayPostDelivery(instanceId: string, projectId: string, postId: string): void {
+  if (activeProject().id !== projectId || outbox.get(postId)?.gateway?.instanceId !== instanceId) throw Object.assign(new Error('The saved Outbox project or instance changed. Reload its delivery review.'), { status: 409 });
+  readGatewayPostDelivery(postId);
 }
 
 export function projectGatewayPost<T extends OutboxPost>(item: T, cache?: GatewayOutboxReadCache): T {

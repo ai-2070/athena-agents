@@ -22,7 +22,8 @@ beforeEach(() => {
     if (method === 'POST' && failure) return new Response(JSON.stringify({ error: failure }), { status: 409 });
     if (method === 'POST' && body.action === 'confirm') { preview.parts[1] = { ...preview.parts[1], status: 'sent', remoteId: String(body.remoteId), confirmedAt: 1700000000000, canConfirm: false }; preview.reviewHeld = true; preview.nextIndex = 2; preview.revision = 'b'.repeat(64); }
     if (method === 'POST' && body.action === 'retry') { preview.parts[preview.nextIndex!] = { ...preview.parts[preview.nextIndex!], status: 'pending' }; preview.reviewHeld = false; preview.canRetry = false; preview.retryReason = 'Remaining parts are queued. Enable this instance when ready.'; }
-    if (url.endsWith('/prepare')) { preview.needsPrepare = false; preview.reason = ''; preview.parts[1] = { ...preview.parts[1], status: 'uncertain', canConfirm: true }; preview.canRetry = true; preview.revision = 'c'.repeat(64); }
+    if (url.endsWith('/prepare')) { preview.needsPrepare = false; preview.reason = ''; preview.parts[1] = { ...preview.parts[1], status: 'uncertain', canConfirm: !preview.removed }; preview.canRetry = !preview.removed; preview.canFinish = true; preview.revision = 'c'.repeat(64); }
+    if (url.endsWith('/gateway-finish') && method === 'POST') { preview.canFinish = false; preview.closedAt = 1700000000000; preview.reason = 'Delivery was finished locally and cannot be reopened.'; preview.revision = 'd'.repeat(64); }
     return new Response(JSON.stringify(preview));
   });
 });
@@ -79,4 +80,30 @@ it('makes enabled and closed history read-only while retaining confirmed and unc
   expect(button('Retry remaining delivery').disabled).toBe(true); expect(button('Record confirmed delivery')).toBeUndefined(); expect(button('Finish locally')).toBeUndefined();
   act(() => unmount()); preview.paused = true; preview.closedAt = 1700000000000; preview.reason = 'Delivery was finished locally and cannot be reopened.'; await open();
   expect(host.textContent).toContain('cannot be reopened'); expect(host.textContent).toContain('confirmed-prefix'); expect(host.textContent).toContain('Delivery uncertain'); expect(button('Retry remaining delivery')).toBeUndefined();
+});
+
+it('reads removed delivery metadata and links its saved history without offering retry or manual confirmation', async () => {
+  preview.removed = true; preview.paused = false; preview.canRetry = false; preview.parts[1].canConfirm = false; await open();
+  expect(host.textContent).toContain('belongs to a removed instance'); expect(host.textContent).toContain('confirmed-prefix'); expect(button('Retry remaining delivery')).toBeUndefined(); expect(button('Record confirmed delivery')).toBeUndefined(); expect(button('Open this gateway')).toBeUndefined();
+  expect(host.querySelector('a')?.getAttribute('href')).toBe('#/settings?tab=gateways&retired=gateway-1'); expect(calls.every((call) => call.method === 'GET')).toBe(true);
+});
+
+it('recovers removed in-flight receipts with the displayed revision and finishes using the fresh revision', async () => {
+  preview.removed = true; preview.paused = false; preview.canRetry = false; preview.needsPrepare = true; preview.canFinish = false; preview.parts[1] = { ...preview.parts[1], status: 'sending', canConfirm: false };
+  await open(); await click('Recover interrupted receipts'); await settle(); expect(calls.find((call) => call.method === 'POST')).toMatchObject({ url: '/api/outbox/post-1/gateway-delivery/prepare', body: { revision: 'a'.repeat(64) } });
+  await click('Finish locally'); await settle(); expect(document.querySelector('.modal')!.textContent).toContain('removed connection stays blocked'); expect(document.querySelector('.modal')!.textContent).toContain('Research bot');
+  await click('Finish locally', document.querySelector('.modal')!); await settle();
+  expect(calls.filter((call) => call.method === 'POST').at(-1)).toEqual({ url: '/api/outbox/post-1/gateway-finish', method: 'POST', body: { revision: 'c'.repeat(64), acknowledgeNoSend: true } });
+  expect(host.textContent).toContain('Finished locally'); expect(host.textContent).toContain('confirmed-prefix'); expect(host.textContent).toContain('Delivery uncertain'); expect(button('Finish locally')).toBeUndefined(); expect(button('Retry remaining delivery')).toBeUndefined();
+});
+
+it.each(['unfinished removal', 'missing removal record'] as const)('keeps %s read-only without losing saved evidence', async (reason) => {
+  preview.removed = true; preview.paused = false; preview.canFinish = false; preview.canRetry = false; preview.parts[1].canConfirm = false; preview.reason = reason;
+  await open(); expect(host.textContent).toContain(reason); expect(host.textContent).toContain('Exact uncertain text'); expect(button('Finish locally')).toBeUndefined(); expect(button('Recover interrupted receipts')).toBeUndefined(); expect(calls.every((call) => call.method === 'GET')).toBe(true);
+});
+
+it('guards removed-delivery cancellation, duplicate confirmations and an unmounted parent', async () => {
+  preview.removed = true; preview.canRetry = false; preview.parts[1].canConfirm = false; await open();
+  await act(async () => { button('Finish locally').click(); button('Finish locally').click(); }); await settle(); expect(document.querySelectorAll('.modal')).toHaveLength(1); await click('Cancel', document.querySelector('.modal')!); await settle(); expect(calls.some((call) => call.method === 'POST')).toBe(false);
+  await act(() => new Promise((resolve) => setTimeout(resolve, 510))); await click('Finish locally'); await settle(); alive = false; await click('Finish locally', document.querySelector('.modal')!); await settle(); expect(calls.some((call) => call.method === 'POST')).toBe(false);
 });

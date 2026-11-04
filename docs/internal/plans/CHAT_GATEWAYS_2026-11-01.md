@@ -1059,7 +1059,41 @@ New gateway data does not need a legacy compatibility layer.*
   not enable WhatsApp or establish real-account delivery acceptance.
 - Final validation: `CI=1 bun run check` passed (276 files; 2,770 tests passed, one skipped).
   The web build, desktop staging and bundled desktop smoke passed.
-- Next: finish retired Outbox closure and temporary-media retention, then
+- Added removed-instance Outbox closure through the existing **Review delivery** dialog and guarded
+  APIs. Safe metadata identifies removal without treating it as an enabled or paused connection.
+  Completed retirement and exact original instance/account/platform are required. Missing legacy
+  records and unfinished removal stay read-only. Approved text/recipient, confirmation audit,
+  attempt counts and pending tails remain immutable evidence; retry/manual confirmation stay disabled.
+- Recovery is a separate, strict revisioned action for only the selected interrupted post. Closure
+  uses the existing permanent receipt seal. Its displayed revision includes removal identity and
+  the private delivery; the public Outbox row and original project are rechecked after exclusive
+  account/state acquisition. Changed public text/source selection, destination proof, retirement
+  identity or revision refuses the write. Already confirmed or closed delivery cannot be reopened or resent.
+- Shared retired ownership keeps claims through the review callback and serves both native and
+  Outbox closure. The Outbox path opens no SDK, credential store or native inbox, so their corruption
+  cannot trigger a reset. It changes only the selected private Outbox receipt; source work, sibling
+  posts and public approval data remain intact. All writes retain the existing atomic validator.
+- The dialog preserves original recipient/text/part evidence and its scrolling action/footer layout.
+  Removed-instance copy and recovery guidance explain local closure and the blocked connection;
+  retry and manual-confirmation controls are absent. A history link opens the removed instance.
+  Finished posts move to Outbox History and remain reviewable with their closure time and prior
+  statuses. Shared confirmation, cancellation, duplicate/unmount and project-change guards remain.
+- Added server/API/DOM coverage for Telegram/Discord closure, fresh recovery revisions, immutable
+  approvals/confirmation holds, closed seals, late callbacks, public-row and retirement races,
+  original-project pinning across a global switch, same-ID isolation in another project, ownership
+  conflicts, missing/pending removal and atomic storage failure. Broken native/SDK/credential bytes
+  remain untouched; mutation guards still require `x-dash` and strict acknowledgement bodies.
+- Personally inspected twelve synthetic desktop/phone captures covering recovery, eligible actions,
+  dark mode, confirmation, closed History and unfinished removal. The fresh UI finish review returned
+  `ship` with no material fixes. The flow preserved approval, recipient, text, confirmed prefix,
+  uncertainty and the unattempted tail; native inbox, SDK and sibling bytes stayed unchanged.
+  Six settled Tab samples stayed in the nested confirmation, and Escape closed only that confirmation.
+  The preview recorded zero provider attempts, stopped, and its isolated data/home/browser profile
+  were removed. Phone document width was 392px at a 390px viewport; the modal fit, but zero page
+  overflow was not established. Only the shown local states have visual approval.
+- Final validation: `CI=1 bun run check` passed (277 files; 2,786 tests passed, one skipped).
+  The web build, desktop staging and bundled desktop smoke passed.
+- Next: finish temporary-media retention, then
   remaining delivery/product controls and proactive platform coverage under the same approval policy.
   Real-account checks on all four platforms and Windows/Linux verification remain outstanding.
   Offline checks run in CI.

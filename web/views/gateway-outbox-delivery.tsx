@@ -8,6 +8,8 @@ import { GatewayOutboxRecipient } from './gateway-outbox-recipient.tsx';
 import type { GatewayOutboxDeliveryReview } from '../../shared/types.ts';
 
 const statuses = { pending: 'Waiting', sending: 'Interrupted send', sent: 'Confirmed', uncertain: 'Delivery uncertain', failed: 'Failed' };
+// Removed-instance review keeps the existing receipt dialog and original recipient evidence.
+// Offer only explicit recovery/local closure, with a history link and no live delivery controls.
 export function GatewayOutboxDeliveryView({ id, instanceId, close, changed, alive }: {
   id: string; instanceId: string; close: () => void; changed: () => void; alive: () => boolean;
 }) {
@@ -34,17 +36,17 @@ export function GatewayOutboxDeliveryView({ id, instanceId, close, changed, aliv
     try {
       if (action === 'confirm' && (!picked || !remoteId.trim() || !await confirmBox(`Record part ${Number(selected) + 1} as delivered after checking ${source}? Use its own messaging-app ID. This only records your confirmation. Remaining parts on this post stay held until you explicitly continue them.`, { ok: 'Record confirmed delivery' }))) return;
       if (action === 'retry' && (!snapshot.canRetry || !next || !await confirmBox(`${next.status === 'pending' ? 'Continue' : 'Retry'} part ${snapshot.nextIndex! + 1} and the remaining approved parts for ${source}? ${next.attempts > 0 ? 'The earlier attempt may already have arrived. Retrying can send a duplicate. Check the messaging app first. ' : ''}Confirmed parts will not be resent. The original recipient and text stay fixed. This instance stays paused; enable it in Gateways when ready to send.`, { ok: next.status === 'pending' ? 'Queue remaining parts' : 'Queue retry', danger: next.attempts > 0 }))) return;
-      if (action === 'finish' && (!snapshot.canFinish || !await confirmBox(`Finish delivery locally for ${source}? Uncertain parts may already have arrived. Confirmed receipts stay recorded. Remaining parts will never send from this post and this cannot be undone.`, { ok: 'Finish locally', danger: true }))) return;
+      if (action === 'finish' && (!snapshot.canFinish || !await confirmBox(`Finish delivery locally for ${source}? Uncertain parts may already have arrived. Confirmed receipts stay recorded. Remaining parts will never send from this post and this cannot be undone.${snapshot.removed ? ' The removed connection stays blocked.' : ''}`, { ok: 'Finish locally', danger: true }))) return;
       if (!mounted.current || !alive() || invalid.current) return;
       if (action === 'finish') await POST(`/outbox/${encodeURIComponent(id)}/gateway-finish`, { revision: snapshot.revision, acknowledgeNoSend: true });
       else {
         const body = action === 'confirm' ? { action, revision: snapshot.revision, index: Number(selected), remoteId: remoteId.trim(), acknowledgeChecked: true }
           : { action, revision: snapshot.revision, index: snapshot.nextIndex, acknowledgeRemaining: true, ...(next && next.attempts > 0 ? { acknowledgePossibleDuplicate: true } : {}) };
-        const value = await POST<GatewayOutboxDeliveryReview>(action === 'prepare' ? `${root}/prepare` : root, action === 'prepare' ? undefined : body);
+        const value = await POST<GatewayOutboxDeliveryReview>(action === 'prepare' ? `${root}/prepare` : root, action === 'prepare' ? snapshot.removed ? { revision: snapshot.revision } : undefined : body);
         if (mounted.current) setPreview(value);
       }
       if (mounted.current) {
-        setSelected(''); setRemoteId(''); setNotice(action === 'prepare' ? 'Interrupted sends are now uncertain. Check the messaging app before recording what arrived.'
+        setSelected(''); setRemoteId(''); setNotice(action === 'prepare' ? snapshot.removed ? 'Interrupted sends are now uncertain. Review the saved receipts before finishing locally. The removed connection stays blocked.' : 'Interrupted sends are now uncertain. Check the messaging app before recording what arrived.'
           : action === 'confirm' ? 'Confirmation recorded locally. Remaining parts on this post wait for an explicit continue action.'
             : action === 'retry' ? 'Remaining parts queued. This instance is still paused; enable it in Gateways when ready.' : 'Delivery finished locally. Confirmed receipts and uncertainty are kept.'); changed();
       }
@@ -53,12 +55,13 @@ export function GatewayOutboxDeliveryView({ id, instanceId, close, changed, aliv
   };
   const next = preview?.nextIndex === undefined ? undefined : preview.parts[preview.nextIndex];
   return <><div className="modal-body flex flex-col gap-5">
-    <p className="text-dim">Check the messaging app before recording a result or retrying. These controls keep the original recipient, text and confirmed receipts.</p>
+    <p className="text-dim">{preview?.removed ? 'This Outbox delivery belongs to a removed instance. Local finish keeps its approved text, recipient and saved receipts. The connection stays blocked.' : 'Check the messaging app before recording a result or retrying. These controls keep the original recipient, text and confirmed receipts.'}</p>
     {error && <p role="alert" className="text-red [overflow-wrap:anywhere]">{error}</p>}
     {notice && <p role="status" className="text-dim">{notice}</p>}
     {!preview ? !error && <p role="status" className="text-dim">Loading delivery receipts…</p> : <>
       <GatewayOutboxRecipient value={preview.recipient} />
       {preview.reason && <p role="status" className="text-dim">{preview.reason}</p>}
+      {preview.closedAt !== undefined && <p className="text-sm text-dim">Finished locally {new Date(preview.closedAt).toLocaleString()}. Saved statuses remain as evidence.</p>}
       {preview.needsPrepare && <div className="flex flex-col items-start gap-2"><p className="text-sm text-dim">Recover the interrupted send locally before reviewing its outcome. This contacts no messaging service.</p><Button size="small" disabled={busy} onClick={() => void act('prepare')}>Recover interrupted receipts</Button></div>}
       <ol className="flex flex-col gap-4 list-none m-0 p-0">
         {preview.parts.map((part, index) => <li key={index} className="border-t border-line pt-4 min-w-0">
@@ -68,19 +71,19 @@ export function GatewayOutboxDeliveryView({ id, instanceId, close, changed, aliv
           {part.confirmedAt !== undefined && <p className="text-sm text-dim mt-2">Confirmed locally {new Date(part.confirmedAt).toLocaleString()}.</p>}
         </li>)}
       </ol>
-      {preview.parts.some((part) => part.canConfirm) && <fieldset disabled={busy} className="flex flex-col gap-3 border-t border-line pt-4 min-w-0">
+      {!preview.removed && preview.parts.some((part) => part.canConfirm) && <fieldset disabled={busy} className="flex flex-col gap-3 border-t border-line pt-4 min-w-0">
         <legend className="text-sm font-semibold">Record what arrived</legend><p className="text-sm text-dim">Choose an uncertain part you found in the messaging app. Pending or unattempted parts cannot be confirmed.</p>
         <SelectControl aria-label="Outbox part to confirm" value={selected} onChange={(value) => { setSelected(value); setRemoteId(''); }} options={[{ value: '', label: 'Choose an uncertain part' }, ...preview.parts.flatMap((part, index) => part.canConfirm ? [{ value: String(index), label: `Part ${index + 1}` }] : [])]} />
         <label className="flex flex-col gap-2 text-sm">Messaging-app ID<input aria-label="Outbox messaging-app ID" value={remoteId} maxLength={500} onChange={(event) => setRemoteId(event.target.value)} spellCheck={false} autoComplete="off" /></label>
         <div><Button size="small" disabled={!picked || !remoteId.trim() || /\s/.test(remoteId.trim())} onClick={() => void act('confirm')}>Record confirmed delivery</Button></div>
       </fieldset>}
-      {preview.nextIndex !== undefined && preview.closedAt === undefined && <div className="flex flex-col items-start gap-3 border-t border-line pt-4">
+      {!preview.removed && preview.nextIndex !== undefined && preview.closedAt === undefined && <div className="flex flex-col items-start gap-3 border-t border-line pt-4">
         <b className="text-sm">Remaining approved parts</b><p className="text-sm text-dim">{preview.reviewHeld ? 'Your confirmation did not release the remaining parts. Continue them explicitly when ready.' : 'A retry starts with the first remaining part and keeps the confirmed prefix. Setup or source changes block retry.'}</p>
         {preview.retryReason && <p className="text-sm text-dim">{preview.retryReason}</p>}
         <Button size="small" disabled={busy || !preview.canRetry} onClick={() => void act('retry')}>{next?.status === 'pending' ? 'Continue remaining delivery' : 'Retry remaining delivery'}</Button>
       </div>}
       {preview.canFinish && <div className="border-t border-line pt-4"><Button size="small" variant="danger" disabled={busy} onClick={() => void act('finish')}>Finish locally</Button></div>}
     </>}
-    <p className="text-sm text-dim">Confirmation sends nothing. Retry only queues the original approved parts; the instance stays paused. Native work is never started or replayed.</p>
-  </div><div className="modal-foot flex flex-wrap gap-2"><ButtonLink size="small" variant="ghost" href={`#/settings?tab=gateways&instance=${encodeURIComponent(instanceId)}`} onClick={close}>Open this gateway</ButtonLink><Button size="small" variant="ghost" disabled={busy} onClick={() => void load()}>Reload receipts</Button><Button size="small" disabled={busy} onClick={close}>Close</Button></div></>;
+    <p className="text-sm text-dim">{preview?.removed ? 'These local actions never send, start native work or reconnect the removed instance. Confirmed IDs, uncertainty and attempts stay recorded.' : 'Confirmation sends nothing. Retry only queues the original approved parts; the instance stays paused. Native work is never started or replayed.'}</p>
+  </div><div className="modal-foot flex flex-wrap gap-2"><ButtonLink size="small" variant="ghost" href={`#/settings?tab=gateways&${preview?.removed ? 'retired' : 'instance'}=${encodeURIComponent(instanceId)}`} onClick={close}>{preview?.removed ? 'View removed instance' : 'Open this gateway'}</ButtonLink><Button size="small" variant="ghost" disabled={busy} onClick={() => void load()}>Reload receipts</Button><Button size="small" disabled={busy} onClick={close}>Close</Button></div></>;
 }

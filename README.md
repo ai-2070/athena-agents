@@ -257,6 +257,8 @@ interrupted receipts, record a part you found in the messaging app, or explicitl
 Recording confirmation holds that post's remaining parts until you choose to continue. Retry keeps
 confirmed parts and the original text/recipient; the instance stays paused until you enable it.
 **Finish locally** permanently stops the remaining sends while keeping receipts and uncertainty.
+After removal finishes, **Review delivery → Finish locally** can close an old Outbox post too.
+Confirmed IDs and uncertainty stay in History; the removed connection remains blocked.
 Telegram/Discord setup has moved from Connections to Gateways and needs fresh credentials. Old
 global tokens, chat IDs and Discord webhooks are no longer used. Agents can use `gateway_draft`
 for recipient choice and approval in Outbox; direct send tools require an explicit instance and source

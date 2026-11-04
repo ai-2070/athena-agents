@@ -9,6 +9,8 @@ import { getGatewayInstance } from './instances.ts';
 import type { GatewayInbox } from './inbox.ts';
 import type { GatewayStateAdapter } from './state.ts';
 import { gatewayStateDirectory } from './ownership.ts';
+import { gatewayRetirement } from './retirement.ts';
+import type { GatewayRetiredInstance } from '../../shared/types.ts';
 
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/);
@@ -75,10 +77,24 @@ function reviewReceiptsValid(item: GatewayOutboxDelivery): boolean {
 }
 
 /** Saved metadata only. A retry rechecks live local access under exclusive ownership at POST. */
-export function gatewayOutboxDeliveryReview(instance: GatewayInstance | undefined, item: GatewayOutboxDelivery): GatewayOutboxDeliveryReview {
+export function gatewayOutboxDeliveryReview(instance: GatewayInstance | undefined, item: GatewayOutboxDelivery, retired?: GatewayRetiredInstance): GatewayOutboxDeliveryReview {
   const paused = Boolean(instance && !instance.enabled); const sending = item.receipts.some((part) => part.status === 'sending');
   const nextIndex = item.receipts.findIndex((part) => part.status !== 'sent'); const next = item.receipts[nextIndex];
   const room = (item.reviews?.length ?? 0) < 1000;
+  if (!instance) {
+    const matches = retired?.id === item.instanceId && retired.accountId === item.recipient.accountId && retired.platform === item.recipient.platform;
+    const ready = Boolean(retired?.completedAt !== undefined && matches && !item.closed);
+    const reason = item.closed ? 'Delivery was finished locally and cannot be reopened.'
+      : !retired ? 'This instance was removed. Restore its removal record before finishing delivery locally.'
+        : !matches ? 'The saved recipient does not match the removed instance. Restore its original receipts.'
+          : retired.completedAt === undefined ? 'Finish removing this instance before changing its Outbox receipts.'
+            : sending ? 'Recover interrupted receipts before finishing delivery locally.' : nextIndex < 0 ? 'Every part is confirmed.' : '';
+    return { revision: retired ? retiredOutboxRevision(retired, item) : gatewayOutboxReviewRevision(item), recipient: item.recipient, paused: false, removed: true, reason,
+      needsPrepare: ready && sending, canFinish: ready && !sending && nextIndex >= 0, canRetry: false, retryReason: 'The removed connection stays blocked. Its approved parts cannot be retried here.',
+      ...(nextIndex >= 0 ? { nextIndex } : {}), reviewHeld: Boolean(item.reviewHeld), ...(item.closed ? { closedAt: item.closed.at } : {}),
+      parts: item.receipts.map((part, index) => { const review = item.reviews?.find((record) => record.action === 'confirmed' && record.index === index);
+        return { text: part.text, status: part.status, attempts: part.attempts, ...(part.remoteId ? { remoteId: part.remoteId } : {}), canConfirm: false, ...(review ? { confirmedAt: review.at } : {}) }; }) };
+  }
   const reason = !instance ? 'This gateway instance was removed. Its receipts are kept for recovery.' : !paused ? 'Pause this gateway before reviewing delivery.'
     : item.closed ? 'Delivery was finished locally and cannot be reopened.' : sending ? 'Recover interrupted receipts before reviewing their outcome.'
       : nextIndex < 0 ? 'Every part is confirmed.' : !room ? 'The delivery review history is full. Keep its receipts intact.' : '';
@@ -116,6 +132,30 @@ export function readGatewayOutboxDeliveries(instanceId: string): GatewayOutboxDe
   return read(privateDataPath('gateways-runtime', instanceId, 'outbox.json'), instanceId).deliveries;
 }
 
+const retiredOutboxRevision = (retired: GatewayRetiredInstance, item: GatewayOutboxDelivery): string => digest(['retired-outbox-finish-v1', retired, item]);
+
+function commit(file: string, instanceId: string, journal: GatewayOutboxJournal): void {
+  if (!schema.safeParse(journal).success) throw new Error('The gateway Outbox receipts cannot be saved safely.');
+  try { writeJSON(file, journal); }
+  catch { throw new Error('The gateway Outbox receipts could not be saved. Check local storage.'); }
+  emit('gateway-inbox', { instanceId });
+}
+
+/** The caller holds both claims; no SDK, credentials or native inbox is opened. */
+export function reviewRetiredGatewayOutbox(instanceId: string, projectId: string, postId: string, body: unknown, prepare: boolean): void {
+  const retired = gatewayRetirement(instanceId);
+  if (!retired) throw Object.assign(new Error('No such removed gateway instance.'), { status: 404 });
+  const file = privateDataPath('gateways-runtime', instanceId, 'outbox.json'); const journal = read(file, instanceId);
+  const item = journal.deliveries.find((entry) => entry.projectId === projectId && entry.postId === postId);
+  if (!item) throw Object.assign(new Error('No such saved Outbox delivery.'), { status: 404 });
+  const parsed = (prepare ? z.strictObject({ revision: hash }) : z.strictObject({ revision: hash, acknowledgeNoSend: z.literal(true) })).safeParse(body);
+  const preview = gatewayOutboxDeliveryReview(undefined, item, retired);
+  if (!parsed.success || parsed.data.revision !== preview.revision || (prepare ? !preview.needsPrepare : !preview.canFinish)) throw Object.assign(new Error(preview.reason || 'The Outbox receipts or removal record changed. Reload and review them again.'), { status: 409 });
+  if (prepare) { for (const part of item.receipts) if (part.status === 'sending') part.status = 'uncertain'; }
+  else item.closed = { at: Date.now(), revision: gatewayOutboxReviewRevision(item) };
+  commit(file, instanceId, journal);
+}
+
 export interface GatewayOutboxClaim {
   projectId: string;
   postId: string;
@@ -139,10 +179,7 @@ export class GatewayOutboxLedger {
   list(): GatewayOutboxDelivery[] { return read(this.state.outboxFile(), this.state.instanceId).deliveries; }
 
   private commit(journal: GatewayOutboxJournal): void {
-    if (!schema.safeParse(journal).success) throw new Error('The gateway Outbox receipts cannot be saved safely.');
-    try { writeJSON(this.state.outboxFile(), journal); }
-    catch { throw new Error('The gateway Outbox receipts could not be saved. Check local storage.'); }
-    emit('gateway-inbox', { instanceId: this.state.instanceId });
+    commit(this.state.outboxFile(), this.state.instanceId, journal);
   }
 
   private context(projectId: string, eventId: string, pausedReview = false) {

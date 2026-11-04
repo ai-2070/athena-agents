@@ -423,6 +423,7 @@ export interface GatewayOutboxDeliveryReview {
   revision: string;
   recipient: GatewayOutboxPreview['recipient'];
   paused: boolean;
+  removed?: true;
   reason: string;
   needsPrepare: boolean;
   canRetry: boolean;

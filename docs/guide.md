@@ -572,8 +572,8 @@ original chat, message and project. It cannot be undone. It sends nothing, start
 the removed connection blocked. Removal must be complete first, and another process owning the
 account or private state blocks the change. SDK state and saved credentials are not read or rewritten.
 Late gateway callbacks cannot reopen closed delivery or tracking. Queued requests, edits and album
-members keep their saved evidence without a local-finish action. Removed-instance Outbox closure,
-manual delivery confirmations and temporary-media retention remain planned.
+members keep their saved evidence without a local-finish action. Manual delivery confirmations for
+removed instances and temporary-media retention remain planned.
 
 The sidebar's **Status** panel shows gateway connection state and messages needing review. Click an
 instance needing review to open its inbox, or a connection warning to open its setup. Its tooltip names
@@ -614,6 +614,20 @@ match the original approval. Changed setup, edited sources or a locally finished
 reopened by retry; keep that delivery local and review a new draft instead. Other already approved
 posts can continue under their own rules when the instance is enabled. Review history survives
 restart and is retained with the delivery receipts; native runs, files and byte accounting stay intact.
+
+For a removed instance's approved Outbox post, open **Review delivery** in its original project.
+The view keeps the original recipient and text and links to **View removed instance**. Removal must
+be complete before changing receipts. If a send was interrupted, **Recover interrupted receipts**
+requires the displayed review revision and classifies only that post's interrupted part as uncertain.
+Review the refreshed receipts, then confirm **Finish locally**. The connection stays blocked and
+the old post cannot send again. Delivery retry and manual confirmation remain unavailable here.
+
+The finished post moves to **History**. Open **Review delivery** there to read its closure time,
+confirmed IDs, uncertainty and original attempt counts. Waiting parts stay as historical evidence;
+they will not send after local finish. Missing or corrupt removal records need recovery first.
+Ownership conflicts and stale or changed Outbox rows stop the change and require a reload. Native
+inbox, SDK state and credentials are not opened or rewritten by this flow. A project switch invalidates
+an open review; return to the post's original project to continue.
 
 Telegram and Discord setup now lives in **Settings → Gateways**, with links from Connections. Add
 fresh bot credentials there; old global Telegram tokens/chat IDs and Discord webhooks are not used.
