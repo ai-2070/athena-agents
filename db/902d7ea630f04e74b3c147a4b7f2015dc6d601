@@ -1,0 +1,27 @@
+skills/athena/grounded-citations/references/citation-formats.md
+  s_09ac87e46cf718::t_39e1d6d35f5457 20
+skills/athena/llm-wiki/SKILL.md
+  s_09ac87e46cf718::t_20ec6eea85f620 29
+skills/athena/spike/SKILL.md
+  s_09ac87e46cf718::t_ef12365f3f495d 13-14
+skills/athena/weekly-review-planning/SKILL.md
+  s_09ac87e46cf718::t_ef4287ed0453f8 17-18
+tests/server/athena-skills.test.ts
+  s_09ac87e46cf718::t_fa1b9892ad44f2 131-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "db902d7ea630f04e74b3c147a4b7f2015dc6d601",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
