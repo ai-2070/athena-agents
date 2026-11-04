@@ -97,7 +97,7 @@ Chats open in floating windows. Drag tabs between windows, snap them side by sid
 
 ### The Outbox: nothing goes out without you
 
-When an agent needs a decision, its question lands here with the choices as buttons and a box to answer in your own words. Drafts for X and Reddit wait here too: approve, edit, talk it over with the team, or reject. Permission requests for risky steps show up under **Needs you**.
+When an agent needs a decision, its question lands here with the choices as buttons and a box to answer in your own words. Drafts for X and Reddit wait here too: approve, edit, talk it over with the team, or reject. X replies always wait for you, even with auto-post on. Permission requests for risky steps show up under **Needs you**.
 
 ![The Outbox: a question from the Market Researcher about pricing, with three choices, above X drafts waiting for approval](docs/images/outbox.png)
 

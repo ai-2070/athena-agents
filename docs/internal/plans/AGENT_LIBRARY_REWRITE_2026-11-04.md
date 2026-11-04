@@ -20,7 +20,21 @@ noted:
 
 ## Found along the way
 
-Problems in the dashboard itself that writers and reviewers noticed. None are fixed here.
+Problems in the dashboard itself that writers and reviewers noticed. **Fixed on 4 November** in the commits after the
+switch (one per area: login, shell and media tools; MCP; the voxel world; ComfyUI and images; X and Reddit; Outbox and
+Station), each with tests, except:
+
+- **Reddit's Brand Affiliate tag**: Reddit's submit API has no parameter for it.
+- **The newer MCP protocol**: the installed SDK (1.32.2) is the newest 1.x and goes up to the 2025-11-25 revision; the
+  2026-07-28 revision needs the v2 packages (`@modelcontextprotocol/client`, zod 4), a migration of its own.
+- **The bundled skills** are copied unchanged from upstream, so their problems are worth reporting there.
+
+Still open, found while fixing: listing a subreddit's flair ids needs a `flair` permission the Reddit sign-in doesn't
+ask for (everyone would reconnect); the MCP servers list shows a server's last output only after a Test; an
+`apiKeyHelper` or a key in `~/.claude/settings.json`'s `env` can still win over a Claude login; changing a prefab's
+pivot, or one someone wears as their character, doesn't ask yet.
+
+The original list:
 
 - **ComfyUI** (`server/comfyui.ts`): `findPromptNodes` traces a ConditioningZeroOut negative back to the positive text
   node, so `comfyui_run` writes the negative over the main prompt. It also drops a negative silently when the workflow
