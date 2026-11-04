@@ -1,0 +1,43 @@
+server/png.ts
+  s_09ac87e46cf718::t_744ab8e7cb23b4 1-162
+tests/server/comfyui-run.test.ts
+  s_09ac87e46cf718::t_1ce7a8f2f89bda 1-299
+server/programs.ts
+  s_09ac87e46cf718::t_9b864bef0c1508 127-212,215-229
+  s_09ac87e46cf718::t_0142bc2288e74a 5,252-253,255,259-262
+server/tools.ts
+  s_09ac87e46cf718::t_2930ba6de6ffe5 434-437,441,444-456,461-476,478-479,481-485
+  s_09ac87e46cf718::t_9fa25b6bc42cda 411,413
+  s_09ac87e46cf718::t_40a31f47fae90d 427
+  s_09ac87e46cf718::t_cc6869d02f5bff 486,1205
+tests/server/comfyui-convert.test.ts
+  s_09ac87e46cf718::t_a2b643c9e1524a 1-214
+server/comfyui.ts
+  s_09ac87e46cf718::t_eb17a0058a1ffd 10
+  s_09ac87e46cf718::t_4074c94a8b029f 95-120,126,137-138,146-147
+  s_09ac87e46cf718::t_528967bf4bd762 226,239,268,293,399,412,423,429,472-521,523-533,535-542
+  s_09ac87e46cf718::t_465b8e9f2bd9ce 34-35,37-39,41-43,47-55,58-72,74
+  s_09ac87e46cf718::t_9615efcd2b553a 789-823
+  s_09ac87e46cf718::t_c75b2010306078 89,148,175-176,229,270,272,283,294,296,305,335,350,360,369-370,382,386,395,400,434,436,443,554-555,557-568,577,588-590,605,612-730
+  s_09ac87e46cf718::t_e595985ae77965 5-6,8,75,78,92,166-174,177-178,211-225,227-228,230-238,240-249,251-267,269,271,273-282,284-292,295,297-304,306-315,318-320,322-323,325-334,336-347,349,351-359,361-368,371-381,383-385,387-390,392-394,396-398,401-411,413-422,424-428,430-431,435,437-439,441-442,444,543,549,731-736,824-827
+tests/server/comfyui-desktop.test.ts
+  s_09ac87e46cf718::t_26ddefcd9a294a 1-112
+tests/server/png.test.ts
+  s_09ac87e46cf718::t_80f804ef95fc12 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a6ede2d0425a74a49084de78fe52e65b0e276750",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "unknown"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
