@@ -1,0 +1,34 @@
+server/skills.ts
+  s_113f5bf511efd5::t_33a514a11b2cd3 544-546
+docs/internal/plans/AGENT_LIBRARY_REWRITE_2026-11-04.md
+  s_113f5bf511efd5::t_7adcde05d0f6f4 363-364
+  s_113f5bf511efd5::t_47bf2982475b09 3,17-18,22-23,76,141,145,164,172,249,262-268,287,291-292,300-301,309,313-342,344,349-351,355,359,365-371,387,389,391-398
+tests/server/library.test.ts
+  s_113f5bf511efd5::t_b720a2c1412c1b 8-10,87-153
+  s_113f5bf511efd5::t_6443830aecb65f 154
+server/library.ts
+  s_113f5bf511efd5::t_10563d191497a0 107-152
+  s_113f5bf511efd5::t_3715c620ee5fb6 25-45
+library/athena-agents/README.md
+  s_113f5bf511efd5::t_b5f6bf6d2a5b79 1-254
+library/athena-agents/groups.json
+  s_113f5bf511efd5::t_349992dfcd976d 1-14
+library/athena-agents/LICENSE-agency-agents
+  s_113f5bf511efd5::t_349992dfcd976d 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7c52521bf0b820d1162381db1493198c66844959",
+  "prompts": {},
+  "sessions": {
+    "s_113f5bf511efd5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33eb0f9d-82ca-4708-b62e-673ddb2ee4f8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
