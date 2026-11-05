@@ -4166,7 +4166,7 @@ function nowText(agentId: string, wfId?: string): { st: 'needs' | 'idle' | 'work
 export async function answerLook(ev: ServerEvent): Promise<void> {
   if (typeof ev.request !== 'string') return;
   const drew = S?.worldLayer ? await S.worldLayer.look(ev).catch(() => false) : false;
-  if (!drew) await POST(`/world/snapshot/${encodeURIComponent(ev.request)}`, { error: "this tab doesn't show that world in the voxel look" }).catch(() => null);
+  if (!drew) await rpc.world.snapshot({ request: ev.request, error: "this tab doesn't show that world in the voxel look" }).catch(() => null);
 }
 
 export function onEvent(ev: ServerEvent): void | Promise<void> {

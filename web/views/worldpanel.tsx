@@ -6,7 +6,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Slider } from '@base-ui/react/slider';
-import { GET, POST, PUT, DEL, ago, attempt, confirmBox, md, modal, promptBox, refreshSoon, state, toast } from '../core.ts';
+import { ago, attempt, confirmBox, md, modal, promptBox, refreshSoon, state, toast } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { DomNode, Icon, mountReact, useServerEvents } from '../ui/react.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { Chips, SearchBox, Tabs } from '../ui/controls.tsx';
@@ -41,11 +42,6 @@ interface LibraryRow {
   voxels: number;
   createdAt: number;
 }
-interface ExportAnswer {
-  paths: string[];
-  artifacts: string[];
-  note?: string;
-}
 type Tab = 'md' | 'built' | 'look' | 'world';
 
 const WORLD_EVENTS = new Set(['world', 'world-md', 'project']);
@@ -59,7 +55,7 @@ const BY: Record<string, string> = { you: 'you', brain: 'the Brain', agent: 'an 
 function useWorld(): { shown: WorldAnswer | null; reload: () => void } {
   const [shown, setShown] = useState<WorldAnswer | null>(null);
   const reload = useCallback(() => {
-    void GET<WorldAnswer>('/world')
+    void rpc.world.shown()
       .then(setShown)
       .catch(() => setShown({ world: null, how: 'none' }));
   }, []);
@@ -72,7 +68,7 @@ const voxels = (o: { volumes: { count: number }[] }) => o.volumes.reduce((n, v) 
 const fmt = (n: number) => n.toLocaleString('en-US');
 /** Files out of the world, into Artifacts: the whole world, or one object or prefab, as .glb or .vox. */
 async function exportIt(what: 'object' | 'prefab' | 'world', format: 'glb' | 'vox', name: string, id?: string): Promise<void> {
-  const r = await attempt(() => POST<ExportAnswer>('/world/export', { what, id, format }));
+  const r = await attempt(() => rpc.world.export({ what, id, format }));
   if (r) toast(`Saved ${name} to Artifacts${r.paths.length > 1 ? ` (${r.paths.length} files, one per voxel size)` : ''}${r.note ? `. ${r.note}` : ''}`);
 }
 
@@ -88,7 +84,7 @@ async function savePicture(name: string): Promise<void> {
     toast('A picture needs the Station open in the voxel look.', 'warn');
     return;
   }
-  const r = await attempt(() => POST<{ path: string }>('/world/picture', { image, name }));
+  const r = await attempt(() => rpc.world.picture({ image, name }));
   if (r) toast('Saved a picture to Artifacts');
 }
 
@@ -178,7 +174,7 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
   const [draftOf, setDraftOf] = useState('');
   const [versions, setVersions] = useState<MdVersion[] | null>(null);
   const load = useCallback(() => {
-    void GET<WorldMdInfo>('/world/md')
+    void rpc.world.md.get()
       .then(setInfo)
       .catch(() => setInfo(null));
   }, []);
@@ -190,29 +186,29 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
   const save = async () => {
     if (editing === null) return;
     // never over another world's WORLD.md
-    const now = await GET<WorldMdInfo>('/world/md').catch(() => null);
+    const now = await rpc.world.md.get().catch(() => null);
     if (!now || now.worldId !== draftOf) {
       if (now) setInfo(now);
       toast('This edit was for another world, so it wasn’t saved. Copy what you need, then press Cancel.', 'warn');
       return;
     }
-    const r = await attempt(() => PUT<WorldMdInfo>('/world/md', { text: editing }), 'Saved WORLD.md');
+    const r = await attempt(() => rpc.world.md.save({ text: editing }), 'Saved WORLD.md');
     if (r) {
       setInfo(r);
       setEditing(null);
     }
   };
-  const showVersions = async () => setVersions(versions ? null : await GET<MdVersion[]>('/world/md/versions').catch((): MdVersion[] => []));
+  const showVersions = async () => setVersions(versions ? null : await rpc.world.md.versions().catch((): MdVersion[] => []));
   const view = async (v: MdVersion) => {
-    const full = await attempt(() => GET<{ item: { text: string } }>(`/world/md/versions/${v.id}`));
+    const full = await attempt(() => rpc.world.md.version({ vid: v.id }));
     if (full) modal({ title: `WORLD.md from ${new Date(v.at).toLocaleString()}`, body: md(full.item.text) });
   };
   const restore = async (v: MdVersion) => {
     if (!(await confirmBox(`Bring back the WORLD.md from ${new Date(v.at).toLocaleString()}? The one there now is kept in the history.`, { ok: 'Bring it back' }))) return;
-    const r = await attempt(() => POST<WorldMdInfo>(`/world/md/versions/${v.id}/restore`), 'Brought the earlier WORLD.md back');
+    const r = await attempt(() => rpc.world.md.restore({ vid: v.id }), 'Brought the earlier WORLD.md back');
     if (r) {
       setInfo(r);
-      setVersions(await GET<MdVersion[]>('/world/md/versions').catch((): MdVersion[] => []));
+      setVersions(await rpc.world.md.versions().catch((): MdVersion[] => []));
     }
   };
   return (
@@ -296,10 +292,10 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
   const [changes, setChanges] = useState<Change[]>([]);
   const [library, setLibrary] = useState(false);
   const load = useCallback(() => {
-    void GET<PrefabRow[]>('/world/prefabs')
+    void rpc.world.prefabs.list()
       .then(setPrefabs)
       .catch(() => setPrefabs([]));
-    void GET<Change[]>('/world/changes')
+    void rpc.world.changes()
       .then(setChanges)
       .catch(() => setChanges([]));
   }, []);
@@ -307,23 +303,23 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
   if (!w) return <p className="hint">Nothing built yet. Ask the Brain for a world, or give an agent the Voxel world tools.</p>;
   const groups = new Map<string, VoxelObjectMeta[]>();
   for (const o of w.objects) groups.set(o.by.name, [...(groups.get(o.by.name) || []), o]);
-  const hide = (o: VoxelObjectMeta) => attempt(() => PUT(`/world/objects/${o.id}`, { hidden: !o.hidden })).then(reload);
+  const hide = (o: VoxelObjectMeta) => attempt(() => rpc.world.changeObject({ oid: o.id, hidden: !o.hidden })).then(reload);
   const remove = async (o: VoxelObjectMeta) => {
     if (!(await confirmBox(`Delete "${o.name}"? It can be brought back with "Undo the last change".`, { ok: 'Delete', danger: true }))) return;
-    await attempt(() => DEL(`/world/objects/${o.id}`), `Deleted "${o.name}"`);
+    await attempt(() => rpc.world.removeObject({ oid: o.id }), `Deleted "${o.name}"`);
     reload();
   };
   const removePrefab = async (p: PrefabRow) => {
     if (!(await confirmBox(`Delete the prefab "${p.name}"?`, { ok: 'Delete', danger: true }))) return;
-    await attempt(() => DEL(`/world/prefabs/${p.id}`), `Deleted the prefab "${p.name}"`);
+    await attempt(() => rpc.world.prefabs.remove({ pid: p.id }), `Deleted the prefab "${p.name}"`);
     load();
   };
   const publish = async (p: PrefabRow) => {
-    const r = await attempt(() => POST<{ text: string }>(`/world/prefabs/${p.id}/publish`));
+    const r = await attempt(() => rpc.world.prefabs.publish({ pid: p.id }));
     if (r) toast(r.text);
   };
   const undo = async () => {
-    const r = await attempt(() => POST<{ text: string }>('/world/undo', { anyone: true }));
+    const r = await attempt(() => rpc.world.undo({ anyone: true }));
     if (r) toast(r.text);
     reload();
     load();
@@ -415,14 +411,14 @@ function LibraryView({ onTaken }: { onTaken: () => void }) {
   const [rows, setRows] = useState<LibraryRow[] | null>(null);
   useEffect(() => {
     const t = setTimeout(() => {
-      void GET<LibraryRow[]>(`/prefab-library?q=${encodeURIComponent(q.trim())}`)
+      void rpc.world.prefabs.library({ q: q.trim() })
         .then(setRows)
         .catch(() => setRows([]));
     }, 200);
     return () => clearTimeout(t);
   }, [q]);
   const take = async (r: LibraryRow) => {
-    const p = await attempt(() => POST<VoxelPrefabMeta>('/world/prefabs/import', { name: r.name }));
+    const p = await attempt(() => rpc.world.prefabs.import({ name: r.name }));
     if (p) {
       toast(`Took "${r.name}" into this world${p.name !== r.name ? ` as "${p.name}"` : ''}`);
       onTaken();
@@ -494,9 +490,9 @@ function LookTab({ shown, teamName }: { shown: WorldAnswer; teamName?: (id: stri
   const w = shown.world;
   if (!w) return <p className="hint">There is no world yet: its look (time of day, weather, lights) shows here once something is built.</p>;
   const env: WorldEnvironment = w.environment;
-  const setEnv = (fields: Record<string, unknown>) => attempt(() => PUT('/world/environment', fields));
-  const removeLight = (id: string, name: string) => attempt(() => DEL(`/world/lights/${id}`), `Took the light "${name}" away`);
-  const removeEffect = (id: string, name: string) => attempt(() => DEL(`/world/effects/${id}`), `Took "${name}" away`);
+  const setEnv = (fields: Record<string, unknown>) => attempt(() => rpc.world.environment(fields));
+  const removeLight = (id: string, name: string) => attempt(() => rpc.world.removeLight({ lid: id }), `Took the light "${name}" away`);
+  const removeEffect = (id: string, name: string) => attempt(() => rpc.world.removeEffect({ eid: id }), `Took "${name}" away`);
   return (
     <div className="world-look">
       <div className={SECTION}>Time of day</div>
@@ -546,7 +542,7 @@ function Dressed({ skins, teamName }: { skins: WorldSkins; teamName?: (id: strin
   if (skins.brain) rows.push({ key: 'brain', to: 'brain', name: 'The Brain', hidden: !!skins.brain.hidden, noLabel: skins.brain.label === false });
   for (const [id, s] of Object.entries(skins.teams)) rows.push({ key: `t:${id}`, to: 'team', id, name: teamName?.(id) || 'A team of another project', hidden: !!s.hidden, noLabel: s.label === false });
   for (const [id, s] of Object.entries(skins.agents)) rows.push({ key: `a:${id}`, to: 'agent', id, name: agents.find((a) => a.id === id)?.name || 'An agent of another project', hidden: !!s.hidden, noLabel: s.label === false });
-  const set = (r: (typeof rows)[number], fields: Record<string, unknown>, done: string) => attempt(() => PUT('/world/skins', { to: r.to, id: r.id, fields }), done);
+  const set = (r: (typeof rows)[number], fields: Record<string, unknown>, done: string) => attempt(() => rpc.world.skins({ to: r.to, id: r.id, fields }), done);
   return (
     <>
       <div className={SECTION}>How the Brain, teams and agents look</div>
@@ -576,7 +572,7 @@ function Dressed({ skins, teamName }: { skins: WorldSkins; teamName?: (id: strin
 export function WorldPicker({ shown, reload }: { shown: WorldAnswer; reload: () => void }) {
   const [worlds, setWorlds] = useState<WorldListing[] | null>(null);
   const load = useCallback(() => {
-    void GET<WorldListing[]>('/worlds')
+    void rpc.worlds.list()
       .then(setWorlds)
       .catch(() => setWorlds([]));
   }, []);
@@ -588,16 +584,16 @@ export function WorldPicker({ shown, reload }: { shown: WorldAnswer; reload: () 
     load();
     refreshSoon(0);
   };
-  const choose = (mode: 'share' | 'copy' | 'new' | 'auto', worldId?: string, done?: string) => attempt(() => PUT('/project-world', { worldId, mode }), done).then(after);
+  const choose = (mode: 'share' | 'copy' | 'new' | 'auto', worldId?: string, done?: string) => attempt(() => rpc.worlds.choose({ worldId, mode }), done).then(after);
   const rename = async () => {
     if (!shown.world) return;
     const name = await promptBox('Name this world', { value: shown.world.name, label: 'Name' });
-    if (name?.trim()) await attempt(() => PUT(`/worlds/${shown.world!.id}`, { name: name.trim() }), 'Renamed the world').then(after);
+    if (name?.trim()) await attempt(() => rpc.worlds.rename({ wid: shown.world!.id, name: name.trim() }), 'Renamed the world').then(after);
   };
-  const setDefault = (id: string | null) => attempt(() => PUT('/worlds/default', { worldId: id }), id ? 'Projects without a world of their own now show this one' : 'Projects without a world of their own now show the most recently built one').then(after);
+  const setDefault = (id: string | null) => attempt(() => rpc.worlds.setDefault({ worldId: id }), id ? 'Projects without a world of their own now show this one' : 'Projects without a world of their own now show the most recently built one').then(after);
   const remove = async (l: WorldListing) => {
     if (!(await confirmBox(`Delete the world "${l.name}"? Its builds, prefabs and WORLD.md go for good: this can't be undone.`, { ok: 'Delete it', danger: true }))) return;
-    await attempt(() => DEL(`/worlds/${l.id}`), `Deleted "${l.name}"`).then(after);
+    await attempt(() => rpc.worlds.remove({ wid: l.id }), `Deleted "${l.name}"`).then(after);
   };
   const newWorld = async () => {
     if (!(await confirmBox('Start a new empty world for this project? The world it shows now stays as it is.', { ok: 'New world' }))) return;

@@ -2999,6 +2999,46 @@ export interface ShownWorld {
   fromProject?: string;
 }
 
+// ---------- the prefab library ----------
+/** A prefab shared to every world: its voxels use its own small palette. */
+export interface LibraryPrefab {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  by: string;
+  /** who published it (entries published before this was kept have only the name) */
+  builder?: WorldBuilder;
+  fromWorld: string;
+  size: Vec3;
+  voxels: number;
+  palette: VoxelMaterial[];
+  data: VoxelObjectData;
+  /** the point copies stand on and turn around, as its builder chose it (missing: bottom centre) */
+  pivotAt?: VoxelPrefabMeta['pivotAt'];
+  animations?: Record<string, AnimationClip>;
+  createdAt: number;
+}
+
+/** A prefab in the shared library as it is listed (GET /api/prefab-library): without its voxels. */
+export type LibraryPrefabListing = Omit<LibraryPrefab, 'data' | 'palette'>;
+
+/** An earlier WORLD.md, as its list shows it (chars: how long) and as one is read (item). */
+export interface WorldMdVersionEntry {
+  id: string;
+  at: number;
+  by: string;
+  note?: string;
+  chars: number;
+}
+export interface WorldMdVersion {
+  id: string;
+  at: number;
+  by: string;
+  note?: string;
+  item: { text: string };
+}
+
 /** A world in the list of worlds (GET /api/worlds). */
 export interface WorldListing {
   id: string;

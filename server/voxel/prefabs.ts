@@ -13,7 +13,9 @@ import { readObject, readPrefab, saveWorld, writeObject, writePrefab, worldVoxel
 import { changeWorld, shownWorld } from './link.ts';
 import { ANIM_LIMITS, cleanClip, skinUses } from './characters.ts';
 import { WORLD_LIMITS, cleanPivot, findObject, findPrefab, nesting, ownsObject, pivotOf as pivotFrom, placedCopies, prefabSize, remember, volumesMeta } from './build.ts';
-import type { AnimationClip, PrefabInstance, Vec3, VoxelMaterial, VoxelObjectData, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
+import type { AnimationClip, LibraryPrefab, PrefabInstance, Vec3, VoxelMaterial, VoxelObjectData, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
+
+export type { LibraryPrefab } from '../../shared/types.ts';
 
 const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
 const fmt = (n: number) => n.toLocaleString('en-US');
@@ -203,27 +205,6 @@ function deletePrefabIn(w: VoxelWorld, req: { by: WorldBuilder; prefab: string; 
   remember(w.id, { by: req.by, kind: 'prefab', what: `deleted the prefab ${p.name}`, objectId: p.id, metaBefore: p, dataBefore: data });
   saveWorld(w, { prefabs: [p.id], deleted: true, by: req.by.name });
   return `Deleted the prefab "${p.name}". It can be brought back with world_undo.`;
-}
-
-// ---------- the prefab library ----------
-/** A prefab shared to every world: its voxels use its own small palette. */
-export interface LibraryPrefab {
-  id: string;
-  name: string;
-  description: string;
-  tags: string[];
-  by: string;
-  /** who published it (entries published before this was kept have only the name) */
-  builder?: WorldBuilder;
-  fromWorld: string;
-  size: Vec3;
-  voxels: number;
-  palette: VoxelMaterial[];
-  data: VoxelObjectData;
-  /** the point copies stand on and turn around, as its builder chose it (missing: bottom centre) */
-  pivotAt?: VoxelPrefabMeta['pivotAt'];
-  animations?: Record<string, AnimationClip>;
-  createdAt: number;
 }
 
 /** A library entry's pivot and animations, checked (anything damaged is left out). */

@@ -12,6 +12,7 @@ const MOVED = [
   '/api/overview', '/api/tools', '/api/tool-stats', '/api/models', '/api/providers', '/api/about',
   '/api/mcp', '/api/hermes/', '/api/pi/', '/api/openclaw/', '/api/codex/', '/api/programs', '/api/comfyui',
   '/api/file', '/api/uploads', '/api/memory', '/api/artifacts', '/api/backups', '/api/layout', '/api/terminals', '/api/assist',
+  '/api/world', '/api/project-world', '/api/prefab-library',
 ];
 /** The old routes those areas keep. */
 const KEEP = [
