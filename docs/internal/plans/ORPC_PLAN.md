@@ -165,7 +165,30 @@ from plain words is `/api/assist/skill`, with the other `/api/assist` routes for
 
 `server/index.ts` is 1,266 lines.
 
-Next: settings, keys, accounts, models and the status bars.
+### Settings, keys, accounts and the dashboard's status (2026-11-05)
+
+All 26 routes moved: the settings (`/api/settings`, with testing a key), the API keys (`/api/secrets`), the X and
+Reddit accounts (`/api/accounts`), and what the page shows about the dashboard: the app state (`/api/state`), the
+activity feed, the header's meters (`/api/headbar`), the sidebar's plan limits (`/api/usage-limits`), the Overview,
+the built-in tools and their use, the models and providers, and About.
+
+- **Saving settings checks every field now.** `PUT /api/settings` merged whatever JSON it was sent into
+  `settings.json`; a field of the wrong kind (a folder list that isn't a list, a theme that doesn't exist, a number
+  left empty) is refused in words, and nothing of that change is saved. Fields the page never sets here
+  (`activeProject`, `defaultWorld`, which have their own routes) are dropped.
+- **`SettingsPatch` is partial at every depth**, as `saveSettings()` always merged: the settings page saves one field
+  of a provider (`providers.custom.baseUrl`) without the others.
+- **The gateway supervisor is made in `server/gateways/live.ts`**, so routes outside `server/index.ts` (the app state
+  now, the gateways later) reach the same one. Making it starts nothing; `server/index.ts` still starts it.
+- `appState()`, the header's meters and `usageLimits()` moved to `server/api/status.ts` (the Codex limit reset, still
+  in `server/index.ts`, uses `usageLimits()` from there).
+- The header's, the model picker's, the key tests' and X posts' types (`HeadbarInfo`, `ClaudeUsage`, `Connector`,
+  `ModelListing`, `OpenRouterKeyInfo`, `XPost`, `ToolListing`, `ToolStats`) moved to `shared/types.ts`; the page's
+  copies are gone.
+
+`server/index.ts` is 1,134 lines.
+
+Next: tools and programs (MCP, programs, ComfyUI, Codex, Hermes, pi and OpenClaw).
 
 ## Why
 
