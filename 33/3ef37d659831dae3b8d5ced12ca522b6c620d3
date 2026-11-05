@@ -1,0 +1,23 @@
+docs/guide.md
+  s_9814d375a139f1::t_551c2287e45861 48,190,192,195,199,206-208
+README.md
+  s_9814d375a139f1::t_551c2287e45861 106
+docs/internal/plans/TASK_TAGS_PLAN.md
+  s_9814d375a139f1::t_90e30c90f6cd04 10-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "333ef37d659831dae3b8d5ced12ca522b6c620d3",
+  "prompts": {},
+  "sessions": {
+    "s_9814d375a139f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "30c260a9-f8e6-4861-b2d4-20dff9c30a67",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
