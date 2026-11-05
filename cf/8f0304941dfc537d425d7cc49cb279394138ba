@@ -1,0 +1,23 @@
+tests/server/learn-tools.test.ts
+  s_09ac87e46cf718::t_e5ba347faf0db7 1-76
+server/skills.ts
+  s_09ac87e46cf718::t_85535f56701795 14,191-247
+server/tools.ts
+  s_09ac87e46cf718::t_96fe7d7c991af3 182-226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cf8f0304941dfc537d425d7cc49cb279394138ba",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
