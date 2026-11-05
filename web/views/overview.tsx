@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { DEL, GET, POST, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { apiUrl, projectAt } from '../client/connection.ts';
 import { previewFile, previewTitle, revealLabel } from '../filepreview.tsx';
 import { openChat } from '../chatwin.tsx';
@@ -506,7 +507,7 @@ const TASK_GROUPS: BoardStatus[] = ['in_progress', 'todo', 'in_review', 'blocked
 function TasksPanel({ scope, data }: { scope: string; data: OverviewData }) {
   const project = scope === 'here' ? data.active : scope === 'all' || !data.projects.some((p) => p.id === scope) ? 'all' : scope;
   const [board, setBoard] = useState<TaskBoardData | null>(null);
-  const load = useCallback(() => void GET<TaskBoardData>(`/task-board?project=${encodeURIComponent(project)}`).then(setBoard, () => setBoard({ projects: [], tasks: [], tags: {} })), [project]);
+  const load = useCallback(() => void rpc.taskBoard.list({ project }).then(setBoard, () => setBoard({ projects: [], tasks: [], tags: {} })), [project]);
   useEffect(() => {
     load();
     let timer: ReturnType<typeof setTimeout> | undefined;

@@ -50,9 +50,8 @@ import * as tasksMod from './tasks.ts';
 import * as taskBoard from './taskboard.ts';
 import { overview } from './overview.ts';
 import * as boardWork from './boardwork.ts';
-import { filesFromRequest, taskFilePath } from './boardfiles.ts';
-import { draftBoardText } from './taskdraft.ts';
-import type { TaskCreateInput, TaskQuery, TaskUpdateInput, BoardDraftInput } from '../shared/types.ts';
+import { taskFilePath } from './boardfiles.ts';
+import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
@@ -556,31 +555,10 @@ post<TaskCreateInput & { chatId?: unknown }>('/api/tasks', async (_p, body) => {
   return { task: tasksMod.createTask(body, { admin: true, scope, ...(brief ? { briefId: brief.id } : {}) }) };
 });
 put<TaskUpdateInput>('/api/tasks/:id', async ({ id }, body) => ({ task: tasksMod.updateTask({ ...body, taskId: id }, { admin: true, scope: { kind: 'brain' } }) }));
-// the Tasks board (the project's own tasks, not the agents' step lists): one project's or every project's
-// (?project=all), each changed in the project it belongs to
-get('/api/task-board', async (_p, _b, q) => taskBoard.taskBoard(q.project || 'all'));
+// the Tasks board: server/api/taskboard.ts, except a task's files (below)
 // the Overview page: every project's agents, teams, the Brain and tasks being worked on, at a glance
 get('/api/overview', async () => overview());
-get('/api/task-board-people/:projectId', async ({ projectId }) => taskBoard.boardPeople(projectId));
-// (a project's tags: server/api/taskboard.ts)
-// A task you make In progress for an agent or team, or move there, starts its work (boardwork.ts); moving it away
-// or giving it to someone else stops it. Files are uploads of the open project, copied into the task's own.
 const boardProject = (id: string) => need(store.listProjects().find((p) => p.id === id));
-post<taskBoard.BoardInput & { files?: unknown }>('/api/task-board/:projectId', async ({ projectId }, body) => {
-  const files = await filesFromRequest(boardProject(projectId), body?.files);
-  const task = taskBoard.addBoardTask(projectId, body || {}, 'you', files);
-  return { task: task.status === 'in_progress' && /^(agent|team):/.test(task.assignee) ? await boardWork.startWork(projectId, task.id) : task };
-});
-get('/api/task-board/:projectId/:id', async ({ projectId, id }) => ({ task: taskBoard.boardTask(projectId, id) }));
-put<taskBoard.BoardInput & { expectedUpdatedAt?: unknown; files?: unknown }>('/api/task-board/:projectId/:id', async ({ projectId, id }, body) => {
-  const before = need(taskBoard.savedBoardTask(projectId, id));
-  const files = body?.files === undefined ? undefined : await filesFromRequest(boardProject(projectId), body.files, before.files);
-  const after = taskBoard.changeBoardTask(projectId, id, body || {}, files);
-  return { task: await boardWork.afterUserChange(projectId, before, after) };
-});
-post('/api/task-board/:projectId/:id/start', async ({ projectId, id }) => ({ task: await boardWork.startWork(projectId, id) }));
-post('/api/task-board/:projectId/:id/stop', async ({ projectId, id }) => ({ task: boardWork.stopWork(projectId, id) }));
-post<{ operationId?: unknown }>('/api/task-board/:projectId/:id/check', async ({ projectId, id }, body) => ({ task: boardWork.checkWork(projectId, id, body?.operationId) }));
 // A file on a task or one of its comments (?path= as the task lists it), from the task's own project.
 get('/api/task-board-file/:projectId/:id', async ({ projectId, id }, _b, q, res) => {
   const p = boardProject(projectId);
@@ -591,19 +569,6 @@ get('/api/task-board-file/:projectId/:id', async ({ projectId, id }, _b, q, res)
   sendFileSafely(res, file);
   return undefined;
 });
-put<{ ranks?: unknown }>('/api/task-board-ranks', async (_p, body) => (taskBoard.rerankBoardTasks(body?.ranks), { ok: true }));
-del('/api/task-board/:projectId/:id', async ({ projectId, id }) => (boardWork.stopWork(projectId, id), taskBoard.removeBoardTask(projectId, id), { ok: true }));
-post<{ text?: unknown; files?: unknown }>('/api/task-board/:projectId/:id/comments', async ({ projectId, id }, body) => {
-  const files = await filesFromRequest(boardProject(projectId), body?.files ?? []);
-  const task = taskBoard.addBoardComment(projectId, id, body?.text, 'you', files);
-  // (while an agent or team works on it, your comment reaches them too)
-  void boardWork.passToWorker(projectId, id, `A new comment on the task from you:\n\n${typeof body?.text === 'string' ? body.text : ''}`, files).catch(() => {});
-  return { task };
-});
-put<{ text?: unknown }>('/api/task-board/:projectId/:id/comments/:cid', async ({ projectId, id, cid }, body) => ({ task: taskBoard.changeBoardComment(projectId, id, cid, body?.text) }));
-del('/api/task-board/:projectId/:id/comments/:cid', async ({ projectId, id, cid }) => ({ task: taskBoard.changeBoardComment(projectId, id, cid, null) }));
-// "Draft with the Brain": a title and description, or a comment, put back in the box (nothing saved)
-post<BoardDraftInput>('/api/task-board-draft', async (_p, body) => draftBoardText(body));
 del('/api/agents/:id/chats/:cid', async ({ id, cid }) => {
   engines.forgetChat(cid);
   clearWork('agent', id, cid);

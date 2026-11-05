@@ -69,6 +69,11 @@ describe('rpc calls', () => {
     expect(e).toMatchObject({ message: 'That thing is gone.', status: 404 });
   });
 
+  it('read the words even when the answer doesn’t say it is JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'This changed meanwhile.' }), { status: 409 })));
+    await expect(rpc.things.remove({ listId: 'l', id: 'x' })).rejects.toMatchObject({ message: 'This changed meanwhile.', status: 409 });
+  });
+
   it('fail with the status when the server gave no words', async () => {
     answer({}, 500);
     const e: unknown = await rpc.things.remove({ listId: 'l', id: 'x' }).catch((x: unknown) => x);

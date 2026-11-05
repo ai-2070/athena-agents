@@ -6,7 +6,9 @@
 // project. A task's page shows its description (Markdown) and its comments, with "Draft with the Brain" for both.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
-import { DEL, GET, POST, PUT, ago, confirmBox, h, navigate, onEvent, onReconnect, promptBox, toast } from '../core.ts';
+import { ago, confirmBox, h, navigate, onEvent, onReconnect, promptBox, toast } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
+import type { BoardChange } from '../../shared/api/taskboard.ts';
 import { domButton } from '../ui/dom.ts';
 import { reducedMotion } from '../motion.ts';
 import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
@@ -60,7 +62,8 @@ export function place(column: BoardTask[], above: BoardTask | undefined, below: 
   });
   return { rank: at * 1024, respaced };
 }
-const path = (t: Pick<BoardTask, 'projectId' | 'id'>) => `/task-board/${encodeURIComponent(t.projectId)}/${encodeURIComponent(t.id)}`;
+// a task's address in calls: its project and its id
+const ref = (t: Pick<BoardTask, 'projectId' | 'id'>) => ({ projectId: t.projectId, id: t.id });
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const cardKey = (t: BoardTask) => `${t.projectId}/${t.id}`;
 
@@ -114,7 +117,7 @@ function TaskBoardPage() {
     if (holding()) return void (held.current.missed = true);
     const request = ++serial.current;
     try {
-      const next = await GET<TaskBoardData>(`/task-board?project=${encodeURIComponent(project)}`);
+      const next = await rpc.taskBoard.list({ project });
       if (request !== serial.current) return;
       if (holding()) return void (held.current.missed = true);
       setData(next);
@@ -222,14 +225,14 @@ function TaskBoardPage() {
   // failed, and the moves after it are dropped), so a quick second move isn't taken for someone else's change.
   const saving = useRef(new Map<string, Promise<number | null>>());
   /** Saves a change to a card already shown (first the column's new ranks, when it was spaced out again). */
-  const saveCard = (task: BoardTask, patch: Record<string, unknown>, respaced: Placement['respaced'] = []) => {
+  const saveCard = (task: BoardTask, patch: BoardChange, respaced: Placement['respaced'] = []) => {
     const key = cardKey(task);
     held.current.moves++;
     const saved = (saving.current.get(key) ?? Promise.resolve<number | null>(task.updatedAt)).then(async (version) => {
       if (version === null) return null;
       try {
-        if (respaced.length) await PUT('/task-board-ranks', { ranks: respaced.map((r) => ({ projectId: r.task.projectId, id: r.task.id, status: r.task.status, rank: r.rank })) });
-        const r = await PUT<{ task: BoardTask }>(path(task), { ...patch, expectedUpdatedAt: version });
+        if (respaced.length) await rpc.taskBoard.rerank({ ranks: respaced.map((r) => ({ projectId: r.task.projectId, id: r.task.id, status: r.task.status, rank: r.rank })) });
+        const r = await rpc.taskBoard.change({ ...ref(task), ...patch, expectedUpdatedAt: version });
         // the server's version (and the names of who has it), leaving the rest as shown
         const named = 'assignee' in patch ? { assigneeName: r.task.assigneeName, assigneeEmoji: r.task.assigneeEmoji, assigneeColor: r.task.assigneeColor } : {};
         const work = { work: r.task.work, workerName: r.task.workerName };
@@ -306,7 +309,7 @@ function TaskBoardPage() {
     try {
       remember();
       setData((d) => (d ? { ...d, tasks: d.tasks.filter((t) => !same(t, task)) } : d));
-      await DEL(path(task));
+      await rpc.taskBoard.remove(ref(task));
     } catch (e) {
       toast(errorText(e), 'error');
       void load();
@@ -595,7 +598,7 @@ function WorkMark({ task: t }: { task: BoardTask }) {
 /** "Writer started on #4", with Stop, when a change you made started someone's work. */
 function startedNote(before: BoardTask, after: BoardTask): void {
   if (!after.work || !isWorking(after) || before.work?.operationId === after.work.operationId) return;
-  const stop = domButton({ variant: 'ghost', size: 'tiny', class: 'ml-2', onclick: () => void POST(`${path(after)}/stop`).then(() => toast(`Stopped the work on ${taskKey(after.number)}`), (e: unknown) => toast(errorText(e), 'error')) }, 'Stop');
+  const stop = domButton({ variant: 'ghost', size: 'tiny', class: 'ml-2', onclick: () => void rpc.taskBoard.stop(ref(after)).then(() => toast(`Stopped the work on ${taskKey(after.number)}`), (e: unknown) => toast(errorText(e), 'error')) }, 'Stop');
   toast(h('span', {}, `${after.workerName || 'Someone'} started on ${taskKey(after.number)}`, stop), 'info', 8000);
 }
 
@@ -658,7 +661,7 @@ function TaskPage({ projectId, id }: { projectId: string; id: string }) {
   const [error, setError] = useState('');
   const load = useCallback(async () => {
     try {
-      const r = await GET<{ task?: BoardTask }>(`/task-board/${encodeURIComponent(projectId)}/${encodeURIComponent(id)}`);
+      const r = await rpc.taskBoard.get({ projectId, id });
       if (!r.task) return setError('That task is unavailable.');
       setTask(r.task);
       setError('');
@@ -692,9 +695,9 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
   const mentions = useMentionables(task.projectId);
   // Every save says which version of the task it was made on, so a change made meanwhile (the Brain, another
   // tab) is refused rather than overwritten.
-  const save = async (patch: Record<string, unknown>) => {
+  const save = async (patch: BoardChange) => {
     try {
-      const r = await PUT<{ task: BoardTask }>(path(task), { ...patch, expectedUpdatedAt: task.updatedAt });
+      const r = await rpc.taskBoard.change({ ...ref(task), ...patch, expectedUpdatedAt: task.updatedAt });
       onChange(r.task);
       startedNote(task, r.task);
       return true;
@@ -720,7 +723,7 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
     q.pending++;
     q.chain = q.chain.then(async () => {
       try {
-        const r = await PUT<{ task: BoardTask }>(path(latest.current), { ...(addTags.length ? { addTags } : {}), ...(removeTags.length ? { removeTags } : {}), expectedUpdatedAt: latest.current.updatedAt });
+        const r = await rpc.taskBoard.change({ ...ref(latest.current), ...(addTags.length ? { addTags } : {}), ...(removeTags.length ? { removeTags } : {}), expectedUpdatedAt: latest.current.updatedAt });
         latest.current = r.task;
         onChange(r.task);
       } catch (e) {
@@ -741,7 +744,7 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
   const remove = async () => {
     if (!(await confirmStop(task)) || !(await confirmBox(`Remove ${taskKey(task.number)} "${task.title}"?`, { ok: 'Remove', danger: true }))) return;
     try {
-      await DEL(path(task));
+      await rpc.taskBoard.remove(ref(task));
       navigate('#/tasks');
     } catch (e) {
       toast(errorText(e), 'error');
@@ -831,7 +834,7 @@ function WorkBox({ task, onChange }: { task: BoardTask; onChange: (t: BoardTask)
   const act = async (what: 'start' | 'stop' | 'check') => {
     setBusy(true);
     try {
-      const r = await POST<{ task: BoardTask }>(`${path(task)}/${what}`, what === 'check' ? { operationId: w?.operationId } : {});
+      const r = await (what === 'check' ? rpc.taskBoard.check({ ...ref(task), operationId: w?.operationId }) : rpc.taskBoard[what](ref(task)));
       onChange(r.task);
       if (what === 'start') startedNote(task, r.task);
     } catch (e) {
@@ -1000,7 +1003,7 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
     try {
       const files = await tray.ready();
       if (files === null) return;
-      onChange((await POST<{ task: BoardTask }>(`${path(task)}/comments`, { text, files })).task);
+      onChange((await rpc.taskBoard.comments.add({ ...ref(task), text, files })).task);
       tray.take();
       setText('');
     } catch (e) {
@@ -1065,11 +1068,11 @@ function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; co
   const box = useRef<HTMLTextAreaElement>(null);
   useMentionBox(box, mentions, editing);
   useCaretAtEnd(box, editing);
-  const url = `${path(task)}/comments/${encodeURIComponent(c.id)}`;
+  const at = { ...ref(task), commentId: c.id };
   const edit = () => (setValue(c.text), setEditing(true));
   const save = async () => {
     try {
-      onChange((await PUT<{ task: BoardTask }>(url, { text: value })).task);
+      onChange((await rpc.taskBoard.comments.change({ ...at, text: value })).task);
       setEditing(false);
     } catch (e) {
       toast(errorText(e), 'error');
@@ -1078,7 +1081,7 @@ function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; co
   const remove = async () => {
     if (!(await confirmBox('Remove this comment?', { ok: 'Remove', danger: true }))) return;
     try {
-      onChange((await DEL<{ task: BoardTask }>(url)).task);
+      onChange((await rpc.taskBoard.comments.remove(at)).task);
     } catch (e) {
       toast(errorText(e), 'error');
     }

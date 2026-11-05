@@ -4,7 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { Popover } from '@base-ui/react/popover';
-import { GET, POST, confirmBox, h, md, state, toast } from './core.ts';
+import { confirmBox, h, md, state, toast } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { attachTray } from './attach.tsx';
 import type { AttachTray } from './attach.tsx';
 import { apiUrl } from './client/connection.ts';
@@ -22,7 +23,7 @@ import { DomNode, Icon } from './ui/react.tsx';
 import { buttonClass } from './ui/classes.ts';
 import { openModal } from './ui/overlays.tsx';
 import { TagPicker } from './tasktags.tsx';
-import type { BoardDraft, BoardDraftInput, BoardPeople, BoardPriority, BoardStatus, BoardTask, TaskFile, TaskWorkState } from '../shared/types.ts';
+import type { BoardDraftInput, BoardPeople, BoardPriority, BoardStatus, BoardTask, TaskFile, TaskWorkState } from '../shared/types.ts';
 
 export const STATUSES: readonly { value: BoardStatus; label: string; icon: string; tone: string }[] = [
   { value: 'todo', label: 'To do', icon: 'circle-dashed', tone: 'text-dim' },
@@ -202,8 +203,8 @@ export function WhoMark({ who: ref, emoji, color, size = 20 }: { who: string; em
   );
 }
 
-/** Asks the Brain for a draft (POST /api/task-board-draft). */
-export const askForDraft = (input: BoardDraftInput) => POST<BoardDraft>('/task-board-draft', input);
+/** Asks the Brain for a draft (nothing is saved). */
+export const askForDraft = (input: BoardDraftInput) => rpc.taskBoard.draft(input);
 
 /**
  * "Draft with the Brain": what it should say (optional), then the draft goes into the box. use() puts it there and
@@ -320,7 +321,7 @@ export function usePeople(projectId: string): BoardPeople | null {
   useEffect(() => {
     let live = true;
     setPeople(null);
-    if (projectId) void GET<BoardPeople>(`/task-board-people/${encodeURIComponent(projectId)}`).then((p) => live && setPeople(p), () => live && setPeople({ agents: [], teams: [] }));
+    if (projectId) void rpc.taskBoard.people({ projectId }).then((p) => live && setPeople(p), () => live && setPeople({ agents: [], teams: [] }));
     return () => void (live = false);
   }, [projectId]);
   return people;
@@ -375,7 +376,7 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
     try {
       const files = await tray.ready();
       if (files === null) return;
-      const { task } = await POST<{ task: BoardTask }>(`/task-board/${encodeURIComponent(projectId)}`, { title, description, status, priority, assignee, tags, files });
+      const { task } = await rpc.taskBoard.add({ projectId, title, description, status, priority, assignee, tags, files });
       tray.take();
       toast(`Created ${taskKey(task.number)}: ${task.title}${task.work && task.workerName ? `. ${task.workerName} started on it.` : ''}`);
       await onCreated?.(task);

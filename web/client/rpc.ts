@@ -10,10 +10,17 @@ import { requestHeaders, serverUrl } from './connection.ts';
 // oRPC builds a full Request for this made-up origin; send() swaps it for the connection's address.
 const ORIGIN = 'http://dashboard.invalid';
 
-/** The server's { error } words when there are some, as api() reads them. */
+/** The server's { error } words when there are some, as api() reads them (JSON whatever the content type). */
 function serverWords(e: ORPCError<string, unknown>): string {
   const data: unknown = e.data;
-  const body = data && typeof data === 'object' && 'body' in data ? data.body : undefined;
+  let body = data && typeof data === 'object' && 'body' in data ? data.body : undefined;
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      // (plain text: no words of its own)
+    }
+  }
   return body && typeof body === 'object' && 'error' in body && typeof body.error === 'string' && body.error ? body.error : e.message;
 }
 
