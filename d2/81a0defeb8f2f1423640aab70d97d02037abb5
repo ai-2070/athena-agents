@@ -1,0 +1,67 @@
+AGENTS.md
+  s_befb8113973e07::t_10e2b68b94f499 57
+docs/guide.md
+  s_befb8113973e07::t_10e2b68b94f499 227-228,309
+skills/cua/driver/cua-driver/SKILL.md
+  s_befb8113973e07::t_1d84a95a712290 1-126
+skills/cua/driver/cua-driver/MACOS.md
+  s_befb8113973e07::t_1d84a95a712290 1-1001
+skills/cua/cli/cua-sandboxes/SKILL.md
+  s_befb8113973e07::t_1d84a95a712290 1-136
+skills/cua/driver/cua-driver/README.md
+  s_befb8113973e07::t_1d84a95a712290 1-123
+skills/cua/cli/gui-automation/references/command-reference.md
+  s_befb8113973e07::t_1d84a95a712290 1-401
+skills/cua/driver/cua-driver/RUNTIME.md
+  s_befb8113973e07::t_1d84a95a712290 1-115
+skills/cua/LICENSE
+  s_befb8113973e07::t_1d84a95a712290 1-21
+server/skills.ts
+  s_befb8113973e07::t_bb0d3b3acdc73f 555-557
+skills/cua/driver/cua-driver/RECORDING.md
+  s_befb8113973e07::t_1d84a95a712290 1-136
+skills/cua/driver/cua-driver/WINDOWS.md
+  s_befb8113973e07::t_1d84a95a712290 1-832
+skills/cua/driver/cua-driver/EMBEDDING.md
+  s_befb8113973e07::t_1d84a95a712290 1-712
+server/mcp.ts
+  s_befb8113973e07::t_1ef52e037eceaa 147-167
+skills/cua/driver/cua-driver/WORKFLOW.md
+  s_befb8113973e07::t_1d84a95a712290 1-226
+tests/server/bundled-skills.test.ts
+  s_befb8113973e07::t_eabe175bee8e08 13,15,20,26-27,47-50,79-85
+tests/web/preseticons.test.ts
+  s_befb8113973e07::t_6e9888f64c06b6 6
+skills/cua/driver/cua-driver/LINUX.md
+  s_befb8113973e07::t_1d84a95a712290 1-480
+tests/server/mcp-presets.test.ts
+  s_befb8113973e07::t_fa5ce8b0bc37c0 69-91
+skills/cua/driver/cua-driver/BROWSER.md
+  s_befb8113973e07::t_1d84a95a712290 1-570
+skills/cua/cli/gui-automation/SKILL.md
+  s_befb8113973e07::t_1d84a95a712290 1-162
+skills/cua/driver/cua-driver/VISUAL.md
+  s_befb8113973e07::t_1d84a95a712290 1-125
+skills/cua/README.md
+  s_befb8113973e07::t_c59dbeba3b6409 1-28
+web/preseticons.ts
+  s_befb8113973e07::t_6e9888f64c06b6 9
+README.md
+  s_befb8113973e07::t_10e2b68b94f499 130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d281a0defeb8f2f1423640aab70d97d02037abb5",
+  "prompts": {},
+  "sessions": {
+    "s_befb8113973e07": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4d90d98-f792-4b74-85a1-211abfe121c9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
