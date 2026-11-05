@@ -127,7 +127,7 @@ Hire a specialist with its instructions already written. 88 agents come with the
 
 ### Tools through MCP
 
-Connect agents to programs and services with the Model Context Protocol. Add servers from a list of ready-made ones in one click, or just ask the Brain. **Suggested for this PC** points out servers for programs you already have. There are presets for browsers, GitHub, Notion, Linear, Canva, Blender, Maya, Houdini, Unity, Unreal Engine, Godot, ElevenLabs, FreeCAD, your 3D printer and many more.
+Connect agents to programs and services with the Model Context Protocol. Add servers from a list of ready-made ones in one click, or just ask the Brain. **Suggested for this PC** points out servers for programs you already have. There are presets for browsers, Cua (agents use the apps on your computer, or work in throwaway sandbox computers), GitHub, Notion, Linear, Canva, Blender, Maya, Houdini, Unity, Unreal Engine, Godot, ElevenLabs, FreeCAD, your 3D printer and many more.
 
 ![The MCP servers settings page with six servers added](docs/images/mcp.png)
 
