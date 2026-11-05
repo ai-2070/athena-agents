@@ -1,0 +1,44 @@
+docs/guide.md
+  s_985575c8d5b52b::t_f5755f9d556f99 447
+tests/server/vite-dev.test.ts
+  s_985575c8d5b52b::t_5c9290cc126553 3-4,59-61,63,65-68
+  s_985575c8d5b52b::t_157553832c19b8 1-2,5-58,62,64,69-104
+README.md
+  s_985575c8d5b52b::t_f5755f9d556f99 175
+scripts/vite-dev.ts
+  s_985575c8d5b52b::t_2ef365d7f4ce5a 90-101,109
+  s_985575c8d5b52b::t_964dc39bf33667 1-89,102-108,110-125
+server/devpage.ts
+  s_985575c8d5b52b::t_35689c28a58c9d 1-41
+server/index.ts
+  s_985575c8d5b52b::t_a931d0db73c627 1718
+  s_985575c8d5b52b::t_9d11098f44b881 91,105-106,1537,1541-1542
+tests/server/devpage.test.ts
+  s_985575c8d5b52b::t_38f948ff887139 1-52
+AGENTS.md
+  s_985575c8d5b52b::t_f5755f9d556f99 16,57
+scripts/dev.ts
+  s_985575c8d5b52b::t_6861831b73ddd7 1-6,9-10,13-14,23-38,40-41,44,47-49
+scripts/build-fonts.ts
+  s_985575c8d5b52b::t_0fc95106688043 21-26,31,37-38
+package.json
+  s_985575c8d5b52b::t_ef2741bbe3c8ab 119,127
+bun.lock
+  s_985575c8d5b52b::t_e8f8b33a5ad7b6 64,72,609-610
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5a7ca7c8662e5cff8a0ba3c7d863912c0cd89901",
+  "prompts": {},
+  "sessions": {
+    "s_985575c8d5b52b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "97f7eb77-51cb-4495-ae5d-cef84f82669d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
