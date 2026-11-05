@@ -1,0 +1,23 @@
+server/index.ts
+  s_9814d375a139f1::t_d754aff72d061c 560,564-568
+tests/server/api.test.ts
+  s_9814d375a139f1::t_f196b8e625d639 650-679
+server/taskboard.ts
+  s_9814d375a139f1::t_d754aff72d061c 95-106,113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bf32a393527c9a7b62bb73f1bd004436949076fe",
+  "prompts": {},
+  "sessions": {
+    "s_9814d375a139f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "30c260a9-f8e6-4861-b2d4-20dff9c30a67",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
