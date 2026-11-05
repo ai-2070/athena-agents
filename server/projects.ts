@@ -4,7 +4,7 @@ import path from 'node:path';
 import { HOME, ensureDir, exists, insideRoots, isPlainDir, realTarget, run, slugify, uid, which, dataPath } from './util.ts';
 import { listProjects, saveProjects, activeProject, setActiveProject, log } from './store.ts';
 import { toPercent } from '../shared/look.ts';
-import type { Project, FolderEntry, FolderListing, FoundFolder, ProjectOverviewItem, ProjectPeek, ProjectsOverview, ProjectWithMedia } from '../shared/types.ts';
+import type { Project, FolderEntry, FolderListing, FoundFolder, ProjectOverviewItem, ProjectPeek, ProjectsOverview, ProjectSummary, ProjectWithMedia, BrainEntry, BrainGit, BrainInfo } from '../shared/types.ts';
 
 // (the shapes the page reads: shared/types.ts)
 export type { FoundFolder, ProjectOverviewItem, ProjectsOverview, ProjectWithMedia };
@@ -131,28 +131,7 @@ export function ensureBrain(p: Project = activeProject()): string {
   return p.brainPath;
 }
 
-export interface BrainEntry {
-  name: string;
-  dir: boolean;
-  path: string;
-}
-
-export interface BrainGit {
-  branch: string;
-  remote: string;
-  url: string;
-  last: string;
-  changes: number;
-}
-
-export interface BrainInfo {
-  project: Project;
-  entries: BrainEntry[];
-  files: number;
-  sizeMB: number;
-  git: BrainGit | null;
-  summary: ReturnType<typeof projectSummary>;
-}
+export type { BrainEntry, BrainGit, BrainInfo } from '../shared/types.ts';
 
 // A look inside the Brain: top files and folders, size, and Git status.
 export async function brainInfo(p: Project = activeProject()): Promise<BrainInfo> {
@@ -533,7 +512,7 @@ const isLink = (f: string): boolean => {
 
 // ---------- a short description for the Brain panel ----------
 // What the user said the project is, or else the first real paragraph of PROJECT.md / README.
-export function projectSummary(p: Project = activeProject()): { text: string; from: 'description' | 'PROJECT.md' | 'README.md' | null } {
+export function projectSummary(p: Project = activeProject()): ProjectSummary {
   if (p.description?.trim()) return { text: p.description.trim(), from: 'description' };
   for (const name of ['PROJECT.md', 'README.md'] as const) {
     let text = '';

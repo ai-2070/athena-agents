@@ -3,8 +3,9 @@
 // so the dashboard stays on the project that is open. The whole Brain chat (who a message goes to, /goal, /loop,
 // /queue) is the open project's (dock.tsx).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { GET, POST, attempt, md, onEvent, onReconnect, toast } from './core.ts';
+import { attempt, md, onEvent, onReconnect, toast } from './core.ts';
 import { projectAt } from './client/connection.ts';
+import { rpcAt } from './client/rpc.ts';
 import { COMPOSER_BTNS, COMPOSER_TEXT, attachTray } from './attach.tsx';
 import { StepCard, brainProgress, savedAnswer } from './dock.tsx';
 import { BRAIN, memoryButton } from './memory.tsx';
@@ -49,7 +50,7 @@ export function BrainPane({ projectId, projectName, onOpen }: { projectId: strin
   const refill = () => setFilled(!!box.current?.value.trim() || tray.count() > 0);
 
   const load = useCallback(async () => {
-    const msgs = await GET<BrainHistoryEntry[]>(`${at}/brain/history`).catch(() => null);
+    const msgs = await rpcAt(at).brain.history().catch(() => null);
     if (!msgs || !Array.isArray(msgs)) return;
     setItems(msgs.slice(-KEEP).map(fromHistory));
     setLoaded(true);
@@ -121,7 +122,7 @@ export function BrainPane({ projectId, projectName, onOpen }: { projectId: strin
   /** Stops the answer it is writing (it changes nothing; your question stays in its history). */
   const stop = () => {
     stopper.current?.abort();
-    void attempt(() => POST(`${at}/brain/steer`));
+    void attempt(() => rpcAt(at).brain.steer());
   };
 
   return (

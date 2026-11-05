@@ -33,22 +33,14 @@ import type { AttachTray, PickedFile } from './attach.tsx';
 import type { PasteBox } from './pastes.ts';
 import type { AgentDraft, BranchDesign } from './builder.tsx';
 import type { TeamEvent } from './teamchat.tsx';
-import type { ActiveRun, Agent, AppState, BrainAnswer, BrainDelegate, BrainDone, BrainStep, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
+import type { ActiveRun, Agent, AppState, BrainAnswer, BrainChatMessage, BrainDelegate, BrainDone, BrainStep, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
 import type { UIMessage } from 'ai';
 
 // A handed-off agent's turn, streamed in as it goes: the AI SDK pieces load when first needed.
 const TurnView = lazy(() => import('./chat/TurnView.tsx').then((m) => ({ default: m.TurnView })));
 
-/** One line of GET /api/brain/history. */
-export interface BrainHistoryEntry {
-  role: 'user' | 'brain';
-  text: string;
-  ts: number;
-  attachments?: string[];
-  done?: BrainDone[];
-  delegate?: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'>;
-  steps?: BrainStep[];
-}
+/** One line of the Brain's chat history. */
+export type BrainHistoryEntry = BrainChatMessage;
 /** A workflow run as 'workflow-run' events and GET /api/workflow-runs carry it (old step-list teams). */
 interface WorkflowRun {
   id: string;
@@ -232,7 +224,7 @@ const historyLoads = latestLoad();
 async function loadHistory() {
   const current = historyLoads.start();
   const project = D.project;
-  const msgs = await GET<BrainHistoryEntry[]>('/brain/history').catch((): BrainHistoryEntry[] => []);
+  const msgs = await rpc.brain.history().catch((): BrainHistoryEntry[] => []);
   if (!current() || project !== D.project || D.items.length) return;
   for (const m of msgs.slice(-6)) {
     if (m.role === 'user') D.items.push({ id: `h${m.ts}u`, kind: 'user', text: m.text, attachments: m.attachments });
@@ -267,7 +259,7 @@ export function savedAnswer(m: BrainHistoryEntry): { answer: string; done: Brain
 async function newConversation() {
   if (!(await confirmBox("Clear the Brain’s conversation and memory?", { ok: "Clear memory", danger: true }))) return;
   // keep the transcript if the Brain still remembers it
-  if (!(await attempt(() => POST('/brain/clear')))) return;
+  if (!(await attempt(() => rpc.brain.clear()))) return;
   brainAsks.reset(); // answers still on their way belong to the old conversation
   held.clear();
   loop.stop();
@@ -1134,7 +1126,7 @@ async function steerBrain() {
     remove(x);
   }
   add({ kind: 'note', text: "Stopped the Brain's answer to take your new message." });
-  await attempt(() => POST('/brain/steer'));
+  await attempt(() => rpc.brain.steer());
 }
 
 // ---------- /queue ----------
@@ -1196,7 +1188,7 @@ async function brainStop() {
   const chats = D.items.filter((x): x is AgentItem => x.kind === 'agent' && !x.done).map((x) => ({ agentId: x.agentId, chatId: x.chatId }));
   const teams = [...new Set(D.items.filter((x): x is BranchItem => x.kind === 'branch' && !!(x.working.length || x.next?.length)).map((x) => x.wfId))];
   D.stoppedWork = { chats, teams };
-  const r = await attempt(() => POST<{ stopped: string[] }>('/brain/stop', { chats, teams }));
+  const r = await attempt(() => rpc.brain.stop({ chats, teams }));
   const what = [live.length ? 'the Brain' : '', ...(r?.stopped || []), looped ? 'the loop' : ''].filter(Boolean);
   add({ kind: 'note', text: what.length ? `Stopped ${what.join(', ')}. /resume picks it up again.` : 'Nothing was working.' });
 }
@@ -1206,7 +1198,7 @@ async function brainResume() {
   const ask = D.stoppedAsk;
   D.stoppedAsk = null;
   if (ask) void track(() => dispatch(ask.text, ask.attachments, ask.target, { goal: ask.goal }));
-  const r = await POST<{ resumed: string[]; chats: string[] }>('/brain/resume', D.stoppedWork || {}).catch((e: Error) => e);
+  const r = await rpc.brain.resume(D.stoppedWork || {}).catch((e: Error) => e);
   if (r instanceof Error) return void (ask || toast(r.message || 'Nothing to resume.'));
   D.stoppedWork = null;
   // (they work again: the chat waits for them before a /queue message or the loop's next one)

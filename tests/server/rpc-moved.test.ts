@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 /** The addresses of the areas that have moved. */
-const MOVED = ['/api/task-board', '/api/projects', '/api/agents', '/api/teams/', '/api/workflows', '/api/workflow-'];
+const MOVED = ['/api/brain', '/api/task-board', '/api/projects', '/api/agents', '/api/teams/', '/api/workflows', '/api/workflow-'];
 /** The old routes those areas keep. */
 const KEEP = [
   'GET /api/projects/:id/logo',
@@ -14,6 +14,7 @@ const KEEP = [
   'POST /api/agents/:id/chats/:cid/stream',
   'GET /api/agents/:id/chats/:cid/stream',
   'GET /api/workflows/:id/mark',
+  'POST /api/brain/stream',
 ];
 const METHOD: Record<string, string> = { get: 'GET', post: 'POST', put: 'PUT', del: 'DELETE', postFile: 'POST' };
 

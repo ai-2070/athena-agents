@@ -8,7 +8,7 @@ import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, HOME, readJSON, writeJSON, insideRoots } from './util.ts';
 import * as store from './store.ts';
-import { agents, chats, outbox, artifacts as artifactStore, workflows, runs, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
+import { agents, chats, outbox, artifacts as artifactStore, workflows, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
 import { listApprovals, decide, requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
 import { eveRuntime } from './eve/runtime.ts';
@@ -41,7 +41,6 @@ import * as social from './social.ts';
 import { addArtifact, removeArtifact } from './artifacts.ts';
 import * as teamMarks from './teammark.ts';
 import * as library from './library.ts';
-import * as commands from './commands.ts';
 import { listBriefs } from './briefs.ts';
 import * as tasksMod from './tasks.ts';
 import * as taskBoard from './taskboard.ts';
@@ -85,8 +84,7 @@ import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import { saveToolStats, toolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
-import { deleteAgent } from './api/agents.ts';
-import type { Agent, AppState, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
+import type { Agent, AppState, Project, ProviderUsage, Routine, SecretKey, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -247,7 +245,6 @@ postFile('/api/backups/restore', async (_p, upload, q) => {
   projects.startScreenDone();
   return { ...projects.withLogo(skills.enableOrcaSkill(r.project.id) || r.project), restored: r.restored };
 });
-get('/api/brain', async () => projects.brainInfo());
 // Where things sit on the Station map (per project), e.g. { bench: { x, z } }.
 get('/api/layout', async () => readJSON<Record<string, unknown>>(store.projectData('layout.json'), {}));
 put<Body | null>('/api/layout', async (_p, body) => {
@@ -255,32 +252,14 @@ put<Body | null>('/api/layout', async (_p, body) => {
   store.emit('layout');
   return { ok: true };
 });
-post<{ name?: unknown; content?: unknown }>('/api/brain/note', async (_p, body) => ({ file: projects.addNote(body.name, body.content) }));
-post('/api/brain/pull', async () => ({ message: await projects.gitPull() }));
-// path: a folder inside the Brain (a row in the Brain panel), or the Brain folder itself
-post<{ app?: string; path?: unknown }>('/api/brain/open', async (_p, body) => {
-  const dir = projects.brainFolder(body.path);
-  if (body.app === 'vscode') {
-    const msg = await programs.launchProgram('vscode', { file: dir });
-    return { message: msg };
-  }
-  openWithShell(dir);
-  return { ok: true };
-});
 
-// The Brain: pick who handles a message, design a new agent, build a branch.
+// ---------- the Brain: its folder, asking it, its history and its skills are server/api/brain.ts ----------
+// Pick who handles a message, design a new agent, build a branch.
 post<{ text?: unknown }>('/api/assist/route', async (_p, body) => brain.route(String(body.text || '')));
 get('/api/assist/model', async () => brain.brainModel());
-// The Brain as overseer: ask it anything about the project; it answers or hands the work on.
 // The Brain answers agents' and teams' permission requests (Settings > The Brain approves).
 setReviewer(overseer.reviewApproval);
-post<{ text?: unknown; project?: unknown; attachments?: unknown }>('/api/brain/ask', async (_p, body) => {
-  const attachments = uploads.cleanAttachments(body.attachments);
-  const text = String(body.text || '').trim().slice(0, 20000);
-  if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
-  return overseer.ask(text, { project: typeof body.project === 'string' ? body.project : null, attachments });
-});
-// The same, streamed (Vercel AI SDK UI message stream): the answer as it is written, the files the
+// Asking it anything about the project, streamed (Vercel AI SDK UI message stream): the answer as it is written, the files the
 // Brain reads, then the whole answer (data-answer). The Brain chat reads it with the AI SDK.
 post<{ text?: unknown; project?: unknown; attachments?: unknown; goal?: unknown }>('/api/brain/stream', async (_p, body, _q, res) => {
   const attachments = uploads.cleanAttachments(body.attachments);
@@ -292,15 +271,6 @@ post<{ text?: unknown; project?: unknown; attachments?: unknown; goal?: unknown 
   await uistream.streamBrain(res, (onPart) => overseer.ask(text, { project, attachments, onPart, goal: body.goal === true }));
   return undefined;
 });
-// a new message while the Brain answers: that answer changes nothing, and what it was answering stays in its history
-post('/api/brain/steer', async () => (overseer.steerAsks(), { ok: true }));
-// /stop and /resume in the Brain chat (with the agent chats and teams it shows working)
-post<commands.BrainWork>('/api/brain/stop', async (_p, body) => commands.stopBrain(body));
-post<commands.BrainWork>('/api/brain/resume', async (_p, body) => commands.resumeBrain(body));
-get('/api/brain/history', async () => overseer.history());
-post('/api/brain/clear', async () => (overseer.clearHistory(), { ok: true }));
-get('/api/brain/snapshot', async () => ({ text: await overseer.snapshot() }));
-get('/api/brain/pulse', async () => overseer.pulse());
 post<{ text?: unknown; attachments?: unknown }>('/api/assist/agent', async (_p, body) => brain.designAgent(String(body.text || ''), { attachments: uploads.cleanAttachments(body.attachments) }));
 post<{ text?: unknown; allowNew?: unknown; attachments?: unknown }>('/api/assist/branch', async (_p, body) => brain.designBranch(String(body.text || ''), { allowNew: body.allowNew !== false, attachments: uploads.cleanAttachments(body.attachments) }));
 get('/api/headbar', async () => {
@@ -436,8 +406,6 @@ post<{ text?: unknown; slug?: unknown; current?: unknown; attachments?: unknown 
     attachments,
   });
 });
-get('/api/brain/skills', async () => ({ skills: skills.brainSkillSlugs() }));
-put<{ skills?: unknown }>('/api/brain/skills', async (_p, body) => ({ skills: skills.setBrainSkills(body?.skills) }));
 post<{ name: string }>('/api/skills/import', async (_p, body) => skills.importClaudeSkill(body.name));
 post<{ url?: unknown }>('/api/skills/install', async (_p, body) => skillInstall.installFromGitHub(String(body.url || '')));
 

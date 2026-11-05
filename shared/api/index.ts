@@ -2,9 +2,10 @@
 // The server implements them (server/api/), the page calls them (web/client/rpc.ts).
 // docs/internal/plans/ORPC_PLAN.md says why and how; routes not here are still in server/index.ts.
 import { agents } from './agents.ts';
+import { brain } from './brain.ts';
 import { projects } from './projects.ts';
 import { taskBoard } from './taskboard.ts';
 import { teams } from './teams.ts';
 import { workflows } from './workflows.ts';
 
-export const contract = { agents, projects, taskBoard, teams, workflows };
+export const contract = { agents, brain, projects, taskBoard, teams, workflows };

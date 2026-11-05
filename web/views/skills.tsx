@@ -6,7 +6,7 @@ import { Button } from '../ui/button.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
-import { GET, POST, PUT, DEL, attempt, refreshSoon, confirmBox, state } from '../core.ts';
+import { GET, POST, DEL, attempt, refreshSoon, confirmBox, state } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { logo } from '../icons.ts';
 import { SkillMark } from '../skillmark.tsx';
@@ -32,7 +32,7 @@ export const flip = (list: readonly string[], slug: string, on: boolean): string
 
 // (the saved list goes into the page's state right away, so a menu drawn next shows it)
 const saveBrain = (skills: string[]) =>
-  attempt(() => PUT<{ skills: string[] }>('/brain/skills', { skills })).then((r) => {
+  attempt(() => rpc.brain.setSkills({ skills })).then((r) => {
     if (r && state.data) state.data.settings.brainSkills = r.skills;
     refreshSoon(0);
   });

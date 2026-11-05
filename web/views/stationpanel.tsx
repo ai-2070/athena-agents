@@ -31,7 +31,7 @@ import { WorldPanel } from './worldpanel.tsx';
 import { fileManager, previewFile, previewTitle } from '../filepreview.tsx';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, connectorLook } from './stationdata.ts';
 import type { AvailableIntegration, Connector, MapPick, Program, TeamView } from './stationdata.ts';
-import type { Agent, AppState, Project, RoutineListing, Team, TeamAccess, TeamState } from '../../shared/types.ts';
+import type { Agent, AppState, BrainInfo, Project, RoutineListing, Team, TeamAccess, TeamState } from '../../shared/types.ts';
 import { scheduleSummary } from '../../shared/routines.ts';
 
 const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
@@ -60,17 +60,6 @@ export interface StationPanelApi {
   zoomToTeam(id: string): void;
   /** the team builder, for a new team */
   newTeam(): void;
-}
-
-/** GET /api/brain: a look inside the Brain folder. */
-interface BrainInfo {
-  project: Project;
-  entries: { name: string; dir: boolean; path: string }[];
-  files: number;
-  sizeMB: number;
-  git: { branch: string; remote: string; url: string; last: string; changes: number } | null;
-  /** the description, or the first paragraph of PROJECT.md / README.md */
-  summary?: { text: string; from: 'description' | 'PROJECT.md' | 'README.md' | null };
 }
 
 /** Draws the panel into el (the map's panel element). update() draws it again. */
@@ -261,7 +250,7 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
   const [reload, setReload] = useState(0);
   useEffect(() => {
     let alive = true;
-    GET<BrainInfo>('/brain')
+    rpc.brain.info()
       .then((bi) => alive && (setInfo(bi), setError('')))
       .catch((e: Error) => alive && setError(e.message));
     return () => void (alive = false);
@@ -272,7 +261,7 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
     if (!name) return;
     const content = await promptBox(name, { multiline: true, placeholder: 'Anything the agents should know about this project.' });
     if (content == null) return;
-    await attempt(() => POST('/brain/note', { name, content }), 'Saved to notes/');
+    await attempt(() => rpc.brain.note({ name, content }), 'Saved to notes/');
     setReload((n) => n + 1);
   };
   return (
@@ -318,10 +307,10 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         </button>
         <div className="mt-6 mb-2 flex items-center gap-0.5">
           <div className="label flex-1">Brain folder</div>
-          <IconButton variant="plain" title="Open the folder" aria-label="Open folder" onClick={() => void attempt(() => POST('/brain/open', {}))}>
+          <IconButton variant="plain" title="Open the folder" aria-label="Open folder" onClick={() => void attempt(() => rpc.brain.open({}))}>
             <FolderIcon size={16} />
           </IconButton>
-          <IconButton variant="plain" title="Open in VS Code" aria-label="VS Code" onClick={() => void attempt(() => POST('/brain/open', { app: 'vscode' }))}>
+          <IconButton variant="plain" title="Open in VS Code" aria-label="VS Code" onClick={() => void attempt(() => rpc.brain.open({ app: 'vscode' }))}>
             <VSCodeIcon size={16} />
           </IconButton>
           <IconButton variant="plain" title="Add a note" aria-label="Add note" onClick={() => void addNote()}>
@@ -352,7 +341,7 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
                       </div>
                       <div className="hint">{`${info.git.branch} · ${info.git.last}${info.git.changes ? ` · ${info.git.changes} changed` : ''}`}</div>
                     </div>
-                    <Button variant="ghost" size="tiny" onClick={() => void attempt(() => POST<{ message: string }>('/brain/pull'), (r) => r.message)}>
+                    <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.brain.pull(), (r) => r.message)}>
                       Pull
                     </Button>
                   </div>
@@ -413,7 +402,7 @@ function BrainEntry({ entry: e }: { entry: BrainInfo['entries'][number] }) {
         <span className="min-w-0 truncate">{e.name}</span>
       </div>
     );
-  const go = () => (e.dir ? void attempt(() => POST('/brain/open', { path: e.path })) : previewFile(e.path, e.name));
+  const go = () => (e.dir ? void attempt(() => rpc.brain.open({ path: e.path })) : previewFile(e.path, e.name));
   return (
     <button type="button" className={FILE_OPENS} title={title} aria-label={title} onClick={go}>
       {e.dir ? <FolderIcon size={16} /> : <FileIcon name={e.name} size={16} />}

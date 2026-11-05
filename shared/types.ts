@@ -2254,6 +2254,67 @@ export interface UploadedFile {
   name: string;
   size: number;
 }
+/** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
+export interface BrainChatMessage {
+  role: 'user' | 'brain';
+  /** What was said. For the Brain, its answer alone: what it did is in done and delegate. */
+  text: string;
+  ts: number;
+  attachments?: string[];
+  from?: string;
+  operationId?: string;
+  /** What the Brain did with this answer, so a reopened chat shows it the way it first did. */
+  done?: BrainDone[];
+  /** Who it handed the work to, and where (a reopened chat follows that work again). */
+  delegate?: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'>;
+  /** The files it read while it answered (results cut short). */
+  steps?: BrainStep[];
+}
+
+/** A file or folder at the top of the Brain folder. */
+export interface BrainEntry {
+  name: string;
+  dir: boolean;
+  path: string;
+}
+
+export interface BrainGit {
+  branch: string;
+  remote: string;
+  url: string;
+  last: string;
+  changes: number;
+}
+
+/** What a project is about: its description, or the first paragraph of PROJECT.md / README.md. */
+export interface ProjectSummary {
+  text: string;
+  from: 'description' | 'PROJECT.md' | 'README.md' | null;
+}
+
+/** A look inside the Brain folder (GET /api/brain): top files and folders, size, and Git status. */
+export interface BrainInfo {
+  project: Project;
+  entries: BrainEntry[];
+  files: number;
+  sizeMB: number;
+  git: BrainGit | null;
+  summary: ProjectSummary;
+}
+
+/** The project at a glance, as the Brain sees it (GET /api/brain/pulse). */
+export interface BrainPulse {
+  project: string;
+  agents: number;
+  working: number;
+  teams: number;
+  teamsWorking: number;
+  approvals: number;
+  outbox: number;
+  questions: number;
+  brain: Settings['brain'] | null;
+}
+
 export interface BrainAnswer {
   answer: string;
   done: BrainDone[];
