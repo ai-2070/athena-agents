@@ -43,7 +43,32 @@ The board's page and server tests passed unchanged, and so did the desktop smoke
 headless Chrome, showed all 30 cards and their tags. Typing the page's save helpers (`BoardChange` instead of
 `Record<string, unknown>`) compiled at once, so the page and the server agreed on every field the board sends.
 
-Next: projects (23 routes), as in "After the pilot".
+### Projects (2026-11-05)
+
+20 of the 23 project routes moved; the three that send a file (a project's logo, background and 3D model) stay in
+`server/index.ts`. Two steps:
+
+- **The shapes moved to `shared/types.ts`** (`ProjectWithMedia`, `ProjectsOverview`, `SaveStatus`, `RestoreResult`,
+  `BackupResult`, `BackupRestoreResult` and the rest), since the contract can't import from `server/`. The page's own
+  copies, which had drifted (its `BackupSummary` lacks `libraryPrefabs`), use them now where the page reads an answer.
+- **State two routes shared left `server/index.ts`**: the start screen (`startScreenPending` / `startScreenDone` in
+  `projects.ts`) and the one-at-a-time lock for restoring and copying (`oneAtATime` in `backup.ts`), since restoring
+  a backup takes a file and stays on the old router.
+
+What the move turned up:
+- **The Station panel's description save had no project id to name** as far as the types could tell (`proj.id` is
+  optional there; it was checked, but outside the call). It names it now.
+- **Four calls didn't encode the project id in the address**; typed calls always do.
+- **`api()` reads an answer as JSON whatever its content type says**, and the page's tests rely on that (their fake
+  servers send JSON as text). The client does the same now, in one place (`send()` in `web/client/rpc.ts`).
+- **A call with no input sends no body** (the old `POST()` sent `{}`). The server takes both; one page test that
+  checked for `{}` checks the method and address instead.
+- The project functions mostly refuse with a plain `Error` (no status), so those are 500s with their message, as
+  before. Only a field of the wrong kind is a 400 now, in the functions' own words.
+
+`app.js` grew by 1.8 KB for these 20 routes; `server/index.ts` is 1,603 lines.
+
+Next: agents (32 routes).
 
 ## Why
 
