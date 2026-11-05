@@ -5,9 +5,10 @@ import { Dot } from '../ui/marks.tsx';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GET, POST, attempt, ago, navigate, approvalCard } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Avatar, DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
-import type { ActivityEntry, AppState, Chat, LibraryAgentListing } from '../../shared/types.ts';
+import type { ActivityEntry, AppState, LibraryAgentListing } from '../../shared/types.ts';
 import { appIconStyle, appIconUrl } from '../appicons.ts';
 
 /** One entry of GET /api/programs (only the fields this page reads). */
@@ -203,8 +204,8 @@ function QuickTask({ d }: { d: AppState }) {
     attempt(async () => {
       const t = text.trim();
       if (!t || !agentId) return;
-      const chat = await POST<Chat>(`/agents/${agentId}/chats`);
-      await POST(`/agents/${agentId}/chats/${chat.id}/messages`, { text: t });
+      const chat = await rpc.agents.chats.create({ id: agentId });
+      await rpc.agents.chats.send({ id: agentId, chatId: chat.id, text: t });
       quick.text = '';
       navigate(`#/agents/${agentId}/${chat.id}`);
     });

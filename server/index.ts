@@ -41,9 +41,8 @@ import * as social from './social.ts';
 import { addArtifact, removeArtifact } from './artifacts.ts';
 import * as teamMarks from './teammark.ts';
 import * as library from './library.ts';
-import { queuedText } from '../shared/queue.ts';
 import * as commands from './commands.ts';
-import { openGoal, clearWork, listBriefs } from './briefs.ts';
+import { openGoal, listBriefs } from './briefs.ts';
 import * as tasksMod from './tasks.ts';
 import * as taskBoard from './taskboard.ts';
 import { overview } from './overview.ts';
@@ -87,7 +86,7 @@ import * as backup from './backup.ts';
 import { saveToolStats, toolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
 import { deleteAgent } from './api/agents.ts';
-import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
+import type { Agent, AppState, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -348,12 +347,7 @@ post<{ creditId?: unknown }>('/api/codex/reset', async (_p, body) => {
 });
 
 // ---------- agents ----------
-// server/api/agents.ts (their / commands too); their chats below
-// chats
-get('/api/agents/:id/chats', async ({ id }) => chats.list(id));
-post('/api/agents/:id/chats', async ({ id }) => chats.create(need(agents.get(id)).id));
-// (with your /queue messages still waiting, and your /loop and /goal there)
-get('/api/agents/:id/chats/:cid', async ({ id, cid }) => ({ ...need(chats.get(id, cid)), queued: engines.queuedMessages(cid), loop: engines.loopOf(cid), goal: openGoal('agent', id, cid) }));
+// server/api/agents.ts, with their chats; a chat's run streams are below
 
 get('/api/tasks', async (_p, _b, q) => tasksMod.listTasks({ view: q.view || 'all', status: (q.status || 'all') as TaskQuery['status'], search: q.search || '', offset: Number(q.offset), limit: Number(q.limit) }, { admin: true, scope: { kind: 'brain' } }));
 get('/api/tasks/:id', async ({ id }) => ({ task: need(tasksMod.getTask(id, { admin: true, scope: { kind: 'brain' } })) }));
@@ -378,54 +372,6 @@ get('/api/task-board-file/:projectId/:id', async ({ projectId, id }, _b, q, res)
   sendFileSafely(res, file);
   return undefined;
 });
-del('/api/agents/:id/chats/:cid', async ({ id, cid }) => {
-  engines.forgetChat(cid);
-  clearWork('agent', id, cid);
-  chats.remove(id, cid);
-  return { ok: true };
-});
-put<{ title?: unknown; reset?: unknown }>('/api/agents/:id/chats/:cid', async ({ id, cid }, body) => {
-  // While a run is going, change the copy it is writing so the edit sticks.
-  const c = engines.liveChat(cid) || need(chats.get(id, cid));
-  if (body.title) c.title = String(body.title).slice(0, 120);
-  if (body.reset) engines.resetMemory(c);
-  return chats.save(c);
-});
-post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/messages', async ({ id, cid }, body) => {
-  const a = need(agents.get(id));
-  const c = need(chats.get(id, cid));
-  const text = String(body.text || '').trim();
-  const attachments = uploads.cleanAttachments(body.attachments);
-  if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
-  // "/queue …" waits until the agent is done here (or goes now)
-  const queued = queuedText(text);
-  if (queued != null) return queueIn(a, c, queued, attachments);
-  const { runId } = engines.startRun(a, c, text, { attachments });
-  return { runId };
-});
-// /queue: a message that goes once the agent is done in this chat (now, if it isn't working)
-function queueIn(a: Agent, c: Chat, text: string, attachments: string[]) {
-  if (!text && !attachments.length) throw new HttpError(400, 'Write the message after /queue.');
-  return engines.queueMessage(a, c, text, attachments);
-}
-post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/queue', async ({ id, cid }, body) =>
-  queueIn(need(agents.get(id)), need(chats.get(id, cid)), String(body.text || '').trim(), uploads.cleanAttachments(body.attachments)),
-);
-del('/api/agents/:id/chats/:cid/queue/:qid', async ({ cid, qid }) => ({ unqueued: engines.unqueue(cid, qid) }));
-// a queued message: its text changed, or the order they go in
-// (queued: null when it already went)
-put<{ text?: unknown }>('/api/agents/:id/chats/:cid/queue/:qid', async ({ cid, qid }, body) => ({ queued: engines.editQueued(cid, qid, body.text) }));
-post<{ ids?: unknown }>('/api/agents/:id/chats/:cid/queue/order', async ({ cid }, body) => ({ queued: engines.orderQueued(cid, body.ids) }));
-// the other / commands (server/commands.ts)
-post('/api/agents/:id/chats/:cid/resend', async ({ id, cid }) => commands.resendInChat(id, cid));
-post('/api/agents/:id/chats/:cid/resume', async ({ id, cid }) => commands.resumeInChat(id, cid));
-post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/loop', async ({ id, cid }, body) => commands.loopInChat(id, cid, String(body.text ?? ''), uploads.cleanAttachments(body.attachments)));
-del('/api/agents/:id/chats/:cid/loop', async ({ cid }) => ({ ok: engines.stopLoop(cid, 'Loop stopped.') }));
-post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/learn', async ({ id, cid }, body) =>
-  commands.learnInChat(id, cid, String(body.text ?? '').trim().slice(0, 4000), uploads.cleanAttachments(body.attachments)),
-);
-post<{ text?: unknown }>('/api/agents/:id/chats/:cid/goal', async ({ id, cid }, body) => commands.goalInChat(id, cid, String(body.text ?? '').trim().slice(0, 4000)));
-del('/api/agents/:id/chats/:cid/goal', async ({ id, cid }) => commands.goalInChat(id, cid, 'clear'));
 // The chat views (Vercel AI SDK useChat): send a message and stream its run as a UI message stream,
 // or pick up the run going in a chat (the turn so far, then the rest; 204 when nothing runs).
 // steer: sent while it works, it stops the run going now and goes next (its /queue messages still wait).
@@ -448,14 +394,6 @@ get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
   }
   await uistream.streamRun(res, { chatId: cid, runId, items: engines.liveChat(cid)?.items || [] });
   return undefined;
-});
-get('/api/agents/:id/chats/:cid/memory', async ({ id, cid }) => engines.memoryOf(need(agents.get(id)), cid));
-post('/api/agents/:id/chats/:cid/stop', async ({ cid }) => {
-  // the /queue messages come back to you (they'd otherwise start as soon as it stopped); a loop ends
-  const unqueued = engines.unqueue(cid);
-  engines.stopLoop(cid, 'Loop stopped.');
-  engines.stopChat(cid);
-  return { ok: true, unqueued };
 });
 get('/api/runs', async () => engines.activeRuns());
 post('/api/runs/:id/stop', async ({ id }) => ({ ok: engines.stopRun(id) }));

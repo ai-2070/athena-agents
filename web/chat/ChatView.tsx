@@ -8,7 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { APICallError } from 'ai';
-import { GET, POST, PUT, DEL, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
+import { attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
 import { rpcAt } from '../client/rpc.ts';
 import type { AttachTray } from '../attach.tsx';
 import { COMPOSER_BTNS, COMPOSER_TEXT } from '../attach.tsx';
@@ -170,7 +170,7 @@ export function ChatView(p: ChatViewProps) {
   const reload = useCallback(async (after = false) => {
     const id = chatIdRef.current;
     if (!id) return;
-    const saved = await GET<Chat>(`${at}/agents/${agent.id}/chats/${id}`).catch(() => null);
+    const saved = await rpcAt(at).agents.chats.get({ id: agent.id, chatId: id }).catch(() => null);
     if (!saved || chatIdRef.current !== id) return;
     setItems(saved.items);
     setQueued(saved.queued || []);
@@ -296,7 +296,7 @@ export function ChatView(p: ChatViewProps) {
         }
         // a new conversation: make the chat first
         if (!chatIdRef.current) {
-          const made = await attempt(() => POST<Chat>(`${at}/agents/${agent.id}/chats`));
+          const made = await attempt(() => rpcAt(at).agents.chats.create({ id: agent.id }));
           if (!made) {
             if (typed == null && box) restore(text);
             return;
@@ -351,13 +351,13 @@ export function ChatView(p: ChatViewProps) {
       pastes.sync();
       refill();
       const taken = tray?.take() || [];
-      const r = await attempt(() => POST<{ runId?: string; queued?: QueuedMessage }>(`${at}/agents/${agent.id}/chats/${id}/queue`, { text, attachments }));
+      const r = await attempt(() => rpcAt(at).agents.chats.queue({ id: agent.id, chatId: id, text, attachments }));
       if (!r) {
         restore(`/queue ${text}`);
         tray?.put(taken);
         return;
       }
-      const added = r.queued;
+      const added = 'queued' in r ? r.queued : undefined;
       if (added) setQueued((q) => (q.some((x) => x.id === added.id) ? q : [...q, added]));
     } finally {
       queueing.current = false;
@@ -368,7 +368,7 @@ export function ChatView(p: ChatViewProps) {
       const id = chatIdRef.current;
       if (!id) return;
       setQueued((list) => list.filter((x) => x.id !== q.id));
-      void attempt(() => DEL(`${at}/agents/${agent.id}/chats/${id}/queue/${q.id}`));
+      void attempt(() => rpcAt(at).agents.chats.unqueue({ id: agent.id, chatId: id, queueId: q.id }));
     },
     [agent.id, at],
   );
@@ -378,7 +378,7 @@ export function ChatView(p: ChatViewProps) {
     if (!id) return;
     const put = (t: string) => setQueued((list) => list.map((x) => (x.id === q.id ? { ...x, text: t } : x)));
     put(text);
-    const r = await attempt(() => PUT<{ queued: QueuedMessage | null }>(`${at}/agents/${agent.id}/chats/${id}/queue/${q.id}`, { text }));
+    const r = await attempt(() => rpcAt(at).agents.chats.editQueued({ id: agent.id, chatId: id, queueId: q.id, text }));
     // not saved: it shows what will go after all; already sent: the change comes to the box
     if (!r) put(q.text);
     else if (r.queued === null) keepEdit(text);
@@ -387,12 +387,12 @@ export function ChatView(p: ChatViewProps) {
     const id = chatIdRef.current;
     if (!id) return;
     setQueued((list) => ids.map((x) => list.find((q) => q.id === x)).filter((q): q is QueuedMessage => !!q));
-    void attempt(() => POST(`${at}/agents/${agent.id}/chats/${id}/queue/order`, { ids }));
+    void attempt(() => rpcAt(at).agents.chats.orderQueue({ id: agent.id, chatId: id, ids }));
   };
   // the chat, made now if this is a new conversation (for a command that needs one)
   const ensureChat = async (): Promise<string | null> => {
     if (chatIdRef.current) return chatIdRef.current;
-    const made = await attempt(() => POST<Chat>(`${at}/agents/${agent.id}/chats`));
+    const made = await attempt(() => rpcAt(at).agents.chats.create({ id: agent.id }));
     if (!made) return null;
     chatIdRef.current = made.id;
     setChatId(made.id);
@@ -418,7 +418,8 @@ export function ChatView(p: ChatViewProps) {
     if (name === 'stop') return void stop();
     const id = await ensureChat();
     if (!id) return back();
-    const base = `${at}/agents/${agent.id}/chats/${id}`;
+    const calls = rpcAt(at).agents.chats;
+    const here = { id: agent.id, chatId: id };
     if (name === 'goal' && !rest) return void toast(goal ? `Goal: ${goalText(goal)}` : 'No goal yet. Type /goal and what done looks like.');
     if (name === 'loop') {
       // (with the files in the tray: each loop message carries them; not when it is ended)
@@ -426,7 +427,7 @@ export function ChatView(p: ChatViewProps) {
       const attachments = tray && !off ? await tray.ready() : [];
       if (!attachments) return back();
       const taken = off ? [] : tray?.take() || [];
-      const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`${base}/loop`, { text: rest, attachments }));
+      const r = await attempt(() => calls.loop({ ...here, text: rest, attachments }));
       if (!r) return void (back(), tray?.put(taken));
       return setLoop(r.loop);
     }
@@ -435,16 +436,21 @@ export function ChatView(p: ChatViewProps) {
       const attachments = tray ? await tray.ready() : [];
       if (!attachments) return back();
       const taken = tray?.take() || [];
-      const r = await attempt(() => POST<{ queued?: QueuedMessage }>(`${base}/learn`, { text: rest, attachments }));
+      const r = await attempt(() => calls.learn({ ...here, text: rest, attachments }));
       if (!r) return void (back(), tray?.put(taken));
-      const added = r.queued;
+      const added = 'queued' in r ? r.queued : undefined;
       if (added) setQueued((q) => (q.some((x) => x.id === added.id) ? q : [...q, added]));
       return;
     }
-    const r = await attempt(() => POST<{ goal?: BrainBrief | null; queued?: QueuedMessage }>(`${base}/${name}`, name === 'goal' ? { text: rest } : {}));
+    if (name === 'goal') {
+      const r = await attempt(() => calls.goal({ ...here, text: rest }));
+      if (!r) return back();
+      return setGoal(r.goal || null);
+    }
+    if (name !== 'resend' && name !== 'resume') return back();
+    const r = await attempt(async () => (name === 'resend' ? await calls.resend(here) : await calls.resume(here)));
     if (!r) return back();
-    if (name === 'goal') setGoal(r.goal || null);
-    const added = r.queued;
+    const added = 'queued' in r ? r.queued : undefined;
     if (added) setQueued((q) => (q.some((x) => x.id === added.id) ? q : [...q, added]));
   };
 
@@ -462,7 +468,7 @@ export function ChatView(p: ChatViewProps) {
     const id = chatIdRef.current;
     void stopStream();
     if (!id) return;
-    const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`${at}/agents/${agent.id}/chats/${id}/stop`));
+    const r = await attempt(() => rpcAt(at).agents.chats.stop({ id: agent.id, chatId: id }));
     // what you queued comes back to the box, so stopping never loses it
     const back = r?.unqueued || [];
     if (back.length) restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));

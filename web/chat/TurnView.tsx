@@ -3,12 +3,11 @@
 // else a finished turn, read from the agent's saved chat (items from..to).
 import { useEffect, useMemo, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { GET } from '../core.ts';
+import { rpcAt } from '../client/rpc.ts';
 import { Handoffs, MessageView } from './parts.tsx';
 import { chatTransport } from './transport.ts';
 import { handoffMap, handoffsIn, toUIMessages } from './messages.ts';
 import type { ChatMessage } from './messages.ts';
-import type { Chat } from '../../shared/types.ts';
 
 export interface TurnViewProps {
   agentId: string;
@@ -48,7 +47,7 @@ export function TurnView({ agentId, chatId, at = '', live, from, to, empty, onEn
       }
       // a finished turn, or the live one once it ended (or had ended before it could be picked up):
       // as saved. Only the agent's side: the message to it is what the team or the Brain already shows.
-      const chat = await GET<Chat>(`${at}/agents/${agentId}/chats/${chatId}`).catch(() => null);
+      const chat = await rpcAt(at).agents.chats.get({ id: agentId, chatId }).catch(() => null);
       if (!alive) return;
       // (a chat that is gone, or not one: nothing to show)
       if (chat && Array.isArray(chat.items)) {

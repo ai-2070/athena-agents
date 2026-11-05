@@ -33,7 +33,7 @@ import type { AttachTray, PickedFile } from './attach.tsx';
 import type { PasteBox } from './pastes.ts';
 import type { AgentDraft, BranchDesign } from './builder.tsx';
 import type { TeamEvent } from './teamchat.tsx';
-import type { ActiveRun, Agent, AppState, BrainAnswer, BrainDelegate, BrainDone, BrainStep, Chat, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
+import type { ActiveRun, Agent, AppState, BrainAnswer, BrainDelegate, BrainDone, BrainStep, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
 import type { UIMessage } from 'ai';
 
 // A handed-off agent's turn, streamed in as it goes: the AI SDK pieces load when first needed.
@@ -1314,10 +1314,10 @@ export function mergeTeamMessages(it: Pick<BranchItem, 'messages' | 'since' | 'b
 
 // goal: sent as its /goal (the Brain checks each turn and follows up)
 async function toAgent(agentId: string, text: string, reason = '', attachments: string[] = [], goal = false) {
-  const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
+  const c = await attempt(() => rpc.agents.chats.create({ id: agentId }));
   if (!c) return;
   const it = add({ kind: 'agent', agentId, chatId: c.id, text: '', tools: [], images: [], reason, done: false });
-  const r = await attempt(() => (goal ? POST(`/agents/${agentId}/chats/${c.id}/goal`, { text }) : POST(`/agents/${agentId}/chats/${c.id}/messages`, { text, attachments })));
+  const r = await attempt(async () => (goal ? await rpc.agents.chats.goal({ id: agentId, chatId: c.id, text }) : await rpc.agents.chats.send({ id: agentId, chatId: c.id, text, attachments })));
   if (!r) {
     it.done = true;
     it.text = '(could not start)';
@@ -1335,7 +1335,7 @@ function again(it: AgentItem) {
 // A button in an agent's Rich answer: what it sends goes to that agent's chat, followed here.
 async function continueAgent(it: AgentItem, text: string) {
   if (!it.done) return toast('It is still working. Wait for it to finish.');
-  const r = await attempt(() => POST(`/agents/${it.agentId}/chats/${it.chatId}/messages`, { text, attachments: [] }));
+  const r = await attempt(() => rpc.agents.chats.send({ id: it.agentId, chatId: it.chatId, text, attachments: [] }));
   if (!r || !D.items.includes(it)) return;
   add({ kind: 'user', text });
   add({ kind: 'agent', agentId: it.agentId, chatId: it.chatId, text: '', tools: [], images: [], reason: it.reason, done: false, started: true });
@@ -1426,7 +1426,7 @@ function handleEvent(ev: ServerEvent) {
       it.done = true;
       if (e.kind === 'error') it.text += `\n\n**Error:** ${e.text}`;
       // the saved chat has the full answer
-      GET<Chat>(`/agents/${it.agentId}/chats/${it.chatId}`)
+      rpc.agents.chats.get({ id: it.agentId, chatId: it.chatId })
         .then((c) => {
           const lastUser = c.items.findLastIndex((x) => x.type === 'user');
           const answer = c.items.slice(lastUser + 1).filter((x): x is Extract<ChatItem, { type: 'assistant' }> => x.type === 'assistant').map((x) => x.text).join('\n\n');

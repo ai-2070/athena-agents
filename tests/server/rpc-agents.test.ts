@@ -71,3 +71,43 @@ describe('agents over oRPC', () => {
     expect(await send('DELETE', `/api/agents/${a.id}/knowledge`, {})).toEqual({ status: 400, json: { error: 'Say which file or folder to remove.' } });
   });
 });
+
+describe('an agent’s chats over oRPC', () => {
+  it('make, list, show, rename and delete a chat, and say when it is gone', async () => {
+    const a = await make();
+    const c = (await send('POST', `/api/agents/${a.id}/chats`)).json as { id: string };
+    expect(((await send('GET', `/api/agents/${a.id}/chats`)).json as unknown as { id: string }[]).map((x) => x.id)).toContain(c.id);
+    expect((await send('GET', `/api/agents/${a.id}/chats/${c.id}`)).json).toMatchObject({ id: c.id, queued: [], loop: null, goal: null });
+    expect((await send('PUT', `/api/agents/${a.id}/chats/${c.id}`, { title: 'Bread plan' })).json).toMatchObject({ title: 'Bread plan' });
+    expect(await send('PUT', `/api/agents/${a.id}/chats/${c.id}`, { title: 5 })).toEqual({ status: 400, json: { error: 'title must be text.' } });
+    expect(await send('DELETE', `/api/agents/${a.id}/chats/${c.id}`)).toEqual({ status: 200, json: { ok: true } });
+    expect(await send('GET', `/api/agents/${a.id}/chats/${c.id}`)).toEqual({ status: 404, json: { error: 'That chat is unavailable.' } });
+    expect(await send('POST', '/api/agents/nobody/chats')).toEqual({ status: 404, json: { error: 'That agent is unavailable.' } });
+  });
+
+  it('refuse an empty message or one of the wrong kind, in plain words', async () => {
+    const a = await make();
+    const c = (await send('POST', `/api/agents/${a.id}/chats`)).json as { id: string };
+    const at = `/api/agents/${a.id}/chats/${c.id}`;
+    expect(await send('POST', `${at}/messages`, { text: '   ' })).toEqual({ status: 400, json: { error: 'Type a message first.' } });
+    expect(await send('POST', `${at}/messages`, { text: 4 })).toEqual({ status: 400, json: { error: 'Type a message first.' } });
+    expect(await send('POST', `${at}/messages`, { text: 'hi', attachments: 'a.png' })).toEqual({ status: 400, json: { error: 'attachments must be a list.' } });
+    expect(await send('POST', `${at}/messages`, { text: '/queue' })).toEqual({ status: 400, json: { error: 'Write the message after /queue.' } });
+    expect(await send('POST', `${at}/queue`, {})).toEqual({ status: 400, json: { error: 'Write the message after /queue.' } });
+    expect(await send('POST', `${at}/goal`, {})).toEqual({ status: 400, json: { error: 'Say what done looks like.' } });
+    expect(await send('POST', `${at}/queue/order`, { ids: 'a' })).toEqual({ status: 400, json: { error: 'ids must be a list.' } });
+    expect(await send('POST', `${at}/resend`)).toEqual({ status: 400, json: { error: 'Nothing to send again yet.' } });
+  });
+
+  it('answer the queue, loop and stop when nothing runs', async () => {
+    const a = await make();
+    const c = (await send('POST', `/api/agents/${a.id}/chats`)).json as { id: string };
+    const at = `/api/agents/${a.id}/chats/${c.id}`;
+    expect((await send('POST', `${at}/queue/order`, { ids: [] })).json).toEqual({ queued: [] });
+    expect((await send('PUT', `${at}/queue/q1`, { text: 'later' })).json).toEqual({ queued: null });
+    expect((await send('DELETE', `${at}/queue/q1`)).json).toEqual({ unqueued: [] });
+    expect((await send('DELETE', `${at}/loop`)).json).toEqual({ ok: false });
+    expect((await send('POST', `${at}/stop`)).json).toEqual({ ok: true, unqueued: [] });
+  });
+});
+
