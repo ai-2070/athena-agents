@@ -150,7 +150,22 @@ The Outbox waits for the gateways: three of its routes run deliveries through th
 
 `server/index.ts` is 1,316 lines.
 
-Next: skills, presets, the agent library and version history.
+### Skills, version history, presets and the Agent library (2026-11-05)
+
+All 20 routes moved: the skills (`/api/skills`, with importing from `~/.claude/skills` and installing from GitHub),
+version history (`/api/versions`), presets (`/api/presets`) and the Agent library (`/api/library`). Drafting a skill
+from plain words is `/api/assist/skill`, with the other `/api/assist` routes for later.
+
+- **`refusing(fn, status)`** in `server/api/refuse.ts`: the domain functions here refuse with a plain `Error` whose
+  words say what to change ("Give the skill a name.") or that a thing isn't there ("No such preset."). Those were
+  500s; through `refusing()` they are a 400 (or 404) with the same words.
+- **Hiring from the library takes the agents' own fields** for its overrides (`agentPatch` from `shared/api/agents.ts`).
+- The presets' types (`AgentPreset`, `TeamPreset`, their templates), `HermesProfile`, `ClaudeSubagentListing` and
+  `LibraryIndex` moved to `shared/types.ts`; the library page's copies are gone.
+
+`server/index.ts` is 1,266 lines.
+
+Next: settings, keys, accounts, models and the status bars.
 
 ## Why
 
