@@ -1,0 +1,39 @@
+skills/athena/learn/references/demonstration.md
+  s_09ac87e46cf718::t_3b9ae7be740ae3 1-113
+  s_09ac87e46cf718::t_ad5544f8810206 114
+docs/internal/plans/TEACH_BY_DEMONSTRATION_2026-11-05.md
+  s_09ac87e46cf718::t_18da8206f6cbdd 17-38
+  s_09ac87e46cf718::t_6e7a69359ce641 152,168-169
+.github/workflows/ci.yml
+  s_09ac87e46cf718::t_01667af27fcd0a 83-91
+docs/guide.md
+  s_09ac87e46cf718::t_25efd926dfdd58 117
+skills/athena/README.md
+  s_09ac87e46cf718::t_52a08d5b85475f 177-180
+skills/athena/learn/SKILL.md
+  s_09ac87e46cf718::t_981dea250f37a5 3,40,90-92,108-109,111-115
+skills/athena/learn/references/sources.md
+  s_09ac87e46cf718::t_8aa4ac9aba3622 55-57,81-82
+skills/athena/learn/scripts/learn_source.py
+  s_09ac87e46cf718::t_490ca2e4250d31 8-11,17,23,27,30-31,328-685,698-721,742-758
+tests/skills/learn/test_learn_source.py
+  s_09ac87e46cf718::t_a81986d17008da 1-2,7-9,13-14,140-273
+tests/skills/requirements.txt
+  s_09ac87e46cf718::t_ef1cb7343c2510 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c603b8ce687c6e1bd5b49bd1f36f6f695eae7936",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
