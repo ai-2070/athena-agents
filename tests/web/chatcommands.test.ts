@@ -19,7 +19,7 @@ describe('slashMenu()', () => {
   it('shows the commands while you type "/", narrowing as you go', () => {
     const m = setup();
     m.type('/');
-    expect(m.shown()).toEqual(['/queue', '/stop', '/resume', '/resend', '/loop', '/goal', '/clear']);
+    expect(m.shown()).toEqual(['/queue', '/stop', '/resume', '/resend', '/loop', '/goal', '/learn', '/clear']);
     expect(m.menu.el.classList.contains('hidden')).toBe(false);
     m.type('/re');
     expect(m.shown()).toEqual(['/resume', '/resend']);
@@ -43,9 +43,10 @@ describe('slashMenu()', () => {
     m.menu.key(key('ArrowDown'));
     m.menu.key(key('ArrowUp'));
     m.menu.key(key('ArrowUp'));
-    expect(m.menu.el.querySelector('.tc-sopt.on .slash-name')!.textContent).toBe('/goal');
+    // (up from the first wraps round to the last)
+    expect(m.menu.el.querySelector('.tc-sopt.on .slash-name')!.textContent).toBe('/learn');
     expect(m.menu.key(key('Tab'))).toBe(true);
-    expect(m.input.value).toBe('/goal ');
+    expect(m.input.value).toBe('/learn ');
     expect(m.run).not.toHaveBeenCalled();
     m.type('/l');
     expect(m.menu.key(key('Escape'))).toBe(true);

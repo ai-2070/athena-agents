@@ -640,6 +640,9 @@ post('/api/agents/:id/chats/:cid/resend', async ({ id, cid }) => commands.resend
 post('/api/agents/:id/chats/:cid/resume', async ({ id, cid }) => commands.resumeInChat(id, cid));
 post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/loop', async ({ id, cid }, body) => commands.loopInChat(id, cid, String(body.text ?? ''), uploads.cleanAttachments(body.attachments)));
 del('/api/agents/:id/chats/:cid/loop', async ({ cid }) => ({ ok: engines.stopLoop(cid, 'Loop stopped.') }));
+post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/learn', async ({ id, cid }, body) =>
+  commands.learnInChat(id, cid, String(body.text ?? '').trim().slice(0, 4000), uploads.cleanAttachments(body.attachments)),
+);
 post<{ text?: unknown }>('/api/agents/:id/chats/:cid/goal', async ({ id, cid }, body) => commands.goalInChat(id, cid, String(body.text ?? '').trim().slice(0, 4000)));
 del('/api/agents/:id/chats/:cid/goal', async ({ id, cid }) => commands.goalInChat(id, cid, 'clear'));
 // the harness's own / commands (a Claude Code agent's), for the / menu
@@ -1258,6 +1261,7 @@ post<{ ids?: unknown }>('/api/teams/:id/queue/order', async ({ id }, body) => ({
 post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/steer', async ({ id }, body) => teams.steerTeam(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
 post('/api/teams/:id/resend', async ({ id }) => commands.resendInTeam(id));
 post('/api/teams/:id/resume', async ({ id }) => commands.resumeInTeam(id));
+post<{ text?: unknown; attachments?: unknown }>('/api/teams/:id/learn', async ({ id }, body) => commands.learnInTeam(id, String(body.text ?? '').trim().slice(0, 4000), uploads.cleanAttachments(body.attachments)));
 post<{ text?: unknown; attachments?: unknown }>('/api/teams/:id/loop', async ({ id }, body) => commands.loopInTeam(id, String(body.text ?? ''), uploads.cleanAttachments(body.attachments)));
 del('/api/teams/:id/loop', async ({ id }) => ({ ok: teams.stopTeamLoop(need(teams.getTeam(id)).id, 'Loop stopped.') }));
 post<{ text?: unknown }>('/api/teams/:id/goal', async ({ id }, body) => commands.goalInTeam(id, String(body.text ?? '').trim().slice(0, 4000)));
