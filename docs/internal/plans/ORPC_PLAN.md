@@ -205,7 +205,31 @@ answered before the routes, as before.
 
 `server/index.ts` is 1,027 lines.
 
-Next: files, uploads, MEMORY.md, artifacts, the map's layout and terminals.
+### Files, MEMORY.md, terminals and the Brain's drafts (2026-11-05)
+
+21 routes moved: what a chat's files are and showing or opening one (`/api/files/…`), attached files
+(`/api/uploads`), MEMORY.md (`/api/memory`), artifacts, the backups folder, the Station map's layout, terminals, and
+the Brain's help (`/api/assist/…`: who a message goes to, its model, and drafts of an agent, a team or a skill).
+What sends or takes a file stays in `server/index.ts`: `GET /api/file`, an upload's bytes
+(`POST /api/uploads/<batch>`) and restoring a backup (`POST /api/backups/restore`).
+
+- **Taking back an attached file keeps its address** (`DELETE /api/uploads?path=…`): the route reads its query
+  (`inputStructure: 'detailed'`), where oRPC would otherwise read a DELETE's body.
+- **The map's layout keeps only what the map has** (the bench's place). It wrote any JSON it was sent into
+  `layout.json`; a place that isn't x and z is refused now.
+- **A terminal is a shell, an agent or a command**; another kind is refused (it was opened as a shell).
+- The backup window keeps its own `BackupListing`: it checks each summary again (`cleanSummary`), since the server
+  reads it from a file anyone could put in the backups folder.
+- **A sweep of every old-style call left in the page** (`GET`/`POST`/`PUT`/`DEL` with any address) found three
+  missed in areas already moved: deleting a routine, and Show in folder and Open on a file (their address was built
+  by `filesAt()`). They are typed calls now; what is left is the world, the gateways, the Outbox and the raw upload.
+- `AgentDraft`, `BranchDesign`, `BranchMember`, `SkillDraft`, `BrainModel`, `BrainRoute`, `FileInfo`, `FileKind`,
+  `BackupListing` and `StationLayout` moved to `shared/types.ts`.
+
+`server/index.ts` is 953 lines.
+
+Next: the voxel world (`/api/world`, `/api/worlds`, `/api/project-world`, `/api/prefab-library`), then the Outbox with
+the gateways.
 
 ## Why
 
