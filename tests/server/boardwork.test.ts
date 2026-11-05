@@ -11,6 +11,10 @@ import { getThread, isTeamBusy } from '../../server/teams.ts';
 import { addBoardTask, changeBoardTask, editBoardTask, restoredBoard, savedBoardTask } from '../../server/taskboard.ts';
 import { afterUserChange, boardWork, checkWork, startWork, stopWork, workerReply, BOARD_SENDER } from '../../server/boardwork.ts';
 import { safeUploadsRoot } from '../../server/uploads.ts';
+import { agentBoardTags } from '../../server/boardtagtools.ts';
+import { createProject } from '../../server/projects.ts';
+import { setActiveProject } from '../../server/store.ts';
+import { addBoardTag, boardTags, boardTask } from '../../server/taskboard.ts';
 import type { Agent, Approval, Chat } from '../../shared/types.ts';
 
 type RunOptions = { reservedRunId?: string; from?: string | null; attachments?: string[]; userInitiated?: boolean };
@@ -283,5 +287,77 @@ describe('saved copies of the board', () => {
     expect(t.files).toEqual([{ path: 'batch/a.txt', name: 'a.txt', size: 3, by: 'you', at: 1 }]);
     expect(t.work).toBeUndefined();
     expect(t.comments?.[0].files?.[0].name).toBe('b.png');
+  });
+});
+
+describe('board tags for agents', () => {
+  const names = (projectId: string, id: string) => boardTask(projectId, id).tagList.map((x) => x.name);
+
+  it('lets any agent tag any task of its run\'s project, make, rename and delete tags, signed as the agent', async () => {
+    const agent = newAgent({ name: 'Board tagger' });
+    const runId = scope(agent, 'tagger-chat', '');
+    const t = addBoardTask(project(), { title: 'Tag me' });
+    expect(agentBoardTags(runId, agent.id, { action: 'create', name: '🐛 Bug' })).toBe('Made tag 🐛 Bug.');
+    expect(agentBoardTags(runId, agent.id, { action: 'create', name: 'bug' })).toBe('Tag 🐛 Bug is there already (on 0 tasks).');
+    expect(agentBoardTags(runId, agent.id, { action: 'tag', task: `#${t.number}`, add: ['Bug', '🎨 Design'] })).toBe(`Tagged #${t.number} Tag me: 🐛 Bug, 🎨 Design.`);
+    expect(boardTags(project()).find((x) => x.name === 'Design')).toMatchObject({ createdBy: `agent:${agent.id}`, tasks: 1 });
+    // re-tag in one call
+    agentBoardTags(runId, agent.id, { action: 'tag', task: 'Tag me', remove: ['design'], add: ['Docs'] });
+    expect(names(project(), t.id)).toEqual(['Bug', 'Docs']);
+    expect(agentBoardTags(runId, agent.id, { action: 'list' })).toContain('🐛 Bug (1)');
+    expect(agentBoardTags(runId, agent.id, { action: 'edit', name: 'Docs', rename: '📝 Writing' })).toBe('Tag Docs is now 📝 Writing (on 1 task).');
+    expect(agentBoardTags(runId, agent.id, { action: 'delete', name: 'writing' })).toBe('Deleted tag 📝 Writing; it came off 1 task.');
+    expect(agentBoardTags(runId, agent.id, { action: 'tag', task: `#${t.number}`, tags: [] })).toBe(`#${t.number} Tag me has no tags now.`);
+    expect(() => agentBoardTags(runId, agent.id, { action: 'edit', name: 'Nope', rename: 'x' })).toThrow('No tag "Nope" on the board.');
+    expect(() => agentBoardTags(runId, agent.id, { action: 'edit', name: 'Bug' })).toThrow('Give rename or emoji.');
+    expect(() => agentBoardTags(runId, agent.id, { action: 'tag', task: '#999', add: ['Bug'] })).toThrow('no task "#999"');
+    expect(() => agentBoardTags(runId, agent.id, { action: 'tag', task: `#${t.number}` })).toThrow('Give tags, add or remove.');
+    expect(() => agentBoardTags(runId, agent.id, { action: 'shout' })).toThrow('action must be list, find, tag, create, edit or delete.');
+  });
+
+  it('works in its run\'s own project, not the open one, and not in a gateway conversation or another agent\'s run', async () => {
+    const open = activeProject();
+    const agent = newAgent({ name: 'Board elsewhere tagger' });
+    const runId = scope(agent, 'elsewhere-chat', '');
+    const other = await createProject({ name: 'Tags other project' });
+    setActiveProject(open.id);
+    const theirs = addBoardTask(other.id, { title: 'Theirs' });
+    // the run belongs to the project that was open when it started; a project opened since doesn't change that
+    setActiveProject(other.id);
+    agentBoardTags(runId, agent.id, { action: 'create', name: 'Run project only' });
+    expect(boardTags(open.id).some((x) => x.name === 'Run project only')).toBe(true);
+    expect(boardTags(other.id).some((x) => x.name === 'Run project only')).toBe(false);
+    expect(() => agentBoardTags(runId, agent.id, { action: 'tag', task: theirs.id, add: ['x'] })).toThrow('no task');
+    setActiveProject(open.id);
+
+    const gateway = scope(agent, 'gateway-chat', 'a'.repeat(64), 'gateway-run');
+    expect(() => agentBoardTags(gateway, agent.id, { action: 'list' })).toThrow('isn\'t available in this conversation');
+    expect(() => agentBoardTags(gateway, agent.id, { action: 'find', tags: ['x'] })).toThrow('isn\'t available in this conversation');
+    expect(() => agentBoardTags(runId, 'someone-else', { action: 'list' })).toThrow('That run is not available to you.');
+    // a task's own conversation is a normal chat for this
+    const own = scope(agent, 'own-chat', 'board-some-task', 'own-run');
+    expect(agentBoardTags(own, agent.id, { action: 'list' })).toMatch(/^TAGS: /);
+  });
+
+  it('finds tasks by tag for any agent', () => {
+    const agent = newAgent({ name: 'Board finder' });
+    const runId = scope(agent, 'finder-chat', '');
+    addBoardTag(project(), { name: '🧪 Finder test' });
+    addBoardTask(project(), { title: 'Found one', tags: ['finder test'] });
+    expect(agentBoardTags(runId, agent.id, { action: 'find', tags: ['Finder test'] })).toMatch(/^#\d+ \[To do\] Found one \| unassigned \| tags: 🧪 Finder test$/);
+    expect(agentBoardTags(runId, agent.id, { action: 'find', tags: ['finder test', 'no such tag'], match: 'all' })).toMatch(/^No tasks match\.\nNo tag called: no such tag\. TAGS: /);
+  });
+
+  it('lets a worker tag its own task as it replies, and reads the board\'s tags with board_task', async () => {
+    const agent = newAgent({ name: 'Board reply tagger' });
+    const t = addBoardTask(project(), { title: 'Reply and tag', assignee: `agent:${agent.id}`, status: 'in_progress', tags: ['Ops'] });
+    const started = await startWork(project(), t.id);
+    expect(calls.runs.at(-1)!.text).toContain('Tags: Ops');
+    const runId = scope(agent, started.work!.chatId!, `board-${t.id}`);
+    expect(await workerReply(runId, agent.id, { addTags: ['✅ Checked'], removeTags: ['ops'] })).toBe('Its tags: ✅ Checked.');
+    expect(await workerReply(runId, agent.id, { text: 'Done.', status: 'in_review', removeTags: ['checked'] })).toBe(`Commented on #${t.number}. Moved #${t.number} to In review. It has no tags now.`);
+    await expect(workerReply(runId, agent.id, { addTags: [7] })).rejects.toThrow('addTags must be a list of tag names.');
+    // nothing of the refused reply was saved
+    expect(task(t.id).comments).toHaveLength(1);
   });
 });

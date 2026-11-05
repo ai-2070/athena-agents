@@ -1,7 +1,7 @@
 // Which tools a model is shown: by conversation (board tasks, gateways) and by engine (own file tools).
 import fs from 'node:fs';
 import { describe, it, expect } from 'vitest';
-import { callTool, toolDefs, toolsForAgent } from '../../server/tools.ts';
+import { callTool, riskOf, toolDefs, toolsForAgent } from '../../server/tools.ts';
 import { projectData } from '../../server/store.ts';
 
 const names = (list: { name: string }[]) => list.map((t) => t.name);
@@ -12,6 +12,12 @@ describe('tools by conversation', () => {
     expect(names(toolDefs(agent))).not.toContain('board_task');
     expect(names(toolDefs(agent, { conversationId: 'board-t1' }))).toEqual(expect.arrayContaining(['board_task', 'board_reply']));
     expect(names(toolDefs(agent, { conversationId: 'board-t1' }))).not.toContain('send_gateway_files');
+  });
+
+  it('lists the board tag tools everywhere but in a gateway conversation, asking first before a tag is deleted', () => {
+    for (const conversationId of [undefined, 'board-t1']) expect(names(toolDefs(agent, { conversationId }))).toContain('board_tags');
+    expect(names(toolDefs(agent, { conversationId: 'a'.repeat(64) }))).not.toContain('board_tags');
+    expect(['list', 'find', 'create', 'tag', 'edit', 'delete'].map((action) => riskOf('board_tags', { action }))).toEqual(['none', 'none', 'none', 'none', 'low', 'high']);
   });
 
   it('lists the gateway file tools only in a gateway conversation', () => {

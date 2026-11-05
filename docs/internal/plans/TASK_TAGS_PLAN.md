@@ -112,6 +112,7 @@ The project is always the run's own (`run.project` / `withProject`), never the o
 
 - New tool **`board_tags`**, offered to every agent, with `action: list | create | edit | delete | tag`:
   - `list`: the project's tags with counts (the `TAGS:` line). Risk `none`.
+  - `find`: see Filtering below. Risk `none`.
   - `create` (`name`, `emoji`): risk `none`. It's easy to undo, and nothing leaves the dashboard.
   - `tag` (`task`: #number, id or exact title, with `tags` / `addTags` / `removeTags`): puts tags on any task or
     takes them off, so it covers assigning and reassigning. New names make tags. Risk `none`. Task refs resolve with
@@ -127,9 +128,11 @@ The project is always the run's own (`run.project` / `withProject`), never the o
   Risk stays `none`.
 - `board_task` output (`assignment()`) lists the task's tags and the project's `TAGS:` line. The tool description
   says to reuse existing tags and make a new one only when none fits.
-- **Filtering:** a new read-only tool `board_find` (`tags`, `match: any | all`, `untagged`, `status`, `limit`), risk
-  `none`, offered to every agent (same `when` as `board_tags`). It returns the matching tasks of the run's own
-  project, one `boardLines`-style line each, so agents can answer "what's tagged Bug?" or find related work.
+- **Filtering:** `board_tags` with `action: find` (`tags`, `match: any | all`, `untagged`, `status`, `limit`), risk
+  `none`. It returns the matching tasks of the run's own project, one `boardLines`-style line each, so agents can
+  answer "what's tagged Bug?" or find related work. (Built: first planned as a separate `board_find` tool; one tool
+  keeps what every agent carries in each request smaller. `tests/server/tool-budget.test.ts` was raised for it. On
+  `board_tags` the tag lists are `tags`, `add` and `remove`.)
 - Shared logic: `findBoardTasks(projectId, { tags, match, untagged, status, limit })` in `taskboard.ts`. The Brain's
   look-up, the agent tool and the page's filter all use the same name matching (`tagKey()` in `shared/`: lower-case,
   leading emoji dropped), so "bug" finds "🐛 Bug" everywhere.

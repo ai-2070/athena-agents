@@ -164,6 +164,8 @@ function resolveInside(agent: ToolAgent, p: string | undefined, { write = false 
 const INTERPRETERS = /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bun|deno|ruby|perl|php|java|javaw|osascript|bash|sh|zsh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
 
 const isBoardConversation = (id: string | null | undefined): boolean => !!id && id.startsWith('board-');
+// board_tags: deleting a tag deletes; renaming one changes how every task with it reads
+const boardTagsRiskOf = (args: ToolArgs): Risk => (args.action === 'delete' ? 'high' : args.action === 'edit' ? 'low' : 'none');
 /** Gateway conversations (and the Brain's private work for one) are the other private conversations. */
 const isGatewayConversation = (id: string | null | undefined): boolean => !!id && !isBoardConversation(id);
 
@@ -339,10 +341,40 @@ const TOOLS: ToolDef[] = [
       files: { type: 'array', items: str('Full path of a finished file') },
       status: { type: 'string', enum: ['in_review', 'blocked'], description: 'in_review when the task is done; blocked when it can\'t be finished' },
       reason: str('Why it is blocked (with status blocked)'),
+      addTags: { type: 'array', items: { type: 'string' }, description: 'Tags to put on it' },
+      removeTags: { type: 'array', items: { type: 'string' }, description: 'Tags to take off' },
     }),
     run: async (args, ctx) => {
       const { workerReply } = await import('./boardwork.ts');
       return { text: await workerReply(ctx.runId, ctx.agent.id, args) };
+    },
+  },
+  // ---------- tags on the Tasks board (every agent, its run's project; not in gateway conversations) ----------
+  // Risk none to list, find, make tags and tag tasks (nothing leaves the dashboard, easy to undo); low to rename or
+  // re-emoji a tag (every task with it changes); high to delete one (it comes off every task).
+  {
+    name: 'board_tags',
+    group: 'core',
+    risk: (args) => boardTagsRiskOf(args),
+    when: (s) => !isGatewayConversation(s.conversationId),
+    description: 'Tags on the project\'s Tasks board (name + optional emoji, e.g. "🐛 Bug"; case and emoji don\'t matter when naming one). list: tags and counts. find: tasks with tags (match any|all, untagged, status open|all|one, limit). tag: set a task\'s tags (task #12; tags = whole list, or add/remove). create (name, emoji), edit (name, rename, emoji), delete (name). Reuse existing tags; new names in tag make one.',
+    parameters: obj({
+      action: { type: 'string', enum: ['list', 'find', 'tag', 'create', 'edit', 'delete'] },
+      name: str('A tag'),
+      emoji: str('One emoji ("" for none)'),
+      rename: str('New name'),
+      task: str('#12, id or exact title'),
+      tags: { type: 'array', items: { type: 'string' } },
+      add: { type: 'array', items: { type: 'string' } },
+      remove: { type: 'array', items: { type: 'string' } },
+      match: { type: 'string', enum: ['any', 'all'] },
+      untagged: { type: 'boolean' },
+      status: { type: 'string' },
+      limit: { type: 'number' },
+    }, ['action']),
+    run: async (args, ctx) => {
+      const { agentBoardTags } = await import('./boardtagtools.ts');
+      return { text: agentBoardTags(ctx.runId, ctx.agent.id, args) };
     },
   },
   // ---------- asking the user (every agent) ----------

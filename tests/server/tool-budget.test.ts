@@ -21,15 +21,16 @@ function sizes() {
 // 5 800 for X's alt text, reply limits and character count, Reddit flair and reddit_rules, then to 6 950 for the
 // gateway tools: gateway_draft, and telegram_send and discord_send naming their gateway and conversation; files from
 // 3 300 to 3 600 for view_image; core from 13 800 to 14 700 for save_skill, which /learn needs every agent to have,
-// and read_skill listing the library's matching skills for a name that is no skill)
+// and read_skill listing the library's matching skills for a name that is no skill, then to 16 000 for board_tags,
+// which lets every agent tag the Tasks board's tasks and find them by tag, and tags on board_reply)
 const BUDGET: Record<string, number> = {
-  world: 15_600, core: 14_700, social: 6_950, files: 3_600, comfyui: 2_450, agents: 2_300, media: 2_000, assets: 1_750,
+  world: 15_600, core: 16_000, social: 6_950, files: 3_600, comfyui: 2_450, agents: 2_300, media: 2_000, assets: 1_750,
   cad: 1_500, substance: 1_450, adobe: 1_200, programs: 1_050, nvidia: 1_000, browser: 1_000, memory: 950, maya: 950,
   houdini: 900, blender: 900, shell: 500, orca: 300, knowledge: 600,
 };
 // what every agent carries in every request, outside board tasks and gateways (it was 15 969 characters; 12 200
-// before save_skill)
-const PLAIN_CORE = 13_100;
+// before save_skill; 13 100 before board_tags)
+const PLAIN_CORE = 14_200;
 
 describe('tool list size', () => {
   it('keeps every group within its budget', () => {
