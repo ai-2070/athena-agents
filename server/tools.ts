@@ -2,26 +2,29 @@
 // Risk decides when you're asked first: autonomy "ask" checks low + high, "auto" checks high only, "full" never asks.
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, tmpFile, openWithShell, launchDetached, exists, which, insideRoots, asOpened, runnable } from './util.ts';
+import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, truncateMiddle, tmpFile, openWithShell, launchDetached, exists, which, insideRoots, asOpened, runnable, commandShell } from './util.ts';
 import * as assetLib from './assets.ts';
 import type { AssetSource, AssetKind } from './assets.ts';
 import { mayaScript, houdiniScript, sibling, sbsrenderArgs, openscadArgs, prusaSlicerArgs, nvttArgs, handbrakeArgs, GPU_FIELDS, formatGpus } from './dcc.ts';
 import { agents as agentStore, chats, getSettings, emit, log } from './store.ts';
-import { startHandoff, awaitHandoff, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } from './handoffs.ts';
+import { startHandoff, awaitHandoff, awaitHandoffs, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } from './handoffs.ts';
 
 /** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */
 const HERMES_WAIT_S = 240;
 import { requestApproval } from './approvals.ts';
 import type { ApprovalDecision, ApprovalRequest } from './approvals.ts';
-import { agentFetch } from './agentfetch.ts';
+import { readPage, pagePart, PAGE_CHARS, PAGE_MAX_CHARS } from './webread.ts';
+import * as files from './filetools.ts';
 import { accountOf } from './mcp.ts';
 import { knownPrograms, launchProgram, launchTarget, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
+import { MODEL_MAX_BYTES, imageType } from './toolimages.ts';
 import * as social from './social.ts';
 import * as reddit from './reddit.ts';
 import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import { withActor } from './versions.ts';
+import { recordAsked, recordClipped, recordToolCall } from './toolstats.ts';
 import { ensureBrain } from './projects.ts';
 import { safeUploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
@@ -83,6 +86,20 @@ export interface ToolContext extends ToolRunInfo {
 // Declared as methods so each tool can name the arguments it expects (the model's JSON is taken as that shape).
 type RiskOf = { bivarianceHack(args: ToolArgs): Risk }['bivarianceHack'];
 
+/** What a tool list depends on besides the agent. */
+export interface ToolScope {
+  /** The run's private conversation: "board-<task id>" for a Tasks board task, a gateway's conversation otherwise. */
+  conversationId?: string | null;
+  /** The agent's engine: engines with their own file and shell tools don't get the dashboard's too. */
+  engine?: string;
+}
+
+/** An earlier name of a tool (saved workflow steps still use it); args turns its arguments into the tool's. */
+export interface ToolAlias {
+  name: string;
+  args?: (args: ToolArgs) => ToolArgs;
+}
+
 export interface ToolDef {
   name: string;
   group: string;
@@ -90,6 +107,10 @@ export interface ToolDef {
   description: string;
   parameters: JSONSchema;
   run(args: ToolArgs, ctx: ToolContext): Promise<ToolResult>;
+  /** Listed only where it can work. A call is still checked by the tool itself, wherever it comes from. */
+  when?: (scope: ToolScope) => boolean;
+  /** Earlier names: accepted when called, never shown to the model. */
+  aliases?: ToolAlias[];
 }
 
 /** What the engines and the MCP bridge tell the model about a tool. */
@@ -110,10 +131,10 @@ export const TOOL_GROUPS: ToolGroup[] = [
   { id: 'media', label: 'FFmpeg, HandBrake and ImageMagick', description: 'Convert, cut and inspect audio and video, shrink videos with HandBrake presets, edit images in bulk with ImageMagick.' },
   { id: 'social', label: 'Social', description: 'Draft X and Reddit posts (they wait in the Outbox unless auto-post is on), read posts, mentions and subreddits, Telegram, Discord.' },
   { id: 'agents', label: 'Delegate', description: 'Ask other agents and Hermes profiles for help.' },
-  { id: 'files', label: 'Files', description: 'Read and write files in its workspace and folders you allow.' },
+  { id: 'files', label: 'Files', description: 'Read, change and search files in its workspace and folders you allow. For API models (Eve): Claude Code, Codex and the other coding engines use their own file tools.' },
   { id: 'orca', label: 'Orca', description: 'Run Orca CLI commands (worktrees, terminals, its browser).' },
   { id: 'world', label: 'Voxel world', description: 'Build the voxel world around the Station (places, props, prefabs to place many times) and keep its WORLD.md up to date.' },
-  { id: 'shell', label: 'Shell', description: 'Run any PowerShell command. Powerful: you are asked each time unless autonomy is Full.' },
+  { id: 'shell', label: 'Shell', description: 'Run any command (PowerShell on Windows, bash on Mac and Linux). Powerful: you are asked each time unless autonomy is Full. For API models (Eve): the coding engines use their own.' },
 ];
 
 export function workspaceOf(agent: { workspace?: string }): string {
@@ -142,9 +163,16 @@ function resolveInside(agent: ToolAgent, p: string | undefined, { write = false 
 // Programs that run whatever they are given.
 const INTERPRETERS = /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bun|deno|ruby|perl|php|java|javaw|osascript|bash|sh|zsh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
 
+const isBoardConversation = (id: string | null | undefined): boolean => !!id && id.startsWith('board-');
+/** Gateway conversations (and the Brain's private work for one) are the other private conversations. */
+const isGatewayConversation = (id: string | null | undefined): boolean => !!id && !isBoardConversation(id);
+
 /** The chat a tool call runs in (to tell which team it is for). */
 const chatOf = async (ctx: ToolContext): Promise<string | null> => (await import('./engines/index.ts')).runInfo(ctx.runId)?.chatId ?? null;
 const str = (description: string): JSONSchema => ({ type: 'string', description });
+// X bills each read: a model asking for "all of them" gets a page
+const X_LIMIT: JSONSchema = { type: 'number', description: 'How many, 5-50 (default 10)' };
+const xLimit = (n: unknown): number => Math.min(Math.max(Math.round(Number(n) || 10), 5), 50);
 const obj = (properties: Record<string, JSONSchema>, required: string[] = []): JSONSchema => ({ type: 'object', properties, required });
 
 const TOOLS: ToolDef[] = [
@@ -259,7 +287,7 @@ const TOOLS: ToolDef[] = [
     name: 'save_artifact',
     group: 'core',
     risk: 'none',
-    description: 'Hand in a finished result that is not an outgoing post or email: a written answer, a file or a folder (a render, a report, a cut video). It appears in the Outbox page under Artifacts with who made it, which team it was for and when. Give either path (full path of a file or folder inside the project) or text (the result, in Markdown). Posts and emails go to the Outbox instead.',
+    description: 'Hand in a finished result that is not an outgoing post or email: a written answer, a file or a folder (a render, a report, a cut video). It appears on the Artifacts page with who made it, which team it was for and when. Give either path (full path of a file or folder inside the project) or text (the result, in Markdown). Posts and emails go to the Outbox instead.',
     parameters: obj({ title: str('Short name for the result'), path: str('Full path of the file or folder'), text: str('The result itself, when it is text'), note: str('One line: what it is or how to use it') }, ['title']),
     run: async ({ title, path: target, text, note }: { title: string; path?: string; text?: string; note?: string }, ctx) => {
       const { addArtifact } = await import('./artifacts.ts');
@@ -271,6 +299,7 @@ const TOOLS: ToolDef[] = [
     name: 'prepare_gateway_files',
     group: 'core',
     risk: 'none',
+    when: (s) => isGatewayConversation(s.conversationId),
     description: 'Inspect specific finished files for this active gateway assignment. Returns paths, names, sizes and SHA-256 hashes without sending them. Only your own workspace and safe project uploads are eligible. Use send_gateway_files with the returned paths and hashes to request delivery; ordinary artifacts and tool images are not sent automatically.',
     parameters: obj({ paths: { type: 'array', items: str('Absolute path of a finished file'), minItems: 1, maxItems: 10 } }, ['paths']),
     run: async (args, ctx) => {
@@ -282,6 +311,7 @@ const TOOLS: ToolDef[] = [
     name: 'send_gateway_files',
     group: 'core',
     risk: 'high',
+    when: (s) => isGatewayConversation(s.conversationId),
     description: 'Request delivery of explicitly chosen finished files to the sender of this active gateway assignment. Pass the paths and SHA-256 hashes returned by prepare_gateway_files. Uses the normal approval policy, refuses changed bytes, and queues files after the final answer. The destination cannot be changed. One immutable selection per assignment; the result confirms selection, not remote delivery. Never retry an uncertain delivery with another tool call; review it in Athena.',
     parameters: obj({ files: { type: 'array', minItems: 1, maxItems: 10, items: obj({ path: str('Absolute path returned by prepare_gateway_files'), sha256: str('SHA-256 returned by prepare_gateway_files') }, ['path', 'sha256']) } }, ['files']),
     run: async (args, ctx) => {
@@ -296,6 +326,7 @@ const TOOLS: ToolDef[] = [
     name: 'board_task',
     group: 'core',
     risk: 'none',
+    when: (s) => isBoardConversation(s.conversationId),
     description: 'Only when you work on a Tasks board task: read it again, with its description, the latest comments and the names of its files.',
     parameters: obj({}),
     run: async (_args, ctx) => {
@@ -307,6 +338,7 @@ const TOOLS: ToolDef[] = [
     name: 'board_reply',
     group: 'core',
     risk: 'none',
+    when: (s) => isBoardConversation(s.conversationId),
     description: 'Only when you work on a Tasks board task: comment on it (Markdown), attach finished files by their full paths (your workspace or the project uploads), and move it to in_review when it is done or to blocked with a reason when you can\'t finish it. Never to done: the user does that.',
     parameters: obj({
       text: str('Your comment: what you did, found or made (Markdown)'),
@@ -354,7 +386,8 @@ const TOOLS: ToolDef[] = [
     name: 'request_tool',
     group: 'core',
     risk: 'none',
-    description: `Ask for a set of tools you don't have yet, when your task needs them. The Brain (the project's overseer) checks the request and may pass it to the user. If it is given, you keep those tools and can use them right away. Say plainly what you need them for. For things that aren't tools (a login, a key, an account, a program to install), ask the user with ask_user instead. The sets:\n${TOOL_GROUPS.map((g) => `- ${g.id} (${g.label}): ${g.description}`).join('\n')}`,
+    // (each set's long description goes to whoever decides, in the approval; the model only needs to pick one)
+    description: `Ask for a set of tools you don't have yet, when your task needs them. The Brain (the project's overseer) checks the request and may pass it to the user. If it is given, you keep those tools and can use them right away. Say plainly what you need them for. For things that aren't tools (a login, a key, an account, a program to install), ask the user with ask_user instead. The sets: ${TOOL_GROUPS.map((g) => (g.label.toLowerCase() === g.id ? g.id : `${g.id} (${g.label})`)).join(', ')}.`,
     parameters: obj(
       {
         tools: { type: 'string', enum: TOOL_GROUPS.map((g) => g.id), description: 'Which set of tools, e.g. "files".' },
@@ -428,16 +461,12 @@ const TOOLS: ToolDef[] = [
     name: 'fetch_url',
     group: 'browser',
     risk: 'none',
-    description: 'Download a web page or API response and return its readable text (scripts and styles removed). For interactive browsing add the Playwright MCP server.',
-    parameters: obj({ url: str('http(s) URL'), max_chars: { type: 'number' } }, ['url']),
-    run: async ({ url, max_chars = 20000 }: { url: string; max_chars?: number }) => {
-      if (!/^https?:\/\//i.test(url)) throw new Error('Only http(s) URLs.');
-      // (never the dashboard itself, not even through a redirect)
-      const { res, url: final } = await agentFetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) athena-agents/0.1.0' }, signal: AbortSignal.timeout(30000) });
-      const type = res.headers.get('content-type') || '';
-      let body = await res.text();
-      if (/html/i.test(type)) body = htmlToText(body);
-      return { text: `HTTP ${res.status} ${final}\n\n${truncate(body, max_chars)}` };
+    description: `Download a web page or API response and return its readable text, as Markdown (scripts, menus and footers left out). Long pages come in parts: continue with offset (the page is kept for ten minutes, so that is quick). For interactive browsing add the Playwright MCP server.`,
+    parameters: obj({ url: str('http(s) URL'), offset: { type: 'number', description: 'Character to start from, for the next part (default 0)' }, max_chars: { type: 'number', description: `Characters per part (default ${PAGE_CHARS}, at most ${PAGE_MAX_CHARS})` } }, ['url']),
+    run: async ({ url, offset, max_chars }: { url: string; offset?: number; max_chars?: number }, ctx) => {
+      if (!/^https?:\/\//i.test(String(url))) throw new Error('Only http(s) URLs.');
+      const page = await readPage(String(url), ctx.runId || `agent:${ctx.agent.id}`, ctx.signal);
+      return { text: pagePart(page, offset, max_chars) };
     },
   },
   // ---------- ComfyUI ----------
@@ -447,13 +476,13 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: 'Is ComfyUI running, its queue and GPU memory.',
     parameters: obj({}),
-    run: async () => ({ text: JSON.stringify(await comfy.queueStatus(), null, 2) }),
+    run: async () => ({ text: JSON.stringify(await comfy.queueStatus()) }),
   },
   {
     name: 'comfyui_start',
     group: 'comfyui',
     risk: 'low',
-    description: 'Start ComfyUI (its desktop app) and wait up to two minutes for it to take jobs. Says whether it came up, and what the user needs to do when the app starts no ComfyUI by itself.',
+    description: 'Start ComfyUI (its desktop app) and wait up to two minutes for it to take jobs. Says if it came up, or what the user must do if the app starts no ComfyUI by itself.',
     parameters: obj({}),
     run: async (_args, ctx) => ({ text: await comfy.startComfy({ waitSec: 120, signal: ctx.signal, onProgress: (s: number) => ctx.progress?.(`Waiting for ComfyUI… ${s}s`) }) }),
   },
@@ -469,9 +498,9 @@ const TOOLS: ToolDef[] = [
     name: 'comfyui_describe_workflow',
     group: 'comfyui',
     risk: 'none',
-    description: 'Show which inputs a workflow has (keyed "nodeId.input") and where its prompts are: the text nodes that feed the samplers or guiders, and the inputs prompt and negative replace (promptInputs, negativeInputs).',
+    description: 'Show a workflow\'s inputs (keyed "nodeId.input") and its prompt text nodes: the inputs prompt and negative replace (promptInputs, negativeInputs).',
     parameters: obj({ workflow: str('Workflow name') }, ['workflow']),
-    run: async ({ workflow }: { workflow: string }) => ({ text: JSON.stringify(await comfy.describeWorkflow(workflow), null, 2) }),
+    run: async ({ workflow }: { workflow: string }) => ({ text: JSON.stringify(await comfy.describeWorkflow(workflow)) }),
   },
   {
     name: 'comfyui_run',
@@ -479,22 +508,22 @@ const TOOLS: ToolDef[] = [
     // Sending pictures copies the user's files into ComfyUI: on this computer that is like writing a file; to a ComfyUI
     // on another computer (Settings › ComfyUI address) the files leave this one, so that needs a yes.
     risk: ({ images }: { images?: unknown }) => (Array.isArray(images) && images.length && !comfy.onThisComputer() ? 'high' : 'low'),
-    description: 'Run a ComfyUI workflow and wait for the results (pictures, video, audio and 3D files). Set prompt/negative to replace the prompt text, inputs to change anything else ({"3.steps": 30, "5.width": 1024}), images to send input pictures (image to image, inpainting, upscaling) into its Load Image nodes. Seeds are randomized unless you set them. The result also lists nodes ComfyUI left out because they failed its checks.',
+    description: 'Run a ComfyUI workflow and wait for its files (pictures, video, audio, 3D). prompt/negative replace the prompt text, inputs change anything else ({"3.steps": 30}), images sends input pictures to its Load Image nodes (image to image, inpainting, upscaling). Seeds are randomized unless set; the result lists them, to repeat a picture. Also lists nodes ComfyUI left out for failing its checks.',
     parameters: obj(
       {
         workflow: str('Workflow name'),
-        prompt: str('Positive prompt text (fills every text field of the prompt node: text_g and text_l, clip_l and t5xxl…)'),
+        prompt: str('Positive prompt (fills every text field of the prompt node, e.g. clip_l and t5xxl)'),
         negative: str('Negative prompt text'),
         inputs: { type: 'object', description: 'Other changes as {"nodeId.input": value}' },
         images: {
           type: 'array',
-          description: "Pictures to send to ComfyUI's input folder for this run, each set on a Load Image node",
+          description: 'Input pictures, each set on a Load Image node',
           items: obj(
             {
-              file: str('The picture: a path in your workspace or a folder you may read'),
-              node: str('Its Load Image node as "10" (or "10.image"; a Load Video or Load Audio node works too). Leave out when the workflow has one Load Image node'),
-              mask: str('Optional: a PNG mask for this picture, the same size. It becomes the picture\'s transparency, which Load Image\'s MASK output reads'),
-              mask_kind: { type: 'string', enum: ['white', 'transparent'], description: 'white (default): white in the mask marks the area to repaint; transparent: its transparent pixels do' },
+              file: str('Path in your workspace or a folder you may read'),
+              node: str('Its Load Image (or Load Video/Audio) node, e.g. "10". Leave out if there is only one'),
+              mask: str('Optional PNG mask, same size; becomes the picture\'s transparency (Load Image\'s MASK output)'),
+              mask_kind: { type: 'string', enum: ['white', 'transparent'], description: 'white (default): white marks the area to repaint; transparent: transparent pixels do' },
             },
             ['file'],
           ),
@@ -522,9 +551,11 @@ const TOOLS: ToolDef[] = [
       const imgs = r.files.filter((f) => f.kind === 'images').map((f) => f.url);
       const sent = r.uploaded.map((u) => `- ${path.basename(u.file)}${u.mask ? ` with the mask ${path.basename(u.mask)}` : ''} as "${u.value}" into ${u.input}`);
       const left = comfy.describeNodeErrors(r.nodeErrors).map((l) => `- ${l}`);
+      const seeds = r.seeds.length ? `Seeds (to repeat: inputs ${JSON.stringify(Object.fromEntries(r.seeds.map((s) => [`${s.node}.${s.input}`, s.value])))}):\n${r.seeds.map((s) => `- ${s.node}.${s.input} = ${s.value} (${s.title})`).join('\n')}` : '';
       return {
         text: [
           `Done in ${r.seconds}s. Files:\n${r.files.map((f) => `- ${f.filename} (${f.kind}, ${f.type}${f.subfolder ? `/${f.subfolder}` : ''})`).join('\n') || '(none)'}`,
+          seeds,
           sent.length ? `Sent to ComfyUI:\n${sent.join('\n')}` : '',
           left.length ? `Left out by ComfyUI (the rest ran):\n${left.join('\n')}` : '',
           r.warnings.length ? `Warnings:\n${r.warnings.join('\n')}` : '',
@@ -817,11 +848,12 @@ const TOOLS: ToolDef[] = [
     name: 'ffmpeg',
     group: 'media',
     risk: 'high', // it can overwrite any file; "Always allow" it for your video agents
-    description: 'Run ffmpeg with the given arguments (no shell). Always pass -y and absolute output paths. Example args: ["-y","-i","C:/in.mp4","-ss","5","-t","10","C:/out.mp4"].',
+    description: 'Run ffmpeg with the given arguments (no shell). Pass -n (never overwrite); -y only on files you made in this task. Relative paths start in your workspace. Example args: ["-n","-i","C:/in.mp4","-ss","5","-t","10","C:/out.mp4"].',
     parameters: obj({ args: { type: 'array', items: { type: 'string' } } }, ['args']),
     run: async ({ args }: { args: string[] }, ctx) => {
       if (!which('ffmpeg')) throw new Error('ffmpeg is not installed.');
-      const r = await run('ffmpeg', ['-hide_banner', ...args], { timeout: 60 * 60_000, signal: ctx.signal });
+      // in the workspace, so relative paths and two-pass logs don't land in the app's own (read-only) folder
+      const r = await run('ffmpeg', ['-hide_banner', ...args], { cwd: workspaceOf(ctx.agent), timeout: 60 * 60_000, signal: ctx.signal });
       return { text: `${r.code === 0 ? 'Done' : `ffmpeg failed (exit ${r.code})`}\n${truncate(r.stderr.split(/\r?\n/).slice(-40).join('\n'), 6000)}`, isError: r.code !== 0 };
     },
   },
@@ -842,13 +874,13 @@ const TOOLS: ToolDef[] = [
       const exe = programExe('handbrakecli') || which('HandBrakeCLI');
       if (!exe) throw new Error('HandBrakeCLI was not found. It is a separate free download from handbrake.fr/downloads2.php (the HandBrake window app is not enough); then set its path in Settings or put it on PATH.');
       if (list_presets) {
-        const r = await run(exe, ['--preset-list'], { timeout: 60000 });
+        const r = await run(exe, ['--preset-list'], { cwd: workspaceOf(ctx.agent), timeout: 60000 });
         return { text: truncate((r.stdout + '\n' + r.stderr).trim(), 10000) };
       }
       if (!input || !output) throw new Error('Give input and output.');
       const out = writablePath(ctx, output);
       ctx.progress?.('HandBrake is encoding…');
-      const r = await run(exe, handbrakeArgs({ input: readablePath(ctx, input), output: out, preset, quality, encoder }), { timeout: 4 * 60 * 60_000, signal: ctx.signal });
+      const r = await run(exe, handbrakeArgs({ input: readablePath(ctx, input), output: out, preset, quality, encoder }), { cwd: workspaceOf(ctx.agent), timeout: 4 * 60 * 60_000, signal: ctx.signal });
       const ok = r.code === 0 && exists(out);
       return { text: `${ok ? `Saved ${out}` : `HandBrake failed (exit ${r.code})`}\n${truncate(r.stderr.split(/\r?\n/).filter((l) => l.trim() && !/^Encoding: task/.test(l)).slice(-25).join('\n'), 5000)}`, isError: !ok };
     },
@@ -863,7 +895,7 @@ const TOOLS: ToolDef[] = [
       const exe = programExe('imagemagick');
       if (!exe) throw new Error('ImageMagick is not installed (imagemagick.org/script/download.php), or set its path in Settings.');
       if (!Array.isArray(args) || !args.length) throw new Error('Give the arguments as a list.');
-      const r = await run(exe, args.map(String), { timeout: 30 * 60_000, signal: ctx.signal });
+      const r = await run(exe, args.map(String), { cwd: workspaceOf(ctx.agent), timeout: 30 * 60_000, signal: ctx.signal });
       return { text: `${r.code === 0 ? 'Done' : `ImageMagick failed (exit ${r.code})`}\n${truncate((r.stdout + '\n' + r.stderr).trim(), 6000)}`, isError: r.code !== 0 };
     },
   },
@@ -873,8 +905,8 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: 'Show duration, streams and format of an audio or video file.',
     parameters: obj({ file: str('Absolute path') }, ['file']),
-    run: async ({ file }: { file: string }) => {
-      const r = await run('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', file], { timeout: 60000 });
+    run: async ({ file }: { file: string }, ctx) => {
+      const r = await run('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', file], { cwd: workspaceOf(ctx.agent), timeout: 60000 });
       return { text: truncate(r.stdout || r.stderr, 8000) };
     },
   },
@@ -896,20 +928,22 @@ const TOOLS: ToolDef[] = [
     name: 'x_draft_post',
     group: 'social',
     risk: 'none',
-    description: 'Write a post (or thread) for X. It goes to the Outbox where the user approves, edits or rejects it; it is only published straight away if that account has auto-post on. Each part max 280 characters. Attach up to 4 images (full paths of PNG/JPEG/WebP files in the project, e.g. ones you rendered) with images; they go on the first post.',
+    description:
+      "Write a post (or thread) for X. It waits in the Outbox for the user to approve, edit or reject, unless the account has auto-post on; a reply (reply_to) always waits. Each part max 280 characters as X counts them: emoji and Chinese, Japanese or Korean letters count 2, a link 23. Up to 4 images go on the first post; give each alt text. X only lets you reply where the author mentioned or quoted this account, and quote posts aren't possible.",
     parameters: obj(
       {
         text: str('The post'),
         thread: { type: 'array', items: { type: 'string' }, description: 'For a thread: every part in order (instead of text)' },
-        images: { type: 'array', items: { type: 'string' }, description: 'Full paths of up to 4 image files (PNG, JPEG, WebP, max 5 MB each) to attach to the first post' },
+        images: { type: 'array', items: { type: 'string' }, description: 'Full paths of up to 4 PNG, JPEG or WebP files in the project (5 MB each)' },
+        image_alt: { type: 'array', items: { type: 'string' }, description: "Each image's alt text (a short description for people who can't see it), in order; up to 1,000 characters" },
         account: str('Handle to post as (default: first connected)'),
-        reply_to: str('Tweet ID to reply to'),
+        reply_to: str('ID of the post to reply to'),
         note: str('Why this post, for the reviewer'),
       },
     ),
-    run: async ({ text, thread, images, account, reply_to, note }: { text?: string; thread?: string[]; images?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
+    run: async ({ text, thread, images, image_alt, account, reply_to, note }: { text?: string; thread?: string[]; images?: string[]; image_alt?: string[]; account?: string; reply_to?: string; note?: string }, ctx) => {
       // images only from the folders this agent may read, not every agent's workspace
-      const r = await social.draftPost({ platform: 'x', text, thread, images, imageRoots: allowedRoots(ctx.agent), account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
+      const r = await social.draftPost({ platform: 'x', text, thread, images, imageAlt: image_alt, imageRoots: allowedRoots(ctx.agent), account, replyTo: reply_to, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
       return { text: r.status === 'posted' ? `Posted: ${r.url}` : r.status === 'failed' ? `Auto-post failed: ${r.error}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
@@ -929,16 +963,16 @@ const TOOLS: ToolDef[] = [
     group: 'social',
     risk: 'none',
     description: "Read a connected account's recent posts with likes, reposts and replies. (Each X read is billed by X.)",
-    parameters: obj({ account: str('Handle'), limit: { type: 'number' } }),
-    run: async ({ account, limit = 10 }: { account?: string; limit?: number }) => ({ text: JSON.stringify(await social.xRecentPosts(account, limit), null, 2) }),
+    parameters: obj({ account: str('Handle'), limit: X_LIMIT }),
+    run: async ({ account, limit }: { account?: string; limit?: number }) => ({ text: JSON.stringify(await social.xRecentPosts(account, xLimit(limit))) }),
   },
   {
     name: 'x_mentions',
     group: 'social',
     risk: 'none',
-    description: 'Read recent mentions of a connected account. (Each X read is billed by X.)',
-    parameters: obj({ account: str('Handle'), limit: { type: 'number' } }),
-    run: async ({ account, limit = 10 }: { account?: string; limit?: number }) => ({ text: JSON.stringify(await social.xMentions(account, limit), null, 2) }),
+    description: 'Read recent mentions of a connected account: the posts it may reply to. (Each X read is billed by X.)',
+    parameters: obj({ account: str('Handle'), limit: X_LIMIT }),
+    run: async ({ account, limit }: { account?: string; limit?: number }) => ({ text: JSON.stringify(await social.xMentions(account, xLimit(limit))) }),
   },
   {
     name: 'reddit_read',
@@ -946,7 +980,7 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: 'Read posts from a subreddit (hot, new, top this week, rising): titles, scores, comment counts, links.',
     parameters: obj({ subreddit: str('e.g. LocalLLaMA'), sort: str('hot, new, top or rising'), limit: { type: 'number' } }, ['subreddit']),
-    run: async ({ subreddit, sort = 'hot', limit = 10 }: { subreddit: string; sort?: string; limit?: number }) => ({ text: JSON.stringify(await reddit.readSubreddit(subreddit, sort, limit), null, 2) }),
+    run: async ({ subreddit, sort = 'hot', limit = 10 }: { subreddit: string; sort?: string; limit?: number }) => ({ text: JSON.stringify(await reddit.readSubreddit(subreddit, sort, limit)) }),
   },
   {
     name: 'reddit_search',
@@ -954,7 +988,7 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: 'Search Reddit (optionally inside one subreddit) for posts from the last month.',
     parameters: obj({ query: str('What to look for'), subreddit: str('Optional subreddit'), limit: { type: 'number' } }, ['query']),
-    run: async ({ query, subreddit = '', limit = 10 }: { query: string; subreddit?: string; limit?: number }) => ({ text: JSON.stringify(await reddit.searchReddit(query, subreddit, limit), null, 2) }),
+    run: async ({ query, subreddit = '', limit = 10 }: { query: string; subreddit?: string; limit?: number }) => ({ text: JSON.stringify(await reddit.searchReddit(query, subreddit, limit)) }),
   },
   {
     name: 'reddit_comments',
@@ -962,17 +996,37 @@ const TOOLS: ToolDef[] = [
     risk: 'none',
     description: "Read a Reddit post and its top comments (give the post URL or id).",
     parameters: obj({ post: str('Post URL or id') }, ['post']),
-    run: async ({ post }: { post: string }) => ({ text: JSON.stringify(await reddit.postComments(post), null, 2) }),
+    run: async ({ post }: { post: string }) => ({ text: JSON.stringify(await reddit.postComments(post)) }),
+  },
+  {
+    name: 'reddit_rules',
+    group: 'social',
+    risk: 'none',
+    description: "Read a subreddit's rules and sidebar (what may be posted, posting guidelines) before drafting there.",
+    parameters: obj({ subreddit: str('e.g. LocalLLaMA') }, ['subreddit']),
+    run: async ({ subreddit }: { subreddit: string }) => ({ text: JSON.stringify(await reddit.subredditRules(subreddit), null, 2) }),
   },
   {
     name: 'reddit_draft_post',
     group: 'social',
     risk: 'none',
-    description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit, unless that account has auto-post on, in which case it is published straight away. Follow the subreddit rules; no spam or self-promotion where it is not allowed.',
-    parameters: obj({ subreddit: str('Subreddit, e.g. LocalLLaMA'), title: str('Post title'), text: str('Post body (markdown)'), link: str('Or a link to share instead of text'), account: str('Which of your Reddit accounts') }, ['subreddit', 'title']),
-    run: async ({ subreddit, title, text, link, account, note }: { subreddit: string; title: string; text?: string; link?: string; account?: string; note?: string }, ctx) => {
-      const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
-      return { text: r.status === 'posted' ? `Posted: ${r.url}` : `Saved to the Outbox for approval (id ${r.id}).` };
+    description: 'Write a Reddit post. It waits in the Outbox for the user to approve or edit, unless that account has auto-post on (then it is published at once). Follow the subreddit rules (reddit_rules); no spam or self-promotion where not allowed. Give flair_id and/or flair_text if the subreddit wants a flair.',
+    parameters: obj(
+      {
+        subreddit: str('Subreddit, e.g. LocalLLaMA'),
+        title: str('Post title'),
+        text: str('Post body (markdown)'),
+        link: str('Or a link to share instead of text'),
+        account: str('Which of your Reddit accounts'),
+        flair_id: str("The flair's template id (up to 36 characters)"),
+        flair_text: str('The flair text (up to 64 characters)'),
+        note: str('Why this post, for the reviewer'),
+      },
+      ['subreddit', 'title'],
+    ),
+    run: async ({ subreddit, title, text, link, account, note, flair_id, flair_text }: { subreddit: string; title: string; text?: string; link?: string; account?: string; note?: string; flair_id?: string; flair_text?: string }, ctx) => {
+      const r = await social.draftPost({ platform: 'reddit', subreddit, title, text, link, account, note, flairId: flair_id, flairText: flair_text, agentId: ctx.agent.id, chatId: await chatOf(ctx), agentName: ctx.agent.name });
+      return { text: r.status === 'posted' ? `Posted: ${r.url}` : r.status === 'failed' ? `Auto-post failed: ${r.error}` : `Saved to the Outbox for approval (id ${r.id}).` };
     },
   },
   {
@@ -987,20 +1041,32 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'gateway_draft',
+    group: 'social',
+    risk: 'none',
+    description: 'Draft a Telegram or Discord message in the Outbox. The user picks the gateway conversation, checks the text and approves. Never sends, and cannot list gateway conversations.',
+    parameters: obj({ platform: { type: 'string', enum: ['telegram', 'discord'] }, text: str('Exact message text'), note: str('Context for the user') }, ['platform', 'text']),
+    run: async ({ platform, text, note }: { platform: string; text: string; note?: string }, ctx) => {
+      if (platform !== 'telegram' && platform !== 'discord') throw new Error('Choose Telegram or Discord.');
+      const item = await social.draftPost({ platform, text, note, agentId: ctx.agent.id, agentName: ctx.agent.name, chatId: await chatOf(ctx) });
+      return { text: `Saved Outbox draft ${item.id}. The user must choose its gateway recipient and approve before it sends.` };
+    },
+  },
+  {
     name: 'telegram_send',
     group: 'social',
     risk: 'high',
-    description: 'Send a Telegram message to the configured chat.',
-    parameters: obj({ text: str('Message') }, ['text']),
-    run: async ({ text }: { text: string }) => ({ text: await social.sendTelegram(text) }),
+    description: 'Send a Telegram message through a gateway instance to a completed conversation, using IDs the user gave you (otherwise use gateway_draft). Queued is not delivered: receipts are in the Outbox.',
+    parameters: obj({ text: str('Exact message'), instance_id: str('Telegram gateway instance ID'), event_id: str('Completed source event ID') }, ['text', 'instance_id', 'event_id']),
+    run: async ({ text, instance_id, event_id }: { text: string; instance_id: string; event_id: string }, ctx) => ({ text: await social.sendTelegram(text, { instanceId: instance_id, eventId: event_id }, { agentId: ctx.agent.id, agentName: ctx.agent.name, chatId: await chatOf(ctx) }, ctx.signal) }),
   },
   {
     name: 'discord_send',
     group: 'social',
     risk: 'high',
-    description: 'Post a message to the configured Discord channel webhook.',
-    parameters: obj({ text: str('Message') }, ['text']),
-    run: async ({ text }: { text: string }) => ({ text: await social.sendDiscord(text) }),
+    description: 'Send a Discord message through a gateway instance to a completed conversation, using IDs the user gave you (otherwise use gateway_draft). Queued is not delivered: receipts are in the Outbox.',
+    parameters: obj({ text: str('Exact message'), instance_id: str('Discord gateway instance ID'), event_id: str('Completed source event ID') }, ['text', 'instance_id', 'event_id']),
+    run: async ({ text, instance_id, event_id }: { text: string; instance_id: string; event_id: string }, ctx) => ({ text: await social.sendDiscord(text, { instanceId: instance_id, eventId: event_id }, { agentId: ctx.agent.id, agentName: ctx.agent.name, chatId: await chatOf(ctx) }, ctx.signal) }),
   },
   // ---------- team ----------
   {
@@ -1022,30 +1088,40 @@ const TOOLS: ToolDef[] = [
     group: 'agents',
     risk: 'none',
     description:
-      'Give a task to another agent. It starts at once and you get a handle back right away (the answer is not in it): keep working, then get the answer with await_agent. To run several tasks in parallel, send them all first, then await each. Say exactly what you need back. A task you hand off is theirs: don\'t also do it yourself.',
-    parameters: obj({ agent: str('Agent name, id, or "Name [id]" as list_agents shows it'), message: str('The task or question') }, ['agent', 'message']),
-    run: async ({ agent, message }: { agent: string; message: string }, ctx) => {
+      'Give a task to another agent. It starts at once and you get a handle back right away: keep working, then get the answer with await_agent. To run several tasks in parallel, send them all first, then await them together. For a quick question, set wait_seconds to get the answer in this same call. Say exactly what you need back. A task you hand off is theirs: don\'t also do it yourself.',
+    parameters: obj({ agent: str('Agent name, id, or "Name [id]" as list_agents shows it'), message: str('The task or question'), wait_seconds: { type: 'number', description: 'Optional: wait this long for the answer now (up to 600)' } }, ['agent', 'message']),
+    run: async ({ agent, message, wait_seconds }: { agent: string; message: string; wait_seconds?: number }, ctx) => {
       if ((ctx.depth || 0) >= 3) throw new Error('Too many agents deep; answer this yourself.');
       const found = findAgent(agentStore.list(), agent);
       if ('error' in found) throw new Error(found.error);
       const target = found.agent;
       if (target.id === ctx.agent.id) throw new Error("That's you.");
       const h = await startHandoff(ctx.agent, target, String(message || ''), { depth: (ctx.depth || 0) + 1, parentRunId: ctx.runId, signal: ctx.signal });
-      return { text: `Sent to ${target.name} (handle ${h.id}). They are working on it now. Get the answer with await_agent and handle "${h.id}".` };
+      const sent = `Sent to ${target.name} (handle ${h.id}).`;
+      const wait = Math.min(Number(wait_seconds) || 0, 600, agentStore.get(ctx.agent.id)?.engine === 'hermes' ? HERMES_WAIT_S : 600);
+      if (wait < 1) return { text: `${sent} They are working on it now. Get the answer with await_agent and handle "${h.id}".` };
+      const r = await awaitHandoff(h.id, ctx.agent.id, wait, ctx.signal);
+      return { ...r, text: `${sent}\n${r.text}` };
     },
   },
   {
     name: 'await_agent',
     group: 'agents',
     risk: 'none',
-    description: `Get the answer to a task you gave with ask_agent. Waits up to wait_seconds (default ${DEFAULT_WAIT_S}, at most ${MAX_WAIT_S}); if they are still working, call it again with the same handle until they finish. When their answer is a question, a blocker or something only the user can decide, that is the outcome: pass it on instead of waiting for more. Without a handle: lists your handoffs.`,
-    parameters: obj({ handle: str('The handle ask_agent gave you'), wait_seconds: { type: 'number', description: `How long to wait for the answer this time (1-${MAX_WAIT_S})` } }),
-    run: async ({ handle, wait_seconds }: { handle?: string; wait_seconds?: number }, ctx) => {
-      if (!handle) return { text: listHandoffs(ctx.agent.id) };
+    description: `Get the answer to a task you gave with ask_agent. Waits up to wait_seconds (default ${DEFAULT_WAIT_S}, at most ${MAX_WAIT_S}); if they are still working, call it again until they finish. With handles it waits for several at once: until the first is done, or every one with all. When their answer is a question, a blocker or something only the user can decide, that is the outcome: pass it on instead of waiting for more. Without a handle: lists your handoffs.`,
+    parameters: obj({
+      handle: str('The handle ask_agent gave you'),
+      handles: { type: 'array', items: { type: 'string' }, description: 'Several handles, instead of handle' },
+      all: { type: 'boolean', description: 'With handles: wait for every one, not just the first' },
+      wait_seconds: { type: 'number', description: `How long to wait for the answer this time (1-${MAX_WAIT_S})` },
+    }),
+    run: async ({ handle, handles, all, wait_seconds }: { handle?: string; handles?: unknown; all?: boolean; wait_seconds?: number }, ctx) => {
+      const ids = Array.isArray(handles) && handles.length ? handles.map(String) : handle ? [handle] : [];
+      if (!ids.length) return { text: listHandoffs(ctx.agent.id) };
       // Hermes gives up on an MCP call after 5 minutes: wait less, and it calls again
       const hermes = agentStore.get(ctx.agent.id)?.engine === 'hermes';
       const wait = hermes ? Math.min(HERMES_WAIT_S, Number(wait_seconds) || HERMES_WAIT_S) : wait_seconds;
-      return awaitHandoff(handle, ctx.agent.id, wait, ctx.signal);
+      return ids.length === 1 ? awaitHandoff(ids[0]!, ctx.agent.id, wait, ctx.signal) : awaitHandoffs(ids, ctx.agent.id, { all: !!all, waitS: wait, signal: ctx.signal });
     },
   },
   {
@@ -1123,32 +1199,71 @@ const TOOLS: ToolDef[] = [
     name: 'list_files',
     group: 'files',
     risk: 'none',
-    description: 'List a folder (relative paths start in your workspace).',
-    parameters: obj({ path: str('Folder (default: workspace)') }),
-    run: async ({ path: p = '.' }: { path?: string }, ctx) => {
+    description: 'List a folder: sub-folders, and files with their sizes (relative paths start in your workspace). depth lists folders inside it too.',
+    parameters: obj({ path: str('Folder (default: workspace)'), depth: { type: 'number', description: 'Folder levels to list, 1-5 (default 1)' } }),
+    run: async ({ path: p = '.', depth }: { path?: string; depth?: number }, ctx) => {
       const { abs, real, ok } = resolveInside(ctx.agent, p);
       if (!ok) throw new Error(`${abs} is outside the folders this agent may use. Add it in Settings > Allowed folders.`);
-      const items = fs.readdirSync(real, { withFileTypes: true }).slice(0, 500);
-      return { text: `${abs}\n${items.map((d) => `${d.isDirectory() ? '[dir] ' : ''}${d.name}`).join('\n')}` };
+      return { text: files.listFolder(real, abs, depth) };
     },
   },
   {
     name: 'read_file',
     group: 'files',
     risk: 'none',
-    description: 'Read a text file (workspace, knowledge, outputs or allowed folders).',
-    parameters: obj({ path: str('File path') }, ['path']),
+    description: `Read a text file (workspace, knowledge, outputs or allowed folders). A long file comes in parts of up to ${files.READ_LINES} lines: continue with offset. paths reads up to 10 files in one call.`,
+    parameters: obj({
+      path: str('File path'),
+      paths: { type: 'array', items: { type: 'string' }, maxItems: 10, description: 'Several files at once, instead of path' },
+      offset: { type: 'number', description: 'First line to read (default 1)' },
+      limit: { type: 'number', description: `How many lines (default and most ${files.READ_LINES})` },
+    }),
+    run: async ({ path: p, paths, offset, limit }: { path?: string; paths?: unknown; offset?: number; limit?: number }, ctx) => {
+      const list = Array.isArray(paths) && paths.length ? paths.slice(0, 10).map(String) : p ? [String(p)] : [];
+      if (!list.length) throw new Error('Give path (or paths).');
+      const read = (file: string, chars?: number) => {
+        const { abs, real, ok } = resolveInside(ctx.agent, file);
+        if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
+        return files.readText(real, abs, { offset, limit, chars });
+      };
+      if (list.length === 1) return { text: read(list[0]!) };
+      // several: each gets its share, so one long file can't crowd out the rest
+      const share = Math.floor(60_000 / list.length);
+      return { text: list.map((file) => {
+        let body: string;
+        try {
+          body = read(file, share);
+        } catch (e) {
+          body = `Error: ${(e as Error).message}`;
+        }
+        return `===== ${file} =====\n${body}`;
+      }).join('\n\n') };
+    },
+  },
+  {
+    name: 'view_image',
+    group: 'files',
+    risk: 'none',
+    description: `See a picture file (a render, an FFmpeg or ImageMagick result, a video frame, a screenshot): PNG, JPEG, WebP or GIF up to ${MODEL_MAX_BYTES / 1024 / 1024} MB, in a folder you may read. Convert other formats to PNG and shrink bigger ones first.`,
+    parameters: obj({ path: str('Image file path') }, ['path']),
     run: async ({ path: p }: { path: string }, ctx) => {
       const { abs, real, ok } = resolveInside(ctx.agent, p);
       if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
-      return { text: truncate(fs.readFileSync(real, 'utf8'), 60000) };
+      const stat = fs.statSync(real);
+      if (!stat.isFile()) throw new Error(`${abs} is not a file.`);
+      const mb = MODEL_MAX_BYTES / 1024 / 1024;
+      if (stat.size > MODEL_MAX_BYTES) throw new Error(`${abs} is ${(stat.size / 1024 / 1024).toFixed(1)} MB; view_image takes pictures up to ${mb} MB. Save a smaller copy first (for example with ImageMagick: -resize 1600x1600).`);
+      const bytes = fs.readFileSync(real);
+      const mime = imageType(bytes);
+      if (!mime) throw new Error(`${abs} is not a PNG, JPEG, WebP or GIF picture. Convert it to PNG first.`);
+      return { text: `${abs} (${mime}, ${Math.ceil(bytes.length / 1024)} KB)`, images: [`data:${mime};base64,${bytes.toString('base64')}`] };
     },
   },
   {
     name: 'write_file',
     group: 'files',
     risk: 'low',
-    description: 'Create or overwrite a text file in your workspace or an allowed folder. Returns the full path.',
+    description: 'Create or overwrite a text file in your workspace or an allowed folder. Returns the full path. To change part of a file, use edit_file.',
     parameters: obj({ path: str('File path (relative = workspace)'), content: str('File contents') }, ['path', 'content']),
     run: async ({ path: p, content }: { path: string; content: string }, ctx) => {
       const { abs, real, ok } = resolveInside(ctx.agent, p, { write: true });
@@ -1156,6 +1271,52 @@ const TOOLS: ToolDef[] = [
       ensureDir(path.dirname(real));
       fs.writeFileSync(real, content);
       return { text: `Wrote ${abs} (${Buffer.byteLength(content)} bytes)` };
+    },
+  },
+  {
+    name: 'edit_file',
+    group: 'files',
+    // like write_file: it changes a file in the folders the agent may write to
+    risk: 'low',
+    description: 'Change part of a text file, without sending all of it again: each edit replaces old (the exact text, there exactly once; set all to replace every one) with new. Edits apply in order, and if one does not fit nothing is changed. Read the file first.',
+    parameters: obj(
+      {
+        path: str('File path (relative = workspace)'),
+        edits: { type: 'array', minItems: 1, items: obj({ old: str('The exact text to replace, with enough around it to be found only once'), new: str('The text to put there instead'), all: { type: 'boolean', description: 'Replace every match' } }, ['old', 'new']) },
+      },
+      ['path', 'edits'],
+    ),
+    run: async ({ path: p, edits }: { path: string; edits: files.FileEdit[] }, ctx) => {
+      const { abs, real, ok } = resolveInside(ctx.agent, p, { write: true });
+      if (!ok) throw new Error(`${abs} is outside the folders this agent may write to.`);
+      if (!exists(real)) throw new Error(`${abs} does not exist. Create it with write_file.`);
+      const r = files.applyEdits(fs.readFileSync(real, 'utf8'), edits);
+      fs.writeFileSync(real, r.text);
+      return { text: `Edited ${abs}: ${r.replaced} replacement${r.replaced === 1 ? '' : 's'}.` };
+    },
+  },
+  {
+    name: 'find_files',
+    group: 'files',
+    risk: 'none',
+    description: 'Find files by name in your workspace or an allowed folder, newest first, e.g. pattern "*.md" (any folder), "notes/**/*.txt" or "report-*.{pdf,docx}".',
+    parameters: obj({ pattern: str('Name pattern: * any characters, ** any folders, ? one character, {a,b} either'), path: str('Folder to look in (default: workspace)') }, ['pattern']),
+    run: async ({ pattern, path: p = '.' }: { pattern: string; path?: string }, ctx) => {
+      const { abs, real, ok } = resolveInside(ctx.agent, p);
+      if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
+      return { text: files.findFiles(real, abs, String(pattern ?? '')) };
+    },
+  },
+  {
+    name: 'search_files',
+    group: 'files',
+    risk: 'none',
+    description: 'Search the text files in your workspace or an allowed folder (or one file) for lines that match words or a regular expression, any case. Returns file:line: text. Narrow it with glob, e.g. "*.md".',
+    parameters: obj({ query: str('Words or a regular expression'), path: str('Folder or file to search (default: workspace)'), glob: str('Only files whose name matches, e.g. "*.ts" or "docs/**/*.md"') }, ['query']),
+    run: async ({ query, path: p = '.', glob }: { query: string; path?: string; glob?: string }, ctx) => {
+      const { abs, real, ok } = resolveInside(ctx.agent, p);
+      if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
+      return { text: files.searchFiles(real, abs, String(query ?? ''), glob ? String(glob) : undefined) };
     },
   },
   // ---------- orca ----------
@@ -1176,13 +1337,18 @@ const TOOLS: ToolDef[] = [
     name: 'run_command',
     group: 'shell',
     risk: 'high',
-    description: 'Run a PowerShell command on this PC and return its output. Starts in your workspace.',
-    parameters: obj({ command: str('PowerShell command'), cwd: str('Working folder'), timeout_sec: { type: 'number' } }, ['command']),
-    run: async ({ command, cwd, timeout_sec = 300 }: { command: string; cwd?: string; timeout_sec?: number }, ctx) => {
+    // the shell this computer has, looked up the first time the description is read
+    get description() {
+      return `Run a ${commandShell().name} command on this computer and return its exit code and output (the start and the end of long output). Starts in your workspace.`;
+    },
+    parameters: obj({ command: str("The command, in this computer's shell"), cwd: str('Working folder'), timeout_sec: { type: 'number', description: 'Up to 3600 (default 300)' } }, ['command']),
+    run: async ({ command, cwd, timeout_sec }: { command: string; cwd?: string; timeout_sec?: number }, ctx) => {
+      const sh = commandShell();
+      const timeout = Math.min(Math.max(Number(timeout_sec) || 300, 1), 3600) * 1000;
       // Python run from here prints UTF-8: the pipe is the Windows code page otherwise, and a name like "Łukasz" crashes it
       const env = { PYTHONUTF8: process.env.PYTHONUTF8 ?? '1' };
-      const r = await run('powershell', ['-NoProfile', '-NonInteractive', '-Command', command], { cwd: cwd || workspaceOf(ctx.agent), timeout: timeout_sec * 1000, signal: ctx.signal, env });
-      return { text: truncate(`exit ${r.code}\n${r.stdout}${r.stderr ? `\n[stderr]\n${r.stderr}` : ''}`, 20000), isError: r.code !== 0 };
+      const r = await run(sh.exe, sh.args(String(command ?? '')), { cwd: cwd || workspaceOf(ctx.agent), timeout, signal: ctx.signal, env });
+      return { text: `exit ${r.code}\n${truncateMiddle(r.stdout, 16000)}${r.stderr ? `\n[stderr]\n${truncateMiddle(r.stderr, 4000)}` : ''}`, isError: r.code !== 0 };
     },
   },
   // ---------- always on ----------
@@ -1190,12 +1356,12 @@ const TOOLS: ToolDef[] = [
     name: 'notify_user',
     group: 'core',
     risk: 'none',
-    description: 'Show the user a notification in the dashboard (and on Telegram when telegram=true and it is set up).',
-    parameters: obj({ text: str('Message'), telegram: { type: 'boolean' } }, ['text']),
+    description: 'Show the user a notification in the dashboard. For an external message, use gateway_draft or an explicitly approved gateway send.',
+    parameters: obj({ text: str('Message') }, ['text']),
     run: async ({ text, telegram }: { text: string; telegram?: boolean }, ctx) => {
+      if (telegram) throw new Error('Telegram notifications now require a selected gateway recipient and approval. Use gateway_draft.');
       emit('toast', { text: `${ctx.agent.name}: ${text}` });
       log('notify', `${ctx.agent.name}: ${text}`, { agentId: ctx.agent.id });
-      if (telegram) await social.sendTelegram(`${ctx.agent.name}: ${text}`).catch(() => {});
       return { text: 'The user has been notified.' };
     },
   },
@@ -1216,6 +1382,7 @@ async function toolAccessRequest(ctx: ToolContext, id: string, why: string): Pro
   if (!agentStore.get(ctx.agent.id)) return { result: { text: "Only the dashboard's agents can ask for tools. Ask the user with ask_user instead.", isError: true } };
   const { runInfo } = await import('./engines/index.ts');
   const run = ctx.runId ? runInfo(ctx.runId) : null;
+  if (OWN_TOOL_GROUPS.has(group.id) && hasOwnFileTools(agentStore.get(ctx.agent.id)?.engine)) return { result: { text: 'Your engine has its own tools for files and commands: use those.' } };
   if ([...(ctx.agent.toolGroups || []), ...(run?.agent.toolGroups || [])].includes(group.id)) return { result: { text: `You already have the ${group.label} tools.` } };
   return { group, request: {
     kind: 'tools',
@@ -1250,17 +1417,44 @@ type LaunchArgs = { program: string; file?: string; args?: string[] };
 type ComfyRunArgs = { workflow: string; prompt?: string; negative?: string; inputs?: Record<string, unknown>; images?: { file?: string; node?: string | number; mask?: string; mask_kind?: 'white' | 'transparent' }[]; randomize_seed?: boolean };
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
+const ALIASES = new Map(TOOLS.flatMap((t) => (t.aliases || []).map((a): [string, { tool: ToolDef; alias: ToolAlias }] => [a.name, { tool: t, alias: a }])));
 
-export function toolsForAgent(agent: ToolAgent): ToolDef[] {
-  const groups = new Set(['core', ...(agent.toolGroups || [])]);
-  if (kb.knowledgeFiles(agent).length) groups.add('knowledge');
-  // a memory of its own: real agents only (not stand-ins like workflows or outside MCP clients)
-  if (memory.hasMemory(agent)) groups.add('memory');
-  return TOOLS.filter((t) => groups.has(t.group));
+/** A tool by its name or an earlier one, with the arguments in its current shape. */
+function resolveTool(name: string, args: ToolArgs): { tool: ToolDef | undefined; args: ToolArgs } {
+  const tool = BY_NAME.get(name);
+  if (tool) return { tool, args };
+  const old = ALIASES.get(name);
+  return old ? { tool: old.tool, args: old.alias.args ? old.alias.args(args) : args } : { tool: undefined, args };
 }
 
-export function toolDefs(agent: ToolAgent): ToolSpec[] {
-  return toolsForAgent(agent).map(({ name, description, parameters }) => ({ name, description, parameters }));
+// The dashboard's file and shell tools do what these engines' own tools already do: listing both only makes
+// the model choose. (Their own tools ask through the same approvals; Eve has none of its own.)
+const OWN_TOOL_GROUPS = new Set(['files', 'shell']);
+const hasOwnFileTools = (engine: string | undefined): boolean => !!engine && engine !== 'eve';
+
+/** May this agent use the tool at all. Cheap: the knowledge folders are only looked at for knowledge tools. */
+function mayUse(agent: ToolAgent, tool: ToolDef): boolean {
+  if (tool.group === 'core' || (agent.toolGroups || []).includes(tool.group)) return true;
+  // a memory of its own: real agents only (not stand-ins like workflows or outside MCP clients)
+  if (tool.group === 'memory') return memory.hasMemory(agent);
+  if (tool.group === 'knowledge') return kb.knowledgeFiles(agent).length > 0;
+  return false;
+}
+
+export function toolsForAgent(agent: ToolAgent, scope: ToolScope = {}): ToolDef[] {
+  const own = hasOwnFileTools(scope.engine);
+  let knowledge: boolean | undefined;
+  return TOOLS.filter((t) => {
+    if (own && OWN_TOOL_GROUPS.has(t.group)) return false;
+    if (t.when && !t.when(scope)) return false;
+    if (t.group !== 'knowledge') return mayUse(agent, t);
+    knowledge ??= mayUse(agent, t);
+    return knowledge;
+  });
+}
+
+export function toolDefs(agent: ToolAgent, scope: ToolScope = {}): ToolSpec[] {
+  return toolsForAgent(agent, scope).map(({ name, description, parameters }) => ({ name, description, parameters }));
 }
 
 export const allTools = (): { name: string; group: string; risk: Risk | 'varies'; description: string }[] =>
@@ -1293,6 +1487,7 @@ export function toolApprovalRequest(agent: ToolAgent, name: string, args: ToolAr
 // Ask when the agent's autonomy says so; null lets the tool go ahead.
 export async function gate(agent: ToolAgent, name: string, risk: Risk, args: ToolArgs, ctx: ToolRunInfo = {}, detail: string | null | undefined = null): Promise<ToolResult | null> {
   if (!needsApproval(agent, risk, name)) return null;
+  if (!ctx.approvalDecision) recordAsked(name);
   const d = await (ctx.approvalDecision || requestApproval)(toolApprovalRequest(agent, name, args, ctx, detail));
   if (!d.approved) return { text: `The user said no${d.message ? `: ${d.message}` : ''}. Don't retry the same thing; ask what they want instead.`, isError: true, denied: true };
   if (d.always && agent.id && !agent.id.startsWith('_')) {
@@ -1345,22 +1540,63 @@ export async function toolApprovalPlan(agent: ToolAgent, name: string, args: Too
 }
 
 // Run a tool for an agent, asking the user first when its settings say so.
-export async function callTool(agent: ToolAgent, name: string, args: ToolArgs = {}, ctx: ToolRunInfo = {}): Promise<ToolResult> {
-  const tool = BY_NAME.get(name);
-  if (!tool) throw new Error(`Unknown tool ${name}`);
-  if (!toolsForAgent(agent).includes(tool)) throw new Error(`${agent.name} isn't allowed to use ${name}. Turn on the "${tool.group}" tools for it.`);
-  args = args && typeof args === 'object' ? args : {};
+export async function callTool(agent: ToolAgent, calledAs: string, rawArgs: ToolArgs = {}, ctx: ToolRunInfo = {}): Promise<ToolResult> {
+  const resolved = resolveTool(calledAs, rawArgs && typeof rawArgs === 'object' ? rawArgs : {});
+  const tool = resolved.tool;
+  if (!tool) throw new Error(`Unknown tool ${calledAs}`);
+  const name = tool.name;
+  if (!mayUse(agent, tool)) throw new Error(`${agent.name} isn't allowed to use ${name}. Turn on the "${tool.group}" tools for it.`);
+  const args = resolved.args && typeof resolved.args === 'object' ? resolved.args : {};
   const risk = riskOf(tool, args);
   // For tools whose risk depends on arguments, "Always allow" only skips the low-risk form.
   const allowName = toolApprovalName(name, args);
   const refused = await gate(agent, allowName, risk, args, ctx, describeCall(name, args));
   if (refused) return refused;
   if (ctx.signal?.aborted) return { text: 'Stopped.', isError: true };
+  const started = Date.now();
+  let result: ToolResult;
   try {
     const r = await tool.run(args, { ...ctx, agent });
-    return { text: String(r?.text ?? ''), images: r?.images || [], isError: !!r?.isError, ...(r?.denied ? { denied: true } : {}) };
+    result = { text: String(r?.text ?? ''), images: r?.images || [], isError: !!r?.isError, ...(r?.denied ? { denied: true } : {}) };
   } catch (e) {
-    return { text: `Error: ${(e as Error).message}`, isError: true };
+    result = { text: `Error: ${(e as Error).message}`, isError: true };
+  }
+  recordToolCall(name, { ms: Date.now() - started, chars: result.text.length, isError: result.isError, denied: result.denied });
+  return result;
+}
+
+// Tools that read in parts already answer at a size the model chose (and task batches must stay whole).
+const PAGED = new Set(['read_file', 'fetch_url', 'read_conversation', 'read_skill', 'knowledge_read', 'TaskCreate', 'TaskUpdate']);
+const SAVED_DAYS = 7;
+let prunedAt = 0;
+
+/** What the model gets back from a tool. A result over the limit (Settings › Context) keeps its start and its end;
+ *  the whole text is saved in outputs/tool-results, where the agent can read the rest in parts. */
+export function clipForModel(r: ToolResult, name: string, runId?: string | null): ToolResult {
+  const most = Math.floor(Number(getSettings().toolResultChars) || 0);
+  if (most <= 0 || r.text.length <= most || PAGED.has(name)) return r;
+  const dir = ensureDir(dataPath('outputs', 'tool-results'));
+  const file = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}-${String(runId || 'call').replace(/[^\w-]/g, '').slice(0, 40)}-${name.replace(/[^\w-]/g, '_').slice(0, 60)}.txt`);
+  fs.writeFileSync(file, r.text);
+  pruneSavedResults(dir);
+  recordClipped(name);
+  const head = Math.ceil(most * 0.7);
+  const tail = most - head;
+  return { ...r, text: `${r.text.slice(0, head)}\n\n…[${r.text.length - most} characters left out here. The whole result is saved in ${file}: read the rest there in parts if you need it.]…\n\n${r.text.slice(r.text.length - tail)}` };
+}
+
+// (saved results older than a week go: the chat keeps its own copy)
+function pruneSavedResults(dir: string): void {
+  if (Date.now() - prunedAt < 24 * 60 * 60_000) return;
+  prunedAt = Date.now();
+  for (const name of fs.readdirSync(dir)) {
+    const p = path.join(dir, name);
+    try {
+      const st = fs.lstatSync(p);
+      if (st.isFile() && Date.now() - st.mtimeMs > SAVED_DAYS * 24 * 60 * 60_000) fs.rmSync(p, { force: true });
+    } catch {
+      /* gone */
+    }
   }
 }
 
@@ -1368,30 +1604,12 @@ function describeCall(name: string, args: ToolArgs): string | undefined {
   if (name === 'run_command') return args.command as string | undefined;
   if (name.endsWith('_run_script') || name.endsWith('_run_python')) return args.code as string | undefined;
   if (name === 'write_file') return `${args.path}\n\n${String(args.content || '').slice(0, 1500)}`;
+  if (name === 'edit_file') return `${args.path}\n\n${(Array.isArray(args.edits) ? args.edits : []).map((e: { old?: unknown; new?: unknown }) => `- ${String(e?.old ?? '')}\n+ ${String(e?.new ?? '')}`).join('\n\n').slice(0, 1500)}`;
   if (name === 'ffmpeg' || name === 'orca' || name === 'imagemagick') return `${name} ${((args.args as string[] | undefined) || []).join(' ')}`;
   return JSON.stringify(args, null, 2);
 }
 
 // ---------- helpers ----------
-function htmlToText(html: string): string {
-  const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1]?.trim();
-  return (title ? `Title: ${title}\n\n` : '') + html
-    .replace(/<(script|style|noscript|svg|head)[\s\S]*?<\/\1>/gi, '')
-    .replace(/<\/(p|div|h[1-6]|li|tr|br|section|article|header|footer)>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n\s*\n\s*\n+/g, '\n\n')
-    .trim();
-}
-
 // Run a Python script with a program's own Python (mayapy, hython) and return what it printed.
 async function runPython(exe: string, script: string, ctx: ToolContext): Promise<ToolResult> {
   if (!exists(exe)) throw new Error(`${path.basename(exe)} was not found next to the program.`);

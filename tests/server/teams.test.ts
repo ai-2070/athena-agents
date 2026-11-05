@@ -1,11 +1,15 @@
 // Teams as group chats, end to end with a fake model: you → lead → @teammate → back to the lead.
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { bus, chats, saveSettings, workflows } from '../../server/store.ts';
 import { MAX_CHATTER, TURN_ASK, briefing, editQueuedTeam, getThread, orderQueuedTeam, parseMentions, postUserMessage, queueUserMessage, steerTeam, stopTeam, teamState } from '../../server/teams.ts';
 import type { ServerEvent, Team } from '../../shared/types.ts';
+
+// The steering here is the stop-and-go-next way (every engine that can't take a message mid-turn): Eve's
+// joining a turn is in steer-join.test.ts.
+vi.mock('../../server/eve/steer.ts', async (orig) => ({ ...(await orig<typeof import('../../server/eve/steer.ts')>()), canSteer: () => false }));
 
 // a fake OpenAI-compatible model: the Lead hands off to the Maker, the Maker reports back, the Lead wraps up
 let server: http.Server;
@@ -220,6 +224,16 @@ describe('steering: a message while the team works', () => {
     ]);
     // (the queued one is an ordinary message: the lead takes it)
     expect(getThread(team.id).messages[5].from).toBe(other.id);
+    // the stopped turn is marked, hands nothing on, and keeps where its work is
+    const cut = getThread(team.id).messages.find((m) => m.from === slow.id)!;
+    expect(cut).toMatchObject({ stopped: 'steer', mentions: [] });
+    expect(cut.turn).toBeTruthy();
+    const session = chats.get(slow.id, cut.turn!.chatId)!;
+    expect(session.items.slice(cut.turn!.from, cut.turn!.to).at(-1)).toMatchObject({ type: 'error', text: 'Stopped to take your new message.', stopped: 'steer' });
+    // its next turn builds on that: it sees what it did so far, and where it was cut off
+    const next = contexts.Slow.find((c) => c.includes('Change of plan'))!;
+    expect(next).toContain('@Slow do the long job');
+    expect(next).toContain('My turn was stopped here, before it finished, to take the next message.');
     expect(msg.text).toBe('Change of plan: do the short one');
     expect(teamState(team.id).held).toEqual([]);
   }, 15000);

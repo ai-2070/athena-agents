@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { clearWhichCache, shimTarget } from '../../server/util.ts';
 import { newAgent } from '../../server/library.ts';
 import { chats } from '../../server/store.ts';
@@ -82,5 +82,23 @@ describe('npm-installed Codex', () => {
       expect(JSON.parse(text).results).toHaveLength(300);
       expect(JSON.parse(text).results.at(-1)).toMatchObject({ index: 299 });
     }
+  });
+
+  it('saves the chat once for tool calls that come together, not once per event', async () => {
+    const saves = async (mode: string) => {
+      process.env.FAKE_CODEX_MODE = mode;
+      const save = vi.spyOn(chats, 'save');
+      try {
+        const chat = await ask();
+        return { chat, count: save.mock.calls.length };
+      } finally {
+        save.mockRestore();
+      }
+    };
+    const plain = await saves('plain');
+    const tools = await saves('tasks');
+    expect(tools.chat.items.filter((i) => i.type === 'tool' && i.status === 'done')).toHaveLength(2);
+    // four tool events in a row add no saves of their own (they were one save each)
+    expect(tools.count).toBe(plain.count);
   });
 });

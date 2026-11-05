@@ -174,6 +174,9 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
         <FieldRow label="Context window (tokens)" hint="Leave empty to use the model or engine's reported window. A request that does not fit is rejected without dropping its original text." size="sm">
           <input className="font-mono" type="number" min={0} step={1000} defaultValue={s.contextWindowTokens || ''} placeholder="auto" onChange={(e) => setP('contextWindowTokens', Number(e.target.value) || 0)} />
         </FieldRow>
+        <FieldRow label="Longest tool result (characters)" hint="A longer result reaches the agent with its start and end, and the whole text is saved in outputs for it to read in parts. 0 = no limit." size="sm">
+          <input className="font-mono" type="number" min={0} step={1000} defaultValue={s.toolResultChars ?? 24000} onChange={(e) => setP('toolResultChars', Math.max(0, Number(e.target.value) || 0))} />
+        </FieldRow>
       </Section>
 
       <Section title="Local and custom models" description="Models that run on this PC, or on a server you point to.">

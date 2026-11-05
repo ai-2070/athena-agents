@@ -65,6 +65,7 @@ function teamCompletion(event: GatewayInboxEvent, teamId: string, messageId: str
 }
 
 function completion(event: GatewayInboxEvent, strict = false): GatewayCompletion {
+  if (event.workKept) return review;
   return withGatewayRoute(event.route, () => {
     const dispatch = event.dispatch;
     if (!dispatch) return review;
@@ -91,7 +92,7 @@ export const gatewayExecution: GatewayExecutionServices = {
   },
   async submit(event, signal, proceed, input) {
     signal.throwIfAborted();
-    if (!proceed() || !event.dispatch || !event.operationId) throw new Error('This gateway operation is no longer authorized.');
+    if (event.workKept || !proceed() || !event.dispatch || !event.operationId) throw new Error('This gateway operation is no longer authorized.');
     if (event.input.mediaGroupId && !input) throw new Error('The complete album input is required.');
     return withGatewayRoute(event.route, async () => {
       const local = event.dispatch!.conversation;

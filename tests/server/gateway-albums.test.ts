@@ -3,9 +3,10 @@ import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { GatewayInbound, GatewayInboxJournal, GatewayRunInput } from '../../shared/types.ts';
 import { gatewayAlbumCandidates, gatewayCleanupCandidates } from '../../shared/gateways.ts';
-import { saveGatewayInstance } from '../../server/gateways/instances.ts';
+import { saveGatewayCredentials, saveGatewayInstance } from '../../server/gateways/instances.ts';
+import { GatewayOutboxLedger, gatewayOutboxDeliveryReview } from '../../server/gateways/outbox.ts';
 import { GatewayStateAdapter } from '../../server/gateways/state.ts';
-import { GatewayInbox, gatewayInboxHistory } from '../../server/gateways/inbox.ts';
+import { GatewayInbox, gatewayInboxHistory, gatewayWorkReview } from '../../server/gateways/inbox.ts';
 import { GatewayFileProcessor } from '../../server/gateways/files.ts';
 import { GatewayDispatcher } from '../../server/gateways/dispatch.ts';
 import { gatewayConversation } from '../../server/gateways/conversations.ts';
@@ -37,6 +38,26 @@ async function fixture(limits = { perFileBytes: 1024, perMessageBytes: 4096, fil
 }
 
 describe('explicit Telegram album grouping', () => {
+  it('rechecks every grouped source for a paused approved Outbox retry without enabling native work', async () => {
+    const f = await fixture(); saveGatewayCredentials(f.instance.id, { botToken: 'PRIVATE_BOT_TOKEN' }); const originals = await f.saved(); f.seal(originals.map((event) => event.id));
+    const work = f.inbox.claimNext()!; f.inbox.beginDispatch(work.id, work.operationId!, await gatewayConversation(work, f.abort.signal, f.inbox.dispatchSources(work.id))); f.inbox.finishDispatch(work.id, work.operationId!, 'Saved album answer'); f.inbox.claimReply(); f.inbox.settleReply(work.id, 0, { remoteId: 'native-reply' });
+    const ledger = new GatewayOutboxLedger(f.state, f.inbox); ledger.approve(ledger.prepare({ instanceId: f.instance.id, projectId: f.instance.projectId, postId: 'album-follow-up', eventId: work.id, parts: ['Approved follow-up'] }).approval);
+    const claim = ledger.claim()!; ledger.settle(claim, { status: 'uncertain' }); const paused = saveGatewayInstance({ ...f.config, enabled: false }, f.instance.id); const before = structuredClone(f.inbox.list());
+    ledger.review(f.instance.projectId, 'album-follow-up', { action: 'retry', index: 0, revision: gatewayOutboxDeliveryReview(paused, ledger.list()[0]).revision, acknowledgeRemaining: true, acknowledgePossibleDuplicate: true });
+    expect(f.inbox.list()).toEqual(before); expect(f.submitted).toHaveLength(0); expect(ledger.claim()).toBeNull(); saveGatewayInstance(f.config, f.instance.id); expect(ledger.claim()).toMatchObject({ index: 0, attempt: 2 });
+  });
+  it('keeps only the started album leader locally and holds late parts in its original conversation', async () => {
+    const f = await fixture(); const originals = await f.saved(); f.seal(originals.map((event) => event.id)); const leader = f.inbox.claimNext()!;
+    f.inbox.beginDispatch(leader.id, leader.operationId!, await gatewayConversation(leader, f.abort.signal, f.inbox.dispatchSources(leader.id)));
+    saveGatewayInstance({ ...f.config, enabled: false }, f.instance.id); const before = structuredClone(f.inbox.list());
+    expect(gatewayWorkReview(f.instance.id, originals[1].id).canKeep).toBe(false); const preview = gatewayWorkReview(f.instance.id, leader.id);
+    f.inbox.keepWork(leader.id, { revision: preview.revision, acknowledgeMayStillRun: true, acknowledgeFreshConversation: true, acknowledgeNoReply: true });
+    const kept = structuredClone(f.inbox.list()[0]); expect(kept.dispatch).toEqual(before[0].dispatch); expect(kept.files).toEqual(before[0].files); expect(f.inbox.list()[1]).toEqual(before[1]);
+    saveGatewayInstance(f.config, f.instance.id); const late = f.accept('3'); expect(late.bindingId).toBe(leader.bindingId); expect(late.status).toBe('needs-review');
+    const fresh = f.inbox.accept({ ...gatewayInput('fresh'), accountId: f.instance.accountId })!; expect(fresh.bindingId).not.toBe(leader.bindingId); expect(f.inbox.claimNext()!.id).toBe(fresh.id);
+    expect(f.inbox.list()[0]).toEqual(kept); expect(gatewayCleanupCandidates(f.inbox.list(), Date.now() + 1000)).toEqual([]);
+  });
+
   it('dispatches all original IDs, captions and verified file batches once under one operation', async () => {
     const f = await fixture(); const originals = await f.saved();
     expect(f.inbox.claimNext()).toBeNull(); expect(f.submitted).toHaveLength(0);

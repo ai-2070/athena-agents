@@ -104,7 +104,7 @@ export async function receive(req: http.IncomingMessage, batch: string, rel: str
 }
 
 /** Browser requests and private platform streams use the same bounded, safe upload path. */
-export async function receiveSource(source: AsyncIterable<Uint8Array>, batch: string, rel: string, { declaredBytes = 0, maxBytes = Infinity, signal }: { declaredBytes?: number; maxBytes?: number; signal?: AbortSignal } = {}): Promise<UploadedFile> {
+export async function receiveSource(source: AsyncIterable<Uint8Array>, batch: string, rel: string, { declaredBytes = 0, maxBytes = Infinity, signal, reserved }: { declaredBytes?: number; maxBytes?: number; signal?: AbortSignal; reserved?: (target: string, temporary: string) => void } = {}): Promise<UploadedFile> {
   // No size limit of its own; a caller with one (a gateway's file limits) passes it.
   if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1)) throw new UploadError(400, 'Bad upload limit.');
   const limitError = () => new UploadError(413, `${path.basename(rel)} is over ${maxBytes / 1024 / 1024} MB.`);
@@ -130,11 +130,16 @@ export async function receiveSource(source: AsyncIterable<Uint8Array>, batch: st
       else done(null, chunk);
     },
   });
+  let descriptor: number | undefined;
   try {
-    await pipeline(source, count, fs.createWriteStream(tmp, { flags: 'wx' }), { signal });
+    descriptor = fs.openSync(tmp, 'wx');
+    reserved?.(target, tmp);
+    const stream = fs.createWriteStream(tmp, { fd: descriptor, autoClose: true }); descriptor = undefined;
+    await pipeline(source, count, stream, { signal });
     if (!inside(root, target) || !inside(root, tmp)) throw new UploadError(400, 'Bad upload path.');
     fs.renameSync(tmp, target);
   } catch (e) {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
     fs.rmSync(tmp, { force: true });
     fs.rmSync(target, { force: true });
     throw e;

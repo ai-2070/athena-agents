@@ -97,7 +97,7 @@ Chats open in floating windows. Drag tabs between windows, snap them side by sid
 
 ### The Outbox: nothing goes out without you
 
-When an agent needs a decision, its question lands here with the choices as buttons and a box to answer in your own words. Drafts for X and Reddit wait here too: approve, edit, talk it over with the team, or reject. Permission requests for risky steps show up under **Needs you**.
+When an agent needs a decision, its question lands here with the choices as buttons and a box to answer in your own words. Drafts for X and Reddit wait here too: approve, edit, talk it over with the team, or reject. X replies always wait for you, even with auto-post on. Permission requests for risky steps show up under **Needs you**.
 
 ![The Outbox: a question from the Market Researcher about pricing, with three choices, above X drafts waiting for approval](docs/images/outbox.png)
 
@@ -121,13 +121,13 @@ Every agent has its own instructions, knowledge, memory, model, skills, tools an
 
 ### Agent library
 
-Hire a specialist with its instructions already written. Athena's own agents are made for this app's tools (a Coordinator, an X Writer, an Image Maker, a World Builder…), and The Agency's 270+ specialists come with it. You can also use your Hermes profiles, Claude Code subagents and your own presets.
+Hire a specialist with its instructions already written. 88 agents come with the app, written for it and its tools: engineers, designers, marketers, researchers, a bookkeeper, a World Builder for the voxel world and more. Each one starts with the tools and skills its work needs, and takes on nearby work too: its role is where it's strongest, not a limit. **Add Athena team** on Home hires the starter team (a Coordinator, an X Writer, an Image Maker, a Researcher…) in one click. You can also use your Hermes profiles, Claude Code subagents and your own presets.
 
 ![The Agent library: specialists by category, with a choice of which engine they run on](docs/images/library.png)
 
 ### Tools through MCP
 
-Connect agents to programs and services with the Model Context Protocol. Add servers from a list of ready-made ones in one click, or just ask the Brain. **Suggested for this PC** points out servers for programs you already have. There are presets for browsers, GitHub, Notion, Linear, Canva, Blender, Maya, Houdini, Unity, Unreal Engine, Godot, ElevenLabs, FreeCAD, your 3D printer and many more.
+Connect agents to programs and services with the Model Context Protocol. Add servers from a list of ready-made ones in one click, or just ask the Brain. **Suggested for this PC** points out servers for programs you already have. There are presets for browsers, Cua (agents use the apps on your computer, or work in throwaway sandbox computers), GitHub, Notion, Linear, Canva, Blender, Maya, Houdini, Unity, Unreal Engine, Godot, ElevenLabs, FreeCAD, your 3D printer and many more.
 
 ![The MCP servers settings page with six servers added](docs/images/mcp.png)
 
@@ -137,6 +137,7 @@ Connect agents to programs and services with the Model Context Protocol. Add ser
 - **Routines:** work you want done again and again, run by hand or on a schedule.
 - **Programs:** the Programs page finds creative and CAD apps on your computer (Blender, Photoshop, DaVinci Resolve, GIMP, OpenSCAD…) so agents can use them. Agents run your ComfyUI workflows with their own prompts and pictures, and get the images, video, audio and 3D files back.
 - **History:** every agent, team, skill and memory keeps its last 50 versions, so any change can be undone.
+- **Built-in tools:** files (read in parts, edit, find, search), web pages as Markdown, commands, delegating to other agents, and more. Long results keep their start and end, with the whole text saved for the agent to read.
 
 The [full guide](docs/guide.md) covers all of it in detail.
 
@@ -185,8 +186,8 @@ Read [`AGENTS.md`](AGENTS.md) for the code layout, conventions and security rule
 
 Athena Agents is yours to use under either the [MIT license](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), whichever you prefer. Anything you contribute is offered under the same two licenses unless you say otherwise.
 
-Some bundled parts keep their own licenses: the skills in `skills/` and The Agency's agents in `library/agency-agents/` (each folder's `README.md` says where it's from), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos belong to their owners.
+Some bundled parts keep their own licenses: the skills in `skills/` (each folder's `README.md` says where it's from), the list of roles the Agent library started from (MIT, in `library/athena-agents/LICENSE-agency-agents`), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos belong to their owners.
 
 ## Credits
 
-Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Agent library includes specialists from [agency-agents](https://github.com/msitarzewski/agency-agents).
+Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Agent library started from the roles in [agency-agents](https://github.com/msitarzewski/agency-agents).

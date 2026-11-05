@@ -24,9 +24,20 @@ vi.mock('../../server/util.ts', async (orig) => {
       const at = args.indexOf('--append-system-prompt');
       const call = { cmd, args, env: opts.env || {}, input: '', instructions: at === -1 ? '' : fs.readFileSync(args[at + 1], 'utf8') };
       fake.calls.push(call);
-      stdin.on('data', (d: Buffer) => (call.input += String(d)));
-      stdin.on('finish', () => {
+      const print = () => {
         for (const l of fake.lines) stdout.write(`${l}\n`);
+      };
+      // RPC mode: it answers the prompt line, settles (pi: agent_settled; oh-my-pi: session_settled), and
+      // exits once its input closes
+      stdin.on('data', (d: Buffer) => {
+        const first = !call.input;
+        call.input += String(d);
+        if (first) {
+          print();
+          stdout.write(`${JSON.stringify({ type: cmd === 'omp' ? 'session_settled' : 'agent_settled' })}\n`);
+        }
+      });
+      stdin.on('finish', () => {
         stdout.end();
         stderr.end(fake.stderr);
       });
@@ -36,7 +47,7 @@ vi.mock('../../server/util.ts', async (orig) => {
   };
 });
 
-const { piArgs, piReader, parseModelTable, addBridge, mcpFile, toolText, pi, omp } = await import('../../server/engines/pi.ts');
+const { piArgs, piReader, parseModelTable, addBridge, mcpFile, toolText, pi, omp, olderThan } = await import('../../server/engines/pi.ts');
 const { newAgent } = await import('../../server/library.ts');
 const { HOME } = await import('../../server/util.ts');
 
@@ -62,17 +73,29 @@ beforeEach(() => {
 });
 
 describe('piArgs', () => {
-  it('pi: JSON events, its exact session id, the brief as a file, the effort as --thinking', () => {
+  it('pi: RPC (so a message can go in while it works), its exact session id, the brief as a file, the effort as --thinking', () => {
     const a = newAgent({ name: 'Coder', engine: 'pi', model: 'anthropic/claude-sonnet-5-5', effort: 'high' });
-    expect(piArgs('pi', a, { sessionId: 's1', instructions: 'brief.md' })).toEqual(['--mode', 'json', '--model', 'anthropic/claude-sonnet-5-5', '--thinking', 'high', '--append-system-prompt', 'brief.md', '--session-id', 's1']);
+    expect(piArgs('pi', a, { sessionId: 's1', instructions: 'brief.md' })).toEqual(['--mode', 'rpc', '--model', 'anthropic/claude-sonnet-5-5', '--thinking', 'high', '--append-system-prompt', 'brief.md', '--session-id', 's1']);
   });
-  it('oh-my-pi: resumes only a session it named, and never stops to ask about a tool', () => {
+  it('oh-my-pi: RPC too, resumes only a session it named, and never stops to ask about a tool', () => {
     const a = newAgent({ name: 'Coder', engine: 'omp', autonomy: 'ask' });
-    expect(piArgs('omp', a, { sessionId: '', resume: false })).toEqual(['--mode', 'json', '--approval-mode', 'yolo']);
-    expect(piArgs('omp', a, { sessionId: 'abc', resume: true })).toEqual(['--mode', 'json', '--resume', 'abc', '--approval-mode', 'yolo']);
+    expect(piArgs('omp', a, { sessionId: '', resume: false })).toEqual(['--mode', 'rpc', '--approval-mode', 'yolo']);
+    expect(piArgs('omp', a, { sessionId: 'abc', resume: true })).toEqual(['--mode', 'rpc', '--resume', 'abc', '--approval-mode', 'yolo']);
   });
   it('the terminal: interactive, no JSON', () => {
     expect(piArgs('pi', newAgent({ name: 'Coder', engine: 'pi' }), { interactive: true })).toEqual([]);
+  });
+});
+
+describe('olderThan', () => {
+  it('compares plain versions, and calls anything else not older', () => {
+    expect(olderThan('0.98.2', '0.99.0')).toBe(true);
+    expect(olderThan('0.80.3', '0.80.4')).toBe(true);
+    expect(olderThan('v0.99.0', '0.99.0')).toBe(false);
+    expect(olderThan('1.5.0', '0.99.0')).toBe(false);
+    expect(olderThan('0.100.0', '0.99.0')).toBe(false);
+    expect(olderThan(null, '0.99.0')).toBe(false);
+    expect(olderThan('dev', '0.99.0')).toBe(false);
   });
 });
 
@@ -147,14 +170,14 @@ describe('piReader', () => {
 });
 
 describe('a pi run', () => {
-  it('sends the message on stdin, starts and keeps its own session, and cleans up the brief', async () => {
+  it('sends the message as an RPC prompt, starts and keeps its own session, and cleans up the brief', async () => {
     fake.lines = [ev({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Fixed.' } }), ev({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Fixed.' }], stopReason: 'stop', usage: { input: 3, output: 2, totalTokens: 5, cost: { total: 0.001 } } } })];
     const chat = chatOf();
     const events: RunEvent[] = [];
     const res = await pi.run(runArgs('pi', chat, events));
     expect(res).toMatchObject({ text: 'Fixed.', tokens: 5, cost: 0.001 });
     const call = fake.calls[0];
-    expect(call.input).toBe('fix the test');
+    expect(JSON.parse(call.input)).toEqual({ id: 'prompt', type: 'prompt', message: 'fix the test' });
     expect(call.instructions).toBe('You are Coder.');
     expect(fs.existsSync(call.args[call.args.indexOf('--append-system-prompt') + 1])).toBe(false);
     // its own session id, made here and kept for the next message
@@ -170,11 +193,12 @@ describe('a pi run', () => {
     fake.lines = [ev({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'rate limited' } })];
     await expect(pi.run(runArgs('pi', chatOf(), []))).rejects.toThrow('rate limited');
   });
-  it('oh-my-pi: takes the session it names, then resumes it', async () => {
-    fake.lines = [ev({ type: 'session', id: 'omp-1' }), ev({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Hi.' }], stopReason: 'stop' } })];
+  it('oh-my-pi: asks which session it named (get_session_stats: small, unlike get_state), keeps it, then resumes it', async () => {
+    fake.lines = [ev({ type: 'response', id: 'session', command: 'get_session_stats', success: true, data: { sessionId: 'omp-1' } }), ev({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Hi.' }], stopReason: 'stop' } })];
     const chat = chatOf();
     await omp.run(runArgs('omp', chat, []));
     expect(fake.calls[0].args).not.toContain('--resume');
+    expect(fake.calls[0].input.split('\n').filter(Boolean).map((l) => JSON.parse(l) as unknown)).toEqual([{ id: 'prompt', type: 'prompt', message: 'fix the test' }, { id: 'session', type: 'get_session_stats' }]);
     expect(chat.sessionId).toBe('omp-1');
     await omp.run(runArgs('omp', chat, []));
     expect(fake.calls[1].args.slice(fake.calls[1].args.indexOf('--resume'), fake.calls[1].args.indexOf('--resume') + 2)).toEqual(['--resume', 'omp-1']);

@@ -25,7 +25,7 @@ interface RunControl {
   abort: () => void;
 }
 
-/** A step in a template: `agent` is a starter's name, matched to one of your agents when it's created. */
+/** A step in a template: `agent` is the name of one of the starter team, matched to one of your agents when it's created. */
 interface TemplateStep {
   type: string;
   agent?: string;
@@ -162,8 +162,15 @@ async function execute(wf: Workflow, run: WorkflowRun, ctl: RunControl) {
         const r = await draftPost({ platform: 'x', account: step.account as string | undefined, text, thread: parts, agentName: `Workflow: ${wf.name}`, note: `From workflow "${wf.name}"` });
         output = r.status === 'posted' ? `Posted: ${r.url}` : `In the Outbox for approval (${r.id}).`;
       } else if (step.type === 'notify') {
-        const r = await callTool(WORKFLOW_AGENT, 'notify_user', { text: renderTemplate(step.text || '{{prev}}', values), telegram: !!step.telegram }, { runId: run.id });
+        const text = renderTemplate(step.text || '{{prev}}', values);
+        const r = await callTool(WORKFLOW_AGENT, 'notify_user', { text }, { runId: run.id });
+        if (r.isError) throw new Error(r.text);
         output = r.text;
+        if (step.telegram) {
+          ctl.signal.throwIfAborted();
+          const draft = await draftPost({ platform: 'telegram', text, agentName: `Workflow: ${wf.name}`, note: `From workflow "${wf.name}". Choose a gateway recipient and approve in Outbox.` });
+          output += ` Telegram draft saved to Outbox (${draft.id}); choose its recipient and approve before it sends.`;
+        }
       } else throw new Error(`Unknown step type ${step.type}`);
       // A stopped agent answers normally (with nothing), so check again before calling the step done.
       if (ctl.stopped) throw new Error('Stopped.');

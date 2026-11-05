@@ -25,6 +25,7 @@ let sentInput = false;
 let sentFile = false;
 let handled = 0;
 const failures: Error[] = [];
+let setupWebhook = 'https://receiver.example/PRIVATE_WEBHOOK_PATH?key=PRIVATE_WEBHOOK_KEY';
 const server = http.createServer(async (request, response) => {
   try {
     const method = request.url?.split('/').at(-1) ?? '';
@@ -35,6 +36,10 @@ const server = http.createServer(async (request, response) => {
     let result: unknown;
     switch (method) {
       case 'getMe': result = { id: 999, is_bot: true, first_name: 'Athena', username: 'athena_proof_bot' }; break;
+      case 'getWebhookInfo': result = { url: setupWebhook, pending_update_count: 3, has_custom_certificate: false }; break;
+      case 'deleteWebhook': {
+        assert.deepEqual(JSON.parse(bytes.toString()), { drop_pending_updates: false }); setupWebhook = ''; result = true; break;
+      }
       case 'getUpdates': {
         if (!sentInput) {
           sentInput = true;
@@ -122,6 +127,22 @@ try {
     try { assert.ok(await reopened.isSubscribed('telegram:123')); }
     finally { await reopened.disconnect(); }
     console.log('gateways: pinned adapters load; Telegram polling, sender filter, private download, file reply and persistent subscription pass');
+    const { listProjects } = await import('../server/store.ts');
+    const { saveGatewayCredentials, saveGatewayInstance, getGatewayInstance } = await import('../server/gateways/instances.ts');
+    const { GatewayInbox } = await import('../server/gateways/inbox.ts');
+    const { checkTelegramSetup, switchTelegramToPolling, telegramSetup, requireTelegramSetupReviewed } = await import('../server/gateways/telegram-setup.ts');
+    const config = { name: 'Telegram setup proof', platform: 'telegram', accountId: '999', projectId: listProjects()[0].id, target: { kind: 'brain' }, senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] }, fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
+    const instance = saveGatewayInstance(config); saveGatewayCredentials(instance.id, { botToken: 'fixture' }); const setupState = new GatewayStateAdapter(instance.id); await setupState.connect();
+    try {
+      const inbox = new GatewayInbox(setupState); const before = JSON.stringify(inbox.list()); const start = calls.length;
+      const check = await checkTelegramSetup(setupState, { testOrigin: apiUrl }); assert.equal(check.check!.host, 'receiver.example'); assert.ok(check.revision); assert.ok(!JSON.stringify(check).includes('PRIVATE_WEBHOOK'));
+      assert.equal(calls.includes('deleteWebhook'), false);
+      const switched = await switchTelegramToPolling(setupState, { revision: check.revision, acknowledgeStopped: true, acknowledgeKeepUpdates: true }, { testOrigin: apiUrl });
+      assert.equal(switched.attempt!.state, 'confirmed'); assert.equal(switched.check!.webhook, false); assert.equal(switched.check!.pendingUpdates, 3); assert.equal(getGatewayInstance(instance.id).enabled, false);
+      await setupState.disconnect(); await setupState.connect(); assert.equal(telegramSetup(instance.id).attempt!.state, 'confirmed'); requireTelegramSetupReviewed(instance.id);
+      assert.equal(JSON.stringify(inbox.list()), before); assert.ok(calls.slice(start).every((method) => ['getMe', 'getWebhookInfo', 'deleteWebhook'].includes(method))); assert.equal(calls.filter((method) => method === 'deleteWebhook').length, 1);
+      console.log('gateways: explicit paused Telegram switch keeps pending updates and private receipts across restart without polling or sends');
+    } finally { await setupState.disconnect(); }
   } finally { clearTimeout(timeout); }
 } finally {
   await chat?.shutdown();

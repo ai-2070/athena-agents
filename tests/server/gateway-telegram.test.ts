@@ -16,6 +16,7 @@ import { GatewayReplies } from '../../server/gateways/replies.ts';
 import { gatewayConversation } from '../../server/gateways/conversations.ts';
 import { selectGatewayDocuments } from '../../server/gateways/outgoing.ts';
 import { ensureBrain } from '../../server/projects.ts';
+import { GatewayOutboxLedger } from '../../server/gateways/outbox.ts';
 
 const quiet: Logger = { child: () => quiet, debug() {}, info() {}, warn() {}, error() {} };
 const cleanups: (() => Promise<void>)[] = [];
@@ -78,6 +79,21 @@ async function fixture(options: { webhook?: string; wrongBot?: boolean; failComm
 }
 
 describe('Telegram durable intake', () => {
+  it('sends approved Outbox parts through the selected bot without changing native work or permitting reuse', async () => {
+    const f = await fixture(); f.batches.push([update(1)]); await f.chat.initialize(); await expect.poll(() => f.inbox.list().length).toBe(1);
+    const signal = new AbortController().signal; const event = f.inbox.claimNext()!;
+    f.inbox.beginDispatch(event.id, event.operationId!, await gatewayConversation(event, signal)); f.inbox.finishDispatch(event.id, event.operationId!, 'Native answer');
+    f.inbox.claimReply(); f.inbox.settleReply(event.id, 0, { remoteId: 'already-confirmed' }); const native = fs.readFileSync(f.state.inboxFile(), 'utf8');
+    const ledger = new GatewayOutboxLedger(f.state, f.inbox); const preview = ledger.prepare({ instanceId: f.instance.id, projectId: f.instance.projectId, postId: 'approved-post', eventId: event.id, parts: ['Approved follow-up 😀', 'Second part'] }); ledger.approve(preview.approval);
+    const replies = new GatewayReplies(f.inbox, (input, text, abort, approved) => f.adapter.replyText(input, text, abort, approved), signal, () => true, undefined, ledger);
+    cleanups.push(() => replies.stop()); await replies.wake(); await replies.wake();
+    const sends = f.calls.filter((call) => call.method === 'sendMessage'); expect(sends.map((call) => JSON.parse(call.body).text)).toEqual(preview.approval.parts);
+    for (const call of sends) expect(JSON.parse(call.body)).toMatchObject({ chat_id: '123', reply_parameters: { message_id: 1 }, link_preview_options: { is_disabled: true } });
+    expect(ledger.list()[0].receipts.every((part) => part.status === 'sent')).toBe(true); expect(fs.readFileSync(f.state.inboxFile(), 'utf8')).toBe(native);
+    const saved = f.inbox.list()[0]; await expect(f.adapter.replyText(saved, 'Approved follow-up 😀', signal, { authorize: (input, text) => ledger.authorize({ projectId: f.instance.projectId, postId: 'approved-post', index: 0, attempt: 1, event: saved, text: 'Approved follow-up 😀' }, input, text) })).rejects.toMatchObject({ outcome: 'failed' });
+    expect(f.calls.filter((call) => call.method === 'sendMessage')).toHaveLength(2);
+  });
+
   it('uploads explicitly selected, verified bytes as a document after the text reply', async () => {
     const f = await fixture(); f.batches.push([update(1)]); await f.chat.initialize();
     await expect.poll(() => f.inbox.list().length).toBe(1);

@@ -20,10 +20,10 @@ export function gatewayAlbumCandidates(events: GatewayInboxEvent[], event: Gatew
 
 /** Advisory notices do not hold work; model holds and unresolved deliveries need review. */
 export function gatewayNeedsReview(event: GatewayInboxEvent): boolean {
-  if (event.dismissed) return false;
+  if (event.dismissed || event.workKept) return false;
   const unresolved = (status: string) => status === 'failed' || status === 'uncertain';
   return event.status === 'needs-review' || Boolean(event.files?.some((file) => file.status === 'failed')
-    || event.reply?.parts.some((part) => unresolved(part.status)) || event.outgoing?.some((file) => unresolved(file.status)));
+    || (!event.deliveryFinished && (event.reply?.parts.some((part) => unresolved(part.status)) || event.outgoing?.some((file) => unresolved(file.status)))));
 }
 
 /** An operation reservation is already ambiguous, even without a dispatch receipt. */
@@ -33,11 +33,12 @@ export function gatewayRequestUnstarted(event: GatewayInboxEvent): boolean {
 }
 
 function settled(event: GatewayInboxEvent): boolean {
+  if (event.workKept) return false;
   if (event.dismissed) return true;
   return event.status === 'done' && (!event.dispatch || event.dispatch.state === 'completed')
-    && (!event.reply || event.reply.parts.every((part) => part.status === 'sent'))
+    && (event.deliveryFinished || !event.reply || event.reply.parts.every((part) => part.status === 'sent'))
     && (!event.files || event.files.every((file) => file.status === 'saved'))
-    && (!event.outgoing || event.outgoing.every((file) => file.status === 'sent' || file.status === 'skipped'))
+    && (event.deliveryFinished || !event.outgoing || event.outgoing.every((file) => file.status === 'sent' || file.status === 'skipped'))
     && Object.values(event.notices || {}).every((notice) => notice.status !== 'sending');
 }
 const source = (event: GatewayInboxEvent) => JSON.stringify([event.input.accountId, event.input.conversationId, event.input.threadId, event.input.sourceMessageId]);

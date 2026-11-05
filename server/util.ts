@@ -224,6 +224,31 @@ export function clearWhichCache() {
   whichCache.clear();
 }
 
+/** A shell that runs one command and exits: its program, its name for people, and its arguments. */
+export interface CommandShell {
+  exe: string;
+  name: string;
+  args: (command: string) => string[];
+}
+
+/** PowerShell 7 (pwsh) when it's installed. Otherwise Windows PowerShell on Windows, and bash (else sh)
+ *  on macOS and Linux, where `powershell` usually doesn't exist. No profiles or prompts in any of them. */
+export function pickShell(win: boolean, find: (cmd: string) => string | null): CommandShell {
+  const pwsh = find('pwsh');
+  const ps = (exe: string, name: string): CommandShell => ({ exe, name, args: (c) => ['-NoProfile', '-NonInteractive', '-Command', c] });
+  if (pwsh) return ps(pwsh, 'PowerShell 7');
+  if (win) return ps(find('powershell') || 'powershell', 'Windows PowerShell');
+  const bash = find('bash');
+  if (bash) return { exe: bash, name: 'bash', args: (c) => ['--noprofile', '--norc', '-c', c] };
+  return { exe: find('sh') || '/bin/sh', name: 'sh', args: (c) => ['-c', c] };
+}
+
+let shellCache: CommandShell | null = null;
+/** The shell run_command uses on this PC, picked once. */
+export function commandShell(): CommandShell {
+  return (shellCache ??= pickShell(IS_WIN, which));
+}
+
 /** What an npm (or pnpm) .cmd shim runs: node and the package's script, read from the shim. Null for
  *  any other .cmd, or when the script or node isn't there. */
 export function shimTarget(shim: string): { command: string; args: string[] } | null {
@@ -479,6 +504,14 @@ export async function ping(url: string, timeout = 1500): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Like truncate, but keeps the start and the end: a command's error is usually at the end. */
+export function truncateMiddle(s: unknown, n = 20000): string {
+  const str = String(s ?? '');
+  if (str.length <= n) return str;
+  const head = Math.ceil(n * 0.6);
+  return `${str.slice(0, head)}\n…[${str.length - n} characters left out here]…\n${str.slice(str.length - (n - head))}`;
 }
 
 export function truncate(s: unknown, n = 20000): string {

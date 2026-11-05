@@ -36,6 +36,18 @@ Claude Code and Codex receive dashboard tools through an MCP bridge; API-model a
 
 pi and oh-my-pi run their own tools (files, shell, edits) without asking, whatever the agent's autonomy says. OpenClaw follows its own approval settings. Each chat keeps its own pi, oh-my-pi or OpenClaw session. OpenClaw goes through its Gateway when it is running; otherwise it answers on this PC.
 
+Claude Code, Codex, pi, oh-my-pi, Hermes and OpenClaw have their own tools for files and commands, so they don't also get the dashboard's **Files** and **Shell** tools: those two switches are for API-model agents. Every other dashboard tool reaches them as usual. Codex gets the dashboard's tools without the bridge's key on its command line; with Codex 0.136 or later, the keys of your MCP servers go in its environment instead, hidden from the commands it runs.
+
+## Built-in tools
+
+- **Files** (API-model agents): `read_file` reads a long file in parts and several files in one call. `edit_file` changes part of a file without writing all of it again. `find_files` finds files by name (`*.md`, `notes/**/*.txt`), and `search_files` finds the lines that match. They stay inside the agent's workspace and the folders you allow, and never follow links out of them.
+- **Browser:** `fetch_url` returns a page as Markdown, in parts of up to 50,000 characters. The next part comes from a copy kept for ten minutes, not a new download.
+- **Shell:** `run_command` uses PowerShell 7 when it is installed, otherwise Windows PowerShell on Windows and bash (or sh) on Mac and Linux. Long output keeps its start and its end, where errors usually are.
+- **Delegate:** `await_agent` can wait for several helpers at once, until the first is done or all of them. `ask_agent` can wait for a quick answer in the same call.
+- **Long results:** a tool result longer than **Settings → General & keys → Context → Longest tool result** (24,000 characters by default) reaches the agent with its start and its end. The whole text is saved in `outputs/tool-results` for a week, where the agent can read the rest. Tools that already read in parts, and task lists, are not shortened.
+- **Board and gateway tools** show up only in the conversations they work in: a Tasks board task, or a gateway conversation.
+- **Tool stats:** the dashboard counts how each tool is used (calls, errors, time and result size) in `data/tool-stats.json`. The numbers stay on this computer.
+
 ## Venice models
 
 In **Settings → General & keys → API keys**, save a Venice inference key from [Venice API settings](https://venice.ai/settings/api). **Test** checks the saved key without generating an answer. It shows access, expiration and any available USD, DIEM and bundled-credit balances separately. A valid key can still have blocked access or no credits. Remove or replace the key in the same row. Keys stay in the server's secret store and are excluded from project folders and backups.
@@ -61,7 +73,7 @@ The Station's usage readout shows available Venice balances separately from Clau
 
    > Build a small team to review this project's docs. Have one agent find confusing setup steps and another suggest clearer wording. Do not change files yet.
 
-3. **Review the agents and their access.** Check their models, instructions, tools and work folders. In an agent's editor, choose an emoji for its icon or type your own. You can also add a ready-made agent from the **Agent library** instead of asking the Brain to build one.
+3. **Review the agents and their access.** Check their models, instructions, tools and work folders. In an agent's editor, choose an emoji for its icon or type your own. You can also add a ready-made agent from the **Agent library** instead of asking the Brain to build one. Each comes with its instructions, tools and skills, and is told that its role is where it's strongest, not a limit: it takes on nearby work it can do well and asks for a tool it doesn't have (see **Agents ask for tools**).
 4. **Follow the work.** Click a team or agent on the Station to open its panel and chat. Team chats show the conversation and handoffs; individual chats let you work with one agent directly.
 5. **Handle anything waiting on you.** Check **Needs you** for permissions and **Outbox** for agents' questions and outgoing drafts. Results that agents save as artifacts appear in **Artifacts**; files they create stay in their work folders.
 
@@ -92,8 +104,9 @@ Type **/** in an agent, team or Brain chat to see the commands. They work while 
 - `/queue <message>` lines up your next message. It waits above the box and goes once the work going on now is done, one at a time. In a team chat that is when the whole team is done; in Brain chat, when the Brain and anything it handed on are done. **×** takes one back. If nothing is working it goes right away. You can change a queued message before it goes: click it, or press **Up** in an empty box for the last one (Enter keeps the change, Esc drops it). Drag one, or use **Alt+Up** / **Alt+Down**, to change the order.
   Agent and team queues survive a restart, including edits, order and files. Unfinished work pauses for you to check what was done. Use `/resume` or send an ordinary message to continue; the saved queue follows. Teams keep who was assigned each message and how far each member had read. A member that already finished supplies its saved result without running again. Requests between teams stay saved too; resume the receiving team to continue a paused request. **Stop** takes back the saved queue. Delegated tasks keep their handles and saved answers for six hours across restarts. API-model tasks whose saved turns can resume keep the same handle open until their final answer is ready; an interrupted task reports that it could not finish instead of starting again by itself.
 - **Changing course while it works.** The button under the paperclip is **Stop** while something works and the box is empty, and **Send** once you type. A message you send then doesn't wait, and queued messages keep waiting:
-  - In an agent chat, the agent stops what it is doing and takes your message up right away, carrying on from what it did so far. A `/goal` and a `/loop` carry on too. If the agent is slow to stop, your message waits at the top of the queue and goes the moment it has. Not while the agent works for a team or another agent (they wait on its answer): `/queue` your message instead.
-  - In a team chat, whoever is working stops and takes it up, unless you @mention someone else.
+  - In an agent chat, an agent on an API model, Claude Code, pi or oh-my-pi doesn't stop: it reads your message between its steps and carries on with it. Your message shows inside its turn, marked "Read while it worked". If it was already writing its final answer, it finishes that and then answers your message too. Until a Claude Code, pi or oh-my-pi agent has read it, your message waits at the top of the queue marked "Sent": **Stop** gives it back like any queued message, and if the agent finishes without reading it, it goes next as its own message. Other agents (Codex, Hermes, OpenClaw) stop what they are doing and take your message up right away, carrying on from what they did so far. A `/goal` and a `/loop` carry on too. If the agent is slow to stop, your message waits at the top of the queue and goes the moment it has. Not while the agent works for a team or another agent (they wait on its answer): `/queue` your message instead.
+  - In a team chat, whoever is working takes it up, unless you @mention someone else or reply to a message. Agents on an API model, Claude Code, pi or oh-my-pi read it without stopping, and answer it in their reply. The others stop: their stopped turn stays in the thread with its steps open, under a quiet "Stopped to take your new message" line.
+  - An agent that stops keeps what it did before the stop and is told its last turn was cut off, so it builds on that work instead of starting over.
   - In Brain chat, the answer the Brain is writing stops (it changes nothing) and your new message is answered now; the Brain still knows what you asked before. Agents and teams it handed work to carry on. An answer that was already carrying out what it decided still finishes, and shows in the chat. A message to a team from Brain chat changes that team's course the same way.
 - `/stop` stops the work, like the **Stop** button. Queued messages come back to the box instead of being sent. In Brain chat it also stops the agents and teams the Brain handed work to, and an answer it was still writing changes nothing.
 - `/resume` picks up work that was stopped: the agent carries on where its turn was cut off, a team's interrupted agents start again (also after a restart or the team paused at its turn limit), and in Brain chat what the last `/stop` cut off.
@@ -206,11 +219,13 @@ By default, the Brain only installs from GitHub repos **you named in Brain chat*
 
 The Brain starts with a **Self-improvement** skill. After substantial agent work, it can review the outcome and save a useful workflow as a skill, improve an existing skill or assign one where it is needed. Changes are reported in Brain chat. The review is limited to skills and cannot change the Brain's own skills. Remove Self-improvement from the Brain on the Skills page to turn it off.
 
-The library also comes with the **storytold skills** ([hermes-pro/storytold-skills](https://github.com/hermes-pro/storytold-skills)), one per [storytold Crafting App](https://github.com/storytold): VectorCraft, PhotoCraft, LightCraft, EffectCraft, FilmCraft, DesignCraft, PdfCraft, WordCraft, GridCraft, DeckCraft, SoundCraft, CADCraft and FigCraft. Two more come with them: **storytold** picks the right app for a creative task, and **storytold-install** installs the apps and sets up their MCP servers. They aren't given to anyone until you assign them. Delete the ones you don't want; they stay deleted. **Download again** gets the latest version from GitHub. When a Crafting App's MCP server is set up, the map's **Connected to** row shows it with the app's own icon.
+The library also comes with the **storytold skills** ([hermes-pro/storytold-skills](https://github.com/hermes-pro/storytold-skills)), one per [storytold Crafting App](https://github.com/storytold): VectorCraft, PhotoCraft, LightCraft, EffectCraft, FilmCraft, DesignCraft, PdfCraft, WordCraft, GridCraft, DeckCraft, SoundCraft, CADCraft, FigCraft, SolidCraft (3D parts, from Tangency Labs), MaterialCraft, TextureCraft and Craft Anything. Two more come with them: **storytold** picks the right app for a creative task, and **storytold-install** installs the apps and sets up their MCP servers. They aren't given to anyone until you assign them. Delete the ones you don't want; they stay deleted. **Download again** gets the latest version from GitHub; skills added in a newer version of the dashboard show up in the library by themselves. When a Crafting App's MCP server is set up, the map's **Connected to** row shows it with the app's own icon.
 
 Two more sets come with it, for connecting agents to your accounts and apps: the **OOMOL skills** ([oomol-lab/oo-cli](https://github.com/oomol-lab/oo-cli)): **oo**, which reaches your connected accounts, OOMOL's hosted AI and Open Flow workflows, plus **oo-find-skills**, **oo-create-skill** and **oo-publish-skill**; and the **Composio skill** ([ComposioHQ/skills](https://github.com/ComposioHQ/skills)), **composio**, which uses more than 1,000 apps through the Composio command line tool. Both need their command line tool (`oo` or `composio`), which isn't part of the dashboard. They work the same way: not given to anyone until you assign them, and deleted ones stay deleted.
 
 The **Orca skills** ([stablyai/orca](https://github.com/stablyai/orca)) come with it too, for agents working inside [Orca](https://github.com/stablyai/orca): **orca-cli** (worktrees, terminals and Orca's browser), **orchestration** (several Orca agents working together), **computer-use** (clicking and typing in an app window), **orca-linear**, **orca-jira** and **jira-tickets** (Linear and Jira tickets), **orca-emulator** and **orca-emulator-android** (iOS and Android emulators) and **orca-per-workspace-env** (a fresh sandbox for each workspace). Each one loads its full guide from the installed Orca app, so they need Orca. Same rules: not given to anyone until you assign them, and deleted ones stay deleted.
+
+The **Cua skills** ([trycua/cua](https://github.com/trycua/cua)) give agents eyes and hands on a computer: **cua-driver** (see and use the apps on your computer: read a window, click, type, pick menu items, mostly in the background), **cua-sandboxes** (make a throwaway Linux or macOS computer on your PC, work and browse the web in it, then delete it) and **gui-automation** (look, click, type and check again on a sandbox's screen). They need Cua's command line tools (`cua-driver` for the first, `cua` for the other two), which aren't part of the dashboard; the matching ready-made MCP servers are **Control this computer (Cua Driver)** and **Sandbox computers (Cua)** (see **MCP servers**). Same rules: not given to anyone until you assign them, and deleted ones stay deleted.
 
 **Athena's own skills** come with it too, written for the dashboard so they work on every engine and on Windows. They cover coding (**systematic-debugging**, **test-driven-development**, **spike**, **requesting-code-review** for a check before you commit, **github**, **dogfood** for testing a web app, **ast-grep**, **grill-me**, **rest-graphql-debug**, **docker-management**, **jupyter-notebook**, **fastmcp** for MCP servers), documents and finance (**pdf**, **docx**, **xlsx**, **powerpoint**, **financial-models**, **stocks** for market data and SEC filings), research (**arxiv**, **grounded-citations**, **llm-wiki**, **rss-feeds**, which also reads Reddit without an account, **youtube-content**, **maps**), everyday work (**email**, **action-items**, **weekly-review-planning**, **decisions**), **humanizer**, **comfyui**, and **learn**, which `/learn` uses to turn a source into a skill. Some run Python scripts that come with them, which need Python 3.10 or newer and the packages the skill names; the agent asks before installing anything. They replace the copies of Hermes Agent's skills that used to come with it (`skills/athena/README.md` says where each one went). Same rules: not given to anyone until you assign them, and deleted ones stay deleted.
 
@@ -240,11 +255,11 @@ Each project can have its own background picture behind the map: click the Brain
 - **Agents build near their team.** Builds pinned to a team move with it when you drag its platform. One build call changes at most 250,000 voxels and places 2,000 copies; a world holds up to 4 million voxels and 20,000 copies, and one object or prefab can show at most 20,000 copies, counting copies inside copies.
 - **Light, weather and life.** Glowing voxels (lanterns, windows, signs, headlights) light up what is around them. Builders can also put up lights (a doorway's warm spill, a spotlight, a flickering fire), set the time of day, sky, fog, weather and wind, and add particles in an area: petals, leaves, snow, rain, fireflies, embers, sparks, smoke, steam, mist, dust, birds. Finishing touches put snow on every ledge the sky can see, moss and vines on old walls, and wear near the ground.
 - **Agents take a form in the world.** An agent can be dressed in a voxel form of its own: a person, an animal, a tree, a lamp, anything a builder makes, with a desk if it wants one. Builders design its animations themselves (keys per part: an arm that types, a crown that sways, a crystal that spins) and pick which plays while the agent is idle, working or waiting for you; they can also play one once, like a cheer when work is done. Team platforms and the Brain can be dressed too. For the sake of the picture, a builder can also take an agent, a platform or the Brain off the map (and their name labels): they keep working, and the side panel and Agents page still open them. Dressing yourself or your own team needs no OK; anyone else, or the Brain, asks you first.
-- **Voxel size** is per object and can change in the middle of a build: coarse for ground, fine for small props and characters. Builders give sizes and positions in map units (the same numbers `world_info` and the team's plans use), whatever the voxel size; `world_steps` lists every build step there is. For anything repetitive or procedural (a lane of cottages that each differ, trees that branch, terrain from noise), `world_script` lets a builder write a small JavaScript program instead. It runs sealed off from your computer (no files, no network, at most 20 seconds) and builds through the same steps, so the same limits, undo and all-or-nothing apply.
+- **Voxel size** is per object and can change in the middle of a build: coarse for ground, fine for small props and characters. Builders give sizes and positions in map units (the same numbers `world_info` and the team's plans use), whatever the voxel size; `world_steps` lists every build step there is. For anything repetitive or procedural (a lane of cottages that each differ, trees that branch, terrain from noise), a builder can give `world_build` a small JavaScript program instead of steps. It runs sealed off from your computer (no files, no network, at most 20 seconds) and builds through the same steps, so the same limits, undo and all-or-nothing apply.
 - **The World panel.** The globe button above the zoom buttons (voxel look only) opens it: **WORLD.md** (read, edit, history and restore), **Built** (objects by builder with Hide and Delete, prefabs and where they are used, recent changes and *Undo the last change*), **Look** (time of day, weather, glow, miniature blur, lights and effects, and who is off the map, with *Show on the map*), and **World** (below). The project menu's **Voxel world…** opens the world picker in any look.
 - **Builders look at their work.** `world_look` gives an agent a picture of the whole world or one thing in it, from any angle, made by an open Station page in the voxel look. When the Station is in the classic look, the agent asks you first: **Turn on the voxel look** in Needs you switches it (only you can answer that; the Brain's approvals don't). Without a picture it gets a map in words, and is told why so it can ask you. You can also ask the Brain to turn the voxel look on or off. `world_info` tells builders where every team platform and desk stands, with the same numbers the Station draws. New builds rise into place, with a beam from the builder's desk.
 - **Files in and out.** Builders can bring in MagicaVoxel `.vox` models (as prefabs or objects) and save an object, a prefab or the whole world as a `.glb` 3D model (for Blender, game engines, the web) or a `.vox` file. The World panel has the same exports and a **Save a picture** button; all of them go to **Artifacts** and the project folder's `exports/`. Good prefabs can be shared with every project through the **prefab library** (World panel › Built › Library).
-- **Undo.** An agent can undo its own last change (`world_undo`). Changing or deleting what someone else built asks you first (unless the agent's autonomy is Full).
+- **Undo.** An agent can undo its own last change (`world_undo`). Changing or deleting what someone else built asks you first (unless the agent's autonomy is Full). So does changing a material other builders used (colours are shared by the whole world), rebuilding a prefab others placed copies of, and publishing to the prefab library under a name someone else published there.
 - **One world per project, and it carries over.** A project with nothing built yet shows the world you marked as the default, or else the most recently built one. In the World panel's **World** tab you can share another project's world (both build in it), start from a copy, start a new empty one, go back to carry-over, mark the default, rename a world, and delete one no project uses. Its first change (a build, a move, the weather) gives it its own copy, so the other project's world stays as it was; a change that fails or finds nothing to do leaves it carrying over. The world goes into the project's folder (`.dashboard/world/`) and into backups; a restored backup, a clone or the same folder opened as a second project gets its own copy (unless it was shared).
 
 ## Routines: work worth repeating
@@ -275,7 +290,7 @@ When several members are assigned the same message, each is told who else has it
 
 **How long a team keeps going.** Agents keep handing work to each other until the work is done or you press **Stop**. There is no limit on turns. Only chatter pauses a team: when 8 replies in a row are only talk (no tool used, a short reply), like two agents passing the work back and forth, the team stops and says so. Reply, mention someone or use `/resume` to keep going.
 
-- **A team gets the tools its work needs.** Agents from the Agent library's Agency only get the tools their job title suggests, so the Brain gives the team the rest: **Social** when it posts or messages anywhere (X, Reddit, Telegram, Discord; posts wait in the Outbox for your OK), the voxel world tools when it builds the world, and the image, 3D or video tools for that work. A team whose name or goal mentions posting or the voxel world gets them even if the Brain forgets; if you take a tool away from a team, it stays away. Every agent can hand in finished results to **Artifacts**.
+- **A team gets the tools its work needs.** Each agent from the Agent library comes with the tools its own role needs, and the Brain gives the team what else its work needs: **Social** when it posts or messages anywhere (X, Reddit, Telegram, Discord; posts wait in the Outbox for your OK), the voxel world tools when it builds the world, and the image, 3D or video tools for that work. A team whose name or goal mentions posting or the voxel world gets them even if the Brain forgets; if you take a tool away from a team, it stays away. Every agent can hand in finished results to **Artifacts**.
 - **Ask the Brain from a team chat.** Anyone in a team chat, an agent or you, can write **@Brain** to ask a question or say they're stuck. The Brain answers in the thread and may pass work to a teammate. An agent's request can't make it change agents, teams, skills, routines or settings (an agent asks for tools with `request_tool` instead, below): when the team needs something only you can give, such as an account, a teammate or a decision, the Brain tells you in Brain chat.
 - **Teams ask each other.** In a team chat, an agent or you can write **#Team Name** (type **#** to pick one) to ask another team in the same project. The message goes to that team's chat, marked with the team it came from and who asked, and is answered there like a message from you. Once that team is done, its last reply comes back to the team that asked, to the agent that asked, who carries on. When you write it, nobody on your own team starts unless you also @mention them. A team asks other teams at most 4 times per message you send, and teams asking teams stops 3 deep. If the team you asked is stopped, the team that asked is told.
 - **The Brain follows up.** Direct assignments and work handed out by the Brain are checked automatically after each turn. Greetings and simple questions aren't treated as assignments. Missing work gets a concrete next step, without requiring you to type a command. Completion and blockers are separate: only delivered work is called finished. A blocker or repeated lack of progress creates an actionable question in **Needs you**. Direct assignments report in their chat; work handed out by the Brain reports in Brain chat. Turn ordinary checks off with **The Brain follows up** under **Settings → The Brain's model**; explicit `/goal` requests still get checked. Existing approval rules and Outbox review still apply.
@@ -292,7 +307,7 @@ The Brain changes models or stops work only when you ask.
 
 The Brain can set up MCP servers and decide who gets them, the same as **Settings → MCP servers**.
 
-- **Add one.** "Add the Playwright browser and give it to the Researcher." The Brain prefers the ready-made servers and the ones it finds in your Claude Code or Claude Desktop settings. For any other server, give it the exact command or link: "Add the weather server: `npx -y @acme/weather-mcp`". Ready-made servers that need a key (Brave Search, Firecrawl, ElevenLabs, Tripo, Meshy, Sketchfab, Unsplash, Pixabay, Pexels, Topaz, OOMOL, Composio) are added with the key you type in the chat: "Add Brave search, my key is …". The Brain asks for it if you leave it out, and tells you any setup step outside the dashboard (the ones that control an open program, such as Unity, Maya, Houdini, Substance 3D Painter, GIMP, Krita, Audacity, REAPER, MuseScore, OBS, FreeCAD and Rhino, need something turned on or installed in that program). The services' own servers need no key at all: Notion, Linear, Jira and Confluence, developer services (GitLab, Sentry, Vercel, Netlify, Cloudflare, Supabase…), Canva, Freepik and the others open a browser window to sign in the first time they run. A second account of one of these signs in on its own. The docs, search and travel ones (DeepWiki, Microsoft and AWS docs, Wolfram|Alpha, Kiwi.com flights, trivago hotels) need nothing. The 3D printer server needs your printer's type, address and key, and asks before it prints. The Audacity server works with Audacity 3 only.
+- **Add one.** "Add the Playwright browser and give it to the Researcher." The Brain prefers the ready-made servers and the ones it finds in your Claude Code or Claude Desktop settings. For any other server, give it the exact command or link: "Add the weather server: `npx -y @acme/weather-mcp`". Ready-made servers that need a key (Brave Search, Firecrawl, ElevenLabs, Tripo, Meshy, Sketchfab, Unsplash, Pixabay, Pexels, Topaz, OOMOL, Composio) are added with the key you type in the chat: "Add Brave search, my key is …". The Brain asks for it if you leave it out, and tells you any setup step outside the dashboard (Cua Driver and Cua's sandbox computers need Cua's command line tools installed, and the sandboxes need Docker; the ones that control an open program, such as Unity, Maya, Houdini, Substance 3D Painter, GIMP, Krita, Audacity, REAPER, MuseScore, OBS, FreeCAD and Rhino, need something turned on or installed in that program). The services' own servers need no key at all: Notion, Linear, Jira and Confluence, developer services (GitLab, Sentry, Vercel, Netlify, Cloudflare, Supabase…), Canva, Freepik and the others open a browser window to sign in the first time they run. A second account of one of these signs in on its own. The docs, search and travel ones (DeepWiki, Microsoft and AWS docs, Wolfram|Alpha, Kiwi.com flights, trivago hotels) need nothing. The 3D printer server needs your printer's type, address and key, and asks before it prints. The Audacity server works with Audacity 3 only.
 - **Suggestions.** Settings → MCP servers starts with **Suggested for this PC**: the ready-made servers for programs found on your PC (Blender, Maya, GIMP, OBS, Unity…) and a few that help most agents (web fetch, library docs). When the Brain builds a team or agent that would use one of them, it says which and why and offers to add it. It adds a server only when you say yes: each one runs a program from its maker on your PC.
 - **Change one.** Change its command, link, keys, description or name, or turn it off and on. A new name is updated on every agent and team that has the server.
 - **Several accounts of one service.** "Add a second OOMOL for my client work." Another account of a server you already have needs a label and a line saying what it is for; the Brain asks you for both, and for the line of the one you already have. It gives an agent or team the account whose line fits its work. It gives one agent two accounts of the same service only when its work spans both (an assistant for your work and your personal mail), and only when each account says what it is for; otherwise it swaps one for the other. When none fits, it asks you. The agent is told which account is which and says which one it used, and an approval names the account (**… on OOMOL: Work**). While an agent works for a team, the team's account of a service takes the place of the agent's own. On **Settings → MCP servers**, **Add another** on a preset does the same, and **Same service as** in a server's settings joins one you added by hand to a service (**Its own service** keeps one apart that only looks like a ready-made one). Renaming a server keeps it with its other accounts.
@@ -322,6 +337,8 @@ Agents use some of them directly when you switch on that tool group for the agen
 
 Running Maya or Houdini Python, ffmpeg or ImageMagick counts as running code or overwriting files, so you are asked first unless autonomy is Full. So does sending pictures to a ComfyUI on another computer; to a ComfyUI on this one, the agent only sends files from its workspace and the folders you allow. The texture, asset, OpenSCAD, slicing and HandBrake tools only read and write in the agent's workspace and the folders you allow.
 
+The ffmpeg, HandBrake and ImageMagick tools work in the agent's workspace, so a relative path lands there, and ffmpeg is told never to overwrite a file it didn't make. Agents on any engine can look at a picture with **View a picture** (in the Files tools): a PNG, JPEG, WebP or GIF up to 5 MB in folders they may use. **ComfyUI** results list the seeds used, so a good picture can be made again; when a workflow has no negative prompt, the agent is told its negative wasn't used. Workflows and outputs from the newer Comfy Desktop app are found too.
+
 For live control of an open program, add its MCP server, for example Maya, Houdini, Substance 3D Painter, GIMP, Krita, Audacity, REAPER, OBS, FreeCAD, Rhino or your 3D printer. Each one says what to turn on in the program first.
 
 Some sites and programs can't be connected because they have no API or MCP server: Envato Elements, ArtStation, 1001 Fonts, Poliigon and Luminar Neo. Mesh2Motion works in the browser at mesh2motion.org; the Programs page finds its desktop app.
@@ -336,9 +353,11 @@ The context meter uses the engine's last measurement when available, otherwise a
 
 Eve turns survive an app restart, including saved approvals and questions. Stop ends the native session. Queued messages remain saved. Private runtime files stay on this computer and are excluded from project copies, backups and exports.
 
+An API-model agent's instructions stay the same for a whole turn, so the model provider can reuse them from its cache at every step. A note the agent adds to MEMORY.md or WORLD.md during a turn is in its instructions from the next message; the tool's result already tells the agent what changed.
+
 If a tool may have made changes before failing, the run pauses and a **Check the outcome** request stays in **Needs you**, including after a restart. Check what happened, then allow the request to mark the check done. This does not repeat the tool or resume the interrupted run.
 
-Clear memory retires the old session; if a turn is still answering, the reset takes effect again when it finishes. Deleting a chat removes its searchable originals and tool images. Retired native records remain in private app data on this computer, including prior inputs and tool outcomes, until that app data is removed. They cannot run again and are never copied into a project or backup. Changing engines or installing an incompatible Eve update also retires old sessions. An update interrupts unfinished work for you to review before starting a fresh turn.
+Clear memory retires the old session; if a turn is still answering, the reset takes effect again when it finishes. Deleting a chat removes its searchable originals and tool images. Retired native records remain in private app data on this computer, including prior inputs and tool outcomes. They cannot run again and are never copied into a project or backup. Eve removes a turn's private records 30 days after it ended, once everything it did is in the chat and nothing in it waits for you: no approval, question or **Check the outcome** request. The chat keeps its messages and tool results. Changing engines or installing an incompatible Eve update also retires old sessions. An update interrupts unfinished work for you to review before starting a fresh turn.
 
 Very long chats still scroll smoothly: from 50 messages on, the chat page and the floating window only draw the messages near what you see, so the floating window can show the whole chat too. Because of this, your browser's Find (Ctrl+F) only finds text in the messages near where you have scrolled.
 
@@ -363,15 +382,15 @@ Very long chats still scroll smoothly: from 50 messages on, the chat page and th
 | **Auto** (default) | For high-risk actions, such as shell commands, scripts and sending messages. |
 | **Full** | Tool approvals are skipped. Use only when you trust the agent and its access. |
 
-Agents can't fetch the dashboard's own pages, so a web page can't lead them to your settings. The Tools & MCP page shows saved keys as dots; leave the dots when you edit a server to keep its key.
+Agents can't fetch the dashboard's own pages, so a web page can't lead them to your settings. The MCP servers page shows saved keys as dots; leave the dots when you edit a server to keep its key. A failed **Test** shows what the server printed, and a server that refuses its key says so. Slow tools that keep reporting progress don't time out early.
 
 For API-model agents, an MCP server's tool counts as low risk only when the server says it just reads; any other one asks on **Auto** too. A server you turn off isn't started for them.
 
-An explicit **Always allow** choice can also skip later approval requests for that tool, from that moment on in the same run too. Autonomy is not an operating-system sandbox: shell commands and external tools can act with the access of the account running them.
+An explicit **Always allow** choice can also skip later approval requests for that tool, from that moment on in the same run too. Autonomy is not an operating-system sandbox: shell commands and external tools can act with the access of the account running them. Agents' shell commands run in PowerShell 7 when it's installed, otherwise in Windows PowerShell on Windows and in bash (or sh) on macOS and Linux.
 
 **The Brain approves** is on by default. When an agent or team requests permission, the Brain reviews it first. It is instructed to allow routine, reversible work within the task and pass risky or unclear requests to **Needs you**, with a reason. This is a model's judgment, not a hard safety guarantee. Turn it off under **Settings → General & keys → The Brain's model** if you want requests to come to you directly.
 
-Workflow checkpoints and approval requests from outside MCP clients always come to you. X and Reddit drafts wait in the Outbox unless you enable auto-post for that account. **X direct messages always wait for your approval.**
+Workflow checkpoints and approval requests from outside MCP clients always come to you. X and Reddit drafts wait in the Outbox unless you enable auto-post for that account. **X replies and direct messages always wait for your approval.** The Outbox counts X characters the way X does: emoji and Chinese, Japanese and Korean characters count as 2, and any link as 23. Agents can add alt text to X images and a flair to Reddit posts, and read a subreddit's rules themselves.
 
 **Agents ask for tools.** Every agent has a `request_tool` tool. When its task needs a set of tools it doesn't have (Files, Browser, Programs, Blender and so on), it asks for that set and says why. The request goes to the Brain first, like any approval. The Brain gives it when the task needs it and the tools fit the agent's role, and sends the rest to **Needs you** marked **Asks for tools**. **Shell** always comes to you, and the Brain is told to pass on **Social** (posts and messages). With **The Brain approves** off, every request comes to you. A given set stays on the agent (take it away in the agent's settings), and the agent can use it right away. Risky uses of the new tools are still checked one by one, by the agent's autonomy.
 
@@ -425,6 +444,7 @@ The dashboard keeps the last **50 versions** per item and groups nearby edits. *
 - **The page does not open:** visit http://localhost:4800 directly and check the server terminal for errors. Use the port you selected if you changed it.
 - **Browser changes are missing:** rebuild with `bun run build` and reload, or use `bun run dev` while editing. Direct server startup only builds when the bundle is missing.
 - **The fans spin up, the battery drains, or the Station stutters:** lower **Settings → Appearance → Station quality**. **Balanced** (the default) draws 60 frames a second while you move around the map, 30 when nothing moves, and fewer when the window is in the back. **Battery saver** draws at most 30, a little softer, and leaves desk screens still until you zoom in. Other pages don't draw the map at all. Many agents working at once mostly use memory: each Claude Code agent that is working runs its own program, a few hundred MB each.
+- **A Claude Code agent is missing Gmail, Calendar or other claude.ai connectors:** set its sign-in to **My Claude login**. With that choice an `ANTHROPIC_API_KEY` set on the PC is ignored, and the Claude Code status only shows signed in for a real login.
 - **An agent cannot run:** check its selected engine in Settings, its login or API key, and whether a local model server is running. For missing Hermes dashboard tools, add the MCP bridge as described in [Giving engine CLIs the dashboard tools](#giving-engine-clis-the-dashboard-tools).
 
 ## Development
@@ -445,6 +465,23 @@ Save leaves the instance paused; click **Enable** to connect. Saving an edit pau
 account has its own instance and token. **Pause** stops receiving and delivering; native work already
 started keeps its normal stop behavior. **Reconnect** retries connection setup. **Delete** removes the
 connection and token but retains conversation receipts for recovery.
+
+Choose **Set up Telegram** on the saved instance and **Check setup** while paused. This verifies the
+token's bot identity and reads its webhook status without receiving messages or sending replies.
+The page shows only the webhook host and the last pending-update count; full URL paths and secrets
+stay private. Opening or reloading the page reads saved local status and makes no Telegram request.
+
+If another service registered a webhook, stop that integration first, then confirm **Switch to
+polling**. Athena rechecks the same bot and webhook, saves an intent before the change, and asks
+Telegram to remove the webhook with pending updates kept. It verifies the result and leaves the
+instance paused. Pending messages may be handled under the saved sender and conversation rules
+when you enable it. Telegram has no atomic check-and-switch operation, so another integration must
+stay stopped during the change. Connecting never removes an existing webhook automatically.
+
+If the request is interrupted or its result cannot be saved, the switch remains unconfirmed across
+restarts. Polling is blocked until you explicitly **Check setup** again. A check can verify that no
+webhook remains, or show the current webhook for a new explicit confirmation; Athena never retries
+the switch automatically. Existing inbox receipts, byte accounting and native work stay intact.
 
 For Slack, choose **Add Slack instance** and enter the workspace ID (starting with T), a bot OAuth
 token (xoxb-) and an app-level token (xapp-) from the same Slack app. Enable Socket Mode; the app
@@ -495,6 +532,23 @@ Enable a paused instance before retrying. To send specific files for the current
 absolute paths under **Files to send**, one per line. The server checks their location, size and content
 hash before upload. These actions never replay model work.
 
+For a completed saved answer, **Review delivery** also works while the instance is paused or its
+platform is unavailable. It shows the original source and saved destination, each text part, outgoing
+file and advisory notice. Check the messaging app first. **Record confirmed delivery** requires the
+app's message or file ID and marks only an attempted uncertain item as sent; other parts keep their
+own receipts. It records your confirmation locally and makes no provider request. Pending,
+unattempted, failed or already confirmed items cannot be promoted this way.
+
+**Recover interrupted receipts** classifies that answer's saved in-flight sends as uncertain before
+review; opening the panel never does this automatically. **Finish delivery locally** permanently
+stops the remaining text and files for that answer. It keeps the saved answer, native operation,
+confirmed deliveries, uncertainty and charged bytes. It cannot recall a message or reopen delivery.
+Later messages can continue after other holds are resolved and the instance is enabled. Native work
+must already be complete; active or held assignments keep their separate controls in Athena.
+These local reviews stay available for old receipts after sender access or relay setup changes,
+and never grant permission to send. Resolved receipts remain eligible for the normal confirmed
+cleanup, with compact replay markers and byte reservations kept.
+
 Telegram albums wait for you to confirm their parts in the inbox. Once all files are saved, choose
 **Group album and start** on the first received part. Check Telegram for the complete album before
 confirming the listed message IDs: Telegram does not provide an album completion marker. One
@@ -510,6 +564,30 @@ allowed, its saved reply is queued for delivery. Work still in progress resumes 
 Missing records, edited input, changed destinations and unproven completion remain held; this action
 does not override them. Team recovery needs a completed review of the original message, rather than
 the latest team reply.
+
+For reserved or started work without a saved final reply, pause the instance and choose **Review
+saved work**. The panel shows the original source and destination, the saved operation and native
+conversation IDs, and how many other requests will stay held. These are historical gateway
+receipts, not a live native-status check. Review or stop the original work using Athena's native
+controls; it may still be running. An operation reservation alone does not prove that admission
+failed or that nothing happened.
+
+**Keep work in Athena** permanently ends gateway tracking and any future reply or file delivery
+for this request. Confirm that native work may still run, that no gateway reply should follow, and
+that new incoming messages will use a separate private conversation. This does not stop native
+work, mark it complete, approve tools or replay it. It preserves the operation IDs, original
+input, saved files, delivery evidence and byte reservations. These receipts remain in the inbox
+for recovery and are not eligible for normal inbox cleanup.
+
+Already queued requests in the earlier conversation stay held. New messages accepted after the
+review use a fresh private conversation with the instance's current project, destination and
+sender rules; other conversations and threads keep their history. Earlier edits and late grouped
+album parts stay in their original conversation. A changed project, sender identity or relay
+keeps its own separate routing boundary. This local review is also available for unavailable
+platforms and after access changes, but grants no new permission to receive or send. If saved
+notices or files still say they were in flight, **Recover interrupted receipts** classifies only
+this request's interrupted receipts before keeping the work locally. Opening the panel never
+does that automatically.
 
 For a held request that has never started, pause its instance and choose **Dismiss request**. Athena
 checks the current receipt and asks you to confirm. The request will not start an assignment or send
@@ -529,6 +607,68 @@ links stay. Compact replay markers and daily byte totals stay too, so cleanup ca
 request or refill a file budget. These records do not expire; if their storage limit is reached, cleanup
 refuses to remove further receipts. There is no automatic purge of unresolved work.
 
+Removing an instance first saves a permanent removal record and blocks new gateway work. Athena
+stops its worker, claims exclusive ownership, then clears only that instance's local credentials
+and WhatsApp pairing. In-flight replies settle before ownership is released; an interrupted reply
+can remain uncertain. Native chats and work, saved input, uploaded files, byte accounting and
+approved Outbox receipts stay. Manage any native work still running through Athena's usual controls.
+Removal makes no messaging-service or relay-administration request.
+
+If storage or ownership prevents removal from finishing, its saved record keeps the instance
+blocked. Restarting Athena retries valid unfinished removals; the guarded local delete API can
+also be retried with the original instance ID. A broken removal record must be restored before
+cleanup can finish. A newly added instance gets a separate identity and history.
+Read-only recovery is available through the local API: `GET /api/gateways/retired` lists removal
+records and `GET /api/gateways/retired/:id/inbox` reads their saved inbox receipts. These reads
+do not claim ownership, classify interrupted receipts or enable a connection.
+
+In **Settings → Gateways**, choose **View removed instances**. Find the old instance by name,
+platform, account, project or instance ID, then choose **View saved history**. The view shows its
+original identity and destination, source messages, saved native operation/conversation IDs,
+answers and per-part text, notice and file receipts. Confirmed IDs and uncertain or in-flight
+statuses stay as saved. Long histories show 25 entries at a time; expand a message to read its details.
+These are historical gateway records, not a live native-status or messaging-app check.
+
+If removal is unfinished, **Retry removal** asks you to confirm the exact instance and account
+before draining its worker and clearing its local credentials under ownership. The connection
+stays blocked, and receipts remain. Cancel or close the history before confirming to leave removal
+unchanged. Failed reads and failed cleanup show separate reload/retry controls. A direct link uses
+`#/settings?tab=gateways&retired=<instance-id>`; `retired=all` opens the list. Removed history can
+load even when active gateway credentials need recovery. Legacy deleted folders without a removal
+record need separate recovery.
+
+Expand a saved answer or native operation and choose **Review local finish**. Opening the review
+only reads the original source, destination, native work IDs and current saved delivery receipts.
+For a completed answer, **Finish locally** permanently closes its remaining text, file and notice
+delivery. Confirmed IDs, uncertain results, waiting parts and byte reservations remain as evidence.
+For reserved or started work without a final answer, the same action permanently keeps its work in
+Athena and closes future gateway tracking, replies and files. Other saved requests in that conversation
+stay held. Native work may still be running; manage it through Athena's usual controls first. A saved
+reservation does not prove that native admission failed or that the work completed.
+
+If saved sends still say they were in flight, choose **Recover interrupted receipts** explicitly
+before finishing. This classifies only the selected request's interrupted receipts locally. The
+review then needs a fresh receipt revision. **Finish locally** asks for confirmation naming the
+original chat, message and project. It cannot be undone. It sends nothing, starts no work and keeps
+the removed connection blocked. Removal must be complete first, and another process owning the
+account or private state blocks the change. SDK state and saved credentials are not read or rewritten.
+Late gateway callbacks cannot reopen closed delivery or tracking. Queued requests, edits and album
+members keep their saved evidence without a local-finish action. Manual delivery confirmations for
+removed instances remain planned.
+
+New gateway downloads record their temporary files privately before saving any bytes. After removal
+finishes, Athena waits at least 24 hours, then checks at startup and hourly for leftover partial files,
+empty name reservations and uploads interrupted before their saved receipt. It removes only files
+whose original project, batch and file identity still match those records. Files edited after removal,
+replacement files, links, unknown files and older uploads without ownership records stay untouched.
+Missing projects or unreadable ownership/inbox records also prevent cleanup; recover the records
+before a later check. Another process owning the gateway account or state blocks that check.
+
+Saved attachments stay in their project, including files on held or failed requests. Selected outgoing
+files, chat history, replay/quota markers and delivery receipts remain. This policy clears temporary
+leftovers. SDK state and credentials are not
+opened by this cleanup. Filesystems without usable file identities keep their leftovers for recovery.
+
 The sidebar's **Status** panel shows gateway connection state and messages needing review once an instance is set up. Click an
 instance needing review to open its inbox, or a connection warning to open its setup. Its tooltip names
 the bound project. Up to five instances appear, with attention items first; **All gateways** opens the full
@@ -536,7 +676,62 @@ list. If an inbox is unreadable, its status says **check inbox** rather than rep
 Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
 Slow requests can send one working notice. When a run needs approval, the messaging app says **Needs approval in Athena**;
 review it in the dashboard. Gateway messages cannot approve requests.
-Existing Outbox connections work as before. The
+For a Telegram or Discord follow-up, open **Outbox → Gateway message → Draft a message**. Save the
+draft, choose an instance and a known conversation in this project, then choose **Review & send**.
+Only enabled, connected instances and completed source messages with confirmed replies are eligible.
+Review shows the bot account, conversation, thread, source message and every exact text part. It
+saves your edits; cancelling leaves a draft and does not approve delivery. Check the recipient and
+full text, then choose **Approve & send**. Long text is split without truncation or broken emoji.
+
+Outbox keeps a receipt for every approved part. Queued and sending are separate from confirmed
+delivery. Confirmed parts are not resent; provider rate-limit waits survive restart. An interrupted,
+unknown or failed send stops for review. Changes to access, routing, credentials or source messages
+hold the unsent text. Approved text and recipients cannot be edited, rejected, removed or sent back
+to a team through draft actions. Pause the instance and choose **Finish locally** to permanently stop
+the remaining delivery while keeping confirmed IDs and uncertainty. An uncertain part may already
+have arrived: check the messaging app before creating a new draft.
+
+Choose **Review delivery** on an approved post to see the original recipient, text parts and receipts.
+Opening the review only reads saved metadata. Pause its instance before changing receipts. If a send
+was interrupted, choose **Recover interrupted receipts** to classify it as uncertain locally. This
+contacts no messaging service. Choose the exact uncertain part you found in the messaging app,
+enter its messaging-app ID and choose **Record confirmed delivery**. Pending and unattempted parts
+cannot be confirmed. The saved ID, time and attempt stay recorded; this action sends nothing and
+holds that post's remaining parts until you explicitly continue them.
+
+**Retry remaining delivery** starts with the first failed or uncertain part. Check the messaging app
+first: retrying an attempted part can send a duplicate. **Continue remaining delivery** releases the
+pending tail after you recorded a confirmation. Both actions queue only the original approved text
+and recipient and keep every confirmed part. They leave the instance paused; enable it in Gateways
+when ready. Current route, project, sender access, credentials and every source/album part must still
+match the original approval. Changed setup, edited sources or a locally finished post cannot be
+reopened by retry; keep that delivery local and review a new draft instead. Other already approved
+posts can continue under their own rules when the instance is enabled. Review history survives
+restart and is retained with the delivery receipts; native runs, files and byte accounting stay intact.
+
+For a removed instance's approved Outbox post, open **Review delivery** in its original project.
+The view keeps the original recipient and text and links to **View removed instance**. Removal must
+be complete before changing receipts. If a send was interrupted, **Recover interrupted receipts**
+requires the displayed review revision and classifies only that post's interrupted part as uncertain.
+Review the refreshed receipts, then confirm **Finish locally**. The connection stays blocked and
+the old post cannot send again. Delivery retry and manual confirmation remain unavailable here.
+
+The finished post moves to **History**. Open **Review delivery** there to read its closure time,
+confirmed IDs, uncertainty and original attempt counts. Waiting parts stay as historical evidence;
+they will not send after local finish. Missing or corrupt removal records need recovery first.
+Ownership conflicts and stale or changed Outbox rows stop the change and require a reload. Native
+inbox, SDK state and credentials are not opened or rewritten by this flow. A project switch invalidates
+an open review; return to the post's original project to continue.
+
+Telegram and Discord setup now lives in **Settings → Gateways**, with links from Connections. Add
+fresh bot credentials there; old global Telegram tokens/chat IDs and Discord webhooks are not used.
+There is no default test-send button: review a test draft with an explicit recipient in Outbox instead.
+The Social tool `gateway_draft` saves an unsent draft for your recipient choice and approval. The
+high-risk `telegram_send` and `discord_send` tools require explicit instance and source-event IDs
+provided by you and follow the normal tool approval policy. They report queued delivery, with results
+in Outbox. `notify_user` only notifies inside Athena. X and Reddit account handling is unchanged;
+the workflow notification option also saves a Telegram draft for recipient choice and approval.
+Slack and WhatsApp proactive Outbox sends remain unavailable. The
 [gateway plan](internal/plans/CHAT_GATEWAYS_2026-11-01.md) tracks the remaining work;
 `bun run gateways:smoke` checks a fake local Telegram service without using accounts or keys.
 `bun run gateways:slack-smoke` checks Slack Socket Mode, private downloads and selected file replies
@@ -569,6 +764,49 @@ its queue loss before clearing the local attempt and using a new code. For expir
 **Check relay gap** saves the observed loss; ask the relay operator to review that exact gap before
 **Review gap locally**. Saved work and delivery receipts remain held for their own review. Changed
 installations or invalid receipts require restoration; gap review cannot reset them.
+
+If **Restore the saved relay** appears, restore the original installation and its saved data at the
+same relay address first. Then choose **Check restored relay** and confirm. Athena checks the saved
+installation, account, phone, queue epoch and receipt position before clearing only the connection
+hold. For example, after accidentally pointing the relay address at a replacement deployment, put
+the original deployment and its data back before checking. A new installation or skipped messages
+will fail the check. Pending acknowledgements still need their exact envelope proof on connection;
+saved work, files and delivery receipts stay held for separate review. This leaves the instance
+paused and does not enable WhatsApp. Retired sender aliases stay blocked.
+
+If the original deployment is gone, use **Replace relay** instead. Revoke or permanently stop the
+old relay and review its queued-message loss first. Enter the replacement's HTTPS address, the
+same business account ID and a new pairing code, then confirm **Pair replacement**. The new key
+is saved privately before **Finish replacement** asks for a separate review of the current work.
+If finishing is interrupted, reopen setup and finish the saved key; do not exchange the code again.
+An unknown replacement outcome requires revoking the new pairing before clearing that attempt.
+
+For example, after losing a relay deployment's stored data, deploy a fresh relay for the same business
+phone, create its pairing code and use this flow. The instance keeps its project, Brain/team/agent
+destination, receipt history and duplicate protection. Old requests, files and delivery receipts
+remain held; running native agents keep their controls in Athena. Senders must message again after
+finishing to establish fresh phone proof and start new private conversations. Delayed messages from
+before replacement are ignored. Retired sender IDs stay blocked, and pending acknowledgements are
+archived as unconfirmed. Setup still leaves WhatsApp disabled and the instance paused.
+
+Open **Review senders** from relay setup to see each allowed phone's signed status: **Needs phone
+proof**, **Verified**, **Needs review** or **Reviewed**. This reads saved local records only. It
+shows counts of retired IDs, missing phone proofs and verified numbers outside the allowed list;
+provider IDs and private pairing details stay hidden. Use **Edit allowed phones** for the guard
+and **Open inbox** to inspect earlier work.
+
+For example, if Alice keeps the same allowed phone but WhatsApp changes her sender ID, Athena
+retires the old ID and holds its requests. Once signed proof confirms the new association and its
+relay acknowledgement is saved, pause the instance and choose **Review sender** for Alice's phone.
+Confirming keeps earlier requests, files and delivery receipts held, and preserves native operation records. Ask
+Alice to message again after the review; that fresh message starts a new private conversation with
+the same Brain, team or agent. The review itself starts no work, sends nothing and keeps the
+instance paused. Retired IDs cannot be restored by this action.
+
+If Alice has a different number, explicitly add that full number to the allowed list and wait for
+signed phone proof. Permission is not copied from her old number. Missing proofs, pending pairing,
+relay recovery and unconfirmed acknowledgements block sender review. Ordinary verified phones
+need no review, and a change after a saved review needs a fresh confirmation.
 
 ## License and credits
 

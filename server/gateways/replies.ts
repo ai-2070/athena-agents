@@ -2,6 +2,7 @@ import type { GatewayDeliveryFailureReason, GatewayDeliveryOutcome, GatewayInbox
 import { bus } from '../store.ts';
 import type { GatewayInbox } from './inbox.ts';
 import type { GatewayFileSender } from './outgoing.ts';
+import type { GatewayOutboxLedger } from './outbox.ts';
 
 export class GatewaySendError extends Error {
   readonly outcome: 'retry' | 'failed' | 'uncertain';
@@ -13,7 +14,8 @@ export class GatewaySendError extends Error {
     this.reason = reason;
   }
 }
-export type GatewayReplySender = (event: GatewayInboxEvent, text: string, signal: AbortSignal) => Promise<string>;
+export interface GatewayApprovedTextSend { authorize(event: GatewayInboxEvent, text: string): string }
+export type GatewayReplySender = (event: GatewayInboxEvent, text: string, signal: AbortSignal, approved?: GatewayApprovedTextSend) => Promise<string>;
 
 /** Each part is marked before I/O. A lost confirmation is never treated as a retryable send. */
 export class GatewayReplies {
@@ -23,15 +25,17 @@ export class GatewayReplies {
   private readonly signal: AbortSignal;
   private readonly noticeAllowed: (event: GatewayInboxEvent, kind: 'working' | 'approval') => boolean;
   private readonly sendFile: GatewayFileSender | undefined;
+  private readonly outbox: GatewayOutboxLedger | undefined;
   private pending: Promise<void> | undefined;
   private again = false;
   private stopped = false;
   private timer: ReturnType<typeof setInterval> | undefined;
   private readonly changed = (event: ServerEvent) => { if (event.type === 'gateway-inbox') void this.wake().catch(() => {}); };
-  constructor(inbox: GatewayInbox, send: GatewayReplySender, signal: AbortSignal, noticeAllowed: (event: GatewayInboxEvent, kind: 'working' | 'approval') => boolean = () => true, sendFile?: GatewayFileSender) {
+  constructor(inbox: GatewayInbox, send: GatewayReplySender, signal: AbortSignal, noticeAllowed: (event: GatewayInboxEvent, kind: 'working' | 'approval') => boolean = () => true, sendFile?: GatewayFileSender, outbox?: GatewayOutboxLedger) {
     this.inbox = inbox; this.send = send; this.signal = AbortSignal.any([signal, this.abort.signal]);
     this.noticeAllowed = noticeAllowed;
     this.sendFile = sendFile;
+    this.outbox = outbox;
   }
   start(): void {
     if (this.timer) return;
@@ -53,17 +57,20 @@ export class GatewayReplies {
       const claimed = this.inbox.claimReply();
       const upload = !claimed && this.sendFile ? this.inbox.claimOutgoing() : null;
       const notice = claimed || upload ? null : this.inbox.claimNotice(this.noticeAllowed);
-      if (!claimed && !upload && !notice) return;
-      const event = claimed?.event ?? upload?.event ?? notice!.event;
+      const post = claimed || upload || notice ? null : this.outbox?.claim();
+      if (!claimed && !upload && !notice && !post) return;
+      const event = claimed?.event ?? upload?.event ?? notice?.event ?? post!.event;
       const settle = (outcome: GatewayDeliveryOutcome) => {
         if (claimed) this.inbox.settleReply(event.id, claimed.index, outcome);
         else if (upload) this.inbox.settleOutgoing(event.id, upload.index, outcome);
+        else if (post) this.outbox!.settle(post, outcome);
         else this.inbox.settleNotice(event.id, notice!.kind, outcome);
       };
       try {
         if (this.signal.aborted) { settle({ status: 'pending' }); return; }
         const id = upload ? await this.sendFile!(event, event.outgoing![upload.index], this.signal)
-          : await this.send(event, claimed ? event.reply!.parts[claimed.index].text : event.notices![notice!.kind]!.text, this.signal);
+          : await this.send(event, claimed ? event.reply!.parts[claimed.index].text : post ? post.text : event.notices![notice!.kind]!.text, this.signal,
+            post ? { authorize: (event, text) => this.outbox!.authorize(post, event, text) } : undefined);
         settle({ remoteId: id });
       } catch (error) {
         const result = error instanceof GatewaySendError ? error : new GatewaySendError('uncertain');

@@ -312,6 +312,8 @@ describe('ordinary assignments keep going automatically', () => {
     await until(() => briefIn(c.id)?.status === 'done');
     expect(checked.at(-1)).toContain('Delegated work finished:');
     expect(checked.at(-1)).toContain('Holder worked on it.');
+    // (by name, not by id)
+    expect(checked.at(-1)).toContain('**Holder:**');
   });
 
   it('Stop also stops background delegates after their parent turn has ended', async () => {

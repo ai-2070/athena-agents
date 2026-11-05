@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { activeProject, agents, chats, setActiveProject, withProject } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
-import { activeEveRuns, attachSession, beginRun, bindSession, readBinding, readRun, recordCharge, recordEvents, retireSession, sessionContext, setRunStatus } from '../../server/eve/state.ts';
+import { activeEveRuns, attachSession, awaitingTakeover, beginRun, bindSession, readBinding, readRun, recordCharge, recordEvents, recordSteer, retireSession, sessionContext, setRunStatus, settleRun, updateSteer } from '../../server/eve/state.ts';
 import { eveUsage } from '../../server/eve/usage.ts';
 import { projectEvent } from '../../server/eve/projection.ts';
 import { dataPath } from '../../server/util.ts';
@@ -34,6 +34,24 @@ describe('Eve session ownership', () => {
     const own = fixture();
     withProject(own.project, () => agents.remove(own.agent.id));
     expect(() => sessionContext(own.binding.id)).toThrow('no longer exists');
+  });
+});
+
+describe('a message that missed the turn it was sent into', () => {
+  it('holds the next turn for a minute after the turn ended, however long ago it was sent', () => {
+    const own = fixture();
+    attachSession(own.binding.id, 'late-session');
+    beginRun('late-run', own.binding.id);
+    setRunStatus('late-run', 'running', 'first-delivery');
+    // sent long before the turn ended (a slow final step)
+    recordSteer('late-run', { id: 'late-steer', text: 'and a summary', attachments: [], deliveryId: null, at: Date.now() - 5 * 60_000 });
+    updateSteer('late-run', 'late-steer', { deliveryId: 'late-delivery' });
+    expect(awaitingTakeover(own.binding.id)).toBe(false);
+    settleRun('late-run', 'completed', 'done');
+    expect(awaitingTakeover(own.binding.id)).toBe(true);
+    // a run followed it: nothing to wait for
+    updateSteer('late-run', 'late-steer', { adoptedBy: 'next-run' });
+    expect(awaitingTakeover(own.binding.id)).toBe(false);
   });
 });
 

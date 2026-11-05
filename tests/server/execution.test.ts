@@ -98,6 +98,16 @@ describe('saved input admission', () => {
     expect(readExecution().queues[0]?.paused).toBe(true);
   });
 
+  it('a message a run had been sent but not read before a restart is an ordinary queued message after it', () => {
+    const { project, chat, queue } = fixture();
+    const sent = { id: 's-sent', text: 'and a summary', ts: Date.now(), reading: 'run-gone' };
+    saveExecutionQueue({ ...queue, items: [sent, ...queue.items], priority: [sent.id] });
+    recoverExecution();
+    const [first, ...rest] = queuedMessages(chat.id, project.id);
+    expect(first).toEqual({ id: 's-sent', text: 'and a summary', ts: sent.ts });
+    expect(rest).toEqual(queue.items);
+  });
+
   it('keeps a saved Stop final even if the process ends before it removes queued work', () => {
     const { run, queue } = fixture();
     saveExecutionQueue(queue);

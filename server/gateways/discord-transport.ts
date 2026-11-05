@@ -29,7 +29,7 @@ export function discordTransport(state: GatewayStateAdapter, inbox: GatewayInbox
     stop: async () => { await gateway?.stop(); await discord.disconnect(); await chat.shutdown(); },
     alive: () => gateway?.alive === true, failure: () => failure,
     download: (id, maxBytes, signal, event) => discord.downloadFileSource(id, maxBytes, signal, event),
-    reply: (event, text, signal) => discord.replyText(event, text, signal), upload: (event, file, signal) => discord.replyDocument(event, file, signal),
+    reply: (event, text, signal, approved) => discord.replyText(event, text, signal, approved), upload: (event, file, signal) => discord.replyDocument(event, file, signal),
   };
 }
 

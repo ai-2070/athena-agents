@@ -12,6 +12,7 @@ import { GatewayFileProcessor, verifyGatewayFile } from '../../server/gateways/f
 import type { GatewayDownloader } from '../../server/gateways/files.ts';
 import type { GatewayInbound } from '../../shared/types.ts';
 import { gatewayConfig, gatewayInput } from './gateway-fixtures.ts';
+import { dataPath } from '../../server/util.ts';
 
 const closers: (() => Promise<void>)[] = [];
 afterEach(async () => { for (const close of closers.splice(0).reverse()) await close(); });
@@ -49,6 +50,7 @@ describe('saving gateway files', () => {
     expect(fs.readFileSync(file.file!.path, 'utf8')).toBe('hello');
     expect(file.sha256).toBe(crypto.createHash('sha256').update('hello').digest('hex'));
     expect(await verifyGatewayFile(saved, file, f.abort.signal)).toBe(true);
+    expect(fs.readdirSync(dataPath('gateways-runtime', f.instance.id, 'upload-reservations'))).toEqual([]);
     expect(f.inbox.accept({ ...event.input, sourceEventId: 'replay' })?.id).toBe(event.id);
     await f.processor.wake(); expect(downloads).toBe(1);
     expect(activeProject().id).toBe(second.id);

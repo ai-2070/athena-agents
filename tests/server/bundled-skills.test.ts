@@ -10,19 +10,21 @@ import { dataPath } from '../../server/util.ts';
 const agent = { id: 'a1', name: 'Tester' };
 
 describe('bundled skills', () => {
-  it("include the storytold, OOMOL, Composio, Orca and subagent skills, and the dashboard's own", () => {
+  it("include the storytold, OOMOL, Composio, Orca, Cua and subagent skills, and the dashboard's own", () => {
     const slugs = skills.bundledSkills().map((b) => b.slug);
-    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env', 'delegating-to-subagents', 'commissioning-a-reviewer', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']));
+    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'solidcraft', 'materialcraft', 'texturecraft', 'craft-anything', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env', 'cua-driver', 'cua-sandboxes', 'gui-automation', 'delegating-to-subagents', 'commissioning-a-reviewer', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']));
     // the dashboard's own (skills/athena), which replaced the copies of Hermes Agent's skills
     expect(slugs).toEqual(expect.arrayContaining(['systematic-debugging', 'test-driven-development', 'github', 'pdf', 'financial-models', 'humanizer', 'comfyui', 'email', 'action-items', 'decisions', 'fastmcp']));
     const own = fs.readdirSync(path.join(skills.bundledSkillsRoot(), 'athena'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
     expect(slugs).toEqual(expect.arrayContaining(own));
-    expect(slugs.filter((s) => !own.includes(s))).toHaveLength(34);
+    expect(slugs.filter((s) => !own.includes(s))).toHaveLength(41);
     // the Hermes ones that were merged into others or cut don't come back
     for (const s of ['dcf-model', 'excel-author', 'mcporter', 'reddit-reading', 'himalaya', 'one-three-one-rule', 'duckduckgo-search']) expect(slugs).not.toContain(s);
     expect(fs.existsSync(path.join(skills.bundledSkillsRoot(), 'hermes'))).toBe(false);
     // only Orca's current name for its Linear skill, not the old one too
     expect(slugs).not.toContain('linear-tickets');
+    // Cua's Spaces-only skills (FSL-licensed) stay out
+    for (const s of ['cua-spaces', 'cua-volume', 'jev-use']) expect(slugs).not.toContain(s);
     // only the subagent skills that fit any agent, not the ones for one repo or for oh-my-pi
     for (const s of ['net-mesh-development', 'working-in-omp', 'agent-irc', 'gauntlet-loop', 'skill-self-improvement']) expect(slugs).not.toContain(s);
     // the library holds one skill per id, so no two bundles may share one
@@ -42,6 +44,10 @@ describe('bundled skills', () => {
     expect(origin.oo).toMatchObject({ repo: 'oomol-lab/oo-cli', path: 'contrib/skills/shared/oo' });
     expect(origin.composio).toMatchObject({ repo: 'ComposioHQ/skills', path: 'skills/composio' });
     expect(origin['orca-cli']).toMatchObject({ repo: 'stablyai/orca', path: 'skills/orca-cli' });
+    // Cua keeps its skills in two folders of its repo
+    expect(origin['cua-sandboxes']).toMatchObject({ repo: 'trycua/cua', path: 'libs/cua/skills/cua-sandboxes' });
+    expect(origin['gui-automation']).toMatchObject({ repo: 'trycua/cua', path: 'libs/cua/skills/gui-automation' });
+    expect(origin['cua-driver']).toMatchObject({ repo: 'trycua/cua', path: 'libs/cua-driver/rust/Skills/cua-driver', url: 'https://github.com/trycua/cua/tree/main/libs/cua-driver/rust/Skills/cua-driver' });
     // its repo isn't public, so no link back to it
     expect(origin['independent-review']).toBeUndefined();
     // nor to the dashboard's own (skills/athena)
@@ -70,6 +76,13 @@ describe('bundled skills', () => {
     // Orca writes its descriptions as folded YAML ("description: >-")
     expect(skills.getSkill('orchestration')?.description).toMatch(/^Coordinate supervised Orca workers: .* coordinate a DAG, and for terminal control/);
     expect(skills.getSkill('reviewed-stage-delivery')?.files.map((f) => f.path)).toContain('references/ci-triage.md');
+    // Cua Driver's skill comes with its platform guides; its frontmatter has a version and nested metadata
+    const driver = skills.getSkill('cua-driver');
+    expect(driver?.files.map((f) => f.path)).toEqual(expect.arrayContaining(['WINDOWS.md', 'MACOS.md', 'LINUX.md', 'WORKFLOW.md']));
+    expect(driver?.description).toMatch(/^Drive a native GUI app \(macOS, Windows, Linux\) via the cua-driver CLI .*recall recent Cua activity\.$/);
+    expect(skills.getSkill('gui-automation')?.files.map((f) => f.path)).toContain('references/command-reference.md');
+    // a folded YAML description ("description: >-")
+    expect(skills.getSkill('gui-automation')?.description).toMatch(/^Use when you need to visually interact with a GUI: .*Needs the `cua` CLI/);
     expect(skills.getSkill('reviewed-stage-delivery')?.origin).toBeFalsy();
     // these descriptions are double-quoted YAML holding single quotes and dashes
     expect(skills.getSkill('independent-review')?.description).toMatch(/^Use when acting as the independent reviewer .* 'review this candidate', .*not code review of a PR for style\.$/);

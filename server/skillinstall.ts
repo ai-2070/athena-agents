@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { dataPath, ensureDir, run, which, writeJSON } from './util.ts';
 import { emit, log } from './store.ts';
-import { listSkills, getSkill, skillDir, skillVersionsDir, skillFromText, uniqueSlug, isSkillSlug, skillExtraFiles, skillFilesHash, copySkillFiles } from './skills.ts';
+import { listSkills, getSkill, forgetSkill, skillDir, skillVersionsDir, skillFromText, uniqueSlug, isSkillSlug, skillExtraFiles, skillFilesHash, copySkillFiles } from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
 import { keepVersion, versionFilesDir } from './versions.ts';
 import type { SkillInstallResult, SkillOrigin } from '../shared/types.ts';
@@ -197,6 +197,7 @@ export async function installFromGitHub(url: string, { proceed = () => true }: {
         }
         fs.rmSync(skillDir(slug), { recursive: true, force: true });
         fs.renameSync(tmp, skillDir(slug));
+        forgetSkill(slug);
         const s = getSkill(slug)!;
         result.installed.push({ slug, name: s.name, updated: Boolean(before), files: files.length });
         log('skill', `${before ? 'Updated' : 'Installed'} the skill "${s.name}" from ${origin.repo}`);

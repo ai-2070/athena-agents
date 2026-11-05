@@ -18,7 +18,11 @@ import * as gateways from './gateways/instances.ts';
 import { discordRecovery } from './gateways/discord-recovery.ts';
 import { whatsAppSetup } from './gateways/whatsapp-setup.ts';
 import { GatewaySupervisor } from './gateways/supervisor.ts';
-import { gatewayInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery } from './gateways/inbox.ts';
+import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRetiredInboxHistory, gatewayRetiredFinishReview, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders, gatewayWorkReview } from './gateways/inbox.ts';
+import { gatewayRetirement, listGatewayRetirements } from './gateways/retirement.ts';
+import { telegramSetup } from './gateways/telegram-setup.ts';
+import { gatewayOutboxDestinations } from './gateways/outbox-owner.ts';
+import { readGatewayPostDelivery } from './gateways/outbox-posts.ts';
 import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
@@ -29,7 +33,7 @@ import * as openclawEngine from './engines/openclaw.ts';
 import { clearWhichCache, which } from './util.ts';
 import { aboutInfo } from './about.ts';
 import * as tools from './tools.ts';
-import { inlineToolImages } from './toolimages.ts';
+import { inlineToolImagesNoted, withImageNote } from './toolimages.ts';
 import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
@@ -84,6 +88,7 @@ import * as files from './files.ts';
 import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
+import { saveToolStats, toolStats } from './toolstats.ts';
 import type { RestoreResult } from './projectsync.ts';
 import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
 
@@ -184,7 +189,7 @@ get('/api/state', async (): Promise<AppState> => ({
   projectSaved: projectSync.saveStatus(),
   projects: store.listProjects().map(projects.withLogo),
   approvals: listApprovals(),
-  outboxPending: outbox.list().filter((p) => p.status === 'pending').length,
+  outboxPending: social.listPosts().filter((p) => p.status === 'pending' || ((p.platform === 'telegram' || p.platform === 'discord') && p.status === 'failed')).length,
   questions: questions.waitingQuestions(),
   runs: engines.activeRuns(),
   engines: engines.engineStatus(),
@@ -656,8 +661,8 @@ post<{ text?: unknown; attachments?: unknown; steer?: unknown }>('/api/agents/:i
   const text = String(body.text || '').trim();
   const attachments = uploads.cleanAttachments(body.attachments);
   if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
-  const { runId } = body.steer === true ? await engines.steerChat(a, c, text, { attachments }) : engines.startRun(a, c, text, { attachments });
-  await uistream.streamRun(res, { chatId: c.id, runId, waiting: `Waiting for ${a.name} to stop…` });
+  const { runId, steerId } = body.steer === true ? await engines.steerChat(a, c, text, { attachments }) : { ...engines.startRun(a, c, text, { attachments }), steerId: undefined };
+  await uistream.streamRun(res, { chatId: c.id, runId, waiting: `Waiting for ${a.name} to stop…`, ...(steerId ? { ownSteer: steerId } : {}), live: engines.runActive });
   return undefined;
 });
 get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
@@ -863,17 +868,16 @@ del('/api/presets/:id', async ({ id }) => (presets.deletePreset(id), { ok: true 
 post<{ withAgents?: unknown } | null>('/api/workflows/:id/clone', async ({ id }, body) => presets.cloneTeam(id, { withAgents: !!body?.withAgents }));
 
 // ---------- library ----------
-get('/api/library', async () => ({ ...(await library.libraryIndex()), starters: library.STARTERS.map(({ name, emoji, specialty }) => ({ name, emoji, specialty })) }));
-get('/api/library/agency/:slug', async ({ slug }) => {
-  const a = need(library.agencyAgents().find((x) => x.slug === slug));
-  return { ...a, body: fs.readFileSync(a.file, 'utf8') };
+get('/api/library', async () => library.libraryIndex());
+get('/api/library/agent/:slug', async ({ slug }) => {
+  const { file, ...a } = need(library.libraryAgents().find((x) => x.slug === slug));
+  return { ...a, body: fs.readFileSync(file, 'utf8') };
 });
-post<{ source?: string; slug: string; profile: string; name: string; overrides?: Partial<Agent> }>('/api/library/hire', async (_p, body) => {
+post<{ source?: string; slug: string; profile: string; overrides?: Partial<Agent> }>('/api/library/hire', async (_p, body) => {
   const o = body.overrides || {};
-  if (body.source === 'agency') return library.hireFromAgency(body.slug, o);
+  if (body.source === 'library') return library.hireFromLibrary(body.slug, o);
   if (body.source === 'hermes') return library.hireHermesProfile(body.profile, o);
   if (body.source === 'claude') return library.importClaudeSubagent(body.slug);
-  if (body.source === 'starter') return library.createStarter(body.name, o);
   throw new HttpError(400, 'Unknown library source');
 });
 
@@ -908,6 +912,8 @@ post('/api/codex/refresh', async () => {
 
 // ---------- tools & programs ----------
 get('/api/tools', async () => ({ groups: tools.TOOL_GROUPS, tools: tools.allTools() }));
+// how each tool has been used (counted on this computer only)
+get('/api/tool-stats', async () => toolStats());
 get('/api/programs', async (_p, _b, q) => programs.discoverPrograms(!!q.force));
 get('/api/programs/all', async () => programs.startMenuApps(true));
 post<{ program: string; file?: string }>('/api/programs/launch', async (_p, body) => {
@@ -1062,19 +1068,38 @@ get('/api/gateways', async () => ({
   health: gatewaySupervisor.health(),
 }));
 post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(body));
+get('/api/gateways/retired', async () => ({ instances: listGatewayRetirements() }));
+get('/api/gateways/retired/:id/inbox', async ({ id }) => ({ events: gatewayRetiredInboxHistory(id) }));
+get('/api/gateways/retired/:id/inbox/:eventId/local-finish', async ({ id, eventId }) => gatewayRetiredFinishReview(id, eventId));
+post<unknown>('/api/gateways/retired/:id/inbox/:eventId/local-finish/prepare', async ({ id, eventId }, body) => gatewaySupervisor.prepareRetiredFinish(id, eventId, body));
+post<unknown>('/api/gateways/retired/:id/inbox/:eventId/local-finish', async ({ id, eventId }, body) => gatewaySupervisor.finishRetired(id, eventId, body));
 get('/api/gateways/targets/:projectId', async ({ projectId }) => gateways.gatewayTargets(projectId));
 get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
 get('/api/gateways/:id/inbox/:eventId/review', async ({ id, eventId }) => gatewayRequestReview(id, eventId));
+get('/api/gateways/:id/inbox/:eventId/work-review', async ({ id, eventId }) => gatewayWorkReview(id, eventId));
+post('/api/gateways/:id/inbox/:eventId/work-review/prepare', async ({ id, eventId }) => gatewaySupervisor.prepareWorkReview(id, eventId));
+post<unknown>('/api/gateways/:id/inbox/:eventId/work-review/keep', async ({ id, eventId }, body) => gatewaySupervisor.keepWork(id, eventId, body));
+get('/api/gateways/:id/inbox/:eventId/delivery-review', async ({ id, eventId }) => gatewayDeliveryReview(id, eventId));
+post('/api/gateways/:id/inbox/:eventId/delivery-review/prepare', async ({ id, eventId }) => gatewaySupervisor.prepareDeliveryReview(id, eventId));
+post<unknown>('/api/gateways/:id/inbox/:eventId/delivery-review', async ({ id, eventId }, body) => gatewaySupervisor.reviewDelivery(id, eventId, body));
 post<unknown>('/api/gateways/:id/inbox/:eventId/dismiss', async ({ id, eventId }, body) => {
   await gatewaySupervisor.dismissRequest(id, eventId, body); return { ok: true };
 });
 get('/api/gateways/:id/discord-recovery', async ({ id }) => discordRecovery(id));
+get('/api/gateways/:id/telegram-setup', async ({ id }) => telegramSetup(id));
+post('/api/gateways/:id/telegram-setup/check', async ({ id }) => gatewaySupervisor.checkTelegramSetup(id));
+post<unknown>('/api/gateways/:id/telegram-setup/switch', async ({ id }, body) => gatewaySupervisor.switchTelegramToPolling(id, body));
 get('/api/gateways/:id/whatsapp-setup', async ({ id }) => whatsAppSetup(id));
 post('/api/gateways/:id/whatsapp-setup/check', async ({ id }) => gatewaySupervisor.checkWhatsAppSetup(id));
 get('/api/gateways/:id/whatsapp-recovery', async ({ id }) => gatewayWhatsAppRecovery(id));
+get('/api/gateways/:id/whatsapp-replacement', async ({ id }) => gatewayWhatsAppReplacement(id));
+get('/api/gateways/:id/whatsapp-senders', async ({ id }) => gatewayWhatsAppSenders(id));
+post<unknown>('/api/gateways/:id/whatsapp-senders/review', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppSender(id, body));
 post('/api/gateways/:id/whatsapp-recovery/inspect', async ({ id }) => gatewaySupervisor.inspectWhatsAppRecovery(id));
 post<unknown>('/api/gateways/:id/whatsapp-recovery', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppRecovery(id, body));
+post<unknown>('/api/gateways/:id/whatsapp-recovery/restore', async ({ id }, body) => gatewaySupervisor.restoreWhatsAppRecovery(id, body));
 post<unknown>('/api/gateways/:id/whatsapp-pairing', async ({ id }, body) => gatewaySupervisor.pairWhatsApp(id, body));
+post<unknown>('/api/gateways/:id/whatsapp-pairing/replace', async ({ id }, body) => gatewaySupervisor.replaceWhatsAppPairing(id, body));
 post<unknown>('/api/gateways/:id/whatsapp-pairing/finish', async ({ id }, body) => gatewaySupervisor.finishWhatsAppPairing(id, body));
 post<unknown>('/api/gateways/:id/whatsapp-pairing/review', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppPairing(id, body));
 post<unknown>('/api/gateways/:id/discord-recovery', async ({ id }, body) => {
@@ -1119,8 +1144,7 @@ post('/api/gateways/:id/inbox/:eventId/files/:index/skip', async ({ id, eventId,
   return { ok: true };
 });
 del('/api/gateways/:id', async ({ id }) => {
-  gateways.removeGatewayInstance(id);
-  await gatewaySupervisor.reconnect(id);
+  await gatewaySupervisor.removeInstance(id);
   return { ok: true };
 });
 get('/api/settings', async () => ({ settings: getSettings(), secrets: secretStatus() }));
@@ -1167,26 +1191,45 @@ del('/api/accounts/reddit/:id', async ({ id }) => {
   reddit.disconnectReddit(id);
   return social.listAccounts();
 });
-post<{ platform?: string }>('/api/social/test', async (_p, body) => ({ message: body.platform === 'discord' ? await social.sendDiscord('Test from Athena Agents ✅') : await social.sendTelegram('Test from Athena Agents ✅') }));
+post('/api/social/test', async () => { throw new HttpError(400, 'Choose a gateway instance and known conversation in the Outbox, review the test text, then approve it. Old global tokens and webhooks are no longer used.'); });
 
 get('/api/artifacts', async () => artifactStore.list().sort((a, b) => b.createdAt! - a.createdAt!));
 del('/api/artifacts/:id', async ({ id }) => {
   removeArtifact(id);
   return { ok: true };
 });
-get('/api/outbox', async () => outbox.list().sort((a, b) => b.createdAt! - a.createdAt!));
-post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, agentName: 'You' }));
+get('/api/outbox', async () => social.listPosts());
+get('/api/outbox/gateway-destinations', async () => gatewayOutboxDestinations(store.activeProject().id));
+post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, gateway: body.gateway, agentName: 'You' }));
+post<unknown>('/api/outbox/:id/gateway-review', async ({ id }, body) => social.prepareGatewayPost(id, body));
+get('/api/outbox/:id/gateway-delivery', async ({ id }) => readGatewayPostDelivery(id));
+post<unknown>('/api/outbox/:id/gateway-delivery/prepare', async ({ id }, body) => {
+  return store.withProject(store.activeProject(), async () => {
+    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
+    if (gatewayRetirement(item.gateway.instanceId)) await gatewaySupervisor.prepareRetiredOutbox(item.gateway.instanceId, store.activeProject().id, item.id, body);
+    else await gatewaySupervisor.prepareOutboxReview(item.gateway.instanceId, store.activeProject().id, item.id);
+    return readGatewayPostDelivery(id);
+  });
+});
+post<unknown>('/api/outbox/:id/gateway-delivery', async ({ id }, body) => {
+  return store.withProject(store.activeProject(), async () => {
+    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
+    await gatewaySupervisor.reviewOutbox(item.gateway.instanceId, store.activeProject().id, item.id, body); return readGatewayPostDelivery(id);
+  });
+});
+post<unknown>('/api/outbox/:id/gateway-finish', async ({ id }, body) => {
+  const project = store.activeProject();
+  return store.withProject(project, async () => {
+    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
+    if (gatewayRetirement(item.gateway.instanceId)) await gatewaySupervisor.finishRetiredOutbox(item.gateway.instanceId, project.id, item.id, body);
+    else await gatewaySupervisor.finishOutbox(item.gateway.instanceId, project.id, item.id, body);
+    return social.listPosts().find((post) => post.id === id);
+  });
+});
 post<Parameters<typeof social.approvePost>[1]>('/api/outbox/:id/approve', async ({ id }, body) => social.approvePost(id, body));
 post<{ text?: string }>('/api/outbox/:id/discuss', async ({ id }, body) => social.returnPost(id, String(body.text || ''), (teamId, text) => teams.postUserMessage(teamId, text, { route: brain.pickMember })));
 post<{ reason?: string }>('/api/outbox/:id/reject', async ({ id }, body) => social.rejectPost(id, body.reason));
-put<{ parts?: string[]; images?: string[]; title?: string }>('/api/outbox/:id', async ({ id }, body) => {
-  const it = need(outbox.get(id));
-  if (body.parts) it.parts = body.parts;
-  // images can be taken off a draft here, not added (adding goes through the checks in draftPost)
-  if (body.images && it.images) it.images = it.images.filter((p) => body.images!.includes(p));
-  if (body.title != null && it.reddit) it.reddit.title = String(body.title).trim();
-  return outbox.save(it);
-});
+put<Parameters<typeof social.editPost>[1]>('/api/outbox/:id', async ({ id }, body) => social.editPost(id, body));
 // questions agents asked you (ask_user): answer with a choice, your own words, or both
 get('/api/questions', async () => store.questions.list().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 100));
 post<{ choice?: string; text?: string }>('/api/questions/:id/answer', async ({ id }, body) => questions.answerQuestion(id, { choice: body.choice, text: body.text }));
@@ -1196,7 +1239,7 @@ del('/api/questions/:id', async ({ id }) => {
   return { ok: true };
 });
 del('/api/outbox/:id', async ({ id }) => {
-  outbox.remove(id);
+  social.removePost(id);
   return { ok: true };
 });
 
@@ -1308,7 +1351,7 @@ get('/api/internal/tools', async (_p, _b, q) => {
   const run = engines.runInfo(q.run);
   return inRunProject(run, () => {
     const agent = bridgeAgent(run, q.agent);
-    const list = tools.toolDefs(agent);
+    const list = tools.toolDefs(agent, { conversationId: run?.conversationId, engine: agent.engine });
     if (agent.engine === 'claude-code')
       list.push({
         name: 'permission_prompt',
@@ -1325,9 +1368,11 @@ post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown
     const agent = bridgeAgent(run, body.agent);
     const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
     if (body.name === 'permission_prompt') return { text: JSON.stringify(await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId)) };
-    const r = await tools.callTool(agent, body.name, body.args || {}, ctx);
+    const r = tools.clipForModel(await tools.callTool(agent, body.name, body.args || {}, ctx), body.name, ctx.runId);
     // MCP takes pictures as data only: ComfyUI's result links are read here, so the agent sees them too
-    return r.images?.length ? { ...r, images: await inlineToolImages(r.images) } : r;
+    if (!r.images?.length) return r;
+    const { images, note } = await inlineToolImagesNoted(r.images);
+    return { ...r, images, text: withImageNote(r.text, note) };
   });
 });
 
@@ -1680,7 +1725,14 @@ const shutdown = () => {
   stopping = true;
   terms.closeAll();
   // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
-  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns()]).finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => process.exit(0));
+  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns()]).finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => {
+    try {
+      saveToolStats();
+    } catch {
+      /* the numbers are only a help */
+    }
+    process.exit(0);
+  });
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

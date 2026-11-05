@@ -21,6 +21,7 @@ import { GatewayReplies } from '../../server/gateways/replies.ts';
 import { selectGatewayDocuments } from '../../server/gateways/outgoing.ts';
 import { ensureBrain } from '../../server/projects.ts';
 import type { GatewayInboxJournal } from '../../shared/types.ts';
+import { GatewayOutboxLedger } from '../../server/gateways/outbox.ts';
 
 const GUILD = '100000000000000001'; const CHANNEL = '200000000000000001'; const THREAD = '300000000000000001';
 const ALICE = '400000000000000001'; const BOB = '400000000000000002'; const DM = '500000000000000001';
@@ -299,6 +300,32 @@ async function output(f: Awaited<ReturnType<typeof fixture>>, id: string): Promi
 }
 
 describe('Discord files and replies', () => {
+  it('delivers approved Outbox text with separate per-attempt nonces and no fabricated native reply', async () => {
+    const f = await fixture(); await received(f); const id = await completed(f); f.inbox.claimReply(); f.inbox.settleReply(id, 0, { remoteId: 'already-confirmed' });
+    saveGatewayCredentials(f.instance.id, { botToken: 'PRIVATE_BOT_TOKEN' }); const native = fs.readFileSync(f.state.inboxFile(), 'utf8'); const ledger = new GatewayOutboxLedger(f.state, f.inbox);
+    ledger.approve(ledger.prepare({ instanceId: f.instance.id, projectId: f.instance.projectId, postId: 'approved-post', eventId: id, parts: ['Approved follow-up', 'Second approved part'] }).approval);
+    const service = new GatewayReplies(f.inbox, (event, text, signal, approved) => f.adapter.replyText(event, text, signal, approved), f.abort.signal, () => true, undefined, ledger);
+    closes.push(() => service.stop()); await service.wake(); await service.wake(); const posts = f.calls.filter((call) => call.method === 'POST');
+    expect(posts.map((call) => call.payload!.content)).toEqual(['Approved follow-up', 'Second approved part']);
+    expect(new Set(posts.map((call) => call.payload!.nonce)).size).toBe(2);
+    for (const post of posts) expect(post.payload).toMatchObject({ enforce_nonce: true, flags: 4, allowed_mentions: { parse: [], replied_user: false }, message_reference: { message_id: FIRST, channel_id: DM, fail_if_not_exists: true } });
+    expect(ledger.list()[0].receipts.every((part) => part.status === 'sent')).toBe(true); expect(fs.readFileSync(f.state.inboxFile(), 'utf8')).toBe(native);
+    await expect(f.adapter.replyText(f.inbox.list()[0], 'Unclaimed text', f.abort.signal)).rejects.toMatchObject({ outcome: 'failed' }); expect(f.calls.filter((call) => call.method === 'POST')).toHaveLength(2);
+  });
+
+  it('rechecks approved Outbox access after asynchronous Discord recipient checks', async () => {
+    const f = await fixture(); await received(f); const id = await completed(f); f.inbox.claimReply(); f.inbox.settleReply(id, 0, { remoteId: 'already-confirmed' }); saveGatewayCredentials(f.instance.id, { botToken: 'PRIVATE_BOT_TOKEN' });
+    const ledger = new GatewayOutboxLedger(f.state, f.inbox); ledger.approve(ledger.prepare({ instanceId: f.instance.id, projectId: f.instance.projectId, postId: 'approved-post', eventId: id, parts: ['Approved follow-up'] }).approval);
+    let release!: () => void; const wait = new Promise<void>((resolve) => { release = resolve; }); f.gate(`/users/${ALICE}`, () => wait);
+    const before = f.calls.filter((call) => call.path === `/users/${ALICE}`).length;
+    const service = new GatewayReplies(f.inbox, (event, text, signal, approved) => f.adapter.replyText(event, text, signal, approved), f.abort.signal, () => true, undefined, ledger); closes.push(() => service.stop());
+    const sending = service.wake(); try {
+      await expect.poll(() => f.calls.filter((call) => call.path === `/users/${ALICE}`).length).toBeGreaterThan(before);
+      saveGatewayCredentials(f.instance.id, { botToken: 'REPLACEMENT_PRIVATE_TOKEN' });
+    } finally { release(); }
+    await sending; expect(f.calls.filter((call) => call.method === 'POST')).toHaveLength(0); expect(ledger.list()[0].receipts[0]).toMatchObject({ status: 'failed', attempts: 1 });
+  });
+
   it('refreshes attachment URLs from the saved message and saves bounded bytes without leaking tokens to the CDN', async () => {
     const f = await fixture(); await received(f, { attachments: [{ id: attachmentId, filename: '../../plan.txt', size: 5, url: 'https://expired.invalid/PRIVATE_URL' }] });
     f.update(message(FIRST, { attachments: [{ id: attachmentId, filename: '../../plan.txt', size: 5, url: `${f.origin}/attachments/${DM}/${attachmentId}/plan.txt?ex=PRIVATE_SIGNATURE` }] }));

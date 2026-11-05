@@ -3,25 +3,31 @@ import http from 'node:http';
 import { once } from 'node:events';
 import { z } from 'zod';
 import { gatherTools } from '../apitools.ts';
+import type { ToolRoute } from '../apitools.ts';
 import { providerOf } from '../providers.ts';
 import { questions, withProject } from '../store.ts';
 import { addQuestion, answerResult } from '../questions.ts';
-import { callTool, gate, needsApproval, toolApprovalPlan, toolApprovalRequest } from '../tools.ts';
+import { callTool, clipForModel, gate, needsApproval, toolApprovalPlan, toolApprovalRequest } from '../tools.ts';
+import { recordAsked, recordToolCall } from '../toolstats.ts';
 import { approvalFingerprint, cancelDurableApproval, durableApproval, ensureDurableApproval } from '../approvals.ts';
 import type { ApprovalRequest } from '../approvals.ts';
 import * as mcp from '../mcp.ts';
-import { activeEveRuns, attachSession, readRun, recordCharge, recordConfiguration, recordCostBaseline, recordLimit, sessionContext, setRunStatus } from './state.ts';
+import { attachSession, awaitingTakeover, readRun, readRunSummary, recordCharge, recordConfiguration, recordCostBaseline, recordLimit, sessionContext, setRunStatus, workingRunOf } from './state.ts';
 import { executeOperation, operationId, prepareOperation, readOperation, saveOperation } from './operations.ts';
 import { canonical } from '../../shared/canonical.ts';
-import { admissionHistory, readAdmission } from './admission.ts';
+import { admissionHistory, admissionSelection } from './admission.ts';
 import { selectEveModel } from './model.ts';
-import type { EveRuntimeConfiguration } from '../../shared/types.ts';
+import { buildInstructions, runInstructions, runSelection } from './snapshot.ts';
+import { eveCounts } from './counts.ts';
+import type { Agent, Chat, EveModelSelection, EveRuntimeConfiguration } from '../../shared/types.ts';
 
 const schema = z.record(z.string(), z.json());
+type Policy = { status: 'approved' | 'user-approval' | 'denied'; reason?: string };
 
 function invocationContext(bindingId: string, sessionId: string, runId?: string) {
+  eveCounts.contexts++;
   const context = sessionContext(bindingId);
-  const run = activeEveRuns().find((item) => item.bindingId === bindingId && (item.status === 'running' || item.status === 'waiting'));
+  const run = workingRunOf(bindingId, runId);
   if (!run) throw new Error('This Eve conversation has no active run.');
   if (runId && run.id !== runId) throw new Error('This Eve call does not belong to the active run.');
   if (!context.binding.sessionId) attachSession(bindingId, sessionId);
@@ -29,15 +35,41 @@ function invocationContext(bindingId: string, sessionId: string, runId?: string)
   return { ...context, run };
 }
 
+/** The agent's tools as they are now, so a group given during the run is there at the next step. */
+function toolList(agent: Agent, chat: Chat) {
+  eveCounts.toolLists++;
+  return gatherTools(agent, () => {}, { engine: 'eve', conversationId: chat.conversationId });
+}
+
+/** The model options admitted with the turn; a run without a saved input picks them once. */
+function modelOf(runId: string, agent: Agent, chat: Chat): Promise<EveModelSelection> {
+  const admitted = admissionSelection(runId);
+  return admitted ? Promise.resolve(admitted) : runSelection(runId, () => selectEveModel(agent, chat));
+}
+
+/** A turn Eve started with a message that arrived as the turn before it ended asks for its settings before a run
+ *  follows it: it waits a moment for that run (takeOverSteers) rather than failing. */
+async function startingContext(bindingId: string, sessionId: string) {
+  for (let waited = 0; ; waited += 100) {
+    try {
+      return invocationContext(bindingId, sessionId);
+    } catch (error) {
+      if (waited >= 15000 || !awaitingTakeover(bindingId)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+}
+
 export async function eveConfiguration(bindingId: string, sessionId: string, nativeCost = 0): Promise<EveRuntimeConfiguration> {
-  const { binding, project, agent, chat, run } = invocationContext(bindingId, sessionId);
+  const { binding, project, agent, chat, run } = await startingContext(bindingId, sessionId);
   const costBaseline = recordCostBaseline(run.id, nativeCost);
   return withProject(project, async () => {
-    const [{ buildSystemPrompt }, { richSection }] = await Promise.all([import('../engines/index.ts'), import('../richanswers.ts')]);
-    const selection = readAdmission(run.id)?.selection || await selectEveModel(agent, chat);
+    const selection = await modelOf(run.id, agent, chat);
     const provider = providerOf({ ...agent, provider: selection.provider });
     if (provider.base !== selection.baseUrl) throw new Error('The model address changed during this turn. Start a new turn to use it.');
-    const { defs } = await gatherTools(agent, () => {});
+    const defs = selection.capabilities?.tools === false ? [] : (await toolList(agent, chat)).defs;
+    // Built once per run: the same start of the prompt on every step keeps the provider's cache.
+    const instructions = await runInstructions(run.id, () => buildInstructions(agent, chat, run.depth));
     const headers = { ...provider.headers };
     delete headers.authorization;
     delete headers['content-type'];
@@ -48,8 +80,8 @@ export async function eveConfiguration(bindingId: string, sessionId: string, nat
       costBaseline,
       ...(selection.provider === 'venice' ? { spentUsd: readRun(run.id)?.charges?.reduce((sum, charge) => sum + (charge.cost || 0), 0) || 0 } : {}),
       apiKey: provider.headers.authorization?.replace(/^Bearer /, '') || '', headers,
-      instructions: buildSystemPrompt(agent) + await richSection(agent, chat, run.depth),
-      tools: selection.capabilities?.tools === false ? [] : defs.map((tool) => ({ name: tool.function.name, description: tool.function.description || '', inputSchema: schema.parse(tool.function.parameters) })),
+      instructions,
+      tools: defs.map((tool) => ({ name: tool.function.name, description: tool.function.description || '', inputSchema: schema.parse(tool.function.parameters) })),
     };
     const { apiKey: _key, headers: _headers, ...definition } = configuration;
     recordConfiguration(run.id, definition);
@@ -57,23 +89,25 @@ export async function eveConfiguration(bindingId: string, sessionId: string, nat
   });
 }
 
-export async function eveToolPolicy(bindingId: string, sessionId: string, runId: string, callId: string, name: string, args: Record<string, unknown>): Promise<{ status: 'approved' | 'user-approval' | 'denied'; reason?: string }> {
-  const { project, agent, run } = invocationContext(bindingId, sessionId, runId);
-  return withProject(project, async () => {
+/** The consent check of one call. /tool runs it again and then executes the route it checked. */
+async function checkCall(bindingId: string, sessionId: string, runId: string, callId: string, name: string, args: Record<string, unknown>) {
+  const { project, agent, run, chat } = invocationContext(bindingId, sessionId, runId);
+  let target: ToolRoute | undefined;
+  const policy = await withProject(project, async (): Promise<Policy> => {
     const saved = readOperation(operationId(bindingId, sessionId, runId, callId));
     if (saved && (saved.name !== name || canonical(saved.args) !== canonical(args) || saved.runId !== run.id)) throw new Error('The tool call changed its saved operation.');
     if (saved?.status === 'completed') return { status: 'approved' };
     if (saved?.status === 'cancelled' || saved?.status === 'uncertain') return { status: 'denied', reason: 'This operation cannot be repeated. Check its outcome in Athena.' };
-    const { route } = await gatherTools(agent, () => {});
-    const target = route.get(name);
+    const { route } = await toolList(agent, chat);
+    target = route.get(name);
     if (!target) throw new Error('This tool is no longer available to the agent.');
     const fresh = invocationContext(bindingId, sessionId, runId);
     if (target.kind === 'mcp' && (!fresh.agent.mcpServers.includes(target.server) || !mcp.isEnabled(target.server))) throw new Error('This MCP account is no longer available to the agent.');
     const edited = durableApproval(operationId(bindingId, sessionId, runId, callId))?.decision?.edited;
     const effective = edited !== null && typeof edited === 'object' && !Array.isArray(edited) ? edited as Record<string, unknown> : args;
-    const context = { runId: run.id, approvalArgs: args };
-    const plan = target.kind === 'builtin' ? await toolApprovalPlan(fresh.agent, target.name, effective, context)
-      : { risk: target.risk, requests: needsApproval(fresh.agent, target.risk, name) ? [toolApprovalRequest(fresh.agent, name, effective, { ...context, mcpServer: target.server })] : [] };
+    const approvalContext = { runId: run.id, approvalArgs: args };
+    const plan = target.kind === 'builtin' ? await toolApprovalPlan(fresh.agent, target.name, effective, approvalContext)
+      : { risk: target.risk, requests: needsApproval(fresh.agent, target.risk, name) ? [toolApprovalRequest(fresh.agent, name, effective, { ...approvalContext, mcpServer: target.server })] : [] };
     const origin = target.kind === 'builtin' ? `builtin:${target.name}` : `mcp:${target.server}:${target.name}`;
     const operation = prepareOperation({ runId: run.id, bindingId, sessionId, callId, name, args, origin, risk: plan.risk });
     if (operation.status === 'running') return { status: 'approved' };
@@ -94,10 +128,11 @@ export async function eveToolPolicy(bindingId: string, sessionId: string, runId:
       if (operation.approvalId && !previous) throw new Error('The saved consent is missing.');
       // One native wait covers every check; the executor verifies each individual boundary again.
       const request: ApprovalRequest = previous?.item || (plan.requests.length === 1 ? plan.requests[0]! : {
-        ...toolApprovalRequest(fresh.agent, name, args, context),
+        ...toolApprovalRequest(fresh.agent, name, args, approvalContext),
         detail: plan.requests.map((item) => `${item.title}\n${item.detail || ''}`).join('\n\n'),
         data: { tool: name, args, runId: run.id, checks },
       });
+      if (!previous) recordAsked(name);
       const approval = ensureDurableApproval(operation.id, request);
       saveOperation({ ...operation, approvalChecks: operation.approvalChecks || checks, approvalId: approval.id, status: approval.decision ? approval.decision.approved ? 'prepared' : 'cancelled' : 'waiting' });
       if (!approval.decision) {
@@ -108,19 +143,30 @@ export async function eveToolPolicy(bindingId: string, sessionId: string, runId:
     }
     return { status: 'approved' };
   });
+  return { policy, target };
+}
+
+export async function eveToolPolicy(bindingId: string, sessionId: string, runId: string, callId: string, name: string, args: Record<string, unknown>): Promise<Policy> {
+  return (await checkCall(bindingId, sessionId, runId, callId, name, args)).policy;
 }
 
 export async function eveTool(bindingId: string, sessionId: string, runId: string, callId: string, name: string, args: Record<string, unknown>, signal?: AbortSignal) {
-  const policy = await eveToolPolicy(bindingId, sessionId, runId, callId, name, args);
+  const { policy, target: checked } = await checkCall(bindingId, sessionId, runId, callId, name, args);
   if (policy.status !== 'approved') return { text: policy.reason || 'This tool is waiting for approval in Athena.', isError: true, denied: true };
-  const { project, agent, run } = invocationContext(bindingId, sessionId, runId);
+  // Checked again after the consent check's waits, before anything runs.
+  const { project, agent, run, chat } = invocationContext(bindingId, sessionId, runId);
   const id = operationId(bindingId, sessionId, runId, callId);
   return withProject(project, async () => {
     const result = await executeOperation(id, async () => {
-      const { route } = await gatherTools(agent, () => {});
-      const target = route.get(name);
-      if (!target) return { text: 'This tool is no longer available.', isError: true, denied: true };
-      const fresh = invocationContext(bindingId, sessionId, runId);
+      // The route comes from the consent check above, so nothing is awaited between the check just
+      // made and the call. Only when it must be looked up again is the agent checked again after it.
+      let fresh = { agent };
+      let target = checked;
+      if (!target) {
+        target = (await toolList(agent, chat)).route.get(name);
+        if (!target) return { text: 'This tool is no longer available.', isError: true, denied: true };
+        fresh = invocationContext(bindingId, sessionId, runId);
+      }
       const operation = readOperation(id)!;
       if (operation.questionId) {
         const question = questions.get(operation.questionId);
@@ -134,19 +180,29 @@ export async function eveTool(bindingId: string, sessionId: string, runId: strin
         approvalDecision: async (request: ApprovalRequest) => {
           const saved = readOperation(id);
           const decision = durableApproval(id)?.decision;
-          if (signal?.aborted || !['running', 'waiting'].includes(readRun(run.id)?.status || '') || !saved?.approvalChecks?.includes(approvalFingerprint(request)) || !decision?.approved) return { approved: false, message: 'This action is not covered by the saved approval. Make a new call for the current target.' };
+          if (signal?.aborted || !['running', 'waiting'].includes(readRunSummary(run.id)?.status || '') || !saved?.approvalChecks?.includes(approvalFingerprint(request)) || !decision?.approved) return { approved: false, message: 'This action is not covered by the saved approval. Make a new call for the current target.' };
           return { ...decision, always: saved.approvalChecks.length === 1 && decision.always };
         },
       };
-      if (target.kind === 'builtin') return callTool(fresh.agent, target.name, effective, context);
+      // (what the model gets back stays within the result limit; the receipt keeps exactly that)
+      if (target.kind === 'builtin') return clipForModel(await callTool(fresh.agent, target.name, effective, context), target.name, run.id);
       if (!fresh.agent.mcpServers.includes(target.server) || !mcp.isEnabled(target.server)) return { text: 'This MCP account is no longer available.', isError: true, denied: true };
       const refused = await gate(fresh.agent, name, target.risk, effective, { ...context, mcpServer: target.server });
       if (signal?.aborted) return { text: 'Stopped.', isError: true, denied: true };
-      return refused || mcp.callTool(target.server, target.name, effective, { signal });
+      if (refused) return refused;
+      const started = Date.now();
+      try {
+        const answer = await mcp.callTool(target.server, target.name, effective, { signal });
+        recordToolCall(name, { ms: Date.now() - started, chars: answer.text.length, isError: answer.text.startsWith('ERROR: ') });
+        return clipForModel(answer, name, run.id);
+      } catch (e) {
+        recordToolCall(name, { ms: Date.now() - started, chars: 0, isError: true });
+        throw e;
+      }
     });
     const operation = readOperation(id);
     if (operation?.status === 'uncertain') {
-      if (['running', 'waiting'].includes(readRun(run.id)?.status || '')) setRunStatus(run.id, 'interrupted');
+      if (['running', 'waiting'].includes(readRunSummary(run.id)?.status || '')) setRunStatus(run.id, 'interrupted');
       ensureDurableApproval(`reconcile:${id}`, { kind: 'workflow', title: `Check the outcome of ${name}`, detail: 'This tool may already have made changes. Check its outcome before starting more work. Allow to mark this check done; this run stays interrupted and the tool will not be repeated.', agentId: agent.id, agentName: agent.name, data: { tool: name, args, runId: run.id, outcomeCheck: true } });
     }
     return result;
@@ -187,16 +243,17 @@ export async function openEveBridge() {
       if (request.url === '/billing') {
         if (!body.input.runId || !body.input.charge) throw new Error('A saved run and model charge are required.');
         const { run } = invocationContext(body.binding, body.input.sessionId!, body.input.runId);
-        if (readAdmission(run.id)?.selection.provider !== 'venice') throw new Error('This run does not use Venice billing.');
+        if (admissionSelection(run.id)?.provider !== 'venice') throw new Error('This run does not use Venice billing.');
         recordCharge(run.id, body.input.charge);
         response.writeHead(200, { 'content-type': 'application/json' }).end('{}');
         return;
       }
       if (request.url === '/limit') {
         if (!body.input.runId || !body.input.limit) throw new Error('A saved run and limit are required.');
-        invocationContext(body.binding, body.input.sessionId!, body.input.runId);
-        const config = await eveConfiguration(body.binding, body.input.sessionId!);
-        const reason = body.input.limit === 'steps' ? `Stopped after ${config.maxModelSteps} model steps. Raise Max tool steps in Settings to continue.` : `Stopped: this run reached the $${config.costLimitUsd} limit set in Settings.`;
+        const { project, agent, chat, run } = invocationContext(body.binding, body.input.sessionId!, body.input.runId);
+        // Only the two limits are needed, not a whole new configuration.
+        const selection = await withProject(project, () => modelOf(run.id, agent, chat));
+        const reason = body.input.limit === 'steps' ? `Stopped after ${selection.maxModelSteps} model steps. Raise Max tool steps in Settings to continue.` : `Stopped: this run reached the $${selection.costLimitUsd} limit set in Settings.`;
         recordLimit(body.input.runId, reason);
         response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ reason }));
         return;

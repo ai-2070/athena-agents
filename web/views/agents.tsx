@@ -440,7 +440,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
     <div className="mx-auto max-w-6xl">
       {/* the agent at the top, with Chat and Save: it stays in view on this long page */}
       {/* (just under the app's own top bar, which is sticky too and 3.5rem tall) */}
-      <div className="sticky top-14 z-10 -mx-3 mb-8 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-line bg-bg/90 px-3 py-3 backdrop-blur-md">
+      <div className="sticky top-14 z-10 -mx-3 mb-8 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-line px-3 py-3 backdrop-blur-md">
         <ButtonLink variant="ghost" size="small" href="#/agents">← Agents</ButtonLink>
         <div className="flex min-w-0 flex-1 items-center gap-3 [&_.avatar]:size-10 [&_.avatar]:rounded-[11px] [&_.avatar]:text-[20px]">
           <Avatar agent={a} />
@@ -793,7 +793,7 @@ function EngineFields({ a, d, set, fit }: {
           {pick('Hermes profile', a.hermesProfile || '', [{ value: '', label: 'default' }, ...profiles.filter((p) => p.name !== 'default').map((p) => ({ value: p.name, label: `${p.name} (${p.model})` }))], (v) => set('hermesProfile', v), 'The profile brings its own memory, skills and tools.')}
           {model('Model override', "Leave empty to use the profile's model.")}
         </div>
-        <p className="hint">Hermes uses its own tools. To give it the dashboard tools too, use "Give Hermes the dashboard tools" on the Tools &amp; MCP page.</p>
+        <p className="hint">Hermes uses its own tools. To give it the dashboard tools too, use "Give Hermes the dashboard tools" on the MCP servers page.</p>
       </>
     );
   else if (a.engine === 'pi' || a.engine === 'omp') {
@@ -808,7 +808,7 @@ function EngineFields({ a, d, set, fit }: {
             <p className="hint">{st.installed ? `Found${st.version ? ` · ${st.version}` : ''}` : `Not installed yet: ${a.engine === 'pi' ? 'npm install -g @earendil-works/pi-coding-agent' : 'bun install -g @oh-my-pi/pi-coding-agent'}`}</p>
           </div>
         </div>
-        <p className="hint">{`${name} works in the workspace folder with its own tools (read, bash, edit, write…) and runs them without asking, whatever the autonomy below says. Sign it in to a model provider in a terminal (/login). For the dashboard tools too, use "Give pi and oh-my-pi the dashboard tools" on the Tools & MCP page.`}</p>
+        <p className="hint">{`${name} works in the workspace folder with its own tools (read, bash, edit, write…) and runs them without asking, whatever the autonomy below says. Sign it in to a model provider in a terminal (/login). For the dashboard tools too, use "Give pi and oh-my-pi the dashboard tools" on the MCP servers page.`}</p>
       </>
     );
   } else if (a.engine === 'openclaw')

@@ -57,8 +57,9 @@ const openOutbox = async () => {
 };
 
 describe('chars()', () => {
-  it('counts an emoji as one, as X does', () => {
-    expect(chars('hi 👋')).toBe(4);
+  it('counts as X does: an emoji is two, a link 23', () => {
+    expect(chars('hi 👋')).toBe(5);
+    expect(chars('see https://example.com/a/long/path')).toBe(27);
   });
 });
 
@@ -84,6 +85,15 @@ describe('the Outbox', () => {
     const count = text.parentElement!.querySelector('.tabular-nums')!;
     expect(count.textContent).toBe('281/280');
     expect(count.classList.contains('text-red')).toBe(true);
+    await type(text, '日本'.repeat(70) + '!');
+    expect(count.textContent).toBe('281/280');
+  });
+
+  it("shows X's character count only on X posts", async () => {
+    posts = [post({ platform: 'reddit', images: undefined, reddit: { kind: 'post', subreddit: 'test', title: 'Hi' } })];
+    await openOutbox();
+    const text = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Text"]')!;
+    expect(text.parentElement!.querySelector('.tabular-nums')).toBeNull();
   });
 
   it('approves with your edits and without the image you took off', async () => {
@@ -95,6 +105,12 @@ describe('the Outbox', () => {
     expect(requests.find((r) => r.url === '/api/outbox/p1/approve')!.body).toEqual({ parts: ['Hello there'], images: ['C:\\out\\b.png'] });
     expect(document.getElementById('toasts')!.textContent).toContain('Posted ✓');
     expect(el.textContent).toContain('Waiting for you (0)');
+  });
+
+  it("shows each image's alt text, and the file name when there is none", async () => {
+    posts = [post({ imageAlt: { 'C:\\out\\a.png': 'A red bike against a wall' } })];
+    await openOutbox();
+    expect([...el.querySelectorAll('img')].map((i) => i.getAttribute('alt'))).toEqual(['A red bike against a wall', 'b.png']);
   });
 
   it('sends a draft back to its team with your note', async () => {
@@ -232,5 +248,11 @@ describe('Connections', () => {
     await act(async () => btn(el.querySelectorAll('.col.gap-lg')[1] as HTMLElement, 'Save').click());
     await settle();
     expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/settings')!.body).toEqual({ x: { clientId: 'new-id' } });
+  });
+  it('links Telegram and Discord to fresh gateway setup instead of accepting old tokens or webhooks', async () => {
+    await openConnections('#/settings?tab=connections&sub=accounts');
+    expect(el.textContent).toContain('old global token and chat ID are no longer used'); expect(el.textContent).toContain('Old channel webhooks are no longer used');
+    expect([...el.querySelectorAll('a')].filter((link) => link.textContent === 'Open Gateways').map((link) => link.getAttribute('href'))).toEqual(['#/settings?tab=gateways', '#/settings?tab=gateways']);
+    expect(el.querySelector('input[placeholder*="BotFather"]')).toBeNull(); expect(el.querySelector('input[placeholder*="discord.com/api/webhooks"]')).toBeNull(); expect([...el.querySelectorAll('button')].map((button) => button.textContent)).not.toContain('Send test');
   });
 });

@@ -66,6 +66,29 @@ describe('MCP presets', () => {
     expect(presetNeeds(by('tripo'))).toBe('needs TRIPO_API_KEY');
   });
 
+  it("include Cua's two servers: this computer's apps, and throwaway sandbox computers", () => {
+    const by = (name: string) => PRESETS.find((p) => p.name === name)!;
+    const driver = by('cua-driver');
+    expect(driver.type === 'stdio' && [driver.command, ...driver.args]).toEqual(['cua-driver', 'mcp']);
+    // no key: it calls no AI service; the setup says how to install it on Windows and on a Mac
+    expect(JSON.stringify(driver)).not.toContain('YOUR_');
+    expect(presetNeeds(driver)).toMatch(/^setup: install Cua Driver /);
+    expect(presetNeeds(driver)).toContain('https://cua.ai/driver/install.ps1');
+    expect(presetNeeds(driver)).toContain('Screen Recording');
+
+    const cua = by('cua');
+    expect(cua.type === 'stdio' && cua.command).toBe('cua');
+    const args = cua.type === 'stdio' ? cua.args : [];
+    expect(args.slice(0, 2)).toEqual(['mcp', '--permissions']);
+    const granted = args[2].split(',');
+    // the sandbox and computer tools, and what its in-sandbox browser is driven through
+    expect(granted).toEqual(expect.arrayContaining(['sandbox:all', 'computer:all', 'images:all', 'spaces:list_tools', 'spaces:call_tool']));
+    // never everything: no moving logged-in sessions in, no public share links, not the whole of Spaces
+    for (const g of granted) expect(g, g).not.toMatch(/^(all|spaces:all|teleport:.*|share:.*|skills:(all|record|delete))$/);
+    expect(JSON.stringify(cua)).not.toContain('YOUR_');
+    expect(presetNeeds(cua)).toMatch(/^setup: install the cua command .*Docker/);
+  });
+
   it('tell the Brain what each one needs from you', () => {
     const by = (name: string) => PRESETS.find((p) => p.name === name)!;
     expect(presetNeeds(by('playwright'))).toBe('');

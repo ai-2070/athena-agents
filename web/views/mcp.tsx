@@ -1,4 +1,4 @@
-// Tools & MCP: built-in tools, MCP servers (presets, custom, imported), and sharing dashboard tools with Hermes / other apps.
+// MCP servers: built-in tools, MCP servers (presets, custom, imported), and sharing dashboard tools with Hermes / other apps.
 import { Button } from '../ui/button.tsx';
 import { CHIPS_CLASS, chipClass } from '../ui/classes.ts';
 import { Pill } from '../ui/marks.tsx';
@@ -13,18 +13,26 @@ import { DomNode, reactPage } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import type { McpServerInfo, McpSuggestion, ToolGroup } from '../../shared/types.ts';
 
-function PresetTitle({ name, title }: { name: string; title: string }) {
+/** A server's mark in a small tile: its brand, or an icon for what it does (redrawn when the theme changes). */
+function ServiceMark({ name }: { name: string }) {
   const [theme, setTheme] = useState(0);
   useEffect(() => onThemeChange(() => setTheme((n) => n + 1)), []);
+  return <span aria-hidden="true" className="mcp-mark grid size-8 shrink-0 place-items-center rounded-ctl bg-panel-2 text-ink">
+    <DomNode as="span" className="flex" make={() => presetIcon(name)} deps={[name, theme]} />
+  </span>;
+}
+
+function PresetTitle({ name, title }: { name: string; title: string }) {
   return <div className="card-title flex items-center gap-2.5">
-    <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-ctl bg-panel-2 text-ink">
-      <DomNode as="span" className="flex" make={() => presetIcon(name)} deps={[name, theme]} />
-    </span>
+    <ServiceMark name={name} />
     <span>{title}</span>
   </div>;
 }
 
 // why a server is suggested ("on this PC" gets the accent and a dot); mcp-why stays for the tests
+// marks where the server's own output starts in an error (server/mcp.ts OUTPUT_MARK)
+const OUTPUT_MARK = '\n\nWhat it printed:\n';
+
 const WHY = 'mcp-why text-[12px] leading-[1.4] font-medium';
 
 /** One saved MCP server (server/mcp.ts McpServerConfig). */
@@ -265,13 +273,19 @@ export function McpTab() {
 const serviceOf = (p: McpPresetListing) => p.service || p.title;
 
 function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: McpServerConfig; info?: McpServerInfo; onEdit: () => void; reload: () => Promise<unknown> }) {
-  // the last test: running, its tools, or that it did not start
-  const [test, setTest] = useState<'running' | 'failed' | string[] | null>(null);
+  // the last test: running, its tools, or why it did not start
+  const [test, setTest] = useState<'running' | { failed: string } | string[] | null>(null);
   const run = async () => {
     setTest('running');
-    const r = await attempt(() => POST<{ tools: { name: string; description: string }[] }>(`/mcp/${encodeURIComponent(name)}/test`));
-    setTest(r ? r.tools.map((t) => t.name) : 'failed');
+    try {
+      const r = await POST<{ tools: { name: string; description: string }[] }>(`/mcp/${encodeURIComponent(name)}/test`);
+      setTest(r.tools.map((t) => t.name));
+    } catch (e) {
+      setTest({ failed: e instanceof Error ? e.message : String(e) });
+    }
   };
+  // the error, and apart from it what the server printed (server/mcp.ts OUTPUT_MARK)
+  const failed = test && !Array.isArray(test) && typeof test === 'object' ? test.failed.split(OUTPUT_MARK) : null;
   const remove = async () => {
     if (await confirmBox(`Remove ${info?.title || name}?`, { ok: 'Remove', danger: true })) await attempt(() => DEL(`/mcp/${encodeURIComponent(name)}`)).then(reload);
   };
@@ -279,6 +293,8 @@ function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: Mcp
   return (
     <div className="mcp-server px-5 py-4">
       <div className="flex flex-wrap items-center gap-2">
+        {/* (a copy of a ready-made server shows its service's mark) */}
+        <span className="mr-1.5 flex"><ServiceMark name={info?.kind || cfg.kind || name} /></span>
         <div className="min-w-0 flex-1">
           <div className="title flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
             {info?.title || name}
@@ -295,7 +311,18 @@ function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: Mcp
       </div>
       <div aria-live="polite">
         {test === 'running' ? <p className="hint">Starting it and listing tools… (first run of npx/uvx servers can take a minute)</p> : null}
-        {test === 'failed' ? <p className="hint">It did not start. Check the command, and that npx/uvx works in a terminal.</p> : null}
+        {failed ? (
+          <div className="mcp-test-failed mt-2">
+            <p className="hint m-0 text-red wrap-anywhere">{failed[0]}</p>
+            {failed[1] ? (
+              <>
+                <div className="hint mt-2">What it printed:</div>
+                <pre className="mcp-output mt-1 max-h-60 overflow-auto font-mono text-[11px] whitespace-pre-wrap wrap-anywhere">{failed.slice(1).join(OUTPUT_MARK)}</pre>
+              </>
+            ) : null}
+            {cfg.type === 'stdio' ? <p className="hint mt-2">Check the command, and that it runs in a terminal (for npx or uvx, that npx or uvx works there).</p> : null}
+          </div>
+        ) : null}
         {Array.isArray(test) ? (
           <div className="mt-3.5">
             <Pill tone="ok">{`${test.length} tools`}</Pill>
@@ -438,5 +465,5 @@ function CopyForm({ preset, servers, close, saved }: { preset: McpPresetListing;
   );
 }
 
-export const title = () => 'Tools & MCP';
+export const title = () => 'MCP servers';
 export const { render, unmount } = reactPage(() => <McpTab />);

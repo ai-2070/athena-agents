@@ -2,7 +2,7 @@
 // (the chat keeps their links), shown by /api/file, and gone with the chat.
 import fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { keepToolImages, splitContent, toolImagesDir } from '../../server/toolimages.ts';
+import { imageType, inlineToolImagesNoted, keepToolImages, splitContent, toolImagesDir, withImageNote } from '../../server/toolimages.ts';
 import { chats } from '../../server/store.ts';
 import { viewable } from '../../server/files.ts';
 import { newAgent } from '../../server/library.ts';
@@ -37,6 +37,29 @@ describe('splitContent', () => {
     expect(r.text).toBe('Read image file [image/png]\n[image]\n[image]\n[resource]');
     expect(r.images).toEqual([`data:image/png;base64,${PNG}`, `data:image/jpeg;base64,${PNG}`]);
     expect(splitContent('plain')).toEqual({ text: 'plain', images: [] });
+  });
+});
+
+describe('inlineToolImagesNoted', () => {
+  it('sends at most six images of at most 5 MB, and says how many were left out and why', async () => {
+    const png = `data:image/png;base64,${PNG}`;
+    const big = `data:image/png;base64,${'A'.repeat(8 * 1024 * 1024)}`;
+    const r = await inlineToolImagesNoted([png, big, 'data:image/svg+xml;base64,PHN2Zz4=', png, png, png, png, png, png, png]);
+    expect(r.images).toHaveLength(6);
+    expect(r.note).toBe('4 images were left out of what you see: 2 past the limit of 6 per tool call, 1 over 5 MB, 1 that could not be read as a PNG, JPEG, WebP or GIF of at most 5 MB. Ask for fewer or smaller images if you need them.');
+    expect(withImageNote('Done', r.note)).toBe(`Done\n\n${r.note}`);
+    // all sent: no note, the text as it was
+    const all = await inlineToolImagesNoted([png]);
+    expect(all).toEqual({ images: [png], note: '' });
+    expect(withImageNote('Done', all.note)).toBe('Done');
+  });
+
+  it('tells a picture by its first bytes', () => {
+    expect(imageType(Buffer.from(PNG, 'base64'))).toBe('image/png');
+    expect(imageType(Buffer.from([0xff, 0xd8, 0xff, 0xe0]))).toBe('image/jpeg');
+    expect(imageType(Buffer.from('GIF89a....'))).toBe('image/gif');
+    expect(imageType(Buffer.from('RIFF\0\0\0\0WEBPVP8 '))).toBe('image/webp');
+    expect(imageType(Buffer.from('<svg></svg>'))).toBeNull();
   });
 });
 

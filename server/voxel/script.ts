@@ -1,4 +1,4 @@
-// world_script: an agent builds with a JavaScript program instead of a list of steps (loops, maths,
+// world_build "code": an agent builds with a JavaScript program instead of a list of steps (loops, maths,
 // procedural shapes). It runs in QuickJS compiled to WebAssembly: no files, no network, no timers, nothing of
 // this computer, with a time and memory limit. The program only hands build steps over (BuildApi): they run
 // through the same build as world_build, so its limits, all-or-nothing and undo apply.

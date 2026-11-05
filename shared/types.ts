@@ -94,6 +94,20 @@ export interface GatewayInstance {
   updatedAt: number;
 }
 
+/** Removing an instance keeps its identity and receipts, never its credentials. */
+export interface GatewayRetiredInstance {
+  version: 1;
+  id: string;
+  name: string;
+  platform: GatewayPlatform;
+  accountId: string;
+  projectId: string;
+  target: GatewayTarget;
+  routeGeneration: number;
+  startedAt: number;
+  completedAt?: number;
+}
+
 /** Queued work keeps this route even when the instance is edited. */
 export interface GatewayRoute {
   instanceId: string;
@@ -151,6 +165,7 @@ export interface GatewayInbound {
 
 export interface GatewayConversationBinding {
   id: string;
+  rootId?: string;
   accountId: string;
   conversationId: string;
   guildId?: string;
@@ -169,6 +184,9 @@ export interface GatewayInboxEvent {
   receivedAt: number;
   relay?: GatewayWhatsAppReceipt & { confirmed: boolean };
   dismissed?: { at: number; revision: string };
+  deliveryFinished?: { at: number; revision: string };
+  workKept?: { at: number; revision: string; throughSequence: number; serial: number };
+  deliveryReviews?: ({ at: number; revision: string; action: 'confirmed'; target: GatewayDeliveryTarget; remoteId: string; previousRemoteId?: string } | { at: number; revision: string; action: 'finish-local' })[];
   status: 'queued' | 'waiting-files' | 'running' | 'done' | 'needs-review';
   operationId?: string;
   reason?: string;
@@ -189,6 +207,58 @@ export interface GatewayRequestReview {
   reason: string;
 }
 
+export interface GatewayWorkReview {
+  revision: string;
+  reason: string;
+  canKeep: boolean;
+  needsPrepare: boolean;
+  keptAt?: number;
+  heldRequests: number;
+  source: { platform: GatewayPlatform; actor: string; conversationId: string; threadId: string; messageId: string; projectId: string; target: GatewayTarget };
+  operationId?: string;
+  native?: { state: GatewayDispatch['state']; conversation: GatewayLocalConversation; runId?: string; messageId?: string; briefId?: string };
+}
+
+export type GatewayDeliveryTarget = { kind: 'text' | 'file'; index: number } | { kind: 'notice'; notice: 'working' | 'approval' };
+
+export interface GatewayDeliveryReview {
+  revision: string;
+  reason: string;
+  canFinish: boolean;
+  needsPrepare: boolean;
+  closedAt?: number;
+  source: { platform: GatewayPlatform; actor: string; conversationId: string; threadId: string; messageId: string; projectId: string; target: GatewayTarget };
+  items: { target: GatewayDeliveryTarget; label: string; text?: string; status: GatewayOutgoingFile['status']; remoteId?: string; canConfirm: boolean; confirmedAt?: number }[];
+}
+
+export interface GatewayRetiredFinishReview {
+  revision: string;
+  kind: 'delivery' | 'work' | 'unavailable';
+  reason: string;
+  canFinish: boolean;
+  needsPrepare: boolean;
+  closedAt?: number;
+  source: GatewayDeliveryReview['source'];
+  operationId?: string;
+  native?: GatewayWorkReview['native'];
+  heldRequests: number;
+  items: { label: string; text?: string; status: GatewayOutgoingFile['status']; remoteId?: string }[];
+}
+
+export interface GatewayTelegramSetupState {
+  version: 1;
+  check?: { at: number; configRevision: string; revision: string; fingerprint: string; webhook: boolean; host?: string; pendingUpdates: number };
+  switches: { at: number; revision: string; state: 'started' | 'confirmed' | 'uncertain'; checkedAt?: number }[];
+}
+
+export interface GatewayTelegramSetup {
+  reason: string;
+  revision: string | null;
+  check: { at: number; webhook: boolean; host?: string; pendingUpdates: number } | null;
+  attempt: { at: number; state: 'started' | 'confirmed' | 'uncertain'; checkedAt?: number } | null;
+  switches: number;
+}
+
 /** Local receipt only; raw webhook bodies and relay keys never enter the application inbox. */
 export interface GatewayWhatsAppReceipt {
   epoch: string;
@@ -199,17 +269,21 @@ export interface GatewayWhatsAppReceipt {
 export interface GatewayWhatsAppIntakeState {
   epoch: string;
   cursor: number;
+  startedAt?: number;
+  senderReviews?: { at: number; throughSequence: number; phone: string; identityKey: string; revision: string }[];
   receipt?: GatewayWhatsAppReceipt & { confirmed: boolean; accepted: number; ignored: number; unmatchedSenders: number };
   identities?: GatewayWhatsAppIdentities;
   connection?: GatewayWhatsAppRelayConnection;
   recovery?: { at: number; reason: 'gap' | 'cursor' | 'epoch' | 'installation' | 'envelope' };
   gapReview?: { at: number; from: number; through: number; remoteCursor: number };
   reviewedGaps?: { at: number; gapAt: number; from: number; through: number; revision: string; receipt?: NonNullable<GatewayWhatsAppIntakeState['receipt']> }[];
+  restorations?: { at: number; heldAt: number; reason: 'cursor' | 'epoch' | 'installation' | 'envelope'; revision: string; remoteCursor: number }[];
 }
 
 export interface GatewayWhatsAppRecovery {
   reason: NonNullable<GatewayWhatsAppIntakeState['recovery']>['reason'] | null;
   gap: { at: number; revision: string } | null;
+  restoration?: { at: number; revision: string };
 }
 
 /** Private paired identity. Pull/lease tokens are stored separately or kept in memory. */
@@ -223,13 +297,26 @@ export interface GatewayWhatsAppRelayConnection {
 
 /** Private setup receipt, stored with gateway secrets so the returned pull key saves atomically. */
 export type GatewayWhatsAppPairing =
-  | { phase: 'requesting'; attemptId: string; origin: string; businessAccountId: string; phoneNumberId: string }
-  | { phase: 'received'; attemptId: string; connection: GatewayWhatsAppRelayConnection; cursor: number; gap: boolean };
+  | { phase: 'requesting'; attemptId: string; origin: string; businessAccountId: string; phoneNumberId: string; replacement?: { epoch: string; revision: string } }
+  | { phase: 'received'; attemptId: string; connection: GatewayWhatsAppRelayConnection; cursor: number; gap: boolean; replacement?: { epoch: string; revision: string } };
 
 export interface GatewayWhatsAppSetup {
   paired: boolean;
-  pending: null | { phase: GatewayWhatsAppPairing['phase']; revision: string };
+  pending: null | { phase: GatewayWhatsAppPairing['phase']; revision: string; replacement?: true };
   recoveryRequired: boolean;
+}
+
+export interface GatewayWhatsAppReplacement {
+  revision: string | null;
+  retired: number;
+}
+
+export interface GatewayWhatsAppSenders {
+  reason: string;
+  retired: number;
+  waiting: number;
+  unallowed: number;
+  senders: { phone: string; status: 'needs-proof' | 'verified' | 'needs-review' | 'reviewed'; changedAt?: number; revision: string | null; requests: number; reason: string }[];
 }
 
 export interface GatewayWhatsAppCheck {
@@ -288,6 +375,87 @@ export interface GatewayReplyPart {
   retryAt?: number;
 }
 
+/** Exact text and recipient reviewed for an approved Outbox send, separate from native replies. */
+export interface GatewayOutboxApproval {
+  instanceId: string;
+  projectId: string;
+  postId: string;
+  eventId: string;
+  parts: string[];
+  revision: string;
+}
+
+export interface GatewayOutboxPreview {
+  approval: GatewayOutboxApproval;
+  recipient: {
+    platform: 'telegram' | 'discord';
+    instanceName: string;
+    accountId: string;
+    conversationId: string;
+    threadId: string;
+    sourceMessageId: string;
+    sender: string;
+  };
+}
+
+export interface GatewayOutboxDestination {
+  instanceId: string;
+  eventId: string;
+  recipient: GatewayOutboxPreview['recipient'];
+}
+
+export interface GatewayOutboxProgress {
+  state: 'queued' | 'sending' | 'sent' | 'failed' | 'uncertain' | 'held' | 'closed' | 'unavailable';
+  recipient?: GatewayOutboxPreview['recipient'];
+  parts: { status: GatewayReplyPart['status']; attempts: number; remoteId?: string; retryAt?: number }[];
+  approvedAt?: number;
+  closedAt?: number;
+  reviewRevision?: string;
+  reviewAvailable?: true;
+  paused: boolean;
+}
+
+export type GatewayOutboxReviewRecord =
+  | { action: 'confirmed'; at: number; revision: string; index: number; attempt: number; remoteId: string }
+  | { action: 'retry'; at: number; revision: string; index: number; attempt: number; from: 'pending' | 'failed' | 'uncertain' };
+
+export interface GatewayOutboxDeliveryReview {
+  revision: string;
+  recipient: GatewayOutboxPreview['recipient'];
+  paused: boolean;
+  removed?: true;
+  reason: string;
+  needsPrepare: boolean;
+  canRetry: boolean;
+  retryReason: string;
+  nextIndex?: number;
+  canFinish: boolean;
+  closedAt?: number;
+  reviewHeld: boolean;
+  parts: { text: string; status: GatewayReplyPart['status']; attempts: number; remoteId?: string; canConfirm: boolean; confirmedAt?: number }[];
+}
+
+export interface GatewayOutboxPostPreview extends GatewayOutboxPreview { draftRevision: string }
+
+/** Private receipt. Fingerprints bind approval to current access, credentials and saved input. */
+export interface GatewayOutboxDelivery extends GatewayOutboxApproval {
+  recipient: GatewayOutboxPreview['recipient'];
+  bindingId: string;
+  configHash: string;
+  sourceHash: string;
+  approvedAt: number;
+  receipts: GatewayReplyPart[];
+  held?: 'destination-changed';
+  reviewHeld?: true;
+  reviews?: GatewayOutboxReviewRecord[];
+  closed?: { at: number; revision: string };
+}
+
+export interface GatewayOutboxJournal {
+  version: 1;
+  deliveries: GatewayOutboxDelivery[];
+}
+
 export type GatewayDeliveryFailureReason = 'whatsapp-window' | 'whatsapp-file-type';
 export type GatewayDeliveryOutcome = { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number; reason?: GatewayDeliveryFailureReason };
 
@@ -300,6 +468,19 @@ export interface GatewayIncomingFile {
   reason?: string;
 }
 
+/** Private ownership of upload scratch files, recorded before streaming any bytes. */
+export interface GatewayUploadReservation {
+  version: 1;
+  instanceId: string;
+  projectId: string;
+  eventId: string;
+  batch: string;
+  root: string;
+  createdAt: number;
+  target: { name: string; dev: number; ino: number; birthtimeMs: number };
+  temporary: { name: string; dev: number; ino: number; birthtimeMs: number };
+}
+
 /** One atomic receipt includes its binding and route; transport acknowledgement follows this write. */
 export interface GatewayInboxJournal {
   version: 1;
@@ -310,6 +491,7 @@ export interface GatewayInboxJournal {
   retiredQuota?: { day: string; incomingBytes: number; outgoingBytes: number }[];
   retiredAlbums?: string[];
   whatsappRelay?: GatewayWhatsAppIntakeState;
+  whatsappRetired?: { at: number; attemptId: string; revision: string; state: GatewayWhatsAppIntakeState }[];
 }
 
 export interface GatewayHealth {
@@ -373,8 +555,9 @@ export interface RunBilling {
 
 // ---------- agents ----------
 export interface AgentSource {
-  type: 'custom' | 'agency' | 'starter' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
+  type: 'custom' | 'library' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
   slug?: string;
+  /** a library hire's group (older hires: their old library's division) */
   division?: string;
   preset?: string;
   profile?: string;
@@ -503,6 +686,8 @@ export interface QueuedMessage {
   replyTo?: string | null;
   /** who it is from when not you (e.g. the Brain following up on a goal) */
   from?: string;
+  /** sent into this run's turn, which hasn't read it yet: it leaves the queue once read, else goes next */
+  reading?: string;
   ts: number;
 }
 
@@ -649,6 +834,8 @@ export interface TeamMessage {
   /** An agent's reply: where its turn is in the agent's own session for this team (its steps and tool
    *  calls are items from..to of that chat), so the team chat can show the work behind it. */
   turn?: { chatId: string; from: number; to: number };
+  /** An agent's turn that was stopped before it finished (steer: to take your new message). Its work so far is in turn. */
+  stopped?: 'stop' | 'steer';
   /** Files and folders attached to the message (paths in the project's uploads/ folder). */
   attachments?: string[];
   [k: string]: unknown;
@@ -761,8 +948,12 @@ export interface Project {
 export type ChatItem = (
   | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string; runId?: string }
   | { type: 'assistant'; text: string; ts?: number }
+  /** A message sent while the agent worked that it took into the turn going on (it didn't stop):
+   *  part of that turn, so the turn still starts at its user message. */
+  | { type: 'steer'; steerId: string; text: string; from?: string | null; attachments?: string[]; ts?: number; runId?: string; teamMessageId?: string }
   | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number; resultSourceId?: string }
-  | { type: 'error'; text: string; ts?: number; runId?: string }
+  /** stopped: the run was stopped before it finished (steer: to take a new message), not a failure */
+  | { type: 'error'; text: string; ts?: number; runId?: string; stopped?: 'stop' | 'steer' }
   /** reset: "Clear memory" (the agent starts fresh after it) */
   | { type: 'meta'; text: string; ts?: number; reset?: boolean; billing?: RunBilling }
   | CompactionItem) & { sourceId?: string };
@@ -895,6 +1086,8 @@ export interface ChatSummary {
 export type RunEvent =
   | { kind: 'start'; text: string; from?: string | null; attachments?: string[] }
   | { kind: 'text'; text: string }
+  /** a message that joined the turn going on (a steer item in the chat) */
+  | { kind: 'steer'; id: string; text: string; from?: string | null; attachments?: string[]; teamMessageId?: string }
   | { kind: 'tool'; id: string; name: string; args?: Record<string, unknown> }
   | { kind: 'tool_result'; id: string; text?: string; isError?: boolean; images?: string[] }
   | { kind: 'status'; text: string }
@@ -1020,8 +1213,14 @@ export interface OutboxPost {
   accountId?: string | null;
   accountLabel?: string;
   parts: string[];
+  gateway?: { instanceId: string; eventId: string };
+  gatewayApprovedRevision?: string;
+  gatewayDraftRevision?: string;
+  gatewayProgress?: GatewayOutboxProgress;
   /** Image files (full paths inside the project's folders) that go with the first part. X only. */
   images?: string[];
+  /** Alt text (a description for people who can't see it) by image path. X only. */
+  imageAlt?: Record<string, string>;
   status: 'pending' | 'posting' | 'posted' | 'failed' | 'rejected' | 'returned' | string;
   agentId?: string | null;
   /** The team the draft was written for (named at the time); where Send back to the team goes. */
@@ -1037,7 +1236,8 @@ export interface OutboxPost {
   note?: string;
   url?: string;
   to?: string;
-  reddit?: { kind: 'post' | 'comment'; subreddit?: string; title?: string; link?: string; parent?: string };
+  /** Reddit: a post or a comment; a post may carry a flair (a template id from the subreddit and/or its text). */
+  reddit?: { kind: 'post' | 'comment'; subreddit?: string; title?: string; link?: string; parent?: string; flairId?: string; flairText?: string };
   createdAt?: number;
   updatedAt?: number;
   [k: string]: unknown;
@@ -1115,6 +1315,8 @@ export interface Settings {
   maxToolSteps: number;
   costLimitUsdPerRun: number;
   contextWindowTokens: number;
+  /** A longer tool result keeps its start and end for the model; the whole text is saved in outputs. 0 = no limit. */
+  toolResultChars: number;
   /** Models starred in the model picker: they get their own tab at the front. */
   favoriteModels: FavoriteModel[];
   activeProject?: string;
@@ -1134,6 +1336,24 @@ export interface VeniceAccountInfo {
 }
 
 // ---------- engines ----------
+/** How one tool was used, counted on this computer only (data/tool-stats.json). */
+export interface ToolStat {
+  name: string;
+  calls: number;
+  errors: number;
+  denied: number;
+  /** Results that were longer than the limit and reached the model shortened. */
+  clipped: number;
+  /** Calls that asked you (or the Brain) first. */
+  asked: number;
+  totalMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  totalChars: number;
+  maxChars: number;
+  lastAt: number;
+}
+
 export interface EngineCapabilities {
   nativeSession: boolean;
   directTools: boolean;
@@ -1234,8 +1454,29 @@ export interface EveRunRecord {
   error?: string;
   endedAt?: number;
   pendingTerminal?: { line: number; status: 'completed' | 'failed' | 'stopped' | 'interrupted'; parts: string[]; error?: string };
+  /** Messages sent into this run's turn while it worked (saved before they are sent). */
+  steers?: EveSteer[];
+  /** Other deliveries its turn took in (the steers', recorded even before a steer learns its delivery) */
+  joinedDeliveries?: string[];
+  /** it follows a turn Eve started with a late steer: what came before that turn's message isn't its own */
+  adopted?: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+/** A message sent into a running Eve turn. One the turn took is in joinedDeliveries; a delivered one that
+ *  missed the turn (it ended first) starts the next turn, which a new run (adoptedBy) follows. */
+export interface EveSteer {
+  id: string;
+  text: string;
+  attachments: string[];
+  from?: string | null;
+  teamMessageId?: string;
+  deliveryId: string | null;
+  adoptedBy?: string;
+  /** it never reached Eve, or missed a team turn: the message went the ordinary way instead */
+  dropped?: boolean;
+  at: number;
 }
 
 /** One acknowledged model response, including charges that preceded a lost native checkpoint. */
@@ -1425,6 +1666,27 @@ export interface PresetListing {
   lead: string | null;
   skills: string[];
   savedAt: number;
+}
+
+/** One of the Agent library's agents (library/athena-agents), as GET /api/library lists it: not hired yet. */
+export interface LibraryAgentListing {
+  slug: string;
+  name: string;
+  description: string;
+  emoji: string;
+  color: string;
+  specialty: string;
+  /** its group's id and label (groups.json) */
+  group: string;
+  groupLabel: string;
+  /** the tool groups it starts with */
+  tools: string[];
+  /** the skills it starts with */
+  skills: string[];
+  /** '' unless it needs one engine */
+  engine: string;
+  /** one of the starter team the Home page adds in one click */
+  starter: boolean;
 }
 
 // ---------- versions (skills, agents, teams) ----------

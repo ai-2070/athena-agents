@@ -18,6 +18,7 @@ import { mentionPreviews } from './filepreview.tsx';
 import { ChatProject } from './chat/project.ts';
 import { modelChip } from './models.tsx';
 import { CollapseRoot, CollapseTrigger, CollapsePanel } from './ui/collapse.tsx';
+import { ReportLine, splitReport } from './ui/report.tsx';
 import { slideIn, reducedMotion } from './motion.ts';
 import { useFind } from './ui/find.tsx';
 import { queuedText } from '../shared/queue.ts';
@@ -345,17 +346,26 @@ function Fold({ children }: { children: ReactNode }) {
   );
 }
 
-/** "Show the work": the steps and tool calls behind a reply, loaded when opened. */
-function Work({ m }: { m: TeamMessage }) {
-  const [open, setOpen] = useState(false);
-  const [opened, setOpened] = useState(false);
+/** A turn stopped before it finished (threads saved before the flag say so only in the text). */
+export function stoppedTurn(m: TeamMessage): 'stop' | 'steer' | null {
+  if (m.from === 'user' || m.from === 'system' || m.from === 'brain' || m.relay) return null;
+  if (m.stopped === 'steer' || m.text === '(stopped to take your new message)') return 'steer';
+  if (m.stopped === 'stop' || m.text === '(stopped)') return 'stop';
+  return null;
+}
+
+/** "Show the work": the steps and tool calls behind a reply, loaded when opened. A stopped turn's
+ *  work shows from the start: it is what the agent got done, and stays where its live turn was. */
+function Work({ m, shown = false }: { m: TeamMessage; shown?: boolean }) {
+  const [open, setOpen] = useState(shown);
+  const [opened, setOpened] = useState(shown);
   const at = projectAt(useContext(TeamProject));
   const turn = m.turn!;
   return (
     <CollapseRoot className="tc-work mt-2.5 text-left" open={open} onOpenChange={(value) => { setOpen(value); if (value) setOpened(true); }}>
       <CollapseTrigger className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint transition-colors duration-200 ease-in-out hover:text-ink">
         <Icon name="chevron-down" size={12} className={`transition-transform duration-200 ease-in-out ${open ? 'rotate-180' : ''}`} />
-        Show the work
+        {open ? 'Hide the work' : 'Show the work'}
       </CollapseTrigger>
       <CollapsePanel keepMounted>
         <div className={TURN_BODY}>
@@ -366,14 +376,28 @@ function Work({ m }: { m: TeamMessage }) {
   );
 }
 
+/** A line from the dashboard. One that heads a long report shows just its heading; the report opens under it. */
+function SystemLine({ text, names, teams }: { text: string; names: string; teams: string }) {
+  const line = 'text-center text-[12.5px] leading-[normal] font-normal text-faint py-1';
+  const split = splitReport(text);
+  if (!split) return <div className={line}>{text}</div>;
+  return (
+    <ReportLine heading={split.heading} lineClass={line}>
+      <DomNode className="dom-contents" make={() => textWithMentions(split.report, names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[text, names, teams]} />
+    </ReportLine>
+  );
+}
+
 /** One message. Memo: a message drawn once stays as it is while others arrive or stream in. */
 const Message = memo(function Message({ m, parent, author, team, lead, names, teams, onReply }: { m: TeamMessage; parent: TeamMessage | null; author: Agent | undefined; team: TeamRef | undefined; lead: boolean; names: string; teams: string; onReply: (m: TeamMessage) => void }) {
   const project = useContext(TeamProject);
   const agentOf = useAgentOf();
-  if (m.from === 'system') return <div className="text-center text-[12.5px] leading-[normal] font-normal text-faint py-1">{m.text}</div>;
+  if (m.from === 'system') return <SystemLine text={m.text} names={names} teams={teams} />;
   const brain = m.from === 'brain';
   // a message from another team (#Team): in that team's colour
   const relay = m.relay;
+  // its turn was stopped: a quiet line in place of a reply, and its work so far, open
+  const stopped = stoppedTurn(m);
   return (
     <div className={relay ? MSG_RELAY : m.from === 'user' ? MSG_ME : MSG_OTHER} style={relay ? ({ '--team-color': team?.color || 'var(--color-ice)' } as CSSProperties) : undefined}>
       <div className={m.from === 'user' ? 'sr-only' : WHO}>
@@ -398,7 +422,12 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
         ) : null}
       </div>
       {parent ? <div className="text-[12px] text-faint mb-2 truncate">{`↪ ${senderName(parent, (id) => agentOf(id)?.name)}: ${String(parent.text).slice(0, 90)}`}</div> : null}
-      {m.text ? (
+      {stopped ? (
+        <div className="tc-stopped flex items-center gap-1.5 text-[12.5px] leading-[normal] text-faint">
+          <Icon name="square" size={10} />
+          {stopped === 'steer' ? 'Stopped to take your new message. Its work so far is kept.' : 'Stopped. Its work so far is kept.'}
+        </div>
+      ) : m.text ? (
         <Fold>
           <DomNode className="dom-contents" make={() => textWithMentions(m.text, names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[m.text, names, teams]} />
         </Fold>
@@ -413,7 +442,7 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
         }}
         deps={[m.id, m.text, JSON.stringify(m.attachments || []), project]}
       />
-      {m.turn && m.from !== 'user' && m.from !== 'system' ? <Work m={m} /> : null}
+      {m.turn && m.from !== 'user' && m.from !== 'system' ? <Work m={m} shown={!!stopped} /> : null}
       {m.mentions?.length && m.from !== 'user' ? (
         <div className="flex items-center gap-1.5 mt-2.5 text-[12px] font-medium leading-[normal] text-ice">
           <Icon name="send" size={11} />

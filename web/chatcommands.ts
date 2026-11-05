@@ -78,7 +78,7 @@ export function loopLine(l: LoopInfo): string {
 
 /** Completion checks continue while work advances. */
 export function goalLine(g: BrainBrief): string {
-  return g.followUps ? `${g.followUps} follow-up${g.followUps === 1 ? '' : 's'}` : 'the Brain checks the work after each turn';
+  return g.followUps ? `${g.followUps} follow-up${g.followUps === 1 ? '' : 's'}` : 'The Brain checks the work after each turn.';
 }
 
 const CHIP_TEXT = 'min-w-0 flex-1 truncate';

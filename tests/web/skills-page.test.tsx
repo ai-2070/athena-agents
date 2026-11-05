@@ -72,6 +72,17 @@ describe('the Skills page', () => {
     expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toEqual({ skills: ['notes'] });
   });
 
+  it("shows a Crafting App's own icon on its skill, and the puzzle piece on the rest", async () => {
+    const plain = globalThis.fetch;
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) =>
+      url === '/api/skills' ? new Response(JSON.stringify({ skills: [skill('solidcraft', 'solidcraft'), skill('craft-anything', 'craft-anything'), skill('storytold', 'storytold')], claude: [] })) : plain(url, init));
+    await open();
+    expect(card('solidcraft').querySelector('img.skill-ico')!.getAttribute('src')).toBe('/craft-icons/solidcraft.png');
+    expect(card('craft-anything').querySelector('img.skill-ico')!.getAttribute('src')).toBe('/craft-icons/craft-anything.png');
+    expect(card('storytold').querySelector('img.skill-ico')).toBeNull();
+    expect(card('storytold').querySelector('div.skill-ico svg')).not.toBeNull();
+  });
+
   it('searches the library', async () => {
     await open();
     const search = el.querySelector<HTMLInputElement>('input[aria-label="Search skills"]')!;

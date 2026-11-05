@@ -42,6 +42,14 @@ describe('explicit dismissal of never-started gateway requests', () => {
     const next = f.body(); f.inbox.dismissRequest(f.first.id, next); expect(() => f.inbox.dismissRequest(f.first.id, next)).toThrow('changed');
   });
 
+  it('lets later text and file replies pass an earlier dismissed request in the same conversation', async () => {
+    const f = await fixture(); f.pause(); f.inbox.dismissRequest(f.first.id, f.body()); saveGatewayInstance(f.config, f.instance.id);
+    const next = f.inbox.claimNext()!; f.inbox.beginDispatch(next.id, next.operationId!, await gatewayConversation(next, new AbortController().signal)); f.inbox.finishDispatch(next.id, next.operationId!, 'Later answer');
+    const reply = f.inbox.claimReply()!; expect(reply.event.id).toBe(f.later.id); f.inbox.settleReply(reply.event.id, reply.index, { remoteId: 'sent-reply' });
+    f.inbox.selectOutgoing(next.id, [{ path: 'generated.txt', name: 'generated.txt', size: 1, sha256: 'a'.repeat(64) }]);
+    expect(f.inbox.claimOutgoing()!.event.id).toBe(f.later.id); expect(f.inbox.list()[0].operationId).toBeUndefined(); expect(f.inbox.list()[0].reply).toBeUndefined();
+  });
+
   it('invalidates confirmation when instance settings or later messages change', async () => {
     const f = await fixture(); f.pause(); const first = f.body(); saveGatewayInstance({ ...f.config, enabled: false, name: 'Renamed' }, f.instance.id);
     expect(() => f.inbox.dismissRequest(f.first.id, first)).toThrow('changed'); const second = f.body(); f.inbox.review(f.later.id);

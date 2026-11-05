@@ -591,8 +591,10 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
   if (n === 'reddit_draft_post') return A('Reddit', `drafting a post for r/${String(args.subreddit || '').replace(/^\/?r\//, '')}`, args.title || '', 'reddit', '#ff4500');
   if (n === 'reddit_draft_comment') return A('Reddit', 'drafting a comment', args.text || '', 'reddit', '#ff4500');
   if (n === 'reddit_read' || n === 'reddit_search' || n === 'reddit_comments') return A('Reddit', n === 'reddit_search' ? 'searching' : 'reading', args.subreddit ? `r/${args.subreddit}` : args.query || args.post || '', 'reddit', '#ff4500');
+  if (n === 'reddit_rules') return A('Reddit', 'reading the rules', args.subreddit ? `r/${String(args.subreddit).replace(/^\/?r\//, '')}` : '', 'reddit', '#ff4500');
   if (n === 'discord_send') return A('Discord', 'posting', args.text || '', 'discord', '#7d86ff');
   if (n === 'Bash' || n === 'run_command') return A('Terminal', 'running', args.command || '', null, '');
+  if (n === 'view_image') return A('Files', 'looking at', base(args.path), null, '#a9d3e2');
   if (['Read', 'read_file', 'knowledge_read'].includes(n)) return A('Files', 'reading', base(args.file_path || args.path || args.file), null, '#a9d3e2');
   if (['Write', 'Edit', 'write_file', 'NotebookEdit'].includes(n)) return A('Files', 'writing', base(args.file_path || args.path), null, '#a9d3e2');
   if (['Glob', 'Grep', 'list_files', 'knowledge_search'].includes(n)) return A('Files', 'searching', args.pattern || args.query || args.path || '', null, '#a9d3e2');
@@ -3774,9 +3776,9 @@ function drawHud(): void {
   for (const it of ints) if (!ENGINE_SIDE.has(it.id)) tiles.push({ key: it.id, int: it.id, glyph: mark(it.id), color: it.color, on: it.live, title: `${it.label} · ${it.live ? 'ready' : 'installed, not running'}`, onclick: () => choose({ type: 'int', id: it.id }) });
   const missing = [
     !d.accounts.x.length && { glyph: logo('x', 13) || '𝕏', title: 'X · not connected (Connections)', href: '#/settings?tab=connections' },
-    !d.accounts.telegram.configured && { glyph: logo('telegram', 13) || '✈', title: 'Telegram · not set up (Connections)', href: '#/settings?tab=connections' },
+    !d.accounts.telegram.configured && { glyph: logo('telegram', 13) || '✈', title: 'Telegram · not set up (Gateways)', href: '#/settings?tab=gateways' },
     !(d.accounts.reddit || []).length && { glyph: logo('reddit', 13) || 'r/', title: 'Reddit · not connected (Settings > Connections)', href: '#/settings?tab=connections' },
-    !d.accounts.discord.configured && { glyph: logo('discord', 13) || 'D', title: 'Discord · not set up (Connections)', href: '#/settings?tab=connections' },
+    !d.accounts.discord.configured && { glyph: logo('discord', 13) || 'D', title: 'Discord · not set up (Gateways)', href: '#/settings?tab=gateways' },
   ].filter(Boolean) as { glyph: SVGSVGElement | string; title: string; href: string }[];
   for (const m of missing) tiles.push({ key: m.title, glyph: m.glyph, color: 'var(--color-faint)', on: false, missing: true, title: m.title, onclick: () => navigate(m.href) });
   const seen = new Set<string>();
