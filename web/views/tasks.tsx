@@ -18,8 +18,11 @@ import { cardCopy, grab, useDragPreview } from '../taskmotion.ts';
 import { openChat } from '../chatwin.tsx';
 import { DraftWithBrain, Markdown, useMentionBox, useMentionables, PRIORITIES, Pick, PriorityIcon, STATUSES, StatusIcon, TaskFiles, WORK_STATES, WhoMark, askForDraft, assigneeChoices, confirmStop, isWorking, openTaskComposer, priorityChoices, priorityOf, statusChoices, statusOf, taskHref, taskKey, usePeople, useTray } from '../taskboard.tsx';
 import type { Choice } from '../taskboard.tsx';
+import { TagFilter, TagMarks, TagPicker, tagOptions } from '../tasktags.tsx';
+import type { TagFilterValue } from '../tasktags.tsx';
+import { tagKey, tagsMatch } from '../../shared/boardtags.ts';
 import type { Candidate } from '../routinemention.ts';
-import type { BoardComment, BoardPriority, BoardStatus, BoardTask, TaskBoardData } from '../../shared/types.ts';
+import type { BoardComment, BoardPriority, BoardStatus, BoardTag, BoardTask, TaskBoardData } from '../../shared/types.ts';
 
 // Done shows what was finished lately; "Show older" shows the rest
 const RECENT_MS = 14 * 86_400_000;
@@ -93,6 +96,7 @@ function TaskBoardPage() {
   const [search, setSearch] = useState('');
   const [assignee, setAssignee] = useState('');
   const [priority, setPriority] = useState('');
+  const [tagFilter, setTagFilter] = useState<TagFilterValue>({ keys: [], untagged: false, match: 'any' });
   const [older, setOlder] = useState(false);
   const [dragging, setDragging] = useState<BoardTask | null>(null);
   const [drop, setDrop] = useState<{ status: BoardStatus; index: number } | null>(null);
@@ -193,7 +197,7 @@ function TaskBoardPage() {
 
   const tasks = data?.tasks || [];
   const q = search.trim().toLowerCase();
-  const shown = tasks.filter((t) => (!q || `${taskKey(t.number)} ${t.title} ${t.description} ${t.projectName}`.toLowerCase().includes(q)) && (!assignee || t.assigneeName === assignee) && (!priority || t.priority === priority));
+  const shown = tasks.filter((t) => (!q || `${taskKey(t.number)} ${t.title} ${t.description} ${t.projectName} ${t.tagList.map((x) => x.name).join(' ')}`.toLowerCase().includes(q)) && (!assignee || t.assigneeName === assignee) && (!priority || t.priority === priority) && tagsMatch(t.tagList.map((x) => x.name), tagFilter.keys, tagFilter.match, tagFilter.untagged));
   const columns = useMemo(() => {
     const now = Date.now();
     return STATUSES.map((s) => {
@@ -204,7 +208,10 @@ function TaskBoardPage() {
   }, [shown, older]);
   const people = [...new Set(tasks.map((t) => t.assigneeName))].sort((a, b) => (a === 'Unassigned' ? 1 : b === 'Unassigned' ? -1 : a.localeCompare(b)));
   const allProjects = project === 'all';
-  const filtered = !!(q || assignee || priority);
+  const filtered = !!(q || assignee || priority || tagFilter.keys.length || tagFilter.untagged);
+  const tagChoices = useMemo(() => tagOptions(data?.tags), [data]);
+  // a tag on a card shows its tasks (only those)
+  const filterByTag = (tag: BoardTag) => setTagFilter({ keys: [tagKey(tag.name)], untagged: false, match: 'any' });
   const open = tasks.filter((t) => t.status !== 'done').length;
 
   // A card's moves are saved one after another, each on the version of the task the last one left (null: that one
@@ -331,8 +338,9 @@ function TaskBoardPage() {
         <Pick label="Projects shown" value={which === 'here' || which === 'all' || data?.projects.some((p) => p.id === which) ? which : 'here'} choices={projectChoices} onChange={pick} />
         <Pick label="Assigned to" value={assignee} choices={[{ value: '', label: 'Anyone', mark: <Icon name="users" size={14} className="text-faint" /> }, ...people.map((o) => ({ value: o, label: o }))]} onChange={setAssignee} />
         <Pick label="Priority" value={priority} choices={[{ value: '', label: 'Any priority', mark: <Icon name="chevrons-up" size={14} className="text-faint" /> }, ...PRIORITIES.map((p) => ({ value: p.value, label: p.label, mark: <PriorityIcon priority={p.value} /> }))]} onChange={setPriority} />
+        <TagFilter options={tagChoices} value={tagFilter} onChange={setTagFilter} projectId={allProjects ? undefined : project} />
         {filtered ? (
-          <Button variant="plain" size="small" onClick={() => (setSearch(''), setAssignee(''), setPriority(''))}>
+          <Button variant="plain" size="small" onClick={() => (setSearch(''), setAssignee(''), setPriority(''), setTagFilter({ keys: [], untagged: false, match: 'any' }))}>
             <Icon name="x" size={13} />
             Clear
           </Button>
@@ -421,6 +429,7 @@ function TaskBoardPage() {
                           onStep={(d) => step(t, d)}
                           onRemove={() => void remove(t)}
                           onAssign={(who) => assign(t, who)}
+                          onTag={filterByTag}
                         />,
                       ];
                     })}
@@ -472,7 +481,7 @@ function DropGhost({ task, height }: { task: BoardTask; height: number }) {
   return <li ref={slot} aria-hidden="true" inert style={{ '--slot': `${height}px` } as CSSProperties} className="pointer-events-none h-(--slot) flex-none overflow-hidden rounded-[10px] opacity-35 animate-[open-slot_0.16s_var(--ease-soft)_both]" />;
 }
 
-function Card({ task: t, showProject, first, last, dragging, onDragStart, onDragEnd, onColumn, onStep, onRemove, onAssign }: {
+function Card({ task: t, showProject, first, last, dragging, onDragStart, onDragEnd, onColumn, onStep, onRemove, onAssign, onTag }: {
   task: BoardTask;
   showProject: boolean;
   first: boolean;
@@ -484,6 +493,7 @@ function Card({ task: t, showProject, first, last, dragging, onDragStart, onDrag
   onStep: (dir: -1 | 1) => void;
   onRemove: () => void;
   onAssign: (who: Assignee) => void;
+  onTag: (tag: BoardTag) => void;
 }) {
   const column = STATUSES.findIndex((s) => s.value === t.status);
   const open = () => navigate(taskHref(t));
@@ -524,6 +534,7 @@ function Card({ task: t, showProject, first, last, dragging, onDragStart, onDrag
         </span>
       </div>
       {t.status === 'blocked' && t.blockedReason ? <p className="m-0 line-clamp-2 text-[12px] leading-snug text-red">{t.blockedReason}</p> : null}
+      {t.tagList.length ? <TagMarks tags={t.tagList} onPick={onTag} /> : null}
       <div className="flex min-w-0 items-center gap-2 text-[11.5px] text-faint">
         <span className="font-medium tabular-nums">{taskKey(t.number)}</span>
         {t.priority !== 'normal' ? (
@@ -762,6 +773,7 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
             <Pick look="row" label="Status" value={task.status} choices={statusChoices()} onChange={(v) => void changeStatus(v as BoardStatus)} />
             <Pick look="row" label="Priority" value={task.priority} choices={priorityChoices()} onChange={(v) => void save({ priority: v as BoardPriority })} />
             <Pick look="row" label="Assigned to" value={task.assignee} choices={assigneeChoices(people)} onChange={(v) => void confirmStop(task).then((ok) => ok && save({ assignee: v }))} />
+            <TagPicker look="row" projectId={task.projectId} value={task.tags || []} onChange={(ids) => save({ tags: ids })} />
           </div>
           <WorkBox task={task} onChange={onChange} />
           <dl className="m-0 flex flex-col px-2">

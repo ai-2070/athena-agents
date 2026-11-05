@@ -10,6 +10,8 @@ import { ArchiveIcon } from '@phosphor-icons/react/dist/csr/Archive';
 import { FolderPlusIcon } from '@phosphor-icons/react/dist/csr/FolderPlus';
 import { KeyboardIcon } from '@phosphor-icons/react/dist/csr/Keyboard';
 import { KanbanIcon } from '@phosphor-icons/react/dist/csr/Kanban';
+import { TagIcon } from '@phosphor-icons/react/dist/csr/Tag';
+import { SmileyIcon } from '@phosphor-icons/react/dist/csr/Smiley';
 import { CircleDashedIcon } from '@phosphor-icons/react/dist/csr/CircleDashed';
 import { CircleHalfIcon } from '@phosphor-icons/react/dist/csr/CircleHalf';
 import { EyeIcon } from '@phosphor-icons/react/dist/csr/Eye';
@@ -241,6 +243,8 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   'github-logo': GithubLogoIcon,
   keyboard: KeyboardIcon,
   kanban: KanbanIcon,
+  tag: TagIcon,
+  smiley: SmileyIcon,
   'circle-dashed': CircleDashedIcon,
   'circle-half': CircleHalfIcon,
   'eye': EyeIcon,

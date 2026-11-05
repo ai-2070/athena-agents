@@ -23,7 +23,8 @@ const emojis = emojiData.categories.flatMap((category) => category.emojis.flatMa
   return native ? [{ id, category: category.id, native, name: emoji.name, search: `${emoji.name} ${id.replace(/[_-]/g, ' ')} ${emoji.keywords.join(' ')}`.toLowerCase() }] : [];
 }));
 
-export function EmojiPicker({ value, onChange, children }: { value: string; onChange: (emoji: string) => void; children: ReactNode }) {
+/** className: the trigger's size and shape (a large square by default, as on an agent's page). */
+export function EmojiPicker({ value, onChange, children, className = 'size-15! rounded-[14px] p-0!', label = 'Choose emoji' }: { value: string; onChange: (emoji: string) => void; children: ReactNode; className?: string; label?: string }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('people');
@@ -46,7 +47,7 @@ export function EmojiPicker({ value, onChange, children }: { value: string; onCh
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-        <Popover.Trigger className={buttonClass('ghost', undefined, 'size-15! rounded-[14px] p-0!')} aria-label="Choose emoji" title="Choose emoji">{children}</Popover.Trigger>
+        <Popover.Trigger className={buttonClass('ghost', undefined, className)} aria-label={label} title={label}>{children}</Popover.Trigger>
         <Popover.Portal>
           <Popover.Positioner positionMethod="fixed" className="z-96 outline-none" side="bottom" align="start" sideOffset={6} collisionPadding={8}>
             <Popover.Popup aria-label="Choose emoji" className="st-menu dd static w-[min(320px,calc(100vw-16px))] max-w-none p-2">
