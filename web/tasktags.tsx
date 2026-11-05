@@ -2,7 +2,7 @@
 // makes new ones: "🐛 Bug" is the emoji and the name), the board's Tags filter, and the window that renames,
 // re-emojis and deletes a project's tags. The rules (names, emoji, matching) are shared/boardtags.ts.
 import { Popover } from '@base-ui/react/popover';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { DEL, GET, POST, PUT, confirmBox, onEvent, toast } from './core.ts';
 import { Button, IconButton } from './ui/button.tsx';
@@ -47,8 +47,9 @@ export function TagMarks({ tags, max = 3, onPick }: { tags: readonly BoardTag[];
   );
 }
 
-/** A project's tags, loaded again when its board changes. */
-export function useBoardTags(projectId: string): { tags: BoardTagUse[] | null; reload: () => Promise<void> } {
+/** A project's tags. While live they load, and load again when its board changes; otherwise the last ones stay
+ *  (a closed tag menu doesn't ask for them on every comment or move). */
+export function useBoardTags(projectId: string, live = true): { tags: BoardTagUse[] | null; reload: () => Promise<void> } {
   const [tags, setTags] = useState<BoardTagUse[] | null>(null);
   const reload = useCallback(async () => {
     if (!projectId) return;
@@ -58,18 +59,19 @@ export function useBoardTags(projectId: string): { tags: BoardTagUse[] | null; r
       setTags((t) => t || []);
     }
   }, [projectId]);
+  useEffect(() => setTags(null), [projectId]);
   useEffect(() => {
-    setTags(null);
+    if (!live) return;
     void reload();
     return onEvent((e) => e.type === 'board' && e.projectId === projectId && void reload());
-  }, [projectId, reload]);
+  }, [projectId, reload, live]);
   return { tags, reload };
 }
 
-/** Makes a tag ("🐛 Bug" is the emoji and the name), or finds the one with that name. */
-async function makeTag(projectId: string, name: string, emoji?: string): Promise<BoardTagUse | null> {
+/** Makes a tag ("🐛 Bug" is the emoji and the name), or finds the one with that name (made: false). */
+async function makeTag(projectId: string, name: string, emoji?: string): Promise<(BoardTagUse & { made: boolean }) | null> {
   try {
-    return (await POST<{ tag: BoardTagUse }>(tagsPath(projectId), { name, ...(emoji ? { emoji } : {}) })).tag;
+    return (await POST<{ tag: BoardTagUse & { made: boolean } }>(tagsPath(projectId), { name, ...(emoji ? { emoji } : {}) })).tag;
   } catch (e) {
     toast(errorText(e), 'error');
     return null;
@@ -109,13 +111,17 @@ const tagText = (t: Pick<BoardTag, 'name' | 'emoji'>) => (
   </>
 );
 
-/** Puts tags on a task (ids, in order): as a pill (the new task window) or a row (the task page). */
-export function TagPicker({ projectId, value, onChange, look = 'pill', disabled }: { projectId: string; value: readonly string[]; onChange: (ids: string[]) => unknown; look?: 'pill' | 'row'; disabled?: boolean }) {
-  const { tags, reload } = useBoardTags(projectId);
+/** Puts tags on a task (ids, in order): as a pill (the new task window) or a row (the task page). known: the tags
+ *  the task has, to show them before the project's tags are loaded (they load when the menu opens). */
+export function TagPicker({ projectId, value, known = [], onChange, look = 'pill', disabled }: { projectId: string; value: readonly string[]; known?: readonly BoardTag[]; onChange: (ids: string[]) => unknown; look?: 'pill' | 'row'; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
+  const { tags, reload } = useBoardTags(projectId, open);
   const [query, setQuery] = useState('');
+  // (a tag made while other clicks were saved goes on the list as it is then, not as it was when the click began)
+  const latest = useRef(value);
+  latest.current = value;
   const all = tags || [];
-  const picked = value.flatMap((id) => all.filter((t) => t.id === id));
+  const picked = value.flatMap((id) => known.find((t) => t.id === id) ?? all.find((t) => t.id === id) ?? []);
   const key = tagKey(query);
   const shown = key ? all.filter((t) => tagKey(t.name).includes(key)) : all;
   const exact = key ? all.find((t) => tagKey(t.name) === key) : undefined;
@@ -125,7 +131,7 @@ export function TagPicker({ projectId, value, onChange, look = 'pill', disabled 
     if (!made) return;
     setQuery('');
     await reload();
-    if (!value.includes(made.id)) onChange([...value, made.id]);
+    if (!latest.current.includes(made.id)) onChange([...latest.current, made.id]);
   };
   const typed = splitTag(query);
   return (
@@ -192,6 +198,12 @@ export interface TagFilterValue {
   keys: string[];
   untagged: boolean;
   match: TagMatch;
+}
+/** The filter without tags the projects shown no longer have (renamed, deleted, another project): left in, they
+ *  would hide every card, and the menu couldn't untick them. The same value when nothing goes. */
+export function knownTagFilter(value: TagFilterValue, options: readonly TagOption[]): TagFilterValue {
+  const keys = value.keys.filter((k) => options.some((t) => t.key === k));
+  return keys.length === value.keys.length ? value : { ...value, keys };
 }
 /** The board's Tags filter: tags to show (any or all of them), and tasks with no tag. */
 export function TagFilter({ options, value, onChange, projectId }: { options: readonly TagOption[]; value: TagFilterValue; onChange: (v: TagFilterValue) => void; projectId?: string }) {
@@ -274,17 +286,22 @@ export function TagManager({ projectId }: { projectId: string }) {
     if (!name.trim()) return;
     const made = await makeTag(projectId, name, emoji);
     if (!made) return;
+    // (the form stays, so a name that is taken can be changed)
+    if (!made.made) return void toast(`There's a tag called “${tagLabel(made)}” already.`);
     setName('');
     setEmoji('');
     await reload();
   };
-  const change = async (t: BoardTagUse, patch: { name?: string; emoji?: string }) => {
+  const change = async (t: BoardTagUse, patch: { name?: string; emoji?: string }): Promise<boolean> => {
+    let ok = true;
     try {
       await PUT(`${tagsPath(projectId)}/${encodeURIComponent(t.id)}`, patch);
     } catch (e) {
       toast(errorText(e), 'error');
+      ok = false;
     }
     await reload();
+    return ok;
   };
   const remove = async (t: BoardTagUse) => {
     const ok = await confirmBox(`Delete the tag “${tagLabel(t)}”?${t.tasks ? ` It comes off ${t.tasks} task${t.tasks === 1 ? '' : 's'}.` : ''}`, { ok: 'Delete', danger: true });
@@ -315,9 +332,11 @@ export function TagManager({ projectId }: { projectId: string }) {
                 className="min-w-0 flex-1 border-transparent! bg-transparent! shadow-none! hover:border-line-2! focus:border-line-2!"
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), e.currentTarget.blur())}
                 onBlur={(e) => {
-                  const next = e.currentTarget.value.trim();
-                  if (next && next !== t.name) void change(t, { name: next });
-                  else e.currentTarget.value = t.name;
+                  const input = e.currentTarget;
+                  const next = input.value.trim();
+                  // (a refused name goes back to the tag's own: the row isn't drawn again, as nothing changed)
+                  if (next && next !== t.name) void change(t, { name: next }).then((ok) => ok || (input.value = t.name));
+                  else input.value = t.name;
                 }}
               />
               <span className="flex-none text-[12px] text-faint tabular-nums">{t.tasks} task{t.tasks === 1 ? '' : 's'}</span>

@@ -13,10 +13,16 @@ import type { AppState, BoardTag, BoardTagUse, BoardTask } from '../../shared/ty
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = (ms = 40) => act(() => new Promise((r) => setTimeout(r, ms)));
 class FakeSocket {
+  static last: FakeSocket | null = null;
   onopen: (() => void) | null = null;
   onclose: (() => void) | null = null;
-  onmessage: ((m: MessageEvent<string>) => void) | null = null;
+  onmessage: ((m: { data: string }) => void) | null = null;
+  constructor() {
+    FakeSocket.last = this;
+  }
 }
+// a change the server tells open tabs about
+const serverEvent = (ev: object) => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
 
 const now = Date.now();
 let n = 0;
@@ -30,6 +36,8 @@ const card = (over: Partial<BoardTask>): BoardTask => ({
 let board: BoardTask[];
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
+// while set, saving a task waits for it (the server is slow)
+let hold: Promise<void> | null;
 
 beforeEach(() => {
   n = 0;
@@ -37,6 +45,7 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><section id="view"></section>';
   el = document.getElementById('view')!;
   requests = [];
+  hold = null;
   tags = {
     p1: [tag('g1', 'Bug', '🐛', 2), tag('g2', 'Design', '🎨', 1), tag('g3', 'Mobile', undefined, 1), tag('g4', 'Docs', '📝', 1)],
     p2: [tag('h1', 'bug', undefined, 1)],
@@ -65,12 +74,17 @@ beforeEach(() => {
     const tagList = /^\/api\/task-board-tags\/([^/]+)$/.exec(url);
     if (tagList && method === 'GET') return json({ tags: tags[tagList[1]] });
     if (tagList && method === 'POST') {
+      const same = tags[tagList[1]].find((t) => t.name.toLowerCase() === String(body.name).toLowerCase());
+      if (same) return json({ tag: { ...same, made: false } });
       const made = tag('new1', String(body.name).replace(/^🍰\s*/, ''), String(body.name).startsWith('🍰') ? '🍰' : body.emoji);
       tags[tagList[1]] = [...tags[tagList[1]], made];
       return json({ tag: { ...made, made: true } });
     }
     const oneTag = /^\/api\/task-board-tags\/([^/]+)\/([^/]+)$/.exec(url);
     if (oneTag && method === 'PUT') {
+      if (body.name && tags[oneTag[1]].some((t) => t.id !== oneTag[2] && t.name.toLowerCase() === String(body.name).toLowerCase())) {
+        return new Response(JSON.stringify({ error: `There's a tag called "${body.name}" already.` }), { status: 409, headers: { 'content-type': 'application/json' } });
+      }
       tags[oneTag[1]] = tags[oneTag[1]].map((t) => (t.id === oneTag[2] ? { ...t, ...body } : t));
       return json({ tag: tags[oneTag[1]].find((t) => t.id === oneTag[2]) });
     }
@@ -82,7 +96,12 @@ beforeEach(() => {
     if (one) {
       const i = board.findIndex((t) => t.projectId === one[1] && t.id === one[2]);
       if (method === 'PUT') {
-        const ids: string[] = body.tags ?? board[i].tags ?? [];
+        if (hold) await hold;
+        if (typeof body.expectedUpdatedAt === 'number' && body.expectedUpdatedAt !== board[i].updatedAt) {
+          return new Response(JSON.stringify({ error: 'This task changed meanwhile. Reload it before saving.' }), { status: 409, headers: { 'content-type': 'application/json' } });
+        }
+        let ids: string[] = body.tags ?? board[i].tags ?? [];
+        ids = [...ids, ...(body.addTags ?? []).filter((x: string) => !ids.includes(x))].filter((x) => !(body.removeTags ?? []).includes(x));
         board[i] = { ...board[i], tags: ids, tagList: pick(one[1], ...ids), updatedAt: board[i].updatedAt + 1 };
       }
       return json({ task: board[i] });
@@ -156,6 +175,20 @@ describe('tags on the board', () => {
     expect(cards()).toEqual(['a', 'm']);
   });
 
+  it('drops a tag from the filter when the projects shown no longer have it, so the cards come back', async () => {
+    await open();
+    const filter = () => el.querySelector<HTMLButtonElement>('button[aria-label^="Tags shown"]')!;
+    await click(filter());
+    await click(row('Bug'));
+    expect(cards()).toEqual(['a', 'm']);
+    // Bug is renamed somewhere else: the board loads again without it
+    tags.p1 = tags.p1.map((t) => (t.id === 'g1' ? { ...t, name: 'Defect' } : t));
+    await serverEvent({ type: 'board', projectId: 'p1', ids: [] });
+    await settle(250);
+    expect(cards()).toEqual(['a', 'b', 'c', 'm']);
+    expect(filter().textContent).toBe('Tags');
+  });
+
   it('merges same-named tags of every project in All projects', async () => {
     localStorage.setItem('dash-task-board', 'all');
     await open();
@@ -176,23 +209,62 @@ describe('tags on a task\'s page', () => {
     expect(picker().getAttribute('aria-label')).toBe('Tags: 🎨 Design');
     await click(picker());
     await click(row('Bug'));
-    expect(requests.at(-1)).toMatchObject({ method: 'PUT', url: '/api/task-board/p1/b', body: { tags: ['g2', 'g1'] } });
+    expect(requests.at(-1)).toEqual({ method: 'PUT', url: '/api/task-board/p1/b', body: { addTags: ['g1'], expectedUpdatedAt: now } });
     expect(picker().getAttribute('aria-label')).toBe('Tags: 🎨 Design, 🐛 Bug');
     await click(row('Design'));
-    expect(requests.at(-1)).toMatchObject({ body: { tags: ['g1'] } });
+    expect(requests.at(-1)).toEqual({ method: 'PUT', url: '/api/task-board/p1/b', body: { removeTags: ['g2'], expectedUpdatedAt: now + 1 } });
 
     await type(document.querySelector<HTMLInputElement>('input[aria-label="Find or make a tag"]')!, '🍰 Cake');
     const make = [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Make “🍰 Cake”');
     await click(make);
     expect(requests.find((r) => r.method === 'POST')).toMatchObject({ url: '/api/task-board-tags/p1', body: { name: '🍰 Cake' } });
-    expect(requests.at(-1)).toMatchObject({ method: 'PUT', body: { tags: ['g1', 'new1'] } });
+    expect(requests.at(-1)).toMatchObject({ method: 'PUT', body: { addTags: ['new1'] } });
+    expect(board.find((t) => t.id === 'b')!.tags).toEqual(['g1', 'new1']);
     // a name that is there already is picked, not made again (Enter)
     const search = document.querySelector<HTMLInputElement>('input[aria-label="Find or make a tag"]')!;
     await type(search, 'docs');
     await act(async () => search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     await settle();
     expect(requests.filter((r) => r.method === 'POST')).toHaveLength(1);
-    expect(requests.at(-1)).toMatchObject({ method: 'PUT', body: { tags: ['g1', 'new1', 'g4'] } });
+    expect(requests.at(-1)).toMatchObject({ method: 'PUT', body: { addTags: ['g4'] } });
+    expect(board.find((t) => t.id === 'b')!.tags).toEqual(['g1', 'new1', 'g4']);
+  });
+
+  it('saves quick clicks one after another, each on the version the last one left, so none is lost', async () => {
+    await open(['p1', 'b']);
+    const picker = () => el.querySelector<HTMLButtonElement>('button[aria-label^="Tags:"]')!;
+    await click(picker());
+    let release = () => {};
+    hold = new Promise((r) => (release = r));
+    // both clicks before the first save is back: the menu shows them at once
+    await click(row('Bug'));
+    await click(row('Mobile'));
+    expect(picker().getAttribute('aria-label')).toBe('Tags: 🎨 Design, 🐛 Bug, Mobile');
+    hold = null;
+    await act(async () => release());
+    await settle();
+    expect(requests.filter((r) => r.method === 'PUT').map((r) => r.body)).toEqual([
+      { addTags: ['g1'], expectedUpdatedAt: now },
+      { addTags: ['g3'], expectedUpdatedAt: now + 1 },
+    ]);
+    expect(board.find((t) => t.id === 'b')!.tags).toEqual(['g2', 'g1', 'g3']);
+    expect(picker().getAttribute('aria-label')).toBe('Tags: 🎨 Design, 🐛 Bug, Mobile');
+    expect(document.querySelector('#toasts')!.textContent).not.toContain('changed meanwhile');
+  });
+
+  it('loads the project\'s tags when the menu opens, and not on every change to the board while it is closed', async () => {
+    await open(['p1', 'b']);
+    const tagLoads = () => requests.filter((r) => r.method === 'GET' && r.url === '/api/task-board-tags/p1').length;
+    // the task's own tags show without them
+    expect(el.querySelector('button[aria-label^="Tags:"]')!.getAttribute('aria-label')).toBe('Tags: 🎨 Design');
+    await serverEvent({ type: 'board', projectId: 'p1', ids: ['a'] });
+    await settle();
+    expect(tagLoads()).toBe(0);
+    await click(el.querySelector('button[aria-label^="Tags:"]'));
+    expect(tagLoads()).toBe(1);
+    await serverEvent({ type: 'board', projectId: 'p1', ids: ['a'] });
+    await settle();
+    expect(tagLoads()).toBe(2);
   });
 });
 
@@ -231,5 +303,21 @@ describe('Manage tags', () => {
     await click([...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent === 'Delete'));
     expect(requests.find((r) => r.method === 'DELETE')).toMatchObject({ url: '/api/task-board-tags/p1/g1' });
     expect([...box.querySelectorAll('li input[aria-label^="Name of"]')].map((i) => (i as HTMLInputElement).value)).not.toContain('Bug');
+  });
+
+  it('puts a refused name back, and says so when a new tag\'s name is taken, keeping what was typed', async () => {
+    await mount();
+    const name = box.querySelector<HTMLInputElement>('input[aria-label="Name of Mobile"]')!;
+    await type(name, 'Design');
+    await act(async () => name.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    await settle();
+    expect(document.querySelector('#toasts')!.textContent).toContain('There\'s a tag called "Design" already.');
+    expect(box.querySelector<HTMLInputElement>('input[aria-label="Name of Mobile"]')!.value).toBe('Mobile');
+
+    const add = box.querySelector<HTMLInputElement>('input[aria-label="New tag"]')!;
+    await type(add, 'bug');
+    await click([...box.querySelectorAll('button')].find((b) => b.textContent === 'Add tag'));
+    expect(document.querySelector('#toasts')!.textContent).toContain('There\'s a tag called “🐛 Bug” already.');
+    expect(add.value).toBe('bug');
   });
 });

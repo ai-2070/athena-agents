@@ -18,7 +18,7 @@ import { cardCopy, grab, useDragPreview } from '../taskmotion.ts';
 import { openChat } from '../chatwin.tsx';
 import { DraftWithBrain, Markdown, useMentionBox, useMentionables, PRIORITIES, Pick, PriorityIcon, STATUSES, StatusIcon, TaskFiles, WORK_STATES, WhoMark, askForDraft, assigneeChoices, confirmStop, isWorking, openTaskComposer, priorityChoices, priorityOf, statusChoices, statusOf, taskHref, taskKey, usePeople, useTray } from '../taskboard.tsx';
 import type { Choice } from '../taskboard.tsx';
-import { TagFilter, TagMarks, TagPicker, tagOptions } from '../tasktags.tsx';
+import { TagFilter, TagMarks, TagPicker, knownTagFilter, tagOptions } from '../tasktags.tsx';
 import type { TagFilterValue } from '../tasktags.tsx';
 import { tagKey, tagsMatch } from '../../shared/boardtags.ts';
 import type { Candidate } from '../routinemention.ts';
@@ -210,6 +210,10 @@ function TaskBoardPage() {
   const allProjects = project === 'all';
   const filtered = !!(q || assignee || priority || tagFilter.keys.length || tagFilter.untagged);
   const tagChoices = useMemo(() => tagOptions(data?.tags), [data]);
+  // tags renamed, deleted or not in the projects shown now come out of the filter
+  useEffect(() => {
+    if (data) setTagFilter((f) => knownTagFilter(f, tagChoices));
+  }, [data, tagChoices]);
   // a tag on a card shows its tasks (only those)
   const filterByTag = (tag: BoardTag) => setTagFilter({ keys: [tagKey(tag.name)], untagged: false, match: 'any' });
   const open = tasks.filter((t) => t.status !== 'done').length;
@@ -699,6 +703,32 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
       return false;
     }
   };
+  // Tag clicks are saved one after another, each as what it added or took off, on the version of the task the last
+  // save left: quick clicks all count, and a change made meanwhile somewhere else is still refused. tagView is what
+  // the clicks made, shown until they are saved.
+  const latest = useRef(task);
+  if (task.updatedAt >= latest.current.updatedAt) latest.current = task;
+  const tagSaves = useRef({ chain: Promise.resolve(), pending: 0 });
+  const [tagView, setTagView] = useState<string[] | null>(null);
+  const saveTags = (ids: string[]) => {
+    const before = tagView ?? task.tags ?? [];
+    const addTags = ids.filter((id) => !before.includes(id));
+    const removeTags = before.filter((id) => !ids.includes(id));
+    if (!addTags.length && !removeTags.length) return;
+    setTagView(ids);
+    const q = tagSaves.current;
+    q.pending++;
+    q.chain = q.chain.then(async () => {
+      try {
+        const r = await PUT<{ task: BoardTask }>(path(latest.current), { ...(addTags.length ? { addTags } : {}), ...(removeTags.length ? { removeTags } : {}), expectedUpdatedAt: latest.current.updatedAt });
+        latest.current = r.task;
+        onChange(r.task);
+      } catch (e) {
+        toast(errorText(e), 'error');
+      }
+      if (!--q.pending) setTagView(null);
+    });
+  };
   const changeStatus = async (s: BoardStatus) => {
     if (s === task.status || (s !== 'in_progress' && !(await confirmStop(task)))) return;
     if (s === 'blocked') {
@@ -773,7 +803,7 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
             <Pick look="row" label="Status" value={task.status} choices={statusChoices()} onChange={(v) => void changeStatus(v as BoardStatus)} />
             <Pick look="row" label="Priority" value={task.priority} choices={priorityChoices()} onChange={(v) => void save({ priority: v as BoardPriority })} />
             <Pick look="row" label="Assigned to" value={task.assignee} choices={assigneeChoices(people)} onChange={(v) => void confirmStop(task).then((ok) => ok && save({ assignee: v }))} />
-            <TagPicker look="row" projectId={task.projectId} value={task.tags || []} onChange={(ids) => save({ tags: ids })} />
+            <TagPicker look="row" projectId={task.projectId} value={tagView ?? task.tags ?? []} known={task.tagList} onChange={saveTags} />
           </div>
           <WorkBox task={task} onChange={onChange} />
           <dl className="m-0 flex flex-col px-2">
