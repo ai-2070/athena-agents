@@ -37,8 +37,12 @@ const server = Bun.spawn(['bun', '--watch', 'server/index.ts', '--no-open', ...s
   env: { ...process.env, ...(vite ? { DASH_VITE: vite.origin } : {}) },
 });
 
-// If one of them ends on its own, stop the others and pass on its exit code.
+// If one of them ends on its own, stop the others and pass on its exit code. Once: Ctrl+C ends them too, and
+// their exit must not replace its code.
+let stopping = false;
 const stop = async (code = 0) => {
+  if (stopping) return;
+  stopping = true;
   web.kill();
   server.kill();
   await vite?.close().catch(() => {});
