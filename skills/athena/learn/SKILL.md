@@ -1,6 +1,6 @@
 ---
 name: Learn a skill
-description: Use for /learn, "learn this" or "make a skill from" a book, PDF, EPUB, Word file, web page, docs site, YouTube link, video or audio file, folder of code or notes, or from what you just did together. Reads the sources and saves what's worth knowing as a skill.
+description: Use for /learn, "learn this" or "make a skill from" a book, PDF, EPUB, Word file, web page, docs site, YouTube link, video, screen recording or audio file, folder of code or notes, or from what you just did together. Reads the sources and saves what's worth knowing as a skill.
 ---
 
 Learning turns a source into a skill: the know-how an agent needs to do that kind of work well next time, saved where
@@ -14,8 +14,9 @@ claim can be traced to the source.
 - **Read the whole request.** It can mix sources (a path, a link, attached files, "what we just did") with
   requirements ("focus on the auth flow", "skip the deprecated endpoints", "for beginners"). Every part counts: words
   after a link are the user telling you what they want from it. With no source named, the source is this conversation.
-- **Look for a skill that covers it already**: search the library (`find_skills`) for the topic. If one does, read it
-  and extend it rather than making a second one; the user may also have named the skill to add to.
+- **Look for a skill that covers it already**: `read_skill` with the topic's words as the name lists the library's
+  skills that match them. If one covers it, read it and extend it rather than making a second one; the user may also
+  have named the skill to add to.
 - **Scratch work goes in `learn-work/`** in your workspace (extracted text, transcripts, chapter files), deleted when
   you're done. Never write into the user's folders or the skill library by hand.
 - **Ask first** before installing anything (a transcriber, a Python package), before a paid service (a transcription
@@ -36,6 +37,7 @@ Get each source into text you can read a piece at a time. `references/sources.md
 | Docs site | Its contents page, `sitemap.xml` or `/llms.txt`, then page by page, in the order the docs teach |
 | YouTube link | The `youtube-content` skill: a transcript with timestamps |
 | Video or audio file | Its own subtitles first; otherwise a local transcription, with the user's OK (`references/sources.md`) |
+| Screen recording of the task being done | Its telling frames, chosen by `learn_source.py probe` and `frames`: `references/demonstration.md` |
 | Folder of code or notes | The README and layout first, then the parts the request is about; tests show how things are meant to be used |
 | Pasted text, attached files | As they are (attached files are in your message) |
 
@@ -85,8 +87,9 @@ carry over only what a person reading it would see.
 ## Tell the user
 
 The skill's name and id, one line on what it captured, the reference files it can open (for a knowledge base), what
-you left out or couldn't read (a locked book, a video without speech, a page that refused you), and that they can give
-it to other agents or teams on the Skills page. A new skill you save is already yours.
+you left out or couldn't read (a locked book, a talk with no speech or subtitles, a frame too blurred to read, a page
+that refused you), and that they can give it to other agents or teams on the Skills page. A new skill you save is
+already yours.
 
 ## Watch out for
 
@@ -102,7 +105,12 @@ it to other agents or teams on the Skills page. A new skill you save is already 
   audio, docs sites, code folders, what to take from a conversation).
 - `references/knowledge-base.md`: the layout and the chapter-by-chapter way of working for books and other large
   sources.
+- `references/demonstration.md`: learning a task from a screen recording of it being done: checking the recording,
+  choosing and reading frames, inputs, and writing the steps.
 - `scripts/learn_source.py`: `epub` (a book to chapter files, in reading order, with `index.json`), `html` (a saved
-  page to text), `subs` (`.srt` or `.vtt` subtitles to timestamped paragraphs) and `clean` (any text, without invisible
-  and direction-control characters). Run it as `python <skill folder>/scripts/learn_source.py <command> --help` for the
-  options. JSON out; exit 0 done, 1 done with warnings to read, 2 couldn't do it (one line on stderr).
+  page to text), `subs` (`.srt` or `.vtt` subtitles to timestamped paragraphs), `clean` (any text, without invisible
+  and direction-control characters), `probe` (a video's length and sound, and two frames to check it by) and `frames`
+  (a screen recording's telling frames, with `frames.json`; `--at` for moments at full size). `probe` and `frames` need
+  FFmpeg (`--ffmpeg <its folder>` when it isn't on PATH). Run it as
+  `python <skill folder>/scripts/learn_source.py <command> --help` for the options. JSON out; exit 0 done, 1 done with
+  warnings to read, 2 couldn't do it (one line on stderr).
