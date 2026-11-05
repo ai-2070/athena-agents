@@ -1,0 +1,72 @@
+server/index.ts
+  s_558b1de395d1d9::t_a305dd00f6a72b 89,351
+web/dock.tsx
+  s_558b1de395d1d9::t_7253f1b02e0e07 11
+  s_558b1de395d1d9::t_4020d983619244 621
+shared/api/agents.ts
+  s_558b1de395d1d9::t_c2f1eb1631fe5b 37-38
+  s_558b1de395d1d9::t_81a62c632bbb9a 1-36,39-83
+web/views/stationpanel.tsx
+  s_558b1de395d1d9::t_d679b573caa1d6 7
+  s_558b1de395d1d9::t_4020d983619244 219,1071,1136,1186
+tests/server/rpc-agents.test.ts
+  s_558b1de395d1d9::t_9a394ec65b4d0e 1-73
+web/builder.tsx
+  s_558b1de395d1d9::t_4020d983619244 148
+  s_558b1de395d1d9::t_7253f1b02e0e07 8
+shared/api/index.ts
+  s_558b1de395d1d9::t_a305dd00f6a72b 4,8
+web/models.tsx
+  s_558b1de395d1d9::t_7253f1b02e0e07 11
+  s_558b1de395d1d9::t_4020d983619244 208
+server/api/agents.ts
+  s_558b1de395d1d9::t_c5f9fbe9846ca0 88-89
+  s_558b1de395d1d9::t_0479e650069bb8 1-87,90-93
+web/chat/ChatView.tsx
+  s_558b1de395d1d9::t_4020d983619244 523
+  s_558b1de395d1d9::t_7253f1b02e0e07 12
+server/commands.ts
+  s_558b1de395d1d9::t_e0eb5cc64aeccf 16
+  s_558b1de395d1d9::t_14c2a4014c0e4b 232-233
+web/views/chat.tsx
+  s_558b1de395d1d9::t_4020d983619244 39
+  s_558b1de395d1d9::t_7253f1b02e0e07 5
+server/api/index.ts
+  s_558b1de395d1d9::t_a305dd00f6a72b 4,8
+shared/types.ts
+  s_558b1de395d1d9::t_14c2a4014c0e4b 557-567
+web/views/station.ts
+  s_558b1de395d1d9::t_4020d983619244 3282,3311,3906,4140
+web/views/skills.tsx
+  s_558b1de395d1d9::t_4020d983619244 40
+web/client/rpc.ts
+  s_558b1de395d1d9::t_0bdf486c192fbb 49-51,54,71-79
+tests/web/rpc.test.ts
+  s_558b1de395d1d9::t_0bdf486c192fbb 6-7,59-65
+  s_558b1de395d1d9::t_b6a9570b365700 66-67
+web/views/agents.tsx
+  s_558b1de395d1d9::t_e0eb5cc64aeccf 27
+  s_558b1de395d1d9::t_4020d983619244 214,345,410,423,426,430,598,622,829,845,854,862,868,881,893
+  s_558b1de395d1d9::t_14c2a4014c0e4b 32
+  s_558b1de395d1d9::t_d679b573caa1d6 7
+  s_558b1de395d1d9::t_7253f1b02e0e07 8
+web/views/overview.tsx
+  s_558b1de395d1d9::t_7253f1b02e0e07 12
+  s_558b1de395d1d9::t_4020d983619244 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "08da454a8bb3fa55fe2cb1e2acecfff1da82573d",
+  "prompts": {},
+  "sessions": {
+    "s_558b1de395d1d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bb40eb4-bbfd-4a59-a58a-1ffe1d09179b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
