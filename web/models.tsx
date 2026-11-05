@@ -186,7 +186,7 @@ function makeChip(title: string, face: () => ReactNode): { chip: HTMLButtonEleme
   chip.className = `model-chip ${CHIP}`;
   chip.type = 'button';
   chip.title = title;
-  const root = createAppRoot(chip);
+  const root = createAppRoot(chip, { inline: true });
   const draw = () => root.render(face());
   // (a plain render: a chip is often made while a page is drawing, and nothing reads its words back)
   draw();

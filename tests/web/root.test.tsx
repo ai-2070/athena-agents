@@ -72,6 +72,22 @@ describe('createAppRoot', () => {
     act(() => other.unmount());
   });
 
+  it('inside a control, shows a short note with no buttons of its own (a button holds no buttons)', () => {
+    const chip = document.createElement('button');
+    document.body.append(chip);
+    const inline = createAppRoot(chip, { inline: true });
+    act(() => inline.render(<Flaky />));
+    const note = chip.querySelector<HTMLElement>('[role="alert"]');
+    expect(note?.tagName).toBe('SPAN');
+    expect(note?.title).toBe('the piece broke');
+    expect(chip.querySelector('button, div')).toBeNull();
+    // drawn again once fixed (the chip redraws itself)
+    broken = false;
+    act(() => inline.render(<Flaky label="chip" />));
+    expect(chip.textContent).toBe('chip');
+    act(() => inline.unmount());
+  });
+
   it('guards the pages mountReact draws too', () => {
     let page: { unmount: () => void } = { unmount: () => {} };
     act(() => void (page = mountReact(document.getElementById('other')!, <Flaky />)));
