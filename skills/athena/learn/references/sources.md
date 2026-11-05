@@ -52,6 +52,9 @@ description or the video itself before they go in the skill.
 
 ## Video and audio files
 
+A screen recording of someone doing a task, with nobody explaining it, is learned from its pictures instead:
+`demonstration.md`. A talk or a tutorial is learned from its words:
+
 1. **Subtitles in the file.** List them (`ffprobe` and `ffmpeg` come with FFmpeg; the dashboard's media tools run
    them too):
 
@@ -75,8 +78,8 @@ description or the video itself before they go in the skill.
 3. **A paid transcription service** (the ElevenLabs server on the dashboard's MCP page, for one) only when the user
    chooses it: it sends the recording away and costs money.
 
-Slides or a screen recording carry what the speech doesn't: when the talk shows code or a diagram, look at those
-frames (FFmpeg can save one at a timestamp: `ffmpeg -ss 00:12:30 -i <video> -frames:v 1 learn-work/frame.png`).
+Slides and the screen carry what the speech doesn't: when the talk shows code or a diagram, look at those frames
+(`learn_source.py frames <video> -o learn-work/frames --at 12:30` saves the moment at full size).
 
 ## A folder of code or notes
 

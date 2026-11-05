@@ -14,6 +14,28 @@ Recordings the dashboard makes are kept, and go into backups once
 [Backups: no size limits, with the chats' files](BACKUPS_NO_LIMITS_2026-11-05.md) lands. That plan should land before
 step 2.
 
+## Status (5 November, later)
+
+Step 1 is built on `LZL0/learn`, with `main` merged in.
+
+- **What's there:**
+  - `probe` and `frames` in `learn_source.py`;
+  - `references/demonstration.md`, and the `SKILL.md`, `sources.md` and docs changes;
+  - 6 new tests in `tests/skills/learn/`;
+  - FFmpeg installed in CI's "Skill scripts" job.
+- **The merge** brought `main`'s tool-list budget test. `find_skills` is gone: `read_skill` with a name that is no
+  skill now lists the library's matching skills. `save_skill`'s text is shorter, and the core budget was raised on
+  purpose by what's left: 13,800 to 14,700 characters, and 12,200 to 13,100 for what every agent carries.
+- **Tuned on three real screencasts**, public and silent (Wikimedia Commons: VisualEditor adding a link, editing a
+  table, a CSV table):
+  - **The change level is 0.02, not 0.05.** Interface changes such as a dialog opening or a table cell changing score
+    0.01 to 0.03, so 0.05 found 1 change where there were 4.
+  - **`--every` fills any gap between kept frames**, not only still stretches, so a long run of small changes
+    (scrolling, slow typing) can't leave a hole.
+  - **The result:** 5, 6 and 26 frames for 10, 15 and 52 seconds, each in under 1.5 seconds, and the frames tell each
+    task's steps.
+- **Still to do:** the trial with agents (it waits for your OK).
+
 ## What we want
 
 You show an agent how you do something once, on your own computer, in any app: a Blender product shot, an expense
@@ -127,7 +149,7 @@ saves two check frames, `check-20.png` and `check-70.png`.
 - Not a video: exit 2.
 - No FFmpeg: exit 2, with a line on getting it (the Programs page shows whether it's found).
 
-**`frames <video> -o learn-work/frames [--max 30] [--every 20] [--change 0.05] [--width 1280] [--sheet 2x2] [--at 12.4,30]`**:
+**`frames <video> -o learn-work/frames [--max 30] [--every 20] [--change 0.02] [--width 1280] [--sheet 2x2] [--at 12.4,30]`**:
 1. **Find the changes:** one decoding pass,
    `ffmpeg -i <video> -vf "select='gt(scene,<change>)',showinfo" -f null -`. The change times come from `showinfo`'s
    `pts_time` on stderr.
@@ -143,8 +165,8 @@ saves two check frames, `check-20.png` and `check-70.png`.
    them (that needs a font file, which is fragile on Windows); `frames.json` lists what each sheet holds.
 5. **Moments** (with `--at`): full-size frames at those times only, for reading small text.
 
-The defaults (30 frames, a frame every 20 s, a change level of 0.05, 1280 px wide) are starting points, to be tuned on
-real recordings before the skill states them.
+The defaults are 30 frames, at least one every 20 s, a change level of 0.02 and 1280 px wide. They were tuned on real
+recordings (see Status); the change level started at 0.05.
 
 ### Changes to the learn skill
 
