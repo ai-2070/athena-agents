@@ -8,10 +8,15 @@ describe('craft app icons', () => {
     expect(craftApp('storytold-figcraft')).toBe('figcraft');
     expect(craftApp('storytoldpdfcraft')).toBe('pdfcraft');
     expect(craftApp('photocraft-mcp')).toBe('photocraft');
+    expect(craftApp('solidcraft')).toBe('solidcraft');
+    expect(craftApp('storytold-materialcraft')).toBe('materialcraft');
+    expect(craftApp('TextureCraft')).toBe('texturecraft');
+    expect(craftApp('craft-anything')).toBe('craft-anything');
+    expect(craftApp('CraftAnything')).toBe('craft-anything');
   });
 
   it('leaves other names alone', () => {
-    for (const name of ['codegraph', 'figwright', 'minecraft', 'craft', '', null, undefined]) {
+    for (const name of ['codegraph', 'figwright', 'minecraft', 'craft', 'craft-something', '', null, undefined]) {
       expect(craftApp(name)).toBeNull();
       expect(craftIcon(name)).toBeNull();
       expect(craftColor(name)).toBeNull();

@@ -12,12 +12,12 @@ const agent = { id: 'a1', name: 'Tester' };
 describe('bundled skills', () => {
   it("include the storytold, OOMOL, Composio, Orca and subagent skills, and the dashboard's own", () => {
     const slugs = skills.bundledSkills().map((b) => b.slug);
-    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env', 'delegating-to-subagents', 'commissioning-a-reviewer', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']));
+    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'solidcraft', 'materialcraft', 'texturecraft', 'craft-anything', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env', 'delegating-to-subagents', 'commissioning-a-reviewer', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']));
     // the dashboard's own (skills/athena), which replaced the copies of Hermes Agent's skills
     expect(slugs).toEqual(expect.arrayContaining(['systematic-debugging', 'test-driven-development', 'github', 'pdf', 'financial-models', 'humanizer', 'comfyui', 'email', 'action-items', 'decisions', 'fastmcp']));
     const own = fs.readdirSync(path.join(skills.bundledSkillsRoot(), 'athena'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
     expect(slugs).toEqual(expect.arrayContaining(own));
-    expect(slugs.filter((s) => !own.includes(s))).toHaveLength(34);
+    expect(slugs.filter((s) => !own.includes(s))).toHaveLength(38);
     // the Hermes ones that were merged into others or cut don't come back
     for (const s of ['dcf-model', 'excel-author', 'mcporter', 'reddit-reading', 'himalaya', 'one-three-one-rule', 'duckduckgo-search']) expect(slugs).not.toContain(s);
     expect(fs.existsSync(path.join(skills.bundledSkillsRoot(), 'hermes'))).toBe(false);
