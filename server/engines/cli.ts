@@ -28,8 +28,9 @@ export interface ChildEnd {
 }
 
 /** Sends input on stdin, hands each line of stdout to onLine, and waits for the child to end.
- *  Stopping (signal) kills the child and its children. */
-export function pipeLines(child: ChildProcess, { input, signal, onLine }: { input?: string; signal: AbortSignal; onLine: (line: string) => void }): Promise<ChildEnd> {
+ *  Stopping (signal) kills the child and its children. keepOpen: stdin stays open after the input (the
+ *  caller writes more and ends it). */
+export function pipeLines(child: ChildProcess, { input, signal, onLine, keepOpen = false }: { input?: string; signal: AbortSignal; onLine: (line: string) => void; keepOpen?: boolean }): Promise<ChildEnd> {
   const onAbort = () => killTree(child);
   signal.addEventListener('abort', onAbort);
   let buf = '';
@@ -58,7 +59,8 @@ export function pipeLines(child: ChildProcess, { input, signal, onLine }: { inpu
   });
   if (child.stdin) {
     child.stdin.on('error', () => {});
-    child.stdin.end(input ?? '');
+    if (keepOpen) child.stdin.write(input ?? '');
+    else child.stdin.end(input ?? '');
   }
   return new Promise<ChildEnd>((resolve) => {
     child.on('close', (code) => {
