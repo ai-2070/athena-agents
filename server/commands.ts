@@ -1,5 +1,5 @@
 // The / commands you type in a chat (the list is in shared/commands.ts), done here for an agent's chat,
-// a team's and the Brain chat: /resend, /resume, /loop, /goal, and /stop in the Brain chat.
+// a team's and the Brain chat: /resend, /resume, /loop, /goal, /learn, and /stop in the Brain chat.
 // (/queue and /stop in agent and team chats are their own routes; /compact is the engines'.)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,7 +12,7 @@ import { listBriefs, openGoal } from './briefs.ts';
 import { clearGoal, resumeBrief, setAgentGoal, setTeamGoal, stoppedBrief, stoppedBriefs } from './irc.ts';
 import { stopAsks } from './overseer.ts';
 import { pickMember } from './brain.ts';
-import { COMMANDS, parseLoop } from '../shared/commands.ts';
+import { COMMANDS, learnText, parseLoop } from '../shared/commands.ts';
 import type { Agent, BrainBrief, Chat, LoopInfo } from '../shared/types.ts';
 
 /** What a resumed turn says to the agent. */
@@ -82,6 +82,13 @@ export function goalInChat(agentId: string, chatId: string, text: string): { goa
   return { goal: setAgentGoal(agent, chat, text) };
 }
 
+/** /learn [what]: the agent turns a file, link, video or the chat itself into a skill (the learn skill says how).
+ *  Files attached are sources; it waits its turn if the agent is busy. */
+export function learnInChat(agentId: string, chatId: string, request: string, attachments: string[] = []) {
+  const { agent, chat } = agentChat(agentId, chatId);
+  return engines.queueMessage(agent, chat, learnText(request, 'agent'), attachments);
+}
+
 // ---------- in a team's chat ----------
 function team(teamId: string) {
   const t = teams.getTeam(teamId);
@@ -94,6 +101,12 @@ export function resendInTeam(teamId: string) {
   const last = teams.lastUserMessage(t.id);
   if (!last) throw fail(400, 'Nothing to send again yet.');
   return teams.queueUserMessage(t.id, last.text, { replyTo: last.replyTo || null, route: pickMember, attachments: last.attachments || [] });
+}
+
+/** /learn in a team: the member best placed for it learns, and saves the skill. */
+export function learnInTeam(teamId: string, request: string, attachments: string[] = []) {
+  const t = team(teamId);
+  return teams.queueUserMessage(t.id, learnText(request, 'team'), { route: pickMember, attachments });
 }
 
 export function resumeInTeam(teamId: string): { resumed: true } {

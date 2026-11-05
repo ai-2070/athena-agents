@@ -9,7 +9,10 @@ import { ROOT, parseFrontmatter } from '../../server/util.ts';
 const dir = path.join(ROOT, 'skills', 'athena');
 const testsDir = path.join(ROOT, 'tests', 'skills');
 const replaced = JSON.parse(fs.readFileSync(path.join(dir, 'replaced.json'), 'utf8')) as { skills: Record<string, { now: string | null; path: string }> };
-const planned = [...new Set(Object.values(replaced.skills).flatMap((s) => (s.now ? [s.now] : [])))].sort();
+// the 39 that replace Hermes's, and the ones of our own with no Hermes skill behind them
+const OWN = ['learn'];
+const fromHermes = [...new Set(Object.values(replaced.skills).flatMap((s) => (s.now ? [s.now] : [])))];
+const planned = [...fromHermes, ...OWN].sort();
 const ids = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
 
 /** Every file in a skill's folder, as a path relative to it with forward slashes. Python's caches from running a
@@ -47,7 +50,7 @@ const scriptsOf = (id: string) => filesOf(id).filter((f) => /^scripts\/.+\.(?:py
 describe("Athena's skills", () => {
   it('records where each of the 51 Hermes skills went, and the README says so', () => {
     expect(Object.keys(replaced.skills)).toHaveLength(51);
-    expect(planned).toHaveLength(39);
+    expect(fromHermes).toHaveLength(39);
     const readme = fs.readFileSync(path.join(dir, 'README.md'), 'utf8');
     for (const old of Object.keys(replaced.skills)) expect(readme, old).toContain(`\`${old}\``);
   });

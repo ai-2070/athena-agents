@@ -399,7 +399,7 @@ export function ChatView(p: ChatViewProps) {
     return made.id;
   };
 
-  // /stop, /resume, /resend, /loop, /goal (whether it is working or not)
+  // /stop, /resume, /resend, /loop, /goal, /learn (whether it is working or not)
   // fromBox: typed in the box (it is cleared, and comes back if the command fails); not a chip's ×
   const command = async (name: string, rest: string, fromBox = true) => {
     const box = input.current;
@@ -428,6 +428,17 @@ export function ChatView(p: ChatViewProps) {
       const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`${base}/loop`, { text: rest, attachments }));
       if (!r) return void (back(), tray?.put(taken));
       return setLoop(r.loop);
+    }
+    if (name === 'learn') {
+      // the files in the tray are what to learn from, as much as the words
+      const attachments = tray ? await tray.ready() : [];
+      if (!attachments) return back();
+      const taken = tray?.take() || [];
+      const r = await attempt(() => POST<{ queued?: QueuedMessage }>(`${base}/learn`, { text: rest, attachments }));
+      if (!r) return void (back(), tray?.put(taken));
+      const added = r.queued;
+      if (added) setQueued((q) => (q.some((x) => x.id === added.id) ? q : [...q, added]));
+      return;
     }
     const r = await attempt(() => POST<{ goal?: BrainBrief | null; queued?: QueuedMessage }>(`${base}/${name}`, name === 'goal' ? { text: rest } : {}));
     if (!r) return back();

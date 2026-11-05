@@ -207,6 +207,51 @@ const TOOLS: ToolDef[] = [
       return { text: `# Skill: ${s.name}\n${s.description}\n\n${body}${files}` };
     },
   },
+  {
+    name: 'find_skills',
+    group: 'core',
+    risk: 'none',
+    description: 'Search the whole skill library (not only your skills) by words in a skill\'s id, name or description. Use it before saving a skill, to update one that already covers the topic instead of making a near-copy.',
+    parameters: obj({ words: str('What the skill would be about, e.g. "replication postgres"') }, ['words']),
+    run: async ({ words }: { words: string }) => {
+      const found = skills.searchLibrary(String(words || ''));
+      if (!found.length) return { text: 'No skill in the library matches those words.' };
+      return { text: found.map((s) => `- ${s.slug}: ${s.name}. ${s.description}`).join('\n') };
+    },
+  },
+  {
+    name: 'save_skill',
+    group: 'core',
+    // a write the user can undo: the old version stays in the skill's History
+    risk: 'low',
+    description: 'Save a skill (a reusable how-to) to the library: a new one, or an update to one (pass skill with its id). body is the whole SKILL.md text below the name and description, so read a skill with read_skill before you replace it. files adds or replaces files that come with it, under references/ (notes it loads when needed), scripts/ or templates/ (text only); remove deletes some. The old version, files included, stays in the skill\'s History. A new skill is given to you.',
+    parameters: obj(
+      {
+        skill: str('Optional: the id of the skill to update. Leave out for a new one.'),
+        name: str('Short, the kind of work ("Postgres replication", "Product renders in Blender")'),
+        description: str('When to use it first, then what it does; at most about 300 characters. Agents decide from this alone whether to open it.'),
+        body: str('The instructions, in Markdown'),
+        files: { type: 'array', description: 'Optional: files that come with it', items: obj({ path: str('e.g. references/ch04-replication.md'), text: str('The whole file') }, ['path', 'text']) },
+        remove: { type: 'array', items: { type: 'string' }, description: 'Optional: files of the skill to delete, e.g. references/old.md' },
+      },
+      ['name', 'description', 'body'],
+    ),
+    run: async ({ skill, name, description, body, files, remove }: { skill?: string; name: string; description: string; body: string; files?: { path: string; text: string }[]; remove?: string[] }, ctx) => {
+      const saved = skills.saveSkillWithFiles(
+        { slug: skill ? skills.findSkill(skill)?.slug || String(skill) : undefined, name, description, body },
+        (files || []).map((f) => ({ path: String(f.path || ''), text: String(f.text ?? '') })),
+        (remove || []).map(String),
+        ctx.agent.name,
+      );
+      // the agent that learned it can use it from now on
+      const mine = agentStore.get(ctx.agent.id);
+      const given = !skill && mine && !(mine.skills || []).includes(saved.slug);
+      if (given) agentStore.save({ ...mine, skills: [...(mine.skills || []), saved.slug] });
+      log('skill', `${ctx.agent.name} ${skill ? 'updated' : 'saved'} the skill "${saved.name}"`, { agentId: ctx.agent.id });
+      const n = saved.files.length;
+      return { text: `${skill ? 'Updated' : 'Saved'} the skill "${saved.name}" (id: ${saved.slug})${n ? ` with ${n} file${n === 1 ? '' : 's'}` : ''}.${given ? ' It is yours now; the user can give it to others on the Skills page.' : ''}` };
+    },
+  },
   // ---------- chat history (every agent; what a compaction left out) ----------
   {
     name: 'search_conversations',

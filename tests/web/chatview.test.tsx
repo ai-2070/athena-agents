@@ -439,7 +439,7 @@ describe('the agent chat (AI SDK)', () => {
     box.value = '/';
     await act(async () => box.dispatchEvent(new Event('input', { bubbles: true })));
     const names = [...el.querySelectorAll('.slash-menu .slash-name')].map((n) => n.textContent);
-    expect(names).toEqual(['/queue', '/stop', '/resume', '/resend', '/loop', '/goal', '/review']);
+    expect(names).toEqual(['/queue', '/stop', '/resume', '/resend', '/loop', '/goal', '/learn', '/review']);
     expect(el.querySelector('.slash-menu')!.textContent).toContain('Review the changes · Claude Code');
     // a harness command goes in with a space, for what comes after it
     box.value = '/rev';
@@ -449,7 +449,7 @@ describe('the agent chat (AI SDK)', () => {
     expect(requests.some((r) => r.method === 'POST' && r.url.endsWith('/stream'))).toBe(false);
   });
 
-  it('/resume, /loop and /goal go to the server even while it works; the loop and goal show as chips', async () => {
+  it('/resume, /loop, /goal and /learn go to the server even while it works; the loop and goal show as chips', async () => {
     const el = await open();
     await type(el, 'go');
     await settle();
@@ -464,6 +464,10 @@ describe('the agent chat (AI SDK)', () => {
     await type(el, '/goal the build is green');
     await settle();
     expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/goal')!.body).toEqual({ text: 'the build is green' });
+    // /learn goes to the server too, with the tray's files as sources (none here)
+    await type(el, '/learn https://example.com/docs focus on auth');
+    await settle();
+    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/learn')!.body).toEqual({ text: 'https://example.com/docs focus on auth', attachments: [] });
     await wsEvent({ type: 'brief', projectId: 'p', brief: { id: 'b1', kind: 'agent', targetId: 'a1', chatId: 'c1', name: 'Renderer', text: 'the build is green', goal: 'the build is green', ts: 0, followUps: 1, status: 'open' } });
     expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('Goal: the build is green');
     expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('1 follow-up');

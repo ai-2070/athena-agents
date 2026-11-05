@@ -172,6 +172,12 @@ skill that makes or changes files holds to this, and says so where it matters:
    length, that every file is named, no other agents' tool names or Hermes paths, no shouting, no unknown skill ids, no
    title heading, no text copied from the old skill. Whether the writing is good is for review.
 
+## Skills of our own
+
+`learn` has no Hermes skill behind it: it's how `/learn` turns a document, a link, a video or a conversation into a
+skill, which agents save with the `save_skill` tool (and find with `find_skills`). Hermes Agent's `/learn` command gave
+the idea.
+
 ## Where the Hermes skills went
 
 From [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) at commit

@@ -21,6 +21,7 @@ export const COMMANDS: readonly SlashCommand[] = [
   { name: 'resend', args: '', about: 'Send your last message again', in: ALL },
   { name: 'loop', args: '[15m] [5x] message', about: 'Repeat a message: every so often, or again after each answer', in: ALL },
   { name: 'goal', args: 'what done looks like', about: 'Keep at it until the Brain says it is done (/goal clear to drop it)', in: ALL },
+  { name: 'learn', args: '[file, link, video or what to learn]', about: 'Turn a document, link, video or what we just did into a skill', in: ALL },
   { name: 'clear', args: '', about: 'Clear this chat (each agent also forgets it)', in: ['team'] },
 ];
 
@@ -48,6 +49,20 @@ export function slashSuggestions(text: string, kind: ChatKind, extra: readonly {
   const ours: SlashOption[] = COMMANDS.filter((c) => c.in.includes(kind) && c.name.startsWith(q) && c.name !== q);
   const theirs: SlashOption[] = extra.filter((c) => c.name.toLowerCase().startsWith(q) && c.name.toLowerCase() !== q).map((c) => ({ name: c.name, args: '', about: c.about, in: [kind], harness: true }));
   return [...ours, ...theirs].slice(0, 40);
+}
+
+// ---------- /learn ----------
+/** The skill that holds the method, so improving it needs no code change. */
+export const LEARN_SKILL = 'learn';
+
+/** What /learn sends: the request (or "what we just did") and where the method is. The Brain saves skills with its
+ *  own actions; agents with the save_skill tool. Files attached to the message are sources too. */
+export function learnText(request: string, kind: ChatKind): string {
+  const what = request.trim() || 'what we just did in this chat: the steps that worked, the fixes and what to avoid';
+  const save = kind === 'brain'
+    ? `Save it with create_skill or update_skill. A source you can't read yourself (a file, a page, a video) goes to an agent who can: ask them to learn it with the skill "${LEARN_SKILL}" and save it with save_skill.`
+    : 'Save it with save_skill.';
+  return `/learn ${request.trim()}`.trim() + `\n\nLearn a reusable skill from: ${what}\n\nOpen the skill "${LEARN_SKILL}" first (read_skill name="${LEARN_SKILL}") and follow it: gather the sources (any files attached here count), write the skill, check it. ${save} Then tell me its name, what it captured and what you left out.`;
 }
 
 /** Consecutive completion checks without new progress before asking the user for help. */

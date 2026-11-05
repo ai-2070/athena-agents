@@ -12,7 +12,7 @@ import { openBranchBuilder } from './builder.tsx';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.tsx';
 import { brainQueue, chatLoop, holdQueue, latestLoad } from './brainqueue.ts';
 import { queuedText } from '../shared/queue.ts';
-import { parseCommand, parseLoop } from '../shared/commands.ts';
+import { learnText, parseCommand, parseLoop } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
 import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
 import { attachTray } from './attach.tsx';
@@ -1088,6 +1088,13 @@ async function send(given: string[] = []) {
     emptyBox();
     tray.take();
     return loop.start(spec, { attachments, target: D.target });
+  }
+  // "/learn …": the Brain (or the agent or team it's addressed to) turns it, and the files, into a skill
+  if (cmd?.name === 'learn') {
+    if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Try again in a moment.');
+    emptyBox();
+    tray.take();
+    return void held.add(learnText(cmd.rest, D.target === 'auto' ? 'brain' : 'agent'), { attachments, target: D.target });
   }
   if (cmd && cmd.name !== 'queue') {
     emptyBox();

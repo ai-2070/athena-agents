@@ -12,8 +12,8 @@ import { HOME } from '../../server/util.ts';
 import { workspaceOf } from '../../server/tools.ts';
 import { activeRuns, loopOf, queueMessage, stopChat, stopLoop } from '../../server/engines/index.ts';
 import { getThread, postUserMessage, stopTeam, teamState } from '../../server/teams.ts';
-import { cutOff, harnessCommands, loopInChat, loopInTeam, resendInChat, resendInTeam, resumeInChat, resumeInTeam } from '../../server/commands.ts';
-import { loopPace, parseCommand, parseLoop, slashSuggestions } from '../../shared/commands.ts';
+import { cutOff, harnessCommands, learnInChat, learnInTeam, loopInChat, loopInTeam, resendInChat, resendInTeam, resumeInChat, resumeInTeam } from '../../server/commands.ts';
+import { learnText, loopPace, parseCommand, parseLoop, slashSuggestions } from '../../shared/commands.ts';
 import type { ChatItem, EngineId, Team } from '../../shared/types.ts';
 
 const waiting: { last: string; release: () => void }[] = [];
@@ -65,7 +65,7 @@ describe('reading commands', () => {
   });
 
   it('suggests commands while you type "/", ours first, then the harness ones', () => {
-    expect(slashSuggestions('/', 'team').map((c) => c.name)).toEqual(['queue', 'stop', 'resume', 'resend', 'loop', 'goal', 'clear']);
+    expect(slashSuggestions('/', 'team').map((c) => c.name)).toEqual(['queue', 'stop', 'resume', 'resend', 'loop', 'goal', 'learn', 'clear']);
     expect(slashSuggestions('/re', 'agent').map((c) => c.name)).toEqual(['resume', 'resend']);
     expect(slashSuggestions('/c', 'agent', [{ name: 'commit', about: 'Make a commit' }]).map((c) => [c.name, !!c.harness])).toEqual([['commit', true]]);
     expect(slashSuggestions('/stop', 'agent')).toEqual([]);
@@ -83,6 +83,36 @@ describe('reading commands', () => {
     expect(parseLoop('15m')).toHaveProperty('error');
     expect(loopPace(15 * 60_000)).toBe('every 15m');
     expect(loopPace(null)).toBe('after each answer');
+  });
+});
+
+describe('/learn', () => {
+  it('sends the request and where the method is: agents save with save_skill, the Brain with its own actions', () => {
+    expect(parseCommand('/learn ~/books/ddia.epub focus on replication', 'team')).toEqual({ name: 'learn', rest: '~/books/ddia.epub focus on replication' });
+    const forAgent = learnText('https://youtu.be/abc skip the intro', 'agent');
+    expect(forAgent.split('\n')[0]).toBe('/learn https://youtu.be/abc skip the intro');
+    expect(forAgent).toContain('Learn a reusable skill from: https://youtu.be/abc skip the intro');
+    expect(forAgent).toContain('read_skill name="learn"');
+    expect(forAgent).toContain('save_skill');
+    expect(forAgent).not.toContain('create_skill');
+    // nothing named: what was just done in the chat
+    const forBrain = learnText('', 'brain');
+    expect(forBrain.split('\n')[0]).toBe('/learn');
+    expect(forBrain).toContain('what we just did in this chat');
+    expect(forBrain).toContain('create_skill or update_skill');
+  });
+
+  it('in an agent chat, goes to the agent with the files to learn from', async () => {
+    const a = agent('Learner');
+    const c = chats.create(a.id);
+    const book = path.join(newBatch().dir, 'guide.pdf');
+    fs.writeFileSync(book, '%PDF-1.4');
+    learnInChat(a.id, c.id, 'focus on the setup chapter', [book]);
+    const last = items(a.id, c.id).findLast((i) => i.type === 'user');
+    expect(last).toMatchObject({ type: 'user', attachments: [book] });
+    expect(last?.type === 'user' && last.text.startsWith('/learn focus on the setup chapter\n')).toBe(true);
+    await release();
+    await until(() => !running(c.id));
   });
 });
 
@@ -211,6 +241,14 @@ describe('team chats', () => {
     await until(() => quiet(t.id));
     await resendInTeam(t.id);
     expect(userPosts(t.id)).toEqual(['first', 'first']);
+    await release();
+    await until(() => quiet(t.id));
+  });
+
+  it('/learn posts the request for a member to learn', async () => {
+    const t = makeTeam();
+    await learnInTeam(t.id, 'our release checklist');
+    expect(userPosts(t.id).at(-1)).toMatch(/^\/learn our release checklist\n\nLearn a reusable skill from: our release checklist/);
     await release();
     await until(() => quiet(t.id));
   });
