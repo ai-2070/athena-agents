@@ -4,7 +4,7 @@
 import { StrictMode, Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { GET, POST, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
+import { POST, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.tsx';
@@ -969,7 +969,7 @@ function TeamRoutines({ wf }: { wf: TeamView }) {
   const [list, setList] = useState<RoutineListing[] | null>(null);
   useEffect(() => {
     let live = true;
-    const load = () => void GET<RoutineListing[]>('/routines').then((l) => live && setList(l), () => live && setList([]));
+    const load = () => void rpc.routines.list().then((l) => live && setList(l), () => live && setList([]));
     load();
     // (a saved or deleted routine, a run (the card's last run), or a project switch)
     const off = onEvent((ev) => (ev.type === 'routines' || ev.type === 'routine-run' || ev.type === 'project') && load());

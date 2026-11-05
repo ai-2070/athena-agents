@@ -953,7 +953,7 @@ function teamView(w: TeamListing): TeamView {
 }
 
 async function loadData(): Promise<void> {
-  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([GET<Program[]>('/programs').catch((): Program[] => []), rpc.workflows.list().catch((): TeamListing[] => []), rpc.workflows.runs.list({}).catch((): WorkflowRun[] => []), rpc.workflows.active().catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({})), GET<Routine[]>('/routines').catch((): Routine[] => [])]);
+  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([GET<Program[]>('/programs').catch((): Program[] => []), rpc.workflows.list().catch((): TeamListing[] => []), rpc.workflows.runs.list({}).catch((): WorkflowRun[] => []), rpc.workflows.active().catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({})), rpc.routines.list().catch((): Routine[] => [])]);
   if (!S) return;
   S.layout = layout || {};
   S.progs = progs;
@@ -4015,7 +4015,7 @@ function drawFeed(): void {
 }
 
 async function reloadRoutineCounts(): Promise<void> {
-  const list = await GET<Routine[]>('/routines').catch(() => null);
+  const list = await rpc.routines.list().catch(() => null);
   if (!S || !list) return;
   S.teamRoutines = routineCounts(list);
   for (const id of S.branches.keys()) drawBranchCard(id);

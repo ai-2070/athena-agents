@@ -4,7 +4,10 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 /** The addresses of the areas that have moved. */
-const MOVED = ['/api/brain', '/api/task-board', '/api/projects', '/api/agents', '/api/teams/', '/api/workflows', '/api/workflow-'];
+const MOVED = [
+  '/api/brain', '/api/task-board', '/api/projects', '/api/agents', '/api/teams/', '/api/workflows', '/api/workflow-',
+  '/api/questions', '/api/approvals', '/api/tasks', '/api/routines', '/api/routine-runs', '/api/runs',
+];
 /** The old routes those areas keep. */
 const KEEP = [
   'GET /api/projects/:id/logo',

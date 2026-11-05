@@ -1,6 +1,6 @@
 // The same task list in agent, team and Brain chats. Editing stays inline with the work.
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { GET, POST, PUT, confirmBox, onEvent, onReconnect, state } from './core.ts';
+import { confirmBox, onEvent, onReconnect, state } from './core.ts';
 import { projectAt } from './client/connection.ts';
 import { rpcAt } from './client/rpc.ts';
 import { useProjectAgents } from './projectagents.ts';
@@ -9,7 +9,7 @@ import { Icon, useAppState } from './ui/react.tsx';
 import { Button, IconButton } from './ui/button.tsx';
 import { Pill } from './ui/marks.tsx';
 import { SelectControl } from './ui/select.tsx';
-import type { TaskCreateInput, TaskPage, TaskScope, TaskStatus, TaskSummary, Team, WorkTask } from '../shared/types.ts';
+import type { TaskPage, TaskScope, TaskStatus, TaskSummary, Team, WorkTask } from '../shared/types.ts';
 
 const STATUS = [{ value: 'pending', label: 'Pending', icon: 'clock' }, { value: 'in_progress', label: 'In progress', icon: 'play' }, { value: 'completed', label: 'Completed', icon: 'circle-check' }];
 const sameScope = (a: TaskScope, b: TaskScope) => a.kind === b.kind && a.id === b.id;
@@ -29,7 +29,7 @@ function TaskList({ view, scope, filters, chatId, projectId, at }: { view: strin
   const panelId = useId();
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState(view);
-  const [status, setStatus] = useState('open');
+  const [status, setStatus] = useState<'open' | 'all' | TaskStatus>('open');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState<TaskPage | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -48,8 +48,7 @@ function TaskList({ view, scope, filters, chatId, projectId, at }: { view: strin
     const request = ++serial.current;
     setLoading(true); setError('');
     try {
-      const q = new URLSearchParams({ view: target, status, search, limit: '100', offset: String(more ? page?.nextOffset || 0 : 0) });
-      const [next, unfinished] = await Promise.all([GET<TaskPage>(`${at}/tasks?${q}`), GET<TaskPage>(`${at}/tasks?${new URLSearchParams({ view: target, status: 'open', limit: '1' })}`)]);
+      const [next, unfinished] = await Promise.all([rpcAt(at).tasks.list({ view: target, status, search, limit: 100, offset: more ? page?.nextOffset || 0 : 0 }), rpcAt(at).tasks.list({ view: target, status: 'open', limit: 1 })]);
       if (request !== serial.current || !here()) return;
       setOpenCount(unfinished.total);
       setPage((old) => more && old ? { ...next, tasks: [...old.tasks, ...next.tasks] } : next);
@@ -75,7 +74,7 @@ function TaskList({ view, scope, filters, chatId, projectId, at }: { view: strin
   const edit = async (id: string) => {
     const request = ++editSerial.current;
     setError('');
-    try { const result = await GET<{ task: WorkTask }>(`${at}/tasks/${encodeURIComponent(id)}`); if (here() && request === editSerial.current) setEditing(result.task); }
+    try { const result = await rpcAt(at).tasks.get({ id }); if (here() && request === editSerial.current) setEditing(result.task); }
     catch (e) { if (here()) setError(e instanceof Error ? e.message : String(e)); }
   };
   const clearTasks = async () => {
@@ -88,15 +87,15 @@ function TaskList({ view, scope, filters, chatId, projectId, at }: { view: strin
       const tasks: TaskSummary[] = [];
       let offset: number | null = 0;
       while (offset != null) {
-        const result: TaskPage = await GET<TaskPage>(`${at}/tasks?${new URLSearchParams({ view: target, status: 'open', limit: '100', offset: String(offset) })}`);
+        const result: TaskPage = await rpcAt(at).tasks.list({ view: target, status: 'open', limit: 100, offset });
         if (!here()) return;
         tasks.push(...result.tasks); offset = result.nextOffset;
       }
       for (const task of tasks) {
-        const current = await GET<{ task: WorkTask }>(`${at}/tasks/${encodeURIComponent(task.id)}`);
+        const current = await rpcAt(at).tasks.get({ id: task.id });
         if (!here()) return;
         if (current.task.status !== 'pending' && current.task.status !== 'in_progress') continue;
-        await PUT(`${at}/tasks/${encodeURIComponent(task.id)}`, { status: 'deleted', expectedUpdatedAt: current.task.updatedAt });
+        await rpcAt(at).tasks.change({ id: task.id, status: 'deleted', expectedUpdatedAt: current.task.updatedAt });
         if (!here()) return;
       }
       setEditing(null);
@@ -113,7 +112,7 @@ function TaskList({ view, scope, filters, chatId, projectId, at }: { view: strin
     <CollapsePanel id={panelId}><div className="max-h-[min(55vh,420px)] overflow-y-auto border-y border-line pt-2 pb-1">
       <div className="flex flex-wrap items-center gap-2 pb-2">
         {filters && <SelectControl aria-label="Task list" value={target} options={[{ value: 'all', label: 'All project tasks', icon: 'list-checks' }, ...lists]} onChange={(v) => { setTarget(v); setPage(null); setEditing(null); }} className="max-w-full flex-1" />}
-        <SelectControl aria-label="Filter task status" value={status} options={[{ value: 'open', label: 'Open', icon: 'folder-open' }, { value: 'all', label: 'All statuses', icon: 'list-checks' }, ...STATUS]} onChange={(v) => { setStatus(v); setPage(null); }} />
+        <SelectControl aria-label="Filter task status" value={status} options={[{ value: 'open', label: 'Open', icon: 'folder-open' }, { value: 'all', label: 'All statuses', icon: 'list-checks' }, ...STATUS]} onChange={(v) => { setStatus(v as 'open' | 'all' | TaskStatus); setPage(null); }} />
         <div className="relative min-w-24 flex-1"><Icon name="search" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-dim" /><input type="search" className="w-full pl-9" aria-label="Search tasks" placeholder="Search tasks…" value={search} maxLength={240} onChange={(e) => { setSearch(e.target.value); setPage(null); }} /></div>
       </div>
       {error && <div role="alert" className="flex flex-wrap items-center gap-2 py-2 text-red"><span className="min-w-0 flex-1 wrap-anywhere">{error}</span><Button variant="plain" size="tiny" onClick={() => void load()}>Retry</Button></div>}
@@ -149,8 +148,8 @@ function TaskEditor({ task, scope: initialScope, lists, teams, candidates, chatI
     if (deleted && !(await confirmBox(`Remove the task “${task?.subject}”? Its dependency links will also be removed.`, { ok: 'Remove', danger: true }))) return;
     setBusy(true); setError('');
     try {
-      if (task) await PUT(`${at}/tasks/${encodeURIComponent(task.id)}`, { subject, description, activeForm, owner, status: deleted ? 'deleted' : status, expectedUpdatedAt: task.updatedAt, addBlockedBy: dependencies.filter((id) => !task.blockedBy.includes(id)), removeBlockedBy: task.blockedBy.filter((id) => !dependencies.includes(id)) });
-      else await POST(`${at}/tasks`, { subject, description, activeForm, owner, scope, ...(chatId ? { chatId } : {}) } satisfies TaskCreateInput & { chatId?: string });
+      if (task) await rpcAt(at).tasks.change({ id: task.id, subject, description, activeForm, owner, status: deleted ? 'deleted' : status, expectedUpdatedAt: task.updatedAt, addBlockedBy: dependencies.filter((id) => !task.blockedBy.includes(id)), removeBlockedBy: task.blockedBy.filter((id) => !dependencies.includes(id)) });
+      else await rpcAt(at).tasks.create({ subject, description, activeForm, owner, scope, ...(chatId ? { chatId } : {}) });
       if (current()) onSaved();
     } catch (e) { if (current()) setError(e instanceof Error ? e.message : String(e)); }
     finally { if (current()) setBusy(false); }

@@ -9,7 +9,7 @@ import type { WebSocket } from 'ws';
 import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, HOME, readJSON, writeJSON, insideRoots } from './util.ts';
 import * as store from './store.ts';
 import { agents, chats, outbox, artifacts as artifactStore, workflows, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
-import { listApprovals, decide, requestApproval, setReviewer } from './approvals.ts';
+import { listApprovals, requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
 import { eveRuntime } from './eve/runtime.ts';
 import { EveOwnershipError } from './eve/ownership.ts';
@@ -41,13 +41,10 @@ import * as social from './social.ts';
 import { addArtifact, removeArtifact } from './artifacts.ts';
 import * as teamMarks from './teammark.ts';
 import * as library from './library.ts';
-import { listBriefs } from './briefs.ts';
-import * as tasksMod from './tasks.ts';
 import * as taskBoard from './taskboard.ts';
 import { overview } from './overview.ts';
 import * as boardWork from './boardwork.ts';
 import { taskFilePath } from './boardfiles.ts';
-import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
 import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
 import * as worldLink from './voxel/link.ts';
@@ -84,7 +81,7 @@ import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import { saveToolStats, toolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
-import type { Agent, AppState, Project, ProviderUsage, Routine, SecretKey, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
+import type { Agent, AppState, Project, ProviderUsage, SecretKey, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -319,16 +316,7 @@ post<{ creditId?: unknown }>('/api/codex/reset', async (_p, body) => {
 // ---------- agents ----------
 // server/api/agents.ts, with their chats; a chat's run streams are below
 
-get('/api/tasks', async (_p, _b, q) => tasksMod.listTasks({ view: q.view || 'all', status: (q.status || 'all') as TaskQuery['status'], search: q.search || '', offset: Number(q.offset), limit: Number(q.limit) }, { admin: true, scope: { kind: 'brain' } }));
-get('/api/tasks/:id', async ({ id }) => ({ task: need(tasksMod.getTask(id, { admin: true, scope: { kind: 'brain' } })) }));
-post<TaskCreateInput & { chatId?: unknown }>('/api/tasks', async (_p, body) => {
-  const scope = tasksMod.taskScope(body.scope || { kind: 'brain' });
-  const chatId = typeof body.chatId === 'string' && scope.kind === 'agent' && chats.get(scope.id!, body.chatId) ? body.chatId : null;
-  const brief = listBriefs().findLast((b) => b.status === 'open' && (scope.kind === 'team' ? b.kind === 'team' && b.targetId === scope.id : scope.kind === 'agent' && b.targetId === scope.id && b.chatId === chatId));
-  return { task: tasksMod.createTask(body, { admin: true, scope, ...(brief ? { briefId: brief.id } : {}) }) };
-});
-put<TaskUpdateInput>('/api/tasks/:id', async ({ id }, body) => ({ task: tasksMod.updateTask({ ...body, taskId: id }, { admin: true, scope: { kind: 'brain' } }) }));
-// the Tasks board: server/api/taskboard.ts, except a task's files (below)
+// a chat's tasks: server/api/tasks.ts. The Tasks board: server/api/taskboard.ts, except a task's files (below)
 // the Overview page: every project's agents, teams, the Brain and tasks being worked on, at a glance
 get('/api/overview', async () => overview());
 const boardProject = (id: string) => need(store.listProjects().find((p) => p.id === id));
@@ -365,12 +353,7 @@ get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
   await uistream.streamRun(res, { chatId: cid, runId, items: engines.liveChat(cid)?.items || [] });
   return undefined;
 });
-get('/api/runs', async () => engines.activeRuns());
-post('/api/runs/:id/stop', async ({ id }) => ({ ok: engines.stopRun(id) }));
 
-// ---------- approvals ----------
-get('/api/approvals', async () => listApprovals());
-post<Parameters<typeof decide>[1] | null>('/api/approvals/:id', async ({ id }, body) => ({ ok: decide(id, body || {}) }));
 
 // ---------- skills ----------
 get('/api/skills', async () => ({ skills: skills.listSkills(), claude: skills.claudeSkills() }));
@@ -909,14 +892,6 @@ post<Parameters<typeof social.approvePost>[1]>('/api/outbox/:id/approve', async 
 post<{ text?: string }>('/api/outbox/:id/discuss', async ({ id }, body) => social.returnPost(id, String(body.text || ''), (teamId, text) => teams.postUserMessage(teamId, text, { route: brain.pickMember })));
 post<{ reason?: string }>('/api/outbox/:id/reject', async ({ id }, body) => social.rejectPost(id, body.reason));
 put<Parameters<typeof social.editPost>[1]>('/api/outbox/:id', async ({ id }, body) => social.editPost(id, body));
-// questions agents asked you (ask_user): answer with a choice, your own words, or both
-get('/api/questions', async () => store.questions.list().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 100));
-post<{ choice?: string; text?: string }>('/api/questions/:id/answer', async ({ id }, body) => questions.answerQuestion(id, { choice: body.choice, text: body.text }));
-post('/api/questions/:id/dismiss', async ({ id }) => questions.dismissQuestion(id));
-del('/api/questions/:id', async ({ id }) => {
-  questions.removeQuestion(id);
-  return { ok: true };
-});
 del('/api/outbox/:id', async ({ id }) => {
   social.removePost(id);
   return { ok: true };
@@ -1257,14 +1232,6 @@ bus.on('event', (ev) => {
 });
 
 // ---------- routines ----------
-get('/api/routines', async () => routinesMod.listRoutines());
-post<Partial<Routine> | null>('/api/routines', async (_p, body) => routinesMod.saveRoutine(body || {}));
-get('/api/routines/:id', async ({ id }) => need(routinesMod.getRoutine(id)));
-put<Partial<Routine> | null>('/api/routines/:id', async ({ id }, body) => routinesMod.saveRoutine(body || {}, need(store.routines.get(id)).id));
-del('/api/routines/:id', async ({ id }) => (routinesMod.deleteRoutine(id), { ok: true }));
-post<{ input?: unknown } | null>('/api/routines/:id/run', async ({ id }, body) => routinesMod.startRoutine(need(store.routines.get(id)).id, { input: String(body?.input || '').slice(0, 20000) }));
-get('/api/routine-runs', async (_p, _b, q) => routinesMod.listRuns(q.routineId || undefined));
-post('/api/routine-runs/:id/stop', async ({ id }) => ({ ok: routinesMod.stopRoutineRun(id) }));
 
 // ---------- start ----------
 // The page is bundled into public/dist. Started without `bun run start` on a fresh checkout: build it now.

@@ -3,7 +3,7 @@
 // one listener and one request at a time (a change while one is on its way asks once more after it), and only the
 // panes of that project draw again.
 import { useCallback, useSyncExternalStore } from 'react';
-import { GET, onEvent } from './core.ts';
+import { onEvent } from './core.ts';
 import { projectAt } from './client/connection.ts';
 
 export interface ProjectList<T> {
@@ -17,8 +17,8 @@ export interface ProjectList<T> {
 
 const NONE: never[] = [];
 
-/** path: the route after /api/p/<project> ('/agents'); events: the event types that change it. */
-export function projectList<T>(path: string, events: readonly string[]): ProjectList<T> {
+/** ask: the list, asked of a project (at: projectAt(id), for rpcAt); events: the event types that change it. */
+export function projectList<T>(ask: (at: string) => Promise<T[]>, events: readonly string[]): ProjectList<T> {
   const lists = new Map<string, T[]>();
   const loading = new Map<string, Promise<T[]>>();
   const again = new Set<string>();
@@ -28,7 +28,7 @@ export function projectList<T>(path: string, events: readonly string[]): Project
   function load(id: string): Promise<T[]> {
     const busy = loading.get(id);
     if (busy) return (again.add(id), busy);
-    const request = GET<T[]>(`${projectAt(id)}${path}`)
+    const request = ask(projectAt(id))
       .catch((): T[] => lists.get(id) || [])
       .then((list) => {
         lists.set(id, Array.isArray(list) ? list : []);

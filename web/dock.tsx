@@ -7,7 +7,7 @@ import { useMentionBox, useMentionables } from './taskboard.tsx';
 import { mentionMenuOpen } from './routinemention.ts';
 import { createPortal, flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { h, state, GET, POST, attempt, md, onEvent, onState, navigate, refreshSoon, toast, confirmBox } from './core.ts';
+import { h, state, POST, attempt, md, onEvent, onState, navigate, refreshSoon, toast, confirmBox } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import { openBranchBuilder } from './builder.tsx';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.tsx';
@@ -33,7 +33,7 @@ import type { AttachTray, PickedFile } from './attach.tsx';
 import type { PasteBox } from './pastes.ts';
 import type { AgentDraft, BranchDesign } from './builder.tsx';
 import type { TeamEvent } from './teamchat.tsx';
-import type { ActiveRun, Agent, AppState, BrainAnswer, BrainChatMessage, BrainDelegate, BrainDone, BrainStep, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
+import type { Agent, AppState, BrainAnswer, BrainChatMessage, BrainDelegate, BrainDone, BrainStep, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
 import type { UIMessage } from 'ai';
 
 // A handed-off agent's turn, streamed in as it goes: the AI SDK pieces load when first needed.
@@ -1272,7 +1272,7 @@ function follow(d: BrainDelegate) {
     const chatId = d.sent.chatId;
     const it = add({ kind: 'agent', agentId: d.id, chatId, text: '', tools: [], images: [], reason: 'from the Brain', done: false, started: true });
     // it may have finished before this answer got here (then no 'done' comes for this card)
-    void GET<ActiveRun[]>('/runs')
+    void rpc.runs.list()
       .then((runs) => {
         if (!runs.some((x) => x.chatId === chatId)) (it.done = true), draw();
       })

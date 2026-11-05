@@ -1,8 +1,9 @@
 // Questions agents asked you (ask_user): the card with the choices as buttons and a box for an answer in
 // your own words. Shown in the Outbox, in the Needs you drawer, and in the chat while the agent waits there.
 import { useState } from 'react';
-import { POST, DEL, attempt, ago, md, refreshSoon } from './core.ts';
+import { attempt, ago, md, refreshSoon } from './core.ts';
 import { projectAt } from './client/connection.ts';
+import { rpc, rpcAt } from './client/rpc.ts';
 import { projectList } from './projectlist.ts';
 import { DomNode, mountReact, useAppState } from './ui/react.tsx';
 import { pillClass } from './ui/classes.ts';
@@ -34,7 +35,7 @@ export interface QuestionOwner {
 
 /** The questions of a project that isn't open, for a chat of it in an Overview pane (the open project's are in the
  *  app state). */
-export const projectQuestions = projectList<AgentQuestion>('/questions', ['questions']);
+export const projectQuestions = projectList<AgentQuestion>((at) => rpcAt(at).questions.list(), ['questions']);
 
 /** The waiting question in the list that a chat's ask_user call made (matched by its text, newest first,
  *  and by the agent and chat it is in: two agents asking the same thing each answer their own). */
@@ -61,7 +62,7 @@ export function QuestionCard({ q, place = 'outbox', changed, project }: { q: Age
   const who = q.agentName || 'the agent';
   const answer = async (choice?: string) => {
     setBusy(true);
-    const r = await attempt(() => POST<AgentQuestion>(`${at}/questions/${q.id}/answer`, { choice: choice || '', text }), `Sent to ${who}`);
+    const r = await attempt(() => rpcAt(at).questions.answer({ id: q.id, choice: choice || '', text }), `Sent to ${who}`);
     setBusy(false);
     if (r) {
       setText('');
@@ -69,10 +70,10 @@ export function QuestionCard({ q, place = 'outbox', changed, project }: { q: Age
     }
   };
   const dismiss = async () => {
-    if (await attempt(() => POST(`${at}/questions/${q.id}/dismiss`, {}))) changed?.();
+    if (await attempt(() => rpcAt(at).questions.dismiss({ id: q.id }))) changed?.();
   };
   const remove = async () => {
-    if (await attempt(() => DEL(`/questions/${q.id}`))) changed?.();
+    if (await attempt(() => rpc.questions.remove({ id: q.id }))) changed?.();
   };
   const [tone, label] = STATUS[q.status] || ['dim', q.status];
   const after = q.status === 'answered' ? deliveredText(q) : q.note || '';

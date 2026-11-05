@@ -5,6 +5,7 @@ import { Plate } from '../ui/surface.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GET, POST, PUT, DEL, attempt, toast, ago, refreshSoon } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { fetchFile } from '../client/http.ts';
 import { fileUrl } from '../client/connection.ts';
 import { openFile } from '../filepreview.tsx';
@@ -83,7 +84,7 @@ export function Outbox() {
 /** What agents asked you (ask_user): the waiting ones first, then the last ones you answered. */
 function Questions() {
   const [list, setList] = useState<AgentQuestion[] | null>(null);
-  const reload = useCallback(() => GET<AgentQuestion[]>('/questions').then(setList), []);
+  const reload = useCallback(() => rpc.questions.list().then(setList), []);
   useEffect(() => void reload().catch(() => setList([])), [reload]);
   useServerEvents((ev) => (ev.type === 'questions' || ev.type === 'project') && void reload().catch(() => {}));
   if (!list?.length) return null;
