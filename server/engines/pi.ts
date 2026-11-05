@@ -11,13 +11,13 @@ import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, HOME, da
 import { emit, internalToken, log } from '../store.ts';
 import { toolDefs, workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
-import { cliStatus, pipeLines, tail, SessionGone } from './cli.ts';
+import { cliStatus, openInputs, pipeLines, tail, SessionGone } from './cli.ts';
 import { splitContent } from '../toolimages.ts';
 import { withAttachments } from '../uploads.ts';
 import type { ChildProcess } from 'node:child_process';
 import type { CliStatus } from './cli.ts';
 import type { Agent, RunEvent } from '../../shared/types.ts';
-import type { Engine, EngineRunArgs, EngineResult, TurnMessage, TurnSteering } from './index.ts';
+import type { Engine, EngineRunArgs, EngineResult } from './index.ts';
 
 export type PiFlavor = 'pi' | 'omp';
 const LABEL: Record<PiFlavor, string> = { pi: 'pi', omp: 'oh-my-pi' };
@@ -203,17 +203,11 @@ export function status(flavor: PiFlavor): CliStatus {
 }
 
 // ---------- RPC mode: a message while it works ----------
-// the runs whose pi still reads its input: a message sent while it works goes in here
-const reading = new Map<string, (message: TurnMessage) => boolean>();
+// the runs whose pi still reads its input: a message sent while it works goes in there
+const inputs = openInputs('It');
 
 /** A message sent while it works goes into the turn: it reads it before its next step. */
-export const steer: TurnSteering = {
-  can: (runId) => reading.has(runId),
-  send: async (runId, message) => {
-    if (!reading.get(runId)?.(message)) throw new Error('It is no longer reading messages for this turn.');
-  },
-  saysWhenRead: true,
-};
+export const steer = inputs.steer;
 
 /** How long it may stay quiet after a run ends without saying it has settled, before its input closes. */
 export const SETTLE_WAIT = { ms: 30_000 };
@@ -225,30 +219,24 @@ const DIALOGS = new Set(['select', 'confirm', 'input', 'editor', 'ask']);
  *  events go to the reader. oh-my-pi names a new session itself: get_state says which. */
 function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: string, reader: ReturnType<typeof piReader>, onEvent: (ev: RunEvent) => void) {
   const send = (o: object) => void (child.stdin?.writable && child.stdin.write(`${JSON.stringify(o)}\n`));
-  // messages sent while it works that it hasn't read yet, in the order they went
-  const unread: TurnMessage[] = [];
-  let open = true;
   // its own message came by first: the user messages after it are the ones sent while it worked
   let prompted = false;
   let refused = '';
-  let quiet: ReturnType<typeof setTimeout> | undefined;
-  const close = () => {
-    clearTimeout(quiet);
-    reading.delete(runId);
-    if (!open) return;
-    open = false;
-    child.stdin?.end();
-  };
-  reading.set(runId, (m) => {
-    if (!open) return false;
-    unread.push(m);
-    send({ id: `steer-${m.id}`, type: 'steer', message: withAttachments(m.text, m.attachments || []) });
-    return true;
+  // messages sent while it works go in as steers, known by their request id
+  const input = inputs.open(runId, {
+    take: (m) => {
+      const key = `steer-${m.id}`;
+      send({ id: key, type: 'steer', message: withAttachments(m.text, m.attachments || []) });
+      return key;
+    },
+    end: () => child.stdin?.end(),
+    onEvent,
   });
+  const close = input.close;
   const onLine = (line: string) => {
     if (!line.startsWith('{')) return;
     const ev = JSON.parse(line) as PiEvent & { command?: string; success?: boolean; error?: string; data?: { disposition?: string; sessionId?: unknown }; method?: string; willRetry?: boolean };
-    clearTimeout(quiet);
+    input.wait();
     if (ev.type === 'response') {
       if (ev.id === 'state' && typeof ev.data?.sessionId === 'string' && ev.data.sessionId) reader.handle({ type: 'session', id: ev.data.sessionId });
       // its own message refused, or taken by a command with no run: nothing more comes
@@ -257,10 +245,7 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
         close();
       }
       // a message it didn't take: the dashboard sends it next instead (it is still unread there)
-      if (ev.command === 'steer' && !ev.success) {
-        const at = unread.findIndex((m) => ev.id === `steer-${m.id}`);
-        if (at >= 0) unread.splice(at, 1);
-      }
+      if (ev.command === 'steer' && !ev.success && ev.id) input.drop(ev.id);
       return;
     }
     if (ev.type === 'extension_ui_request') return void (ev.method && DIALOGS.has(ev.method) && send({ type: 'extension_ui_response', id: ev.id, cancelled: true }));
@@ -269,14 +254,15 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
       if (!prompted) return void (prompted = true);
       // (in the order they went; one it expanded, a skill command, still reads as the next)
       const said = messageText(ev.message);
-      const found = unread.findIndex((m) => !!m.text && said.includes(m.text));
-      const [m] = unread.splice(found >= 0 ? found : 0, 1);
-      if (m) onEvent({ kind: 'steer', id: m.id, text: m.text, ...(m.attachments?.length ? { attachments: m.attachments } : {}), ...(m.from ? { from: m.from } : {}), ...(m.teamMessageId ? { teamMessageId: m.teamMessageId } : {}) });
+      const keys = [...input.unread.keys()];
+      const found = keys.find((k) => !!input.unread.get(k)!.text && said.includes(input.unread.get(k)!.text));
+      const key = found ?? keys[0];
+      if (key) input.read(key);
       return;
     }
     if (ev.type === 'agent_settled' || ev.type === 'session_settled') return close();
     // (a run that ended should settle at once: if it never says so, its input closes anyway)
-    if (ev.type === 'agent_end' && !ev.willRetry) quiet = setTimeout(close, SETTLE_WAIT.ms);
+    if (ev.type === 'agent_end' && !ev.willRetry) input.closeIn(SETTLE_WAIT.ms);
     reader.handle(ev);
   };
   const prompt = `${JSON.stringify({ id: 'prompt', type: 'prompt', message: text })}\n${flavor === 'omp' ? `${JSON.stringify({ id: 'state', type: 'get_state' })}\n` : ''}`;
