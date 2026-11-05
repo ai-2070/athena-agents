@@ -46,11 +46,12 @@ async function send(request: Request): Promise<Response> {
   return new Response(text, { status: res.status, statusText: res.statusText, headers });
 }
 
-/** A typed client for a contract (the app's is `rpc`). */
-export function rpcClient<C extends AnyContractRouter>(c: C): ContractRouterClient<C> {
+/** A typed client for a contract (the app's is `rpc`). at: '/p/<project>' to run calls in a project that
+ *  isn't open (projectAt() in connection.ts), '' for the open one. */
+export function rpcClient<C extends AnyContractRouter>(c: C, at = ''): ContractRouterClient<C> {
   return createORPCClient(
     new OpenAPILink(c, {
-      url: `${ORIGIN}/api`,
+      url: `${ORIGIN}/api${at}`,
       headers: requestHeaders,
       fetch: send,
       interceptors: [
@@ -67,3 +68,12 @@ export function rpcClient<C extends AnyContractRouter>(c: C): ContractRouterClie
 }
 
 export const rpc = rpcClient(contract);
+
+const elsewhere = new Map<string, typeof rpc>();
+/** The calls, run in the project `at` names ('/p/<project>', from projectAt()); '' is the open project's: rpc. */
+export function rpcAt(at: string): typeof rpc {
+  if (!at) return rpc;
+  let client = elsewhere.get(at);
+  if (!client) elsewhere.set(at, (client = rpcClient(contract, at)));
+  return client;
+}

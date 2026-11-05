@@ -37,7 +37,7 @@ const saveBrain = (skills: string[]) =>
     refreshSoon(0);
   });
 const saveProject = (id: string, skills: string[]) => attempt(() => rpc.projects.change({ id, skills })).then(() => refreshSoon(0));
-const saveAgent = (a: Agent, skills: string[]) => attempt(() => PUT(`/agents/${a.id}`, { skills })).then(() => refreshSoon(0));
+const saveAgent = (a: Agent, skills: string[]) => attempt(() => rpc.agents.change({ id: a.id, skills })).then(() => refreshSoon(0));
 
 function SkillsPage({ open }: { open?: string }) {
   const d = useAppState();

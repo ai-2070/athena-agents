@@ -3279,7 +3279,7 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
     toast(`${a.name} → ${w.name}`);
   };
   const newAgent = async () => {
-    const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
+    const a = await attempt(() => rpc.agents.create({ name: 'New agent' }));
     if (a) navigate(`#/agents/${a.id}/edit`);
   };
   if (p?.type === 'agent') {
@@ -3308,7 +3308,7 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
       'Delete agent',
       async () => {
         if (!(await confirmBox(`Delete ${a.name}? It is also taken off every team.`, { ok: 'Delete', danger: true }))) return;
-        await attempt(() => DEL(`/agents/${a.id}`), `Deleted ${a.name}`);
+        await attempt(() => rpc.agents.remove({ id: a.id }), `Deleted ${a.name}`);
         choose(null);
         refreshSoon(0);
         reloadWorkflows();
@@ -3903,7 +3903,7 @@ function drawEmpty(d: AppState): void {
         domButton({ size: 'small', onclick: () => openDock('auto', 'Make me a team for ') }, 'Ask the Brain'),
         domButtonLink({ variant: 'ghost', size: 'small', href: '#/library' }, 'Agent library'),
         domButton({ variant: 'ghost', size: 'small', onclick: async () => {
-          const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
+          const a = await attempt(() => rpc.agents.create({ name: 'New agent' }));
           if (a) navigate(`#/agents/${a.id}/edit`);
         } }, 'Create your own'),
       ),
@@ -4137,7 +4137,7 @@ function setMembers(wf: TeamView, members: string[]): void {
 
 // Clone / save as preset, for agents and teams.
 async function cloneAgent(a: Agent): Promise<Agent | undefined> {
-  const c = await attempt(() => POST<Agent>(`/agents/${a.id}/duplicate`), `Cloned ${a.name}`);
+  const c = await attempt(() => rpc.agents.duplicate({ id: a.id }), `Cloned ${a.name}`);
   if (c) refreshSoon(0);
   return c;
 }

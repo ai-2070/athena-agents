@@ -8,6 +8,7 @@ import { mentionMenuOpen } from './routinemention.ts';
 import { createPortal, flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { h, state, GET, POST, attempt, md, onEvent, onState, navigate, refreshSoon, toast, confirmBox } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { openBranchBuilder } from './builder.tsx';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.tsx';
 import { brainQueue, chatLoop, holdQueue, latestLoad } from './brainqueue.ts';
@@ -617,7 +618,7 @@ function DraftCard({ it }: { it: DraftItem }) {
     draw();
   };
   const create = async (thenRun: boolean) => {
-    const created = await attempt(() => POST<Agent>('/agents', a));
+    const created = await attempt(() => rpc.agents.create(a));
     if (!created) return;
     becomeNote(`Created ${created.emoji || ''} ${created.name}.`);
     refreshSoon(0);

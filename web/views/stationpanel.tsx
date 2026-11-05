@@ -4,7 +4,7 @@
 import { StrictMode, Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { GET, POST, PUT, DEL, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
+import { GET, POST, DEL, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.tsx';
@@ -216,7 +216,7 @@ function BenchPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
   const used = new Set(api.teams().flatMap((w) => w.members || []));
   const bench = d.agents.filter((a) => !used.has(a.id));
   const newAgent = async () => {
-    const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
+    const a = await attempt(() => rpc.agents.create({ name: 'New agent' }));
     if (a) navigate(`#/agents/${a.id}/edit`);
   };
   return (
@@ -1068,7 +1068,7 @@ function ModelSection({ a }: { a: Agent }) {
   const [, redraw] = useState(0);
   const mi = modelInfo(a);
   const setAuth = async (v: string) => {
-    if (await attempt(() => PUT(`/agents/${a.id}`, { claudeAuth: v }), 'Saved')) {
+    if (await attempt(() => rpc.agents.change({ id: a.id, claudeAuth: v }), 'Saved')) {
       a.claudeAuth = v as Agent['claudeAuth'];
       refreshSoon(0);
       redraw((n) => n + 1);
@@ -1133,7 +1133,7 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
     toast(`Added ${a.name} to ${w.name}`);
   };
   const clone = async () => {
-    if (await attempt(() => POST<Agent>(`/agents/${a.id}/duplicate`), `Cloned ${a.name}`)) refreshSoon(0);
+    if (await attempt(() => rpc.agents.duplicate({ id: a.id }), `Cloned ${a.name}`)) refreshSoon(0);
   };
   const now = api.now(id, wfId);
   const connectors = a.engine === 'claude-code' ? api.connectors() : [];
@@ -1183,7 +1183,7 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
         <DomNode
           className="mt-3.5"
           make={() =>
-            skillPicker(a.skills || [], (v) => void attempt(() => PUT(`/agents/${id}`, { skills: v })).then(() => refreshSoon(0)), {
+            skillPicker(a.skills || [], (v) => void attempt(() => rpc.agents.change({ id, skills: v })).then(() => refreshSoon(0)), {
               inherited: [...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' })), ...onTeams.flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name })))],
               empty: 'No skills yet.',
             })

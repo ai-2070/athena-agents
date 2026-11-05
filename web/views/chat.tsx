@@ -2,6 +2,7 @@
 // (web/chat): streaming answers, tool calls you can open, images, file previews, COMPACTED marks.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GET, POST, PUT, DEL, attempt, navigate, ago, confirmBox, promptBox, ENGINE_LABEL } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
 import { openMemory } from '../memory.tsx';
 import { iconButtonClass } from '../ui/classes.ts';
@@ -35,7 +36,7 @@ function ChatPage({ agentId, chatId, view }: { agentId: string; chatId?: string;
   useEffect(() => {
     let live = true;
     void (async () => {
-      const agent = await GET<AgentDetail>(`/agents/${agentId}`).catch(() => null);
+      const agent = await rpc.agents.get({ id: agentId }).catch(() => null);
       if (!live) return;
       if (!agent) return setLoaded({ kind: 'gone' });
       view.setTitle(`${agent.emoji || ''} ${agent.name}`);

@@ -554,6 +554,17 @@ export interface RunBilling {
 }
 
 // ---------- agents ----------
+/** An agent as its page shows it: with its knowledge files, its workspace folder and the names of its tools. */
+export interface AgentDetail extends Agent {
+  knowledgeFiles: { label: string; size: number; own: boolean }[];
+  workspacePath: string;
+  tools: string[];
+}
+/** One of an agent's harness's own / commands (a Claude Code agent's), for the / menu. */
+export interface HarnessCommand {
+  name: string;
+  about: string;
+}
 export interface AgentSource {
   type: 'custom' | 'library' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
   slug?: string;

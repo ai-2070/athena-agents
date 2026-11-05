@@ -13,7 +13,7 @@ import { clearGoal, resumeBrief, setAgentGoal, setTeamGoal, stoppedBrief, stoppe
 import { stopAsks } from './overseer.ts';
 import { pickMember } from './brain.ts';
 import { COMMANDS, learnText, parseLoop } from '../shared/commands.ts';
-import type { Agent, BrainBrief, Chat, LoopInfo } from '../shared/types.ts';
+import type { Agent, BrainBrief, Chat, HarnessCommand, LoopInfo } from '../shared/types.ts';
 
 /** What a resumed turn says to the agent. */
 export const RESUME_TEXT = 'Continue from where you stopped.';
@@ -229,10 +229,8 @@ export function resumeBrain(work: BrainWork): { resumed: string[]; chats: string
 
 // ---------- the harness's own commands ----------
 /** A command of the agent's harness, for the / menu (sent to it as you type it). */
-export interface HarnessCommand {
-  name: string;
-  about: string;
-}
+// (HarnessCommand: shared/types.ts)
+export type { HarnessCommand };
 
 // "description:" from a file's front matter, else its first line of text
 function describe(file: string): string {

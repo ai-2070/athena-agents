@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.ts';
+import { rpcAt } from './client/rpc.ts';
 import { engineConfigured } from './engineavailability.ts';
 import { slideSegment } from './segmotion.ts';
 import { brandImage } from './brandimages.ts';
@@ -204,7 +205,7 @@ export function modelChip(agent: Agent, { onChange, compact = false, at = '' }: 
     e.stopPropagation();
     openModelPicker(chip, agent, async (patch) => {
       const sameOne = sameModel(agent, patch);
-      const r = await attempt(() => PUT<Agent>(`${at}/agents/${agent.id}`, patch));
+      const r = await attempt(() => rpcAt(at).agents.change({ id: agent.id, ...patch }));
       if (!r) return false;
       Object.assign(agent, patch);
       flushSync(draw);

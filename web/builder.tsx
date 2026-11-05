@@ -5,6 +5,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { GET, POST, PUT, attempt, state, toast, refreshSoon } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import type { ModalHandle } from './core.ts';
 import { teamSteps } from '../shared/teams.ts';
 import { mcpOptions } from './mcpcopies.ts';
@@ -144,7 +145,7 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
     // hire the new agents the Brain suggested; each becomes a normal member right away, so a retry won't hire it again
     for (const mem of [...b.members]) {
       if (!mem.newAgent) continue;
-      const a = await attempt(() => POST<Agent>('/agents', mem.newAgent));
+      const a = await attempt(() => rpc.agents.create(mem.newAgent));
       if (!a) return (refreshSoon(0), flushSync(redraw));
       hired.set(a.id, a);
       const done: BranchMember = { agentId: a.id };

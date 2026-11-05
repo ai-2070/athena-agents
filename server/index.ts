@@ -41,7 +41,6 @@ import * as social from './social.ts';
 import { addArtifact, removeArtifact } from './artifacts.ts';
 import * as teamMarks from './teammark.ts';
 import * as library from './library.ts';
-import { isEffort } from '../shared/effort.ts';
 import { queuedText } from '../shared/queue.ts';
 import * as commands from './commands.ts';
 import { openGoal, clearWork, listBriefs } from './briefs.ts';
@@ -51,7 +50,6 @@ import { overview } from './overview.ts';
 import * as boardWork from './boardwork.ts';
 import { taskFilePath } from './boardfiles.ts';
 import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
-import * as kb from './knowledge.ts';
 import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
 import * as worldLink from './voxel/link.ts';
@@ -88,6 +86,7 @@ import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import { saveToolStats, toolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
+import { deleteAgent } from './api/agents.ts';
 import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
@@ -349,84 +348,7 @@ post<{ creditId?: unknown }>('/api/codex/reset', async (_p, body) => {
 });
 
 // ---------- agents ----------
-get('/api/agents', async () => agents.list());
-post<Partial<Agent> | null>('/api/agents', async (_p, body) => {
-  const { id, ...fields } = body || {};
-  return library.newAgent(fields);
-});
-get('/api/agents/:id', async ({ id }) => {
-  const a = need(agents.get(id));
-  return { ...a, knowledgeFiles: kb.knowledgeFiles(a).map(({ label, size, own }) => ({ label, size, own })), workspacePath: tools.workspaceOf(a), tools: tools.toolsForAgent(a).map((t) => t.name) };
-});
-put<Partial<Agent>>('/api/agents/:id', async ({ id }, body) => {
-  const a = need(agents.get(id));
-  if (body.engine && body.engine !== a.engine) engines.retireAgentSessions(id);
-  const allowed: (keyof Agent)[] = ['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'openclawAgent', 'autonomy', 'toolGroups', 'mcpServers', 'knowledge', 'workspace', 'temperature', 'effort', 'pinned', 'alwaysAllow', 'skills', 'richAnswers'];
-  for (const k of allowed) if (k in body) (a as Record<keyof Agent, unknown>)[k] = body[k];
-  if ('effort' in body) a.effort = isEffort(body.effort) ? body.effort : '';
-  return agents.save(a);
-});
-function deleteAgent(gone: Agent): void {
-  const id = gone.id;
-  engines.retireAgentSessions(id);
-  agents.remove(id);
-  log('agent', `Deleted agent ${gone.name}`, { agentId: id });
-  // and take it off every branch it was on
-  for (const wf of workflows.list()) {
-    const steps = (wf.steps || []).filter((s) => !(s.type === 'agent' && s.agentId === id));
-    const members = teams.normalize({ ...wf }).members; // without the deleted agent (old step lists too)
-    if (steps.length !== (wf.steps || []).length || members.length !== (wf.members || []).length) workflows.save({ ...wf, steps, members, lead: wf.lead === id ? null : wf.lead });
-  }
-}
-del('/api/agents/:id', async ({ id }) => {
-  deleteAgent(need(agents.get(id)));
-  return { ok: true };
-});
-post('/api/agents/:id/duplicate', async ({ id }) => {
-  const a = need(agents.get(id));
-  const { id: _i, createdAt, updatedAt, ...rest } = a;
-  return library.newAgent({ ...rest, name: `${a.name} (copy)` });
-});
-post('/api/agents/:id/export-claude', async ({ id }) => ({ file: library.exportToClaude(need(agents.get(id))) }));
-// app 'vscode': in VS Code (an Overview pane's Open folder in VS Code), else in the file manager
-post<{ app?: string }>('/api/agents/:id/open-workspace', async ({ id }, body) => {
-  const dir = tools.workspaceOf(need(agents.get(id)));
-  if (body?.app === 'vscode') return { message: await programs.launchProgram('vscode', { file: dir }) };
-  openWithShell(dir);
-  return { ok: true };
-});
-
-// knowledge
-post<{ folder?: string; url?: string; name?: string; content?: string }>('/api/agents/:id/knowledge', async ({ id }, body) => {
-  need(agents.get(id));
-  if (body.folder) {
-    const a = agents.get(id)!;
-    if (!exists(body.folder)) throw new HttpError(400, `${body.folder} does not exist.`);
-    a.knowledge = { folders: [...new Set([...(a.knowledge?.folders || []), body.folder])] };
-    agents.save(a);
-    return { ok: true };
-  }
-  if (body.url) {
-    const url = body.url;
-    // (the download takes a while: the file goes to this project's agent, whichever project is open by then)
-    return store.withProject(store.activeProject(), async () => {
-      const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
-      const text = await res.text();
-      const name = body.name || new URL(url).hostname + new URL(url).pathname.replace(/\W+/g, '_') + '.md';
-      return { file: kb.addKnowledgeFile(id, name, `Source: ${url}\n\n${/html/.test(res.headers.get('content-type') || '') ? text.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+\n/g, '\n').replace(/[ \t]+/g, ' ') : text}`) };
-    });
-  }
-  return { file: kb.addKnowledgeFile(id, body.name, body.content || '') };
-});
-del('/api/agents/:id/knowledge', async ({ id }, _b, q) => {
-  const a = need(agents.get(id));
-  if (q.folder) {
-    a.knowledge = { folders: (a.knowledge?.folders || []).filter((f) => f !== q.folder) };
-    agents.save(a);
-  } else kb.removeKnowledgeFile(id, q.label);
-  return { ok: true };
-});
-
+// server/api/agents.ts (their / commands too); their chats below
 // chats
 get('/api/agents/:id/chats', async ({ id }) => chats.list(id));
 post('/api/agents/:id/chats', async ({ id }) => chats.create(need(agents.get(id)).id));
@@ -504,8 +426,6 @@ post<{ text?: unknown; attachments?: unknown }>('/api/agents/:id/chats/:cid/lear
 );
 post<{ text?: unknown }>('/api/agents/:id/chats/:cid/goal', async ({ id, cid }, body) => commands.goalInChat(id, cid, String(body.text ?? '').trim().slice(0, 4000)));
 del('/api/agents/:id/chats/:cid/goal', async ({ id, cid }) => commands.goalInChat(id, cid, 'clear'));
-// the harness's own / commands (a Claude Code agent's), for the / menu
-get('/api/agents/:id/commands', async ({ id }) => commands.harnessCommands(need(agents.get(id)).id));
 // The chat views (Vercel AI SDK useChat): send a message and stream its run as a UI message stream,
 // or pick up the run going in a chat (the turn so far, then the rest; 204 when nothing runs).
 // steer: sent while it works, it stops the run going now and goes next (its /queue messages still wait).

@@ -3,8 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { minifyContractRouter, oc, type } from '@orpc/contract';
 import { z } from 'zod';
-import { setConnection, setPageProject } from '../../web/client/connection.ts';
-import { rpc as appRpc, rpcClient } from '../../web/client/rpc.ts';
+import { projectAt, setConnection, setPageProject } from '../../web/client/connection.ts';
+import { rpc as appRpc, rpcAt, rpcClient } from '../../web/client/rpc.ts';
 import { contract as appContract } from '../../shared/api/index.ts';
 
 const contract = {
@@ -54,6 +54,15 @@ describe('rpc calls', () => {
     answer({ ok: true });
     await rpc.things.remove({ listId: 'l', id: 'x' });
     expect(calls[1]).toMatchObject({ url: '/api/things/l/x', init: { method: 'DELETE', body: undefined } });
+  });
+
+  it('run in a project that isn’t open under /api/p/<project>, and in the open one without', async () => {
+    answer({ tags: [] });
+    await rpcAt(projectAt('other one')).taskBoard.tags.list({ projectId: 'x' });
+    await rpcAt(projectAt(null)).taskBoard.tags.list({ projectId: 'x' });
+    expect(calls.map((c) => c.url)).toEqual(['/api/p/other%20one/task-board-tags/x', '/api/task-board-tags/x']);
+    expect(rpcAt('')).toBe(appRpc);
+    expect(rpcAt('/p/a')).toBe(rpcAt('/p/a'));
   });
 
   it('go to the server the connection names', async () => {

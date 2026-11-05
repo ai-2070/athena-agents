@@ -9,6 +9,7 @@ import type { CSSProperties, KeyboardEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { APICallError } from 'ai';
 import { GET, POST, PUT, DEL, attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
+import { rpcAt } from '../client/rpc.ts';
 import type { AttachTray } from '../attach.tsx';
 import { COMPOSER_BTNS, COMPOSER_TEXT } from '../attach.tsx';
 import { pasteBox } from '../pastes.ts';
@@ -519,7 +520,7 @@ export function ChatView(p: ChatViewProps) {
   // / for commands: a menu above the box while it holds just "/" and the start of a name
   const [slash, setSlash] = useState<{ options: SlashOption[]; active: number } | null>(null);
   useEffect(() => {
-    void GET<{ name: string; about: string }[]>(`${at}/agents/${agent.id}/commands`)
+    void rpcAt(at).agents.commands({ id: agent.id })
       .then((list) => setHarness(Array.isArray(list) ? list : []))
       .catch(() => {});
   }, [agent.id, at]);

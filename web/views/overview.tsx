@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { DEL, GET, POST, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
-import { rpc } from '../client/rpc.ts';
+import { rpc, rpcAt } from '../client/rpc.ts';
 import { apiUrl, projectAt } from '../client/connection.ts';
 import { previewFile, previewTitle, revealLabel } from '../filepreview.tsx';
 import { openChat } from '../chatwin.tsx';
@@ -71,7 +71,7 @@ const PANELS: readonly { id: PanelId; label: string; icon: string }[] = [
 /** Opens a pane's folder in VS Code: an agent's own workspace, or the project folder for a team or a terminal. */
 async function openInVSCode(ref: PaneRef, foreign: boolean): Promise<void> {
   const at = foreign ? projectAt(ref.projectId) : '';
-  const r = await attempt(() => (ref.kind === 'agent' ? POST<{ message?: string }>(`${at}/agents/${encodeURIComponent(ref.id)}/open-workspace`, { app: 'vscode' }) : rpc.projects.open({ id: ref.projectId, app: 'vscode' })));
+  const r = await attempt(() => (ref.kind === 'agent' ? rpcAt(at).agents.openWorkspace({ id: ref.id, app: 'vscode' }) : rpc.projects.open({ id: ref.projectId, app: 'vscode' })));
   if (r?.message) toast(r.message);
 }
 // what each shortcut key types without modifiers
