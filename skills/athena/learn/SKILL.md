@@ -14,8 +14,9 @@ claim can be traced to the source.
 - **Read the whole request.** It can mix sources (a path, a link, attached files, "what we just did") with
   requirements ("focus on the auth flow", "skip the deprecated endpoints", "for beginners"). Every part counts: words
   after a link are the user telling you what they want from it. With no source named, the source is this conversation.
-- **Look for a skill that covers it already**: search the library (`find_skills`) for the topic. If one does, read it
-  and extend it rather than making a second one; the user may also have named the skill to add to.
+- **Look for a skill that covers it already**: `read_skill` with the topic's words as the name lists the library's
+  skills that match them. If one covers it, read it and extend it rather than making a second one; the user may also
+  have named the skill to add to.
 - **Scratch work goes in `learn-work/`** in your workspace (extracted text, transcripts, chapter files), deleted when
   you're done. Never write into the user's folders or the skill library by hand.
 - **Ask first** before installing anything (a transcriber, a Python package), before a paid service (a transcription

@@ -175,8 +175,8 @@ skill that makes or changes files holds to this, and says so where it matters:
 ## Skills of our own
 
 `learn` has no Hermes skill behind it: it's how `/learn` turns a document, a link, a video or a conversation into a
-skill, which agents save with the `save_skill` tool (and find with `find_skills`). Hermes Agent's `/learn` command gave
-the idea.
+skill, which agents save with the `save_skill` tool (and find with `read_skill`, which searches the library for a name
+that is no skill). Hermes Agent's `/learn` command gave the idea.
 
 ## Where the Hermes skills went
 

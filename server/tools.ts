@@ -183,7 +183,7 @@ const TOOLS: ToolDef[] = [
     name: 'read_skill',
     group: 'core',
     risk: 'none',
-    description: 'Open one of your skills (listed under "Your skills" in your instructions) and get its full instructions. Pass file to read one of the extra files that come with the skill (long ones in parts, with from), or find to search the skill\'s files (like grep).',
+    description: 'Open one of your skills (listed under "Your skills" in your instructions) and get its full instructions. Pass file to read one of the extra files that come with the skill (long ones in parts, with from), or find to search the skill\'s files (like grep). A name that is no skill lists the library\'s skills matching its words.',
     parameters: obj(
       {
         name: str('The skill id as listed (or its name)'),
@@ -195,7 +195,12 @@ const TOOLS: ToolDef[] = [
     ),
     run: async ({ name, file, find, from }: { name: string; file?: string; find?: string; from?: number }) => {
       const s = skills.findSkill(name);
-      if (!s) return { text: `There is no skill called "${name}". Your skills are listed in your instructions.`, isError: true };
+      if (!s) {
+        // the words of an unknown name search the whole library: how an agent finds a skill it wasn't given
+        const like = /[A-Za-z0-9]{3}/.test(String(name || '')) ? skills.searchLibrary(String(name), 12) : [];
+        const listed = like.map((x) => `- ${x.slug}: ${x.name}. ${x.description}`).join('\n');
+        return { text: `There is no skill called "${name}".${like.length ? ` Skills in the library that match its words:\n${listed}` : ' No skill in the library matches its words either.'}`, isError: !like.length };
+      }
       if (find) return { text: `# ${s.name}: lines matching "${find}"\n\n${skills.searchSkill(s.slug, find, file)}` };
       if (file) return { text: `# ${s.name} / ${file}\n\n${skills.readSkillFile(s.slug, file, from)}` };
       // Hermes skills name their folder ${HERMES_SKILL_DIR}, or write out where Hermes keeps it
@@ -208,31 +213,19 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
-    name: 'find_skills',
-    group: 'core',
-    risk: 'none',
-    description: 'Search the whole skill library (not only your skills) by words in a skill\'s id, name or description. Use it before saving a skill, to update one that already covers the topic instead of making a near-copy.',
-    parameters: obj({ words: str('What the skill would be about, e.g. "replication postgres"') }, ['words']),
-    run: async ({ words }: { words: string }) => {
-      const found = skills.searchLibrary(String(words || ''));
-      if (!found.length) return { text: 'No skill in the library matches those words.' };
-      return { text: found.map((s) => `- ${s.slug}: ${s.name}. ${s.description}`).join('\n') };
-    },
-  },
-  {
     name: 'save_skill',
     group: 'core',
     // a write the user can undo: the old version stays in the skill's History
     risk: 'low',
-    description: 'Save a skill (a reusable how-to) to the library: a new one, or an update to one (pass skill with its id). body is the whole SKILL.md text below the name and description, so read a skill with read_skill before you replace it. files adds or replaces files that come with it, under references/ (notes it loads when needed), scripts/ or templates/ (text only); remove deletes some. The old version, files included, stays in the skill\'s History. A new skill is given to you.',
+    description: 'Save a skill to the library: new, or an update (skill: its id). body is all of SKILL.md below the name and description, so read_skill one before replacing it. files adds or replaces text files under references/, scripts/ or templates/; remove deletes some. The old version stays in History.',
     parameters: obj(
       {
-        skill: str('Optional: the id of the skill to update. Leave out for a new one.'),
-        name: str('Short, the kind of work ("Postgres replication", "Product renders in Blender")'),
-        description: str('When to use it first, then what it does; at most about 300 characters. Agents decide from this alone whether to open it.'),
-        body: str('The instructions, in Markdown'),
-        files: { type: 'array', description: 'Optional: files that come with it', items: obj({ path: str('e.g. references/ch04-replication.md'), text: str('The whole file') }, ['path', 'text']) },
-        remove: { type: 'array', items: { type: 'string' }, description: 'Optional: files of the skill to delete, e.g. references/old.md' },
+        skill: str('Optional: the id to update'),
+        name: str('The kind of work, e.g. "Postgres replication"'),
+        description: str('When to use it, then what it gives; about 300 characters at most'),
+        body: str('Markdown'),
+        files: { type: 'array', items: obj({ path: str('e.g. references/notes.md'), text: str('The whole file') }, ['path', 'text']) },
+        remove: { type: 'array', items: { type: 'string' }, description: 'Optional: file paths to delete' },
       },
       ['name', 'description', 'body'],
     ),
