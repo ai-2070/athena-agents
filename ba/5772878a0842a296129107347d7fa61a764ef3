@@ -1,0 +1,78 @@
+web/backup.tsx
+  s_558b1de395d1d9::t_0b68a3763e3b7f 5,121
+shared/api/projects.ts
+  s_558b1de395d1d9::t_645b3c44dfb319 1-72,74-87
+  s_558b1de395d1d9::t_0b68a3763e3b7f 73
+server/api/taskboard.ts
+  s_558b1de395d1d9::t_77be24df9e7b14 11,17,30
+web/navlimits.tsx
+  s_558b1de395d1d9::t_15e73ee203bf86 8
+  s_558b1de395d1d9::t_0b68a3763e3b7f 48
+shared/api/index.ts
+  s_558b1de395d1d9::t_77be24df9e7b14 4,7
+web/views/look.tsx
+  s_558b1de395d1d9::t_15e73ee203bf86 11
+  s_558b1de395d1d9::t_0b68a3763e3b7f 47
+web/views/overview.tsx
+  s_558b1de395d1d9::t_0b68a3763e3b7f 74,572,582
+web/views/stationpanel.tsx
+  s_558b1de395d1d9::t_b38ebb7de14259 438-440,447-449
+  s_558b1de395d1d9::t_15e73ee203bf86 8
+web/client/rpc.ts
+  s_558b1de395d1d9::t_14f7dc5e8a8442 13,16,25-26,31,37-46
+tests/web/project-menu.test.tsx
+  s_558b1de395d1d9::t_c3d8b96a13ae71 58
+web/projectlogo.ts
+  s_558b1de395d1d9::t_8c847483b5eeaa 3
+  s_558b1de395d1d9::t_15e73ee203bf86 4
+  s_558b1de395d1d9::t_0b68a3763e3b7f 57,66,115,124,184,193
+web/projectmenu.tsx
+  s_558b1de395d1d9::t_15e73ee203bf86 7
+  s_558b1de395d1d9::t_8c847483b5eeaa 6
+  s_558b1de395d1d9::t_0b68a3763e3b7f 69,75,98
+web/views/skills.tsx
+  s_558b1de395d1d9::t_15e73ee203bf86 10
+  s_558b1de395d1d9::t_0b68a3763e3b7f 39
+web/views/station.ts
+  s_558b1de395d1d9::t_15e73ee203bf86 9
+  s_558b1de395d1d9::t_0b68a3763e3b7f 3642
+tests/server/rpc-projects.test.ts
+  s_558b1de395d1d9::t_e7a1f7a46b24d5 82
+  s_558b1de395d1d9::t_70806dee72b586 1-81,83-87
+server/index.ts
+  s_558b1de395d1d9::t_3eb14020f365d3 208,234
+server/taskboard.ts
+  s_558b1de395d1d9::t_77be24df9e7b14 33
+tests/web/rpc.test.ts
+  s_558b1de395d1d9::t_14f7dc5e8a8442 73,76-77
+server/api/projects.ts
+  s_558b1de395d1d9::t_ceac188bd20e52 1-13,15-18,20-74,76-78,80-88
+  s_558b1de395d1d9::t_77be24df9e7b14 14,19,75,79
+web/projects.tsx
+  s_558b1de395d1d9::t_6098cd763b95a7 21,24,26,28-29,537,539,547,562
+  s_558b1de395d1d9::t_8c847483b5eeaa 5
+  s_558b1de395d1d9::t_0b68a3763e3b7f 6,41,50,52,60,279,490,535,541,548,677
+web/views/gateways.tsx
+  s_558b1de395d1d9::t_0b68a3763e3b7f 47
+  s_558b1de395d1d9::t_15e73ee203bf86 3
+server/api/refuse.ts
+  s_558b1de395d1d9::t_77be24df9e7b14 1-4
+server/api/index.ts
+  s_558b1de395d1d9::t_77be24df9e7b14 4,7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ba5772878a0842a296129107347d7fa61a764ef3",
+  "prompts": {},
+  "sessions": {
+    "s_558b1de395d1d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bb40eb4-bbfd-4a59-a58a-1ffe1d09179b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
