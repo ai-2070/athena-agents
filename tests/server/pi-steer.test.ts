@@ -1,7 +1,8 @@
-// Steering a pi agent: it runs in RPC mode with its input open, so a message sent while it works goes in as a
-// steer and pi reads it before its next step (the chat shows it when pi says it read it, as a user message).
-// One sent while it writes its final answer is read right after it, in the same run. A fake `pi` here speaks
-// the RPC protocol the real CLI does (checked against pi 1.5.0 with a local model).
+// Steering a pi or oh-my-pi agent: it runs in RPC mode with its input open, so a message sent while it works
+// goes in as a steer and it reads it before its next step (the chat shows it when it says it read it, as a
+// user message). One sent while it writes its final answer is read right after it, in the same run. A fake
+// `pi` / `omp` here speaks the RPC protocol the real CLIs do (checked against pi 1.5.0 and oh-my-pi 18.16
+// with a local model).
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
@@ -19,13 +20,13 @@ vi.mock('../../server/util.ts', async (orig) => {
   const real = await orig<typeof import('../../server/util.ts')>();
   return {
     ...real,
-    which: (cmd: string) => (cmd === 'pi' ? '/usr/bin/pi' : real.which(cmd)),
+    which: (cmd: string) => (cmd === 'pi' || cmd === 'omp' ? `/usr/bin/${cmd}` : real.which(cmd)),
     killTree: (child: ChildProcess) => {
       (child.stdout as PassThrough | null)?.end();
       (child.stderr as PassThrough | null)?.end();
     },
     spawnCommand: (cmd: string, args: string[], opts: unknown) => {
-      if (cmd !== 'pi') return real.spawnCommand(cmd, args, opts as Parameters<typeof real.spawnCommand>[2]);
+      if (cmd !== 'pi' && cmd !== 'omp') return real.spawnCommand(cmd, args, opts as Parameters<typeof real.spawnCommand>[2]);
       const child = new EventEmitter() as ChildProcess & EventEmitter;
       const stdout = new PassThrough();
       const stderr = new PassThrough();
@@ -199,5 +200,43 @@ describe('steering a pi agent', () => {
     await promise;
     expect(pi.steer.can(runId)).toBe(false);
     await expect(pi.steer.send(runId, { id: 's1', text: 'too late' })).rejects.toThrow('no longer reading');
+  });
+});
+
+describe('steering an oh-my-pi agent', () => {
+  it('the same: a message while it works goes in as a steer and shows where it read it; it settles with session_settled', async () => {
+    const a = newAgent({ name: 'Omp', engine: 'omp', toolGroups: [] });
+    const chat = chats.create(a.id);
+    fake.procs.length = 0;
+    const { runId, promise } = startRun(a, chat, 'do the long job');
+    await until(() => fake.procs[0]?.inputs.length === 2);
+    const p = fake.procs[0]!;
+    // (its prompt, then which session it named)
+    expect(p.inputs).toEqual([{ id: 'prompt', type: 'prompt', message: 'do the long job' }, { id: 'state', type: 'get_state' }]);
+    p.out({ type: 'ready', protocolVersion: 1 });
+    p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true });
+    p.out({ type: 'response', id: 'state', command: 'get_state', success: true, data: { sessionId: 'omp-session' } });
+    p.out(user('do the long job'));
+    p.out(tool('t1'));
+    await until(() => chat.items.some((i) => i.type === 'tool'));
+    expect(chat.sessionId).toBe('omp-session');
+    const steered = await steerChat(a, chat, 'also make it blue');
+    expect(steered.runId).toBe(runId);
+    await until(() => p.inputs.length === 3);
+    expect(p.inputs[2]).toEqual({ id: `steer-${steered.steerId}`, type: 'steer', message: 'also make it blue' });
+    // (its own kind of question: no answer from anyone)
+    p.out({ type: 'extension_ui_request', id: 'q1', method: 'ask', questions: [] });
+    await until(() => p.inputs.length === 4);
+    expect(p.inputs[3]).toEqual({ type: 'extension_ui_response', id: 'q1', cancelled: true });
+    p.out(toolDone('t1'));
+    p.out(user('also make it blue'));
+    p.out(says('Done, and it is blue.'));
+    p.out({ type: 'agent_end' });
+    p.out({ type: 'prompt_result', id: 'prompt', status: 'completed', sessionSettled: true });
+    p.out({ type: 'session_settled' });
+    expect(await promise).toBe('Done, and it is blue.');
+    expect(p.ended).toBe(true);
+    await until(() => idle(chat));
+    expect(said(chat)).toEqual(['user: do the long job', 'tool: bash', 'steer: also make it blue', 'assistant: Done, and it is blue.']);
   });
 });

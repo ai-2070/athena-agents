@@ -27,18 +27,17 @@ vi.mock('../../server/util.ts', async (orig) => {
       const print = () => {
         for (const l of fake.lines) stdout.write(`${l}\n`);
       };
-      // RPC mode (pi): it answers the prompt line, settles, and exits once its input closes
-      const rpc = args.includes('rpc');
+      // RPC mode: it answers the prompt line, settles (pi: agent_settled; oh-my-pi: session_settled), and
+      // exits once its input closes
       stdin.on('data', (d: Buffer) => {
         const first = !call.input;
         call.input += String(d);
-        if (rpc && first) {
+        if (first) {
           print();
-          stdout.write(`${JSON.stringify({ type: 'agent_settled' })}\n`);
+          stdout.write(`${JSON.stringify({ type: cmd === 'omp' ? 'session_settled' : 'agent_settled' })}\n`);
         }
       });
       stdin.on('finish', () => {
-        if (!rpc) print();
         stdout.end();
         stderr.end(fake.stderr);
       });
@@ -78,10 +77,10 @@ describe('piArgs', () => {
     const a = newAgent({ name: 'Coder', engine: 'pi', model: 'anthropic/claude-sonnet-5-5', effort: 'high' });
     expect(piArgs('pi', a, { sessionId: 's1', instructions: 'brief.md' })).toEqual(['--mode', 'rpc', '--model', 'anthropic/claude-sonnet-5-5', '--thinking', 'high', '--append-system-prompt', 'brief.md', '--session-id', 's1']);
   });
-  it('oh-my-pi: resumes only a session it named, and never stops to ask about a tool', () => {
+  it('oh-my-pi: RPC too, resumes only a session it named, and never stops to ask about a tool', () => {
     const a = newAgent({ name: 'Coder', engine: 'omp', autonomy: 'ask' });
-    expect(piArgs('omp', a, { sessionId: '', resume: false })).toEqual(['--mode', 'json', '--approval-mode', 'yolo']);
-    expect(piArgs('omp', a, { sessionId: 'abc', resume: true })).toEqual(['--mode', 'json', '--resume', 'abc', '--approval-mode', 'yolo']);
+    expect(piArgs('omp', a, { sessionId: '', resume: false })).toEqual(['--mode', 'rpc', '--approval-mode', 'yolo']);
+    expect(piArgs('omp', a, { sessionId: 'abc', resume: true })).toEqual(['--mode', 'rpc', '--resume', 'abc', '--approval-mode', 'yolo']);
   });
   it('the terminal: interactive, no JSON', () => {
     expect(piArgs('pi', newAgent({ name: 'Coder', engine: 'pi' }), { interactive: true })).toEqual([]);
@@ -182,11 +181,12 @@ describe('a pi run', () => {
     fake.lines = [ev({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'rate limited' } })];
     await expect(pi.run(runArgs('pi', chatOf(), []))).rejects.toThrow('rate limited');
   });
-  it('oh-my-pi: takes the session it names, then resumes it', async () => {
-    fake.lines = [ev({ type: 'session', id: 'omp-1' }), ev({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Hi.' }], stopReason: 'stop' } })];
+  it('oh-my-pi: asks which session it named (get_state), keeps it, then resumes it', async () => {
+    fake.lines = [ev({ type: 'response', id: 'state', command: 'get_state', success: true, data: { sessionId: 'omp-1' } }), ev({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Hi.' }], stopReason: 'stop' } })];
     const chat = chatOf();
     await omp.run(runArgs('omp', chat, []));
     expect(fake.calls[0].args).not.toContain('--resume');
+    expect(fake.calls[0].input.split('\n').filter(Boolean).map((l) => JSON.parse(l) as unknown)).toEqual([{ id: 'prompt', type: 'prompt', message: 'fix the test' }, { id: 'state', type: 'get_state' }]);
     expect(chat.sessionId).toBe('omp-1');
     await omp.run(runArgs('omp', chat, []));
     expect(fake.calls[1].args.slice(fake.calls[1].args.indexOf('--resume'), fake.calls[1].args.indexOf('--resume') + 2)).toEqual(['--resume', 'omp-1']);
