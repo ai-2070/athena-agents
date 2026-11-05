@@ -188,7 +188,24 @@ the built-in tools and their use, the models and providers, and About.
 
 `server/index.ts` is 1,134 lines.
 
-Next: tools and programs (MCP, programs, ComfyUI, Codex, Hermes, pi and OpenClaw).
+### MCP servers, the engines' setup, programs and ComfyUI (2026-11-05)
+
+All 25 routes moved: MCP servers (`/api/mcp`, `/api/mcp-preset`, `/api/mcp-import`, `/api/mcp-bridge`), setting up
+Codex, Hermes, pi and OpenClaw (`/api/codex/…`, `/api/hermes/…`, `/api/pi/add-bridge`, `/api/openclaw/agents`), the
+programs on this PC (`/api/programs`) and ComfyUI (`/api/comfyui`). ComfyUI's file proxy (`/api/comfyui/view`) is
+answered before the routes, as before.
+
+- **Plain errors of `server/mcp.ts`, `programs.ts` and `comfyui.ts`** ("Give the server a name.", "No ComfyUI
+  workflow called …") are 400s through `refusing()`; they were 500s.
+- **The Home page showed `p.icon` for a program without an app icon**, a field the server never sent: that spot was
+  always empty. It still is, now on purpose, and the page uses the shared `Program`.
+- The MCP types (`McpServerConfig`, `McpServerInput`, `McpPreset`, `ImportableServer`, `BridgeServerConfig`, with
+  `McpPresetListing` and `McpOverview` for `GET /api/mcp`), `OpenClawAgent`, `Program`, `StartMenuApp` and ComfyUI's
+  results moved to `shared/types.ts`; the MCP and Programs pages' copies are gone.
+
+`server/index.ts` is 1,027 lines.
+
+Next: files, uploads, MEMORY.md, artifacts, the map's layout and terminals.
 
 ## Why
 
