@@ -1,0 +1,27 @@
+server/tools.ts
+  s_ff8aac6e84db40::t_df66bc1edad8e1 221
+  s_ff8aac6e84db40::t_32787880809f05 186,226
+  s_ff8aac6e84db40::t_ee2b33bb14a89f 200-201,203
+tests/server/learn-tools.test.ts
+  s_ff8aac6e84db40::t_709c2ae60cc589 20
+  s_ff8aac6e84db40::t_da0ba5b2fad1a1 27-32
+server/skills.ts
+  s_ff8aac6e84db40::t_3cfe423731a69a 295-299,302,307
+  s_ff8aac6e84db40::t_ee2b33bb14a89f 301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e59c011ca5e6625089f0f1e9f0e150250e24e2dd",
+  "prompts": {},
+  "sessions": {
+    "s_ff8aac6e84db40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0ff502da-2b25-4d6a-afae-ab8e0d827ceb",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
