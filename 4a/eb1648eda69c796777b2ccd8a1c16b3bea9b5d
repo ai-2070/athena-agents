@@ -1,0 +1,23 @@
+web/ui/root.tsx
+  s_fe2dff50328630::t_3f35072ccf6936 19-25,28,35,44-49,63-65,67,69
+tests/web/root.test.tsx
+  s_fe2dff50328630::t_0c76f5fdc01fca 75-90
+web/models.tsx
+  s_fe2dff50328630::t_3f35072ccf6936 189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4aeb1648eda69c796777b2ccd8a1c16b3bea9b5d",
+  "prompts": {},
+  "sessions": {
+    "s_fe2dff50328630": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7961ac30-7c4b-437d-bf4a-e4d5dfaf0029",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
