@@ -609,6 +609,9 @@ const BUNDLED: { dir: string; repo: string; ref: string; under: string; private?
   { dir: 'oomol', repo: 'oomol-lab/oo-cli', ref: 'main', under: 'contrib/skills/shared' },
   { dir: 'composio', repo: 'ComposioHQ/skills', ref: 'main', under: 'skills' },
   { dir: 'orca', repo: 'stablyai/orca', ref: 'main', under: 'skills' },
+  // Cua keeps its skills in two places, so each gets its own folder under skills/cua
+  { dir: 'cua/cli', repo: 'trycua/cua', ref: 'main', under: 'libs/cua/skills' },
+  { dir: 'cua/driver', repo: 'trycua/cua', ref: 'main', under: 'libs/cua-driver/rust/Skills' },
   { dir: 'subagent-skills', repo: 'ai-2070/subagent-skills', ref: 'master', under: '', private: true },
   { dir: 'athena', repo: 'ai-2070/athena-agents', ref: 'main', under: 'skills/athena', private: true },
 ];

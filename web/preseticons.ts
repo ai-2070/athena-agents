@@ -6,7 +6,7 @@ const BRANDS: Record<string, string> = {
   'chrome-devtools': 'chrome', 'substance-painter': 'painter', 'comfy-cloud': 'comfyui',
 };
 const LINES: Record<string, string> = {
-  playwright: 'browser', filesystem: 'folder', fetch: 'globe', memory: 'network', 'sequential-thinking': 'brain',
+  playwright: 'browser', 'cua-driver': 'mouse-pointer-click', cua: 'monitor', filesystem: 'folder', fetch: 'globe', memory: 'network', 'sequential-thinking': 'brain',
   context7: 'library-big', firecrawl: 'globe', deepwiki: 'library-big', 'microsoft-learn': 'library-big',
   'aws-knowledge': 'server', 'twilio-docs': 'library-big', kiwi: 'globe', monday: 'workflow',
   craft: 'notepad', fireflies: 'waveform', gamma: 'layout-grid', composio: 'plug', semgrep: 'shield-check',

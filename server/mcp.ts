@@ -144,6 +144,27 @@ export const PRESETS: McpPreset[] = [
     command: 'npx',
     args: ['-y', 'chrome-devtools-mcp@latest'],
   },
+  // Cua (github.com/trycua/cua): its own computer, or a throwaway one
+  {
+    name: 'cua-driver',
+    title: 'Control this computer (Cua Driver)',
+    description: 'See and use the apps on this computer: read a window, click, type, pick menu items, mostly in the background without taking over your mouse (Cua\'s own Cua Driver, github.com/trycua/cua). It runs on your PC and calls no AI service, so there is no key. On a Mac, CuaDriver.app needs Accessibility and Screen Recording permission.',
+    type: 'stdio',
+    command: 'cua-driver',
+    args: ['mcp'],
+    setup: 'install Cua Driver (Windows PowerShell: irm https://cua.ai/driver/install.ps1 | iex; Mac or Linux: /bin/bash -c "$(curl -fsSL https://cua.ai/driver/install.sh)"), then run cua-driver doctor; on a Mac allow CuaDriver.app in System Settings > Privacy & Security > Accessibility and Screen Recording',
+  },
+  {
+    name: 'cua',
+    title: 'Sandbox computers (Cua)',
+    description: 'Throwaway Linux or macOS computers on your PC for agents to work in: make one, run commands, see its screen, click and type, browse the web in it, then delete it, all without touching your own computer (Cua\'s own cua command, github.com/trycua/cua). Linux ones need Docker; macOS ones need a Mac with Apple silicon. These local ones need no account or key. Moving your logged-in browser sessions in, share links and Cua Spaces stay off.',
+    type: 'stdio',
+    command: 'cua',
+    // only the sandbox tools, plus the two Spaces tools its in-sandbox browser is driven through: the other ~118
+    // Spaces tools are a separate product, and teleport would move the user's logged-in sessions into a sandbox
+    args: ['mcp', '--permissions', 'images:all,sandbox:all,computer:all,skills:readonly,spaces:list_tools,spaces:call_tool'],
+    setup: 'install the cua command (npm i -g @trycua/cua, or on a Mac or Linux curl -fsSL https://cua.ai/install.sh | sh -s -- --cli-only) and Docker, then run cua runtime doctor',
+  },
   {
     name: 'filesystem',
     title: 'Files (Desktop)',
