@@ -1,5 +1,6 @@
-// Steering keeps a turn's progress: a command-line agent (pi here) stopped partway keeps its own
-// session, and its next turn is told it was cut off, so it builds on what it did instead of starting over.
+// Steering keeps a turn's progress: a command-line agent stopped partway keeps its own session, and its next
+// turn is told it was cut off, so it builds on what it did instead of starting over. (pi here, with its own
+// steering off: the stop-and-go path Codex, Hermes and OpenClaw keep.)
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
@@ -29,12 +30,21 @@ vi.mock('../../server/util.ts', async (orig) => {
       const call = { args, input: '' };
       fake.calls.push(call);
       const mode = fake.modes.shift() || 'answer';
-      stdin.on('data', (d: Buffer) => (call.input += String(d)));
-      stdin.on('finish', () => {
+      // (RPC mode: it answers its prompt line, and exits once its input closes after it settled)
+      const answer = () => {
         if (mode === 'silent') return;
         stdout.write(line({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: mode === 'hang' ? 'Working on the long one' : 'Switched.' } }));
         if (mode === 'hang') return;
         stdout.write(line({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Switched.' }], stopReason: 'stop' } }));
+        stdout.write(line({ type: 'agent_settled' }));
+      };
+      stdin.on('data', (d: Buffer) => {
+        const first = !call.input;
+        call.input += String(d);
+        if (first) answer();
+      });
+      stdin.on('finish', () => {
+        if (mode !== 'answer') return;
         stdout.end();
         stderr.end();
       });
@@ -47,6 +57,8 @@ vi.mock('../../server/util.ts', async (orig) => {
 const { newAgent } = await import('../../server/library.ts');
 const { chats } = await import('../../server/store.ts');
 const { activeRuns, startRun, steerChat, stoppedBefore, STOP_NOTE } = await import('../../server/engines/index.ts');
+const { steer } = await import('../../server/engines/pi.ts');
+vi.spyOn(steer, 'can').mockReturnValue(false);
 
 const until = async (ok: () => boolean, ms = 10000) => {
   for (const end = Date.now() + ms; Date.now() < end; ) {
@@ -57,6 +69,8 @@ const until = async (ok: () => boolean, ms = 10000) => {
 };
 const idle = (chat: Chat) => !activeRuns().some((r) => r.chatId === chat.id);
 const sessionArg = (args: string[]) => args[args.indexOf('--session-id') + 1];
+// what it was sent (its RPC prompt's message)
+const sent = (call: { input: string }) => (JSON.parse(call.input.split('\n')[0]!) as { message: string }).message;
 // a team's turn brings the thread's messages along (they are what a failed turn must replay)
 const context = [{ id: 'tm1', text: '@Lead: build the long one', from: '@Lead', ts: 1 }];
 
@@ -75,8 +89,8 @@ describe('steering a command-line agent', () => {
     // the same session: what it did before the stop is still in it
     expect(sessionArg(fake.calls[1].args)).toBe(sessionArg(fake.calls[0].args));
     expect(chat.sessionId).toBe(session);
-    expect(fake.calls[1].input).not.toContain('Earlier conversation');
-    expect(fake.calls[1].input).toBe(`${STOP_NOTE.steer}change of plan`);
+    expect(sent(fake.calls[1])).not.toContain('Earlier conversation');
+    expect(sent(fake.calls[1])).toBe(`${STOP_NOTE.steer}change of plan`);
     // the chat keeps the stopped turn's work, then a quiet note of why it stopped
     const err = chat.items.find((i) => i.type === 'error');
     expect(err).toMatchObject({ text: 'Stopped to take your new message.', stopped: 'steer' });
@@ -93,10 +107,10 @@ describe('steering a command-line agent', () => {
     await steerChat(a, chat, 'change of plan');
     await until(() => fake.calls.length === 2 && idle(chat));
     // (it may never have read the team's messages: a new session gets them all)
-    expect(fake.calls[1].input).toContain('Earlier conversation');
-    expect(fake.calls[1].input).toContain('@Lead: build the long one');
-    expect(fake.calls[1].input).toContain('My turn was stopped here, before it finished, to take the next message.');
-    expect(fake.calls[1].input).toContain('Current request:\nchange of plan');
+    expect(sent(fake.calls[1])).toContain('Earlier conversation');
+    expect(sent(fake.calls[1])).toContain('@Lead: build the long one');
+    expect(sent(fake.calls[1])).toContain('My turn was stopped here, before it finished, to take the next message.');
+    expect(sent(fake.calls[1])).toContain('Current request:\nchange of plan');
   });
 });
 

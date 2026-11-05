@@ -1,5 +1,7 @@
-// pi and oh-my-pi engines: one `pi --mode json` (or `omp --mode json`) run per message, continuing the
+// pi and oh-my-pi engines: one `pi --mode rpc` (or `omp --mode rpc`) run per message, continuing the
 // chat's own session. The two share one event stream (oh-my-pi is built on pi), so one engine serves both.
+// Their input stays open while they work: a message sent meanwhile goes in as a steer, and they read it
+// before their next step (or, while they write their final answer, right after it, in the same run).
 // They bring their own tools (read, bash, edit, write…), run them without asking, and get the dashboard
 // tools once the bridge is added to their mcp.json (addBridge: the MCP servers page).
 import fs from 'node:fs';
@@ -9,8 +11,10 @@ import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, HOME, da
 import { emit, internalToken, log } from '../store.ts';
 import { toolDefs, workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
-import { cliStatus, pipeLines, tail, SessionGone } from './cli.ts';
+import { cliStatus, openInputs, pipeLines, tail, SessionGone } from './cli.ts';
 import { splitContent } from '../toolimages.ts';
+import { withAttachments } from '../uploads.ts';
+import type { ChildProcess } from 'node:child_process';
 import type { CliStatus } from './cli.ts';
 import type { Agent, RunEvent } from '../../shared/types.ts';
 import type { Engine, EngineRunArgs, EngineResult } from './index.ts';
@@ -94,16 +98,21 @@ export function piReader(onEvent: (ev: RunEvent) => void, onSession: (id: string
   let cost = 0;
   let context = 0;
   let ended = false;
+  // a message sent while it worked was just shown as read: its answer starts a new block in the chat, so no
+  // gap there (a user message the chat doesn't show, one an extension added, keeps the gap)
+  let afterUser = false;
+  const gap = () => {
+    if (!afterUser) onEvent({ kind: 'text', text: '\n\n' });
+    answer += '\n\n';
+  };
   const handle = (ev: PiEvent) => {
     const t = ev.type || '';
     if (t === 'session' && ev.id) onSession(ev.id);
     else if (t === 'message_update') {
       const a = ev.assistantMessageEvent || {};
       if (a.type === 'text_delta' && a.delta) {
-        if (!streamed && answer) {
-          onEvent({ kind: 'text', text: '\n\n' });
-          answer += '\n\n';
-        }
+        if (!streamed && answer) gap();
+        afterUser = false;
         streamed += a.delta;
         answer += a.delta;
         onEvent({ kind: 'text', text: a.delta });
@@ -114,9 +123,10 @@ export function piReader(onEvent: (ev: RunEvent) => void, onSession: (id: string
       const full = messageText(m);
       if (full && !streamed) {
         const sep = answer ? '\n\n' : '';
-        onEvent({ kind: 'text', text: sep + full });
+        onEvent({ kind: 'text', text: (afterUser ? '' : sep) + full });
         answer += sep + full;
       }
+      afterUser = false;
       streamed = '';
       if (m.model && !model) {
         model = m.provider ? `${m.provider}/${m.model}` : m.model;
@@ -154,6 +164,8 @@ export function piReader(onEvent: (ev: RunEvent) => void, onSession: (id: string
       if (l.startsWith('{')) handle(JSON.parse(l) as PiEvent);
     },
     handle,
+    /** the chat just showed a message it read (a steer item): what it says next starts a new block */
+    steered: () => void (afterUser = true),
     result: () => ({ answer, lastError, model, tokens, cached, cost, context, ended }),
   };
 }
@@ -167,7 +179,8 @@ function promptFile(agent: Agent, name: string, systemPrompt: string): string {
 }
 
 export function piArgs(flavor: PiFlavor, agent: Agent, { sessionId = '', resume = false, instructions = '', interactive = false }: { sessionId?: string; resume?: boolean; instructions?: string; interactive?: boolean } = {}): string[] {
-  const args: string[] = interactive ? [] : ['--mode', 'json'];
+  // (RPC: a message sent while it works can go in)
+  const args: string[] = interactive ? [] : ['--mode', 'rpc'];
   if (agent.model) args.push('--model', agent.model);
   const effort = effortFor(flavor, agent.effort);
   if (effort) args.push('--thinking', effort);
@@ -189,6 +202,156 @@ export function bridgeEnv(agentId: string, runId = ''): Record<string, string> {
 
 export function status(flavor: PiFlavor): CliStatus {
   return cliStatus(flavor, (s) => s.trim().replace(/^omp\//, '').split(/\s/)[0]);
+}
+
+// ---------- RPC mode: a message while it works ----------
+// the runs whose pi still reads its input: a message sent while it works goes in there
+const inputs = openInputs('It');
+
+/** A message sent while it works goes into the turn: it reads it before its next step. */
+export const steer = inputs.steer;
+
+/** How long it may go without starting its run once it took the message, or without saying it has settled
+ *  once its run ended, before its input closes (it then exits). */
+export const SETTLE_WAIT = { ms: 30_000 };
+/** oh-my-pi said background work it started (a job, a task) may wake it again: how long that may take. */
+export const BACKGROUND_WAIT = { ms: 10 * 60_000 };
+
+/** Its version (Settings shows the same): only older pi needs telling apart. */
+export const versionOf = { get: (flavor: PiFlavor): string | null => status(flavor).version };
+
+/** Is version a older than b? (Plain numbers: 0.99.0, 1.5.0; anything else isn't older.) */
+export function olderThan(a: string | null, b: string): boolean {
+  const nums = (v: string) => v.replace(/^v/, '').split(/[.-]/).slice(0, 3).map((n) => Number.parseInt(n, 10));
+  const x = a ? nums(a) : [];
+  if (x.length < 3 || x.some((n) => Number.isNaN(n))) return false;
+  const y = nums(b);
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i]! < y[i]!;
+  return false;
+}
+/** The fields of their RPC frames (responses, oh-my-pi's prompt_result) and run events used here. */
+interface RpcFrame {
+  command?: string;
+  success?: boolean;
+  error?: string | { message?: string };
+  data?: { disposition?: string; agentInvoked?: boolean; sessionId?: unknown };
+  method?: string;
+  willRetry?: boolean;
+  isTerminal?: boolean;
+  status?: string;
+  agentInvoked?: boolean;
+  sessionSettled?: boolean;
+}
+const why = (e: RpcFrame['error']): string => (typeof e === 'string' ? e : e?.message) || 'It refused the message.';
+// an extension's question it would wait on an answer for: nobody is there to answer, as when it runs without a screen
+const DIALOGS = new Set(['select', 'confirm', 'input', 'editor', 'ask']);
+
+/** Talks their RPC protocol for one run: the prompt, the messages sent while it works (each shown as it reads
+ *  it), and closing its input once it has settled (pi: agent_settled; oh-my-pi: its prompt_result or
+ *  session_settled). Its other events go to the reader. oh-my-pi names a new session itself: get_session_stats
+ *  says which (get_state would too, but brings its whole system prompt and every tool along). */
+function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: string, reader: ReturnType<typeof piReader>, onEvent: (ev: RunEvent) => void, signal: AbortSignal) {
+  const send = (o: object) => void (child.stdin?.writable && child.stdin.write(`${JSON.stringify(o)}\n`));
+  // its own message came by first: the user messages after it are the ones sent while it worked
+  let prompted = false;
+  // it took its message (said so); refused: it never did, so no run came of it. failed: an error it reported
+  // for its message after taking it (oh-my-pi), which counts only when there is no answer
+  let admitted = false;
+  let refused = '';
+  let failed = '';
+  // a run of its has started (one ended: false again until the next)
+  let started = false;
+  let live = false;
+  // (pi before 0.99 never says it settled: a run that ended is the end)
+  const settles = !(flavor === 'pi' && olderThan(versionOf.get(flavor), '0.99.0'));
+  // messages sent while it works go in as steers, known by their request id. Until its run has its own message
+  // they wait here: one sent while it starts up would wait in its queue with no run to read it.
+  let held: object[] | null = [];
+  const input = inputs.open(runId, {
+    take: (m) => {
+      if (signal.aborted) return false;
+      const key = `steer-${m.id}`;
+      const steer = { id: key, type: 'steer', message: withAttachments(m.text, m.attachments || []) };
+      if (held) held.push(steer);
+      else send(steer);
+      return key;
+    },
+    end: () => child.stdin?.end(),
+    onEvent,
+  });
+  const close = input.close;
+  const shown = (key: string) => {
+    if (!input.unread.has(key)) return;
+    input.read(key);
+    reader.steered();
+  };
+  const onLine = (line: string) => {
+    if (!line.startsWith('{')) return;
+    const ev = JSON.parse(line) as PiEvent & RpcFrame;
+    if (ev.type === 'response') {
+      if (ev.id === 'session' && typeof ev.data?.sessionId === 'string' && ev.data.sessionId) reader.handle({ type: 'session', id: ev.data.sessionId });
+      // an error for its message after it took it (oh-my-pi: its run's tracking failed): its run, if any, has
+      // ended or ends on its own; a run that is over closes its input in time
+      if (ev.id === 'prompt' && !ev.success && admitted) {
+        failed = why(ev.error);
+        if (!live) input.closeIn(SETTLE_WAIT.ms);
+      }
+      // its own message refused, or taken by a command with no run (pi: handled; oh-my-pi: no agent): nothing more comes
+      else if (ev.id === 'prompt' && (!ev.success || ev.data?.disposition === 'handled' || ev.data?.agentInvoked === false)) {
+        if (!ev.success) refused = why(ev.error);
+        close();
+      }
+      // taken: its run should start now (an older pi doesn't say when it handled one itself, and starts none)
+      else if (ev.id === 'prompt') {
+        admitted = true;
+        if (!started) input.closeIn(SETTLE_WAIT.ms);
+      }
+      // a message it didn't take: the dashboard sends it next instead (it is still unread there). One an
+      // extension took (pi: handled) never reaches the agent as a message, but it was taken: it shows as read.
+      if (ev.command === 'steer' && ev.id && !ev.success) input.drop(ev.id);
+      else if (ev.command === 'steer' && ev.id && ev.data?.disposition === 'handled') shown(ev.id);
+      return;
+    }
+    if (ev.type === 'extension_ui_request') return void (ev.method && DIALOGS.has(ev.method) && send({ type: 'extension_ui_response', id: ev.id, cancelled: true }));
+    if (ev.type === 'message_end' && ev.message?.role === 'user') {
+      if (!prompted) {
+        prompted = true;
+        for (const steer of held || []) send(steer);
+        held = null;
+        return;
+      }
+      // one sent while it worked: by its words, or (the oldest still unread) a command it expanded into other
+      // words (a skill, a prompt template) or files alone. Anything else is no message of ours (an extension's).
+      const said = messageText(ev.message);
+      const [first] = input.unread;
+      const mine = [...input.unread].find(([, m]) => !!m.text && said.includes(m.text)) ?? (first && (!first[1].text.trim() || first[1].text.startsWith('/')) ? first : undefined);
+      if (mine) shown(mine[0]);
+      return;
+    }
+    if (ev.type === 'agent_settled' || ev.type === 'session_settled') return close();
+    // oh-my-pi: its message's own outcome, once its run yielded
+    if (ev.type === 'prompt_result' && ev.id === 'prompt') {
+      if (ev.status === 'error' && !ev.agentInvoked) refused = why(ev.error);
+      // done; or background work may wake it again (session_settled says when it is done)
+      if (ev.sessionSettled || !ev.agentInvoked) return close();
+      if (!live) input.closeIn(BACKGROUND_WAIT.ms);
+      return;
+    }
+    if (ev.type === 'agent_start') {
+      started = live = true;
+      input.wait();
+    }
+    // a run that ended should settle at once: if it never says so, its input closes anyway (a later line
+    // doesn't stop that: only a new run does)
+    if (ev.type === 'agent_end' && !ev.willRetry && ev.isTerminal !== false) {
+      live = false;
+      if (settles) input.closeIn(SETTLE_WAIT.ms);
+      else close();
+    }
+    reader.handle(ev);
+  };
+  const prompt = `${JSON.stringify({ id: 'prompt', type: 'prompt', message: text })}\n${flavor === 'omp' ? `${JSON.stringify({ id: 'session', type: 'get_session_stats' })}\n` : ''}`;
+  return { onLine, prompt, close, refused: () => refused, failed: () => failed };
 }
 
 /** What oh-my-pi says when --resume names a session it doesn't have. */
@@ -216,11 +379,14 @@ async function run(flavor: PiFlavor, { agent, chat, text, signal, onEvent, syste
   // (pi makes the session with that id even if its first line goes missing)
   if (sessionId) chat.sessionId = sessionId;
   const reader = piReader(onEvent, (id) => (chat.sessionId = id));
+  const rpc = rpcTurn(flavor, child, runId, text, reader, onEvent, signal);
   try {
-    const end = await pipeLines(child, { input: text, signal, onLine: reader.line });
+    const end = await pipeLines(child, { input: rpc.prompt, keepOpen: true, signal, onLine: rpc.onLine });
     if (signal.aborted) throw new Error('Stopped.');
     const r = reader.result();
     if (r.lastError) throw new Error(r.lastError);
+    if (rpc.refused()) throw new Error(`${LABEL[flavor]} refused the message: ${rpc.refused()}`);
+    if (!r.answer && rpc.failed()) throw new Error(`${LABEL[flavor]} failed: ${rpc.failed()}`);
     if (!r.answer) {
       const msg = `${LABEL[flavor]} exited (${end.code}) without an answer.${tail(end.stderr)}`;
       // oh-my-pi: a session it no longer has (deleted, or made by another engine): a new one, with the chat so far
@@ -233,6 +399,7 @@ async function run(flavor: PiFlavor, { agent, chat, text, signal, onEvent, syste
     }
     return { text: r.answer, ...(r.tokens ? { tokens: r.tokens } : {}), ...(r.cached ? { cached: r.cached } : {}), ...(r.cost ? { cost: r.cost } : {}), ...(r.context ? { context: r.context } : {}) };
   } finally {
+    rpc.close();
     fs.rmSync(instructions, { force: true });
   }
 }
@@ -242,8 +409,8 @@ export function terminalArgs(flavor: PiFlavor, agent: Agent, systemPrompt: strin
   return piArgs(flavor, agent, { interactive: true, instructions: promptFile(agent, `terminal-${flavor}-instructions.md`, systemPrompt) });
 }
 
-export const pi: Engine<CliStatus> = { run: (a) => run('pi', a), status: () => status('pi') };
-export const omp: Engine<CliStatus> = { run: (a) => run('omp', a), status: () => status('omp') };
+export const pi: Engine<CliStatus> = { run: (a) => run('pi', a), status: () => status('pi'), steer };
+export const omp: Engine<CliStatus> = { run: (a) => run('omp', a), status: () => status('omp'), steer };
 
 // ---------- models ----------
 export interface PiModel {

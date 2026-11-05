@@ -1,7 +1,10 @@
-// Small helpers shared by the engines that run another agent CLI (pi, oh-my-pi, OpenClaw):
-// its version for Settings, and reading what it prints line by line.
+// Small helpers shared by the engines that run another agent CLI (Claude Code, pi, oh-my-pi, OpenClaw):
+// its version for Settings, reading what it prints line by line, and the messages sent into a turn
+// while it works (for a CLI whose input stays open).
 import { which, killTree, run as runCmd } from '../util.ts';
 import type { ChildProcess } from 'node:child_process';
+import type { RunEvent } from '../../shared/types.ts';
+import type { TurnMessage, TurnSteering } from './index.ts';
 
 /** Installed or not, where, and its version (fetched in the background, at most once a minute). */
 export interface CliStatus {
@@ -28,8 +31,9 @@ export interface ChildEnd {
 }
 
 /** Sends input on stdin, hands each line of stdout to onLine, and waits for the child to end.
- *  Stopping (signal) kills the child and its children. */
-export function pipeLines(child: ChildProcess, { input, signal, onLine }: { input?: string; signal: AbortSignal; onLine: (line: string) => void }): Promise<ChildEnd> {
+ *  Stopping (signal) kills the child and its children. keepOpen: stdin stays open after the input (the
+ *  caller writes more and ends it). */
+export function pipeLines(child: ChildProcess, { input, signal, onLine, keepOpen = false }: { input?: string; signal: AbortSignal; onLine: (line: string) => void; keepOpen?: boolean }): Promise<ChildEnd> {
   const onAbort = () => killTree(child);
   signal.addEventListener('abort', onAbort);
   let buf = '';
@@ -58,7 +62,8 @@ export function pipeLines(child: ChildProcess, { input, signal, onLine }: { inpu
   });
   if (child.stdin) {
     child.stdin.on('error', () => {});
-    child.stdin.end(input ?? '');
+    if (keepOpen) child.stdin.write(input ?? '');
+    else child.stdin.end(input ?? '');
   }
   return new Promise<ChildEnd>((resolve) => {
     child.on('close', (code) => {
@@ -80,3 +85,76 @@ export const tail = (s: string, n = 1200): string => (s.trim() ? `\n${s.trim().s
 /** The chat's engine session no longer exists (or never did). The engine has already cleared
  *  chat.sessionId and set chat.reseed, so the run can try again at once in a new session. */
 export class SessionGone extends Error {}
+
+/** The steer event that shows a message sent while it worked, where it was read. */
+export function steerEvent(m: TurnMessage): RunEvent {
+  return { kind: 'steer', id: m.id, text: m.text, ...(m.attachments?.length ? { attachments: m.attachments } : {}), ...(m.from ? { from: m.from } : {}), ...(m.teamMessageId ? { teamMessageId: m.teamMessageId } : {}) };
+}
+
+/** One run's open input: the messages sent into it that it hasn't read yet, and closing it. */
+export interface OpenInput {
+  /** by the key each went in with, in the order they went */
+  unread: Map<string, TurnMessage>;
+  isOpen(): boolean;
+  /** done: its input closes (it exits) and it takes no more messages */
+  close(): void;
+  /** closes its input after ms, unless this is called again, or wait() or close() come first */
+  closeIn(ms: number): void;
+  wait(): void;
+  /** it read this one: the chat shows it where it came in */
+  read(key: string): void;
+  /** it didn't take this one: it goes next, the ordinary way (it is still unread for the dashboard) */
+  drop(key: string): void;
+}
+
+/** Steering for a CLI whose input stays open while it works: a message sent then is written into it, and the
+ *  engine says when it read it. who: for the error when a run no longer reads ("Claude Code"). */
+export function openInputs(who: string): { steer: TurnSteering; open(runId: string, io: { take: (m: TurnMessage) => string | false; end: () => void; onEvent: (ev: RunEvent) => void }): OpenInput } {
+  // the runs whose CLI still reads its input
+  const reading = new Map<string, (m: TurnMessage) => boolean>();
+  const steer: TurnSteering = {
+    can: (runId) => reading.has(runId),
+    send: async (runId, m) => {
+      if (!reading.get(runId)?.(m)) throw new Error(`${who} is no longer reading messages for this turn.`);
+    },
+    saysWhenRead: true,
+  };
+  /** take: writes a message in and says by which key it will know it (false: not this one). end: closes the input. */
+  const open: ReturnType<typeof openInputs>['open'] = (runId, { take, end, onEvent }) => {
+    const unread = new Map<string, TurnMessage>();
+    let isOpen = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const close = () => {
+      clearTimeout(timer);
+      reading.delete(runId);
+      if (!isOpen) return;
+      isOpen = false;
+      end();
+    };
+    reading.set(runId, (m) => {
+      if (!isOpen) return false;
+      const key = take(m);
+      if (key === false) return false;
+      unread.set(key, m);
+      return true;
+    });
+    return {
+      unread,
+      isOpen: () => isOpen,
+      close,
+      closeIn: (ms) => {
+        clearTimeout(timer);
+        if (isOpen) timer = setTimeout(close, ms);
+      },
+      wait: () => clearTimeout(timer),
+      read: (key) => {
+        const m = unread.get(key);
+        if (!m) return;
+        unread.delete(key);
+        onEvent(steerEvent(m));
+      },
+      drop: (key) => void unread.delete(key),
+    };
+  };
+  return { steer, open };
+}
