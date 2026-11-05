@@ -92,14 +92,25 @@ function named(c: TaskComment): BoardComment {
 }
 const order = (a: ProjectTask, b: ProjectTask) => a.rank - b.rank || b.createdAt - a.createdAt || a.id.localeCompare(b.id);
 
-/** The cards of one project, or of all of them ('all'), in board order; and every project with its open count. */
-export function taskBoard(project: string): TaskBoardData {
+/** Which cards to show by their tags: tag names (commas between), any or all of them, and tasks with no tag. */
+export interface BoardTagFilter {
+  tags?: string;
+  match?: string;
+  untagged?: string;
+}
+/** The cards of one project, or of all of them ('all'), in board order; and every project with its open count.
+ *  With a tag filter, only the cards it lets through (by name, so it works across projects). */
+export function taskBoard(project: string, filter: BoardTagFilter = {}): TaskBoardData {
+  const wanted = filter.tags ? tagRefs(filter.tags, 'tags') : [];
+  const match: TagMatch = !filter.match || filter.match === 'any' ? 'any' : filter.match === 'all' ? 'all' : fail('match must be any or all.');
+  const untagged = filter.untagged === '1' || filter.untagged === 'true';
   const all = listProjects();
   const chosen = project === 'all' ? all : [all.find((p) => p.id === project) || fail('That project is unavailable.', 404)];
   // each project's board is read once: for its open count, and for its cards when it is shown
   const boards = new Map(all.map((p) => [p.id, withProject(p, () => read())]));
   const tasks = chosen.flatMap((p) => withProject(p, () => { const f = boards.get(p.id)!; return f.tasks.map((t) => card(p, t, f.tags)); }));
   tasks.sort(order);
+  if (wanted.length || untagged) tasks.splice(0, tasks.length, ...tasks.filter((t) => tagsMatch(t.tagList.map((x) => x.name), wanted, match, untagged)));
   const projects = all.map((p) => ({ id: p.id, name: p.name, open: boards.get(p.id)!.tasks.filter((t) => t.status !== 'done').length }));
   return { projects, tasks, tags: Object.fromEntries(chosen.map((p) => [p.id, uses(boards.get(p.id)!)])) };
 }

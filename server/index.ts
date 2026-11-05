@@ -557,10 +557,15 @@ post<TaskCreateInput & { chatId?: unknown }>('/api/tasks', async (_p, body) => {
 put<TaskUpdateInput>('/api/tasks/:id', async ({ id }, body) => ({ task: tasksMod.updateTask({ ...body, taskId: id }, { admin: true, scope: { kind: 'brain' } }) }));
 // the Tasks board (the project's own tasks, not the agents' step lists): one project's or every project's
 // (?project=all), each changed in the project it belongs to
-get('/api/task-board', async (_p, _b, q) => taskBoard.taskBoard(q.project || 'all'));
+get('/api/task-board', async (_p, _b, q) => taskBoard.taskBoard(q.project || 'all', { tags: q.tags, match: q.match, untagged: q.untagged }));
 // the Overview page: every project's agents, teams, the Brain and tasks being worked on, at a glance
 get('/api/overview', async () => overview());
 get('/api/task-board-people/:projectId', async ({ projectId }) => taskBoard.boardPeople(projectId));
+// a project's tags: made, renamed or given another emoji, and deleted (which takes them off every task)
+get('/api/task-board-tags/:projectId', async ({ projectId }) => ({ tags: taskBoard.boardTags(projectId) }));
+post<taskBoard.TagInput>('/api/task-board-tags/:projectId', async ({ projectId }, body) => ({ tag: taskBoard.addBoardTag(projectId, body || {}, 'you') }));
+put<taskBoard.TagInput>('/api/task-board-tags/:projectId/:tagId', async ({ projectId, tagId }, body) => ({ tag: taskBoard.changeBoardTag(projectId, tagId, body || {}) }));
+del('/api/task-board-tags/:projectId/:tagId', async ({ projectId, tagId }) => taskBoard.removeBoardTag(projectId, tagId));
 // A task you make In progress for an agent or team, or move there, starts its work (boardwork.ts); moving it away
 // or giving it to someone else stops it. Files are uploads of the open project, copied into the task's own.
 const boardProject = (id: string) => need(store.listProjects().find((p) => p.id === id));
