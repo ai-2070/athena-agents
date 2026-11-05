@@ -10,6 +10,7 @@ import { icon } from './icons.ts';
 import { Button } from './ui/button.tsx';
 import { Icon } from './ui/react.tsx';
 import { openModal } from './ui/overlays.tsx';
+import { SkillMark } from './skillmark.tsx';
 import type { DeletedItem, VersionDetail, VersionHistory, VersionKind } from '../shared/types.ts';
 
 const KIND_NAME: Record<VersionKind, string> = { skill: 'skill', agent: 'agent', team: 'team', memory: 'MEMORY.md' };
@@ -256,7 +257,7 @@ function DeletedDialog({ kinds, initial, onRestored, close }: DeletedProps) {
             {items.length ? (
               items.map((it) => (
                 <div key={`${it.kind}:${it.id}`} className="list-row">
-                  <div className="skill-ico"><Icon name={it.kind === 'skill' ? 'puzzle' : it.kind === 'team' ? 'users' : 'bot'} size={16} /></div>
+                  {it.kind === 'skill' ? <SkillMark slug={it.id} /> : <div className="skill-ico"><Icon name={it.kind === 'team' ? 'users' : 'bot'} size={16} /></div>}
                   <div className="min-w-0 flex-1">
                     <div className="title">{it.name}</div>
                     <div className="hint">{`${KIND_NAME[it.kind]} · deleted ${ago(it.at)} by ${byName(it.by)}`}</div>

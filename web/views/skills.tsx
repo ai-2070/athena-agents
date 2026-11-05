@@ -8,7 +8,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
 import { GET, POST, PUT, DEL, attempt, refreshSoon, confirmBox, state } from '../core.ts';
 import { logo } from '../icons.ts';
-import { craftIconSrc } from '../crafticons.ts';
+import { SkillMark } from '../skillmark.tsx';
 import { skillPicker, loadSkills, forgetSkills } from '../skillpick.ts';
 import { deletedButton } from '../history.tsx';
 import { openEditor, openGitHub, openImport } from '../skilldialogs.tsx';
@@ -177,12 +177,11 @@ function SkillCard({ s, d, teams, reload, loadTeams }: { s: SkillListing; d: App
     )),
     ...u.agents.map((a) => <span key={a.id} className={USE_AGENT}>{`${a.emoji || ''} ${a.name}`}</span>),
   ].filter(Boolean);
-  const craft = craftIconSrc(s.slug);
   return (
     <Plate className="skill-card card hover:shadow-none gap-3">
       <div className="flex items-center gap-3">
-        {/* a Crafting App's skill (vectorcraft, solidcraft…) shows the app's own icon */}
-        {craft ? <img className="skill-ico craft-icon size-10 flex-none rounded-[10px]" src={craft} alt="" draggable={false} /> : <div className="skill-ico"><Icon name="puzzle" size={18} /></div>}
+        {/* the app it is for, or what it works with; a skill of your own is the puzzle piece */}
+        <SkillMark slug={s.slug} />
         <div className="flex-1 min-w-0">
           <div className="skill-name font-semibold text-[15px]">{s.name}</div>
           <div className="hint">

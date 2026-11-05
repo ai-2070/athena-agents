@@ -209,7 +209,7 @@ Tasks survive restarts and are included in folder saves, backups and clones. Ope
 
 ## Skills: instructions worth keeping
 
-Skills use Claude Code's `SKILL.md` format. Assign them to an agent, a team, the whole project or the Brain.
+Skills use Claude Code's `SKILL.md` format. Assign them to an agent, a team, the whole project or the Brain. Each skill that comes with the dashboard shows the icon of the app it is for (Orca, Cua, a Crafting App) or the logo of what it works with (GitHub, Docker, Jira, Word…); a skill you write or install shows a puzzle piece.
 
 - **Write or change one in plain words.** Ask for something like “Short release notes, with user-facing changes first.” The Brain fills in the editor for you to review and save. Undo restores the previous editor contents.
 - **Bring your own.** Import Claude Code skills or install from a GitHub repository, folder or `SKILL.md` link. Installing the same skill again updates it. Private repos use `gh auth login` or `GITHUB_TOKEN`.

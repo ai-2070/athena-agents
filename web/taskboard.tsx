@@ -9,6 +9,7 @@ import { attachTray } from './attach.tsx';
 import type { AttachTray } from './attach.tsx';
 import { apiUrl } from './client/connection.ts';
 import { icon } from './icons.ts';
+import { skillIcon } from './skillicons.ts';
 import { loadSkills, skillsCache } from './skillpick.ts';
 import { attachMentions } from './routinemention.ts';
 import type { Candidate } from './routinemention.ts';
@@ -124,7 +125,7 @@ export function useMentionables(projectId: string): Candidate[] {
   return useMemo(() => [
     ...(people?.agents || []).map((a): Candidate => ({ kind: 'agent', id: a.id, name: a.name, lead: h('span', { class: 'w-3.5 flex-none text-center' }, a.emoji || '🤖'), sub: '', color: a.color })),
     ...(people?.teams || []).map((t): Candidate => ({ kind: 'team', id: t.id, name: t.name, lead: icon('users', 14), sub: 'Team' })),
-    ...skills.map((s): Candidate => ({ kind: 'skill', id: s.slug, name: s.name, lead: icon('puzzle', 14), sub: s.description || '' })),
+    ...skills.map((s): Candidate => ({ kind: 'skill', id: s.slug, name: s.name, lead: skillIcon(s.slug, 14), sub: s.description || '' })),
   ], [people, skills]);
 }
 
