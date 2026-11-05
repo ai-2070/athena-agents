@@ -41,16 +41,25 @@ export interface HotEvents {
 /** How soon after an update an uncaught error counts as the update's doing. */
 export const BROKE_WITHIN_MS = 3000;
 
+// Errors that say nothing about the update: the browser's ResizeObserver note (a layout that settled over two
+// frames), and a request a swapped component's cleanup called off
+const harmless = (what: unknown): boolean => {
+  const name = what && typeof what === 'object' && 'name' in what ? String(what.name) : '';
+  const message = what instanceof Error ? what.message : typeof what === 'string' ? what : '';
+  return name === 'AbortError' || /^ResizeObserver loop/.test(message);
+};
+
 /** Reloads the page when it breaks right after a hot update: an uncaught error or a rejected promise nobody handled
  *  (a swapped module half run, an effect throwing outside any crash guard). A fresh load starts clean. A crash a
  *  crash guard caught (web/ui/root.tsx) isn't uncaught: it stays on screen, and fixing the code draws it again. Only
- *  armed by an update, so a page that breaks while loading isn't reloaded over and over. */
+ *  armed by an update, so a page that breaks while loading isn't reloaded over and over. Harmless errors (above)
+ *  don't count: a reload loses the page's state, which keeping is the point of a hot swap. */
 export function watchUpdates(hot: HotEvents, { win = window, reload = () => win.location.reload(), within = BROKE_WITHIN_MS, now = () => Date.now() }: { win?: Window; reload?: () => void; within?: number; now?: () => number } = {}): () => void {
   let updated = -Infinity;
   let reloading = false;
   hot.on('vite:afterUpdate', () => void (updated = now()));
   const broke = (what: unknown) => {
-    if (reloading || now() - updated > within) return;
+    if (reloading || now() - updated > within || harmless(what)) return;
     reloading = true;
     console.warn('[hot reload] the page broke right after an update; reloading it.', what);
     reload();
