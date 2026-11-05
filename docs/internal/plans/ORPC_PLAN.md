@@ -92,7 +92,14 @@ resend, resume, stop, memory). A chat's run streams (`…/chats/{chatId}/stream`
 `server/index.ts` is 1,461 lines (1,750 before the pilot); `app.js` is about the size it was before the pilot,
 since code moved between chunks.
 
-Next: teams (16 routes).
+### Team chats (2026-11-05)
+
+All 16 `/api/teams/{id}/…` routes moved: the thread, messages, the held queue, steering while it works, `/resend`,
+`/resume`, `/learn`, `/loop`, `/goal`, stop and clear. The teams themselves (making, changing, running them) are
+`/api/workflows`, the next area. As with agents, `/resend`, `/resume` and `/goal` are a call each in the team chat
+instead of one address built from the command's name, and a message's `replyTo` must name a message.
+
+Next: workflows (10 routes, the teams themselves), then brain (15) and outbox (13).
 
 ## Why
 
