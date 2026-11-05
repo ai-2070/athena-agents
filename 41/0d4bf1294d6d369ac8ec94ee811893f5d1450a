@@ -1,0 +1,23 @@
+web/tasktags.tsx
+  s_2ff77ddbd90f01::t_a18751100e166d 5,50-52,62,64,67,71-72,74,114-116,118,120-122,124,134,202-207,289-290,295-296,301,304,335-339
+web/views/tasks.tsx
+  s_2ff77ddbd90f01::t_564a82c4b1e1da 21,213-216,706-731,806
+tests/web/tasktags.test.tsx
+  s_2ff77ddbd90f01::t_00e87219f0c405 16,19-22,24-25,39-40,48,77-78,85-87,99-104,178-191,212,215,221-222,229-267,307-322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "410d4bf1294d6d369ac8ec94ee811893f5d1450a",
+  "prompts": {},
+  "sessions": {
+    "s_2ff77ddbd90f01": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29cbc07d-7d38-44db-a60f-f2af0100e8b0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
