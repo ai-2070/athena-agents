@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { GET, POST, PUT, attempt, state, toast, refreshSoon } from './core.ts';
+import { GET, POST, attempt, state, toast, refreshSoon } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import type { ModalHandle } from './core.ts';
 import { teamSteps } from '../shared/teams.ts';
@@ -159,8 +159,8 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
     const lead = b.lead?.agentId || null;
     const body = { name: b.name.trim(), description: b.description.trim(), members: ids, steps: teamSteps({ steps: own, members: ids }), lead, access: b.access, files: teamFiles };
     const saved = wf
-      ? await attempt(() => PUT<Team>(`/workflows/${wf.id}`, { ...rest, ...body }))
-      : await attempt(() => POST<Team>('/workflows', { ...body, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], schedule: { type: 'none' }, enabled: false }));
+      ? await attempt(() => rpc.workflows.change({ ...rest, ...body, id: wf.id }))
+      : await attempt(() => rpc.workflows.create({ ...body, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], schedule: { type: 'none' }, enabled: false }));
     if (!saved) {
       // already closed: nothing will save these now
       if (flags.closed) tray.discard();

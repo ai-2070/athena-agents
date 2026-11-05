@@ -824,6 +824,54 @@ export interface TeamRelayJournal {
   closed: string[];
 }
 
+/** One step of a workflow run (old-style step workflows). */
+export interface WorkflowRunStep {
+  id?: string;
+  label: string;
+  type: string;
+  status: 'waiting' | 'running' | 'needs-you' | 'done' | 'failed' | 'skipped' | string;
+  output: unknown;
+  agentId?: string | null;
+  agentName?: string;
+  images?: string[];
+  startedAt?: number;
+  finishedAt?: number;
+  [k: string]: unknown;
+}
+
+/** A workflow run, stored in the "runs" collection. */
+export interface WorkflowRun {
+  id: string;
+  createdAt?: number;
+  updatedAt?: number;
+  workflowId: string;
+  workflowName: string;
+  input: string;
+  trigger: string;
+  status: 'running' | 'done' | 'failed' | 'stopped' | string;
+  steps: WorkflowRunStep[];
+  output?: unknown;
+  error?: string;
+  finishedAt?: number;
+  [k: string]: unknown;
+}
+
+/** A run going now, as the Station lights up its branch (GET /api/workflow-active). */
+export interface RunSummary {
+  id: string;
+  workflowId: string;
+  status: WorkflowRun['status'];
+  steps: { status: string; label: string; agentId: string | null }[];
+  error: string | null;
+}
+
+/** A starter team (GET /api/workflow-templates): the agents it needs, by name. */
+export interface WorkflowTemplateInfo {
+  name: string;
+  description: string;
+  needs: string[];
+}
+
 /** A team as GET /api/workflows returns it: with who is working and its latest message. */
 export interface TeamListing extends Team {
   state?: TeamState;

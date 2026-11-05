@@ -5,7 +5,7 @@
 import { engineConfigured } from '../engineavailability.ts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
+import { h, mount, state, GET, POST, PUT, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { domButton, domButtonLink, domDot } from '../ui/dom.ts';
 import { openTerminal } from './agents.tsx';
@@ -953,7 +953,7 @@ function teamView(w: TeamListing): TeamView {
 }
 
 async function loadData(): Promise<void> {
-  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([GET<Program[]>('/programs').catch((): Program[] => []), GET<TeamListing[]>('/workflows').catch((): TeamListing[] => []), GET<WorkflowRun[]>('/workflow-runs').catch((): WorkflowRun[] => []), GET<WorkflowRun[]>('/workflow-active').catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({})), GET<Routine[]>('/routines').catch((): Routine[] => [])]);
+  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([GET<Program[]>('/programs').catch((): Program[] => []), rpc.workflows.list().catch((): TeamListing[] => []), rpc.workflows.runs.list({}).catch((): WorkflowRun[] => []), rpc.workflows.active().catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({})), GET<Routine[]>('/routines').catch((): Routine[] => [])]);
   if (!S) return;
   S.layout = layout || {};
   S.progs = progs;
@@ -3252,7 +3252,7 @@ async function dropAgent(): Promise<void> {
   if (!to || to.members.includes(agentId)) return;
   if (from && !st.copy) {
     setMembers(from, from.members.filter((x) => x !== agentId));
-    await attempt(() => PUT(`/workflows/${from.id}`, teamBody(from)));
+    await attempt(() => rpc.workflows.change(teamBody(from)));
   }
   setMembers(to, [...to.members, agentId]);
   await saveWorkflow(to);
@@ -3346,7 +3346,7 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
       'Delete team',
       async () => {
         if (!(await confirmBox(`Delete the team "${w.name}" and its agents? Agents that are also on another team stay.`, { ok: 'Delete', danger: true }))) return;
-        await attempt(() => DEL(`/workflows/${w.id}`));
+        await attempt(() => rpc.workflows.remove({ id: w.id }));
         choose(null);
         refreshSoon(0);
         reloadWorkflows();
@@ -4023,7 +4023,7 @@ async function reloadRoutineCounts(): Promise<void> {
 
 async function reloadWorkflows(): Promise<void> {
   if (!S) return;
-  const [wfs, runs] = await Promise.all([GET<TeamListing[]>('/workflows').catch(() => S!.workflows), GET<WorkflowRun[]>('/workflow-runs').catch(() => S!.wfRuns)]);
+  const [wfs, runs] = await Promise.all([rpc.workflows.list().catch(() => S!.workflows), rpc.workflows.runs.list({}).catch(() => S!.wfRuns)]);
   if (!S) return;
   S.workflows = wfs.map(teamView);
   for (const w of wfs) {
@@ -4047,7 +4047,7 @@ function teamBody(wf: TeamView): Team {
   return { ...team, steps: teamSteps({ steps: stepList, members: team.members }) } as Team;
 }
 async function saveWorkflow(wf: TeamView): Promise<Team | undefined> {
-  const r = await attempt(() => PUT<Team>(`/workflows/${wf.id}`, teamBody(wf)));
+  const r = await attempt(() => rpc.workflows.change(teamBody(wf)));
   if (r) await reloadWorkflows();
   return r;
 }
@@ -4142,7 +4142,7 @@ async function cloneAgent(a: Agent): Promise<Agent | undefined> {
   return c;
 }
 async function cloneTeam(w: TeamView, withAgents: boolean): Promise<void> {
-  const c = await attempt(() => POST<Team>(`/workflows/${w.id}/clone`, { withAgents }), withAgents ? `Cloned ${w.name} with copies of its agents` : `Cloned ${w.name}`);
+  const c = await attempt(() => rpc.workflows.clone({ id: w.id, withAgents }), withAgents ? `Cloned ${w.name} with copies of its agents` : `Cloned ${w.name}`);
   if (!c) return;
   if (withAgents) refreshSoon(0);
   await reloadWorkflows();
@@ -4270,7 +4270,7 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       S.active.delete(r.workflowId);
       if (b) pulseAlong(r.workflowId, 1, 0, 8);
       feedPush(`${wf?.name || 'Team'} ${r.status === 'done' ? 'finished ✓' : r.status}${r.error ? `: ${r.error}` : ''}`, r.status === 'failed' ? 'error' : 'workflow');
-      GET<WorkflowRun[]>('/workflow-runs').then((runs) => S && ((S.wfRuns = runs), updateStatuses()));
+      rpc.workflows.runs.list({}).then((runs) => S && ((S.wfRuns = runs), updateStatuses()));
     }
     updateStatuses();
     drawHud();

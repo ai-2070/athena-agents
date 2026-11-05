@@ -5,5 +5,6 @@ import { agentsRouter } from './agents.ts';
 import { projectsRouter } from './projects.ts';
 import { taskBoard } from './taskboard.ts';
 import { teamsRouter } from './teams.ts';
+import { workflowsRouter } from './workflows.ts';
 
-export const apiRouter = implement(contract).router({ agents: agentsRouter, projects: projectsRouter, taskBoard, teams: teamsRouter });
+export const apiRouter = implement(contract).router({ agents: agentsRouter, projects: projectsRouter, taskBoard, teams: teamsRouter, workflows: workflowsRouter });

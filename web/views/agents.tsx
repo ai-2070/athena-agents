@@ -342,7 +342,7 @@ function AgentEditor({ id }: { id: string }) {
   useEffect(() => {
     let live = true;
     // (Hermes profiles and OpenClaw agents ask their CLIs, which can be slow: they load with their engine's fields)
-    void Promise.all([rpc.agents.get({ id }), GET<McpListing>('/mcp').catch(() => ({ servers: {} })), GET<Team[]>('/workflows').catch((): Team[] => [])]).then(
+    void Promise.all([rpc.agents.get({ id }), GET<McpListing>('/mcp').catch(() => ({ servers: {} })), rpc.workflows.list().catch((): Team[] => [])]).then(
       ([agent, mcp, teams]) => live && setData({ agent, servers: Object.keys(mcp.servers), info: (mcp as McpListing).info, teams }),
     );
     return () => void (live = false);

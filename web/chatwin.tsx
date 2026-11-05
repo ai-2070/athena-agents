@@ -16,7 +16,8 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { Menu } from '@base-ui/react/menu';
 import { Tabs } from '@base-ui/react/tabs';
-import { state, onState, GET } from './core.ts';
+import { state, onState } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { renderTeamChat } from './teamchat.tsx';
 import { renderAgentChat } from './agentchat.tsx';
 import { uiZoom } from './look.ts';
@@ -173,7 +174,7 @@ function ensure(): void {
   flushSync(() => h.root.render(<StrictMode><IconWeightProvider value="regular"><ChatWindows /></IconWeightProvider></StrictMode>));
   // also drops the tab of an agent that was deleted
   onState(() => wins.some((w) => w.tabs.length) && refreshChatTabs());
-  if (!window.__teams) GET<TeamListing[]>('/workflows').then((w) => ((window.__teams ||= w), changed())).catch(() => {});
+  if (!window.__teams) rpc.workflows.list().then((w) => ((window.__teams ||= w), changed())).catch(() => {});
   if (!keysOn) {
     keysOn = true;
     window.addEventListener('keydown', onWindowKey);

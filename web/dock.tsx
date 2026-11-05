@@ -354,7 +354,7 @@ function toggle(open: boolean) {
 }
 
 async function loadWorkflows() {
-  D.workflows = await GET<TeamListing[]>('/workflows').catch(() => D.workflows);
+  D.workflows = await rpc.workflows.list().catch(() => D.workflows);
   checkTarget();
   draw();
 }
@@ -1459,7 +1459,7 @@ function handleEvent(ev: ServerEvent) {
     it.steps = run.steps;
     if (run.status !== 'running') {
       it.error = run.error || null;
-      GET<WorkflowRun[]>(`/workflow-runs?workflowId=${it.wfId}`)
+      rpc.workflows.runs.list({ workflowId: it.wfId })
         .then((runs) => {
           const r = runs.find((x) => x.id === it.runId);
           if (r?.output) it.output = String(r.output).slice(0, 4000);

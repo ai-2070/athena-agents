@@ -577,7 +577,6 @@ post<Parameters<typeof presets.saveAgentPreset>[1] | null>('/api/presets/agent/:
 post<Parameters<typeof presets.saveTeamPreset>[1] | null>('/api/presets/team/:id', async ({ id }, body) => presets.saveTeamPreset(id, body || {}));
 post('/api/presets/:id/use', async ({ id }) => presets.usePreset(id));
 del('/api/presets/:id', async ({ id }) => (presets.deletePreset(id), { ok: true }));
-post<{ withAgents?: unknown } | null>('/api/workflows/:id/clone', async ({ id }, body) => presets.cloneTeam(id, { withAgents: !!body?.withAgents }));
 
 // ---------- library ----------
 get('/api/library', async () => library.libraryIndex());
@@ -955,23 +954,7 @@ del('/api/outbox/:id', async ({ id }) => {
   return { ok: true };
 });
 
-// ---------- workflows ----------
-get('/api/workflows', async () =>
-  teams
-    .listTeams()
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((t) => ({ ...t, state: teams.teamState(t.id), last: teams.getThread(t.id, 1).messages[0] || null })),
-);
-// a team's files: only uploads of this project
-const teamFiles = (body: Partial<Team>): Partial<Team> => ('files' in body ? { ...body, files: uploads.cleanAttachments(body.files) } : body);
-// a team's symbol: only an emoji comes in through here (a picture or model has its own route, so saving a team can't point it at another file)
-const teamMark = (body: Partial<Team>): Partial<Team> => {
-  const { markFile: _ignored, ...rest } = body;
-  return 'mark' in rest ? { ...rest, mark: teamMarks.cleanMark(rest.mark) } : rest;
-};
-post<Partial<Team>>('/api/workflows', async (_p, body) => workflows.save({ name: 'New workflow', steps: [], schedule: { type: 'none' }, enabled: false, ...teamMark(teamFiles(body)), id: undefined }));
-get('/api/workflows/:id', async ({ id }) => need(teams.getTeam(id)));
-put<Partial<Team>>('/api/workflows/:id', async ({ id }, body) => workflows.save({ ...need(workflows.get(id)), ...teamMark(teamFiles(body)), id }));
+// ---------- teams: server/api/workflows.ts (making, changing, running) and server/api/teams.ts (their chats) ----------
 // the picture or 3D model in the middle of a team's pod, instead of its emoji
 get('/api/workflows/:id/mark', async ({ id }, _b, _q, res) => {
   const f = teamMarks.markFile(need(workflows.get(id)));
@@ -979,41 +962,6 @@ get('/api/workflows/:id/mark', async ({ id }, _b, _q, res) => {
   sendFileSafely(res, f);
   return undefined;
 });
-post<{ name?: unknown; data?: unknown }>('/api/workflows/:id/mark', async ({ id }, body) => teamMarks.setMarkFile(id, body.name, body.data));
-del('/api/workflows/:id/mark', async ({ id }) => teamMarks.removeMarkFile(id));
-del('/api/workflows/:id', async ({ id }) => {
-  const gone = teams.getTeam(id);
-  if (!gone) return { ok: true };
-  workflows.remove(gone.id);
-  teamMarks.dropMarkFiles(gone.id);
-  log('team', `Deleted team ${gone.name}`);
-  // its agents go with it, except those still on another team
-  const elsewhere = new Set(teams.listTeams().flatMap((t) => t.members));
-  const deleted: string[] = [];
-  for (const agentId of gone.members) {
-    const a = agents.get(agentId);
-    if (!a || elsewhere.has(agentId)) continue;
-    deleteAgent(a);
-    deleted.push(agentId);
-  }
-  return { ok: true, deletedAgents: deleted };
-});
-// "Run": a step list runs its steps; a team gets the input in its chat.
-post<{ input?: string }>('/api/workflows/:id/run', async ({ id }, body) =>
-  teams.isStepList(need(workflows.get(id))) ? wfs.startWorkflow(id, body.input || '') : teams.postUserMessage(id, body.input || 'Go ahead.', { route: brain.pickMember }),
-);
-// ---------- team chats: server/api/teams.ts ----------
-get('/api/workflow-templates', async () => wfs.TEMPLATES.map(({ name, description, needs }) => ({ name, description, needs })));
-get('/api/workflow-active', async () => runs.list().filter((r) => r.status === 'running').map(wfs.runSummary));
-post<{ name: string }>('/api/workflow-templates', async (_p, body) => wfs.createFromTemplate(body.name));
-get('/api/workflow-runs', async (_p, _b, q) =>
-  runs
-    .list()
-    .filter((r) => !q.workflowId || r.workflowId === q.workflowId)
-    .sort((a, b) => b.createdAt! - a.createdAt!)
-    .slice(0, 50),
-);
-post('/api/workflow-runs/:id/stop', async ({ id }) => ({ ok: wfs.stopWorkflowRun(id) }));
 
 // ---------- terminals ----------
 get('/api/terminals', async () => terms.listTerminals());

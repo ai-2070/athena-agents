@@ -44,9 +44,9 @@ function SkillsPage({ open }: { open?: string }) {
   const [data, setData] = useState<SkillsData | null>(null);
   const [teams, setTeams] = useState<TeamListing[]>([]);
   const [query, setQuery] = useState(lastQuery);
-  const loadTeams = useCallback(() => GET<TeamListing[]>('/workflows').then(setTeams).catch(() => {}), []);
+  const loadTeams = useCallback(() => rpc.workflows.list().then(setTeams).catch(() => {}), []);
   const reload = useCallback(async () => {
-    const [s, t] = await Promise.all([GET<SkillsData>('/skills'), GET<TeamListing[]>('/workflows').catch((): TeamListing[] => [])]);
+    const [s, t] = await Promise.all([GET<SkillsData>('/skills'), rpc.workflows.list().catch((): TeamListing[] => [])]);
     forgetSkills();
     await loadSkills(true);
     setData(s);
@@ -247,7 +247,7 @@ function GiveTo({ s, d, teams, loadTeams }: { s: SkillListing; d: AppState; team
                 <Menu.GroupLabel className="st-menu-head">A team</Menu.GroupLabel>
                 {teams.map((t) => {
                   const on = u.teams.some((x) => x.id === t.id);
-                  return item(t.id, on, t.name, <Icon name="users" size={14} />, () => attempt(() => PUT(`/workflows/${t.id}`, { skills: flip(t.skills || [], s.slug, on) })).then(loadTeams));
+                  return item(t.id, on, t.name, <Icon name="users" size={14} />, () => attempt(() => rpc.workflows.change({ id: t.id, skills: flip(t.skills || [], s.slug, on) })).then(loadTeams));
                 })}
               </Menu.Group>
             ) : null}

@@ -1,6 +1,6 @@
 // A team's chat (server/api/teams.ts): its thread, your messages and the held /queue ones, steering it while it
 // works, and its / commands. Also answered under /api/p/<project> for a project that isn't open. (The teams
-// themselves are made and changed through /api/workflows, still in server/index.ts.)
+// themselves are shared/api/workflows.ts.)
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
 import type { BrainBrief, LoopInfo, QueuedMessage, Team, TeamMessage, TeamRef, TeamState } from '../types.ts';

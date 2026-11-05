@@ -4,7 +4,7 @@
 import { StrictMode, Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { GET, POST, DEL, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
+import { GET, POST, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.tsx';
@@ -847,7 +847,7 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
     void api.saveTeam({ ...wf, schedule, enabled: schedule.type !== 'none' });
   };
   const cloneTeam = async (withAgents: boolean) => {
-    const c = await attempt(() => POST<Team>(`/workflows/${id}/clone`, { withAgents }), withAgents ? `Cloned ${wf.name} with copies of its agents` : `Cloned ${wf.name}`);
+    const c = await attempt(() => rpc.workflows.clone({ id, withAgents }), withAgents ? `Cloned ${wf.name} with copies of its agents` : `Cloned ${wf.name}`);
     if (!c) return;
     if (withAgents) refreshSoon(0);
     await api.reloadTeams();
@@ -855,7 +855,7 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
   };
   const remove = async () => {
     if (!(await confirmBox(`Delete the team "${wf.name}" and its agents? Agents that are also on another team stay. The team chat is removed.`, { ok: 'Delete', danger: true }))) return;
-    await attempt(() => DEL(`/workflows/${id}`));
+    await attempt(() => rpc.workflows.remove({ id }));
     api.choose(null);
     refreshSoon(0);
     void api.reloadTeams();
@@ -1030,7 +1030,7 @@ function SetupBox({ icon, title, hint, children }: { icon: string; title: string
 function SymbolPicker({ api, wf }: { api: StationPanelApi; wf: TeamView }) {
   const own = wf.markFile ? (wf.markFile.kind === 'image' ? 'picture' : '3D model') : null;
   const setEmoji = async (e: string) => {
-    if (wf.markFile) await attempt(() => DEL(`/workflows/${wf.id}/mark`));
+    if (wf.markFile) await attempt(() => rpc.workflows.removeMark({ id: wf.id }));
     await api.saveTeam({ ...wf, mark: e, markFile: null });
   };
   const current = wf.mark || DEFAULT_TEAM_MARK;

@@ -5,5 +5,6 @@ import { agents } from './agents.ts';
 import { projects } from './projects.ts';
 import { taskBoard } from './taskboard.ts';
 import { teams } from './teams.ts';
+import { workflows } from './workflows.ts';
 
-export const contract = { agents, projects, taskBoard, teams };
+export const contract = { agents, projects, taskBoard, teams, workflows };

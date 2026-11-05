@@ -6,6 +6,7 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { h, md, GET, POST, PUT, DEL, attempt, navigate, confirmBox, ago, state, toast } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { icon } from '../icons.ts';
 import { skillIcon } from '../skillicons.ts';
 import { loadSkills, skillsCache } from '../skillpick.ts';
@@ -34,7 +35,7 @@ export function candidates(d: Pick<AppState, 'agents'>, teams: readonly TeamList
 /** Loads the teams and the skills a routine can mention, and keeps the teams current. */
 function useTeams(): TeamListing[] | null {
   const [teams, setTeams] = useState<TeamListing[] | null>(null);
-  const load = useCallback(() => GET<TeamListing[]>('/workflows').catch((): TeamListing[] => []), []);
+  const load = useCallback(() => rpc.workflows.list().catch((): TeamListing[] => []), []);
   useEffect(() => {
     let live = true;
     void Promise.all([load(), loadSkills()]).then(([t]) => live && setTeams(t));

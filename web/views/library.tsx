@@ -7,7 +7,8 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { h, GET, POST, PUT, DEL, attempt, navigate, md, modal, toast, refreshSoon, confirmBox } from '../core.ts';
+import { h, GET, POST, DEL, attempt, navigate, md, modal, toast, refreshSoon, confirmBox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Chips, SearchBox, Segmented, Tabs } from '../ui/controls.tsx';
 import { domButton } from '../ui/dom.ts';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
@@ -66,13 +67,13 @@ async function hire(payload: HirePayload, name: string): Promise<Agent | undefin
   refreshSoon(0);
   const branch = branchParam();
   if (branch) {
-    const wf = await GET<Team>(`/workflows/${branch}`).catch(() => null);
+    const wf = await rpc.workflows.get({ id: branch }).catch(() => null);
     if (wf) {
       wf.members = [...new Set([...(wf.members || []), a.id])];
       // the step list mirrors members (the Team editor and runs use it)
       const steps = wf.steps || [];
       if (!steps.some((s) => s.type === 'agent' && s.agentId === a.id)) wf.steps = [...steps, { id: Math.random().toString(36).slice(2), type: 'agent', agentId: a.id, prompt: steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}' }];
-      await PUT(`/workflows/${branch}`, wf).catch(() => {});
+      await rpc.workflows.change({ ...wf, id: branch }).catch(() => {});
       toast(`${name} joined the ${wf.name} team`);
       return a;
     }

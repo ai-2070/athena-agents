@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { GET, POST, PUT, confirmBox, onEvent, onReconnect, state } from './core.ts';
 import { projectAt } from './client/connection.ts';
+import { rpcAt } from './client/rpc.ts';
 import { useProjectAgents } from './projectagents.ts';
 import { CollapseRoot, CollapsePanel } from './ui/collapse.tsx';
 import { Icon, useAppState } from './ui/react.tsx';
@@ -63,7 +64,7 @@ function TaskList({ view, scope, filters, chatId, projectId, at }: { view: strin
   }, [open, target, status, search]);
   useEffect(() => {
     if (!open) return;
-    void GET<Team[]>(`${at}/workflows`).then((all) => { if (here()) setTeams(all); }).catch((e: unknown) => { if (here()) setError(e instanceof Error ? e.message : String(e)); });
+    void rpcAt(at).workflows.list().then((all) => { if (here()) setTeams(all); }).catch((e: unknown) => { if (here()) setError(e instanceof Error ? e.message : String(e)); });
     const update = onEvent((e) => { if (e.type === 'tasks' && (!e.projectId || e.projectId === projectId)) void reload.current(); });
     const reconnect = onReconnect(() => void reload.current());
     return () => { update(); reconnect(); };
