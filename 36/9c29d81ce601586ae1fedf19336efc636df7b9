@@ -1,0 +1,103 @@
+server/social.ts
+  s_558b1de395d1d9::t_e988e1966ab7e8 19,326
+shared/api/status.ts
+  s_558b1de395d1d9::t_d897eeea858ef5 1-28
+server/index.ts
+  s_558b1de395d1d9::t_fdeb7321194198 155,419,673
+  s_558b1de395d1d9::t_e096905479569e 20
+  s_558b1de395d1d9::t_04683f763d9777 9,11-12,70,73
+  s_558b1de395d1d9::t_89c3584871e79c 72
+shared/api/settings.ts
+  s_558b1de395d1d9::t_231a22381edeb5 1-89
+server/api/index.ts
+  s_558b1de395d1d9::t_fdeb7321194198 17-18,20
+web/app.ts
+  s_558b1de395d1d9::t_bf4cb1ef2ef239 2
+  s_558b1de395d1d9::t_1a12336a4f2898 3
+  s_558b1de395d1d9::t_4cffd32f224e6c 143
+server/api/settings.ts
+  s_558b1de395d1d9::t_9c25f7d8eee7f8 1-52
+server/gateways/live.ts
+  s_558b1de395d1d9::t_e096905479569e 1-5
+web/core.ts
+  s_558b1de395d1d9::t_4cffd32f224e6c 73
+shared/api/agents.ts
+  s_558b1de395d1d9::t_231a22381edeb5 10-12
+server/toolstats.ts
+  s_558b1de395d1d9::t_e988e1966ab7e8 4,6
+web/views/mcp.tsx
+  s_558b1de395d1d9::t_1a12336a4f2898 8
+  s_558b1de395d1d9::t_4cffd32f224e6c 133
+tests/server/rpc-moved.test.ts
+  s_558b1de395d1d9::t_c0fce6610a6f62 11-12
+web/views/workflows.tsx
+  s_558b1de395d1d9::t_4cffd32f224e6c 163
+  s_558b1de395d1d9::t_960a6cf488ed03 6
+web/views/home.tsx
+  s_558b1de395d1d9::t_4cffd32f224e6c 39
+web/views/settings.tsx
+  s_558b1de395d1d9::t_1a12336a4f2898 8-9
+  s_558b1de395d1d9::t_4cffd32f224e6c 64,74-75,218,222-224,302,308,317,319
+  s_558b1de395d1d9::t_960a6cf488ed03 7
+web/models.tsx
+  s_558b1de395d1d9::t_d43111fe44534f 10,22
+  s_558b1de395d1d9::t_4cffd32f224e6c 51,142,248,393,474,527,560,629
+  s_558b1de395d1d9::t_f757dd138d6d55 11
+web/views/connections.tsx
+  s_558b1de395d1d9::t_bf4cb1ef2ef239 248
+  s_558b1de395d1d9::t_1a12336a4f2898 7
+  s_558b1de395d1d9::t_960a6cf488ed03 6
+  s_558b1de395d1d9::t_ab9c9ba3619689 13
+  s_558b1de395d1d9::t_4cffd32f224e6c 54,76-77,83-84,158,160,212-213,239,261,266
+web/views/overview.tsx
+  s_558b1de395d1d9::t_960a6cf488ed03 11
+  s_558b1de395d1d9::t_4cffd32f224e6c 151
+server/status.ts
+  s_558b1de395d1d9::t_81e30a61afdcca 11
+  s_558b1de395d1d9::t_fe1da1888bf52e 6
+shared/types.ts
+  s_558b1de395d1d9::t_81e30a61afdcca 536-542,2387-2419,2423-2437
+  s_558b1de395d1d9::t_fe1da1888bf52e 2420-2422
+web/views/station.ts
+  s_558b1de395d1d9::t_4cffd32f224e6c 895,3992
+server/tools.ts
+  s_558b1de395d1d9::t_e988e1966ab7e8 36,1484
+web/navlimits.tsx
+  s_558b1de395d1d9::t_d43111fe44534f 7
+  s_558b1de395d1d9::t_4cffd32f224e6c 80,109
+shared/api/index.ts
+  s_558b1de395d1d9::t_fdeb7321194198 17-18,20
+web/views/about.tsx
+  s_558b1de395d1d9::t_4cffd32f224e6c 41
+  s_558b1de395d1d9::t_1a12336a4f2898 6
+web/views/stationdata.ts
+  s_558b1de395d1d9::t_8dea063c41426d 43
+  s_558b1de395d1d9::t_8b4964cd8f550b 10
+server/api/status.ts
+  s_558b1de395d1d9::t_f0ae766d880161 1-115
+server/store.ts
+  s_558b1de395d1d9::t_231a22381edeb5 60-62
+tests/server/rpc-settings.test.ts
+  s_558b1de395d1d9::t_1e49b98f5ce379 1-74
+web/views/look.tsx
+  s_558b1de395d1d9::t_4cffd32f224e6c 138
+  s_558b1de395d1d9::t_960a6cf488ed03 10
+web/views/agents.tsx
+  s_558b1de395d1d9::t_4cffd32f224e6c 702
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "369c29d81ce601586ae1fedf19336efc636df7b9",
+  "prompts": {},
+  "sessions": {
+    "s_558b1de395d1d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bb40eb4-bbfd-4a59-a58a-1ffe1d09179b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
