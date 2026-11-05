@@ -1,0 +1,19 @@
+tests/web/event-connection.test.ts
+  s_985575c8d5b52b::t_2b35a6afecb101 36-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e7ac3966f509395f6c0d514f3348e72af6afac94",
+  "prompts": {},
+  "sessions": {
+    "s_985575c8d5b52b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "97f7eb77-51cb-4495-ae5d-cef84f82669d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
