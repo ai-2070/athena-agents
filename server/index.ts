@@ -274,11 +274,9 @@ post<Parameters<typeof projects.createProject>[0] | null>('/api/projects', async
   if (restored) store.emit('project', { id: p.id });
   p = { ...(skills.enableOrcaSkill(p.id) || p), restored };
   projects.touch(p.id);
-  launcherPending = false;
+  projects.startScreenDone();
   return p;
 });
-// The start screen: shown once each time the dashboard starts, until you pick or create a project.
-let launcherPending = true;
 // The Overview's Files panel: one folder of any project (?path= from the project folder), and opening a folder of it
 // in VS Code or the file manager. (They name their project, as project routes do.)
 get('/api/projects/:id/folder', async ({ id }, _b, q) => projects.folderListing(q.path || '', need(store.listProjects().find((p) => p.id === id))));
@@ -288,11 +286,11 @@ post<{ app?: string; path?: unknown }>('/api/projects/:id/open', async ({ id }, 
   openWithShell(dir);
   return { ok: true };
 });
-get('/api/projects/overview', async () => ({ ...projects.overview(projectSync.peek), showLauncher: launcherPending }));
+get('/api/projects/overview', async () => ({ ...projects.overview(projectSync.peek), showLauncher: projects.startScreenPending() }));
 post('/api/projects/save', async () => projectSync.saveProject(store.activeProject().id));
 // The start screen closed; picking the project that is open already lands here too.
 post('/api/projects/launcher-done', async () => {
-  launcherPending = false;
+  projects.startScreenDone();
   skills.enableOrcaSkill(store.activeProject().id);
   return { ok: true };
 });
@@ -300,7 +298,7 @@ post('/api/projects/:id/activate', async ({ id }) => {
   const p = store.setActiveProject(id);
   skills.enableOrcaSkill(id);
   projects.touch(id);
-  launcherPending = false;
+  projects.startScreenDone();
   log('project', `Switched to project "${p.name}"`);
   return p;
 });
@@ -318,38 +316,21 @@ post('/api/backups/open', async () => {
   return { ok: true };
 });
 // A new project from a backup: the file as the body, or ?file=<name> for one in the backups folder.
-// One at a time: a restore holds the whole unpacked backup in memory.
-let restoring = false;
+// One at a time, like copying a project (backup.oneAtATime).
 postFile('/api/backups/restore', async (_p, upload, q) => {
-  if (restoring) throw new HttpError(409, 'Another backup is being restored. Try again when it is done.');
-  restoring = true;
-  let r: Awaited<ReturnType<typeof backup.restoreBackup>>;
-  try {
+  const r = await backup.oneAtATime('Another backup is being restored. Try again when it is done.', async () => {
     const bytes = q.file ? backup.readBackupFile(q.file) : fs.readFileSync(upload);
     if (!bytes.length) throw new Error('Drop a backup file first.');
-    r = await backup.restoreBackup(bytes, { name: q.name, folder: q.folder, description: q.description });
-  } catch (e) {
-    throw new HttpError(400, (e as Error).message);
-  } finally {
-    restoring = false;
-  }
+    return backup.restoreBackup(bytes, { name: q.name, folder: q.folder, description: q.description });
+  });
   projects.touch(r.project.id);
-  launcherPending = false;
+  projects.startScreenDone();
   return { ...projects.withLogo(skills.enableOrcaSkill(r.project.id) || r.project), restored: r.restored };
 });
 del('/api/projects/:id', async ({ id }) => projects.removeProject(id));
-// A copy of a project as a new one. Shares the restore's lock: both hold a whole unpacked project in memory.
+// A copy of a project as a new one, one at a time like restores (backup.oneAtATime).
 post<{ name?: string }>('/api/projects/:id/clone', async ({ id }, body) => {
-  if (restoring) throw new HttpError(409, 'Another project is being copied or restored. Try again when it is done.');
-  restoring = true;
-  let r: Awaited<ReturnType<typeof backup.cloneProject>>;
-  try {
-    r = await backup.cloneProject(id, body.name);
-  } catch (e) {
-    throw new HttpError(400, (e as Error).message);
-  } finally {
-    restoring = false;
-  }
+  const r = await backup.oneAtATime('Another project is being copied or restored. Try again when it is done.', () => backup.cloneProject(id, body.name));
   projects.touch(r.project.id);
   return { ...projects.withLogo(skills.enableOrcaSkill(r.project.id) || r.project), restored: r.restored };
 });

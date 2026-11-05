@@ -943,6 +943,118 @@ export interface Project {
   /** What the bottom of the sidebar last showed in this project; missing: Settings > Appearance's choice. */
   sidebar?: SidebarPanel;
 }
+/** A project as the server sends it: when its logo, 3D model and background last changed (null: it has none). */
+export type ProjectWithMedia = Project & { logoAt: number | null; modelAt: number | null; modelExt: string | null; backgroundAt: number | null };
+/** What a project folder saved by the dashboard holds (its .dashboard/project.json), at a glance. */
+export interface ProjectPeek {
+  name: string;
+  description: string;
+  agents: number;
+  teams: number;
+  savedAt: number;
+}
+/** A project on the start screen. */
+export type ProjectOverviewItem = Project & { agents: number; teams: number; hasProjectMd: boolean; saved: ProjectPeek | null };
+/** A folder in the projects folder that isn't a project yet. */
+export interface FoundFolder {
+  name: string;
+  folder: string;
+  /** PROJECT.md or BRAIN.md, when it has one */
+  brief: string | undefined;
+  saved: ProjectPeek | null;
+}
+/** The start screen: every project, and project folders on this computer that aren't on the list yet. */
+export interface ProjectsOverview {
+  active: string;
+  root: string;
+  projects: ProjectOverviewItem[];
+  found: FoundFolder[];
+}
+/** The last save of the open project into its folder (<project>/.dashboard). */
+export interface SaveStatus {
+  at: number;
+  error?: string;
+  agents?: number;
+  teams?: number;
+}
+/** The project's own settings as its folder saved them. */
+export interface SavedProjectSettings {
+  name?: string;
+  description?: string;
+  repo?: string;
+  skills?: string[];
+  brainPath?: string;
+  backgroundOpacity?: number;
+  mapDotsOpacity?: number;
+}
+/** What a project folder saved by the dashboard brought back when it was added. */
+export interface RestoreResult {
+  agents: number;
+  teams: number;
+  chats?: number;
+  /** kept versions of agents and teams (deleted ones included) */
+  versions?: number;
+  /** skills added to the library from the folder, and ones the library had already (by name) */
+  skills?: { added: string[]; kept: string[] };
+  project: SavedProjectSettings;
+}
+
+// ---------- backups ----------
+/** What the second line of a backup file says: shown before restoring. */
+export interface BackupSummary {
+  app: string;
+  format: number;
+  createdAt: number;
+  name: string;
+  description: string;
+  agents: number;
+  teams: number;
+  routines: number;
+  chats: number;
+  skills: number;
+  presets: number;
+  /** prefabs in the prefab library, shared by every project (older backups: missing) */
+  libraryPrefabs?: number;
+  knowledgeFiles: number;
+  /** MEMORY.md files of agents and the Brain (older backups: missing) */
+  memories?: number;
+  /** Kept versions of agents, teams and skills (older backups: missing) */
+  versions?: number;
+  /** The first few agents, to recognise the backup by */
+  agentList: { name: string; emoji: string }[];
+  /** Files left out because their kind's size limit was reached */
+  omitted: number;
+}
+/** A backup just made: its file in the backups folder. */
+export interface BackupResult {
+  file: string;
+  name: string;
+  size: number;
+  summary: BackupSummary;
+}
+
+/** What a backup (or a copy of a project) brought back. */
+export interface BackupRestoreResult {
+  agents: number;
+  teams: number;
+  routines: number;
+  chats: number;
+  knowledgeFiles: number;
+  /** MEMORY.md files brought back */
+  memories: number;
+  brainFiles: number;
+  /** skills added to the library; already there and the same; already there but different, so added under a new id */
+  skills: { added: number; same: number; renamed: { from: string; to: string }[] };
+  presets: { added: number; same: number };
+  /** prefab library entries added; already there */
+  libraryPrefabs: { added: number; same: number };
+  /** kept versions brought back (agents, teams and skills) */
+  versions: number;
+  /** routines and teams that ran on a schedule: paused, so a copy doesn't run them twice */
+  paused: number;
+  logo: boolean;
+  background: boolean;
+}
 
 // ---------- chats ----------
 export type ChatItem = (
@@ -1586,7 +1698,7 @@ export interface AppState {
   /** each MCP server's label, service and "use for" (an older server leaves it out) */
   mcpInfo?: Record<string, McpServerInfo>;
   project: Project;
-  projectSaved: { at: number; error?: string; agents?: number; teams?: number } | null;
+  projectSaved: SaveStatus | null;
   projects: Project[];
   approvals: Approval[];
   outboxPending: number;

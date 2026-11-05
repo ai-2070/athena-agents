@@ -4,8 +4,10 @@ import path from 'node:path';
 import { HOME, ensureDir, exists, insideRoots, isPlainDir, realTarget, run, slugify, uid, which, dataPath } from './util.ts';
 import { listProjects, saveProjects, activeProject, setActiveProject, log } from './store.ts';
 import { toPercent } from '../shared/look.ts';
-import type { Project, FolderEntry, FolderListing } from '../shared/types.ts';
-import type { ProjectPeek } from './projectsync.ts';
+import type { Project, FolderEntry, FolderListing, FoundFolder, ProjectOverviewItem, ProjectPeek, ProjectsOverview, ProjectWithMedia } from '../shared/types.ts';
+
+// (the shapes the page reads: shared/types.ts)
+export type { FoundFolder, ProjectOverviewItem, ProjectsOverview, ProjectWithMedia };
 
 const PROJECTS_ROOT = path.join(HOME, 'Documents', 'Athena Agents');
 // Where projects went under the app's old names (Blacksite, My Dashboard). They stay there (each project
@@ -253,25 +255,6 @@ export async function gitPull(p: Project = activeProject()): Promise<string> {
   return r.stdout.trim() || 'Up to date.';
 }
 
-/** A project on the start screen. */
-export type ProjectOverviewItem = Project & { agents: number; teams: number; hasProjectMd: boolean; saved: ProjectPeek | null };
-
-/** A folder in the projects folder that isn't a project yet. */
-export interface FoundFolder {
-  name: string;
-  folder: string;
-  /** PROJECT.md or BRAIN.md, when it has one */
-  brief: string | undefined;
-  saved: ProjectPeek | null;
-}
-
-export interface ProjectsOverview {
-  active: string;
-  root: string;
-  projects: ProjectOverviewItem[];
-  found: FoundFolder[];
-}
-
 // For the start screen: every project with how many agents and teams it has, plus project
 // folders on this PC (in the projects folder) that aren't on the list yet.
 export function overview(peek: (folder: string) => ProjectPeek | null = () => null): ProjectsOverview {
@@ -307,6 +290,15 @@ export function overview(peek: (folder: string) => ProjectPeek | null = () => nu
       .sort((a, b) => (b.openedAt || b.createdAt || 0) - (a.openedAt || a.createdAt || 0)),
     found,
   };
+}
+
+// The start screen: shown once each time the dashboard starts, until you pick, make or restore a project.
+let startScreen = true;
+/** Whether the start screen is still to be shown. */
+export const startScreenPending = (): boolean => startScreen;
+/** A project was picked, made or restored, or the start screen closed. */
+export function startScreenDone(): void {
+  startScreen = false;
 }
 
 // Remember when a project was last opened (for the start screen order).
@@ -357,8 +349,6 @@ const changedAt = (f: string | null): number | null => {
 };
 
 /** A project as the page gets it: plus when its logo, 3D model and background last changed. */
-export type ProjectWithMedia = Project & { logoAt: number | null; modelAt: number | null; modelExt: string | null; backgroundAt: number | null };
-
 /** The project plus when its logo, its 3D model and its background last changed (the page adds it to their URLs so a new one shows at once). */
 export function withLogo(p: Project): ProjectWithMedia {
   const m = modelFile(p);
