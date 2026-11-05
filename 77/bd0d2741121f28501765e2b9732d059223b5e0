@@ -1,0 +1,21 @@
+tests/web/skills-page.test.tsx
+  s_46cf79a0f02bdc::t_892b0a2b5c9013 75-85
+web/views/skills.tsx
+  s_46cf79a0f02bdc::t_c42bc87b309090 11,180,184-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "77bd0d2741121f28501765e2b9732d059223b5e0",
+  "prompts": {},
+  "sessions": {
+    "s_46cf79a0f02bdc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d912fde-9f48-4f60-aad9-fde2325f44b2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
