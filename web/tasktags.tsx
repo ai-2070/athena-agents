@@ -321,11 +321,16 @@ export function TagManager({ projectId }: { projectId: string }) {
                 }}
               />
               <span className="flex-none text-[12px] text-faint tabular-nums">{t.tasks} task{t.tasks === 1 ? '' : 's'}</span>
+              {/* (its place stays when there is no emoji, so the rows line up) */}
               {t.emoji ? (
                 <IconButton variant="plain" aria-label={`Take the emoji off ${t.name}`} title="Take the emoji off" onClick={() => void change(t, { emoji: '' })}>
                   <Icon name="x" size={14} />
                 </IconButton>
-              ) : null}
+              ) : (
+                <IconButton variant="plain" aria-hidden="true" tabIndex={-1} disabled className="invisible">
+                  <Icon name="x" size={14} />
+                </IconButton>
+              )}
               <IconButton variant="plain" aria-label={`Delete the tag ${t.name}`} title="Delete the tag" onClick={() => void remove(t)}>
                 <Icon name="trash-2" size={14} />
               </IconButton>
