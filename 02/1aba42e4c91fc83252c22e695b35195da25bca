@@ -1,0 +1,41 @@
+server/index.ts
+  s_2ff77ddbd90f01::t_bf8205e901c743 560
+tests/server/api.test.ts
+  s_2ff77ddbd90f01::t_2a6f5be8a34cf6 650,664-667
+server/boardtagtools.ts
+  s_2ff77ddbd90f01::t_bf8205e901c743 6-7,17,47
+server/taskboard.ts
+  s_2ff77ddbd90f01::t_bf8205e901c743 66-67
+  s_2ff77ddbd90f01::t_bcc5c9df41a38b 95-97,325-331,335-338,341,476-477,480-482,495,511,514-520
+server/private-conversations.ts
+  s_2ff77ddbd90f01::t_bf8205e901c743 9-13
+tests/server/boardwork.test.ts
+  s_2ff77ddbd90f01::t_02caa1b18f31c0 356-358
+  s_2ff77ddbd90f01::t_2a6f5be8a34cf6 359-360
+tests/server/boardtags.test.ts
+  s_2ff77ddbd90f01::t_2a6f5be8a34cf6 204
+server/overseer.ts
+  s_2ff77ddbd90f01::t_bf8205e901c743 44,345-348,1153
+server/tools.ts
+  s_2ff77ddbd90f01::t_bf8205e901c743 35
+server/boardwork.ts
+  s_2ff77ddbd90f01::t_de75366d01ffcd 15,18,39-40,48,90-91,356-359
+docs/internal/plans/TASK_TAGS_PLAN.md
+  s_2ff77ddbd90f01::t_a192c6e3b95272 84,215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "021aba42e4c91fc83252c22e695b35195da25bca",
+  "prompts": {},
+  "sessions": {
+    "s_2ff77ddbd90f01": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29cbc07d-7d38-44db-a60f-f2af0100e8b0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
