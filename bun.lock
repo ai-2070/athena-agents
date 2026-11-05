@@ -25,7 +25,7 @@
         "@jitl/quickjs-singlefile-mjs-release-sync": "0.32.0",
         "@lydell/node-pty": "1.2.0-beta.18",
         "@modelcontextprotocol/sdk": "1.32.2",
-        "@openuidev/react-headless": "0.18.2",
+        "@openuidev/react-headless": "0.18.3",
         "@openuidev/react-lang": "1.1.0",
         "@openuidev/react-ui": "0.18.3",
         "@phosphor-icons/react": "2.1.10",
@@ -288,7 +288,7 @@
 
     "@openuidev/observability": ["@openuidev/observability@0.0.4", "", {}, "sha512-4fjIrWu3TqTlfDE/m7cG10CH1vV7wQk5GPwMOmXeF9vJtkg92dg4Bdk3AjKgud7H7Xypwwjgt52VcLGZCE2CJQ=="],
 
-    "@openuidev/react-headless": ["@openuidev/react-headless@0.18.2", "", { "dependencies": { "@ag-ui/core": "^0.0.53", "@openuidev/observability": "^0.0.4" }, "peerDependencies": { "ai": "^6.0.0 || ^7.0.0", "react": "^18.3.1 || ^19.0.0", "zustand": "^4.5.5" }, "optionalPeers": ["ai"] }, "sha512-Ci9CzA5waHIFIeXGMAZ1wt5AoOAbe6Ed13knaE43yzrGwH2C0k2ycuq2gNn6yFkcNR6zaVSjo1jVdFJFHskJFQ=="],
+    "@openuidev/react-headless": ["@openuidev/react-headless@0.18.3", "", { "dependencies": { "@ag-ui/core": "^0.0.53", "@openuidev/observability": "^0.0.4" }, "peerDependencies": { "ai": "^6.0.0 || ^7.0.0", "react": "^18.3.1 || ^19.0.0", "zustand": "^4.5.5" }, "optionalPeers": ["ai"] }, "sha512-dLOml2Io5KZB2B98NijVCbFTTFkhp3EmJB0pG5k4NpHYT/VoUF2C6HgCGDz33S0rjtJTKIa/l/bD7bO+srQJJw=="],
 
     "@openuidev/react-lang": ["@openuidev/react-lang@1.1.0", "", { "dependencies": { "@openuidev/devtools": "^0.3.1", "@openuidev/lang-core": "^1.1.0", "@openuidev/observability": "^0.0.4" }, "peerDependencies": { "@modelcontextprotocol/sdk": ">=1.0.0", "react": "*", "react-dom": "*", "react-native": "*", "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["@modelcontextprotocol/sdk", "react-dom", "react-native"] }, "sha512-Winq28Li/anC6VhY3NhKPFkRudag9fwFlf5IzIysWJ1GkwuTX3jPAEzhYPScBplcVUNngAzkB8QHppWFymb50A=="],
 
