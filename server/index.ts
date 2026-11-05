@@ -557,7 +557,7 @@ post<TaskCreateInput & { chatId?: unknown }>('/api/tasks', async (_p, body) => {
 put<TaskUpdateInput>('/api/tasks/:id', async ({ id }, body) => ({ task: tasksMod.updateTask({ ...body, taskId: id }, { admin: true, scope: { kind: 'brain' } }) }));
 // the Tasks board (the project's own tasks, not the agents' step lists): one project's or every project's
 // (?project=all), each changed in the project it belongs to
-get('/api/task-board', async (_p, _b, q) => taskBoard.taskBoard(q.project || 'all', { tags: q.tags, match: q.match, untagged: q.untagged }));
+get('/api/task-board', async (_p, _b, q) => taskBoard.taskBoard(q.project || 'all'));
 // the Overview page: every project's agents, teams, the Brain and tasks being worked on, at a glance
 get('/api/overview', async () => overview());
 get('/api/task-board-people/:projectId', async ({ projectId }) => taskBoard.boardPeople(projectId));

@@ -201,7 +201,7 @@ describe('the Brain and board tags', () => {
     addBoardTask(p.id, { title: 'Crash on start', tags: ['🐛 Bug'] });
     addBoardTask(p.id, { title: 'Write the notes' });
     expect(boardFind(p.id, { do: 'board_find', tags: ['bug'] })).toBe('--- tags: bug | match: any | status: open ---\n#1 [To do] Crash on start | unassigned | tags: 🐛 Bug');
-    expect(boardFind(p.id, { do: 'board_find', tags: ['bug', 'gone'], match: 'all' })).toContain('(no tasks match)\nNo tag called: gone');
+    expect(boardFind(p.id, { do: 'board_find', tags: ['bug', 'gone'], match: 'all' })).toMatch(/\nNo tasks match\.\nNo tag called: gone\. TAGS: 🐛 Bug \(1\)$/);
     expect(boardFind(p.id, { do: 'board_find', untagged: true, limit: 5 })).toContain('Write the notes');
     expect(boardFind(p.id, { do: 'board_find', tags: ['bug'], match: 'some' })).toContain('Couldn\'t look: match must be any or all.');
     expect(boardFind(p.id, { do: 'board_find', tags: ['bug'] }, 'gateway-binding-1')).toContain('isn\'t available in this conversation');

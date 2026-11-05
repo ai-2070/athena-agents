@@ -3,18 +3,18 @@
 // answers someone outside the dashboard (the Brain's board is out of reach there too).
 import { activeProject, withProject } from './store.ts';
 import { runInfo } from './engines/index.ts';
-import { addBoardTag, boardTagLine, changeBoardTag, changeBoardTask, findBoardTag, findBoardTask, findBoardTasks, removeBoardTag } from './taskboard.ts';
+import { isGatewayConversation } from './private-conversations.ts';
+import { addBoardTag, boardTagLine, changeBoardTag, changeBoardTask, findBoardTag, findBoardTask, findBoardTasksText, removeBoardTag } from './taskboard.ts';
 import { tagLabel } from '../shared/boardtags.ts';
 import type { Project } from '../shared/types.ts';
 
 const fail = (message: string): never => { throw Object.assign(new Error(message), { status: 400 }); };
-const isGateway = (id: string | null | undefined) => !!id && !id.startsWith('board-');
 
 /** The project a call changes: its run's own (never the one open on the screen); without a run, the open one. */
 function boardOf(runId: string | null | undefined, agentId: string): Project {
   const run = runId ? runInfo(runId) : null;
   if (runId && (!run || run.agentId !== agentId)) return fail('That run is not available to you.');
-  if (isGateway(run?.conversationId)) return fail('The Tasks board isn\'t available in this conversation.');
+  if (isGatewayConversation(run?.conversationId)) return fail('The Tasks board isn\'t available in this conversation.');
   return run?.project || activeProject();
 }
 
@@ -44,7 +44,7 @@ export function agentBoardTags(runId: string | null | undefined, agentId: string
       case 'list':
         return boardTagLine(p.id);
       case 'find':
-        return find(p, args);
+        return findBoardTasksText(p.id, { tags: args.tags, match: args.match, untagged: args.untagged, status: args.status, limit: args.limit });
       case 'create': {
         const t = addBoardTag(p.id, { name: args.name, emoji: args.emoji }, by);
         return t.made ? `Made tag ${tagLabel(t)}.` : `Tag ${tagLabel(t)} is there already (on ${t.tasks} task${t.tasks === 1 ? '' : 's'}).`;
@@ -68,12 +68,4 @@ export function agentBoardTags(runId: string | null | undefined, agentId: string
         return fail('action must be list, find, tag, create, edit or delete.');
     }
   });
-}
-
-/** find: the tasks with these tags, one line each. */
-function find(p: Project, args: BoardTagsArgs): string {
-  const found = findBoardTasks(p.id, { tags: args.tags, match: args.match, untagged: args.untagged, status: args.status, limit: args.limit });
-  const more = found.total > found.lines.length ? `\n(${found.total - found.lines.length} more: ask with a higher limit)` : '';
-  const unknown = found.unknown.length ? `\nNo tag called: ${found.unknown.join(', ')}. ${boardTagLine(p.id)}` : '';
-  return `${found.lines.join('\n') || 'No tasks match.'}${more}${unknown}`;
 }

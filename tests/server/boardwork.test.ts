@@ -353,6 +353,11 @@ describe('board tags for agents', () => {
     const t = addBoardTask(project(), { title: 'Reply and tag', assignee: `agent:${agent.id}`, status: 'in_progress', tags: ['Ops'] });
     const started = await startWork(project(), t.id);
     expect(calls.runs.at(-1)!.text).toContain('Tags: Ops');
+    // a task whose tag ids point at no tag (a hand-edited board) gets no empty Tags line
+    const bare = addBoardTask(project(), { title: 'Lost its tag', assignee: `agent:${agent.id}` });
+    editBoardTask(project(), bare.id, (x) => void (x.tags = ['tag0000000000000000']));
+    await startWork(project(), bare.id);
+    expect(calls.runs.at(-1)!.text).not.toContain('Tags:');
     const runId = scope(agent, started.work!.chatId!, `board-${t.id}`);
     expect(await workerReply(runId, agent.id, { addTags: ['✅ Checked'], removeTags: ['ops'] })).toBe('Its tags: ✅ Checked.');
     expect(await workerReply(runId, agent.id, { text: 'Done.', status: 'in_review', removeTags: ['checked'] })).toBe(`Commented on #${t.number}. Moved #${t.number} to In review. It has no tags now.`);

@@ -32,6 +32,7 @@ import { findAgent } from '../shared/agentref.ts';
 import * as voxel from './voxel/tools.ts';
 import { taskTools } from './tasktools.ts';
 import { goalTool } from './goaltool.ts';
+import { isBoardConversation, isGatewayConversation } from './private-conversations.ts';
 import type { Agent, ToolGroup } from '../shared/types.ts';
 
 /** none: never asks. low: asks when autonomy is "ask". high: asks unless autonomy is "full". */
@@ -163,11 +164,8 @@ function resolveInside(agent: ToolAgent, p: string | undefined, { write = false 
 // Programs that run whatever they are given.
 const INTERPRETERS = /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bun|deno|ruby|perl|php|java|javaw|osascript|bash|sh|zsh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
 
-const isBoardConversation = (id: string | null | undefined): boolean => !!id && id.startsWith('board-');
 // board_tags: deleting a tag deletes; renaming one changes how every task with it reads
 const boardTagsRiskOf = (args: ToolArgs): Risk => (args.action === 'delete' ? 'high' : args.action === 'edit' ? 'low' : 'none');
-/** Gateway conversations (and the Brain's private work for one) are the other private conversations. */
-const isGatewayConversation = (id: string | null | undefined): boolean => !!id && !isBoardConversation(id);
 
 /** The chat a tool call runs in (to tell which team it is for). */
 const chatOf = async (ctx: ToolContext): Promise<string | null> => (await import('./engines/index.ts')).runInfo(ctx.runId)?.chatId ?? null;

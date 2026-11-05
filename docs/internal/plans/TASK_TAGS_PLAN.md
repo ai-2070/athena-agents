@@ -81,7 +81,7 @@ Routes in `server/index.ts`. They sit at the top level, like `task-board-people`
 
 ```
 GET  /api/task-board-tags/:projectId
-GET  /api/task-board?project=…&tags=bug,design&match=any|all   (the board, already filtered; for links and scripts)
+GET  /api/task-board?project=…                  now also returns each shown project's tags (the page filters by them)
 POST /api/task-board-tags/:projectId            { name, emoji? }
 PUT  /api/task-board-tags/:projectId/:tagId     { name?, emoji? }
 DEL  /api/task-board-tags/:projectId/:tagId
@@ -212,7 +212,7 @@ Brain actions (where `board_add` / `board_update` are tested today)
 - `board_find` look-up returns matches and the Brain answers again; `board_tag` make, rename and delete; `board_update` with `addTags` / `removeTags`; a private conversation can tag
   its own task but can't rename or delete tags
 
-`tests/server/api.test.ts`: the four tag routes, `x-dash` required; `/api/task-board?tags=…&match=…`.
+`tests/server/api.test.ts`: the four tag routes, `x-dash` required; `/api/task-board` lists the projects' tags.
 
 `tests/web/tasks-board.test.tsx`
 - cards show tags and "+n"; the Tags filter (any-of, No tags, Clear, All projects by name); clicking a tag filters

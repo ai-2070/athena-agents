@@ -647,7 +647,7 @@ describe('attached files', () => {
     expect(await shown.text()).toBe('# Brief');
   });
 
-  it('makes, renames and deletes a project\'s board tags, and filters the board by them', async () => {
+  it('makes, renames and deletes a project\'s board tags, and the board lists them', async () => {
     const st = await (await req('/api/state')).json();
     const pid = st.project.id as string;
     // like every change, it needs the dashboard's own header
@@ -661,12 +661,10 @@ describe('attached files', () => {
     const { task } = await (await req(`/api/task-board/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ title: 'Tagged by API', tags: [tag.id, 'API extra'] }) })).json();
     expect(task.tagList.map((x: { name: string }) => x.name)).toEqual(['API bug', 'API extra']);
     await req(`/api/task-board/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ title: 'Untagged by API' }) });
-    const filtered = await (await req(`/api/task-board?project=${pid}&tags=${encodeURIComponent('api bug')}`)).json();
-    expect(filtered.tasks.map((t: { title: string }) => t.title)).toEqual(['Tagged by API']);
-    expect(filtered.tags[pid].map((x: { name: string }) => x.name)).toEqual(expect.arrayContaining(['API bug', 'API extra']));
-    const both = await (await req(`/api/task-board?project=${pid}&tags=${encodeURIComponent('api bug,nothing')}&match=all`)).json();
-    expect(both.tasks).toEqual([]);
-    expect((await req(`/api/task-board?project=${pid}&tags=x&match=some`)).status).toBe(400);
+    // the board has every card (the page filters by tag itself) and the project's tags
+    const shown = await (await req(`/api/task-board?project=${pid}`)).json();
+    expect(shown.tasks.map((t: { title: string }) => t.title)).toEqual(expect.arrayContaining(['Tagged by API', 'Untagged by API']));
+    expect(shown.tags[pid].map((x: { name: string }) => x.name)).toEqual(expect.arrayContaining(['API bug', 'API extra']));
 
     const renamed = await (await req(`/api/task-board-tags/${pid}/${tag.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ name: 'API defect', emoji: '🪲' }) })).json();
     expect(renamed.tag).toMatchObject({ name: 'API defect', emoji: '🪲', tasks: 1 });

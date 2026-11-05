@@ -41,7 +41,7 @@ import { cachedApiModelInfo } from './apiproviders.ts';
 import { listBriefs } from './briefs.ts';
 import { createTask, getTask, listTasks, runTaskBatch, savedTasks, updateTask } from './tasks.ts';
 import type { TaskCreateInput, TaskQuery, TaskUpdateInput } from '../shared/types.ts';
-import { addBoardComment, addBoardTag, addBoardTask, boardLines, boardTagLine, changeBoardTag, changeBoardTask, findBoardTag, findBoardTask, findBoardTasks, removeBoardTag, removeBoardTask } from './taskboard.ts';
+import { addBoardComment, addBoardTag, addBoardTask, boardSummary, changeBoardTag, changeBoardTask, findBoardTag, findBoardTask, findBoardTasksText, removeBoardTag, removeBoardTask } from './taskboard.ts';
 import { tagLabel } from '../shared/boardtags.ts';
 import { build as buildInWorld } from './voxel/build.ts';
 import { shownWorld, worldForBuild } from './voxel/link.ts';
@@ -342,9 +342,10 @@ const runsOn = (a: Agent) => {
 // The board in the Brain's snapshot. A private conversation (a gateway chat) doesn't see it; a task's own
 // conversation (board-<taskId>) sees only that task.
 function boardSnapshot(projectId: string, conversationId?: string): string {
-  if (conversationId === undefined) return `${boardTagLine(projectId)}\n${boardLines(projectId).join('\n') || '(no tasks)'}`;
-  const own = /^board-([\w.-]+)$/.exec(conversationId)?.[1];
-  return own ? `${boardTagLine(projectId)}\n${boardLines(projectId, 60, own).join('\n') || '(the task is gone)'}` : '(not included in private conversation snapshots)';
+  const own = conversationId === undefined ? undefined : /^board-([\w.-]+)$/.exec(conversationId)?.[1];
+  if (conversationId !== undefined && !own) return '(not included in private conversation snapshots)';
+  const board = boardSummary(projectId, own);
+  return `${board.tags}\n${board.lines.join('\n') || (own ? '(the task is gone)' : '(no tasks)')}`;
 }
 
 export async function snapshot({ fileBudget = 9000, conversationId }: { fileBudget?: number; conversationId?: string } = {}): Promise<string> {
@@ -1149,10 +1150,7 @@ export function boardFind(projectId: string, a: BrainAction, conversationId?: st
   const asked = `--- tags: ${Array.isArray(a.tags) ? a.tags.join(', ') : String(a.tags ?? '')}${a.untagged === true ? ' (and untagged)' : ''} | match: ${String(a.match ?? 'any')} | status: ${String(a.status ?? 'open')} ---`;
   if (conversationId !== undefined) return `${asked}\nThe Tasks board isn't available in this conversation.`;
   try {
-    const found = findBoardTasks(projectId, { tags: a.tags, match: a.match, untagged: a.untagged, status: a.status, limit: a.limit });
-    const more = found.total > found.lines.length ? `\n(${found.total - found.lines.length} more: ask with a higher limit)` : '';
-    const unknown = found.unknown.length ? `\nNo tag called: ${found.unknown.join(', ')}` : '';
-    return `${asked}\n${found.lines.join('\n') || '(no tasks match)'}${more}${unknown}`;
+    return `${asked}\n${findBoardTasksText(projectId, { tags: a.tags, match: a.match, untagged: a.untagged, status: a.status, limit: a.limit })}`;
   } catch (e) {
     return `${asked}\nCouldn't look: ${e instanceof Error ? e.message : String(e)}`;
   }

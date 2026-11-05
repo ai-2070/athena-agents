@@ -12,10 +12,10 @@ import { getTeam, getThread, isTeamBusy, postUserMessage, queueUserMessage, stop
 import { pickMember } from './brain.ts';
 import { listBriefs } from './briefs.ts';
 import { privateAgentChat, privateTeamId, privateTeamRecord } from './private-conversations.ts';
-import { addBoardComment, boardTagLine, boardTask, changeBoardTask, editBoardTask, savedBoardTask, tasksWithWork } from './taskboard.ts';
+import { addBoardComment, boardTags, changeBoardTask, editBoardTask, savedBoardTask, tagLine, tagsOf, tasksWithWork } from './taskboard.ts';
 import { tagLabel } from '../shared/boardtags.ts';
 import { taskFilePath, workerFiles } from './boardfiles.ts';
-import type { BoardTask, Project, ProjectTask, ServerEvent, TaskFile, TaskWork } from '../shared/types.ts';
+import type { BoardTag, BoardTask, Project, ProjectTask, ServerEvent, TaskFile, TaskWork } from '../shared/types.ts';
 
 /** How the board signs what it sends (the chat and the team thread show it). */
 export const BOARD_SENDER = 'Tasks board (you)';
@@ -36,8 +36,8 @@ const workerRef = (w: TaskWork) => `${w.target.kind}:${w.target.id}`;
 function fileNames(files: TaskFile[] | undefined): string {
   return (files || []).map((f) => f.name).join(', ');
 }
-/** The task in one message: what it is, what was said, and how to report back. */
-function assignment(p: Project, t: ProjectTask): string {
+/** The task in one message: what it is, its tags (in its order), what was said, and how to report back. */
+function assignment(p: Project, t: ProjectTask, tags: readonly BoardTag[]): string {
   const comments = (t.comments || []).map((c) => {
     const files = fileNames(c.files);
     return `- ${c.by === 'you' ? 'You' : c.by}: ${c.text}${files ? ` [files: ${files}]` : ''}`;
@@ -45,7 +45,7 @@ function assignment(p: Project, t: ProjectTask): string {
   return [
     `Task #${t.number} on the Tasks board of project "${p.name}": ${t.title}`,
     `Priority: ${t.priority}`,
-    t.tags?.length ? `Tags: ${boardTask(p.id, t.id).tagList.map(tagLabel).join(', ')}` : '',
+    tags.length ? `Tags: ${tags.map(tagLabel).join(', ')}` : '',
     t.description ? `\n${t.description}` : '',
     t.files?.length ? `\nFiles on the task (attached): ${fileNames(t.files)}` : '',
     comments.length ? `\nComments so far (oldest first):\n${comments.join('\n')}` : '',
@@ -87,7 +87,8 @@ export async function startWork(projectId: string, taskId: string): Promise<Boar
     launching.add(operationId);
     const launch = async (): Promise<BoardTask> => {
       try {
-        const text = assignment(p, task);
+        // (the card editBoardTask gave back has the task's tags: no other read of the board)
+        const text = assignment(p, task, saved.tagList);
         const attachments = attachmentsOf(p, task);
         let started: Partial<TaskWork>;
         if (target.kind === 'agent') {
@@ -352,7 +353,10 @@ export function workerTask(runId: string | null | undefined, agentId: string): {
 /** board_task: the task as its worker reads it. */
 export function readWorkerTask(runId: string | null | undefined, agentId: string): string {
   const { run, task } = workerTask(runId, agentId);
-  return withProject(run.project, () => `${assignment(run.project, task)}\n\nThe board's ${boardTagLine(run.projectId)}`);
+  return withProject(run.project, () => {
+    const all = boardTags(run.projectId);
+    return `${assignment(run.project, task, tagsOf(task, all))}\n\nThe board's ${tagLine(all)}`;
+  });
 }
 
 /** board_reply: a comment from the worker, with files, and its card moved to In review or Blocked. */
