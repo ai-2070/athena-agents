@@ -892,7 +892,7 @@ export async function render(el: HTMLElement): Promise<void> {
     drawHud();
     if (S.selected && S.selected.type !== 'agent' && S.selected.type !== 'branch') renderPanel();
   });
-  const feed = await GET<ActivityEntry[]>('/activity').catch((): ActivityEntry[] => []);
+  const feed = await rpc.status.activity().catch((): ActivityEntry[] => []);
   if (S) {
     S.feed = feed.slice(0, 4).map((a) => ({ text: a.text, kind: a.kind, ts: a.ts }));
     drawFeed();
@@ -3989,7 +3989,7 @@ function tickClock(): void {
 }
 
 async function loadHeadbar(): Promise<void> {
-  const hb = await GET<Headbar>('/headbar').catch(() => null);
+  const hb = await rpc.status.headbar().catch(() => null);
   if (S && hb) {
     S.headbar = hb;
     setClaudeConnectors(hb.connectors || []);

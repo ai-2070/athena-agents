@@ -7,9 +7,9 @@ import type { Effort } from '../effort.ts';
 import type { Agent, AgentDetail, Autonomy, BrainBrief, Chat, ChatSummary, EngineId, HarnessCommand, LoopInfo, QueuedMessage } from '../types.ts';
 
 // (Records, so a new engine, autonomy or effort can't be left out here)
-const ENGINES = { 'claude-code': 'claude-code', eve: 'eve', hermes: 'hermes', codex: 'codex', pi: 'pi', omp: 'omp', openclaw: 'openclaw' } as const satisfies Record<EngineId, EngineId>;
-const AUTONOMY = { ask: 'ask', auto: 'auto', full: 'full' } as const satisfies Record<Autonomy, Autonomy>;
-const EFFORT = { '': '', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' } as const satisfies Record<Effort | '', Effort | ''>;
+export const ENGINES = { 'claude-code': 'claude-code', eve: 'eve', hermes: 'hermes', codex: 'codex', pi: 'pi', omp: 'omp', openclaw: 'openclaw' } as const satisfies Record<EngineId, EngineId>;
+export const AUTONOMY = { ask: 'ask', auto: 'auto', full: 'full' } as const satisfies Record<Autonomy, Autonomy>;
+export const EFFORT = { '': '', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' } as const satisfies Record<Effort | '', Effort | ''>;
 
 const words = (field: string) => z.string({ error: `${field} must be text.` }).optional();
 const names = (field: string) => z.array(z.string(), { error: `${field} must be a list.` }).optional();

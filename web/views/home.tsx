@@ -36,7 +36,7 @@ function HomePage() {
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   useEffect(() => {
     void GET<ProgramInfo[]>('/programs').then(setProgs).catch(() => setProgs([]));
-    void GET<ActivityEntry[]>('/activity').then(setActivity).catch(() => {});
+    void rpc.status.activity().then(setActivity).catch(() => {});
   }, []);
   useServerEvents((ev) => ev.type === 'activity' && setActivity((a) => [ev.entry as ActivityEntry, ...a].slice(0, KEEP)));
   if (!d) return null;

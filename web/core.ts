@@ -2,7 +2,6 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { Agent, AppState, Approval, ServerEvent } from '../shared/types.ts';
-import { GET } from './client/http.ts';
 import { openSocket, setPageProject, setProjectFolders } from './client/connection.ts';
 import { rpc } from './client/rpc.ts';
 import { openDialog, showToast } from './ui/overlays.tsx';
@@ -71,7 +70,7 @@ function setEventConnection(connected: boolean): void {
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 export async function refreshState(): Promise<void> {
   try {
-    state.data = await GET<AppState>('/state');
+    state.data = await rpc.status.state();
     setPageProject(state.data?.project?.id);
     setProjectFolders(state.data?.projects || [], state.data?.project?.id);
     for (const fn of state.listeners) fn(state.data);

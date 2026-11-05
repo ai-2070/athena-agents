@@ -8,6 +8,8 @@ const MOVED = [
   '/api/brain', '/api/task-board', '/api/projects', '/api/agents', '/api/teams/', '/api/workflows', '/api/workflow-',
   '/api/questions', '/api/approvals', '/api/tasks', '/api/routines', '/api/routine-runs', '/api/runs',
   '/api/skills', '/api/versions', '/api/presets', '/api/library',
+  '/api/settings', '/api/secrets', '/api/accounts', '/api/state', '/api/activity', '/api/headbar', '/api/usage-limits',
+  '/api/overview', '/api/tools', '/api/tool-stats', '/api/models', '/api/providers', '/api/about',
 ];
 /** The old routes those areas keep. */
 const KEEP = [

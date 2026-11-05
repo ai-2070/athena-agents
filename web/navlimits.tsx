@@ -4,7 +4,7 @@
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { GET, POST, PUT, state, toast } from './core.ts';
+import { POST, state, toast } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import { Dot } from './ui/marks.tsx';
 import { Button } from './ui/button.tsx';
@@ -77,7 +77,7 @@ export function setSidebarPanel(p: SidebarPanel, redraw: () => void): void {
     rememberSidebarPanel(p);
     redraw();
     // also the default for projects that haven't picked one yet
-    void PUT('/settings', { look: { sidebar: p } }).catch((e: unknown) => toast((e as Error).message, 'error'));
+    void rpc.settings.save({ look: { sidebar: p } }).catch((e: unknown) => toast((e as Error).message, 'error'));
     if (reducedMotion() || typeof document.body.animate !== 'function') return;
     const now = host?.querySelector<HTMLElement>('.sidebar-panel-mark');
     if (now && mark?.width) flipFrom(now, mark, { duration: 260 });
@@ -106,7 +106,7 @@ const when = (at: number) => new Date(at).toLocaleString([], { weekday: 'short',
 function load(redraw: () => void): void {
   if (loading || Date.now() - loadedAt < stale()) return;
   loading = true;
-  GET<UsageLimits>('/usage-limits').then(
+  rpc.status.usageLimits().then(
     (l) => ((limits = l), (failed = false)),
     () => (failed = true),
   ).finally(() => {

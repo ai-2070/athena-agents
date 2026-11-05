@@ -4,7 +4,9 @@ import { Button } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { GET, POST, PUT, attempt, toast, refreshSoon, navigate } from '../core.ts';
+import { POST, attempt, toast, refreshSoon, navigate } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
+import type { SettingsChange } from '../../shared/api/settings.ts';
 import { brainModelChip, openModelPicker } from '../models.tsx';
 import { memoryButton, BRAIN } from '../memory.tsx';
 import { FieldRow, Row, Section, Segmented, SwitchRow } from '../ui/controls.tsx';
@@ -14,12 +16,6 @@ import { ProgramGlyph, ProgramLabel } from '../ui/programmark.tsx';
 import { brandSrc, followTheme } from '../brandimages.ts';
 import type { AppState, EngineStatus, SecretKey, SecretStatus, Settings, Terminal, VeniceAccountInfo } from '../../shared/types.ts';
 
-/** What POST /api/settings/test-openrouter passes on from OpenRouter's /key endpoint. */
-interface OpenRouterKeyInfo {
-  label?: string;
-  limit_remaining?: number | null;
-  usage?: number | null;
-}
 interface Loaded {
   settings: Settings;
   secrets: SecretStatus;
@@ -65,7 +61,7 @@ export function GeneralTab() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   // a new number re-creates the inputs from what the server has (after a key is saved, or a switch failed)
   const [version, setVersion] = useState(0);
-  const load = useCallback(() => GET<Loaded>('/settings').then((r) => (setLoaded(r), setVersion((v) => v + 1))), []);
+  const load = useCallback(() => rpc.settings.get().then((r) => (setLoaded(r), setVersion((v) => v + 1))), []);
   useEffect(() => void load(), [load]);
   if (!loaded || !data) return null;
   return <GeneralForm key={version} loaded={loaded} data={data} reload={load} />;
@@ -75,7 +71,8 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
   const { settings: s, secrets } = loaded;
   const patch = useRef<Patch>({});
   const setP = (path: string, value: unknown) => setPath(patch.current, path, value);
-  const save = () => attempt(() => PUT('/settings', patch.current), 'Saved').then(() => refreshSoon(0));
+  // (built field by field from the form; the server checks every field)
+  const save = () => attempt(() => rpc.settings.save(patch.current as SettingsChange), 'Saved').then(() => refreshSoon(0));
   // the few choices drawn from state rather than left to the input
   const [engine, setEngine] = useState(s.defaults.engine);
   const [autonomy, setAutonomy] = useState(s.defaults.autonomy);
@@ -218,11 +215,13 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
 }
 
 /** A switch that saves on its own. When saving fails it shows what is really set again. */
-function SavedSwitch({ field, initial, on, off, reload, title, description }: { field: keyof Settings; initial: boolean; on: string; off: string; reload: () => Promise<unknown>; title: string; description?: ReactNode }) {
+function SavedSwitch({ field, initial, on, off, reload, title, description }: { field: 'brainApproves' | 'brainAnyGitHub' | 'brainFollowsUp'; initial: boolean; on: string; off: string; reload: () => Promise<unknown>; title: string; description?: ReactNode }) {
   const [value, setValue] = useState(initial);
   const change = async (next: boolean) => {
     setValue(next);
-    const saved = await attempt(() => PUT('/settings', { [field]: next }), next ? on : off);
+    const change: SettingsChange = {};
+    change[field] = next;
+    const saved = await attempt(() => rpc.settings.save(change), next ? on : off);
     if (saved) refreshSoon(0);
     else await reload();
   };
@@ -300,13 +299,13 @@ function SecretField({ k, secrets, reload, label, placeholder, hint, mark, optio
   const id = `secret-${k}`;
   const store = async () => {
     if (!value.trim()) return toast('Paste the key first', 'warn');
-    await attempt(() => POST('/secrets', { key: k, value: value.trim() }), 'Saved');
+    await attempt(() => rpc.settings.setKey({ key: k, value: value.trim() }), 'Saved');
     setValue('');
     refreshSoon(0);
     await reload();
   };
   const remove = async () => {
-    await attempt(() => POST('/secrets', { key: k, value: '' }), 'Removed');
+    await attempt(() => rpc.settings.setKey({ key: k, value: '' }), 'Removed');
     refreshSoon(0);
     await reload();
   };
@@ -315,9 +314,9 @@ function SecretField({ k, secrets, reload, label, placeholder, hint, mark, optio
     setAccount(null);
     try {
       if (k === 'veniceKey') {
-        const result = await attempt(() => POST<VeniceAccountInfo>('/settings/test-venice'));
+        const result = await attempt(() => rpc.settings.testVenice());
         if (result) setAccount(result);
-      } else await attempt(() => POST<OpenRouterKeyInfo>('/settings/test-openrouter'), (r) => `Key works${r.label ? ` (${r.label})` : ''}${r.limit_remaining != null ? ` · $${Number(r.limit_remaining).toFixed(2)} left` : r.usage != null ? ` · $${Number(r.usage).toFixed(2)} used` : ''}`);
+      } else await attempt(() => rpc.settings.testOpenrouter(), (r) => `Key works${r.label ? ` (${r.label})` : ''}${r.limit_remaining != null ? ` · $${Number(r.limit_remaining).toFixed(2)} left` : r.usage != null ? ` · $${Number(r.usage).toFixed(2)} used` : ''}`);
     } finally { setTesting(false); }
   };
   return (

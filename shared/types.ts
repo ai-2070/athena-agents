@@ -533,6 +533,13 @@ export type GatewayLocalConversation = { conversationId: string; projectId: stri
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
 /** An API model's advertised limits. Missing capabilities mean the provider did not say. */
+/** One entry of GET /api/models (engine=eve, codex, pi…): an API model's details, or less for an engine's own. */
+export interface ModelListing extends Partial<Omit<ApiModelInfo, 'id'>> {
+  id: string;
+  /** Codex: what the model is for */
+  description?: string;
+}
+
 export interface ApiModelInfo {
   id: string;
   name: string;
@@ -2377,6 +2384,57 @@ export interface UsageMeter {
   resetsAt?: number | null;
   text?: string | null;
 }
+/** A Claude plan window: how much is used, and when it starts over. */
+export interface UsageWindow {
+  percent: number;
+  resetsAt: number | null;
+}
+export interface ClaudeUsage {
+  session: UsageWindow | null;
+  week: UsageWindow | null;
+  at?: number;
+}
+/** A connector on your Claude account. */
+export interface Connector {
+  id: string;
+  name: string;
+  status: 'connected' | 'needs-auth' | 'failed' | 'off';
+  detail: string;
+}
+/** GET /api/headbar: the usage meters (one entry per provider that reports any) and Claude account connectors. */
+export interface HeadbarInfo {
+  usage: ClaudeUsage | null;
+  usages: ProviderUsage[];
+  connectors: Connector[];
+}
+/** What POST /api/settings/test-openrouter passes on from OpenRouter's /key endpoint. */
+export interface OpenRouterKeyInfo {
+  label?: string;
+  limit_remaining?: number | null;
+  usage?: number | null;
+}
+/** One of an X account's recent posts (GET /api/accounts/x/:id/posts). */
+export interface XPost {
+  id: string;
+  text: string;
+  createdAt?: string;
+  /** like_count, retweet_count, reply_count… as X counts them */
+  metrics?: Record<string, number>;
+  url: string;
+}
+/** One built-in tool as GET /api/tools lists it; risk 'varies' when it depends on what the call does. */
+export interface ToolListing {
+  name: string;
+  group: string;
+  risk: 'none' | 'low' | 'high' | 'varies';
+  description: string;
+}
+/** How each tool has been used on this computer, since when (GET /api/tool-stats). */
+export interface ToolStats {
+  since: number;
+  tools: ToolStat[];
+}
+
 export interface ProviderUsage {
   id: 'claude' | 'openrouter' | 'venice' | 'codex';
   name: string;

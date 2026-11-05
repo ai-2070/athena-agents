@@ -8,7 +8,7 @@
 // docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { DEL, GET, POST, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
+import { DEL, POST, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
 import { rpc, rpcAt } from '../client/rpc.ts';
 import { apiUrl, projectAt } from '../client/connection.ts';
 import { previewFile, previewTitle, revealLabel } from '../filepreview.tsx';
@@ -148,7 +148,7 @@ function OverviewPage() {
   const load = useCallback(async () => {
     const request = ++serial.current;
     try {
-      const next = await GET<OverviewData>('/overview');
+      const next = await rpc.status.overview();
       if (request === serial.current) (loadedFrom.current = request, setData(next), setError(''));
     } catch (e) {
       if (request === serial.current) setError(e instanceof Error ? e.message : String(e));

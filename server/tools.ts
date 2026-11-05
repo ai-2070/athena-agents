@@ -33,7 +33,7 @@ import * as voxel from './voxel/tools.ts';
 import { taskTools } from './tasktools.ts';
 import { goalTool } from './goaltool.ts';
 import { isBoardConversation, isGatewayConversation } from './private-conversations.ts';
-import type { Agent, ToolGroup } from '../shared/types.ts';
+import type { Agent, ToolGroup, ToolListing } from '../shared/types.ts';
 
 /** none: never asks. low: asks when autonomy is "ask". high: asks unless autonomy is "full". */
 export type Risk = 'none' | 'low' | 'high';
@@ -1481,7 +1481,7 @@ export function toolDefs(agent: ToolAgent, scope: ToolScope = {}): ToolSpec[] {
   return toolsForAgent(agent, scope).map(({ name, description, parameters }) => ({ name, description, parameters }));
 }
 
-export const allTools = (): { name: string; group: string; risk: Risk | 'varies'; description: string }[] =>
+export const allTools = (): ToolListing[] =>
   TOOLS.map(({ name, group, risk, description }) => ({ name, group, risk: typeof risk === 'function' ? 'varies' : risk, description }));
 
 export function needsApproval(agent: ToolAgent, risk: Risk, toolName: string): boolean {

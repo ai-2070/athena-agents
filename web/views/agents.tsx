@@ -698,9 +698,8 @@ function EngineFields({ a, d, set, fit }: {
   }, [needs]);
   useEffect(() => {
     let live = true;
-    const q = a.engine === 'eve' ? `engine=eve&provider=${a.provider}` : `engine=${a.engine}`;
     setModels([]);
-    void GET<ModelListing[]>(`/models?${q}`)
+    void rpc.status.models(a.engine === 'eve' ? { engine: 'eve', provider: a.provider } : { engine: a.engine })
       .catch((): ModelListing[] => [])
       .then((m) => live && setModels(m.slice(0, 600)));
     return () => void (live = false);

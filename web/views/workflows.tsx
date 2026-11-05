@@ -3,7 +3,7 @@ import { Plate, PlateLink } from '../ui/surface.tsx';
 import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { GET, attempt, navigate, confirmBox, promptBox, ago, lightbox } from '../core.ts';
+import { attempt, navigate, confirmBox, promptBox, ago, lightbox } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { scheduleEditor, scheduleText } from '../schedule.tsx';
 import { Field, Switch } from '../ui/controls.tsx';
@@ -160,7 +160,7 @@ function WorkflowEditor({ id }: { id: string }) {
   const [loaded, setLoaded] = useState<{ wf: Workflow; tools: ToolInfo[] } | 'gone' | null>(null);
   useEffect(() => {
     let live = true;
-    void Promise.all([rpc.workflows.get({ id }), GET<{ tools: ToolInfo[] }>('/tools')])
+    void Promise.all([rpc.workflows.get({ id }), rpc.status.tools()])
       .then(([wf, t]) => live && setLoaded({ wf, tools: t.tools }))
       .catch(() => live && setLoaded('gone'));
     return () => void (live = false);

@@ -6,10 +6,10 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
-import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, HOME, readJSON, writeJSON, insideRoots } from './util.ts';
+import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, readJSON, writeJSON, insideRoots } from './util.ts';
 import * as store from './store.ts';
-import { agents, chats, outbox, artifacts as artifactStore, workflows, bus, getSettings, saveSettings, setSecret, secretStatus, internalToken, activity, log } from './store.ts';
-import { listApprovals, requestApproval, setReviewer } from './approvals.ts';
+import { agents, chats, outbox, artifacts as artifactStore, workflows, bus, getSettings, internalToken, log } from './store.ts';
+import { requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
 import { eveRuntime } from './eve/runtime.ts';
 import { EveOwnershipError } from './eve/ownership.ts';
@@ -17,21 +17,17 @@ import { eveCoordinator } from './eve/coordinator.ts';
 import * as gateways from './gateways/instances.ts';
 import { discordRecovery } from './gateways/discord-recovery.ts';
 import { whatsAppSetup } from './gateways/whatsapp-setup.ts';
-import { GatewaySupervisor } from './gateways/supervisor.ts';
+import { gatewaySupervisor } from './gateways/live.ts';
 import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRetiredInboxHistory, gatewayRetiredFinishReview, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders, gatewayWorkReview } from './gateways/inbox.ts';
 import { gatewayRetirement, listGatewayRetirements } from './gateways/retirement.ts';
 import { telegramSetup } from './gateways/telegram-setup.ts';
 import { gatewayOutboxDestinations } from './gateways/outbox-owner.ts';
 import { readGatewayPostDelivery } from './gateways/outbox-posts.ts';
-import { PROVIDERS, listModels } from './providers.ts';
-import { CLAUDE_MODELS } from './engines/claude.ts';
-import { codexModelList } from './models.ts';
 import { listProfiles } from './engines/hermes.ts';
 import * as codexEngine from './engines/codex.ts';
 import * as piEngine from './engines/pi.ts';
 import * as openclawEngine from './engines/openclaw.ts';
 import { clearWhichCache, which } from './util.ts';
-import { aboutInfo } from './about.ts';
 import * as tools from './tools.ts';
 import { inlineToolImagesNoted, withImageNote } from './toolimages.ts';
 import * as programs from './programs.ts';
@@ -41,7 +37,6 @@ import * as social from './social.ts';
 import { addArtifact, removeArtifact } from './artifacts.ts';
 import * as teamMarks from './teammark.ts';
 import * as taskBoard from './taskboard.ts';
-import { overview } from './overview.ts';
 import * as boardWork from './boardwork.ts';
 import { taskFilePath } from './boardfiles.ts';
 import * as memory from './memory.ts';
@@ -57,14 +52,11 @@ import * as worldPrefabs from './voxel/prefabs.ts';
 import * as worldCharacters from './voxel/characters.ts';
 import { listVersions, getVersion, withActor } from './versions.ts';
 import * as terms from './terminals.ts';
-import * as status from './status.ts';
-import { readVeniceAccount } from './venice.ts';
 import * as codexLimits from './codexlimits.ts';
 import * as brain from './brain.ts';
 import * as irc from './irc.ts';
 import * as projects from './projects.ts';
 import * as teams from './teams.ts';
-import * as questions from './questions.ts';
 import * as reddit from './reddit.ts';
 import * as overseer from './overseer.ts';
 import * as projectSync from './projectsync.ts';
@@ -75,9 +67,10 @@ import * as files from './files.ts';
 import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
-import { saveToolStats, toolStats } from './toolstats.ts';
+import { saveToolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
-import type { Agent, AppState, Project, ProviderUsage, SecretKey, UsageLimits, WorldBuilder } from '../shared/types.ts';
+import { usageLimits } from './api/status.ts';
+import type { Agent, Project, WorldBuilder } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -125,7 +118,6 @@ const post = <B = Body>(p: string, h: Handler<B>) => route('POST', p, h);
 const postFile = (p: string, h: Handler<string>) => route('POST', p, h, true);
 const put = <B = Body>(p: string, h: Handler<B>) => route('PUT', p, h);
 const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
-const gatewaySupervisor = new GatewaySupervisor();
 
 // The routes an Overview pane uses for a project that isn't open (/api/p/<projectId>/…): an agent's chats and its
 // details, a team's thread, a chat's tasks, the questions its agents ask, the Brain's chat, MEMORY.md and its
@@ -159,40 +151,9 @@ type ExternalAgent = Pick<Agent, 'id' | 'name' | 'toolGroups' | 'autonomy' | 'kn
 const EXTERNAL: ExternalAgent = { id: '_external', name: 'External MCP client', toolGroups: tools.TOOL_GROUPS.map((g) => g.id).filter((g) => g !== 'shell'), autonomy: 'ask', knowledge: { folders: [] } };
 const agentFor = (id: string | null | undefined): Agent | ExternalAgent => (id ? agents.get(id) : null) || EXTERNAL;
 
-// ---------- about (version, GitHub) ----------
-get('/api/about', async (_p, _b, q) => aboutInfo({ withStars: q.stars === '1' }));
 
-// ---------- state ----------
-// the MCP servers' names and each one's label, service and "use for" (mcp.json read once)
-const mcpState = () => {
-  const servers = mcp.listServers();
-  return { mcpServers: Object.keys(servers), mcpInfo: mcp.serverInfo(servers) };
-};
-get('/api/state', async (): Promise<AppState> => ({
-  gateways: gatewaySupervisor.summary(),
-  agents: agents.list().sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || a.name.localeCompare(b.name)),
-  ...mcpState(),
-  project: projects.withLogo(store.activeProject()),
-  projectSaved: projectSync.saveStatus(),
-  projects: store.listProjects().map(projects.withLogo),
-  approvals: listApprovals(),
-  outboxPending: social.listPosts().filter((p) => p.status === 'pending' || ((p.platform === 'telegram' || p.platform === 'discord') && p.status === 'failed')).length,
-  questions: questions.waitingQuestions(),
-  runs: engines.activeRuns(),
-  engines: engines.engineStatus(),
-  engineList: engines.ENGINE_LIST,
-  toolGroups: tools.TOOL_GROUPS,
-  settings: getSettings(),
-  secrets: secretStatus(),
-  accounts: social.listAccounts(),
-  terminals: terms.listTerminals(),
-  port: PORT,
-  home: HOME,
-  dataDir: dataPath(),
-  desktop: !!process.env.DASH_DESKTOP,
-}));
+// ---------- the page's state, the activity feed, the header and sidebar meters, About: server/api/status.ts ----------
 
-get('/api/activity', async () => activity(200));
 // ---------- projects ----------
 // server/api/projects.ts, except the project's pictures and model as files (below)
 // The project's logo: shown on the start screen, in the project menu and inside the Brain.
@@ -266,42 +227,6 @@ post<{ text?: unknown; project?: unknown; attachments?: unknown; goal?: unknown 
 });
 post<{ text?: unknown; attachments?: unknown }>('/api/assist/agent', async (_p, body) => brain.designAgent(String(body.text || ''), { attachments: uploads.cleanAttachments(body.attachments) }));
 post<{ text?: unknown; allowNew?: unknown; attachments?: unknown }>('/api/assist/branch', async (_p, body) => brain.designBranch(String(body.text || ''), { allowNew: body.allowNew !== false, attachments: uploads.cleanAttachments(body.attachments) }));
-get('/api/headbar', async () => {
-  const eng = engines.engineStatus();
-  // Codex: asked live, like the sidebar (its session logs can be old or missing; they're only the fallback)
-  const ox = await codexEngine.checkedStatus();
-  const [usage, connectors, or, cxLimits, venice] = await Promise.all([status.claudeUsage(), status.claudeConnectors().catch(() => []), status.openrouterUsage(store.getSecrets().openrouterKey), ox?.installed && ox.loggedIn ? codexLimits.codexLimits() : null, status.veniceUsage()]);
-
-  // One entry per connected provider that reports usage; the header cycles through them.
-  const usages = ([
-    // Claude Code is always shown when you're signed in; "–" until Anthropic sends numbers
-    eng['claude-code'].installed && (usage || eng['claude-code'].loggedIn) && { id: 'claude', name: 'Claude Code', meters: [{ label: 'SESSION', ...(usage?.session || {}) }, { label: 'WEEK', ...(usage?.week || {}) }] },
-    or && { id: 'openrouter', name: 'OpenRouter', meters: [or.percent != null ? { label: 'CREDITS', percent: or.percent, text: or.left != null ? `$${or.left.toFixed(2)} left` : null } : null, or.today != null ? { label: 'TODAY', text: `$${or.today.toFixed(2)}` } : null].filter(Boolean) },
-    cxLimits && { id: 'codex', name: 'OpenAI Codex', meters: codexLimits.headbarMeters(cxLimits) },
-    venice && !venice.expired && venice.accessPermitted && { id: 'venice', name: 'Venice', meters: [
-      venice.balances.usd != null ? { label: 'USD', text: `$${venice.balances.usd.toFixed(2)} left` } : null,
-      venice.balances.diem != null ? { label: 'DIEM', text: `${venice.balances.diem.toFixed(2)} left` } : null,
-      venice.balances.bundled != null ? { label: 'Bundled credits', text: `${venice.balances.bundled.toFixed(2)} left` } : null,
-    ].filter(Boolean) },
-  ] as (ProviderUsage | false | null | undefined)[]).filter((x): x is ProviderUsage => Boolean(x && x.meters.length));
-  return { usage, usages, connectors };
-});
-// The sidebar's usage view: your Claude and Codex plan limits, and Codex's free limit resets.
-async function usageLimits(cx: codexLimits.CodexLimits | null = null): Promise<UsageLimits> {
-  const eng = engines.engineStatus();
-  const cc = eng['claude-code'];
-  // (waits for the login check, so a fresh start doesn't say "not signed in" first)
-  const ox = await codexEngine.checkedStatus();
-  const why = (e: { installed: boolean; loggedIn: boolean }) => (!e.installed ? 'not installed' : !e.loggedIn ? 'not signed in' : undefined);
-  const [usage, codex] = await Promise.all([cc.installed ? status.claudeUsage() : null, cx || (ox?.installed && ox.loggedIn ? codexLimits.codexLimits() : null)]);
-  const claudeWindows = [usage?.session && { label: '5h', ...usage.session }, usage?.week && { label: 'Week', ...usage.week }].filter((w) => !!w);
-  return {
-    // signed in through an API key or not at all, Claude Code has no plan limits to show
-    claude: { ready: cc.installed && (cc.loggedIn || !!usage), why: why(cc), windows: claudeWindows },
-    codex: { ready: !!(ox?.installed && ox.loggedIn), why: ox ? why(ox) : 'not installed', plan: codex?.plan ?? null, windows: codex?.windows || [], blocked: codex?.blocked, resets: codex?.resets ?? null },
-  };
-}
-get('/api/usage-limits', async () => usageLimits());
 // Uses one free Codex limit reset (the one that runs out first unless one is named). You click for it.
 post<{ creditId?: unknown }>('/api/codex/reset', async (_p, body) => {
   const r = await codexLimits.useCodexReset(typeof body.creditId === 'string' ? body.creditId : null);
@@ -313,8 +238,6 @@ post<{ creditId?: unknown }>('/api/codex/reset', async (_p, body) => {
 // server/api/agents.ts, with their chats; a chat's run streams are below
 
 // a chat's tasks: server/api/tasks.ts. The Tasks board: server/api/taskboard.ts, except a task's files (below)
-// the Overview page: every project's agents, teams, the Brain and tasks being worked on, at a glance
-get('/api/overview', async () => overview());
 const boardProject = (id: string) => need(store.listProjects().find((p) => p.id === id));
 // A file on a task or one of its comments (?path= as the task lists it), from the task's own project.
 get('/api/task-board-file/:projectId/:id', async ({ projectId, id }, _b, q, res) => {
@@ -493,16 +416,7 @@ del('/api/worlds/:wid', async ({ wid }) => (worldLink.deleteUnusedWorld(wid), { 
 
 // (versions, presets and the library: server/api/versions.ts, library.ts)
 
-// ---------- models ----------
-get('/api/models', async (_p, _b, q) => {
-  if (q.engine === 'claude-code') return CLAUDE_MODELS;
-  if (q.engine === 'hermes') return [];
-  if (q.engine === 'codex') return codexModelList();
-  if (q.engine === 'pi' || q.engine === 'omp') return piEngine.listModels(q.engine).catch(() => []);
-  if (q.engine === 'openclaw') return openclawEngine.listModels().catch(() => []);
-  return listModels(q.provider || 'openrouter');
-});
-get('/api/providers', async () => Object.entries(PROVIDERS).map(([id, p]) => ({ id, label: p.label })));
+// ---------- models: server/api/status.ts ----------
 get('/api/hermes/profiles', async () => listProfiles());
 get('/api/openclaw/agents', async () => openclawEngine.listAgents().catch(() => []));
 // OpenAI Codex: install the CLI (npm) and check its sign-in.
@@ -523,9 +437,6 @@ post('/api/codex/refresh', async () => {
 });
 
 // ---------- tools & programs ----------
-get('/api/tools', async () => ({ groups: tools.TOOL_GROUPS, tools: tools.allTools() }));
-// how each tool has been used (counted on this computer only)
-get('/api/tool-stats', async () => toolStats());
 get('/api/programs', async (_p, _b, q) => programs.discoverPrograms(!!q.force));
 get('/api/programs/all', async () => programs.startMenuApps(true));
 post<{ program: string; file?: string }>('/api/programs/launch', async (_p, body) => {
@@ -759,50 +670,7 @@ del('/api/gateways/:id', async ({ id }) => {
   await gatewaySupervisor.removeInstance(id);
   return { ok: true };
 });
-get('/api/settings', async () => ({ settings: getSettings(), secrets: secretStatus() }));
-put<Parameters<typeof saveSettings>[0] | null>('/api/settings', async (_p, body) => saveSettings(body || {}));
-post<{ key: string; value?: unknown }>('/api/secrets', async (_p, body) => {
-  const okKeys: string[] = ['openrouterKey', 'veniceKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook', 'redditClientSecret'];
-  if (!okKeys.includes(body.key)) throw new HttpError(400, 'Unknown key');
-  setSecret(body.key as SecretKey, String(body.value || '').trim());
-  return secretStatus();
-});
-post('/api/settings/test-openrouter', async () => {
-  const key = store.getSecrets().openrouterKey;
-  if (!key) throw new HttpError(400, 'No OpenRouter key saved.');
-  const r = await fetch('https://openrouter.ai/api/v1/key', { headers: { authorization: `Bearer ${key}` } });
-  const j = (await r.json().catch(() => ({}))) as { error?: { message?: string }; data?: unknown };
-  if (!r.ok) throw new HttpError(400, j.error?.message || `OpenRouter said ${r.status}`);
-  return j.data || j;
-});
-post('/api/settings/test-venice', async () => {
-  if (!store.getSecrets().veniceKey) throw new HttpError(400, 'No Venice key saved.');
-  try {
-    return await readVeniceAccount(true);
-  } catch (error) {
-    throw new HttpError(400, error instanceof Error ? error.message : 'Could not test the Venice key.');
-  }
-});
-
-// ---------- social ----------
-get('/api/accounts', async () => social.listAccounts());
-post<{ autopost?: boolean }>('/api/accounts/x/:id', async ({ id }, body) => {
-  if ('autopost' in body) social.setAutopost(id, body.autopost);
-  return social.listAccounts();
-});
-del('/api/accounts/x/:id', async ({ id }) => {
-  social.disconnectX(id);
-  return social.listAccounts();
-});
-get('/api/accounts/x/:id/posts', async ({ id }) => social.xRecentPosts(id, 10));
-post<{ autopost?: boolean }>('/api/accounts/reddit/:id', async ({ id }, body) => {
-  if ('autopost' in body) reddit.setRedditAutopost(id, body.autopost);
-  return social.listAccounts();
-});
-del('/api/accounts/reddit/:id', async ({ id }) => {
-  reddit.disconnectReddit(id);
-  return social.listAccounts();
-});
+// ---------- settings, keys and accounts: server/api/settings.ts ----------
 post('/api/social/test', async () => { throw new HttpError(400, 'Choose a gateway instance and known conversation in the Outbox, review the test text, then approve it. Old global tokens and webhooks are no longer used.'); });
 
 get('/api/artifacts', async () => artifactStore.list().sort((a, b) => b.createdAt! - a.createdAt!));

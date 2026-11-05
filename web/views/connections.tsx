@@ -3,22 +3,15 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { Badge, Pill } from '../ui/marks.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { GET, POST, PUT, DEL, attempt, copy, ago, confirmBox } from '../core.ts';
+import { attempt, copy, ago, confirmBox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { serverUrl } from '../client/connection.ts';
 import { FieldRow, PanelNote, Row, RowActions, Section, Sections, Switch, Tabs } from '../ui/controls.tsx';
 import { reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { ProgramLabel } from '../ui/programmark.tsx';
 import { Outbox } from './outbox.tsx';
-import type { Accounts, SecretStatus, Settings } from '../../shared/types.ts';
+import type { Accounts, SecretStatus, Settings, XPost } from '../../shared/types.ts';
 
-/** One entry of GET /api/accounts/x/:id/posts. */
-interface XPost {
-  id: string;
-  text: string;
-  createdAt: string;
-  metrics?: { like_count?: number; retweet_count?: number; reply_count?: number };
-  url: string;
-}
 interface Loaded {
   settings: Settings;
   secrets: SecretStatus;
@@ -58,7 +51,7 @@ function AccountsPanel() {
   const [version, setVersion] = useState(0);
   const load = useCallback(
     () =>
-      Promise.all([GET<{ settings: Settings; secrets: SecretStatus }>('/settings'), GET<Accounts>('/accounts')]).then(([s, accounts]) => {
+      Promise.all([rpc.settings.get(), rpc.accounts.list()]).then(([s, accounts]) => {
         setLoaded({ ...s, accounts });
         setVersion((v) => v + 1);
       }),
@@ -80,15 +73,15 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
 
   const saveX = async () => {
     await attempt(async () => {
-      await PUT('/settings', { x: { clientId: x.current.clientId.trim() } });
-      if (x.current.secret.trim()) await POST('/secrets', { key: 'xClientSecret', value: x.current.secret.trim() });
+      await rpc.settings.save({ x: { clientId: x.current.clientId.trim() } });
+      if (x.current.secret.trim()) await rpc.settings.setKey({ key: 'xClientSecret', value: x.current.secret.trim() });
     }, 'X app saved');
     await reload();
   };
   const saveReddit = async () => {
     await attempt(async () => {
-      await PUT('/settings', { reddit: { clientId: rd.current.clientId.trim(), username: rd.current.username.trim().replace(/^\/?u\//, '') } });
-      if (rd.current.secret.trim()) await POST('/secrets', { key: 'redditClientSecret', value: rd.current.secret.trim() });
+      await rpc.settings.save({ reddit: { clientId: rd.current.clientId.trim(), username: rd.current.username.trim().replace(/^\/?u\//, '') } });
+      if (rd.current.secret.trim()) await rpc.settings.setKey({ key: 'redditClientSecret', value: rd.current.secret.trim() });
     }, 'Reddit app saved');
     await reload();
   };
@@ -162,9 +155,9 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
                   initial={a.autopost}
                   title="Publish agent posts and comments right away, without the Outbox"
                   ask={`Let agents post to Reddit as u/${a.username} without asking you?`}
-                  save={(v) => POST(`/accounts/reddit/${a.id}`, { autopost: v })}
+                  save={(v) => rpc.accounts.setReddit({ id: a.id, autopost: v })}
                 />
-                <Button variant="danger" size="tiny" onClick={() => void disconnect(`u/${a.username}`, `/accounts/reddit/${a.id}`, reload)}>Disconnect</Button>
+                <Button variant="danger" size="tiny" onClick={() => void disconnect(`u/${a.username}`, () => rpc.accounts.removeReddit({ id: a.id }), reload)}>Disconnect</Button>
               </div>
             ))
           ) : (
@@ -216,8 +209,8 @@ const CopyCode = ({ text }: { text: string }) => (
   </>
 );
 
-async function disconnect(who: string, path: string, reload: () => Promise<unknown>): Promise<void> {
-  if (await confirmBox(`Disconnect ${who}?`, { ok: 'Disconnect', danger: true })) await attempt(() => DEL(path)).then(reload);
+async function disconnect(who: string, remove: () => Promise<unknown>, reload: () => Promise<unknown>): Promise<void> {
+  if (await confirmBox(`Disconnect ${who}?`, { ok: 'Disconnect', danger: true })) await attempt(remove).then(reload);
 }
 
 /** Publish right away, without the Outbox. Turning it on asks first. */
@@ -243,7 +236,7 @@ function XAccount({ a, reload }: { a: Accounts['x'][number]; reload: () => Promi
   const [posts, setPosts] = useState<XPost[] | 'loading' | null>(null);
   const recent = async () => {
     setPosts('loading');
-    setPosts((await attempt(() => GET<XPost[]>(`/accounts/x/${a.id}/posts`))) || null);
+    setPosts((await attempt(() => rpc.accounts.xPosts({ id: a.id }))) || null);
   };
   let shown: ReactNode = null;
   if (posts === 'loading') shown = <p className="hint">Loading…</p>;
@@ -252,7 +245,7 @@ function XAccount({ a, reload }: { a: Accounts['x'][number]; reload: () => Promi
       <div key={p.id} className="list-row">
         <div className="min-w-0 flex-1 text-[13.5px]">
           {p.text}
-          <div className="hint">{`♥ ${p.metrics?.like_count ?? 0} · ↻ ${p.metrics?.retweet_count ?? 0} · 💬 ${p.metrics?.reply_count ?? 0} · ${ago(Date.parse(p.createdAt))}`}</div>
+          <div className="hint">{`♥ ${p.metrics?.like_count ?? 0} · ↻ ${p.metrics?.retweet_count ?? 0} · 💬 ${p.metrics?.reply_count ?? 0} · ${p.createdAt ? ago(Date.parse(p.createdAt)) : ''}`}</div>
         </div>
         <ButtonLink variant="ghost" size="tiny" href={p.url} target="_blank" rel="noopener">Open</ButtonLink>
       </div>
@@ -265,12 +258,12 @@ function XAccount({ a, reload }: { a: Accounts['x'][number]; reload: () => Promi
           <div className="title">{`@${a.username}`}</div>
           <div className="hint">{`${a.name} · connected ${ago(a.connectedAt)}`}</div>
         </div>
-        <AutoPost initial={a.autopost} title="Publish agent posts right away, without the Outbox" ask={`Let agents publish to @${a.username} without asking you? Posts will go out immediately.`} save={(v) => POST(`/accounts/x/${a.id}`, { autopost: v })} />
+        <AutoPost initial={a.autopost} title="Publish agent posts right away, without the Outbox" ask={`Let agents publish to @${a.username} without asking you? Posts will go out immediately.`} save={(v) => rpc.accounts.setX({ id: a.id, autopost: v })} />
       </div>
       <div className="mt-3.5 flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="tiny" onClick={() => void recent()}>Recent posts</Button>
         <ButtonLink variant="ghost" size="tiny" href={serverUrl('/oauth/x/start')}>Reconnect</ButtonLink>
-        <Button variant="danger" size="tiny" onClick={() => void disconnect(`@${a.username}`, `/accounts/x/${a.id}`, reload)}>Disconnect</Button>
+        <Button variant="danger" size="tiny" onClick={() => void disconnect(`@${a.username}`, () => rpc.accounts.removeX({ id: a.id }), reload)}>Disconnect</Button>
       </div>
       <div aria-live="polite">{shown}</div>
     </div>

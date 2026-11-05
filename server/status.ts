@@ -3,27 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { HOME, run, which, dataPath, readJSON, writeJSON } from './util.ts';
 import { readVeniceAccount } from './venice.ts';
+import type { ClaudeUsage, Connector, UsageWindow } from '../shared/types.ts';
 
 export const veniceUsage = () => readVeniceAccount().catch(() => null);
 
 /** One usage window (5-hour session or week): percent used and when it resets (ms), if known. */
-export interface UsageWindow {
-  percent: number;
-  resetsAt: number | null;
-}
-
-export interface ClaudeUsage {
-  session: UsageWindow | null;
-  week: UsageWindow | null;
-  at?: number;
-}
-
-export interface Connector {
-  id: string;
-  name: string;
-  status: 'connected' | 'needs-auth' | 'failed' | 'off';
-  detail: string;
-}
+export type { ClaudeUsage, Connector, UsageWindow } from '../shared/types.ts';
 
 export interface OpenRouterUsage {
   left: number | null;

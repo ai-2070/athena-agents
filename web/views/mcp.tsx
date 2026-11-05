@@ -5,6 +5,7 @@ import { Pill } from '../ui/marks.tsx';
 import { Plate } from '../ui/surface.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { GET, POST, DEL, attempt, confirmBox, copy, refreshSoon } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Field, PanelNote, Row, SearchBox, Section, Segmented } from '../ui/controls.tsx';
 import { openModal } from '../ui/overlays.tsx';
 import { presetIcon } from '../preseticons.ts';
@@ -129,7 +130,7 @@ export function McpTab() {
   const [find, setFind] = useState('');
   const reload = useCallback(
     () =>
-      Promise.all([GET<McpData>('/mcp'), GET<Tools>('/tools')])
+      Promise.all([GET<McpData>('/mcp'), rpc.status.tools()])
         .then(([d, t]) => (setData(d), setTools(t)))
         .catch((e: unknown) => setFailed(e instanceof Error ? e.message : String(e))),
     [],
