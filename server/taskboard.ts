@@ -414,6 +414,11 @@ function putTags(f: BoardFile, t: ProjectTask, input: BoardInput, by: string): v
 const tasksWith = (f: BoardFile, tagId: string) => f.tasks.filter((t) => t.tags?.includes(tagId));
 const useOf = (f: BoardFile, tag: BoardTag): BoardTagUse => ({ ...tag, tasks: tasksWith(f, tag.id).length });
 
+/** A tag of a project by its id or its name, or null. */
+export function findBoardTag(projectId: string, ref: unknown): BoardTag | null {
+  return withProject(projectOf(projectId), () => findTag(read(), ref) || null);
+}
+
 /** A project's tags, by name, with how many tasks have each. */
 export function boardTags(projectId: string): BoardTagUse[] {
   return withProject(projectOf(projectId), () => uses(read()));
