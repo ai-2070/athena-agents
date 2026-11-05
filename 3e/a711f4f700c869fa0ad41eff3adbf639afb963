@@ -1,0 +1,52 @@
+tests/server/rpc-moved.test.ts
+  s_558b1de395d1d9::t_e75856cd9eeaf2 7,17
+shared/api/index.ts
+  s_558b1de395d1d9::t_b6273d861b9d46 5,11
+server/api/brain.ts
+  s_558b1de395d1d9::t_480a57278c24cf 1-41
+web/views/stationpanel.tsx
+  s_558b1de395d1d9::t_7ec009ddb24a67 34
+  s_558b1de395d1d9::t_f9b75e5da5f23f 253,264,310,313,344,405
+server/index.ts
+  s_558b1de395d1d9::t_aecb00ff466d32 11,87
+  s_558b1de395d1d9::t_b6273d861b9d46 256-257,262
+shared/api/brain.ts
+  s_558b1de395d1d9::t_1cd17ac9f82007 1-53
+server/projects.ts
+  s_558b1de395d1d9::t_49457287badd01 7
+  s_558b1de395d1d9::t_024a578bf9fa1d 134,515
+web/brainpane.tsx
+  s_558b1de395d1d9::t_e1709f7efef33d 6
+  s_558b1de395d1d9::t_f9b75e5da5f23f 8,53,125
+shared/types.ts
+  s_558b1de395d1d9::t_024a578bf9fa1d 2257-2317
+server/api/index.ts
+  s_558b1de395d1d9::t_b6273d861b9d46 5,11
+web/dock.tsx
+  s_558b1de395d1d9::t_f9b75e5da5f23f 36,42-43,227,262,1129,1191,1201
+web/views/skills.tsx
+  s_558b1de395d1d9::t_f9b75e5da5f23f 35
+  s_558b1de395d1d9::t_e1709f7efef33d 9
+tests/server/rpc-brain.test.ts
+  s_558b1de395d1d9::t_edad4ecb6986c8 1,4-42,44-60
+  s_558b1de395d1d9::t_9f5435317fcb49 2,43
+  s_558b1de395d1d9::t_50ce65a0a6047a 3
+server/overseer.ts
+  s_558b1de395d1d9::t_024a578bf9fa1d 52-54,2255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3ea711f4f700c869fa0ad41eff3adbf639afb963",
+  "prompts": {},
+  "sessions": {
+    "s_558b1de395d1d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bb40eb4-bbfd-4a59-a58a-1ffe1d09179b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
