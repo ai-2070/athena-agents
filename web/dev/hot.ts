@@ -16,9 +16,46 @@ declare global {
     // read by @vitejs/plugin-react's refresh runtime
     __getReactRefreshIgnoredExports?: (o: { id: string }) => string[];
   }
+  interface ImportMeta {
+    // Vite's, in `bun run dev` only (written out as import.meta.hot: Vite looks for those words)
+    readonly hot?: HotEvents;
+  }
+}
+
+/** The part of Vite's import.meta.hot used here. */
+export interface HotEvents {
+  on(event: string, cb: (payload: unknown) => void): void;
+}
+
+/** How soon after an update an uncaught error counts as the update's doing. */
+export const BROKE_WITHIN_MS = 3000;
+
+/** Reloads the page when it breaks right after a hot update: an uncaught error or a rejected promise nobody handled
+ *  (a swapped module half run, an effect throwing outside any crash guard). A fresh load starts clean. A crash a
+ *  crash guard caught (web/ui/root.tsx) isn't uncaught: it stays on screen, and fixing the code draws it again. Only
+ *  armed by an update, so a page that breaks while loading isn't reloaded over and over. */
+export function watchUpdates(hot: HotEvents, { win = window, reload = () => win.location.reload(), within = BROKE_WITHIN_MS, now = () => Date.now() }: { win?: Window; reload?: () => void; within?: number; now?: () => number } = {}): () => void {
+  let updated = -Infinity;
+  let reloading = false;
+  hot.on('vite:afterUpdate', () => void (updated = now()));
+  const broke = (what: unknown) => {
+    if (reloading || now() - updated > within) return;
+    reloading = true;
+    console.warn('[hot reload] the page broke right after an update; reloading it.', what);
+    reload();
+  };
+  const onError = (e: ErrorEvent) => broke(e.error ?? e.message);
+  const onRejection = (e: PromiseRejectionEvent) => broke(e.reason);
+  win.addEventListener('error', onError);
+  win.addEventListener('unhandledrejection', onRejection);
+  return () => {
+    win.removeEventListener('error', onError);
+    win.removeEventListener('unhandledrejection', onRejection);
+  };
 }
 
 /** Sets the rules up (before the app's modules load). */
-export function installHotRules(win: Window = window): void {
+export function installHotRules(win: Window = window, hot: HotEvents | undefined = import.meta.hot): void {
   win.__getReactRefreshIgnoredExports = ({ id }) => ignoredExports(id);
+  if (hot) watchUpdates(hot, { win });
 }
