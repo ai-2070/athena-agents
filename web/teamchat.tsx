@@ -679,6 +679,14 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
         store.current.loop = r.loop;
         return bump();
       }
+      // "/learn …": a member turns it (and the files) into a skill
+      if (cmd?.name === 'learn') {
+        emptyBox();
+        const taken = tray.take();
+        const r = await attempt(() => POST<{ message?: TeamMessage; queued?: QueuedMessage }>(`${at}/teams/${teamId}/learn`, { text: cmd.rest, attachments }));
+        if (!r) return void (restore(typed), tray.put(taken));
+        return held(r.queued);
+      }
       if (cmd && cmd.name !== 'queue') return command(cmd.name, cmd.rest, typed);
       // "/queue …": posted once nobody is working (now, if nobody is). Anything else while the team works
       // changes its course: whoever is working stops and takes it up now.
