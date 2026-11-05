@@ -1,0 +1,31 @@
+server/index.ts
+  s_fe2dff50328630::t_07a508fdc1185d 91,106
+scripts/dev.ts
+  s_fe2dff50328630::t_ee621226b4014c 33
+  s_fe2dff50328630::t_4d65b349fe82a6 34
+AGENTS.md
+  s_fe2dff50328630::t_cd34bde63b24eb 57
+tests/server/devpage.test.ts
+  s_fe2dff50328630::t_cd34bde63b24eb 1
+  s_fe2dff50328630::t_0c76f5fdc01fca 6,20-33
+  s_fe2dff50328630::t_671aaddb9d0d74 34-35
+server/devpage.ts
+  s_fe2dff50328630::t_07a508fdc1185d 2-5,10-11,19-24
+  s_fe2dff50328630::t_d5e6ea379646fc 25-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c8ae657d85fe33a96c257a956809967d0e9a44a2",
+  "prompts": {},
+  "sessions": {
+    "s_fe2dff50328630": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7961ac30-7c4b-437d-bf4a-e4d5dfaf0029",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
