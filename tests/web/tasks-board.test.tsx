@@ -14,7 +14,7 @@ const now = Date.now();
 let n = 0;
 const card = (over: Partial<BoardTask>): BoardTask => ({
   id: 't', number: ++n, projectId: 'p1', projectName: 'Bakery', title: 'Task', description: '', status: 'todo', priority: 'normal', assignee: '', rank: 0,
-  createdBy: 'you', createdAt: now, updatedAt: now, assigneeName: 'Unassigned', creatorName: 'You', commentCount: 0, fileCount: 0, ...over,
+  createdBy: 'you', createdAt: now, updatedAt: now, assigneeName: 'Unassigned', creatorName: 'You', commentCount: 0, fileCount: 0, tagList: [], ...over,
 });
 // live events from the server, through a stand-in for the event socket
 class FakeSocket {

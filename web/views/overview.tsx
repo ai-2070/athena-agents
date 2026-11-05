@@ -506,7 +506,7 @@ const TASK_GROUPS: BoardStatus[] = ['in_progress', 'todo', 'in_review', 'blocked
 function TasksPanel({ scope, data }: { scope: string; data: OverviewData }) {
   const project = scope === 'here' ? data.active : scope === 'all' || !data.projects.some((p) => p.id === scope) ? 'all' : scope;
   const [board, setBoard] = useState<TaskBoardData | null>(null);
-  const load = useCallback(() => void GET<TaskBoardData>(`/task-board?project=${encodeURIComponent(project)}`).then(setBoard, () => setBoard({ projects: [], tasks: [] })), [project]);
+  const load = useCallback(() => void GET<TaskBoardData>(`/task-board?project=${encodeURIComponent(project)}`).then(setBoard, () => setBoard({ projects: [], tasks: [], tags: {} })), [project]);
   useEffect(() => {
     load();
     let timer: ReturnType<typeof setTimeout> | undefined;
