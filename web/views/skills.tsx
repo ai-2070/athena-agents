@@ -6,7 +6,7 @@ import { Button } from '../ui/button.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
-import { GET, POST, DEL, attempt, refreshSoon, confirmBox, state } from '../core.ts';
+import { attempt, refreshSoon, confirmBox, state } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { logo } from '../icons.ts';
 import { SkillMark } from '../skillmark.tsx';
@@ -16,7 +16,7 @@ import { openEditor, openGitHub, openImport } from '../skilldialogs.tsx';
 import { DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { SearchBox } from '../ui/controls.tsx';
 import { buttonClass } from '../ui/classes.ts';
-import type { Agent, AppState, ClaudeSkill, ServerEvent, SkillInstallResult, SkillListing, TeamListing } from '../../shared/types.ts';
+import type { Agent, AppState, ClaudeSkill, ServerEvent, SkillListing, TeamListing } from '../../shared/types.ts';
 
 interface SkillsData {
   skills: SkillListing[];
@@ -46,7 +46,7 @@ function SkillsPage({ open }: { open?: string }) {
   const [query, setQuery] = useState(lastQuery);
   const loadTeams = useCallback(() => rpc.workflows.list().then(setTeams).catch(() => {}), []);
   const reload = useCallback(async () => {
-    const [s, t] = await Promise.all([GET<SkillsData>('/skills'), rpc.workflows.list().catch((): TeamListing[] => [])]);
+    const [s, t] = await Promise.all([rpc.skills.list(), rpc.workflows.list().catch((): TeamListing[] => [])]);
     forgetSkills();
     await loadSkills(true);
     setData(s);
@@ -159,13 +159,13 @@ function SkillCard({ s, d, teams, reload, loadTeams }: { s: SkillListing; d: App
   const [updating, setUpdating] = useState(false);
   const update = async () => {
     setUpdating(true);
-    const r = await attempt(() => POST<SkillInstallResult>('/skills/install', { url: s.origin!.url }), (x) => (x.installed.length ? `Updated ${x.installed.map((i) => i.name).join(', ')}` : 'Nothing updated'));
+    const r = await attempt(() => rpc.skills.install({ url: s.origin!.url }), (x) => (x.installed.length ? `Updated ${x.installed.map((i) => i.name).join(', ')}` : 'Nothing updated'));
     setUpdating(false);
     if (r) await reload();
   };
   const remove = async () => {
     if (!(await confirmBox(`Delete the skill "${s.name}"? It is taken off every agent, team and project that has it.`, { ok: 'Delete', danger: true }))) return;
-    if (await attempt(() => DEL(`/skills/${s.slug}`), 'Deleted')) await reload();
+    if (await attempt(() => rpc.skills.remove({ slug: s.slug }), 'Deleted')) await reload();
   };
   const uses = [
     u.brain ? <span key="brain" className={USE_PROJ}><Icon name="brain" size={11} />The Brain</span> : null,

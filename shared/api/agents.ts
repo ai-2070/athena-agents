@@ -41,7 +41,8 @@ const agentFields = {
   richAnswers: z.boolean({ error: 'richAnswers must be true or false.' }).optional(),
   pinned: z.boolean({ error: 'pinned must be true or false.' }).optional(),
 };
-const agentPatch = z.object(agentFields);
+/** A change to an agent's fields (also what hiring one from the library may set first). */
+export const agentPatch = z.object(agentFields);
 /** A change to an agent, as the page sends it. */
 export type AgentPatch = z.input<typeof agentPatch>;
 

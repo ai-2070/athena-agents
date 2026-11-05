@@ -4,11 +4,11 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { Dot } from '../ui/marks.tsx';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { GET, POST, attempt, ago, navigate, approvalCard } from '../core.ts';
+import { GET, attempt, ago, navigate, approvalCard } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { Avatar, DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
-import type { ActivityEntry, AppState, LibraryAgentListing } from '../../shared/types.ts';
+import type { ActivityEntry, AppState } from '../../shared/types.ts';
 import { appIconStyle, appIconUrl } from '../appicons.ts';
 
 /** One entry of GET /api/programs (only the fields this page reads). */
@@ -20,10 +20,6 @@ interface ProgramInfo {
   running: boolean;
   serviceUrl: string | null;
   version: string | null;
-}
-/** GET /api/library: only which agents are the starter team is used here. */
-interface LibraryStarters {
-  agents?: Pick<LibraryAgentListing, 'slug' | 'starter'>[];
 }
 
 const SERVICES = ['comfyui', 'lmstudio', 'ollama', 'netdesk', 'orca', 'blender', 'premiere', 'photoshop'];
@@ -241,8 +237,8 @@ function Onboarding({ d }: { d: AppState }) {
   // One click: the library's agents marked starter (Coordinator, X Writer, Image Maker, Researcher…).
   const addStarterTeam = async () => {
     setAdding(true);
-    const lib = await GET<LibraryStarters>('/library').catch(() => null);
-    for (const a of (lib?.agents || []).filter((x) => x.starter)) await attempt(() => POST('/library/hire', { source: 'library', slug: a.slug }));
+    const lib = await rpc.library.list().catch(() => null);
+    for (const a of (lib?.agents || []).filter((x) => x.starter)) await attempt(() => rpc.library.hire({ source: 'library', slug: a.slug }));
     navigate('#/agents');
   };
   const steps = [

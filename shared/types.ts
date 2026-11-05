@@ -1839,6 +1839,53 @@ export interface PresetListing {
   savedAt: number;
 }
 
+/** What a preset keeps of an agent: everything but what belongs to one copy of it. */
+export type AgentTemplate = Omit<Agent, 'id' | 'createdAt' | 'updatedAt' | 'lastModel' | 'lastModelAt' | 'pinned' | 'workspace' | '_teamSkills'>;
+/** What a preset keeps of a team (its members are kept as agents beside it). */
+export type TeamTemplate = Partial<Pick<Team, 'name' | 'description' | 'color' | 'access' | 'skills' | 'schedule'>>;
+export interface AgentPreset {
+  id: string;
+  kind: 'agent';
+  name: string;
+  description: string;
+  savedAt: number;
+  agent: AgentTemplate;
+}
+export interface TeamPreset {
+  id: string;
+  kind: 'team';
+  name: string;
+  description: string;
+  savedAt: number;
+  team: TeamTemplate;
+  members: AgentTemplate[];
+  leadIndex: number;
+}
+export type Preset = AgentPreset | TeamPreset;
+
+/** A Hermes profile on this PC (`hermes profile list`): hiring one makes a Hermes agent of it. */
+export interface HermesProfile {
+  name: string;
+  model: string;
+  gateway: string;
+  isDefault: boolean;
+}
+
+/** A Claude Code subagent (~/.claude/agents/<slug>.md), as the Agent library lists it. */
+export interface ClaudeSubagentListing {
+  slug: string;
+  name: string;
+  description: string;
+  model: string;
+}
+
+/** GET /api/library: Athena's agents, this PC's Hermes profiles and Claude Code subagents. */
+export interface LibraryIndex {
+  agents: LibraryAgentListing[];
+  hermes: HermesProfile[];
+  claude: ClaudeSubagentListing[];
+}
+
 /** One of the Agent library's agents (library/athena-agents), as GET /api/library lists it: not hired yet. */
 export interface LibraryAgentListing {
   slug: string;

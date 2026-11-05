@@ -623,8 +623,8 @@ const withMembers = (wf: TeamView, members: string[]): TeamView => ({
   steps: members.map((id) => ({ type: 'agent' as const, agentId: id })),
   lead: wf.lead && !members.includes(wf.lead) ? null : wf.lead,
 });
-const presetAgent = (a: Agent) => attempt(() => POST(`/presets/agent/${a.id}`), `Saved ${a.name} as a preset (Agent library › Your presets)`);
-const presetTeam = (w: TeamView) => attempt(() => POST(`/presets/team/${w.id}`), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
+const presetAgent = (a: Agent) => attempt(() => rpc.presets.saveAgent({ id: a.id }), `Saved ${a.name} as a preset (Agent library › Your presets)`);
+const presetTeam = (w: TeamView) => attempt(() => rpc.presets.saveTeam({ id: w.id }), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
 
 // (the tab you were on stays open when you pick another team)
 type TeamTab = 'members' | 'setup';

@@ -3,16 +3,11 @@
 import { which, spawnCommand, killTree, run as runCmd } from '../util.ts';
 import { workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
-import type { Agent, EngineStatus } from '../../shared/types.ts';
+import type { Agent, EngineStatus, HermesProfile } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 
 /** A row of `hermes profile list`. */
-export interface HermesProfile {
-  name: string;
-  model: string;
-  gateway: string;
-  isDefault: boolean;
-}
+export type { HermesProfile } from '../../shared/types.ts';
 
 /** One line of `hermes chat --format stream-json` (only the fields used here). */
 interface HermesMsg {

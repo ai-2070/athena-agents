@@ -6,33 +6,10 @@ import { dataPath, ensureDir, readJSON, writeJSON, listFiles, uid } from './util
 import { newAgent } from './library.ts';
 import { getTeam, isStepList } from './teams.ts';
 import fs from 'node:fs';
-import type { Agent, PresetListing, Team } from '../shared/types.ts';
+import type { Agent, AgentPreset, AgentTemplate, Preset, PresetListing, Team, TeamPreset, TeamTemplate } from '../shared/types.ts';
 
 /** An agent without what belongs to one copy of it (id, dates, last model, pin, workspace, _fields). */
-export type AgentTemplate = Omit<Agent, 'id' | 'createdAt' | 'updatedAt' | 'lastModel' | 'lastModelAt' | 'pinned' | 'workspace' | '_teamSkills'>;
-/** The parts of a team a preset keeps (members are saved separately). */
-export type TeamTemplate = Partial<Pick<Team, 'name' | 'description' | 'color' | 'access' | 'skills' | 'schedule'>>;
-
-/** data/presets/<id>.json */
-export interface AgentPreset {
-  id: string;
-  kind: 'agent';
-  name: string;
-  description: string;
-  savedAt: number;
-  agent: AgentTemplate;
-}
-export interface TeamPreset {
-  id: string;
-  kind: 'team';
-  name: string;
-  description: string;
-  savedAt: number;
-  team: TeamTemplate;
-  members: AgentTemplate[];
-  leadIndex: number;
-}
-export type Preset = AgentPreset | TeamPreset;
+export type { AgentPreset, AgentTemplate, Preset, TeamPreset, TeamTemplate } from '../shared/types.ts';
 
 const DIR = () => ensureDir(dataPath('presets'));
 const RUNTIME_FIELDS = ['id', 'createdAt', 'updatedAt', 'lastModel', 'lastModelAt', 'pinned', 'workspace'];

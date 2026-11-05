@@ -8,19 +8,15 @@ import { listProfiles } from './engines/hermes.ts';
 import { getSkill } from './skills.ts';
 import { isEffort } from '../shared/effort.ts';
 import { defaultModelForEngine } from '../shared/modeldefaults.ts';
-import type { Agent, EngineId, LibraryAgentListing } from '../shared/types.ts';
+import type { Agent, ClaudeSubagentListing, EngineId, LibraryAgentListing, LibraryIndex } from '../shared/types.ts';
 
 /** One of Athena's agents, not hired yet: the listing and where its file is. */
 export interface LibraryAgent extends LibraryAgentListing {
   file: string;
 }
 
-/** A Claude Code subagent (~/.claude/agents/<slug>.md). */
-export interface ClaudeSubagent {
-  slug: string;
-  name: string;
-  description: string;
-  model: string;
+/** A Claude Code subagent (~/.claude/agents/<slug>.md) and where its file is. */
+export interface ClaudeSubagent extends ClaudeSubagentListing {
   file: string;
 }
 
@@ -79,7 +75,7 @@ export function claudeSubagents(): ClaudeSubagent[] {
   });
 }
 
-export async function libraryIndex() {
+export async function libraryIndex(): Promise<LibraryIndex> {
   return {
     agents: libraryAgents().map(({ file, ...a }): LibraryAgentListing => a),
     hermes: await listProfiles().catch(() => []),

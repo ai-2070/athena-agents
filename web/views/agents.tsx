@@ -616,7 +616,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               </Button>
               {/* put back: show it as it is now (changes not saved yet are dropped) */}
               <DomNode as="span" make={() => historyButton('agent', id, () => (setDirty(false), reload()))} deps={[id]} />
-              <Button variant="ghost" size="small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`)}><Icon name="bookmark-plus" size={13} />
+              <Button variant="ghost" size="small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => rpc.presets.saveAgent({ id }), `Saved ${a.name} as a preset`)}><Icon name="bookmark-plus" size={13} />
                 Save as preset
               </Button>
               <Button variant="ghost" size="small" title="Write it to ~/.claude/agents so any Claude Code session can use it" onClick={() => void attempt(() => rpc.agents.exportClaude({ id }), (r) => `Saved as ${r.file}`)}><Icon name="terminal" size={13} />

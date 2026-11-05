@@ -40,7 +40,6 @@ import * as mcp from './mcp.ts';
 import * as social from './social.ts';
 import { addArtifact, removeArtifact } from './artifacts.ts';
 import * as teamMarks from './teammark.ts';
-import * as library from './library.ts';
 import * as taskBoard from './taskboard.ts';
 import { overview } from './overview.ts';
 import * as boardWork from './boardwork.ts';
@@ -71,9 +70,6 @@ import * as overseer from './overseer.ts';
 import * as projectSync from './projectsync.ts';
 import * as skills from './skills.ts';
 import * as learning from './learning.ts';
-import * as history from './history.ts';
-import * as skillInstall from './skillinstall.ts';
-import * as presets from './presets.ts';
 import * as uploads from './uploads.ts';
 import * as files from './files.ts';
 import * as uistream from './uistream.ts';
@@ -81,7 +77,7 @@ import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import { saveToolStats, toolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
-import type { Agent, AppState, Project, ProviderUsage, SecretKey, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
+import type { Agent, AppState, Project, ProviderUsage, SecretKey, UsageLimits, WorldBuilder } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
@@ -355,21 +351,7 @@ get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
 });
 
 
-// ---------- skills ----------
-get('/api/skills', async () => ({ skills: skills.listSkills(), claude: skills.claudeSkills() }));
-get('/api/skills/:slug', async ({ slug }) => need(skills.getSkill(slug)));
-post<Parameters<typeof skills.saveSkill>[0] | null>('/api/skills', async (_p, body) => {
-  const s = skills.saveSkill(body || {});
-  log('skill', `Saved the skill "${s!.name}"`);
-  return s;
-});
-put<Parameters<typeof skills.saveSkill>[0] | null>('/api/skills/:slug', async ({ slug }, body) => skills.saveSkill({ ...(body || {}), slug }));
-del('/api/skills/:slug', async ({ slug }) => {
-  // and take it off every agent, team and project that had it, and the Brain
-  skills.deleteSkillEverywhere(slug);
-  return { ok: true };
-});
-// The Brain's own skills (part of its instructions; Self-improvement also has it learn from finished work)
+// ---------- skills: server/api/skills.ts ----------
 // A skill written or changed from plain words: a draft for the editor, saved only when you press Save.
 // slug: the skill being edited (for its files); current: what the editor holds now (unsaved changes too).
 post<{ text?: unknown; slug?: unknown; current?: unknown; attachments?: unknown }>('/api/assist/skill', async (_p, body) => {
@@ -389,8 +371,6 @@ post<{ text?: unknown; slug?: unknown; current?: unknown; attachments?: unknown 
     attachments,
   });
 });
-post<{ name: string }>('/api/skills/import', async (_p, body) => skills.importClaudeSkill(body.name));
-post<{ url?: unknown }>('/api/skills/install', async (_p, body) => skillInstall.installFromGitHub(String(body.url || '')));
 
 // ---------- MEMORY.md: each agent's and the Brain's ("brain") ----------
 const memoryOwner = (owner: string): string => {
@@ -511,37 +491,7 @@ put<{ worldId?: unknown } | null>('/api/worlds/default', async (_p, body) => (wo
 put<{ name?: unknown } | null>('/api/worlds/:wid', async ({ wid }, body) => worldLink.renameWorld(wid, body?.name));
 del('/api/worlds/:wid', async ({ wid }) => (worldLink.deleteUnusedWorld(wid), { ok: true }));
 
-// ---------- versions of skills, agents, teams and MEMORY.md files ----------
-const versionKind = (k: string): VersionKind => {
-  if (!history.isVersionKind(k)) throw new HttpError(404, 'Versions are kept for skills, agents, teams and MEMORY.md files.');
-  return k;
-};
-get('/api/versions/:kind', async ({ kind }) => history.deletedItems(versionKind(kind)));
-post('/api/versions/:kind/:id/undelete', async ({ kind, id }) => history.undelete(versionKind(kind), id));
-get('/api/versions/:kind/:id', async ({ kind, id }) => history.historyOf(versionKind(kind), id));
-get('/api/versions/:kind/:id/:vid', async ({ kind, id, vid }) => history.versionOf(versionKind(kind), id, vid));
-post('/api/versions/:kind/:id/:vid/restore', async ({ kind, id, vid }) => history.restoreVersion(versionKind(kind), id, vid));
-
-// ---------- presets & clones ----------
-get('/api/presets', async () => presets.listPresets());
-post<Parameters<typeof presets.saveAgentPreset>[1] | null>('/api/presets/agent/:id', async ({ id }, body) => presets.saveAgentPreset(id, body || {}));
-post<Parameters<typeof presets.saveTeamPreset>[1] | null>('/api/presets/team/:id', async ({ id }, body) => presets.saveTeamPreset(id, body || {}));
-post('/api/presets/:id/use', async ({ id }) => presets.usePreset(id));
-del('/api/presets/:id', async ({ id }) => (presets.deletePreset(id), { ok: true }));
-
-// ---------- library ----------
-get('/api/library', async () => library.libraryIndex());
-get('/api/library/agent/:slug', async ({ slug }) => {
-  const { file, ...a } = need(library.libraryAgents().find((x) => x.slug === slug));
-  return { ...a, body: fs.readFileSync(file, 'utf8') };
-});
-post<{ source?: string; slug: string; profile: string; overrides?: Partial<Agent> }>('/api/library/hire', async (_p, body) => {
-  const o = body.overrides || {};
-  if (body.source === 'library') return library.hireFromLibrary(body.slug, o);
-  if (body.source === 'hermes') return library.hireHermesProfile(body.profile, o);
-  if (body.source === 'claude') return library.importClaudeSubagent(body.slug);
-  throw new HttpError(400, 'Unknown library source');
-});
+// (versions, presets and the library: server/api/versions.ts, library.ts)
 
 // ---------- models ----------
 get('/api/models', async (_p, _b, q) => {

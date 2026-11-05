@@ -11,5 +11,8 @@ import { approvalsRouter, questionsRouter } from './needs.ts';
 import { routinesRouter } from './routines.ts';
 import { runsRouter } from './runs.ts';
 import { tasksRouter } from './tasks.ts';
+import { skillsRouter } from './skills.ts';
+import { versionsRouter } from './versions.ts';
+import { libraryRouter, presetsRouter } from './library.ts';
 
-export const apiRouter = implement(contract).router({ agents: agentsRouter, brain: brainRouter, projects: projectsRouter, taskBoard, teams: teamsRouter, workflows: workflowsRouter, questions: questionsRouter, approvals: approvalsRouter, tasks: tasksRouter, routines: routinesRouter, runs: runsRouter });
+export const apiRouter = implement(contract).router({ agents: agentsRouter, brain: brainRouter, projects: projectsRouter, taskBoard, teams: teamsRouter, workflows: workflowsRouter, questions: questionsRouter, approvals: approvalsRouter, tasks: tasksRouter, routines: routinesRouter, runs: runsRouter, skills: skillsRouter, versions: versionsRouter, library: libraryRouter, presets: presetsRouter });

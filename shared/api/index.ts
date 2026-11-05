@@ -11,5 +11,8 @@ import { approvals, questions } from './needs.ts';
 import { routines } from './routines.ts';
 import { runs } from './runs.ts';
 import { tasks } from './tasks.ts';
+import { skills } from './skills.ts';
+import { versions } from './versions.ts';
+import { library, presets } from './library.ts';
 
-export const contract = { agents, brain, projects, taskBoard, teams, workflows, questions, approvals, tasks, routines, runs };
+export const contract = { agents, brain, projects, taskBoard, teams, workflows, questions, approvals, tasks, routines, runs, skills, versions, library, presets };

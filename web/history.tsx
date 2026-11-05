@@ -3,8 +3,9 @@
 // (openModal() with React content); the buttons that open them stay plain DOM (domButton), as they were.
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { GET, POST, attempt, ago, confirmBox } from './core.ts';
+import { attempt, ago, confirmBox } from './core.ts';
 import { projectAt } from './client/connection.ts';
+import { rpc, rpcAt } from './client/rpc.ts';
 import { domButton } from './ui/dom.ts';
 import { icon } from './icons.ts';
 import { Button } from './ui/button.tsx';
@@ -99,7 +100,7 @@ function HistoryDialog({ kind, id, hist, onRestored, close, at }: HistoryProps) 
   const [compare, setCompare] = useState(true);
 
   const pick = async (vid: string) => {
-    const d = await attempt(() => GET<VersionDetail>(`${at}/versions/${kind}/${encodeURIComponent(id)}/${vid}`));
+    const d = await attempt(() => rpcAt(at).versions.get({ kind, id, vid }));
     if (!d) return;
     setPicked(d);
   };
@@ -107,7 +108,7 @@ function HistoryDialog({ kind, id, hist, onRestored, close, at }: HistoryProps) 
     if (!picked) return;
     const what = hist.current === null ? `Bring back the ${KIND_NAME[kind]} "${picked.name}" as it was on ${when(picked.at)}?` : `Put back the version from ${when(picked.at)}? The current one is kept in the history, so you can switch back.`;
     if (!(await confirmBox(what, { ok: hist.current === null ? 'Bring it back' : 'Restore' }))) return;
-    if (!(await attempt(() => POST(`${at}/versions/${kind}/${encodeURIComponent(id)}/${picked.id}/restore`), 'Restored'))) return;
+    if (!(await attempt(() => rpcAt(at).versions.restore({ kind, id, vid: picked.id }), 'Restored'))) return;
     close();
     onRestored?.();
   };
@@ -183,7 +184,7 @@ function HistoryDialog({ kind, id, hist, onRestored, close, at }: HistoryProps) 
  *  MEMORY.md of a project that isn't open (an Overview pane). */
 export async function openHistory(kind: VersionKind, id: string, { onRestored, projectId }: { onRestored?: () => void; projectId?: string } = {}): Promise<void> {
   const at = projectAt(projectId);
-  const hist = await attempt(() => GET<VersionHistory>(`${at}/versions/${kind}/${encodeURIComponent(id)}`));
+  const hist = await attempt(() => rpcAt(at).versions.history({ kind, id }));
   if (!hist) return;
   const dlg = openModal(`History · ${hist.name}`, (close) => <HistoryDialog kind={kind} id={id} hist={hist} onRestored={onRestored} close={close} at={at} />);
   dlg.el.classList.add('wide');
@@ -202,7 +203,7 @@ interface DeletedFailed {
 
 // a list that couldn't load says so (it isn't "nothing deleted")
 async function loadDeleted(kinds: VersionKind[]): Promise<{ items: DeletedItem[]; failed: DeletedFailed[] }> {
-  const lists = await Promise.allSettled(kinds.map((k) => GET<DeletedItem[]>(`/versions/${k}`)));
+  const lists = await Promise.allSettled(kinds.map((k) => rpc.versions.deleted({ kind: k })));
   const items = lists.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])).sort((a, b) => b.at - a.at);
   const failed = lists.flatMap((r, i) => (r.status === 'rejected' ? [{ kind: kinds[i], error: (r.reason as Error)?.message || 'failed' }] : []));
   return { items, failed };
@@ -227,7 +228,7 @@ function DeletedDialog({ kinds, initial, onRestored, close }: DeletedProps) {
   };
   const bringBack = async (it: DeletedItem) => {
     setBusy(it.id);
-    if (await attempt(() => POST(`/versions/${it.kind}/${encodeURIComponent(it.id)}/undelete`), `Brought back ${it.name}`)) {
+    if (await attempt(() => rpc.versions.undelete({ kind: it.kind, id: it.id }), `Brought back ${it.name}`)) {
       onRestored?.();
       await load();
     }

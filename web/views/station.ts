@@ -4148,8 +4148,8 @@ async function cloneTeam(w: TeamView, withAgents: boolean): Promise<void> {
   await reloadWorkflows();
   choose({ type: 'branch', id: c.id });
 }
-const presetAgent = (a: Agent) => attempt(() => POST(`/presets/agent/${a.id}`), `Saved ${a.name} as a preset (Agent library › Your presets)`);
-const presetTeam = (w: TeamView) => attempt(() => POST(`/presets/team/${w.id}`), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
+const presetAgent = (a: Agent) => attempt(() => rpc.presets.saveAgent({ id: a.id }), `Saved ${a.name} as a preset (Agent library › Your presets)`);
+const presetTeam = (w: TeamView) => attempt(() => rpc.presets.saveTeam({ id: w.id }), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
 
 // What an agent is doing right now, in words ("Blender · rendering the scene", "thinking…").
 function nowText(agentId: string, wfId?: string): { st: 'needs' | 'idle' | 'working'; text: string } {
