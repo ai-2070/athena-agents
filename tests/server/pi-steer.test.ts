@@ -192,6 +192,72 @@ describe('steering a pi agent', () => {
     }
   });
 
+  it('a run that ended closes its input in time even when it says more after (a queue update)', async () => {
+    const wait = pi.SETTLE_WAIT.ms;
+    pi.SETTLE_WAIT.ms = 50;
+    try {
+      const { promise, p } = await start('Chatty');
+      p.out(says('Done.'));
+      p.out({ type: 'agent_end' });
+      p.out({ type: 'queue_update', steering: [], followUp: [] });
+      expect(await promise).toBe('Done.');
+      expect(p.ended).toBe(true);
+    } finally {
+      pi.SETTLE_WAIT.ms = wait;
+    }
+  });
+
+  it('a message it took but started no run for (an older pi handling it itself): its input closes anyway', async () => {
+    const wait = pi.SETTLE_WAIT.ms;
+    pi.SETTLE_WAIT.ms = 50;
+    try {
+      const a = newAgent({ name: 'Handled', engine: 'pi', toolGroups: [] });
+      const chat = chats.create(a.id);
+      fake.procs.length = 0;
+      const { promise } = startRun(a, chat, '/hello');
+      await until(() => fake.procs[0]?.inputs.length === 1);
+      const p = fake.procs[0]!;
+      p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true });
+      await promise;
+      expect(p.ended).toBe(true);
+    } finally {
+      pi.SETTLE_WAIT.ms = wait;
+    }
+  });
+
+  it('a new run after one ended (it took a late message) keeps its input open until that one ends', async () => {
+    const wait = pi.SETTLE_WAIT.ms;
+    pi.SETTLE_WAIT.ms = 50;
+    try {
+      const { promise, p } = await start('Again');
+      p.out(says('One.'));
+      p.out({ type: 'agent_end' });
+      p.out({ type: 'agent_start' });
+      await new Promise((r) => setTimeout(r, 100));
+      expect(p.ended).toBe(false);
+      p.out(says('Two.'));
+      p.out({ type: 'agent_end' });
+      expect(await promise).toBe('One.\n\nTwo.');
+      expect(p.ended).toBe(true);
+    } finally {
+      pi.SETTLE_WAIT.ms = wait;
+    }
+  });
+
+  it('pi before 0.99 never says it settled: its run ending is the end', async () => {
+    const get = pi.versionOf.get;
+    pi.versionOf.get = () => '0.98.2';
+    try {
+      const { promise, p } = await start('Old');
+      p.out(says('Done.'));
+      p.out({ type: 'agent_end' });
+      expect(await promise).toBe('Done.');
+      expect(p.ended).toBe(true);
+    } finally {
+      pi.versionOf.get = get;
+    }
+  });
+
   it('once it has settled, it reads no more: a message then goes the ordinary way', async () => {
     const { runId, promise, p } = await start('Done');
     expect(pi.steer.can(runId)).toBe(true);
@@ -204,6 +270,61 @@ describe('steering a pi agent', () => {
 });
 
 describe('steering an oh-my-pi agent', () => {
+  async function startOmp(name: string, text = 'do the long job') {
+    const a = newAgent({ name, engine: 'omp', toolGroups: [] });
+    const chat = chats.create(a.id);
+    fake.procs.length = 0;
+    const { runId, promise } = startRun(a, chat, text);
+    await until(() => fake.procs[0]?.inputs.length === 2);
+    return { a, chat, runId, promise, p: fake.procs[0]! };
+  }
+
+  it('a prompt it handles itself (a slash command, no run): its input closes at once', async () => {
+    const { promise, p } = await startOmp('OmpLocal', '/help');
+    p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true, data: { agentInvoked: false } });
+    await promise;
+    expect(p.ended).toBe(true);
+  });
+
+  it('its prompt_result says it settled: done, without waiting for session_settled', async () => {
+    const { promise, p } = await startOmp('OmpResult');
+    p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true });
+    p.out({ type: 'agent_start' });
+    p.out(user('do the long job'));
+    p.out(says('Done.'));
+    p.out({ type: 'agent_end' });
+    p.out({ type: 'prompt_result', id: 'prompt', agentInvoked: true, status: 'completed', sessionSettled: true });
+    expect(await promise).toBe('Done.');
+    expect(p.ended).toBe(true);
+  });
+
+  it('one refused before reaching the agent (a prompt_result with an error): the run fails with why', async () => {
+    const { chat, promise, p } = await startOmp('OmpFailed');
+    p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true });
+    p.out({ type: 'prompt_result', id: 'prompt', agentInvoked: false, status: 'error', error: { message: 'Session cost cap reached', retryable: false }, sessionSettled: true });
+    await promise;
+    expect(p.ended).toBe(true);
+    expect(said(chat).at(-1)).toBe('error: oh-my-pi refused the message: Session cost cap reached');
+  });
+
+  it('background work that never lets it settle: its input closes after a while anyway', async () => {
+    const wait = pi.BACKGROUND_WAIT.ms;
+    pi.BACKGROUND_WAIT.ms = 50;
+    try {
+      const { promise, p } = await startOmp('OmpBackground');
+      p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true });
+      p.out({ type: 'agent_start' });
+      p.out(user('do the long job'));
+      p.out(says('Started the job.'));
+      p.out({ type: 'agent_end' });
+      p.out({ type: 'prompt_result', id: 'prompt', agentInvoked: true, status: 'completed', sessionSettled: false });
+      expect(await promise).toBe('Started the job.');
+      expect(p.ended).toBe(true);
+    } finally {
+      pi.BACKGROUND_WAIT.ms = wait;
+    }
+  });
+
   it('the same: a message while it works goes in as a steer and shows where it read it; it settles with session_settled', async () => {
     const a = newAgent({ name: 'Omp', engine: 'omp', toolGroups: [] });
     const chat = chats.create(a.id);

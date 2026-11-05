@@ -209,19 +209,54 @@ const inputs = openInputs('It');
 /** A message sent while it works goes into the turn: it reads it before its next step. */
 export const steer = inputs.steer;
 
-/** How long it may stay quiet after a run ends without saying it has settled, before its input closes. */
+/** How long it may go without starting its run once it took the message, or without saying it has settled
+ *  once its run ended, before its input closes (it then exits). */
 export const SETTLE_WAIT = { ms: 30_000 };
+/** oh-my-pi said background work it started (a job, a task) may wake it again: how long that may take. */
+export const BACKGROUND_WAIT = { ms: 10 * 60_000 };
+
+/** Its version (Settings shows the same): only older pi needs telling apart. */
+export const versionOf = { get: (flavor: PiFlavor): string | null => status(flavor).version };
+
+/** Is version a older than b? (Plain numbers: 0.99.0, 1.5.0; anything else isn't older.) */
+export function olderThan(a: string | null, b: string): boolean {
+  const nums = (v: string) => v.replace(/^v/, '').split(/[.-]/).slice(0, 3).map((n) => Number.parseInt(n, 10));
+  const x = a ? nums(a) : [];
+  if (x.length < 3 || x.some((n) => Number.isNaN(n))) return false;
+  const y = nums(b);
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i]! < y[i]!;
+  return false;
+}
+/** The fields of their RPC frames (responses, oh-my-pi's prompt_result) and run events used here. */
+interface RpcFrame {
+  command?: string;
+  success?: boolean;
+  error?: string | { message?: string };
+  data?: { disposition?: string; agentInvoked?: boolean; sessionId?: unknown };
+  method?: string;
+  willRetry?: boolean;
+  isTerminal?: boolean;
+  status?: string;
+  agentInvoked?: boolean;
+  sessionSettled?: boolean;
+}
+const why = (e: RpcFrame['error']): string => (typeof e === 'string' ? e : e?.message) || 'It refused the message.';
 // an extension's question it would wait on an answer for: nobody is there to answer, as when it runs without a screen
 const DIALOGS = new Set(['select', 'confirm', 'input', 'editor', 'ask']);
 
 /** Talks their RPC protocol for one run: the prompt, the messages sent while it works (each shown as it reads
- *  it), and closing its input once it has settled (pi: agent_settled; oh-my-pi: session_settled). Its other
- *  events go to the reader. oh-my-pi names a new session itself: get_state says which. */
+ *  it), and closing its input once it has settled (pi: agent_settled; oh-my-pi: its prompt_result or
+ *  session_settled). Its other events go to the reader. oh-my-pi names a new session itself: get_state says which. */
 function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: string, reader: ReturnType<typeof piReader>, onEvent: (ev: RunEvent) => void) {
   const send = (o: object) => void (child.stdin?.writable && child.stdin.write(`${JSON.stringify(o)}\n`));
   // its own message came by first: the user messages after it are the ones sent while it worked
   let prompted = false;
   let refused = '';
+  // a run of its has started (one ended: false again until the next)
+  let started = false;
+  let live = false;
+  // (pi before 0.99 never says it settled: a run that ended is the end)
+  const settles = !(flavor === 'pi' && olderThan(versionOf.get(flavor), '0.99.0'));
   // messages sent while it works go in as steers, known by their request id
   const input = inputs.open(runId, {
     take: (m) => {
@@ -235,15 +270,16 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
   const close = input.close;
   const onLine = (line: string) => {
     if (!line.startsWith('{')) return;
-    const ev = JSON.parse(line) as PiEvent & { command?: string; success?: boolean; error?: string; data?: { disposition?: string; sessionId?: unknown }; method?: string; willRetry?: boolean };
-    input.wait();
+    const ev = JSON.parse(line) as PiEvent & RpcFrame;
     if (ev.type === 'response') {
       if (ev.id === 'state' && typeof ev.data?.sessionId === 'string' && ev.data.sessionId) reader.handle({ type: 'session', id: ev.data.sessionId });
-      // its own message refused, or taken by a command with no run: nothing more comes
-      if (ev.id === 'prompt' && (!ev.success || ev.data?.disposition === 'handled')) {
-        if (!ev.success) refused = ev.error || 'It refused the message.';
+      // its own message refused, or taken by a command with no run (pi: handled; oh-my-pi: no agent): nothing more comes
+      if (ev.id === 'prompt' && (!ev.success || ev.data?.disposition === 'handled' || ev.data?.agentInvoked === false)) {
+        if (!ev.success) refused = why(ev.error);
         close();
       }
+      // taken: its run should start now (an older pi doesn't say when it handled one itself, and starts none)
+      else if (ev.id === 'prompt' && !started) input.closeIn(SETTLE_WAIT.ms);
       // a message it didn't take: the dashboard sends it next instead (it is still unread there)
       if (ev.command === 'steer' && !ev.success && ev.id) input.drop(ev.id);
       return;
@@ -261,8 +297,25 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
       return;
     }
     if (ev.type === 'agent_settled' || ev.type === 'session_settled') return close();
-    // (a run that ended should settle at once: if it never says so, its input closes anyway)
-    if (ev.type === 'agent_end' && !ev.willRetry) input.closeIn(SETTLE_WAIT.ms);
+    // oh-my-pi: its message's own outcome, once its run yielded
+    if (ev.type === 'prompt_result' && ev.id === 'prompt') {
+      if (ev.status === 'error' && !ev.agentInvoked) refused = why(ev.error);
+      // done; or background work may wake it again (session_settled says when it is done)
+      if (ev.sessionSettled || !ev.agentInvoked) return close();
+      if (!live) input.closeIn(BACKGROUND_WAIT.ms);
+      return;
+    }
+    if (ev.type === 'agent_start') {
+      started = live = true;
+      input.wait();
+    }
+    // a run that ended should settle at once: if it never says so, its input closes anyway (a later line
+    // doesn't stop that: only a new run does)
+    if (ev.type === 'agent_end' && !ev.willRetry && ev.isTerminal !== false) {
+      live = false;
+      if (settles) input.closeIn(SETTLE_WAIT.ms);
+      else close();
+    }
     reader.handle(ev);
   };
   const prompt = `${JSON.stringify({ id: 'prompt', type: 'prompt', message: text })}\n${flavor === 'omp' ? `${JSON.stringify({ id: 'state', type: 'get_state' })}\n` : ''}`;

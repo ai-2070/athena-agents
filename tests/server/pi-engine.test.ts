@@ -47,7 +47,7 @@ vi.mock('../../server/util.ts', async (orig) => {
   };
 });
 
-const { piArgs, piReader, parseModelTable, addBridge, mcpFile, toolText, pi, omp } = await import('../../server/engines/pi.ts');
+const { piArgs, piReader, parseModelTable, addBridge, mcpFile, toolText, pi, omp, olderThan } = await import('../../server/engines/pi.ts');
 const { newAgent } = await import('../../server/library.ts');
 const { HOME } = await import('../../server/util.ts');
 
@@ -84,6 +84,18 @@ describe('piArgs', () => {
   });
   it('the terminal: interactive, no JSON', () => {
     expect(piArgs('pi', newAgent({ name: 'Coder', engine: 'pi' }), { interactive: true })).toEqual([]);
+  });
+});
+
+describe('olderThan', () => {
+  it('compares plain versions, and calls anything else not older', () => {
+    expect(olderThan('0.98.2', '0.99.0')).toBe(true);
+    expect(olderThan('0.80.3', '0.80.4')).toBe(true);
+    expect(olderThan('v0.99.0', '0.99.0')).toBe(false);
+    expect(olderThan('1.5.0', '0.99.0')).toBe(false);
+    expect(olderThan('0.100.0', '0.99.0')).toBe(false);
+    expect(olderThan(null, '0.99.0')).toBe(false);
+    expect(olderThan('dev', '0.99.0')).toBe(false);
   });
 });
 
