@@ -10,6 +10,7 @@ import { Field } from './ui/controls.tsx';
 import { Pill } from './ui/marks.tsx';
 import { DomNode, Icon } from './ui/react.tsx';
 import { openModal } from './ui/overlays.tsx';
+import { SkillMark } from './skillmark.tsx';
 import type { ClaudeSkill, Skill, SkillInstallResult } from '../shared/types.ts';
 
 interface Fields {
@@ -273,7 +274,7 @@ function ImportDialog({ claude, reload, close }: { claude: ClaudeSkill[]; reload
           <div className="list">
             {claude.map((c) => (
               <div key={c.slug} className="list-row">
-                <div className="skill-ico"><Icon name="puzzle" size={16} /></div>
+                <SkillMark slug={c.slug} />
                 <div className="flex-1 min-w-0">
                   <div className="title">{c.name}</div>
                   <div className="hint">{c.description.slice(0, 160)}</div>

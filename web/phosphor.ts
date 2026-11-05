@@ -143,6 +143,29 @@ import { WaveformIcon } from '@phosphor-icons/react/dist/csr/Waveform';
 import { WrenchIcon } from '@phosphor-icons/react/dist/csr/Wrench';
 import { XIcon } from '@phosphor-icons/react/dist/csr/X';
 import { XCircleIcon } from '@phosphor-icons/react/dist/csr/XCircle';
+import { MicrosoftWordLogoIcon } from '@phosphor-icons/react/dist/csr/MicrosoftWordLogo';
+import { MicrosoftExcelLogoIcon } from '@phosphor-icons/react/dist/csr/MicrosoftExcelLogo';
+import { MicrosoftPowerpointLogoIcon } from '@phosphor-icons/react/dist/csr/MicrosoftPowerpointLogo';
+import { ChartLineUpIcon } from '@phosphor-icons/react/dist/csr/ChartLineUp';
+import { BugIcon } from '@phosphor-icons/react/dist/csr/Bug';
+import { TestTubeIcon } from '@phosphor-icons/react/dist/csr/TestTube';
+import { GitDiffIcon } from '@phosphor-icons/react/dist/csr/GitDiff';
+import { ScalesIcon } from '@phosphor-icons/react/dist/csr/Scales';
+import { FireIcon } from '@phosphor-icons/react/dist/csr/Fire';
+import { QuotesIcon } from '@phosphor-icons/react/dist/csr/Quotes';
+import { GraduationCapIcon } from '@phosphor-icons/react/dist/csr/GraduationCap';
+import { BookOpenTextIcon } from '@phosphor-icons/react/dist/csr/BookOpenText';
+import { CalendarCheckIcon } from '@phosphor-icons/react/dist/csr/CalendarCheck';
+import { BracketsCurlyIcon } from '@phosphor-icons/react/dist/csr/BracketsCurly';
+import { CalculatorIcon } from '@phosphor-icons/react/dist/csr/Calculator';
+import { ListMagnifyingGlassIcon } from '@phosphor-icons/react/dist/csr/ListMagnifyingGlass';
+import { FeatherIcon } from '@phosphor-icons/react/dist/csr/Feather';
+import { LightbulbIcon } from '@phosphor-icons/react/dist/csr/Lightbulb';
+import { ArrowsSplitIcon } from '@phosphor-icons/react/dist/csr/ArrowsSplit';
+import { StairsIcon } from '@phosphor-icons/react/dist/csr/Stairs';
+import { MicroscopeIcon } from '@phosphor-icons/react/dist/csr/Microscope';
+import { SealCheckIcon } from '@phosphor-icons/react/dist/csr/SealCheck';
+import { BinocularsIcon } from '@phosphor-icons/react/dist/csr/Binoculars';
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
 
 /** Our short icon names → the Phosphor icon. */
@@ -290,6 +313,30 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   polygon: PolygonIcon,
   'device-mobile': DeviceMobileIcon,
   printer: PrinterIcon,
+  // skills' marks (web/skillicons.ts)
+  'microsoft-word': MicrosoftWordLogoIcon,
+  'microsoft-excel': MicrosoftExcelLogoIcon,
+  'microsoft-powerpoint': MicrosoftPowerpointLogoIcon,
+  'chart-line-up': ChartLineUpIcon,
+  'bug': BugIcon,
+  'test-tube': TestTubeIcon,
+  'git-diff': GitDiffIcon,
+  'scales': ScalesIcon,
+  'fire': FireIcon,
+  'quotes': QuotesIcon,
+  'graduation-cap': GraduationCapIcon,
+  'book-open': BookOpenTextIcon,
+  'calendar-check': CalendarCheckIcon,
+  'brackets-curly': BracketsCurlyIcon,
+  'calculator': CalculatorIcon,
+  'list-magnifying-glass': ListMagnifyingGlassIcon,
+  'feather': FeatherIcon,
+  'lightbulb': LightbulbIcon,
+  'arrows-split': ArrowsSplitIcon,
+  'stairs': StairsIcon,
+  'microscope': MicroscopeIcon,
+  'seal-check': SealCheckIcon,
+  'binoculars': BinocularsIcon,
 };
 
 /** The Phosphor icon for a name; an unknown (or inherited, like "constructor") name is the box. */

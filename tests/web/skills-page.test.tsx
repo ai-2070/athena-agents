@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
+import { icon } from '../../web/icons.ts';
 import * as skills from '../../web/views/skills.tsx';
 import { flip } from '../../web/views/skills.tsx';
 import type { AppState } from '../../shared/types.ts';
@@ -72,15 +73,20 @@ describe('the Skills page', () => {
     expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toEqual({ skills: ['notes'] });
   });
 
-  it("shows a Crafting App's own icon on its skill, and the puzzle piece on the rest", async () => {
+  it("shows each skill's own mark: the app's icon, the logo of what it works with, else the puzzle piece", async () => {
     const plain = globalThis.fetch;
+    const mine = skill('my-voice', 'My voice');
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) =>
-      url === '/api/skills' ? new Response(JSON.stringify({ skills: [skill('solidcraft', 'solidcraft'), skill('craft-anything', 'craft-anything'), skill('storytold', 'storytold')], claude: [] })) : plain(url, init));
+      url === '/api/skills' ? new Response(JSON.stringify({ skills: [skill('solidcraft', 'solidcraft'), skill('craft-anything', 'craft-anything'), skill('orca-cli', 'orca-cli'), skill('github', 'GitHub'), skill('storytold', 'storytold'), mine], claude: [] })) : plain(url, init));
     await open();
     expect(card('solidcraft').querySelector('img.skill-ico')!.getAttribute('src')).toBe('/craft-icons/solidcraft.png');
     expect(card('craft-anything').querySelector('img.skill-ico')!.getAttribute('src')).toBe('/craft-icons/craft-anything.png');
+    expect(card('orca-cli').querySelector('img.skill-ico')!.getAttribute('src')).toBe('/app-icons/orca.png');
+    expect(card('GitHub').querySelector('.skill-ico svg.logo-svg')!.getAttribute('aria-label')).toBe('GitHub');
+    const puzzle = icon('puzzle').innerHTML;
     expect(card('storytold').querySelector('img.skill-ico')).toBeNull();
-    expect(card('storytold').querySelector('div.skill-ico svg')).not.toBeNull();
+    expect(card('storytold').querySelector('.skill-ico svg.ico-svg')!.innerHTML).not.toBe(puzzle);
+    expect(card('My voice').querySelector('.skill-ico svg.ico-svg')!.innerHTML).toBe(puzzle);
   });
 
   it('searches the library', async () => {

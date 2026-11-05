@@ -5,6 +5,7 @@ import type { SkillListing } from '../shared/types.ts';
 import { Button } from './ui/button.tsx';
 import { PopoverContent, PopoverRoot } from './ui/popover.tsx';
 import { Icon } from './ui/react.tsx';
+import { SkillMark } from './skillmark.tsx';
 
 interface PickerMenuProps {
   anchor: HTMLElement;
@@ -53,7 +54,7 @@ function PickerMenu({ anchor, skills, select, make, github, importClaude, open, 
             <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
               {shown.length ? shown.map((s) => (
                 <button key={s.slug} className="st-menu-item shrink-0 gap-3 py-2" type="button" title={s.description} onClick={() => { close(); select(s.slug); }}>
-                  <span className="grid size-7 flex-none place-items-center rounded-[8px] bg-accent/10 text-accent"><Icon name="puzzle" size={14} /></span>
+                  <SkillMark slug={s.slug} size="sm" />
                   <span className="min-w-0 flex-1"><span className="block truncate text-[13px] leading-tight font-medium">{s.name}</span><span className="mt-0.5 block truncate text-[11.5px] leading-tight font-normal text-faint">{s.description}</span></span>
                 </button>
               )) : <div className="hint px-2.5 py-2">{skills.length ? 'No match.' : 'No more skills in the library.'}</div>}

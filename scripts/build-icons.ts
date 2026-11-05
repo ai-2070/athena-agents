@@ -29,6 +29,9 @@ const BRANDS: Record<string, string> = {
   'autodesk fusion': 'autodesk', fusion360: 'autodesk', 'bambu studio': 'bambulab', 'creality print': 'creality',
   'vs code': 'vscodium', 'github cli': 'github', 'after effects': 'adobeaftereffects', 'premiere pro': 'adobepremierepro',
   vegas: 'vegas', 'rtx remix': 'nvidia', nsight: 'nvidia', pi: 'pi', filmora: 'wondersharefilmora',
+  // what the skills that come with the dashboard are about (web/skillicons.ts)
+  arxiv: 'arxiv', jupyter: 'jupyter', rss: 'rss', 'model context protocol': 'modelcontextprotocol', jira: 'jira', android: 'android',
+  apple: 'apple', openstreetmap: 'openstreetmap',
 };
 
 interface SimpleIcon {

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { h, md, GET, POST, PUT, DEL, attempt, navigate, confirmBox, ago, state, toast } from '../core.ts';
 import { icon } from '../icons.ts';
+import { skillIcon } from '../skillicons.ts';
 import { loadSkills, skillsCache } from '../skillpick.ts';
 import { scheduleEditor } from '../schedule.tsx';
 import { openChat } from '../chatwin.tsx';
@@ -26,7 +27,7 @@ export function candidates(d: Pick<AppState, 'agents'>, teams: readonly TeamList
   return [
     ...d.agents.map((a): Candidate => ({ kind: 'agent', id: a.id, name: a.name, lead: h('span', { class: 'w-3.5 text-center flex-none' }, a.emoji || '🤖'), sub: a.specialty || a.description || '', color: a.color })),
     ...teams.map((t): Candidate => ({ kind: 'team', id: t.id, name: t.name, lead: icon('users', 14), sub: `${t.members.length} member${t.members.length === 1 ? '' : 's'}${t.description ? ` · ${t.description}` : ''}`, color: t.color })),
-    ...skillsCache().map((s): Candidate => ({ kind: 'skill', id: s.slug, name: s.name, lead: icon('puzzle', 14), sub: s.description })),
+    ...skillsCache().map((s): Candidate => ({ kind: 'skill', id: s.slug, name: s.name, lead: skillIcon(s.slug, 14), sub: s.description })),
   ];
 }
 
@@ -64,7 +65,7 @@ function MentionChip({ m, teams, extra }: { m: RoutineMention; teams: readonly T
   const look = m.missing ? 'border-dashed text-faint bg-transparent line-through' : `text-ink ${CHIP_BG[m.kind]}`;
   return (
     <span className={`${CHIP} ${CHIP_KIND[m.kind]} ${look}`} style={t?.color ? ({ '--c': t.color } as CSSProperties) : undefined} title={m.missing ? `${m.name} no longer exists` : KIND_LABEL[m.kind].slice(0, -1)}>
-      {m.kind === 'agent' ? <span>{a?.emoji || '🤖'}</span> : <Icon name={m.kind === 'team' ? 'users' : 'puzzle'} size={11} />}
+      {m.kind === 'agent' ? <span>{a?.emoji || '🤖'}</span> : m.kind === 'skill' ? <DomNode as="span" className="flex flex-none" make={() => skillIcon(m.id, 12)} deps={[m.id]} /> : <Icon name="users" size={11} />}
       {m.name}
       {extra}
     </span>
