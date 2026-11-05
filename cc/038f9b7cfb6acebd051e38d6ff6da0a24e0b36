@@ -1,0 +1,19 @@
+web/views/agents.tsx
+  s_50eab73ad738cc::t_1f16547ec08264 443
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cc038f9b7cfb6acebd051e38d6ff6da0a24e0b36",
+  "prompts": {},
+  "sessions": {
+    "s_50eab73ad738cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "462566fc-941a-4069-8075-b70cf32de96f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
