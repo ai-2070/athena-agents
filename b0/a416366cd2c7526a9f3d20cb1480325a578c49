@@ -1,0 +1,32 @@
+server/tools.ts
+  s_09ac87e46cf718::t_5599aef2b6e3f2 200
+  s_09ac87e46cf718::t_52a77fd856d4d8 198-199
+  s_09ac87e46cf718::t_05e6d1a576a62b 201-203
+  s_09ac87e46cf718::t_75f2590f961656 186,220,223-228
+skills/athena/README.md
+  s_09ac87e46cf718::t_cfad865596e84b 179
+  s_09ac87e46cf718::t_9f359b9bcd7383 178
+skills/athena/learn/SKILL.md
+  s_09ac87e46cf718::t_d14885b80d5d60 18-19
+  s_09ac87e46cf718::t_5a4acf45296a44 17
+tests/server/learn-tools.test.ts
+  s_09ac87e46cf718::t_26b3346be2ab7c 1-2,15-16,18-26
+tests/server/tool-budget.test.ts
+  s_09ac87e46cf718::t_bf493da85d54f5 23-24,26,30-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b0a416366cd2c7526a9f3d20cb1480325a578c49",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
