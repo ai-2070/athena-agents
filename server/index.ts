@@ -18,7 +18,11 @@ import * as gateways from './gateways/instances.ts';
 import { discordRecovery } from './gateways/discord-recovery.ts';
 import { whatsAppSetup } from './gateways/whatsapp-setup.ts';
 import { GatewaySupervisor } from './gateways/supervisor.ts';
-import { gatewayInboxHistory, gatewayRequestReview, gatewayWhatsAppRecovery } from './gateways/inbox.ts';
+import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRetiredInboxHistory, gatewayRetiredFinishReview, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders, gatewayWorkReview } from './gateways/inbox.ts';
+import { gatewayRetirement, listGatewayRetirements } from './gateways/retirement.ts';
+import { telegramSetup } from './gateways/telegram-setup.ts';
+import { gatewayOutboxDestinations } from './gateways/outbox-owner.ts';
+import { readGatewayPostDelivery } from './gateways/outbox-posts.ts';
 import { PROVIDERS, listModels } from './providers.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { codexModelList } from './models.ts';
@@ -185,7 +189,7 @@ get('/api/state', async (): Promise<AppState> => ({
   projectSaved: projectSync.saveStatus(),
   projects: store.listProjects().map(projects.withLogo),
   approvals: listApprovals(),
-  outboxPending: outbox.list().filter((p) => p.status === 'pending').length,
+  outboxPending: social.listPosts().filter((p) => p.status === 'pending' || ((p.platform === 'telegram' || p.platform === 'discord') && p.status === 'failed')).length,
   questions: questions.waitingQuestions(),
   runs: engines.activeRuns(),
   engines: engines.engineStatus(),
@@ -1061,19 +1065,38 @@ get('/api/gateways', async () => ({
   health: gatewaySupervisor.health(),
 }));
 post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(body));
+get('/api/gateways/retired', async () => ({ instances: listGatewayRetirements() }));
+get('/api/gateways/retired/:id/inbox', async ({ id }) => ({ events: gatewayRetiredInboxHistory(id) }));
+get('/api/gateways/retired/:id/inbox/:eventId/local-finish', async ({ id, eventId }) => gatewayRetiredFinishReview(id, eventId));
+post<unknown>('/api/gateways/retired/:id/inbox/:eventId/local-finish/prepare', async ({ id, eventId }, body) => gatewaySupervisor.prepareRetiredFinish(id, eventId, body));
+post<unknown>('/api/gateways/retired/:id/inbox/:eventId/local-finish', async ({ id, eventId }, body) => gatewaySupervisor.finishRetired(id, eventId, body));
 get('/api/gateways/targets/:projectId', async ({ projectId }) => gateways.gatewayTargets(projectId));
 get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
 get('/api/gateways/:id/inbox/:eventId/review', async ({ id, eventId }) => gatewayRequestReview(id, eventId));
+get('/api/gateways/:id/inbox/:eventId/work-review', async ({ id, eventId }) => gatewayWorkReview(id, eventId));
+post('/api/gateways/:id/inbox/:eventId/work-review/prepare', async ({ id, eventId }) => gatewaySupervisor.prepareWorkReview(id, eventId));
+post<unknown>('/api/gateways/:id/inbox/:eventId/work-review/keep', async ({ id, eventId }, body) => gatewaySupervisor.keepWork(id, eventId, body));
+get('/api/gateways/:id/inbox/:eventId/delivery-review', async ({ id, eventId }) => gatewayDeliveryReview(id, eventId));
+post('/api/gateways/:id/inbox/:eventId/delivery-review/prepare', async ({ id, eventId }) => gatewaySupervisor.prepareDeliveryReview(id, eventId));
+post<unknown>('/api/gateways/:id/inbox/:eventId/delivery-review', async ({ id, eventId }, body) => gatewaySupervisor.reviewDelivery(id, eventId, body));
 post<unknown>('/api/gateways/:id/inbox/:eventId/dismiss', async ({ id, eventId }, body) => {
   await gatewaySupervisor.dismissRequest(id, eventId, body); return { ok: true };
 });
 get('/api/gateways/:id/discord-recovery', async ({ id }) => discordRecovery(id));
+get('/api/gateways/:id/telegram-setup', async ({ id }) => telegramSetup(id));
+post('/api/gateways/:id/telegram-setup/check', async ({ id }) => gatewaySupervisor.checkTelegramSetup(id));
+post<unknown>('/api/gateways/:id/telegram-setup/switch', async ({ id }, body) => gatewaySupervisor.switchTelegramToPolling(id, body));
 get('/api/gateways/:id/whatsapp-setup', async ({ id }) => whatsAppSetup(id));
 post('/api/gateways/:id/whatsapp-setup/check', async ({ id }) => gatewaySupervisor.checkWhatsAppSetup(id));
 get('/api/gateways/:id/whatsapp-recovery', async ({ id }) => gatewayWhatsAppRecovery(id));
+get('/api/gateways/:id/whatsapp-replacement', async ({ id }) => gatewayWhatsAppReplacement(id));
+get('/api/gateways/:id/whatsapp-senders', async ({ id }) => gatewayWhatsAppSenders(id));
+post<unknown>('/api/gateways/:id/whatsapp-senders/review', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppSender(id, body));
 post('/api/gateways/:id/whatsapp-recovery/inspect', async ({ id }) => gatewaySupervisor.inspectWhatsAppRecovery(id));
 post<unknown>('/api/gateways/:id/whatsapp-recovery', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppRecovery(id, body));
+post<unknown>('/api/gateways/:id/whatsapp-recovery/restore', async ({ id }, body) => gatewaySupervisor.restoreWhatsAppRecovery(id, body));
 post<unknown>('/api/gateways/:id/whatsapp-pairing', async ({ id }, body) => gatewaySupervisor.pairWhatsApp(id, body));
+post<unknown>('/api/gateways/:id/whatsapp-pairing/replace', async ({ id }, body) => gatewaySupervisor.replaceWhatsAppPairing(id, body));
 post<unknown>('/api/gateways/:id/whatsapp-pairing/finish', async ({ id }, body) => gatewaySupervisor.finishWhatsAppPairing(id, body));
 post<unknown>('/api/gateways/:id/whatsapp-pairing/review', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppPairing(id, body));
 post<unknown>('/api/gateways/:id/discord-recovery', async ({ id }, body) => {
@@ -1118,8 +1141,7 @@ post('/api/gateways/:id/inbox/:eventId/files/:index/skip', async ({ id, eventId,
   return { ok: true };
 });
 del('/api/gateways/:id', async ({ id }) => {
-  gateways.removeGatewayInstance(id);
-  await gatewaySupervisor.reconnect(id);
+  await gatewaySupervisor.removeInstance(id);
   return { ok: true };
 });
 get('/api/settings', async () => ({ settings: getSettings(), secrets: secretStatus() }));
@@ -1166,26 +1188,45 @@ del('/api/accounts/reddit/:id', async ({ id }) => {
   reddit.disconnectReddit(id);
   return social.listAccounts();
 });
-post<{ platform?: string }>('/api/social/test', async (_p, body) => ({ message: body.platform === 'discord' ? await social.sendDiscord('Test from Athena Agents ✅') : await social.sendTelegram('Test from Athena Agents ✅') }));
+post('/api/social/test', async () => { throw new HttpError(400, 'Choose a gateway instance and known conversation in the Outbox, review the test text, then approve it. Old global tokens and webhooks are no longer used.'); });
 
 get('/api/artifacts', async () => artifactStore.list().sort((a, b) => b.createdAt! - a.createdAt!));
 del('/api/artifacts/:id', async ({ id }) => {
   removeArtifact(id);
   return { ok: true };
 });
-get('/api/outbox', async () => outbox.list().sort((a, b) => b.createdAt! - a.createdAt!));
-post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, agentName: 'You' }));
+get('/api/outbox', async () => social.listPosts());
+get('/api/outbox/gateway-destinations', async () => gatewayOutboxDestinations(store.activeProject().id));
+post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, gateway: body.gateway, agentName: 'You' }));
+post<unknown>('/api/outbox/:id/gateway-review', async ({ id }, body) => social.prepareGatewayPost(id, body));
+get('/api/outbox/:id/gateway-delivery', async ({ id }) => readGatewayPostDelivery(id));
+post<unknown>('/api/outbox/:id/gateway-delivery/prepare', async ({ id }, body) => {
+  return store.withProject(store.activeProject(), async () => {
+    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
+    if (gatewayRetirement(item.gateway.instanceId)) await gatewaySupervisor.prepareRetiredOutbox(item.gateway.instanceId, store.activeProject().id, item.id, body);
+    else await gatewaySupervisor.prepareOutboxReview(item.gateway.instanceId, store.activeProject().id, item.id);
+    return readGatewayPostDelivery(id);
+  });
+});
+post<unknown>('/api/outbox/:id/gateway-delivery', async ({ id }, body) => {
+  return store.withProject(store.activeProject(), async () => {
+    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
+    await gatewaySupervisor.reviewOutbox(item.gateway.instanceId, store.activeProject().id, item.id, body); return readGatewayPostDelivery(id);
+  });
+});
+post<unknown>('/api/outbox/:id/gateway-finish', async ({ id }, body) => {
+  const project = store.activeProject();
+  return store.withProject(project, async () => {
+    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
+    if (gatewayRetirement(item.gateway.instanceId)) await gatewaySupervisor.finishRetiredOutbox(item.gateway.instanceId, project.id, item.id, body);
+    else await gatewaySupervisor.finishOutbox(item.gateway.instanceId, project.id, item.id, body);
+    return social.listPosts().find((post) => post.id === id);
+  });
+});
 post<Parameters<typeof social.approvePost>[1]>('/api/outbox/:id/approve', async ({ id }, body) => social.approvePost(id, body));
 post<{ text?: string }>('/api/outbox/:id/discuss', async ({ id }, body) => social.returnPost(id, String(body.text || ''), (teamId, text) => teams.postUserMessage(teamId, text, { route: brain.pickMember })));
 post<{ reason?: string }>('/api/outbox/:id/reject', async ({ id }, body) => social.rejectPost(id, body.reason));
-put<{ parts?: string[]; images?: string[]; title?: string }>('/api/outbox/:id', async ({ id }, body) => {
-  const it = need(outbox.get(id));
-  if (body.parts) it.parts = body.parts;
-  // images can be taken off a draft here, not added (adding goes through the checks in draftPost)
-  if (body.images && it.images) it.images = it.images.filter((p) => body.images!.includes(p));
-  if (body.title != null && it.reddit) it.reddit.title = String(body.title).trim();
-  return outbox.save(it);
-});
+put<Parameters<typeof social.editPost>[1]>('/api/outbox/:id', async ({ id }, body) => social.editPost(id, body));
 // questions agents asked you (ask_user): answer with a choice, your own words, or both
 get('/api/questions', async () => store.questions.list().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 100));
 post<{ choice?: string; text?: string }>('/api/questions/:id/answer', async ({ id }, body) => questions.answerQuestion(id, { choice: body.choice, text: body.text }));
@@ -1195,7 +1236,7 @@ del('/api/questions/:id', async ({ id }) => {
   return { ok: true };
 });
 del('/api/outbox/:id', async ({ id }) => {
-  outbox.remove(id);
+  social.removePost(id);
   return { ok: true };
 });
 

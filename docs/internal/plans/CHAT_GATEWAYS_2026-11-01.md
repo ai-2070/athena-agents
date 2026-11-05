@@ -642,11 +642,484 @@ New gateway data does not need a legacy compatibility layer.*
 - Validation: `CI=1 bun run check` passed (258 files; 2,508 tests passed, one skipped), followed by
   successful desktop staging and bundled desktop smoke. The web build passed. No real Meta account,
   relay deployment, provider messages or model calls were used for this slice.
-- Next: implement recovery for identity/installation changes, then finish unified delivery and
-  product controls. Native-work override controls and explicit webhook switching still need product
-  setup. Deleted instances retain private inbox
-  receipts for recovery; the full deletion flow for retired instances is pending. Real-account checks
-  on all four platforms and Windows/Linux verification remain outstanding. Offline checks run in CI.
+- Added explicit paused restoration of the original WhatsApp relay after installation, epoch,
+  cursor or envelope connection holds. The safe preview exposes only a hold time and opaque
+  revision. Settings confirms the restoration before the exclusively owned local route reads
+  status at the saved origin with the saved pull key. The original installation/business/phone,
+  epoch and local cursor or exact pending ACK position must match, with no remote gap. Changed
+  settings, credentials, local receipts or saved work invalidate the check; no replacement pairing,
+  administrative call, lease claim, pull or ACK is performed.
+- A matching check atomically records the old hold and observed cursor in a bounded restoration
+  audit, then clears only the connection hold. It keeps the cursor, pending ACK, signed identity
+  mappings and retired aliases, source dedupe, files, native operations and confirmed/uncertain
+  delivery state. Existing work stays held, the instance stays paused, and WhatsApp stays unavailable.
+  A full history refuses another review instead of evicting evidence. A non-gap hold with a remote
+  gap still requires the original queue/receipt position restored; gap review cannot override it.
+- Added restoration coverage for all hold reasons, foreign metadata, unexplained cursor advances,
+  stale/double/replayed restoration confirmations, mid-check changes, ownership, partial setup, failed writes,
+  audit limits, retired aliases, preserved sent/uncertain replies and guarded local API access.
+  Local consumer fixtures prove lost ACK recovery before/after remote commit still needs the exact
+  envelope ID and leaves earlier work held; an invalid signed envelope remains invalid after review.
+  Bun/Node and read-only bundled proof now also restores the original relay across local restart.
+  README, guide and relay instructions include the user flow and a restored-deployment example.
+- A scoped finish reviewer approved the restoration panel and confirmation with no material findings
+  in light/dark desktop/mobile captures. A local keyboard probe kept six successive Tab presses
+  inside the confirmation and Escape closed it. Preview used only isolated synthetic state, with no
+  remote check submitted, then removed that state. The review does not establish live restoration
+  or transport readiness; success behavior is covered by source/DOM and local protocol tests.
+- Validation: `CI=1 bun run check` passed (258 files; 2,536 tests passed, one skipped). One earlier
+  full run found a Discord fixture with no test socket; all 76 Discord tests and the full rerun
+  passed without a source change. The web build, desktop staging and bundled desktop smoke passed.
+  No real account, relay deployment or provider messages were used.
+- Added explicit lost-relay replacement on the same instance, business account and phone. The
+  safe preview exposes only an opaque revision and retired-binding count. Settings requires the
+  old relay revoked or permanently stopped and its queue loss reviewed, then exchanges one new
+  code with the same bounded HTTPS pairing client. A requesting marker saves before exchange;
+  the new key and received receipt save atomically. Unknown outcomes require revoking the new
+  pairing before review; the code is never reused or saved and the old pull key is not restored.
+- Replacement intentionally has a separate finish confirmation. Its revision includes current
+  settings and work, so changed work requires a fresh review after the key has been safely saved.
+  Finish makes no network request: it atomically archives the old relay state and binds a new,
+  never-before-used epoch, retaining original event IDs, dedupe and charged byte accounting. The
+  previous cursors, pending ACKs, identity mappings, gaps and audits remain private evidence. A
+  crash after that commit can finish the received key idempotently without archiving twice. Up to
+  100 prior bindings are retained without eviction; a full history refuses replacement.
+- Archived source requests cannot authorize work, file I/O or sending through the new epoch, even
+  if they were confirmed before replacement. Unconfirmed old batches stay unconfirmed when a new
+  sequence has the same number. Old unstarted requests can be dismissed explicitly without losing
+  their replay protection. Native operations, sent prefixes and uncertain delivery state remain;
+  replacement neither cancels nor repeats native agents. An already initialized SDK adapter is
+  also pinned to its original relay epoch.
+- Fresh signed messages after the finish boundary create separate private conversations with the
+  same project and Brain/team/agent target. Older messages and identity notices are ignored before
+  learning aliases. Active aliases require new signed phone proof; retired IDs stay tombstones.
+  An unproven alias no longer advances its verification time and blocks a later phone proof in the
+  same provider second. Receipts remain gated until the new relay confirms their exact envelope ID.
+- Added replacement, crash/write-failure, stale finish, ownership, archive-limit, foreign/reused
+  epoch, delayed-input, alias, duplicate, old-ACK, native-work/reply-prefix and local API guard tests.
+  DOM tests cover both confirmations, cancel, disabled/full states and unknown outcomes. The
+  Bun/Node and read-only bundle proof replaces a relay across restart, preserves old receipts,
+  admits a fresh separate conversation and refuses a stale SDK send before provider I/O. README,
+  guide and relay instructions include the flow, its limits and a lost-deployment example.
+- A scoped finish review approved the entry, form, both confirmations and saved-key state at
+  desktop/mobile sizes, plus the dark mobile state, with no material findings. A six-Tab keyboard
+  probe stayed in the finish confirmation and Escape closed it. Browser confirmations were
+  cancelled; only synthetic local setup was seeded and later removed. Unknown/error/archive states
+  have source and DOM evidence; no live provider or transport readiness is claimed.
+- Validation: `CI=1 bun run check` passed (259 files; 2,557 tests passed, one skipped). Web build,
+  desktop staging and bundled desktop smoke passed. No real account, deployment, provider message
+  or model call was used to exercise replacement.
+- Added local WhatsApp sender status and explicit review of confirmed signed identity changes.
+  Settings → Review senders lists allowed phones as missing proof, verified, needs review or
+  reviewed, plus saved-request counts and aggregate retired/unproven/unallowed counts. Provider
+  IDs, parent IDs, business IDs, relay metadata, keys and raw bodies stay private. Edit allowed
+  phones and Open inbox connect the review to existing policy/work controls.
+- A sender review requires pause, a fully saved pairing/pull key, resolved relay recovery, an exact
+  confirmed ACK, an allowed phone and verified current association after a recorded change. It
+  never restores an alias, edits the guard or transfers permission to a new number. The current
+  settings/work/identity revision and explicit fresh-conversation acknowledgement are checked
+  under exclusive state/account ownership. No network, claim, pull, ACK, file/model work or send
+  occurs. Missing proof, stale/replayed confirmation and a full 1,000-entry audit fail closed.
+- The review atomically holds earlier requests/files/unsent replies and records the association
+  fingerprint, time and prior input sequence. A fresh signed message after review gets a distinct
+  private conversation with the same project/Brain/team/agent; delayed input is ignored. Earlier
+  source requests stay blocked even if a provider timestamp was ahead of the local clock. Native
+  operation IDs and sent/uncertain delivery evidence remain, and native agents keep their ordinary
+  controls. Other allowed phones keep their existing histories. Normal message timestamps do not
+  invalidate a reviewed association; a later identity change needs another review. Replacement
+  archives the sender reviews with the old relay instead of carrying their authority forward.
+- Added local status/privacy, exact ACK, pause/pairing/hold/phone gates, stale/double confirmations,
+  atomic failure, ownership, audit-limit, future-clock native-work/reply and per-phone isolation
+  tests. DOM tests cover discovery/back, all sender states, confirmation, cancel, navigation/error
+  and no automatic mutation. Bun/Node and read-only bundle proof now reviews a signed rotation
+  across restart and admits only a fresh separate conversation without provider sends or a model.
+  README, guide and relay instructions include same-phone rotation and new-number examples.
+- Testing also exposed dismissed requests still blocking later text/file replies in the same
+  binding. Delivery now skips these already settled unstarted requests, matching work dispatch;
+  regression coverage verifies later text and file claims while retaining the dismissed receipt.
+- A scoped finish review approved the sender panel, four status states, navigation and confirmation
+  in light/dark desktop/mobile captures, with no material findings. A six-Tab probe stayed in the
+  confirmation and Escape closed it. Only isolated synthetic state was used and removed; browser
+  review submission was cancelled. Error/empty/success states have source and DOM evidence, without
+  a live-provider correctness or transport-readiness claim.
+- Validation: `CI=1 bun run check` passed (261 files; 2,575 tests passed, one skipped). The web
+  build, desktop staging and bundled desktop smoke passed. No real account, deployment, provider
+  message or model call was used to exercise sender review.
+- Paused delivery review now records an operator-confirmed remote message/file ID for one attempted
+  uncertain text part, outgoing file or advisory notice. The review is bound to the exact event,
+  target and current journal/configuration revision. Pending, failed, unattempted and already sent
+  parts cannot be promoted. Native work must already have a completed saved answer; no provider or
+  model call is made. Local review remains possible after sender permission or relay changes.
+- An explicit **Finish delivery locally** action permanently closes the remaining delivery while
+  preserving original statuses, uncertainty, confirmed parts, native IDs and byte reservations.
+  Closed receipts cannot retry, select or skip files, send notices, or reopen delivery. Schedulers
+  let later messages continue in the binding after other holds are resolved. Source changes and
+  restart recovery keep closed evidence intact. Normal cleanup retains replay and quota markers.
+- **Review delivery** in the inbox opens a dedicated Settings section using the existing shared
+  controls, showing the original source, pinned destination and per-item receipts. Interrupted
+  sends require an explicit local recovery action for the selected completed answer; GET stays
+  read-only. Both recovery and review drain the worker and take exclusive account/state ownership
+  while paused, including unavailable WhatsApp, without constructing a transport.
+- The offline WhatsApp media proof now records an old
+  sender's uncertain delivery locally, closes a new saved answer, survives restart and checks that
+  provider calls, native work and delivery evidence are unchanged. WhatsApp remains unavailable.
+- A scoped finish reviewer approved the delivery panel and both confirmations in eleven
+  light/dark desktop/mobile captures, with no blocking findings. Six Tab presses stayed in the
+  local-finish confirmation and Escape closed it. Only isolated synthetic state was used and
+  removed; both browser submissions were cancelled. DOM tests supply the empty/error/success,
+  stale review and closed-state evidence; no real-provider correctness claim is made.
+- Validation: `CI=1 bun run check` passed (263 files; 2,603 tests passed, one skipped). The web
+  build, desktop staging and bundled desktop smoke passed. An earlier full run hit an ownership-port
+  collision in the isolated Bun proof; its focused rerun passed without changing ownership guards.
+  A later full run was interrupted by confirmed system sleep and timed out across unrelated suites;
+  a fresh complete run with idle-sleep prevention passed. No real account, deployment, provider
+  message or model call was used to exercise delivery review.
+- Telegram instances now offer **Set up Telegram** with local status, an explicit paused bot/webhook
+  check and a separately confirmed switch to polling. `getMe` must match the saved numeric bot ID;
+  full webhook settings and current configuration/token are rechecked before removal. The browser
+  and private setup receipts keep only the host, queue count and opaque fingerprints, never the
+  full URL, credentials, query/path or raw provider errors. Opening/reloading makes no provider call.
+- Switching requires acknowledgements that the previous integration is stopped and pending updates
+  will be kept. An atomic private intent precedes one `deleteWebhook` request with
+  `drop_pending_updates: false`; a fresh identity/webhook check must verify the result. The instance
+  remains paused. There is no polling, intake, download, send or model work during setup; native
+  operations, inbox receipts and byte reservations stay untouched. Connect still refuses webhooks
+  and keeps the SDK's automatic deletion disabled. [Telegram's API](https://core.telegram.org/bots/api#deletewebhook)
+  has no atomic compare/delete operation, so stopping the previous integration remains necessary.
+- Interrupted switches and uncertain responses survive restart and block adapter initialization
+  before any provider request. Only an explicit paused check can verify no webhook remains; a
+  remaining or changed webhook requires a fresh check and confirmation. Checks expire after ten
+  minutes or any configuration/token change, old confirmations cannot replay, and the bounded
+  100-attempt history is never evicted. Account and state ownership drain the worker for both
+  checks and switching; write failures before intent prevent remote mutation.
+- The Bun/Node and read-only bundle proof now switches a local fake Telegram webhook, keeps its
+  pending count, survives state restart and verifies that only setup methods ran. Server tests cover
+  identity, pause, source/configuration/URL changes, lost outcomes, strict request bodies, failed
+  writes, bounded responses, redaction, ownership and audit capacity. API/DOM tests cover request
+  guards, deep links, loading/check states, confirmation, cancellation, unmount, pause and reload.
+  A scoped finish reviewer approved ten light/dark desktop/mobile captures of the setup, held
+  switch and confirmation, with no blocking findings. Six Tab presses stayed in the confirmation;
+  Escape closed it. Only isolated synthetic saved state was used and removed; no browser provider
+  check or switch was submitted. Empty/error/success/pause states have source and DOM evidence,
+  without a live-provider correctness claim.
+- Validation: `CI=1 bun run check` passed (265 files; 2,624 tests passed, one skipped). The web
+  build, desktop staging and bundled desktop smoke passed. The final request-format review keeps
+  Telegram's token separator while escaping URL path/query characters, with regression coverage.
+  No real account, deployment, provider mutation, message or model call was used to exercise setup.
+- Added paused **Review saved work → Keep work in Athena** for a reserved or started request
+  without a final gateway reply. The operator explicitly acknowledges possibly running native
+  work, no gateway reply, and a separate future private conversation. This permanently closes
+  gateway tracking, reconciliation, file selection and future delivery for that request, without
+  cancelling, completing, approving or replaying native work. Original operation/dispatch IDs,
+  inputs, saved files, notices, delivery uncertainty and byte reservations are retained unchanged.
+- The review is bound to the selected event and exact settings/journal revision, drains the
+  worker, and claims exclusive account/state ownership while paused. It makes no provider or
+  native-runtime call and also works for unavailable platforms or revoked old access. A selected
+  interrupted receipt requires explicit local recovery; GET only reads saved evidence. The UI
+  clearly distinguishes saved native receipts from a live status check and keeps native IDs in
+  a disclosure, alongside the original source and destination.
+- Keeping work holds earlier queued input and unsent output in the same external conversation
+  lineage. Newly accepted messages use a fresh private binding under current routing/guards, so
+  an old possibly running native chat/team/Brain operation cannot become the next request's
+  context. Other conversations/threads and separate route, relay and sender-review generations
+  are untouched. Old edits and late grouped album parts stay in the old binding. Dedupe still
+  returns the original receipt; no old source is admitted a second time. Successive reviews keep
+  a monotonic action order and validated binding roots, independent of original input order.
+- Kept work does not consume active dispatcher slots, emit more notices, reenter tracking or
+  accept late native completion callbacks. Its original saved status is preserved rather than
+  invented completion. Normal cleanup retains these review/routing markers and their old held
+  context for recovery; resolved work in a fresh binding can still be cleaned normally, retaining
+  replay/quota markers and stable future routing.
+- Added server coverage for Brain/agent/team and Slack/Discord isolation, paused and stale/body
+  guards, source edits and albums, preserved native runs/chats, no old callbacks or admissions,
+  local receipt recovery, revoked access, repeated reviews, cleanup and forged roots, atomic saves,
+  ownership and stop-failure redaction. API/DOM checks cover request guards, private metadata,
+  exact confirmation, pause, history, cancellation, stale errors and unmount. The signed WhatsApp
+  Bun/Node/read-only bundle proof now keeps native work locally across restart and admits only a
+  new private request, without provider calls, sends or model work. WhatsApp remains unavailable.
+- A scoped finish reviewer approved twelve light/dark desktop/mobile captures of saved native
+  work, reservation-only work, the ID disclosure and irreversible confirmation, with no material
+  findings. Six Tab presses stayed in the confirmation and Escape closed it. Only isolated
+  synthetic state was used and removed; the browser confirmation was cancelled. Unshown
+  empty/error/success/prepare states have source and DOM evidence, without a live-native or
+  provider-readiness claim.
+- Validation: `CI=1 bun run check` passed (267 files; 2,650 tests passed, one skipped). The web
+  build, desktop staging and bundled desktop smoke passed. No real account, provider call,
+  native cancellation/admission, message or model call was used to exercise keeping work local.
+- Added the backend ledger for approved Telegram/Discord Outbox follow-ups, separate from native
+  inbox answers. Review binds an explicit instance, project, post, real completed source message
+  and exact bounded Unicode text parts to current credentials, sender access, scope and routing.
+  Review exposes recipient addresses and an opaque revision, without source text or credentials.
+  Changed review text or context requires a fresh review; repeated approval retains existing
+  receipts and cannot replace the recipient or resend confirmed parts.
+- Approved parts use the worker's exclusive state claim and serialized reply sender. Each part is
+  saved as sending before provider I/O. Confirmed IDs and provider retry times survive restart;
+  interrupted or unknown sends remain uncertain and do not retry automatically. A failed or held
+  delivery blocks later approved sends in that binding while unrelated conversations can proceed.
+  Instance, policy, source and credential changes hold unsent work, with another approval check
+  immediately before provider POST, including after Discord's asynchronous recipient checks.
+  Discord uses separate per-attempt Outbox nonces and retains its native claimed-reply guard.
+- Unresolved approved sends protect their real source binding from inbox cleanup. Completion
+  releases that protection but retains dedupe and confirmed delivery evidence. Private receipts
+  reject foreign instances, inconsistent ordering, changed approval text and duplicate post keys;
+  capacity and storage failures stop delivery rather than evicting evidence. Worker startup
+  recovers interrupted receipts before opening transport. No new native request or run is created.
+- Added local ledger and fake-provider adapter coverage for exact text/recipient review, partial
+  success, rate limits, failed/uncertain outcomes, restart, stale authorization, credential changes
+  during Discord preflight, unchanged native work, ordered bindings, cleanup and atomic saves.
+  This is backend groundwork: HTTP/tools do not yet enqueue these approved sends. The Outbox
+  recipient picker, approval/progress projection, paused delivery reconciliation and replacement
+  of old global-token helpers/Connections forms remain to implement. No real account or external
+  platform send was used; WhatsApp stays unavailable and Slack proactive sends are not enabled.
+- Validation: `CI=1 bun run check` passed (268 files; 2,670 tests passed, one skipped), followed
+  by the web build, desktop staging and bundled desktop smoke. An earlier full run hit the
+  existing kernel ownership-port collision in a saved-work fixture before it opened state;
+  the full rerun passed with the ownership guard unchanged.
+- Connected Telegram/Discord Outbox drafts to the worker-owned delivery ledger. The guarded
+  destination list contains only current-project, completed, still-allowed source conversations
+  with confirmed native replies. No source text, private native answer or credentials is returned.
+  Drafts can wait without a recipient; no instance is picked implicitly. Review saves selected
+  instance/conversation and exact Unicode-safe parts, then returns a draft revision and explicit
+  approval snapshot. Stale edits, another project/platform, changed access or source, and stopped
+  owners refuse approval. Successful approval reports queued rather than delivered.
+- The private approval is authoritative before the sender wakes; failed public-status saves
+  cannot unlock an approved draft. Outbox GET projects per-part receipts, confirmed IDs, retry
+  waits, held/failed/uncertain/sent states and local closure. Each private journal is read once per
+  list request. Missing or corrupt committed receipts fail closed; draft edits, reject, return and
+  remove cannot erase approved delivery evidence. Removed instances stay held with retained
+  receipts rather than appearing queued. Native work and its inbox records are not rewritten.
+- Added paused **Finish locally** for approved Outbox deliveries. The supervisor drains the worker,
+  claims account and private state, recovers interrupted sends as uncertain, and requires a fresh
+  receipt revision plus explicit no-send acknowledgement. Closure preserves confirmed IDs,
+  remaining text, attempts and uncertainty, blocks all future sends from that post and releases
+  its cleanup hold. Original-project receipts can be finished after an instance is rebound to
+  another project; the action never follows the new route or starts native work.
+- Outbox now offers **Gateway message**, separate instance/conversation pickers, saved draft
+  review with full bot/chat/thread/source addresses and every text part, checkbox-gated approval,
+  per-part delivery receipts and paused local finish confirmation. It distinguishes queued,
+  sending, confirmed, uncertain, held and locally finished states. Cancellation does not approve;
+  stale reviews and unmounted views cannot submit later. Original draft revisions are retained
+  while editing, so another tab's changes cannot silently become the review baseline.
+- Replaced Telegram/Discord Connections credential forms and implicit test sends with fresh
+  Gateways setup links; Settings search and Station links now open Gateways. Old global tokens,
+  chat IDs and Discord webhooks are not used for sends. X/Reddit account behavior stays separate.
+  `gateway_draft` saves an unsent draft for the user's recipient choice. High-risk `telegram_send`
+  and `discord_send` require explicit instance/source IDs and keep normal approval policy, with
+  queued results in Outbox. `notify_user` is local-only; legacy external flags fail explicitly.
+  Workflow notifications remain local and their Telegram option saves an unapproved Outbox draft.
+- Added API/server/DOM checks for draft snapshots, no implicit recipient or old-secret fallback,
+  owner/platform/project guards, concurrent edits, immutable approved receipts, partial progress,
+  storage interruption, missing/corrupt evidence, paused exclusive closure, rebinding and removed
+  instances, project-pinned tool sends, workflow drafts, cancelled/stale UI and modal unmount.
+  An obsolete webhook-send fixture now checks that old gateway drafts stay unsent and isolated.
+- A fresh scoped finish reviewer approved fourteen light/dark desktop/mobile captures of Outbox
+  recipient review, uncertain parts, local finish confirmation and Connections setup links. Six
+  Tab presses stayed in the review modal and Escape closed it. Both confirmations were cancelled;
+  native inbox bytes stayed unchanged and the fake provider recorded zero writes. The isolated
+  data/home/Chrome profile were removed. Unshown states have source and DOM evidence rather than
+  real-account readiness claims. WhatsApp remains unavailable; Slack/WhatsApp proactive Outbox
+  sends and Outbox manual confirmation/explicit retry remain to implement.
+- A separate source-only finish review approved the Gateways and workflow wording corrections:
+  follow-ups are reviewed in Outbox, and the workflow Telegram option creates a draft requiring
+  recipient choice and approval. This does not extend the fourteen-capture visual evidence.
+- Validation: `CI=1 bun run check` passed (270 files; 2,692 tests passed, one skipped). The final
+  focused Outbox fixture passed all twelve tests after making its storage-failure path match
+  Windows separators too. The web build, desktop staging and bundled desktop smoke passed.
+  An earlier WhatsApp fixture hit the existing kernel ownership-port collision before state
+  opened; its isolated rerun and the final full check passed with ownership checks unchanged.
+- Added **Outbox → Review delivery** for approved Telegram/Discord posts. Opening reads saved
+  recipient/text/part metadata without provider checks, state claims or receipt recovery. Closed,
+  removed-instance and completed history remain readable; no configuration fingerprints, secrets
+  or private native answers reach the view. Original recipient metadata is shared with send review.
+- Paused **Recover interrupted receipts** drains the worker and claims account/private state before
+  classifying the selected post's interrupted send as uncertain. Pause is checked again after
+  asynchronous ownership acquisition. GET never performs this mutation, other posts keep their
+  receipts, and stale revisions must be reloaded before recording or retrying.
+- **Record confirmed delivery** requires an explicitly selected attempted uncertain part, its own
+  messaging-app ID, a fresh receipt revision and acknowledgement that the operator checked the
+  app. It records ID, time and attempt locally; pending, unattempted, failed and already-confirmed
+  parts cannot be relabelled. Confirmed prefix IDs remain intact. A pending tail on that post is
+  held until an explicit continuation; recording a result sends nothing and enables no instance.
+- **Retry remaining delivery** requeues only the first unresolved failed/uncertain part and its
+  original approved suffix, with duplicate-risk acknowledgement for an attempted send.
+  **Continue remaining delivery** releases the pending tail after a local confirmation. Both keep
+  confirmed parts, immutable text/recipient and existing attempt counts; actual send claims still
+  increment attempts and use distinct transport nonces. The instance stays paused until enabled.
+  Saved provider retry waits are not bypassed and ordinary already-queued work is not reapproved.
+- Retry rechecks the exact original route, project, target, account, credentials, sender/scope rules,
+  source messages, grouped album members and private-conversation review boundaries. Pure paused
+  policy inspection never enables intake or transport. Changed or previously held destinations
+  cannot be reopened by retry; local confirmation/finish remain available where appropriate.
+  Native runs, inbox evidence, files and byte charges are not replayed or rewritten.
+- Review history is bounded, revisioned and checked against part order, attempts, confirmed IDs and
+  continuation holds. History and closure seals survive restart; contradictory records fail closed.
+  Failed writes cannot clear a hold or queue work. Confirmation, retry and local finish each require
+  fresh paused receipts under exclusive ownership; closed delivery remains permanent.
+- Added API/server/DOM checks for paused and stale/body guards, explicit part selection, duplicate
+  acknowledgement, preserved prefixes, continuation holds, recovery, ownership and pause races,
+  source/credential/policy/route changes, albums, audit corruption, storage failure and late callbacks.
+  The UI keeps upper receipt details and lower actions accessible in scrolling shared dialogs, with
+  inline errors, cancelled confirmations, double-click/unmount guards and explicit paused results.
+- A fresh scoped finish reviewer approved fourteen light/dark desktop/mobile captures of recovery,
+  uncertain parts, local confirmation, held continuation and duplicate-warning dialogs. Six Tab
+  presses stayed inside and Escape closed the dialog. In isolated synthetic state, real local APIs
+  recovered a receipt, recorded a checked ID and queued continuation/retry without enabling the
+  instance. The confirmed prefix and native inbox bytes stayed unchanged; the pending tail retained
+  zero attempts and the retried part retained its prior single attempt. The preview recorded zero
+  provider attempts, then its data/home/Chrome profile were removed. Unshown states have source and
+  test evidence; this is not real-account delivery acceptance. WhatsApp remains unavailable.
+- Final validation: `CI=1 bun run check` passed (272 files; 2,715 tests passed, one skipped),
+  including closed-history projection after confirming a part and finishing locally. A WhatsApp
+  recovery fixture failed once; its isolated 55-test rerun and the final full check passed with
+  ownership checks unchanged. The web build, desktop staging and bundled desktop smoke passed.
+- Gateway deletion now saves a versioned, credential-free retirement record before draining its
+  worker. The record blocks intake, route capture, settings/credential edits and reconnects even
+  if the raw setup file survives a failure. Only after worker shutdown and exclusive account/state
+  claims does removal clear local credentials/pairing and the setup file. Worker shutdown retains
+  confirmed and uncertain results; no native work, private journals, quotas or uploaded files are
+  purged or replayed. Removal can preserve even unreadable SDK bytes without opening SDK state.
+- Interrupted removal is retryable using the original ID. Pending accounts stay reserved even if
+  the setup file was already removed. Completed removal is idempotent and cannot restore an old
+  identity. Startup resumes valid incomplete removals under ownership; a broken retirement record
+  remains blocked without delaying another instance's cleanup. Corrupt credential storage is
+  refused rather than replaced with an empty store that could erase other accounts.
+- Added read-only local APIs for safe retired identity metadata and validated saved inbox history.
+  Reads never take ownership or rewrite/classify receipts, and normal active-instance APIs remain
+  closed. Retirement metadata and native journals remain outside project exports/backups. Deletion
+  clears local pairing only; it makes no relay administration or messaging-service request.
+- Lifecycle/API fixtures cover all four platform records, token/pairing separation, worker drain
+  and shutdown failure, in-flight uncertainty without native replay, account/state ownership,
+  atomic-write/unlink failures, restart after setup removal, idempotence, corrupt journals/records
+  and credential storage, independent cleanup and guarded DELETE. Product recovery controls for
+  retired instances, legacy removed folders without retirement records and media retention remain
+  pending; this backend slice adds no new screen or real-account delivery claim.
+- Validation: `CI=1 bun run check` passed (273 files; 2,732 tests passed, one skipped). The web
+  build, desktop staging and bundled desktop smoke passed. These checks used isolated local
+  fixtures; no account was connected or revoked, and no provider message or relay request was sent.
+- Added **Settings → Gateways → View removed instances**, with literal metadata search, bounded
+  list/history rendering and stable `retired` deep links. Each instance's history shows its saved
+  account/project/target, input, native operation/conversation IDs, answer, album linkage and separate
+  text/notice/file outcomes. Confirmed IDs and historical in-flight/uncertain states stay intact.
+  Long text scrolls within disclosures. The view grants no intake, send, native replay or reconnect.
+- Unfinished retirement offers a shared confirmation naming the exact instance/account before
+  retrying guarded DELETE. Cancel, duplicate clicks, selection changes and unmount cannot submit a
+  different instance. Success refreshes metadata; storage/ownership failure keeps the connection
+  blocked with a retryable inline error. Active setup stays separate. Read-only retired deep links
+  load independently even when active credentials prevent the active listing from loading.
+- Added DOM fixtures for GET-only discovery/history, independent deep links, original metadata and
+  delivery IDs, cancelled/duplicate/unmounted removal, failure/reload, empty/missing records, long
+  escaped content, search/paging and stale history responses after changing selection. Retired
+  receipt reconciliation and permanent local-finish actions remain pending.
+- A fresh scoped finish reviewer approved twelve light/dark desktop/phone captures covering the
+  list, original history, lower text/notice receipts, unfinished removal and its shared confirmation.
+  Six settled Tab samples stayed within the dialog; Escape closed it. A real local API exercise in
+  isolated synthetic state finished an ownership-blocked removal, kept saved native inbox bytes
+  unchanged and left remaining instances paused. It recorded zero external/provider attempts, then
+  its server stopped and temporary data/home/Chrome profile were removed. The existing Settings
+  shell's small phone overflow is also present with this view closed; target content fits. Unshown
+  states have source/test evidence, not visual approval. This does not enable WhatsApp or establish
+  real-account delivery acceptance.
+- Final validation: `CI=1 bun run check` passed (274 files; 2,742 tests passed, one skipped).
+  The web build, desktop staging and bundled desktop smoke passed. The existing running web
+  watcher overlapped one manual build; its clean rerun and final desktop staging succeeded.
+- Added removed-instance **Review local finish** for completed native answers and reserved/started
+  native work. GET returns an opaque revision of the retirement identity and validated full journal,
+  original source/target and saved operation/conversation IDs, plus current text/file/notice outcomes.
+  It performs no ownership claim, receipt recovery, SDK opening, credential read or native-status check.
+- Mutations require completed removal and exclusive account/private-state ownership, recheck the
+  retirement after asynchronous claims, and validate the exact displayed revision and strict body.
+  Selected-request recovery is a separate revisioned POST before closure. The same journal validator
+  protects live and retired paths, including replay, quota, album and WhatsApp ACK evidence; no
+  unavailable platform is enabled. Corrupt SDK or unrelated credential storage cannot force a reset.
+- Completed delivery uses the existing permanent `deliveryFinished`/audit proof, including notice-only
+  unresolved delivery. Started/reserved work uses the existing `workKept` proof and sequence cutoff;
+  other saved requests in that conversation stay held. The live keep/recovery paths share the same
+  small mutation helpers. The selected native operation/dispatch, original input, confirmed IDs,
+  attempts, file charges, SDK state and unrelated Outbox receipts stay intact. Late callbacks cannot reopen tracking
+  or delivery. Queued requests, edits and album members remain read-only evidence here.
+- The Settings review shows original source/target, saved native IDs and individual delivery outcomes,
+  explicit interrupted-receipt recovery, reloadable failures and permanent closure time. A shared
+  confirmation names original chat/message/project and warns that native work may still run or
+  uncertain delivery may already have arrived. Cancel, duplicate clicks, stale reads and unmount are
+  guarded; this view grants no send, reconnect, native replay or manual-confirmation capability.
+- Added server/API/DOM checks for source identity, fresh revisions/acknowledgements, atomic writes,
+  ownership conflicts and recheck races, preserved evidence, strict WhatsApp relay proof, notice-only
+  closure, Brain/agent/team native work, unknown admission, queued requests, late callbacks, corrupt
+  SDK/credentials and UI cancellation/failure/reload. Synthetic archived fixtures exercise all four
+  platform labels without establishing real-account delivery acceptance.
+- A fresh scoped finish reviewer approved fourteen light/dark desktop/phone captures of original
+  source/work IDs, interrupted receipt recovery, retained outcomes, native-work warnings, permanent
+  closure and both confirmations. Six settled Tab samples stayed inside the confirmation; Escape
+  closed it. In isolated synthetic state, real local UI/API actions recovered and closed delivery
+  and native tracking. The confirmed prefix ID stayed intact, the pending tail kept zero attempts,
+  the selected dispatches/inputs, file reservations, SDK bytes and unrelated Outbox bytes stayed
+  unchanged, and a queued sibling stayed held without an operation. Remaining instances stayed
+  paused. The preview recorded zero external/provider attempts, stopped, and its data/home/Chrome
+  profile were removed. Unshown states have source/test evidence, not visual approval; this does
+  not enable WhatsApp or establish real-account delivery acceptance.
+- Final validation: `CI=1 bun run check` passed (276 files; 2,770 tests passed, one skipped).
+  The web build, desktop staging and bundled desktop smoke passed.
+- Added removed-instance Outbox closure through the existing **Review delivery** dialog and guarded
+  APIs. Safe metadata identifies removal without treating it as an enabled or paused connection.
+  Completed retirement and exact original instance/account/platform are required. Missing legacy
+  records and unfinished removal stay read-only. Approved text/recipient, confirmation audit,
+  attempt counts and pending tails remain immutable evidence; retry/manual confirmation stay disabled.
+- Recovery is a separate, strict revisioned action for only the selected interrupted post. Closure
+  uses the existing permanent receipt seal. Its displayed revision includes removal identity and
+  the private delivery; the public Outbox row and original project are rechecked after exclusive
+  account/state acquisition. Changed public text/source selection, destination proof, retirement
+  identity or revision refuses the write. Already confirmed or closed delivery cannot be reopened or resent.
+- Shared retired ownership keeps claims through the review callback and serves both native and
+  Outbox closure. The Outbox path opens no SDK, credential store or native inbox, so their corruption
+  cannot trigger a reset. It changes only the selected private Outbox receipt; source work, sibling
+  posts and public approval data remain intact. All writes retain the existing atomic validator.
+- The dialog preserves original recipient/text/part evidence and its scrolling action/footer layout.
+  Removed-instance copy and recovery guidance explain local closure and the blocked connection;
+  retry and manual-confirmation controls are absent. A history link opens the removed instance.
+  Finished posts move to Outbox History and remain reviewable with their closure time and prior
+  statuses. Shared confirmation, cancellation, duplicate/unmount and project-change guards remain.
+- Added server/API/DOM coverage for Telegram/Discord closure, fresh recovery revisions, immutable
+  approvals/confirmation holds, closed seals, late callbacks, public-row and retirement races,
+  original-project pinning across a global switch, same-ID isolation in another project, ownership
+  conflicts, missing/pending removal and atomic storage failure. Broken native/SDK/credential bytes
+  remain untouched; mutation guards still require `x-dash` and strict acknowledgement bodies.
+- Personally inspected twelve synthetic desktop/phone captures covering recovery, eligible actions,
+  dark mode, confirmation, closed History and unfinished removal. The fresh UI finish review returned
+  `ship` with no material fixes. The flow preserved approval, recipient, text, confirmed prefix,
+  uncertainty and the unattempted tail; native inbox, SDK and sibling bytes stayed unchanged.
+  Six settled Tab samples stayed in the nested confirmation, and Escape closed only that confirmation.
+  The preview recorded zero provider attempts, stopped, and its isolated data/home/browser profile
+  were removed. Phone document width was 392px at a 390px viewport; the modal fit, but zero page
+  overflow was not established. Only the shown local states have visual approval.
+- Final validation: `CI=1 bun run check` passed (277 files; 2,786 tests passed, one skipped).
+  The web build, desktop staging and bundled desktop smoke passed.
+- Added private per-transfer ownership records before any gateway upload source bytes are written.
+  Both the empty reserved destination and temporary file record their device, inode and birth time,
+  alongside the original project, batch and source receipt. A failed proof write cancels saving before
+  streaming. Successful receipt commits release their proof; an interrupted release stays recoverable.
+  At 10,000 retained ownership entries, new saves stop before streaming; larger or corrupt stores
+  require recovery instead of dropping old ownership evidence.
+- Removed instances receive a 24-hour grace period after completed removal. Startup and hourly
+  checks acquire account/state ownership, recheck removal identity and validate ownership/inbox
+  evidence before deleting scratch. Only matching old regular files can be removed, including a
+  renamed upload without its receipt. Saved incoming files (even failed/held), selected outgoing
+  files, files edited after removal, replacements, links, unknown files and legacy batches without
+  proof remain intact.
+  Missing/moved projects, changed source/batch proof, unusable file identities and corrupt records
+  retain bytes. A blocked instance does not prevent other instances from completing their checks.
+- Cleanup does not instantiate SDK state, read credentials, start work or contact a provider. It never
+  rewrites native inputs, replay/quota markers, saved attachment records or Outbox evidence. Failed
+  unlinks keep the ownership record for an idempotent later retry. Shutdown cancels the hourly timer.
+- Added coverage for grace periods, partial/rename crashes, saved and unproven files, original-project
+  startup, replacements and symlinks, ownership conflicts and removal races, corrupt records, failed
+  proof writes/unlinks, broken SDK/credential storage and timer shutdown. No UI changed in this slice.
+- Final validation: focused checks passed (4 files; 58 tests). `CI=1 bun run check` passed
+  (278 files; 2,806 tests passed, one skipped). An earlier full run hit the existing ownership-port
+  collision during Discord fixture setup; the unchanged 78-test Discord file and full rerun passed.
+  The web build, desktop staging and bundled desktop smoke passed.
+- Next: remaining delivery/product controls and proactive platform coverage under the same approval policy.
+  Real-account checks on all four platforms and Windows/Linux verification remain outstanding.
+  Offline checks run in CI.
 
 ## Goal
 

@@ -12,6 +12,7 @@ import { GatewaySetupError } from './telegram.ts';
 import { DiscordGateway, discordGatewayDetails } from './discord-gateway.ts';
 import type { GatewayStateAdapter } from './state.ts';
 import { GatewaySendError } from './replies.ts';
+import type { GatewayApprovedTextSend } from './replies.ts';
 import { verifyGatewayDocument } from './outgoing.ts';
 import type { GatewayDownloadSource } from './files.ts';
 
@@ -279,14 +280,14 @@ export class DiscordIntakeAdapter extends DiscordAdapter {
     });
   }
 
-  async replyText(event: GatewayInboxEvent, text: string, signal: AbortSignal): Promise<string> {
+  async replyText(event: GatewayInboxEvent, text: string, signal: AbortSignal, approved?: GatewayApprovedTextSend): Promise<string> {
     return this.dispatchSignal.run(signal, async () => {
       const version = this.inbox.deliveryVersion(event.id);
       try {
         signal.throwIfAborted(); await this.destination(event);
         if (!text || text.length > 2000) throw new Error('Discord reply exceeds its limit.');
       } catch (error) { throw preflightError(error); }
-      return this.sendMessage(event, text, signal, version);
+      return this.sendMessage(event, text, signal, version, undefined, approved);
     });
   }
 
@@ -301,7 +302,7 @@ export class DiscordIntakeAdapter extends DiscordAdapter {
     });
   }
 
-  private async sendMessage(event: GatewayInboxEvent, text: string, signal: AbortSignal, version: string, upload?: { file: GatewayOutgoingFile; bytes: Buffer }): Promise<string> {
+  private async sendMessage(event: GatewayInboxEvent, text: string, signal: AbortSignal, version: string, upload?: { file: GatewayOutgoingFile; bytes: Buffer }, approved?: GatewayApprovedTextSend): Promise<string> {
     let token: string; let nonce: string; let body: string | FormData;
     try {
       token = await this.resolveBotToken(); signal.throwIfAborted(); this.authorize(event); this.checkRateLimit();
@@ -309,9 +310,13 @@ export class DiscordIntakeAdapter extends DiscordAdapter {
       const index = upload ? saved.outgoing?.findIndex((file) => file.status === 'sending' && file.path === upload.file.path && file.sha256 === upload.file.sha256 && file.name === upload.file.name && file.size === upload.file.size) ?? -1
         : saved.reply?.parts.findIndex((part) => part.status === 'sending' && part.text === text) ?? -1;
       const notice = !upload && index < 0 ? (['working', 'approval'] as const).find((kind) => saved.notices?.[kind]?.status === 'sending' && saved.notices[kind]!.text === text) : undefined;
-      if (index < 0 && !notice) throw new Error('Claim this Discord delivery before sending.');
-      const attempt = upload ? saved.outgoing![index].attempts.length : notice ? saved.notices![notice]!.attempts : saved.reply!.parts[index].attempts;
-      nonce = crypto.createHash('sha256').update(JSON.stringify([this.instanceId, event.id, upload ? 'file' : notice ?? 'reply', index, attempt])).digest('hex').slice(0, 24);
+      if (approved) nonce = approved.authorize(event, text);
+      else {
+        if (index < 0 && !notice) throw new Error('Claim this Discord delivery before sending.');
+        const attempt = upload ? saved.outgoing![index].attempts.length : notice ? saved.notices![notice]!.attempts : saved.reply!.parts[index].attempts;
+        nonce = crypto.createHash('sha256').update(JSON.stringify([this.instanceId, event.id, upload ? 'file' : notice ?? 'reply', index, attempt])).digest('hex').slice(0, 24);
+      }
+      if (!/^[a-f0-9]{24}$/.test(nonce)) throw new Error('Invalid Discord delivery receipt.');
       const payload = { content: text, nonce, enforce_nonce: true, allowed_mentions: { parse: [], replied_user: false }, flags: 4,
         message_reference: { type: 0, message_id: event.input.sourceMessageId, channel_id: event.input.conversationId, fail_if_not_exists: true },
         ...(upload ? { attachments: [{ id: 0, filename: upload.file.name }] } : {}),
@@ -321,6 +326,7 @@ export class DiscordIntakeAdapter extends DiscordAdapter {
         form.set('files[0]', new Blob([new Uint8Array(upload.bytes)], { type: 'application/octet-stream' }), upload.file.name); body = form;
       } else body = JSON.stringify(payload);
       if (version !== this.inbox.deliveryVersion(event.id)) throw new Error('The Discord source changed.');
+      if (approved && approved.authorize(event, text) !== nonce) throw new Error('The approved Discord delivery changed.');
     } catch (error) { throw preflightError(error); }
     try {
       const response = await fetch(`${this.apiBaseUrl}/channels/${event.input.conversationId}/messages`, { method: 'POST', body,

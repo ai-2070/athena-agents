@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GatewayWhatsAppRelayEnvelope, GatewayWhatsAppRelayStatus } from '../../shared/types.ts';
 import { whatsAppRelayOrigin } from '../../shared/gateway-whatsapp-relay.ts';
-import { GatewayInbox } from '../../server/gateways/inbox.ts';
+import { GatewayInbox, gatewayWhatsAppRecovery } from '../../server/gateways/inbox.ts';
 import { GatewayStateAdapter } from '../../server/gateways/state.ts';
-import { saveGatewayInstance } from '../../server/gateways/instances.ts';
+import { saveGatewayCredentials, saveGatewayInstance } from '../../server/gateways/instances.ts';
+import { restoreWhatsAppRecovery } from '../../server/gateways/whatsapp-recovery.ts';
 import { WhatsAppRelayConsumer, WhatsAppRelayError } from '../../server/gateways/whatsapp-relay.ts';
 import { gatewayConfig } from './gateway-fixtures.ts';
 
@@ -16,8 +17,9 @@ const closers: (() => Promise<void>)[] = []; let accounts = 9200000000;
 afterEach(async () => { for (const close of closers.splice(0).reverse()) await close(); vi.restoreAllMocks(); vi.useRealTimers(); });
 type Request = (url: string, init: RequestInit) => Promise<Response>;
 async function fixture() {
-  const instance = saveGatewayInstance({ ...gatewayConfig(String(accounts++)), name: 'WhatsApp consumer', platform: 'whatsapp',
-    senderPolicy: { platform: 'whatsapp', allowedPhones: ['+436641234567'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] } });
+  const config = { ...gatewayConfig(String(accounts++)), name: 'WhatsApp consumer', platform: 'whatsapp',
+    senderPolicy: { platform: 'whatsapp', allowedPhones: ['+436641234567'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] } };
+  const instance = saveGatewayInstance(config);
   const state = new GatewayStateAdapter(instance.id); await state.connect(); closers.push(() => state.disconnect()); const inbox = new GatewayInbox(state);
   const connection = { origin: ORIGIN, installationId: INSTALLATION, businessAccountId: BUSINESS, phoneNumberId: instance.accountId, epoch: EPOCH };
   inbox.bindWhatsAppRelayConnection(connection, 0);
@@ -69,7 +71,7 @@ async function fixture() {
   function consumer(send: Request = request, timeoutMs = 1000) {
     const value = new WhatsAppRelayConsumer({ inbox, token: TOKEN, appSecret: SECRET, request: send, timeoutMs }); closers.push(() => value.stop()); return value;
   }
-  return { instance, state, inbox, connection, calls, queue, acknowledgements, metadata, enqueue, request, consumer,
+  return { config, instance, state, inbox, connection, calls, queue, acknowledgements, metadata, enqueue, request, consumer,
     loseLease: () => { claimed = false; }, setCursor: (value: number, id = '') => { cursor = value; lastId = id; } };
 }
 
@@ -109,6 +111,32 @@ describe('authenticated WhatsApp relay consumption', () => {
     await consumer.stop(); const count = f.calls.length;
     expect(() => f.consumer()).toThrow('recovery'); expect(f.calls).toHaveLength(count);
     expect(() => f.inbox.bindWhatsAppRelayConnection(f.connection, 1)).toThrow('recovery');
+  });
+
+  it.each(['before', 'after'])('requires the exact ACK after restoring an installation with a lost reply %s remote commit', async (when) => {
+    const f = await fixture(); f.enqueue('held-before-restoration'); saveGatewayCredentials(f.instance.id, { relayKey: TOKEN, signingSecret: SECRET });
+    const first = f.consumer(async (url, init) => {
+      if (url.endsWith('/v1/ack')) { if (when === 'after') await f.request(url, init); throw new Error('Lost ACK reply'); }
+      return f.request(url, init);
+    });
+    await expect(first.poll()).rejects.toMatchObject({ kind: 'retry' }); await first.stop();
+    f.metadata.installationId = crypto.randomUUID(); const changed = f.consumer(); await expect(changed.poll()).rejects.toMatchObject({ kind: 'review', recovery: 'installation' }); await changed.stop();
+    saveGatewayInstance({ ...f.config, enabled: false }, f.instance.id); delete f.metadata.installationId; const calls = f.calls.length;
+    const revision = gatewayWhatsAppRecovery(f.instance.id).restoration!.revision;
+    await restoreWhatsAppRecovery(f.inbox, { revision, acknowledgeRestore: true }, { request: f.request });
+    expect(f.calls.slice(calls)).toEqual(['/v1/status']); expect(f.inbox.whatsAppRelayState()!.receipt!.confirmed).toBe(false); expect(f.inbox.whatsAppRelayState()!.cursor).toBe(0);
+    expect(f.inbox.list()[0].status).toBe('needs-review'); await f.state.disconnect(); await f.state.connect(); saveGatewayInstance(f.config, f.instance.id);
+    const resumed = f.consumer(); await resumed.poll(); expect(f.acknowledgements).toEqual([1]); expect(f.inbox.whatsAppRelayState()!.receipt!.confirmed).toBe(true);
+    expect(f.inbox.list()).toHaveLength(1); expect(f.inbox.claimNext()).toBeNull(); expect(f.inbox.list()[0].operationId).toBeUndefined();
+  });
+
+  it('still refuses the same invalid signed envelope after a connection-hold restoration', async () => {
+    const f = await fixture(); f.enqueue('invalid').signature = 'sha256=' + '0'.repeat(64); saveGatewayCredentials(f.instance.id, { relayKey: TOKEN, signingSecret: SECRET });
+    const first = f.consumer(); await expect(first.poll()).rejects.toMatchObject({ kind: 'review', recovery: 'envelope' }); await first.stop();
+    saveGatewayInstance({ ...f.config, enabled: false }, f.instance.id); const revision = gatewayWhatsAppRecovery(f.instance.id).restoration!.revision;
+    await restoreWhatsAppRecovery(f.inbox, { revision, acknowledgeRestore: true }, { request: f.request }); saveGatewayInstance(f.config, f.instance.id);
+    const resumed = f.consumer(); await expect(resumed.poll()).rejects.toMatchObject({ kind: 'review', recovery: 'envelope' });
+    expect(f.inbox.list()).toEqual([]); expect(f.acknowledgements).toEqual([]); expect(f.inbox.whatsAppRelayState()!.recovery!.reason).toBe('envelope');
   });
 
   it('never changes the paired origin or account based on status metadata', async () => {

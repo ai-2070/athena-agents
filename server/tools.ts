@@ -996,20 +996,32 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'gateway_draft',
+    group: 'social',
+    risk: 'none',
+    description: 'Draft a Telegram or Discord message in the Outbox. The user picks the gateway conversation, checks the text and approves. Never sends, and cannot list gateway conversations.',
+    parameters: obj({ platform: { type: 'string', enum: ['telegram', 'discord'] }, text: str('Exact message text'), note: str('Context for the user') }, ['platform', 'text']),
+    run: async ({ platform, text, note }: { platform: string; text: string; note?: string }, ctx) => {
+      if (platform !== 'telegram' && platform !== 'discord') throw new Error('Choose Telegram or Discord.');
+      const item = await social.draftPost({ platform, text, note, agentId: ctx.agent.id, agentName: ctx.agent.name, chatId: await chatOf(ctx) });
+      return { text: `Saved Outbox draft ${item.id}. The user must choose its gateway recipient and approve before it sends.` };
+    },
+  },
+  {
     name: 'telegram_send',
     group: 'social',
     risk: 'high',
-    description: 'Send a Telegram message to the configured chat.',
-    parameters: obj({ text: str('Message') }, ['text']),
-    run: async ({ text }: { text: string }) => ({ text: await social.sendTelegram(text) }),
+    description: 'Send a Telegram message through a gateway instance to a completed conversation, using IDs the user gave you (otherwise use gateway_draft). Queued is not delivered: receipts are in the Outbox.',
+    parameters: obj({ text: str('Exact message'), instance_id: str('Telegram gateway instance ID'), event_id: str('Completed source event ID') }, ['text', 'instance_id', 'event_id']),
+    run: async ({ text, instance_id, event_id }: { text: string; instance_id: string; event_id: string }, ctx) => ({ text: await social.sendTelegram(text, { instanceId: instance_id, eventId: event_id }, { agentId: ctx.agent.id, agentName: ctx.agent.name, chatId: await chatOf(ctx) }, ctx.signal) }),
   },
   {
     name: 'discord_send',
     group: 'social',
     risk: 'high',
-    description: 'Post a message to the configured Discord channel webhook.',
-    parameters: obj({ text: str('Message') }, ['text']),
-    run: async ({ text }: { text: string }) => ({ text: await social.sendDiscord(text) }),
+    description: 'Send a Discord message through a gateway instance to a completed conversation, using IDs the user gave you (otherwise use gateway_draft). Queued is not delivered: receipts are in the Outbox.',
+    parameters: obj({ text: str('Exact message'), instance_id: str('Discord gateway instance ID'), event_id: str('Completed source event ID') }, ['text', 'instance_id', 'event_id']),
+    run: async ({ text, instance_id, event_id }: { text: string; instance_id: string; event_id: string }, ctx) => ({ text: await social.sendDiscord(text, { instanceId: instance_id, eventId: event_id }, { agentId: ctx.agent.id, agentName: ctx.agent.name, chatId: await chatOf(ctx) }, ctx.signal) }),
   },
   // ---------- team ----------
   {
@@ -1299,12 +1311,12 @@ const TOOLS: ToolDef[] = [
     name: 'notify_user',
     group: 'core',
     risk: 'none',
-    description: 'Show the user a notification in the dashboard (and on Telegram when telegram=true and it is set up).',
-    parameters: obj({ text: str('Message'), telegram: { type: 'boolean' } }, ['text']),
+    description: 'Show the user a notification in the dashboard. For an external message, use gateway_draft or an explicitly approved gateway send.',
+    parameters: obj({ text: str('Message') }, ['text']),
     run: async ({ text, telegram }: { text: string; telegram?: boolean }, ctx) => {
+      if (telegram) throw new Error('Telegram notifications now require a selected gateway recipient and approval. Use gateway_draft.');
       emit('toast', { text: `${ctx.agent.name}: ${text}` });
       log('notify', `${ctx.agent.name}: ${text}`, { agentId: ctx.agent.id });
-      if (telegram) await social.sendTelegram(`${ctx.agent.name}: ${text}`).catch(() => {});
       return { text: 'The user has been notified.' };
     },
   },

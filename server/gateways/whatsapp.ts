@@ -129,6 +129,7 @@ export class WhatsAppGatewayAdapter extends WhatsAppAdapter {
   private readonly now: () => number;
   private readonly deliveryAttempts = new Map<string, Set<string>>();
   private rateUntil = 0;
+  private readonly relayEpoch: string;
 
   constructor(instanceId: string, inbox: GatewayInbox, credentials: { businessAccountId: string; accessToken: string; appSecret: string }, options: { signal?: AbortSignal; testOrigin?: string; now?: () => number } = {}) {
     const instance = getGatewayInstance(instanceId); const local = fixtureOrigin(options.testOrigin);
@@ -139,6 +140,7 @@ export class WhatsAppGatewayAdapter extends WhatsAppAdapter {
     this.instanceId = instanceId; this.inbox = inbox; this.businessAccountId = credentials.businessAccountId; this.testOrigin = local;
     this.signal = AbortSignal.any([this.abort.signal, ...(options.signal ? [options.signal] : [])]);
     this.now = options.now ?? Date.now;
+    this.relayEpoch = inbox.whatsAppRelayState()?.epoch ?? '';
     this.context();
   }
 
@@ -146,7 +148,8 @@ export class WhatsAppGatewayAdapter extends WhatsAppAdapter {
     this.signal.throwIfAborted();
     const instance = getGatewayInstance(this.instanceId); const relay = this.inbox.whatsAppRelayState();
     if (this.closed || !instance.enabled || instance.platform !== 'whatsapp' || instance.accountId !== this.phoneNumberId
-      || !relay?.connection || relay.connection.phoneNumberId !== this.phoneNumberId || relay.connection.businessAccountId !== this.businessAccountId) throw new GatewaySetupError('Check the paired WhatsApp business phone before connecting.');
+      || !relay?.connection || relay.epoch !== this.relayEpoch || getGatewaySecrets(this.instanceId).whatsappPairing !== undefined
+      || relay.connection.phoneNumberId !== this.phoneNumberId || relay.connection.businessAccountId !== this.businessAccountId) throw new GatewaySetupError('Check the paired WhatsApp business phone before connecting.');
   }
 
   private track<T>(task: Promise<T>): Promise<T> {

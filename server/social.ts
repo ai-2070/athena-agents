@@ -7,12 +7,16 @@ import path from 'node:path';
 import { dataPath, readJSON, writeJSON, fetchJSON, uid } from './util.ts';
 import { viewable, kindOf } from './files.ts';
 import { teamOf } from './artifacts.ts';
-import { getSettings, getSecrets, outbox as outboxStore, emit, log, activeProject, withProject } from './store.ts';
+import { getSettings, getSecrets, getGatewaySecrets, outbox as outboxStore, emit, log, activeProject, withProject } from './store.ts';
+import { listGatewayInstances } from './gateways/instances.ts';
+import { approveGatewayPost, assertGatewayDraftMutable, checkGatewayDraft, gatewayDraftRevision, gatewayPost, gatewayTextParts, prepareGatewayPost, projectGatewayPost } from './gateways/outbox-posts.ts';
+import type { GatewayOutboxReadCache } from './gateways/outbox-posts.ts';
+export { prepareGatewayPost } from './gateways/outbox-posts.ts';
 import * as reddit from './reddit.ts';
 import { xLength, X_MAX_LENGTH } from '../shared/xtext.ts';
 import type { FetchError } from './util.ts';
 import type { Collection } from './store.ts';
-import type { Accounts, OutboxPost, XAccount } from '../shared/types.ts';
+import type { Accounts, GatewayOutboxApproval, OutboxPost, XAccount } from '../shared/types.ts';
 import type { StoredRedditAccount } from './reddit.ts';
 
 /** A connected X account as accounts.json stores it (tokens never leave the server). */
@@ -40,7 +44,7 @@ export interface OAuthQuery {
  * An Outbox item as this file writes it. Wider than the shared OutboxPost: accountId/agentId can be null,
  * and it keeps how far publishing got.
  */
-export interface OutboxItem {
+export interface OutboxItem extends OutboxPost {
   id: string;
   platform: OutboxPost['platform'];
   accountId?: string | null;
@@ -88,6 +92,7 @@ export interface DraftInput {
   title?: string;
   link?: string;
   parent?: string;
+  gateway?: OutboxPost['gateway'];
   /** Reddit post: the subreddit's flair template id (up to 36 characters) and/or the flair text (up to 64). */
   flairId?: string;
   flairText?: string;
@@ -99,6 +104,8 @@ export interface ApproveEdits {
   /** The images still wanted (a subset of what the draft has: images can be taken off, not added). */
   images?: string[];
   title?: string | null;
+  gatewayApproval?: GatewayOutboxApproval;
+  draftRevision?: string;
 }
 
 // ---------- X API answers (only the fields used here) ----------
@@ -139,12 +146,12 @@ const saveAccounts = (a: AccountsFile) => writeJSON(ACCOUNTS_FILE, a);
 export function listAccounts(): Accounts {
   const a = loadAccounts();
   const s = getSettings();
-  const sec = getSecrets();
+  const gateways = listGatewayInstances().filter((instance) => instance.projectId === activeProject().id && Boolean(getGatewaySecrets(instance.id).botToken));
   return {
     x: Object.values(a.x || {}).map(({ id, username, name, autopost, connectedAt, avatar }) => ({ id, username, name, autopost: !!autopost, connectedAt, avatar })),
     xAppConfigured: !!s.x.clientId,
-    telegram: { configured: !!(sec.telegramBotToken && s.telegram.chatId) },
-    discord: { configured: !!sec.discordWebhook },
+    telegram: { configured: gateways.some((instance) => instance.platform === 'telegram') },
+    discord: { configured: gateways.some((instance) => instance.platform === 'discord') },
     reddit: reddit.redditAccounts(),
     redditAppConfigured: reddit.redditAppConfigured(),
   };
@@ -390,7 +397,7 @@ export function xTooLong(parts: string[]): { part: string; length: number } | nu
   return null;
 }
 
-export async function draftPost({ platform = 'x', account, text, thread = null, images = null, imageAlt = null, imageRoots, replyTo = null, to = null, agentId = null, chatId = null, agentName = '', note = '', subreddit = '', title = '', link = '', parent = '', flairId = '', flairText = '' }: DraftInput): Promise<OutboxItem & { autoPosted?: boolean }> {
+export async function draftPost({ platform = 'x', account, text, thread = null, images = null, imageAlt = null, imageRoots, replyTo = null, to = null, agentId = null, chatId = null, agentName = '', note = '', subreddit = '', title = '', link = '', parent = '', flairId = '', flairText = '', gateway }: DraftInput): Promise<OutboxItem & { autoPosted?: boolean }> {
   const team = agentId ? teamOf(agentId, chatId) : null;
   const teamFields = team ? { teamId: team.id, teamName: team.name } : {};
   // Reddit: a post (subreddit + title + text or link) or a comment (parent = post/comment id or URL)
@@ -423,6 +430,12 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
   const parts = (thread && thread.length ? thread : [text]).map((t) => String(t || '').trim()).filter(Boolean);
   if (!parts.length) throw new Error('The post is empty.');
   const imagePaths = checkImages(platform, images, imageRoots);
+  if (gatewayPost({ platform })) {
+    const item: OutboxItem = { id: uid('p'), platform, parts: gatewayTextParts(platform, parts), agentId, agentName, ...teamFields, note, status: 'pending' };
+    if (!gateway) return projectGatewayPost(outbox.save(item));
+    const checked = checkGatewayDraft(item, gateway, item.parts);
+    return projectGatewayPost(outbox.save({ ...item, gateway: checked.selected, accountLabel: checked.preview.recipient.instanceName }));
+  }
   const alts = imagePaths.length && imageAlt?.length ? pairImageAlt(images, imageAlt, imagePaths) : {};
   let accountId: string | null = null;
   let accountLabel = platform;
@@ -467,6 +480,7 @@ ${id}`, id, edits));
 async function approveIn(key: string, id: string, edits: ApproveEdits | null): Promise<OutboxItem> {
   const item = outbox.get(id);
   if (!item) throw new Error('No such post.');
+  if (gatewayPost(item)) return approveGatewayPost(item, edits);
   if (item.status === 'posted') return item;
   if (publishing.has(key)) throw new Error('This post is already being published.');
   publishing.add(key);
@@ -492,12 +506,6 @@ async function approveIn(key: string, id: string, edits: ApproveEdits | null): P
       if (edits?.title != null && item.reddit) item.reddit.title = String(edits.title).trim();
       const r = await reddit.publish(item);
       Object.assign(item, { status: 'posted', url: r.url, postIds: [r.id], postedAt: Date.now(), error: null });
-    } else if (item.platform === 'telegram') {
-      await sendTelegram(item.parts.join('\n\n'));
-      Object.assign(item, { status: 'posted', postedAt: Date.now(), error: null });
-    } else if (item.platform === 'discord') {
-      await sendDiscord(item.parts.join('\n\n'));
-      Object.assign(item, { status: 'posted', postedAt: Date.now(), error: null });
     } else throw new Error(`Posting to ${item.platform} isn't supported yet.`);
     log('social', `Posted to ${item.accountLabel}${item.url ? `: ${item.url}` : ''}`, { agentId: item.agentId });
   } catch (e) {
@@ -521,6 +529,7 @@ export function returnPost(id: string, feedback: string, send: (teamId: string, 
 async function returnIn(id: string, feedback: string, send: (teamId: string, text: string) => Promise<unknown>): Promise<OutboxItem> {
   const item = outbox.get(id);
   if (!item) throw new Error('No such post.');
+  assertGatewayDraftMutable(item);
   if (item.status !== 'pending' && item.status !== 'failed') throw new Error('Only a post that is waiting can be sent back.');
   const note = String(feedback || '').trim();
   if (!note) throw new Error('Say what should change first.');
@@ -539,27 +548,41 @@ async function returnIn(id: string, feedback: string, send: (teamId: string, tex
 export function rejectPost(id: string, reason = '') {
   const item = outbox.get(id);
   if (!item) throw new Error('No such post.');
+  assertGatewayDraftMutable(item);
   Object.assign(item, { status: 'rejected', reason });
   return outbox.save(item);
 }
 
-// ---------- Telegram & Discord ----------
-export async function sendTelegram(text: string, chatId?: string): Promise<string> {
-  const token = getSecrets().telegramBotToken;
-  const chat = chatId || getSettings().telegram.chatId;
-  if (!token || !chat) throw new Error('Telegram is not set up: add a bot token and chat ID in Connections.');
-  await fetchJSON(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat_id: chat, text: String(text).slice(0, 4000), disable_web_page_preview: true }),
-  });
-  return 'Sent on Telegram.';
+export function listPosts(): OutboxItem[] { const cache: GatewayOutboxReadCache = new Map(); return outbox.list().map((item) => projectGatewayPost(item, cache)).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)); }
+
+export function editPost(id: string, body: { parts?: string[]; images?: string[]; title?: string; gateway?: OutboxPost['gateway']; draftRevision?: string }): OutboxItem {
+  const item = outbox.get(id); if (!item) throw new Error('No such post.');
+  assertGatewayDraftMutable(item);
+  if (gatewayPost(item)) {
+    prepareGatewayPost(id, { gateway: body.gateway ?? item.gateway, parts: body.parts ?? item.parts, draftRevision: body.draftRevision });
+    return projectGatewayPost(outbox.get(id)!);
+  }
+  if (body.parts) item.parts = body.parts;
+  if (body.images && item.images) item.images = item.images.filter((p) => body.images!.includes(p));
+  if (body.title != null && item.reddit) item.reddit.title = String(body.title).trim();
+  return outbox.save(item);
 }
 
-export async function sendDiscord(text: string): Promise<string> {
-  const hook = getSecrets().discordWebhook;
-  if (!hook) throw new Error('Discord is not set up: add a webhook URL in Connections.');
-  const res = await fetch(hook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content: String(text).slice(0, 1990) }) });
-  if (!res.ok) throw new Error(`Discord said ${res.status}`);
-  return 'Sent to Discord.';
+export function removePost(id: string): void {
+  const item = outbox.get(id); if (item) assertGatewayDraftMutable(item); outbox.remove(id);
 }
+
+// These high-risk helpers are called only after the tool's normal approval, with a named recipient.
+function sendGateway(platform: 'telegram' | 'discord', text: string, gateway?: OutboxPost['gateway'], author: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'> = {}, signal?: AbortSignal): Promise<string> {
+  return withProject(activeProject(), async () => {
+    if (!gateway) throw new Error('Choose an explicit gateway instance and known conversation. Set up fresh credentials in Settings › Gateways; old global tokens and webhooks are no longer used.');
+    signal?.throwIfAborted();
+    const item = await draftPost({ platform, text, gateway, ...author });
+    signal?.throwIfAborted();
+    const preview = prepareGatewayPost(item.id, { gateway, parts: item.parts, draftRevision: gatewayDraftRevision(outbox.get(item.id)!) });
+    await approvePost(item.id, { gatewayApproval: preview.approval, draftRevision: preview.draftRevision });
+    return `Approved and queued on ${platform === 'telegram' ? 'Telegram' : 'Discord'} (Outbox id ${item.id}). Check the Outbox for each part’s delivery result.`;
+  });
+}
+export const sendTelegram = (text: string, gateway?: OutboxPost['gateway'], author?: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'>, signal?: AbortSignal) => sendGateway('telegram', text, gateway, author, signal);
+export const sendDiscord = (text: string, gateway?: OutboxPost['gateway'], author?: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'>, signal?: AbortSignal) => sendGateway('discord', text, gateway, author, signal);

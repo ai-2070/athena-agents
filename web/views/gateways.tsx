@@ -9,6 +9,8 @@ import { gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { DiscordRecoveryView } from './gateway-discord-recovery.tsx';
 import { GatewayInboxView } from './gateway-inbox.tsx';
 import { WhatsAppSetupView } from './gateway-whatsapp-setup.tsx';
+import { TelegramSetupView } from './gateway-telegram-setup.tsx';
+import { GatewayRetiredView } from './gateway-retired.tsx';
 import type { GatewayHealth, GatewayInstance, GatewayTarget, GatewayTargets } from '../../shared/types.ts';
 
 type Listed = GatewayInstance & { credentials: Record<string, boolean>; targetName?: string };
@@ -28,8 +30,13 @@ export function GatewaysTab() {
   const [projects, setProjects] = useState<ProjectChoice[]>([]);
   const [editor, setEditor] = useState<Listed | 'telegram' | 'slack' | 'discord' | 'whatsapp' | null>(null);
   const [relay, setRelay] = useState<string | null>(null);
+  const [telegram, setTelegram] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<string | null>(null);
   const [inbox, setInbox] = useState<string | null>(null);
+  const [retired, setRetired] = useState<string | null>(() => {
+    const params = new URLSearchParams(location.hash.split('?')[1] || '');
+    return params.has('retired') ? params.get('retired') === 'all' ? '' : params.get('retired') || '' : null;
+  });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const mounted = useRef(false); const request = useRef(0); const linked = useRef(false);
@@ -41,12 +48,15 @@ export function GatewaysTab() {
       setListing(gateways); setProjects(all.projects); setError('');
       if (!linked.current) {
         linked.current = true;
+        if (new URLSearchParams(location.hash.split('?')[1] || '').has('retired')) return;
         const id = new URLSearchParams(location.hash.split('?')[1] || '').get('instance');
         if (id) { const found = gateways.instances.find((item) => item.id === id); if (found && (found.platform === 'whatsapp' || gatewayPlatformAvailable(found.platform))) setEditor(found); else setError('This gateway is unavailable. Choose an instance below.'); }
         const relayId = new URLSearchParams(location.hash.split('?')[1] || '').get('relay');
         if (relayId) { setEditor(null); setRelay(relayId); }
         const inboxId = new URLSearchParams(location.hash.split('?')[1] || '').get('inbox');
         if (inboxId) { setEditor(null); setInbox(inboxId); }
+        const telegramId = new URLSearchParams(location.hash.split('?')[1] || '').get('telegram');
+        if (telegramId) { setEditor(null); setInbox(null); setRelay(null); setTelegram(telegramId); }
       }
     } catch (failure) { if (mounted.current && version === request.current) setError(message(failure)); }
   }, []);
@@ -57,16 +67,19 @@ export function GatewaysTab() {
     try { await work(); await load(); } catch (failure) { setError(message(failure)); } finally { setBusy(false); }
   };
   const edit = (instance: Listed) => {
-    setRecovery(null); setRelay(null); setInbox(null); setEditor(instance);
+    setRecovery(null); setRelay(null); setTelegram(null); setInbox(null); setEditor(instance);
     history.replaceState(null, '', `#/settings?tab=gateways&instance=${encodeURIComponent(instance.id)}`);
   };
   const close = () => { setEditor(null); history.replaceState(null, '', '#/settings?tab=gateways'); };
   const closeInbox = () => { setInbox(null); history.replaceState(null, '', '#/settings?tab=gateways'); };
   const closeRelay = () => { setRelay(null); history.replaceState(null, '', '#/settings?tab=gateways'); };
-  const panelOpen = editor !== null || recovery !== null || relay !== null;
+  const closeTelegram = () => { setTelegram(null); history.replaceState(null, '', '#/settings?tab=gateways'); };
+  const panelOpen = editor !== null || recovery !== null || relay !== null || telegram !== null || retired !== null;
+  const selectRetired = (id: string) => { setInbox(null); setRetired(id); history.replaceState(null, '', `#/settings?tab=gateways&retired=${encodeURIComponent(id || 'all')}`); };
   const recoveryInstance = listing?.instances.find((instance) => instance.id === recovery);
   const relayInstance = listing?.instances.find((instance) => instance.id === relay && instance.platform === 'whatsapp');
   const inboxInstance = listing?.instances.find((instance) => instance.id === inbox);
+  const telegramInstance = listing?.instances.find((instance) => instance.id === telegram && instance.platform === 'telegram');
   return <div className="flex flex-col gap-10">
     <Section title="Chat gateways" description="Talk to the Brain, a team or an agent from a messaging app. Each instance has its own account, project and sender rules."
       action={<>{(['telegram', 'slack', 'discord', 'whatsapp'] as const).map((platform) => <Button key={platform} size="small" disabled={busy || !listing || panelOpen || !projects.length} onClick={() => { setRecovery(null); setRelay(null); setInbox(null); setEditor(platform); }}>Add {({ telegram: 'Telegram', slack: 'Slack', discord: 'Discord', whatsapp: 'WhatsApp' })[platform]} instance</Button>)}</>}>
@@ -78,6 +91,7 @@ export function GatewaysTab() {
         return <Row key={instance.id} title={<span className="flex flex-wrap items-center gap-2">{instance.name}<Pill tone={status === 'Connected' ? 'ok' : instance.enabled ? 'warn' : undefined}>{status}</Pill></span>}
           description={<span className="break-words">{instance.platform === 'telegram' ? 'Telegram' : instance.platform === 'slack' ? 'Slack' : instance.platform === 'discord' ? 'Discord' : 'WhatsApp'} · {projects.find((item) => item.id === instance.projectId)?.name || 'Project unavailable'} · {instance.targetName || (instance.target.kind === 'brain' ? 'The Brain' : instance.target.kind === 'team' ? 'Team' : 'Agent')}{(instance.platform === 'telegram' || instance.platform === 'discord') && !instance.credentials.botToken ? <span className="mt-1 block">Add a bot token before enabling.</span> : null}{instance.platform === 'slack' && (!instance.credentials.botToken || !instance.credentials.appToken) ? <span className="mt-1 block">Add bot and app tokens before enabling.</span> : null}{health?.reason ? <span className="mt-1 block">{health.reason}</span> : null}{health?.retryAt && health.retryAt > Date.now() ? <span className="mt-1 block">Next connection attempt after {new Date(health.retryAt).toLocaleString()}.</span> : null}</span>}>
           {(instance.platform === 'whatsapp' || gatewayPlatformAvailable(instance.platform)) && <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => edit(instance)}>Edit</Button>}
+          {instance.platform === 'telegram' && <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => { setInbox(null); setTelegram(instance.id); history.replaceState(null, '', `#/settings?tab=gateways&telegram=${encodeURIComponent(instance.id)}`); }}>Set up Telegram</Button>}
           {instance.platform === 'whatsapp' && <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => { setInbox(null); setRelay(instance.id); history.replaceState(null, '', `#/settings?tab=gateways&relay=${encodeURIComponent(instance.id)}`); }}>Set up relay</Button>}
           <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => { setRecovery(null); setRelay(null); setInbox(instance.id); history.replaceState(null, '', `#/settings?tab=gateways&inbox=${encodeURIComponent(instance.id)}`); }}>Inbox</Button>
           <Button size="small" variant="ghost" disabled={busy || panelOpen || (!instance.enabled && (!gatewayPlatformAvailable(instance.platform) || !credentialsReady))} onClick={() => void action(() => PUT(`/gateways/${instance.id}`, { ...gatewayConfig(instance), enabled: !instance.enabled }))}>{instance.enabled ? 'Pause' : 'Enable'}</Button>
@@ -88,7 +102,8 @@ export function GatewaysTab() {
           })()}>Delete</Button>
         </Row>;
       })}
-      <PanelNote>Telegram, Slack and Discord are available for testing. WhatsApp setup is available, but receiving and sending remain disabled. Existing one-way notifications stay under Connections. Approvals are reviewed in Athena.</PanelNote>
+      <Row title="Removed instances" description="Read saved history and finish an interrupted removal. Old connections stay blocked."><Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => selectRetired('')}>View removed instances</Button></Row>
+      <PanelNote>Telegram, Slack and Discord are available for testing. WhatsApp setup is available, but receiving and sending remain disabled. Review Telegram and Discord follow-ups in Outbox. Approvals are reviewed in Athena.</PanelNote>
     </Section>
     {editor && <GatewayEditor key={typeof editor === 'string' ? editor : editor.id} platform={typeof editor === 'string' ? editor : editor.platform} instance={typeof editor === 'string' ? null : editor} projects={projects} close={close} saved={async () => { close(); await load(); }} />}
     {recoveryInstance && <DiscordRecoveryView key={recoveryInstance.id} instance={recoveryInstance} close={() => setRecovery(null)} changed={load} />}
@@ -97,6 +112,9 @@ export function GatewaysTab() {
     {relay && listing && !relayInstance && <Row title="This WhatsApp instance is no longer available"><Button size="small" variant="ghost" onClick={closeRelay}>Close setup</Button></Row>}
     {inboxInstance && <GatewayInboxView key={inboxInstance.id} instance={inboxInstance} close={closeInbox} />}
     {inbox && listing && !inboxInstance && <Row title="This gateway is no longer available"><Button size="small" variant="ghost" onClick={closeInbox}>Close inbox</Button></Row>}
+    {telegramInstance && <TelegramSetupView key={telegramInstance.id} instance={telegramInstance} close={closeTelegram} edit={() => edit(telegramInstance)} changed={load} pause={async () => { await PUT(`/gateways/${telegramInstance.id}`, { ...gatewayConfig(telegramInstance), enabled: false }); await load(); }} />}
+    {telegram && listing && !telegramInstance && <Row title="This Telegram instance is no longer available"><Button size="small" variant="ghost" onClick={closeTelegram}>Close setup</Button></Row>}
+    {retired !== null && <GatewayRetiredView id={retired} select={selectRetired} close={() => { setRetired(null); history.replaceState(null, '', '#/settings?tab=gateways'); }} changed={load} />}
   </div>;
 }
 
@@ -173,7 +191,7 @@ function GatewayEditor({ instance, platform, projects, close, saved }: { instanc
         {discord && <FieldRow label="Allowed servers" hint="Numeric server IDs, one per line. Required for server channels; direct messages use their own rule." stack><textarea aria-label="Allowed servers" className="font-mono" rows={3} value={guilds} onChange={(event) => setGuilds(event.target.value)} /></FieldRow>}
         {!whatsapp && <FieldRow label={discord ? 'Allowed channels and threads' : slack ? 'Allowed channels and threads' : 'Allowed groups and topics'} hint={discord ? 'Numeric channel or native thread IDs, one per line. A selected parent channel also allows its threads. List its server above. New channel topics need a bot mention or reply.' : slack ? 'One channel ID or channel ID/thread timestamp per line. Invite the bot to each channel. Start with a bot mention; continue in that thread. Shared channels and group DMs are refused.' : 'One chat ID or chat ID/topic ID per line, for example -100123/7. New shared conversations need a bot mention or reply.'} stack><textarea aria-label={discord ? 'Allowed channels and threads' : slack ? 'Allowed channels and threads' : 'Allowed groups and topics'} className="font-mono" rows={3} value={scope} onChange={(event) => setScope(event.target.value)} /></FieldRow>}
         {([['perFileBytes', 'File limit (MiB)', 20], ['perMessageBytes', 'Message limit (MiB)', 50], ['dailyBytes', 'Daily limit (MiB)', Math.floor(Number.MAX_SAFE_INTEGER / MiB)], ['filesPerMessage', 'Files per message', 10]] as const).map(([key, label, max]) => <FieldRow key={key} label={label}><input aria-label={label} type="number" min={key === 'filesPerMessage' ? 1 : 1 / MiB} max={max} step={key === 'filesPerMessage' ? 1 : 'any'} required value={key === 'filesPerMessage' ? config.fileLimits[key] : config.fileLimits[key] / MiB} onChange={(event) => patch({ fileLimits: { ...config.fileLimits, [key]: Math.round(Number(event.target.value) * (key === 'filesPerMessage' ? 1 : MiB)) } })} /></FieldRow>)}
-        <PanelNote>Incoming and outgoing byte limits are tracked separately. The file limit must fit within the message limit, and the message limit within the daily limit. {whatsapp ? 'Pair the relay after saving. Replies need a fresh user message within 24 hours; selected text, PDF and Office files send as documents. Finish any pending pairing before changing credentials.' : discord ? 'Discord replies and files stay with the saved source message in its channel or thread. Keep Athena open to receive messages.' : slack ? 'Slack messages and files reply in the original thread. Direct messages also start a new thread; reply there to continue.' : 'Telegram polling requires a bot without an existing webhook; Athena will not delete one.'}</PanelNote>
+        <PanelNote>Incoming and outgoing byte limits are tracked separately. The file limit must fit within the message limit, and the message limit within the daily limit. {whatsapp ? 'Pair the relay after saving. Replies need a fresh user message within 24 hours; selected text, PDF and Office files send as documents. Finish any pending pairing before changing credentials.' : discord ? 'Discord replies and files stay with the saved source message in its channel or thread. Keep Athena open to receive messages.' : slack ? 'Slack messages and files reply in the original thread. Direct messages also start a new thread; reply there to continue.' : 'After saving, choose Set up Telegram to check this bot and explicitly switch an existing webhook to polling. Connecting never removes one automatically.'}</PanelNote>
         {discord && <PanelNote>In the Discord Developer Portal, enable the Message content intent on the Bot page. Invite the bot with the bot scope and View channels, Read message history, Send messages, Send messages in threads and Attach files permissions. No webhook URL or public Athena address is needed. Approvals stay in Athena.</PanelNote>}
         {slack && <PanelNote>In your Slack app, enable Socket Mode and subscribe to app_mention, message.channels, message.groups and message.im. Bot scopes: app_mentions:read, channels:history, channels:read, groups:history, groups:read, im:history, im:read, users:read, chat:write, files:read and files:write. Reinstall the app after changing scopes. Approvals stay in Athena.</PanelNote>}
         {error && <div role="alert" className="px-5 py-4 text-red">{error}</div>}

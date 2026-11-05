@@ -17,6 +17,11 @@ describe('pinned Chat SDK transport proof', () => {
     expect(stdout).toContain('WhatsApp saved gap review survives restart and keeps prior work intact');
     expect(stdout).toContain('held request dismissal preserves its receipt without work or delivery');
     expect(stdout).toContain('WhatsApp paused setup checks verify account and relay without intake or writes');
+    expect(stdout).toContain('WhatsApp original relay restoration preserves receipts and held work');
+    expect(stdout).toContain('WhatsApp replacement saves a new key across restart and quarantines old receipts');
+    expect(stdout).toContain('WhatsApp sender review keeps retired aliases and old work held across restart');
+    expect(stdout).toContain('paused delivery review confirms only checked parts and finishes locally without sends or model replay');
+    expect(stdout).toContain('keeping native work local preserves signed receipts across restart and admits only fresh private work');
   });
 
   it('runs the bundled WhatsApp media adapter from read-only files outside the checkout', async () => {
@@ -32,6 +37,11 @@ describe('pinned Chat SDK transport proof', () => {
       expect(stdout).toContain('WhatsApp saved gap review survives restart and keeps prior work intact');
       expect(stdout).toContain('held request dismissal preserves its receipt without work or delivery');
       expect(stdout).toContain('WhatsApp paused setup checks verify account and relay without intake or writes');
+      expect(stdout).toContain('WhatsApp original relay restoration preserves receipts and held work');
+      expect(stdout).toContain('WhatsApp replacement saves a new key across restart and quarantines old receipts');
+      expect(stdout).toContain('WhatsApp sender review keeps retired aliases and old work held across restart');
+      expect(stdout).toContain('paused delivery review confirms only checked parts and finishes locally without sends or model replay');
+      expect(stdout).toContain('keeping native work local preserves signed receipts across restart and admits only fresh private work');
     } finally { fs.chmodSync(directory, 0o755); fs.chmodSync(file, 0o644); }
   });
 
@@ -79,6 +89,7 @@ describe('pinned Chat SDK transport proof', () => {
   it.each(['bun', process.execPath])('receives and replies with a private file under %s', async (runtime) => {
     const { stdout } = await exec(runtime, ['scripts/gateways-smoke.ts'], { env: process.env, timeout: 20000, windowsHide: true });
     expect(stdout).toContain('Telegram polling, sender filter, private download, file reply and persistent subscription pass');
+    expect(stdout).toContain('explicit paused Telegram switch keeps pending updates and private receipts across restart without polling or sends');
   });
 
   it('bundles the SDK and state adapter and runs from read-only application files outside the repo', async () => {
@@ -91,6 +102,7 @@ describe('pinned Chat SDK transport proof', () => {
     try {
       const { stdout } = await exec('bun', [file], { cwd: directory, env: process.env, timeout: 20000, windowsHide: true });
       expect(stdout).toContain('persistent subscription pass');
+      expect(stdout).toContain('explicit paused Telegram switch keeps pending updates and private receipts across restart without polling or sends');
     } finally {
       fs.chmodSync(directory, 0o755);
       fs.chmodSync(file, 0o644);

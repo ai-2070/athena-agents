@@ -1,10 +1,13 @@
+import fs from 'node:fs';
 import { z } from 'zod';
-import type { GatewayInstance, GatewayRoute, GatewayTarget, GatewayTargets } from '../../shared/types.ts';
+import type { GatewayInstance, GatewayRetiredInstance, GatewayRoute, GatewayTarget, GatewayTargets } from '../../shared/types.ts';
 import { agents, collection, getGatewaySecrets, listProjects, setGatewaySecrets, withProject, workflows } from '../store.ts';
 import { uid } from '../util.ts';
 import { discordId } from '../../shared/gateway-discord.ts';
 import { slackChannelId, slackTimestamp, slackUserId, slackWorkspaceId } from '../../shared/gateway-slack.ts';
 import { canonicalWhatsAppPhone } from '../../shared/gateway-whatsapp.ts';
+import { beginGatewayRetirement, completeGatewayRetirement, gatewayRetirement, gatewayRetirementStarted, listGatewayRetirements } from './retirement.ts';
+import { privateDataPath } from '../private.ts';
 
 const instances = collection<GatewayInstance>('gateways', { global: true });
 const id = z.string().regex(/^[a-zA-Z0-9_-]+$/).max(200);
@@ -43,6 +46,7 @@ function fail(message: string): never {
 
 function requireInstance(instanceId: string): GatewayInstance {
   if (!id.safeParse(instanceId).success) fail('Invalid gateway instance ID.');
+  if (gatewayRetirementStarted(instanceId)) throw Object.assign(new Error('No such gateway instance. Its removal record and receipts are kept separately.'), { status: 404 });
   const instance = instances.get(instanceId);
   if (!instance) throw Object.assign(new Error('No such gateway instance.'), { status: 404 });
   return instance;
@@ -58,7 +62,7 @@ function checkTarget(projectId: string, destination: GatewayTarget): void {
 }
 
 export function listGatewayInstances(): GatewayInstance[] {
-  return instances.list();
+  return instances.list().filter((instance) => !gatewayRetirementStarted(instance.id));
 }
 
 export function gatewayTargets(projectId: string): GatewayTargets {
@@ -96,7 +100,8 @@ export function saveGatewayInstance(input: unknown, instanceId?: string): Gatewa
     fail('Add a new instance to connect a different account.');
   }
   if (next.senderPolicy.platform !== next.platform) fail('The sender guard must match the platform.');
-  if (instances.list().some((other) => other.id !== before?.id && other.platform === next.platform && other.accountId === next.accountId)) {
+  if (instances.list().some((other) => other.id !== before?.id && other.platform === next.platform && other.accountId === next.accountId)
+    || (!before && listGatewayRetirements().some((other) => other.completedAt === undefined && other.platform === next.platform && other.accountId === next.accountId))) {
     fail('This account already has a gateway instance.');
   }
   checkTarget(next.projectId, next.target);
@@ -165,12 +170,19 @@ export function gatewayCredentialStatus(instanceId: string): Record<string, bool
   return Object.fromEntries(Object.entries(getGatewaySecrets(instanceId)).filter(([key]) => key !== 'whatsappPairing').map(([key, value]) => [key, Boolean(value)]));
 }
 
+export function retireGatewayInstance(instanceId: string): GatewayRetiredInstance {
+  return gatewayRetirement(instanceId) ?? beginGatewayRetirement(requireInstance(instanceId));
+}
+
+/** Runtime callers must drain the worker and claim account/state ownership first. */
 export function removeGatewayInstance(instanceId: string): void {
-  // Stop intake before removing credentials. Transport/relay cleanup will hook in here.
-  const instance = requireInstance(instanceId);
-  instances.save({ ...instance, enabled: false });
+  const retired = retireGatewayInstance(instanceId);
+  if (retired.completedAt !== undefined) return;
+  const file = privateDataPath('gateways', `${instanceId}.json`);
   setGatewaySecrets(instanceId, null);
   instances.remove(instanceId);
+  if (fs.existsSync(file)) throw new Error('The gateway setup could not be removed. Retry removal to finish clearing it.');
+  completeGatewayRetirement(instanceId);
 }
 
 export function captureGatewayRoute(instanceId: string): GatewayRoute {

@@ -85,6 +85,11 @@ export class GatewayStateAdapter implements StateAdapter {
     return privateDataPath('gateways-runtime', this.instanceId, 'inbox.json');
   }
 
+  outboxFile(): string {
+    if (!this.data || this.closing) throw new Error('Gateway state is not connected.');
+    return privateDataPath('gateways-runtime', this.instanceId, 'outbox.json');
+  }
+
   discordGatewayFile(): string {
     if (!this.data || this.closing) throw new Error('Gateway state is not connected.');
     return privateDataPath('gateways-runtime', this.instanceId, 'discord-gateway.json');

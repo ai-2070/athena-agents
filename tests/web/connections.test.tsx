@@ -249,4 +249,10 @@ describe('Connections', () => {
     await settle();
     expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/settings')!.body).toEqual({ x: { clientId: 'new-id' } });
   });
+  it('links Telegram and Discord to fresh gateway setup instead of accepting old tokens or webhooks', async () => {
+    await openConnections('#/settings?tab=connections&sub=accounts');
+    expect(el.textContent).toContain('old global token and chat ID are no longer used'); expect(el.textContent).toContain('Old channel webhooks are no longer used');
+    expect([...el.querySelectorAll('a')].filter((link) => link.textContent === 'Open Gateways').map((link) => link.getAttribute('href'))).toEqual(['#/settings?tab=gateways', '#/settings?tab=gateways']);
+    expect(el.querySelector('input[placeholder*="BotFather"]')).toBeNull(); expect(el.querySelector('input[placeholder*="discord.com/api/webhooks"]')).toBeNull(); expect([...el.querySelectorAll('button')].map((button) => button.textContent)).not.toContain('Send test');
+  });
 });

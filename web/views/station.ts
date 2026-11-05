@@ -3776,9 +3776,9 @@ function drawHud(): void {
   for (const it of ints) if (!ENGINE_SIDE.has(it.id)) tiles.push({ key: it.id, int: it.id, glyph: mark(it.id), color: it.color, on: it.live, title: `${it.label} · ${it.live ? 'ready' : 'installed, not running'}`, onclick: () => choose({ type: 'int', id: it.id }) });
   const missing = [
     !d.accounts.x.length && { glyph: logo('x', 13) || '𝕏', title: 'X · not connected (Connections)', href: '#/settings?tab=connections' },
-    !d.accounts.telegram.configured && { glyph: logo('telegram', 13) || '✈', title: 'Telegram · not set up (Connections)', href: '#/settings?tab=connections' },
+    !d.accounts.telegram.configured && { glyph: logo('telegram', 13) || '✈', title: 'Telegram · not set up (Gateways)', href: '#/settings?tab=gateways' },
     !(d.accounts.reddit || []).length && { glyph: logo('reddit', 13) || 'r/', title: 'Reddit · not connected (Settings > Connections)', href: '#/settings?tab=connections' },
-    !d.accounts.discord.configured && { glyph: logo('discord', 13) || 'D', title: 'Discord · not set up (Connections)', href: '#/settings?tab=connections' },
+    !d.accounts.discord.configured && { glyph: logo('discord', 13) || 'D', title: 'Discord · not set up (Gateways)', href: '#/settings?tab=gateways' },
   ].filter(Boolean) as { glyph: SVGSVGElement | string; title: string; href: string }[];
   for (const m of missing) tiles.push({ key: m.title, glyph: m.glyph, color: 'var(--color-faint)', on: false, missing: true, title: m.title, onclick: () => navigate(m.href) });
   const seen = new Set<string>();

@@ -102,6 +102,7 @@ export class WhatsAppRelayIntake {
       const payload = webhook.parse(JSON.parse(text) as unknown); const instance = getGatewayInstance(this.instanceId);
       if (payload.entry.some((entry) => entry.id !== this.businessAccountId || entry.changes.some((change) => change.value.metadata.phone_number_id !== instance.accountId))) throw new WhatsAppIntakeError();
       const identities = new WhatsAppIdentities(this.businessAccountId, this.inbox.whatsAppRelayState()?.identities);
+      const startedAt = this.inbox.whatsAppRelayState()?.startedAt;
       const inputs: GatewayInbound[] = []; let ignored = 0; let unmatchedSenders = 0; let count = 0;
       const sentAt = (value: string | undefined): number => {
         const at = Number(value) * 1000;
@@ -113,7 +114,9 @@ export class WhatsAppRelayIntake {
           if (!change.value.user_id_update?.length || change.value.messages?.length) throw new WhatsAppIntakeError();
           for (const update of change.value.user_id_update) {
             if (++count > 1000) throw new WhatsAppIntakeError();
-            identities.rotate(update.user_id?.previous || undefined, update.user_id?.current || undefined, whatsAppSenderPhone(update.wa_id), sentAt(update.timestamp), {
+            const at = sentAt(update.timestamp);
+            if (startedAt !== undefined && at <= startedAt) { ignored++; continue; }
+            identities.rotate(update.user_id?.previous || undefined, update.user_id?.current || undefined, whatsAppSenderPhone(update.wa_id), at, {
               previousParent: update.parent_user_id?.previous || undefined, currentParent: update.parent_user_id?.current || undefined,
             });
             ignored++;
@@ -124,6 +127,7 @@ export class WhatsAppRelayIntake {
         for (const raw of change.value.messages ?? []) {
           if (++count > 1000) throw new WhatsAppIntakeError();
           const at = sentAt(raw.timestamp);
+          if (startedAt !== undefined && at <= startedAt) { ignored++; continue; }
           if (raw.type === 'system') {
             if (raw.system) identities.rotate(raw.from_user_id || undefined, raw.system.user_id, whatsAppSenderPhone(raw.system.wa_id), at, {
               oldPhone: whatsAppSenderPhone(raw.from), previousParent: raw.from_parent_user_id || undefined, currentParent: raw.system.parent_user_id || undefined,

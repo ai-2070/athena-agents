@@ -64,7 +64,7 @@ export class GatewayDispatcher {
   private async drain(): Promise<void> {
     for (const event of this.inbox.list()) {
       if (this.stopped || this.signal.aborted) return;
-      if (event.status !== 'running' || !event.dispatch) continue;
+      if (event.workKept || event.status !== 'running' || !event.dispatch) continue;
       try {
         if (!this.allowed(event)) { this.inbox.review(event.id, 'Access or the destination changed. Review this work in Athena.'); continue; }
         const result = this.tasks.has(event.id) ? { state: 'pending' as const } : this.checkCompletion(event, event.reconciliation?.state === 'tracking');
@@ -74,7 +74,7 @@ export class GatewayDispatcher {
         else if (Date.now() - event.dispatch.startedAt >= 5000) this.inbox.queueNotice(event.id, 'working');
       } catch { this.inbox.review(event.id); }
     }
-    while (!this.stopped && !this.signal.aborted && this.inbox.list().filter((event) => event.status === 'running').length < 4) {
+    while (!this.stopped && !this.signal.aborted && this.inbox.list().filter((event) => event.status === 'running' && !event.workKept).length < 4) {
       const claimed = this.inbox.claimNext();
       if (!claimed) return;
       try {

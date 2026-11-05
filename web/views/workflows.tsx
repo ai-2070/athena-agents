@@ -332,7 +332,8 @@ function StepFields({ s, set, tools, d }: { s: WorkflowStep; set: (patch: Partia
     return (
       <>
         {area('Message', 'text', 2, '{{prev}}')}
-        <Switch checked={!!s.telegram} onChange={(v) => set({ telegram: v })}>Also send on Telegram</Switch>
+        <Switch checked={!!s.telegram} onChange={(v) => set({ telegram: v })}>Also draft a Telegram message in Outbox</Switch>
+        <p className="hint">Choose the gateway recipient and approve the draft in Outbox before it sends.</p>
       </>
     );
   return null;

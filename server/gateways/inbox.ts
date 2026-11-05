@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { GatewayDeliveryOutcome, GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayRequestReview, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, GatewayWhatsAppRecovery, GatewayWhatsAppRelayConnection, GatewayWhatsAppRelayStatus, UploadedFile } from '../../shared/types.ts';
-import { emit } from '../store.ts';
+import type { GatewayDeliveryOutcome, GatewayDeliveryReview, GatewayDispatch, GatewayInbound, GatewayInboxEvent, GatewayInboxJournal, GatewayInstance, GatewayLocalConversation, GatewayOutgoingFile, GatewayRequestReview, GatewayWhatsAppIdentities, GatewayWhatsAppIntakeState, GatewayWhatsAppReceipt, GatewayWhatsAppRecovery, GatewayWhatsAppRelayConnection, GatewayWhatsAppRelayStatus, GatewayWhatsAppReplacement, GatewayWhatsAppSenders, GatewayWorkReview, UploadedFile } from '../../shared/types.ts';
+import { emit, getGatewaySecrets } from '../store.ts';
 import { readJSON, uid, writeJSON } from '../util.ts';
-import { captureGatewayRoute, getGatewayInstance, withGatewayRoute } from './instances.ts';
+import { captureGatewayRoute, checkGatewayDestination, getGatewayInstance, withGatewayRoute } from './instances.ts';
 import type { GatewayStateAdapter } from './state.ts';
 import { privateDataPath } from '../private.ts';
 import type { GatewayCompletion } from './execution.ts';
@@ -13,8 +13,14 @@ import { gatewayAlbumCandidates, gatewayAlbumKey, gatewayCleanupCandidates, gate
 import { slackChannelId, slackTimestamp, slackUserId, slackWorkspaceId } from '../../shared/gateway-slack.ts';
 import { discordId } from '../../shared/gateway-discord.ts';
 import { canonicalWhatsAppPhone } from '../../shared/gateway-whatsapp.ts';
-import { whatsAppIdentitiesSchema, whatsAppIdentityAllowed } from './whatsapp-identities.ts';
+import { whatsAppIdentitiesSchema, whatsAppIdentityAllowed, whatsAppSenderKey } from './whatsapp-identities.ts';
 import { whatsAppRelayConnectionSchema } from '../../shared/gateway-whatsapp-relay.ts';
+import { completedGatewayDelivery, deliveryEntries, deliveryReview, deliveryTargetKey } from './delivery-review.ts';
+import { gatewayBindingRoot, gatewayWorkUnfinished, latestWorkReview, workBindingId, workReceiptsValid, workReview } from './work-review.ts';
+import { gatewayOutboxProtectedBindings } from './outbox.ts';
+import { gatewayRetirement } from './retirement.ts';
+import { retiredFinishReview } from './retired-finish.ts';
+import type { GatewayRetiredFinishReview } from '../../shared/types.ts';
 
 const externalId = z.string().min(1).max(500);
 const stamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -54,20 +60,32 @@ const inboundSchema: z.ZodType<GatewayInbound> = z.strictObject({
   })).max(10),
 });
 const replyPart = z.strictObject({ text: z.string().min(1).max(3000), status: z.enum(['pending', 'sending', 'sent', 'uncertain', 'failed']), attempts: stamp, remoteId: externalId.optional(), retryAt: stamp.optional() });
-const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
-  version: z.literal(1), nextSequence: stamp.positive(),
-  whatsappRelay: z.strictObject({ epoch: z.uuid(), cursor: stamp, receipt: intakeReceipt.optional(), identities: whatsAppIdentitiesSchema.optional(),
+const deliveryTarget = z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('text'), index: stamp.max(1999) }), z.strictObject({ kind: z.literal('file'), index: stamp.max(9) }), z.strictObject({ kind: z.literal('notice'), notice: z.enum(['working', 'approval']) })]);
+const deliveryAudit = z.discriminatedUnion('action', [
+  z.strictObject({ action: z.literal('confirmed'), at: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/), target: deliveryTarget, remoteId: externalId, previousRemoteId: externalId.optional() }),
+  z.strictObject({ action: z.literal('finish-local'), at: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/) }),
+]);
+const whatsAppStateSchema: z.ZodType<GatewayWhatsAppIntakeState> = z.strictObject({ epoch: z.uuid(), cursor: stamp, startedAt: stamp.optional(), receipt: intakeReceipt.optional(), identities: whatsAppIdentitiesSchema.optional(),
+    senderReviews: z.array(z.strictObject({ at: stamp, throughSequence: stamp, phone: z.string().refine(canonicalWhatsAppPhone), identityKey: z.string().regex(/^[a-f0-9]{64}$/), revision: z.string().regex(/^[a-f0-9]{64}$/) })).min(1).max(1000).optional(),
     connection: whatsAppRelayConnectionSchema.optional(), recovery: relayRecovery.optional(),
     gapReview: z.strictObject({ at: stamp, from: stamp, through: stamp, remoteCursor: stamp }).optional(),
-    reviewedGaps: z.array(z.strictObject({ at: stamp, gapAt: stamp, from: stamp, through: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/), receipt: intakeReceipt.optional() })).min(1).max(1000).optional() }).optional(),
+    reviewedGaps: z.array(z.strictObject({ at: stamp, gapAt: stamp, from: stamp, through: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/), receipt: intakeReceipt.optional() })).min(1).max(1000).optional(),
+    restorations: z.array(z.strictObject({ at: stamp, heldAt: stamp, reason: z.enum(['cursor', 'epoch', 'installation', 'envelope']), revision: z.string().regex(/^[a-f0-9]{64}$/), remoteCursor: stamp })).min(1).max(1000).optional() });
+const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
+  version: z.literal(1), nextSequence: stamp.positive(),
+  whatsappRelay: whatsAppStateSchema.optional(),
+  whatsappRetired: z.array(z.strictObject({ at: stamp, attemptId: z.uuid(), revision: z.string().regex(/^[a-f0-9]{64}$/), state: whatsAppStateSchema })).min(1).max(100).optional(),
   retired: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(100000).optional(),
   retiredAlbums: z.array(z.string().regex(/^[a-f0-9]{64}$/)).max(100000).optional(),
   retiredQuota: z.array(z.strictObject({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), incomingBytes: stamp, outgoingBytes: stamp })).max(100000).optional(),
-  bindings: z.array(z.strictObject({ id: externalId, accountId: externalId, conversationId: externalId, guildId: externalId.optional(), parentConversationId: externalId.optional(), threadId: z.string().max(500), route, createdAt: stamp })),
+  bindings: z.array(z.strictObject({ id: externalId, rootId: externalId.optional(), accountId: externalId, conversationId: externalId, guildId: externalId.optional(), parentConversationId: externalId.optional(), threadId: z.string().max(500), route, createdAt: stamp })),
   events: z.array(z.strictObject({
     id: externalId, bindingId: externalId, route, input: inboundSchema, sequence: stamp.positive(), receivedAt: stamp,
     relay: relayReceipt.extend({ confirmed: z.boolean() }).optional(),
     dismissed: z.strictObject({ at: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/) }).optional(),
+    deliveryFinished: z.strictObject({ at: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/) }).optional(),
+    workKept: z.strictObject({ at: stamp, revision: z.string().regex(/^[a-f0-9]{64}$/), throughSequence: stamp.positive(), serial: stamp.positive() }).optional(),
+    deliveryReviews: z.array(deliveryAudit).min(1).max(3000).optional(),
     status: z.enum(['queued', 'waiting-files', 'running', 'done', 'needs-review']), operationId: externalId.optional(), reason: z.string().optional(),
     fileBatch: z.string().regex(/^[\w-]{1,64}$/).optional(),
     dispatch: dispatchSchema.optional(),
@@ -83,7 +101,11 @@ const journalSchema: z.ZodType<GatewayInboxJournal> = z.strictObject({
       file: z.strictObject({ path: z.string(), top: z.string(), kind: z.enum(['file', 'folder']), name: z.string(), size: stamp }).optional(),
       sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(), reason: z.string().optional(),
     })).optional(),
-  }).refine((event) => !event.dismissed || (event.status === 'needs-review' && gatewayRequestUnstarted(event) && !event.files?.some((file) => file.status === 'transferring')))),
+  }).refine((event) => (!event.dismissed || (event.status === 'needs-review' && gatewayRequestUnstarted(event) && !event.files?.some((file) => file.status === 'transferring')))
+    && (!event.deliveryFinished || (completedGatewayDelivery(event) && event.deliveryReviews?.at(-1)?.action === 'finish-local'
+      && event.deliveryReviews.at(-1)?.revision === event.deliveryFinished.revision && event.deliveryReviews.at(-1)?.at === event.deliveryFinished.at && !deliveryEntries(event).some((item) => item.value.status === 'sending')))
+    && (!event.deliveryReviews || (new Set(event.deliveryReviews.map((review) => review.revision)).size === event.deliveryReviews.length
+      && event.deliveryReviews.every((review) => review.action === 'finish-local' ? Boolean(event.deliveryFinished && review.revision === event.deliveryFinished.revision) : deliveryEntries(event).some((item) => deliveryTargetKey(item.target) === deliveryTargetKey(review.target) && item.value.status === 'sent' && item.value.remoteId === review.remoteId)))))),
 });
 const digest = (parts: (string | number)[]): string => crypto.createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 function saveAnswer(event: GatewayInboxEvent, answer: string): void {
@@ -120,7 +142,21 @@ function replayReceiptsValid(journal: GatewayInboxJournal): boolean {
 }
 
 function relayReceiptsValid(journal: GatewayInboxJournal): boolean {
+  const retired = journal.whatsappRetired ?? []; const epochs = retired.map((item) => item.state.epoch);
+  if (retired.length && (!journal.whatsappRelay || epochs.includes(journal.whatsappRelay.epoch)
+    || new Set(epochs).size !== epochs.length || new Set(retired.map((item) => item.attemptId)).size !== retired.length)) return false;
+  const states = [journal.whatsappRelay, ...retired.map((item) => item.state)];
+  if (journal.events.some((event) => event.input.platform === 'whatsapp' && !states.some((state) => state?.epoch === event.relay?.epoch))) return false;
+  if (retired.some((item) => !relayEpochValid({ ...journal, whatsappRelay: item.state,
+    events: journal.events.filter((event) => event.relay?.epoch === item.state.epoch) })
+    || journal.events.some((event) => event.relay?.epoch === item.state.epoch && !['done', 'needs-review'].includes(event.status)))) return false;
+  return relayEpochValid({ ...journal, events: journal.events.filter((event) => event.input.platform !== 'whatsapp' || event.relay?.epoch === journal.whatsappRelay?.epoch) });
+}
+
+function relayEpochValid(journal: GatewayInboxJournal): boolean {
   const state = journal.whatsappRelay; const receipt = state?.receipt;
+  const senders = state?.senderReviews ?? [];
+  if (new Set(senders.map((review) => review.revision)).size !== senders.length || senders.some((review, index) => review.throughSequence >= journal.nextSequence || (index > 0 && review.throughSequence < senders[index - 1].throughSequence))) return false;
   const reviews = state?.reviewedGaps ?? [];
   if (new Set(reviews.map((review) => review.revision)).size !== reviews.length || reviews.some((review, index) => !state || review.through <= review.from || review.through > state.cursor
     || (index > 0 && reviews[index - 1].through > review.from) || (review.receipt && (review.receipt.epoch !== state.epoch || review.receipt.sequence !== review.from + (review.receipt.confirmed ? 0 : 1) || review.receipt.sequence > review.through)))) return false;
@@ -151,7 +187,33 @@ function gatewayInboxRevision(instance: GatewayInstance, journal: GatewayInboxJo
 }
 function whatsAppRecoveryView(instance: GatewayInstance, journal: GatewayInboxJournal | undefined): GatewayWhatsAppRecovery {
   const state = journal?.whatsappRelay;
-  return { reason: state?.recovery?.reason ?? null, gap: state?.gapReview && journal ? { at: state.gapReview.at, revision: gatewayInboxRevision(instance, journal) } : null };
+  return { reason: state?.recovery?.reason ?? null, gap: state?.gapReview && journal ? { at: state.gapReview.at, revision: gatewayInboxRevision(instance, journal) } : null,
+    ...(state?.connection && state.recovery && state.recovery.reason !== 'gap' && !state.gapReview && journal
+      ? { restoration: { at: state.recovery.at, revision: gatewayInboxRevision(instance, journal) } } : {}) };
+}
+
+function whatsAppSendersView(instance: GatewayInstance, journal: GatewayInboxJournal | undefined): GatewayWhatsAppSenders {
+  if (instance.platform !== 'whatsapp' || instance.senderPolicy.platform !== 'whatsapp') throw Object.assign(new Error('Choose a WhatsApp instance.'), { status: 400 });
+  const state = journal?.whatsappRelay; const identities = state?.identities; const allowed = new Set(instance.senderPolicy.allowedPhones);
+  const secrets = getGatewaySecrets(instance.id);
+  const reason = instance.enabled ? 'Pause this instance before reviewing a sender.' : !state?.connection ? 'Pair this instance before reviewing a sender.'
+    : secrets.whatsappPairing !== undefined ? 'Finish or review the pending pairing first.' : !/^[a-f0-9]{64}$/.test(secrets.relayKey ?? '') || state.connection.phoneNumberId !== instance.accountId ? 'Restore the saved relay pairing and pull key first.' : state.recovery ? 'Review the relay recovery first.'
+      : !state.receipt?.confirmed ? 'Wait for the exact relay acknowledgement before reviewing a sender.' : (state.senderReviews?.length ?? 0) >= 1000 ? 'The saved sender review history is full. Keep it intact and review storage before continuing.' : '';
+  const revision = journal ? gatewayInboxRevision(instance, journal) : '';
+  return { reason, retired: identities?.users.filter((user) => user.retired).length ?? 0, waiting: identities?.users.filter((user) => !user.retired && !user.phone).length ?? 0,
+    unallowed: new Set(identities?.users.flatMap((user) => !user.retired && user.phone && !allowed.has(user.phone) ? [user.phone] : [])).size,
+    senders: [...allowed].map((phone) => {
+      const change = identities?.phoneChanges.find((item) => item.phone === phone); const changed = change && change.at >= (state?.startedAt ?? 0) ? change.at : undefined;
+      const proof = Boolean(identities?.users.some((user) => !user.retired && user.phone === phone) || journal?.events.some((event) => event.relay?.epoch === state?.epoch && event.relay?.confirmed
+        && !event.input.whatsappUserId && event.input.actor.id === phone && (event.input.sentAt ?? 0) > (change?.at ?? 0)));
+      const identityKey = whatsAppSenderKey(phone, identities); const latest = state?.senderReviews?.findLast((item) => item.phone === phone);
+      const status = !proof ? 'needs-proof' : latest?.identityKey === identityKey ? 'reviewed' : changed !== undefined ? 'needs-review' : 'verified';
+      const detail = reason || (!proof ? 'Ask this person to send a new message with signed phone proof. Saved sender IDs cannot be restored manually.' : status === 'needs-review'
+        ? 'Review this verified change before starting a fresh conversation. Earlier work stays held.' : status === 'reviewed' ? 'Ask this person to message again. Earlier requests keep their own review.' : 'No changed identity needs review for this phone.');
+      return { phone, status, ...(changed !== undefined ? { changedAt: changed } : {}), reason: detail,
+        revision: !reason && status === 'needs-review' && journal ? digest([revision, phone, identityKey]) : null,
+        requests: journal?.events.filter((event) => event.relay?.epoch === state?.epoch && event.input.actor.id === phone && !event.dismissed).length ?? 0 };
+    }) };
 }
 
 function requestReview(instance: GatewayInstance, journal: GatewayInboxJournal, eventId: string): GatewayRequestReview {
@@ -162,10 +224,11 @@ function requestReview(instance: GatewayInstance, journal: GatewayInboxJournal, 
   else if (event.dismissed) reason = 'This request was already dismissed.';
   else if (event.status !== 'needs-review' || !gatewayRequestUnstarted(event)) reason = 'Only held requests with no reserved or started work can be dismissed. Check any saved operation separately.';
   else if (event.input.platform === 'whatsapp') {
-    const relay = journal.whatsappRelay;
+    const archived = journal.whatsappRetired?.find((item) => item.state.epoch === event.relay?.epoch);
+    const relay = archived?.state ?? journal.whatsappRelay;
     const abandoned = relay?.reviewedGaps?.some((gap) => gap.receipt && !gap.receipt.confirmed && gap.receipt.sequence === event.relay?.sequence && gap.receipt.id === event.relay.id);
-    if (relay?.recovery) reason = 'Review the WhatsApp relay recovery before dismissing this request.';
-    else if (!event.relay?.confirmed && !abandoned) reason = 'Wait for the exact relay acknowledgement or review its saved retention gap first.';
+    if (!archived && relay?.recovery) reason = 'Review the WhatsApp relay recovery before dismissing this request.';
+    else if (!event.relay?.confirmed && !abandoned && !archived) reason = 'Wait for the exact relay acknowledgement or review its saved retention gap first.';
   }
   return { revision: digest([gatewayInboxRevision(instance, journal), event.id]), canDismiss: !reason, reason };
 }
@@ -187,21 +250,55 @@ function albumReceiptsValid(journal: GatewayInboxJournal): boolean {
 }
 
 /** Atomic writers permit read-only diagnostics without taking the live worker's claim. */
-function savedGatewayInbox(instanceId: string): GatewayInboxJournal | undefined {
-  getGatewayInstance(instanceId);
+function readSavedGatewayInbox(instanceId: string): GatewayInboxJournal | undefined {
   const file = privateDataPath('gateways-runtime', instanceId, 'inbox.json');
   if (!fs.existsSync(file)) return undefined;
   const parsed = journalSchema.safeParse(readJSON(file));
-  if (!parsed.success || !replayReceiptsValid(parsed.data) || !albumReceiptsValid(parsed.data) || !relayReceiptsValid(parsed.data)) throw Object.assign(new Error('This gateway inbox is unreadable.'), { status: 503 });
+  if (!parsed.success || !replayReceiptsValid(parsed.data) || !albumReceiptsValid(parsed.data) || !relayReceiptsValid(parsed.data) || !workReceiptsValid(parsed.data)) throw Object.assign(new Error('This gateway inbox is unreadable.'), { status: 503 });
   return parsed.data;
+}
+
+function savedGatewayInbox(instanceId: string): GatewayInboxJournal | undefined {
+  getGatewayInstance(instanceId); return readSavedGatewayInbox(instanceId);
+}
+
+export function gatewayRetiredInboxHistory(instanceId: string): GatewayInboxEvent[] {
+  if (!gatewayRetirement(instanceId)) throw Object.assign(new Error('No such removed gateway instance.'), { status: 404 });
+  return readSavedGatewayInbox(instanceId)?.events ?? [];
+}
+
+export function gatewayRetiredFinishReview(instanceId: string, eventId: string): GatewayRetiredFinishReview {
+  return new GatewayInbox({ instanceId, inboxFile: () => privateDataPath('gateways-runtime', instanceId, 'inbox.json') }).retiredFinishReview(eventId);
 }
 
 export function gatewayInboxHistory(instanceId: string): GatewayInboxEvent[] { return savedGatewayInbox(instanceId)?.events ?? []; }
 export function savedWhatsAppRelayState(instanceId: string): GatewayWhatsAppIntakeState | undefined { return savedGatewayInbox(instanceId)?.whatsappRelay; }
+export function whatsAppReplacementRevision(instanceId: string): string | undefined {
+  const instance = getGatewayInstance(instanceId); const journal = savedGatewayInbox(instanceId);
+  return instance.platform === 'whatsapp' && journal?.whatsappRelay?.connection ? gatewayInboxRevision(instance, journal) : undefined;
+}
+export function gatewayWhatsAppReplacement(instanceId: string): GatewayWhatsAppReplacement {
+  const instance = getGatewayInstance(instanceId); const journal = savedGatewayInbox(instanceId); const retired = journal?.whatsappRetired?.length ?? 0;
+  if (instance.platform !== 'whatsapp') throw Object.assign(new Error('Choose a WhatsApp instance.'), { status: 400 });
+  return { revision: retired < 100 && journal?.whatsappRelay?.connection ? gatewayInboxRevision(instance, journal) : null, retired };
+}
+export function gatewayWhatsAppSenders(instanceId: string): GatewayWhatsAppSenders {
+  return whatsAppSendersView(getGatewayInstance(instanceId), savedGatewayInbox(instanceId));
+}
+export function gatewayDeliveryReview(instanceId: string, eventId: string): GatewayDeliveryReview {
+  const instance = getGatewayInstance(instanceId); const journal = savedGatewayInbox(instanceId); const event = journal?.events.find((item) => item.id === eventId);
+  if (!journal || !event) throw Object.assign(new Error('No such saved gateway delivery.'), { status: 404 });
+  return deliveryReview(instance, event, digest([gatewayInboxRevision(instance, journal), event.id]));
+}
 export function gatewayRequestReview(instanceId: string, eventId: string): GatewayRequestReview {
   const instance = getGatewayInstance(instanceId); const journal = savedGatewayInbox(instanceId);
   if (!journal) throw Object.assign(new Error('No such saved gateway message.'), { status: 404 });
   return requestReview(instance, journal, eventId);
+}
+export function gatewayWorkReview(instanceId: string, eventId: string): GatewayWorkReview {
+  const instance = getGatewayInstance(instanceId); const journal = savedGatewayInbox(instanceId); const event = journal?.events.find((item) => item.id === eventId);
+  if (!journal || !event) throw Object.assign(new Error('No such saved gateway work.'), { status: 404 });
+  return workReview(instance, journal, event, digest([gatewayInboxRevision(instance, journal), event.id]));
 }
 export function gatewayWhatsAppRecovery(instanceId: string): GatewayWhatsAppRecovery {
   const instance = getGatewayInstance(instanceId);
@@ -243,11 +340,11 @@ export function gatewayInputAllowed(instance: GatewayInstance, input: GatewayInb
   return instance.scope.conversationIds.includes(scope);
 }
 
-/** Its SDK adapter must stay connected: both files share the same exclusive instance claim. */
+/** Mutations need the instance claim, held by a live SDK adapter or a retired-review caller. */
 export class GatewayInbox {
-  private readonly state: GatewayStateAdapter;
+  private readonly state: Pick<GatewayStateAdapter, 'instanceId' | 'inboxFile'>;
 
-  constructor(state: GatewayStateAdapter) { this.state = state; }
+  constructor(state: Pick<GatewayStateAdapter, 'instanceId' | 'inboxFile'>) { this.state = state; }
 
   get instanceId(): string { return this.state.instanceId; }
 
@@ -261,6 +358,7 @@ export class GatewayInbox {
     if (!albumReceiptsValid(journal)) throw new Error('The gateway album receipts are inconsistent. Restore them before reconnecting.');
     if (!replayReceiptsValid(journal)) throw new Error('The gateway replay or quota receipts are inconsistent. Restore them before reconnecting.');
     if (!relayReceiptsValid(journal)) throw new Error('The gateway relay receipts are inconsistent. Restore them before reconnecting.');
+    if (!workReceiptsValid(journal)) throw new Error('The gateway work review receipts are inconsistent. Restore them before reconnecting.');
     const bindings = new Map(journal.bindings.map((binding) => [binding.id, binding]));
     const sequences = new Set(journal.events.map((event) => event.sequence));
     const batches = journal.events.filter((event) => event.fileBatch).map((event) => `${event.route.projectId}/${event.fileBatch}`);
@@ -291,6 +389,96 @@ export class GatewayInbox {
 
   list(): GatewayInboxEvent[] { return this.read().events; }
 
+  private retiredSnapshot(eventId: string) {
+    const retired = gatewayRetirement(this.state.instanceId);
+    if (!retired) throw Object.assign(new Error('No such removed gateway instance.'), { status: 404 });
+    let journal: GatewayInboxJournal;
+    try { journal = this.read(); } catch { throw Object.assign(new Error('The saved inbox receipts could not be reviewed safely. Restore them before continuing.'), { status: 503 }); }
+    const event = journal.events.find((item) => item.id === eventId);
+    if (!event) throw Object.assign(new Error('No such saved gateway receipt.'), { status: 404 });
+    return { journal, event, preview: retiredFinishReview(retired, journal, event) };
+  }
+
+  retiredFinishReview(eventId: string): GatewayRetiredFinishReview { return this.retiredSnapshot(eventId).preview; }
+
+  prepareRetiredFinish(eventId: string, body: unknown): GatewayRetiredFinishReview {
+    const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/) }).safeParse(body);
+    const { journal, preview } = this.retiredSnapshot(eventId);
+    if (!parsed.success || parsed.data.revision !== preview.revision || !preview.needsPrepare) throw Object.assign(new Error('The saved receipts changed or cannot be recovered here. Reload the local-finish review.'), { status: 409 });
+    this.recoverJournal(journal, eventId); return this.retiredFinishReview(eventId);
+  }
+
+  finishRetired(eventId: string, body: unknown): GatewayRetiredFinishReview {
+    const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeNoSend: z.literal(true), acknowledgeMayStillRun: z.literal(true) }).safeParse(body);
+    const { journal, event, preview } = this.retiredSnapshot(eventId);
+    if (!parsed.success || parsed.data.revision !== preview.revision || !preview.canFinish) throw Object.assign(new Error(preview.reason || 'The saved receipts changed. Reload the local-finish review.'), { status: 409 });
+    if (preview.kind === 'delivery') {
+      const at = Date.now(); event.deliveryReviews = [...(event.deliveryReviews ?? []), { at, revision: parsed.data.revision, action: 'finish-local' }]; event.deliveryFinished = { at, revision: parsed.data.revision };
+    } else if (preview.kind === 'work') this.keepWorkLocal(journal, event, parsed.data.revision);
+    else throw Object.assign(new Error('This receipt cannot be finished here.'), { status: 409 });
+    try { this.commit(journal); } catch { throw Object.assign(new Error('Local finish could not be saved. Check storage and reload its receipts.'), { status: 503 }); }
+    return this.retiredFinishReview(eventId);
+  }
+
+  private keepWorkLocal(journal: GatewayInboxJournal, event: GatewayInboxEvent, revision: string): void {
+    const roots = new Map(journal.bindings.map((item) => [item.id, item.rootId ?? item.id])); const root = gatewayBindingRoot(journal, event.bindingId);
+    event.workKept = { at: Date.now(), revision, throughSequence: journal.nextSequence - 1, serial: Math.max(0, ...journal.events.map((item) => item.workKept?.serial ?? 0)) + 1 };
+    for (const item of journal.events) if (roots.get(item.bindingId) === root) this.holdSource(item, 'An operator kept earlier work in Athena. Ask the sender for a new message in the fresh conversation.');
+  }
+
+  prepareWorkReview(eventId: string): GatewayWorkReview {
+    const instance = getGatewayInstance(this.state.instanceId); const event = this.read().events.find((item) => item.id === eventId);
+    if (instance.enabled) throw Object.assign(new Error('Pause this gateway before recovering interrupted work receipts.'), { status: 400 });
+    if (!event || event.workKept || !gatewayWorkUnfinished(event)) throw Object.assign(new Error('Only an open reserved or started request without a final reply can be recovered here.'), { status: 409 });
+    this.recover(eventId); return gatewayWorkReview(instance.id, eventId);
+  }
+
+  keepWork(eventId: string, body: unknown): GatewayWorkReview {
+    const journal = this.read(); const instance = getGatewayInstance(this.state.instanceId); const event = journal.events.find((item) => item.id === eventId);
+    if (!event) throw Object.assign(new Error('No such saved gateway work.'), { status: 404 });
+    const preview = workReview(instance, journal, event, digest([gatewayInboxRevision(instance, journal), event.id]));
+    const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeMayStillRun: z.literal(true), acknowledgeFreshConversation: z.literal(true), acknowledgeNoReply: z.literal(true) }).safeParse(body);
+    if (!parsed.success || parsed.data.revision !== preview.revision || !preview.canKeep) throw Object.assign(new Error(preview.reason || 'This request or its saved work changed. Reload and review the current receipts.'), { status: 409 });
+    this.keepWorkLocal(journal, event, parsed.data.revision);
+    try { this.commit(journal); } catch { throw Object.assign(new Error('The work review could not be saved. Check storage and reload its receipts.'), { status: 503 }); }
+    return gatewayWorkReview(instance.id, eventId);
+  }
+
+  prepareDeliveryReview(eventId: string): GatewayDeliveryReview {
+    const instance = getGatewayInstance(this.state.instanceId); const event = this.read().events.find((item) => item.id === eventId);
+    if (instance.enabled) throw Object.assign(new Error('Pause this gateway before recovering interrupted delivery receipts.'), { status: 400 });
+    if (!event || !completedGatewayDelivery(event) || event.deliveryFinished) throw Object.assign(new Error('Only an open delivery for a completed saved answer can be recovered.'), { status: 409 });
+    this.recover(eventId); return gatewayDeliveryReview(instance.id, eventId);
+  }
+
+  reviewDelivery(eventId: string, body: unknown): GatewayDeliveryReview {
+    const parsed = z.discriminatedUnion('action', [
+      z.strictObject({ action: z.literal('confirm'), revision: z.string().regex(/^[a-f0-9]{64}$/), target: deliveryTarget, remoteId: z.string().trim().min(1).max(500).refine((value) => !/\s/.test(value)), acknowledgeChecked: z.literal(true) }),
+      z.strictObject({ action: z.literal('finish-local'), revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeNoSend: z.literal(true) }),
+    ]).safeParse(body);
+    const journal = this.read(); const instance = getGatewayInstance(this.state.instanceId); const event = journal.events.find((item) => item.id === eventId);
+    if (!event) throw Object.assign(new Error('No such saved gateway delivery.'), { status: 404 });
+    const preview = deliveryReview(instance, event, digest([gatewayInboxRevision(instance, journal), event.id]));
+    if (!parsed.success || parsed.data.revision !== preview.revision || preview.reason) throw Object.assign(new Error(preview.reason || 'This delivery or its saved work changed. Reload and review the current receipts.'), { status: 409 });
+    const value = parsed.data; const at = Date.now();
+    if (value.action === 'confirm') {
+      const target = deliveryTargetKey(value.target); const item = preview.items.find((item) => deliveryTargetKey(item.target) === target);
+      const receipt = deliveryEntries(event).find((item) => deliveryTargetKey(item.target) === target)?.value;
+      if (!item?.canConfirm || !receipt) throw Object.assign(new Error('Only an attempted uncertain delivery can be confirmed from the messaging app.'), { status: 409 });
+      event.deliveryReviews = [...(event.deliveryReviews ?? []), { at, revision: value.revision, action: 'confirmed', target: value.target, remoteId: value.remoteId, ...(receipt.remoteId ? { previousRemoteId: receipt.remoteId } : {}) }];
+      receipt.status = 'sent'; receipt.remoteId = value.remoteId; delete receipt.retryAt;
+      if ('path' in receipt) delete receipt.reason;
+      if (event.reply?.parts.every((part) => part.status === 'sent')) delete event.reply.reason;
+    } else {
+      if (!preview.canFinish) throw Object.assign(new Error('No remaining final delivery can be finished locally.'), { status: 409 });
+      event.deliveryReviews = [...(event.deliveryReviews ?? []), { at, revision: value.revision, action: 'finish-local' }];
+      event.deliveryFinished = { at, revision: value.revision };
+    }
+    try { this.commit(journal); }
+    catch { throw Object.assign(new Error('The delivery review could not be saved. Check local storage and reload its receipts.'), { status: 503 }); }
+    return gatewayDeliveryReview(instance.id, eventId);
+  }
+
   groupAlbum(eventId: string, body: unknown): { leaderId: string } {
     const parsed = z.strictObject({ eventIds: z.array(externalId).min(2).max(10) }).safeParse(body);
     if (!parsed.success) throw new Error('Choose the complete saved album.');
@@ -309,18 +497,19 @@ export class GatewayInbox {
     this.commit(journal); return { leaderId: leader.id };
   }
 
-  private sources(journal: GatewayInboxJournal, event: GatewayInboxEvent): GatewayInboxEvent[] {
+  private sources(journal: GatewayInboxJournal, event: GatewayInboxEvent, pausedReview = false): GatewayInboxEvent[] {
     if (!event.input.mediaGroupId) return [event];
     if (event.album?.leaderId !== event.id || !event.album.memberIds) throw new Error('Group the complete album before starting work.');
     const members = event.album.memberIds.map((id) => journal.events.find((item) => item.id === id)!);
     if (journal.events.some((item) => (gatewayAlbumKey(item.input) === gatewayAlbumKey(event.input) && (item.albumBlocked || !event.album!.memberIds!.includes(item.id)))
       || (item.input.kind === 'edit' && item.input.accountId === event.input.accountId && item.input.conversationId === event.input.conversationId
         && item.input.threadId === event.input.threadId && members.some((source) => source.input.sourceMessageId === item.input.sourceMessageId)))) throw new Error('The album changed after grouping. Review it before continuing.');
-    for (const item of members) this.checkAccess(item);
+    if (!pausedReview) for (const item of members) this.checkAccess(item);
     return members;
   }
 
   private holdSource(event: GatewayInboxEvent, reason: string): void {
+    if (event.deliveryFinished || event.workKept) return;
     if (['queued', 'waiting-files', 'running'].includes(event.status)) {
       event.status = 'needs-review'; event.reason = reason;
       if (event.dispatch) event.dispatch.state = 'needs-review';
@@ -338,9 +527,9 @@ export class GatewayInbox {
     this.holdSource(event, reason); this.commit(journal);
   }
 
-  private sourceChanged(journal: GatewayInboxJournal, event: GatewayInboxEvent): boolean {
+  private sourceChanged(journal: GatewayInboxJournal, event: GatewayInboxEvent, pausedReview = false): boolean {
     try {
-      const sources = this.sources(journal, event);
+      const sources = this.sources(journal, event, pausedReview);
       return journal.events.some((item) => item.input.kind === 'edit' && sources.some((source) => source.input.accountId === item.input.accountId
         && source.input.conversationId === item.input.conversationId && source.input.threadId === item.input.threadId && source.input.sourceMessageId === item.input.sourceMessageId));
     } catch { return true; }
@@ -350,6 +539,37 @@ export class GatewayInbox {
     const journal = this.read(); const event = journal.events.find((item) => item.id === eventId);
     if (!event) throw new Error('No such gateway message.');
     return this.sources(journal, event);
+  }
+
+  /** An approved follow-up uses a real, completed source, never a model-supplied address. */
+  outboxSource(eventId: string, projectId: string): GatewayInboxEvent {
+    return this.outboxEvidence(eventId, projectId).event;
+  }
+
+  /** Paused review checks the original route and policy without enabling intake or transport. */
+  outboxEvidence(eventId: string, projectId: string, pausedReview = false): { event: GatewayInboxEvent; sources: GatewayInboxEvent[] } {
+    const journal = this.read(); const event = journal.events.find((item) => item.id === eventId);
+    if (!event || event.route.projectId !== projectId || event.input.kind !== 'message' || event.status !== 'done'
+      || event.dismissed || event.album?.leaderId && event.album.leaderId !== event.id
+      || !event.reply?.parts.every((part) => part.status === 'sent')
+      || event.outgoing?.some((file) => !['sent', 'skipped'].includes(file.status)) || this.sourceChanged(journal, event, pausedReview)) {
+      throw new Error('Choose a completed gateway conversation with confirmed delivery and unchanged source messages.');
+    }
+    const sources = this.sources(journal, event, pausedReview);
+    if (pausedReview) {
+      const instance = getGatewayInstance(this.state.instanceId);
+      if (instance.enabled || (instance.platform !== 'telegram' && instance.platform !== 'discord')) throw new Error('Pause this Telegram or Discord gateway before reviewing a retry.');
+      checkGatewayDestination(instance.id);
+      for (const source of sources) {
+        const boundary = latestWorkReview(journal, source.bindingId);
+        if (source.workKept || source.deliveryFinished || source.dismissed || (boundary && source.sequence <= boundary.throughSequence)
+          || !gatewayInputAllowed({ ...instance, enabled: true }, source.input) || source.route.projectId !== instance.projectId
+          || source.route.instanceId !== instance.id || source.route.generation !== instance.routeGeneration || JSON.stringify(source.route.target) !== JSON.stringify(instance.target)) {
+          throw new Error('The original source, sender access or gateway destination changed. Keep this delivery local and review a new draft.');
+        }
+      }
+    } else for (const source of sources) this.checkAccess(source);
+    return { event, sources };
   }
 
   /** Detect source changes during asynchronous transport checks without overriding an explicit retry. */
@@ -371,6 +591,8 @@ export class GatewayInbox {
     if (before > Date.now() || new Set(eventIds).size !== eventIds.length) throw new GatewayCleanupError('Choose a valid cleanup selection and date.');
     const journal = this.read(); const eligible = new Map(gatewayCleanupCandidates(journal.events, before).map((event) => [event.id, event]));
     if (eventIds.some((id) => !eligible.has(id))) throw new GatewayCleanupError('Some receipts are no longer eligible. Reload the inbox before cleaning up.');
+    const protectedBindings = gatewayOutboxProtectedBindings(this.state.instanceId);
+    if (eventIds.some((id) => protectedBindings.has(eligible.get(id)!.bindingId))) throw new GatewayCleanupError('Keep conversation receipts while an approved Outbox delivery is unresolved.');
     const selected = new Set(eventIds);
     if (eventIds.some((id) => { const item = eligible.get(id)!; const leader = item.album && eligible.get(item.album.leaderId); return item.album && (!leader?.album?.memberIds || leader.album.memberIds.some((member) => !selected.has(member))); })) throw new GatewayCleanupError('Remove a completed album’s receipts together.');
     if ((journal.retired?.length ?? 0) + eventIds.length > 100000) throw new GatewayCleanupError('The replay-protection store is full. Cleanup cannot remove its protection.');
@@ -414,7 +636,7 @@ export class GatewayInbox {
   recordDispatch(eventId: string, operationId: string, result: Pick<GatewayDispatch, 'runId' | 'messageId' | 'briefId' | 'briefRevision' | 'brain'>): void {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
-    if (!event?.dispatch || event.status !== 'running' || event.operationId !== operationId) throw new Error('This gateway operation is no longer active.');
+    if (!event?.dispatch || event.workKept || event.status !== 'running' || event.operationId !== operationId) throw new Error('This gateway operation is no longer active.');
     event.dispatch = { ...event.dispatch, ...result, state: 'running' };
     this.commit(journal);
   }
@@ -423,6 +645,7 @@ export class GatewayInbox {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
     if (!event) throw new Error('No such gateway message.');
+    if (event.deliveryFinished || event.workKept) return;
     event.status = 'needs-review'; event.reason = reason;
     if (event.dispatch) event.dispatch.state = 'needs-review';
     if (event.reconciliation?.state === 'tracking') event.reconciliation = { at: Date.now(), state: 'needs-review' };
@@ -443,7 +666,7 @@ export class GatewayInbox {
   finishDispatch(eventId: string, operationId: string, answer: string): void {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
-    if (!event?.dispatch || event.status !== 'running' || event.operationId !== operationId) throw new Error('This gateway operation is no longer active.');
+    if (!event?.dispatch || event.workKept || event.status !== 'running' || event.operationId !== operationId) throw new Error('This gateway operation is no longer active.');
     this.checkAccess(event);
     this.sources(journal, event);
     saveAnswer(event, answer);
@@ -453,7 +676,7 @@ export class GatewayInbox {
 
   private heldOperation(journal: GatewayInboxJournal, eventId: string): GatewayInboxEvent {
     const event = journal.events.find((item) => item.id === eventId);
-    if (!event || event.status !== 'needs-review' || !event.dispatch || !event.operationId || event.reply) throw new Error('This message has no held operation to check.');
+    if (!event || event.workKept || event.status !== 'needs-review' || !event.dispatch || !event.operationId || event.reply) throw new Error('This message has no held operation to check.');
     this.checkAccess(event);
     const sources = this.sources(journal, event);
     if (event.input.kind !== 'message' || journal.events.some((item) => item.input.kind === 'edit'
@@ -479,6 +702,7 @@ export class GatewayInbox {
     const journal = this.read();
     const blocked = new Set<string>();
     for (const event of journal.events) {
+      if (event.dismissed || event.deliveryFinished || event.workKept) continue;
       if (blocked.has(event.bindingId)) continue;
       const index = event.reply?.parts.findIndex((part) => part.status !== 'sent') ?? -1;
       if (event.status !== 'done' || index >= 0 || event.outgoing?.some((file) => !['sent', 'skipped'].includes(file.status))) blocked.add(event.bindingId);
@@ -500,7 +724,7 @@ export class GatewayInbox {
   selectOutgoing(eventId: string, files: Pick<GatewayOutgoingFile, 'path' | 'name' | 'size' | 'sha256' | 'source'>[]): void {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
-    if (!event?.dispatch || !['running', 'done'].includes(event.status) || journal.events.some((item) => item.bindingId === event.bindingId && item.sequence > event.sequence && item.dispatch)) throw new Error('Select files for the current gateway assignment.');
+    if (!event?.dispatch || event.deliveryFinished || event.workKept || !['running', 'done'].includes(event.status) || journal.events.some((item) => item.bindingId === event.bindingId && item.sequence > event.sequence && item.dispatch)) throw new Error('Select files for the current gateway assignment.');
     const instance = this.checkAccess(event);
     if (!files.length || files.length > instance.fileLimits.filesPerMessage || files.some((file) => file.size > instance.fileLimits.perFileBytes) || files.reduce((sum, file) => sum + file.size, 0) > instance.fileLimits.perMessageBytes) throw new Error('These files exceed this gateway’s limits.');
     if (event.outgoing) {
@@ -516,6 +740,7 @@ export class GatewayInbox {
     const blocked = new Set<string>();
     let changed = false;
     for (const event of journal.events) {
+      if (event.dismissed || event.deliveryFinished || event.workKept) continue;
       if (blocked.has(event.bindingId)) continue;
       const index = event.outgoing?.findIndex((file) => !['sent', 'skipped'].includes(file.status)) ?? -1;
       if (event.status !== 'done' || event.reply?.parts.some((part) => part.status !== 'sent') || index >= 0) blocked.add(event.bindingId);
@@ -560,7 +785,7 @@ export class GatewayInbox {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
     const file = event?.outgoing?.[index];
-    if (!event || !file || !['pending', 'failed', 'uncertain'].includes(file.status)) throw new Error('This file cannot be changed.');
+    if (!event || event.deliveryFinished || event.workKept || !file || !['pending', 'failed', 'uncertain'].includes(file.status)) throw new Error('This file cannot be changed.');
     if (action === 'retry') {
       this.checkAccess(event);
       if (file.status === 'pending') throw new Error('This file is already waiting to send.');
@@ -583,6 +808,7 @@ export class GatewayInbox {
     const journal = this.read();
     let changed = false;
     for (const event of journal.events) {
+      if (event.deliveryFinished || event.workKept) continue;
       for (const kind of ['approval', 'working'] as const) {
         const notice = event.notices?.[kind];
         if (!notice || notice.status !== 'pending') continue;
@@ -636,10 +862,18 @@ export class GatewayInbox {
   }
 
   checkAccess(event: GatewayInboxEvent): GatewayInstance {
-    if (event.input.platform === 'whatsapp' && !event.relay?.confirmed) throw new Error('Wait for the relay acknowledgement before starting work.');
+    if (event.workKept) throw new Error('This work is kept in Athena. Ask for a new message instead of reopening it.');
+    const journal = this.read(); const boundary = latestWorkReview(journal, event.bindingId);
+    if (boundary && event.sequence <= boundary.throughSequence) throw new Error('This request predates the fresh conversation review. Ask the sender for a new message.');
+    if (event.deliveryFinished) throw new Error('Delivery was finished locally. Ask for a new request instead of reopening this receipt.');
     if (event.input.platform === 'whatsapp') {
-      const state = this.read().whatsappRelay;
+      const state = journal.whatsappRelay;
+      if (getGatewaySecrets(this.state.instanceId).whatsappPairing !== undefined) throw new Error('Finish or review the pending WhatsApp pairing before continuing.');
+      if (!state || event.relay?.epoch !== state.epoch) throw new Error('This request belongs to a replaced relay. Ask the sender for a new message.');
+      if (!event.relay.confirmed) throw new Error('Wait for the relay acknowledgement before starting work.');
       if (state?.recovery) throw new Error('Review the WhatsApp relay recovery before continuing.');
+      const reviewed = state.senderReviews?.findLast((item) => item.phone === event.input.actor.id);
+      if (reviewed && (event.sequence <= reviewed.throughSequence || (event.input.sentAt ?? 0) <= reviewed.at)) throw new Error('This request predates the sender review. Ask the sender for a new message.');
       if (!whatsAppIdentityAllowed(event.input, state?.identities)) throw new Error('This WhatsApp identity changed. Review the sender before continuing.');
     }
     const instance = getGatewayInstance(this.state.instanceId);
@@ -756,6 +990,48 @@ export class GatewayInbox {
 
   whatsAppRelayState(): GatewayWhatsAppIntakeState | undefined { return this.read().whatsappRelay; }
 
+  /** A signed association can open a fresh history; it never authorizes earlier input or replies. */
+  reviewWhatsAppSender(body: unknown): GatewayWhatsAppSenders {
+    const parsed = z.strictObject({ phone: z.string().refine(canonicalWhatsAppPhone), revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeNewConversation: z.literal(true) }).safeParse(body);
+    const journal = this.read(); const instance = getGatewayInstance(this.state.instanceId); const preview = whatsAppSendersView(instance, journal);
+    const sender = parsed.success ? preview.senders.find((item) => item.phone === parsed.data.phone) : undefined;
+    if (!parsed.success || !sender?.revision || sender.revision !== parsed.data.revision) throw Object.assign(new Error('This sender, its saved work or setup changed. Reload and review the current signed proof.'), { status: 409 });
+    const state = journal.whatsappRelay!;
+    for (const event of journal.events) if (event.relay?.epoch === state.epoch && event.input.actor.id === parsed.data.phone) this.holdSource(event, 'This sender identity was reviewed for a fresh conversation. Keep earlier work in Athena.');
+    state.senderReviews = [...(state.senderReviews ?? []), { at: Math.floor(Date.now() / 1000) * 1000, throughSequence: journal.nextSequence - 1, phone: parsed.data.phone, identityKey: whatsAppSenderKey(parsed.data.phone, state.identities), revision: parsed.data.revision }];
+    try { this.commit(journal); }
+    catch { throw Object.assign(new Error('The sender review could not be saved. Check local storage and reload before continuing.'), { status: 503 }); }
+    return whatsAppSendersView(instance, journal);
+  }
+
+  assertWhatsAppReplacement(epoch: string, candidate?: GatewayWhatsAppRelayConnection): void {
+    const instance = getGatewayInstance(this.state.instanceId); const journal = this.read(); const saved = journal.whatsappRelay;
+    if (instance.platform !== 'whatsapp' || !saved?.connection || saved.epoch !== epoch || saved.connection.phoneNumberId !== instance.accountId
+      || (journal.whatsappRetired?.length ?? 0) >= 100) throw new Error('Choose a paired WhatsApp instance with room in its replacement history.');
+    if (candidate && (candidate.phoneNumberId !== instance.accountId || candidate.businessAccountId !== saved.connection.businessAccountId || candidate.epoch === epoch
+      || journal.whatsappRetired?.some((item) => item.state.epoch === candidate.epoch))) throw new Error('Use a new relay epoch for the same business account and phone.');
+  }
+
+  /** Old receipts remain immutable evidence; new work gets a separate conversation binding. */
+  replaceWhatsAppRelay(connection: GatewayWhatsAppRelayConnection, cursor: number, gap: boolean, attemptId: string, previous: { epoch: string; revision: string }): void {
+    const parsed = whatsAppRelayConnectionSchema.parse(connection); const journal = this.read(); const instance = getGatewayInstance(this.state.instanceId);
+    if (instance.enabled || instance.platform !== 'whatsapp' || !stamp.safeParse(cursor).success || !z.uuid().safeParse(attemptId).success) throw new Error('Pause this WhatsApp instance before finishing replacement.');
+    const existing = journal.whatsappRetired?.find((item) => item.attemptId === attemptId);
+    if (existing) {
+      const saved = journal.whatsappRelay;
+      if (existing.state.epoch !== previous.epoch || existing.revision !== previous.revision || !saved || saved.cursor !== cursor || saved.receipt
+        || JSON.stringify(saved.connection) !== JSON.stringify(parsed) || Boolean(saved.recovery) !== gap) throw new Error('The saved replacement changed. Restore it before continuing.');
+      return;
+    }
+    this.assertWhatsAppReplacement(previous.epoch, parsed); const saved = journal.whatsappRelay!; const at = Math.floor(Date.now() / 1000) * 1000;
+    for (const event of journal.events) if (event.relay?.epoch === saved.epoch) this.holdSource(event, 'This relay was replaced. Review the saved work in Athena; ask the sender for a new message.');
+    journal.whatsappRetired = [...(journal.whatsappRetired ?? []), { at: Date.now(), attemptId, revision: previous.revision, state: saved }];
+    journal.whatsappRelay = { epoch: parsed.epoch, cursor, connection: parsed, startedAt: at,
+      ...(saved.identities ? { identities: { ...saved.identities, users: saved.identities.users.map((user) => user.retired ? user : { ...user, phone: null, at }) } } : {}),
+      ...(gap ? { recovery: { at: Date.now(), reason: 'gap' as const } } : {}) };
+    this.commit(journal);
+  }
+
   /** Explicit pairing only. A later status response must never reset this saved binding or cursor. */
   bindWhatsAppRelayConnection(value: GatewayWhatsAppRelayConnection, cursor: number): void {
     const connection = whatsAppRelayConnectionSchema.parse(value); const journal = this.read();
@@ -803,13 +1079,32 @@ export class GatewayInbox {
     const instance = getGatewayInstance(this.state.instanceId); const saved = journal.whatsappRelay; const connection = saved?.connection;
     if (instance.enabled || instance.platform !== 'whatsapp' || !saved || !connection || instance.accountId !== connection.phoneNumberId) throw Object.assign(new Error('Pause the paired WhatsApp instance before reviewing its relay.'), { status: 400 });
     if (remote.installationId !== connection.installationId || remote.businessAccountId !== connection.businessAccountId || remote.phoneNumberId !== connection.phoneNumberId || remote.epoch !== connection.epoch
-      || remote.queuedEvents > 10000 || remote.queuedBytes > 67108864 || (!remote.queuedEvents && remote.queuedBytes)) throw Object.assign(new Error('The relay identity or queue changed. Restore the saved pairing before reviewing a gap.'), { status: 409 });
+      || remote.queuedEvents > 10000 || remote.queuedBytes > 67108864 || (!remote.queuedEvents && remote.queuedBytes)) throw Object.assign(new Error('The relay identity or queue changed. Restore the saved pairing before reviewing recovery.'), { status: 409 });
+    return saved;
+  }
+
+  private whatsAppGapRecoveryState(journal: GatewayInboxJournal, remote: GatewayWhatsAppRelayStatus): GatewayWhatsAppIntakeState {
+    const saved = this.whatsAppRecoveryState(journal, remote);
     if (saved.recovery && saved.recovery.reason !== 'gap') throw Object.assign(new Error('This relay needs its saved receipt or pairing restored. A gap review cannot clear this hold.'), { status: 409 });
     return saved;
   }
 
+  /** Release only the connection hold. Status is never proof of an envelope ACK or completed work. */
+  restoreWhatsAppRelay(remote: GatewayWhatsAppRelayStatus, body: unknown): GatewayWhatsAppRecovery {
+    const journal = this.read(); const state = this.whatsAppRecoveryState(journal, remote); const held = state.recovery;
+    const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeRestore: z.literal(true) }).safeParse(body);
+    if (!parsed.success || parsed.data.revision !== gatewayInboxRevision(getGatewayInstance(this.state.instanceId), journal)
+      || !held || held.reason === 'gap' || state.gapReview) throw Object.assign(new Error('This connection hold changed. Reload and review it again.'), { status: 409 });
+    if (remote.gap) throw Object.assign(new Error('The restored relay still has a message gap. Restore its saved queue and receipt position before retrying.'), { status: 409 });
+    if (remote.cursor !== state.cursor && !(state.receipt && !state.receipt.confirmed && remote.cursor === state.receipt.sequence)) throw Object.assign(new Error('The restored relay cursor does not match the saved receipts. Restore them before continuing.'), { status: 409 });
+    if ((state.restorations?.length ?? 0) >= 1000) throw Object.assign(new Error('The saved restoration history needs attention before another hold can be reviewed.'), { status: 409 });
+    state.restorations = [...(state.restorations ?? []), { at: Date.now(), heldAt: held.at, reason: held.reason, revision: parsed.data.revision, remoteCursor: remote.cursor }];
+    delete state.recovery;
+    this.commit(journal); return whatsAppRecoveryView(getGatewayInstance(this.state.instanceId), journal);
+  }
+
   observeWhatsAppGap(remote: GatewayWhatsAppRelayStatus): GatewayWhatsAppRecovery {
-    const journal = this.read(); const state = this.whatsAppRecoveryState(journal, remote);
+    const journal = this.read(); const state = this.whatsAppGapRecoveryState(journal, remote);
     if (!remote.gap) {
       if (!state.gapReview || remote.cursor !== state.gapReview.through) throw Object.assign(new Error('No matching saved gap was found. Restore the relay and local receipts before continuing.'), { status: 409 });
       return whatsAppRecoveryView(getGatewayInstance(this.state.instanceId), journal);
@@ -823,7 +1118,7 @@ export class GatewayInbox {
   }
 
   reviewWhatsAppGap(remote: GatewayWhatsAppRelayStatus, body: unknown): GatewayWhatsAppRecovery {
-    const journal = this.read(); const state = this.whatsAppRecoveryState(journal, remote); const gap = state.gapReview;
+    const journal = this.read(); const state = this.whatsAppGapRecoveryState(journal, remote); const gap = state.gapReview;
     const parsed = z.strictObject({ revision: z.string().regex(/^[a-f0-9]{64}$/), acknowledgeGap: z.literal(true) }).safeParse(body);
     if (!gap || !parsed.success || parsed.data.revision !== gatewayInboxRevision(getGatewayInstance(this.state.instanceId), journal)) throw Object.assign(new Error('This gap or its saved work changed. Reload and review it again.'), { status: 409 });
     if (remote.gap || remote.cursor !== gap.through) throw Object.assign(new Error('Review this exact gap at the relay first. Its current cursor must match the saved lost range.'), { status: 409 });
@@ -852,9 +1147,9 @@ export class GatewayInbox {
     let accepted = 0;
     for (const input of parsed) {
       const event = whatsAppIdentityAllowed(input, state.identities) ? this.record(journal, input, { ...receipt, confirmed: false }) : null;
-      if (event) accepted++; else counts.ignored++;
+      if (event && event.relay?.epoch === state.epoch) accepted++; else counts.ignored++;
     }
-    for (const event of journal.events) if (!whatsAppIdentityAllowed(event.input, state.identities)) this.holdSource(event, 'This WhatsApp identity changed. Review the sender before continuing.');
+    for (const event of journal.events) if (event.relay?.epoch === state.epoch && !whatsAppIdentityAllowed(event.input, state.identities)) this.holdSource(event, 'This WhatsApp identity changed. Review the sender before continuing.');
     state.receipt = intakeReceipt.parse({ ...receipt, confirmed: false, accepted, ...counts });
     this.commit(journal); return state.receipt;
   }
@@ -873,6 +1168,9 @@ export class GatewayInbox {
   private record(journal: GatewayInboxJournal, input: GatewayInbound, relay?: GatewayInboxEvent['relay']): GatewayInboxEvent | null {
     const instance = getGatewayInstance(this.state.instanceId);
     if (!gatewayInputAllowed(instance, input)) return null;
+    if (input.platform === 'whatsapp' && journal.whatsappRelay?.startedAt !== undefined && (input.sentAt ?? 0) <= journal.whatsappRelay.startedAt) return null;
+    const senderReview = input.platform === 'whatsapp' ? journal.whatsappRelay?.senderReviews?.findLast((item) => item.phone === input.actor.id) : undefined;
+    if (senderReview && (input.sentAt ?? 0) <= senderReview.at) return null;
     const source = [instance.id, input.accountId, input.conversationId, input.threadId, input.sourceMessageId];
     if (input.platform === 'discord') source.push(input.guildId ?? '');
     const eventId = digest([...source, input.kind, ...(input.kind === 'edit' ? [input.sourceEventId] : [])]);
@@ -880,16 +1178,21 @@ export class GatewayInbox {
     const duplicate = journal.events.find((event) => event.id === eventId);
     if (duplicate) return duplicate;
     const boundRoute = captureGatewayRoute(instance.id);
-    const bindingId = digest([instance.id, input.accountId, input.conversationId, input.threadId, boundRoute.generation, ...(input.platform === 'discord' ? [input.guildId ?? ''] : [])]);
+    const baseBindingId = digest([instance.id, input.accountId, input.conversationId, input.threadId, boundRoute.generation,
+      ...(input.platform === 'discord' ? [input.guildId ?? ''] : []), ...(input.platform === 'whatsapp' && journal.whatsappRetired?.length ? [journal.whatsappRelay!.epoch] : []), ...(senderReview ? [senderReview.revision] : [])]);
+    const reset = latestWorkReview(journal, baseBindingId);
+    const original = input.kind === 'edit' ? journal.events.find((event) => event.id === digest([...source, 'message'])) : undefined;
+    const leader = input.mediaGroupId ? journal.events.find((item) => item.album?.leaderId === item.id && gatewayAlbumKey(item.input) === gatewayAlbumKey(input)) : undefined;
+    const priorSource = original ?? leader;
+    const bindingId = priorSource && latestWorkReview(journal, priorSource.bindingId) ? priorSource.bindingId : reset ? workBindingId(baseBindingId, reset.revision) : baseBindingId;
     let binding = journal.bindings.find((item) => item.id === bindingId);
     // A new channel conversation needs a mention/reply. Topic scope is explicit and exact.
     if (!input.directMessage && !binding && !input.triggered) return null;
-    const original = input.kind === 'edit' ? journal.events.find((event) => event.id === digest([...source, 'message'])) : undefined;
     if (input.kind === 'edit' && !original) return null;
     if (input.kind === 'message' && !input.text && !input.media.length) return null;
     if (journal.events.length >= 10000) throw new Error('The gateway inbox is full. Free space before retrying.');
     if (!binding) {
-      binding = { id: bindingId, accountId: input.accountId, conversationId: input.conversationId, ...(input.guildId ? { guildId: input.guildId } : {}), ...(input.parentConversationId ? { parentConversationId: input.parentConversationId } : {}), threadId: input.threadId, route: boundRoute, createdAt: Date.now() };
+      binding = { id: bindingId, ...(reset ? { rootId: baseBindingId } : {}), accountId: input.accountId, conversationId: input.conversationId, ...(input.guildId ? { guildId: input.guildId } : {}), ...(input.parentConversationId ? { parentConversationId: input.parentConversationId } : {}), threadId: input.threadId, route: boundRoute, createdAt: Date.now() };
       journal.bindings.push(binding);
     }
     const event: GatewayInboxEvent = {
@@ -897,7 +1200,6 @@ export class GatewayInbox {
       receivedAt: Date.now(), status: input.kind === 'edit' ? 'needs-review' : input.media.length ? 'waiting-files' : 'queued',
       ...(relay ? { relay } : {}),
     };
-    const leader = input.mediaGroupId ? journal.events.find((item) => item.album?.leaderId === item.id && gatewayAlbumKey(item.input) === gatewayAlbumKey(input)) : undefined;
     if (input.kind === 'message' && input.mediaGroupId && (leader || journal.retiredAlbums?.includes(albumDigest(input)))) {
       event.status = 'needs-review'; event.albumBlocked = true;
       event.reason = 'Another album part arrived after grouping. Review it and the original assignment in Athena. No second assignment was started.';
@@ -918,7 +1220,7 @@ export class GatewayInbox {
     let changed = false;
     const blocked = new Set<string>();
     for (const event of journal.events) {
-      if (event.dismissed) continue;
+      if (event.dismissed || event.deliveryFinished || event.workKept) continue;
       const prior = blocked.has(event.bindingId);
       if (event.status !== 'done' || event.reply?.parts.some((part) => part.status !== 'sent') || event.outgoing?.some((file) => !['sent', 'skipped'].includes(file.status))) blocked.add(event.bindingId);
       if (event.status !== 'queued') continue;
@@ -944,16 +1246,20 @@ export class GatewayInbox {
   complete(eventId: string, operationId: string): void {
     const journal = this.read();
     const event = journal.events.find((item) => item.id === eventId);
-    if (!event || event.operationId !== operationId || event.status !== 'running' || event.dispatch) throw new Error('This gateway operation is no longer running.');
+    if (!event || event.workKept || event.operationId !== operationId || event.status !== 'running' || event.dispatch) throw new Error('This gateway operation is no longer running.');
     event.status = 'done';
     this.commit(journal);
   }
 
   /** Interrupted work requires reconciliation with its saved operation ID, never a blind second run. */
-  recover(): void {
-    const journal = this.read();
+  recover(eventId?: string): void {
+    this.recoverJournal(this.read(), eventId);
+  }
+
+  private recoverJournal(journal: GatewayInboxJournal, eventId?: string): void {
     let changed = false;
     for (const event of journal.events) {
+      if (event.deliveryFinished || event.workKept || (eventId !== undefined && event.id !== eventId)) continue;
       for (const file of event.outgoing ?? []) {
         if (file.status !== 'sending') continue;
         file.status = 'uncertain'; file.reason = 'Delivery was interrupted. Check the messaging app before explicitly retrying.'; changed = true;
