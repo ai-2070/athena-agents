@@ -1,0 +1,76 @@
+server/api/index.ts
+  s_558b1de395d1d9::t_28faf0cf42097e 8,10
+shared/api/teams.ts
+  s_558b1de395d1d9::t_3e9a1976ff130c 3
+web/views/stationpanel.tsx
+  s_558b1de395d1d9::t_957c09ffa07f41 850,858,1033
+  s_558b1de395d1d9::t_5ece4957903fa4 7
+web/views/routines.tsx
+  s_558b1de395d1d9::t_62c949be251838 9
+  s_558b1de395d1d9::t_957c09ffa07f41 38
+shared/api/workflows.ts
+  s_558b1de395d1d9::t_94b1c97b5307f3 1-23,26-87
+  s_558b1de395d1d9::t_ca291aa56d6924 24-25
+tests/server/rpc-moved.test.ts
+  s_558b1de395d1d9::t_3814b91bff795f 1-28
+web/chatwin.tsx
+  s_558b1de395d1d9::t_5ece4957903fa4 19
+  s_558b1de395d1d9::t_62c949be251838 20
+  s_558b1de395d1d9::t_957c09ffa07f41 177
+tests/server/rpc-workflows.test.ts
+  s_558b1de395d1d9::t_e0e272ee564fe4 1-111
+web/views/station.ts
+  s_558b1de395d1d9::t_5ece4957903fa4 8
+  s_558b1de395d1d9::t_957c09ffa07f41 956,3255,3349,4026,4050,4145,4273
+shared/api/index.ts
+  s_558b1de395d1d9::t_3e9a1976ff130c 8,10
+web/dock.tsx
+  s_558b1de395d1d9::t_957c09ffa07f41 357,1462
+shared/types.ts
+  s_558b1de395d1d9::t_5657c950618021 827-833,835-874
+  s_558b1de395d1d9::t_0427151e979f74 834
+web/views/skills.tsx
+  s_558b1de395d1d9::t_957c09ffa07f41 47,49,250
+web/views/agents.tsx
+  s_558b1de395d1d9::t_957c09ffa07f41 345
+web/views/workflows.tsx
+  s_558b1de395d1d9::t_62c949be251838 7
+  s_558b1de395d1d9::t_5ece4957903fa4 6
+  s_558b1de395d1d9::t_957c09ffa07f41 97,104,108,163,192,198,202,349,365
+server/workflows.ts
+  s_558b1de395d1d9::t_5657c950618021 11,44
+web/teammark.ts
+  s_558b1de395d1d9::t_957c09ffa07f41 2,5,61,69
+server/store.ts
+  s_558b1de395d1d9::t_5657c950618021 335-336
+  s_558b1de395d1d9::t_82d270f6d73932 9
+web/views/library.tsx
+  s_558b1de395d1d9::t_5ece4957903fa4 10
+  s_558b1de395d1d9::t_62c949be251838 11
+  s_558b1de395d1d9::t_957c09ffa07f41 70,76
+server/index.ts
+  s_558b1de395d1d9::t_3e9a1976ff130c 957
+web/builder.tsx
+  s_558b1de395d1d9::t_957c09ffa07f41 162-163
+  s_558b1de395d1d9::t_5ece4957903fa4 7
+web/tasks.tsx
+  s_558b1de395d1d9::t_957c09ffa07f41 5,67
+server/api/workflows.ts
+  s_558b1de395d1d9::t_2bc62ee5384d79 1-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1600b05636c44f0f28ad68213265ec9c07b8e68e",
+  "prompts": {},
+  "sessions": {
+    "s_558b1de395d1d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bb40eb4-bbfd-4a59-a58a-1ffe1d09179b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
