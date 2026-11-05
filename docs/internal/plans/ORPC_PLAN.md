@@ -68,7 +68,31 @@ What the move turned up:
 
 `app.js` grew by 1.8 KB for these 20 routes; `server/index.ts` is 1,603 lines.
 
-Next: agents (32 routes).
+### Agents (2026-11-05)
+
+30 of the 32 agent routes moved, in two commits: the agents themselves (making, changing, copying, deleting, their
+knowledge and their harness's / commands), then their chats (messages, the queue, `/loop`, `/goal`, `/learn`,
+resend, resume, stop, memory). A chat's run streams (`…/chats/{chatId}/stream`, POST and GET) stay in
+`server/index.ts`: they write a UI message stream for the AI SDK, not JSON.
+
+- **`rpcAt(at)`** in `web/client/rpc.ts` makes the same calls inside a project that isn't open (`at` is
+  `projectAt(projectId)`, as before), so the Overview's panes and team chats use typed calls too.
+- **A save no longer keeps a field of the wrong kind.** `PUT /api/agents/{id}` copied whatever it was sent for its
+  23 fields; an engine, autonomy or temperature it can't use is refused now, in words. An unknown effort is still
+  saved as the default (`.catch('')`), as a test asks.
+- **Agents' fields come from one list** (`agentFields` in `shared/api/agents.ts`), so making one and changing one
+  take the same things. A new agent still can't pick its own id.
+- **`deleteAgent` moved to `server/api/agents.ts`**: deleting a team deletes its agents with it.
+- **Removing knowledge that names neither a file nor a folder** is a 400 that says so (it was a 500).
+- **`/resend`, `/resume` and `/goal` are a call each** in the chat view, instead of one address built from the
+  command's name.
+- `AgentDetail` and `HarnessCommand` moved to `shared/types.ts`.
+- In headless Chrome, a chat made through the API opened in the agent's chat page with its title and the agent.
+
+`server/index.ts` is 1,461 lines (1,750 before the pilot); `app.js` is about the size it was before the pilot,
+since code moved between chunks.
+
+Next: teams (16 routes).
 
 ## Why
 
