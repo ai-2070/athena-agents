@@ -1,0 +1,39 @@
+package.json
+  s_558b1de395d1d9::t_7c0174264eff2d 86-90
+web/client/rpc.ts
+  s_558b1de395d1d9::t_93c37b10170a6c 1-58
+server/rpc.ts
+  s_558b1de395d1d9::t_a5f9c5fb6a07ba 1-26,31-45,48-65
+  s_558b1de395d1d9::t_6cdb3639ecd6da 27-30
+  s_558b1de395d1d9::t_ef3f843bcf0f93 46-47
+server/api/index.ts
+  s_558b1de395d1d9::t_a5f9c5fb6a07ba 1-5
+shared/api/index.ts
+  s_558b1de395d1d9::t_a5f9c5fb6a07ba 1-4
+server/index.ts
+  s_558b1de395d1d9::t_763bb277dea912 92,1475,1599
+  s_558b1de395d1d9::t_ccdd8e3275fccc 1600-1602
+tests/web/rpc.test.ts
+  s_558b1de395d1d9::t_fb600017e5f106 1-83
+tests/server/rpc.test.ts
+  s_558b1de395d1d9::t_ac662461040de5 1-87,89-90,95-114
+  s_558b1de395d1d9::t_ef3f843bcf0f93 88,91-94
+bun.lock
+  s_558b1de395d1d9::t_9825031f2ffc51 31-35,302-327,1228-1229,1282-1283,1338,1420-1421,1466-1467,1632-1633
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a9e0054740f27cc5517fbc8ec7e94c9197ef7bef",
+  "prompts": {},
+  "sessions": {
+    "s_558b1de395d1d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bb40eb4-bbfd-4a59-a58a-1ffe1d09179b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
