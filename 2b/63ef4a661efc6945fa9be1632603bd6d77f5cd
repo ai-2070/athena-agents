@@ -1,0 +1,103 @@
+web/filepreview.tsx
+  s_558b1de395d1d9::t_dba469c3b63d2d 8
+  s_558b1de395d1d9::t_4d2eb3929c963d 37,155
+  s_558b1de395d1d9::t_b10721996bcada 15,54
+  s_558b1de395d1d9::t_207aecee5c43a8 22-23
+server/api/files.ts
+  s_558b1de395d1d9::t_c7a2c90602fee7 1-72
+web/views/artifacts.tsx
+  s_558b1de395d1d9::t_b10721996bcada 10,35,43
+  s_558b1de395d1d9::t_1a83bbd4d77a35 7
+shared/api/files.ts
+  s_558b1de395d1d9::t_fcd37b38e968ce 11,57
+  s_558b1de395d1d9::t_d2196eb8663cea 1-10,12-56,58-78
+web/attach.tsx
+  s_558b1de395d1d9::t_1a83bbd4d77a35 10
+  s_558b1de395d1d9::t_b10721996bcada 13,241,256,393
+shared/api/index.ts
+  s_558b1de395d1d9::t_72bfa0b1300e5c 21-22,24
+web/builder.tsx
+  s_558b1de395d1d9::t_207aecee5c43a8 22-23
+  s_558b1de395d1d9::t_578508b5c26e56 24
+  s_558b1de395d1d9::t_1a83bbd4d77a35 7
+  s_558b1de395d1d9::t_b10721996bcada 114
+web/views/programs.tsx
+  s_558b1de395d1d9::t_b10721996bcada 77
+  s_558b1de395d1d9::t_1a83bbd4d77a35 6,11
+tests/server/rpc-files.test.ts
+  s_558b1de395d1d9::t_512672bcac86b6 1-47,50-79
+  s_558b1de395d1d9::t_fcd37b38e968ce 48-49
+web/views/station.ts
+  s_558b1de395d1d9::t_b10721996bcada 953,3159
+  s_558b1de395d1d9::t_bc3a1f1db6dff3 42
+shared/api/workflows.ts
+  s_558b1de395d1d9::t_fcd37b38e968ce 39
+server/backup.ts
+  s_558b1de395d1d9::t_1d026397762a82 28-30
+web/views/terminals.tsx
+  s_558b1de395d1d9::t_b10721996bcada 8,27,49,58
+  s_558b1de395d1d9::t_1a83bbd4d77a35 7
+web/views/agents.tsx
+  s_558b1de395d1d9::t_b10721996bcada 40
+  s_558b1de395d1d9::t_1a83bbd4d77a35 7,27
+web/backup.tsx
+  s_558b1de395d1d9::t_1a83bbd4d77a35 4
+  s_558b1de395d1d9::t_4ae85a2cced989 38-39
+  s_558b1de395d1d9::t_b10721996bcada 147,182
+web/views/overview.tsx
+  s_558b1de395d1d9::t_b10721996bcada 226,842
+  s_558b1de395d1d9::t_1a83bbd4d77a35 11
+server/index.ts
+  s_558b1de395d1d9::t_5264d064f977de 9,11,32
+  s_558b1de395d1d9::t_72bfa0b1300e5c 191,247,354-355,357-359
+  s_558b1de395d1d9::t_7e539cbbfba3b9 206
+web/dock.tsx
+  s_558b1de395d1d9::t_1a83bbd4d77a35 10
+  s_558b1de395d1d9::t_b10721996bcada 1358,1369
+web/memory.tsx
+  s_558b1de395d1d9::t_1a83bbd4d77a35 7
+  s_558b1de395d1d9::t_b10721996bcada 9,69,92
+server/files.ts
+  s_558b1de395d1d9::t_d5b750d992da7f 10-12
+tests/web/attach-tray.test.ts
+  s_558b1de395d1d9::t_4d2eb3929c963d 125,264
+server/api/index.ts
+  s_558b1de395d1d9::t_72bfa0b1300e5c 21-22,24
+web/views/routines.tsx
+  s_558b1de395d1d9::t_dba469c3b63d2d 8
+  s_558b1de395d1d9::t_1526685f03515c 274
+shared/types.ts
+  s_558b1de395d1d9::t_d5b750d992da7f 2638-2642
+  s_558b1de395d1d9::t_1d026397762a82 2595-2637
+  s_558b1de395d1d9::t_168b3abba5b1fa 2643-2648
+shared/api/assist.ts
+  s_558b1de395d1d9::t_87ac3bcd263a38 1-31
+web/views/settings.tsx
+  s_558b1de395d1d9::t_1a83bbd4d77a35 7,17
+  s_558b1de395d1d9::t_b10721996bcada 386
+tests/server/rpc-moved.test.ts
+  s_558b1de395d1d9::t_a891fcaaec1624 14,26-27
+server/brain.ts
+  s_558b1de395d1d9::t_1d026397762a82 14-16
+server/api/assist.ts
+  s_558b1de395d1d9::t_d2f34eb5e5c13b 1-33
+web/skilldialogs.tsx
+  s_558b1de395d1d9::t_1a83bbd4d77a35 4
+  s_558b1de395d1d9::t_b10721996bcada 86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2b63ef4a661efc6945fa9be1632603bd6d77f5cd",
+  "prompts": {},
+  "sessions": {
+    "s_558b1de395d1d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bb40eb4-bbfd-4a59-a58a-1ffe1d09179b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
