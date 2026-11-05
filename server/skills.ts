@@ -11,7 +11,7 @@ import { activeProject, agents, workflows, listProjects, getSettings, saveSettin
 import { updateProject } from './projects.ts';
 import { orcaInstalled } from './programs.ts';
 import crypto from 'node:crypto';
-import { keepVersion, pruneVersions, versionFilesDir } from './versions.ts';
+import { keepVersion, pruneVersions, versionFilesDir, withActor } from './versions.ts';
 import type { ClaudeSkill, Project, Skill, SkillFile, SkillListing, SkillOrigin } from '../shared/types.ts';
 
 /** A skill as getSkill returns it (dir is cleared so it never reaches the browser). */
@@ -186,6 +186,63 @@ export function saveSkill({ slug, name, description, body }: { slug?: string; na
   writeSkillMd(dir, compose({ name, description, body: text }));
   emit('skills', { slug: id });
   return getSkill(id);
+}
+
+// ---------- skills an agent writes (save_skill, /learn) ----------
+/** Where a skill's own files may go: notes it loads on demand, scripts it runs, templates it fills. */
+const SKILL_FILE = /^(?:references|scripts|templates)(?:\/[A-Za-z0-9_][A-Za-z0-9._-]{0,80}){1,3}$/;
+export const SKILL_FILE_MAX = 300_000;
+export const SKILL_FILES_MAX = 60;
+
+export interface SkillFileWrite {
+  path: string;
+  text: string;
+}
+
+/** Save a skill with the files that come with it (and remove some), as one change: when its files change, the
+ *  version kept in History holds them too, so it can be brought back as it was. Without slug it's a new skill,
+ *  refused when its name is taken. */
+export function saveSkillWithFiles(input: { slug?: string; name: string; description: string; body: string }, files: SkillFileWrite[] = [], remove: string[] = [], by = 'an agent'): SkillDetail {
+  if (files.length > SKILL_FILES_MAX) throw new Error(`At most ${SKILL_FILES_MAX} files at once.`);
+  for (const f of [...files.map((x) => x.path), ...remove]) {
+    if (!SKILL_FILE.test(f) || f.split('/').includes('..')) throw new Error(`"${f}" can't be one of a skill's files: use references/…, scripts/… or templates/…, with plain names.`);
+  }
+  for (const f of files) if (Buffer.byteLength(f.text, 'utf8') > SKILL_FILE_MAX) throw new Error(`"${f.path}" is too big (at most ${SKILL_FILE_MAX / 1000} KB a file): split it.`);
+  const before = input.slug ? getSkill(input.slug) : null;
+  if (input.slug && !before) throw new Error(`There is no skill "${input.slug}".`);
+  if (!before && exists(path.join(LIB(), slugify(input.name).slice(0, 50) || 'skill'))) throw new Error(`A skill called "${slugify(input.name)}" exists already: update it (pass its id) rather than make a second one.`);
+  return withActor('agent', () => {
+    if (before && (files.length || remove.length)) {
+      const dir = path.join(LIB(), before.slug);
+      const vdir = skillVersionsDir(before.slug);
+      const extra = skillExtraFiles(dir);
+      const v = keepVersion(vdir, { ...versionItem(before), files: extra, filesHash: skillFilesHash(dir) }, null);
+      if (v && extra.length) copySkillFiles(dir, versionFilesDir(vdir, v.id));
+    }
+    // (when a version was kept just above, this keeps no second one: one change, one version)
+    const saved = saveSkill({ slug: before?.slug, name: input.name, description: input.description, body: input.body })!;
+    const dir = path.join(LIB(), saved.slug);
+    for (const f of files) {
+      const to = path.join(dir, ...f.path.split('/'));
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      const tmp = `${to}.tmp-${process.pid}`;
+      fs.writeFileSync(tmp, f.text);
+      fs.renameSync(tmp, to);
+    }
+    for (const f of remove) fs.rmSync(path.join(dir, ...f.split('/')), { force: true });
+    emit('skills', { slug: saved.slug });
+    return getSkill(saved.slug)!;
+  }, { note: `Before ${by} changed it` });
+}
+
+/** Skills in the library that match these words (in the id, name or description), best first. */
+export function searchLibrary(words: string, max = 20): SkillSummary[] {
+  const terms = words.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
+  const scored = listSkills().map((s) => {
+    const hay = `${s.slug} ${s.name} ${s.description}`.toLowerCase();
+    return { s, n: terms.filter((t) => hay.includes(t)).length };
+  });
+  return scored.filter((x) => !terms.length || x.n > 0).sort((a, b) => b.n - a.n || a.s.slug.localeCompare(b.s.slug)).slice(0, max).map((x) => x.s);
 }
 
 export function uniqueSlug(name: string): string {
