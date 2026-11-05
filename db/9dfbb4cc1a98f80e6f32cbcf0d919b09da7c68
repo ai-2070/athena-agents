@@ -1,0 +1,21 @@
+tests/web/hot.test.ts
+  s_fe2dff50328630::t_d40cfc18a36b17 82-91
+web/dev/hot.ts
+  s_fe2dff50328630::t_5e5d88e2424137 44-51,55-56,62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "db9dfbb4cc1a98f80e6f32cbcf0d919b09da7c68",
+  "prompts": {},
+  "sessions": {
+    "s_fe2dff50328630": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7961ac30-7c4b-437d-bf4a-e4d5dfaf0029",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
