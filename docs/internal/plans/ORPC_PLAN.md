@@ -228,8 +228,23 @@ What sends or takes a file stays in `server/index.ts`: `GET /api/file`, an uploa
 
 `server/index.ts` is 953 lines.
 
-Next: the voxel world (`/api/world`, `/api/worlds`, `/api/project-world`, `/api/prefab-library`), then the Outbox with
-the gateways.
+### The voxel world (2026-11-05)
+
+All 32 routes moved: the world a project shows (`/api/world`), its objects and prefabs, WORLD.md and its versions, the
+light, lights and effects, how the Brain, teams and agents look, exporting and pictures, the shared prefab library,
+and which world a project shows (`/api/worlds`, `/api/project-world`).
+
+- **A change's fields are still checked by `server/voxel/`** (the functions agents' world tools call), so the
+  contract only names them (`z.unknown()`). But it names them: changing an object took any field it was sent,
+  including the `project` whose world to change; now only the object's own fields go through.
+- **Their plain errors are 400s** through `refusing()`; a missing object or version stays a 404.
+- `/worlds/default` is the default world, not a world called "default" (a test checks it).
+- `LibraryPrefab`, with `LibraryPrefabListing` and WORLD.md's version types, moved to `shared/types.ts`.
+
+`server/index.ts` is 840 lines.
+
+Next: the Outbox with the gateways (61 routes), then `server/index.ts` keeps only the routes that send files and
+streams, the OAuth callbacks and the internal routes the MCP bridge calls.
 
 ## Why
 
