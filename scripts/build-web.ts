@@ -14,6 +14,19 @@ const tmpdir = path.join(root, 'public', '.dist-tmp');
 const watch = process.argv.includes('--watch');
 const clean = process.argv.includes('--clean');
 
+// The page calls oRPC routes knowing only their paths and methods. shared/api/'s zod schemas are the server's
+// checks, and would load zod with the page. Worked out afresh on every build, so --watch sees a changed route.
+const apiRoutes: Bun.BunPlugin = {
+  name: 'api-routes',
+  setup(b) {
+    b.onLoad({ filter: /[\\/]shared[\\/]api[\\/]index\.ts$/ }, () => {
+      const out = Bun.spawnSync([process.execPath, path.join(root, 'scripts', 'api-routes.ts')], { cwd: root });
+      if (!out.success) throw new Error(`The API routes didn't load:\n${out.stderr.toString()}`);
+      return { contents: `export const contract = ${out.stdout.toString()};`, loader: 'js' };
+    });
+  },
+};
+
 async function build(): Promise<boolean> {
   const started = performance.now();
   fs.rmSync(tmpdir, { recursive: true, force: true });
@@ -28,6 +41,7 @@ async function build(): Promise<boolean> {
     sourcemap: 'linked',
     // React and OpenUI read this; "development" would also make OpenUI load its devtools from a CDN
     define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+    plugins: [apiRoutes],
     // report errors in result.logs instead of throwing (a throw would end --watch)
     throw: false,
   });

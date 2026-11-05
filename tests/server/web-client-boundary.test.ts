@@ -37,3 +37,19 @@ describe('the page reaches the server only through web/client/', () => {
     expect(found).toEqual([]);
   });
 });
+
+// The page's bundle gets shared/api/ as routes only (scripts/build-web.ts), so zod doesn't load with the page.
+// A value imported from shared/api/ elsewhere would bring the schemas, and zod, back.
+describe('the page takes only types from shared/api/', () => {
+  it('imports values from it only in web/client/', () => {
+    const found: string[] = [];
+    for (const file of sources(WEB)) {
+      fs.readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, i) => {
+          if (/from ['"][./]*shared\/api\//.test(line) && !/^\s*import type /.test(line)) found.push(`${path.relative(WEB, file)}:${i + 1}`);
+        });
+    }
+    expect(found).toEqual([]);
+  });
+});

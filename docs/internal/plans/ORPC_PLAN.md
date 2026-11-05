@@ -1,6 +1,6 @@
 # Typed API routes with oRPC
 
-*Plan, 2026-11-05. Nothing is built yet; a throwaway prototype ran (see "What the prototype showed").*
+*Plan, 2026-11-05. The pilot (the Tasks board) is built on `LZL0/orpc`: see "Status" below.*
 
 Goal: every JSON route says what it takes and what it gives back, in one place both sides read. The server
 checks what comes in before a handler sees it, and the page gets typed calls (`rpc.taskBoard.addTag({ … })`)
@@ -8,6 +8,42 @@ instead of `POST<{ tag: BoardTag }>('/task-board-tags/…', body)`, where the ty
 
 Nothing changes for the person using the app, and the URLs and answers stay the same: routes move one area
 at a time, side by side with the old router, and every step ships.
+
+## Status (2026-11-05)
+
+The Tasks board's 18 JSON routes are on oRPC, one commit per step. All four checks in "Decision after the pilot"
+hold, so the next area can start. Where the build differs from the plan below:
+
+- **Names are nested**: `rpc.taskBoard.tags.add`, `rpc.taskBoard.comments.change` (the open question).
+- **The board keeps its `unknown` input types** (`BoardInput`, `TagInput` in `server/taskboard.ts`). Agents' tools
+  call the same functions with whatever a model sent, so the board still checks every field itself. The schemas
+  mirror its words ("rank must be a number.") so a wrong type is answered the same either way.
+- **Startup stayed the same size.** Importing the contract put zod in a 101 KB chunk that `app.js` loaded at once
+  (before, zod loaded only with the chats). The page's bundle now gets `shared/api/index.ts` as routes only
+  (`scripts/api-routes.ts`, swapped in by `scripts/build-web.ts`), and a test fails if code outside `web/client/`
+  imports anything but types from `shared/api/`.
+- **Errors are answered `no-store` too**: that header is set in `rootInterceptors`, since error answers are
+  written outside `interceptors`.
+- **The client reads `{ error }` whatever the content type**, as `api()` does (a test's fake server sent JSON as text).
+- **Tags may be sent as a list or as "a, b"**, as the old route took them.
+- **Small wording changes**: a project that doesn't exist is "That project is unavailable." (was "Not found"); a JSON
+  array as the body is answered with the schema's first message instead of "Body must be a JSON object".
+
+Measured:
+
+| | Before | After |
+|---|---|---|
+| `app.js` | 1,393,697 bytes (406,704 gzipped) | 1,422,468 (416,963): +28.8 KB, +10.3 KB gzipped |
+| Chunks `app.js` loads at start | 15 | 15 (no zod) |
+| `GET /api/task-board`, 30 tasks (median) | 0.15 ms | 0.18 ms |
+| `GET /api/about`, a route that didn't move | 0.05 ms | 0.05 ms |
+| `server/index.ts` | 1,750 lines | 1,716 |
+
+The board's page and server tests passed unchanged, and so did the desktop smoke test. The built page, loaded in
+headless Chrome, showed all 30 cards and their tags. Typing the page's save helpers (`BoardChange` instead of
+`Record<string, unknown>`) compiled at once, so the page and the server agreed on every field the board sends.
+
+Next: projects (23 routes), as in "After the pilot".
 
 ## Why
 
@@ -240,8 +276,7 @@ step 4).
 
 ## Open questions
 
-- **Procedure names**: `taskBoard.addTag` or `taskBoard.tags.add`? Nested reads better as areas grow; pick
-  one in the pilot and keep it.
+- ~~**Procedure names**~~: nested (`taskBoard.tags.add`), decided in the pilot.
 - **Output checks in tests**: should `rpc.test.ts` check answers against schemas, to catch an answer drifting
   from its type? That needs output schemas for some shapes, which `type<T>()` avoids.
 - **v2**: when it ships stable, read its migration notes before starting the next area, not halfway through one.

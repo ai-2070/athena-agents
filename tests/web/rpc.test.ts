@@ -1,10 +1,11 @@
 // Typed calls (web/client/rpc.ts) go out the way api() sends a request, to the same address with the same
 // headers, and fail the same way: an Error with the server's words and the status.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { oc, type } from '@orpc/contract';
+import { minifyContractRouter, oc, type } from '@orpc/contract';
 import { z } from 'zod';
 import { setConnection, setPageProject } from '../../web/client/connection.ts';
-import { rpcClient } from '../../web/client/rpc.ts';
+import { rpc as appRpc, rpcClient } from '../../web/client/rpc.ts';
+import { contract as appContract } from '../../shared/api/index.ts';
 
 const contract = {
   things: {
@@ -72,6 +73,14 @@ describe('rpc calls', () => {
   it('read the words even when the answer doesn’t say it is JSON', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'This changed meanwhile.' }), { status: 409 })));
     await expect(rpc.things.remove({ listId: 'l', id: 'x' })).rejects.toMatchObject({ message: 'This changed meanwhile.', status: 409 });
+  });
+
+  it('work from the routes alone, as the page’s bundle has them (build-web.ts leaves the schemas out)', async () => {
+    answer({ tags: [] });
+    const lean = rpcClient(minifyContractRouter(appContract)) as typeof appRpc;
+    await lean.taskBoard.tags.list({ projectId: 'p 1' });
+    await lean.taskBoard.comments.remove({ projectId: 'p1', id: 't1', commentId: 'c1' });
+    expect(calls.map((c) => `${c.init.method} ${c.url}`)).toEqual(['GET /api/task-board-tags/p%201', 'DELETE /api/task-board/p1/t1/comments/c1']);
   });
 
   it('fail with the status when the server gave no words', async () => {
