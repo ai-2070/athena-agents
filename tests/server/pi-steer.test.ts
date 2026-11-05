@@ -248,7 +248,12 @@ describe('steering a pi agent', () => {
   });
 
   it('a prompt it refuses fails the run with why', async () => {
-    const { chat, promise, p } = await start('Rejected');
+    const a = newAgent({ name: 'Rejected', engine: 'pi', toolGroups: [] });
+    const chat = chats.create(a.id);
+    fake.procs.length = 0;
+    const { promise } = startRun(a, chat, 'do the long job');
+    await until(() => fake.procs[0]?.inputs.length === 1);
+    const p = fake.procs[0]!;
     p.out({ type: 'response', id: 'prompt', command: 'prompt', success: false, error: 'No model selected' });
     await promise;
     expect(p.ended).toBe(true);
@@ -384,6 +389,35 @@ describe('steering an oh-my-pi agent', () => {
     expect(said(chat).at(-1)).toBe('error: oh-my-pi refused the message: Session cost cap reached');
   });
 
+  it('an error it reports for its message after answering (its tracking failed) leaves the answer as it is', async () => {
+    const { chat, promise, p } = await startOmp('OmpLateError');
+    p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true });
+    p.out({ type: 'agent_start' });
+    p.out(user('do the long job'));
+    p.out(says('Done.'));
+    p.out({ type: 'agent_end' });
+    p.out({ type: 'response', id: 'prompt', command: 'prompt', success: false, error: 'waitForIdle failed' });
+    p.out({ type: 'session_settled' });
+    expect(await promise).toBe('Done.');
+    await until(() => idle(chat));
+    expect(said(chat)).toEqual(['user: do the long job', 'assistant: Done.']);
+  });
+
+  it('an error it reports after taking its message, with no answer: the run fails with it', async () => {
+    const wait = pi.SETTLE_WAIT.ms;
+    pi.SETTLE_WAIT.ms = 50;
+    try {
+      const { chat, promise, p } = await startOmp('OmpLateNoAnswer');
+      p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true });
+      p.out({ type: 'response', id: 'prompt', command: 'prompt', success: false, error: 'The session was replaced' });
+      await promise;
+      expect(p.ended).toBe(true);
+      expect(said(chat).at(-1)).toBe('error: oh-my-pi failed: The session was replaced');
+    } finally {
+      pi.SETTLE_WAIT.ms = wait;
+    }
+  });
+
   it('background work that never lets it settle: its input closes after a while anyway', async () => {
     const wait = pi.BACKGROUND_WAIT.ms;
     pi.BACKGROUND_WAIT.ms = 50;
@@ -410,10 +444,10 @@ describe('steering an oh-my-pi agent', () => {
     await until(() => fake.procs[0]?.inputs.length === 2);
     const p = fake.procs[0]!;
     // (its prompt, then which session it named)
-    expect(p.inputs).toEqual([{ id: 'prompt', type: 'prompt', message: 'do the long job' }, { id: 'state', type: 'get_state' }]);
+    expect(p.inputs).toEqual([{ id: 'prompt', type: 'prompt', message: 'do the long job' }, { id: 'session', type: 'get_session_stats' }]);
     p.out({ type: 'ready', protocolVersion: 1 });
     p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true });
-    p.out({ type: 'response', id: 'state', command: 'get_state', success: true, data: { sessionId: 'omp-session' } });
+    p.out({ type: 'response', id: 'session', command: 'get_session_stats', success: true, data: { sessionId: 'omp-session' } });
     p.out(user('do the long job'));
     p.out(tool('t1'));
     await until(() => chat.items.some((i) => i.type === 'tool'));

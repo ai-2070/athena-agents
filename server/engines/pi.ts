@@ -248,12 +248,17 @@ const DIALOGS = new Set(['select', 'confirm', 'input', 'editor', 'ask']);
 
 /** Talks their RPC protocol for one run: the prompt, the messages sent while it works (each shown as it reads
  *  it), and closing its input once it has settled (pi: agent_settled; oh-my-pi: its prompt_result or
- *  session_settled). Its other events go to the reader. oh-my-pi names a new session itself: get_state says which. */
+ *  session_settled). Its other events go to the reader. oh-my-pi names a new session itself: get_session_stats
+ *  says which (get_state would too, but brings its whole system prompt and every tool along). */
 function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: string, reader: ReturnType<typeof piReader>, onEvent: (ev: RunEvent) => void, signal: AbortSignal) {
   const send = (o: object) => void (child.stdin?.writable && child.stdin.write(`${JSON.stringify(o)}\n`));
   // its own message came by first: the user messages after it are the ones sent while it worked
   let prompted = false;
+  // it took its message (said so); refused: it never did, so no run came of it. failed: an error it reported
+  // for its message after taking it (oh-my-pi), which counts only when there is no answer
+  let admitted = false;
   let refused = '';
+  let failed = '';
   // a run of its has started (one ended: false again until the next)
   let started = false;
   let live = false;
@@ -284,14 +289,23 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
     if (!line.startsWith('{')) return;
     const ev = JSON.parse(line) as PiEvent & RpcFrame;
     if (ev.type === 'response') {
-      if (ev.id === 'state' && typeof ev.data?.sessionId === 'string' && ev.data.sessionId) reader.handle({ type: 'session', id: ev.data.sessionId });
+      if (ev.id === 'session' && typeof ev.data?.sessionId === 'string' && ev.data.sessionId) reader.handle({ type: 'session', id: ev.data.sessionId });
+      // an error for its message after it took it (oh-my-pi: its run's tracking failed): its run, if any, has
+      // ended or ends on its own; a run that is over closes its input in time
+      if (ev.id === 'prompt' && !ev.success && admitted) {
+        failed = why(ev.error);
+        if (!live) input.closeIn(SETTLE_WAIT.ms);
+      }
       // its own message refused, or taken by a command with no run (pi: handled; oh-my-pi: no agent): nothing more comes
-      if (ev.id === 'prompt' && (!ev.success || ev.data?.disposition === 'handled' || ev.data?.agentInvoked === false)) {
+      else if (ev.id === 'prompt' && (!ev.success || ev.data?.disposition === 'handled' || ev.data?.agentInvoked === false)) {
         if (!ev.success) refused = why(ev.error);
         close();
       }
       // taken: its run should start now (an older pi doesn't say when it handled one itself, and starts none)
-      else if (ev.id === 'prompt' && !started) input.closeIn(SETTLE_WAIT.ms);
+      else if (ev.id === 'prompt') {
+        admitted = true;
+        if (!started) input.closeIn(SETTLE_WAIT.ms);
+      }
       // a message it didn't take: the dashboard sends it next instead (it is still unread there). One an
       // extension took (pi: handled) never reaches the agent as a message, but it was taken: it shows as read.
       if (ev.command === 'steer' && ev.id && !ev.success) input.drop(ev.id);
@@ -336,8 +350,8 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
     }
     reader.handle(ev);
   };
-  const prompt = `${JSON.stringify({ id: 'prompt', type: 'prompt', message: text })}\n${flavor === 'omp' ? `${JSON.stringify({ id: 'state', type: 'get_state' })}\n` : ''}`;
-  return { onLine, prompt, close, refused: () => refused };
+  const prompt = `${JSON.stringify({ id: 'prompt', type: 'prompt', message: text })}\n${flavor === 'omp' ? `${JSON.stringify({ id: 'session', type: 'get_session_stats' })}\n` : ''}`;
+  return { onLine, prompt, close, refused: () => refused, failed: () => failed };
 }
 
 /** What oh-my-pi says when --resume names a session it doesn't have. */
@@ -368,11 +382,11 @@ async function run(flavor: PiFlavor, { agent, chat, text, signal, onEvent, syste
   const rpc = rpcTurn(flavor, child, runId, text, reader, onEvent, signal);
   try {
     const end = await pipeLines(child, { input: rpc.prompt, keepOpen: true, signal, onLine: rpc.onLine });
-    rpc.close();
     if (signal.aborted) throw new Error('Stopped.');
     const r = reader.result();
     if (r.lastError) throw new Error(r.lastError);
     if (rpc.refused()) throw new Error(`${LABEL[flavor]} refused the message: ${rpc.refused()}`);
+    if (!r.answer && rpc.failed()) throw new Error(`${LABEL[flavor]} failed: ${rpc.failed()}`);
     if (!r.answer) {
       const msg = `${LABEL[flavor]} exited (${end.code}) without an answer.${tail(end.stderr)}`;
       // oh-my-pi: a session it no longer has (deleted, or made by another engine): a new one, with the chat so far

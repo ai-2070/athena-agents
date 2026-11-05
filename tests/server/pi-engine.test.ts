@@ -193,12 +193,12 @@ describe('a pi run', () => {
     fake.lines = [ev({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'rate limited' } })];
     await expect(pi.run(runArgs('pi', chatOf(), []))).rejects.toThrow('rate limited');
   });
-  it('oh-my-pi: asks which session it named (get_state), keeps it, then resumes it', async () => {
-    fake.lines = [ev({ type: 'response', id: 'state', command: 'get_state', success: true, data: { sessionId: 'omp-1' } }), ev({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Hi.' }], stopReason: 'stop' } })];
+  it('oh-my-pi: asks which session it named (get_session_stats: small, unlike get_state), keeps it, then resumes it', async () => {
+    fake.lines = [ev({ type: 'response', id: 'session', command: 'get_session_stats', success: true, data: { sessionId: 'omp-1' } }), ev({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Hi.' }], stopReason: 'stop' } })];
     const chat = chatOf();
     await omp.run(runArgs('omp', chat, []));
     expect(fake.calls[0].args).not.toContain('--resume');
-    expect(fake.calls[0].input.split('\n').filter(Boolean).map((l) => JSON.parse(l) as unknown)).toEqual([{ id: 'prompt', type: 'prompt', message: 'fix the test' }, { id: 'state', type: 'get_state' }]);
+    expect(fake.calls[0].input.split('\n').filter(Boolean).map((l) => JSON.parse(l) as unknown)).toEqual([{ id: 'prompt', type: 'prompt', message: 'fix the test' }, { id: 'session', type: 'get_session_stats' }]);
     expect(chat.sessionId).toBe('omp-1');
     await omp.run(runArgs('omp', chat, []));
     expect(fake.calls[1].args.slice(fake.calls[1].args.indexOf('--resume'), fake.calls[1].args.indexOf('--resume') + 2)).toEqual(['--resume', 'omp-1']);
