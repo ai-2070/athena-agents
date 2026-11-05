@@ -1,0 +1,23 @@
+docs/internal/plans/TASK_TAGS_PLAN.md
+  s_9814d375a139f1::t_a1f10af69ffc87 1-4,6-74,76-99,106-108,136-163,167-192,198-199,201-202,204-219
+  s_9814d375a139f1::t_1e93d0bc446972 5,75,164-166,197,200,203
+  s_9814d375a139f1::t_86c26a1bd00703 130,133
+  s_9814d375a139f1::t_0458e4df324562 109-129,131-132,134-135,193-196,220-226
+  s_9814d375a139f1::t_e4b8990c431e65 100-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b68186645aeba81511baeb906b01228d5eb7070",
+  "prompts": {},
+  "sessions": {
+    "s_9814d375a139f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "30c260a9-f8e6-4861-b2d4-20dff9c30a67",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
