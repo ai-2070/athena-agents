@@ -99,7 +99,25 @@ All 16 `/api/teams/{id}/…` routes moved: the thread, messages, the held queue,
 `/api/workflows`, the next area. As with agents, `/resend`, `/resume` and `/goal` are a call each in the team chat
 instead of one address built from the command's name, and a message's `replyTo` must name a message.
 
-Next: workflows (10 routes, the teams themselves), then brain (15) and outbox (13).
+### Teams (2026-11-05)
+
+13 of the 14 `/api/workflows…` routes moved: the list, making, changing, copying, running and deleting a team, its
+picture or 3D model, the starter teams (`/api/workflow-templates`) and the runs of old step lists
+(`/api/workflow-runs`, `/api/workflow-active`). The picture itself (GET `…/mark`) stays in `server/index.ts`. The
+contract keeps the old addresses, so it is `workflows` (`rpc.workflows.change(…)`), beside `teams` for their chats.
+
+- **A save keeps only a team's own fields.** The page sends back the whole team as it got it (with `state`, `last`,
+  the Station's own fields); those were written into the team's file before and are dropped now. A field of the
+  wrong kind is refused in words; a step keeps its other fields, since a tool step carries its tool's settings.
+- **`access` with one list left out** saves the other as empty (a test sends only `toolGroups`).
+- **A picture that isn't one** is a 400 in its own words (it was a 500), and an unknown starter team a 404.
+- `WorkflowRun`, `RunSummary` and `WorkflowTemplateInfo` moved to `shared/types.ts`.
+- **The guard test** from "After the pilot" is in: `tests/server/rpc-moved.test.ts` fails if `server/index.ts` gains a
+  route in an area that has moved. Its list grows with each area.
+
+`server/index.ts` is 1,381 lines.
+
+Next: brain (15), then outbox (13).
 
 ## Why
 
@@ -322,7 +340,7 @@ step 4).
 - **One area per PR**, in this order: projects (23), agents (32), teams (16), brain (15), outbox (13),
   workflows (10), then the rest. Gateways (48) and world (24) last: they're big and change often.
 - **A guard test**: once an area has moved, `server/index.ts` can't gain a JSON route in it (a list of moved
-  path prefixes).
+  path prefixes). Done: `tests/server/rpc-moved.test.ts`.
 - **When the JSON routes are all moved**, `get`/`post`/`put`/`del` remain only for what stays on the old
   router (above).
 - **AGENTS.md** gets the new rule ("JSON routes are contracts in `shared/api/`, implemented in `server/api/`")
