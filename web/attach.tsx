@@ -7,9 +7,10 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import type { CSSProperties } from 'react';
-import { POST, DEL, toast, lightbox } from './core.ts';
+import { toast, lightbox } from './core.ts';
 import { upload } from './client/http.ts';
 import { fileUrl, projectAt } from './client/connection.ts';
+import { rpcAt } from './client/rpc.ts';
 import { mountAttachMenu } from './attachmenu.tsx';
 import { markdownTooBig, onDesktop, openFile, openPdf, previewKind, showMarkdown } from './filepreview.tsx';
 import { Icon } from './ui/react.tsx';
@@ -237,7 +238,7 @@ async function uploadItems(items: Item[], redraw: () => void, at = ''): Promise<
   redraw();
   let batch: string;
   try {
-    batch = (await POST<{ batch: string }>(`${at}/uploads`)).batch;
+    batch = (await rpcAt(at).uploads.newBatch()).batch;
   } catch (e) {
     for (const it of items) Object.assign(it, { state: 'error', error: (e as Error).message });
     items.forEach((it) => it.settle());
@@ -252,7 +253,7 @@ async function uploadItems(items: Item[], redraw: () => void, at = ''): Promise<
         if (!it.removed) Object.assign(it, { state: 'error', error: (e as Error).message });
       }
       // taken back while it was uploading: remove what did arrive
-      if (it.removed && it.path) DEL(`${at}/uploads?path=${encodeURIComponent(it.path)}`).catch(() => {});
+      if (it.removed && it.path) rpcAt(at).uploads.remove({ query: { path: it.path } }).catch(() => {});
       it.settle();
       redraw();
     }),
@@ -389,7 +390,7 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
     for (const fn of listeners) fn();
   };
 
-  const forget = (p: string) => DEL(`${at}/uploads?path=${encodeURIComponent(p)}`).catch(() => {});
+  const forget = (p: string) => rpcAt(at).uploads.remove({ query: { path: p } }).catch(() => {});
   const remove = (it: Item) => {
     it.removed = true;
     it.cancel.abort();

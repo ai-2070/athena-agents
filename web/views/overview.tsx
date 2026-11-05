@@ -8,7 +8,7 @@
 // docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { DEL, POST, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
+import { ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
 import { rpc, rpcAt } from '../client/rpc.ts';
 import { apiUrl, projectAt } from '../client/connection.ts';
 import { previewFile, previewTitle, revealLabel } from '../filepreview.tsx';
@@ -223,7 +223,7 @@ function OverviewPage() {
   };
   /** A new terminal in the open project's folder, opened as a pane. */
   const newTerminal = async () => {
-    const t = await attempt(() => POST<{ id: string; title: string }>('/terminals', { kind: 'shell', cwd: state.data?.project?.brainPath }));
+    const t = await attempt(() => rpc.terminals.create({ kind: 'shell', cwd: state.data?.project?.brainPath }));
     if (!t) return;
     change((l) => openPane(l, { kind: 'terminal', id: t.id, projectId: active }));
     void load();
@@ -839,7 +839,7 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
   };
   const endTerminal = async () => {
     if (!(await confirmBox(`End the terminal "${name}"? What runs in it stops.`, { ok: 'End terminal', danger: true }))) return;
-    if (await attempt(() => DEL(`/terminals/${encodeURIComponent(ref.id)}`))) change((l) => closePane(l, key));
+    if (await attempt(() => rpc.terminals.close({ id: ref.id }))) change((l) => closePane(l, key));
   };
   return (
     <>

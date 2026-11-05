@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { POST, attempt, state, toast, refreshSoon } from './core.ts';
+import { attempt, state, toast, refreshSoon } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import type { ModalHandle } from './core.ts';
 import { teamSteps } from '../shared/teams.ts';
@@ -19,18 +19,9 @@ import { Avatar, DomNode, Icon } from './ui/react.tsx';
 import { FileDrop, FormSection } from './ui/formsection.tsx';
 import type { Agent, Team, TeamAccess, TeamStep } from '../shared/types.ts';
 
-/** An agent the Brain designed (POST /api/assist/agent), not created yet. */
-export type AgentDraft = Pick<Agent, 'name' | 'emoji' | 'specialty' | 'systemPrompt' | 'toolGroups' | 'mcpServers' | 'engine'>;
-/** A team member: an existing agent, or one the Brain suggests hiring. */
-export type BranchMember = { agentId: string; newAgent?: undefined } | { newAgent: AgentDraft; agentId?: undefined };
-/** A team the Brain designed (POST /api/assist/branch). leadIndex points into members (-1 = no lead). */
-export interface BranchDesign {
-  name: string;
-  description: string;
-  access: TeamAccess;
-  members: BranchMember[];
-  leadIndex: number;
-}
+/** An agent the Brain designed, a team member (an agent there or one to hire), a team the Brain designed. */
+export type { AgentDraft, BranchDesign, BranchMember } from '../shared/types.ts';
+import type { BranchDesign, BranchMember } from '../shared/types.ts';
 export interface BranchBuilderOptions {
   wf?: Team | null;
   prefill?: Partial<BranchDesign> | null;
@@ -120,7 +111,7 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
       return;
     }
     setStatus('The Brain is picking agents…');
-    const design = await attempt(() => POST<BranchDesign>('/assist/branch', { text, attachments }));
+    const design = await attempt(() => rpc.assist.branch({ text, attachments }));
     building.current = false;
     setAsking(false);
     setStatus('');

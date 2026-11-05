@@ -1,7 +1,7 @@
 // Backups on the page: back up the open project (with every skill and preset) into the backups
 // folder, read what a backup file holds, and restore one as a new project. The "Backup saved" window is
 // React now (openModal() with React content); the rest is unchanged.
-import { GET, POST, api, attempt, copy, ago } from './core.ts';
+import { api, attempt, copy, ago } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import { Button, IconButton } from './ui/button.tsx';
 import { Icon } from './ui/react.tsx';
@@ -35,7 +35,8 @@ export interface BackupSummary {
   libraryPrefabs?: number;
 }
 
-/** GET /api/backups */
+/** GET /api/backups, its summary checked again here (cleanSummary): the server reads it from a file anyone could
+ *  have put in the backups folder. */
 export interface BackupListing {
   name: string;
   size: number;
@@ -143,7 +144,7 @@ export async function backupProject(p: Pick<Project, 'id' | 'name'>): Promise<vo
           </div>
         </div>
         <div className="modal-foot">
-          <Button variant="ghost" onClick={() => void attempt(() => POST('/backups/open'))}>
+          <Button variant="ghost" onClick={() => void attempt(() => rpc.backups.open())}>
             <Icon name="folder-open" size={15} /> Show in folder
           </Button>
           <Button onClick={close}>Done</Button>
@@ -178,5 +179,5 @@ export function restoredText(name: string, r: BackupRestored): string {
 }
 
 // the server reads these from files in the backups folder: anyone could have put one there
-export const listBackups = () => GET<{ dir: string; backups: BackupListing[] }>('/backups').then((r) => ({ ...r, backups: r.backups.map((b) => ({ ...b, summary: cleanSummary(b.summary) })) }));
+export const listBackups = () => rpc.backups.list().then((r) => ({ ...r, backups: r.backups.map((b) => ({ ...b, summary: cleanSummary(b.summary) })) }));
 export const backupAgo = (s: BackupSummary | null, modifiedAt: number) => ago(s?.createdAt || modifiedAt);

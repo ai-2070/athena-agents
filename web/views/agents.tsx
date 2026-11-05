@@ -4,7 +4,7 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Autocomplete } from '@base-ui/react/autocomplete';
 import type { ReactNode } from 'react';
-import { POST, attempt, refreshSoon, navigate, toast, confirmBox, promptBox, isRunning, ENGINE_LABEL } from '../core.ts';
+import { attempt, refreshSoon, navigate, toast, confirmBox, promptBox, isRunning, ENGINE_LABEL } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.tsx';
@@ -24,7 +24,7 @@ import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { CATEGORY_COLORS, ENGINE_NAMES, OTHER_COLOR, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
 import type { Slice } from '../agentstats.ts';
-import type { Agent, AgentDetail, AppState, Autonomy, EngineStatus, HermesProfile, McpServerInfo, OpenClawAgent, Team, Terminal } from '../../shared/types.ts';
+import type { Agent, AgentDetail, AppState, Autonomy, EngineStatus, HermesProfile, McpServerInfo, OpenClawAgent, Team } from '../../shared/types.ts';
 
 const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
 
@@ -37,7 +37,7 @@ interface McpListing {
 }
 
 export async function openTerminal(agent: Pick<Agent, 'id'>): Promise<void> {
-  const t = await attempt(() => POST<Terminal>('/terminals', { kind: 'agent', agentId: agent.id }));
+  const t = await attempt(() => rpc.terminals.create({ kind: 'agent', agentId: agent.id }));
   if (t) navigate(`#/terminals/${t.id}`);
 }
 

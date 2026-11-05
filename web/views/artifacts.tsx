@@ -4,9 +4,10 @@ import { Plate } from '../ui/surface.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { useCallback, useEffect, useState } from 'react';
-import { GET, DEL, attempt, md, copy, confirmBox } from '../core.ts';
+import { attempt, md, copy, confirmBox } from '../core.ts';
 import { filePreviews } from '../filepreview.tsx';
 import { fileUrl } from '../client/connection.ts';
+import { rpc } from '../client/rpc.ts';
 import { DomNode, Icon, reactPage, useServerEvents } from '../ui/react.tsx';
 import { SearchBox } from '../ui/controls.tsx';
 import type { Artifact } from '../../shared/types.ts';
@@ -31,7 +32,7 @@ let lastQuery = '';
 function ArtifactsPage() {
   const [all, setAll] = useState<Artifact[] | null>(null);
   const [query, setQuery] = useState(lastQuery);
-  const reload = useCallback(() => GET<Artifact[]>('/artifacts').then(setAll), []);
+  const reload = useCallback(() => rpc.artifacts.list().then(setAll), []);
   useEffect(() => void reload().catch(() => setAll([])), [reload]);
   useServerEvents((ev) => (ev.type === 'artifacts' || ev.type === 'project') && void reload());
 
@@ -39,7 +40,7 @@ function ArtifactsPage() {
   const total = all?.length || 0;
   const remove = async (a: Artifact) => {
     if (!(await confirmBox(`Remove "${a.title}" from the list? The file or folder itself stays where it is.`, { ok: 'Remove', danger: true }))) return;
-    await attempt(() => DEL(`/artifacts/${a.id}`));
+    await attempt(() => rpc.artifacts.remove({ id: a.id }));
     await reload();
   };
   return (

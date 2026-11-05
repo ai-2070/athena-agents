@@ -3,12 +3,12 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { Dot, Pill } from '../ui/marks.tsx';
 import { Plate } from '../ui/surface.tsx';
 import { useCallback, useEffect, useState } from 'react';
-import { POST, attempt, lightbox, toast, navigate } from '../core.ts';
+import { attempt, lightbox, toast, navigate } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { Field, Row, SearchBox, Section } from '../ui/controls.tsx';
 import { reactPage, useServerEvents, DomNode } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
-import type { ComfyQueueStatus, Program, StartMenuApp, Terminal } from '../../shared/types.ts';
+import type { ComfyQueueStatus, Program, StartMenuApp } from '../../shared/types.ts';
 import { appIconStyle, appIconUrl } from '../appicons.ts';
 import { programIcon } from '../programicons.ts';
 import { onThemeChange } from '../theme.ts';
@@ -74,7 +74,7 @@ export const progState = (p: Pick<ProgramInfo, 'version' | 'cli' | 'running'>, s
   [p.version ? `v${p.version}` : p.cli && !starting ? 'command line' : 'installed', starting ? ' · starting…' : p.running ? ' · running' : ''].join('');
 
 async function openCli(p: ProgramInfo): Promise<void> {
-  const t = await attempt(() => POST<Terminal>('/terminals', { kind: 'command', command: CLI[p.id], args: p.id === 'orca' ? ['status'] : p.id === 'openclaw' ? ['tui'] : [] }));
+  const t = await attempt(() => rpc.terminals.create({ kind: 'command', command: CLI[p.id], args: p.id === 'orca' ? ['status'] : p.id === 'openclaw' ? ['tui'] : [] }));
   if (t) navigate(`#/terminals/${t.id}`);
 }
 

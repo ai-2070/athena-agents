@@ -2592,6 +2592,60 @@ export interface Program {
   actions: string[];
 }
 
+// ---------- what this file returns ----------
+export interface BrainModel {
+  provider: BrainSetting['provider'];
+  model: string;
+  /** for this provider ('' = the model's default) */
+  effort: Effort | '';
+  fallback: boolean;
+}
+
+export type BrainRoute = { kind: 'none'; reason: string } | { kind: 'agent' | 'branch'; id: string; name: string; reason: string };
+
+/** A new agent the Brain designed (not saved yet). */
+export type AgentDraft = Pick<Agent, 'name' | 'emoji' | 'specialty' | 'systemPrompt' | 'toolGroups' | 'mcpServers' | 'engine'>;
+
+export type BranchMember = { agentId: string; newAgent?: undefined } | { newAgent: AgentDraft; agentId?: undefined };
+
+/** A team the Brain designed. leadIndex points into members (-1 = no lead). */
+export interface BranchDesign {
+  name: string;
+  description: string;
+  access: TeamAccess;
+  members: BranchMember[];
+  leadIndex: number;
+}
+
+// ---------- Skills from plain words ----------
+/** A skill the Brain wrote or changed from your words (not saved: you look it over first). */
+export interface SkillDraft {
+  name: string;
+  description: string;
+  body: string;
+  /** One sentence: what it wrote or changed */
+  note: string;
+}
+
+/** A backup file in the backups folder. */
+export interface BackupListing {
+  name: string;
+  size: number;
+  modifiedAt: number;
+  summary: BackupSummary | null;
+}
+
+export type FileKind = 'image' | 'video' | 'audio' | 'model' | 'file' | 'folder';
+
+/** What a chat needs to preview a mentioned path. ok: false when it isn't there or isn't allowed. */
+export type FileInfo = { path: string; ok: false } | { path: string; ok: true; kind: FileKind; name: string; size: number; modified: number };
+
+/** Where things sit on the Station map that aren't teams (data/projects/<id>/layout.json). */
+export interface StationLayout {
+  /** the bench of agents on no team; null: its own place */
+  bench?: { x: number; z: number } | null;
+}
+
 // ---------- MCP servers (server/mcp.ts) ----------
 /** One saved MCP server (data/mcp.json). */
 export interface McpServerConfig {

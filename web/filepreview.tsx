@@ -5,20 +5,22 @@
 // React now: the boxes are drawn with createRoot into the detached element the caller gets (as schedule.tsx does).
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { POST, attempt, lightbox, toast, state } from './core.ts';
+import { attempt, lightbox, toast, state } from './core.ts';
 import { domButton } from './ui/dom.ts';
 import { icon } from './icons.ts';
 import { isMac } from './shortcuts.ts';
 import { findFileMentions } from './mentions.ts';
 import { modelViewer } from './modelviewer.ts';
 import { fileUrl, pdfViewUrl, filesAt } from './client/connection.ts';
+import { rpcAt } from './client/rpc.ts';
 import { fetchFile } from './client/http.ts';
 import { showMarkdownDialog } from './ui/bigmarkdown.tsx';
 import { Plate } from './ui/surface.tsx';
 import { DomNode, Icon } from './ui/react.tsx';
 
 /** POST /api/files/info, one entry per path. */
-export type FileInfo = { path: string; ok: false } | { path: string; ok: true; kind: 'image' | 'video' | 'audio' | 'model' | 'file' | 'folder'; name: string; size: number; modified: number };
+export type { FileInfo } from '../shared/types.ts';
+import type { FileInfo } from '../shared/types.ts';
 type OkFile = Extract<FileInfo, { ok: true }>;
 
 const isWindows = (): boolean => /win/i.test((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform || '');
@@ -32,7 +34,7 @@ export const onDesktop = (): boolean => !!state.data?.desktop;
 
 /** Opens the file with its default program (desktop app). Programs and scripts are refused by the server.
  *  project: whose chat shows it, when that project may not be open (see filesAt). */
-export const openFile = (path: string, project?: string): void => void attempt(() => POST(`${filesAt(path, project)}/files/open`, { path }));
+export const openFile = (path: string, project?: string): void => void attempt(() => rpcAt(filesAt(path, project)).files.open({ path }));
 
 // ---------- looking files up: one request for everything asked for in the same moment ----------
 const known = new Map<string, { at: number; info: Promise<FileInfo> }>();
@@ -49,7 +51,7 @@ function flush(): void {
   const byProject = new Map<string, typeof batch>();
   for (const q of batch) byProject.set(q.at, [...(byProject.get(q.at) || []), q]);
   for (const [at, part] of byProject)
-    POST<FileInfo[]>(`${at}/files/info`, { paths: part.map((q) => q.path) })
+    rpcAt(at).files.info({ paths: part.map((q) => q.path) })
       .then((list) => part.forEach((q, i) => q.resolve(list[i] ?? { path: q.path, ok: false })))
       .catch(() => part.forEach((q) => q.resolve({ path: q.path, ok: false })));
 }
@@ -150,7 +152,7 @@ export function openButton(path: string, name: string, project?: string): HTMLBu
 }
 
 export function revealButton(path: string, project?: string): HTMLButtonElement {
-  return domButton({ variant: 'ghost', size: 'tiny', class: 'fp-reveal flex-none gap-1.25', type: 'button', title: path, onclick: () => attempt(() => POST(`${filesAt(path, project)}/files/reveal`, { path })) }, icon('folder-open', 13), revealLabel());
+  return domButton({ variant: 'ghost', size: 'tiny', class: 'fp-reveal flex-none gap-1.25', type: 'button', title: path, onclick: () => attempt(() => rpcAt(filesAt(path, project)).files.reveal({ path })) }, icon('folder-open', 13), revealLabel());
 }
 
 /** An image the box owns that opens big (zoomable adds the button role, focus and keys to it). */

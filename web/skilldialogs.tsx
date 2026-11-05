@@ -1,7 +1,7 @@
 // The Skills page's dialogs (React in Base UI dialogs): write or edit a skill, with the Brain's help
 // in plain words; install from GitHub; import from Claude Code. Each takes the page's reload().
 import { useEffect, useRef, useState } from 'react';
-import { POST, attempt, toast } from './core.ts';
+import { attempt, toast } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import { historyButton } from './history.tsx';
 import { attachTray } from './attach.tsx';
@@ -83,7 +83,7 @@ function SkillEditor({ slug, s, reload, close, tray }: { slug: string | null; s:
       if (!attachments) return void setStatus('');
       setStatus(slug || name.current?.value || body.current?.value ? 'The Brain is changing the skill…' : 'The Brain is writing the skill…');
       const now = fields();
-      const draft = await attempt(() => POST<Fields & { note: string }>('/assist/skill', { text, slug: slug || undefined, current: now, attachments }));
+      const draft = await attempt(() => rpc.assist.skill({ text, slug: slug || undefined, current: now, attachments }));
       if (!draft) return void setStatus('');
       // (locked, so they match; if they somehow don't, what you typed wins)
       const still = fields();

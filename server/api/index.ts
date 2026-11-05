@@ -18,5 +18,7 @@ import { statusRouter } from './status.ts';
 import { accountsRouter, settingsRouter } from './settings.ts';
 import { enginesRouter, mcpRouter } from './mcp.ts';
 import { comfyRouter, programsRouter } from './programs.ts';
+import { assistRouter } from './assist.ts';
+import { artifactsRouter, backupsRouter, filesRouter, layoutRouter, memoryRouter, terminalsRouter, uploadsRouter } from './files.ts';
 
-export const apiRouter = implement(contract).router({ agents: agentsRouter, brain: brainRouter, projects: projectsRouter, taskBoard, teams: teamsRouter, workflows: workflowsRouter, questions: questionsRouter, approvals: approvalsRouter, tasks: tasksRouter, routines: routinesRouter, runs: runsRouter, skills: skillsRouter, versions: versionsRouter, library: libraryRouter, presets: presetsRouter, status: statusRouter, settings: settingsRouter, accounts: accountsRouter, mcp: mcpRouter, engines: enginesRouter, programs: programsRouter, comfyui: comfyRouter });
+export const apiRouter = implement(contract).router({ agents: agentsRouter, brain: brainRouter, projects: projectsRouter, taskBoard, teams: teamsRouter, workflows: workflowsRouter, questions: questionsRouter, approvals: approvalsRouter, tasks: tasksRouter, routines: routinesRouter, runs: runsRouter, skills: skillsRouter, versions: versionsRouter, library: libraryRouter, presets: presetsRouter, status: statusRouter, settings: settingsRouter, accounts: accountsRouter, mcp: mcpRouter, engines: enginesRouter, programs: programsRouter, comfyui: comfyRouter, assist: assistRouter, files: filesRouter, uploads: uploadsRouter, memory: memoryRouter, artifacts: artifactsRouter, backups: backupsRouter, layout: layoutRouter, terminals: terminalsRouter });

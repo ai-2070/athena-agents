@@ -4,7 +4,8 @@ import { Button } from '../ui/button.tsx';
 import { Dot } from '../ui/marks.tsx';
 import { Plate } from '../ui/surface.tsx';
 import { useEffect, useRef, useState } from 'react';
-import { GET, POST, DEL, attempt, navigate } from '../core.ts';
+import { attempt, navigate } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
 import { ProgramGlyph } from '../ui/programmark.tsx';
@@ -23,7 +24,7 @@ interface OpenTerminal {
 }
 
 async function open(body: OpenTerminal): Promise<void> {
-  const t = await attempt(() => POST<TerminalInfo>('/terminals', body));
+  const t = await attempt(() => rpc.terminals.create(body));
   if (t) navigate(`#/terminals/${t.id}`);
 }
 
@@ -45,7 +46,7 @@ function TerminalsPage({ asked }: { asked?: string }) {
   // the app state as it was when the page opened: it may not have a terminal just opened yet
   const [opened] = useState(() => data);
   const [first, setFirst] = useState<TerminalInfo[] | null>(null);
-  useEffect(() => void GET<TerminalInfo[]>('/terminals').then(setFirst).catch(() => setFirst([])), []);
+  useEffect(() => void rpc.terminals.list().then(setFirst).catch(() => setFirst([])), []);
   if (!first) return null;
   // the live list once the app state has it (terminals opening and closing elsewhere)
   const list = data?.terminals || first;
@@ -54,7 +55,7 @@ function TerminalsPage({ asked }: { asked?: string }) {
   const live = data !== opened && data?.terminals ? data.terminals : null;
   const current = pickTerminal(asked, live || (first.length ? first : list));
   const close = async (id: string) => {
-    await attempt(() => DEL(`/terminals/${id}`));
+    await attempt(() => rpc.terminals.close({ id }));
     if (current === id) navigate('#/terminals');
   };
   return (

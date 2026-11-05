@@ -39,7 +39,7 @@ import type { MenuEntry, StationMenu } from './stationmenu.tsx';
 import type { WorldView } from '../voxel/view.ts';
 import type { WorldLayer } from '../voxel/worldlayer.ts';
 import type { AgentTarget, SkinHost } from '../voxel/skins.ts';
-import type { ActivityEntry, Agent, AppState, Chat, Project, Routine, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
+import type { ActivityEntry, Agent, AppState, Chat, Project, Routine, StationLayout, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
 
 // ---------- types ----------
 /** A workflow run (GET /api/workflow-runs, /api/workflow-active and the 'workflow-run' event). */
@@ -52,9 +52,6 @@ interface WorkflowRun {
   error?: string | null;
 }
 /** Where things sit on the map that isn't a team (GET /api/layout). */
-interface StationLayout {
-  bench?: { x: number; z: number } | null;
-}
 
 /** What a tool call means, in words, for the monitor. */
 interface ToolDesc {
@@ -953,7 +950,7 @@ function teamView(w: TeamListing): TeamView {
 }
 
 async function loadData(): Promise<void> {
-  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([rpc.programs.list({}).catch((): Program[] => []), rpc.workflows.list().catch((): TeamListing[] => []), rpc.workflows.runs.list({}).catch((): WorkflowRun[] => []), rpc.workflows.active().catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({})), rpc.routines.list().catch((): Routine[] => [])]);
+  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([rpc.programs.list({}).catch((): Program[] => []), rpc.workflows.list().catch((): TeamListing[] => []), rpc.workflows.runs.list({}).catch((): WorkflowRun[] => []), rpc.workflows.active().catch((): WorkflowRun[] => []), rpc.layout.get().catch((): StationLayout => ({})), rpc.routines.list().catch((): Routine[] => [])]);
   if (!S) return;
   S.layout = layout || {};
   S.progs = progs;
@@ -3159,7 +3156,7 @@ async function saveBranchPlace(wfId: string): Promise<void> {
 async function saveLayout(patch: StationLayout): Promise<void> {
   assertMounted(S);
   S.layout = { ...(S.layout || {}), ...patch };
-  await attempt(() => PUT('/layout', patch));
+  await attempt(() => rpc.layout.save(patch));
 }
 
 

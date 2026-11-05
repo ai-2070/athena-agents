@@ -25,7 +25,9 @@ import { savedOpacity } from '../shared/look.ts';
 import { restoredTasks } from './tasks.ts';
 import { restoredBoard } from './taskboard.ts';
 import { taskFilePath } from './boardfiles.ts';
-import type { Agent, BackupRestoreResult, BackupResult, BackupSummary, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
+import type { Agent, BackupListing, BackupRestoreResult, BackupResult, BackupSummary, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
+
+export type { BackupListing } from '../shared/types.ts';
 
 // (the shapes the page reads: shared/types.ts)
 export type { BackupRestoreResult, BackupResult, BackupSummary };
@@ -124,14 +126,6 @@ export interface BackupData {
   taskFiles?: PackedFile[];
   /** Files left out because their kind's size limit was reached (see CAP) */
   omitted: number;
-}
-
-/** A backup file in the backups folder. */
-export interface BackupListing {
-  name: string;
-  size: number;
-  modifiedAt: number;
-  summary: BackupSummary | null;
 }
 
 // ---------- packing ----------

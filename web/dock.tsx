@@ -7,7 +7,7 @@ import { useMentionBox, useMentionables } from './taskboard.tsx';
 import { mentionMenuOpen } from './routinemention.ts';
 import { createPortal, flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { h, state, POST, attempt, md, onEvent, onState, navigate, refreshSoon, toast, confirmBox } from './core.ts';
+import { h, state, attempt, md, onEvent, onState, navigate, refreshSoon, toast, confirmBox } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import { openBranchBuilder } from './builder.tsx';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.tsx';
@@ -1355,7 +1355,7 @@ async function toBranch(wfId: string, text: string, reason = '', attachments: st
 async function newAgent(text: string, attachments: string[] = []) {
   const n = add({ kind: 'note', text: 'Designing an agent for this…', busy: true });
   const gen = conversation;
-  const a: Partial<AgentDraft> & Failed = await POST<AgentDraft>('/assist/agent', { text, attachments }).catch((e: Error) => ({ error: e.message }));
+  const a: Partial<AgentDraft> & Failed = await rpc.assist.agent({ text, attachments }).catch((e: Error) => ({ error: e.message }));
   // (a new conversation or another project since: the design belongs to the old one)
   if (gen !== conversation) return;
   remove(n);
@@ -1366,7 +1366,7 @@ async function newAgent(text: string, attachments: string[] = []) {
 async function newBranch(text: string, attachments: string[] = []) {
   const n = add({ kind: 'note', text: 'Building a team from your agents…', busy: true });
   const gen = conversation;
-  const design: Partial<BranchDesign> & Failed = await POST<BranchDesign>('/assist/branch', { text, attachments }).catch((e: Error) => ({ error: e.message }));
+  const design: Partial<BranchDesign> & Failed = await rpc.assist.branch({ text, attachments }).catch((e: Error) => ({ error: e.message }));
   if (gen !== conversation) return;
   remove(n);
   if (design.error) return add({ kind: 'note', text: `Couldn't build it: ${design.error}`, error: true });

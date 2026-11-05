@@ -4,8 +4,9 @@ import { useCallback, useEffect, useReducer, useRef } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { GET, PUT, attempt, ago, onEvent, onState, state, confirmBox } from './core.ts';
+import { attempt, ago, onEvent, onState, state, confirmBox } from './core.ts';
 import { projectAt } from './client/connection.ts';
+import { rpcAt } from './client/rpc.ts';
 import { domButton } from './ui/dom.ts';
 import type { ButtonSize, ButtonVariant } from './ui/classes.ts';
 import { Button } from './ui/button.tsx';
@@ -65,7 +66,7 @@ function MemoryEditorView({ owner, rows, brain, project, foreign, host, store }:
       store.changedElsewhere = true;
       return force();
     }
-    const m = await GET<MemoryInfo>(`${at}/memory/${encodeURIComponent(owner)}`).catch(() => null);
+    const m = await rpcAt(at).memory.get({ owner }).catch(() => null);
     if (!m || typeof m.text !== 'string') {
       store.error = true;
       return force();
@@ -88,7 +89,7 @@ function MemoryEditorView({ owner, rows, brain, project, foreign, host, store }:
   const save = async (): Promise<void> => {
     if (!dirty() || store.gone) return;
     const text = store.text;
-    const m = await attempt(() => PUT<MemoryInfo>(`${at}/memory/${encodeURIComponent(owner)}`, { text }), 'Saved MEMORY.md');
+    const m = await attempt(() => rpcAt(at).memory.save({ owner, text }), 'Saved MEMORY.md');
     if (!m) return;
     store.loaded = m;
     store.base = m.text;

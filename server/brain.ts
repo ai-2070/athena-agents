@@ -11,7 +11,9 @@ import { effortFor, isEffort } from '../shared/effort.ts';
 import { apiModelInfo, apiRequestOptions, resolveApiProvider } from './apiproviders.ts';
 import { apiErrorMessage } from './apiresponse.ts';
 import type { FetchError } from './util.ts';
-import type { Agent, BrainSetting, Effort, EngineId, Team, TeamAccess } from '../shared/types.ts';
+import type { Agent, AgentDraft, BrainModel, BrainRoute, BrainSetting, BranchDesign, BranchMember, Effort, EngineId, SkillDraft, Team, TeamAccess } from '../shared/types.ts';
+
+export type { AgentDraft, BrainModel, BrainRoute, BranchDesign, BranchMember, SkillDraft } from '../shared/types.ts';
 
 // ---------- what the models send back (JSON boundaries) ----------
 interface ApiChat {
@@ -57,26 +59,6 @@ interface BranchAnswer {
   steps?: { agentId?: string; newAgent?: AgentAnswer }[];
 }
 
-// ---------- what this file returns ----------
-export interface BrainModel {
-  provider: BrainSetting['provider'];
-  model: string;
-  /** for this provider ('' = the model's default) */
-  effort: Effort | '';
-  fallback: boolean;
-}
-export type BrainRoute = { kind: 'none'; reason: string } | { kind: 'agent' | 'branch'; id: string; name: string; reason: string };
-/** A new agent the Brain designed (not saved yet). */
-export type AgentDraft = Pick<Agent, 'name' | 'emoji' | 'specialty' | 'systemPrompt' | 'toolGroups' | 'mcpServers' | 'engine'>;
-export type BranchMember = { agentId: string; newAgent?: undefined } | { newAgent: AgentDraft; agentId?: undefined };
-/** A team the Brain designed. leadIndex points into members (-1 = no lead). */
-export interface BranchDesign {
-  name: string;
-  description: string;
-  access: TeamAccess;
-  members: BranchMember[];
-  leadIndex: number;
-}
 export interface ThinkOptions {
   tools?: string;
   cwd?: string;
@@ -402,15 +384,6 @@ export async function pickMember(text: string, members: (Agent | null | undefine
   return list.some((a) => a.id === j.id) ? (j.id as string) : null;
 }
 
-// ---------- Skills from plain words ----------
-/** A skill the Brain wrote or changed from your words (not saved: you look it over first). */
-export interface SkillDraft {
-  name: string;
-  description: string;
-  body: string;
-  /** One sentence: what it wrote or changed */
-  note: string;
-}
 /** The skill as it is in the editor now (changes not saved yet included). */
 export interface SkillText {
   name: string;

@@ -36,7 +36,7 @@ const teamFields = {
     input: z.string().optional(),
   }, { error: 'schedule must say when it runs.' }).optional(),
   enabled: z.boolean({ error: 'enabled must be true or false.' }).optional(),
-  pos: z.object({ x: z.number(), z: z.number() }, { error: 'A place on the map is x and z.' }).nullable().optional(),
+  pos: z.object({ x: z.number({ error: 'A place on the map is x and z.' }), z: z.number({ error: 'A place on the map is x and z.' }) }, { error: 'A place on the map is x and z.' }).nullable().optional(),
   rot: spot,
   angle: spot,
 };

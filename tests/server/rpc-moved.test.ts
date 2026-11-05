@@ -11,6 +11,7 @@ const MOVED = [
   '/api/settings', '/api/secrets', '/api/accounts', '/api/state', '/api/activity', '/api/headbar', '/api/usage-limits',
   '/api/overview', '/api/tools', '/api/tool-stats', '/api/models', '/api/providers', '/api/about',
   '/api/mcp', '/api/hermes/', '/api/pi/', '/api/openclaw/', '/api/codex/', '/api/programs', '/api/comfyui',
+  '/api/file', '/api/uploads', '/api/memory', '/api/artifacts', '/api/backups', '/api/layout', '/api/terminals', '/api/assist',
 ];
 /** The old routes those areas keep. */
 const KEEP = [
@@ -22,6 +23,8 @@ const KEEP = [
   'GET /api/agents/:id/chats/:cid/stream',
   'GET /api/workflows/:id/mark',
   'POST /api/brain/stream',
+  'GET /api/file',
+  'POST /api/backups/restore',
 ];
 const METHOD: Record<string, string> = { get: 'GET', post: 'POST', put: 'PUT', del: 'DELETE', postFile: 'POST' };
 

@@ -6,9 +6,9 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
-import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, readJSON, writeJSON, insideRoots } from './util.ts';
+import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, insideRoots } from './util.ts';
 import * as store from './store.ts';
-import { agents, chats, outbox, artifacts as artifactStore, workflows, bus, getSettings, internalToken, log } from './store.ts';
+import { agents, chats, outbox, workflows, bus, getSettings, internalToken, log } from './store.ts';
 import { requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
 import { eveRuntime } from './eve/runtime.ts';
@@ -29,12 +29,11 @@ import * as programs from './programs.ts';
 import * as comfy from './comfyui.ts';
 import * as mcp from './mcp.ts';
 import * as social from './social.ts';
-import { addArtifact, removeArtifact } from './artifacts.ts';
+import { addArtifact } from './artifacts.ts';
 import * as teamMarks from './teammark.ts';
 import * as taskBoard from './taskboard.ts';
 import * as boardWork from './boardwork.ts';
 import { taskFilePath } from './boardfiles.ts';
-import * as memory from './memory.ts';
 import * as wfs from './workflows.ts';
 import * as worldLink from './voxel/link.ts';
 import * as worldBuild from './voxel/build.ts';
@@ -175,11 +174,6 @@ get('/api/projects/:id/model', async ({ id }, _b, _q, res) => {
 });
 // ---------- backups: a project with its agents, chats and knowledge, plus every skill and preset ----------
 // (making one, and deleting a project with one: server/api/projects.ts)
-get('/api/backups', async () => ({ dir: backup.backupsRoot(), backups: backup.listBackups() }));
-post('/api/backups/open', async () => {
-  openWithShell(ensureDir(backup.backupsRoot()));
-  return { ok: true };
-});
 // A new project from a backup: the file as the body, or ?file=<name> for one in the backups folder.
 // One at a time, like copying a project (backup.oneAtATime).
 postFile('/api/backups/restore', async (_p, upload, q) => {
@@ -192,18 +186,9 @@ postFile('/api/backups/restore', async (_p, upload, q) => {
   projects.startScreenDone();
   return { ...projects.withLogo(skills.enableOrcaSkill(r.project.id) || r.project), restored: r.restored };
 });
-// Where things sit on the Station map (per project), e.g. { bench: { x, z } }.
-get('/api/layout', async () => readJSON<Record<string, unknown>>(store.projectData('layout.json'), {}));
-put<Body | null>('/api/layout', async (_p, body) => {
-  writeJSON(store.projectData('layout.json'), { ...readJSON<Record<string, unknown>>(store.projectData('layout.json'), {}), ...(body || {}) });
-  store.emit('layout');
-  return { ok: true };
-});
 
 // ---------- the Brain: its folder, asking it, its history and its skills are server/api/brain.ts ----------
-// Pick who handles a message, design a new agent, build a branch.
-post<{ text?: unknown }>('/api/assist/route', async (_p, body) => brain.route(String(body.text || '')));
-get('/api/assist/model', async () => brain.brainModel());
+// (who a message goes to, and its drafts of an agent, a team or a skill: server/api/assist.ts)
 // The Brain answers agents' and teams' permission requests (Settings > The Brain approves).
 setReviewer(overseer.reviewApproval);
 // Asking it anything about the project, streamed (Vercel AI SDK UI message stream): the answer as it is written, the files the
@@ -218,8 +203,7 @@ post<{ text?: unknown; project?: unknown; attachments?: unknown; goal?: unknown 
   await uistream.streamBrain(res, (onPart) => overseer.ask(text, { project, attachments, onPart, goal: body.goal === true }));
   return undefined;
 });
-post<{ text?: unknown; attachments?: unknown }>('/api/assist/agent', async (_p, body) => brain.designAgent(String(body.text || ''), { attachments: uploads.cleanAttachments(body.attachments) }));
-post<{ text?: unknown; allowNew?: unknown; attachments?: unknown }>('/api/assist/branch', async (_p, body) => brain.designBranch(String(body.text || ''), { allowNew: body.allowNew !== false, attachments: uploads.cleanAttachments(body.attachments) }));
+
 // ---------- agents ----------
 // server/api/agents.ts, with their chats; a chat's run streams are below
 
@@ -260,40 +244,7 @@ get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
 });
 
 
-// ---------- skills: server/api/skills.ts ----------
-// A skill written or changed from plain words: a draft for the editor, saved only when you press Save.
-// slug: the skill being edited (for its files); current: what the editor holds now (unsaved changes too).
-post<{ text?: unknown; slug?: unknown; current?: unknown; attachments?: unknown }>('/api/assist/skill', async (_p, body) => {
-  const text = String(body.text || '').trim().slice(0, 8000);
-  const attachments = uploads.cleanAttachments(body.attachments);
-  if (!text && !attachments.length) throw new HttpError(400, 'Say what the skill should do, or what to change.');
-  const c = (body.current && typeof body.current === 'object' ? body.current : null) as Record<string, unknown> | null;
-  const saved = typeof body.slug === 'string' ? skills.getSkill(body.slug) : null;
-  const field = (k: 'name' | 'description' | 'body', max: number) => (typeof c?.[k] === 'string' ? (c[k] as string) : saved?.[k] || '').slice(0, max);
-  const now = { name: field('name', 80), description: field('description', 1000), body: field('body', 60000) };
-  // nothing written yet (a new skill's empty editor): a new skill, not an edit of an empty one
-  const current = now.name.trim() || now.description.trim() || now.body.trim() ? now : null;
-  return brain.draftSkill(text, {
-    current,
-    files: saved?.files.map((f) => f.path) || [],
-    others: skills.listSkills().filter((s) => s.slug !== saved?.slug),
-    attachments,
-  });
-});
-
-// ---------- MEMORY.md: each agent's and the Brain's ("brain") ----------
-const memoryOwner = (owner: string): string => {
-  if (owner !== memory.BRAIN && !agents.get(owner)) throw new HttpError(404, 'No agent by that id.');
-  return owner;
-};
-get('/api/memory/:owner', async ({ owner }) => memory.memoryInfo(memoryOwner(owner)));
-put<{ text?: unknown } | null>('/api/memory/:owner', async ({ owner }, body) => {
-  if (typeof body?.text !== 'string') throw new HttpError(400, 'Send the whole MEMORY.md as text.');
-  const before = memory.memoryStamp(memoryOwner(owner));
-  const m = memory.writeMemory(owner, body.text);
-  if (m.updatedAt !== Math.round(before)) log('memory', `You edited ${memory.memoryTitle(owner)}`, owner === memory.BRAIN ? {} : { agentId: owner });
-  return m;
-});
+// (skills: server/api/skills.ts; MEMORY.md: server/api/files.ts)
 
 // ---------- the voxel world (server/voxel, docs/internal/plans/VOXEL_WORLD_PLAN.md) ----------
 const you: WorldBuilder = { kind: 'user', name: 'You' };
@@ -400,15 +351,12 @@ put<{ worldId?: unknown } | null>('/api/worlds/default', async (_p, body) => (wo
 put<{ name?: unknown } | null>('/api/worlds/:wid', async ({ wid }, body) => worldLink.renameWorld(wid, body?.name));
 del('/api/worlds/:wid', async ({ wid }) => (worldLink.deleteUnusedWorld(wid), { ok: true }));
 
-// (versions, presets and the library: server/api/versions.ts, library.ts)
+// (versions, presets and the library: server/api/versions.ts, library.ts; models: status.ts; programs and ComfyUI:
+// programs.ts)
 
-// ---------- models: server/api/status.ts ----------
-// ---------- programs and ComfyUI: server/api/programs.ts ----------
-
-// ---------- attached files (saved in the Brain folder's uploads/) ----------
-// One folder per drop; then each file is sent raw to POST /api/uploads/<batch>?path=<relative path> (handled below the router).
-post('/api/uploads', async () => uploads.newBatch());
-del('/api/uploads', async (_p, _b, q) => ({ ok: uploads.removeUpload(q.path) }));
+// ---------- files ----------
+// (what a chat's files are, attached files, artifacts, the backups folder, the map's layout and terminals:
+// server/api/files.ts. An attached file's bytes go to POST /api/uploads/<batch>?path=…, handled below the router.)
 
 // Files the browser may show: workspaces, outputs, knowledge, ComfyUI outputs, allowed folders.
 get('/api/file', async (_p, _b, q, res) => {
@@ -426,18 +374,6 @@ get('/api/file', async (_p, _b, q, res) => {
   if (q.view === '1' && path.extname(p).toLowerCase() === '.pdf') sendPdf(res, p);
   else sendFileSafely(res, p);
   return undefined;
-});
-
-// Files a chat mentions: whether each is there and what it is (for its preview), Show in Explorer / Finder,
-// and Open (the desktop app: with the file's own program).
-post<{ paths?: unknown }>('/api/files/info', async (_p, body) => files.fileInfo(body.paths));
-post<{ path?: unknown }>('/api/files/reveal', async (_p, body) => {
-  files.reveal(body.path);
-  return { ok: true };
-});
-post<{ path?: unknown }>('/api/files/open', async (_p, body) => {
-  files.open(body.path);
-  return { ok: true };
 });
 
 // Agent-made files are shown, never run: only media display inline; everything else downloads, sandboxed.
@@ -566,11 +502,6 @@ del('/api/gateways/:id', async ({ id }) => {
 // ---------- settings, keys and accounts: server/api/settings.ts ----------
 post('/api/social/test', async () => { throw new HttpError(400, 'Choose a gateway instance and known conversation in the Outbox, review the test text, then approve it. Old global tokens and webhooks are no longer used.'); });
 
-get('/api/artifacts', async () => artifactStore.list().sort((a, b) => b.createdAt! - a.createdAt!));
-del('/api/artifacts/:id', async ({ id }) => {
-  removeArtifact(id);
-  return { ok: true };
-});
 get('/api/outbox', async () => social.listPosts());
 get('/api/outbox/gateway-destinations', async () => gatewayOutboxDestinations(store.activeProject().id));
 post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, gateway: body.gateway, agentName: 'You' }));
@@ -616,11 +547,6 @@ get('/api/workflows/:id/mark', async ({ id }, _b, _q, res) => {
   sendFileSafely(res, f);
   return undefined;
 });
-
-// ---------- terminals ----------
-get('/api/terminals', async () => terms.listTerminals());
-post<Omit<Parameters<typeof terms.createTerminal>[0], 'agent'> & { agentId?: string }>('/api/terminals', async (_p, body) => terms.createTerminal({ ...body, agent: body.agentId ? need(agents.get(body.agentId)) : null }));
-del('/api/terminals/:id', async ({ id }) => ({ ok: terms.closeTerminal(id) }));
 
 // ---------- internal: the MCP bridge calls these ----------
 // A bridge that belongs to a run works in the run's project (its agent, workspace and data), even

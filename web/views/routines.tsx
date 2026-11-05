@@ -5,7 +5,7 @@ import { FormSection } from '../ui/formsection.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { h, md, DEL, attempt, navigate, confirmBox, ago, state, toast } from '../core.ts';
+import { h, md, attempt, navigate, confirmBox, ago, state, toast } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { icon } from '../icons.ts';
 import { skillIcon } from '../skillicons.ts';
@@ -271,7 +271,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   };
   const del = async () => {
     if (!(await confirmBox(`Delete the routine "${name}"?`, { ok: 'Delete', danger: true }))) return;
-    if (await attempt(() => DEL(`/routines/${id}`), 'Deleted')) navigate('#/routines');
+    if (await attempt(() => rpc.routines.remove({ id }), 'Deleted')) navigate('#/routines');
   };
 
   // who the text mentions

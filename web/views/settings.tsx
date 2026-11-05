@@ -4,7 +4,7 @@ import { Button } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { POST, attempt, toast, refreshSoon, navigate } from '../core.ts';
+import { attempt, toast, refreshSoon, navigate } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import type { SettingsChange } from '../../shared/api/settings.ts';
 import { brainModelChip, openModelPicker } from '../models.tsx';
@@ -14,7 +14,7 @@ import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { logo } from '../icons.ts';
 import { ProgramGlyph, ProgramLabel } from '../ui/programmark.tsx';
 import { brandSrc, followTheme } from '../brandimages.ts';
-import type { AppState, EngineStatus, SecretKey, SecretStatus, Settings, Terminal, VeniceAccountInfo } from '../../shared/types.ts';
+import type { AppState, EngineStatus, SecretKey, SecretStatus, Settings, VeniceAccountInfo } from '../../shared/types.ts';
 
 interface Loaded {
   settings: Settings;
@@ -383,7 +383,7 @@ function Engines({ data, reload }: { data: AppState; reload: () => Promise<unkno
     later(500);
   };
   const signIn = async () => {
-    const t = await attempt(() => POST<Terminal>('/terminals', { kind: 'command', command: 'codex', args: ['login'], title: 'Codex sign-in' }));
+    const t = await attempt(() => rpc.terminals.create({ kind: 'command', command: 'codex', args: ['login'], title: 'Codex sign-in' }));
     if (t) navigate(`#/terminals/${t.id}`);
   };
   const recheck = () =>
