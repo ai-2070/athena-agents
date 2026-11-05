@@ -89,6 +89,7 @@ import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import { saveToolStats, toolStats } from './toolstats.ts';
+import { handleRpc, JSON_LIMIT } from './rpc.ts';
 import type { RestoreResult } from './projectsync.ts';
 import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
 
@@ -1471,7 +1472,7 @@ function readRaw(req: http.IncomingMessage, limit: number): Promise<Buffer> {
 }
 
 async function readBody(req: http.IncomingMessage): Promise<unknown> {
-  const buf = await readRaw(req, 25 * 1024 * 1024);
+  const buf = await readRaw(req, JSON_LIMIT);
   if (!buf.length) return {};
   let v: unknown;
   try {
@@ -1595,6 +1596,10 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(JSON.stringify(saved));
       }
+      // the routes that moved to oRPC (server/rpc.ts); anything else is left for the routes below, its body unread
+      // (run in another project: /api/p/<project> as the address wrote it)
+      const prefix: `/api${string}` = `/api${scope ? url.pathname.slice('/api'.length, url.pathname.length - (scope.path.length - '/api'.length)) : ''}`;
+      if (await inScope(() => handleRpc(req, res, prefix))) return;
       for (const r of routes) {
         if (r.method !== req.method) continue;
         const m = r.re.exec(pathname);
