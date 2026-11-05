@@ -440,7 +440,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
     <div className="mx-auto max-w-6xl">
       {/* the agent at the top, with Chat and Save: it stays in view on this long page */}
       {/* (just under the app's own top bar, which is sticky too and 3.5rem tall) */}
-      <div className="sticky top-14 z-10 -mx-3 mb-8 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-line bg-bg/90 px-3 py-3 backdrop-blur-md">
+      <div className="sticky top-14 z-10 -mx-3 mb-8 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-line px-3 py-3 backdrop-blur-md">
         <ButtonLink variant="ghost" size="small" href="#/agents">← Agents</ButtonLink>
         <div className="flex min-w-0 flex-1 items-center gap-3 [&_.avatar]:size-10 [&_.avatar]:rounded-[11px] [&_.avatar]:text-[20px]">
           <Avatar agent={a} />
