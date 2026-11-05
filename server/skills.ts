@@ -292,14 +292,19 @@ export function saveSkillWithFiles(input: { slug?: string; name: string; descrip
   }, { note: `Before ${by} changed it` });
 }
 
-/** Skills in the library that match these words (in the id, name or description), best first. */
+// words nearly every description has ("Use when…"): matching them finds everything
+const COMMON = new Set(['the', 'and', 'for', 'with', 'use', 'used', 'using', 'when', 'how', 'what', 'that', 'this', 'from', 'into', 'your', 'you', 'its', 'are', 'can', 'not', 'any', 'all', 'skill', 'skills']);
+
+/** Skills in the library that match these words (in the id, name or description), best first; none for words too
+ *  short or too common to search by. */
 export function searchLibrary(words: string, max = 20): SkillSummary[] {
-  const terms = words.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
+  const terms = words.toLowerCase().split(/[\W_]+/).filter((w) => w.length > 2 && !COMMON.has(w));
+  if (!terms.length) return [];
   const scored = listSkills().map((s) => {
     const hay = `${s.slug} ${s.name} ${s.description}`.toLowerCase();
     return { s, n: terms.filter((t) => hay.includes(t)).length };
   });
-  return scored.filter((x) => !terms.length || x.n > 0).sort((a, b) => b.n - a.n || a.s.slug.localeCompare(b.s.slug)).slice(0, max).map((x) => x.s);
+  return scored.filter((x) => x.n > 0).sort((a, b) => b.n - a.n || a.s.slug.localeCompare(b.s.slug)).slice(0, max).map((x) => x.s);
 }
 
 export function uniqueSlug(name: string): string {

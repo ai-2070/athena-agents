@@ -183,7 +183,7 @@ const TOOLS: ToolDef[] = [
     name: 'read_skill',
     group: 'core',
     risk: 'none',
-    description: 'Open one of your skills (listed under "Your skills" in your instructions) and get its full instructions. Pass file to read one of the extra files that come with the skill (long ones in parts, with from), or find to search the skill\'s files (like grep). A name that is no skill lists the library\'s skills matching its words.',
+    description: 'Open one of your skills (listed under "Your skills" in your instructions) and get its full instructions. Pass file to read one of the extra files that come with the skill (long ones in parts, with from), or find to search the skill\'s files (like grep). Any other name lists the library\'s skills matching its words.',
     parameters: obj(
       {
         name: str('The skill id as listed (or its name)'),
@@ -197,9 +197,10 @@ const TOOLS: ToolDef[] = [
       const s = skills.findSkill(name);
       if (!s) {
         // the words of an unknown name search the whole library: how an agent finds a skill it wasn't given
-        const like = /[A-Za-z0-9]{3}/.test(String(name || '')) ? skills.searchLibrary(String(name), 12) : [];
+        // (not an error when some match: it is also how agents search the library)
+        const like = skills.searchLibrary(String(name || ''), 12);
         const listed = like.map((x) => `- ${x.slug}: ${x.name}. ${x.description}`).join('\n');
-        return { text: `There is no skill called "${name}".${like.length ? ` Skills in the library that match its words:\n${listed}` : ' No skill in the library matches its words either.'}`, isError: !like.length };
+        return { text: `There is no skill called "${name}".${like.length ? ` Skills in the library that match its words (open one with read_skill and its id):\n${listed}` : ' No skill in the library matches its words either.'}`, isError: !like.length };
       }
       if (find) return { text: `# ${s.name}: lines matching "${find}"\n\n${skills.searchSkill(s.slug, find, file)}` };
       if (file) return { text: `# ${s.name} / ${file}\n\n${skills.readSkillFile(s.slug, file, from)}` };
@@ -217,12 +218,12 @@ const TOOLS: ToolDef[] = [
     group: 'core',
     // a write the user can undo: the old version stays in the skill's History
     risk: 'low',
-    description: 'Save a skill to the library: new, or an update (skill: its id). body is all of SKILL.md below the name and description, so read_skill one before replacing it. files adds or replaces text files under references/, scripts/ or templates/; remove deletes some. The old version stays in History.',
+    description: 'Save a skill to the library: new (then given to you) or an update (skill: its id). body is all of SKILL.md below the name and description, so read_skill it first. files adds or replaces text files in references/, scripts/ or templates/; remove deletes some. History keeps the old one.',
     parameters: obj(
       {
         skill: str('Optional: the id to update'),
         name: str('The kind of work, e.g. "Postgres replication"'),
-        description: str('When to use it, then what it gives; about 300 characters at most'),
+        description: str('When to use it, then what it gives; 300 characters at most: agents open it by this alone'),
         body: str('Markdown'),
         files: { type: 'array', items: obj({ path: str('e.g. references/notes.md'), text: str('The whole file') }, ['path', 'text']) },
         remove: { type: 'array', items: { type: 'string' }, description: 'Optional: file paths to delete' },

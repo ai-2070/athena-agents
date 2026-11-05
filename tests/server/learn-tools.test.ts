@@ -17,13 +17,19 @@ describe('read_skill with a name that is no skill', () => {
     skills.saveSkill({ name: 'Postgres replication', description: 'Use when setting up streaming replication or a failover.', body: 'Steps.' });
     const r = await callTool(learner(), 'read_skill', { name: 'replication failover' });
     expect(r.isError).toBeFalsy();
-    expect(r.text).toContain('There is no skill called "replication failover". Skills in the library that match its words:');
+    expect(r.text).toContain('There is no skill called "replication failover". Skills in the library that match its words (open one with read_skill and its id):');
     expect(r.text).toContain('- postgres-replication: Postgres replication.');
     const none = await callTool(learner(), 'read_skill', { name: 'zzz-nothing-like-it' });
     expect(none.isError).toBe(true);
     expect(none.text).toContain('No skill in the library matches its words either.');
     // a name too short to search lists nothing rather than every skill
     expect((await callTool(learner(), 'read_skill', { name: 'zz' })).text).not.toContain('- postgres-replication');
+    // nor do words nearly every description has ("Use when…")
+    const common = await callTool(learner(), 'read_skill', { name: 'use-the-skill when' });
+    expect(common.isError).toBe(true);
+    expect(common.text).not.toContain('- postgres-replication');
+    // a wrong word among them doesn't hide the right one; ids with underscores are read as words
+    expect((await callTool(learner(), 'read_skill', { name: 'use postgres_failover' })).text).toContain('- postgres-replication');
   });
 });
 
