@@ -117,7 +117,23 @@ contract keeps the old addresses, so it is `workflows` (`rpc.workflows.change(�
 
 `server/index.ts` is 1,381 lines.
 
-Next: brain (15), then outbox (13).
+### Brain (2026-11-05)
+
+14 of the 15 `/api/brain…` routes moved: a look inside its folder, a note, git pull, opening it, asking it,
+steering, `/stop` and `/resume`, its history, clearing it, the snapshot, the pulse and its skills. Its streamed
+answer (POST `/api/brain/stream`) stays in `server/index.ts`, like the agent chat streams. The `/api/assist…` routes
+(designing an agent or a branch) are an area of their own, for later.
+
+- **`/stop` still always stops.** The chats and teams it is sent are lists of the wrong kind sometimes (a test sends
+  one); those count as none (`.catch([])`) instead of being refused.
+- **A note or a question of the wrong kind** is refused in words; before, a number was written as its text.
+- `BrainChatMessage`, `BrainInfo` (with `BrainEntry`, `BrainGit`, `ProjectSummary`) and `BrainPulse` moved to
+  `shared/types.ts`. The page's own copies (`BrainHistoryEntry` in `dock.tsx`, `BrainInfo` in `stationpanel.tsx`)
+  are gone.
+
+`server/index.ts` is 1,349 lines.
+
+Next: outbox (13).
 
 ## Why
 
