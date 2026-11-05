@@ -28,6 +28,7 @@ import math
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -323,8 +324,6 @@ def clean_cmd(args: argparse.Namespace) -> int:
     text, hidden = clean(raw)
     write_text(out, text)
     return emit({"ok": True, "file": str(src), "out": str(out), "words": len(text.split()), "encoding": enc, "hidden_characters_removed": hidden})
-
-
 # ---------- screen recordings ----------
 # A screen recording is learned from its pictures, and pictures are what an agent pays for: each one it looks at takes
 # a lot of its context. So these commands pick few frames, and the telling ones: the screen just before it changes (by
@@ -333,6 +332,9 @@ VIEW_MAX = 5 * 1024 * 1024  # the most view_image takes; a bigger frame is saved
 SHEET_WIDTH = 1600  # a contact sheet's width: models shrink bigger pictures anyway
 SETTLE = 1.0  # changes closer together than this are one change (scrolling, an animation)
 NOT_VIDEO = re.compile(r"(^|,)(image2|\w+_pipe)(,|$)")  # still pictures FFmpeg reads as a "video" of one frame
+# files with an index FFmpeg seeks by exactly; in others (MPEG-TS above all) a quick seek can land seconds off
+INDEXED = re.compile(r"(^|,)(mov|mp4|matroska|webm)(,|$)")
+SEEK_COST = 2.0  # what starting FFmpeg once more costs, in seconds of video it could have decoded instead
 
 
 def find_ffmpeg(given: str | None) -> tuple[str, str]:
@@ -350,11 +352,38 @@ def find_ffmpeg(given: str | None) -> tuple[str, str]:
     return found[0], found[1]
 
 
-def call(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[bytes]:
+def kill_tree(proc: subprocess.Popen) -> None:
+    """Stop a program and every program it started: FFmpeg from choco or scoop is a small launcher that starts the real
+    one, which stopping the launcher alone leaves running."""
+    if os.name == "nt":
+        try:
+            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True, timeout=30)
+        except (OSError, subprocess.TimeoutExpired):
+            proc.kill()
+    else:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            proc.kill()
     try:
-        return subprocess.run(cmd, capture_output=True, cwd=cwd, timeout=3600)
+        proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
-        raise Failure(f"{Path(cmd[0]).stem} ran for an hour without finishing; stopped") from None
+        pass
+
+
+def call(cmd: list[str], cwd: Path | None = None, timeout: float = 3600) -> subprocess.CompletedProcess[bytes]:
+    # in a session of its own on macOS and Linux, so the whole tree can be stopped together
+    extra = {"start_new_session": True} if os.name != "nt" else {}
+    with subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **extra) as proc:
+        try:
+            out, err = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            kill_tree(proc)
+            raise Failure(f"{Path(cmd[0]).stem} didn't finish within {timeout:g} seconds; stopped") from None
+        except BaseException:  # Ctrl+C too
+            kill_tree(proc)
+            raise
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
 
 
 def said(r: subprocess.CompletedProcess[bytes]) -> str:
@@ -372,17 +401,23 @@ def ffmpeg_run(cmd: list[str], what: str, cwd: Path | None = None) -> None:
         raise Failure(f"ffmpeg couldn't {what}: {said(r)}")
 
 
+def tenths(seconds: float) -> int:
+    # rounded before it is split into minutes, so 59.96 s reads 01:00.0, not 00:60.0
+    return round(max(0.0, seconds) * 10)
+
+
 def clock(seconds: float) -> str:
     """02:31.4, or 1:02:31.4 past an hour."""
-    m, s = divmod(max(0.0, seconds), 60)
-    h, m = divmod(int(m), 60)
-    return f"{h}:{m:02d}:{s:04.1f}" if h else f"{m:02d}:{s:04.1f}"
+    m, t = divmod(tenths(seconds), 600)
+    h, m = divmod(m, 60)
+    s = f"{t // 10:02d}.{t % 10}"
+    return f"{h}:{m:02d}:{s}" if h else f"{m:02d}:{s}"
 
 
 def stamp_name(seconds: float) -> str:
     """A time for a file name: 02m31.4s (no colons, for Windows)."""
-    m, s = divmod(max(0.0, seconds), 60)
-    return f"{int(m):02d}m{s:04.1f}s"
+    m, t = divmod(tenths(seconds), 600)
+    return f"{m:02d}m{t // 10:02d}.{t % 10}s"
 
 
 def a_time(value: str) -> float:
@@ -391,7 +426,7 @@ def a_time(value: str) -> float:
         parts = [float(x) for x in value.strip().split(":")]
     except ValueError:
         raise argparse.ArgumentTypeError(f"{value!r} isn't a time (12.4, 2:31.4 or 1:02:31)") from None
-    if not 1 <= len(parts) <= 3 or any(x < 0 for x in parts):
+    if not 1 <= len(parts) <= 3 or any(not math.isfinite(x) or x < 0 for x in parts):
         raise argparse.ArgumentTypeError(f"{value!r} isn't a time (12.4, 2:31.4 or 1:02:31)")
     total = 0.0
     for x in parts:
@@ -424,6 +459,7 @@ def video_info(src: Path, ffprobe: str) -> dict:
             return None
         return v if v == v and v > 0 else None  # not NaN, more than 0
 
+    # FFmpeg counts time from the file's start (an MPEG-TS often starts at 1.4 s), and so does everything here
     start = number(fmt.get("start_time")) or 0.0
     seconds, source = number(fmt.get("duration")) or number(video.get("duration")), "file"
     if seconds is None:
@@ -449,6 +485,7 @@ def video_info(src: Path, ffprobe: str) -> dict:
         "length": clock(seconds),
         "length_from": source,
         "start": start,
+        "indexed": bool(INDEXED.search(str(fmt.get("format_name", "")))),
         "size_mb": round(src.stat().st_size / 1024 / 1024, 2),
         "width": video.get("width"),
         "height": video.get("height"),
@@ -464,12 +501,13 @@ def scale(width: int) -> str:
     return f"scale='min({width},iw)':-2"
 
 
-def grab(ffmpeg: str, src: Path, at: float, dest: Path, width: int | None) -> None:
-    """One frame at a time (seconds from the start), saved as PNG."""
-    cmd = [ffmpeg, "-hide_banner", "-v", "error", "-y", "-ss", f"{at:.3f}", "-i", str(src), "-map", "0:v:0", "-frames:v", "1"]
+def grab(ffmpeg: str, src: Path, at: float, dest: Path, width: int | None, indexed: bool) -> bool:
+    """The first frame at or after `at` (seconds from the start), saved as PNG. False when there is none: `at` is past
+    the last frame. A file with no index is decoded from its start to get there, which is slower but exact."""
+    seek = ["-ss", f"{at:.6f}"]
+    cmd = [ffmpeg, "-hide_banner", "-v", "error", "-y", *(seek if indexed else []), "-i", str(src), *([] if indexed else seek), "-map", "0:v:0", "-frames:v", "1"]
     ffmpeg_run([*cmd, *(["-vf", scale(width)] if width else []), str(dest)], f"save the frame at {clock(at)}")
-    if not dest.is_file():
-        raise Failure(f"ffmpeg saved no frame at {clock(at)} (past the end?)")
+    return dest.is_file()
 
 
 def fit_for_viewing(ffmpeg: str, png: Path) -> Path:
@@ -495,17 +533,19 @@ def probe(args: argparse.Namespace) -> int:
         for share in (0.2, 0.7):
             at = info["seconds"] * share
             name = f"check-{int(share * 100)}.png"
-            grab(ffmpeg, src, at, Path(tmp) / name, args.width)
+            if not grab(ffmpeg, src, at, Path(tmp) / name, args.width, info["indexed"]):
+                raise Failure(f"ffmpeg saved no frame at {clock(at)}")
             final = fit_for_viewing(ffmpeg, Path(tmp) / name)
             os.replace(final, out / final.name)
             checks.append({"file": final.name, "at": round(at, 2), "time": clock(at)})
     warnings = info.pop("warnings")
     info.pop("start")
+    info.pop("indexed")
     result = {"ok": True, "file": str(src), "out": str(out), **info, "check_frames": checks, "warnings": warnings}
     return emit(result, 1 if warnings else 0)
 
 
-def scan(ffmpeg: str, src: Path, start: float, folder: Path) -> list[tuple[int, float, float]]:
+def scan(ffmpeg: str, src: Path, folder: Path) -> list[tuple[int, float, float]]:
     """Every frame's number, time and how much it differs from the one before (FFmpeg's scene score, 0 to 1)."""
     # (the scores are written to a file named without a folder, so no Windows path has to be escaped for the filter)
     ffmpeg_run([ffmpeg, "-hide_banner", "-nostats", "-v", "error", "-i", str(src.resolve()), "-map", "0:v:0", "-vf", f"{scale(480)},select='gte(scene,0)',metadata=print:file=scores.txt", "-f", "null", "-"], "read the recording", cwd=folder)
@@ -515,7 +555,8 @@ def scan(ffmpeg: str, src: Path, start: float, folder: Path) -> list[tuple[int, 
         m = head.match(line.strip())
         if m:
             try:
-                frames.append((int(m.group(1)), float(m.group(2)) - start, 0.0))
+                # already counted from the file's start, like -ss (FFmpeg shifts the times unless told -copyts)
+                frames.append((int(m.group(1)), float(m.group(2)), 0.0))
             except ValueError:
                 continue
         elif line.startswith("lavfi.scene_score=") and frames:
@@ -580,87 +621,152 @@ def thin(keep: dict[int, str], most: int) -> tuple[dict[int, str], int]:
     return kept, len(keep) - len(kept)
 
 
+def keyframes(ffprobe: str, src: Path, start: float) -> list[float]:
+    """The times of the recording's keyframes, from its start: where a seek can begin decoding. Reads packets only."""
+    r = call([ffprobe, "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time,flags", "-of", "csv=p=0", str(src)])
+    keys = []
+    for line in r.stdout.decode("utf-8", errors="replace").splitlines():
+        t, _, flags = line.partition(",")
+        if "K" in flags:
+            try:
+                keys.append(float(t) - start)
+            except ValueError:
+                continue
+    return sorted(keys)
+
+
+def seeking_pays(picked: list[float], keys: list[float], seconds: float) -> bool:
+    """Whether to save the chosen frames by seeking to each one (in a file with an index), which decodes from the
+    keyframe before it, rather than decoding the whole recording again. A long recording with keyframes every few seconds seeks; a short one, or one
+    with few keyframes (browsers' recorders may write only the first), is read again."""
+    if not keys:
+        return False
+    work = 0.0
+    for t in picked:
+        i = bisect.bisect_right(keys, t + 0.001) - 1
+        work += (t - keys[i] if i >= 0 else t) + SEEK_COST
+    return work < seconds / 2
+
+
+def save_picked(ffmpeg: str, src: Path, frames: list[tuple[int, float, float]], order: list[int], width: int, folder: Path, seek: bool) -> tuple[list[tuple[int, Path]], bool]:
+    """Save the chosen frames in `folder` as 00001.png, 00002.png… in time order. Returns each saved frame's index with
+    its file, and whether any is missing."""
+    if seek:
+        made: list[tuple[int, Path]] = []
+        for i in order:
+            # from halfway after the frame before: FFmpeg keeps the first frame at or after the time it seeks to, and a
+            # time printed to the microsecond can land just past the frame it names
+            at = (frames[i - 1][1] + frames[i][1]) / 2 if i > 0 else 0.0
+            png = folder / f"{len(made) + 1:05d}.png"
+            if grab(ffmpeg, src.resolve(), max(0.0, at), png, width, True):
+                made.append((i, png))
+        return made, len(made) != len(order)
+    picks = "+".join(f"eq(n,{frames[i][0]})" for i in order)
+    ffmpeg_run([ffmpeg, "-hide_banner", "-v", "error", "-y", "-i", str(src.resolve()), "-map", "0:v:0", "-vf", f"select='{picks}',{scale(width)}", "-fps_mode", "passthrough", "%05d.png"], "save the frames", cwd=folder)
+    files = sorted(folder.glob("[0-9][0-9][0-9][0-9][0-9].png"))
+    return list(zip(order, files)), len(files) != len(order)
+
+
 def make_sheets(ffmpeg: str, folder: Path, count: int, cols: int, rows: int) -> list[Path]:
     cell = max(160, (SHEET_WIDTH - 8 * (cols + 1)) // cols // 2 * 2)
     ffmpeg_run([ffmpeg, "-hide_banner", "-v", "error", "-y", "-framerate", "1", "-i", "%05d.png", "-vf", f"scale={cell}:-2,tile={cols}x{rows}:padding=8:margin=8:color=white", "-fps_mode", "passthrough", "sheet-%02d.png"], "make the contact sheets", cwd=folder)
     return [folder / f"sheet-{k:02d}.png" for k in range(1, (count + cols * rows - 1) // (cols * rows) + 1)]
 
 
-def ready_folder(out: Path) -> None:
-    """A folder for this run: new, empty, or holding an earlier run's frames (which go)."""
+def earlier_run(out: Path) -> list[str]:
+    """The files an earlier run left in `out`, as its frames.json lists them; none for a new or empty folder. A folder
+    holding anything else is refused, so nothing of the user's is replaced."""
     if out.exists() and not out.is_dir():
         raise Failure(f"{out} is a file: give a folder")
+    if not out.is_dir():
+        return []
     listing = out / "frames.json"
     if listing.is_file():
         try:
             earlier = json.loads(listing.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            earlier = {}
-        names = [f.get("file") for f in earlier.get("frames", [])] + [x.get("file") for x in earlier.get("sheets", [])]
-        for name in names:
-            if isinstance(name, str) and name == Path(name).name:
-                (out / name).unlink(missing_ok=True)
-        listing.unlink()
-    elif out.is_dir() and any(x for x in out.iterdir() if not x.name.startswith(".")):
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            earlier = None
+        if not (isinstance(earlier, dict) and isinstance(earlier.get("frames"), list)):
+            raise Failure(f"{listing} isn't one this script wrote: give a new folder for the frames")
+        sheets = earlier.get("sheets") if isinstance(earlier.get("sheets"), list) else []
+        names = [x.get("file") for x in [*earlier["frames"], *sheets] if isinstance(x, dict)]
+        # only plain names in the folder itself
+        return [n for n in names if isinstance(n, str) and n not in ("", ".", "..") and n == Path(n).name]
+    if any(not x.name.startswith(".") for x in out.iterdir()):
         raise Failure(f"{out} isn't empty: give a new folder for the frames")
+    return []
+
+
+def at_moments(args: argparse.Namespace, ffmpeg: str, src: Path, info: dict, out: Path) -> int:
+    """Frames at the times asked for, at full size, for reading small text: added beside what's there."""
+    if out.exists() and not out.is_dir():
+        raise Failure(f"{out} is a file: give a folder")
+    warnings = list(info["warnings"])
     out.mkdir(parents=True, exist_ok=True)
+    saved = []
+    with tempfile.TemporaryDirectory(dir=out, prefix=".frames-") as tmp:
+        ready = []
+        for at in args.at:
+            if at >= info["seconds"]:
+                warnings.append(f"{clock(at)} is at or past the end ({info['length']}); left out")
+                continue
+            png = Path(tmp) / f"at-{stamp_name(at)}.png"
+            if any(f.stem == png.stem for f in ready):  # the same tenth of a second, asked twice
+                continue
+            if not grab(ffmpeg, src, at, png, None, info["indexed"]):
+                # the length can run past the last frame (a longer sound track, the last frame's own time)
+                warnings.append(f"{clock(at)} is past the last frame; left out")
+                continue
+            ready.append(fit_for_viewing(ffmpeg, png))
+            saved.append({"file": ready[-1].name, "at": round(at, 3), "time": clock(at), "why": "asked for"})
+        for f in ready:  # all saved before any is added, so a failed run adds none
+            os.replace(f, out / f.name)
+    return emit({"ok": True, "file": str(src), "out": str(out), "length": info["length"], "frames": saved, "warnings": warnings}, 1 if warnings else 0)
 
 
 def frames_cmd(args: argparse.Namespace) -> int:
+    out = Path(args.out).expanduser()
+    earlier = [] if args.at else earlier_run(out)
     ffmpeg, ffprobe = find_ffmpeg(args.ffmpeg)
     src = Path(args.file).expanduser()
     info = video_info(src, ffprobe)
-    out = Path(args.out).expanduser()
-    warnings = list(info["warnings"])
     if args.at:
-        # moments at full size, for reading small text: added beside what's there
-        if out.exists() and not out.is_dir():
-            raise Failure(f"{out} is a file: give a folder")
-        out.mkdir(parents=True, exist_ok=True)
-        saved = []
-        with tempfile.TemporaryDirectory(dir=out, prefix=".frames-") as tmp:
-            for at in args.at:
-                if at > info["seconds"]:
-                    warnings.append(f"{clock(at)} is past the end ({info['length']}); left out")
-                    continue
-                png = Path(tmp) / f"at-{stamp_name(at)}.png"
-                grab(ffmpeg, src, at, png, None)
-                final = fit_for_viewing(ffmpeg, png)
-                os.replace(final, out / final.name)
-                saved.append({"file": final.name, "at": round(at, 3), "time": clock(at), "why": "asked for"})
-        return emit({"ok": True, "file": str(src), "out": str(out), "length": info["length"], "frames": saved, "warnings": warnings}, 1 if warnings else 0)
-
-    ready_folder(out)
+        return at_moments(args, ffmpeg, src, info, out)
+    warnings = list(info["warnings"])
+    out.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=out, prefix=".frames-") as tmp_name:
         tmp = Path(tmp_name)
-        frames = scan(ffmpeg, src, info["start"], tmp)
+        frames = scan(ffmpeg, src, tmp)
         keep, changes = choose(frames, args.change, args.every)
         keep, dropped = thin(keep, args.max)
         order = sorted(keep)
-        picks = "+".join(f"eq(n,{frames[i][0]})" for i in order)
-        ffmpeg_run([ffmpeg, "-hide_banner", "-v", "error", "-y", "-i", str(src.resolve()), "-map", "0:v:0", "-vf", f"select='{picks}',{scale(args.width)}", "-fps_mode", "passthrough", "%05d.png"], "save the frames", cwd=tmp)
-        made = sorted(tmp.glob("[0-9][0-9][0-9][0-9][0-9].png"))
-        if len(made) != len(order):
-            warnings.append(f"ffmpeg saved {len(made)} frames of the {len(order)} chosen; their times may be off")
+        seek = info["indexed"] and seeking_pays([frames[i][1] for i in order], keyframes(ffprobe, src, info["start"]), info["seconds"])
+        made, short = save_picked(ffmpeg, src, frames, order, args.width, tmp, seek)
+        if short:
+            warnings.append(f"ffmpeg saved {len(made)} frames of the {len(order)} chosen" + ("" if seek else "; their times may be off"))
+        names = [f"f{k:03d}-{stamp_name(frames[i][1])}" for k, (i, _) in enumerate(made, 1)]
+        ready: list[Path] = []
         sheets: list[dict] = []
-        names: list[str] = []
-        for k, (i, png) in enumerate(zip(order, made), 1):
-            names.append(f"f{k:03d}-{stamp_name(frames[i][1])}")
         if args.sheet and made:
             cols, rows = args.sheet
             per = cols * rows
             for k, sheet in enumerate(make_sheets(ffmpeg, tmp, len(made), cols, rows)):
                 if sheet.is_file():
-                    final = fit_for_viewing(ffmpeg, sheet)
-                    os.replace(final, out / final.name)
-                    sheets.append({"file": final.name, "frames": [n for n in names[k * per : (k + 1) * per]]})
+                    ready.append(fit_for_viewing(ffmpeg, sheet))
+                    sheets.append({"file": ready[-1].name, "frames": names[k * per : (k + 1) * per]})
         listed = []
-        for (i, png), name in zip(zip(order, made), names):
-            final = fit_for_viewing(ffmpeg, png.rename(tmp / f"{name}.png"))
-            os.replace(final, out / final.name)
-            listed.append({"file": final.name, "at": round(frames[i][1], 3), "time": clock(frames[i][1]), "why": keep[i]})
+        for (i, png), name in zip(made, names):
+            ready.append(fit_for_viewing(ffmpeg, png.rename(tmp / f"{name}.png")))
+            listed.append({"file": ready[-1].name, "at": round(frames[i][1], 3), "time": clock(frames[i][1]), "why": keep[i]})
         for sheet in sheets:  # the sheets name their frames by file, as saved
             sheet["frames"] = [next((f["file"] for f in listed if f["file"].startswith(n + ".")), n) for n in sheet["frames"]]
+        # only now, with the new frames ready, do the earlier run's go: a run that fails leaves them as they were
+        for f in ready:
+            os.replace(f, out / f.name)
+        new = {f.name for f in ready}
+        for name in earlier:
+            if name not in new and (out / name).is_file():
+                (out / name).unlink()
     if not changes:
         warnings.append(f"no screen change reached {args.change:g}: if the screen did change, try a lower --change")
     if dropped:
@@ -716,7 +822,10 @@ def grid(value: str) -> tuple[int, int]:
 
 
 def times(value: str) -> list[float]:
-    return [a_time(x) for x in value.split(",") if x.strip()]
+    found = [a_time(x) for x in value.split(",") if x.strip()]
+    if not found:  # an empty list would run a whole new scan instead
+        raise argparse.ArgumentTypeError("give one or more times, e.g. 12.4,2:31.4")
+    return found
 
 
 def main(argv: list[str] | None = None) -> int:

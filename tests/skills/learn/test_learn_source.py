@@ -3,10 +3,13 @@ telling frames."""
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
 import subprocess
+import sys
+import time
 import zipfile
 from pathlib import Path
 
@@ -171,11 +174,12 @@ def screen(kind: str, typed: int = 0) -> bytes:
     return im.tobytes()
 
 
-def record(path: Path, *encode: str) -> Path:
-    """8 s at 15 frames a second: the list (0-2 s), the form typed into in small steps (2-6 s), the result (6-8 s)."""
+def record(path: Path, *encode: str, gop: int = 75) -> Path:
+    """8 s at 15 frames a second: the list (0-2 s), the form typed into in small steps (2-6 s), the result (6-8 s), with
+    a keyframe every `gop` frames."""
     frames = [screen("list")] * (FPS * 2) + [screen("form", min(20, k // 2)) for k in range(FPS * 4)] + [screen("done")] * (FPS * 2)
     cmd = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-"]
-    cmd += list(encode or ("-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", "75", str(path)))
+    cmd += list(encode or ("-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", str(gop), str(path)))
     with open(path, "wb") if encode else open(os.devnull, "wb") as sink:
         subprocess.run(cmd, input=b"".join(frames), stdout=sink, check=True)
     return path
@@ -266,8 +270,152 @@ def test_videos_that_cant_be_read_are_one_line(run, tmp_path, recording):
     (busy / "keep.txt").write_text("mine", encoding="utf-8")
     r = run(SKILL, SCRIPT, "frames", recording, "-o", busy, ok=False)
     assert r.code == 2 and "isn't empty" in r.err and (busy / "keep.txt").is_file()
-    # no FFmpeg on PATH
+
+
+def test_no_ffmpeg_is_one_line(run, tmp_path):
+    # runs without FFmpeg too: that is where it matters
+    (tmp_path / "rec.mp4").write_bytes(b"not looked at")
     empty = tmp_path / "nothing"
     empty.mkdir()
-    r = run(SKILL, SCRIPT, "probe", recording, "-o", tmp_path / "p", ok=False, env={"PATH": str(empty)})
-    assert r.code == 2 and "FFmpeg" in r.err and "Traceback" not in r.err
+    for cmd in ("probe", "frames"):
+        r = run(SKILL, SCRIPT, cmd, tmp_path / "rec.mp4", "-o", tmp_path / "out", ok=False, env={"PATH": str(empty)})
+        assert r.code == 2 and "FFmpeg" in r.err and "--ffmpeg" in r.err and len(r.err.strip().splitlines()) == 1 and "Traceback" not in r.err
+
+
+def load():
+    """The script as a module, for what can't be seen from outside."""
+    spec = importlib.util.spec_from_file_location("learn_source", Path(__file__).resolve().parents[3] / "skills" / "athena" / SKILL / "scripts" / SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_times_round_into_the_next_minute_not_to_60_seconds():
+    m = load()
+    assert m.clock(59.96) == "01:00.0" and m.clock(3599.96) == "1:00:00.0" and m.clock(61.04) == "01:01.0"
+    assert m.stamp_name(59.97) == "01m00.0s" and m.stamp_name(151.44) == "02m31.4s"
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "1:nan", ",", " , "])
+def test_bad_times_are_refused_before_anything_happens(run, tmp_path, value):
+    (tmp_path / "rec.mp4").write_bytes(b"not looked at")
+    out = tmp_path / "f"
+    out.mkdir()
+    (out / "frames.json").write_text('{"frames": [{"file": "f001-00m00.0s.png"}]}', encoding="utf-8")
+    (out / "f001-00m00.0s.png").write_bytes(b"an earlier run's frame")
+    r = run(SKILL, SCRIPT, "frames", tmp_path / "rec.mp4", "-o", out, "--at", value, ok=False)
+    assert r.code == 2 and r.out == "" and len(r.err.strip().splitlines()) == 1 and "Traceback" not in r.err
+    assert (out / "f001-00m00.0s.png").is_file() and (out / "frames.json").is_file()
+
+
+@pytest.mark.parametrize("listing", ["[1, 2]", '{"frames": "f001.png"}', "not json", '{"frames": ["f001.png", null, {"file": ".."}]}'])
+def test_a_frames_json_it_didnt_write_is_refused_or_read_with_care(run, tmp_path, recording, listing):
+    out = tmp_path / "f"
+    out.mkdir()
+    (out / "frames.json").write_text(listing, encoding="utf-8")
+    r = run(SKILL, SCRIPT, "frames", recording, "-o", out, ok=False)
+    if listing.startswith('{"frames": ['):
+        # a list of frames, if an odd one: what isn't a plain name in the folder is left alone
+        assert r.code == 0 and (out / "frames.json").read_text(encoding="utf-8") != listing
+    else:
+        assert r.code == 2 and "isn't one this script wrote" in r.err and "Traceback" not in r.err
+        assert (out / "frames.json").read_text(encoding="utf-8") == listing
+
+
+def test_a_recording_that_doesnt_start_at_zero_is_timed_from_its_start(run, tmp_path):
+    needs_ffmpeg()
+    # MPEG-TS starts its clock at 1.4 s or so
+    ts = record(tmp_path / "rec.ts", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-f", "mpegts", "pipe:1")
+    body = run(SKILL, SCRIPT, "frames", ts, "-o", tmp_path / "f").json()
+    assert [f["why"] for f in body["frames"]] == ["first", "before the screen changed at 00:02.0", "before the screen changed at 00:06.0", "last"]
+    for f, truth in zip(body["frames"], [0, 2 - 1 / FPS, 6 - 1 / FPS, 8 - 1 / FPS]):
+        assert f["at"] == pytest.approx(truth, abs=1 / FPS + 0.001)
+    at = run(SKILL, SCRIPT, "frames", ts, "-o", tmp_path / "f", "--at", "1").json()
+    from PIL import Image
+
+    # what --at 1 saves is the list screen, as the frames' times say
+    with Image.open(tmp_path / "f" / at["frames"][0]["file"]) as im:
+        assert im.convert("RGB").getpixel((500, 300)) == pytest.approx((245, 245, 245), abs=6)
+
+
+def test_at_the_end_or_after_the_last_frame_is_left_out_with_a_warning(run, tmp_path, recording):
+    out = tmp_path / "f"
+    # 8.0 is the length; 7.98 is past the last frame, which starts at 7.93
+    r = run(SKILL, SCRIPT, "frames", recording, "-o", out, "--at", "2,7.98,8,2.0", ok=False)
+    body = r.json()
+    assert r.code == 1 and [f["file"] for f in body["frames"]] == ["at-00m02.0s.png"]
+    assert any("past the last frame" in w for w in body["warnings"]) and any("at or past the end" in w for w in body["warnings"])
+    assert sorted(p.name for p in out.iterdir()) == ["at-00m02.0s.png"]
+
+
+def test_seeking_saves_the_frames_reading_it_all_would():
+    m = load()
+    # an hour with a keyframe every 2 s seeks; a short one, or one keyframe only, is read again
+    assert m.seeking_pays([10.0 * k for k in range(30)], [2.0 * k for k in range(1800)], 3600)
+    assert not m.seeking_pays([10.0 * k for k in range(30)], [0.0], 3600)
+    assert not m.seeking_pays([0.0, 1.9, 5.9, 7.9], [float(k) for k in range(8)], 8)
+
+
+def test_seeking_and_reading_it_all_save_the_same_frames(tmp_path):
+    needs_ffmpeg()
+    m = load()
+    rec = record(tmp_path / "keys.mp4", gop=FPS)  # a keyframe every second
+    ffmpeg, ffprobe = m.find_ffmpeg(None)
+    info = m.video_info(rec, ffprobe)
+    assert m.keyframes(ffprobe, rec, info["start"]) == pytest.approx([float(k) for k in range(8)], abs=0.01)
+    whole, seek = tmp_path / "whole", tmp_path / "seek"
+    whole.mkdir()
+    seek.mkdir()
+    frames = m.scan(ffmpeg, rec, whole)
+    order = sorted(m.choose(frames, 0.02, 20)[0])
+    by_reading, short = m.save_picked(ffmpeg, rec, frames, order, 1280, whole, seek=False)
+    by_seeking, short_too = m.save_picked(ffmpeg, rec, frames, order, 1280, seek, seek=True)
+    assert not short and not short_too and [i for i, _ in by_seeking] == [i for i, _ in by_reading] == order
+    from PIL import Image
+
+    for (_, a), (_, b) in zip(by_reading, by_seeking):
+        with Image.open(a) as x, Image.open(b) as y:
+            assert x.size == y.size and x.convert("RGB").tobytes() == y.convert("RGB").tobytes()
+    # the frame before the form appears is still the list
+    with Image.open(by_seeking[1][1]) as im:
+        assert im.convert("RGB").getpixel((500, 300)) == pytest.approx((245, 245, 245), abs=6)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the stand-in ffmpeg is a shell script")
+def test_a_rerun_that_fails_leaves_the_earlier_frames(run, tmp_path, recording):
+    out = tmp_path / "f"
+    first = run(SKILL, SCRIPT, "frames", recording, "-o", out).json()
+    before = sorted(p.name for p in out.iterdir())
+    # ffprobe works and ffmpeg fails, as when it runs out of time or memory partway
+    broken = tmp_path / "broken"
+    broken.mkdir()
+    (broken / "ffprobe").symlink_to(shutil.which("ffprobe"))
+    (broken / "ffmpeg").write_text("#!/bin/sh\necho 'out of memory' >&2\nexit 1\n", encoding="utf-8")
+    (broken / "ffmpeg").chmod(0o755)
+    r = run(SKILL, SCRIPT, "frames", recording, "-o", out, "--change", "0.5", "--ffmpeg", broken, ok=False)
+    assert r.code == 2 and "out of memory" in r.err
+    assert sorted(p.name for p in out.iterdir()) == before
+    assert json.loads((out / "frames.json").read_text(encoding="utf-8"))["frames"] == first["frames"]
+
+
+def test_a_program_that_runs_too_long_is_stopped_with_what_it_started(tmp_path):
+    import psutil
+
+    m = load()
+    pid = tmp_path / "child.pid"
+    # a launcher that starts the real program and waits, as choco's and scoop's FFmpeg do
+    launcher = f"import subprocess, sys, time; p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)']); open({str(pid)!r}, 'w').write(str(p.pid)); time.sleep(120)"
+    with pytest.raises(m.Failure, match="didn't finish within 3 seconds"):
+        m.call([sys.executable, "-c", launcher], timeout=3)
+    child = int(pid.read_text())
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            if psutil.Process(child).status() == psutil.STATUS_ZOMBIE:
+                break
+        except psutil.NoSuchProcess:
+            break
+        time.sleep(0.1)
+    else:
+        psutil.Process(child).kill()
+        pytest.fail("the program the launcher started is still running")

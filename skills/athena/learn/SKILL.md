@@ -111,5 +111,6 @@ already yours.
   page to text), `subs` (`.srt` or `.vtt` subtitles to timestamped paragraphs), `clean` (any text, without invisible
   and direction-control characters), `probe` (a video's length and sound, and two frames to check it by) and `frames`
   (a screen recording's telling frames, with `frames.json`; `--at` for moments at full size). `probe` and `frames` need
-  FFmpeg. Run it as `python <skill folder>/scripts/learn_source.py <command> --help` for the options. JSON out; exit 0
-  done, 1 done with warnings to read, 2 couldn't do it (one line on stderr).
+  FFmpeg (`--ffmpeg <its folder>` when it isn't on PATH). Run it as
+  `python <skill folder>/scripts/learn_source.py <command> --help` for the options. JSON out; exit 0 done, 1 done with
+  warnings to read, 2 couldn't do it (one line on stderr).

@@ -24,6 +24,9 @@ This reports the length, size, frame rate and whether there's sound, and saves `
 frames a fifth and seven tenths of the way through. Look at both. A blank or frozen screen, the wrong window, or a
 recording under a second long means it didn't record what was meant: say so and stop there.
 
+Both `probe` and `frames` need FFmpeg. When it is installed but not on PATH, pass the folder it is in:
+`--ffmpeg "C:\ffmpeg\bin"`. The frames are at most 1280 pixels wide; `--width` changes that (160 to 7680).
+
 ## 2. Choose the frames
 
 ```
@@ -47,7 +50,8 @@ name carries its time (`f012-02m31.4s.png`), and `frames.json` lists the frames 
 - **Too many** (a video playing, an animation, a busy page): raise it, say to `0.05`.
 - **Exit 1** means read the warnings: the file had no length in it (usual for recordings made in a browser), frames
   were dropped to keep to `--max`, or no change was found.
-- The output folder must be new or empty, or hold an earlier run's frames, which are replaced.
+- The output folder must be new or empty, or hold an earlier run's frames. Those are replaced once the new ones are
+  ready, so a run that fails leaves them as they were.
 
 ## 3. Look in two rounds
 
@@ -60,7 +64,8 @@ name carries its time (`f012-02m31.4s.png`), and `frames.json` lists the frames 
    python <skill folder>/scripts/learn_source.py frames <video> -o learn-work/frames --at 2:31.4
    ```
 
-   Several at once: `--at 12,45.5,2:31`. These are added beside the other frames.
+   Several at once: `--at 12,45.5,2:31`. These are added beside the other frames, at full size whatever `--width`
+   says. A time at or past the end is left out with a warning.
 
 What happened between two frames is worked out from them: the screen before a change and the one after usually say
 what was clicked or typed. When they don't, look at a moment between them with `--at`.
