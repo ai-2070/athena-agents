@@ -1,6 +1,7 @@
 # Typed API routes with oRPC
 
-*Plan, 2026-11-05. The pilot (the Tasks board) is built on `LZL0/orpc`: see "Status" below.*
+*Plan, 2026-11-05. Done on `LZL0/orpc`: every JSON route is on oRPC. "Status" below has each area, in the order it
+moved, and "Where it ended" what is left.*
 
 Goal: every JSON route says what it takes and what it gives back, in one place both sides read. The server
 checks what comes in before a handler sees it, and the page gets typed calls (`rpc.taskBoard.addTag({ … })`)
@@ -243,8 +244,29 @@ and which world a project shows (`/api/worlds`, `/api/project-world`).
 
 `server/index.ts` is 840 lines.
 
-Next: the Outbox with the gateways (61 routes), then `server/index.ts` keeps only the routes that send files and
-streams, the OAuth callbacks and the internal routes the MCP bridge calls.
+### The gateways and the Outbox: the last JSON routes (2026-11-05)
+
+The last 62 routes moved: the gateways (`/api/gateways…`: connections, their secrets, inboxes and every review), the
+Outbox (`/api/outbox…`) and the old test route (`/api/social/test`, which says what to do instead).
+
+- **A gateway's bodies are passed on exactly as they came.** `server/gateways/` checks them with strict schemas (a
+  review's revision, what you acknowledged, nothing else allowed), so these routes take `{ params, body }`
+  (`inputStructure: 'detailed'`) and only check that the body is a JSON object; none is `{}`, as before. Their
+  errors keep the statuses the gateway code gives them.
+- **Drafting, approving and editing an Outbox post** name their fields; an approval names the gateway approval's.
+- **The gateway pages' tests passed unchanged** (14 files), with the request each one checks.
+- **`server/index.ts` keeps 12 routes**: a project's pictures and model, a task's file, a team's picture, `GET /api/file`,
+  restoring a backup, the two agent run streams, the Brain's stream and the MCP bridge's two internal routes.
+  `tests/server/rpc-moved.test.ts` lists them, and fails if another appears. Its `put` and `del` helpers are gone.
+- **The page's untyped `GET`, `POST`, `PUT` and `DEL` are gone** (`web/client/http.ts`): every JSON call is `rpc`.
+  `api()` stays for the backup restore and `upload()` for an attached file's bytes.
+
+`server/index.ts` is 705 lines (1,750 before the pilot).
+
+## Where it ended
+
+All 311 JSON routes are oRPC procedures, in 22 contract files (`shared/api/`). See "After the pilot" for what is still open: an
+OpenAPI document from the contracts, and checking answers against schemas in tests.
 
 ## Why
 
