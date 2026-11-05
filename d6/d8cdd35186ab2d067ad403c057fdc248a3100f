@@ -1,0 +1,19 @@
+web/tasktags.tsx
+  s_9814d375a139f1::t_4b251fef0af066 324,329-333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d6d8cdd35186ab2d067ad403c057fdc248a3100f",
+  "prompts": {},
+  "sessions": {
+    "s_9814d375a139f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "30c260a9-f8e6-4861-b2d4-20dff9c30a67",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
