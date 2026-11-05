@@ -4,7 +4,7 @@ import { CHIPS_CLASS, chipClass } from '../ui/classes.ts';
 import { Pill } from '../ui/marks.tsx';
 import { Plate } from '../ui/surface.tsx';
 import { useCallback, useEffect, useState } from 'react';
-import { GET, POST, DEL, attempt, confirmBox, copy, refreshSoon } from '../core.ts';
+import { attempt, confirmBox, copy, refreshSoon } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { Field, PanelNote, Row, SearchBox, Section, Segmented } from '../ui/controls.tsx';
 import { openModal } from '../ui/overlays.tsx';
@@ -12,7 +12,7 @@ import { presetIcon } from '../preseticons.ts';
 import { onThemeChange } from '../theme.ts';
 import { DomNode, reactPage } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
-import type { McpServerInfo, McpSuggestion, ToolGroup } from '../../shared/types.ts';
+import type { McpOverview, McpPresetListing, McpServerConfig, McpServerInfo, ToolGroup, ToolListing } from '../../shared/types.ts';
 
 /** A server's mark in a small tile: its brand, or an icon for what it does (redrawn when the theme changes). */
 function ServiceMark({ name }: { name: string }) {
@@ -36,59 +36,9 @@ const OUTPUT_MARK = '\n\nWhat it printed:\n';
 
 const WHY = 'mcp-why text-[12px] leading-[1.4] font-medium';
 
-/** One saved MCP server (server/mcp.ts McpServerConfig). */
-interface McpServerConfig {
-  type: 'stdio' | 'http' | string;
-  command: string;
-  args: string[];
-  env: Record<string, string>;
-  url: string;
-  headers: Record<string, string>;
-  description?: string;
-  enabled?: boolean;
-  /** a copy's own name ("Work"), when a service is added more than once */
-  label?: string;
-  /** the service it is another account of */
-  kind?: string;
-  /** when to pick this copy over the service's other ones */
-  useFor?: string;
-}
-/** A preset as GET /api/mcp lists it: whether its command is on this PC and whether it is added (and as which servers). */
-type McpPresetListing = { name: string; title: string; description: string; ready: boolean; installed: boolean; copies?: string[]; /** the service for people: "OOMOL" */ service?: string } & (
-  | { type: 'stdio'; command: string; args: string[]; env?: Record<string, string> }
-  | { type: 'http'; url: string; headers: Record<string, string>; command?: undefined }
-);
 /** A preset that ships a placeholder (YOUR_...) for a key you have to fill in. */
 const needsKey = (p: McpPresetListing) => [...Object.values(p.type === 'stdio' ? p.env || {} : p.headers)].some((v) => /YOUR_/.test(v));
-/** A server found in a Claude config that can be imported. */
-interface ImportableServer {
-  source: string;
-  name: string;
-  type: 'http' | 'stdio';
-  command?: string;
-  args: string[];
-  env: Record<string, string>;
-  url?: string;
-  headers: Record<string, string>;
-}
-/** GET /api/mcp */
-interface McpData {
-  servers: Record<string, McpServerConfig>;
-  /** each server's label, service and "use for" (an older server leaves it out) */
-  info?: Record<string, McpServerInfo>;
-  presets: McpPresetListing[];
-  /** ready-made ones that fit this PC and aren't added (a program they drive is installed, or a basic one) */
-  suggested?: McpSuggestion[];
-  importable: ImportableServer[];
-  bridge: { command: string; args: string[]; env: Record<string, string> };
-}
-/** One built-in tool as GET /api/tools lists it. */
-interface ToolListing {
-  name: string;
-  group: string;
-  risk: 'none' | 'low' | 'high' | 'varies' | string;
-  description: string;
-}
+type McpData = McpOverview;
 type Tools = { groups: ToolGroup[]; tools: ToolListing[] };
 
 /** KEY=value lines (environment). */
@@ -130,7 +80,7 @@ export function McpTab() {
   const [find, setFind] = useState('');
   const reload = useCallback(
     () =>
-      Promise.all([GET<McpData>('/mcp'), rpc.status.tools()])
+      Promise.all([rpc.mcp.list(), rpc.status.tools()])
         .then(([d, t]) => (setData(d), setTools(t)))
         .catch((e: unknown) => setFailed(e instanceof Error ? e.message : String(e))),
     [],
@@ -176,7 +126,7 @@ export function McpTab() {
                 <div className="hint mt-0.5">{sg.description}</div>
                 {sg.needs ? <div className="hint mt-0.5 text-amber">{sg.needs.replace(/^needs /, 'Needs ').replace(/; setup: /, '. Then: ').replace(/^setup: /, 'First: ')}</div> : null}
               </div>
-              <Button size="small" onClick={() => void attempt(() => POST('/mcp-preset', { name: sg.name }), `Added ${sg.title}${sg.needs ? '. See what it needs below it.' : ''}`).then(reload)}>
+              <Button size="small" onClick={() => void attempt(() => rpc.mcp.addPreset({ name: sg.name }), `Added ${sg.title}${sg.needs ? '. See what it needs below it.' : ''}`).then(reload)}>
                 Add
               </Button>
             </div>
@@ -200,9 +150,9 @@ export function McpTab() {
                     <Button variant="ghost" size="small" title="Another account of the same service, with its own label and keys" onClick={() => addAnother(p)}>Add another</Button>
                   </>
                 ) : (
-                  <Button size="small" onClick={() => void attempt(() => POST('/mcp-preset', { name: p.name }), `Added ${p.title}`).then(reload)}>Add</Button>
+                  <Button size="small" onClick={() => void attempt(() => rpc.mcp.addPreset({ name: p.name }), `Added ${p.title}`).then(reload)}>Add</Button>
                 )}
-                {!p.ready ? <Pill tone="warn">{`needs ${p.command}`}</Pill> : null}
+                {!p.ready && p.type === 'stdio' ? <Pill tone="warn">{`needs ${p.command}`}</Pill> : null}
                 {!p.installed && needsKey(p) ? <Pill tone="info" title="After adding, put your key in the settings of the added server below">needs your key</Pill> : null}
               </div>
             </Plate>
@@ -218,7 +168,7 @@ export function McpTab() {
                 <div className="title">{s.name}</div>
                 <div className="hint wrap-anywhere">{`${s.source} · ${s.type === 'stdio' ? `${s.command} ${s.args.join(' ')}` : s.url}`}</div>
               </div>
-              {data.servers[s.name] ? <Pill tone="ok">added</Pill> : <Button size="tiny" onClick={() => void attempt(() => POST('/mcp-import', { name: s.name, source: s.source }), 'Imported').then(reload)}>Import</Button>}
+              {data.servers[s.name] ? <Pill tone="ok">added</Pill> : <Button size="tiny" onClick={() => void attempt(() => rpc.mcp.import({ name: s.name, source: s.source }), 'Imported').then(reload)}>Import</Button>}
             </div>
           ))}
         </Section>
@@ -227,10 +177,10 @@ export function McpTab() {
       <Section title="Share the dashboard tools" description="Let other apps use the tools in this dashboard.">
         <Row title="Claude Code and Codex" description="Agents here get the dashboard tools automatically. Hermes, pi, oh-my-pi and other MCP apps can have them too: ComfyUI, Blender, Adobe, programs, X drafts, your other agents." stack>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="small" onClick={() => void attempt(() => POST('/hermes/add-bridge'), 'Hermes now has the dashboard tools (restart Hermes sessions to see them)')}>Give Hermes the dashboard tools</Button>
-            <Button size="small" onClick={() => void attempt(() => POST<{ message: string }>('/pi/add-bridge'), (r) => r.message)}>Give pi and oh-my-pi the dashboard tools</Button>
+            <Button size="small" onClick={() => void attempt(() => rpc.engines.hermesBridge(), 'Hermes now has the dashboard tools (restart Hermes sessions to see them)')}>Give Hermes the dashboard tools</Button>
+            <Button size="small" onClick={() => void attempt(() => rpc.engines.piBridge({}), (r) => r.message)}>Give pi and oh-my-pi the dashboard tools</Button>
             {/* (the page is shown the config without its token: the copy gets the real one) */}
-            <Button variant="ghost" size="small" onClick={() => void attempt(() => POST<McpData['bridge']>('/mcp-bridge')).then((b) => b && copy(JSON.stringify({ mcpServers: { dashboard: b } }, null, 2)))}>Copy MCP config for other apps</Button>
+            <Button variant="ghost" size="small" onClick={() => void attempt(() => rpc.mcp.bridge()).then((b) => b && copy(JSON.stringify({ mcpServers: { dashboard: b } }, null, 2)))}>Copy MCP config for other apps</Button>
           </div>
         </Row>
         <div className="px-5 py-4">
@@ -279,7 +229,7 @@ function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: Mcp
   const run = async () => {
     setTest('running');
     try {
-      const r = await POST<{ tools: { name: string; description: string }[] }>(`/mcp/${encodeURIComponent(name)}/test`);
+      const r = await rpc.mcp.test({ name });
       setTest(r.tools.map((t) => t.name));
     } catch (e) {
       setTest({ failed: e instanceof Error ? e.message : String(e) });
@@ -288,7 +238,7 @@ function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: Mcp
   // the error, and apart from it what the server printed (server/mcp.ts OUTPUT_MARK)
   const failed = test && !Array.isArray(test) && typeof test === 'object' ? test.failed.split(OUTPUT_MARK) : null;
   const remove = async () => {
-    if (await confirmBox(`Remove ${info?.title || name}?`, { ok: 'Remove', danger: true })) await attempt(() => DEL(`/mcp/${encodeURIComponent(name)}`)).then(reload);
+    if (await confirmBox(`Remove ${info?.title || name}?`, { ok: 'Remove', danger: true })) await attempt(() => rpc.mcp.remove({ name })).then(reload);
   };
   const copies = (info?.copies || 1) > 1;
   return (
@@ -335,7 +285,7 @@ function ServerRow({ name, cfg, info, onEdit, reload }: { name: string; cfg: Mcp
   );
 }
 
-const BLANK: McpServerConfig = { type: 'stdio', command: 'npx', args: [], env: {}, url: '', headers: {} };
+const BLANK: McpServerConfig = { type: 'stdio', command: 'npx', args: [], env: {}, url: '', headers: {}, description: '', enabled: true };
 
 function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved }: { name?: string; cfg?: McpServerConfig; kind?: string; services?: (readonly [string, string])[]; close: () => void; saved: () => void }) {
   const [newName, setNewName] = useState(name);
@@ -353,7 +303,7 @@ function ServerForm({ name = '', cfg = BLANK, kind, services = [], close, saved 
   const [headers, setHeaders] = useState(Object.entries(cfg.headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n'));
   const save = async () => {
     const body = { name: newName, ...c, kind: c.kind || (ownPicked ? newName : ''), args: args === joinArgs(cfg.args || []) ? cfg.args || [] : splitArgs(args), env: parseKv(env), headers: parseHeaders(headers) };
-    if (await attempt(() => POST('/mcp', body), 'Saved')) {
+    if (await attempt(() => rpc.mcp.save(body), 'Saved')) {
       close();
       saved();
     }
@@ -437,7 +387,7 @@ function CopyForm({ preset, servers, close, saved }: { preset: McpPresetListing;
   const save = async () => {
     // only the ones whose label or "use for" changed
     const changed = Object.fromEntries(Object.entries(others).filter(([n, v]) => v.label !== (servers[n].label || '') || v.useFor !== (servers[n].useFor || '')));
-    const r = await attempt(() => POST<{ name: string }>('/mcp-preset', { name: preset.name, ...mine, others: changed }), (r) => `Added ${r.name}${needsKey(preset) ? '. Put its own key in it: Edit it above.' : ''}`);
+    const r = await attempt(() => rpc.mcp.addPreset({ name: preset.name, ...mine, others: changed }), (r) => `Added ${r.name}${needsKey(preset) ? '. Put its own key in it: Edit it above.' : ''}`);
     if (r) {
       close();
       saved();

@@ -4,13 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { HOME, IS_WIN, exists, listDirs, listFiles, walk, which, run, ping, launchDetached, openWithShell, readJSON } from './util.ts';
 import { getSettings, emit } from './store.ts';
+import type { Program, StartMenuApp } from '../shared/types.ts';
 
-/** A Start Menu shortcut. folder is relative to the Start Menu's Programs folder. */
-export interface StartMenuApp {
-  name: string;
-  shortcut: string;
-  folder: string;
-}
+export type { Program, StartMenuApp } from '../shared/types.ts';
 
 /** What a catalog entry's detect() finds. */
 interface Detected {
@@ -30,23 +26,6 @@ interface CatalogEntry {
   /** Resolves to the URL of the program's local server when it is up. */
   service?: () => Promise<string | null>;
   cli?: boolean;
-  actions: string[];
-}
-
-/** A known program as discoverPrograms() reports it. */
-export interface Program {
-  id: string;
-  name: string;
-  category: string;
-  installed: boolean;
-  optional: boolean;
-  exe: string | null;
-  shortcut: string | null;
-  version: string | null;
-  versions: string[] | null;
-  cli: boolean;
-  running: boolean;
-  serviceUrl: string | null;
   actions: string[];
 }
 

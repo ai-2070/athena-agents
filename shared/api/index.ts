@@ -16,5 +16,7 @@ import { versions } from './versions.ts';
 import { library, presets } from './library.ts';
 import { status } from './status.ts';
 import { accounts, settings } from './settings.ts';
+import { engines, mcp } from './mcp.ts';
+import { comfyui, programs } from './programs.ts';
 
-export const contract = { agents, brain, projects, taskBoard, teams, workflows, questions, approvals, tasks, routines, runs, skills, versions, library, presets, status, settings, accounts };
+export const contract = { agents, brain, projects, taskBoard, teams, workflows, questions, approvals, tasks, routines, runs, skills, versions, library, presets, status, settings, accounts, mcp, engines, programs, comfyui };

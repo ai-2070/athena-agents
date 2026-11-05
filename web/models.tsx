@@ -7,7 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { state, GET, attempt, refreshSoon, toast, navigate } from './core.ts';
+import { state, attempt, refreshSoon, toast, navigate } from './core.ts';
 import { rpc, rpcAt } from './client/rpc.ts';
 import { engineConfigured } from './engineavailability.ts';
 import { slideSegment } from './segmotion.ts';
@@ -600,7 +600,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   useEffect(() => {
     if (!local) return;
     let live = true;
-    void GET<{ id: string; installed: boolean }[]>('/programs').then((programs) => {
+    void rpc.programs.list({}).then((programs) => {
       if (live && Array.isArray(programs)) setInstalledPrograms(new Set(programs.filter((program) => program.installed).map((program) => program.id)));
     }).catch(() => {});
     return () => { live = false; };

@@ -1878,6 +1878,14 @@ export interface HermesProfile {
   isDefault: boolean;
 }
 
+/** An OpenClaw agent on this PC (`openclaw agents list`): an agent of the dashboard can run as one. */
+export interface OpenClawAgent {
+  id: string;
+  model: string;
+  workspace: string;
+  isDefault: boolean;
+}
+
 /** A Claude Code subagent (~/.claude/agents/<slug>.md), as the Agent library lists it. */
 export interface ClaudeSubagentListing {
   slug: string;
@@ -2484,6 +2492,183 @@ export interface AboutInfo {
   license: string;
   /** GitHub stars, when asked for (?stars=1) and GitHub answered; null otherwise (e.g. a private repo) */
   stars: number | null;
+}
+
+// ---------- ComfyUI and programs on this PC (server/comfyui.ts, server/programs.ts) ----------
+/** A file in a /history entry's outputs. */
+export interface ComfyOutputFile {
+  filename: string;
+  subfolder?: string;
+  type?: string;
+  [k: string]: unknown;
+}
+
+/** An output file with its kind ('images', 'gifs', 'videos', 'audio', '3d') and a dashboard URL to view it. */
+export type ComfyResultFile = ComfyOutputFile & { kind: string; url: string };
+
+/** What POST /prompt says about a node that failed its checks (its node_errors). */
+export interface ComfyNodeError {
+  class_type?: string;
+  dependent_outputs?: string[];
+  errors?: { type?: string; message?: string; details?: string; extra_info?: { input_name?: string } }[];
+}
+
+/** One file a run sent to ComfyUI: the name ComfyUI gave it, and the input it was set on ("10.image"). */
+export interface ComfyUploaded {
+  file: string;
+  mask?: string;
+  value: string;
+  input: string;
+}
+
+/** A seed a run used, per node (a sampler's seed, a RandomNoise node's noise_seed). */
+export interface ComfySeed {
+  node: string;
+  title: string;
+  input: string;
+  value: number;
+}
+
+export interface RunWorkflowQueued {
+  promptId: string;
+  queued: true;
+  seeds: ComfySeed[];
+  warnings: string[];
+  uploaded: ComfyUploaded[];
+  nodeErrors: Record<string, ComfyNodeError>;
+}
+
+export interface RunWorkflowDone {
+  promptId: string;
+  workflow: string;
+  files: ComfyResultFile[];
+  seconds: number;
+  seeds: ComfySeed[];
+  warnings: string[];
+  uploaded: ComfyUploaded[];
+  /** Nodes ComfyUI left out because they failed its checks, with the outputs that needed them. */
+  nodeErrors: Record<string, ComfyNodeError>;
+}
+
+export interface ComfyQueueStatus {
+  running: boolean;
+  url?: string;
+  queueRunning?: number;
+  queuePending?: number;
+  devices?: { name: string; vramFreeGB: number; vramTotalGB: number }[];
+  version?: string | null;
+}
+
+/** Where a workflow's prompts are: the first text node of each, and every input prompt and negative replace. */
+export interface PromptNodes {
+  positive: string | null;
+  negative: string | null;
+  /** "nodeId.input" keys the prompt goes into (SDXL's text_g and text_l, Flux's clip_l and t5xxl…). */
+  promptInputs: string[];
+  negativeInputs: string[];
+}
+
+/** A Start Menu shortcut. folder is relative to the Start Menu's Programs folder. */
+export interface StartMenuApp {
+  name: string;
+  shortcut: string;
+  folder: string;
+}
+
+/** A known program as discoverPrograms() reports it. */
+export interface Program {
+  id: string;
+  name: string;
+  category: string;
+  installed: boolean;
+  optional: boolean;
+  exe: string | null;
+  shortcut: string | null;
+  version: string | null;
+  versions: string[] | null;
+  cli: boolean;
+  running: boolean;
+  serviceUrl: string | null;
+  actions: string[];
+}
+
+// ---------- MCP servers (server/mcp.ts) ----------
+/** One saved MCP server (data/mcp.json). */
+export interface McpServerConfig {
+  type: 'stdio' | 'http' | string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  url: string;
+  headers: Record<string, string>;
+  description: string;
+  enabled: boolean;
+  /** This copy's own name ("Work", "Client A"), for a service added more than once (several accounts). */
+  label?: string;
+  /** The service it is, when not worked out on its own (see kindOf): a ready-made server's name, or another server's kind. */
+  kind?: string;
+  /** When to pick this copy over the service's other ones: for the Brain, and the agent that has it. */
+  useFor?: string;
+}
+export type McpServers = Record<string, McpServerConfig>;
+
+/** What saveServer() accepts: a form body, a preset or an importable server. args may be one string. */
+export interface McpServerInput {
+  type?: string;
+  command?: string;
+  args?: string[] | string;
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  description?: string;
+  enabled?: boolean;
+  label?: string;
+  kind?: string;
+  useFor?: string;
+}
+
+export type McpPreset = {
+  name: string;
+  title: string;
+  description: string;
+  /** What to do outside the dashboard before it works (an editor plugin, a program), for the Brain to pass on. */
+  setup?: string;
+  /** The host every link of this service is on, when each account gets its own link (Composio) */
+  host?: string;
+} & (
+  | { type: 'stdio'; command: string; args: string[]; env?: Record<string, string> }
+  | { type: 'http'; url: string; headers: Record<string, string> }
+);
+
+export interface ImportableServer {
+  source: string;
+  name: string;
+  type: 'http' | 'stdio';
+  command?: string;
+  args: string[];
+  env: Record<string, string>;
+  url?: string;
+  headers: Record<string, string>;
+}
+
+export interface BridgeServerConfig {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+}
+/** A ready-made server as GET /api/mcp lists it: whether its command is on this PC, and whether it is added (and as
+ *  which servers). */
+export type McpPresetListing = McpPreset & { service: string; ready: boolean; installed: boolean; copies: string[] };
+
+/** GET /api/mcp: the servers (keys and logins hidden), the ready-made ones, what fits this PC, what a Claude config
+ *  has to import, and the bridge (its token hidden: POST /api/mcp-bridge gives it to copy). */
+export interface McpOverview {
+  servers: McpServers;
+  info: Record<string, McpServerInfo>;
+  presets: McpPresetListing[];
+  suggested: McpSuggestion[];
+  importable: ImportableServer[];
+  bridge: BridgeServerConfig;
 }
 
 /** An MCP server as the page shows it: a service can be added more than once (several accounts), each copy with a label. */

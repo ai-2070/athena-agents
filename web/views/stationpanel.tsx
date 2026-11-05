@@ -4,7 +4,7 @@
 import { StrictMode, Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { POST, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
+import { attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.tsx';
@@ -585,7 +585,7 @@ function ConnectionPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id
         </div>
         <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
           {prog && !prog.cli && (prog.exe || prog.shortcut) ? (
-            <Button size="small" onClick={() => void attempt(() => POST<{ message: string }>('/programs/launch', { program: prog.id }), (r) => r.message)}>
+            <Button size="small" onClick={() => void attempt(() => rpc.programs.launch({ program: prog.id }), (r) => r.message)}>
               Start
             </Button>
           ) : null}

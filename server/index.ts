@@ -23,11 +23,6 @@ import { gatewayRetirement, listGatewayRetirements } from './gateways/retirement
 import { telegramSetup } from './gateways/telegram-setup.ts';
 import { gatewayOutboxDestinations } from './gateways/outbox-owner.ts';
 import { readGatewayPostDelivery } from './gateways/outbox-posts.ts';
-import { listProfiles } from './engines/hermes.ts';
-import * as codexEngine from './engines/codex.ts';
-import * as piEngine from './engines/pi.ts';
-import * as openclawEngine from './engines/openclaw.ts';
-import { clearWhichCache, which } from './util.ts';
 import * as tools from './tools.ts';
 import { inlineToolImagesNoted, withImageNote } from './toolimages.ts';
 import * as programs from './programs.ts';
@@ -52,7 +47,6 @@ import * as worldPrefabs from './voxel/prefabs.ts';
 import * as worldCharacters from './voxel/characters.ts';
 import { listVersions, getVersion, withActor } from './versions.ts';
 import * as terms from './terminals.ts';
-import * as codexLimits from './codexlimits.ts';
 import * as brain from './brain.ts';
 import * as irc from './irc.ts';
 import * as projects from './projects.ts';
@@ -69,7 +63,6 @@ import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import { saveToolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
-import { usageLimits } from './api/status.ts';
 import type { Agent, Project, WorldBuilder } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
@@ -227,13 +220,6 @@ post<{ text?: unknown; project?: unknown; attachments?: unknown; goal?: unknown 
 });
 post<{ text?: unknown; attachments?: unknown }>('/api/assist/agent', async (_p, body) => brain.designAgent(String(body.text || ''), { attachments: uploads.cleanAttachments(body.attachments) }));
 post<{ text?: unknown; allowNew?: unknown; attachments?: unknown }>('/api/assist/branch', async (_p, body) => brain.designBranch(String(body.text || ''), { allowNew: body.allowNew !== false, attachments: uploads.cleanAttachments(body.attachments) }));
-// Uses one free Codex limit reset (the one that runs out first unless one is named). You click for it.
-post<{ creditId?: unknown }>('/api/codex/reset', async (_p, body) => {
-  const r = await codexLimits.useCodexReset(typeof body.creditId === 'string' ? body.creditId : null);
-  log('codex', r.outcome === 'reset' ? 'Used a free Codex limit reset' : `Codex limit reset not used (${r.outcome})`);
-  return { outcome: r.outcome, limits: await usageLimits(r.limits) };
-});
-
 // ---------- agents ----------
 // server/api/agents.ts, with their chats; a chat's run streams are below
 
@@ -417,44 +403,7 @@ del('/api/worlds/:wid', async ({ wid }) => (worldLink.deleteUnusedWorld(wid), { 
 // (versions, presets and the library: server/api/versions.ts, library.ts)
 
 // ---------- models: server/api/status.ts ----------
-get('/api/hermes/profiles', async () => listProfiles());
-get('/api/openclaw/agents', async () => openclawEngine.listAgents().catch(() => []));
-// OpenAI Codex: install the CLI (npm) and check its sign-in.
-post('/api/codex/install', async () => {
-  const r = await run('npm', ['install', '-g', '@openai/codex'], { timeout: 10 * 60_000 });
-  clearWhichCache();
-  codexEngine.refreshStatus();
-  if (r.code !== 0) throw new HttpError(500, (r.stderr || r.stdout).trim().slice(-600) || 'npm install failed');
-  log('system', 'Installed OpenAI Codex CLI');
-  return { message: 'Codex installed. Now sign in.' };
-});
-post('/api/codex/refresh', async () => {
-  clearWhichCache();
-  codexEngine.refreshStatus();
-  codexEngine.status();
-  await new Promise((r) => setTimeout(r, 3500));
-  return codexEngine.status();
-});
-
-// ---------- tools & programs ----------
-get('/api/programs', async (_p, _b, q) => programs.discoverPrograms(!!q.force));
-get('/api/programs/all', async () => programs.startMenuApps(true));
-post<{ program: string; file?: string }>('/api/programs/launch', async (_p, body) => {
-  const msg = await programs.launchProgram(body.program, { file: body.file });
-  log('program', msg);
-  return { message: msg };
-});
-post<{ target: string }>('/api/programs/open', async (_p, body) => {
-  openWithShell(body.target);
-  return { ok: true };
-});
-
-// ComfyUI
-get('/api/comfyui', async () => ({ status: await comfy.queueStatus(), workflows: comfy.listWorkflows().map(({ name, dir }) => ({ name, dir })) }));
-get('/api/comfyui/describe', async (_p, _b, q) => comfy.describeWorkflow(q.workflow));
-post<{ workflow: string; prompt?: string; negative?: string; inputs?: Record<string, unknown> }>('/api/comfyui/run', async (_p, body) => comfy.runWorkflow({ workflow: body.workflow, prompt: body.prompt || undefined, negative: body.negative || undefined, inputs: body.inputs || {} }));
-post('/api/comfyui/start', async () => ({ message: await comfy.startComfy() }));
-post<{ name: string; json: unknown }>('/api/comfyui/workflows', async (_p, body) => ({ file: comfy.saveApiWorkflow(body.name, body.json) }));
+// ---------- programs and ComfyUI: server/api/programs.ts ----------
 
 // ---------- attached files (saved in the Brain folder's uploads/) ----------
 // One folder per drop; then each file is sent raw to POST /api/uploads/<batch>?path=<relative path> (handled below the router).
@@ -527,65 +476,9 @@ function sendPdf(res: http.ServerResponse, p: string) {
   stream.pipe(res);
 }
 
-// ---------- MCP ----------
-get('/api/mcp', async () => {
-  const servers = mcp.listServers();
-  // (keys, logins and the bridge's token stay hidden here: POST /api/mcp-bridge gives the bridge config to copy)
-  const bridge = mcp.bridgeServerConfig('');
-  return {
-    servers: mcp.hiddenServers(servers),
-    info: mcp.serverInfo(servers),
-    presets: mcp.presetAvailability(servers),
-    suggested: mcp.suggestPresets(await programs.discoverPrograms(), servers),
-    importable: mcp.importableServers().map((s) => mcp.hideSecrets(s)),
-    bridge: { ...bridge, env: { ...bridge.env, DASH_TOKEN: mcp.HIDDEN } },
-  };
-});
-post('/api/mcp-bridge', async () => mcp.bridgeServerConfig(''));
-post<Parameters<typeof mcp.saveServer>[1] & { name: string }>('/api/mcp', async (_p, body) => mcp.saveServer(body.name, body));
-del('/api/mcp/:name', async ({ name }) => {
-  // (and off every agent and team that had it)
-  mcp.removeServerEverywhere(name);
-  return { ok: true };
-});
-post('/api/mcp/:name/test', async ({ name }) => ({ tools: await mcp.testServer(name) }));
-// another copy of a service needs a label; "others" sets the label and "use for" of the copies already there
-post<{ name?: string; label?: string; useFor?: string; others?: Record<string, { label?: string; useFor?: string }> }>('/api/mcp-preset', async (_p, body) => {
-  const pr = need(mcp.PRESETS.find((x) => x.name === body.name), 'Unknown preset');
-  const made = mcp.addPreset(pr.name, { label: body.label, useFor: body.useFor });
-  // (only label and "use for" change: the copies' connections stay open, and an unchanged one isn't saved)
-  const servers = mcp.listServers();
-  for (const [name, notes] of Object.entries(body.others || {})) if (name !== made.name && servers[name]) mcp.describeCopy(name, { label: notes?.label, useFor: notes?.useFor });
-  return made;
-});
-post<{ name?: string; source?: string }>('/api/mcp-import', async (_p, body) => {
-  const it = need(mcp.importableServers().find((x) => x.name === body.name && x.source === body.source), 'Not found');
-  return mcp.saveServer(it.name, it);
-});
-post('/api/hermes/add-bridge', async () => {
-  const cfg = mcp.bridgeServerConfig('');
-  const r = await run('hermes', ['mcp', 'add', 'dashboard', '--command', cfg.command, '--env', `DASH_PORT=${PORT}`, `DASH_TOKEN=${internalToken()}`, '--args', ...cfg.args], { timeout: 120000, input: 'y\n' });
-  if (r.code !== 0) throw new HttpError(500, (r.stderr || r.stdout).trim().slice(-800) || 'hermes mcp add failed');
-  log('mcp', 'Gave Hermes the dashboard tools (hermes mcp add dashboard)');
-  return { message: (r.stdout || 'Added.').trim().slice(-800) };
-});
-// pi and oh-my-pi: the bridge goes in their own mcp.json (neither takes MCP servers per run)
-post<{ flavor?: string }>('/api/pi/add-bridge', async (_p, body) => {
-  const flavors: piEngine.PiFlavor[] = body.flavor === 'pi' || body.flavor === 'omp' ? [body.flavor] : (['pi', 'omp'] as const).filter((f) => which(f));
-  if (!flavors.length) throw new HttpError(400, 'Neither pi nor oh-my-pi is installed on this PC.');
-  const files: string[] = [];
-  for (const f of flavors) {
-    try {
-      files.push(piEngine.addBridge(f));
-    } catch (e) {
-      throw new HttpError(500, (e as Error).message);
-    }
-  }
-  log('mcp', `Gave ${flavors.map((f) => (f === 'pi' ? 'pi' : 'oh-my-pi')).join(' and ')} the dashboard tools (${files.join(', ')})`);
-  return { message: `Added to ${files.join(' and ')}. New ${flavors.includes('pi') ? 'pi' : 'oh-my-pi'} sessions have the dashboard tools.`, files };
-});
+// ---------- MCP servers, and setting up Codex, Hermes, pi and OpenClaw: server/api/mcp.ts ----------
 
-// ---------- settings ----------
+// ---------- gateways ----------
 get('/api/gateways', async () => ({
   instances: gateways.listGatewayInstances().map((instance) => ({ ...instance, targetName: gateways.gatewayTargetName(instance), credentials: gateways.gatewayCredentialStatus(instance.id) })),
   health: gatewaySupervisor.health(),

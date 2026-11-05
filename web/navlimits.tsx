@@ -4,7 +4,7 @@
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { POST, state, toast } from './core.ts';
+import { state, toast } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import { Dot } from './ui/marks.tsx';
 import { Button } from './ui/button.tsx';
@@ -207,7 +207,7 @@ async function useReset(redraw: () => void): Promise<void> {
   resetting = true;
   redraw();
   try {
-    const res = await POST<CodexResetResult>('/codex/reset', { creditId: next?.id || null });
+    const res = await rpc.engines.codexReset({ creditId: next?.id || null });
     limits = res.limits;
     loadedAt = Date.now();
     const left = res.limits.codex.resets?.available ?? 0;

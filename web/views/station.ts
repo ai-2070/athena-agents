@@ -908,7 +908,7 @@ export async function render(el: HTMLElement): Promise<void> {
     }
   }, 6000);
   S.progTimer = setInterval(async () => {
-    const p = await GET<Program[]>('/programs').catch(() => null);
+    const p = await rpc.programs.list({}).catch(() => null);
     if (S && p) {
       S.progs = p;
       if (!floorBusy && signature() !== S.signature) rebuild();
@@ -953,7 +953,7 @@ function teamView(w: TeamListing): TeamView {
 }
 
 async function loadData(): Promise<void> {
-  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([GET<Program[]>('/programs').catch((): Program[] => []), rpc.workflows.list().catch((): TeamListing[] => []), rpc.workflows.runs.list({}).catch((): WorkflowRun[] => []), rpc.workflows.active().catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({})), rpc.routines.list().catch((): Routine[] => [])]);
+  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([rpc.programs.list({}).catch((): Program[] => []), rpc.workflows.list().catch((): TeamListing[] => []), rpc.workflows.runs.list({}).catch((): WorkflowRun[] => []), rpc.workflows.active().catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({})), rpc.routines.list().catch((): Routine[] => [])]);
   if (!S) return;
   S.layout = layout || {};
   S.progs = progs;
@@ -4183,7 +4183,7 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
   if (ev.type === 'world-anim' && typeof ev.agent === 'string' && typeof ev.clip === 'string') S.worldLayer?.play(ev.agent, ev.clip, typeof ev.times === 'number' ? ev.times : 1);
   // a program was opened or closed: light its tile and the desks that use it
   if (ev.type === 'programs') {
-    GET<Program[]>('/programs')
+    rpc.programs.list({})
       .then((p) => {
         if (!S || !p) return;
         S.progs = p;

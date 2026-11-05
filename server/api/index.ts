@@ -16,5 +16,7 @@ import { versionsRouter } from './versions.ts';
 import { libraryRouter, presetsRouter } from './library.ts';
 import { statusRouter } from './status.ts';
 import { accountsRouter, settingsRouter } from './settings.ts';
+import { enginesRouter, mcpRouter } from './mcp.ts';
+import { comfyRouter, programsRouter } from './programs.ts';
 
-export const apiRouter = implement(contract).router({ agents: agentsRouter, brain: brainRouter, projects: projectsRouter, taskBoard, teams: teamsRouter, workflows: workflowsRouter, questions: questionsRouter, approvals: approvalsRouter, tasks: tasksRouter, routines: routinesRouter, runs: runsRouter, skills: skillsRouter, versions: versionsRouter, library: libraryRouter, presets: presetsRouter, status: statusRouter, settings: settingsRouter, accounts: accountsRouter });
+export const apiRouter = implement(contract).router({ agents: agentsRouter, brain: brainRouter, projects: projectsRouter, taskBoard, teams: teamsRouter, workflows: workflowsRouter, questions: questionsRouter, approvals: approvalsRouter, tasks: tasksRouter, routines: routinesRouter, runs: runsRouter, skills: skillsRouter, versions: versionsRouter, library: libraryRouter, presets: presetsRouter, status: statusRouter, settings: settingsRouter, accounts: accountsRouter, mcp: mcpRouter, engines: enginesRouter, programs: programsRouter, comfyui: comfyRouter });

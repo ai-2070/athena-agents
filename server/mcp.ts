@@ -12,65 +12,10 @@ import { ErrorCode, McpError, ToolListChangedNotificationSchema } from '@modelco
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { HOME, IS_WIN, BRIDGE_SCRIPT, PORT, dataPath, readJSON, writeJSON, which, exists } from './util.ts';
 import { emit, log, internalToken, agents, workflows, listProjects, withProject } from './store.ts';
-import type { McpServerInfo, McpSuggestion } from '../shared/types.ts';
+import type { BridgeServerConfig, ImportableServer, McpPreset, McpPresetListing, McpServerConfig, McpServerInfo, McpServerInput, McpServers, McpSuggestion } from '../shared/types.ts';
 
 /** One saved MCP server (data/mcp.json). */
-export interface McpServerConfig {
-  type: 'stdio' | 'http' | string;
-  command: string;
-  args: string[];
-  env: Record<string, string>;
-  url: string;
-  headers: Record<string, string>;
-  description: string;
-  enabled: boolean;
-  /** This copy's own name ("Work", "Client A"), for a service added more than once (several accounts). */
-  label?: string;
-  /** The service it is, when not worked out on its own (see kindOf): a ready-made server's name, or another server's kind. */
-  kind?: string;
-  /** When to pick this copy over the service's other ones: for the Brain, and the agent that has it. */
-  useFor?: string;
-}
-export type McpServers = Record<string, McpServerConfig>;
-
-/** What saveServer() accepts: a form body, a preset or an importable server. args may be one string. */
-export interface McpServerInput {
-  type?: string;
-  command?: string;
-  args?: string[] | string;
-  env?: Record<string, string>;
-  url?: string;
-  headers?: Record<string, string>;
-  description?: string;
-  enabled?: boolean;
-  label?: string;
-  kind?: string;
-  useFor?: string;
-}
-
-export type McpPreset = {
-  name: string;
-  title: string;
-  description: string;
-  /** What to do outside the dashboard before it works (an editor plugin, a program), for the Brain to pass on. */
-  setup?: string;
-  /** The host every link of this service is on, when each account gets its own link (Composio) */
-  host?: string;
-} & (
-  | { type: 'stdio'; command: string; args: string[]; env?: Record<string, string> }
-  | { type: 'http'; url: string; headers: Record<string, string> }
-);
-
-export interface ImportableServer {
-  source: string;
-  name: string;
-  type: 'http' | 'stdio';
-  command?: string;
-  args: string[];
-  env: Record<string, string>;
-  url?: string;
-  headers: Record<string, string>;
-}
+export type { BridgeServerConfig, ImportableServer, McpPreset, McpServerConfig, McpServerInput, McpServers } from '../shared/types.ts';
 
 export type McpTool = Tool;
 export interface McpToolResult {
@@ -1268,11 +1213,6 @@ function readImportable(): ImportableServer[] {
 }
 
 // ---------- config handed to Claude Code agents ----------
-export interface BridgeServerConfig {
-  command: string;
-  args: string[];
-  env: Record<string, string>;
-}
 export function bridgeServerConfig(agentId: string | null | undefined, runId = ''): BridgeServerConfig {
   return {
     command: process.execPath,
@@ -1295,7 +1235,7 @@ export function claudeMcpConfig(agentId: string | null | undefined, serverNames:
   return { mcpServers };
 }
 
-export function presetAvailability(servers: McpServers = listServers()) {
+export function presetAvailability(servers: McpServers = listServers()): McpPresetListing[] {
   const kinds = [...kindsOf(servers)];
   return PRESETS.map((p) => {
     const copies = kinds.filter(([, k]) => k === p.name).map(([n]) => n);

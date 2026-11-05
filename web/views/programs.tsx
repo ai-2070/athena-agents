@@ -3,56 +3,21 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { Dot, Pill } from '../ui/marks.tsx';
 import { Plate } from '../ui/surface.tsx';
 import { useCallback, useEffect, useState } from 'react';
-import { GET, POST, attempt, lightbox, toast, navigate } from '../core.ts';
+import { POST, attempt, lightbox, toast, navigate } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Field, Row, SearchBox, Section } from '../ui/controls.tsx';
 import { reactPage, useServerEvents, DomNode } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
-import type { Terminal } from '../../shared/types.ts';
+import type { ComfyQueueStatus, Program, StartMenuApp, Terminal } from '../../shared/types.ts';
 import { appIconStyle, appIconUrl } from '../appicons.ts';
 import { programIcon } from '../programicons.ts';
 import { onThemeChange } from '../theme.ts';
 
-/** One known program as GET /api/programs lists it (server/programs.ts discoverPrograms). */
-interface ProgramInfo {
-  id: string;
-  name: string;
-  category: string;
-  installed: boolean;
-  optional: boolean;
-  exe: string | null;
-  shortcut: string | null;
-  version: string | null;
-  versions: string[] | null;
-  cli: boolean;
-  running: boolean;
-  serviceUrl: string | null;
-  actions: string[];
-}
-/** One Start Menu app (GET /api/programs/all). */
-interface StartMenuApp {
-  name: string;
-  shortcut: string;
-  folder: string;
-}
+type ProgramInfo = Program;
 /** GET /api/comfyui */
 interface ComfyInfo {
-  status: {
-    running: boolean;
-    url?: string;
-    queueRunning?: number;
-    queuePending?: number;
-    devices?: { name: string; vramFreeGB: number; vramTotalGB: number }[];
-    version?: string | null;
-  };
+  status: ComfyQueueStatus;
   workflows: { name: string; dir: string }[];
-}
-/** POST /api/comfyui/run */
-interface ComfyRunResult {
-  promptId: string;
-  workflow: string;
-  files: { kind: string; url: string; filename: string; subfolder?: string; type?: string }[];
-  seconds: number;
-  warnings?: string[];
 }
 
 const CATS: [string, string][] = [
@@ -124,7 +89,7 @@ export function ProgramsTab() {
   useEffect(() => onThemeChange(() => setThemeTick((n) => n + 1)), []);
   const load = useCallback(
     (force = false) =>
-      Promise.all([GET<ProgramInfo[]>(`/programs${force ? '?force=1' : ''}`), GET<ComfyInfo>('/comfyui').catch(() => null)])
+      Promise.all([rpc.programs.list(force ? { force: '1' } : {}), rpc.comfyui.status().catch(() => null)])
         .then(([p, c]) => (setProgs(p), setComfy(c)))
         .catch((e: unknown) => setFailed(e instanceof Error ? e.message : String(e))),
     [],
@@ -133,7 +98,7 @@ export function ProgramsTab() {
   // a program opened or closed (the server checks every few seconds)
   useServerEvents((ev) => {
     if (ev.type !== 'programs') return;
-    void GET<ProgramInfo[]>('/programs').then((p) => {
+    void rpc.programs.list({}).then((p) => {
       setProgs(p);
       setStarting((s) => new Set([...s].filter((id) => !p.find((x) => x.id === id)?.running)));
     }).catch(() => {});
@@ -143,7 +108,7 @@ export function ProgramsTab() {
   if (!progs) return <p className="text-dim">Looking around this PC…</p>;
 
   const start = async (p: ProgramInfo) => {
-    const r = await attempt(() => POST<{ message: string }>('/programs/launch', { program: p.id }), (x) => x.message);
+    const r = await attempt(() => rpc.programs.launch({ program: p.id }), (x) => x.message);
     // already open: no "programs" event will come to clear "starting…"
     if (r && !p.running) setStarting((s) => new Set(s).add(p.id));
   };
@@ -192,7 +157,7 @@ export function ProgramsTab() {
 function AllApps() {
   const [apps, setApps] = useState<StartMenuApp[] | null>(null);
   const [query, setQuery] = useState('');
-  useEffect(() => void GET<StartMenuApp[]>('/programs/all').then(setApps).catch(() => setApps([])), []);
+  useEffect(() => void rpc.programs.all().then(setApps).catch(() => setApps([])), []);
   if (!apps) return null;
   const ql = query.toLowerCase();
   const shown = apps.filter((a) => !ql || a.name.toLowerCase().includes(ql) || a.folder.toLowerCase().includes(ql)).slice(0, 120);
@@ -202,7 +167,7 @@ function AllApps() {
       <div className="divide-y divide-line border-t border-line">
         {shown.map((a) => (
           <Row key={a.shortcut || a.name} title={<span className="prog-app-name">{a.name}</span>} description={a.folder || undefined}>
-            <Button variant="ghost" size="tiny" onClick={() => void attempt(() => POST<{ message: string }>('/programs/launch', { program: a.name }), (r) => r.message)}>Start</Button>
+            <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.programs.launch({ program: a.name }), (r) => r.message)}>Start</Button>
           </Row>
         ))}
       </div>
@@ -218,7 +183,7 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
   const [images, setImages] = useState<string[]>([]);
   const run = async () => {
     setRunning(true);
-    const r = await attempt(() => POST<ComfyRunResult>('/comfyui/run', { workflow, prompt: prompt || undefined }));
+    const r = await attempt(() => rpc.comfyui.run({ workflow, prompt: prompt || undefined }));
     setRunning(false);
     if (r) {
       setImages(r.files.filter((f) => f.kind === 'images').map((f) => f.url));
@@ -228,7 +193,7 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
   const device = st.devices?.[0];
   return (
     <Section title={<span className="flex items-center gap-2"><img className="app-icon" src={appIconUrl('comfyui')!} width={20} height={20} alt="" style={appIconStyle('comfyui', 20)} /> ComfyUI</span>} action={!st.running ? (
-      <Button size="small" onClick={() => void attempt(() => POST('/comfyui/start'), 'Starting ComfyUI… give it a minute').then(() => setTimeout(rescan, 20000))}>Start ComfyUI</Button>
+      <Button size="small" onClick={() => void attempt(() => rpc.comfyui.start(), 'Starting ComfyUI… give it a minute').then(() => setTimeout(rescan, 20000))}>Start ComfyUI</Button>
     ) : (
       <ButtonLink variant="ghost" size="small" href={st.url} target="_blank" rel="noopener">Open ComfyUI</ButtonLink>
     )}>

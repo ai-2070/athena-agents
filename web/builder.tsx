@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { GET, POST, attempt, state, toast, refreshSoon } from './core.ts';
+import { POST, attempt, state, toast, refreshSoon } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import type { ModalHandle } from './core.ts';
 import { teamSteps } from '../shared/teams.ts';
@@ -391,7 +391,7 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
 
 export async function openBranchBuilder({ wf = null, prefill = null, describe = '', files = [], onSaved }: BranchBuilderOptions = {}): Promise<ModalHandle> {
   const d = state.data!;
-  const mcp = await GET<{ servers: Record<string, unknown> }>('/mcp').catch(() => ({ servers: {} as Record<string, unknown> }));
+  const mcp = await rpc.mcp.list().catch(() => ({ servers: {} as Record<string, unknown> }));
   // members: { agentId } for existing agents, { newAgent } for ones the Brain suggests hiring
   const fromTeam: BranchMember[] = (wf?.members || []).map((agentId) => ({ agentId }));
   // the lead is the member object itself, so removing or hiring others never loses it

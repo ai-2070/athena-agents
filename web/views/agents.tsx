@@ -4,7 +4,7 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Autocomplete } from '@base-ui/react/autocomplete';
 import type { ReactNode } from 'react';
-import { GET, POST, attempt, refreshSoon, navigate, toast, confirmBox, promptBox, isRunning, ENGINE_LABEL } from '../core.ts';
+import { POST, attempt, refreshSoon, navigate, toast, confirmBox, promptBox, isRunning, ENGINE_LABEL } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.tsx';
@@ -24,25 +24,12 @@ import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { CATEGORY_COLORS, ENGINE_NAMES, OTHER_COLOR, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
 import type { Slice } from '../agentstats.ts';
-import type { Agent, AgentDetail, AppState, Autonomy, EngineStatus, McpServerInfo, Team, Terminal } from '../../shared/types.ts';
+import type { Agent, AgentDetail, AppState, Autonomy, EngineStatus, HermesProfile, McpServerInfo, OpenClawAgent, Team, Terminal } from '../../shared/types.ts';
 
 const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
 
 /** GET /api/agents/:id: the agent plus its knowledge files and resolved workspace. */
 export type { AgentDetail };
-/** One entry of GET /api/openclaw/agents. */
-interface OpenClawAgent {
-  id: string;
-  model: string;
-  isDefault: boolean;
-}
-/** One entry of GET /api/hermes/profiles. */
-interface HermesProfile {
-  name: string;
-  model: string;
-  gateway: string;
-  isDefault: boolean;
-}
 /** The part of GET /api/mcp used here. */
 interface McpListing {
   servers: Record<string, unknown>;
@@ -342,7 +329,7 @@ function AgentEditor({ id }: { id: string }) {
   useEffect(() => {
     let live = true;
     // (Hermes profiles and OpenClaw agents ask their CLIs, which can be slow: they load with their engine's fields)
-    void Promise.all([rpc.agents.get({ id }), GET<McpListing>('/mcp').catch(() => ({ servers: {} })), rpc.workflows.list().catch((): Team[] => [])]).then(
+    void Promise.all([rpc.agents.get({ id }), rpc.mcp.list().catch((): McpListing => ({ servers: {} })), rpc.workflows.list().catch((): Team[] => [])]).then(
       ([agent, mcp, teams]) => live && setData({ agent, servers: Object.keys(mcp.servers), info: (mcp as McpListing).info, teams }),
     );
     return () => void (live = false);
@@ -692,8 +679,8 @@ function EngineFields({ a, d, set, fit }: {
   const needs = a.engine === 'hermes' ? 'hermes' : a.engine === 'openclaw' ? 'openclaw' : null;
   useEffect(() => {
     let live = true;
-    if (needs === 'hermes') void GET<HermesProfile[]>('/hermes/profiles').then((p) => live && setProfiles(p)).catch(() => {});
-    if (needs === 'openclaw') void GET<OpenClawAgent[]>('/openclaw/agents').then((c) => live && setClawAgents(c)).catch(() => {});
+    if (needs === 'hermes') void rpc.engines.hermesProfiles().then((p) => live && setProfiles(p)).catch(() => {});
+    if (needs === 'openclaw') void rpc.engines.openclawAgents().then((c) => live && setClawAgents(c)).catch(() => {});
     return () => void (live = false);
   }, [needs]);
   useEffect(() => {

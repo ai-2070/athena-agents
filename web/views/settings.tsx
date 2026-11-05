@@ -378,7 +378,7 @@ function Engines({ data, reload }: { data: AppState; reload: () => Promise<unkno
   const later = (ms: number) => setTimeout(() => void reload(), ms);
   const install = async () => {
     setInstalling(true);
-    await attempt(() => POST<{ message: string }>('/codex/install'), (r) => r.message);
+    await attempt(() => rpc.engines.codexInstall(), (r) => r.message);
     refreshSoon(0);
     later(500);
   };
@@ -387,7 +387,7 @@ function Engines({ data, reload }: { data: AppState; reload: () => Promise<unkno
     if (t) navigate(`#/terminals/${t.id}`);
   };
   const recheck = () =>
-    attempt(() => POST<EngineStatus['codex']>('/codex/refresh'), (r) => (r.loggedIn ? 'Codex is signed in' : r.installed ? 'Installed, not signed in yet' : 'Not installed')).then(() => (refreshSoon(0), later(300)));
+    attempt(() => rpc.engines.codexRefresh(), (r) => (r.loggedIn ? 'Codex is signed in' : r.installed ? 'Installed, not signed in yet' : 'Not installed')).then(() => (refreshSoon(0), later(300)));
   return (
     <div className={AI_LIST}>
       <AiRow mark={<Mark brand="claude" />} name="Claude Code" status={cc.installed ? <Found version={cc.version} /> : <Pill tone="bad">not installed</Pill>} note={cc.installed ? 'Agents on "My Claude login" use your Claude subscription. Nothing to paste.' : 'Install Claude Code to run agents on your Claude subscription.'} />
