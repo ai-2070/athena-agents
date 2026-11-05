@@ -1,0 +1,27 @@
+tests/web/hot.test.ts
+  s_985575c8d5b52b::t_b41819decb3216 1-3
+  s_985575c8d5b52b::t_235457e5b5d087 4-6,21,26-84
+  s_985575c8d5b52b::t_4ec67658630ec5 85
+web/dev/hot.ts
+  s_985575c8d5b52b::t_8c86fce5b5eb10 23,25-54,60
+  s_985575c8d5b52b::t_215e1f8ccef73d 19-22,58
+  s_985575c8d5b52b::t_7b57845dcc1f33 24
+AGENTS.md
+  s_985575c8d5b52b::t_d6bed3106cfeb7 57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6f94a69d67658b087861bb52ebf2857bc9a732b3",
+  "prompts": {},
+  "sessions": {
+    "s_985575c8d5b52b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "97f7eb77-51cb-4495-ae5d-cef84f82669d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
