@@ -1,40 +1,33 @@
-// Once an area has moved to oRPC (shared/api/), server/index.ts can't gain a route in it: a new JSON route goes in
-// the area's contract. What stays there sends a file or a stream, not JSON.
+// Every JSON route is an oRPC contract (shared/api/), so server/index.ts can't gain one: a new JSON route goes in its
+// area's contract. What stays there sends or takes a file or a stream, or is the MCP bridge's internal route.
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-/** The addresses of the areas that have moved. */
-const MOVED = [
-  '/api/brain', '/api/task-board', '/api/projects', '/api/agents', '/api/teams/', '/api/workflows', '/api/workflow-',
-  '/api/questions', '/api/approvals', '/api/tasks', '/api/routines', '/api/routine-runs', '/api/runs',
-  '/api/skills', '/api/versions', '/api/presets', '/api/library',
-  '/api/settings', '/api/secrets', '/api/accounts', '/api/state', '/api/activity', '/api/headbar', '/api/usage-limits',
-  '/api/overview', '/api/tools', '/api/tool-stats', '/api/models', '/api/providers', '/api/about',
-  '/api/mcp', '/api/hermes/', '/api/pi/', '/api/openclaw/', '/api/codex/', '/api/programs', '/api/comfyui',
-  '/api/file', '/api/uploads', '/api/memory', '/api/artifacts', '/api/backups', '/api/layout', '/api/terminals', '/api/assist',
-  '/api/world', '/api/project-world', '/api/prefab-library',
-];
-/** The old routes those areas keep. */
+/** The routes server/index.ts keeps, and why. */
 const KEEP = [
+  // files: a project's pictures and model, a task's file, a team's picture, any file the page may show
   'GET /api/projects/:id/logo',
   'GET /api/projects/:id/background',
   'GET /api/projects/:id/model',
   'GET /api/task-board-file/:projectId/:id',
+  'GET /api/workflows/:id/mark',
+  'GET /api/file',
+  // a backup file as the body
+  'POST /api/backups/restore',
+  // streams for the AI SDK: an agent's run, the Brain's answer
   'POST /api/agents/:id/chats/:cid/stream',
   'GET /api/agents/:id/chats/:cid/stream',
-  'GET /api/workflows/:id/mark',
   'POST /api/brain/stream',
-  'GET /api/file',
-  'POST /api/backups/restore',
+  // the MCP bridge (its own token, x-dash-internal)
+  'GET /api/internal/tools',
+  'POST /api/internal/tools/call',
 ];
 const METHOD: Record<string, string> = { get: 'GET', post: 'POST', put: 'PUT', del: 'DELETE', postFile: 'POST' };
 
-describe('areas moved to oRPC', () => {
-  it('keep only their file and stream routes in server/index.ts', () => {
+describe('the routes left in server/index.ts', () => {
+  it('are only the file, stream and internal ones', () => {
     const source = fs.readFileSync(new URL('../../server/index.ts', import.meta.url), 'utf8');
-    const routes = [...source.matchAll(/^\s*(get|post|put|del|postFile)(?:<[^\n]*?>)?\('(\/api\/[^']*)'/gm)].map((m) => `${METHOD[m[1]]} ${m[2]}`);
-    expect(routes.length).toBeGreaterThan(50);
-    const inMoved = routes.filter((r) => MOVED.some((prefix) => r.split(' ')[1].startsWith(prefix)));
-    expect(inMoved.sort()).toEqual([...KEEP].sort());
+    const routes = [...source.matchAll(/^\s*(get|post|put|del|postFile)(?:<[^\n]*?>)?\('(\/[^']*)'/gm)].map((m) => `${METHOD[m[1]]} ${m[2]}`);
+    expect(routes.sort()).toEqual([...KEEP].sort());
   });
 });

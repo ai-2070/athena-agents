@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GET, POST, confirmBox } from '../core.ts';
+import { confirmBox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { SelectControl } from '../ui/select.tsx';
@@ -13,15 +14,14 @@ const statuses = { pending: 'Waiting', sending: 'Interrupted send', sent: 'Confi
 export function GatewayOutboxDeliveryView({ id, instanceId, close, changed, alive }: {
   id: string; instanceId: string; close: () => void; changed: () => void; alive: () => boolean;
 }) {
-  const root = `/outbox/${encodeURIComponent(id)}/gateway-delivery`;
   const [preview, setPreview] = useState<GatewayOutboxDeliveryReview | null>(null); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
   const [selected, setSelected] = useState(''); const [remoteId, setRemoteId] = useState(''); const [busy, setBusy] = useState(false);
   const mounted = useRef(false); const request = useRef(0); const active = useRef(false); const invalid = useRef(false);
   const load = useCallback(async (clear = true) => {
     if (invalid.current) return; const version = ++request.current; if (clear) { setError(''); setNotice(''); }
-    try { const value = await GET<GatewayOutboxDeliveryReview>(root); if (mounted.current && request.current === version) setPreview(value); }
+    try { const value = await rpc.outbox.delivery({ id }); if (mounted.current && request.current === version) setPreview(value); }
     catch (failure) { if (mounted.current && request.current === version) { setPreview(null); setError(failure instanceof Error ? failure.message : 'Delivery receipts could not load. Reload them before continuing.'); } }
-  }, [root]);
+  }, [id]);
   useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; request.current++; }; }, [load]);
   useServerEvents((event) => {
     if (event.type === 'project') { invalid.current = true; request.current++; setPreview(null); setError('The open project changed. Close this review and open the delivery from its original project.'); }
@@ -38,11 +38,11 @@ export function GatewayOutboxDeliveryView({ id, instanceId, close, changed, aliv
       if (action === 'retry' && (!snapshot.canRetry || !next || !await confirmBox(`${next.status === 'pending' ? 'Continue' : 'Retry'} part ${snapshot.nextIndex! + 1} and the remaining approved parts for ${source}? ${next.attempts > 0 ? 'The earlier attempt may already have arrived. Retrying can send a duplicate. Check the messaging app first. ' : ''}Confirmed parts will not be resent. The original recipient and text stay fixed. This instance stays paused; enable it in Gateways when ready to send.`, { ok: next.status === 'pending' ? 'Queue remaining parts' : 'Queue retry', danger: next.attempts > 0 }))) return;
       if (action === 'finish' && (!snapshot.canFinish || !await confirmBox(`Finish delivery locally for ${source}? Uncertain parts may already have arrived. Confirmed receipts stay recorded. Remaining parts will never send from this post and this cannot be undone.${snapshot.removed ? ' The removed connection stays blocked.' : ''}`, { ok: 'Finish locally', danger: true }))) return;
       if (!mounted.current || !alive() || invalid.current) return;
-      if (action === 'finish') await POST(`/outbox/${encodeURIComponent(id)}/gateway-finish`, { revision: snapshot.revision, acknowledgeNoSend: true });
+      if (action === 'finish') await rpc.outbox.finishDelivery({ params: { id }, body: { revision: snapshot.revision, acknowledgeNoSend: true } });
       else {
         const body = action === 'confirm' ? { action, revision: snapshot.revision, index: Number(selected), remoteId: remoteId.trim(), acknowledgeChecked: true }
           : { action, revision: snapshot.revision, index: snapshot.nextIndex, acknowledgeRemaining: true, ...(next && next.attempts > 0 ? { acknowledgePossibleDuplicate: true } : {}) };
-        const value = await POST<GatewayOutboxDeliveryReview>(action === 'prepare' ? `${root}/prepare` : root, action === 'prepare' ? snapshot.removed ? { revision: snapshot.revision } : undefined : body);
+        const value = action === 'prepare' ? await rpc.outbox.prepareDelivery({ params: { id }, body: snapshot.removed ? { revision: snapshot.revision } : undefined }) : await rpc.outbox.reviewDelivery({ params: { id }, body });
         if (mounted.current) setPreview(value);
       }
       if (mounted.current) {

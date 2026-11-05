@@ -8,21 +8,13 @@ import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, run, ensureDir, insideRoots } from './util.ts';
 import * as store from './store.ts';
-import { agents, chats, outbox, workflows, bus, getSettings, internalToken, log } from './store.ts';
+import { agents, chats, workflows, bus, getSettings, internalToken, log } from './store.ts';
 import { requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
 import { eveRuntime } from './eve/runtime.ts';
 import { EveOwnershipError } from './eve/ownership.ts';
 import { eveCoordinator } from './eve/coordinator.ts';
-import * as gateways from './gateways/instances.ts';
-import { discordRecovery } from './gateways/discord-recovery.ts';
-import { whatsAppSetup } from './gateways/whatsapp-setup.ts';
 import { gatewaySupervisor } from './gateways/live.ts';
-import { gatewayDeliveryReview, gatewayInboxHistory, gatewayRetiredInboxHistory, gatewayRetiredFinishReview, gatewayRequestReview, gatewayWhatsAppRecovery, gatewayWhatsAppReplacement, gatewayWhatsAppSenders, gatewayWorkReview } from './gateways/inbox.ts';
-import { gatewayRetirement, listGatewayRetirements } from './gateways/retirement.ts';
-import { telegramSetup } from './gateways/telegram-setup.ts';
-import { gatewayOutboxDestinations } from './gateways/outbox-owner.ts';
-import { readGatewayPostDelivery } from './gateways/outbox-posts.ts';
 import * as tools from './tools.ts';
 import { inlineToolImagesNoted, withImageNote } from './toolimages.ts';
 import * as programs from './programs.ts';
@@ -36,7 +28,6 @@ import { taskFilePath } from './boardfiles.ts';
 import * as wfs from './workflows.ts';
 import * as worldLook from './voxel/look.ts';
 import * as terms from './terminals.ts';
-import * as brain from './brain.ts';
 import * as irc from './irc.ts';
 import * as projects from './projects.ts';
 import * as teams from './teams.ts';
@@ -98,8 +89,6 @@ const get = <B = Body>(p: string, h: Handler<B>) => route('GET', p, h);
 const post = <B = Body>(p: string, h: Handler<B>) => route('POST', p, h);
 /** A POST whose body is a file, e.g. a backup: the handler gets the path of a temporary copy (removed afterwards). */
 const postFile = (p: string, h: Handler<string>) => route('POST', p, h, true);
-const put = <B = Body>(p: string, h: Handler<B>) => route('PUT', p, h);
-const del = <B = Body>(p: string, h: Handler<B>) => route('DELETE', p, h);
 
 // The routes an Overview pane uses for a project that isn't open (/api/p/<projectId>/…): an agent's chats and its
 // details, a team's thread, a chat's tasks, the questions its agents ask, the Brain's chat, MEMORY.md and its
@@ -300,131 +289,7 @@ function sendPdf(res: http.ServerResponse, p: string) {
 }
 
 // ---------- MCP servers, and setting up Codex, Hermes, pi and OpenClaw: server/api/mcp.ts ----------
-
-// ---------- gateways ----------
-get('/api/gateways', async () => ({
-  instances: gateways.listGatewayInstances().map((instance) => ({ ...instance, targetName: gateways.gatewayTargetName(instance), credentials: gateways.gatewayCredentialStatus(instance.id) })),
-  health: gatewaySupervisor.health(),
-}));
-post<unknown>('/api/gateways', async (_p, body) => gateways.saveGatewayInstance(body));
-get('/api/gateways/retired', async () => ({ instances: listGatewayRetirements() }));
-get('/api/gateways/retired/:id/inbox', async ({ id }) => ({ events: gatewayRetiredInboxHistory(id) }));
-get('/api/gateways/retired/:id/inbox/:eventId/local-finish', async ({ id, eventId }) => gatewayRetiredFinishReview(id, eventId));
-post<unknown>('/api/gateways/retired/:id/inbox/:eventId/local-finish/prepare', async ({ id, eventId }, body) => gatewaySupervisor.prepareRetiredFinish(id, eventId, body));
-post<unknown>('/api/gateways/retired/:id/inbox/:eventId/local-finish', async ({ id, eventId }, body) => gatewaySupervisor.finishRetired(id, eventId, body));
-get('/api/gateways/targets/:projectId', async ({ projectId }) => gateways.gatewayTargets(projectId));
-get('/api/gateways/:id/inbox', async ({ id }) => ({ events: gatewayInboxHistory(id) }));
-get('/api/gateways/:id/inbox/:eventId/review', async ({ id, eventId }) => gatewayRequestReview(id, eventId));
-get('/api/gateways/:id/inbox/:eventId/work-review', async ({ id, eventId }) => gatewayWorkReview(id, eventId));
-post('/api/gateways/:id/inbox/:eventId/work-review/prepare', async ({ id, eventId }) => gatewaySupervisor.prepareWorkReview(id, eventId));
-post<unknown>('/api/gateways/:id/inbox/:eventId/work-review/keep', async ({ id, eventId }, body) => gatewaySupervisor.keepWork(id, eventId, body));
-get('/api/gateways/:id/inbox/:eventId/delivery-review', async ({ id, eventId }) => gatewayDeliveryReview(id, eventId));
-post('/api/gateways/:id/inbox/:eventId/delivery-review/prepare', async ({ id, eventId }) => gatewaySupervisor.prepareDeliveryReview(id, eventId));
-post<unknown>('/api/gateways/:id/inbox/:eventId/delivery-review', async ({ id, eventId }, body) => gatewaySupervisor.reviewDelivery(id, eventId, body));
-post<unknown>('/api/gateways/:id/inbox/:eventId/dismiss', async ({ id, eventId }, body) => {
-  await gatewaySupervisor.dismissRequest(id, eventId, body); return { ok: true };
-});
-get('/api/gateways/:id/discord-recovery', async ({ id }) => discordRecovery(id));
-get('/api/gateways/:id/telegram-setup', async ({ id }) => telegramSetup(id));
-post('/api/gateways/:id/telegram-setup/check', async ({ id }) => gatewaySupervisor.checkTelegramSetup(id));
-post<unknown>('/api/gateways/:id/telegram-setup/switch', async ({ id }, body) => gatewaySupervisor.switchTelegramToPolling(id, body));
-get('/api/gateways/:id/whatsapp-setup', async ({ id }) => whatsAppSetup(id));
-post('/api/gateways/:id/whatsapp-setup/check', async ({ id }) => gatewaySupervisor.checkWhatsAppSetup(id));
-get('/api/gateways/:id/whatsapp-recovery', async ({ id }) => gatewayWhatsAppRecovery(id));
-get('/api/gateways/:id/whatsapp-replacement', async ({ id }) => gatewayWhatsAppReplacement(id));
-get('/api/gateways/:id/whatsapp-senders', async ({ id }) => gatewayWhatsAppSenders(id));
-post<unknown>('/api/gateways/:id/whatsapp-senders/review', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppSender(id, body));
-post('/api/gateways/:id/whatsapp-recovery/inspect', async ({ id }) => gatewaySupervisor.inspectWhatsAppRecovery(id));
-post<unknown>('/api/gateways/:id/whatsapp-recovery', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppRecovery(id, body));
-post<unknown>('/api/gateways/:id/whatsapp-recovery/restore', async ({ id }, body) => gatewaySupervisor.restoreWhatsAppRecovery(id, body));
-post<unknown>('/api/gateways/:id/whatsapp-pairing', async ({ id }, body) => gatewaySupervisor.pairWhatsApp(id, body));
-post<unknown>('/api/gateways/:id/whatsapp-pairing/replace', async ({ id }, body) => gatewaySupervisor.replaceWhatsAppPairing(id, body));
-post<unknown>('/api/gateways/:id/whatsapp-pairing/finish', async ({ id }, body) => gatewaySupervisor.finishWhatsAppPairing(id, body));
-post<unknown>('/api/gateways/:id/whatsapp-pairing/review', async ({ id }, body) => gatewaySupervisor.reviewWhatsAppPairing(id, body));
-post<unknown>('/api/gateways/:id/discord-recovery', async ({ id }, body) => {
-  await gatewaySupervisor.reviewDiscordRecovery(id, body);
-  return { gap: null };
-});
-post<unknown>('/api/gateways/:id/inbox/cleanup', async ({ id }, body) => gatewaySupervisor.cleanup(id, body));
-put<unknown>('/api/gateways/:id', async ({ id }, body) => gateways.saveGatewayInstance(body, id));
-put<unknown>('/api/gateways/:id/credentials', async ({ id }, body) => {
-  gateways.saveGatewayCredentials(id, body);
-  return gateways.gatewayCredentialStatus(id);
-});
-post<unknown>('/api/gateways/:id/credentials', async ({ id }, body) => {
-  gateways.updateGatewayCredentials(id, body);
-  return gateways.gatewayCredentialStatus(id);
-});
-post('/api/gateways/:id/reconnect', async ({ id }) => {
-  gateways.getGatewayInstance(id);
-  await gatewaySupervisor.reconnect(id);
-  return { ok: true };
-});
-post('/api/gateways/:id/inbox/:eventId/retry-files', async ({ id, eventId }) => {
-  gatewaySupervisor.retryFiles(id, eventId);
-  return { ok: true };
-});
-post('/api/gateways/:id/inbox/:eventId/retry-reply', async ({ id, eventId }) => {
-  gatewaySupervisor.retryReply(id, eventId);
-  return { ok: true };
-});
-post('/api/gateways/:id/inbox/:eventId/reconcile', async ({ id, eventId }) => gatewaySupervisor.reconcile(id, eventId));
-post<unknown>('/api/gateways/:id/inbox/:eventId/group-album', async ({ id, eventId }, body) => gatewaySupervisor.groupAlbum(id, eventId, body));
-post<unknown>('/api/gateways/:id/inbox/:eventId/files', async ({ id, eventId }, body) => {
-  await gatewaySupervisor.selectDocuments(id, eventId, body);
-  return { ok: true };
-});
-post('/api/gateways/:id/inbox/:eventId/files/:index/retry', async ({ id, eventId, index }) => {
-  gatewaySupervisor.changeDocument(id, eventId, /^\d+$/.test(index) ? Number(index) : -1, 'retry');
-  return { ok: true };
-});
-post('/api/gateways/:id/inbox/:eventId/files/:index/skip', async ({ id, eventId, index }) => {
-  gatewaySupervisor.changeDocument(id, eventId, /^\d+$/.test(index) ? Number(index) : -1, 'skip');
-  return { ok: true };
-});
-del('/api/gateways/:id', async ({ id }) => {
-  await gatewaySupervisor.removeInstance(id);
-  return { ok: true };
-});
-// ---------- settings, keys and accounts: server/api/settings.ts ----------
-post('/api/social/test', async () => { throw new HttpError(400, 'Choose a gateway instance and known conversation in the Outbox, review the test text, then approve it. Old global tokens and webhooks are no longer used.'); });
-
-get('/api/outbox', async () => social.listPosts());
-get('/api/outbox/gateway-destinations', async () => gatewayOutboxDestinations(store.activeProject().id));
-post<Parameters<typeof social.draftPost>[0]>('/api/outbox', async (_p, body) => social.draftPost({ platform: body.platform || 'x', account: body.account, text: body.text, thread: body.thread, images: body.images, to: body.to, gateway: body.gateway, agentName: 'You' }));
-post<unknown>('/api/outbox/:id/gateway-review', async ({ id }, body) => social.prepareGatewayPost(id, body));
-get('/api/outbox/:id/gateway-delivery', async ({ id }) => readGatewayPostDelivery(id));
-post<unknown>('/api/outbox/:id/gateway-delivery/prepare', async ({ id }, body) => {
-  return store.withProject(store.activeProject(), async () => {
-    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
-    if (gatewayRetirement(item.gateway.instanceId)) await gatewaySupervisor.prepareRetiredOutbox(item.gateway.instanceId, store.activeProject().id, item.id, body);
-    else await gatewaySupervisor.prepareOutboxReview(item.gateway.instanceId, store.activeProject().id, item.id);
-    return readGatewayPostDelivery(id);
-  });
-});
-post<unknown>('/api/outbox/:id/gateway-delivery', async ({ id }, body) => {
-  return store.withProject(store.activeProject(), async () => {
-    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
-    await gatewaySupervisor.reviewOutbox(item.gateway.instanceId, store.activeProject().id, item.id, body); return readGatewayPostDelivery(id);
-  });
-});
-post<unknown>('/api/outbox/:id/gateway-finish', async ({ id }, body) => {
-  const project = store.activeProject();
-  return store.withProject(project, async () => {
-    const item = need(outbox.get(id)); if (!item.gateway || !['telegram', 'discord'].includes(item.platform)) throw new HttpError(400, 'Choose a saved gateway Outbox delivery.');
-    if (gatewayRetirement(item.gateway.instanceId)) await gatewaySupervisor.finishRetiredOutbox(item.gateway.instanceId, project.id, item.id, body);
-    else await gatewaySupervisor.finishOutbox(item.gateway.instanceId, project.id, item.id, body);
-    return social.listPosts().find((post) => post.id === id);
-  });
-});
-post<Parameters<typeof social.approvePost>[1]>('/api/outbox/:id/approve', async ({ id }, body) => social.approvePost(id, body));
-post<{ text?: string }>('/api/outbox/:id/discuss', async ({ id }, body) => social.returnPost(id, String(body.text || ''), (teamId, text) => teams.postUserMessage(teamId, text, { route: brain.pickMember })));
-post<{ reason?: string }>('/api/outbox/:id/reject', async ({ id }, body) => social.rejectPost(id, body.reason));
-put<Parameters<typeof social.editPost>[1]>('/api/outbox/:id', async ({ id }, body) => social.editPost(id, body));
-del('/api/outbox/:id', async ({ id }) => {
-  social.removePost(id);
-  return { ok: true };
-});
+// ---------- gateways and the Outbox: server/api/gateways.ts, outbox.ts ----------
 
 // ---------- teams: server/api/workflows.ts (making, changing, running) and server/api/teams.ts (their chats) ----------
 // the picture or 3D model in the middle of a team's pod, instead of its emoji

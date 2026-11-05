@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GET, POST, confirmBox } from '../core.ts';
+import { confirmBox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
@@ -9,15 +10,15 @@ import type { GatewayInstance, GatewayWhatsAppSenders } from '../../shared/types
 export function WhatsAppSendersView({ instance, close, edit, changed }: {
   instance: GatewayInstance; close: () => void; edit: () => void; changed: () => Promise<void>;
 }) {
-  const root = `/gateways/${encodeURIComponent(instance.id)}`;
+  const id = instance.id;
   const [preview, setPreview] = useState<GatewayWhatsAppSenders | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [saved, setSaved] = useState(false);
   const mounted = useRef(false); const request = useRef(0); const active = useRef(false);
   const load = useCallback(async (clearError = true) => {
     const version = ++request.current;
     if (clearError) { setError(''); setSaved(false); }
-    try { const value = await GET<GatewayWhatsAppSenders>(`${root}/whatsapp-senders`); if (mounted.current && version === request.current) setPreview(value); }
+    try { const value = await rpc.gateways.whatsapp.senders({ id }); if (mounted.current && version === request.current) setPreview(value); }
     catch (failure) { if (mounted.current && version === request.current) { setPreview(null); setError(failure instanceof Error ? failure.message : 'Sender records could not load. Reload before reviewing them.'); } }
-  }, [root]);
+  }, [id]);
   useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; request.current++; }; }, [load, instance.enabled]);
   useServerEvents((event) => { if ((event.type === 'gateways' && event.id === instance.id) || (event.type === 'gateway-inbox' && event.instanceId === instance.id)) void load(false); });
   const review = async (sender: GatewayWhatsAppSenders['senders'][number]) => {
@@ -25,7 +26,7 @@ export function WhatsAppSendersView({ instance, close, edit, changed }: {
     active.current = true; setBusy(true); setError(''); setSaved(false);
     try {
       if (!await confirmBox(`Start a fresh conversation for ${sender.phone} after this verified identity change? Earlier requests, files and delivery receipts stay held. Native agents keep their controls in Athena. Ask this person to message again after the review. This instance stays paused.`, { ok: 'Review sender' }) || !mounted.current) return;
-      await POST(`${root}/whatsapp-senders/review`, { phone: sender.phone, revision: sender.revision, acknowledgeNewConversation: true });
+      await rpc.gateways.whatsapp.reviewSender({ params: { id }, body: { phone: sender.phone, revision: sender.revision, acknowledgeNewConversation: true } });
       if (mounted.current) { setSaved(true); await changed(); }
     } catch (failure) { if (mounted.current) setError(failure instanceof Error ? failure.message : 'The sender review could not save. Reload its current signed proof.'); }
     finally { if (mounted.current) await load(false); if (mounted.current) setBusy(false); active.current = false; }

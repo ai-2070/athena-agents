@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GET, connectEvents } from '../../web/core.ts';
+import { api, connectEvents } from '../../web/core.ts';
 import { projectList } from '../../web/projectlist.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -41,7 +41,7 @@ afterEach(() => {
 
 describe('projectList()', () => {
   it('asks once per project for every pane, once more for a change, and draws only that project\'s panes', async () => {
-    const things = projectList<{ id: string }>((at) => GET<{ id: string }[]>(`${at}/things`), ['things']);
+    const things = projectList<{ id: string }>((at) => api<{ id: string }[]>(`${at}/things`), ['things']);
     const draws: Record<string, number> = { p2: 0, p3: 0 };
     function Pane({ id }: { id: string }) {
       const list = things.use(id);
@@ -70,7 +70,7 @@ describe('projectList()', () => {
   });
 
   it('stops listening once no pane shows the project', async () => {
-    const things = projectList<{ id: string }>((at) => GET<{ id: string }[]>(`${at}/things`), ['things']);
+    const things = projectList<{ id: string }>((at) => api<{ id: string }[]>(`${at}/things`), ['things']);
     function Pane() {
       things.use('p2');
       return null;

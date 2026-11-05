@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GET, POST, confirmBox } from '../core.ts';
+import { confirmBox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Button } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { PanelNote, Row, Section } from '../ui/controls.tsx';
@@ -14,15 +15,15 @@ const labels = { pending: 'Waiting', sending: 'Interrupted send', sent: 'Sent', 
 export function GatewayDeliveryReviewView({ instance, eventId, close, changed }: {
   instance: GatewayInstance; eventId: string; close: () => void; changed: () => Promise<void>;
 }) {
-  const root = `/gateways/${encodeURIComponent(instance.id)}/inbox/${encodeURIComponent(eventId)}/delivery-review`;
+  const at = { id: instance.id, eventId };
   const [preview, setPreview] = useState<GatewayDeliveryReview | null>(null); const [error, setError] = useState('');
   const [busy, setBusy] = useState(false); const [saved, setSaved] = useState(''); const [selected, setSelected] = useState(''); const [remoteId, setRemoteId] = useState('');
   const mounted = useRef(false); const request = useRef(0); const active = useRef(false);
   const load = useCallback(async (clear = true) => {
     const version = ++request.current; if (clear) { setError(''); setSaved(''); }
-    try { const value = await GET<GatewayDeliveryReview>(root); if (mounted.current && request.current === version) setPreview(value); }
+    try { const value = await rpc.gateways.inbox.deliveryReview(at); if (mounted.current && request.current === version) setPreview(value); }
     catch (failure) { if (mounted.current && request.current === version) { setPreview(null); setError(failure instanceof Error ? failure.message : 'Delivery receipts could not load. Reload before reviewing them.'); } }
-  }, [root]);
+  }, [instance.id, eventId]);
   useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; request.current++; }; }, [load, instance.enabled]);
   useServerEvents((event) => { if ((event.type === 'gateways' && event.id === instance.id) || (event.type === 'gateway-inbox' && event.instanceId === instance.id)) void load(false); });
   const options = preview?.items.filter((item) => item.canConfirm).map((item) => ({ value: targetKey(item.target), label: item.label })) ?? [];
@@ -38,7 +39,7 @@ export function GatewayDeliveryReviewView({ instance, eventId, close, changed }:
       if (!mounted.current) return;
       const body = action === 'confirm' ? { action, revision: preview.revision, target: item!.target, remoteId: remoteId.trim(), acknowledgeChecked: true }
         : { action, revision: preview.revision, acknowledgeNoSend: true };
-      const value = await POST<GatewayDeliveryReview>(action === 'prepare' ? `${root}/prepare` : root, action === 'prepare' ? undefined : body);
+      const value = action === 'prepare' ? await rpc.gateways.inbox.prepareDeliveryReview(at) : await rpc.gateways.inbox.reviewDelivery({ params: at, body });
       if (mounted.current) { setPreview(value); setRemoteId(''); setSaved(action === 'prepare' ? 'Interrupted sends are now uncertain. Check the messaging app before recording a result.' : action === 'confirm' ? 'Your delivery confirmation was saved. Other parts keep their own receipts.' : 'Delivery finished locally. This receipt will send nothing further.'); await changed(); }
     } catch (failure) { if (mounted.current) setError(failure instanceof Error ? failure.message : 'The review could not save. Reload its current receipts.'); }
     finally { if (mounted.current) { await load(false); setBusy(false); } active.current = false; }

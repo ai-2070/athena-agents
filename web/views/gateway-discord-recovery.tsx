@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GET, POST, PUT, confirmBox } from '../core.ts';
+import { confirmBox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Button } from '../ui/button.tsx';
 import { PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
 import type { GatewayDiscordRecovery, GatewayInstance } from '../../shared/types.ts';
@@ -11,7 +12,7 @@ export function DiscordRecoveryView({ instance, close, changed }: { instance: Ga
   const load = useCallback(async () => {
     const version = ++request.current; setPreview(null); setError('');
     try {
-      const result = await GET<GatewayDiscordRecovery>(`/gateways/${instance.id}/discord-recovery`);
+      const result = await rpc.gateways.discord.recovery({ id: instance.id });
       if (mounted.current && version === request.current) setPreview(result);
     } catch { if (mounted.current && version === request.current) setError('The recovery record could not load. Reload it before continuing.'); }
   }, [instance.id]);
@@ -27,11 +28,11 @@ export function DiscordRecoveryView({ instance, close, changed }: { instance: Ga
     {!preview ? !error && <Row title="Loading recovery record…" /> : preview.gap ? <>
       <Row title="Discord could not resume this connection" description={`Recorded ${new Date(preview.gap.at).toLocaleString()}. Check Discord for messages Athena may have missed.`} />
       <PanelNote>Allowing a new session accepts that those missing messages will not be recovered automatically. Saved Athena work, replies and file receipts stay in place. Pause the instance first; it will stay paused after this review.</PanelNote>
-      <RowActions>{instance.enabled ? <Button disabled={busy} onClick={() => void run(() => PUT(`/gateways/${instance.id}`, { name: instance.name, platform: instance.platform, accountId: instance.accountId, projectId: instance.projectId, target: instance.target, senderPolicy: instance.senderPolicy, scope: instance.scope, fileLimits: instance.fileLimits, enabled: false }))}>Pause instance</Button>
+      <RowActions>{instance.enabled ? <Button disabled={busy} onClick={() => void run(() => rpc.gateways.change({ params: { id: instance.id }, body: { name: instance.name, platform: instance.platform, accountId: instance.accountId, projectId: instance.projectId, target: instance.target, senderPolicy: instance.senderPolicy, scope: instance.scope, fileLimits: instance.fileLimits, enabled: false } }))}>Pause instance</Button>
         : <Button disabled={busy} onClick={() => void (async () => {
           const gap = preview.gap!;
           if (!await confirmBox('Allow a new Discord session? Messages that Discord could not replay will stay missing. Existing Athena work and delivery receipts will be kept. This instance will stay paused until you enable it.', { ok: 'Allow new session' })) return;
-          await run(() => POST(`/gateways/${instance.id}/discord-recovery`, { revision: gap.revision, acknowledgeGap: true }));
+          await run(() => rpc.gateways.discord.reviewRecovery({ params: { id: instance.id }, body: { revision: gap.revision, acknowledgeGap: true } }));
         })()}>Allow new session</Button>}</RowActions>
     </> : <Row title="No recovery gap is waiting" description="Enable the instance from the list when you are ready to connect. Saved work and delivery receipts are unchanged." />}
     <RowActions><Button variant="ghost" disabled={busy} onClick={close}>Close recovery</Button></RowActions>

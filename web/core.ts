@@ -13,7 +13,7 @@ import { slideSegment } from './segmotion.ts';
 
 // ---------- API ----------
 // Requests live in web/client/; pages keep importing them from here.
-export { api, GET, POST, PUT, DEL } from './client/http.ts';
+export { api } from './client/http.ts';
 export type { ApiOptions } from './client/http.ts';
 
 // Run an action, show errors as toasts. Returns the result or undefined.

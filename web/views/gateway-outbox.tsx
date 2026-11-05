@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { GET, POST, PUT, ago, confirmBox, toast } from '../core.ts';
+import { ago, confirmBox, toast } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { Plate } from '../ui/surface.tsx';
@@ -22,7 +23,7 @@ export function GatewayCompose({ added }: { added: () => void }) {
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const save = async () => {
     if (active.current) return; active.current = true; setBusy(true); setError('');
-    try { await POST('/outbox', { platform, text }); if (mounted.current) { setText(''); setOpen(false); added(); } }
+    try { await rpc.outbox.draft({ platform, text }); if (mounted.current) { setText(''); setOpen(false); added(); } }
     catch (failure) { if (mounted.current) setError(problem(failure)); }
     finally { active.current = false; if (mounted.current) setBusy(false); }
   };
@@ -43,7 +44,7 @@ function SendReview({ id, preview, close, changed, alive }: { id: string; previe
   const approve = async () => {
     if (active.current || !mounted.current || !alive() || !checked || stale) return; active.current = true; setBusy(true); setError('');
     try {
-      await POST(`/outbox/${encodeURIComponent(id)}/approve`, { gatewayApproval: preview.approval, draftRevision: preview.draftRevision });
+      await rpc.outbox.approve({ id, gatewayApproval: preview.approval, draftRevision: preview.draftRevision });
       if (mounted.current) { toast('Approved. Follow delivery progress in Outbox.'); changed(); close(); }
     } catch (failure) { if (mounted.current) { setError(problem(failure)); setStale(true); changed(); } }
     finally { active.current = false; if (mounted.current) setBusy(false); }
@@ -71,7 +72,7 @@ export function GatewayOutboxCard({ p, changed }: { p: OutboxPost; changed: () =
   useEffect(() => { if (!edited.current) { setParts(p.parts); setGateway(p.gateway); setBaseline(p.gatewayDraftRevision); } }, [p.gatewayDraftRevision, p.parts, p.gateway]);
   const loadChoices = async () => {
     const version = ++loadId.current; setChoicesError('');
-    try { const value = await GET<GatewayOutboxDestination[]>('/outbox/gateway-destinations'); if (mounted.current && version === loadId.current) setChoices(value.filter((item) => item.recipient.platform === p.platform)); }
+    try { const value = await rpc.outbox.destinations(); if (mounted.current && version === loadId.current) setChoices(value.filter((item) => item.recipient.platform === p.platform)); }
     catch (failure) { if (mounted.current && version === loadId.current) { setChoices(null); setChoicesError(problem(failure)); } }
   };
   useEffect(() => { if (editable) void loadChoices(); }, [editable, p.platform]);
@@ -79,18 +80,18 @@ export function GatewayOutboxCard({ p, changed }: { p: OutboxPost; changed: () =
   const act = async (action: 'review' | 'save' | 'reject' | 'finish' | 'return') => {
     if (active.current) return; active.current = true; setBusy(true); setError('');
     try {
-      const root = `/outbox/${encodeURIComponent(p.id)}`;
+      const id = p.id;
       if (action === 'finish') {
         if (!progress?.reviewRevision || !await confirmBox(`Finish delivery locally for ${progress.recipient?.instanceName || p.accountLabel || platformName(p.platform)}, conversation ${progress.recipient?.conversationId || ''}? Confirmed parts stay confirmed. The remaining parts will never send from this post. Uncertain parts may already have arrived; check the messaging app before creating a new draft. This cannot be undone.`, { ok: 'Finish locally', danger: true })) return;
         if (!mounted.current) return;
-        await POST(`${root}/gateway-finish`, { revision: progress.reviewRevision, acknowledgeNoSend: true });
-      } else if (action === 'reject') await POST(`${root}/reject`, {});
-      else if (action === 'return') await POST(`${root}/discuss`, { text: feedback });
+        await rpc.outbox.finishDelivery({ params: { id }, body: { revision: progress.reviewRevision, acknowledgeNoSend: true } });
+      } else if (action === 'reject') await rpc.outbox.reject({ id });
+      else if (action === 'return') await rpc.outbox.discuss({ id, text: feedback });
       else {
         const body = { gateway, parts, draftRevision: baseline };
-        if (action === 'save') await PUT(root, body);
+        if (action === 'save') await rpc.outbox.edit({ id, ...body });
         else {
-          const preview = await POST<GatewayOutboxPostPreview>(`${root}/gateway-review`, body);
+          const preview = await rpc.outbox.gatewayReview({ params: { id }, body });
           if (!mounted.current) return;
           setParts(preview.approval.parts); setGateway({ instanceId: preview.approval.instanceId, eventId: preview.approval.eventId }); setBaseline(preview.draftRevision);
           dialog.current = openModal('Review gateway message', (close) => <SendReview id={p.id} preview={preview} close={close} changed={changed} alive={() => mounted.current} />);

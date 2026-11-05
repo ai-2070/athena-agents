@@ -20,6 +20,8 @@ import { engines, mcp } from './mcp.ts';
 import { comfyui, programs } from './programs.ts';
 import { assist } from './assist.ts';
 import { world, worlds } from './world.ts';
+import { gateways } from './gateways.ts';
+import { outbox } from './outbox.ts';
 import { artifacts, backups, files, layout, memory, terminals, uploads } from './files.ts';
 
-export const contract = { agents, brain, projects, taskBoard, teams, workflows, questions, approvals, tasks, routines, runs, skills, versions, library, presets, status, settings, accounts, mcp, engines, programs, comfyui, assist, files, uploads, memory, artifacts, backups, layout, terminals, world, worlds };
+export const contract = { agents, brain, projects, taskBoard, teams, workflows, questions, approvals, tasks, routines, runs, skills, versions, library, presets, status, settings, accounts, mcp, engines, programs, comfyui, assist, files, uploads, memory, artifacts, backups, layout, terminals, world, worlds, gateways, outbox };
