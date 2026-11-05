@@ -1,0 +1,23 @@
+AGENTS.md
+  s_558b1de395d1d9::t_60056994fae0b4 39-40,51,74-76
+docs/internal/plans/ORPC_PLAN.md
+  s_558b1de395d1d9::t_482f8b20c1454a 3-4
+  s_558b1de395d1d9::t_60056994fae0b4 247-267,269
+  s_558b1de395d1d9::t_87aa035b41d3d3 268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "71564ffe7d505a0e7b2f0ec7a0c45af9906e1329",
+  "prompts": {},
+  "sessions": {
+    "s_558b1de395d1d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bb40eb4-bbfd-4a59-a58a-1ffe1d09179b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
