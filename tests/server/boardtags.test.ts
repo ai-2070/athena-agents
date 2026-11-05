@@ -132,7 +132,7 @@ describe('tags on the Tasks board', () => {
     expect(boardTask(copy.id, t.id).tagList).toEqual([expect.objectContaining({ name: 'Bug', emoji: '🐛' })]);
 
     const restored = restoredBoard({
-      tasks: [{ id: 'x1', title: 'One', tags: ['good', 'gone', 'good', 7] }],
+      tasks: [{ id: 'x1', title: 'One', tags: ['good', 'gone', 'good', 7] }, { id: 'x2', title: 'Two', tags: ['same', 'split', 'good'] }],
       tags: [
         { id: 'good', name: 'Good', emoji: '✅', createdBy: 'brain', createdAt: 5 },
         { id: 'good', name: 'Twin id' },
@@ -149,6 +149,8 @@ describe('tags on the Tasks board', () => {
       { id: 'split', name: 'Hot', emoji: '🔥', createdBy: 'you', createdAt: expect.any(Number) },
     ]);
     expect(restored.tasks[0].tags).toEqual(['good']);
+    // a second tag with a name already kept is merged into it: its tasks keep the tag
+    expect(restored.tasks[1].tags).toEqual(['good', 'split']);
   });
 });
 
@@ -215,11 +217,17 @@ describe('the Brain and board tags', () => {
     const own = { conversationId: `board-${mine.id}` };
     expect(applyActions([{ do: 'board_update', task: '#1', addTags: ['🔥 Hot'] }], p, own).done[0]).toMatchObject({ kind: 'board' });
     expect(boardTask(p.id, mine.id).tagList.map(tagNames)).toEqual(['Ops', '🔥 Hot']);
-    for (const conversationId of [own.conversationId, 'gateway-binding-1']) {
-      expect(applyActions([{ do: 'board_tag', name: 'Ops', remove: true }], p, { conversationId }).done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('can\'t be changed in this conversation') });
+    // there it may make a tag (as a new name in board_update does), but not change or delete one: other tasks have them
+    expect(applyActions([{ do: 'board_tag', name: 'Perf', emoji: '⚡' }], p, own).done[0]).toMatchObject({ kind: 'board', text: 'Made tag ⚡ Perf' });
+    for (const act of [{ do: 'board_tag', name: 'Ops', remove: true }, { do: 'board_tag', name: 'Ops', rename: 'Operations' }, { do: 'board_tag', name: 'Ops', emoji: '⚙️' }]) {
+      expect(applyActions([act], p, own).done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('not changed or deleted') });
+    }
+    // a gateway conversation can't touch tags at all
+    for (const act of [{ do: 'board_tag', name: 'Ops', remove: true }, { do: 'board_tag', name: 'New one' }]) {
+      expect(applyActions([act], p, { conversationId: 'gateway-binding-1' }).done[0]).toMatchObject({ kind: 'error', text: expect.stringContaining('can\'t be changed in this conversation') });
     }
     expect(applyActions([{ do: 'board_update', task: '#1', addTags: ['Sneaky'] }], p, { conversationId: 'gateway-binding-1' }).done[0]).toMatchObject({ kind: 'error' });
-    expect(boardTags(p.id).map((x) => x.name)).toEqual(['Hot', 'Ops']);
+    expect(boardTags(p.id).map(tagNames)).toEqual(['🔥 Hot', 'Ops', '⚡ Perf']);
   });
 });
 

@@ -1395,16 +1395,23 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
         continue;
       }
       if (kind === 'board_tag') {
-        // a tag changes every task that has it: not from a private conversation
-        if (conversationId !== undefined) throw new Error('The Tasks board\'s tags can\'t be changed in this conversation.');
+        // A tag changes every task that has it: a task's own conversation may only make one (as board_update's new
+        // names do there), and a gateway conversation can't touch tags at all.
+        const ownTask = conversationId !== undefined && /^board-[\w.-]+$/.test(conversationId);
+        if (conversationId !== undefined && !ownTask) throw new Error('The Tasks board\'s tags can\'t be changed in this conversation.');
+        const mayChange = () => {
+          if (ownTask) throw new Error('In a task\'s own conversation, tags can be made and put on the task, not changed or deleted (other tasks have them too).');
+        };
         if (typeof act.name !== 'string' || !act.name.trim()) throw new Error('say which tag (name)');
         const had = findBoardTag(p.id, act.name);
         if (act.remove === true) {
           if (!had) throw new Error(`no tag "${act.name.trim()}" on the board`);
+          mayChange();
           const gone = removeBoardTag(p.id, had.id);
           done.push({ kind: 'board', text: `Deleted tag ${tagLabel(gone.tag)}${gone.tasks ? ` (it came off ${gone.tasks} task${gone.tasks === 1 ? '' : 's'})` : ''}` });
         } else if (had) {
           if (act.rename === undefined && act.emoji === undefined) throw new Error(`tag ${tagLabel(had)} is there already: say what changes (rename, emoji)`);
+          mayChange();
           const t = changeBoardTag(p.id, had.id, { name: act.rename, emoji: act.emoji });
           done.push({ kind: 'board', text: `Changed tag ${tagLabel(had)}: now ${tagLabel(t)}` });
         } else {

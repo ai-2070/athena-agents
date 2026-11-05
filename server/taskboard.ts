@@ -523,8 +523,7 @@ export function removeBoardTask(projectId: string, id: string): void {
 /** A saved copy of a project's board (its folder save, a backup): well-formed tasks only. */
 export function restoredBoard(raw: unknown): BoardFile {
   const values: unknown[] = object(raw) && Array.isArray(raw.tasks) ? raw.tasks : [];
-  const tags = restoredTags(object(raw) ? raw.tags : undefined);
-  const tagIdsKept = new Set(tags.map((x) => x.id));
+  const { tags, same } = restoredTags(object(raw) ? raw.tags : undefined);
   const tasks: ProjectTask[] = [];
   const seen = new Set<string>();
   for (const v of values) {
@@ -549,7 +548,7 @@ export function restoredBoard(raw: unknown): BoardFile {
       ...(s === 'done' ? { doneAt: num(v.doneAt, num(v.updatedAt, Date.now())) } : {}),
       ...(files.length ? { files } : {}),
       ...(() => {
-        const kept = Array.isArray(v.tags) ? [...new Set(v.tags.filter((x): x is string => typeof x === 'string' && tagIdsKept.has(x)))].slice(0, TAGS_PER_TASK) : [];
+        const kept = Array.isArray(v.tags) ? [...new Set(v.tags.flatMap((x) => (typeof x === 'string' && same.get(x)) || []))].slice(0, TAGS_PER_TASK) : [];
         return kept.length ? { tags: kept } : {};
       })(),
       // (work isn't kept: its runs and threads belong to the copy it was saved from)
@@ -561,15 +560,22 @@ export function restoredBoard(raw: unknown): BoardFile {
   return { tasks, next, tags };
 }
 
-/** Tags on a saved copy: a safe id, a name that can be used, one emoji or none; no two with one name. */
-function restoredTags(raw: unknown): BoardTag[] {
-  if (!Array.isArray(raw)) return [];
+/** Tags on a saved copy: a safe id, a name that can be used, one emoji or none; no two with one name. same: the id
+ *  each saved id is kept as (a second tag with a name already kept becomes that one, so its tasks keep the tag). */
+function restoredTags(raw: unknown): { tags: BoardTag[]; same: Map<string, string> } {
   const out: BoardTag[] = [];
-  for (const x of raw) {
-    if (out.length >= TAGS_PER_PROJECT) break;
-    if (!object(x) || typeof x.id !== 'string' || !/^[\w.-]+$/.test(x.id) || typeof x.name !== 'string' || out.some((y) => y.id === x.id)) continue;
+  const same = new Map<string, string>();
+  for (const x of Array.isArray(raw) ? raw : []) {
+    if (!object(x) || typeof x.id !== 'string' || !/^[\w.-]+$/.test(x.id) || typeof x.name !== 'string' || same.has(x.id)) continue;
     const split = splitTag(x.name);
-    if (tagNameProblem(split.name) || out.some((y) => tagKey(y.name) === tagKey(split.name))) continue;
+    if (tagNameProblem(split.name)) continue;
+    const twin = out.find((y) => tagKey(y.name) === tagKey(split.name));
+    if (twin) {
+      same.set(x.id, twin.id);
+      continue;
+    }
+    if (out.length >= TAGS_PER_PROJECT) continue;
+    same.set(x.id, x.id);
     const emoji = typeof x.emoji === 'string' && isEmoji(x.emoji) ? x.emoji : split.emoji;
     out.push({
       id: x.id,
@@ -579,7 +585,7 @@ function restoredTags(raw: unknown): BoardTag[] {
       createdAt: typeof x.createdAt === 'number' && Number.isFinite(x.createdAt) ? x.createdAt : Date.now(),
     });
   }
-  return out;
+  return { tags: out, same };
 }
 
 /** Files on a saved copy: paths inside the uploads folder only (relative, no way out of it). */
