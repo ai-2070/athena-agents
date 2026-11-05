@@ -133,7 +133,24 @@ answer (POST `/api/brain/stream`) stays in `server/index.ts`, like the agent cha
 
 `server/index.ts` is 1,349 lines.
 
-Next: outbox (13).
+### What waits for you, a chat's tasks, routines and runs (2026-11-05)
+
+All 22 routes of five small areas moved: questions agents asked (`/api/questions`), permission requests
+(`/api/approvals`), the step lists agents keep in their chats (`/api/tasks`), routines and their runs (`/api/routines`,
+`/api/routine-runs`) and the agents' runs going now (`/api/runs`).
+
+- **A chat's tasks are still checked by `server/tasks.ts`**, in the words the agents' tools get. The contract only
+  checks the shape; its task list status is one of the statuses (`Invalid task status.`, as before).
+- **`projectList()`** (`web/projectlist.ts`, the lists of a project that isn't open) takes a typed call now, not an
+  address: `projectList((at) => rpcAt(at).agents.list(), ['agents'])`.
+- A missing task or routine says so ("That task is unavailable.", 404) instead of "Not found".
+
+The Outbox waits for the gateways: three of its routes run deliveries through the gateway supervisor in
+`server/index.ts`, and the gateway code checks approvals strictly. Both move together, last.
+
+`server/index.ts` is 1,316 lines.
+
+Next: skills, presets, the agent library and version history.
 
 ## Why
 
