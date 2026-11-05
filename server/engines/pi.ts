@@ -98,7 +98,8 @@ export function piReader(onEvent: (ev: RunEvent) => void, onSession: (id: string
   let cost = 0;
   let context = 0;
   let ended = false;
-  // a message sent while it worked was just read: its answer starts a new block in the chat, so no gap there
+  // a message sent while it worked was just shown as read: its answer starts a new block in the chat, so no
+  // gap there (a user message the chat doesn't show, one an extension added, keeps the gap)
   let afterUser = false;
   const gap = () => {
     if (!afterUser) onEvent({ kind: 'text', text: '\n\n' });
@@ -107,7 +108,6 @@ export function piReader(onEvent: (ev: RunEvent) => void, onSession: (id: string
   const handle = (ev: PiEvent) => {
     const t = ev.type || '';
     if (t === 'session' && ev.id) onSession(ev.id);
-    else if (t === 'message_end' && ev.message?.role === 'user') afterUser = true;
     else if (t === 'message_update') {
       const a = ev.assistantMessageEvent || {};
       if (a.type === 'text_delta' && a.delta) {
@@ -164,6 +164,8 @@ export function piReader(onEvent: (ev: RunEvent) => void, onSession: (id: string
       if (l.startsWith('{')) handle(JSON.parse(l) as PiEvent);
     },
     handle,
+    /** the chat just showed a message it read (a steer item): what it says next starts a new block */
+    steered: () => void (afterUser = true),
     result: () => ({ answer, lastError, model, tokens, cached, cost, context, ended }),
   };
 }
@@ -247,7 +249,7 @@ const DIALOGS = new Set(['select', 'confirm', 'input', 'editor', 'ask']);
 /** Talks their RPC protocol for one run: the prompt, the messages sent while it works (each shown as it reads
  *  it), and closing its input once it has settled (pi: agent_settled; oh-my-pi: its prompt_result or
  *  session_settled). Its other events go to the reader. oh-my-pi names a new session itself: get_state says which. */
-function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: string, reader: ReturnType<typeof piReader>, onEvent: (ev: RunEvent) => void) {
+function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: string, reader: ReturnType<typeof piReader>, onEvent: (ev: RunEvent) => void, signal: AbortSignal) {
   const send = (o: object) => void (child.stdin?.writable && child.stdin.write(`${JSON.stringify(o)}\n`));
   // its own message came by first: the user messages after it are the ones sent while it worked
   let prompted = false;
@@ -257,17 +259,27 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
   let live = false;
   // (pi before 0.99 never says it settled: a run that ended is the end)
   const settles = !(flavor === 'pi' && olderThan(versionOf.get(flavor), '0.99.0'));
-  // messages sent while it works go in as steers, known by their request id
+  // messages sent while it works go in as steers, known by their request id. Until its run has its own message
+  // they wait here: one sent while it starts up would wait in its queue with no run to read it.
+  let held: object[] | null = [];
   const input = inputs.open(runId, {
     take: (m) => {
+      if (signal.aborted) return false;
       const key = `steer-${m.id}`;
-      send({ id: key, type: 'steer', message: withAttachments(m.text, m.attachments || []) });
+      const steer = { id: key, type: 'steer', message: withAttachments(m.text, m.attachments || []) };
+      if (held) held.push(steer);
+      else send(steer);
       return key;
     },
     end: () => child.stdin?.end(),
     onEvent,
   });
   const close = input.close;
+  const shown = (key: string) => {
+    if (!input.unread.has(key)) return;
+    input.read(key);
+    reader.steered();
+  };
   const onLine = (line: string) => {
     if (!line.startsWith('{')) return;
     const ev = JSON.parse(line) as PiEvent & RpcFrame;
@@ -280,20 +292,26 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
       }
       // taken: its run should start now (an older pi doesn't say when it handled one itself, and starts none)
       else if (ev.id === 'prompt' && !started) input.closeIn(SETTLE_WAIT.ms);
-      // a message it didn't take: the dashboard sends it next instead (it is still unread there)
-      if (ev.command === 'steer' && !ev.success && ev.id) input.drop(ev.id);
+      // a message it didn't take: the dashboard sends it next instead (it is still unread there). One an
+      // extension took (pi: handled) never reaches the agent as a message, but it was taken: it shows as read.
+      if (ev.command === 'steer' && ev.id && !ev.success) input.drop(ev.id);
+      else if (ev.command === 'steer' && ev.id && ev.data?.disposition === 'handled') shown(ev.id);
       return;
     }
     if (ev.type === 'extension_ui_request') return void (ev.method && DIALOGS.has(ev.method) && send({ type: 'extension_ui_response', id: ev.id, cancelled: true }));
     if (ev.type === 'message_end' && ev.message?.role === 'user') {
-      reader.handle(ev);
-      if (!prompted) return void (prompted = true);
-      // (in the order they went; one it expanded, a skill command, still reads as the next)
+      if (!prompted) {
+        prompted = true;
+        for (const steer of held || []) send(steer);
+        held = null;
+        return;
+      }
+      // one sent while it worked: by its words, or (the oldest still unread) a command it expanded into other
+      // words (a skill, a prompt template) or files alone. Anything else is no message of ours (an extension's).
       const said = messageText(ev.message);
-      const keys = [...input.unread.keys()];
-      const found = keys.find((k) => !!input.unread.get(k)!.text && said.includes(input.unread.get(k)!.text));
-      const key = found ?? keys[0];
-      if (key) input.read(key);
+      const [first] = input.unread;
+      const mine = [...input.unread].find(([, m]) => !!m.text && said.includes(m.text)) ?? (first && (!first[1].text.trim() || first[1].text.startsWith('/')) ? first : undefined);
+      if (mine) shown(mine[0]);
       return;
     }
     if (ev.type === 'agent_settled' || ev.type === 'session_settled') return close();
@@ -347,7 +365,7 @@ async function run(flavor: PiFlavor, { agent, chat, text, signal, onEvent, syste
   // (pi makes the session with that id even if its first line goes missing)
   if (sessionId) chat.sessionId = sessionId;
   const reader = piReader(onEvent, (id) => (chat.sessionId = id));
-  const rpc = rpcTurn(flavor, child, runId, text, reader, onEvent);
+  const rpc = rpcTurn(flavor, child, runId, text, reader, onEvent, signal);
   try {
     const end = await pipeLines(child, { input: rpc.prompt, keepOpen: true, signal, onLine: rpc.onLine });
     rpc.close();

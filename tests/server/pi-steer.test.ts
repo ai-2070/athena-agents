@@ -158,6 +158,83 @@ describe('steering a pi agent', () => {
     expect(said(chats.get(a.id, chat.id)!)).toEqual(['user: do the long job', 'tool: bash', 'assistant: Done.', 'user: the one it refused', 'assistant: Ran it.']);
   });
 
+  it("a user message that isn't one of ours (an extension's) marks nothing read, and the text around it keeps its gap", async () => {
+    const { a, chat, promise, p } = await start('Injected');
+    p.out(tool('t1'));
+    await steerChat(a, chat, 'also make it blue');
+    await until(() => p.inputs.length === 2);
+    p.out(toolDone('t1'));
+    p.out(says('Done.'));
+    p.out(user('<goal-continuation>keep going</goal-continuation>'));
+    p.out(says('Next.'));
+    for (const e of settled) p.out(e);
+    expect(await promise).toBe('Done.\n\nNext.');
+    // (never read: it goes next, as its own message)
+    await until(() => fake.procs.length === 2 && fake.procs[1]!.inputs.length === 1);
+    expect(fake.procs[1]!.inputs[0]).toMatchObject({ type: 'prompt', message: 'also make it blue' });
+    const q = fake.procs[1]!;
+    q.out(user('also make it blue'));
+    q.out(says('Blue.'));
+    for (const e of settled) q.out(e);
+    await until(() => idle(chat) && said(chats.get(a.id, chat.id)!).length === 5);
+    expect(said(chats.get(a.id, chat.id)!)).toEqual(['user: do the long job', 'tool: bash', 'assistant: Done.\n\nNext.', 'user: also make it blue', 'assistant: Blue.']);
+  });
+
+  it('one a command expanded into other words (a skill) still reads as the next', async () => {
+    const { a, chat, promise, p } = await start('Skill');
+    p.out(tool('t1'));
+    await steerChat(a, chat, '/skill:review the diff');
+    await until(() => p.inputs.length === 2);
+    p.out(toolDone('t1'));
+    p.out(user('<skill name="review">Review it.</skill>\n\nthe diff'));
+    p.out(says('Reviewed.'));
+    for (const e of settled) p.out(e);
+    await promise;
+    await until(() => idle(chat));
+    expect(said(chat)).toEqual(['user: do the long job', 'tool: bash', 'steer: /skill:review the diff', 'assistant: Reviewed.']);
+    expect(fake.procs).toHaveLength(1);
+  });
+
+  it('one an extension takes (handled) shows as read and is never sent again', async () => {
+    const { a, chat, promise, p } = await start('HandledSteer');
+    p.out(tool('t1'));
+    const steered = await steerChat(a, chat, 'note this down');
+    await until(() => p.inputs.length === 2);
+    p.out({ type: 'response', id: `steer-${steered.steerId}`, command: 'steer', success: true, data: { disposition: 'handled' } });
+    await until(() => !queuedMessages(chat.id).length);
+    p.out(toolDone('t1'));
+    p.out(says('Done.'));
+    for (const e of settled) p.out(e);
+    await promise;
+    await until(() => idle(chat));
+    expect(said(chat)).toEqual(['user: do the long job', 'tool: bash', 'steer: note this down', 'assistant: Done.']);
+    expect(fake.procs).toHaveLength(1);
+  });
+
+  it('one sent while it starts up waits until its run has its message, then goes in', async () => {
+    const a = newAgent({ name: 'Early', engine: 'pi', toolGroups: [] });
+    const chat = chats.create(a.id);
+    fake.procs.length = 0;
+    const { runId, promise } = startRun(a, chat, 'do the long job');
+    await until(() => fake.procs[0]?.inputs.length === 1);
+    const p = fake.procs[0]!;
+    const steered = await steerChat(a, chat, 'and be quick');
+    expect(steered.runId).toBe(runId);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(p.inputs).toHaveLength(1);
+    p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true, data: { disposition: 'started' } });
+    p.out({ type: 'agent_start' });
+    p.out(user('do the long job'));
+    await until(() => p.inputs.length === 2);
+    expect(p.inputs[1]).toEqual({ id: `steer-${steered.steerId}`, type: 'steer', message: 'and be quick' });
+    p.out(user('and be quick'));
+    p.out(says('Quick.'));
+    for (const e of settled) p.out(e);
+    await promise;
+    await until(() => idle(chat));
+    expect(said(chat)).toEqual(['user: do the long job', 'steer: and be quick', 'assistant: Quick.']);
+  });
+
   it("an extension's question gets no answer from anyone (as without a screen); its notes are ignored", async () => {
     const { promise, p } = await start('Asked');
     p.out({ type: 'extension_ui_request', id: 'q1', method: 'confirm', title: 'Allow?' });
