@@ -70,9 +70,11 @@ describe('rpc calls', () => {
     expect(e).toMatchObject({ message: 'That thing is gone.', status: 404 });
   });
 
-  it('read the words even when the answer doesn’t say it is JSON', async () => {
+  it('read the answer as JSON even when it doesn’t say it is, as api() does', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'This changed meanwhile.' }), { status: 409 })));
     await expect(rpc.things.remove({ listId: 'l', id: 'x' })).rejects.toMatchObject({ message: 'This changed meanwhile.', status: 409 });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ things: ['a'] }))));
+    expect(await rpc.things.list({ q: '' })).toEqual({ things: ['a'] });
   });
 
   it('work from the routes alone, as the page’s bundle has them (build-web.ts leaves the schemas out)', async () => {

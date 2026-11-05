@@ -10,17 +10,10 @@ import { requestHeaders, serverUrl } from './connection.ts';
 // oRPC builds a full Request for this made-up origin; send() swaps it for the connection's address.
 const ORIGIN = 'http://dashboard.invalid';
 
-/** The server's { error } words when there are some, as api() reads them (JSON whatever the content type). */
+/** The server's { error } words when there are some, as api() reads them. */
 function serverWords(e: ORPCError<string, unknown>): string {
   const data: unknown = e.data;
-  let body = data && typeof data === 'object' && 'body' in data ? data.body : undefined;
-  if (typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch {
-      // (plain text: no words of its own)
-    }
-  }
+  const body = data && typeof data === 'object' && 'body' in data ? data.body : undefined;
   return body && typeof body === 'object' && 'error' in body && typeof body.error === 'string' && body.error ? body.error : e.message;
 }
 
@@ -29,17 +22,28 @@ export function apiError(e: unknown): unknown {
   return e instanceof ORPCError ? Object.assign(new Error(serverWords(e)), { status: e.status }) : e;
 }
 
-// fetch(address, { method, headers, body }) like api(): requests look the same to the server and to tests
+// fetch(address, { method, headers, body }) like api(): requests look the same to the server and to tests.
+// The answer is read like api() reads it too: JSON whatever its content type says.
 async function send(request: Request): Promise<Response> {
   const at = new URL(request.url);
   const type = request.headers.get('content-type') || '';
   const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : type.includes('json') ? await request.text() : await request.blob();
-  return fetch(serverUrl(at.pathname + at.search), {
+  const res = await fetch(serverUrl(at.pathname + at.search), {
     method: request.method,
     headers: Object.fromEntries(request.headers.entries()),
     body: body === '' || (body instanceof Blob && !body.size) ? undefined : body,
     signal: request.signal,
   });
+  if ((res.headers.get('content-type') || '').includes('json')) return res;
+  const text = await res.text();
+  try {
+    JSON.parse(text);
+  } catch {
+    return new Response(text, { status: res.status, statusText: res.statusText, headers: res.headers });
+  }
+  const headers = new Headers(res.headers);
+  headers.set('content-type', 'application/json');
+  return new Response(text, { status: res.status, statusText: res.statusText, headers });
 }
 
 /** A typed client for a contract (the app's is `rpc`). */

@@ -3,7 +3,8 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import type { Project } from '../shared/types.ts';
-import { attempt, POST, PUT, refreshSoon } from './core.ts';
+import { attempt, refreshSoon } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { projectMark } from './projectlogo.ts';
 import { moveId } from './projectnav.ts';
 import { Dropdown, DropdownItem, DropdownSeparator } from './ui/dropdown.tsx';
@@ -65,13 +66,13 @@ function ProjectMenu({ anchor, projects, active, actions, open, close, dispose }
     if (commit && next && next !== p.name) {
       p.name = next;
       setOrdered((current) => [...current]);
-      void attempt(() => PUT(`/projects/${encodeURIComponent(p.id)}`, { name: next }), `Renamed to ${next}`).then(() => refreshSoon(0));
+      void attempt(() => rpc.projects.change({ id: p.id, name: next }), `Renamed to ${next}`).then(() => refreshSoon(0));
     }
   };
   const save = (ids: string[]) => {
     const byId = new Map(ordered.map((p) => [p.id, p]));
     setOrdered(ids.map((id) => byId.get(id)!));
-    void attempt(() => POST('/projects/order', { ids })).then(() => refreshSoon(0));
+    void attempt(() => rpc.projects.reorder({ ids })).then(() => refreshSoon(0));
   };
   const focusItem = (id: string) => setTimeout(() => items.current.get(id)?.focus(), 0);
   return (
@@ -94,7 +95,7 @@ function ProjectMenu({ anchor, projects, active, actions, open, close, dispose }
                   onDragOver={(e) => { if (!dragId.current || dragId.current === p.id) return; e.preventDefault(); const rect = e.currentTarget.getBoundingClientRect(); setMarks({ id: p.id, below: e.clientY > rect.top + rect.height / 2 }); }}
                   onDrop={(e) => { e.preventDefault(); const dragged = dragId.current; dragId.current = ''; setDragging(''); setMarks(null); if (!dragged || dragged === p.id) return; const ids = ordered.map((item) => item.id).filter((id) => id !== dragged); const at = ids.indexOf(p.id) + (marks?.id === p.id && marks.below ? 1 : 0); save([...ids.slice(0, at), dragged, ...ids.slice(at)]); }}
                   onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); e.stopPropagation(); startRename(p); return; } if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return; e.preventDefault(); e.stopPropagation(); const ids = ordered.map((item) => item.id); const i = ids.indexOf(p.id); save(moveId(ids, p.id, e.key === 'ArrowUp' ? i - 1 : i + 1)); focusItem(p.id); }}>
-                  {renaming === p.id ? <div className="proj-rename-row flex min-h-8.75 min-w-0 flex-1 items-center gap-2.5 px-2.5"><span className="w-[13px] flex-none" /><Mark project={p} /><input ref={input} className="h-7 min-w-0 flex-1 px-2 py-0 text-[13.5px] leading-none" value={name} maxLength={80} aria-label={`New name for ${p.name}`} onChange={(e) => setName(e.currentTarget.value)} onBlur={() => finishRename(p, true)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); finishRename(p, e.key === 'Enter'); focusItem(p.id); } }} /></div> : <DropdownItem render={<button type="button" />} nativeButton ref={(el: HTMLElement | null) => { if (el) items.current.set(p.id, el); else items.current.delete(p.id); }} className={`min-w-0 flex-1 ${p.id === active.id ? 'on' : ''}`} title="Drag to change the order (or Alt+Up / Alt+Down)" onClick={() => { close(); if (p.id !== active.id) void attempt(() => POST(`/projects/${p.id}/activate`), `Opened ${p.name}`).then(() => refreshSoon(0)); }}><Icon name="grip-vertical" size={13} className="flex-none cursor-grab text-faint" /><Mark project={p} /><span className="min-w-0 flex-1">{p.name}</span>{p.id === active.id ? <Icon name="check" size={14} /> : null}</DropdownItem>}
+                  {renaming === p.id ? <div className="proj-rename-row flex min-h-8.75 min-w-0 flex-1 items-center gap-2.5 px-2.5"><span className="w-[13px] flex-none" /><Mark project={p} /><input ref={input} className="h-7 min-w-0 flex-1 px-2 py-0 text-[13.5px] leading-none" value={name} maxLength={80} aria-label={`New name for ${p.name}`} onChange={(e) => setName(e.currentTarget.value)} onBlur={() => finishRename(p, true)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); finishRename(p, e.key === 'Enter'); focusItem(p.id); } }} /></div> : <DropdownItem render={<button type="button" />} nativeButton ref={(el: HTMLElement | null) => { if (el) items.current.set(p.id, el); else items.current.delete(p.id); }} className={`min-w-0 flex-1 ${p.id === active.id ? 'on' : ''}`} title="Drag to change the order (or Alt+Up / Alt+Down)" onClick={() => { close(); if (p.id !== active.id) void attempt(() => rpc.projects.activate({ id: p.id }), `Opened ${p.name}`).then(() => refreshSoon(0)); }}><Icon name="grip-vertical" size={13} className="flex-none cursor-grab text-faint" /><Mark project={p} /><span className="min-w-0 flex-1">{p.name}</span>{p.id === active.id ? <Icon name="check" size={14} /> : null}</DropdownItem>}
                   <button type="button" className={RENAME_BTN} title={`Rename ${p.name} (F2)`} aria-label={`Rename ${p.name}`} onClick={() => startRename(p)}><Icon name="pencil" size={13} /></button>
                 </div>
               ))}

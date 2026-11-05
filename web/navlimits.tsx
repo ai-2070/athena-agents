@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { GET, POST, PUT, state, toast } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { Dot } from './ui/marks.tsx';
 import { Button } from './ui/button.tsx';
 import { DomNode } from './ui/react.tsx';
@@ -44,7 +45,7 @@ export function rememberSidebarPanel(p: SidebarPanel): void {
   proj.sidebar = p;
   const listed = state.data?.projects?.find((x) => x.id === proj.id);
   if (listed && listed !== proj) listed.sidebar = p;
-  void PUT(`/projects/${encodeURIComponent(proj.id)}`, { sidebar: p }).catch((e: unknown) => toast((e as Error).message, 'error'));
+  void rpc.projects.change({ id: proj.id, sidebar: p }).catch((e: unknown) => toast((e as Error).message, 'error'));
 }
 
 // Switching Status / Limits: the old lines slide out toward where they sit (Status on the left, Limits on the

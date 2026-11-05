@@ -71,7 +71,7 @@ const PANELS: readonly { id: PanelId; label: string; icon: string }[] = [
 /** Opens a pane's folder in VS Code: an agent's own workspace, or the project folder for a team or a terminal. */
 async function openInVSCode(ref: PaneRef, foreign: boolean): Promise<void> {
   const at = foreign ? projectAt(ref.projectId) : '';
-  const r = await attempt(() => (ref.kind === 'agent' ? POST<{ message?: string }>(`${at}/agents/${encodeURIComponent(ref.id)}/open-workspace`, { app: 'vscode' }) : POST<{ message?: string }>(`/projects/${encodeURIComponent(ref.projectId)}/open`, { app: 'vscode' })));
+  const r = await attempt(() => (ref.kind === 'agent' ? POST<{ message?: string }>(`${at}/agents/${encodeURIComponent(ref.id)}/open-workspace`, { app: 'vscode' }) : rpc.projects.open({ id: ref.projectId, app: 'vscode' })));
   if (r?.message) toast(r.message);
 }
 // what each shortcut key types without modifiers
@@ -569,7 +569,7 @@ function FilesPanel({ projects, active }: { projects: OverviewProject[]; active:
   useEffect(() => {
     let live = true;
     setListing(null);
-    GET<FolderListing>(`/projects/${encodeURIComponent(projectId)}/folder?path=${encodeURIComponent(rel)}`).then((l) => live && (setListing(l), setError('')), (e: unknown) => live && setError(e instanceof Error ? e.message : String(e)));
+    rpc.projects.folder({ id: projectId, path: rel }).then((l) => live && (setListing(l), setError('')), (e: unknown) => live && setError(e instanceof Error ? e.message : String(e)));
     return () => void (live = false);
   }, [projectId, rel]);
   const project = projects.find((p) => p.id === projectId);
@@ -579,7 +579,7 @@ function FilesPanel({ projects, active }: { projects: OverviewProject[]; active:
     window.open(apiUrl(`${projectId === active ? '' : projectAt(projectId)}/file`, { path }), '_blank', 'noopener');
   };
   const openFolder = async (app?: 'vscode') => {
-    const r = await attempt(() => POST<{ message?: string }>(`/projects/${encodeURIComponent(projectId)}/open`, { path: rel, ...(app ? { app } : {}) }));
+    const r = await attempt(() => rpc.projects.open({ id: projectId, path: rel, ...(app ? { app } : {}) }));
     if (r?.message) toast(r.message);
   };
   return (

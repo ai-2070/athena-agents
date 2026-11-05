@@ -5,6 +5,7 @@ import { StrictMode, Suspense, lazy, useEffect, useRef, useState, useSyncExterna
 import type { CSSProperties, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GET, POST, PUT, DEL, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.tsx';
 import { openDock } from '../dock.tsx';
@@ -434,16 +435,18 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
     setEditing(true);
   };
   const save = async () => {
-    if (!proj.id) return;
-    if (await attempt(() => PUT<Project>(`/projects/${proj.id}`, { description: draft }), 'Saved')) {
+    const id = proj.id;
+    if (!id) return;
+    if (await attempt(() => rpc.projects.change({ id, description: draft }), 'Saved')) {
       refreshSoon(0);
       setEditing(false);
     }
   };
   const rename = async () => {
     const name = (await promptBox('Rename project', { value: proj.name || '' }))?.trim();
-    if (!name || name === proj.name || !proj.id) return;
-    if (await attempt(() => PUT(`/projects/${encodeURIComponent(proj.id!)}`, { name }), `Renamed to ${name}`)) refreshSoon(0);
+    const id = proj.id;
+    if (!name || name === proj.name || !id) return;
+    if (await attempt(() => rpc.projects.change({ id, name }), `Renamed to ${name}`)) refreshSoon(0);
   };
   return (
     <div className="mb-3 rounded-[10px] border border-line bg-panel p-3 shadow-[inset_0_1px_0_var(--glass-spec)]">

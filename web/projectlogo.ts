@@ -1,6 +1,7 @@
 // A project's logo: its URL, a small logo-or-icon mark for lists and buttons, and picking a new one.
 // Also its 3D model and the background picture behind the Station's map.
-import { h, POST, DEL, attempt, refreshSoon, toast } from './core.ts';
+import { h, attempt, refreshSoon, toast } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { icon } from './icons.ts';
 import { apiUrl } from './client/connection.ts';
 import type { Project } from '../shared/types.ts';
@@ -53,7 +54,7 @@ export function pickModel(p: Pick<Project, 'id' | 'name'>): Promise<boolean> {
         toast("Couldn't read that file.", 'error');
         return resolve(false);
       }
-      const r = await attempt(() => POST<Project>(`/projects/${encodeURIComponent(p.id)}/model`, { name: file.name, data }), `New 3D model for ${p.name}`);
+      const r = await attempt(() => rpc.projects.setModel({ id: p.id, name: file.name, data }), `New 3D model for ${p.name}`);
       refreshSoon(0);
       resolve(!!r);
     });
@@ -62,7 +63,7 @@ export function pickModel(p: Pick<Project, 'id' | 'name'>): Promise<boolean> {
 }
 
 export async function removeModel(p: Pick<Project, 'id' | 'name'>): Promise<boolean> {
-  const r = await attempt(() => DEL<Project>(`/projects/${encodeURIComponent(p.id)}/model`), '3D model removed');
+  const r = await attempt(() => rpc.projects.removeModel({ id: p.id }), '3D model removed');
   refreshSoon(0);
   return !!r;
 }
@@ -111,7 +112,7 @@ export function pickLogo(p: Pick<Project, 'id' | 'name'>): Promise<boolean> {
         toast((e as Error).message, 'error');
         return resolve(false);
       }
-      const r = await attempt(() => POST<Project>(`/projects/${encodeURIComponent(p.id)}/logo`, { data }), `New logo for ${p.name}`);
+      const r = await attempt(() => rpc.projects.setLogo({ id: p.id, data }), `New logo for ${p.name}`);
       refreshSoon(0);
       resolve(!!r);
     });
@@ -120,7 +121,7 @@ export function pickLogo(p: Pick<Project, 'id' | 'name'>): Promise<boolean> {
 }
 
 export async function removeLogo(p: Pick<Project, 'id' | 'name'>): Promise<boolean> {
-  const r = await attempt(() => DEL<Project>(`/projects/${encodeURIComponent(p.id)}/logo`), 'Logo removed');
+  const r = await attempt(() => rpc.projects.removeLogo({ id: p.id }), 'Logo removed');
   refreshSoon(0);
   return !!r;
 }
@@ -180,7 +181,7 @@ export function pickBackground(p: Pick<Project, 'id' | 'name'>): Promise<boolean
         toast((e as Error).message, 'error');
         return resolve(false);
       }
-      const r = await attempt(() => POST<Project>(`/projects/${encodeURIComponent(p.id)}/background`, { data }), `New background for ${p.name}`);
+      const r = await attempt(() => rpc.projects.setBackground({ id: p.id, data }), `New background for ${p.name}`);
       refreshSoon(0);
       resolve(!!r);
     });
@@ -189,7 +190,7 @@ export function pickBackground(p: Pick<Project, 'id' | 'name'>): Promise<boolean
 }
 
 export async function removeBackground(p: Pick<Project, 'id' | 'name'>): Promise<boolean> {
-  const r = await attempt(() => DEL<Project>(`/projects/${encodeURIComponent(p.id)}/background`), 'Background removed');
+  const r = await attempt(() => rpc.projects.removeBackground({ id: p.id }), 'Background removed');
   refreshSoon(0);
   return !!r;
 }

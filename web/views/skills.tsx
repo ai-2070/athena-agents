@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
 import { GET, POST, PUT, DEL, attempt, refreshSoon, confirmBox, state } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { logo } from '../icons.ts';
 import { SkillMark } from '../skillmark.tsx';
 import { skillPicker, loadSkills, forgetSkills } from '../skillpick.ts';
@@ -35,7 +36,7 @@ const saveBrain = (skills: string[]) =>
     if (r && state.data) state.data.settings.brainSkills = r.skills;
     refreshSoon(0);
   });
-const saveProject = (id: string, skills: string[]) => attempt(() => PUT(`/projects/${id}`, { skills })).then(() => refreshSoon(0));
+const saveProject = (id: string, skills: string[]) => attempt(() => rpc.projects.change({ id, skills })).then(() => refreshSoon(0));
 const saveAgent = (a: Agent, skills: string[]) => attempt(() => PUT(`/agents/${a.id}`, { skills })).then(() => refreshSoon(0));
 
 function SkillsPage({ open }: { open?: string }) {

@@ -30,8 +30,7 @@ function write(f: BoardFile, ids: string[]): void {
   emit('board', { projectId: activeProject().id, ids });
 }
 
-/** Refuses a request: the message, and the HTTP status it is answered with. */
-export const fail = (message: string, status = 400): never => { throw Object.assign(new Error(message), { status }); };
+const fail = (message: string, status = 400): never => { throw Object.assign(new Error(message), { status }); };
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, name: string, required = false): string => {
   if (typeof v !== 'string' || (required && !v.trim())) return fail(`${name} must be ${required ? 'non-empty text' : 'text'}.`);

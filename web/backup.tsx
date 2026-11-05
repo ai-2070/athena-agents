@@ -2,6 +2,7 @@
 // folder, read what a backup file holds, and restore one as a new project. The "Backup saved" window is
 // React now (openModal() with React content); the rest is unchanged.
 import { GET, POST, api, attempt, copy, ago } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { Button, IconButton } from './ui/button.tsx';
 import { Icon } from './ui/react.tsx';
 import { openModal } from './ui/overlays.tsx';
@@ -117,7 +118,7 @@ export function cleanSummary(v: unknown): BackupSummary | null {
 
 /** Back up a project and show where the file went. */
 export async function backupProject(p: Pick<Project, 'id' | 'name'>): Promise<void> {
-  const r = await attempt(() => POST<{ file: string; name: string; size: number; summary: BackupSummary }>(`/projects/${encodeURIComponent(p.id)}/backup`));
+  const r = await attempt(() => rpc.projects.backup({ id: p.id }));
   if (!r) return;
   openModal(
     'Backup saved',

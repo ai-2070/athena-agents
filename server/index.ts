@@ -43,7 +43,6 @@ import * as teamMarks from './teammark.ts';
 import * as library from './library.ts';
 import { isEffort } from '../shared/effort.ts';
 import { queuedText } from '../shared/queue.ts';
-import { savedOpacity } from '../shared/look.ts';
 import * as commands from './commands.ts';
 import { openGoal, clearWork, listBriefs } from './briefs.ts';
 import * as tasksMod from './tasks.ts';
@@ -89,7 +88,6 @@ import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import { saveToolStats, toolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
-import type { RestoreResult } from './projectsync.ts';
 import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
@@ -207,9 +205,7 @@ get('/api/state', async (): Promise<AppState> => ({
 
 get('/api/activity', async () => activity(200));
 // ---------- projects ----------
-get('/api/projects', async () => ({ active: projects.withLogo(store.activeProject()), projects: store.listProjects().map(projects.withLogo), root: projects.projectsRoot() }));
-// The order projects are listed in: the project menu, and the Up / Down keys on the Station.
-post<{ ids?: unknown }>('/api/projects/order', async (_p, body) => ({ projects: store.reorderProjects(body.ids).map(projects.withLogo) }));
+// server/api/projects.ts, except the project's pictures and model as files (below)
 // The project's logo: shown on the start screen, in the project menu and inside the Brain.
 get('/api/projects/:id/logo', async ({ id }, _b, _q, res) => {
   const p = need(store.listProjects().find((x) => x.id === id));
@@ -217,16 +213,6 @@ get('/api/projects/:id/logo', async ({ id }, _b, _q, res) => {
   if (!f) throw new HttpError(404, 'No logo');
   sendFileSafely(res, f);
   return undefined;
-});
-post<{ data?: unknown }>('/api/projects/:id/logo', async ({ id }, body) => {
-  const p = projects.setLogo(id, body.data);
-  store.emit('project-logo', { id });
-  return p;
-});
-del('/api/projects/:id/logo', async ({ id }) => {
-  const p = projects.removeLogo(id);
-  store.emit('project-logo', { id });
-  return p;
 });
 // The picture behind the Station's map (classic and voxel look).
 get('/api/projects/:id/background', async ({ id }, _b, _q, res) => {
@@ -236,16 +222,6 @@ get('/api/projects/:id/background', async ({ id }, _b, _q, res) => {
   sendFileSafely(res, f);
   return undefined;
 });
-post<{ data?: unknown }>('/api/projects/:id/background', async ({ id }, body) => {
-  const p = projects.setBackground(id, body.data);
-  store.emit('project-logo', { id });
-  return p;
-});
-del('/api/projects/:id/background', async ({ id }) => {
-  const p = projects.removeBackground(id);
-  store.emit('project-logo', { id });
-  return p;
-});
 // The 3D model that replaces the logo inside the Brain's globe.
 get('/api/projects/:id/model', async ({ id }, _b, _q, res) => {
   const p = need(store.listProjects().find((x) => x.id === id));
@@ -254,62 +230,8 @@ get('/api/projects/:id/model', async ({ id }, _b, _q, res) => {
   sendFileSafely(res, f);
   return undefined;
 });
-post<{ name?: unknown; data?: unknown }>('/api/projects/:id/model', async ({ id }, body) => {
-  const p = projects.setModel(id, body.name, body.data);
-  store.emit('project-logo', { id });
-  return p;
-});
-del('/api/projects/:id/model', async ({ id }) => {
-  const p = projects.removeModel(id);
-  store.emit('project-logo', { id });
-  return p;
-});
-post<Parameters<typeof projects.createProject>[0] | null>('/api/projects', async (_p, body) => {
-  let p: Project & { restored?: RestoreResult | null } = await projects.createProject(body || {});
-  // a folder saved by the dashboard before: load its agents, teams and chats
-  const restored = projectSync.restoreInto(p.id, p.brainPath);
-  if (restored && !p.description && restored.project.description) p = projects.updateProject(p.id, { description: restored.project.description });
-  if (restored?.project.skills?.length) p = projects.updateProject(p.id, { skills: restored.project.skills });
-  if (restored) p = projects.updateProject(p.id, savedOpacity(restored.project));
-  if (restored) store.emit('project', { id: p.id });
-  p = { ...(skills.enableOrcaSkill(p.id) || p), restored };
-  projects.touch(p.id);
-  projects.startScreenDone();
-  return p;
-});
-// The Overview's Files panel: one folder of any project (?path= from the project folder), and opening a folder of it
-// in VS Code or the file manager. (They name their project, as project routes do.)
-get('/api/projects/:id/folder', async ({ id }, _b, q) => projects.folderListing(q.path || '', need(store.listProjects().find((p) => p.id === id))));
-post<{ app?: string; path?: unknown }>('/api/projects/:id/open', async ({ id }, body) => {
-  const dir = projects.brainFolder(body.path, need(store.listProjects().find((p) => p.id === id)));
-  if (body.app === 'vscode') return { message: await programs.launchProgram('vscode', { file: dir }) };
-  openWithShell(dir);
-  return { ok: true };
-});
-get('/api/projects/overview', async () => ({ ...projects.overview(projectSync.peek), showLauncher: projects.startScreenPending() }));
-post('/api/projects/save', async () => projectSync.saveProject(store.activeProject().id));
-// The start screen closed; picking the project that is open already lands here too.
-post('/api/projects/launcher-done', async () => {
-  projects.startScreenDone();
-  skills.enableOrcaSkill(store.activeProject().id);
-  return { ok: true };
-});
-post('/api/projects/:id/activate', async ({ id }) => {
-  const p = store.setActiveProject(id);
-  skills.enableOrcaSkill(id);
-  projects.touch(id);
-  projects.startScreenDone();
-  log('project', `Switched to project "${p.name}"`);
-  return p;
-});
-put<projects.ProjectPatch | null>('/api/projects/:id', async ({ id }, body) => {
-  const p = projects.updateProject(id, body || {});
-  // the Station in other tabs draws the new opacity
-  if (body && ('backgroundOpacity' in body || 'mapDotsOpacity' in body)) store.emit('project-logo', { id });
-  return p;
-});
 // ---------- backups: a project with its agents, chats and knowledge, plus every skill and preset ----------
-post('/api/projects/:id/backup', async ({ id }) => backup.createBackup(id));
+// (making one, and deleting a project with one: server/api/projects.ts)
 get('/api/backups', async () => ({ dir: backup.backupsRoot(), backups: backup.listBackups() }));
 post('/api/backups/open', async () => {
   openWithShell(ensureDir(backup.backupsRoot()));
@@ -326,22 +248,6 @@ postFile('/api/backups/restore', async (_p, upload, q) => {
   projects.touch(r.project.id);
   projects.startScreenDone();
   return { ...projects.withLogo(skills.enableOrcaSkill(r.project.id) || r.project), restored: r.restored };
-});
-del('/api/projects/:id', async ({ id }) => projects.removeProject(id));
-// A copy of a project as a new one, one at a time like restores (backup.oneAtATime).
-post<{ name?: string }>('/api/projects/:id/clone', async ({ id }, body) => {
-  const r = await backup.oneAtATime('Another project is being copied or restored. Try again when it is done.', () => backup.cloneProject(id, body.name));
-  projects.touch(r.project.id);
-  return { ...projects.withLogo(skills.enableOrcaSkill(r.project.id) || r.project), restored: r.restored };
-});
-// Delete a project: back it up, check the backup, then remove it. Not while an agent is working in it.
-post('/api/projects/:id/delete', async ({ id }) => {
-  if (engines.activeRuns().some((run) => engines.runInfo(run.id)?.projectId === id)) throw new HttpError(409, 'An agent is still working in this project. Stop it first, then delete the project.');
-  try {
-    return backup.backupAndDeleteProject(id);
-  } catch (e) {
-    throw new HttpError(400, (e as Error).message);
-  }
 });
 get('/api/brain', async () => projects.brainInfo());
 // Where things sit on the Station map (per project), e.g. { bench: { x, z } }.

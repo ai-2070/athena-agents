@@ -2,7 +2,8 @@
 // (openLauncher) are React inside Base UI dialogs (openModal); the project menu, the rename/clone/delete
 // actions and the file tray keep their own modules.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { state, GET, POST, PUT, attempt, promptBox, toast, refreshSoon, ago } from './core.ts';
+import { state, attempt, promptBox, toast, refreshSoon, ago } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { buttonClass } from './ui/classes.ts';
 import { Field, Switch } from './ui/controls.tsx';
 import { FileDrop, FormSection } from './ui/formsection.tsx';
@@ -17,35 +18,15 @@ import { BACKUP_EXT, backupProject, backupAgo, fileSize, listBackups, readBackup
 import type { BackupListing, BackupSummary } from './backup.tsx';
 import { attachTray, PICKER_LABELLED } from './attach.tsx';
 import type { AttachTray } from './attach.tsx';
-import type { Project } from '../shared/types.ts';
+import type { Project, ProjectsOverview } from '../shared/types.ts';
 
 export type NewProjectMode = 'new' | 'existing' | 'github' | 'backup';
-/** A saved copy the dashboard found in a folder (.dashboard/project.json). */
-export interface ProjectPeek {
-  name: string;
-  description: string;
-  agents: number;
-  teams: number;
-  savedAt: number;
-}
-/** POST /api/projects: the project, plus what was loaded back from its folder. */
+/** A project just made, copied or added: what was loaded back from its folder or copied with it. */
 export interface CreatedProject extends Project {
-  restored: { agents: number; teams: number; project?: unknown } | null;
+  restored: { agents: number; teams: number } | null;
 }
-/** GET /api/projects */
-interface ProjectList {
-  active: Project;
-  projects: Project[];
-  root: string;
-}
-/** GET /api/projects/overview: the start screen. */
-interface ProjectsOverview {
-  active: string;
-  root: string;
-  projects: (Project & { agents: number; teams: number; hasProjectMd: boolean; saved: ProjectPeek | null })[];
-  found: { name: string; folder: string; brief?: string; saved: ProjectPeek | null }[];
-  showLauncher: boolean;
-}
+/** The start screen, and whether to show it now. */
+type StartScreen = ProjectsOverview & { showLauncher: boolean };
 
 const slug = (s: string | null | undefined) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'project';
 
@@ -57,7 +38,7 @@ type ProjectRef = Pick<Project, 'id' | 'name'>;
 export async function renameProject(p: ProjectRef): Promise<boolean> {
   const name = (await promptBox('Rename project', { value: p.name }))?.trim();
   if (!name || name === p.name) return false;
-  const r = await attempt(() => PUT(`/projects/${encodeURIComponent(p.id)}`, { name }), `Renamed to ${name}`);
+  const r = await attempt(() => rpc.projects.change({ id: p.id, name }), `Renamed to ${name}`);
   refreshSoon(0);
   return !!r;
 }
@@ -66,9 +47,9 @@ export async function renameProject(p: ProjectRef): Promise<boolean> {
 export async function cloneProject(p: ProjectRef): Promise<boolean> {
   const name = (await promptBox('Clone project', { label: 'Name of the copy', value: `${p.name} (copy)`, ok: 'Clone' }))?.trim();
   if (!name) return false;
-  const made = await attempt(() => POST<CreatedProject>(`/projects/${encodeURIComponent(p.id)}/clone`, { name }), (r) => `Cloned as ${r.name}: ${r.restored?.agents ?? 0} agents, ${r.restored?.teams ?? 0} teams`);
+  const made = await attempt(() => rpc.projects.clone({ id: p.id, name }), (r) => `Cloned as ${r.name}: ${r.restored?.agents ?? 0} agents, ${r.restored?.teams ?? 0} teams`);
   if (!made) return false;
-  await attempt(() => POST(`/projects/${encodeURIComponent(made.id)}/activate`));
+  await attempt(() => rpc.projects.activate({ id: made.id }));
   refreshSoon(0);
   return true;
 }
@@ -76,7 +57,7 @@ export async function cloneProject(p: ProjectRef): Promise<boolean> {
 /** Deletes a project after a backup that is made and checked first. Its folder and files on the PC are never touched. */
 export async function deleteProject(p: ProjectRef): Promise<boolean> {
   if (!(await askDeleteProject(p.name))) return false;
-  const r = await attempt(() => POST<{ backup: { name: string } }>(`/projects/${encodeURIComponent(p.id)}/delete`), (x) => `Deleted ${p.name}. Backup: ${x.backup.name}`);
+  const r = await attempt(() => rpc.projects.delete({ id: p.id }), (x) => `Deleted ${p.name}. Backup: ${x.backup.name}`);
   refreshSoon(0);
   return !!r;
 }
@@ -295,7 +276,7 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
   const create = async () => {
     if (mode === 'backup') return restore();
     setBusy(created ? 'Uploading files…' : mode === 'github' ? 'Cloning…' : 'Creating…');
-    const p = created || (await attempt(() => POST<CreatedProject>('/projects', { name: name.trim() || repoName(), mode, folder: folder.trim(), repo: repo.trim(), description: about.trim() })));
+    const p = created || (await attempt(() => rpc.projects.create({ name: name.trim() || repoName(), mode, folder: folder.trim(), repo: repo.trim(), description: about.trim() })));
     if (!p) {
       setBusy(null);
       return;
@@ -506,7 +487,7 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
 }
 
 export async function openNewProject({ mode: startMode = 'new', onDone }: { mode?: NewProjectMode; onDone?: (p: CreatedProject) => unknown } = {}): Promise<void> {
-  const info = await GET<ProjectList>('/projects').catch(() => ({ root: '' }));
+  const info = await rpc.projects.list().catch(() => ({ root: '' }));
   const made: { current: CreatedProject | null } = { current: null };
   const tray = attachTray({ deferred: true, pickerButton: PICKER_LABELLED });
   const dlg = openModal('New project', (close) => <NewProjectWindow info={info} startMode={startMode} onDone={onDone} close={close} made={made} tray={tray} />, {
@@ -551,20 +532,20 @@ function Mark({ project, size, fallback }: { project: Project; size: number; fal
   return <span ref={ref} className="contents" />;
 }
 
-const launcherDone = () => POST('/projects/launcher-done').catch(() => {});
+const launcherDone = () => rpc.projects.launcherDone().catch(() => {});
 
-function LauncherWindow({ o, close }: { o: ProjectsOverview; close: () => void }) {
+function LauncherWindow({ o, close }: { o: StartScreen; close: () => void }) {
   const [query, setQuery] = useState('');
-  const open = async (p: ProjectsOverview['projects'][number]) => {
+  const open = async (p: StartScreen['projects'][number]) => {
     if (p.id !== o.active) {
-      const r = await attempt(() => POST(`/projects/${p.id}/activate`), `Opened ${p.name}`);
+      const r = await attempt(() => rpc.projects.activate({ id: p.id }), `Opened ${p.name}`);
       if (!r) return;
     } else void launcherDone();
     close();
     refreshSoon(0);
   };
-  const addFound = async (f: ProjectsOverview['found'][number]) => {
-    const p = await attempt(() => POST<CreatedProject>('/projects', { name: f.name, mode: 'existing', folder: f.folder }), (r) => (r.restored ? `Loaded ${f.name}: ${r.restored.agents} agents, ${r.restored.teams} teams` : `Added ${f.name}`));
+  const addFound = async (f: StartScreen['found'][number]) => {
+    const p = await attempt(() => rpc.projects.create({ name: f.name, mode: 'existing', folder: f.folder }), (r) => (r.restored ? `Loaded ${f.name}: ${r.restored.agents} agents, ${r.restored.teams} teams` : `Added ${f.name}`));
     if (!p) return;
     close();
     refreshSoon(0);
@@ -578,7 +559,7 @@ function LauncherWindow({ o, close }: { o: ProjectsOverview; close: () => void }
   const searchable = o.projects.length + o.found.length > 5;
 
   // one project: its mark, name, what is in it, where it is; rename / clone / delete show when you point at it
-  const row = (p: ProjectsOverview['projects'][number], i: number) => {
+  const row = (p: StartScreen['projects'][number], i: number) => {
     const cur = p.id === o.active;
     const again = async (action: (x: ProjectRef) => Promise<boolean>) => {
       close();
@@ -693,7 +674,7 @@ function LauncherWindow({ o, close }: { o: ProjectsOverview; close: () => void }
 // The start screen: pick a project you already have (with its agents and teams), add a project
 // folder found on this PC, or create a new one. Shown once each time the dashboard starts.
 export async function openLauncher({ force = false }: { force?: boolean } = {}): Promise<void> {
-  const o = await GET<ProjectsOverview>('/projects/overview').catch(() => null);
+  const o = await rpc.projects.overview().catch(() => null);
   if (!o || (!force && !o.showLauncher)) return;
   if (document.querySelector('.launcher')) return;
   openModal('Open a project', (close) => <LauncherWindow o={o} close={close} />, { onClose: launcherDone });

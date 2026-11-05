@@ -6,6 +6,7 @@ import { engineConfigured } from '../engineavailability.ts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { domButton, domButtonLink, domDot } from '../ui/dom.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.tsx';
@@ -3638,7 +3639,7 @@ async function openFloor(): Promise<void> {
   // the old floor starts leaving now; the new one comes in when the project has loaded
   setFloorBusy(true);
   void floorSlide('out', floorDirection((d.projects || []).map((p) => p.id), d.project?.id, target.id) || 1);
-  const ok = await attempt(() => POST(`/projects/${target.id}/activate`), `Opened ${target.name}`);
+  const ok = await attempt(() => rpc.projects.activate({ id: target.id }), `Opened ${target.name}`);
   if (!ok) {
     // it did not open: bring the old floor back
     setFloorBusy(false);

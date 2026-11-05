@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GET, POST, PUT, DEL, confirmBox, toast } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Button } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { FieldRow, PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
@@ -43,7 +44,7 @@ export function GatewaysTab() {
   const load = useCallback(async () => {
     const version = ++request.current;
     try {
-      const [gateways, all] = await Promise.all([GET<Listing>('/gateways'), GET<{ projects: ProjectChoice[] }>('/projects')]);
+      const [gateways, all] = await Promise.all([GET<Listing>('/gateways'), rpc.projects.list()]);
       if (!mounted.current || version !== request.current) return;
       setListing(gateways); setProjects(all.projects); setError('');
       if (!linked.current) {

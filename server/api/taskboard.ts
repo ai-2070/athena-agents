@@ -8,12 +8,13 @@ import { filesFromRequest } from '../boardfiles.ts';
 import { draftBoardText } from '../taskdraft.ts';
 import * as board from '../taskboard.ts';
 import * as work from '../boardwork.ts';
+import { refuse } from './refuse.ts';
 import type { Project } from '../../shared/types.ts';
 
 const os = implement(contract);
 
 function projectOf(id: string): Project {
-  return listProjects().find((p) => p.id === id) || board.fail('That project is unavailable.', 404);
+  return listProjects().find((p) => p.id === id) || refuse('That project is unavailable.', 404);
 }
 
 export const taskBoard = os.router({
@@ -26,7 +27,7 @@ export const taskBoard = os.router({
   }),
   get: os.get.handler(({ input }) => ({ task: board.boardTask(input.projectId, input.id) })),
   change: os.change.handler(async ({ input: { projectId, id, files: list, ...change } }) => {
-    const before = board.savedBoardTask(projectId, id) || board.fail('That task is unavailable.', 404);
+    const before = board.savedBoardTask(projectId, id) || refuse('That task is unavailable.', 404);
     const files = list === undefined ? undefined : await filesFromRequest(projectOf(projectId), list, before.files);
     const after = board.changeBoardTask(projectId, id, change, files);
     return { task: await work.afterUserChange(projectId, before, after) };
