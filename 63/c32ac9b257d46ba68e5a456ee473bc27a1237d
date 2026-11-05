@@ -1,0 +1,24 @@
+server/taskboard.ts
+  s_2ff77ddbd90f01::t_67117739e53b2f 526,551,563-565,567-569,571-578,588
+server/overseer.ts
+  s_2ff77ddbd90f01::t_4ca54cf2926513 1398-1404,1409
+  s_2ff77ddbd90f01::t_0b15cad261a7f8 1414
+tests/server/boardtags.test.ts
+  s_2ff77ddbd90f01::t_acbf339016ab7d 135,152-153,220-227,230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "63c32ac9b257d46ba68e5a456ee473bc27a1237d",
+  "prompts": {},
+  "sessions": {
+    "s_2ff77ddbd90f01": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29cbc07d-7d38-44db-a60f-f2af0100e8b0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
