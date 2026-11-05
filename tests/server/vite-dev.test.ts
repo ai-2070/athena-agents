@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ENTRY, STYLES, dashPlugin, entryCode, startVite, stylesCode } from '../../scripts/vite-dev.ts';
+import { ENTRY, STYLES, VIEW_MARK, WEB, changeKind, dashPlugin, entryCode, isViewFile, startVite, stylesCode } from '../../scripts/vite-dev.ts';
 import type { DevServer } from '../../scripts/vite-dev.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
@@ -15,6 +15,9 @@ describe('the dev entry and styles', () => {
     const at = (s: string) => code.findIndex((l) => l.includes(s));
     expect(at('/@vite/client')).toBe(0);
     expect(at('@vitejs/plugin-react/preamble')).toBeGreaterThan(at('/@vite/client'));
+    // the page's hot-reload rules are in place before the app loads
+    expect(at('installHotRules()')).toBeGreaterThan(at('@vitejs/plugin-react/preamble'));
+    expect(at('installHotRules()')).toBeLessThan(at("import('/app.ts')"));
     expect(at("import('/app.ts')")).toBe(code.length - 1);
     // OpenUI's inspector is turned off before the app could load it
     expect(at('openui.devtools.autoMount')).toBeLessThan(at("import('/app.ts')"));
@@ -28,29 +31,82 @@ describe('the dev entry and styles', () => {
   });
 });
 
-describe('the styles follow code changes', () => {
+describe('what a change does', () => {
   // the hook, with just what it reads of its context
   const run = (file: string, styles: object | undefined, modules: object[] = []) => {
     const invalidated: object[] = [];
-    const ctx = { environment: { name: 'client', moduleGraph: { getModuleById: (id: string) => (id === STYLES ? styles : undefined), invalidateModule: (m: object) => invalidated.push(m) } } };
+    const sent: unknown[] = [];
+    const ctx = {
+      environment: {
+        name: 'client',
+        logger: { info: () => {} },
+        hot: { send: (m: unknown) => sent.push(m) },
+        moduleGraph: { getModuleById: (id: string) => (id === STYLES ? styles : undefined), invalidateModule: (m: object) => invalidated.push(m) },
+      },
+    };
     const hook = dashPlugin().hotUpdate as unknown as (this: typeof ctx, o: { file: string; modules: object[] }) => object[] | undefined;
-    return { result: hook.call(ctx, { file, modules }), invalidated };
+    return { result: hook.call(ctx, { file, modules }), invalidated, sent };
   };
+  const styles = { id: STYLES, isSelfAccepting: true };
 
-  it('a change to the page code also updates the styles (Tailwind writes only the classes used)', () => {
-    const styles = { id: STYLES };
-    const page = { id: '/views/home.tsx' };
-    const { result, invalidated } = run(path.join(ROOT, 'web', 'views', 'home.tsx'), styles, [page]);
+  it('swaps React component files in place, with the styles (Tailwind writes only the classes used)', () => {
+    const page = { id: '/views/home.tsx', isSelfAccepting: true };
+    const { result, invalidated, sent } = run(path.join(WEB, 'views', 'home.tsx'), styles, [page]);
     expect(result).toEqual([page, styles]);
     expect(invalidated).toEqual([styles]);
-    expect(run(path.join(ROOT, 'web', 'styles', 'base.css'), styles).result).toEqual([styles]);
+    expect(sent).toEqual([]);
+    expect(run(path.join(WEB, 'styles', 'base.css'), styles).result).toEqual([styles]);
+  });
+
+  it('reloads the page for a plain module, rather than run it a second time next to its first copy', () => {
+    const core = { id: '/core.ts', isSelfAccepting: false };
+    const { result, sent } = run(path.join(WEB, 'core.ts'), styles, [core]);
+    expect(result).toEqual([]);
+    expect(sent).toEqual([{ type: 'full-reload', path: '*' }]);
+    // one plain module among swappable ones is enough
+    expect(run(path.join(WEB, 'x.tsx'), styles, [{ id: '/x.tsx', isSelfAccepting: true }, core]).sent).toHaveLength(1);
   });
 
   it('leaves other changes alone', () => {
-    expect(run(path.join(ROOT, 'server', 'index.ts'), { id: STYLES }).result).toBeUndefined();
-    expect(run(path.join(ROOT, 'web', 'icon.png'), { id: STYLES }).result).toBeUndefined();
+    expect(run(path.join(ROOT, 'server', 'index.ts'), styles).result).toBeUndefined();
+    expect(run(path.join(WEB, 'icon.png'), styles).result).toBeUndefined();
     // styles not loaded yet: nothing to update
-    expect(run(path.join(ROOT, 'web', 'app.ts'), undefined).result).toBeUndefined();
+    expect(run(path.join(WEB, 'app.ts'), undefined).result).toBeUndefined();
+  });
+
+  it('changeKind', () => {
+    expect(changeKind([])).toBe('none');
+    expect(changeKind([{ id: STYLES, isSelfAccepting: true }])).toBe('none');
+    expect(changeKind([{ id: '/a.tsx', isSelfAccepting: true }])).toBe('hot');
+    expect(changeKind([{ id: '/a.ts' }])).toBe('reload');
+  });
+});
+
+describe('pages in web/views/', () => {
+  it('are told apart from other files', () => {
+    expect(isViewFile(path.join(WEB, 'views', 'home.tsx'))).toBe(true);
+    expect(isViewFile('C:\\athena\\web\\views\\tasks.tsx?t=1')).toBe(true);
+    for (const f of [path.join(WEB, 'views', 'station.ts'), path.join(WEB, 'app.ts'), path.join(WEB, 'ui', 'button.tsx')]) expect(isViewFile(f), f).toBe(false);
+  });
+
+  it('get one component export in development, and nothing else changes', () => {
+    const transform = dashPlugin().transform as unknown as { handler: (this: object, code: string, id: string) => { code: string } | undefined };
+    const ctx = { environment: { name: 'client' } };
+    const out = transform.handler.call(ctx, 'export const title = () => "Home";', path.join(WEB, 'views', 'home.tsx'));
+    expect(out?.code).toBe(`export const title = () => "Home";${VIEW_MARK}`);
+    expect(VIEW_MARK).toMatch(/export function [A-Z]\w*\(\) \{ return null; \}/);
+    expect(transform.handler.call(ctx, 'x', path.join(WEB, 'core.ts'))).toBeUndefined();
+  });
+
+  it("leave out exactly the router's hooks (View in web/app.ts)", () => {
+    // web/dev/hot.ts runs in the page; read both as text
+    const app = fs.readFileSync(path.join(WEB, 'app.ts'), 'utf8');
+    const view = /export interface View \{([\s\S]*?)\n\}/.exec(app)?.[1] || '';
+    const keys = [...view.matchAll(/^\s+(\w+)\??[(:]/gm)].map((m) => m[1]).sort();
+    const hot = fs.readFileSync(path.join(WEB, 'dev', 'hot.ts'), 'utf8');
+    const listed = [...(/VIEW_EXPORTS = \[([^\]]*)\]/.exec(hot)?.[1] || '').matchAll(/'(\w+)'/g)].map((m) => m[1]).sort();
+    expect(keys.length).toBeGreaterThan(2);
+    expect(listed).toEqual(keys);
   });
 });
 
@@ -80,6 +136,14 @@ describe('the dev server', () => {
     const styles = await (await get(STYLES)).text();
     expect(styles).toContain('tailwindcss');
     expect(styles).toContain('/dist/fonts/');
+  }, 60_000);
+
+  it('serves a page ready to swap in place', async () => {
+    const code = await (await get('/views/home.tsx')).text();
+    expect(code).toContain('DashHotView');
+    expect(code).toContain('validateRefreshBoundaryAndEnqueueUpdate');
+    const mod = await dev.vite.environments.client.moduleGraph.getModuleByUrl('/views/home.tsx');
+    expect(mod?.isSelfAccepting).toBe(true);
   }, 60_000);
 
   it('serves the page code and shared/', async () => {

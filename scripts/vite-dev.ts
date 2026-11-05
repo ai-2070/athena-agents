@@ -28,7 +28,9 @@ export function entryCode(): string {
   return [
     `import '/@vite/client';`,
     `import '@vitejs/plugin-react/preamble';`,
+    `import { installHotRules } from '/dev/hot.ts';`,
     `import '${STYLES}';`,
+    `installHotRules();`,
     // OpenUI shows its own inspector in development; not in the dashboard. Set before the app loads it.
     `globalThis[Symbol.for('openui.devtools.autoMount')] = true;`,
     `import('/app.ts');`,
@@ -54,7 +56,23 @@ const touchesStyles = (file: string): boolean => {
   return !rel.startsWith('..') && !path.isAbsolute(rel) && /\.(tsx?|css)$/.test(rel);
 };
 
-/** The dashboard's own pieces: the entry and the styles. */
+/** A page in web/views/ (it exports the router's hooks next to its components: web/dev/hot.ts). */
+export const isViewFile = (id: string): boolean => /\/web\/views\/[^/]+\.tsx$/.test(id.replace(/\\/g, '/').split('?')[0]);
+
+/** What a page gets in development: one component export. React's hot swap checks a file's exports, minus the
+ *  router's hooks (web/dev/hot.ts), and gives up on a file with none left; a page's own components aren't exported. */
+export const VIEW_MARK = '\n// (bun run dev: lets hot reload swap this page in place, scripts/vite-dev.ts)\nexport function DashHotView() { return null; }\n';
+
+/** What to do with a change to these modules: swap them in place ('hot': each one swaps itself, React components)
+ *  or reload the page. A plain module (state, sockets, listeners, three.js) run a second time next to its first
+ *  copy would leave the page half old, half new, so it reloads, even when only hot-swappable files import it. */
+export function changeKind(modules: readonly { id: string | null; isSelfAccepting?: boolean }[]): 'hot' | 'reload' | 'none' {
+  const code = modules.filter((m) => m.id !== STYLES);
+  if (!code.length) return 'none';
+  return code.every((m) => m.isSelfAccepting) ? 'hot' : 'reload';
+}
+
+/** The dashboard's own pieces: the entry, the styles, and when a change reloads the page. */
 export function dashPlugin(): Plugin {
   // the font rules don't change while it runs (the files are the last build's, in public/dist/fonts)
   let fonts: string | null = null;
@@ -70,8 +88,29 @@ export function dashPlugin(): Plugin {
         return stylesCode(`${await buildCss({ minify: false })}\n${fonts}`);
       }
     },
+    configureServer(server) {
+      // React's hot swap gave up on a file ("Could not Fast Refresh": it exports more than components): reload
+      // rather than let the change spread to the files that import it
+      server.environments.client.hot.on('vite:invalidate', (data: unknown) => {
+        const path = data && typeof data === 'object' && 'path' in data ? String(data.path) : '';
+        server.config.logger.info(`page reload ${path} (not only React components)`, { timestamp: true });
+        server.environments.client.hot.send({ type: 'full-reload', path: '*' });
+      });
+    },
+    transform: {
+      order: 'pre',
+      handler(code, id) {
+        if (this.environment.name === 'client' && isViewFile(id)) return { code: code + VIEW_MARK, map: null };
+      },
+    },
     hotUpdate({ file, modules }) {
-      if (this.environment.name !== 'client' || !touchesStyles(file)) return;
+      if (this.environment.name !== 'client') return;
+      if (changeKind(modules) === 'reload') {
+        this.environment.logger.info(`page reload ${path.relative(WEB, file)} (not a React component file)`, { timestamp: true });
+        this.environment.hot.send({ type: 'full-reload', path: '*' });
+        return [];
+      }
+      if (!touchesStyles(file)) return;
       const styles = this.environment.moduleGraph.getModuleById(STYLES);
       if (!styles) return;
       this.environment.moduleGraph.invalidateModule(styles);
