@@ -1,9 +1,9 @@
-// The page's security policy, and the dev page `bun run dev` serves: code from the Vite dev server only when DASH_VITE
+// The page's security policy, and the dev page `bun run dev` serves: code from the Vite dev server only when `--vite`
 // names one on this machine, and the policy otherwise exactly as it always was.
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { devPage, pageCsp, viteOrigin } from '../../server/devpage.ts';
+import { devPage, pageCsp, viteFromArgs, viteOrigin } from '../../server/devpage.ts';
 
 describe('viteOrigin', () => {
   it('takes a dev server on this machine', () => {
@@ -14,6 +14,22 @@ describe('viteOrigin', () => {
   it('ignores anything else', () => {
     for (const v of [undefined, '', 'http://example.com:5173', 'https://127.0.0.1:5173', 'http://127.0.0.1', 'http://127.0.0.1:0', 'http://127.0.0.1:70000', 'http://127.0.0.1:5173/x', 'http://127.0.0.1.evil.com:5173', 'javascript:alert(1)'])
       expect(viteOrigin(v)).toBeNull();
+  });
+});
+
+describe('viteFromArgs', () => {
+  it("takes the dev server from the server's command line", () => {
+    expect(viteFromArgs(['--no-open', '--vite', 'http://127.0.0.1:5173', '--port', '4900'], {})).toBe('http://127.0.0.1:5173');
+    expect(viteFromArgs(['--vite', 'http://example.com:5173'], {})).toBeNull();
+    expect(viteFromArgs(['--vite'], {})).toBeNull();
+  });
+
+  it('ignores the environment, so a leftover setting there changes nothing', () => {
+    expect(viteFromArgs([], { DASH_VITE: 'http://127.0.0.1:5173' })).toBeNull();
+  });
+
+  it('is never used by the desktop app', () => {
+    expect(viteFromArgs(['--vite', 'http://127.0.0.1:5173'], { DASH_DESKTOP: '1' })).toBeNull();
   });
 });
 

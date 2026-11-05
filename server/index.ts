@@ -88,7 +88,7 @@ import * as files from './files.ts';
 import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
-import { devPage, pageCsp, viteOrigin } from './devpage.ts';
+import { devPage, pageCsp, viteFromArgs } from './devpage.ts';
 import { saveToolStats, toolStats } from './toolstats.ts';
 import type { RestoreResult } from './projectsync.ts';
 import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
@@ -103,7 +103,7 @@ const OPEN = !argv.includes('--no-open') && !process.env.DASH_NO_OPEN;
 const PUBLIC = path.join(ROOT, 'public');
 const ALLOWED_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`, `[::1]:${PORT}`]);
 // `bun run dev`: the page's code comes from the Vite dev server (hot reload) instead of public/dist
-const VITE = viteOrigin();
+const VITE = viteFromArgs(argv);
 
 // Only the terminal's stylesheet comes straight from node_modules; the scripts are bundled into public/dist.
 const VENDOR: Record<string, string> = {

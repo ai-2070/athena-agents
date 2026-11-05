@@ -1,18 +1,27 @@
 // The page's Content-Security-Policy, and what `bun run dev` changes in the page: its code then comes from the
-// Vite dev server (hot reload) instead of public/dist. Only when DASH_VITE names a dev server on this machine;
-// scripts/dev.ts sets it. The installed app and `bun run start` never do, and keep the policy exactly as it was.
+// Vite dev server (hot reload) instead of public/dist. Only when the server's command line has `--vite <address>`
+// naming a dev server on this machine; scripts/dev.ts passes it. A command line, unlike the environment, isn't handed
+// down to what the server starts, so it can't leak into another server. The desktop app ignores it, and without it
+// the policy is exactly as it was.
 
 // a dev server here: plain http on the loopback address, nothing else
 const LOOPBACK = /^http:\/\/(?:127\.0\.0\.1|localhost):(\d{1,5})$/;
 
-/** The Vite dev server's address from DASH_VITE ('http://127.0.0.1:5173'), or null when there is none or it isn't
- *  a dev server on this machine. */
-export function viteOrigin(value: string | undefined = process.env.DASH_VITE): string | null {
+/** A Vite dev server's address ('http://127.0.0.1:5173'), or null when it isn't a dev server on this machine. */
+export function viteOrigin(value: string | undefined): string | null {
   const v = (value || '').trim().replace(/\/+$/, '');
   const m = LOOPBACK.exec(v);
   if (!m) return null;
   const port = Number(m[1]);
   return port > 0 && port < 65536 ? v : null;
+}
+
+/** The dev server the server's command line names (`--vite <address>`), or null. Never in the desktop app: it
+ *  serves the page it ships with. */
+export function viteFromArgs(argv: readonly string[], env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env.DASH_DESKTOP) return null;
+  const at = argv.indexOf('--vite');
+  return at < 0 ? null : viteOrigin(argv[at + 1]);
 }
 
 /** The policy the page is served with. vite: the dev server, whose code, styles and hot-reload socket the page

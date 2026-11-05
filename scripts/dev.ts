@@ -30,11 +30,11 @@ if (hot) {
     console.error(`  Hot reload could not start (${e instanceof Error ? e.message : String(e)}). Reload the page to see changes.`);
   }
 }
-const server = Bun.spawn(['bun', '--watch', 'server/index.ts', '--no-open', ...serverArgs], {
+// --vite on the command line, not in the environment: what the server starts doesn't inherit it (server/devpage.ts)
+const server = Bun.spawn(['bun', '--watch', 'server/index.ts', '--no-open', ...(vite ? ['--vite', vite.origin] : []), ...serverArgs], {
   cwd: root,
   stdout: 'inherit',
   stderr: 'inherit',
-  env: { ...process.env, ...(vite ? { DASH_VITE: vite.origin } : {}) },
 });
 
 // If one of them ends on its own, stop the others and pass on its exit code. Once: Ctrl+C ends them too, and
