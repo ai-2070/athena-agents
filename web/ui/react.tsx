@@ -1,14 +1,14 @@
 // What a React page needs from the rest of the app: a place to mount, the live app state, and icons.
-import { Fragment, StrictMode, useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { CSSProperties, DependencyList, ReactNode } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './root.tsx';
 import { h, mount, onEvent, onState, state } from '../core.ts';
 import type { AppState, ServerEvent } from '../../shared/types.ts';
 
 /** Draws a React page into the router's page element. unmount() when you leave the page. */
 export function mountReact(el: HTMLElement, node: ReactNode): { unmount: () => void } {
-  const root = createRoot(el);
-  root.render(<StrictMode>{node}</StrictMode>);
+  const root = createAppRoot(el, { strict: true });
+  root.render(node);
   return { unmount: () => root.unmount() };
 }
 

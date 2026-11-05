@@ -3,7 +3,7 @@
 // on, and a composer with Stop. The bar above picks the model, starts a new chat, opens its MEMORY.md or the full page.
 // React; renderAgentChat() puts it into the window's tab (plain DOM) and hands back focus and destroy.
 import { StrictMode, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import { GET, POST, attempt } from './core.ts';
 import { projectAt } from './client/connection.ts';
 import { modelChip } from './models.tsx';
@@ -137,7 +137,7 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
 /** projectId: the agent's project, when it isn't the open one (an Overview pane): its requests go there (projectAt). */
 export function renderAgentChat(container: HTMLElement, agentId: string, { projectId }: { projectId?: string } = {}): AgentChatApi {
   const ask: FocusAsk = { wanted: false, api: { current: null } };
-  const root = createRoot(container);
+  const root = createAppRoot(container);
   root.render(
     <StrictMode>
       <AgentChatPane agentId={agentId} ask={ask} projectId={projectId} />

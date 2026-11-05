@@ -2,7 +2,7 @@
 // React now: it is rendered through createRoot into a detached div, edits item.schedule/item.enabled
 // in place and shares the app's controls.
 import { useId, useState } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import { scheduleText, DAY_NAMES as DAYS } from '../shared/routines.ts';
 import type { Schedule } from '../shared/types.ts';
 import { TimePicker } from './ui/timepicker.tsx';
@@ -21,7 +21,7 @@ export { scheduleText };
 export function scheduleEditor(item: { schedule?: Schedule; enabled?: boolean }, onChange: () => void, { inputLabel = 'Input for scheduled runs', inputHint, showToggle = true }: { inputLabel?: string; inputHint?: string; /** false: the page has its own on/off switch. */ showToggle?: boolean } = {}): HTMLDivElement {
   item.schedule ||= { type: 'none' };
   const host = document.createElement('div');
-  createRoot(host).render(<Editor item={item} onChange={onChange} inputLabel={inputLabel} inputHint={inputHint} showToggle={showToggle} />);
+  createAppRoot(host).render(<Editor item={item} onChange={onChange} inputLabel={inputLabel} inputHint={inputHint} showToggle={showToggle} />);
   return host;
 }
 

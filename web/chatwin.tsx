@@ -12,7 +12,7 @@
 import { StrictMode, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import type { Root } from 'react-dom/client';
 import { Menu } from '@base-ui/react/menu';
 import { Tabs } from '@base-ui/react/tabs';
@@ -169,7 +169,7 @@ function ensure(): void {
   const el = document.createElement('div');
   el.style.display = 'contents';
   document.body.append(el);
-  const h = (host = { root: createRoot(el), el });
+  const h = (host = { root: createAppRoot(el), el });
   flushSync(() => h.root.render(<StrictMode><IconWeightProvider value="regular"><ChatWindows /></IconWeightProvider></StrictMode>));
   // also drops the tab of an agent that was deleted
   onState(() => wins.some((w) => w.tabs.length) && refreshChatTabs());
