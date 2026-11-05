@@ -1,0 +1,32 @@
+tests/skills/learn/test_learn_source.py
+  s_09ac87e46cf718::t_a0128a890ccd75 1-133
+skills/athena/learn/scripts/learn_source.py
+  s_09ac87e46cf718::t_6da1feb8fb9c02 1-357
+  s_09ac87e46cf718::t_931379ae584dd3 358-364
+skills/athena/learn/SKILL.md
+  s_09ac87e46cf718::t_e80efd3390e3ba 1-108
+skills/athena/learn/references/sources.md
+  s_09ac87e46cf718::t_c9d6af4a793680 1-91
+skills/athena/learn/references/knowledge-base.md
+  s_09ac87e46cf718::t_d813590d756366 1-49
+skills/athena/README.md
+  s_09ac87e46cf718::t_a41c0f0f5b3eb2 175-180
+tests/server/athena-skills.test.ts
+  s_09ac87e46cf718::t_2e2fbabe254d1d 12-15,53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c0727f1cba6c16f292e3ca70cb45bc36e56322d2",
+  "prompts": {},
+  "sessions": {
+    "s_09ac87e46cf718": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dba100fe-ad53-4df6-a91e-4fc67ad80e57",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
