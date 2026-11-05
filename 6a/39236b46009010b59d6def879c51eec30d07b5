@@ -1,0 +1,85 @@
+shared/api/index.ts
+  s_558b1de395d1d9::t_998a129ef1f621 14-16,18
+tests/server/rpc-moved.test.ts
+  s_558b1de395d1d9::t_91c34a70a91f3d 10
+web/skillpick.ts
+  s_558b1de395d1d9::t_f1efde745b73a9 9
+  s_558b1de395d1d9::t_619afc8c0a3752 3-4,21,78
+shared/api/library.ts
+  s_558b1de395d1d9::t_f6d5420b9a6a7c 1-34
+server/index.ts
+  s_558b1de395d1d9::t_998a129ef1f621 354
+  s_558b1de395d1d9::t_08c4f6f33e3568 80,494
+shared/api/versions.ts
+  s_558b1de395d1d9::t_9b8c0a382bedd9 1-5,7,10-21
+  s_558b1de395d1d9::t_65e3b62e4c92fe 6,8-9
+server/api/refuse.ts
+  s_558b1de395d1d9::t_9b8c0a382bedd9 5-7,16-22
+  s_558b1de395d1d9::t_0a140697599401 8-15
+server/api/skills.ts
+  s_558b1de395d1d9::t_0aa4455399c10e 1-23
+server/engines/hermes.ts
+  s_558b1de395d1d9::t_977048f555232d 6
+  s_558b1de395d1d9::t_c4df9f76ce7697 10
+web/views/stationpanel.tsx
+  s_558b1de395d1d9::t_619afc8c0a3752 626-627
+web/history.tsx
+  s_558b1de395d1d9::t_f1efde745b73a9 6
+  s_558b1de395d1d9::t_619afc8c0a3752 8,103,111,187,206,231
+server/api/versions.ts
+  s_558b1de395d1d9::t_65e3b62e4c92fe 5-6,9,12-16
+  s_558b1de395d1d9::t_0aa4455399c10e 1-4,7-8,10-11,17
+server/api/index.ts
+  s_558b1de395d1d9::t_998a129ef1f621 14-16,18
+web/views/station.ts
+  s_558b1de395d1d9::t_619afc8c0a3752 4151-4152
+web/skilldialogs.tsx
+  s_558b1de395d1d9::t_619afc8c0a3752 25,107,204,263
+  s_558b1de395d1d9::t_c4397b19856ef1 5
+  s_558b1de395d1d9::t_f1efde745b73a9 4
+server/presets.ts
+  s_558b1de395d1d9::t_977048f555232d 9
+  s_558b1de395d1d9::t_c4df9f76ce7697 12
+shared/api/agents.ts
+  s_558b1de395d1d9::t_f6d5420b9a6a7c 44-45
+web/views/library.tsx
+  s_558b1de395d1d9::t_619afc8c0a3752 45,66,142,185,351,360
+  s_558b1de395d1d9::t_e7a9b4044a3315 355-356
+  s_558b1de395d1d9::t_f1efde745b73a9 10,18
+server/api/library.ts
+  s_558b1de395d1d9::t_0aa4455399c10e 1-35
+shared/api/skills.ts
+  s_558b1de395d1d9::t_9b8c0a382bedd9 1-31
+server/library.ts
+  s_558b1de395d1d9::t_c4df9f76ce7697 11,18-19,78
+tests/server/rpc-skills.test.ts
+  s_558b1de395d1d9::t_91d71016838eff 30-33
+  s_558b1de395d1d9::t_ead62d0a514831 1-29,34-49,51-80
+  s_558b1de395d1d9::t_65e3b62e4c92fe 50
+web/views/home.tsx
+  s_558b1de395d1d9::t_619afc8c0a3752 240-241
+  s_558b1de395d1d9::t_f1efde745b73a9 7,11
+web/views/skills.tsx
+  s_558b1de395d1d9::t_f1efde745b73a9 9,19
+  s_558b1de395d1d9::t_619afc8c0a3752 49,162,168
+web/views/agents.tsx
+  s_558b1de395d1d9::t_619afc8c0a3752 619
+shared/types.ts
+  s_558b1de395d1d9::t_c4df9f76ce7697 1842-1888
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6a39236b46009010b59d6def879c51eec30d07b5",
+  "prompts": {},
+  "sessions": {
+    "s_558b1de395d1d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bb40eb4-bbfd-4a59-a58a-1ffe1d09179b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
