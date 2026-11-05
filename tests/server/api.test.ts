@@ -647,6 +647,34 @@ describe('attached files', () => {
     expect(await shown.text()).toBe('# Brief');
   });
 
+  it('makes, renames and deletes a project\'s board tags, and the board lists them', async () => {
+    const st = await (await req('/api/state')).json();
+    const pid = st.project.id as string;
+    // like every change, it needs the dashboard's own header
+    expect((await req(`/api/task-board-tags/${pid}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Bug' }) })).status).toBe(403);
+    const { tag } = await (await req(`/api/task-board-tags/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ name: '🐛 API bug' }) })).json();
+    expect(tag).toMatchObject({ name: 'API bug', emoji: '🐛', tasks: 0, made: true });
+    const bad = await req(`/api/task-board-tags/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ name: 'x', emoji: 'nope' }) });
+    expect(bad.status).toBe(400);
+    expect((await bad.json()).error).toBe('Choose one emoji for the tag.');
+
+    const { task } = await (await req(`/api/task-board/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ title: 'Tagged by API', tags: [tag.id, 'API extra'] }) })).json();
+    expect(task.tagList.map((x: { name: string }) => x.name)).toEqual(['API bug', 'API extra']);
+    await req(`/api/task-board/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ title: 'Untagged by API' }) });
+    // the board has every card (the page filters by tag itself) and the project's tags
+    const shown = await (await req(`/api/task-board?project=${pid}`)).json();
+    expect(shown.tasks.map((t: { title: string }) => t.title)).toEqual(expect.arrayContaining(['Tagged by API', 'Untagged by API']));
+    expect(shown.tags[pid].map((x: { name: string }) => x.name)).toEqual(expect.arrayContaining(['API bug', 'API extra']));
+
+    const renamed = await (await req(`/api/task-board-tags/${pid}/${tag.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ name: 'API defect', emoji: '🪲' }) })).json();
+    expect(renamed.tag).toMatchObject({ name: 'API defect', emoji: '🪲', tasks: 1 });
+    expect((await (await req(`/api/task-board-tags/${pid}`)).json()).tags.map((x: { name: string }) => x.name)).toEqual(expect.arrayContaining(['API defect', 'API extra']));
+    expect(await (await req(`/api/task-board-tags/${pid}/${tag.id}`, { method: 'DELETE', headers: { 'x-dash': '1' } })).json()).toMatchObject({ tasks: 1 });
+    expect((await req(`/api/task-board-tags/${pid}/${tag.id}`, { method: 'DELETE', headers: { 'x-dash': '1' } })).status).toBe(404);
+    const after = (await (await req(`/api/task-board/${pid}/${task.id}`)).json()).task;
+    expect(after.tagList.map((x: { name: string }) => x.name)).toEqual(['API extra']);
+  });
+
   it('attaches uploads to a board task and its comments, and serves only the files listed on that task', async () => {
     const st = await (await req('/api/state')).json();
     const pid = st.project.id as string;

@@ -103,7 +103,7 @@ When an agent needs a decision, its question lands here with the choices as butt
 
 ### Tasks
 
-A board for the project's work: To do, In progress, In review, Blocked and Done. Give a task to an agent or a team, move it to In progress, and they pick it up, comment with what they made, and move it on. The Brain can add, move and assign tasks for you.
+A board for the project's work: To do, In progress, In review, Blocked and Done. Give a task to an agent or a team, move it to In progress, and they pick it up, comment with what they made, and move it on. The Brain can add, move and assign tasks for you. Tag tasks ("🐛 Bug", "Design") and filter the board by tag; the Brain and every agent can tag tasks and find them by tag too.
 
 ![The Tasks board with cards in five columns, each showing its priority and who has it](docs/images/tasks.png)
 

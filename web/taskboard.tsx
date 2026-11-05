@@ -1,6 +1,6 @@
 // The Tasks board's shared parts: its five statuses and four priorities with their marks, the pill and row pickers,
-// and "New task", the window that makes one (a big title, its description, and its status, priority, who has it
-// and its project as pills along the bottom).
+// and "New task", the window that makes one (a big title, its description, and its status, priority, who has it,
+// its tags and its project as pills along the bottom).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { Popover } from '@base-ui/react/popover';
@@ -21,6 +21,7 @@ import { Dropdown, DropdownContent, DropdownRadioGroup, DropdownRadioItem, Dropd
 import { DomNode, Icon } from './ui/react.tsx';
 import { buttonClass } from './ui/classes.ts';
 import { openModal } from './ui/overlays.tsx';
+import { TagPicker } from './tasktags.tsx';
 import type { BoardDraft, BoardDraftInput, BoardPeople, BoardPriority, BoardStatus, BoardTask, TaskFile, TaskWorkState } from '../shared/types.ts';
 
 export const STATUSES: readonly { value: BoardStatus; label: string; icon: string; tone: string }[] = [
@@ -287,8 +288,8 @@ export function assigneeChoices(people: BoardPeople | null): Choice[] {
   ];
 }
 
-const PILL = 'inline-flex h-7 max-w-56 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-panel/60 px-2.5 text-[12.5px] text-ink [transition:border-color_0.15s,background-color_0.15s] hover:border-line-2 hover:bg-panel-2 disabled:cursor-default disabled:opacity-60 data-popup-open:border-accent';
-const ROW = 'flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-ctl px-2 py-1.5 text-left text-[13px] text-ink [transition:background-color_0.15s] hover:bg-panel-2 disabled:cursor-default data-popup-open:bg-panel-2';
+export const PILL = 'inline-flex h-7 max-w-56 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-panel/60 px-2.5 text-[12.5px] text-ink [transition:border-color_0.15s,background-color_0.15s] hover:border-line-2 hover:bg-panel-2 disabled:cursor-default disabled:opacity-60 data-popup-open:border-accent';
+export const ROW = 'flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-ctl px-2 py-1.5 text-left text-[13px] text-ink [transition:background-color_0.15s] hover:bg-panel-2 disabled:cursor-default data-popup-open:bg-panel-2';
 
 /** A property as a pill (the new task window) or a row (the task page), opening its choices. */
 export function Pick({ label, value, choices, onChange, look = 'pill', disabled }: { label: string; value: string; choices: readonly Choice[]; onChange: (v: string) => void; look?: 'pill' | 'row'; disabled?: boolean }) {
@@ -355,6 +356,7 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
   const [status, setStatus] = useState<BoardStatus>(START_STATUSES.some((s) => s.value === startStatus) ? startStatus : 'todo');
   const [priority, setPriority] = useState<BoardPriority>('normal');
   const [assignee, setAssignee] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [another, setAnother] = useState(false);
   const [busy, setBusy] = useState(false);
   const titleBox = useRef<HTMLInputElement>(null);
@@ -373,7 +375,7 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
     try {
       const files = await tray.ready();
       if (files === null) return;
-      const { task } = await POST<{ task: BoardTask }>(`/task-board/${encodeURIComponent(projectId)}`, { title, description, status, priority, assignee, files });
+      const { task } = await POST<{ task: BoardTask }>(`/task-board/${encodeURIComponent(projectId)}`, { title, description, status, priority, assignee, tags, files });
       tray.take();
       toast(`Created ${taskKey(task.number)}: ${task.title}${task.work && task.workerName ? `. ${task.workerName} started on it.` : ''}`);
       await onCreated?.(task);
@@ -430,8 +432,9 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
           <Pick label="Status" value={status} choices={statusChoices(START_STATUSES)} onChange={(v) => setStatus(v as BoardStatus)} disabled={busy} />
           <Pick label="Priority" value={priority} choices={priorityChoices()} onChange={(v) => setPriority(v as BoardPriority)} disabled={busy} />
           <Pick label="Assigned to" value={assignee} choices={assigneeChoices(people)} onChange={setAssignee} disabled={busy} />
+          <TagPicker projectId={projectId} value={tags} onChange={setTags} disabled={busy} />
           {choices.length > 1 ? (
-            <Pick label="Project" value={projectId} choices={choices.map((p) => ({ value: p.id, label: p.name, mark: <Icon name="folder" size={14} className="text-faint" /> }))} onChange={(v) => (setProjectId(v), setAssignee(''))} disabled={busy} />
+            <Pick label="Project" value={projectId} choices={choices.map((p) => ({ value: p.id, label: p.name, mark: <Icon name="folder" size={14} className="text-faint" /> }))} onChange={(v) => (setProjectId(v), setAssignee(''), setTags([]))} disabled={busy} />
           ) : null}
         </div>
       </div>

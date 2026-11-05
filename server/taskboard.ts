@@ -3,7 +3,9 @@
 // the task belongs to (withProject), whichever project is open.
 import { agents, workflows, listProjects, withProject, activeProject, emit } from './store.ts';
 import { dataPath, readJSON, writeJSON, uid } from './util.ts';
-import type { BoardComment, BoardPeople, BoardPriority, BoardStatus, BoardTask, Project, ProjectTask, TaskBoardData, TaskComment, TaskFile } from '../shared/types.ts';
+import { TAGS_PER_PROJECT, TAGS_PER_TASK, cleanTagText, isEmoji, splitTag, tagKey, tagLabel, tagNameProblem, tagsMatch } from '../shared/boardtags.ts';
+import type { TagMatch } from '../shared/boardtags.ts';
+import type { BoardComment, BoardPeople, BoardPriority, BoardStatus, BoardTag, BoardTagUse, BoardTask, Project, ProjectTask, TaskBoardData, TaskComment, TaskFile } from '../shared/types.ts';
 
 export const BOARD_STATUSES: readonly BoardStatus[] = ['todo', 'in_progress', 'in_review', 'blocked', 'done'];
 export const BOARD_PRIORITIES: readonly BoardPriority[] = ['urgent', 'high', 'normal', 'low'];
@@ -12,12 +14,14 @@ interface BoardFile {
   tasks: ProjectTask[];
   /** the number the next task gets */
   next: number;
+  /** the project's tags */
+  tags: BoardTag[];
 }
 const file = () => dataPath('projects', activeProject().id, 'board.json');
 const read = (): BoardFile => {
   const f = readJSON<Partial<BoardFile>>(file(), {});
   const tasks = Array.isArray(f.tasks) ? f.tasks : [];
-  return { tasks, next: typeof f.next === 'number' ? f.next : tasks.reduce((n, t) => Math.max(n, t.number || 0), 0) + 1 };
+  return { tasks, next: typeof f.next === 'number' ? f.next : tasks.reduce((n, t) => Math.max(n, t.number || 0), 0) + 1, tags: Array.isArray(f.tags) ? f.tags : [] };
 };
 function write(f: BoardFile, ids: string[]): void {
   writeJSON(file(), f);
@@ -59,8 +63,12 @@ function who(ref: string, none: string): { name: string; emoji?: string; color?:
   }
   return { name: workflows.get(id)?.name || 'A former team' };
 }
+/** A task's tags, in its order, out of its project's (ids that point at nothing are skipped). */
+export function tagsOf(t: ProjectTask, tags: readonly BoardTag[]): BoardTag[] {
+  return (t.tags || []).flatMap((id) => tags.filter((x) => x.id === id));
+}
 /** A task as the board shows it. withComments: its comments too, with their writers' names (the task's page). */
-function card(p: Project, t: ProjectTask, withComments = false): BoardTask {
+function card(p: Project, t: ProjectTask, tags: readonly BoardTag[], withComments = false): BoardTask {
   const a = who(t.assignee, 'Unassigned');
   const { comments = [], ...rest } = t;
   return {
@@ -75,6 +83,7 @@ function card(p: Project, t: ProjectTask, withComments = false): BoardTask {
     ...(a.color ? { assigneeColor: a.color } : {}),
     creatorName: who(t.createdBy, 'You').name,
     ...(t.work ? { workerName: who(`${t.work.target.kind}:${t.work.target.id}`, 'Unassigned').name } : {}),
+    tagList: tagsOf(t, tags),
   };
 }
 function named(c: TaskComment): BoardComment {
@@ -83,30 +92,32 @@ function named(c: TaskComment): BoardComment {
 }
 const order = (a: ProjectTask, b: ProjectTask) => a.rank - b.rank || b.createdAt - a.createdAt || a.id.localeCompare(b.id);
 
-/** The cards of one project, or of all of them ('all'), in board order; and every project with its open count. */
+/** The cards of one project, or of all of them ('all'), in board order; every project with its open count; and the
+ *  shown projects' tags (the page filters by them itself). */
 export function taskBoard(project: string): TaskBoardData {
   const all = listProjects();
   const chosen = project === 'all' ? all : [all.find((p) => p.id === project) || fail('That project is unavailable.', 404)];
   // each project's board is read once: for its open count, and for its cards when it is shown
-  const boards = new Map(all.map((p) => [p.id, withProject(p, () => read().tasks)]));
-  const tasks = chosen.flatMap((p) => withProject(p, () => boards.get(p.id)!.map((t) => card(p, t))));
+  const boards = new Map(all.map((p) => [p.id, withProject(p, () => read())]));
+  const tasks = chosen.flatMap((p) => withProject(p, () => { const f = boards.get(p.id)!; return f.tasks.map((t) => card(p, t, f.tags)); }));
   tasks.sort(order);
-  const projects = all.map((p) => ({ id: p.id, name: p.name, open: boards.get(p.id)!.filter((t) => t.status !== 'done').length }));
-  return { projects, tasks };
+  const projects = all.map((p) => ({ id: p.id, name: p.name, open: boards.get(p.id)!.tasks.filter((t) => t.status !== 'done').length }));
+  return { projects, tasks, tags: Object.fromEntries(chosen.map((p) => [p.id, uses(boards.get(p.id)!)])) };
 }
 
 /** One project's cards (not the others': the Overview page asks project by project). */
 export function projectCards(projectId: string): BoardTask[] {
   const p = projectOf(projectId);
-  return withProject(p, () => read().tasks.map((t) => card(p, t)));
+  return withProject(p, () => { const f = read(); return f.tasks.map((t) => card(p, t, f.tags)); });
 }
 
 /** One task as its page shows it. */
 export function boardTask(projectId: string, id: string): BoardTask {
   const p = projectOf(projectId);
   return withProject(p, () => {
-    const t = read().tasks.find((x) => x.id === id);
-    return t ? card(p, t, true) : fail('That task is unavailable.', 404);
+    const f = read();
+    const t = f.tasks.find((x) => x.id === id);
+    return t ? card(p, t, f.tags, true) : fail('That task is unavailable.', 404);
   });
 }
 
@@ -126,6 +137,10 @@ export interface BoardInput {
   assignee?: unknown;
   rank?: unknown;
   blockedReason?: unknown;
+  /** its whole list of tags (names or ids); addTags and removeTags change some */
+  tags?: unknown;
+  addTags?: unknown;
+  removeTags?: unknown;
 }
 
 /** A new task in a project. Without a rank it goes to the top of its column. */
@@ -153,13 +168,14 @@ export function addBoardTask(projectId: string, input: BoardInput, by = 'you', f
       ...(s === 'done' ? { doneAt: now } : {}),
       ...(files.length ? { files } : {}),
     };
-    write({ tasks: [...f.tasks, t], next: f.next + 1 }, [t.id]);
-    return card(p, t);
+    putTags(f, t, input, by);
+    write({ ...f, tasks: [...f.tasks, t], next: f.next + 1 }, [t.id]);
+    return card(p, t, f.tags);
   });
 }
 
-/** Moves (status, rank) or edits a task in its own project. Leaving Blocked drops its reason. */
-export function changeBoardTask(projectId: string, id: string, input: BoardInput & { expectedUpdatedAt?: unknown }, files?: TaskFile[]): BoardTask {
+/** Moves (status, rank) or edits a task in its own project. Leaving Blocked drops its reason. by: who makes any new tag. */
+export function changeBoardTask(projectId: string, id: string, input: BoardInput & { expectedUpdatedAt?: unknown }, files?: TaskFile[], by = 'you'): BoardTask {
   const p = projectOf(projectId);
   if (!object(input)) return fail('Say what changes.');
   return withProject(p, () => {
@@ -171,6 +187,7 @@ export function changeBoardTask(projectId: string, id: string, input: BoardInput
     if (input.priority !== undefined) t.priority = priority(input.priority);
     if (input.assignee !== undefined) t.assignee = assignee(input.assignee);
     if (input.rank !== undefined) t.rank = rank(input.rank);
+    putTags(f, t, input, by);
     if (files) {
       if (files.length) t.files = files;
       else delete t.files;
@@ -189,7 +206,7 @@ export function changeBoardTask(projectId: string, id: string, input: BoardInput
     }
     t.updatedAt = Math.max(Date.now(), t.updatedAt + 1);
     write(f, [t.id]);
-    return card(p, t, true);
+    return card(p, t, f.tags, true);
   });
 }
 
@@ -232,7 +249,7 @@ export function editBoardTask(projectId: string, id: string, fn: (t: ProjectTask
       t.updatedAt = Math.max(Date.now(), t.updatedAt + 1);
       write(f, [t.id]);
     }
-    return card(p, t, true);
+    return card(p, t, f.tags, true);
   });
 }
 
@@ -258,7 +275,7 @@ export function addBoardComment(projectId: string, taskId: string, text: unknown
     t.comments = [...comments, { id: uid('c'), by, text: files.length && (typeof text !== 'string' || !text.trim()) ? '' : text_(text), at: now, ...(files.length ? { files } : {}) }];
     t.updatedAt = Math.max(now, t.updatedAt + 1);
     write(f, [t.id]);
-    return card(p, t, true);
+    return card(p, t, f.tags, true);
   });
 }
 
@@ -273,7 +290,7 @@ export function changeBoardComment(projectId: string, taskId: string, commentId:
     else Object.assign(c, { text: text_(text), editedAt: Date.now() });
     t.updatedAt = Math.max(Date.now(), t.updatedAt + 1);
     write(f, [t.id]);
-    return card(p, t, true);
+    return card(p, t, f.tags, true);
   });
 }
 const text_ = (v: unknown) => text(v, 'comment', true);
@@ -282,33 +299,224 @@ const text_ = (v: unknown) => text(v, 'comment', true);
 export function findBoardTask(projectId: string, ref: unknown): BoardTask {
   const p = projectOf(projectId);
   return withProject(p, () => {
-    const all = read().tasks;
+    const f = read();
+    const all = f.tasks;
     const r = typeof ref === 'number' ? `#${ref}` : typeof ref === 'string' ? ref.trim() : '';
     const n = /^#?(\d+)$/.exec(r);
     const hit = (n ? all.find((t) => t.number === Number(n[1])) : undefined) || all.find((t) => t.id === r);
-    if (hit) return card(p, hit);
+    if (hit) return card(p, hit, f.tags);
     const named = all.filter((t) => t.title.toLowerCase() === r.toLowerCase());
-    if (named.length === 1) return card(p, named[0]);
+    if (named.length === 1) return card(p, named[0], f.tags);
     return fail(named.length ? `${named.length} tasks are called "${r}": use its #number` : `no task "${r}" on the board`, 404);
   });
 }
 
+const STATUS_LABEL: Record<BoardStatus, string> = { todo: 'To do', in_progress: 'In progress', in_review: 'In review', blocked: 'Blocked', done: 'Done' };
+/** One task as the Brain and agents read it (inside withProject). */
+function line(t: ProjectTask, tags: readonly BoardTag[]): string {
+  const comments = t.comments || [];
+  const c = comments.at(-1);
+  const working = t.work && ['starting', 'working', 'waiting'].includes(t.work.state) ? ` | working: ${who(`${t.work.target.kind}:${t.work.target.id}`, 'someone').name}` : '';
+  const files = (t.files?.length || 0) + comments.reduce((n, x) => n + (x.files?.length || 0), 0);
+  const tagged = tagsOf(t, tags);
+  return `#${t.number} [${STATUS_LABEL[t.status]}] ${t.priority === 'normal' ? '' : `(${t.priority}) `}${t.title} | ${t.assignee ? `${who(t.assignee, 'Unassigned').name} (${t.assignee})` : 'unassigned'}${tagged.length ? ` | tags: ${tagged.map(tagLabel).join(', ')}` : ''}${working}${files ? ` | files: ${files}` : ''}${t.blockedReason ? ` | blocked: ${t.blockedReason}` : ''}${t.description ? ` | ${t.description.replace(/\s+/g, ' ').slice(0, 140)}` : ''}${c ? ` | ${comments.length} comment${comments.length === 1 ? '' : 's'}, last from ${who(c.by, 'you').name}: "${c.text.replace(/\s+/g, ' ').slice(0, 120)}"` : ''}`;
+}
+
+/** Open tasks, then the last few done, one line each. */
+function linesOf(f: BoardFile, max: number, only?: string): string[] {
+  const tasks = f.tasks.filter((t) => !only || t.id === only).sort(order);
+  const open = tasks.filter((t) => t.status !== 'done');
+  const done = tasks.filter((t) => t.status === 'done').sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 5);
+  return [...open.slice(0, max), ...done].map((t) => line(t, f.tags));
+}
 /** The board as the Brain sees it: open tasks, then the last few done, one line each. */
 export function boardLines(projectId: string, max = 60, only?: string): string[] {
-  const label: Record<BoardStatus, string> = { todo: 'To do', in_progress: 'In progress', in_review: 'In review', blocked: 'Blocked', done: 'Done' };
   // (one read of this project's board, comments and all)
+  return withProject(projectOf(projectId), () => linesOf(read(), max, only));
+}
+/** The board for the Brain's snapshot, from one read: the TAGS line and the tasks' lines (only: that task's). */
+export function boardSummary(projectId: string, only?: string): { tags: string; lines: string[] } {
   return withProject(projectOf(projectId), () => {
-    const tasks = read().tasks.filter((t) => !only || t.id === only).sort(order);
-    const open = tasks.filter((t) => t.status !== 'done');
-    const done = tasks.filter((t) => t.status === 'done').sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 5);
-    return [...open.slice(0, max), ...done].map((t) => {
-      const comments = t.comments || [];
-      const c = comments.at(-1);
-      const working = t.work && ['starting', 'working', 'waiting'].includes(t.work.state) ? ` | working: ${who(`${t.work.target.kind}:${t.work.target.id}`, 'someone').name}` : '';
-      const files = (t.files?.length || 0) + comments.reduce((n, x) => n + (x.files?.length || 0), 0);
-      return `#${t.number} [${label[t.status]}] ${t.priority === 'normal' ? '' : `(${t.priority}) `}${t.title} | ${t.assignee ? `${who(t.assignee, 'Unassigned').name} (${t.assignee})` : 'unassigned'}${working}${files ? ` | files: ${files}` : ''}${t.blockedReason ? ` | blocked: ${t.blockedReason}` : ''}${t.description ? ` | ${t.description.replace(/\s+/g, ' ').slice(0, 140)}` : ''}${c ? ` | ${comments.length} comment${comments.length === 1 ? '' : 's'}, last from ${who(c.by, 'you').name}: "${c.text.replace(/\s+/g, ' ').slice(0, 120)}"` : ''}`;
-    });
+    const f = read();
+    return { tags: tagLine(uses(f)), lines: linesOf(f, 60, only) };
   });
+}
+
+// ---------- tags ----------
+// A project's tags live in its board.json with its tasks; a task keeps their ids, so renaming one or changing its
+// emoji shows on every task at once. You, the Brain and agents name tags: a name that is new makes the tag.
+
+export interface TagInput {
+  name?: unknown;
+  emoji?: unknown;
+}
+/** The shape of a tag's id (uid('tag')): an id like that which isn't on the board is never taken as a new name. */
+const TAG_ID = /^tag[0-9a-z]{16}$/;
+
+function uses(f: BoardFile): BoardTagUse[] {
+  return f.tags
+    .map((x) => ({ ...x, tasks: f.tasks.filter((t) => t.tags?.includes(x.id)).length }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+}
+const byName = (f: BoardFile, name: string): BoardTag | undefined => f.tags.find((x) => tagKey(x.name) === tagKey(name));
+/** A tag by its id or its name (a leading emoji and case don't matter). */
+function findTag(f: BoardFile, ref: unknown): BoardTag | undefined {
+  if (typeof ref !== 'string') return undefined;
+  const r = cleanTagText(ref);
+  return r ? f.tags.find((x) => x.id === r) || byName(f, r) : undefined;
+}
+function emojiOf(v: unknown): string {
+  if (typeof v !== 'string') return fail('emoji must be text.');
+  const e = cleanTagText(v);
+  return !e || isEmoji(e) ? e : fail('Choose one emoji for the tag.');
+}
+function tagName(v: unknown): { name: string; emoji?: string } {
+  if (typeof v !== 'string') return fail('Give the tag a name.');
+  const split = splitTag(v);
+  const problem = tagNameProblem(split.name);
+  return problem ? fail(problem) : split;
+}
+/** Makes a tag, or gives back the one that has that name already (left as it is). */
+function makeTag(f: BoardFile, input: TagInput, by: string): { tag: BoardTag; made: boolean } {
+  const split = tagName(input.name);
+  const emoji = input.emoji === undefined ? split.emoji : emojiOf(input.emoji) || split.emoji;
+  const same = byName(f, split.name);
+  if (same) return { tag: same, made: false };
+  if (f.tags.length >= TAGS_PER_PROJECT) return fail(`A project can have up to ${TAGS_PER_PROJECT} tags. Delete one you no longer use first.`);
+  const tag: BoardTag = { id: uid('tag'), name: split.name, ...(emoji ? { emoji } : {}), createdBy: by, createdAt: Date.now() };
+  f.tags.push(tag);
+  return { tag, made: true };
+}
+/** Tag names or ids, as a list or as text with commas ("bug, design"). */
+function tagRefs(v: unknown, field: string): string[] {
+  const list = typeof v === 'string' ? v.split(',') : Array.isArray(v) && v.every((x) => typeof x === 'string') ? v as string[] : fail(`${field} must be a list of tag names.`);
+  return list.map(cleanTagText).filter(Boolean);
+}
+function tagIds(f: BoardFile, refs: string[], by: string): string[] {
+  return refs.map((r) => findTag(f, r)?.id || (TAG_ID.test(r) ? fail('That tag is unavailable. Reload and try again.', 404) : makeTag(f, { name: r }, by).tag.id));
+}
+/** Puts the input's tags on a task: tags (the whole list), then addTags, then removeTags. New names make tags. */
+function putTags(f: BoardFile, t: ProjectTask, input: BoardInput, by: string): void {
+  if (input.tags === undefined && input.addTags === undefined && input.removeTags === undefined) return;
+  let ids = input.tags === undefined ? [...(t.tags || [])] : tagIds(f, tagRefs(input.tags, 'tags'), by);
+  if (input.addTags !== undefined) ids.push(...tagIds(f, tagRefs(input.addTags, 'addTags'), by));
+  if (input.removeTags !== undefined) {
+    const gone = new Set(tagRefs(input.removeTags, 'removeTags').map((r) => findTag(f, r)?.id));
+    ids = ids.filter((id) => !gone.has(id));
+  }
+  ids = [...new Set(ids)];
+  if (ids.length > TAGS_PER_TASK) return fail(`A task can have up to ${TAGS_PER_TASK} tags.`);
+  if (ids.length) t.tags = ids;
+  else delete t.tags;
+}
+const tasksWith = (f: BoardFile, tagId: string) => f.tasks.filter((t) => t.tags?.includes(tagId));
+const useOf = (f: BoardFile, tag: BoardTag): BoardTagUse => ({ ...tag, tasks: tasksWith(f, tag.id).length });
+
+/** A tag of a project by its id or its name, or null. */
+export function findBoardTag(projectId: string, ref: unknown): BoardTag | null {
+  return withProject(projectOf(projectId), () => findTag(read(), ref) || null);
+}
+
+/** A project's tags, by name, with how many tasks have each. */
+export function boardTags(projectId: string): BoardTagUse[] {
+  return withProject(projectOf(projectId), () => uses(read()));
+}
+
+/** Makes a tag ("🐛 Bug" is the emoji and the name), or gives back the one with that name. */
+export function addBoardTag(projectId: string, input: TagInput, by = 'you'): BoardTagUse & { made: boolean } {
+  if (!object(input)) return fail('Give the tag a name.');
+  return withProject(projectOf(projectId), () => {
+    const f = read();
+    const { tag, made } = makeTag(f, input, by);
+    if (made) write(f, []);
+    return { ...useOf(f, tag), made };
+  });
+}
+
+/** Renames a tag or changes its emoji ('' takes it away). Every task with it shows the change. */
+export function changeBoardTag(projectId: string, ref: string, input: TagInput): BoardTagUse {
+  if (!object(input)) return fail('Say what changes.');
+  return withProject(projectOf(projectId), () => {
+    const f = read();
+    const tag = findTag(f, ref) || fail('That tag is unavailable.', 404);
+    if (input.name !== undefined) {
+      const split = tagName(input.name);
+      const other = byName(f, split.name);
+      if (other && other.id !== tag.id) return fail(`There's a tag called "${tagLabel(other)}" already.`, 409);
+      tag.name = split.name;
+      if (split.emoji && input.emoji === undefined) tag.emoji = split.emoji;
+    }
+    if (input.emoji !== undefined) {
+      const e = emojiOf(input.emoji);
+      if (e) tag.emoji = e;
+      else delete tag.emoji;
+    }
+    write(f, tasksWith(f, tag.id).map((t) => t.id));
+    return useOf(f, tag);
+  });
+}
+
+/** Deletes a tag and takes it off every task that had it. */
+export function removeBoardTag(projectId: string, ref: string): { tag: BoardTag; tasks: number } {
+  return withProject(projectOf(projectId), () => {
+    const f = read();
+    const tag = findTag(f, ref) || fail('That tag is unavailable.', 404);
+    const had = tasksWith(f, tag.id);
+    const now = Date.now();
+    for (const t of had) {
+      t.tags = t.tags!.filter((id) => id !== tag.id);
+      if (!t.tags.length) delete t.tags;
+      t.updatedAt = Math.max(now, t.updatedAt + 1);
+    }
+    write({ ...f, tags: f.tags.filter((x) => x.id !== tag.id) }, had.map((t) => t.id));
+    return { tag, tasks: had.length };
+  });
+}
+
+/** A project's tags in one line, for the Brain and agents: "TAGS: 🐛 Bug (3), frontend (0)". */
+export function tagLine(all: readonly BoardTagUse[]): string {
+  return `TAGS: ${all.length ? all.map((x) => `${tagLabel(x)} (${x.tasks})`).join(', ') : '(none yet)'}`;
+}
+export function boardTagLine(projectId: string): string {
+  return tagLine(boardTags(projectId));
+}
+
+export interface BoardQuery {
+  /** tag names (or ids) */
+  tags?: unknown;
+  match?: unknown;
+  /** tasks without any tag too */
+  untagged?: unknown;
+  /** 'open' (not done; the default), 'all', or one status */
+  status?: unknown;
+  limit?: unknown;
+}
+/** Tasks found by their tags (and status), as the Brain and agents read them; and the names no tag has. */
+export function findBoardTasks(projectId: string, q: BoardQuery): { lines: string[]; total: number; unknown: string[]; tagLine: string } {
+  if (!object(q)) return fail('Say which tags to look for.');
+  const wanted = q.tags === undefined ? [] : tagRefs(q.tags, 'tags');
+  const match: TagMatch = q.match === undefined || q.match === 'any' ? 'any' : q.match === 'all' ? 'all' : fail('match must be any or all.');
+  const untagged = q.untagged === true;
+  if (!wanted.length && !untagged) return fail('Name the tags to look for, or ask for untagged tasks.');
+  const st = q.status === undefined || q.status === 'open' ? 'open' : q.status === 'all' ? 'all' : status(q.status);
+  const limit = q.limit === undefined ? 50 : typeof q.limit === 'number' && Number.isInteger(q.limit) && q.limit > 0 ? Math.min(q.limit, 200) : fail('limit must be a whole number above 0.');
+  return withProject(projectOf(projectId), () => {
+    const f = read();
+    const unknown = wanted.filter((r) => !findTag(f, r));
+    // (an id names its tag; a name is matched as a name)
+    const names = wanted.map((r) => findTag(f, r)?.name ?? r);
+    const hits = f.tasks
+      .filter((t) => (st === 'all' || (st === 'open' ? t.status !== 'done' : t.status === st)) && tagsMatch(tagsOf(t, f.tags).map((x) => x.name), names, match, untagged))
+      .sort((a, b) => BOARD_STATUSES.indexOf(a.status) - BOARD_STATUSES.indexOf(b.status) || order(a, b));
+    return { lines: hits.slice(0, limit).map((t) => line(t, f.tags)), total: hits.length, unknown, tagLine: unknown.length ? tagLine(uses(f)) : '' };
+  });
+}
+/** findBoardTasks as the Brain and agents read it: the lines, how many more there are, and the names no tag has. */
+export function findBoardTasksText(projectId: string, q: BoardQuery): string {
+  const found = findBoardTasks(projectId, q);
+  const more = found.total > found.lines.length ? `\n(${found.total - found.lines.length} more: ask with a higher limit)` : '';
+  const unknown = found.unknown.length ? `\nNo tag called: ${found.unknown.join(', ')}. ${found.tagLine}` : '';
+  return `${found.lines.join('\n') || 'No tasks match.'}${more}${unknown}`;
 }
 
 export function removeBoardTask(projectId: string, id: string): void {
@@ -322,6 +530,7 @@ export function removeBoardTask(projectId: string, id: string): void {
 /** A saved copy of a project's board (its folder save, a backup): well-formed tasks only. */
 export function restoredBoard(raw: unknown): BoardFile {
   const values: unknown[] = object(raw) && Array.isArray(raw.tasks) ? raw.tasks : [];
+  const { tags, same } = restoredTags(object(raw) ? raw.tags : undefined);
   const tasks: ProjectTask[] = [];
   const seen = new Set<string>();
   for (const v of values) {
@@ -345,13 +554,45 @@ export function restoredBoard(raw: unknown): BoardFile {
       updatedAt: num(v.updatedAt, Date.now()),
       ...(s === 'done' ? { doneAt: num(v.doneAt, num(v.updatedAt, Date.now())) } : {}),
       ...(files.length ? { files } : {}),
+      ...(() => {
+        const kept = Array.isArray(v.tags) ? [...new Set(v.tags.flatMap((x) => (typeof x === 'string' && same.get(x)) || []))].slice(0, TAGS_PER_TASK) : [];
+        return kept.length ? { tags: kept } : {};
+      })(),
       // (work isn't kept: its runs and threads belong to the copy it was saved from)
       ...(Array.isArray(v.comments) ? { comments: v.comments.filter((c): c is Record<string, unknown> => object(c) && typeof c.id === 'string' && /^[\w.-]+$/.test(c.id) && typeof c.text === 'string' && (!!c.text.trim() || restoredFiles(c.files).length > 0)).map((c) => ({ id: c.id as string, by: ref(c.by) || 'you', text: c.text as string, at: num(c.at, Date.now()), ...(typeof c.editedAt === 'number' ? { editedAt: c.editedAt } : {}), ...(restoredFiles(c.files).length ? { files: restoredFiles(c.files) } : {}) })) } : {}),
     });
     seen.add(v.id);
   }
   const next = Math.max(object(raw) && typeof raw.next === 'number' ? raw.next : 1, tasks.reduce((n, t) => Math.max(n, t.number), 0) + 1);
-  return { tasks, next };
+  return { tasks, next, tags };
+}
+
+/** Tags on a saved copy: a safe id, a name that can be used, one emoji or none; no two with one name. same: the id
+ *  each saved id is kept as (a second tag with a name already kept becomes that one, so its tasks keep the tag). */
+function restoredTags(raw: unknown): { tags: BoardTag[]; same: Map<string, string> } {
+  const out: BoardTag[] = [];
+  const same = new Map<string, string>();
+  for (const x of Array.isArray(raw) ? raw : []) {
+    if (!object(x) || typeof x.id !== 'string' || !/^[\w.-]+$/.test(x.id) || typeof x.name !== 'string' || same.has(x.id)) continue;
+    const split = splitTag(x.name);
+    if (tagNameProblem(split.name)) continue;
+    const twin = out.find((y) => tagKey(y.name) === tagKey(split.name));
+    if (twin) {
+      same.set(x.id, twin.id);
+      continue;
+    }
+    if (out.length >= TAGS_PER_PROJECT) continue;
+    same.set(x.id, x.id);
+    const emoji = typeof x.emoji === 'string' && isEmoji(x.emoji) ? x.emoji : split.emoji;
+    out.push({
+      id: x.id,
+      name: split.name,
+      ...(emoji ? { emoji } : {}),
+      createdBy: typeof x.createdBy === 'string' && /^(you|brain|agent:[\w.-]+)$/.test(x.createdBy) ? x.createdBy : 'you',
+      createdAt: typeof x.createdAt === 'number' && Number.isFinite(x.createdAt) ? x.createdAt : Date.now(),
+    });
+  }
+  return { tags: out, same };
 }
 
 /** Files on a saved copy: paths inside the uploads folder only (relative, no way out of it). */

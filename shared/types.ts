@@ -1864,6 +1864,24 @@ export interface ProjectTask {
   files?: TaskFile[];
   /** the agent's or team's work on it: the one going now, or the last one */
   work?: TaskWork;
+  /** its tags (ids of the project's BoardTag), in the order they were put on; left out when it has none */
+  tags?: string[];
+}
+
+/** A tag on a project's Tasks board (kept in its board.json): a name with an emoji if it has one. */
+export interface BoardTag {
+  id: string;
+  /** unique in the project, compared in lower case without a leading emoji (shared/boardtags.ts) */
+  name: string;
+  /** one emoji */
+  emoji?: string;
+  /** 'you', 'brain' or 'agent:<id>' */
+  createdBy: string;
+  createdAt: number;
+}
+/** A tag with how many of the project's tasks have it. */
+export interface BoardTagUse extends BoardTag {
+  tasks: number;
 }
 
 /** A file on a task or a comment: a copy in the task's own project's uploads folder (path relative to it). */
@@ -1930,11 +1948,15 @@ export interface BoardTask extends Omit<ProjectTask, 'comments'> {
   creatorName: string;
   /** who works on it, by name (with work) */
   workerName?: string;
+  /** its tags, in order */
+  tagList: BoardTag[];
 }
-/** GET /api/task-board: the cards, and every project with how many open tasks it has. */
+/** GET /api/task-board: the cards, every project with how many open tasks it has, and the tags of the projects shown. */
 export interface TaskBoardData {
   projects: { id: string; name: string; open: number }[];
   tasks: BoardTask[];
+  /** each shown project's tags, by project id */
+  tags: Record<string, BoardTagUse[]>;
 }
 /** One thing on the Overview page's sidebar: an agent, a team, the Brain, or a board task being worked on. */
 export interface OverviewSession {

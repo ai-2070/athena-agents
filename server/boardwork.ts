@@ -12,9 +12,10 @@ import { getTeam, getThread, isTeamBusy, postUserMessage, queueUserMessage, stop
 import { pickMember } from './brain.ts';
 import { listBriefs } from './briefs.ts';
 import { privateAgentChat, privateTeamId, privateTeamRecord } from './private-conversations.ts';
-import { addBoardComment, editBoardTask, savedBoardTask, tasksWithWork } from './taskboard.ts';
+import { addBoardComment, boardTags, changeBoardTask, editBoardTask, savedBoardTask, tagLine, tagsOf, tasksWithWork } from './taskboard.ts';
+import { tagLabel } from '../shared/boardtags.ts';
 import { taskFilePath, workerFiles } from './boardfiles.ts';
-import type { BoardTask, Project, ProjectTask, ServerEvent, TaskFile, TaskWork } from '../shared/types.ts';
+import type { BoardTag, BoardTask, Project, ProjectTask, ServerEvent, TaskFile, TaskWork } from '../shared/types.ts';
 
 /** How the board signs what it sends (the chat and the team thread show it). */
 export const BOARD_SENDER = 'Tasks board (you)';
@@ -35,8 +36,8 @@ const workerRef = (w: TaskWork) => `${w.target.kind}:${w.target.id}`;
 function fileNames(files: TaskFile[] | undefined): string {
   return (files || []).map((f) => f.name).join(', ');
 }
-/** The task in one message: what it is, what was said, and how to report back. */
-function assignment(p: Project, t: ProjectTask): string {
+/** The task in one message: what it is, its tags (in its order), what was said, and how to report back. */
+function assignment(p: Project, t: ProjectTask, tags: readonly BoardTag[]): string {
   const comments = (t.comments || []).map((c) => {
     const files = fileNames(c.files);
     return `- ${c.by === 'you' ? 'You' : c.by}: ${c.text}${files ? ` [files: ${files}]` : ''}`;
@@ -44,6 +45,7 @@ function assignment(p: Project, t: ProjectTask): string {
   return [
     `Task #${t.number} on the Tasks board of project "${p.name}": ${t.title}`,
     `Priority: ${t.priority}`,
+    tags.length ? `Tags: ${tags.map(tagLabel).join(', ')}` : '',
     t.description ? `\n${t.description}` : '',
     t.files?.length ? `\nFiles on the task (attached): ${fileNames(t.files)}` : '',
     comments.length ? `\nComments so far (oldest first):\n${comments.join('\n')}` : '',
@@ -85,7 +87,8 @@ export async function startWork(projectId: string, taskId: string): Promise<Boar
     launching.add(operationId);
     const launch = async (): Promise<BoardTask> => {
       try {
-        const text = assignment(p, task);
+        // (the card editBoardTask gave back has the task's tags: no other read of the board)
+        const text = assignment(p, task, saved.tagList);
         const attachments = attachmentsOf(p, task);
         let started: Partial<TaskWork>;
         if (target.kind === 'agent') {
@@ -350,11 +353,14 @@ export function workerTask(runId: string | null | undefined, agentId: string): {
 /** board_task: the task as its worker reads it. */
 export function readWorkerTask(runId: string | null | undefined, agentId: string): string {
   const { run, task } = workerTask(runId, agentId);
-  return withProject(run.project, () => assignment(run.project, task));
+  return withProject(run.project, () => {
+    const all = boardTags(run.projectId);
+    return `${assignment(run.project, task, tagsOf(task, all))}\n\nThe board's ${tagLine(all)}`;
+  });
 }
 
 /** board_reply: a comment from the worker, with files, and its card moved to In review or Blocked. */
-export async function workerReply(runId: string | null | undefined, agentId: string, args: { text?: unknown; files?: unknown; status?: unknown; reason?: unknown }): Promise<string> {
+export async function workerReply(runId: string | null | undefined, agentId: string, args: { text?: unknown; files?: unknown; status?: unknown; reason?: unknown; addTags?: unknown; removeTags?: unknown }): Promise<string> {
   const { run, task } = workerTask(runId, agentId);
   const text = typeof args.text === 'string' ? args.text.trim() : '';
   const status = args.status === undefined || args.status === '' ? null : args.status === 'in_review' || args.status === 'blocked' ? args.status : fail('status must be in_review or blocked. Only the user moves a task to Done.');
@@ -362,14 +368,21 @@ export async function workerReply(runId: string | null | undefined, agentId: str
   if (status === 'blocked' && !reason && !text) return fail('Say why it is blocked (reason).');
   const by = `agent:${run.agentId}`;
   const files = await workerFiles(run, args.files, by);
-  if (!text && !files.length && !status) return fail('Give text, files or a status.');
+  const retag = args.addTags !== undefined || args.removeTags !== undefined;
+  if (!text && !files.length && !status && !retag) return fail('Give text, files, a status or tags.');
   return withProject(run.project, () => {
+    // (tags first: a name that can't be a tag stops the reply before anything is saved)
+    const tagged = retag ? changeBoardTask(run.projectId, task.id, { addTags: args.addTags, removeTags: args.removeTags }, undefined, by) : null;
     if (text || files.length) addBoardComment(run.projectId, task.id, text, by, files);
     if (status) editBoardTask(run.projectId, task.id, (t) => {
       t.status = status;
       if (status === 'blocked') t.blockedReason = reason || text;
       else delete t.blockedReason;
     });
-    return [text || files.length ? `Commented on #${task.number}${files.length ? ` with ${files.length} file${files.length === 1 ? '' : 's'}` : ''}.` : '', status ? `Moved #${task.number} to ${status === 'in_review' ? 'In review' : 'Blocked'}.` : ''].filter(Boolean).join(' ');
+    return [
+      text || files.length ? `Commented on #${task.number}${files.length ? ` with ${files.length} file${files.length === 1 ? '' : 's'}` : ''}.` : '',
+      status ? `Moved #${task.number} to ${status === 'in_review' ? 'In review' : 'Blocked'}.` : '',
+      tagged ? (tagged.tagList.length ? `Its tags: ${tagged.tagList.map(tagLabel).join(', ')}.` : 'It has no tags now.') : '',
+    ].filter(Boolean).join(' ');
   });
 }

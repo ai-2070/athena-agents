@@ -6,6 +6,11 @@ import { activeProject, agents, chats, collection, workflows } from './store.ts'
 import { privateDataPath } from './private.ts';
 import type { Chat, PrivateConversation, Team } from '../shared/types.ts';
 
+/** A Tasks board task's own conversation (board-<taskId>). */
+export const isBoardConversation = (id: string | null | undefined): boolean => !!id && id.startsWith('board-');
+/** Gateway conversations (and the Brain's private work for one) are the other private conversations. */
+export const isGatewayConversation = (id: string | null | undefined): boolean => !!id && !isBoardConversation(id);
+
 const records = collection<PrivateConversation>('runtime/private-conversations', { global: true });
 const safeId = z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/);
 const schema: z.ZodType<PrivateConversation> = z.strictObject({
