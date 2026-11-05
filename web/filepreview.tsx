@@ -4,7 +4,7 @@
 // (inside the project's folders, see server/files.ts) get one; anything else is left as plain text.
 // React now: the boxes are drawn with createRoot into the detached element the caller gets (as schedule.tsx does).
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import { POST, attempt, lightbox, toast, state } from './core.ts';
 import { domButton } from './ui/dom.ts';
 import { icon } from './icons.ts';
@@ -278,7 +278,7 @@ export function filePreviews(paths: readonly string[], { compact = false, projec
   box.className = `hidden ${compact ? 'flex w-full max-w-[860px] flex-wrap gap-1.5' : 'flex w-full max-w-[860px] flex-wrap gap-2.5'}`;
   const list = [...new Set(paths)].filter(Boolean);
   if (!list.length) return box;
-  createRoot(box).render(<Previews paths={list} compact={compact} project={project} onReady={() => box.classList.remove('hidden')} />);
+  createAppRoot(box).render(<Previews paths={list} compact={compact} project={project} onReady={() => box.classList.remove('hidden')} />);
   return box;
 }
 

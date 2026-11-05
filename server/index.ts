@@ -88,6 +88,7 @@ import * as files from './files.ts';
 import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
+import { devPage, pageCsp, viteFromArgs } from './devpage.ts';
 import { saveToolStats, toolStats } from './toolstats.ts';
 import type { RestoreResult } from './projectsync.ts';
 import type { Agent, AppState, Chat, Project, ProviderUsage, Routine, SecretKey, Team, UsageLimits, VersionKind, WorldBuilder } from '../shared/types.ts';
@@ -101,6 +102,8 @@ setPort(PORT);
 const OPEN = !argv.includes('--no-open') && !process.env.DASH_NO_OPEN;
 const PUBLIC = path.join(ROOT, 'public');
 const ALLOWED_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`, `[::1]:${PORT}`]);
+// `bun run dev`: the page's code comes from the Vite dev server (hot reload) instead of public/dist
+const VITE = viteFromArgs(argv);
 
 // Only the terminal's stylesheet comes straight from node_modules; the scripts are bundled into public/dist.
 const VENDOR: Record<string, string> = {
@@ -1531,19 +1534,12 @@ function serveStatic(url: URL, res: http.ServerResponse): boolean {
   const headers: Record<string, string> = { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' };
   // Agent output is shown as markdown: no outside scripts, and images only from here (nothing leaks out).
   if (file.endsWith('.html')) {
-    headers['content-security-policy'] = [
-      "default-src 'self'",
-      "script-src 'self'",
-      "style-src 'self' 'unsafe-inline'",
-      "font-src 'self'",
-      "img-src 'self' data: blob: https://pbs.twimg.com https://abs.twimg.com",
-      `connect-src 'self' ws://localhost:${PORT} ws://127.0.0.1:${PORT}`,
-      "frame-ancestors 'none'",
-    ].join('; ');
+    headers['content-security-policy'] = pageCsp(PORT, VITE);
     // The page opens in the scheme picked in Settings > Appearance, before anything is drawn: the saved theme goes onto
     // <html> ("system" leaves it off, for the stylesheet to follow the computer). The page does the same on a change.
     const theme = getSettings().look.theme;
-    const html = fs.readFileSync(file, 'utf8');
+    const page = fs.readFileSync(file, 'utf8');
+    const html = VITE && rel === '/index.html' ? devPage(page, VITE) : page;
     res.writeHead(200, headers);
     res.end(theme === 'light' || theme === 'dark' ? html.replace('<html lang="en"', `<html lang="en" data-theme="${theme}"`) : html);
     return true;
@@ -1719,7 +1715,7 @@ server.on('error', (e: NodeJS.ErrnoException) => {
 store.migrateGlobalOutbox();
 server.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`;
-  console.log(`\n  Athena Agents is running at ${url}\n  Data folder: ${dataPath()}\n  Press Ctrl+C to stop.\n`);
+  console.log(`\n  Athena Agents is running at ${url}\n  Data folder: ${dataPath()}${VITE ? `\n  Hot reload: the page's code comes from ${VITE}` : ''}\n  Press Ctrl+C to stop.\n`);
   log('system', 'Dashboard started');
   if (OPEN) void pageReady.then(() => openWithShell(url));
 });

@@ -6,7 +6,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import { state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.ts';
 import { engineConfigured } from './engineavailability.ts';
 import { slideSegment } from './segmotion.ts';
@@ -186,7 +186,7 @@ function makeChip(title: string, face: () => ReactNode): { chip: HTMLButtonEleme
   chip.className = `model-chip ${CHIP}`;
   chip.type = 'button';
   chip.title = title;
-  const root = createRoot(chip);
+  const root = createAppRoot(chip, { inline: true });
   const draw = () => root.render(face());
   // (a plain render: a chip is often made while a page is drawing, and nothing reads its words back)
   draw();
@@ -840,7 +840,7 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   closeModelMenu?.();
   const host = document.createElement('div');
   document.body.append(host);
-  const root = createRoot(host);
+  const root = createAppRoot(host);
   let open = true;
   let done = false;
   let timer: number | undefined;

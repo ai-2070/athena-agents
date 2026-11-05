@@ -6,7 +6,7 @@ import { StrictMode, Suspense, lazy, useEffect, useLayoutEffect, useRef, useStat
 import { useMentionBox, useMentionables } from './taskboard.tsx';
 import { mentionMenuOpen } from './routinemention.ts';
 import { createPortal, flushSync } from 'react-dom';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import { h, state, GET, POST, attempt, md, onEvent, onState, navigate, refreshSoon, toast, confirmBox } from './core.ts';
 import { openBranchBuilder } from './builder.tsx';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.tsx';
@@ -166,7 +166,7 @@ export function initDock(): void {
   document.body.append(bar, host);
   D.project = state.data?.project?.id || null;
   // (drawn at once: askBrain() and openDock() may come right after)
-  const root = createRoot(host);
+  const root = createAppRoot(host);
   flushSync(() =>
     root.render(
       <StrictMode>

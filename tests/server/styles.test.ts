@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildCss, CSS_ENTRY } from '../../scripts/build-css.ts';
+import { buildCss, CSS_ENTRY, incrementalCss } from '../../scripts/build-css.ts';
 import { buildFonts, FONTS } from '../../scripts/build-fonts.ts';
 import { CHAT_FONTS } from '../../shared/look.ts';
 
@@ -34,6 +34,30 @@ describe('the stylesheet', () => {
     expect(css).not.toContain('light-dark(');
     expect(css).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--lightningcss-dark:\s*initial/);
     expect(css).toMatch(/:root\[data-theme="light"\]\s*\{[^}]*--lightningcss-light:\s*initial/);
+  }, 60_000);
+
+  it('is kept up to date in development by reading only what changed', async () => {
+    const css = incrementalCss();
+    const first = await css.css();
+    expect(first).toBe(await buildCss({ minify: false }));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-css-'));
+    const file = path.join(dir, 'piece.tsx');
+    try {
+      // classes the page already uses: nothing to do
+      fs.writeFileSync(file, "export const A = () => <div className='text-dim' />;");
+      expect(await css.update(file)).toBe(false);
+      expect(await css.css()).toBe(first);
+      // a new one: the stylesheet gains it, once
+      fs.writeFileSync(file, "export const A = () => <div className='text-dim gap-[13.25px]' />;");
+      expect(await css.update(file)).toBe(true);
+      expect(await css.css()).toContain('13.25px');
+      expect(await css.update(file)).toBe(false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    // a stylesheet changed: built again in full
+    expect(await css.update(CSS_ENTRY)).toBe(true);
+    expect(await css.css()).toBe(first);
   }, 60_000);
 
   it('has no class names built from pieces (Tailwind reads the source text)', () => {

@@ -1,6 +1,6 @@
 // A React host for the textarea's plain-DOM mention choices.
 import { flushSync } from 'react-dom';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import { PopoverContent, PopoverRoot } from './ui/popover.tsx';
 
 export interface MentionPopup {
@@ -11,7 +11,7 @@ export interface MentionPopup {
 export function openMentionPopup(ta: HTMLTextAreaElement, id: string, caret: () => DOMRect, ready: (el: HTMLElement) => void, dismiss: () => void): MentionPopup {
   const host = document.createElement('div');
   document.body.append(host);
-  const root = createRoot(host);
+  const root = createAppRoot(host);
   let open = true;
   let disposed = false;
   let exitTimer: number | undefined;
