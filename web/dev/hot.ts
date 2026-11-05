@@ -5,16 +5,27 @@
 /** What the router reads from a page module (View in web/app.ts). */
 export const VIEW_EXPORTS = ['render', 'unmount', 'onEvent', 'title', 'flush', 'station'] as const;
 
+// The pages: each one says so as it runs (the line scripts/vite-dev.ts adds to it, viewMark), so which files are
+// pages is decided in one place
+const views = new Set<string>();
+
+/** Notes a file as a page (its full path, as React's refresh code names it). */
+export function markView(id: string): void {
+  views.add(id.split('?')[0]);
+}
+
 /** The exports React's hot swap may leave out of its check for a file (the full path Vite gives it). A page's
  *  router hooks keep their first version until the next reload; its components are swapped in place. */
 export function ignoredExports(id: string): string[] {
-  return /\/web\/views\/[^/]+\.tsx$/.test(id.replace(/\\/g, '/').split('?')[0]) ? [...VIEW_EXPORTS] : [];
+  return views.has(id.split('?')[0]) ? [...VIEW_EXPORTS] : [];
 }
 
 declare global {
   interface Window {
     // read by @vitejs/plugin-react's refresh runtime
     __getReactRefreshIgnoredExports?: (o: { id: string }) => string[];
+    // called by each page as it runs (scripts/vite-dev.ts)
+    __dashHotView?: (id: string) => void;
   }
   interface ImportMeta {
     // Vite's, in `bun run dev` only (written out as import.meta.hot: Vite looks for those words)
@@ -57,5 +68,6 @@ export function watchUpdates(hot: HotEvents, { win = window, reload = () => win.
 /** Sets the rules up (before the app's modules load). */
 export function installHotRules(win: Window = window, hot: HotEvents | undefined = import.meta.hot): void {
   win.__getReactRefreshIgnoredExports = ({ id }) => ignoredExports(id);
+  win.__dashHotView = markView;
   if (hot) watchUpdates(hot, { win });
 }

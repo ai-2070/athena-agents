@@ -1,6 +1,6 @@
 // The Vite dev server behind `bun run dev`: it hands the page its code module by module and swaps edited
 // React components in place (hot reload). The dashboard's own server still serves the page, the API and
-// public/dist; with DASH_VITE set it loads the code from here instead of the bundle (server/devpage.ts).
+// public/dist; started with `--vite <address>` it loads the code from here instead of the bundle (server/devpage.ts).
 // Production builds don't use this: scripts/build-web.ts bundles the page with Bun.
 //
 // What it may hand out is kept to the page's own code: web/, shared/ and node_modules. The data folder,
@@ -11,7 +11,8 @@ import type { AddressInfo } from 'node:net';
 import react from '@vitejs/plugin-react';
 import { createServer } from 'vite';
 import type { Plugin, ViteDevServer } from 'vite';
-import { buildCss } from './build-css.ts';
+import { incrementalCss } from './build-css.ts';
+import type { CssBuilder } from './build-css.ts';
 import { buildFonts } from './build-fonts.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -50,18 +51,33 @@ export function stylesCode(css: string): string {
   ].join('\n');
 }
 
-// Tailwind writes only the classes the code uses, so any change in web/ can change the stylesheet
-const touchesStyles = (file: string): boolean => {
+const inWeb = (file: string): boolean => {
   const rel = path.relative(WEB, file);
-  return !rel.startsWith('..') && !path.isAbsolute(rel) && /\.(tsx?|css)$/.test(rel);
+  return !rel.startsWith('..') && !path.isAbsolute(rel);
 };
 
-/** A page in web/views/ (it exports the router's hooks next to its components: web/dev/hot.ts). */
-export const isViewFile = (id: string): boolean => /\/web\/views\/[^/]+\.tsx$/.test(id.replace(/\\/g, '/').split('?')[0]);
+// Tailwind writes only the classes the code uses, so any change in web/ can change the stylesheet
+const touchesStyles = (file: string): boolean => inWeb(file) && /\.(tsx?|css)$/.test(file);
 
-/** What a page gets in development: one component export. React's hot swap checks a file's exports, minus the
- *  router's hooks (web/dev/hot.ts), and gives up on a file with none left; a page's own components aren't exported. */
-export const VIEW_MARK = '\n// (bun run dev: lets hot reload swap this page in place, scripts/vite-dev.ts)\nexport function DashHotView() { return null; }\n';
+/** A page in web/views/: a .tsx file there that exports the router's render() (other files in the folder are
+ *  pieces the pages use). It exports the router's hooks next to its components: web/dev/hot.ts. */
+export function isViewFile(id: string, code: string): boolean {
+  if (!/\/web\/views\/[^/]+\.tsx$/.test(id.replace(/\\/g, '/').split('?')[0])) return false;
+  return /^export\s+(?:(?:async\s+)?function\s+render\b|(?:const|let)\s+(?:render\b|\{[^}]*\brender\b))|^export\s*\{[^}]*\brender\b/m.test(code);
+}
+
+/** What a page gets in development: it tells the page's hot-reload rules it is a page (so React's check leaves out
+ *  its router hooks: web/dev/hot.ts), and gets one component export, since React's hot swap gives up on a file with
+ *  none left (a page's own components aren't exported). id: the file, as React's refresh code names it. */
+export function viewMark(id: string): string {
+  return [
+    '',
+    '// (bun run dev: lets hot reload swap this page in place, scripts/vite-dev.ts)',
+    `window.__dashHotView?.(${JSON.stringify(id.split('?')[0])});`,
+    'export function DashHotView() { return null; }',
+    '',
+  ].join('\n');
+}
 
 /** What to do with a change to these modules: swap them in place ('hot': each one swaps itself, React components)
  *  or reload the page. A plain module (state, sockets, listeners, three.js) run a second time next to its first
@@ -72,10 +88,20 @@ export function changeKind(modules: readonly { id: string | null; isSelfAcceptin
   return code.every((m) => m.isSelfAccepting) ? 'hot' : 'reload';
 }
 
+export interface DashPluginOptions {
+  /** The stylesheet (the full build once, then only what a change adds). */
+  css?: CssBuilder;
+  /** Resolves once the dashboard's server answers again. A change outside web/ (shared/) restarts the server too
+   *  (`bun --watch`): the page reloads after that, not while the server is down. */
+  serverBack?: () => Promise<void>;
+}
+
 /** The dashboard's own pieces: the entry, the styles, and when a change reloads the page. */
-export function dashPlugin(): Plugin {
+export function dashPlugin({ css = incrementalCss({ minify: false }), serverBack }: DashPluginOptions = {}): Plugin {
   // the font rules don't change while it runs (the files are the last build's, in public/dist/fonts)
   let fonts: string | null = null;
+  // a reload waiting for the server: one is enough for any number of changes meanwhile
+  let waiting: Promise<void> | null = null;
   return {
     name: 'dash-dev',
     resolveId(id) {
@@ -85,7 +111,7 @@ export function dashPlugin(): Plugin {
       if (id === ENTRY) return entryCode();
       if (id === STYLES) {
         fonts ??= buildFonts(null);
-        return stylesCode(`${await buildCss({ minify: false })}\n${fonts}`);
+        return stylesCode(`${await css.css()}\n${fonts}`);
       }
     },
     configureServer(server) {
@@ -100,23 +126,53 @@ export function dashPlugin(): Plugin {
     transform: {
       order: 'pre',
       handler(code, id) {
-        if (this.environment.name === 'client' && isViewFile(id)) return { code: code + VIEW_MARK, map: null };
+        if (this.environment.name === 'client' && isViewFile(id, code)) return { code: code + viewMark(id), map: null };
       },
     },
-    hotUpdate({ file, modules }) {
-      if (this.environment.name !== 'client') return;
+    async hotUpdate({ file, modules }) {
+      const env = this.environment;
+      if (env.name !== 'client') return;
+      // The styles first, for a reload as much as for a swap: the reloaded page asks for them again
+      const styles = env.moduleGraph.getModuleById(STYLES);
+      const restyled = !!styles && touchesStyles(file) && (await css.update(file).catch((e: unknown) => (env.logger.error(`styles: ${e instanceof Error ? e.message : String(e)}`), false)));
+      if (styles && restyled) env.moduleGraph.invalidateModule(styles);
       if (changeKind(modules) === 'reload') {
-        this.environment.logger.info(`page reload ${path.relative(WEB, file)} (not a React component file)`, { timestamp: true });
-        this.environment.hot.send({ type: 'full-reload', path: '*' });
+        const reload = () => env.hot.send({ type: 'full-reload', path: '*' });
+        if (serverBack && !inWeb(file)) {
+          env.logger.info(`page reload ${path.relative(path.dirname(WEB), file)} once the server is back (it restarts too)`, { timestamp: true });
+          waiting ??= serverBack().finally(() => {
+            waiting = null;
+            reload();
+          });
+        } else {
+          env.logger.info(`page reload ${path.relative(WEB, file)} (not a React component file)`, { timestamp: true });
+          reload();
+        }
         return [];
       }
-      if (!touchesStyles(file)) return;
-      const styles = this.environment.moduleGraph.getModuleById(STYLES);
-      if (!styles) return;
-      this.environment.moduleGraph.invalidateModule(styles);
+      if (!styles || !restyled) return;
       return [...modules.filter((m) => m !== styles), styles];
     },
   };
+}
+
+/** Waits for the dashboard's server to answer at url after a change that restarts it: a moment for the restart to
+ *  begin (`bun --watch` stops it at once), then until it answers, or gives up after timeout. */
+export async function serverBack(
+  url: string,
+  { settle = 1000, every = 250, timeout = 30_000, get = (u: string) => fetch(u, { signal: AbortSignal.timeout(2000) }), sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)), now = () => Date.now() }: { settle?: number; every?: number; timeout?: number; get?: (url: string) => Promise<Response>; sleep?: (ms: number) => Promise<void>; now?: () => number } = {},
+): Promise<void> {
+  await sleep(settle);
+  const end = now() + timeout;
+  while (now() < end) {
+    try {
+      const res = await get(url);
+      await res.body?.cancel();
+      return;
+    } catch {
+      await sleep(every);
+    }
+  }
 }
 
 export interface DevServer {
@@ -133,10 +189,12 @@ export interface DevServerOptions {
   /** Where Vite keeps its prepared dependencies. Two dev servers must not share one (a test's would empty
    *  the folder `bun run dev` is using). */
   cacheDir?: string;
+  /** The dashboard's address, like 'http://127.0.0.1:4800': a change in shared/ reloads the page once it is back. */
+  dashboard?: string;
 }
 
 /** Starts the dev server on this machine only. */
-export async function startVite({ port = 5173, logLevel = 'info', cacheDir = path.join(ROOT, 'node_modules', '.vite') }: DevServerOptions = {}): Promise<DevServer> {
+export async function startVite({ port = 5173, logLevel = 'info', cacheDir = path.join(ROOT, 'node_modules', '.vite'), dashboard }: DevServerOptions = {}): Promise<DevServer> {
   fs.mkdirSync(cacheDir, { recursive: true });
   const vite = await createServer({
     configFile: false,
@@ -148,7 +206,7 @@ export async function startVite({ port = 5173, logLevel = 'info', cacheDir = pat
     cacheDir,
     clearScreen: false,
     logLevel,
-    plugins: [react(), dashPlugin()],
+    plugins: [react(), dashPlugin({ serverBack: dashboard ? () => serverBack(dashboard) : undefined })],
     optimizeDeps: { entries: ['app.ts'] },
     server: {
       host: '127.0.0.1',

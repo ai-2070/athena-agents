@@ -3,8 +3,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ENTRY, STYLES, VIEW_MARK, WEB, changeKind, dashPlugin, entryCode, isViewFile, startVite, stylesCode } from '../../scripts/vite-dev.ts';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { ENTRY, STYLES, WEB, changeKind, dashPlugin, entryCode, isViewFile, serverBack, startVite, stylesCode, viewMark } from '../../scripts/vite-dev.ts';
+import type { DashPluginOptions } from '../../scripts/vite-dev.ts';
 import type { DevServer } from '../../scripts/vite-dev.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
@@ -32,46 +33,86 @@ describe('the dev entry and styles', () => {
 });
 
 describe('what a change does', () => {
-  // the hook, with just what it reads of its context
-  const run = (file: string, styles: object | undefined, modules: object[] = []) => {
+  // the hook, with just what it reads of its context; the stylesheet changes when restyle says so
+  const setup = ({ restyle = true, serverBack }: { restyle?: boolean; serverBack?: DashPluginOptions['serverBack'] } = {}) => {
     const invalidated: object[] = [];
     const sent: unknown[] = [];
-    const ctx = {
-      environment: {
-        name: 'client',
-        logger: { info: () => {} },
-        hot: { send: (m: unknown) => sent.push(m) },
-        moduleGraph: { getModuleById: (id: string) => (id === STYLES ? styles : undefined), invalidateModule: (m: object) => invalidated.push(m) },
-      },
+    const updates: string[] = [];
+    const css = { css: async () => '', update: async (file: string) => (updates.push(file), restyle) };
+    const hook = dashPlugin({ css, serverBack }).hotUpdate as unknown as (this: object, o: { file: string; modules: object[] }) => Promise<object[] | undefined>;
+    const run = async (file: string, styles: object | undefined, modules: object[] = []) => {
+      const ctx = {
+        environment: {
+          name: 'client',
+          logger: { info: () => {}, error: () => {} },
+          hot: { send: (m: unknown) => sent.push(m) },
+          moduleGraph: { getModuleById: (id: string) => (id === STYLES ? styles : undefined), invalidateModule: (m: object) => invalidated.push(m) },
+        },
+      };
+      return hook.call(ctx, { file, modules });
     };
-    const hook = dashPlugin().hotUpdate as unknown as (this: typeof ctx, o: { file: string; modules: object[] }) => object[] | undefined;
-    return { result: hook.call(ctx, { file, modules }), invalidated, sent };
+    return { run, invalidated, sent, updates };
   };
   const styles = { id: STYLES, isSelfAccepting: true };
+  const core = { id: '/core.ts', isSelfAccepting: false };
+  const RELOAD = { type: 'full-reload', path: '*' };
 
-  it('swaps React component files in place, with the styles (Tailwind writes only the classes used)', () => {
+  it('swaps React component files in place, with the styles (Tailwind writes only the classes used)', async () => {
     const page = { id: '/views/home.tsx', isSelfAccepting: true };
-    const { result, invalidated, sent } = run(path.join(WEB, 'views', 'home.tsx'), styles, [page]);
-    expect(result).toEqual([page, styles]);
+    const { run, invalidated, sent } = setup();
+    expect(await run(path.join(WEB, 'views', 'home.tsx'), styles, [page])).toEqual([page, styles]);
     expect(invalidated).toEqual([styles]);
     expect(sent).toEqual([]);
-    expect(run(path.join(WEB, 'styles', 'base.css'), styles).result).toEqual([styles]);
+    expect(await run(path.join(WEB, 'styles', 'base.css'), styles)).toEqual([styles]);
   });
 
-  it('reloads the page for a plain module, rather than run it a second time next to its first copy', () => {
-    const core = { id: '/core.ts', isSelfAccepting: false };
-    const { result, sent } = run(path.join(WEB, 'core.ts'), styles, [core]);
-    expect(result).toEqual([]);
-    expect(sent).toEqual([{ type: 'full-reload', path: '*' }]);
+  it('leaves the styles alone when a change adds no classes', async () => {
+    const page = { id: '/views/home.tsx', isSelfAccepting: true };
+    const { run, invalidated } = setup({ restyle: false });
+    expect(await run(path.join(WEB, 'views', 'home.tsx'), styles, [page])).toBeUndefined();
+    expect(invalidated).toEqual([]);
+  });
+
+  it('reloads the page for a plain module, rather than run it a second time next to its first copy', async () => {
+    const { run, sent } = setup();
+    expect(await run(path.join(WEB, 'core.ts'), styles, [core])).toEqual([]);
+    expect(sent).toEqual([RELOAD]);
     // one plain module among swappable ones is enough
-    expect(run(path.join(WEB, 'x.tsx'), styles, [{ id: '/x.tsx', isSelfAccepting: true }, core]).sent).toHaveLength(1);
+    await run(path.join(WEB, 'x.tsx'), styles, [{ id: '/x.tsx', isSelfAccepting: true }, core]);
+    expect(sent).toHaveLength(2);
   });
 
-  it('leaves other changes alone', () => {
-    expect(run(path.join(ROOT, 'server', 'index.ts'), styles).result).toBeUndefined();
-    expect(run(path.join(WEB, 'icon.png'), styles).result).toBeUndefined();
+  it('brings the styles up to date before a reload too (the reloaded page asks for them again)', async () => {
+    const { run, invalidated, sent, updates } = setup();
+    await run(path.join(WEB, 'app.ts'), styles, [core]);
+    expect(updates).toEqual([path.join(WEB, 'app.ts')]);
+    expect(invalidated).toEqual([styles]);
+    expect(sent).toEqual([RELOAD]);
+  });
+
+  it('reloads for a change in shared/ only once the restarted server is back, once for many changes', async () => {
+    let back = () => {};
+    const serverBack = vi.fn(() => new Promise<void>((r) => (back = r)));
+    const { run, sent } = setup({ serverBack });
+    const shared = { id: path.join(ROOT, 'shared', 'types.ts'), isSelfAccepting: false };
+    expect(await run(path.join(ROOT, 'shared', 'types.ts'), styles, [shared])).toEqual([]);
+    await run(path.join(ROOT, 'shared', 'look.ts'), styles, [shared]);
+    expect(sent).toEqual([]);
+    back();
+    await vi.waitFor(() => expect(sent).toEqual([RELOAD]));
+    expect(serverBack).toHaveBeenCalledTimes(1);
+    // a change in web/ doesn't wait
+    await run(path.join(WEB, 'core.ts'), styles, [core]);
+    expect(sent).toHaveLength(2);
+  });
+
+  it('leaves other changes alone', async () => {
+    const { run, updates } = setup();
+    expect(await run(path.join(ROOT, 'server', 'index.ts'), styles)).toBeUndefined();
+    expect(await run(path.join(WEB, 'icon.png'), styles)).toBeUndefined();
     // styles not loaded yet: nothing to update
-    expect(run(path.join(WEB, 'app.ts'), undefined).result).toBeUndefined();
+    expect(await run(path.join(WEB, 'app.ts'), undefined)).toBeUndefined();
+    expect(updates).toEqual([]);
   });
 
   it('changeKind', () => {
@@ -82,20 +123,71 @@ describe('what a change does', () => {
   });
 });
 
-describe('pages in web/views/', () => {
-  it('are told apart from other files', () => {
-    expect(isViewFile(path.join(WEB, 'views', 'home.tsx'))).toBe(true);
-    expect(isViewFile('C:\\athena\\web\\views\\tasks.tsx?t=1')).toBe(true);
-    for (const f of [path.join(WEB, 'views', 'station.ts'), path.join(WEB, 'app.ts'), path.join(WEB, 'ui', 'button.tsx')]) expect(isViewFile(f), f).toBe(false);
+describe('serverBack', () => {
+  // a clock the sleeps move on
+  const clock = () => {
+    let t = 0;
+    return { now: () => t, sleep: async (ms: number) => void (t += ms) };
+  };
+
+  it('waits for the restart to begin, then until the server answers', async () => {
+    const c = clock();
+    let tries = 0;
+    const get = vi.fn(async () => {
+      if (++tries < 3) throw new Error('refused');
+      return new Response('ok');
+    });
+    await serverBack('http://127.0.0.1:4800/', { ...c, get, settle: 1000, every: 250 });
+    expect(get).toHaveBeenCalledTimes(3);
+    expect(c.now()).toBe(1500);
   });
 
-  it('get one component export in development, and nothing else changes', () => {
+  it('gives up after its time is up', async () => {
+    const c = clock();
+    const get = vi.fn(async (): Promise<Response> => {
+      throw new Error('refused');
+    });
+    await serverBack('http://127.0.0.1:4800/', { ...c, get, settle: 0, every: 1000, timeout: 5000 });
+    expect(get).toHaveBeenCalledTimes(5);
+  });
+});
+
+describe('pages in web/views/', () => {
+  const PAGE = "export const { render, unmount } = reactPage(() => <Home />);\nexport const title = () => 'Home';";
+
+  it('are the files there that export render()', () => {
+    expect(isViewFile(path.join(WEB, 'views', 'home.tsx'), PAGE)).toBe(true);
+    expect(isViewFile('C:\\athena\\web\\views\\tasks.tsx?t=1', 'export function render(el) {}')).toBe(true);
+    expect(isViewFile(path.join(WEB, 'views', 'x.tsx'), 'export const render = () => {};')).toBe(true);
+    expect(isViewFile(path.join(WEB, 'views', 'x.tsx'), 'export { render, title };')).toBe(true);
+    // pieces the pages use, and files elsewhere
+    expect(isViewFile(path.join(WEB, 'views', 'stationpanel.tsx'), 'export function mountStationPanel() {}\nexport const title = 1;')).toBe(false);
+    for (const f of [path.join(WEB, 'views', 'station.ts'), path.join(WEB, 'app.ts'), path.join(WEB, 'ui', 'button.tsx')]) expect(isViewFile(f, PAGE), f).toBe(false);
+  });
+
+  it('agree with the files in web/views/ (each .tsx there that the router opens is a page)', () => {
+    const app = fs.readFileSync(path.join(WEB, 'app.ts'), 'utf8');
+    for (const [, name] of app.matchAll(/from '\.\/views\/([\w-]+\.tsx)'/g)) {
+      const file = path.join(WEB, 'views', name);
+      expect(isViewFile(file, fs.readFileSync(file, 'utf8')), name).toBe(true);
+    }
+    for (const name of ['stationpanel.tsx', 'stationmenu.tsx', 'worldpanel.tsx']) {
+      const file = path.join(WEB, 'views', name);
+      expect(isViewFile(file, fs.readFileSync(file, 'utf8')), name).toBe(false);
+    }
+  });
+
+  it('say so to the page and get one component export in development, and nothing else changes', () => {
     const transform = dashPlugin().transform as unknown as { handler: (this: object, code: string, id: string) => { code: string } | undefined };
     const ctx = { environment: { name: 'client' } };
-    const out = transform.handler.call(ctx, 'export const title = () => "Home";', path.join(WEB, 'views', 'home.tsx'));
-    expect(out?.code).toBe(`export const title = () => "Home";${VIEW_MARK}`);
-    expect(VIEW_MARK).toMatch(/export function [A-Z]\w*\(\) \{ return null; \}/);
+    const id = path.join(WEB, 'views', 'home.tsx');
+    const out = transform.handler.call(ctx, PAGE, id);
+    expect(out?.code).toBe(PAGE + viewMark(id));
+    expect(viewMark(id)).toContain(`window.__dashHotView?.(${JSON.stringify(id)});`);
+    expect(viewMark(`${id}?t=1`)).toBe(viewMark(id));
+    expect(viewMark(id)).toMatch(/export function [A-Z]\w*\(\) \{ return null; \}/);
     expect(transform.handler.call(ctx, 'x', path.join(WEB, 'core.ts'))).toBeUndefined();
+    expect(transform.handler.call(ctx, 'export function mountStationPanel() {}', path.join(WEB, 'views', 'stationpanel.tsx'))).toBeUndefined();
   });
 
   it("leave out exactly the router's hooks (View in web/app.ts)", () => {
@@ -141,6 +233,7 @@ describe('the dev server', () => {
   it('serves a page ready to swap in place', async () => {
     const code = await (await get('/views/home.tsx')).text();
     expect(code).toContain('DashHotView');
+    expect(code).toContain('__dashHotView');
     expect(code).toContain('validateRefreshBoundaryAndEnqueueUpdate');
     const mod = await dev.vite.environments.client.moduleGraph.getModuleByUrl('/views/home.tsx');
     expect(mod?.isSelfAccepting).toBe(true);

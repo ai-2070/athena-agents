@@ -12,6 +12,8 @@ import type { DevServer } from './vite-dev.ts';
 const root = path.resolve(import.meta.dirname, '..');
 const hot = !process.argv.includes('--no-hot');
 const serverArgs = process.argv.slice(2).filter((a) => a !== '--no-hot');
+// the server's port, read the way server/index.ts reads it
+const port = (serverArgs.includes('--port') && Number(serverArgs[serverArgs.indexOf('--port') + 1])) || Number(process.env.DASH_PORT) || 4800;
 // Fresh checkout: build the page once first, so the server doesn't start a second build of its own.
 if (!fs.existsSync(path.join(root, 'public', 'dist', 'app.js'))) {
   const first = Bun.spawn(['bun', 'scripts/build-web.ts'], { cwd: root, stdout: 'inherit', stderr: 'inherit' });
@@ -23,7 +25,7 @@ const web = Bun.spawn(['bun', 'scripts/build-web.ts', '--watch'], { cwd: root, s
 let vite: DevServer | null = null;
 if (hot) {
   try {
-    vite = await startVite();
+    vite = await startVite({ dashboard: `http://127.0.0.1:${port}/` });
     console.log(`  Hot reload: ${vite.origin}`);
   } catch (e) {
     // the page still works from the bundle; it just won't update by itself

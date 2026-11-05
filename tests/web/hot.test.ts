@@ -2,24 +2,28 @@
 // out of its check (they keep their first version until the next reload), and a page that breaks right after an
 // update reloads.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BROKE_WITHIN_MS, VIEW_EXPORTS, ignoredExports, installHotRules, watchUpdates } from '../../web/dev/hot.ts';
+import { BROKE_WITHIN_MS, VIEW_EXPORTS, ignoredExports, installHotRules, markView, watchUpdates } from '../../web/dev/hot.ts';
 import type { HotEvents } from '../../web/dev/hot.ts';
 
 describe('ignoredExports', () => {
-  it("leaves a page's router hooks out of React's check", () => {
+  it("leaves a page's router hooks out of React's check, once the page has said it is one", () => {
+    expect(ignoredExports('/Users/me/athena/web/views/home.tsx')).toEqual([]);
+    markView('/Users/me/athena/web/views/home.tsx');
+    markView('C:\\Users\\me\\athena\\web\\views\\tasks.tsx');
     expect(ignoredExports('/Users/me/athena/web/views/home.tsx')).toEqual([...VIEW_EXPORTS]);
     expect(ignoredExports('C:\\Users\\me\\athena\\web\\views\\tasks.tsx')).toEqual([...VIEW_EXPORTS]);
     expect(ignoredExports('/Users/me/athena/web/views/home.tsx?t=123')).toEqual([...VIEW_EXPORTS]);
   });
 
-  it('checks every other file in full', () => {
-    for (const id of ['/Users/me/athena/web/app.ts', '/Users/me/athena/web/views/station.ts', '/Users/me/athena/web/views/sub/x.tsx', '/Users/me/athena/web/ui/button.tsx', '/Users/me/athena/web/chat/views/x.tsx'])
+  it('checks every other file in full, wherever it is', () => {
+    for (const id of ['/Users/me/athena/web/app.ts', '/Users/me/athena/web/views/station.ts', '/Users/me/athena/web/views/stationpanel.tsx', '/Users/me/athena/web/ui/button.tsx'])
       expect(ignoredExports(id), id).toEqual([]);
   });
 
-  it("is what React's refresh runtime asks once installed", () => {
+  it("is what React's refresh runtime asks once installed, and what the pages call", () => {
     installHotRules(window, undefined);
-    expect(window.__getReactRefreshIgnoredExports?.({ id: '/a/web/views/home.tsx' })).toEqual([...VIEW_EXPORTS]);
+    window.__dashHotView?.('/a/web/views/library.tsx');
+    expect(window.__getReactRefreshIgnoredExports?.({ id: '/a/web/views/library.tsx' })).toEqual([...VIEW_EXPORTS]);
     expect(window.__getReactRefreshIgnoredExports?.({ id: '/a/web/core.ts' })).toEqual([]);
   });
 });
