@@ -7,6 +7,15 @@ tasks. You filter the board by tag on the page; the Brain and agents filter it w
 Today a board task (`ProjectTask`, `shared/types.ts`) has status, priority and assignee only. The `metadata` on agents'
 step lists (`WorkTask`) is a different thing and stays as it is.
 
+## Status (2026-11-05)
+
+Built on `LZL0/task-tags`, one commit per phase. Where it differs from the plan below:
+- Agents have one tool, `board_tags`, with a `find` action, instead of `board_tags` plus `board_find` (section 4).
+- The tag picker makes a tag from what you type ("🐛 Bug" gives it the emoji). The full emoji picker is in **Manage
+  tags…**, not in the picker's menu, because a popover inside a popover is fragile.
+- Left out for now: keeping the tag filter in the page address, a Tags sub-menu on the card's **…** menu, and
+  clicking a tag on a task's page to filter the board (a tag on a card does filter).
+
 ## 1. Data
 
 Tags belong to a project, like its tasks. They live in the same `data/projects/<id>/board.json`, so the folder save
