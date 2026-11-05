@@ -4,5 +4,6 @@ import { contract } from '../../shared/api/index.ts';
 import { agentsRouter } from './agents.ts';
 import { projectsRouter } from './projects.ts';
 import { taskBoard } from './taskboard.ts';
+import { teamsRouter } from './teams.ts';
 
-export const apiRouter = implement(contract).router({ agents: agentsRouter, projects: projectsRouter, taskBoard });
+export const apiRouter = implement(contract).router({ agents: agentsRouter, projects: projectsRouter, taskBoard, teams: teamsRouter });

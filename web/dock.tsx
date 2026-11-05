@@ -1289,7 +1289,7 @@ function follow(d: BrainDelegate) {
   if (d?.kind === 'branch' && d.sent?.ts) {
     const it = add({ kind: 'branch', wfId: d.id, name: d.name, reason: 'from the Brain', since: d.sent.ts, messages: [], working: [], briefId: d.sent.messageId });
     // the team may have answered before this answer got here: those messages came before the item did
-    void GET<{ messages: TeamMessage[]; working: string[]; queued: string[] }>(`/teams/${d.id}/chat`)
+    void rpc.teams.chat({ id: d.id })
       .then((t) => {
         if (!D.items.includes(it)) return;
         mergeTeamMessages(it, t.messages);
@@ -1346,11 +1346,11 @@ async function toBranch(wfId: string, text: string, reason = '', attachments: st
   // (shown before it is sent, so it hears who starts working: the team starts before the reply comes)
   const it = add({ kind: 'branch', wfId, name: wf?.name || 'Team', reason, since: Date.now(), messages: [], working: [] });
   if (goal) {
-    if (!(await attempt(() => POST(`/teams/${wfId}/goal`, { text })))) remove(it);
+    if (!(await attempt(() => rpc.teams.goal({ id: wfId, text })))) remove(it);
     return draw();
   }
   // (while the team works, it changes its course: whoever is working takes it up now)
-  const msg = await attempt(() => POST<TeamMessage>(`/teams/${wfId}/steer`, { text, attachments }));
+  const msg = await attempt(() => rpc.teams.steer({ id: wfId, text, attachments }));
   if (!msg) {
     remove(it);
     return draw();

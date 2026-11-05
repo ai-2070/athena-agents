@@ -42,7 +42,7 @@ import { addArtifact, removeArtifact } from './artifacts.ts';
 import * as teamMarks from './teammark.ts';
 import * as library from './library.ts';
 import * as commands from './commands.ts';
-import { openGoal, listBriefs } from './briefs.ts';
+import { listBriefs } from './briefs.ts';
 import * as tasksMod from './tasks.ts';
 import * as taskBoard from './taskboard.ts';
 import { overview } from './overview.ts';
@@ -1002,35 +1002,7 @@ del('/api/workflows/:id', async ({ id }) => {
 post<{ input?: string }>('/api/workflows/:id/run', async ({ id }, body) =>
   teams.isStepList(need(workflows.get(id))) ? wfs.startWorkflow(id, body.input || '') : teams.postUserMessage(id, body.input || 'Go ahead.', { route: brain.pickMember }),
 );
-// ---------- team chats ----------
-get('/api/teams/:id/chat', async ({ id }) => ({ team: need(teams.getTeam(id)), ...teams.getThread(id), goal: openGoal('team', id), others: teams.otherTeams(id) }));
-post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/messages', async ({ id }, body) => teams.postUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
-// /queue: posted once nobody in the team is working (now, if nobody is)
-post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/queue', async ({ id }, body) => teams.queueUserMessage(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
-del('/api/teams/:id/queue/:qid', async ({ id, qid }) => ({ unqueued: teams.unqueueTeam(need(teams.getTeam(id)).id, qid) }));
-// a held message: its text changed, or the order they go in
-// (queued: null when it already went)
-put<{ text?: unknown }>('/api/teams/:id/queue/:qid', async ({ id, qid }, body) => ({ queued: teams.editQueuedTeam(need(teams.getTeam(id)).id, qid, body.text) }));
-post<{ ids?: unknown }>('/api/teams/:id/queue/order', async ({ id }, body) => ({ held: teams.orderQueuedTeam(need(teams.getTeam(id)).id, body.ids) }));
-// a message while the team works: whoever is working stops and takes it up now
-post<{ text?: string; replyTo?: string | null; attachments?: unknown }>('/api/teams/:id/steer', async ({ id }, body) => teams.steerTeam(id, body.text, { replyTo: body.replyTo || null, route: brain.pickMember, attachments: uploads.cleanAttachments(body.attachments) }));
-post('/api/teams/:id/resend', async ({ id }) => commands.resendInTeam(id));
-post('/api/teams/:id/resume', async ({ id }) => commands.resumeInTeam(id));
-post<{ text?: unknown; attachments?: unknown }>('/api/teams/:id/learn', async ({ id }, body) => commands.learnInTeam(id, String(body.text ?? '').trim().slice(0, 4000), uploads.cleanAttachments(body.attachments)));
-post<{ text?: unknown; attachments?: unknown }>('/api/teams/:id/loop', async ({ id }, body) => commands.loopInTeam(id, String(body.text ?? ''), uploads.cleanAttachments(body.attachments)));
-del('/api/teams/:id/loop', async ({ id }) => ({ ok: teams.stopTeamLoop(need(teams.getTeam(id)).id, 'Loop stopped.') }));
-post<{ text?: unknown }>('/api/teams/:id/goal', async ({ id }, body) => commands.goalInTeam(id, String(body.text ?? '').trim().slice(0, 4000)));
-del('/api/teams/:id/goal', async ({ id }) => commands.goalInTeam(id, 'clear'));
-post('/api/teams/:id/stop', async ({ id }) => {
-  const teamId = need(teams.getTeam(id)).id;
-  // the held /queue messages come back to you
-  const unqueued = teams.unqueueTeam(teamId);
-  return { ok: teams.stopTeam(teamId), unqueued };
-});
-post('/api/teams/:id/clear', async ({ id }) => {
-  teams.clearThread(need(teams.getTeam(id)).id);
-  return { ok: true };
-});
+// ---------- team chats: server/api/teams.ts ----------
 get('/api/workflow-templates', async () => wfs.TEMPLATES.map(({ name, description, needs }) => ({ name, description, needs })));
 get('/api/workflow-active', async () => runs.list().filter((r) => r.status === 'running').map(wfs.runSummary));
 post<{ name: string }>('/api/workflow-templates', async (_p, body) => wfs.createFromTemplate(body.name));
