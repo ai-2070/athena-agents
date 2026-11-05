@@ -1,0 +1,29 @@
+web/dev/hot.ts
+  s_985575c8d5b52b::t_2ad3bf4e74c524 1-24
+tests/web/hot.test.ts
+  s_985575c8d5b52b::t_9414a21c1ef497 1-23
+scripts/vite-dev.ts
+  s_985575c8d5b52b::t_21c7f5e832caa8 59-65,99-104
+  s_985575c8d5b52b::t_2ad3bf4e74c524 31,33,66-75,91-98,105,107-113
+tests/server/vite-dev.test.ts
+  s_985575c8d5b52b::t_703020fc080832 7,18-20,34,38-46,48,50,52-54,57-67,71-72,74-109
+  s_985575c8d5b52b::t_2dee7aebf14265 141-148
+AGENTS.md
+  s_985575c8d5b52b::t_ae4a7e8b0cd14c 57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3ebb3399fcc630e1886a4fb0a9c8a993de57a31f",
+  "prompts": {},
+  "sessions": {
+    "s_985575c8d5b52b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "97f7eb77-51cb-4495-ae5d-cef84f82669d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
