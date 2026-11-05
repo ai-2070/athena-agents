@@ -1,0 +1,30 @@
+scripts/api-routes.ts
+  s_558b1de395d1d9::t_9923386c74132e 1-6
+tests/web/rpc.test.ts
+  s_558b1de395d1d9::t_eb2a4cfc083c47 4,7-8,78-83
+  s_558b1de395d1d9::t_a0a0125500535f 84-85
+scripts/build-web.ts
+  s_558b1de395d1d9::t_9923386c74132e 17-29,44
+tests/server/web-client-boundary.test.ts
+  s_558b1de395d1d9::t_0f94f416b969e0 40-55
+AGENTS.md
+  s_558b1de395d1d9::t_4332a4a942c1b2 40,51,74-76
+docs/internal/plans/ORPC_PLAN.md
+  s_558b1de395d1d9::t_476a40b02ac596 3,12-47,279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1793392f5eb3038a9b2238367a2de9f16dfa3d6d",
+  "prompts": {},
+  "sessions": {
+    "s_558b1de395d1d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bb40eb4-bbfd-4a59-a58a-1ffe1d09179b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
