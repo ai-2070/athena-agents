@@ -1,7 +1,7 @@
 import { Menu } from '@base-ui/react/menu';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import type { Project } from '../shared/types.ts';
 import { attempt, refreshSoon } from './core.ts';
 import { rpc } from './client/rpc.ts';
@@ -24,7 +24,7 @@ interface Props {
 export function mountProjectMenu(props: Props): () => void {
   const host = document.createElement('div');
   document.body.append(host);
-  const root = createRoot(host);
+  const root = createAppRoot(host);
   let open = true;
   const close = () => {
     if (!open) return;

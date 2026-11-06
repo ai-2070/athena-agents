@@ -18,22 +18,24 @@ export const FONTS = [
   { pkg: 'roboto', family: 'Roboto', sheets: ['wght.css', 'wght-italic.css'] },
 ];
 
-/** Copies the font files (and their licences) into outdir/fonts; returns the CSS, with urls relative to outdir. */
-export function buildFonts(outdir: string): string {
-  const fontsDir = path.join(outdir, 'fonts');
-  fs.mkdirSync(fontsDir, { recursive: true });
+/** Copies the font files (and their licences) into outdir/fonts; returns the CSS, with urls relative to outdir.
+ *  outdir null: copies nothing, and the urls point at the last build's copies (/dist/fonts/, the dev styles). */
+export function buildFonts(outdir: string | null): string {
+  const fontsDir = outdir && path.join(outdir, 'fonts');
+  const base = fontsDir ? './fonts/' : '/dist/fonts/';
+  if (fontsDir) fs.mkdirSync(fontsDir, { recursive: true });
   let css = '';
   for (const font of FONTS) {
     const dir = path.join(PKGS, font.pkg);
     // the fonts' licence (SIL Open Font License) goes with them
-    fs.copyFileSync(path.join(dir, 'LICENSE'), path.join(fontsDir, `${font.pkg}-LICENSE.txt`));
+    if (fontsDir) fs.copyFileSync(path.join(dir, 'LICENSE'), path.join(fontsDir, `${font.pkg}-LICENSE.txt`));
     for (const sheet of font.sheets) {
       css += fs
         .readFileSync(path.join(dir, sheet), 'utf8')
         .replace(/font-family:\s*'[^']+'/g, `font-family: '${font.family}'`)
         .replace(/url\(\.\/files\/([\w.-]+\.woff2?)\)/g, (_, file: string) => {
-          fs.copyFileSync(path.join(dir, 'files', file), path.join(fontsDir, file));
-          return `url(./fonts/${file})`;
+          if (fontsDir) fs.copyFileSync(path.join(dir, 'files', file), path.join(fontsDir, file));
+          return `url(${base}${file})`;
         });
     }
   }

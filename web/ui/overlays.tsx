@@ -5,7 +5,7 @@
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './root.tsx';
 import type { Root } from 'react-dom/client';
 import { Dialog } from '@base-ui/react/dialog';
 import { Toast } from '@base-ui/react/toast';
@@ -98,7 +98,7 @@ function ensureHost(): void {
   const el = document.createElement('div');
   el.style.display = 'contents';
   document.body.append(el);
-  host = { root: createRoot(el), el, modals, toasts: toastEl };
+  host = { root: createAppRoot(el), el, modals, toasts: toastEl };
   const { root } = host;
   flushSync(() => root.render(<Host modals={modals} toastEl={toastEl} />));
 }

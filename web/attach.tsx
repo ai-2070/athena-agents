@@ -4,7 +4,7 @@
 // The chips are React now (rendered into the tray's element with createRoot); the upload queue, drag and drop
 // and pasting under them stay plain JavaScript.
 import { flushSync } from 'react-dom';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import type { Root } from 'react-dom/client';
 import type { CSSProperties } from 'react';
 import { toast, lightbox } from './core.ts';
@@ -352,7 +352,7 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
   const el = document.createElement('div');
   el.className = 'att-tray hidden';
   // React draws the chips into this element; the queue below stays plain JS
-  const root = createRoot(el);
+  const root = createAppRoot(el);
   const fileIn = document.createElement('input');
   fileIn.type = 'file';
   fileIn.multiple = true;
@@ -450,7 +450,7 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
         }
         overlay = document.createElement('div');
         overlay.className = OVERLAY_CLASS;
-        overlayRoot = createRoot(overlay);
+        overlayRoot = createAppRoot(overlay);
         overlayRoot.render(
           <>
             <Icon name="upload" size={22} />
@@ -578,7 +578,7 @@ export function attachmentChips(paths: readonly string[] | undefined | null): HT
   if (!paths?.length) return null;
   const box = document.createElement('div');
   box.className = 'mt-2 flex flex-wrap gap-2 whitespace-normal first:mt-0';
-  flushSync(() => createRoot(box).render(<SentChips paths={paths} />));
+  flushSync(() => createAppRoot(box).render(<SentChips paths={paths} />));
   return box;
 }
 

@@ -1,7 +1,7 @@
 // The Station's right-click menu, on Base UI: it opens where you clicked, arrow keys move through it,
 // Esc or a click elsewhere closes it. The map (station.ts) decides what is in it.
 import { StrictMode, useSyncExternalStore } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from '../ui/root.tsx';
 import { Menu } from '@base-ui/react/menu';
 import { Icon } from '../ui/react.tsx';
 
@@ -59,7 +59,7 @@ export function mountStationMenu(host: HTMLElement): StationMenu {
       </Menu.Root>
     );
   }
-  const root = createRoot(host);
+  const root = createAppRoot(host);
   root.render(
     <StrictMode>
       <View />

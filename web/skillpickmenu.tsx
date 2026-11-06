@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import type { SkillListing } from '../shared/types.ts';
 import { Button } from './ui/button.tsx';
 import { PopoverContent, PopoverRoot } from './ui/popover.tsx';
@@ -19,7 +19,7 @@ interface PickerMenuProps {
 export function openSkillPickerMenu(props: PickerMenuProps): () => void {
   const host = document.createElement('div');
   document.body.append(host);
-  const root = createRoot(host);
+  const root = createAppRoot(host);
   let open = true;
   const close = () => {
     if (!open) return;

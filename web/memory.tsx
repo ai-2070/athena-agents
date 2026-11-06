@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import { attempt, ago, onEvent, onState, state, confirmBox } from './core.ts';
 import { projectAt } from './client/connection.ts';
 import { rpcAt } from './client/rpc.ts';
@@ -224,7 +224,7 @@ export function memoryEditor(owner: string, { rows = 12, projectId }: { rows?: n
   const store: MemoryState = { loaded: null, base: '', text: '', changedElsewhere: false, gone: false, error: false };
   const el = document.createElement('div');
   // (synchronously, so the box is there the moment this returns, as the plain-DOM editor's was)
-  flushSync(() => createRoot(el).render(<MemoryEditorView owner={owner} rows={rows} brain={brain} project={project} foreign={projectId} host={el} store={store} />));
+  flushSync(() => createAppRoot(el).render(<MemoryEditorView owner={owner} rows={rows} brain={brain} project={project} foreign={projectId} host={el} store={store} />));
   return { el, dirty: () => !!store.loaded && store.text !== store.base };
 }
 

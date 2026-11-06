@@ -3,7 +3,7 @@
 // it in and out, and tells it to draw again (update()) when what it shows may have changed.
 import { StrictMode, Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from '../ui/root.tsx';
 import { attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
@@ -67,7 +67,7 @@ export function mountStationPanel(el: HTMLElement, api: StationPanelApi): { upda
   let version = 0;
   const listeners = new Set<() => void>();
   const subscribe = (l: () => void) => (listeners.add(l), () => void listeners.delete(l));
-  const root = createRoot(el);
+  const root = createAppRoot(el);
   root.render(
     <StrictMode>
       <IconWeightProvider value="regular">

@@ -1,7 +1,7 @@
 // The sidebar's usage view, in place of the status list (the Status / Limits switch below it, or Settings > Appearance):
 // how much of your Claude and Codex plans is used, when each limit starts again, and Codex's free limit resets.
 // Rendered with React (createRoot) into the element app.ts mounts; the view's lines and the Codex reset card are components.
-import { createRoot } from 'react-dom/client';
+import { createAppRoot } from './ui/root.tsx';
 import type { Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { state, toast } from './core.ts';
@@ -311,7 +311,7 @@ function showPop(el: HTMLElement, redraw: () => void): void {
     host.setAttribute('aria-label', 'Codex limit resets');
     document.body.append(host);
     pop = host;
-    popRoot = createRoot(host);
+    popRoot = createAppRoot(host);
     document.addEventListener('pointermove', watchPointer);
   }
   renderPop(redraw);
@@ -327,7 +327,7 @@ export function navLimits(redraw: () => void): HTMLElement[] {
   host.className = PANEL;
   // drop the panel the caller replaced before drawing the new one (its refs would clear the new element's)
   panelRoot?.unmount();
-  panelRoot = createRoot(host);
+  panelRoot = createAppRoot(host);
   flushSync(() => panelRoot!.render(<LimitsView redraw={redraw} />));
   // the sidebar was drawn again under an open card: keep it next to the new rows
   if (pop) {
@@ -345,7 +345,7 @@ export function panelSwitch(redraw: () => void): HTMLElement {
   const host = document.createElement('div');
   host.className = SWITCH;
   switchRoot?.unmount();
-  switchRoot = createRoot(host);
+  switchRoot = createAppRoot(host);
   flushSync(() => switchRoot!.render(<PanelTabs redraw={redraw} />));
   return host;
 }
