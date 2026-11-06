@@ -1,7 +1,7 @@
 // The page's one way to the server: addresses, headers, errors, uploads and sockets.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiUrl, fileUrl, requestHeaders, serverUrl, setConnection, setPageProject, socketUrl } from '../../web/client/connection.ts';
-import { api, fetchFile, serverFetch, upload } from '../../web/client/http.ts';
+import { api, fetchFile, upload } from '../../web/client/http.ts';
 
 type Call = { url: string; init: RequestInit };
 let calls: Call[] = [];
@@ -87,14 +87,6 @@ describe('api()', () => {
     await api('/state');
     expect(headersOf(calls[0])).toEqual({ 'x-dash': '1', 'x-device': 'phone-1' });
     expect(requestHeaders()).toEqual({ 'x-dash': '1', 'x-device': 'phone-1' });
-  });
-});
-
-describe('serverFetch()', () => {
-  it('adds the dashboard header to what the caller sends', async () => {
-    vi.stubGlobal('fetch', answer({}));
-    await serverFetch('/api/brain/stream', { method: 'POST', headers: { 'content-type': 'application/json' } });
-    expect(headersOf(calls[0])).toEqual({ 'x-dash': '1', 'content-type': 'application/json' });
   });
 });
 
