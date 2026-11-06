@@ -15,6 +15,7 @@ export const SKILL_MARKS: Record<string, SkillMarkSpec> = {
   'self-improvement': { icon: 'sparkles' },
   'voxel-building': { icon: 'box' },
   'orca-agents': ORCA,
+  'claude-motion': { icon: 'film' },
   // skills/athena
   'action-items': { icon: 'list-checks' },
   arxiv: { logo: 'arxiv' },
@@ -47,6 +48,13 @@ export const SKILL_MARKS: Record<string, SkillMarkSpec> = {
   'weekly-review-planning': { icon: 'calendar-check' },
   xlsx: { icon: 'microsoft-excel', color: '#217346' },
   'youtube-content': { logo: 'youtube' },
+  // skills/anatomy
+  anatomy: { icon: 'cube-transparent' },
+  // skills/claude-motion
+  'motion-design': { icon: 'film-slate' },
+  'review-loop': { icon: 'layout-grid' },
+  'sound-design': { icon: 'waveform' },
+  'web-sims': { icon: 'atom' },
   // skills/composio, skills/cua, skills/oomol
   composio: { img: '/app-icons/composio.png' },
   'cua-sandboxes': CUA,
