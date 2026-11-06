@@ -15,7 +15,7 @@ import { brainQueue, chatLoop, holdQueue, latestLoad } from './brainqueue.ts';
 import { queuedText } from '../shared/queue.ts';
 import { learnText, parseCommand, parseLoop } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
-import { flipFrom, flipTo, slideIn, reducedMotion } from './motion.ts';
+import { flipFrom, flipTo, slideIn, slideOut, reducedMotion } from './motion.ts';
 import { attachTray } from './attach.tsx';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
@@ -311,7 +311,9 @@ export function openDock(target: string | null = null, text = ''): void {
   }
 }
 
-// Opening grows the chat out of the "Ask the Brain" button; closing folds it back into it.
+// Opening grows the chat out of the "Ask the Brain" button; closing folds it back into it. A page without the button
+// (the Overview, a full chat page) has it rise and sink where it is instead.
+const noButton = () => document.body.classList.contains('no-brain-button') || document.body.classList.contains('in-chat');
 let closing: Promise<void> | null = null;
 function toggle(open: boolean) {
   if (open === D.open && !closing) return;
@@ -324,11 +326,12 @@ function toggle(open: boolean) {
     Object.assign(D, { shown: true, launcherHidden: true, launcherFaded: false });
     checkTarget();
     now();
-    if (panel && from?.width && !reducedMotion()) {
+    if (panel && !noButton() && from?.width && !reducedMotion()) {
       flipFrom(panel, from, { duration: 460, fade: true });
       // the inside arrives a moment later, so the shape leads
       for (const [i, part] of [...panel.children].entries()) slideIn(part, { y: 10, duration: 360 + i * 60 })?.effect?.updateTiming({ delay: 120 + i * 40, fill: 'backwards' });
     }
+    else if (panel && noButton()) slideIn(panel, { y: 12, scale: 0.98, duration: 300 });
     setTimeout(() => D.input?.focus(), 30);
     return;
   }
@@ -336,7 +339,8 @@ function toggle(open: boolean) {
   Object.assign(D, { launcherHidden: false, launcherFaded: true });
   now();
   if (!panel || !launcher) return void (Object.assign(D, { shown: false, launcherFaded: false }), now());
-  const done = (closing = flipTo(panel, launcher.getBoundingClientRect(), { duration: 300 }).then(() => {
+  const fold = noButton() ? slideOut(panel, { y: 12, scale: 0.98 }) : flipTo(panel, launcher.getBoundingClientRect(), { duration: 300 });
+  const done = (closing = fold.then(() => {
     if (closing !== done) return;
     closing = null;
     Object.assign(D, { shown: false, launcherFaded: false });
@@ -884,7 +888,7 @@ function DockView({ bar }: { bar: HTMLElement }) {
       {createPortal(
         <button
           ref={(el) => void (D.launcher = el)}
-          className={`dock-launcher glass relative flex items-center gap-2.5 py-2.5 pr-3 pl-3.5 whitespace-nowrap cursor-pointer rounded-full text-ink font-sans text-[14px] font-medium leading-[normal] [transition:transform_0.18s_var(--ease-soft),opacity_0.2s] hover:[transform:translateY(-1px)] in-[.in-chat]:hidden max-md:in-[.nav-open]:hidden ${D.launcherHidden ? ' hidden' : ''}`}
+          className={`dock-launcher glass relative flex items-center gap-2.5 py-2.5 pr-3 pl-3.5 whitespace-nowrap cursor-pointer rounded-full text-ink font-sans text-[14px] font-medium leading-[normal] [transition:transform_0.18s_var(--ease-soft),opacity_0.2s] hover:[transform:translateY(-1px)] in-[.in-chat]:hidden in-[.no-brain-button]:hidden max-md:in-[.nav-open]:hidden ${D.launcherHidden ? ' hidden' : ''}`}
           style={D.launcherFaded ? { opacity: 0 } : undefined}
           title={brainKeyTitle()}
           onClick={() => toggle(true)}

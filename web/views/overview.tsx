@@ -25,11 +25,14 @@ import { iconButtonClass } from '../ui/classes.ts';
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
 import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { Skeleton, Bone } from '../ui/skeleton.tsx';
-import { Pick, STATUSES, StatusIcon, WhoMark, isWorking, openTaskComposer, taskHref, taskKey } from '../taskboard.tsx';
+import { Pick, STATUSES, StatusIcon, WhoMark, confirmStop, openTaskComposer, taskHref, taskKey } from '../taskboard.tsx';
+import { Card, askWhyBlocked, byRank, cardKey, errorText, place, ref, same, startedNote } from '../taskcard.tsx';
+import type { Assignee, Placement } from '../taskcard.tsx';
+import type { BoardChange } from '../../shared/api/taskboard.ts';
 import type { Choice } from '../taskboard.tsx';
 import { PER_VIEW_MAX, PER_VIEW_MIN, STACK_MAX, closePane, dropPane, evenOut, loadLayout, movePane, openPane, paneKey, panesInOrder, prune, resizeColumn, resizeStack, saveLayout, setPerView, stackPane, togglePin, unstackPane } from '../overviewlayout.ts';
 import type { PaneRef, StripLayout } from '../overviewlayout.ts';
-import type { BoardStatus, FolderListing, OverviewData, OverviewProject, OverviewSession, TaskBoardData } from '../../shared/types.ts';
+import type { BoardStatus, BoardTask, FolderListing, OverviewData, OverviewProject, OverviewSession, TaskBoardData } from '../../shared/types.ts';
 
 type Sort = 'needs' | 'recent' | 'kind' | 'name' | 'mine';
 const ORDER_KEY = 'dash-overview-order';
@@ -54,10 +57,8 @@ const CHANGES = new Set(['agents', 'workflows', 'approvals', 'questions', 'runs'
 const KIND_ORDER: Record<OverviewSession['kind'], number> = { brain: 0, agent: 1, team: 2, terminal: 3, task: 4 };
 const STATUS_ORDER: Record<OverviewSession['status'], number> = { 'needs-you': 0, working: 1, idle: 2 };
 const sessionKey = (p: OverviewProject, s: OverviewSession) => `${p.id}/${s.kind}/${s.id}`;
-/** What a session opens as a pane: a chat, a terminal, or another project's Brain (the open project's is the Brain
- *  chat, and tasks open on their page). */
-const paneOf = (s: OverviewSession, projectId: string, active: string): PaneRef | null =>
-  s.kind === 'agent' || s.kind === 'team' || s.kind === 'terminal' || (s.kind === 'brain' && projectId !== active) ? { kind: s.kind, id: s.id, projectId } : null;
+/** What a session opens as a pane: a chat, a terminal, or a project's Brain (tasks open on their page). */
+const paneOf = (s: OverviewSession, projectId: string): PaneRef | null => (s.kind === 'task' ? null : { kind: s.kind, id: s.id, projectId });
 const STRIP = 'all';
 const PANEL_KEY = 'dash-overview-panel';
 type PanelId = 'needs' | 'tasks' | 'files';
@@ -216,10 +217,9 @@ function OverviewPage() {
    *  the open project's Brain in the Brain chat. */
   const openSession = (p: OverviewProject, s: OverviewSession) => {
     if (!data) return;
-    const ref = paneOf(s, p.id, data.active);
+    const ref = paneOf(s, p.id);
     if (ref) return change((l) => openPane(l, ref));
-    if (s.kind === 'task') return navigate(taskHref({ projectId: p.id, id: s.id }));
-    openDock();
+    navigate(taskHref({ projectId: p.id, id: s.id }));
   };
   /** A new terminal in the open project's folder, opened as a pane. */
   const newTerminal = async () => {
@@ -527,7 +527,8 @@ function NeedsPanel({ projects, active, needing, onOpen }: { projects: OverviewP
 }
 
 const TASK_GROUPS: BoardStatus[] = ['in_progress', 'todo', 'in_review', 'blocked'];
-/** Tasks: the board's open tasks for what is shown, by column; a click opens the task. */
+/** Tasks: the board's open tasks for what is shown, by column, on the Tasks board's own cards: a click opens one, its
+ *  menu moves or removes it, and the mark at its corner gives it to someone. Each change is saved, then read again. */
 function TasksPanel({ scope, data }: { scope: string; data: OverviewData }) {
   const project = scope === 'here' ? data.active : scope === 'all' || !data.projects.some((p) => p.id === scope) ? 'all' : scope;
   const [board, setBoard] = useState<TaskBoardData | null>(null);
@@ -539,41 +540,102 @@ function TasksPanel({ scope, data }: { scope: string; data: OverviewData }) {
     return () => (clearTimeout(timer), off());
   }, [load]);
   const many = project === 'all' && data.projects.length > 1;
+  const tasks = board?.tasks || [];
+  const columnOf = (status: BoardStatus, without?: BoardTask) => tasks.filter((t) => t.status === status && !(without && same(t, without))).sort(byRank);
+  const save = async (t: BoardTask, patch: BoardChange, respaced: Placement['respaced'] = []) => {
+    try {
+      if (respaced.length) await rpc.taskBoard.rerank({ ranks: respaced.map((r) => ({ projectId: r.task.projectId, id: r.task.id, status: r.task.status, rank: r.rank })) });
+      startedNote(t, (await rpc.taskBoard.change({ ...ref(t), ...patch, expectedUpdatedAt: t.updatedAt })).task);
+    } catch (e) {
+      toast(errorText(e), 'error');
+    }
+    load();
+  };
+  // (as on the board: leaving In progress stops the work, after asking; Blocked asks why)
+  const toColumn = async (t: BoardTask, status: BoardStatus) => {
+    if (status !== 'in_progress' && !(await confirmStop(t))) return;
+    const why = status === 'blocked' ? await askWhyBlocked(t) : undefined;
+    if (why === null) return;
+    const { rank, respaced } = place(columnOf(status, t), undefined, columnOf(status, t)[0]);
+    await save(t, { status, rank, ...(why !== undefined ? { blockedReason: why } : {}) }, respaced);
+  };
+  const step = (t: BoardTask, dir: -1 | 1) => {
+    const list = columnOf(t.status);
+    const j = list.findIndex((x) => same(x, t)) + dir;
+    if (j < 0 || j >= list.length) return;
+    const others = columnOf(t.status, t);
+    const { rank, respaced } = place(others, others[j - 1], others[j]);
+    void save(t, { status: t.status, rank }, respaced);
+  };
+  const assign = async (t: BoardTask, who: Assignee) => {
+    if (who.assignee === t.assignee || !(await confirmStop(t))) return;
+    await save(t, { assignee: who.assignee });
+  };
+  const remove = async (t: BoardTask) => {
+    if (!(await confirmStop(t)) || !(await confirmBox(`Remove ${taskKey(t.number)} "${t.title}"?`, { ok: 'Remove', danger: true }))) return;
+    await attempt(() => rpc.taskBoard.remove(ref(t)));
+    load();
+  };
+  const compose = () => openTaskComposer({ projectId: project === 'all' ? data.active : project, projects: data.projects.map((p) => ({ id: p.id, name: p.name })), onCreated: load });
+  const open = tasks.filter((t) => t.status !== 'done');
   return (
-    <div className="flex flex-col gap-4 p-3">
-      <Button variant="ghost" size="small" className="self-start" onClick={() => openTaskComposer({ projectId: project === 'all' ? data.active : project, projects: data.projects.map((p) => ({ id: p.id, name: p.name })), onCreated: load })}>
-        <Icon name="plus" size={13} />
-        New task
-      </Button>
-      {!board ? <p className="m-0 text-[12.5px] text-faint">Loading the tasks…</p> : null}
-      {board && !board.tasks.some((t) => t.status !== 'done') ? <p className="m-0 text-[12.5px] text-faint">No open tasks.</p> : null}
-      {board
-        ? TASK_GROUPS.map((status) => {
-            const list = board.tasks.filter((t) => t.status === status);
-            if (!list.length) return null;
-            return (
-              <section key={status} aria-label={STATUSES.find((x) => x.value === status)!.label} className="flex flex-col gap-1">
-                <h3 className="m-0 flex items-center gap-1.5 text-[12px] font-medium text-dim">
-                  <StatusIcon status={status} size={13} />
-                  {STATUSES.find((x) => x.value === status)!.label}
-                  <span className="font-normal text-faint">{list.length}</span>
-                </h3>
-                <ul className="m-0 mt-0.5 flex list-none flex-col gap-0.5 p-0">
-                  {list.map((t) => (
-                    <li key={`${t.projectId}/${t.id}`}>
-                      <a href={taskHref(t)} className="flex items-center gap-2 rounded-ctl px-2 py-1.5 text-[13px] text-ink no-underline hover:bg-ink/4">
-                        <span className="flex-none text-[11.5px] text-faint tabular-nums">{taskKey(t.number)}</span>
-                        <span className="min-w-0 flex-1 truncate">{t.title}{many ? <span className="text-faint">{` · ${t.projectName}`}</span> : null}</span>
-                        {isWorking(t) ? <span className={`size-1.5 flex-none rounded-full ${t.work?.state === 'waiting' ? 'bg-amber' : 'bg-accent motion-safe:animate-pulse'}`} title={`${t.workerName || 'Someone'} is working on it`} /> : null}
-                        {t.assignee ? <WhoMark who={t.assignee} emoji={t.assigneeEmoji} color={t.assigneeColor} size={18} /> : null}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            );
-          })
-        : null}
+    <div className="flex flex-col gap-5 p-3">
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="small" onClick={compose}>
+          <Icon name="plus" size={13} />
+          New task
+        </Button>
+        {board && open.length ? <span className="ml-auto text-[12px] text-faint tabular-nums">{`${open.length} open`}</span> : null}
+      </div>
+      {!board ? (
+        <Skeleton label="Loading the tasks…" className="flex flex-col gap-1.5">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex flex-col gap-3 rounded-[10px] border border-line bg-bg p-3">
+              <Bone className={`h-4 ${i % 2 ? 'w-1/2' : 'w-4/5'}`} />
+              <Bone className="h-3 w-20" />
+            </div>
+          ))}
+        </Skeleton>
+      ) : !open.length ? (
+        <div className="flex flex-col items-center gap-2 rounded-box border border-dashed border-line-2 px-4 py-10 text-center">
+          <Icon name="kanban" size={20} className="text-faint" />
+          <p className="m-0 text-[13px] text-dim">No open tasks.</p>
+          <Button variant="plain" size="tiny" onClick={compose}>
+            <Icon name="plus" size={12} />
+            Add one
+          </Button>
+        </div>
+      ) : (
+        TASK_GROUPS.map((status) => {
+          const list = columnOf(status);
+          if (!list.length) return null;
+          const label = STATUSES.find((x) => x.value === status)!.label;
+          return (
+            <section key={status} aria-label={label} className="flex flex-col gap-1.5">
+              <h3 className="m-0 flex items-center gap-2 px-1 text-[13px] font-semibold text-ink">
+                <StatusIcon status={status} size={14} />
+                {label}
+                <span className="rounded-full bg-ink/6 px-1.5 text-[11px] leading-[18px] font-normal text-dim tabular-nums">{list.length}</span>
+              </h3>
+              <ul className="m-0 flex list-none flex-col gap-1.5 rounded-box bg-ink/[0.025] p-1.5">
+                {list.map((t, i) => (
+                  <Card
+                    key={cardKey(t)}
+                    task={t}
+                    showProject={many}
+                    first={i === 0}
+                    last={i === list.length - 1}
+                    onColumn={(s) => void toColumn(t, s)}
+                    onStep={(d) => step(t, d)}
+                    onRemove={() => void remove(t)}
+                    onAssign={(who) => void assign(t, who)}
+                  />
+                ))}
+              </ul>
+            </section>
+          );
+        })
+      )}
     </div>
   );
 }
@@ -769,7 +831,8 @@ function Strip({ layout, change, projects, active, onNextNeeding }: { layout: St
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1">
-      <div ref={scroller} className="strip flex min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
+      {/* (it comes to rest at a pane's edge, never half-way through one; pinned ones stay out of the way) */}
+      <div ref={scroller} className="strip flex min-h-0 min-w-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:thin]" style={{ scrollPaddingLeft: pinnedWidth }}>
         {layout.columns.map((c, i) => (
           <StripColumnView
             key={paneKey(c.panes[0])}
@@ -828,7 +891,7 @@ function StripColumnView({ index, column: c, style, focus, drawn, status, projec
     document.addEventListener('pointerup', up);
   };
   return (
-    <div ref={box} className={`strip-column relative flex h-full flex-none flex-col bg-bg ${c.pinned ? 'border-r border-line shadow-card' : ''}`} style={style} data-pinned={c.pinned || undefined}>
+    <div ref={box} className={`strip-column relative flex h-full flex-none flex-col bg-bg ${c.pinned ? 'border-r border-line shadow-card' : 'snap-start'}`} style={style} data-pinned={c.pinned || undefined}>
       {c.panes.map((ref, row) => (
         <Pane key={paneKey(ref)} paneRef={ref} projectName={projectName(ref)} share={c.heights[row] ?? 1 / c.panes.length} stacked={c.panes.length > 1} pinned={c.pinned} focused={focus === paneKey(ref)} drawn={drawn(ref)} session={status(ref)} change={change} canStack={row === 0 && canStack} resizeBelow={row < c.panes.length - 1 ? resizeHeight(row) : undefined} />
       ))}
@@ -915,8 +978,9 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
             <DropdownContent align="end" className="min-w-52">
               <DropdownItem icon="star" onClick={() => change((l) => togglePin(l, key))}>{pinned ? 'Unpin' : 'Pin at the left'}</DropdownItem>
               {stacked ? <DropdownItem icon="columns-2" onClick={() => change((l) => unstackPane(l, key))}>Take out of the stack</DropdownItem> : canStack ? <DropdownItem icon="layers" onClick={() => change((l) => stackPane(l, key))}>Stack under the one before</DropdownItem> : null}
-              <DropdownItem onClick={() => change((l) => movePane(l, key, -1))}>Move left</DropdownItem>
-              <DropdownItem onClick={() => change((l) => movePane(l, key, 1))}>Move right</DropdownItem>
+              <DropdownItem icon="arrow-left" onClick={() => change((l) => movePane(l, key, -1))}>Move left</DropdownItem>
+              <DropdownItem icon="arrow-right" onClick={() => change((l) => movePane(l, key, 1))}>Move right</DropdownItem>
+              {ref.kind === 'brain' && !projectName ? <DropdownItem icon="sparkles" onClick={() => openDock()}>Open in the Brain chat</DropdownItem> : null}
               {(ref.kind === 'agent' || ref.kind === 'team') && !projectName ? <DropdownItem icon="external-link" onClick={() => (openChat(ref.kind === 'agent' ? 'agent' : 'team', ref.id), change((l) => closePane(l, key)))}>Open in a chat window</DropdownItem> : null}
               <DropdownItem icon="code" onClick={() => void openInVSCode(ref, !!projectName)}>Open folder in VS Code</DropdownItem>
               <DropdownSeparator />
@@ -974,12 +1038,14 @@ function PaneBody({ paneRef: ref, foreign, projectName, change }: { paneRef: Pan
     return () => void (el.parentNode === at && el.remove());
   }, [ref.kind, ref.id, ref.projectId, foreign]);
   if (ref.kind === 'terminal') return <XTerm id={ref.id} className="min-h-0 flex-1 bg-bg px-2 py-1" />;
-  if (ref.kind === 'brain') return <div className="flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3"><BrainPane projectId={ref.projectId} projectName={projectName} onOpen={(kind, id) => change((l) => openPane(l, { kind, id, projectId: ref.projectId }))} /></div>;
+  if (ref.kind === 'brain') return <div className="flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3"><BrainPane projectId={ref.projectId} projectName={projectName} here={!foreign} onOpen={(kind, id) => change((l) => openPane(l, { kind, id, projectId: ref.projectId }))} /></div>;
   return <div ref={host} className="strip-chat flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3" />;
 }
 
 export const flush = true;
 // (the sidebar folds to its icons: room for one more pane)
 export const slimNav = true;
+// (the Brain opens as a pane here, or with Ctrl+K / ⌘K: its button would cover the panes' message boxes)
+export const brainButton = false;
 export const title = () => 'Overview';
 export const { render, unmount } = reactPage(() => <OverviewPage />);

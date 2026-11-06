@@ -55,6 +55,8 @@ export interface View {
   station?: boolean;
   /** the sidebar folds to its icons, as on the Station (it opens when pointed at) */
   slimNav?: boolean;
+  /** false: no "Ask the Brain" button at the bottom (Ctrl+K / ⌘K still opens the Brain chat) */
+  brainButton?: boolean;
 }
 interface Route {
   path: string;
@@ -217,6 +219,7 @@ async function route() {
   document.body.classList.remove('nav-wide');
   // a full chat page has its own message box
   document.body.classList.toggle('in-chat', view === chat);
+  document.body.classList.toggle('no-brain-button', view.brainButton === false);
   titleEl.textContent = view.title?.(params) || [...NAV, ...HIDDEN].find((n) => n.path === top)?.label || '';
   renderNav();
   try {

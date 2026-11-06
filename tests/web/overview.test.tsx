@@ -35,6 +35,7 @@ class FakeSocket {
 }
 
 const now = Date.now();
+const card = { description: '', priority: 'normal', rank: 0, createdAt: 1, updatedAt: 1, assignee: '', assigneeName: 'Unassigned', tagList: [], commentCount: 0, fileCount: 0 };
 const session = (over: Partial<OverviewSession>): OverviewSession => ({ kind: 'agent', id: 'x', name: 'X', status: 'idle', updatedAt: now - 60_000, ...over });
 let data: OverviewData;
 let requests: { method: string; url: string; body?: unknown }[];
@@ -75,10 +76,11 @@ beforeEach(() => {
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url === '/api/overview') return slowOverview ? new Promise<Response>((r) => setTimeout(() => r(json(data)), slowOverview)) : json(data);
     if (url === '/api/task-board?project=all') return json({ projects: [], tasks: [
-      { id: 'bt1', number: 4, title: 'Edit the intro', status: 'in_progress', projectId: 'p2', projectName: 'Podcast', assignee: 'agent:host', assigneeName: 'Host', work: { state: 'working' }, workerName: 'Host' },
-      { id: 'bt2', number: 7, title: 'Order flour', status: 'todo', projectId: 'p1', projectName: 'Bakery', assignee: '' },
-      { id: 'bt3', number: 1, title: 'Old', status: 'done', projectId: 'p1', projectName: 'Bakery', assignee: '' },
+      { ...card, id: 'bt1', number: 4, title: 'Edit the intro', status: 'in_progress', projectId: 'p2', projectName: 'Podcast', assignee: 'agent:host', assigneeName: 'Host', work: { state: 'working' }, workerName: 'Host' },
+      { ...card, id: 'bt2', number: 7, title: 'Order flour', status: 'todo', projectId: 'p1', projectName: 'Bakery', updatedAt: 70 },
+      { ...card, id: 'bt3', number: 1, title: 'Old', status: 'done', projectId: 'p1', projectName: 'Bakery' },
     ] });
+    if (url === '/api/task-board/p1/bt2' && init.method === 'PUT') return json({ task: { ...card, id: 'bt2', projectId: 'p1', updatedAt: 71 } });
     if (url.startsWith('/api/projects/p1/folder')) {
       const path = decodeURIComponent(url.split('path=')[1] || '');
       return json(path === 'notes' ? { rel: 'notes', entries: [{ name: 'idea.md', dir: false, size: 2048, path: '/b/notes/idea.md', rel: 'notes/idea.md' }], more: 0 } : { rel: '', entries: [{ name: 'notes', dir: true, path: '/b/notes', rel: 'notes' }, { name: 'PROJECT.md', dir: false, size: 12, path: '/b/PROJECT.md', rel: 'PROJECT.md' }], more: 0 });
@@ -141,8 +143,9 @@ describe('the Overview', () => {
     expect(group('Bakery').querySelector('.session-status[aria-label="Needs you: Approval: Run a command"]')).not.toBeNull();
   });
 
-  it('folds the app\'s sidebar to its icons, as the Station does', () => {
+  it('folds the app\'s sidebar to its icons, as the Station does, and leaves out the Ask the Brain button', () => {
     expect(overview.slimNav).toBe(true);
+    expect(overview.brainButton).toBe(false);
   });
 
   it('pins a session to the top of its project, and remembers it', async () => {
@@ -183,14 +186,18 @@ describe('the Overview', () => {
     expect(row('Bakery', 'Writer').getAttribute('aria-current')).toBe('true');
     await act(async () => row('Bakery', 'Writer').click());
     expect(panes()).toEqual(['Writer', 'Shop team', 'PowerShell']);
+    // the Brain opens beside them too, next to the pane in use (its whole chat is Ctrl+K)
     await act(async () => row('Bakery', 'The Brain').click());
-    expect(opened.dock).toBe(1);
+    await settle();
+    expect(panes()).toEqual(['Writer', 'The Brain', 'Shop team', 'PowerShell']);
+    expect(el.querySelector('[data-pane="p1/brain:brain"]')!.textContent).toContain('brain of p1');
+    expect(opened.dock).toBe(0);
     expect(opened.chats).toEqual([]);
     expect(requests.some((r) => r.url.includes('/activate'))).toBe(false);
     // and it is all there again next time
     act(() => overview.unmount());
     await open();
-    expect(panes()).toEqual(['Writer', 'Shop team', 'PowerShell']);
+    expect(panes()).toEqual(['Writer', 'The Brain', 'Shop team', 'PowerShell']);
   });
 
   it('lets the strip be narrower than its panes, so it scrolls instead of growing', async () => {
@@ -203,6 +210,9 @@ describe('the Overview', () => {
       if (box.parentElement?.classList.contains('flex-col')) break;
       expect(box.classList.contains('min-w-0'), box.className).toBe(true);
     }
+    // and it comes to rest at a pane's edge
+    expect(strip.classList.contains('snap-x')).toBe(true);
+    expect(strip.querySelector('.strip-column')!.classList.contains('snap-start')).toBe(true);
   });
 
   it('moves, stacks, pins and closes panes with Ctrl+Alt keys, and changes the columns per view', async () => {
@@ -333,10 +343,15 @@ describe('the Overview', () => {
     expect(el.querySelector('[data-pane="p2/brain:brain"]')!.textContent).toContain('brain of p2');
     expect(opened.dock).toBe(0);
     expect(requests.some((r) => r.url.includes('/activate'))).toBe(false);
-    // the open project's Brain is the Brain chat
+    // the open project's Brain is a pane as well, whose menu opens the whole Brain chat
     await act(async () => row('Bakery', 'The Brain').click());
+    await settle();
+    expect(panes()).toEqual(['Host', 'The Brain', 'The Brain']);
+    const mine = el.querySelector<HTMLElement>('[data-pane="p1/brain:brain"]')!;
+    await act(async () => mine.querySelector<HTMLButtonElement>('button[aria-label="Actions for The Brain"]')!.click());
+    await settle();
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((m) => m.textContent === 'Open in the Brain chat')!.click());
     expect(opened.dock).toBe(1);
-    expect(panes()).toHaveLength(2);
   });
 
   it('puts an agent beside its twin of a copied project (the same id), each talking to its own project', async () => {
@@ -371,10 +386,18 @@ describe('the Overview', () => {
     await open();
     const tasks = await panel('Tasks');
     expect([...tasks.querySelectorAll('section h3')].map((h) => h.textContent)).toEqual(['In progress1', 'To do1']);
-    const links = [...tasks.querySelectorAll<HTMLAnchorElement>('a')];
-    expect(links.map((a) => a.textContent)).toEqual(['#4Edit the intro · Podcast', '#7Order flour · Bakery']);
-    expect(links[0].getAttribute('href')).toBe('#/tasks/p2/bt1');
+    // the Tasks board's own cards
+    const cards = [...tasks.querySelectorAll<HTMLElement>('li[data-task-id]')];
+    expect(cards.map((c) => c.getAttribute('aria-label'))).toEqual(['#4 Edit the intro, In progress, Podcast', '#7 Order flour, To do, Bakery']);
+    expect(cards[0].querySelector('a')!.getAttribute('href')).toBe('#/tasks/p2/bt1');
+    expect(cards[0].querySelector('.work-mark[aria-label="Host is working on it"]')).not.toBeNull();
     expect(tasks.textContent).not.toContain('Old');
+    // a card's menu moves it, saved in its own project
+    await act(async () => cards[1].querySelector<HTMLButtonElement>('button[aria-label="Actions for Order flour"]')!.click());
+    await settle();
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((m) => m.textContent === 'In review')!.click());
+    await settle();
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/bt2', body: { status: 'in_review', expectedUpdatedAt: 70 } });
   });
 
   it('browses a project folder in the Files panel and opens it in VS Code', async () => {

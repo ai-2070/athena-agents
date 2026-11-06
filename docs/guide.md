@@ -132,17 +132,17 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 
 ## Overview
 
-**Overview** in the sidebar shows every project at once. As on the Station, the sidebar folds to its icons here to leave more room; point at it to open it. Each project lists its agents, its teams, the Brain, its terminals and the board tasks an agent or team works on. Each one shows how it's doing: a small breathing dot on its picture while it works, and an amber one when it needs you. That means an approval, a question it asked you, or work that stopped and waits for you; point at its dot to see which. Under each name is what needs you, **Working…**, or what it is (an agent's engine, a team, a terminal) and when it last changed.
+**Overview** in the sidebar shows every project at once. As on the Station, the sidebar folds to its icons here to leave more room; point at it to open it. The **Ask the Brain** button isn't shown here, so it doesn't cover the panes: **Ctrl+K** (**⌘K** on macOS) still opens the Brain chat. Each project lists its agents, its teams, the Brain, its terminals and the board tasks an agent or team works on. Each one shows how it's doing: a small breathing dot on its picture while it works, and an amber one when it needs you. That means an approval, a question it asked you, or work that stopped and waits for you; point at its dot to see which. Under each name is what needs you, **Working…**, or what it is (an agent's engine, a team, a terminal) and when it last changed.
 
 - **Show** picks **This project**, **All projects** or one project. **Sort** puts the ones that need you first (the default), or orders them by last update, by kind, by name, or in **Your order**: then drag them up and down within their project.
 - The star next to one pins it to the top of its project. Click a project's name to fold it. **Search** narrows the list by name.
 - **Needs you** and **Working now** list them across what is shown, with **Open** next to each. The line at the bottom counts them: "2 need you · 4 of 7 working · 3 projects".
 - Clicking an agent, a team or a terminal opens it on the strip, beside the others, whichever project it is in: you can write to an agent or a team of another project without opening that project (its pane says which project it is, the files you attach go to that project, the files it mentions show their previews, and its MEMORY.md is the one it has there). A task opens on its page.
-- The Brain of another project opens on the strip too: its conversation, a box to ask it something (with files), the answer as it is written, its MEMORY.md, and **Open** on the work it hands to an agent or a team, which opens beside it. The open project's Brain opens in the Brain chat at the bottom, which also has who a message goes to, /goal, /loop and /queue.
+- The Brain, of this project or another, opens on the strip too: its conversation, a box to ask it something (with files), the answer as it is written, its MEMORY.md, and **Open** on the work it hands to an agent or a team, which opens beside it. For the open project, **Open in the Brain chat** in the pane's **…** menu (or **Ctrl+K** / **⌘K**) opens the whole Brain chat, which also has who a message goes to, /goal, /loop and /queue.
 - A copied project's agents and teams can sit beside the originals: each pane talks to its own project.
 - Your choices (what is shown, the sort, pins, folded projects) are remembered in this browser.
 
-**The strip.** Open chats and terminals sit side by side and keep their width; the strip slides sideways instead of squeezing them.
+**The strip.** Open chats and terminals sit side by side and keep their width; the strip slides sideways instead of squeezing them, and comes to rest at a pane's edge.
 - **−** and **+** at the bottom right choose how many fit in one view (1 to 8). The dashes beside them are the panes, the one in use longer; click one to go to it.
 - Drag the line at a pane's right edge to make it wider or narrower.
 - A pane's **…** menu pins it at the left (it stays in view while the rest slides), stacks it under the pane before it (up to three in one column; drag the line between them to share the height), moves it, opens it in a chat window, or closes it. A terminal's menu can also end it.
@@ -152,7 +152,7 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 - One strip for all projects, remembered in this browser.
 - **Panels** beside the strip, one at a time (the buttons at the bottom right):
   - **Needs you**: approvals to decide right there, then the questions, stopped work and tasks waiting for you, each with **Open**.
-  - **Tasks**: the open tasks of what is shown, by column; click one to open it, or make a **New task**.
+  - **Tasks**: the open tasks of what is shown, by column, on the same cards as the Tasks board: click one to open it, give it to someone from the mark at its corner, move it or remove it from its **…** menu, or make a **New task**.
   - **Files**: a project's folder, one level at a time. Pictures, Markdown and PDFs open in their preview (another project's open in a new tab). **Open in VS Code** and **Show in Finder** (or Explorer) open the folder you are in.
 - A pane's **…** menu also has **Open folder in VS Code**: an agent's own workspace, or the project folder for a team or a terminal.
 
