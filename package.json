@@ -111,7 +111,7 @@
     "zustand": "5.0.16"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261104.1",
+    "@cloudflare/workers-types": "5.20261106.1",
     "@tailwindcss/node": "4.3.4",
     "@tailwindcss/oxide": "4.3.4",
     "@tauri-apps/cli": "2.12.4",
