@@ -1,14 +1,14 @@
-// Overview (#/overview): every project's agents, teams, the Brain, terminals and board tasks being worked on, in one
-// sidebar, with what works and what needs you; this project, all projects, or one. Chats and terminals of any project
+// Overview (#/overview): every project's agents, teams, the Brain and board tasks being worked on, in one
+// sidebar, with what works and what needs you; this project, all projects, or one. Chats and Brains of any project
 // open side by side on a strip where each keeps its width (overviewlayout.ts): 1 to 8 columns per view, pinned columns
 // stay at the left, up to three panes stack in one column, and the rail at either edge shows what is off screen. A
 // pane of a project that isn't open sends its requests to that project (projectAt, /api/p/<project>/…), so a copied
-// project's agents and teams (the same ids) sit beside the originals. Another project's Brain opens as a pane too
-// (brainpane.tsx); the open project's is the Brain chat. The plan:
+// project's agents and teams (the same ids) sit beside the originals. A project's Brain is a pane too (brainpane.tsx);
+// the whole Brain chat is Ctrl+K. Terminals are left out for now (their panes still work). The plan:
 // docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { ENGINE_LABEL, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
+import { ENGINE_LABEL, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, toast } from '../core.ts';
 import { rpc, rpcAt } from '../client/rpc.ts';
 import { apiUrl, projectAt } from '../client/connection.ts';
 import { previewFile, previewTitle, revealLabel } from '../filepreview.tsx';
@@ -25,6 +25,7 @@ import { iconButtonClass } from '../ui/classes.ts';
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
 import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { Skeleton, Bone } from '../ui/skeleton.tsx';
+import { Tooltip } from '../ui/tooltip.tsx';
 import { Pick, STATUSES, StatusIcon, WhoMark, confirmStop, openTaskComposer, taskHref, taskKey } from '../taskboard.tsx';
 import { Card, askWhyBlocked, byRank, cardKey, errorText, place, ref, same, startedNote } from '../taskcard.tsx';
 import type { Assignee, Placement } from '../taskcard.tsx';
@@ -60,6 +61,8 @@ const sessionKey = (p: OverviewProject, s: OverviewSession) => `${p.id}/${s.kind
 /** What a session opens as a pane: a chat, a terminal, or a project's Brain (tasks open on their page). */
 const paneOf = (s: OverviewSession, projectId: string): PaneRef | null => (s.kind === 'task' ? null : { kind: s.kind, id: s.id, projectId });
 const STRIP = 'all';
+// Terminals aren't on the Overview for now (Terminals in the menu has them): they leave the list, and their panes go.
+const withoutTerminals = (d: OverviewData): OverviewData => ({ ...d, projects: d.projects.map((p) => ({ ...p, sessions: p.sessions.filter((s) => s.kind !== 'terminal') })) });
 const PANEL_KEY = 'dash-overview-panel';
 type PanelId = 'needs' | 'tasks' | 'files';
 /** The panels beside the strip, one at a time. Changes and pull requests can be added as more entries later. */
@@ -149,7 +152,7 @@ function OverviewPage() {
   const load = useCallback(async () => {
     const request = ++serial.current;
     try {
-      const next = await rpc.status.overview();
+      const next = withoutTerminals(await rpc.status.overview());
       if (request === serial.current) (loadedFrom.current = request, setData(next), setError(''));
     } catch (e) {
       if (request === serial.current) setError(e instanceof Error ? e.message : String(e));
@@ -221,14 +224,11 @@ function OverviewPage() {
     if (ref) return change((l) => openPane(l, ref));
     navigate(taskHref({ projectId: p.id, id: s.id }));
   };
-  /** A new terminal in the open project's folder, opened as a pane. */
-  const newTerminal = async () => {
-    const t = await attempt(() => rpc.terminals.create({ kind: 'shell', cwd: state.data?.project?.brainPath }));
-    if (!t) return;
-    change((l) => openPane(l, { kind: 'terminal', id: t.id, projectId: active }));
-    void load();
+  /** A double-click on one in the list closes its pane. */
+  const closeSession = (p: OverviewProject, s: OverviewSession) => {
+    const ref = paneOf(s, p.id);
+    if (ref) change((l) => closePane(l, paneKey(ref)));
   };
-
   // the projects this scope shows (a project picked before and since removed: all of them)
   const projects = useMemo(() => {
     if (!data) return [];
@@ -302,7 +302,7 @@ function OverviewPage() {
             pinned={(s) => pins.has(sessionKey(p, s))}
             onPin={(s) => toggleSet(sessionKey(p, s), setPins, PINS_KEY)}
             onOpen={(s) => open(p, s)}
-            onNewTerminal={p.id === data.active ? () => void newTerminal() : undefined}
+            onClose={(s) => closeSession(p, s)}
             shownAsPane={(s) => !!layout && panesInOrder(layout).some((x) => x.projectId === p.id && x.kind === s.kind && x.id === s.id)}
             onMove={sort === 'mine' && !q ? (from, onto, after) => reorder(p, sessions, from, onto, after) : undefined}
           />
@@ -315,7 +315,7 @@ function OverviewPage() {
             <Strip layout={layout} change={change} projects={data.projects} active={active} onNextNeeding={nextNeeding} />
           ) : (
             <main className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-7 max-md:px-4">
-              <p className="m-0 text-[13px] text-dim">Click an agent, a team or a terminal, of any project, to open it here. They sit side by side and keep their width.</p>
+              <p className="m-0 text-[13px] text-dim">Click an agent, a team or the Brain, of any project, to open it here. They sit side by side and keep their width. A double-click in the list closes one.</p>
               <Section title="Needs you" empty="Nothing waits for you." items={needing} showProject={projects.length > 1} onOpen={open} />
               <Section title="Working now" empty="Nothing is working right now." items={working} showProject={projects.length > 1} onOpen={open} />
             </main>
@@ -361,7 +361,7 @@ function OverviewPage() {
 }
 
 // ---------- the sidebar ----------
-function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPin, onOpen, onNewTerminal, shownAsPane, onMove }: {
+function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPin, onOpen, onClose, shownAsPane, onMove }: {
   project: OverviewProject;
   sessions: OverviewSession[];
   open: boolean;
@@ -370,7 +370,8 @@ function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPi
   pinned: (s: OverviewSession) => boolean;
   onPin: (s: OverviewSession) => void;
   onOpen: (s: OverviewSession) => void;
-  onNewTerminal?: () => void;
+  /** closes its pane (a double-click) */
+  onClose: (s: OverviewSession) => void;
   shownAsPane: (s: OverviewSession) => boolean;
   /** Your order: a row dragged onto another goes before it (upper half) or after it */
   onMove?: (from: string, onto: string, after: boolean) => void;
@@ -386,15 +387,10 @@ function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPi
           <span className={`flex-none text-[11.5px] ${p.needsYou ? 'text-amber' : 'text-faint'}`}>{summary}</span>
           <Icon name="chevron-down" size={12} className={`flex-none text-faint [transition:transform_0.15s] ${folded ? '-rotate-90' : ''}`} />
         </button>
-        {onNewTerminal ? (
-          <IconButton variant="plain" className="size-7! flex-none" aria-label={`New terminal in ${p.name}`} title="New terminal in the project's folder" onClick={onNewTerminal}>
-            <Icon name="terminal" size={13} />
-          </IconButton>
-        ) : null}
       </div>
       {folded ? null : (
         <ul className="m-0 mt-0.5 flex list-none flex-col gap-0.5 p-0">
-          {sessions.map((s) => <SessionRow key={rowKey(s)} session={s} pinned={pinned(s)} shown={shownAsPane(s)} onPin={() => onPin(s)} onOpen={() => onOpen(s)} onMove={onMove ? (from, after) => onMove(from, rowKey(s), after) : undefined} />)}
+          {sessions.map((s) => <SessionRow key={rowKey(s)} session={s} pinned={pinned(s)} shown={shownAsPane(s)} onPin={() => onPin(s)} onOpen={() => onOpen(s)} onClose={() => onClose(s)} onMove={onMove ? (from, after) => onMove(from, rowKey(s), after) : undefined} />)}
         </ul>
       )}
     </section>
@@ -438,7 +434,7 @@ function SessionLine({ session: s }: { session: OverviewSession }) {
 }
 
 const ROW_DRAG = 'text/x-overview-session';
-function SessionRow({ session: s, pinned, shown, onPin, onOpen, onMove }: { session: OverviewSession; pinned: boolean; shown: boolean; onPin: () => void; onOpen: () => void; onMove?: (from: string, after: boolean) => void }) {
+function SessionRow({ session: s, pinned, shown, onPin, onOpen, onClose, onMove }: { session: OverviewSession; pinned: boolean; shown: boolean; onPin: () => void; onOpen: () => void; onClose: () => void; onMove?: (from: string, after: boolean) => void }) {
   const [over, setOver] = useState<'before' | 'after' | null>(null);
   const half = (e: ReactDragEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -471,7 +467,7 @@ function SessionRow({ session: s, pinned, shown, onPin, onOpen, onMove }: { sess
     <li {...drag} className={`group relative flex items-center gap-1 rounded-box pr-1.5 pl-2 [transition:background-color_0.15s] hover:bg-ink/5 ${shown ? 'bg-ink/4' : ''} ${onMove ? 'cursor-grab' : ''} ${over === 'before' ? 'shadow-[inset_0_2px_0_var(--color-accent)]' : over === 'after' ? 'shadow-[inset_0_-2px_0_var(--color-accent)]' : ''}`}>
       {/* (open on the strip: a line of the accent at its left) */}
       {shown ? <span aria-hidden="true" className="absolute top-2.5 bottom-2.5 left-0 w-0.5 rounded-full bg-accent" /> : null}
-      <button type="button" className="session-open flex min-w-0 flex-1 cursor-pointer items-center gap-3 border-0 bg-transparent py-2 text-left" title={s.why || (s.updatedAt ? `Last change ${ago(s.updatedAt)}` : '')} aria-current={shown ? 'true' : undefined} onClick={onOpen}>
+      <button type="button" className="session-open flex min-w-0 flex-1 cursor-pointer items-center gap-3 border-0 bg-transparent py-2 text-left" title={s.why || (s.updatedAt ? `Last change ${ago(s.updatedAt)}` : '')} aria-current={shown ? 'true' : undefined} onClick={onOpen} onDoubleClick={onClose}>
         <SessionAvatar session={s} />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="session-name truncate text-[13.5px] leading-5 font-medium text-ink">{label(s)}</span>
@@ -820,10 +816,12 @@ function Strip({ layout, change, projects, active, onNextNeeding }: { layout: St
         {list.map((ref) => {
           const s = status(ref);
           return (
-            <button key={paneKey(ref)} type="button" className="pointer-events-auto relative cursor-pointer rounded-[8px] border-0 bg-transparent p-0 shadow-raised" title={`${s?.name || ref.id}${s?.status === 'needs-you' ? ' · needs you' : s?.status === 'working' ? ' · working' : ''}`} aria-label={`Go to ${s?.name || ref.id}`} onClick={() => change((l) => ({ ...l, focus: paneKey(ref) }))}>
+            <Tooltip key={paneKey(ref)} side={side === 'left' ? 'right' : 'left'} label={`${s?.name || ref.id}${s?.status === 'needs-you' ? ' · needs you' : s?.status === 'working' ? ' · working' : ''}`}>
+            <button type="button" className="pointer-events-auto relative cursor-pointer rounded-[8px] border-0 bg-transparent p-0 shadow-raised" aria-label={`Go to ${s?.name || ref.id}`} onClick={() => change((l) => ({ ...l, focus: paneKey(ref) }))}>
               <SessionMark session={s || { kind: ref.kind, id: ref.id }} size={22} />
               {s?.status === 'needs-you' ? <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber" /> : s?.status === 'working' ? <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-accent" /> : null}
             </button>
+            </Tooltip>
           );
         })}
       </div>

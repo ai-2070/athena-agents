@@ -119,7 +119,7 @@ const panel = async (label: string) => {
 describe('the Overview', () => {
   it('lists every project\'s sessions, Needs you first, with what needs you and what works', async () => {
     await open();
-    expect(rows('Bakery')).toEqual(['Baker', 'Writer', 'Shop team', 'PowerShell', 'The Brain']);
+    expect(rows('Bakery')).toEqual(['Baker', 'Writer', 'Shop team', 'The Brain']);
     expect(rows('Podcast')).toEqual(['#4 Edit the intro', 'Host']);
     expect(group('Bakery').querySelector('.session-status[aria-label="Working"]')).not.toBeNull();
     const needs = el.querySelector<HTMLElement>('section[aria-label="Needs you"]')!;
@@ -129,7 +129,7 @@ describe('the Overview', () => {
     expect(el.querySelector('section[aria-label="Working now"]')!.textContent).toContain('Writer');
     expect(el.querySelector('.overview-status')!.textContent).toContain('2 need you');
     expect(el.querySelector('.overview-status')!.textContent).toContain('1 of 5 working');
-    expect(el.textContent).toContain('Click an agent, a team or a terminal, of any project, to open it here.');
+    expect(el.textContent).toContain('Click an agent, a team or the Brain, of any project, to open it here.');
     expect(el.querySelector('.overview-status')!.textContent).toContain('2 projects');
   });
 
@@ -139,7 +139,7 @@ describe('the Overview', () => {
     expect(line('Baker')).toBe('Approval: Run a command');
     expect(line('Writer')).toBe('Working…');
     expect(line('Shop team')).toBe('Team · just now');
-    expect(line('PowerShell')).toBe('Terminal · just now');
+    expect(line('The Brain')).toBe('Brain · just now');
     expect(group('Bakery').querySelector('.session-status[aria-label="Needs you: Approval: Run a command"]')).not.toBeNull();
   });
 
@@ -171,25 +171,23 @@ describe('the Overview', () => {
     expect(rows('Bakery')).toEqual(['Writer']);
   });
 
-  it('opens the open project\'s chats and terminals as panes side by side, the Brain in its chat', async () => {
+  it('opens the open project\'s chats and its Brain as panes side by side', async () => {
     await open();
     await act(async () => row('Bakery', 'Writer').click());
     await act(async () => row('Bakery', 'Shop team').click());
-    await act(async () => row('Bakery', 'PowerShell').click());
     await settle();
-    expect(panes()).toEqual(['Writer', 'Shop team', 'PowerShell']);
+    expect(panes()).toEqual(['Writer', 'Shop team']);
     expect(el.querySelector('[data-pane="p1/agent:writer"]')!.textContent).toContain('agent chat writer');
     expect(el.querySelector('[data-pane="p1/team:t1"]')!.textContent).toContain('team chat t1');
-    expect(el.querySelector('[data-pane="p1/terminal:term1"]')!.textContent).toContain('terminal term1');
     expect(el.querySelector('[data-pane="p1/agent:writer"]')!.textContent).toContain('Working');
     // the sidebar marks what is open, and opening one again only focuses it
     expect(row('Bakery', 'Writer').getAttribute('aria-current')).toBe('true');
     await act(async () => row('Bakery', 'Writer').click());
-    expect(panes()).toEqual(['Writer', 'Shop team', 'PowerShell']);
+    expect(panes()).toEqual(['Writer', 'Shop team']);
     // the Brain opens beside them too, next to the pane in use (its whole chat is Ctrl+K)
     await act(async () => row('Bakery', 'The Brain').click());
     await settle();
-    expect(panes()).toEqual(['Writer', 'The Brain', 'Shop team', 'PowerShell']);
+    expect(panes()).toEqual(['Writer', 'The Brain', 'Shop team']);
     expect(el.querySelector('[data-pane="p1/brain:brain"]')!.textContent).toContain('brain of p1');
     expect(opened.dock).toBe(0);
     expect(opened.chats).toEqual([]);
@@ -197,7 +195,7 @@ describe('the Overview', () => {
     // and it is all there again next time
     act(() => overview.unmount());
     await open();
-    expect(panes()).toEqual(['Writer', 'The Brain', 'Shop team', 'PowerShell']);
+    expect(panes()).toEqual(['Writer', 'The Brain', 'Shop team']);
   });
 
   it('lets the strip be narrower than its panes, so it scrolls instead of growing', async () => {
@@ -283,18 +281,33 @@ describe('the Overview', () => {
     expect(el.querySelector('.strip-per-view')!.textContent).toBe(before);
   });
 
-  it('opens a new terminal in the project as a pane, and leaves out panes that are gone', async () => {
+  it('leaves terminals out: not in the list, and a terminal pane saved before goes', async () => {
+    localStorage.setItem('dash-overview-strip:all', JSON.stringify({ perView: 2, focus: null, columns: [
+      { panes: [{ kind: 'terminal', id: 'term1', projectId: 'p1' }], width: 1, heights: [1], pinned: false },
+      { panes: [{ kind: 'agent', id: 'writer', projectId: 'p1' }], width: 1, heights: [1], pinned: false },
+    ] }));
     await open();
-    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="New terminal in Bakery"]')!.click());
-    await settle(400);
-    expect(requests.find((r) => r.url === '/api/terminals')).toMatchObject({ method: 'POST' });
-    expect(panes()).toEqual(['PowerShell 2']);
-    // the terminal ended and was closed elsewhere: the pane goes once the overview says so
-    data.projects[0].sessions = data.projects[0].sessions.filter((x) => x.id !== 'term2');
-    await act(async () => row('Bakery', 'Writer').click());
+    expect(rows('Bakery')).not.toContain('PowerShell');
+    expect(el.querySelector('button[aria-label="New terminal in Bakery"]')).toBeNull();
+    expect(panes()).toEqual(['Writer']);
+  });
+
+  it('leaves out panes whose agent is gone', async () => {
+    await open();
+    for (const name of ['Writer', 'Baker']) await act(async () => row('Bakery', name).click());
+    data.projects[0].sessions = data.projects[0].sessions.filter((x) => x.id !== 'baker');
     act(() => overview.unmount());
     await open();
     expect(panes()).toEqual(['Writer']);
+  });
+
+  it('closes a pane with a double-click on it in the list', async () => {
+    await open();
+    for (const name of ['Writer', 'Baker']) await act(async () => row('Bakery', name).click());
+    expect(panes()).toEqual(['Writer', 'Baker']);
+    await act(async () => void row('Bakery', 'Writer').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    expect(panes()).toEqual(['Baker']);
+    expect(row('Bakery', 'Writer').getAttribute('aria-current')).toBeNull();
   });
 
   it('reads the overview again while a reply streams, not only once it stops', async () => {
@@ -307,17 +320,6 @@ describe('the Overview', () => {
       await settle(100);
     }
     expect(asked()).toBeGreaterThan(before);
-  });
-
-  it('keeps a new terminal\'s pane while the overview that has it is still on its way', async () => {
-    await open();
-    slowOverview = 200;
-    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="New terminal in Bakery"]')!.click());
-    await settle(50);
-    // (not in the overview yet: it shows as "Terminal")
-    expect(panes()).toEqual(['Terminal']);
-    await settle(300);
-    expect(panes()).toEqual(['PowerShell 2']);
   });
 
   it('opens another project\'s agent and its Brain as panes that talk to that project, without opening it', async () => {

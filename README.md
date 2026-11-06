@@ -133,7 +133,7 @@ Connect agents to programs and services with the Model Context Protocol. Add ser
 
 ### And also
 
-- **Overview:** every project's agents, teams, Brain, terminals and tasks at work on one page, with what needs you first. Open their chats side by side and write to another project's agents without switching to it.
+- **Overview:** every project's agents, teams, Brain and tasks at work on one page, with what needs you first. Open their chats side by side and write to another project's agents without switching to it.
 - **Skills:** instructions in plain words ("our brand voice", "how we test checkout"), shared across agents and teams.
 - **Routines:** work you want done again and again, run by hand or on a schedule.
 - **Programs:** the Programs page finds creative and CAD apps on your computer (Blender, Photoshop, DaVinci Resolve, GIMP, OpenSCAD…) so agents can use them. Agents run your ComfyUI workflows with their own prompts and pictures, and get the images, video, audio and 3D files back.
