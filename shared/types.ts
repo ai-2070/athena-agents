@@ -1835,6 +1835,8 @@ export interface SkillInstallResult {
 
 export interface SkillListing extends Omit<Skill, 'body'> {
   preview: string;
+  /** a skill of yours with the id of one that comes with the dashboard (which wasn't added): drawn as yours */
+  mine?: true;
 }
 
 export interface ClaudeSkill {

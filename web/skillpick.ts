@@ -3,10 +3,10 @@
 import { h, mount } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import { icon } from './icons.ts';
+import { loadSkills, skillsCache } from './skillcache.ts';
 import { skillIcon } from './skillicons.ts';
 import { openEditor, openGitHub, openImport } from './skilldialogs.tsx';
 import { openSkillPickerMenu } from './skillpickmenu.tsx';
-import type { SkillListing } from '../shared/types.ts';
 
 /** A skill another level gives (the project, a team), shown greyed. */
 export interface InheritedSkill {
@@ -14,19 +14,6 @@ export interface InheritedSkill {
   from: string;
 }
 
-let cache: SkillListing[] | null = null;
-let loading: Promise<SkillListing[]> | null = null;
-export async function loadSkills(force = false): Promise<SkillListing[]> {
-  if (cache && !force) return cache;
-  loading ||= rpc.skills.list()
-    .then((r): SkillListing[] => (cache = r.skills))
-    // not cached, so the next load tries again
-    .catch((): SkillListing[] => [])
-    .finally(() => (loading = null));
-  return loading;
-}
-export const skillsCache = (): SkillListing[] => cache || [];
-export const forgetSkills = (): null => (cache = null);
 let closeSkillMenu: (() => void) | null = null;
 
 // current: slugs. onChange(slugs) saves. inherited: [{ slug, from: 'project' | 'team name' }] shown greyed.

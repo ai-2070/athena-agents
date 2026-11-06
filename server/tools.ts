@@ -209,7 +209,9 @@ const TOOLS: ToolDef[] = [
       const dir = skills.skillDir(s.slug).split(path.sep).join('/');
       const inHermes = new RegExp(`(?:~|\\$HOME|\\$\\{HOME\\})/\\.hermes/skills/(?:[\\w.-]+/)*?${s.slug.replaceAll('.', '\\.')}(?![\\w.-])`, 'g');
       const body = s.body.replaceAll('${HERMES_SKILL_DIR}', dir).replace(inHermes, dir);
-      const files = s.files.length ? `\n\n---\nFiles with this skill, in its folder ${dir} (read with read_skill name="${s.slug}" file="...", or search them with find="..."; with a shell, run its scripts from that folder): ${s.files.map((f) => f.path).join(', ')}` : '';
+      // (the folder is the library's, shared by every project: output written there would travel with every project
+      // that uses the skill, and count as a change that stops the dashboard updating it)
+      const files = s.files.length ? `\n\n---\nFiles with this skill, in its folder ${dir} (read with read_skill name="${s.slug}" file="...", or search them with find="..."; with a shell, run its scripts from that folder): ${s.files.map((f) => f.path).join(', ')}\nEvery project shares that folder, so keep what its scripts make (pages, pictures, builds, downloads) out of it: give them an output path in the project's folder, and don't run one there that can only write next to itself.` : '';
       return { text: `# Skill: ${s.name}\n${s.description}\n\n${body}${files}` };
     },
   },

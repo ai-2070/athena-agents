@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { logo } from '../../web/icons.ts';
 import { PHOSPHOR } from '../../web/phosphor.ts';
+import { forgetSkills, loadSkills } from '../../web/skillcache.ts';
 import { ownColours, skillIcon, skillMark } from '../../web/skillicons.ts';
 import { SKILL_MARKS } from '../../shared/skillmarks.ts';
 
@@ -27,5 +28,30 @@ describe('skill marks', () => {
     expect(ownColours(skillMark('github'))).toBe(true);
     expect(ownColours(skillMark('docx'))).toBe(true);
     expect(ownColours(skillMark('spike'))).toBe(false);
+  });
+
+  describe('with the library loaded', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      forgetSkills();
+    });
+
+    it("keeps the puzzle piece for a skill of yours that only shares its id with one that comes with the dashboard", async () => {
+      const skills = [
+        { slug: 'review-loop', name: 'Our code review', mine: true },
+        { slug: 'vectorcraft', name: 'My vector notes', mine: true },
+        { slug: 'motion-design', name: 'motion-design' },
+      ];
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ skills, claude: [] }), { status: 200 })));
+      expect(skillMark('review-loop')).toEqual(SKILL_MARKS['review-loop']);
+      await loadSkills();
+      expect(skillMark('review-loop')).toEqual({ icon: 'puzzle' });
+      // a Craft app's id too
+      expect(skillMark('vectorcraft')).toEqual({ icon: 'puzzle' });
+      // the dashboard's own copy keeps its mark
+      expect(skillMark('motion-design')).toEqual(SKILL_MARKS['motion-design']);
+      forgetSkills();
+      expect(skillMark('review-loop')).toEqual(SKILL_MARKS['review-loop']);
+    });
   });
 });

@@ -1,23 +1,24 @@
 // Skill folders that come with the dashboard (skills/ in the repo), and reading long skill files.
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as skills from '../../server/skills.ts';
 import { parseGitHubUrl } from '../../server/skillinstall.ts';
 import { callTool } from '../../server/tools.ts';
-import { dataPath } from '../../server/util.ts';
+import { dataPath, ROOT } from '../../server/util.ts';
 
 const agent = { id: 'a1', name: 'Tester' };
 
 describe('bundled skills', () => {
-  it("include the storytold, OOMOL, Composio, Orca, Cua and subagent skills, and the dashboard's own", () => {
+  it("include the storytold, OOMOL, Composio, Orca, Cua, claude-motion, Anatomy, Higgsfield and subagent skills, and the dashboard's own", () => {
     const slugs = skills.bundledSkills().map((b) => b.slug);
-    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'solidcraft', 'materialcraft', 'texturecraft', 'craft-anything', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env', 'cua-driver', 'cua-sandboxes', 'gui-automation', 'delegating-to-subagents', 'commissioning-a-reviewer', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']));
+    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'solidcraft', 'materialcraft', 'texturecraft', 'craft-anything', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env', 'cua-driver', 'cua-sandboxes', 'gui-automation', 'motion-design', 'review-loop', 'sound-design', 'web-sims', 'anatomy', 'higgsfield-generate', 'higgsfield-soul-id', 'higgsfield-product-photoshoot', 'higgsfield-marketplace-cards', 'higgsfield-brandkit', 'higgsfield-youtube-thumbnail', 'higgsfield-faceless-video', 'higgsfield-video-explainer', 'higgsfield-websites', 'delegating-to-subagents', 'commissioning-a-reviewer', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']));
     // the dashboard's own (skills/athena), which replaced the copies of Hermes Agent's skills
     expect(slugs).toEqual(expect.arrayContaining(['systematic-debugging', 'test-driven-development', 'github', 'pdf', 'financial-models', 'humanizer', 'comfyui', 'email', 'action-items', 'decisions', 'fastmcp']));
     const own = fs.readdirSync(path.join(skills.bundledSkillsRoot(), 'athena'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
     expect(slugs).toEqual(expect.arrayContaining(own));
-    expect(slugs.filter((s) => !own.includes(s))).toHaveLength(41);
+    expect(slugs.filter((s) => !own.includes(s))).toHaveLength(55);
     // the Hermes ones that were merged into others or cut don't come back
     for (const s of ['dcf-model', 'excel-author', 'mcporter', 'reddit-reading', 'himalaya', 'one-three-one-rule', 'duckduckgo-search']) expect(slugs).not.toContain(s);
     expect(fs.existsSync(path.join(skills.bundledSkillsRoot(), 'hermes'))).toBe(false);
@@ -48,12 +49,18 @@ describe('bundled skills', () => {
     expect(origin['cua-sandboxes']).toMatchObject({ repo: 'trycua/cua', path: 'libs/cua/skills/cua-sandboxes' });
     expect(origin['gui-automation']).toMatchObject({ repo: 'trycua/cua', path: 'libs/cua/skills/gui-automation' });
     expect(origin['cua-driver']).toMatchObject({ repo: 'trycua/cua', path: 'libs/cua-driver/rust/Skills/cua-driver', url: 'https://github.com/trycua/cua/tree/main/libs/cua-driver/rust/Skills/cua-driver' });
+    // Higgsfield keeps its skills at the top of its repo
+    expect(origin['higgsfield-generate']).toMatchObject({ repo: 'higgsfield-ai/skills', path: 'higgsfield-generate', url: 'https://github.com/higgsfield-ai/skills/tree/main/higgsfield-generate' });
+    // claude-motion keeps its skills in a hidden folder, where Claude Code finds them
+    expect(origin['motion-design']).toMatchObject({ repo: 'whaleyxbt/claude-motion', path: '.claude/skills/motion-design', url: 'https://github.com/whaleyxbt/claude-motion/tree/main/.claude/skills/motion-design' });
     // its repo isn't public, so no link back to it
     expect(origin['independent-review']).toBeUndefined();
+    // nor to Anatomy's: the copy leaves out files too big for the installer, so Download again would fail
+    expect(origin.anatomy).toBeUndefined();
     // nor to the dashboard's own (skills/athena)
     const own = (b: skills.BundledSkill) => b.dir.startsWith(path.join(skills.bundledSkillsRoot(), 'athena') + path.sep);
     expect(skills.bundledSkills().filter(own).map((b) => b.slug)).toContain('pdf');
-    expect(skills.bundledSkills().filter((b) => !b.origin && !own(b)).map((b) => b.slug).sort()).toEqual(['commissioning-a-reviewer', 'delegating-to-subagents', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']);
+    expect(skills.bundledSkills().filter((b) => !b.origin && !own(b)).map((b) => b.slug).sort()).toEqual(['anatomy', 'commissioning-a-reviewer', 'delegating-to-subagents', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']);
     for (const b of skills.bundledSkills()) if (own(b)) expect(b.origin, b.slug).toBeUndefined();
   });
 
@@ -86,12 +93,65 @@ describe('bundled skills', () => {
     expect(skills.getSkill('reviewed-stage-delivery')?.origin).toBeFalsy();
     // these descriptions are double-quoted YAML holding single quotes and dashes
     expect(skills.getSkill('independent-review')?.description).toMatch(/^Use when acting as the independent reviewer .* 'review this candidate', .*not code review of a PR for style\.$/);
+    // claude-motion's come with their folder's real path; Anatomy comes whole, without its built pages and PDFs
+    expect(skills.getSkill('sound-design')?.origin).toMatchObject({ repo: 'whaleyxbt/claude-motion', path: '.claude/skills/sound-design' });
+    const anatomy = skills.getSkill('anatomy');
+    expect(anatomy?.origin).toBeFalsy();
+    expect(anatomy?.files.map((f) => f.path)).toEqual(expect.arrayContaining(['kit/iso-kit.mjs', 'references/craft.md', 'scripts/capture.mjs', 'examples/dial-indicator/build.mjs', 'LICENSE']));
+    expect(anatomy?.files.filter((f) => /^examples\/.*\.(html|pdf)$/.test(f.path))).toEqual([]);
+    // Higgsfield writes its descriptions as literal YAML blocks ("description: |"), and its video skill comes with its scripts
+    expect(skills.getSkill('higgsfield-generate')?.description).toMatch(/^Generate images\/videos\/3D assets\/audio via Higgsfield AI\. Defaults:\nGPT Image 2\.6 .*or TTS\.$/s);
+    expect(skills.getSkill('higgsfield-faceless-video')?.files.map((f) => f.path)).toEqual(expect.arrayContaining(['scripts/assemble_blocks.sh', 'references/production.md']));
+    expect(skills.getSkill('higgsfield-soul-id')?.origin).toMatchObject({ repo: 'higgsfield-ai/skills', path: 'higgsfield-soul-id' });
     expect(skills.getSkill('cadcraft')?.name).toBe('My CAD notes');
     // one of the dashboard's own comes whole, with its scripts, and no link back
     expect(skills.getSkill('pdf')?.files.map((f) => f.path)).toContain('scripts/pdf_tool.py');
     expect(skills.getSkill('pdf')?.origin).toBeFalsy();
     // nothing half-copied left behind
     expect(fs.readdirSync(dataPath('tmp')).filter((x) => x.startsWith('bundled-'))).toEqual([]);
+  });
+
+  it('include a skill of our own that sets up the claude-motion toolkit for its four skills', () => {
+    skills.ensureBuiltinSkills();
+    const s = skills.getSkill('claude-motion');
+    expect(s?.name).toBe('Make videos with claude-motion');
+    // the toolkit at the commit the bundled copies of its skills come from, so its scripts and skills match
+    const readme = fs.readFileSync(path.join(skills.bundledSkillsRoot(), 'claude-motion', 'README.md'), 'utf8');
+    expect(readme).toContain(`\`${skills.CLAUDE_MOTION_COMMIT}\``);
+    expect(s?.body).toContain('git init claude-motion');
+    expect(s?.body).toContain(`git -C claude-motion fetch --depth 1 https://github.com/whaleyxbt/claude-motion ${skills.CLAUDE_MOTION_COMMIT}`);
+    expect(s?.body).toContain('git -C claude-motion checkout FETCH_HEAD');
+    // kept out of the project's own git without changing a tracked file
+    expect(s?.body).toContain('git rev-parse --git-path info/exclude');
+    // it names the four skills it hands over to, each is in the library, and the agent reads the copy's own
+    for (const slug of ['motion-design', 'review-loop', 'sound-design', 'web-sims']) {
+      expect(s?.body).toContain(`**${slug}**`);
+      expect(s?.body).toContain(`.claude/skills/${slug}/SKILL.md`);
+      expect(skills.getSkill(slug)).toBeTruthy();
+    }
+    // the check that it works doesn't run python3 through npm (often missing on Windows)
+    expect(s?.body).not.toMatch(/npm run build`[^.]*If that works/);
+    expect(s?.body).toContain('python3 -m sfx --list');
+    // a new video's own commands, not the shortcuts wired to the example
+    expect(s?.body).toContain('npx remotion render <Id> out/<name>-draft.mp4');
+    expect(s?.body).toContain('npm run sheet -- --video out/<name>-draft.mp4 --timeline <timeline>');
+    expect(s?.body).toContain('python3 -m sfx sfx/cues/<name>.py');
+    expect(s?.origin).toBeFalsy();
+    expect(skills.bundledSkills().map((b) => b.slug)).not.toContain('claude-motion');
+  });
+
+  it('include a skill of our own that downloads taste-skill, too big to come with the dashboard, and hands over to it', () => {
+    skills.ensureBuiltinSkills();
+    const s = skills.getSkill('taste-skill');
+    expect(s?.name).toBe('Build websites with taste-skill');
+    // only the skill's own folder, not the rest of the repo, and kept out of the project's own git
+    expect(s?.body).toContain('git clone --depth 1 --filter=blob:none --sparse https://github.com/Leonxlnx/taste-skill .taste-skill');
+    expect(s?.body).toContain('git -C .taste-skill sparse-checkout set skills/taste-skill');
+    expect(s?.body).toContain('git rev-parse --git-path info/exclude');
+    expect(s?.body).toContain('.taste-skill/skills/taste-skill/SKILL.md');
+    expect(s?.origin).toBeFalsy();
+    expect(skills.bundledSkills().map((b) => b.slug)).not.toContain('taste-skill');
+    expect(fs.existsSync(path.join(skills.bundledSkillsRoot(), 'taste-skill'))).toBe(false);
   });
 
   it('include a skill of our own for starting coding agents in Orca', () => {
@@ -118,6 +178,22 @@ describe('bundled skills', () => {
     expect(skills.getSkill('independent-review')?.origin).toBeFalsy();
     // the skill itself stays
     expect(skills.getSkill('independent-review')?.name).toBe('independent-review');
+  });
+
+  it('check out byte for byte, with LF line endings on Windows too', () => {
+    // anatomy hashes its own kit (scripts/fingerprint.mjs) to name its version: CRLF would change that
+    const attrs = execFileSync('git', ['check-attr', 'text', 'eol', '--', 'skills/anatomy/anatomy/kit/iso-kit.mjs', 'skills/claude-motion/review-loop/SKILL.md'], { cwd: ROOT, encoding: 'utf8' });
+    expect(attrs).toContain('skills/anatomy/anatomy/kit/iso-kit.mjs: eol: lf');
+    expect(attrs).toContain('skills/claude-motion/review-loop/SKILL.md: eol: lf');
+    // (text=auto: git still leaves pictures and other binary files as they are)
+    expect(attrs).toContain('skills/anatomy/anatomy/kit/iso-kit.mjs: text: auto');
+  });
+
+  it("tell agents to keep what a skill's scripts make out of its folder, which every project shares", async () => {
+    skills.ensureBuiltinSkills();
+    const r = await callTool(agent, 'read_skill', { name: 'anatomy' });
+    expect(r.text).toContain(`Files with this skill, in its folder ${skills.skillDir('anatomy').split(path.sep).join('/')} (`);
+    expect(r.text).toContain("Every project shares that folder, so keep what its scripts make (pages, pictures, builds, downloads) out of it: give them an output path in the project's folder");
   });
 
   it('stay deleted once deleted', () => {

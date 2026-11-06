@@ -3,7 +3,8 @@
 Skills that come with the dashboard, written for it: one folder per skill (`<id>/SKILL.md`, plus the reference files,
 templates and scripts it names). They replace the copies of Hermes Agent's skills that used to ship in `skills/hermes/`
 (`replaced.json` and the table at the end say where each one went). The dashboard adds them to the skill library the
-first time it starts (`ensureBuiltinSkills` in `server/skills.ts`), and a skill the user deletes stays deleted.
+first time it starts (`ensureBuiltinSkills` in `server/skills.ts`), and a skill the user deletes stays deleted. A
+change made here reaches every library whose copy nobody has changed, the next time the dashboard starts.
 
 Everything here was written fresh, text and code. The old skills were a list of topics and know-how; the credit for
 them is at the end.
@@ -178,6 +179,12 @@ skill that makes or changes files holds to this, and says so where it matters:
 task or a conversation into a skill, which agents save with the `save_skill` tool (and find with `read_skill`, which
 searches the library for a name that is no skill). Hermes Agent's `/learn` command gave the idea, and Grok Bot's
 "Teach a task" the screen recordings (`docs/internal/GROK_BOT_TEACH_BY_DEMONSTRATION_2026-11-05.md`).
+
+`one-take-video` has none either: it makes a narrated video as one continuous camera move over one world, drawn on an
+HTML canvas and rendered frame by frame to an MP4. It grew from a prompt for that kind of video (one world, one hero per
+line of narration, hits on the spoken word, a beat table before anything is built). Its one script is Node, since the
+film is a web page: `film.mjs` drives the Chrome, Edge or Chromium already on the computer over the DevTools protocol,
+so it needs no npm packages, and its tests run it with Node 22, the oldest version it promises.
 
 ## Where the Hermes skills went
 
