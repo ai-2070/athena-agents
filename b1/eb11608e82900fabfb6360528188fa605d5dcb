@@ -1,0 +1,31 @@
+web/views/agents.tsx
+  s_23263c44c09b52::t_d73acf7220579f 867,879
+shared/api/agents.ts
+  s_23263c44c09b52::t_d73acf7220579f 135-137
+server/api/agents.ts
+  s_23263c44c09b52::t_d73acf7220579f 150
+tests/server/rpc-agents.test.ts
+  s_23263c44c09b52::t_615d96010c4b4f 57,63,69,72
+server/rpc.ts
+  s_23263c44c09b52::t_18004f9d937bea 33-34,36-54,56-58
+  s_23263c44c09b52::t_72763c751cfe4d 35
+tests/server/rpc.test.ts
+  s_23263c44c09b52::t_26d0a999f92a9b 17-19,29,38-39,44-46,105-137
+  s_23263c44c09b52::t_c5fa61bd2c828e 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b1eb11608e82900fabfb6360528188fa605d5dcb",
+  "prompts": {},
+  "sessions": {
+    "s_23263c44c09b52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f45cfdbb-26eb-4b32-831d-7f54fb4ca6f1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
