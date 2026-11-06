@@ -73,8 +73,9 @@ What the move turned up:
 
 30 of the 32 agent routes moved, in two commits: the agents themselves (making, changing, copying, deleting, their
 knowledge and their harness's / commands), then their chats (messages, the queue, `/loop`, `/goal`, `/learn`,
-resend, resume, stop, memory). A chat's run streams (`…/chats/{chatId}/stream`, POST and GET) stay in
-`server/index.ts`: they write a UI message stream for the AI SDK, not JSON.
+resend, resume, stop, memory). A chat's run streams (`…/chats/{chatId}/stream`, POST and GET) stayed in
+`server/index.ts` for now: they wrote a UI message stream for the AI SDK, not JSON. (They moved later: "The chat
+streams", below.)
 
 - **`rpcAt(at)`** in `web/client/rpc.ts` makes the same calls inside a project that isn't open (`at` is
   `projectAt(projectId)`, as before), so the Overview's panes and team chats use typed calls too.
@@ -122,7 +123,8 @@ contract keeps the old addresses, so it is `workflows` (`rpc.workflows.change(�
 
 14 of the 15 `/api/brain…` routes moved: a look inside its folder, a note, git pull, opening it, asking it,
 steering, `/stop` and `/resume`, its history, clearing it, the snapshot, the pulse and its skills. Its streamed
-answer (POST `/api/brain/stream`) stays in `server/index.ts`, like the agent chat streams. The `/api/assist…` routes
+answer (POST `/api/brain/stream`) stayed in `server/index.ts` for now, like the agent chat streams (they moved later:
+"The chat streams", below). The `/api/assist…` routes
 (designing an agent or a branch) are an area of their own, for later.
 
 - **`/stop` still always stops.** The chats and teams it is sent are lists of the wrong kind sometimes (a test sends
@@ -274,11 +276,22 @@ and the Brain's streamed answer (`brain.stream`). Same addresses, also under `/a
   sends it. oRPC's own keep-alive replaces ours. A reader that goes away cancels the stream: it stops listening to
   the run (the run goes on), and the Brain goes on answering.
 - **Picking up a run with none going answers `null`**, not a 204.
-- **What comes in is checked**: the text, the attached files, `steer` and `goal`, in plain words. A refusal before
-  the stream starts (nothing typed, a chat that isn't there, the chat busy) is an ordinary `{ error }` answer.
+- **What comes in is checked**: the text, the attached files, `steer`, `goal` and the Brain's `project`, in plain
+  words. An agent chat and the Brain take a message the same way (`shared/api/message.ts`, `server/api/said.ts`). A
+  refusal before the stream starts (nothing typed, a chat that isn't there, the chat busy) is an ordinary `{ error }`
+  answer. The old Brain stream took a `project` of the wrong kind as none; it is refused now.
+- **A run is shown from the moment it is known.** `streamRun` replays the run's turn so far (`turn`, its chat's
+  items) as it learns the run's id, and ends at once if that run is over already. A steered message waits for the
+  run before it to stop, and its new run could speak, or end, before the stream heard its id: that was lost, and a
+  stream whose run had ended waited on "Waiting…" for good. A message that joined the turn going on replays nothing
+  (its view shows that turn).
+- **A stream goes out as it is written**: `server/rpc.ts` adds `x-accel-buffering: no` to every event stream, so a
+  proxy in front (nginx, the remote app's) doesn't hold it back. The AI SDK's own stream header is gone: nothing
+  reads it now.
 - **The page** calls them with `rpc` through its own AI SDK transport (`web/chat/transport.ts`: `chatTransport`
   for `useChat`, `brainStream()` for the Brain chat), turning the events back into chunks with
-  `eventIteratorToUnproxiedDataStream`. `dashFetch` is gone: `rpc`'s errors already carry the server's words.
+  `eventIteratorToUnproxiedDataStream`. `dashFetch` and `serverFetch` are gone: `rpc`'s errors already carry the
+  server's words. A send counts as refused when the server never answered it with a stream.
   `web/client/rpc.ts` hands an event stream on as it comes.
 - **The page's tests changed only where they end a fake stream**: oRPC's `event: done` instead of the AI SDK's
   `data: [DONE]` (a `data:` line without an event is a message in both).

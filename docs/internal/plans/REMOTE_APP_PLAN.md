@@ -60,8 +60,9 @@ where the server is and how to reach it, so a second way to reach it (Net) is on
    - `live.ts`: the events WebSocket and terminal sockets, both built from the connection.
 2. **Move the stragglers:** the 4 raw `fetch` calls, the upload, both WebSockets and the ~13
    hand-built URLs. Delete the four copies of `fileUrl`.
-3. **Chat transport:** `chatTransport`/`brainTransport` take their URL and `fetch` from the
-   client.
+3. **Chat transport:** `chatTransport` and `brainStream()` (`web/chat/transport.ts`) call the
+   streams with `rpcAt`, which takes its address and headers from the connection like every
+   other call. (`brainTransport` and its own `fetch` are gone since the streams moved to oRPC.)
 4. **Per-area modules, only where they help:** `client/agents.ts`, `client/skills.ts`, … with
    typed functions (`agents.list()`, `agents.save(a)`), using the shapes in `shared/types.ts`.
    Do it as pages are rewritten in B, not all at once.
