@@ -124,6 +124,20 @@ describe('bundled skills', () => {
     expect(skills.bundledSkills().map((b) => b.slug)).not.toContain('claude-motion');
   });
 
+  it('include a skill of our own that downloads taste-skill, too big to come with the dashboard, and hands over to it', () => {
+    skills.ensureBuiltinSkills();
+    const s = skills.getSkill('taste-skill');
+    expect(s?.name).toBe('Build websites with taste-skill');
+    // only the skill's own folder, not the rest of the repo, and kept out of the project's own git
+    expect(s?.body).toContain('git clone --depth 1 --filter=blob:none --sparse https://github.com/Leonxlnx/taste-skill .taste-skill');
+    expect(s?.body).toContain('git -C .taste-skill sparse-checkout set skills/taste-skill');
+    expect(s?.body).toContain('git rev-parse --git-path info/exclude');
+    expect(s?.body).toContain('.taste-skill/skills/taste-skill/SKILL.md');
+    expect(s?.origin).toBeFalsy();
+    expect(skills.bundledSkills().map((b) => b.slug)).not.toContain('taste-skill');
+    expect(fs.existsSync(path.join(skills.bundledSkillsRoot(), 'taste-skill'))).toBe(false);
+  });
+
   it('include a skill of our own for starting coding agents in Orca', () => {
     skills.ensureBuiltinSkills();
     const s = skills.getSkill('orca-agents');

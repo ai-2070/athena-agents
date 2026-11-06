@@ -17,6 +17,7 @@ export const SKILL_MARKS: Record<string, SkillMarkSpec> = {
   'voxel-building': { icon: 'box' },
   'orca-agents': ORCA,
   'claude-motion': { icon: 'film' },
+  'taste-skill': { icon: 'palette' },
   // skills/athena
   'action-items': { icon: 'list-checks' },
   arxiv: { logo: 'arxiv' },
