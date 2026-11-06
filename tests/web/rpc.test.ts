@@ -42,6 +42,8 @@ describe('rpc calls', () => {
     const [c] = calls;
     expect(c.url).toBe('/api/things/list%201');
     expect(c.init.method).toBe('POST');
+    // (the JSON text oRPC made, sent as it is: not read back out of a Request)
+    expect(typeof c.init.body).toBe('string');
     expect(JSON.parse(String(c.init.body))).toEqual({ name: 'Cake' });
     expect(c.init.headers).toMatchObject({ 'x-dash': '1', 'x-dash-project': 'p1', 'content-type': 'application/json' });
   });

@@ -1,13 +1,15 @@
 // Typed calls to the routes that moved to oRPC (shared/api/): rpc.taskBoard.addTag({ projectId, name }).
 // Each one is sent the way api() sends a request, to the same address, and fails the same way: an Error with
 // the server's own words and the HTTP status.
-import { createORPCClient, ORPCError } from '@orpc/client';
+import { createORPCClient, ORPCError, type ClientContext } from '@orpc/client';
+import type { StandardLinkClient } from '@orpc/client/standard';
 import type { AnyContractRouter, ContractRouterClient } from '@orpc/contract';
-import { OpenAPILink } from '@orpc/openapi-client/fetch';
+import { StandardOpenAPILink } from '@orpc/openapi-client/standard';
+import { toFetchBody, toFetchHeaders, toStandardLazyResponse } from '@orpc/standard-server-fetch';
 import { contract } from '../../shared/api/index.ts';
 import { requestHeaders, serverUrl } from './connection.ts';
 
-// oRPC builds a full Request for this made-up origin; send() swaps it for the connection's address.
+// oRPC builds each request's address on this made-up origin; client.call() swaps it for the connection's.
 const ORIGIN = 'http://dashboard.invalid';
 
 /** The server's { error } words when there are some, as api() reads them. */
@@ -22,18 +24,25 @@ export function apiError(e: unknown): unknown {
   return e instanceof ORPCError ? Object.assign(new Error(serverWords(e)), { status: e.status }) : e;
 }
 
-// fetch(address, { method, headers, body }) like api(): requests look the same to the server and to tests.
-// The answer is read like api() reads it too: JSON whatever its content type says.
-async function send(request: Request): Promise<Response> {
-  const at = new URL(request.url);
-  const type = request.headers.get('content-type') || '';
-  const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : type.includes('json') ? await request.text() : await request.blob();
-  const res = await fetch(serverUrl(at.pathname + at.search), {
-    method: request.method,
-    headers: Object.fromEntries(request.headers.entries()),
-    body: body === '' || (body instanceof Blob && !body.size) ? undefined : body,
-    signal: request.signal,
-  });
+// fetch(address, { method, headers, body }) like api(): requests look the same to the server and to tests. The body
+// goes as oRPC made it (JSON text once), never through a Request and back.
+// The answer is read like api() reads it too: JSON whatever its content type says. (The routes always say JSON, so
+// only a short answer without it, an empty one or a plain "Not found", is read twice.)
+const client: StandardLinkClient<ClientContext> = {
+  async call(request) {
+    const headers = toFetchHeaders(request.headers);
+    const body = toFetchBody(request.body, headers);
+    const res = await fetch(serverUrl(request.url.pathname + request.url.search), {
+      method: request.method,
+      headers: Object.fromEntries(headers.entries()),
+      body,
+      signal: request.signal,
+    });
+    return toStandardLazyResponse(await asJson(res), { signal: request.signal });
+  },
+};
+
+async function asJson(res: Response): Promise<Response> {
   if ((res.headers.get('content-type') || '').includes('json')) return res;
   const text = await res.text();
   try {
@@ -50,10 +59,9 @@ async function send(request: Request): Promise<Response> {
  *  isn't open (projectAt() in connection.ts), '' for the open one. */
 export function rpcClient<C extends AnyContractRouter>(c: C, at = ''): ContractRouterClient<C> {
   return createORPCClient(
-    new OpenAPILink(c, {
+    new StandardOpenAPILink(c, client, {
       url: `${ORIGIN}/api${at}`,
       headers: requestHeaders,
-      fetch: send,
       interceptors: [
         async ({ next }) => {
           try {
