@@ -1,0 +1,21 @@
+AGENTS.md
+  s_23263c44c09b52::t_e91e48e9a66b28 39-40
+docs/internal/plans/ORPC_PLAN.md
+  s_23263c44c09b52::t_e91e48e9a66b28 266-287,450,453-454
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "97b12ca784157dec0c59ffc517ec4f5fb1f6a012",
+  "prompts": {},
+  "sessions": {
+    "s_23263c44c09b52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f45cfdbb-26eb-4b32-831d-7f54fb4ca6f1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
