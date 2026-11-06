@@ -35,6 +35,11 @@ describe('skills that come with the dashboard', () => {
     expect(skills.getSkill('anatomy')?.origin?.repo).toBe('wheresryan22/anatomy');
     expect(skills.getSkill('claude-motion')?.name).toBe('My motion notes');
     expect(skills.keptSkillIds()).toEqual(expect.arrayContaining(['anatomy', 'claude-motion']));
+    // the library says they're yours, so the page draws them as yours and not with the dashboard's marks
+    const listed = Object.fromEntries(skills.listSkills().map((s) => [s.slug, s]));
+    expect(listed.anatomy.mine).toBe(true);
+    expect(listed['claude-motion'].mine).toBe(true);
+    expect(listed['motion-design'].mine).toBeUndefined();
     const m = readMarker();
     expect(m.copies.anatomy).toBeUndefined();
     // the others came in, each with the fingerprint of what was put there

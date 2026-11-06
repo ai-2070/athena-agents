@@ -2,12 +2,28 @@
 // A skill without one of its own (one you wrote) keeps the puzzle piece.
 import { icon, logo } from './icons.ts';
 import { craftIconSrc } from './crafticons.ts';
+import { skillsCache } from './skillcache.ts';
 import { SKILL_MARKS } from '../shared/skillmarks.ts';
 import type { SkillMarkSpec } from '../shared/skillmarks.ts';
+import type { SkillListing } from '../shared/types.ts';
 
-/** What a skill is drawn with. A skill without a mark of its own is the puzzle piece. */
+// The ids of your own skills that a skill coming with the dashboard also has, worked out once per loaded library.
+let seen: SkillListing[] | null = null;
+let mine = new Set<string>();
+function yours(id: string): boolean {
+  const list = skillsCache();
+  if (list !== seen) {
+    seen = list;
+    mine = new Set(list.filter((s) => s.mine).map((s) => s.slug));
+  }
+  return mine.has(id);
+}
+
+/** What a skill is drawn with. A skill without a mark of its own is the puzzle piece, and so is a skill of yours
+ *  that only shares its id with one that comes with the dashboard. */
 export function skillMark(slug: string | null | undefined): SkillMarkSpec {
   const id = String(slug || '');
+  if (yours(id)) return { icon: 'puzzle' };
   const craft = craftIconSrc(id);
   if (craft) return { img: craft, craft: true };
   return Object.hasOwn(SKILL_MARKS, id) ? SKILL_MARKS[id] : { icon: 'puzzle' };

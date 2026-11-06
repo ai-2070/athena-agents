@@ -172,10 +172,11 @@ export function skillFromText(text: string, slug: string): SkillVersionItem {
 export function listSkills(): SkillSummary[] {
   const out: SkillSummary[] = [];
   const lib = LIB();
+  const mine = new Set(keptSkillIds());
   for (const e of fs.readdirSync(lib, { withFileTypes: true })) {
     if (!e.isDirectory() || !SAFE.test(e.name)) continue;
     const s = readSkill(path.join(lib, e.name), 'library');
-    if (s) out.push({ ...s, body: undefined, dir: undefined, preview: s.body.slice(0, 280) });
+    if (s) out.push({ ...s, body: undefined, dir: undefined, preview: s.body.slice(0, 280), ...(mine.has(s.slug) ? { mine: true as const } : {}) });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }

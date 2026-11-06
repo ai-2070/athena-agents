@@ -9,7 +9,7 @@ import { h, md, attempt, navigate, confirmBox, ago, state, toast } from '../core
 import { rpc } from '../client/rpc.ts';
 import { icon } from '../icons.ts';
 import { skillIcon } from '../skillicons.ts';
-import { loadSkills, skillsCache } from '../skillpick.ts';
+import { loadSkills, skillsCache } from '../skillcache.ts';
 import { scheduleEditor } from '../schedule.tsx';
 import { openChat } from '../chatwin.tsx';
 import { attachMentions, startMention, KIND_LABEL } from '../routinemention.ts';

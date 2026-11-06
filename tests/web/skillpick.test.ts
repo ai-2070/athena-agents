@@ -2,7 +2,8 @@
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
-import { forgetSkills, loadSkills, skillPicker } from '../../web/skillpick.ts';
+import { forgetSkills, loadSkills } from '../../web/skillcache.ts';
+import { skillPicker } from '../../web/skillpick.ts';
 import type { AppState } from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

@@ -11,7 +11,7 @@ import type { AttachTray } from './attach.tsx';
 import { apiUrl } from './client/connection.ts';
 import { icon } from './icons.ts';
 import { skillIcon } from './skillicons.ts';
-import { loadSkills, skillsCache } from './skillpick.ts';
+import { loadSkills, skillsCache } from './skillcache.ts';
 import { attachMentions } from './routinemention.ts';
 import type { Candidate } from './routinemention.ts';
 import { attachMentionEditor } from './chat/mentioneditor.ts';

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { brandColor, brandPath, icon, logo } from '../../web/icons.ts';
-import { forgetSkills, loadSkills, skillsCache } from '../../web/skillpick.ts';
+import { forgetSkills, loadSkills, skillsCache } from '../../web/skillcache.ts';
 
 describe('icons', () => {
   it('finds brand logos by name', () => {
