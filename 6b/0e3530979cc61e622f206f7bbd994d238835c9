@@ -1,0 +1,28 @@
+scripts/build-web.ts
+  s_23263c44c09b52::t_510f3f26f832d4 18-32,36
+web/client/rpc.ts
+  s_23263c44c09b52::t_980fcbd7c18f1e 4-5,7-8,12,27-31,33-45,62
+  s_23263c44c09b52::t_34721a00e7521d 32
+tests/web/rpc.test.ts
+  s_23263c44c09b52::t_110efa44fdd158 45-46
+package.json
+  s_23263c44c09b52::t_e7e92d01e1bdaa 91
+bun.lock
+  s_23263c44c09b52::t_26a700df8fe76d 36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b0e3530979cc61e622f206f7bbd994d238835c9",
+  "prompts": {},
+  "sessions": {
+    "s_23263c44c09b52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f45cfdbb-26eb-4b32-831d-7f54fb4ca6f1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
