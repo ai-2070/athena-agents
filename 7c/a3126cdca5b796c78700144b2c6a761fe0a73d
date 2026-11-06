@@ -1,0 +1,308 @@
+skills/anatomy/anatomy/scripts/lines.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-38
+skills/claude-motion/LICENSE
+  s_2063cc61ea958d::t_7eb743be089ef5 1-21
+docs/guide.md
+  s_2063cc61ea958d::t_f4a9de9fcd0624 232-233
+skills/anatomy/anatomy/scripts/print-sheet.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-466
+skills/anatomy/anatomy/examples/test-rig/live.tsx
+  s_2063cc61ea958d::t_7eb743be089ef5 1-511
+skills/anatomy/anatomy/scripts/react-dots-opacity.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-51
+skills/anatomy/anatomy/scripts/audit-tube-support.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-42
+skills/anatomy/anatomy/scripts/navigation.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-55
+skills/anatomy/anatomy/scripts/turn-convex-check.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-30
+skills/anatomy/anatomy/examples/turning-dial/dial.css
+  s_2063cc61ea958d::t_7eb743be089ef5 1-10
+skills/anatomy/anatomy/references/react.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-42
+skills/anatomy/anatomy/examples/arcade-cabinet/build.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-715
+skills/anatomy/anatomy/scripts/lines.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-31
+skills/anatomy/anatomy/scripts/fingerprint.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-31
+skills/anatomy/README.md
+  s_2063cc61ea958d::t_3d7fbacec10fa8 1-16,19-26
+  s_2063cc61ea958d::t_4cf01f53eca33f 17-18
+skills/anatomy/anatomy/examples/turning-dial/build.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-479
+skills/anatomy/anatomy/scripts/print-sheet.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-139
+skills/anatomy/anatomy/examples/raptor-engine/build.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-939
+skills/claude-motion/sound-design/SKILL.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-91
+skills/anatomy/anatomy/examples/spot-plate/spot-plate.css
+  s_2063cc61ea958d::t_7eb743be089ef5 1-92
+skills/anatomy/anatomy/scripts/line-ends.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-325
+skills/anatomy/anatomy/scripts/react-readout-first-write.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-37
+skills/anatomy/anatomy/kit/gl-shared.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-184
+skills/anatomy/anatomy/scripts/drive-actions.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-74
+skills/anatomy/anatomy/scripts/capture.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-60
+skills/anatomy/anatomy/scripts/lines-arcs.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-50
+skills/anatomy/anatomy/scripts/turn-rounded-polygon.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-25
+skills/anatomy/anatomy/kit/react/live.tsx
+  s_2063cc61ea958d::t_7eb743be089ef5 1-133
+skills/anatomy/anatomy/scripts/publish.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-119
+skills/anatomy/anatomy/examples/arcade-cabinet/arcade-cabinet.css
+  s_2063cc61ea958d::t_7eb743be089ef5 1-44
+skills/claude-motion/web-sims/SKILL.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-50
+skills/anatomy/anatomy/scripts/turn-bench.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-74
+skills/claude-motion/review-loop/SKILL.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-50
+skills/anatomy/anatomy/kit/audit.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-1913
+skills/anatomy/anatomy/references/print.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-81
+skills/anatomy/anatomy/examples/test-rig/pose.ts
+  s_2063cc61ea958d::t_7eb743be089ef5 1-107
+skills/anatomy/anatomy/examples/spot-plate/figure.tsx
+  s_2063cc61ea958d::t_7eb743be089ef5 1-25
+skills/anatomy/anatomy/references/publish.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-45
+skills/anatomy/anatomy/scripts/drive-turn-controller.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-49
+skills/anatomy/anatomy/scripts/lines-round.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-56
+skills/anatomy/anatomy/CHANGELOG.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-119
+skills/anatomy/anatomy/SECURITY.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-17
+skills/anatomy/anatomy/kit/turn-fixed.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-3800
+skills/anatomy/anatomy/kit/lathe.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-1184
+skills/anatomy/anatomy/scripts/react-readout-target.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-46
+skills/anatomy/anatomy/CONTRIBUTING.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-167
+skills/anatomy/anatomy/scripts/react-solid-seamless.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-47
+skills/anatomy/anatomy/examples/spot-plate/rig.ts
+  s_2063cc61ea958d::t_7eb743be089ef5 1-230
+skills/anatomy/anatomy/examples/spot-plate/fan.ts
+  s_2063cc61ea958d::t_7eb743be089ef5 1-84
+skills/anatomy/anatomy/references/webgl.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-473
+skills/anatomy/anatomy/examples/ripple-tank/model.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-131
+skills/anatomy/anatomy/examples/test-rig/stretch.css
+  s_2063cc61ea958d::t_7eb743be089ef5 1-80
+skills/anatomy/anatomy/scripts/capture-selector.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-131
+skills/anatomy/anatomy/examples/desk-computer/build.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-435
+skills/anatomy/anatomy/scripts/lines-bezier.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-28
+skills/anatomy/anatomy/scripts/turn-audit-samples.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-26
+skills/anatomy/anatomy/SKILL.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-185
+skills/anatomy/anatomy/kit/canvas-painter.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-722
+skills/anatomy/anatomy/scripts/audit-path-origin.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-26
+skills/anatomy/anatomy/references/verify.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-351
+skills/anatomy/anatomy/examples/turning-dial/live.js
+  s_2063cc61ea958d::t_7eb743be089ef5 1-342
+skills/anatomy/anatomy/examples/dial-indicator/build.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-275
+skills/claude-motion/motion-design/SKILL.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-93
+skills/anatomy/anatomy/CODE_OF_CONDUCT.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-134
+skills/anatomy/anatomy/examples/turning-dial/stress.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-269
+skills/anatomy/anatomy/kit/pdf-button.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-12
+skills/anatomy/anatomy/scripts/audit-slide-clearance.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-58
+skills/anatomy/anatomy/examples/test-rig/geometry.ts
+  s_2063cc61ea958d::t_7eb743be089ef5 1-305
+skills/anatomy/anatomy/examples/raptor-engine/raptor.css
+  s_2063cc61ea958d::t_7eb743be089ef5 1-359
+skills/anatomy/anatomy/scripts/curve-density.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-59
+skills/anatomy/anatomy/examples/push-button/sheet.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-63
+skills/anatomy/anatomy/LICENSE
+  s_2063cc61ea958d::t_7eb743be089ef5 1-21
+skills/anatomy/anatomy/scripts/drive.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-86
+skills/anatomy/anatomy/scripts/session.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-107
+skills/anatomy/anatomy/scripts/drive-async-until.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-53
+skills/anatomy/anatomy/scripts/audit-projection.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-36
+skills/anatomy/anatomy/examples/arcade-cabinet/parts.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-89
+skills/anatomy/anatomy/examples/raptor-engine/live.js
+  s_2063cc61ea958d::t_7eb743be089ef5 1-907
+skills/anatomy/anatomy/scripts/capture-current-geometry.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-78
+skills/anatomy/anatomy/scripts/fidelity-tube-coverage.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-40
+skills/anatomy/anatomy/references/craft.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-325
+skills/anatomy/anatomy/scripts/audit-taper.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-29
+skills/anatomy/anatomy/scripts/audit-profile.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-41
+skills/claude-motion/README.md
+  s_2063cc61ea958d::t_b89461bfc2cc04 1-24
+skills/anatomy/anatomy/scripts/turn-fidelity.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-414
+skills/anatomy/anatomy/scripts/fidelity-cut.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-70
+skills/anatomy/anatomy/examples/spot-plate/drops.ts
+  s_2063cc61ea958d::t_7eb743be089ef5 1-541
+skills/anatomy/anatomy/kit/react/draw.tsx
+  s_2063cc61ea958d::t_7eb743be089ef5 1-205
+skills/anatomy/anatomy/scripts/lines-rounded-rect.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-32
+skills/anatomy/anatomy/scripts/audit-order-convergence.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-55
+skills/anatomy/anatomy/scripts/chrome-startup.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-38
+skills/anatomy/anatomy/scripts/turn-group-reference.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-40
+skills/anatomy/anatomy/scripts/publish.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-338
+skills/anatomy/anatomy/scripts/session.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-54
+skills/anatomy/anatomy/kit/turn-build.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-1363
+skills/anatomy/anatomy/scripts/audit-cache.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-37
+skills/anatomy/anatomy/scripts/chrome-port.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-36
+skills/anatomy/anatomy/scripts/orbit-sampling.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-50
+skills/anatomy/anatomy/scripts/drive-page-load.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-32
+skills/anatomy/anatomy/references/3d.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-352
+skills/anatomy/anatomy/examples/test-rig/view.ts
+  s_2063cc61ea958d::t_7eb743be089ef5 1-99
+AGENTS.md
+  s_2063cc61ea958d::t_f4a9de9fcd0624 59
+skills/anatomy/anatomy/scripts/audit-svg-attributes.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-46
+skills/anatomy/anatomy/kit/tube.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-306
+skills/anatomy/anatomy/examples/arcade-cabinet/sheet.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-74
+skills/anatomy/anatomy/scripts/inline-kit.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-26
+skills/anatomy/anatomy/examples/spot-plate/geometry.ts
+  s_2063cc61ea958d::t_7eb743be089ef5 1-280
+tests/server/bundled-skills.test.ts
+  s_2063cc61ea958d::t_b0ba8811cbd591 13,15,20,51-52,55-56,60,93-98,107-118
+  s_2063cc61ea958d::t_5948dfd03f1b42 119-120
+skills/anatomy/anatomy/evals/evals.json
+  s_2063cc61ea958d::t_7eb743be089ef5 1-35
+skills/anatomy/anatomy/references/walkthrough.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-75
+skills/anatomy/anatomy/kit/turn-audit.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-1101
+skills/anatomy/anatomy/examples/push-button/build.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-313
+skills/anatomy/anatomy/examples/test-rig/art.tsx
+  s_2063cc61ea958d::t_7eb743be089ef5 1-196
+skills/anatomy/anatomy/scripts/audit-empty-clipping.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-38
+server/skills.ts
+  s_2063cc61ea958d::t_6598c994c30834 647-649,651,659-665,681,696,720
+  s_2063cc61ea958d::t_ac59937c81b578 603-640
+skills/anatomy/anatomy/kit/gl.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-184
+skills/anatomy/anatomy/kit/iso-kit.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-674
+skills/anatomy/anatomy/kit/iso.css
+  s_2063cc61ea958d::t_7eb743be089ef5 1-106
+skills/anatomy/anatomy/examples/raptor-engine/sheet.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-79
+skills/anatomy/anatomy/scripts/drive.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-332
+skills/anatomy/anatomy/scripts/react-visibility-target.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-38
+skills/anatomy/anatomy/examples/ripple-tank/ripple.css
+  s_2063cc61ea958d::t_7eb743be089ef5 1-103
+skills/anatomy/anatomy/examples/spot-plate/live.tsx
+  s_2063cc61ea958d::t_7eb743be089ef5 1-339
+shared/skillmarks.ts
+  s_2063cc61ea958d::t_9b0c3d89917628 18,51-57
+skills/anatomy/anatomy/examples/spot-plate/art.tsx
+  s_2063cc61ea958d::t_7eb743be089ef5 1-110
+skills/anatomy/anatomy/examples/test-rig/figure.tsx
+  s_2063cc61ea958d::t_7eb743be089ef5 1-23
+skills/anatomy/anatomy/README.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-332
+skills/anatomy/anatomy/kit/iso-kit.ts
+  s_2063cc61ea958d::t_7eb743be089ef5 1-842
+skills/anatomy/anatomy/examples/ripple-tank/build.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-558
+skills/anatomy/anatomy/agents/openai.yaml
+  s_2063cc61ea958d::t_7eb743be089ef5 1-3
+skills/anatomy/anatomy/scripts/turn-check.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-664
+skills/anatomy/anatomy/examples/arcade-cabinet/live.js
+  s_2063cc61ea958d::t_7eb743be089ef5 1-597
+skills/anatomy/anatomy/examples/ripple-tank/live.js
+  s_2063cc61ea958d::t_7eb743be089ef5 1-580
+skills/anatomy/anatomy/scripts/audit-clearance-envelope.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-39
+skills/anatomy/anatomy/references/motion.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-165
+skills/anatomy/anatomy/scripts/enter-key.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-38
+skills/anatomy/anatomy/kit/turn.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-3610
+skills/anatomy/anatomy/scripts/capture.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-269
+skills/anatomy/anatomy/examples/arcade-cabinet/screen.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-114
+skills/anatomy/anatomy/scripts/audit-affine-bounds.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-54
+skills/anatomy/anatomy/scripts/print.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-260
+skills/anatomy/anatomy/scripts/turn-split-owner.test.mjs
+  s_2063cc61ea958d::t_7eb743be089ef5 1-62
+skills/anatomy/anatomy/examples/test-rig/rig.ts
+  s_2063cc61ea958d::t_7eb743be089ef5 1-170
+skills/anatomy/anatomy/references/kit.md
+  s_2063cc61ea958d::t_7eb743be089ef5 1-419
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7ca3126cdca5b796c78700144b2c6a761fe0a73d",
+  "prompts": {},
+  "sessions": {
+    "s_2063cc61ea958d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a97b232b-0353-4984-8519-e5939b76f717",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
