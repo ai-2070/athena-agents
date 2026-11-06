@@ -263,6 +263,28 @@ Outbox (`/api/outbox…`) and the old test route (`/api/social/test`, which says
 
 `server/index.ts` is 705 lines (1,750 before the pilot).
 
+### The chat streams (2026-11-06)
+
+The three AI SDK streams moved: sending an agent chat a message and streaming its run (POST
+`…/chats/{chatId}/stream`, `agents.chats.stream`), picking up the run going in a chat (GET, `agents.chats.reconnect`)
+and the Brain's streamed answer (`brain.stream`). Same addresses, also under `/api/p/<project>`.
+
+- **Each answers with an oRPC event iterator** whose events are the AI SDK's UI message chunks.
+  `server/uistream.ts` builds them as a `ReadableStream` (no longer writing `res`), and `streamToEventIterator`
+  sends it. oRPC's own keep-alive replaces ours. A reader that goes away cancels the stream: it stops listening to
+  the run (the run goes on), and the Brain goes on answering.
+- **Picking up a run with none going answers `null`**, not a 204.
+- **What comes in is checked**: the text, the attached files, `steer` and `goal`, in plain words. A refusal before
+  the stream starts (nothing typed, a chat that isn't there, the chat busy) is an ordinary `{ error }` answer.
+- **The page** calls them with `rpc` through its own AI SDK transport (`web/chat/transport.ts`: `chatTransport`
+  for `useChat`, `brainStream()` for the Brain chat), turning the events back into chunks with
+  `eventIteratorToUnproxiedDataStream`. `dashFetch` is gone: `rpc`'s errors already carry the server's words.
+  `web/client/rpc.ts` hands an event stream on as it comes.
+- **The page's tests changed only where they end a fake stream**: oRPC's `event: done` instead of the AI SDK's
+  `data: [DONE]` (a `data:` line without an event is a message in both).
+- `tests/server/rpc-streams.test.ts` reads the real routes the way the page does; `uistream.test.ts` reads the
+  streams directly. `server/index.ts` keeps 9 routes: the files, restoring a backup and the MCP bridge's two.
+
 ## Where it ended
 
 All 311 JSON routes are oRPC procedures, in 22 contract files (`shared/api/`). See "After the pilot" for what is still open: an
@@ -425,10 +447,11 @@ export const contract = { taskBoard };
 Routes that aren't "JSON in, JSON out" stay as they are; nothing forces them over:
 - file answers (`sendFileSafely`, PDFs, `task-board-file`), and the 9 handlers that write `res` themselves
 - uploads (`/api/uploads/…`, `postFile` backups) and the ComfyUI proxy
-- the AI SDK chat streams, OAuth, and the WebSockets
+- OAuth and the WebSockets (the AI SDK chat streams moved later, as event iterators: see "The chat streams")
 - `/api/internal/` (the MCP bridge) until there is a reason to move it
 
-oRPC's event iterators could carry some streams later. That's not part of this plan.
+oRPC's event iterators could carry some streams later. That's not part of this plan. (They now carry the chat
+streams.)
 
 ## Pilot: the Tasks board
 
