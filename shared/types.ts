@@ -94,6 +94,9 @@ export interface GatewayInstance {
   updatedAt: number;
 }
 
+/** A connection as the Gateways page lists it: who it answers as, and which of its secrets are saved. */
+export type GatewayListing = GatewayInstance & { targetName: string; credentials: Record<string, boolean> };
+
 /** Removing an instance keeps its identity and receipts, never its credentials. */
 export interface GatewayRetiredInstance {
   version: 1;
@@ -683,6 +686,10 @@ export interface TeamState {
   /** /resume would pick something up (the team was stopped or paused) */
   resumable?: boolean;
 }
+
+/** A team's chat as its page shows it: the thread, who works now, each agent's own session for the team
+ *  (agentId → chatId), your /goal while the Brain follows it, and the other teams it can ask (#Team Name). */
+export type TeamChat = TeamState & { team: Team; messages: TeamMessage[]; sessions: Record<string, string>; goal: BrainBrief | null; others: TeamRef[] };
 
 /** A /loop going in a chat: the message sent again every so often (every, in ms) or after each answer. */
 export interface LoopInfo {

@@ -54,6 +54,14 @@ describe('teams over oRPC', () => {
     expect(await send('POST', `/api/workflows/${t.id}/clone`, { withAgents: 'please' })).toEqual({ status: 400, json: { error: 'withAgents must be true or false.' } });
   });
 
+  it('keep every field of its schedule, and refuse one that says nothing of when', async () => {
+    const t = workflows.save({ name: 'Mornings', members: [], lead: null, steps: [] } as Partial<Team>);
+    const schedule = { type: 'daily', times: ['09:00'], days: [1, 3], input: 'Plan the day.' };
+    expect((await send('PUT', `/api/workflows/${t.id}`, { schedule })).json).toMatchObject({ schedule });
+    expect(workflows.get(t.id)?.schedule).toEqual(schedule);
+    expect(await send('PUT', `/api/workflows/${t.id}`, { schedule: 'daily' })).toEqual({ status: 400, json: { error: 'schedule must say when it runs.' } });
+  });
+
   it('keep the settings a step carries', async () => {
     const t = (await send('POST', '/api/workflows', { name: 'Steps', steps: [{ id: 's1', type: 'tool', tool: 'web_search', args: { q: 'news' } }] })).json as unknown as Team;
     expect(workflows.get(t.id)?.steps).toEqual([{ id: 's1', type: 'tool', tool: 'web_search', args: { q: 'news' } }]);

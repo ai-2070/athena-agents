@@ -13,7 +13,6 @@ import { readGatewayPostDelivery } from '../gateways/outbox-posts.ts';
 import { refuse } from './refuse.ts';
 
 const os = implement(contract);
-const body = (b: unknown): unknown => b ?? {};
 
 /** A saved post that goes through a gateway (a Telegram or Discord one). */
 function gatewayItem(id: string) {
@@ -31,13 +30,13 @@ export const outboxRouter = os.router({
   discuss: os.discuss.handler(({ input }) => social.returnPost(input.id, input.text || '', (teamId, text) => postUserMessage(teamId, text, { route: pickMember }))),
   reject: os.reject.handler(({ input }) => social.rejectPost(input.id, input.reason)),
   remove: os.remove.handler(({ input }) => (social.removePost(input.id), { ok: true as const })),
-  gatewayReview: os.gatewayReview.handler(({ input }) => social.prepareGatewayPost(input.params.id, body(input.body))),
+  gatewayReview: os.gatewayReview.handler(({ input }) => social.prepareGatewayPost(input.params.id, input.body)),
   delivery: os.delivery.handler(({ input }) => readGatewayPostDelivery(input.id)),
   prepareDelivery: os.prepareDelivery.handler(({ input: { params, body: b } }) => {
     const project = activeProject();
     return withProject(project, async () => {
       const { item, gateway } = gatewayItem(params.id);
-      if (gatewayRetirement(gateway.instanceId)) await supervisor.prepareRetiredOutbox(gateway.instanceId, project.id, item.id, body(b));
+      if (gatewayRetirement(gateway.instanceId)) await supervisor.prepareRetiredOutbox(gateway.instanceId, project.id, item.id, b);
       else await supervisor.prepareOutboxReview(gateway.instanceId, project.id, item.id);
       return readGatewayPostDelivery(params.id);
     });
@@ -46,7 +45,7 @@ export const outboxRouter = os.router({
     const project = activeProject();
     return withProject(project, async () => {
       const { item, gateway } = gatewayItem(params.id);
-      await supervisor.reviewOutbox(gateway.instanceId, project.id, item.id, body(b));
+      await supervisor.reviewOutbox(gateway.instanceId, project.id, item.id, b);
       return readGatewayPostDelivery(params.id);
     });
   }),
@@ -54,8 +53,8 @@ export const outboxRouter = os.router({
     const project = activeProject();
     return withProject(project, async () => {
       const { item, gateway } = gatewayItem(params.id);
-      if (gatewayRetirement(gateway.instanceId)) await supervisor.finishRetiredOutbox(gateway.instanceId, project.id, item.id, body(b));
-      else await supervisor.finishOutbox(gateway.instanceId, project.id, item.id, body(b));
+      if (gatewayRetirement(gateway.instanceId)) await supervisor.finishRetiredOutbox(gateway.instanceId, project.id, item.id, b);
+      else await supervisor.finishOutbox(gateway.instanceId, project.id, item.id, b);
       return social.listPosts().find((p) => p.id === params.id);
     });
   }),

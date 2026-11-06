@@ -2,6 +2,7 @@
 // teams do them. server/routines.ts cleans what comes in (the name, the schedule) and works out the mentions.
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
+import { schedule } from './schedule.ts';
 import type { Routine, RoutineListing, RoutineRun } from '../types.ts';
 
 const oneRoutine = z.object({ id: z.string() });
@@ -9,13 +10,7 @@ const routineFields = {
   name: z.string({ error: 'Give the routine a name.' }).optional(),
   description: z.string({ error: 'description must be text.' }).optional(),
   text: z.string({ error: 'Write what the routine should do first.' }).optional(),
-  schedule: z.object({
-    type: z.string(),
-    times: z.array(z.string()).optional(),
-    minutes: z.number().optional(),
-    days: z.array(z.number()).optional(),
-    input: z.string().optional(),
-  }, { error: 'schedule must say when it runs.' }).optional(),
+  schedule: schedule.optional(),
   enabled: z.boolean({ error: 'enabled must be true or false.' }).optional(),
 };
 

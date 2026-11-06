@@ -3,7 +3,7 @@
 // themselves are shared/api/workflows.ts.)
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
-import type { BrainBrief, LoopInfo, QueuedMessage, Team, TeamMessage, TeamRef, TeamState } from '../types.ts';
+import type { BrainBrief, LoopInfo, QueuedMessage, TeamChat, TeamMessage } from '../types.ts';
 
 const oneTeam = z.object({ id: z.string() });
 const message = {
@@ -14,10 +14,6 @@ const message = {
 };
 /** Posted now ({ message }), or held because someone in the team is working ({ queued }). */
 type Posted = { message: TeamMessage } | { queued: QueuedMessage };
-
-/** A team's chat as its page shows it: the thread, who works now, each agent's own session for the team
- *  (agentId → chatId), your /goal while the Brain follows it, and the other teams it can ask (#Team Name). */
-export type TeamChat = TeamState & { team: Team; messages: TeamMessage[]; sessions: Record<string, string>; goal: BrainBrief | null; others: TeamRef[] };
 
 export const teams = {
   chat: oc.route({ method: 'GET', path: '/teams/{id}/chat' }).input(oneTeam).output(type<TeamChat>()),

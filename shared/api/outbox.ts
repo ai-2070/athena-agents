@@ -3,12 +3,11 @@
 // (its revision, what you acknowledged), so they are passed on as they came, as in shared/api/gateways.ts.
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
-import { gatewayBody } from './gateways.ts';
+import { post, withBody as gatewayWithBody } from './gateways.ts';
 import type { GatewayOutboxDeliveryReview, GatewayOutboxDestination, GatewayOutboxPostPreview, OutboxPost } from '../types.ts';
 
 const onePost = z.object({ id: z.string() });
-const withBody = z.object({ params: onePost, body: gatewayBody });
-const post = (path: `/${string}`) => oc.route({ method: 'POST', path, inputStructure: 'detailed' });
+const withBody = gatewayWithBody({ id: z.string() });
 const parts = z.array(z.string(), { error: 'parts must be a list of texts.' });
 const images = z.array(z.string(), { error: 'images must be a list.' });
 /** a Telegram or Discord conversation a gateway knows (server/gateways/ checks it can be sent to) */

@@ -5,22 +5,20 @@
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
 import type {
-  GatewayDeliveryReview, GatewayDiscordRecovery, GatewayHealth, GatewayInboxEvent, GatewayInstance, GatewayReconciliation, GatewayRequestReview,
+  GatewayDeliveryReview, GatewayDiscordRecovery, GatewayHealth, GatewayInboxEvent, GatewayInstance, GatewayListing, GatewayReconciliation, GatewayRequestReview,
   GatewayRetiredFinishReview, GatewayRetiredInstance, GatewayTargets, GatewayTelegramSetup, GatewayWhatsAppCheck, GatewayWhatsAppRecovery,
   GatewayWhatsAppReplacement, GatewayWhatsAppSenders, GatewayWhatsAppSetup, GatewayWorkReview,
 } from '../types.ts';
 
-/** What the gateway code reads and checks itself: any JSON object (none: {}), as the old routes took it. */
-export const gatewayBody = z.unknown().refine((v) => v === undefined || (typeof v === 'object' && v !== null), { error: 'Body must be a JSON object' });
+/** What the gateway code reads and checks itself, as it came: server/rpc.ts already reads no body as {} and
+ *  refuses null or a bare value, as the old routes did. */
+const gatewayBody = z.unknown();
 const one = { id: z.string() };
 const event = { id: z.string(), eventId: z.string() };
-/** A route whose body goes to the gateway code as it came. */
-const post = (path: `/${string}`) => oc.route({ method: 'POST', path, inputStructure: 'detailed' });
-const withBody = <P extends z.ZodRawShape>(params: P) => z.object({ params: z.object(params), body: gatewayBody });
+/** A route whose body goes to the gateway code as it came (the Outbox's gateway deliveries use these too). */
+export const post = (path: `/${string}`) => oc.route({ method: 'POST', path, inputStructure: 'detailed' });
+export const withBody = <P extends z.ZodRawShape>(params: P) => z.object({ params: z.object(params), body: gatewayBody });
 const ok = type<{ ok: true }>();
-
-/** A connection as the Gateways page lists it: who it answers as, and which of its secrets are saved. */
-export type GatewayListing = GatewayInstance & { targetName: string; credentials: Record<string, boolean> };
 
 export const gateways = {
   list: oc.route({ method: 'GET', path: '/gateways' }).output(type<{ instances: GatewayListing[]; health: GatewayHealth[] }>()),

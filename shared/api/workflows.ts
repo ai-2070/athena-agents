@@ -4,6 +4,7 @@
 // itself (GET …/mark) is still sent by server/index.ts; a team's chat is shared/api/teams.ts.
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
+import { schedule } from './schedule.ts';
 import type { RunSummary, Team, TeamListing, TeamMessage, WorkflowRun, WorkflowTemplateInfo } from '../types.ts';
 
 const oneTeam = z.object({ id: z.string() });
@@ -28,13 +29,7 @@ const teamFields = {
   files: names('files'),
   // (a step can carry its tool's own settings, so its other fields are kept as they are)
   steps: z.array(z.looseObject({ type: z.string() }), { error: 'Each step needs a type.' }).optional(),
-  schedule: z.object({
-    type: z.string(),
-    times: z.array(z.string()).optional(),
-    minutes: z.number().optional(),
-    days: z.array(z.number()).optional(),
-    input: z.string().optional(),
-  }, { error: 'schedule must say when it runs.' }).optional(),
+  schedule: schedule.optional(),
   enabled: z.boolean({ error: 'enabled must be true or false.' }).optional(),
   pos: z.object({ x: z.number({ error: 'A place on the map is x and z.' }), z: z.number({ error: 'A place on the map is x and z.' }) }, { error: 'A place on the map is x and z.' }).nullable().optional(),
   rot: spot,
