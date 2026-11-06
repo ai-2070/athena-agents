@@ -5,7 +5,7 @@
 // column and Alt+↑ / Alt+↓ to move it within one; its "…" menu does the same. A change is saved in the task's own
 // project. A task's page shows its description (Markdown) and its comments, with "Draft with the Brain" for both.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
+import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { ago, confirmBox, navigate, onEvent, onReconnect, toast } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import type { BoardChange } from '../../shared/api/taskboard.ts';
@@ -15,7 +15,7 @@ import { iconButtonClass } from '../ui/classes.ts';
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
 import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { Bone, Skeleton } from '../ui/skeleton.tsx';
-import { cardCopy, grab, useDragPreview } from '../taskmotion.ts';
+import { grab, useDragPreview } from '../taskmotion.ts';
 import { openChat } from '../chatwin.tsx';
 import { DraftWithBrain, Markdown, useMentionBox, useMentionables, PRIORITIES, Pick, PriorityIcon, STATUSES, StatusIcon, TaskFiles, WORK_STATES, WhoMark, askForDraft, assigneeChoices, confirmStop, isWorking, openTaskComposer, priorityChoices, statusChoices, taskKey, usePeople, useTray } from '../taskboard.tsx';
 import type { Choice } from '../taskboard.tsx';
@@ -23,7 +23,7 @@ import { TagFilter, TagPicker, knownTagFilter, tagOptions } from '../tasktags.ts
 import type { TagFilterValue } from '../tasktags.tsx';
 import { tagKey, tagsMatch } from '../../shared/boardtags.ts';
 import type { Candidate } from '../routinemention.ts';
-import { Card, askWhyBlocked, byRank, cardKey, errorText, place, ref, same, startedNote } from '../taskcard.tsx';
+import { Card, DropGhost, askWhyBlocked, byRank, cardKey, errorText, place, ref, same, startedNote } from '../taskcard.tsx';
 import type { Assignee, Placement } from '../taskcard.tsx';
 import type { BoardComment, BoardPriority, BoardStatus, BoardTag, BoardTask, TaskBoardData } from '../../shared/types.ts';
 
@@ -435,23 +435,6 @@ function TaskBoardPage() {
       </p>
     </div>
   );
-}
-
-/**
- * Where the dragged card will land: a faded copy of it that opens the gap as it is reached. The copy is the card's
- * own markup, cloned with nothing in it focusable or carrying the card's id, so the board never mistakes it for
- * the card.
- */
-function DropGhost({ task, height }: { task: BoardTask; height: number }) {
-  const slot = useRef<HTMLLIElement>(null);
-  useLayoutEffect(() => {
-    const host = slot.current;
-    const card = document.querySelector<HTMLElement>(`[data-task-id="${cardKey(task)}"]`);
-    if (!host || !card) return;
-    host.replaceChildren(cardCopy(card));
-    return () => host.replaceChildren();
-  }, [task]);
-  return <li ref={slot} aria-hidden="true" inert style={{ '--slot': `${height}px` } as CSSProperties} className="pointer-events-none h-(--slot) flex-none overflow-hidden rounded-[10px] opacity-35 animate-[open-slot_0.16s_var(--ease-soft)_both]" />;
 }
 
 // ---------- a task's own page ----------

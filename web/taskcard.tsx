@@ -1,7 +1,8 @@
 // A task's card, as the Tasks board shows it (views/tasks.tsx) and the Overview's Tasks panel too: its title, tags,
 // number, priority, comments and files, who has it (a button to give it to someone) and how its work goes, with a
 // "…" menu to open, move or remove it. The ranks that order a column, and the small helpers both use, live here too.
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { h, navigate, promptBox, toast } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import { domButton } from './ui/dom.ts';
@@ -10,6 +11,7 @@ import { Dropdown, DropdownContent, DropdownGroup, DropdownItem, DropdownLabel, 
 import { Icon } from './ui/react.tsx';
 import { PriorityIcon, STATUSES, WORK_STATES, WhoMark, assigneeChoices, isWorking, priorityOf, statusOf, taskHref, taskKey, usePeople } from './taskboard.tsx';
 import { TagMarks } from './tasktags.tsx';
+import { cardCopy } from './taskmotion.ts';
 import type { BoardStatus, BoardTag, BoardTask } from '../shared/types.ts';
 
 /** Where a card goes between two others (by their ranks; either may be missing at the ends). */
@@ -218,4 +220,21 @@ function CardMenu({ task, first, last, onColumn, onStep, onOpen, onRemove }: { t
       </DropdownContent>
     </Dropdown>
   );
+}
+
+/**
+ * Where the dragged card will land: a faded copy of it that opens the gap as it is reached. The copy is the card's
+ * own markup, cloned with nothing in it focusable or carrying the card's id, so the board never mistakes it for
+ * the card.
+ */
+export function DropGhost({ task, height }: { task: BoardTask; height: number }) {
+  const slot = useRef<HTMLLIElement>(null);
+  useLayoutEffect(() => {
+    const host = slot.current;
+    const card = document.querySelector<HTMLElement>(`[data-task-id="${cardKey(task)}"]`);
+    if (!host || !card) return;
+    host.replaceChildren(cardCopy(card));
+    return () => host.replaceChildren();
+  }, [task]);
+  return <li ref={slot} aria-hidden="true" inert style={{ '--slot': `${height}px` } as CSSProperties} className="pointer-events-none h-(--slot) flex-none overflow-hidden rounded-[10px] opacity-35 animate-[open-slot_0.16s_var(--ease-soft)_both]" />;
 }

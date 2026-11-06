@@ -146,12 +146,13 @@ Clicking the Brain on the Station shows what is in its folder. Pictures, Markdow
 - **−** and **+** at the bottom right choose how many fit in one view (1 to 8); every pane goes back to the same width. The dashes beside them are the panes, the one in use longer; click one to go to it.
 - Drag the line at a pane's right edge to make it wider or narrower.
 - A pane's **…** menu pins it at the left (it stays in view while the rest slides), stacks it under the pane before it (up to three in one column; drag the line between them to share the height), moves it, opens it in a chat window, or closes it.
-- Drag a pane by its grip (⋮⋮) onto another: its left or right quarter puts it before or after, its middle stacks it.
+- Drag a pane by its header onto another: its left or right quarter puts it before or after, its middle stacks it. A line and a label show where it will go, and the pane you move fades while you drag it.
 - Panes out of view show as small marks at the edge, with a dot when they work or need you; point at one to see whose it is, and click it to slide to it. Chats far out of view aren't drawn until they come back.
 - One strip for all projects, remembered in this browser.
+- Drag the line at the edge of the list on the left, or of the panel on the right, to make it wider or narrower (a double-click puts it back).
 - **Panels** beside the strip, one at a time (the buttons at the bottom right):
   - **Needs you**: approvals to decide right there, then the questions, stopped work and tasks waiting for you, each with **Open**.
-  - **Tasks**: the open tasks of what is shown, by column, on the same cards as the Tasks board: click one to open it, give it to someone from the mark at its corner, move it or remove it from its **…** menu, or make a **New task**.
+  - **Tasks**: the tasks of the projects **Show** picks (this project, all of them or one), by status, on the same cards as the Tasks board. The status button picks which statuses show, several at once (the open ones at first; Done shows the last 14 days). Click a card to open it, drag it to another status to move it there, give it to someone from the mark at its corner, move or remove it from its **…** menu, or make a **New task**.
   - **Files**: a project's folder, one level at a time. Pictures, Markdown and PDFs open in their preview (another project's open in a new tab). **Open in VS Code** and **Show in Finder** (or Explorer) open the folder you are in.
 - A pane's **…** menu also has **Open folder in VS Code**: an agent's own workspace, or the project folder for a team or the Brain.
 

@@ -79,6 +79,7 @@ beforeEach(() => {
       { ...card, id: 'bt1', number: 4, title: 'Edit the intro', status: 'in_progress', projectId: 'p2', projectName: 'Podcast', assignee: 'agent:host', assigneeName: 'Host', work: { state: 'working' }, workerName: 'Host' },
       { ...card, id: 'bt2', number: 7, title: 'Order flour', status: 'todo', projectId: 'p1', projectName: 'Bakery', updatedAt: 70 },
       { ...card, id: 'bt3', number: 1, title: 'Old', status: 'done', projectId: 'p1', projectName: 'Bakery' },
+      { ...card, id: 'bt4', number: 9, title: 'Bake bread', status: 'done', projectId: 'p1', projectName: 'Bakery', doneAt: Date.now() - 60_000 },
     ] });
     if (url === '/api/task-board/p1/bt2' && init.method === 'PUT') return json({ task: { ...card, id: 'bt2', projectId: 'p1', updatedAt: 71 } });
     if (url.startsWith('/api/projects/p1/folder')) {
@@ -387,7 +388,9 @@ describe('the Overview', () => {
   it('lists the open tasks of what is shown by column in the Tasks panel', async () => {
     await open();
     const tasks = await panel('Tasks');
-    expect([...tasks.querySelectorAll('section h3')].map((h) => h.textContent)).toEqual(['In progress1', 'To do1']);
+    // the open statuses, each a place to drop a card even when empty
+    expect([...tasks.querySelectorAll('section h3')].map((h) => h.textContent)).toEqual(['In progress1', 'To do1', 'In review0', 'Blocked0']);
+    expect(tasks.textContent).toContain('All projects · 2 tasks');
     // the Tasks board's own cards
     const cards = [...tasks.querySelectorAll<HTMLElement>('li[data-task-id]')];
     expect(cards.map((c) => c.getAttribute('aria-label'))).toEqual(['#4 Edit the intro, In progress, Podcast', '#7 Order flour, To do, Bakery']);
@@ -400,6 +403,96 @@ describe('the Overview', () => {
     await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((m) => m.textContent === 'In review')!.click());
     await settle();
     expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/bt2', body: { status: 'in_review', expectedUpdatedAt: 70 } });
+  });
+
+  it('shows the statuses you pick in the Tasks panel, several at once, and remembers them', async () => {
+    await open();
+    const tasks = await panel('Tasks');
+    const pick = async (label: string) => {
+      await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')].find((m) => m.textContent?.startsWith(label))!.click());
+      await settle();
+    };
+    await act(async () => tasks.querySelector<HTMLButtonElement>('button[aria-label="Statuses shown: Open tasks"]')!.click());
+    await settle();
+    // Done (lately) on, To do and In review off
+    await pick('Done');
+    await pick('To do');
+    await pick('In review');
+    expect([...tasks.querySelectorAll('section h3')].map((h) => h.textContent)).toEqual(['In progress1', 'Blocked0', 'Done1']);
+    expect(tasks.textContent).toContain('Bake bread');
+    // (done longer ago than 14 days: left out)
+    expect(tasks.textContent).not.toContain('Old');
+    expect(JSON.parse(localStorage.getItem('dash-overview-task-statuses')!)).toEqual(['in_progress', 'blocked', 'done']);
+  });
+
+  it('moves a task to another status when its card is dragged there', async () => {
+    await open();
+    const tasks = await panel('Tasks');
+    const dragEvent = (kind: string) => {
+      const e = new DragEvent(kind, { bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'dataTransfer', { value: { effectAllowed: '', dropEffect: '', types: [], setData: () => {}, setDragImage: () => {} } });
+      return e;
+    };
+    const review = tasks.querySelector<HTMLElement>('section[data-status="in_review"]')!;
+    await act(async () => tasks.querySelector('[data-task-id="p1/bt2"]')!.dispatchEvent(dragEvent('dragstart')));
+    expect(review.textContent).toContain('Drop here');
+    await act(async () => review.dispatchEvent(dragEvent('dragover')));
+    await act(async () => review.dispatchEvent(dragEvent('drop')));
+    await settle();
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/bt2', body: { status: 'in_review', expectedUpdatedAt: 70 } });
+  });
+
+  it('lets you drag the list and the panel wider or narrower, and remembers it', async () => {
+    await open();
+    await panel('Tasks');
+    const list = el.querySelector<HTMLElement>('.overview-sidebar')!;
+    const handle = el.querySelector<HTMLElement>('[role="separator"][aria-label="List width"]')!;
+    expect(list.style.getPropertyValue('--side-w')).toBe('320px');
+    await act(async () => void handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
+    expect(list.style.getPropertyValue('--side-w')).toBe('336px');
+    await act(async () => {
+      handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 400, bubbles: true }));
+      document.dispatchEvent(new PointerEvent('pointermove', { clientX: 2000 }));
+      document.dispatchEvent(new PointerEvent('pointerup', {}));
+    });
+    // (no wider than 560)
+    expect(list.style.getPropertyValue('--side-w')).toBe('560px');
+    expect(localStorage.getItem('dash-overview-side-width')).toBe('560');
+    await act(async () => void handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    expect(list.style.getPropertyValue('--side-w')).toBe('320px');
+    // the panel's line is at its left: dragging left widens it
+    const side = el.querySelector<HTMLElement>('.overview-panel')!;
+    const edge = el.querySelector<HTMLElement>('[role="separator"][aria-label="Panel width"]')!;
+    await act(async () => {
+      edge.dispatchEvent(new PointerEvent('pointerdown', { clientX: 1000, bubbles: true }));
+      document.dispatchEvent(new PointerEvent('pointermove', { clientX: 900 }));
+      document.dispatchEvent(new PointerEvent('pointerup', {}));
+    });
+    expect(side.style.getPropertyValue('--panel-w')).toBe('484px');
+  });
+
+  it('marks where a dragged pane will go: before, after, or stacked under another', async () => {
+    await open();
+    for (const name of ['Writer', 'Baker']) await act(async () => row('Bakery', name).click());
+    const drag = (kind: string) => {
+      const e = new DragEvent(kind, { bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'dataTransfer', { value: { effectAllowed: '', dropEffect: '', types: ['text/x-overview-pane'], setData: () => {}, getData: () => 'p1/agent:baker', setDragImage: () => {} } });
+      return e;
+    };
+    const writer = el.querySelector<HTMLElement>('[data-pane="p1/agent:writer"]')!;
+    const baker = el.querySelector<HTMLElement>('[data-pane="p1/agent:baker"]')!;
+    await act(async () => baker.querySelector('header')!.dispatchEvent(drag('dragstart')));
+    expect(baker.className).toContain('opacity-40');
+    // (no layout here: the pointer is at the pane's middle, so it stacks)
+    await act(async () => writer.dispatchEvent(drag('dragover')));
+    expect(writer.querySelector('.drop-mark')!.textContent).toBe('Stack under Writer');
+    // the dragged pane shows no mark of its own
+    await act(async () => baker.dispatchEvent(drag('dragover')));
+    expect(baker.querySelector('.drop-mark')).toBeNull();
+    await act(async () => writer.dispatchEvent(drag('drop')));
+    await act(async () => baker.querySelector('header')!.dispatchEvent(drag('dragend')));
+    expect(el.querySelectorAll('.strip-column')).toHaveLength(1);
+    expect(el.querySelector('.drop-mark')).toBeNull();
   });
 
   it('browses a project folder in the Files panel and opens it in VS Code', async () => {
