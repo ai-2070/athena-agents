@@ -1,0 +1,46 @@
+server/api/library.ts
+  s_23263c44c09b52::t_70ae7355cc4276 7,18-24,29-32
+server/api/workflows.ts
+  s_23263c44c09b52::t_3d339cba8fd6a7 13,62-63
+server/api/projects.ts
+  s_23263c44c09b52::t_2155d2c0dcc0e9 75-76
+  s_23263c44c09b52::t_fbc558c39bc6c7 14
+  s_23263c44c09b52::t_03d581972501de 58,60
+server/library.ts
+  s_23263c44c09b52::t_14f44148bbf032 133,170
+  s_23263c44c09b52::t_70ae7355cc4276 26-27
+server/index.ts
+  s_23263c44c09b52::t_ab21eee80b5e8e 104
+  s_23263c44c09b52::t_03d581972501de 194
+server/api/taskboard.ts
+  s_23263c44c09b52::t_b9ebb6843c16d3 6
+  s_23263c44c09b52::t_03d581972501de 19,26,48
+tests/server/rpc-skills.test.ts
+  s_23263c44c09b52::t_ab21eee80b5e8e 6,68-71,76,78-79
+  s_23263c44c09b52::t_88e1529e693e52 9,72-75,77,80
+server/store.ts
+  s_23263c44c09b52::t_03d581972501de 180-186
+server/presets.ts
+  s_23263c44c09b52::t_70ae7355cc4276 14-15
+  s_23263c44c09b52::t_14f44148bbf032 43,52,70,77,100
+tests/server/api.test.ts
+  s_23263c44c09b52::t_ab21eee80b5e8e 693-695
+server/api/settings.ts
+  s_23263c44c09b52::t_2155d2c0dcc0e9 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "02d38358dccf2cf7af0101bfcdc1fa288de1df9e",
+  "prompts": {},
+  "sessions": {
+    "s_23263c44c09b52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f45cfdbb-26eb-4b32-831d-7f54fb4ca6f1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
