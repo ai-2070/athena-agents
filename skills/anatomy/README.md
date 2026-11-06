@@ -18,9 +18,10 @@ The skill needs Node.js 20.10+, and Chrome or Chromium for its checks. Its React
 React or Next.js app.
 
 The dashboard adds it to the skill library the first time it starts (`server/skills.ts`, `ensureBuiltinSkills`). A
-skill the user deletes stays deleted. It comes without a link back to GitHub (`noLink`), so there's no
-**Download again**: the whole repo is over the installer's limits (10 MB a skill, 2 MB a file), so downloading it
-again would fail. It updates with the dashboard instead.
+skill the user deletes stays deleted, and a skill of the user's called `anatomy` stays theirs. It comes without a link
+back to GitHub (`noLink`), so there's no **Download again**: the whole repo is over the installer's limits (10 MB a
+skill, 2 MB a file), so downloading it again would fail. It updates with the dashboard instead: when this copy changes,
+the next start replaces the library's copy, unless someone changed that one (the old one stays in its History).
 
 To update the copy here, replace `anatomy/` with a newer commit's files, leaving out the same ones, and change the
 commit above.

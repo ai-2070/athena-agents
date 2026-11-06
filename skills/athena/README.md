@@ -3,7 +3,8 @@
 Skills that come with the dashboard, written for it: one folder per skill (`<id>/SKILL.md`, plus the reference files,
 templates and scripts it names). They replace the copies of Hermes Agent's skills that used to ship in `skills/hermes/`
 (`replaced.json` and the table at the end say where each one went). The dashboard adds them to the skill library the
-first time it starts (`ensureBuiltinSkills` in `server/skills.ts`), and a skill the user deletes stays deleted.
+first time it starts (`ensureBuiltinSkills` in `server/skills.ts`), and a skill the user deletes stays deleted. A
+change made here reaches every library whose copy nobody has changed, the next time the dashboard starts.
 
 Everything here was written fresh, text and code. The old skills were a list of topics and know-how; the credit for
 them is at the end.

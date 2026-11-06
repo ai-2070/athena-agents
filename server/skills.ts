@@ -424,7 +424,8 @@ export function setBrainSkills(slugs: unknown): string[] {
 }
 
 // ---------- skills that come with the dashboard ----------
-// Added to the library once. Deleting one keeps it deleted (data/skills/.builtin.json remembers).
+// Added to the library once, and brought up to date while nobody has changed the copy. Deleting one keeps it
+// deleted (data/skills/.builtin.json remembers; ensureBuiltinSkills).
 export const SELF_IMPROVEMENT = 'self-improvement';
 const BUILTIN: { slug: string; name: string; description: string; body: string }[] = [
   {
@@ -736,45 +737,149 @@ export function bundledSkills(): BundledSkill[] {
 /** Every skill the dashboard comes with: its own and the bundled ones. */
 export const shippedSkillSlugs = (): string[] => [...BUILTIN.map((b) => b.slug), ...bundledSkills().map((b) => b.slug)];
 
-export function ensureBuiltinSkills() {
-  const marker = path.join(LIB(), '.builtin.json');
-  const added = readJSON<{ added: string[] }>(marker, { added: [] }).added;
-  const now = [...added];
-  for (const b of BUILTIN) {
-    if (added.includes(b.slug)) continue;
-    if (!exists(path.join(LIB(), b.slug))) {
-      fs.mkdirSync(path.join(LIB(), b.slug), { recursive: true });
-      fs.writeFileSync(path.join(LIB(), b.slug, 'SKILL.md'), compose(b));
+// data/skills/.builtin.json: what the dashboard did with the skills it comes with.
+interface BuiltinMarker {
+  /** every id it added, or found taken: a deleted one stays deleted */
+  added: string[];
+  /** id → the fingerprint (copySum) of the copy it last put in the library, to tell whether anyone changed it since */
+  copies: Record<string, string>;
+  /** ids that were already a skill of the user's when the dashboard's arrived: theirs for good */
+  kept: string[];
+}
+const markerFile = (): string => path.join(LIB(), '.builtin.json');
+function readMarker(): BuiltinMarker {
+  const m = readJSON<Partial<BuiltinMarker>>(markerFile(), {});
+  const ids = (x: unknown): string[] => (Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string') : []);
+  const copies: Record<string, string> = {};
+  if (m.copies && typeof m.copies === 'object') for (const [k, v] of Object.entries(m.copies)) if (typeof v === 'string') copies[k] = v;
+  return { added: ids(m.added), copies, kept: ids(m.kept) };
+}
+/** The user's own skills that have the id of one the dashboard comes with (which was left out for them). */
+export const keptSkillIds = (): string[] => readMarker().kept;
+
+// Hidden files (.source.json, a .DS_Store) and the ones Windows leaves next to pictures aren't part of a skill's text.
+const NOT_PART = /^(?:\.|thumbs\.db$|desktop\.ini$)/i;
+function sumOf(files: Iterable<[string, Buffer | string]>): string {
+  const h = crypto.createHash('sha1');
+  for (const [rel, data] of files) h.update(rel).update('\0').update(data).update('\0');
+  return h.digest('hex');
+}
+/** A fingerprint of a skill folder: SKILL.md and its other files, names and contents. '' when there is no plain SKILL.md. */
+export function copySum(dir: string): string {
+  if (!plainFile(path.join(dir, 'SKILL.md'))) return '';
+  const files = ['SKILL.md', ...skillExtraFiles(dir).filter((rel) => !rel.split('/').some((p) => NOT_PART.test(p)))];
+  return sumOf(files.map((rel): [string, Buffer] => [rel, fs.readFileSync(path.join(dir, ...rel.split('/')))]));
+}
+
+/** Add one skill the dashboard comes with, or bring the copy in the library up to date. `sum` is copySum of
+ *  what it is now; `make` writes that into an empty folder. Returns true when the marker changed. */
+function bringUpToDate(m: BuiltinMarker, slug: string, sum: string, make: (dir: string) => void): boolean {
+  const dir = path.join(LIB(), slug);
+  const fresh = (): string => {
+    // written into a fresh folder first, so a failed copy leaves no half skill (and is tried again next start)
+    const tmp = ensureDir(dataPath('tmp', `bundled-${slug}-${Date.now()}`));
+    try {
+      make(tmp);
+    } catch (e) {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      throw e;
     }
-    now.push(b.slug);
+    return tmp;
+  };
+  const failed = (what: string, e: unknown): boolean => {
+    log('skill', `Couldn't ${what} the skill "${slug}" that comes with the dashboard: ${e instanceof Error ? e.message : String(e)}`);
+    return false;
+  };
+  if (!m.added.includes(slug)) {
+    m.added.push(slug);
+    // a skill of the same id already in the library is the user's: leave it be, now and later
+    if (exists(dir)) {
+      m.kept.push(slug);
+      return true;
+    }
+    let tmp = '';
+    try {
+      tmp = fresh();
+      fs.renameSync(tmp, dir);
+    } catch (e) {
+      if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
+      m.added.pop();
+      return failed('add', e);
+    }
+    m.copies[slug] = sum;
+    return true;
+  }
+  // the user's, or deleted (which stays deleted), or already the latest
+  if (m.kept.includes(slug) || !exists(dir) || m.copies[slug] === sum) return false;
+  const now = copySum(dir);
+  // added before the dashboard kept fingerprints: only a copy just like the latest is known to be untouched
+  if (!m.copies[slug]) {
+    if (now !== sum) return false;
+    m.copies[slug] = sum;
+    return true;
+  }
+  // changed since, by the user, an agent or Download again: it is theirs now
+  if (now !== m.copies[slug]) return false;
+  let tmp: string;
+  try {
+    tmp = fresh();
+  } catch (e) {
+    return failed('update', e);
+  }
+  const old = dataPath('tmp', `bundled-old-${slug}-${Date.now()}`);
+  try {
+    // the old one stays in the skill's History, with its files, like an update from GitHub
+    const before = getSkill(slug);
+    if (before) {
+      const vdir = skillVersionsDir(slug);
+      const files = skillExtraFiles(dir);
+      const was: SkillVersionItem = { ...versionItem(before), files, filesHash: skillFilesHash(dir) };
+      const after: SkillVersionItem = { ...skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), slug), filesHash: skillFilesHash(tmp) };
+      const v = withActor('you', () => keepVersion(vdir, was, after, { ignore: ['files'] }), { note: 'Before the dashboard updated it' });
+      if (v && files.length) copySkillFiles(dir, versionFilesDir(vdir, v.id));
+    }
+    fs.renameSync(dir, old);
+    try {
+      fs.renameSync(tmp, dir);
+    } catch (e) {
+      fs.renameSync(old, dir);
+      throw e;
+    }
+  } catch (e) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    return failed('update', e);
+  }
+  fs.rmSync(old, { recursive: true, force: true });
+  forgetSkill(slug);
+  m.copies[slug] = sum;
+  log('skill', `Updated the skill "${slug}" that comes with the dashboard`);
+  return true;
+}
+
+export function ensureBuiltinSkills() {
+  const m = readMarker();
+  let changed = false;
+  for (const b of BUILTIN) {
+    const text = compose(b);
+    changed = bringUpToDate(m, b.slug, sumOf([['SKILL.md', text]]), (dir) => fs.writeFileSync(path.join(dir, 'SKILL.md'), text)) || changed;
   }
   for (const b of bundledSkills()) {
-    if (added.includes(b.slug)) {
-      // added with a link back to its repo that it no longer comes with: drop it
-      if (!b.origin) {
-        const src = path.join(LIB(), b.slug, '.source.json');
-        if (readJSON<Partial<SkillOrigin>>(src, {}).repo === b.repo) fs.rmSync(src, { force: true });
-      }
-      continue;
+    const dir = path.join(LIB(), b.slug);
+    // added with a link back to a repo it no longer comes with: drop the link (not from a skill of the user's)
+    if (!b.origin && m.added.includes(b.slug) && !m.kept.includes(b.slug)) {
+      const src = path.join(dir, '.source.json');
+      if (readJSON<Partial<SkillOrigin>>(src, {}).repo === b.repo) fs.rmSync(src, { force: true });
     }
-    // a skill of the same id already in the library is the user's: leave it be
-    if (!exists(path.join(LIB(), b.slug))) {
-      // copied into a fresh folder first, so a failed copy leaves no half skill (and is tried again next start)
-      const tmp = ensureDir(dataPath('tmp', `bundled-${b.slug}-${Date.now()}`));
-      try {
+    const sum = copySum(b.dir);
+    if (!sum) continue;
+    changed =
+      bringUpToDate(m, b.slug, sum, (tmp) => {
         fs.copyFileSync(path.join(b.dir, 'SKILL.md'), path.join(tmp, 'SKILL.md'));
         copySkillFiles(b.dir, tmp);
         if (b.origin) writeJSON(path.join(tmp, '.source.json'), { ...b.origin, installedAt: Date.now() } satisfies SkillOrigin);
-        fs.renameSync(tmp, path.join(LIB(), b.slug));
-      } catch (e) {
-        fs.rmSync(tmp, { recursive: true, force: true });
-        log('skill', `Couldn't add the skill "${b.slug}" that comes with the dashboard: ${e instanceof Error ? e.message : String(e)}`);
-        continue;
-      }
-    }
-    now.push(b.slug);
+      }) || changed;
   }
-  if (now.length !== added.length) writeJSON(marker, { added: now });
+  if (changed) writeJSON(markerFile(), m);
   forgetSkill();
 }
 
