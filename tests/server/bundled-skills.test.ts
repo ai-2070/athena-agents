@@ -1,11 +1,12 @@
 // Skill folders that come with the dashboard (skills/ in the repo), and reading long skill files.
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as skills from '../../server/skills.ts';
 import { parseGitHubUrl } from '../../server/skillinstall.ts';
 import { callTool } from '../../server/tools.ts';
-import { dataPath } from '../../server/util.ts';
+import { dataPath, ROOT } from '../../server/util.ts';
 
 const agent = { id: 'a1', name: 'Tester' };
 
@@ -177,6 +178,22 @@ describe('bundled skills', () => {
     expect(skills.getSkill('independent-review')?.origin).toBeFalsy();
     // the skill itself stays
     expect(skills.getSkill('independent-review')?.name).toBe('independent-review');
+  });
+
+  it('check out byte for byte, with LF line endings on Windows too', () => {
+    // anatomy hashes its own kit (scripts/fingerprint.mjs) to name its version: CRLF would change that
+    const attrs = execFileSync('git', ['check-attr', 'text', 'eol', '--', 'skills/anatomy/anatomy/kit/iso-kit.mjs', 'skills/claude-motion/review-loop/SKILL.md'], { cwd: ROOT, encoding: 'utf8' });
+    expect(attrs).toContain('skills/anatomy/anatomy/kit/iso-kit.mjs: eol: lf');
+    expect(attrs).toContain('skills/claude-motion/review-loop/SKILL.md: eol: lf');
+    // (text=auto: git still leaves pictures and other binary files as they are)
+    expect(attrs).toContain('skills/anatomy/anatomy/kit/iso-kit.mjs: text: auto');
+  });
+
+  it("tell agents to keep what a skill's scripts make out of its folder, which every project shares", async () => {
+    skills.ensureBuiltinSkills();
+    const r = await callTool(agent, 'read_skill', { name: 'anatomy' });
+    expect(r.text).toContain(`Files with this skill, in its folder ${skills.skillDir('anatomy').split(path.sep).join('/')} (`);
+    expect(r.text).toContain("Every project shares that folder, so keep what its scripts make (pages, pictures, builds, downloads) out of it: give them an output path in the project's folder");
   });
 
   it('stay deleted once deleted', () => {

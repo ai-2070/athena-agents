@@ -1,0 +1,3 @@
+# The skills that come with the dashboard are copies of other repos, kept byte for byte (some hash their own files):
+# LF line endings on every checkout, Windows too.
+/skills/** text=auto eol=lf

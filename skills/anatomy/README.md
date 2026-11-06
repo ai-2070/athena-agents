@@ -9,10 +9,19 @@ Copied from [wheresryan22/anatomy](https://github.com/wheresryan22/anatomy) at c
 `1482e8469b0a9e0d8cc18ea2740a01423d29ae80` (MIT, see `anatomy/LICENSE`). The whole repo is the skill, so it sits in
 `anatomy/`. The files are unchanged, but not all of them are here:
 
-- Left out: the built example pages and PDFs (`examples/*/*.html` and `*.pdf`, 24 MB). Each example's `build.mjs`
-  writes them again (`node examples/<name>/build.mjs`, `--light` for the light theme), which is what the skill
-  tells the agent to do anyway.
-- Left out: the hidden files (`.github/`, `.gitignore`, `.gitattributes`), as the skill installer does.
+- Left out: the built example pages and PDFs (`examples/*/*.html` and `*.pdf`, 24 MB). The kit's own scripts write
+  them again, next to the script: `node examples/<name>/build.mjs` makes an example's page (`--light` for the light theme),
+  `node examples/turning-dial/build.mjs --light --verify` makes `turning-dial-verify-light.html`,
+  `node examples/turning-dial/stress.mjs --light` makes `turning-stress-light.html`, and
+  `node scripts/print.mjs examples/<name>/sheet.mjs --format all` makes the A4 PDFs, once the page is built.
+- The kit's own tests (`node --test scripts/`, from `anatomy/`) need one of those pages: `scripts/orbit-sampling.test.mjs`
+  reads `turning-dial-verify-light.html`, so build it first, and delete it again before committing.
+- Left out: the hidden files (`.github/`, `.gitignore`, `.gitattributes`), as the skill installer does. This repo's
+  own `.gitattributes` keeps LF line endings in `skills/`, as upstream's did, so a Windows checkout has the same bytes
+  (`scripts/fingerprint.mjs` hashes the kit, and publishing to the gallery compares that hash).
+
+Agents read the examples rather than build them in the library: the skill's folder is shared by every project, so
+`read_skill` tells them to put what its scripts make in the project instead. Their own figures are built there too.
 
 The skill needs Node.js 20.10+, and Chrome or Chromium for its checks. Its React examples go into the user's own
 React or Next.js app.
