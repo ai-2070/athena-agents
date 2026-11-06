@@ -1,0 +1,25 @@
+tests/server/ownership-port.test.ts
+  s_2063cc61ea958d::t_66eaf10927e55a 1-67
+server/ownershipport.ts
+  s_2063cc61ea958d::t_9e76a9b8843342 1-18
+server/gateways/ownership.ts
+  s_2063cc61ea958d::t_2db5c7be7281e5 5,14-15,18,35
+server/eve/ownership.ts
+  s_2063cc61ea958d::t_2db5c7be7281e5 4,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d262b1cb6153271b701b10cbf86b85cbf27ad6ff",
+  "prompts": {},
+  "sessions": {
+    "s_2063cc61ea958d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a97b232b-0353-4984-8519-e5939b76f717",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
