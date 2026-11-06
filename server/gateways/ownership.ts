@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import net from 'node:net';
 import { once } from 'node:events';
 import { IS_WIN, realTarget } from '../util.ts';
+import { ownershipPort } from '../ownershipport.ts';
 import { privateDataPath } from '../private.ts';
 import type { GatewayPlatform } from '../../shared/types.ts';
 
@@ -10,11 +11,11 @@ export function gatewayStateDirectory(instanceId: string): string {
   return privateDataPath('gateways-runtime', instanceId);
 }
 
-function ownershipPort(location: string): number {
+/** The lock port for a folder (its resolved path, case ignored on Windows). */
+export function gatewayOwnershipPort(location: string): number {
   const directory = realTarget(location);
   if (!directory) throw new Error('Cannot resolve the gateway state folder.');
-  const key = IS_WIN ? directory.toLowerCase() : directory;
-  return 16384 + crypto.createHash('sha256').update(key).digest().readUInt32BE(0) % 49152;
+  return ownershipPort(IS_WIN ? directory.toLowerCase() : directory);
 }
 
 /** A kernel-held claim releases on process death; a port collision fails closed. */
@@ -31,7 +32,7 @@ export function claimGatewayAccount(platform: GatewayPlatform, accountId: string
 async function claimDirectory(directory: string): Promise<() => Promise<void>> {
   const server = net.createServer((socket) => socket.destroy());
   try {
-    server.listen({ host: '127.0.0.1', port: ownershipPort(directory), exclusive: true });
+    server.listen({ host: '127.0.0.1', port: gatewayOwnershipPort(directory), exclusive: true });
     await once(server, 'listening');
   } catch {
     server.close();
