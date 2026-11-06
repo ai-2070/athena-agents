@@ -989,7 +989,7 @@ function DockView({ bar }: { bar: HTMLElement }) {
 
 // ---------- sending ----------
 // One Brain ask at a time, each tied to the project and conversation it was typed in (see brainqueue.ts).
-// The Brain's answer streams in (Vercel AI SDK: its transport and stream reader; server/uistream.ts
+// The Brain's answer streams in (an oRPC call read with the Vercel AI SDK's stream reader; server/uistream.ts
 // streamBrain): onUpdate sees the message so far, and the whole answer comes at the end (data-answer).
 interface BrainAsk {
   attachments: string[];
@@ -1000,8 +1000,8 @@ interface BrainAsk {
   signal?: AbortSignal;
 }
 async function streamBrainAnswer(text: string, project: string | null, { attachments, onUpdate, goal, signal }: BrainAsk): Promise<BrainAnswer> {
-  const [{ readUIMessageStream }, { brainTransport }] = await Promise.all([import('ai'), import('./chat/transport.ts')]);
-  const stream = await brainTransport({ text, project, attachments, ...(goal ? { goal: true } : {}) }).sendMessages({ chatId: 'brain', messages: [], trigger: 'submit-message', messageId: undefined, abortSignal: signal });
+  const [{ readUIMessageStream }, { brainStream }] = await Promise.all([import('ai'), import('./chat/transport.ts')]);
+  const stream = await brainStream({ text, project, attachments, ...(goal ? { goal: true } : {}) }, { signal });
   let answer: BrainAnswer | null = null;
   const errors: string[] = [];
   for await (const m of readUIMessageStream({ stream, onError: (e) => errors.push((e as Error).message || String(e)) })) {

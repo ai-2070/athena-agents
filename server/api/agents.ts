@@ -1,5 +1,5 @@
 // The agents' routes (shared/api/agents.ts).
-import { implement } from '@orpc/server';
+import { implement, streamToEventIterator } from '@orpc/server';
 import { agents as contract } from '../../shared/api/agents.ts';
 import * as store from '../store.ts';
 import { agents, chats, workflows, log } from '../store.ts';
@@ -13,16 +13,16 @@ import * as library from '../library.ts';
 import * as commands from '../commands.ts';
 import * as kb from '../knowledge.ts';
 import * as teams from '../teams.ts';
+import { streamRun } from '../uistream.ts';
 import { exists, openWithShell } from '../util.ts';
 import { refuse } from './refuse.ts';
+import { said, saidSomething } from './said.ts';
 import type { Agent, Chat } from '../../shared/types.ts';
 
 const os = implement(contract);
 
 const agentOf = (id: string): Agent => agents.get(id) || refuse('That agent is unavailable.', 404);
 const chatOf = (id: string, chatId: string): Chat => chats.get(id, chatId) || refuse('That chat is unavailable.', 404);
-// what was typed, and the files attached (only uploads of the project count)
-const said = (input: { text?: string; attachments?: string[] }) => ({ text: (input.text || '').trim(), attachments: cleanAttachments(input.attachments) });
 
 /** /queue: a message that goes once the agent is done in this chat (now, if it isn't working). */
 function queueIn(a: Agent, c: Chat, text: string, attachments: string[]) {
@@ -76,6 +76,21 @@ export const agentsRouter = os.router({
   }),
   commands: os.commands.handler(({ input }) => commands.harnessCommands(agentOf(input.id).id)),
   chats: {
+    // (the run is listened to from the moment it starts, so nothing it says is missed)
+    stream: os.chats.stream.handler(async ({ input }) => {
+      const a = agentOf(input.id);
+      const c = chatOf(input.id, input.chatId);
+      const { text, attachments } = saidSomething(input);
+      const { runId, steerId } = input.steer === true ? await engines.steerChat(a, c, text, { attachments }) : { ...engines.startRun(a, c, text, { attachments }), steerId: undefined };
+      // a new run (now, or once the one before it stopped) shows what it said before this stream listened; a
+      // message that joined the turn going on doesn't replay it: the view shows that turn already
+      const turn = steerId ? {} : { turn: () => engines.liveChat(c.id)?.items ?? [] };
+      return streamToEventIterator(streamRun({ chatId: c.id, runId, waiting: `Waiting for ${a.name} to stop…`, ...(steerId ? { ownSteer: steerId } : {}), ...turn, live: engines.runActive }));
+    }),
+    reconnect: os.chats.reconnect.handler(({ input: { id, chatId } }) => {
+      const runId = engines.chatRunId(id, chatId);
+      return runId ? streamToEventIterator(streamRun({ chatId, runId, turn: () => engines.liveChat(chatId)?.items ?? [] })) : null;
+    }),
     list: os.chats.list.handler(({ input }) => chats.list(input.id)),
     create: os.chats.create.handler(({ input }) => chats.create(agentOf(input.id).id)),
     get: os.chats.get.handler(({ input: { id, chatId } }) => ({ ...chatOf(id, chatId), queued: engines.queuedMessages(chatId), loop: engines.loopOf(chatId), goal: openGoal('agent', id, chatId) })),
@@ -95,8 +110,7 @@ export const agentsRouter = os.router({
     send: os.chats.send.handler(({ input }) => {
       const a = agentOf(input.id);
       const c = chatOf(input.id, input.chatId);
-      const { text, attachments } = said(input);
-      if (!text && !attachments.length) return refuse('Type a message first.');
+      const { text, attachments } = saidSomething(input);
       // "/queue …" waits until the agent is done here (or goes now)
       const queued = queuedText(text);
       if (queued != null) return queueIn(a, c, queued, attachments);

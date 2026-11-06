@@ -1,8 +1,7 @@
 // The page's one way to the server: addresses, headers, errors, uploads and sockets.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiUrl, fileUrl, requestHeaders, serverUrl, setConnection, setPageProject, socketUrl } from '../../web/client/connection.ts';
-import { api, fetchFile, serverFetch, upload } from '../../web/client/http.ts';
-import { dashFetch } from '../../web/chat/transport.ts';
+import { api, fetchFile, upload } from '../../web/client/http.ts';
 
 type Call = { url: string; init: RequestInit };
 let calls: Call[] = [];
@@ -88,22 +87,6 @@ describe('api()', () => {
     await api('/state');
     expect(headersOf(calls[0])).toEqual({ 'x-dash': '1', 'x-device': 'phone-1' });
     expect(requestHeaders()).toEqual({ 'x-dash': '1', 'x-device': 'phone-1' });
-  });
-});
-
-describe('serverFetch() and the chat transport', () => {
-  it('adds the dashboard header to what the caller sends', async () => {
-    vi.stubGlobal('fetch', answer({}));
-    await serverFetch('/api/brain/stream', { method: 'POST', headers: { 'content-type': 'application/json' } });
-    expect(headersOf(calls[0])).toEqual({ 'x-dash': '1', 'content-type': 'application/json' });
-  });
-
-  it("turns a refusal into just the server's message for the AI SDK", async () => {
-    vi.stubGlobal('fetch', answer({ error: 'This chat is already working on something.' }, 409));
-    const res = await dashFetch('/api/agents/a/chats/c/stream', { method: 'POST' });
-    expect(res.status).toBe(409);
-    expect(await res.text()).toBe('This chat is already working on something.');
-    expect(headersOf(calls[0])['x-dash']).toBe('1');
   });
 });
 

@@ -38,7 +38,6 @@ import * as skills from './skills.ts';
 import * as learning from './learning.ts';
 import * as uploads from './uploads.ts';
 import * as files from './files.ts';
-import * as uistream from './uistream.ts';
 import * as routinesMod from './routines.ts';
 import * as backup from './backup.ts';
 import { devPage, pageCsp, viteFromArgs } from './devpage.ts';
@@ -172,21 +171,10 @@ postFile('/api/backups/restore', async (_p, upload, q) => {
 // (who a message goes to, and its drafts of an agent, a team or a skill: server/api/assist.ts)
 // The Brain answers agents' and teams' permission requests (Settings > The Brain approves).
 setReviewer(overseer.reviewApproval);
-// Asking it anything about the project, streamed (Vercel AI SDK UI message stream): the answer as it is written, the files the
-// Brain reads, then the whole answer (data-answer). The Brain chat reads it with the AI SDK.
-post<{ text?: unknown; project?: unknown; attachments?: unknown; goal?: unknown }>('/api/brain/stream', async (_p, body, _q, res) => {
-  const attachments = uploads.cleanAttachments(body.attachments);
-  const text = String(body.text || '').trim().slice(0, 20000);
-  if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
-  const project = typeof body.project === 'string' ? body.project : null;
-  // (refused before the stream starts, so it comes back as an error the chat can show)
-  overseer.checkProject(project);
-  await uistream.streamBrain(res, (onPart) => overseer.ask(text, { project, attachments, onPart, goal: body.goal === true }));
-  return undefined;
-});
+// (asking it, its answer whole or streamed: server/api/brain.ts)
 
 // ---------- agents ----------
-// server/api/agents.ts, with their chats; a chat's run streams are below
+// server/api/agents.ts, with their chats and their run streams
 
 // a chat's tasks: server/api/tasks.ts. The Tasks board: server/api/taskboard.ts, except a task's files (below)
 // A file on a task or one of its comments (?path= as the task lists it), from the task's own project.
@@ -199,30 +187,6 @@ get('/api/task-board-file/:projectId/:id', async ({ projectId, id }, _b, q, res)
   sendFileSafely(res, file);
   return undefined;
 });
-// The chat views (Vercel AI SDK useChat): send a message and stream its run as a UI message stream,
-// or pick up the run going in a chat (the turn so far, then the rest; 204 when nothing runs).
-// steer: sent while it works, it stops the run going now and goes next (its /queue messages still wait).
-post<{ text?: unknown; attachments?: unknown; steer?: unknown }>('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, body, _q, res) => {
-  const a = need(agents.get(id));
-  const c = need(chats.get(id, cid));
-  const text = String(body.text || '').trim();
-  const attachments = uploads.cleanAttachments(body.attachments);
-  if (!text && !attachments.length) throw new HttpError(400, 'Type a message first.');
-  const { runId, steerId } = body.steer === true ? await engines.steerChat(a, c, text, { attachments }) : { ...engines.startRun(a, c, text, { attachments }), steerId: undefined };
-  await uistream.streamRun(res, { chatId: c.id, runId, waiting: `Waiting for ${a.name} to stop…`, ...(steerId ? { ownSteer: steerId } : {}), live: engines.runActive });
-  return undefined;
-});
-get('/api/agents/:id/chats/:cid/stream', async ({ id, cid }, _b, _q, res) => {
-  const runId = engines.chatRunId(id, cid);
-  if (!runId) {
-    res.writeHead(204, { 'cache-control': 'no-store' });
-    res.end();
-    return undefined;
-  }
-  await uistream.streamRun(res, { chatId: cid, runId, items: engines.liveChat(cid)?.items || [] });
-  return undefined;
-});
-
 
 // (skills: server/api/skills.ts; MEMORY.md: server/api/files.ts)
 

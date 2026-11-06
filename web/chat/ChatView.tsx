@@ -7,7 +7,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { APICallError } from 'ai';
 import { attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
 import { rpcAt } from '../client/rpc.ts';
 import type { AttachTray } from '../attach.tsx';
@@ -84,7 +83,7 @@ function useAppState(): AppState | null {
   return data;
 }
 
-export { chatTransport, streamUrl } from './transport.ts';
+export { chatTransport } from './transport.ts';
 
 export function ChatView(p: ChatViewProps) {
   const { agent } = p;
@@ -151,10 +150,10 @@ export function ChatView(p: ChatViewProps) {
     onData: (part) => {
       if (part.type === 'data-status') setStatusText((part.data as { text: string }).text);
     },
-    // a refusal (busy, a bad request) comes as the AI SDK's APICallError, and a send that never reached
-    // the server (no connection) fails before any answer; a run that failed, as an error in its stream
-    // (the message was sent and is in the chat)
-    onError: (e) => (failed.current = { message: e.message || 'Could not send.', refused: APICallError.isInstance(e) || !accepted.current }),
+    // a refusal (busy, a bad request) and a send that never reached the server (no connection) fail before
+    // the server answers with a stream; a run that failed, as an error in its stream (the message was sent and
+    // is in the chat)
+    onError: (e) => (failed.current = { message: e.message || 'Could not send.', refused: !accepted.current }),
   });
   const streaming = status === 'submitted' || status === 'streaming';
   const streamingRef = useRef(streaming);

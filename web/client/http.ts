@@ -39,11 +39,6 @@ export async function api<T = unknown>(path: string, { method = 'GET', body, raw
   return data as T;
 }
 
-/** fetch with the dashboard's headers, for callers that read the answer themselves (the chat stream).
- *  Takes a full address, as the AI SDK hands it over. */
-export const serverFetch = (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> =>
-  fetch(input, { ...init, headers: { ...requestHeaders(), ...Object.fromEntries(new Headers(init.headers).entries()) } });
-
 /** A file from the server as it is (a 3D model, an image to copy), by the address apiUrl or fileUrl gave. */
 export async function fetchFile(url: string): Promise<Response> {
   const res = await fetch(url);

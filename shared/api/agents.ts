@@ -4,7 +4,8 @@
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
 import type { Effort } from '../effort.ts';
-import type { Agent, AgentDetail, Autonomy, BrainBrief, Chat, ChatSummary, EngineId, HarnessCommand, LoopInfo, QueuedMessage } from '../types.ts';
+import { message } from './message.ts';
+import type { Agent, AgentDetail, Autonomy, BrainBrief, Chat, ChatSummary, EngineId, HarnessCommand, LoopInfo, QueuedMessage, UIStream } from '../types.ts';
 
 // (Records, so a new engine, autonomy or effort can't be left out here)
 export const ENGINES = { 'claude-code': 'claude-code', eve: 'eve', hermes: 'hermes', codex: 'codex', pi: 'pi', omp: 'omp', openclaw: 'openclaw' } as const satisfies Record<EngineId, EngineId>;
@@ -48,17 +49,19 @@ export type AgentPatch = z.input<typeof agentPatch>;
 
 const oneAgent = z.object({ id: z.string() });
 const oneChat = oneAgent.extend({ chatId: z.string() });
-// what you send: words, and files you attached (uploads of the project)
-const message = {
-  text: z.string({ error: 'Type a message first.' }).optional(),
-  attachments: z.array(z.string(), { error: 'attachments must be a list.' }).optional(),
-};
 /** A message sent now ({ runId }), or put in the queue because the agent is working here ({ queued }). */
 type Sent = { runId: string } | { queued: QueuedMessage };
 const chatPath = '/agents/{id}/chats/{chatId}';
 
-/** An agent's chats. Its run streams are still answered by server/index.ts (…/stream). */
+/** An agent's chats. */
 const chats = {
+  /** Sends a message and streams its run (the chat views, with the AI SDK). steer: sent while it works, it stops
+   *  the run going now and goes next (its /queue messages still wait). */
+  stream: oc.route({ method: 'POST', path: `${chatPath}/stream` })
+    .input(oneChat.extend({ ...message, steer: z.boolean({ error: 'steer must be true or false.' }).optional() }))
+    .output(type<UIStream>()),
+  /** Picks up the run going in the chat: the turn so far, then the rest. null when nothing runs. */
+  reconnect: oc.route({ method: 'GET', path: `${chatPath}/stream` }).input(oneChat).output(type<UIStream | null>()),
   list: oc.route({ method: 'GET', path: '/agents/{id}/chats' }).input(oneAgent).output(type<ChatSummary[]>()),
   create: oc.route({ method: 'POST', path: '/agents/{id}/chats' }).input(oneAgent).output(type<Chat>()),
   /** With your /queue messages still waiting, and your /loop and /goal there. */

@@ -27,7 +27,8 @@ export function apiError(e: unknown): unknown {
 // fetch(address, { method, headers, body }) like api(): requests look the same to the server and to tests. The body
 // goes as oRPC made it (JSON text once), never through a Request and back.
 // The answer is read like api() reads it too: JSON whatever its content type says. (The routes always say JSON, so
-// only a short answer without it, an empty one or a plain "Not found", is read twice.)
+// only a short answer without it, an empty one or a plain "Not found", is read twice.) A stream (the chats'
+// runs) is handed on as it comes.
 const client: StandardLinkClient<ClientContext> = {
   async call(request) {
     const headers = toFetchHeaders(request.headers);
@@ -43,7 +44,8 @@ const client: StandardLinkClient<ClientContext> = {
 };
 
 async function asJson(res: Response): Promise<Response> {
-  if ((res.headers.get('content-type') || '').includes('json')) return res;
+  const type = res.headers.get('content-type') || '';
+  if (type.includes('json') || type.includes('event-stream')) return res;
   const text = await res.text();
   try {
     JSON.parse(text);

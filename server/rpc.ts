@@ -49,6 +49,9 @@ function oldBody<R extends { body: () => Promise<unknown> }>(request: R): R {
   return { ...request, body: () => (read ??= body()) };
 }
 
+// (an event iterator: oRPC sends it as text/event-stream)
+const isStream = (body: unknown): boolean => typeof body === 'object' && body !== null && Symbol.asyncIterator in body;
+
 /** Answers a router's procedures the way the old routes answer: JSON, never cached, errors as { error }.
  *  maxBodySize: JSON_LIMIT, unless a test wants less. */
 export function rpcHandler(router: AnyRouter, maxBodySize = JSON_LIMIT): OpenAPIHandler<Record<never, never>> {
@@ -69,7 +72,11 @@ export function rpcHandler(router: AnyRouter, maxBodySize = JSON_LIMIT): OpenAPI
     rootInterceptors: [
       async ({ next }) => {
         const result = await next();
-        if (result.matched) result.response.headers['cache-control'] = 'no-store';
+        if (!result.matched) return result;
+        result.response.headers['cache-control'] = 'no-store';
+        // a stream (the chats' runs, the Brain's answer) goes out as it is written, even through a proxy that
+        // would otherwise hold it back (nginx)
+        if (isStream(result.response.body)) result.response.headers['x-accel-buffering'] = 'no';
         return result;
       },
     ],
