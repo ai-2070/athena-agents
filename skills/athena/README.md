@@ -179,6 +179,12 @@ task or a conversation into a skill, which agents save with the `save_skill` too
 searches the library for a name that is no skill). Hermes Agent's `/learn` command gave the idea, and Grok Bot's
 "Teach a task" the screen recordings (`docs/internal/GROK_BOT_TEACH_BY_DEMONSTRATION_2026-11-05.md`).
 
+`one-take-video` has none either: it makes a narrated video as one continuous camera move over one world, drawn on an
+HTML canvas and rendered frame by frame to an MP4. It grew from a prompt for that kind of video (one world, one hero per
+line of narration, hits on the spoken word, a beat table before anything is built). Its one script is Node, since the
+film is a web page: `film.mjs` drives the Chrome, Edge or Chromium already on the computer over the DevTools protocol,
+so it needs no npm packages, and its tests run it with Node 22, the oldest version it promises.
+
 ## Where the Hermes skills went
 
 From [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) at commit

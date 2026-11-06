@@ -36,6 +36,7 @@ export const SKILL_MARKS: Record<string, SkillMarkSpec> = {
   learn: { icon: 'graduation-cap' },
   'llm-wiki': { icon: 'book-open' },
   maps: { logo: 'openstreetmap' },
+  'one-take-video': { icon: 'camera' },
   pdf: { icon: 'file-pdf', color: '#d93831' },
   powerpoint: { icon: 'microsoft-powerpoint', color: '#c43e1c' },
   'requesting-code-review': { icon: 'git-diff' },

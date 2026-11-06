@@ -10,7 +10,7 @@ const dir = path.join(ROOT, 'skills', 'athena');
 const testsDir = path.join(ROOT, 'tests', 'skills');
 const replaced = JSON.parse(fs.readFileSync(path.join(dir, 'replaced.json'), 'utf8')) as { skills: Record<string, { now: string | null; path: string }> };
 // the 39 that replace Hermes's, and the ones of our own with no Hermes skill behind them
-const OWN = ['learn'];
+const OWN = ['learn', 'one-take-video'];
 const fromHermes = [...new Set(Object.values(replaced.skills).flatMap((s) => (s.now ? [s.now] : [])))];
 const planned = [...fromHermes, ...OWN].sort();
 const ids = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
