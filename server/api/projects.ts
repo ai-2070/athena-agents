@@ -11,12 +11,11 @@ import * as programs from '../programs.ts';
 import { enableOrcaSkill } from '../skills.ts';
 import { openWithShell } from '../util.ts';
 import { savedOpacity } from '../../shared/look.ts';
-import { refuse } from './refuse.ts';
+import { refuse, refusing } from './refuse.ts';
 import type { Project, RestoreResult } from '../../shared/types.ts';
 
 const os = implement(contract);
 
-const projectOf = (id: string): Project => store.listProjects().find((p) => p.id === id) || refuse('That project is unavailable.', 404);
 /** A change to a project's pictures, told to open tabs. */
 const pictured = <T>(id: string, p: T): T => (store.emit('project-logo', { id }), p);
 
@@ -56,9 +55,9 @@ export const projectsRouter = os.router({
     // the Station in other tabs draws the new opacity
     return 'backgroundOpacity' in patch || 'mapDotsOpacity' in patch ? pictured(id, p) : p;
   }),
-  folder: os.folder.handler(({ input }) => projects.folderListing(input.path || '', projectOf(input.id))),
+  folder: os.folder.handler(({ input }) => projects.folderListing(input.path || '', store.projectById(input.id))),
   open: os.open.handler(async ({ input }) => {
-    const dir = projects.brainFolder(input.path, projectOf(input.id));
+    const dir = projects.brainFolder(input.path, store.projectById(input.id));
     if (input.app === 'vscode') return { message: await programs.launchProgram('vscode', { file: dir }) };
     openWithShell(dir);
     return { ok: true as const };
@@ -73,11 +72,8 @@ export const projectsRouter = os.router({
   // Backs it up, checks the backup, then removes it. Not while an agent is working in it.
   delete: os.delete.handler(({ input: { id } }) => {
     if (engines.activeRuns().some((run) => engines.runInfo(run.id)?.projectId === id)) return refuse('An agent is still working in this project. Stop it first, then delete the project.', 409);
-    try {
-      return backup.backupAndDeleteProject(id);
-    } catch (e) {
-      return refuse(e instanceof Error ? e.message : String(e), 400);
-    }
+    // (a backup still being unpacked keeps its 409)
+    return refusing(() => backup.backupAndDeleteProject(id));
   }),
   setLogo: os.setLogo.handler(({ input }) => pictured(input.id, projects.setLogo(input.id, input.data))),
   removeLogo: os.removeLogo.handler(({ input }) => pictured(input.id, projects.removeLogo(input.id))),

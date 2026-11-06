@@ -10,8 +10,7 @@ import { cloneTeam } from '../presets.ts';
 import { pickMember } from '../brain.ts';
 import { cleanAttachments } from '../uploads.ts';
 import { deleteAgent } from './agents.ts';
-import { refuse } from './refuse.ts';
-import type { Team } from '../../shared/types.ts';
+import { refuse, refusing } from './refuse.ts';
 
 const os = implement(contract);
 
@@ -23,14 +22,6 @@ const cleaned = <T extends { files?: string[]; mark?: string }>(body: T): T => (
   ...(body.files !== undefined ? { files: cleanAttachments(body.files) } : {}),
   ...(body.mark !== undefined ? { mark: teamMarks.cleanMark(body.mark) } : {}),
 });
-// a picture or model that isn't right is refused in its own words
-const marked = (fn: () => Team): Team => {
-  try {
-    return fn();
-  } catch (e) {
-    return refuse(e instanceof Error ? e.message : String(e), 400);
-  }
-};
 
 export const workflowsRouter = os.router({
   list: os.list.handler(() =>
@@ -68,7 +59,8 @@ export const workflowsRouter = os.router({
   }),
   setMark: os.setMark.handler(({ input }) => {
     saved(input.id);
-    return marked(() => teamMarks.setMarkFile(input.id, input.name, input.data));
+    // (a picture or model that isn't right is refused in its own words)
+    return refusing(() => teamMarks.setMarkFile(input.id, input.name, input.data));
   }),
   removeMark: os.removeMark.handler(({ input }) => {
     saved(input.id);

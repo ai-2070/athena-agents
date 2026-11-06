@@ -3,9 +3,10 @@
 // back, a kind of thing without versions, an agent kept as a preset and made again, and hiring from the library.
 import http from 'node:http';
 import type net from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { handleRpc } from '../../server/rpc.ts';
 import { newAgent } from '../../server/library.ts';
+import * as presets from '../../server/presets.ts';
 import { agents } from '../../server/store.ts';
 import type { Agent, AgentPreset, LibraryIndex, Skill, VersionHistory } from '../../shared/types.ts';
 
@@ -64,6 +65,19 @@ describe('presets and the library over oRPC', () => {
     expect(await send('DELETE', `/api/presets/${preset.id}`)).toEqual({ status: 200, json: { ok: true } });
     expect(await send('POST', `/api/presets/${preset.id}/use`)).toEqual({ status: 404, json: { error: 'No such preset.' } });
     expect(await send('POST', '/api/presets/agent/nobody')).toEqual({ status: 404, json: { error: 'No such agent.' } });
+    expect(await send('POST', '/api/presets/team/nobody')).toEqual({ status: 404, json: { error: 'No such team.' } });
+  });
+
+  it('answer a preset that fails to save as a 500, not as not found', async () => {
+    const a = newAgent({ name: 'Copywriter' });
+    const full = vi.spyOn(presets, 'saveAgentPreset').mockImplementation(() => {
+      throw new Error('The disk is full.');
+    });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await send('POST', `/api/presets/agent/${a.id}`)).toEqual({ status: 500, json: { error: 'The disk is full.' } });
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
+    full.mockRestore();
   });
 
   it('list the library, show an agent of it, hire one, and refuse a source it does not know', async () => {

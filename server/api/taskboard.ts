@@ -3,32 +3,27 @@
 // someone else stops it. Files are uploads of the open project, copied into the task's own.
 import { implement } from '@orpc/server';
 import { taskBoard as contract } from '../../shared/api/taskboard.ts';
-import { listProjects } from '../store.ts';
+import { projectById } from '../store.ts';
 import { filesFromRequest } from '../boardfiles.ts';
 import { draftBoardText } from '../taskdraft.ts';
 import * as board from '../taskboard.ts';
 import * as work from '../boardwork.ts';
 import { refuse } from './refuse.ts';
-import type { Project } from '../../shared/types.ts';
 
 const os = implement(contract);
-
-function projectOf(id: string): Project {
-  return listProjects().find((p) => p.id === id) || refuse('That project is unavailable.', 404);
-}
 
 export const taskBoard = os.router({
   list: os.list.handler(({ input }) => board.taskBoard(input.project || 'all')),
   people: os.people.handler(({ input }) => board.boardPeople(input.projectId)),
   add: os.add.handler(async ({ input: { projectId, files: list, ...fields } }) => {
-    const files = await filesFromRequest(projectOf(projectId), list ?? []);
+    const files = await filesFromRequest(projectById(projectId), list ?? []);
     const task = board.addBoardTask(projectId, fields, 'you', files);
     return { task: task.status === 'in_progress' && /^(agent|team):/.test(task.assignee) ? await work.startWork(projectId, task.id) : task };
   }),
   get: os.get.handler(({ input }) => ({ task: board.boardTask(input.projectId, input.id) })),
   change: os.change.handler(async ({ input: { projectId, id, files: list, ...change } }) => {
     const before = board.savedBoardTask(projectId, id) || refuse('That task is unavailable.', 404);
-    const files = list === undefined ? undefined : await filesFromRequest(projectOf(projectId), list, before.files);
+    const files = list === undefined ? undefined : await filesFromRequest(projectById(projectId), list, before.files);
     const after = board.changeBoardTask(projectId, id, change, files);
     return { task: await work.afterUserChange(projectId, before, after) };
   }),
@@ -50,7 +45,7 @@ export const taskBoard = os.router({
   },
   comments: {
     add: os.comments.add.handler(async ({ input: { projectId, id, text, files: list } }) => {
-      const files = await filesFromRequest(projectOf(projectId), list ?? []);
+      const files = await filesFromRequest(projectById(projectId), list ?? []);
       const task = board.addBoardComment(projectId, id, text, 'you', files);
       // (while an agent or team works on it, your comment reaches them too)
       void work.passToWorker(projectId, id, `A new comment on the task from you:\n\n${text ?? ''}`, files).catch(() => {});

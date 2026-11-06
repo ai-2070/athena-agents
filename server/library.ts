@@ -23,6 +23,8 @@ export interface ClaudeSubagent extends ClaudeSubagentListing {
 // Athena's agents (the folder's README.md has the standard each file follows). Only the folders groups.json names
 // are read, in its order.
 const LIBRARY_DIR = path.join(ROOT, 'library', 'athena-agents');
+// (answered as a 404 by the routes)
+const notFound = (msg: string) => Object.assign(new Error(msg), { status: 404 });
 const commaList = (v: string | undefined): string[] => (v || '').split(',').map((x) => x.trim()).filter(Boolean);
 
 let libraryCache: LibraryAgent[] | null = null;
@@ -128,7 +130,7 @@ const isEngineId = (e: string): e is EngineId => Object.hasOwn(ENGINE_IDS, e);
 // library. The file itself is never changed.
 export function hireFromLibrary(slug: string, overrides: Partial<Agent> = {}): Agent {
   const a = libraryAgents().find((x) => x.slug === slug);
-  if (!a) throw new Error('That agent is not in the library.');
+  if (!a) throw notFound('That agent is not in the library.');
   const { body } = parseFrontmatter(fs.readFileSync(a.file, 'utf8'));
   const agent = newAgent({
     name: a.name,
@@ -165,7 +167,7 @@ export function hireHermesProfile(profile: string, overrides: Partial<Agent> = {
 
 export function importClaudeSubagent(slug: string): Agent {
   const s = claudeSubagents().find((x) => x.slug === slug);
-  if (!s) throw new Error('No such Claude Code subagent.');
+  if (!s) throw notFound('No such Claude Code subagent.');
   const { body } = parseFrontmatter(fs.readFileSync(s.file, 'utf8'));
   return newAgent({ name: s.name, emoji: '✳️', specialty: s.description.slice(0, 140), description: s.description, systemPrompt: body.trim(), engine: 'claude-code', source: { type: 'claude', slug } });
 }

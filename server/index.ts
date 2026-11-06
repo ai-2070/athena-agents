@@ -101,8 +101,7 @@ const SCOPED = /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|workflows|tasks(\
 function scopedRoute(pathname: string): { project: Project; path: string } | null {
   const m = /^\/api\/p\/([^/]+)(\/.*)$/.exec(pathname);
   if (!m) return null;
-  const project = store.listProjects().find((p) => p.id === decodeURIComponent(m[1]));
-  if (!project) throw new HttpError(404, 'That project is unavailable.');
+  const project = store.projectById(decodeURIComponent(m[1]));
   if (!SCOPED.test(m[2])) throw new HttpError(404, `${m[2]} isn't available for another project.`);
   return { project, path: `/api${m[2]}` };
 }
@@ -190,10 +189,9 @@ post<{ text?: unknown; project?: unknown; attachments?: unknown; goal?: unknown 
 // server/api/agents.ts, with their chats; a chat's run streams are below
 
 // a chat's tasks: server/api/tasks.ts. The Tasks board: server/api/taskboard.ts, except a task's files (below)
-const boardProject = (id: string) => need(store.listProjects().find((p) => p.id === id));
 // A file on a task or one of its comments (?path= as the task lists it), from the task's own project.
 get('/api/task-board-file/:projectId/:id', async ({ projectId, id }, _b, q, res) => {
-  const p = boardProject(projectId);
+  const p = store.projectById(projectId);
   const t = need(taskBoard.savedBoardTask(projectId, id));
   const listed = [...(t.files || []), ...(t.comments || []).flatMap((c) => c.files || [])].some((f) => f.path === q.path);
   const file = listed ? taskFilePath(p, q.path) : null;

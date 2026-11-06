@@ -4,7 +4,7 @@ import { implement } from '@orpc/server';
 import { library as libraryContract, presets as presetsContract } from '../../shared/api/library.ts';
 import * as library from '../library.ts';
 import * as presets from '../presets.ts';
-import { refuse, refusing } from './refuse.ts';
+import { refuse } from './refuse.ts';
 
 const l = implement(libraryContract);
 const p = implement(presetsContract);
@@ -15,21 +15,19 @@ export const libraryRouter = l.router({
     const { file, ...a } = library.libraryAgents().find((x) => x.slug === input.slug) || refuse('That agent is not in the library.', 404);
     return { ...a, body: fs.readFileSync(file, 'utf8') };
   }),
-  hire: l.hire.handler(({ input }) =>
-    // (each says when what it names isn't there)
-    refusing(() => {
-      const o = input.overrides || {};
-      if (input.source === 'library') return library.hireFromLibrary(input.slug ?? '', o);
-      if (input.source === 'hermes') return library.hireHermesProfile(input.profile ?? '', o);
-      return library.importClaudeSubagent(input.slug ?? '');
-    }, 404),
-  ),
+  // (each says, with a 404, when what it names isn't there; anything else that goes wrong is a 500)
+  hire: l.hire.handler(({ input }) => {
+    const o = input.overrides || {};
+    if (input.source === 'library') return library.hireFromLibrary(input.slug ?? '', o);
+    if (input.source === 'hermes') return library.hireHermesProfile(input.profile ?? '', o);
+    return library.importClaudeSubagent(input.slug ?? '');
+  }),
 });
 
 export const presetsRouter = p.router({
   list: p.list.handler(() => presets.listPresets()),
-  saveAgent: p.saveAgent.handler(({ input: { id, ...o } }) => refusing(() => presets.saveAgentPreset(id, o), 404)),
-  saveTeam: p.saveTeam.handler(({ input: { id, ...o } }) => refusing(() => presets.saveTeamPreset(id, o), 404)),
-  use: p.use.handler(({ input }) => refusing(() => presets.usePreset(input.id), 404)),
-  remove: p.remove.handler(({ input }) => (refusing(() => presets.deletePreset(input.id), 404), { ok: true as const })),
+  saveAgent: p.saveAgent.handler(({ input: { id, ...o } }) => presets.saveAgentPreset(id, o)),
+  saveTeam: p.saveTeam.handler(({ input: { id, ...o } }) => presets.saveTeamPreset(id, o)),
+  use: p.use.handler(({ input }) => presets.usePreset(input.id)),
+  remove: p.remove.handler(({ input }) => (presets.deletePreset(input.id), { ok: true as const })),
 });

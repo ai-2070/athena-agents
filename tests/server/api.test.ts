@@ -690,6 +690,9 @@ describe('attached files', () => {
     // only what the task lists, and nothing outside the uploads folder
     expect((await file(`${batch}/other.txt`)).status).toBe(404);
     expect((await file('../../secrets.json')).status).toBe(404);
+    const elsewhere = await req(`/api/task-board-file/nope/${task.id}?path=${encodeURIComponent(task.files[0].path)}`);
+    expect(elsewhere.status).toBe(404);
+    expect(await elsewhere.json()).toEqual({ error: 'That project is unavailable.' });
     const commented = (await (await req(`/api/task-board/${pid}/${task.id}/comments`, { method: 'POST', headers: json, body: JSON.stringify({ text: '', files: [other.path] }) })).json()).task;
     expect(commented.comments.at(-1).files[0].name).toBe('other.txt');
     expect(await (await file(`${batch}/other.txt`)).text()).toBe('Bread');

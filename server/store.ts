@@ -177,6 +177,13 @@ export function listProjects(): Project[] {
   return first;
 }
 
+/** A project by its id; one that isn't there is refused as a 404 (the routes answer it in these words). */
+export function projectById(id: string): Project {
+  const p = listProjects().find((x) => x.id === id);
+  if (!p) throw Object.assign(new Error('That project is unavailable.'), { status: 404 });
+  return p;
+}
+
 /** Was the default project just made (a fresh data folder)? Says so once: see projectsync's adoptSavedFolder. */
 export function takeNewDefaultProject(): Project | null {
   if (!madeDefault) return null;

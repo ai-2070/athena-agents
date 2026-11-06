@@ -11,6 +11,8 @@ import type { Agent, AgentPreset, AgentTemplate, Preset, PresetListing, Team, Te
 /** An agent without what belongs to one copy of it (id, dates, last model, pin, workspace, _fields). */
 export type { AgentPreset, AgentTemplate, Preset, TeamPreset, TeamTemplate } from '../shared/types.ts';
 
+// (answered as a 404 by the routes)
+const notFound = (msg: string) => Object.assign(new Error(msg), { status: 404 });
 const DIR = () => ensureDir(dataPath('presets'));
 const RUNTIME_FIELDS = ['id', 'createdAt', 'updatedAt', 'lastModel', 'lastModelAt', 'pinned', 'workspace'];
 const agentTemplate = (a: Partial<Agent>): AgentTemplate => Object.fromEntries(Object.entries(a).filter(([k]) => !RUNTIME_FIELDS.includes(k) && !k.startsWith('_'))) as AgentTemplate;
@@ -38,7 +40,7 @@ export function listPresets(): PresetListing[] {
 
 export function saveAgentPreset(agentId: string, { name }: { name?: string } = {}): AgentPreset {
   const a = agents.get(agentId);
-  if (!a) throw new Error('No such agent.');
+  if (!a) throw notFound('No such agent.');
   const p: AgentPreset = { id: uid('pa'), kind: 'agent', name: String(name || a.name).slice(0, 80), description: a.specialty || '', savedAt: Date.now(), agent: agentTemplate(a) };
   writeJSON(path.join(DIR(), `${p.id}.json`), p);
   log('preset', `Saved ${a.name} as a preset`);
@@ -47,7 +49,7 @@ export function saveAgentPreset(agentId: string, { name }: { name?: string } = {
 
 export function saveTeamPreset(teamId: string, { name }: { name?: string } = {}): TeamPreset {
   const t = getTeam(teamId); // an old step list gets its members from its agent steps
-  if (!t) throw new Error('No such team.');
+  if (!t) throw notFound('No such team.');
   const ids = t.members;
   const p: TeamPreset = {
     id: uid('pt'),
@@ -65,14 +67,14 @@ export function saveTeamPreset(teamId: string, { name }: { name?: string } = {})
 }
 
 export function deletePreset(id: string) {
-  if (!/^p[at][\w-]+$/.test(String(id))) throw new Error('No such preset.');
+  if (!/^p[at][\w-]+$/.test(String(id))) throw notFound('No such preset.');
   fs.rmSync(path.join(DIR(), `${id}.json`), { force: true });
 }
 
 // Make it in the current project: a new agent, or a new team with new agents.
 export function usePreset(id: string): { agent: Agent } | { team: Team; agents: Agent[] } {
   const p = readJSON<Preset>(path.join(DIR(), `${path.basename(String(id))}.json`), null);
-  if (!p) throw new Error('No such preset.');
+  if (!p) throw notFound('No such preset.');
   if (p.kind === 'agent') {
     // (an imported preset may carry an id or other per-copy fields: never reuse them)
     const a = newAgent({ ...agentTemplate(structuredClone(p.agent)), source: { type: 'preset', preset: p.id } });
@@ -95,7 +97,7 @@ export function usePreset(id: string): { agent: Agent } | { team: Team; agents: 
 // Copy a team in this project. withAgents: its members are copied too (otherwise the copy shares them).
 export function cloneTeam(teamId: string, { withAgents = false }: { withAgents?: boolean } = {}): Team {
   const t = getTeam(teamId); // an old step list gets its members from its agent steps
-  if (!t) throw new Error('No such team.');
+  if (!t) throw notFound('No such team.');
   let members = t.members;
   let lead = t.lead;
   let swap = (id: string) => id;

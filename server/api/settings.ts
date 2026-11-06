@@ -28,6 +28,7 @@ export const settingsRouter = s.router({
   }),
   testVenice: s.testVenice.handler(async () => {
     if (!store.getSecrets().veniceKey) return refuse('No Venice key saved.');
+    // Not refusing(): a Venice error carries Venice's own status (a 401 there is the key, not this request).
     try {
       return await readVeniceAccount(true);
     } catch (error) {
