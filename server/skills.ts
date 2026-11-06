@@ -427,7 +427,9 @@ export function setBrainSkills(slugs: unknown): string[] {
 // Added to the library once, and brought up to date while nobody has changed the copy. Deleting one keeps it
 // deleted (data/skills/.builtin.json remembers; ensureBuiltinSkills).
 export const SELF_IMPROVEMENT = 'self-improvement';
-const BUILTIN: { slug: string; name: string; description: string; body: string }[] = [
+/** The claude-motion commit the toolkit is fetched at: the one skills/claude-motion was copied from (its README). */
+export const CLAUDE_MOTION_COMMIT = 'e627941543d9988b155dc610bb9cc0115a5e365e';
+const BUILTIN:{ slug: string; name: string; description: string; body: string }[] = [
   {
     slug: SELF_IMPROVEMENT,
     name: 'Self-improvement',
@@ -609,35 +611,48 @@ Read \`result.launch\`: \`outcome.handle\` is the agent's handle, \`outcome.kind
 
 [claude-motion](https://github.com/whaleyxbt/claude-motion) is a motion design toolkit on [Remotion](https://remotion.dev) (React to video): taste rules with numbers, a loop for checking your own frames, a sound engine in plain Python with no samples, and a second pipeline that renders web simulations frame by frame to 60 fps video.
 
-Its four skills are written for working inside a copy of the toolkit. They run its npm scripts and use its files (\`timeline.json\`, \`src/lib.ts\`, \`sfx/\`, \`sims/\`), so set the copy up first:
+Its four skills are written for working inside a copy of the toolkit. They run its npm scripts and use its files (\`timeline.json\`, \`src/lib.ts\`, \`sfx/\`, \`sims/\`), so set the copy up first, then read them in it:
 - **motion-design**: easing, springs, timing, type, colour, texture and transitions, with numbers. Read it before you write scenes.
 - **review-loop**: render a draft, look at contact sheets of its frames, fix, repeat. After every visible change, and before you call a video done.
 - **sound-design**: a cue sheet for the \`sfx\` engine against the same timeline, levels and mastering. Once the picture's timing is settled.
 - **web-sims**: when the idea is a simulation or a 3D object (agents, particles, a machine the camera flies through) rather than text and UI.
 
 ## 1. Check the tools
-It needs git, Node 20 or newer, Python 3 and ffmpeg: \`git --version\`, \`node --version\`, \`python3 --version\` (on Windows \`python --version\` or \`py --version\`), \`ffmpeg -version\`. If one is missing, tell the user which and how to get it, and install it only if they say so.
+It needs git, Node 20 or newer, Python 3 and ffmpeg: \`git --version\`, \`node --version\`, \`ffmpeg -version\`, and \`python3 --version\` (on Windows, where that name often doesn't exist, \`python --version\` or \`py --version\`). Remember which Python command works: wherever the toolkit says \`python3\`, use that one. If one is missing, tell the user which and how to get it, and install it only if they say so.
 
-## 2. Get the toolkit
+## 2. Get the toolkit, once per project
 - If the project already has a copy (a folder with \`remotion.config.ts\`, \`timeline.json\` and \`sfx/\`), work in it.
-- Otherwise, in the project's folder: \`git clone --depth 1 https://github.com/whaleyxbt/claude-motion\`, then \`npm install\` in the new \`claude-motion\` folder.
+- Otherwise, tell the user in one line that it downloads the toolkit (about 30 MB) and its npm packages into \`claude-motion/\` in the project. Then, in the project's folder, run these one after the other. They fetch the toolkit at the commit the dashboard's copies of its skills come from, so its scripts and its skills match:
+  \`git init claude-motion\`
+  \`git -C claude-motion fetch --depth 1 https://github.com/whaleyxbt/claude-motion ${CLAUDE_MOTION_COMMIT}\`
+  \`git -C claude-motion checkout FETCH_HEAD\`
+  and then \`npm install\` in the new \`claude-motion\` folder.
+- If the project is a git repository, keep the copy out of it without changing a tracked file (the copy has its own git, and a large \`node_modules\`): \`git rev-parse --git-path info/exclude\` prints the exclude file (a worktree's too), and a line \`claude-motion/\` added to it with the file tools makes git ignore the copy.
 - For simulations and 3D, once: \`npx playwright install chromium\` there (or set \`CHROMIUM\` to a Chrome or Chromium already installed).
-- The first time, \`npm run build\` renders the example video with its sound to \`out/effort.mp4\` (a few minutes). If that works, everything works.
+- Check that it works, from the copy's folder: \`npx remotion still EffortVideo out/check.png --frame=60\` renders one frame of the example (the first render downloads a browser for Remotion unless \`REMOTION_BROWSER\` points at one), and \`python3 -m sfx --list\`, with your Python command, lists the sound generators. If both work, the toolkit works.
 
 ## 3. Make the video
 Run every command from the copy's folder: its scripts find \`timeline.json\`, \`sfx/\` and \`out/\` from there.
-1. Read the copy's \`AGENTS.md\`, then the four skills (read_skill, or \`.claude/skills/\` in the copy: the same text).
+1. Read the copy's \`AGENTS.md\`, then its four skills, in the copy: \`.claude/skills/motion-design/SKILL.md\`, \`.claude/skills/review-loop/SKILL.md\`, \`.claude/skills/sound-design/SKILL.md\` and \`.claude/skills/web-sims/SKILL.md\`. Read them there, not with read_skill: they match the copy's scripts, while skills in the library with those names can be a newer or older version, or skills of the user's that only share the name.
 2. Agree on the message, a storyboard, the one hero moment, the format (1:1, 16:9, 9:16), the length, and the brand's colours and fonts with the user.
 3. Follow \`AGENTS.md\`: every beat into a timeline file first, then the scenes, the review loop until a full pass finds nothing, the sound, then render and mux.
-4. A new video gets its own composition, timeline and cue sheet. Leave the example (\`EffortVideo\`) as it is: it is the reference to take apart.
+4. A new video gets its own composition (registered in \`src/Root.tsx\`), its own timeline file, and its own cue sheet \`sfx/cues/<name>.py\` with \`OUT = "public/<name>.wav"\`. Leave the example (\`EffortVideo\`) as it is: it is the reference to take apart.
+
+## Commands for a new video
+The npm shortcuts in the skills are wired to the example: \`npm run draft\`, \`npm run sfx\` and \`npm run build\` render \`EffortVideo\` and its cue sheet \`sfx/cues/effort.py\`, and \`npm run sheet\` and \`npm run wave\` read \`timeline.json\` and the example's files unless told otherwise. For a new video, use the commands they stand for, with its own names (\`<Id>\` is its composition, \`<name>\` the video, \`<timeline>\` its timeline file):
+- draft: \`npx remotion render <Id> out/<name>-draft.mp4 --scale=0.5 --crf=28\`
+- contact sheets: \`npm run sheet -- --video out/<name>-draft.mp4 --timeline <timeline>\`, plus the review loop's \`--from\`, \`--to\`, \`--every\` or exact times; one full frame: \`npx remotion still <Id> out/still.png --frame=<n>\`
+- sound: \`python3 -m sfx sfx/cues/<name>.py\`, then \`npm run wave -- public/<name>.wav --timeline <timeline>\`
+- final: \`npx remotion render <Id> out/<name>-silent.mp4\`, the ffmpeg line in \`AGENTS.md\` to mux it with the sound into \`out/<name>.mp4\`, then \`npm run wave -- out/<name>.mp4 --timeline <timeline>\` for the loudness of the finished file.
 
 ## Pitfalls
-- \`npm run sfx\` and the beat finder in \`sims/capture.mjs\` call \`python3\`. On Windows, where that name often doesn't exist, run \`python -m sfx sfx/cues/<name>.py\` (or \`py -m sfx …\`) yourself.
+- On Windows, where \`python3\` often doesn't exist, \`npm run sfx\` and \`npm run build\` fail: run the sound step with your Python command yourself. The beat finder in \`sims/capture.mjs\` (for \`--music\`) calls \`python3\` too; there, first run \`python sims/beats.py <music> --duration <seconds> --start auto -o out/beats/<music file name without its extension>-auto-<seconds>.json\` (\`<seconds>\`: the capture's length; put the \`--music-start\` you give in place of \`auto\`), and the capture uses that.
 - The first render downloads a browser for Remotion unless one is set up (\`REMOTION_BROWSER\`).
 - Remotion is free for individuals and small teams; companies above its threshold need a company license (remotion.dev/license). When the video is for a company, tell the user once.
+- \`claude-motion/\` holds the toolkit and the video's source. When the video is done, tell the user it's there; they can delete it once they have the video.
 
 ## Done when
-The last review-loop pass found nothing, the loudness check passed (−14 LUFS), and the finished mp4 with sound is in the copy's \`out/\` folder. Tell the user where it is.`,
+The last review-loop pass found nothing, the loudness check of the finished file passed (−14 LUFS), and the finished mp4 with sound is in the copy's \`out/\` folder (\`out/<name>.mp4\`, not the example's \`out/effort.mp4\`). Tell the user where it is.`,
   },
   {
     slug: 'taste-skill',

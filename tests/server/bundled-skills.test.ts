@@ -114,12 +114,27 @@ describe('bundled skills', () => {
     skills.ensureBuiltinSkills();
     const s = skills.getSkill('claude-motion');
     expect(s?.name).toBe('Make videos with claude-motion');
-    expect(s?.body).toContain('git clone --depth 1 https://github.com/whaleyxbt/claude-motion');
-    // it names the four skills it hands over to, and each is in the library
+    // the toolkit at the commit the bundled copies of its skills come from, so its scripts and skills match
+    const readme = fs.readFileSync(path.join(skills.bundledSkillsRoot(), 'claude-motion', 'README.md'), 'utf8');
+    expect(readme).toContain(`\`${skills.CLAUDE_MOTION_COMMIT}\``);
+    expect(s?.body).toContain('git init claude-motion');
+    expect(s?.body).toContain(`git -C claude-motion fetch --depth 1 https://github.com/whaleyxbt/claude-motion ${skills.CLAUDE_MOTION_COMMIT}`);
+    expect(s?.body).toContain('git -C claude-motion checkout FETCH_HEAD');
+    // kept out of the project's own git without changing a tracked file
+    expect(s?.body).toContain('git rev-parse --git-path info/exclude');
+    // it names the four skills it hands over to, each is in the library, and the agent reads the copy's own
     for (const slug of ['motion-design', 'review-loop', 'sound-design', 'web-sims']) {
       expect(s?.body).toContain(`**${slug}**`);
+      expect(s?.body).toContain(`.claude/skills/${slug}/SKILL.md`);
       expect(skills.getSkill(slug)).toBeTruthy();
     }
+    // the check that it works doesn't run python3 through npm (often missing on Windows)
+    expect(s?.body).not.toMatch(/npm run build`[^.]*If that works/);
+    expect(s?.body).toContain('python3 -m sfx --list');
+    // a new video's own commands, not the shortcuts wired to the example
+    expect(s?.body).toContain('npx remotion render <Id> out/<name>-draft.mp4');
+    expect(s?.body).toContain('npm run sheet -- --video out/<name>-draft.mp4 --timeline <timeline>');
+    expect(s?.body).toContain('python3 -m sfx sfx/cues/<name>.py');
     expect(s?.origin).toBeFalsy();
     expect(skills.bundledSkills().map((b) => b.slug)).not.toContain('claude-motion');
   });
