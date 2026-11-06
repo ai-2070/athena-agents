@@ -3,6 +3,17 @@
   "extends": [
     "config:recommended"
   ],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "platformAutomerge": false,
+  "lockFileMaintenance": {
+    "description": "A human reads this one. The 2026-08-31 refresh rewrote bun.lock's configVersion from 0 to 1, which switched Bun from npm's hoisted node_modules to the isolated linker and broke `bun install` on a dependency the flat tree had been hiding; Renovate merged it eight minutes after that branch's gate went red, so its own status check is not the safety net this repo assumed. No other update can change the install layout for everyone at once.",
+    "enabled": true,
+    "automerge": false,
+    "schedule": [
+      "before 5am on monday"
+    ]
+  },
   "packageRules": [
     {
       "description": "Eve's local store carries a patch for its exact version (runtime/eve-world/README.md): an update has to move the patch with it",
