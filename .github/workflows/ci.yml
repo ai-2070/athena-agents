@@ -83,7 +83,7 @@ jobs:
       # one-take-video's film.mjs is Node: the oldest version it promises. It draws with the runner's own Chrome.
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 26
 
       # The learn skill reads screen recordings with FFmpeg; its tests fail rather than skip on CI without it.
       - name: Install FFmpeg (Linux)
