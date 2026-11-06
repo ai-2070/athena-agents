@@ -1,6 +1,5 @@
-// The Brain (shared/api/brain.ts): its folder, asking it, and the work its chat shows. Its streamed answer is in
-// server/index.ts (POST /api/brain/stream).
-import { implement } from '@orpc/server';
+// The Brain (shared/api/brain.ts): its folder, asking it (its answer whole, or streamed), and the work its chat shows.
+import { implement, streamToEventIterator } from '@orpc/server';
 import { brain as contract } from '../../shared/api/brain.ts';
 import * as projects from '../projects.ts';
 import * as overseer from '../overseer.ts';
@@ -9,9 +8,18 @@ import * as programs from '../programs.ts';
 import { brainSkillSlugs, setBrainSkills } from '../skills.ts';
 import { cleanAttachments } from '../uploads.ts';
 import { openWithShell } from '../util.ts';
+import { streamBrain } from '../uistream.ts';
 import { refuse } from './refuse.ts';
 
 const os = implement(contract);
+
+// what was asked, and the files attached (only uploads of the project count); never nothing
+function question(input: { text?: string; attachments?: string[] }): { text: string; attachments: string[] } {
+  const attachments = cleanAttachments(input.attachments);
+  const text = (input.text ?? '').trim().slice(0, 20000);
+  if (!text && !attachments.length) return refuse('Type a message first.');
+  return { text, attachments };
+}
 
 export const brainRouter = os.router({
   info: os.info.handler(() => projects.brainInfo()),
@@ -24,10 +32,15 @@ export const brainRouter = os.router({
     return { ok: true as const };
   }),
   ask: os.ask.handler(({ input }) => {
-    const attachments = cleanAttachments(input.attachments);
-    const text = (input.text ?? '').trim().slice(0, 20000);
-    if (!text && !attachments.length) return refuse('Type a message first.');
+    const { text, attachments } = question(input);
     return overseer.ask(text, { project: input.project ?? null, attachments });
+  }),
+  stream: os.stream.handler(({ input }) => {
+    const { text, attachments } = question(input);
+    const project = input.project ?? null;
+    // (refused before the stream starts, so it comes back as an error the chat can show)
+    overseer.checkProject(project);
+    return streamToEventIterator(streamBrain((onPart) => overseer.ask(text, { project, attachments, onPart, goal: input.goal === true })));
   }),
   steer: os.steer.handler(() => (overseer.steerAsks(), { ok: true as const })),
   stop: os.stop.handler(({ input }) => commands.stopBrain(input)),

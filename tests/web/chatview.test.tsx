@@ -34,7 +34,7 @@ function uiStream() {
     response: () => new Response(body, { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } }),
     push: (c: UIMessageChunk) => ctl.enqueue(enc.encode(`data: ${JSON.stringify(c)}\n\n`)),
     end: () => {
-      ctl.enqueue(enc.encode('data: [DONE]\n\n'));
+      ctl.enqueue(enc.encode('event: done\n\n'));
       ctl.close();
     },
     // the page stopped reading it (as a real response ends when its request is aborted)

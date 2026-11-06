@@ -93,8 +93,8 @@ export function BrainPane({ projectId, projectName, onOpen }: { projectId: strin
     setAsking({ text, attachments, answer: '', steps: [] });
     let failed = '';
     try {
-      const [{ readUIMessageStream }, { brainTransport }] = await Promise.all([import('ai'), import('./chat/transport.ts')]);
-      const stream = await brainTransport({ text, project: projectId, attachments }, at).sendMessages({ chatId: `brain-${projectId}`, messages: [], trigger: 'submit-message', messageId: undefined, abortSignal: stop.signal });
+      const [{ readUIMessageStream }, { brainStream }] = await Promise.all([import('ai'), import('./chat/transport.ts')]);
+      const stream = await brainStream({ text, project: projectId, attachments }, { at, signal: stop.signal });
       let answer: BrainAnswer | null = null;
       const errors: string[] = [];
       for await (const m of readUIMessageStream({ stream, onError: (e) => errors.push(e instanceof Error ? e.message : String(e)) })) {

@@ -1,40 +1,34 @@
-// A run as a Vercel AI SDK UI message stream, read back with the AI SDK itself (its HTTP transport and
-// stream reader): text as written, tool calls with input and result, status lines, a replay.
-import http from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DefaultChatTransport, readUIMessageStream } from 'ai';
+// A run as Vercel AI SDK UI message chunks, read back with the AI SDK's own stream reader: text as written, tool
+// calls with input and result, status lines, a replay. (Over HTTP, as oRPC events: rpc-streams.test.ts.)
+import { describe, expect, it } from 'vitest';
+import { readUIMessageStream } from 'ai';
 import type { UIMessage, UIMessageChunk } from 'ai';
 import { emit } from '../../server/store.ts';
 import { TurnChunks, readable, streamBrain, streamRun } from '../../server/uistream.ts';
 import type { BrainStreamPart } from '../../server/uistream.ts';
 import type { ChatItem, RunEvent } from '../../shared/types.ts';
 
-let server: http.Server;
-let base = '';
-// what the next request streams: the items already there (a replay)
+// what the next stream starts with: the items already there (a replay)
 let replayItems: ChatItem[] = [];
-// ?later: the run isn't known yet (a message waiting for the run before it to end); the test says which it is
+// later: the run isn't known yet (a message waiting for the run before it to end); the test says which it is
 let startLater: ((runId: string | null) => void) | null = null;
-beforeAll(async () => {
-  server = http.createServer((req, res) => {
-    const url = new URL(req.url!, 'http://x');
-    const runId = url.searchParams.get('run') || 'r1';
-    const later = url.searchParams.has('later') ? new Promise<string | null>((r) => (startLater = r)) : null;
-    void streamRun(res, { chatId: 'c1', runId: later ?? runId, items: replayItems, keepAliveMs: 20, waiting: 'Waiting for it to stop…', ...(url.searchParams.get('own') ? { ownSteer: url.searchParams.get('own')! } : {}), ...(url.searchParams.has('ended') ? { live: () => false } : {}) });
+type Opening = { later?: boolean; own?: string; ended?: boolean };
+const open = (runId: string, { later, own, ended }: Opening = {}) =>
+  streamRun({
+    chatId: 'c1',
+    runId: later ? new Promise<string | null>((r) => (startLater = r)) : runId,
+    items: replayItems,
+    waiting: 'Waiting for it to stop…',
+    ...(own ? { ownSteer: own } : {}),
+    ...(ended ? { live: () => false } : {}),
   });
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-});
-afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 const run = (event: RunEvent, runId = 'r1', chatId = 'c1') => emit('run', { runId, agentId: 'a1', chatId, event });
 const tick = (ms = 15) => new Promise((r) => setTimeout(r, ms));
 
-async function read(runId = 'r1', drive: () => Promise<void>): Promise<{ last: UIMessage; data: unknown[] }> {
+async function read(runId = 'r1', drive: () => Promise<void>, opening: Opening = {}): Promise<{ last: UIMessage; data: unknown[] }> {
   const data: unknown[] = [];
-  const transport = new DefaultChatTransport({ api: `${base}/?run=${runId}`, prepareReconnectToStreamRequest: () => ({ api: `${base}/?run=${runId}` }) });
-  const stream = (await transport.reconnectToStream({ chatId: 'c1' }))!;
+  const stream = open(runId, opening);
   // (transient data parts, the status lines, come through the stream but don't stay in the message)
   const [a, b] = stream.tee();
   const collecting = (async () => {
@@ -122,11 +116,11 @@ describe('a message that joined the turn', () => {
 describe('the message a stream sent into the turn', () => {
   it('is left out of that stream: the view that sent it shows it already', async () => {
     replayItems = [];
-    const { last } = await read('r4&own=s9', async () => {
+    const { last } = await read('r4', async () => {
       run({ kind: 'steer', id: 's9', text: 'mine' }, 'r4');
       run({ kind: 'steer', id: 's8', text: 'another tab' }, 'r4');
       run({ kind: 'done', text: '' }, 'r4');
-    });
+    }, { own: 's9' });
     expect(last.parts.flatMap((p) => (p.type === 'data-steer' ? [(p.data as { text: string }).text] : []))).toEqual(['another tab']);
   });
 });
@@ -135,7 +129,7 @@ describe('streamRun() for a run that already ended', () => {
   it('ends at once, instead of waiting for a done that went before it listened', async () => {
     replayItems = [];
     // (nothing drives it: a stream that waited would never end, and the test would time out)
-    const { last } = await read('r5&ended', async () => {});
+    const { last } = await read('r5', async () => {}, { ended: true });
     expect(last.parts.filter((p) => p.type !== 'step-start')).toEqual([]);
   });
 });
@@ -143,13 +137,13 @@ describe('streamRun() for a run that already ended', () => {
 describe('streamRun() for a run that starts later', () => {
   it('says it is waiting, then streams that run once it starts (nothing from before)', async () => {
     replayItems = [];
-    const { last, data } = await read('r20&later', async () => {
+    const { last, data } = await read('r20', async () => {
       run({ kind: 'text', text: 'NOT MINE: the run before it' }, 'r19');
       startLater!('r20');
       await tick(10);
       run({ kind: 'text', text: 'On the new plan.' }, 'r20');
       run({ kind: 'done', text: '' }, 'r20');
-    });
+    }, { later: true });
     const parts = last.parts.filter((p) => p.type !== 'step-start');
     expect(parts).toEqual([expect.objectContaining({ type: 'text', text: 'On the new plan.' })]);
     expect(data).toEqual([expect.objectContaining({ type: 'data-status', data: { text: 'Waiting for it to stop…' } })]);
@@ -157,9 +151,9 @@ describe('streamRun() for a run that starts later', () => {
 
   it('ends, with nothing in it, when that run never starts (it was taken back)', async () => {
     replayItems = [];
-    const { last } = await read('r21&later', async () => {
+    const { last } = await read('r21', async () => {
       startLater!(null);
-    });
+    }, { later: true });
     expect(last.parts.filter((p) => p.type !== 'step-start')).toEqual([]);
   });
 });
@@ -168,8 +162,7 @@ describe('streamRun() when the run fails', () => {
   it("ends with the AI SDK's error (so the chat can say so); being stopped is no error", async () => {
     replayItems = [];
     const errors: string[] = [];
-    const transport = new DefaultChatTransport({ api: `${base}/?run=r9`, prepareReconnectToStreamRequest: () => ({ api: `${base}/?run=r9` }) });
-    const stream = (await transport.reconnectToStream({ chatId: 'c1' }))!;
+    const stream = open('r9');
     const reading = (async () => {
       for await (const _m of readUIMessageStream({ stream, onError: (e) => errors.push(String((e as Error).message)) }));
     })();
@@ -180,8 +173,7 @@ describe('streamRun() when the run fails', () => {
     expect(errors).toEqual(['Claude Code exited (1) without an answer.']);
 
     const errors2: string[] = [];
-    const t2 = new DefaultChatTransport({ api: `${base}/?run=r10`, prepareReconnectToStreamRequest: () => ({ api: `${base}/?run=r10` }) });
-    const s2 = (await t2.reconnectToStream({ chatId: 'c1' }))!;
+    const s2 = open('r10');
     const r2 = (async () => {
       for await (const _m of readUIMessageStream({ stream: s2, onError: (e) => errors2.push(String(e)) }));
     })();
@@ -189,6 +181,18 @@ describe('streamRun() when the run fails', () => {
     run({ kind: 'error', text: 'Stopped to take your new message.' }, 'r10');
     await r2;
     expect(errors2).toEqual([]);
+  });
+});
+
+describe('streamRun() when its reader goes away', () => {
+  it('stops listening to the run (the run goes on)', async () => {
+    replayItems = [];
+    const reader = open('r30').getReader();
+    await reader.read();
+    await reader.cancel();
+    // (nothing is written into a stream that was let go of: this would throw)
+    run({ kind: 'text', text: 'still working' }, 'r30');
+    run({ kind: 'done', text: '' }, 'r30');
   });
 });
 
@@ -208,19 +212,10 @@ describe('TurnChunks', () => {
 });
 
 describe('streamBrain()', () => {
-  let brainServer: http.Server;
-  let brainBase = '';
   let script: (onPart: (p: BrainStreamPart) => void) => Promise<unknown> = async () => ({});
-  beforeAll(async () => {
-    brainServer = http.createServer((_req, res) => void streamBrain(res, (onPart) => script(onPart)));
-    await new Promise<void>((r) => brainServer.listen(0, '127.0.0.1', () => r()));
-    brainBase = `http://127.0.0.1:${(brainServer.address() as AddressInfo).port}`;
-  });
-  afterAll(() => new Promise<void>((r) => brainServer.close(() => r())));
 
   async function ask(): Promise<{ last: UIMessage; errors: string[] }> {
-    const transport = new DefaultChatTransport({ api: brainBase, prepareSendMessagesRequest: () => ({ body: { text: 'hi' } }) });
-    const stream = await transport.sendMessages({ chatId: 'brain', messages: [], trigger: 'submit-message', messageId: undefined, abortSignal: undefined });
+    const stream = streamBrain((onPart) => script(onPart));
     const errors: string[] = [];
     let last: UIMessage | null = null;
     for await (const m of readUIMessageStream({ stream, onError: (e) => errors.push(String((e as Error).message || e)) })) last = structuredClone(m);

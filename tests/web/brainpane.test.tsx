@@ -18,7 +18,7 @@ function uiStream() {
   return {
     response: () => new Response(body, { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } }),
     push: (c: UIMessageChunk) => ctl.enqueue(enc.encode(`data: ${JSON.stringify(c)}\n\n`)),
-    end: () => (ctl.enqueue(enc.encode('data: [DONE]\n\n')), ctl.close()),
+    end: () => (ctl.enqueue(enc.encode('event: done\n\n')), ctl.close()),
   };
 }
 

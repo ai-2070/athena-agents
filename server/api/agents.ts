@@ -1,5 +1,5 @@
 // The agents' routes (shared/api/agents.ts).
-import { implement } from '@orpc/server';
+import { implement, streamToEventIterator } from '@orpc/server';
 import { agents as contract } from '../../shared/api/agents.ts';
 import * as store from '../store.ts';
 import { agents, chats, workflows, log } from '../store.ts';
@@ -13,6 +13,7 @@ import * as library from '../library.ts';
 import * as commands from '../commands.ts';
 import * as kb from '../knowledge.ts';
 import * as teams from '../teams.ts';
+import { streamRun } from '../uistream.ts';
 import { exists, openWithShell } from '../util.ts';
 import { refuse } from './refuse.ts';
 import type { Agent, Chat } from '../../shared/types.ts';
@@ -76,6 +77,19 @@ export const agentsRouter = os.router({
   }),
   commands: os.commands.handler(({ input }) => commands.harnessCommands(agentOf(input.id).id)),
   chats: {
+    // (the run is listened to from the moment it starts, so nothing it says is missed)
+    stream: os.chats.stream.handler(async ({ input }) => {
+      const a = agentOf(input.id);
+      const c = chatOf(input.id, input.chatId);
+      const { text, attachments } = said(input);
+      if (!text && !attachments.length) return refuse('Type a message first.');
+      const { runId, steerId } = input.steer === true ? await engines.steerChat(a, c, text, { attachments }) : { ...engines.startRun(a, c, text, { attachments }), steerId: undefined };
+      return streamToEventIterator(streamRun({ chatId: c.id, runId, waiting: `Waiting for ${a.name} to stop…`, ...(steerId ? { ownSteer: steerId } : {}), live: engines.runActive }));
+    }),
+    reconnect: os.chats.reconnect.handler(({ input: { id, chatId } }) => {
+      const runId = engines.chatRunId(id, chatId);
+      return runId ? streamToEventIterator(streamRun({ chatId, runId, items: engines.liveChat(chatId)?.items || [] })) : null;
+    }),
     list: os.chats.list.handler(({ input }) => chats.list(input.id)),
     create: os.chats.create.handler(({ input }) => chats.create(agentOf(input.id).id)),
     get: os.chats.get.handler(({ input: { id, chatId } }) => ({ ...chatOf(id, chatId), queued: engines.queuedMessages(chatId), loop: engines.loopOf(chatId), goal: openGoal('agent', id, chatId) })),

@@ -1,9 +1,8 @@
-// An agent's run as a Vercel AI SDK UI message stream (SSE), for the chat views (useChat and the
-// AI SDK's stream reader): the answer's text as it is written, each tool call with its input and then
-// its result, and status lines as transient data parts. A view that opens while a run is going gets
-// the turn so far first (a replay from its start), then the rest live.
-import http from 'node:http';
-import { UI_MESSAGE_STREAM_HEADERS } from 'ai';
+// An agent's run, or the Brain's answer, as Vercel AI SDK UI message chunks, for the chat views (useChat and the
+// AI SDK's stream reader): the answer's text as it is written, each tool call with its input and then its
+// result, and status lines as transient data parts. A view that opens while a run is going gets the turn so far
+// first (a replay from its start), then the rest live. The oRPC routes send them as events (server/api/agents.ts,
+// brain.ts), with oRPC's own keep-alive.
 import type { UIMessageChunk } from 'ai';
 import { bus } from './store.ts';
 import type { ChatItem, RunEvent, ServerEvent } from '../shared/types.ts';
@@ -97,8 +96,6 @@ export interface StreamRunOptions {
   waiting?: string;
   /** The turn so far, shown first (a view opening while it runs). */
   items?: readonly ChatItem[];
-  /** How often a keep-alive comment goes out while a tool runs (ms). */
-  keepAliveMs?: number;
   /** the message this stream's request sent into the turn going on: the view shows it already */
   ownSteer?: string;
   /** whether the run is still going: one that ended before the stream began ends it at once */
@@ -108,52 +105,49 @@ export interface StreamRunOptions {
 // a run you stopped (or stopped for your new message) didn't fail
 const STOPPED = new Set(['Stopped.', 'Stopped to take your new message.']);
 
-/** Streams the run into the response until it ends (or the browser goes away). */
-export function streamRun(res: http.ServerResponse, { chatId, runId, items = [], keepAliveMs = 15_000, waiting = 'Waiting…', ownSteer, live }: StreamRunOptions): Promise<void> {
-  res.writeHead(200, { ...UI_MESSAGE_STREAM_HEADERS, 'cache-control': 'no-store' });
-  const write = (chunk: UIMessageChunk) => res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-  const w = new TurnChunks(write);
-  return new Promise<void>((resolve) => {
-    let over = false;
-    const end = (close = true) => {
-      if (over) return;
-      over = true;
-      bus.off('event', listen);
-      clearInterval(alive);
-      if (close) {
-        w.finish();
-        res.write('data: [DONE]\n\n');
-        res.end();
+/** The run as UI message chunks, until it ends. Listening starts at once (call it in the same moment the run
+ *  starts or is read); a reader that goes away (cancels) stops it listening, not the run. */
+export function streamRun({ chatId, runId, items = [], waiting = 'Waiting…', ownSteer, live }: StreamRunOptions): ReadableStream<UIMessageChunk> {
+  let over = false;
+  let stop = () => {};
+  return new ReadableStream<UIMessageChunk>({
+    start(out) {
+      const w = new TurnChunks((chunk) => !over && out.enqueue(chunk));
+      const end = (close = true) => {
+        if (over) return;
+        if (close) w.finish();
+        over = true;
+        bus.off('event', listen);
+        if (close) out.close();
+      };
+      stop = () => end(false);
+      // (not known yet while it waits: nothing is ours until it is)
+      let id = typeof runId === 'string' ? runId : null;
+      const listen = (ev: ServerEvent) => {
+        if (ev.type !== 'run' || ev.chatId !== chatId || id == null || ev.runId !== id) return;
+        const e = ev.event as RunEvent;
+        if (e.kind === 'steer' && e.id === ownSteer) return;
+        // a run that failed ends the stream with the AI SDK's error (useChat's onError); "Stopped." is you
+        if (e.kind === 'error' && e.text && !STOPPED.has(e.text)) out.enqueue({ type: 'error', errorText: e.text });
+        if (e.kind === 'done' || e.kind === 'error') end();
+        else w.event(e);
+      };
+      // (the replay and the listening start in the same moment, so nothing is missed or seen twice)
+      w.start(`run-${id ?? `next-${Date.now()}`}`);
+      w.replay(items);
+      bus.on('event', listen);
+      // (it ended before anyone listened: its done event went already)
+      if (id != null && live && !live(id)) return end();
+      if (typeof runId !== 'string') {
+        w.status(waiting);
+        // (its first events come later: a run streams only once its engine answers)
+        void runId.then(
+          (started) => (started ? void (id = started) : end()),
+          () => end(),
+        );
       }
-      resolve();
-    };
-    // (not known yet while it waits: nothing is ours until it is)
-    let id = typeof runId === 'string' ? runId : null;
-    const listen = (ev: ServerEvent) => {
-      if (ev.type !== 'run' || ev.chatId !== chatId || id == null || ev.runId !== id) return;
-      const e = ev.event as RunEvent;
-      if (e.kind === 'steer' && e.id === ownSteer) return;
-      // a run that failed ends the stream with the AI SDK's error (useChat's onError); "Stopped." is you
-      if (e.kind === 'error' && e.text && !STOPPED.has(e.text)) write({ type: 'error', errorText: e.text });
-      if (e.kind === 'done' || e.kind === 'error') end();
-      else w.event(e);
-    };
-    // (the replay and the listening start in the same moment, so nothing is missed or seen twice)
-    w.start(`run-${id ?? `next-${Date.now()}`}`);
-    w.replay(items);
-    bus.on('event', listen);
-    const alive = setInterval(() => res.write(': keep-alive\n\n'), keepAliveMs);
-    res.on('close', () => end(false));
-    // (it ended before anyone listened: its done event went already)
-    if (id != null && live && !live(id)) return void end();
-    if (typeof runId !== 'string') {
-      w.status(waiting);
-      // (its first events come later: a run streams only once its engine answers)
-      void runId.then(
-        (started) => (started ? void (id = started) : end()),
-        () => end(),
-      );
-    }
+    },
+    cancel: () => stop(),
   });
 }
 
@@ -173,46 +167,48 @@ export function readable(text: string, final = false): string {
   return out;
 }
 
-/** Streams the Brain's answer: its text as it is written (without the actions), the files it reads,
- *  and at the end the whole answer (data-answer: what it did, whom it handed the work to). */
-export async function streamBrain(res: http.ServerResponse, answer: (onPart: (p: BrainStreamPart) => void) => Promise<unknown>): Promise<void> {
-  res.writeHead(200, { ...UI_MESSAGE_STREAM_HEADERS, 'cache-control': 'no-store' });
+/** The Brain's answer as UI message chunks: its text as it is written (without the actions), the files it
+ *  reads, and at the end the whole answer (data-answer: what it did, whom it handed the work to). It goes on
+ *  answering if the reader goes away. */
+export function streamBrain(answer: (onPart: (p: BrainStreamPart) => void) => Promise<unknown>): ReadableStream<UIMessageChunk> {
   let gone = false;
-  res.on('close', () => (gone = true));
-  const write = (chunk: UIMessageChunk) => !gone && res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-  const w = new TurnChunks(write);
-  w.start(`brain-${Date.now()}`);
-  let full = '';
-  let shown = '';
-  const alive = setInterval(() => !gone && res.write(': keep-alive\n\n'), 15_000);
-  try {
-    const a = await answer((p) => {
-      if (p.kind === 'text') {
-        full += p.text;
-        const now = readable(full);
-        if (now.length > shown.length && now.startsWith(shown)) w.text(now.slice(shown.length));
-        shown = now;
-      } else if (p.kind === 'tool') w.tool(p.id, p.name, p.args);
-      else if (p.kind === 'tool_result') w.result(p.id, p.text, [], p.isError);
-      else if (p.kind === 'restart') {
-        // it answers again: what it wrote so far is replaced
-        w.data('restart', {});
-        full = '';
-        shown = '';
-      }
-    });
-    // what was held back in case it began the actions fence, but didn't (an answer ending in `code`)
-    const rest = readable(full, true);
-    if (rest.length > shown.length && rest.startsWith(shown)) w.text(rest.slice(shown.length));
-    w.data('answer', a);
-  } catch (e) {
-    write({ type: 'error', errorText: (e as Error).message || String(e) });
-  } finally {
-    clearInterval(alive);
-    w.finish();
-    if (!gone) {
-      res.write('data: [DONE]\n\n');
-      res.end();
-    }
-  }
+  return new ReadableStream<UIMessageChunk>({
+    start(out) {
+      const write = (chunk: UIMessageChunk) => !gone && out.enqueue(chunk);
+      const w = new TurnChunks(write);
+      w.start(`brain-${Date.now()}`);
+      let full = '';
+      let shown = '';
+      // (asked now, in the request's project; the chunks are read as they come)
+      void (async () => {
+        try {
+          const a = await answer((p) => {
+            if (p.kind === 'text') {
+              full += p.text;
+              const now = readable(full);
+              if (now.length > shown.length && now.startsWith(shown)) w.text(now.slice(shown.length));
+              shown = now;
+            } else if (p.kind === 'tool') w.tool(p.id, p.name, p.args);
+            else if (p.kind === 'tool_result') w.result(p.id, p.text, [], p.isError);
+            else if (p.kind === 'restart') {
+              // it answers again: what it wrote so far is replaced
+              w.data('restart', {});
+              full = '';
+              shown = '';
+            }
+          });
+          // what was held back in case it began the actions fence, but didn't (an answer ending in `code`)
+          const rest = readable(full, true);
+          if (rest.length > shown.length && rest.startsWith(shown)) w.text(rest.slice(shown.length));
+          w.data('answer', a);
+        } catch (e) {
+          write({ type: 'error', errorText: (e instanceof Error && e.message) || String(e) });
+        } finally {
+          w.finish();
+          if (!gone) out.close();
+        }
+      })();
+    },
+    cancel: () => void (gone = true),
+  });
 }

@@ -84,7 +84,7 @@ function useAppState(): AppState | null {
   return data;
 }
 
-export { chatTransport, streamUrl } from './transport.ts';
+export { chatTransport } from './transport.ts';
 
 export function ChatView(p: ChatViewProps) {
   const { agent } = p;

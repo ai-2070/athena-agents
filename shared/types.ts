@@ -2,7 +2,12 @@
 // The server stores these as JSON files; the browser gets them from the API.
 import type { Effort } from './effort.ts';
 import type { SerializedMessage } from 'chat';
+import type { UIMessageChunk } from 'ai';
 export type { Effort } from './effort.ts';
+
+/** A run or the Brain's answer as it streams: Vercel AI SDK UI message chunks, sent as oRPC events
+ *  (server/uistream.ts), read by the chat views with the AI SDK (web/chat/transport.ts). */
+export type UIStream = AsyncIteratorObject<UIMessageChunk, unknown, void>;
 
 export type EngineId = 'claude-code' | 'eve' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
 export type Autonomy = 'ask' | 'auto' | 'full';
