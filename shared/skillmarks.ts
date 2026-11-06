@@ -1,5 +1,5 @@
 // What each skill that comes with the dashboard is drawn with: the app's icon (the Craft apps, Orca, Cua,
-// Composio), the logo of what it works with (GitHub, Docker, Jira…), or a line icon for the kind of work.
+// Composio, Higgsfield), the logo of what it works with (GitHub, Docker, Jira…), or a line icon for the kind of work.
 // Keyed by the skill's id. web/skillicons.ts draws them; tests/server/skillmarks.test.ts checks every
 // bundled skill has one. The Craft apps' own skills aren't listed: web/crafticons.ts finds their icons.
 
@@ -9,6 +9,7 @@ export type SkillMarkSpec = { img: string; tile?: string; craft?: boolean } | { 
 const ORCA = { img: '/app-icons/orca.png' };
 const CUA = { img: '/app-icons/cua.png' };
 const OOMOL = { logo: 'oomol' };
+const HIGGSFIELD = { img: '/app-icons/higgsfield.png' };
 
 export const SKILL_MARKS: Record<string, SkillMarkSpec> = {
   // the dashboard's own (server/skills.ts BUILTIN)
@@ -56,6 +57,16 @@ export const SKILL_MARKS: Record<string, SkillMarkSpec> = {
   'review-loop': { icon: 'layout-grid' },
   'sound-design': { icon: 'waveform' },
   'web-sims': { icon: 'atom' },
+  // skills/higgsfield
+  'higgsfield-brandkit': HIGGSFIELD,
+  'higgsfield-faceless-video': HIGGSFIELD,
+  'higgsfield-generate': HIGGSFIELD,
+  'higgsfield-marketplace-cards': HIGGSFIELD,
+  'higgsfield-product-photoshoot': HIGGSFIELD,
+  'higgsfield-soul-id': HIGGSFIELD,
+  'higgsfield-video-explainer': HIGGSFIELD,
+  'higgsfield-websites': HIGGSFIELD,
+  'higgsfield-youtube-thumbnail': HIGGSFIELD,
   // skills/composio, skills/cua, skills/oomol
   composio: { img: '/app-icons/composio.png' },
   'cua-sandboxes': CUA,

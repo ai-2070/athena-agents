@@ -10,14 +10,14 @@ import { dataPath } from '../../server/util.ts';
 const agent = { id: 'a1', name: 'Tester' };
 
 describe('bundled skills', () => {
-  it("include the storytold, OOMOL, Composio, Orca, Cua, claude-motion, Anatomy and subagent skills, and the dashboard's own", () => {
+  it("include the storytold, OOMOL, Composio, Orca, Cua, claude-motion, Anatomy, Higgsfield and subagent skills, and the dashboard's own", () => {
     const slugs = skills.bundledSkills().map((b) => b.slug);
-    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'solidcraft', 'materialcraft', 'texturecraft', 'craft-anything', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env', 'cua-driver', 'cua-sandboxes', 'gui-automation', 'motion-design', 'review-loop', 'sound-design', 'web-sims', 'anatomy', 'delegating-to-subagents', 'commissioning-a-reviewer', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']));
+    expect(slugs).toEqual(expect.arrayContaining(['storytold', 'storytold-install', 'vectorcraft', 'photocraft', 'figcraft', 'solidcraft', 'materialcraft', 'texturecraft', 'craft-anything', 'oo', 'oo-find-skills', 'oo-create-skill', 'oo-publish-skill', 'composio', 'orca-cli', 'orchestration', 'computer-use', 'orca-linear', 'orca-jira', 'jira-tickets', 'orca-emulator', 'orca-emulator-android', 'orca-per-workspace-env', 'cua-driver', 'cua-sandboxes', 'gui-automation', 'motion-design', 'review-loop', 'sound-design', 'web-sims', 'anatomy', 'higgsfield-generate', 'higgsfield-soul-id', 'higgsfield-product-photoshoot', 'higgsfield-marketplace-cards', 'higgsfield-brandkit', 'higgsfield-youtube-thumbnail', 'higgsfield-faceless-video', 'higgsfield-video-explainer', 'higgsfield-websites', 'delegating-to-subagents', 'commissioning-a-reviewer', 'independent-review', 'reviewed-stage-delivery', 'witness-discipline']));
     // the dashboard's own (skills/athena), which replaced the copies of Hermes Agent's skills
     expect(slugs).toEqual(expect.arrayContaining(['systematic-debugging', 'test-driven-development', 'github', 'pdf', 'financial-models', 'humanizer', 'comfyui', 'email', 'action-items', 'decisions', 'fastmcp']));
     const own = fs.readdirSync(path.join(skills.bundledSkillsRoot(), 'athena'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
     expect(slugs).toEqual(expect.arrayContaining(own));
-    expect(slugs.filter((s) => !own.includes(s))).toHaveLength(46);
+    expect(slugs.filter((s) => !own.includes(s))).toHaveLength(55);
     // the Hermes ones that were merged into others or cut don't come back
     for (const s of ['dcf-model', 'excel-author', 'mcporter', 'reddit-reading', 'himalaya', 'one-three-one-rule', 'duckduckgo-search']) expect(slugs).not.toContain(s);
     expect(fs.existsSync(path.join(skills.bundledSkillsRoot(), 'hermes'))).toBe(false);
@@ -48,6 +48,8 @@ describe('bundled skills', () => {
     expect(origin['cua-sandboxes']).toMatchObject({ repo: 'trycua/cua', path: 'libs/cua/skills/cua-sandboxes' });
     expect(origin['gui-automation']).toMatchObject({ repo: 'trycua/cua', path: 'libs/cua/skills/gui-automation' });
     expect(origin['cua-driver']).toMatchObject({ repo: 'trycua/cua', path: 'libs/cua-driver/rust/Skills/cua-driver', url: 'https://github.com/trycua/cua/tree/main/libs/cua-driver/rust/Skills/cua-driver' });
+    // Higgsfield keeps its skills at the top of its repo
+    expect(origin['higgsfield-generate']).toMatchObject({ repo: 'higgsfield-ai/skills', path: 'higgsfield-generate', url: 'https://github.com/higgsfield-ai/skills/tree/main/higgsfield-generate' });
     // claude-motion keeps its skills in a hidden folder, where Claude Code finds them
     expect(origin['motion-design']).toMatchObject({ repo: 'whaleyxbt/claude-motion', path: '.claude/skills/motion-design', url: 'https://github.com/whaleyxbt/claude-motion/tree/main/.claude/skills/motion-design' });
     // its repo isn't public, so no link back to it
@@ -96,6 +98,10 @@ describe('bundled skills', () => {
     expect(anatomy?.origin).toBeFalsy();
     expect(anatomy?.files.map((f) => f.path)).toEqual(expect.arrayContaining(['kit/iso-kit.mjs', 'references/craft.md', 'scripts/capture.mjs', 'examples/dial-indicator/build.mjs', 'LICENSE']));
     expect(anatomy?.files.filter((f) => /^examples\/.*\.(html|pdf)$/.test(f.path))).toEqual([]);
+    // Higgsfield writes its descriptions as literal YAML blocks ("description: |"), and its video skill comes with its scripts
+    expect(skills.getSkill('higgsfield-generate')?.description).toMatch(/^Generate images\/videos\/3D assets\/audio via Higgsfield AI\. Defaults:\nGPT Image 2\.6 .*or TTS\.$/s);
+    expect(skills.getSkill('higgsfield-faceless-video')?.files.map((f) => f.path)).toEqual(expect.arrayContaining(['scripts/assemble_blocks.sh', 'references/production.md']));
+    expect(skills.getSkill('higgsfield-soul-id')?.origin).toMatchObject({ repo: 'higgsfield-ai/skills', path: 'higgsfield-soul-id' });
     expect(skills.getSkill('cadcraft')?.name).toBe('My CAD notes');
     // one of the dashboard's own comes whole, with its scripts, and no link back
     expect(skills.getSkill('pdf')?.files.map((f) => f.path)).toContain('scripts/pdf_tool.py');

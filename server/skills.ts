@@ -659,6 +659,7 @@ const BUNDLED: { dir: string; repo: string; ref: string; under: string; noLink?:
   // claude-motion keeps its skills where Claude Code finds them; they work inside a copy of the toolkit,
   // which the claude-motion skill in BUILTIN sets up
   { dir: 'claude-motion', repo: 'whaleyxbt/claude-motion', ref: 'main', under: '.claude/skills' },
+  { dir: 'higgsfield', repo: 'higgsfield-ai/skills', ref: 'main', under: '' },
   // the repo is the skill, with 24 MB of built example pages and PDFs left out here (over the installer's limits)
   { dir: 'anatomy', repo: 'wheresryan22/anatomy', ref: 'main', under: '', noLink: true },
   { dir: 'subagent-skills', repo: 'ai-2070/subagent-skills', ref: 'master', under: '', noLink: true },
