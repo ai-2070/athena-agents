@@ -1,0 +1,302 @@
+skills/higgsfield/higgsfield-faceless-video/references/talking-characters.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-13
+skills/higgsfield/higgsfield-youtube-thumbnail/SKILL.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-180
+server/skills.ts
+  s_2063cc61ea958d::t_08172c82dd6904 662
+skills/higgsfield/higgsfield-faceless-video/scripts/tests/test_song.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-20
+skills/higgsfield/higgsfield-brandkit/references/inline-widgets.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-77
+skills/higgsfield/higgsfield-faceless-video/scripts/trim_static_head.sh
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-55
+skills/higgsfield/higgsfield-websites/references/runtime-and-infra.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-252
+skills/higgsfield/higgsfield-faceless-video/scripts/speech_metrics.sh
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-67
+skills/higgsfield/higgsfield-faceless-video/scripts/build_scene_timeline.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-272
+skills/higgsfield/higgsfield-brandkit/references/brand-lock.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-178
+skills/higgsfield/higgsfield-websites/references/design-recipe.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-176
+skills/higgsfield/higgsfield-brandkit/scripts/build_brandbook.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-990
+skills/higgsfield/higgsfield-generate/references/marketing-avatars.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-46
+skills/higgsfield/higgsfield-brandkit/references/presentation-deck.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-37
+skills/higgsfield/higgsfield-websites/references/game-flow.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-112
+skills/higgsfield/higgsfield-brandkit/references/preview-payloads.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-128
+skills/higgsfield/higgsfield-websites/scripts/fbx2glb.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-176
+skills/higgsfield/higgsfield-generate/references/prompt-engineering.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-47
+skills/higgsfield/higgsfield-faceless-video/scripts/assemble_slides.sh
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-406
+skills/higgsfield/higgsfield-websites/references/cover-animator.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-98
+skills/higgsfield/higgsfield-product-photoshoot/SKILL.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-215
+skills/higgsfield/higgsfield-websites/references/scroll-scrub-asset-css.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-290
+skills/higgsfield/higgsfield-faceless-video/scripts/bind_scene_frame_results.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-167
+skills/higgsfield/higgsfield-websites/references/game-2d-animation.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-369
+skills/higgsfield/higgsfield-websites/references/design-taste-frontend.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-1224
+skills/higgsfield/higgsfield-faceless-video/scripts/assemble_final.sh
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-386
+skills/higgsfield/higgsfield-brandkit/references/brandkit-design-brain.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-249
+skills/higgsfield/higgsfield-generate/SKILL.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-324
+skills/higgsfield/higgsfield-websites/references/game-textures.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-269
+skills/higgsfield/higgsfield-websites/references/review-rubric.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-127
+skills/higgsfield/higgsfield-faceless-video/references/song.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-24
+skills/higgsfield/higgsfield-websites/references/fnf-sdk.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-874
+skills/higgsfield/higgsfield-brandkit/references/intake.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-84
+skills/higgsfield/higgsfield-websites/references/image-to-code.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-126
+skills/higgsfield/higgsfield-generate/references/marketing-products.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-57
+skills/higgsfield/higgsfield-faceless-video/scripts/tests/test_assembly.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-50
+public/app-icons/README.md
+  s_2063cc61ea958d::t_a19b2030636c4c 5-6,15,19
+skills/higgsfield/higgsfield-generate/references/marketing-ad-references.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-99
+skills/higgsfield/higgsfield-generate/references/troubleshooting.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-34
+skills/higgsfield/higgsfield-faceless-video/references/picture-story.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-28
+skills/higgsfield/higgsfield-websites/references/game-audio.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-94
+skills/higgsfield/higgsfield-brandkit/references/mockups.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-201
+skills/higgsfield/higgsfield-websites/references/game-meshy-api.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-191
+skills/higgsfield/higgsfield-websites/references/security.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-912
+skills/higgsfield/higgsfield-websites/references/wow-maker.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-288
+skills/higgsfield/higgsfield-websites/scripts/rig_transfer.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-217
+skills/higgsfield/higgsfield-brandkit/references/typography.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-89
+skills/higgsfield/higgsfield-soul-id/references/troubleshooting.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-24
+skills/higgsfield/higgsfield-websites/scripts/merge_anim_glbs.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-171
+skills/higgsfield/higgsfield-websites/references/scroll-scrub.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-359
+skills/higgsfield/higgsfield-brandkit/agents/openai.yaml
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-4
+skills/higgsfield/higgsfield-websites/scripts/glb_merge_anims.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-207
+skills/higgsfield/higgsfield-brandkit/scripts/brandkit.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-1472
+skills/higgsfield/higgsfield-websites/references/app-cover.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-719
+skills/higgsfield/higgsfield-youtube-thumbnail/agents/openai.yaml
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-4
+skills/higgsfield/higgsfield-brandkit/references/posters-banners.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-30
+skills/higgsfield/higgsfield-generate/references/marketing-setup-items.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-63
+skills/higgsfield/higgsfield-faceless-video/scripts/presenter_composite.sh
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-170
+skills/higgsfield/higgsfield-websites/references/fnf-react.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-264
+skills/higgsfield/higgsfield-websites/references/game-3d-animation.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-233
+skills/higgsfield/higgsfield-faceless-video/scripts/check_voice.sh
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-9
+skills/higgsfield/higgsfield-websites/scripts/pipeline.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-296
+skills/higgsfield/higgsfield-websites/references/contest.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-85
+skills/higgsfield/higgsfield-brandkit/references/logo-export-payloads.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-19
+skills/higgsfield/higgsfield-faceless-video/references/creative.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-11
+skills/higgsfield/higgsfield-websites/references/asset-system.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-221
+skills/higgsfield/higgsfield-websites/references/reference-boards.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-122
+skills/higgsfield/higgsfield-generate/references/marketing-modes.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-53
+skills/higgsfield/higgsfield-faceless-video/scripts/tests/test_captions.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-21
+skills/higgsfield/higgsfield-generate/references/workflows.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-96
+skills/higgsfield/higgsfield-faceless-video/SKILL.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-24
+skills/higgsfield/higgsfield-websites/references/game-meshy-input-rules.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-127
+skills/higgsfield/higgsfield-brandkit/references/handoff.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-111
+skills/higgsfield/higgsfield-faceless-video/scripts/validate_motion_script.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-814
+skills/higgsfield/higgsfield-youtube-thumbnail/references/thumbnail-frameworks.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-46
+skills/higgsfield/higgsfield-brandkit/SKILL.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-202
+skills/higgsfield/higgsfield-websites/references/app-quickstart.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-276
+skills/higgsfield/higgsfield-faceless-video/scripts/validate_song_prompt.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-234
+skills/higgsfield/higgsfield-brandkit/references/packaging.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-32
+shared/skillmarks.ts
+  s_2063cc61ea958d::t_a19b2030636c4c 2,12,60-69
+skills/higgsfield/higgsfield-generate/references/marketing-brand-kits.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-55
+skills/higgsfield/higgsfield-websites/scripts/proc_anim_dragon.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-177
+skills/higgsfield/higgsfield-faceless-video/references/styles.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-11
+skills/higgsfield/higgsfield-faceless-video/references/production.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-18
+skills/higgsfield/higgsfield-websites/scripts/seamless.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-77
+skills/higgsfield/higgsfield-brandkit/references/prerequisites.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-85
+skills/higgsfield/higgsfield-websites/SKILL.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-254
+skills/higgsfield/higgsfield-brandkit/references/social-templates.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-100
+skills/higgsfield/higgsfield-faceless-video/references/prompts.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-5
+skills/higgsfield/higgsfield-websites/scripts/glb_patch.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-85
+skills/higgsfield/higgsfield-generate/references/media-inputs.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-142
+skills/higgsfield/higgsfield-brandkit/scripts/render_brandbook_pdf.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-166
+skills/higgsfield/higgsfield-faceless-video/scripts/tests/test_timeline.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-59
+skills/higgsfield/higgsfield-websites/references/website-flow.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-518
+skills/higgsfield/README.md
+  s_2063cc61ea958d::t_07e72d3a21e64e 1-40,42-47
+  s_2063cc61ea958d::t_a19b2030636c4c 41
+skills/higgsfield/higgsfield-websites/references/scroll-scrub-asset-video.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-81
+skills/higgsfield/higgsfield-faceless-video/scripts/tests/test_channel.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-63
+skills/higgsfield/higgsfield-faceless-video/scripts/audio_to_captions.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-732
+skills/higgsfield/higgsfield-brandkit/references/logo-prompt-enhancer.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-212
+skills/higgsfield/higgsfield-faceless-video/scripts/tests/test_modes.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-133
+skills/higgsfield/higgsfield-soul-id/references/photo-guide.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-37
+skills/higgsfield/higgsfield-websites/scripts/glb_inspect.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-122
+skills/higgsfield/higgsfield-websites/scripts/proc_weights.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-79
+skills/higgsfield/higgsfield-faceless-video/scripts/burn_captions.sh
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-71
+skills/higgsfield/higgsfield-websites/references/app-flow.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-426
+skills/higgsfield/higgsfield-brandkit/references/state-payloads.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-126
+skills/higgsfield/higgsfield-brandkit/references/concept-boards.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-90
+skills/higgsfield/higgsfield-faceless-video/references/presenter.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-14
+skills/higgsfield/higgsfield-websites/references/game-procedural-animation.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-112
+skills/higgsfield/higgsfield-brandkit/references/logo.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-181
+skills/higgsfield/higgsfield-websites/references/quanta-design.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-600
+skills/higgsfield/higgsfield-websites/scripts/proc_rig_dragon.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-121
+tests/server/bundled-skills.test.ts
+  s_2063cc61ea958d::t_3c19891e9fb3c7 13,15,20,51-52,101-104
+skills/higgsfield/higgsfield-brandkit/references/merchandise.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-15
+skills/higgsfield/higgsfield-faceless-video/references/channel-motion.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-32
+skills/higgsfield/higgsfield-brandkit/references/palette.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-25
+skills/higgsfield/higgsfield-marketplace-cards/SKILL.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-88
+skills/higgsfield/higgsfield-websites/references/game-stylization.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-217
+skills/higgsfield/higgsfield-websites/references/scroll-scrub-asset-react.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-714
+skills/higgsfield/higgsfield-websites/references/wow-catalog.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-138
+skills/higgsfield/higgsfield-websites/references/seo.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-861
+skills/higgsfield/higgsfield-faceless-video/scripts/measure_narration_takes.py
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-165
+skills/higgsfield/higgsfield-faceless-video/scripts/assemble_blocks.sh
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-248
+skills/higgsfield/higgsfield-brandkit/references/brandbook.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-122
+skills/higgsfield/higgsfield-websites/references/game-design-system.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-155
+skills/higgsfield/higgsfield-websites/references/containers.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-338
+skills/higgsfield/LICENSE
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-21
+skills/higgsfield/higgsfield-generate/references/marketing-dtc-ads.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-88
+skills/higgsfield/higgsfield-faceless-video/references/editing.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-19
+skills/higgsfield/higgsfield-video-explainer/SKILL.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-12
+skills/higgsfield/higgsfield-brandkit/references/signage.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-22
+skills/higgsfield/higgsfield-websites/references/auth.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-416
+skills/higgsfield/higgsfield-faceless-video/scripts/assemble_partial_edit.sh
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-301
+skills/higgsfield/higgsfield-soul-id/SKILL.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-85
+skills/higgsfield/higgsfield-websites/references/app-layouts.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-154
+skills/higgsfield/higgsfield-brandkit/references/qa-and-iteration.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-177
+skills/higgsfield/higgsfield-brandkit/references/asset-analysis.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-178
+skills/higgsfield/higgsfield-generate/references/model-catalog.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-239
+skills/higgsfield/higgsfield-faceless-video/references/captions.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-16
+skills/higgsfield/higgsfield-youtube-thumbnail/references/text-overlay-bake.md
+  s_2063cc61ea958d::t_b8c9e8f69ce59d 1-285
+AGENTS.md
+  s_2063cc61ea958d::t_5e3d273f40284f 59
+docs/guide.md
+  s_2063cc61ea958d::t_247add6853c42e 234-235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "22867037ba0d00bb4fb82c8b8f15057d38f8c6b2",
+  "prompts": {},
+  "sessions": {
+    "s_2063cc61ea958d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a97b232b-0353-4984-8519-e5939b76f717",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
