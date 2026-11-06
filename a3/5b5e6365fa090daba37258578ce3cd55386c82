@@ -1,0 +1,28 @@
+server/skills.ts
+  s_2063cc61ea958d::t_ce39c12c1df273 654,666
+  s_2063cc61ea958d::t_c542b9947ea849 641-653,655-665,667-672
+docs/guide.md
+  s_2063cc61ea958d::t_ce39c12c1df273 236-237
+shared/skillmarks.ts
+  s_2063cc61ea958d::t_ce39c12c1df273 20
+tests/server/bundled-skills.test.ts
+  s_2063cc61ea958d::t_ce39c12c1df273 127-140
+AGENTS.md
+  s_2063cc61ea958d::t_ce39c12c1df273 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a35b5e6365fa090daba37258578ce3cd55386c82",
+  "prompts": {},
+  "sessions": {
+    "s_2063cc61ea958d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a97b232b-0353-4984-8519-e5939b76f717",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
