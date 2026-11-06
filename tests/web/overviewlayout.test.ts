@@ -76,6 +76,9 @@ describe('the strip', () => {
   it('shows 1 to 8 columns, and widths and stack heights stay within their bounds', () => {
     expect(setPerView(emptyLayout(), 0).perView).toBe(1);
     expect(setPerView(emptyLayout(), 12).perView).toBe(8);
+    // a new count puts every column back to one view column wide
+    const wide = resizeColumn(resizeColumn(three(), 0, 2), 2, 0.5);
+    expect(setPerView(wide, 3).columns.map((c) => c.width)).toEqual([1, 1, 1]);
     let l = resizeColumn(three(), 0, 9);
     expect(l.columns[0].width).toBe(3);
     l = resizeColumn(l, 1, 0.1);

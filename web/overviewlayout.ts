@@ -150,7 +150,9 @@ export function togglePin(l: StripLayout, key: string): StripLayout {
   return { ...l, columns: pinnedFirst(columns), focus: key };
 }
 
-export const setPerView = (l: StripLayout, n: number): StripLayout => ({ ...l, perView: clamp(Math.round(n), PER_VIEW_MIN, PER_VIEW_MAX) });
+/** How many columns one view shows; every column goes back to one view column wide (widths set for the old count
+ *  would no longer fit). */
+export const setPerView = (l: StripLayout, n: number): StripLayout => ({ ...l, perView: clamp(Math.round(n), PER_VIEW_MIN, PER_VIEW_MAX), columns: l.columns.map((c) => (c.width === 1 ? c : { ...c, width: 1 })) });
 export const resizeColumn = (l: StripLayout, col: number, width: number): StripLayout => ({ ...l, columns: l.columns.map((c, i) => (i === col ? { ...c, width: clamp(width, WIDTH_MIN, WIDTH_MAX) } : c)) });
 /** Every column back to one view column wide, and stacks to even heights. */
 export const evenOut = (l: StripLayout): StripLayout => ({ ...l, columns: l.columns.map((c) => ({ ...c, width: 1, heights: even(c.panes.length) })) });

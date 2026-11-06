@@ -725,11 +725,11 @@ export function ChatView(p: ChatViewProps) {
   const working = streaming || serverRunning;
   const sendBtn =
     working && !filled ? (
-      <Button key="stop" variant="danger" size={variant === 'mini' ? 'small' : 'default'} className={variant === 'mini' ? undefined : compact ? 'rounded-full' : 'size-8! px-0'} onClick={() => void stop()} title={`Stop ${agent.name}`} aria-label="Stop">
+      <Button key="stop" variant="danger" size={variant === 'mini' ? 'small' : 'default'} className={variant === 'mini' ? undefined : 'size-8! px-0!'} onClick={() => void stop()} title={`Stop ${agent.name}`} aria-label="Stop">
         <Dom make={() => icon('square', variant === 'mini' ? 13 : 14)} deps={[]} />
       </Button>
     ) : (
-      <Button key="send" size={variant === 'mini' ? 'small' : 'default'} className={variant === 'mini' ? undefined : compact ? 'rounded-full' : 'size-8! px-0'} onClick={submit}  title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
+      <Button key="send" size={variant === 'mini' ? 'small' : 'default'} className={variant === 'mini' ? undefined : 'size-8! px-0!'} onClick={submit}  title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
         <Dom make={() => icon(variant === 'mini' ? 'send' : 'arrow-up', variant === 'mini' ? 14 : 16)} deps={[]} />
       </Button>
     );

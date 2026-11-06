@@ -1,14 +1,14 @@
-// Overview (#/overview): every project's agents, teams, the Brain, terminals and board tasks being worked on, in one
-// sidebar, with what works and what needs you; this project, all projects, or one. Chats and terminals of any project
+// Overview (#/overview): every project's agents, teams, the Brain and board tasks being worked on, in one
+// sidebar, with what works and what needs you; this project, all projects, or one. Chats and Brains of any project
 // open side by side on a strip where each keeps its width (overviewlayout.ts): 1 to 8 columns per view, pinned columns
 // stay at the left, up to three panes stack in one column, and the rail at either edge shows what is off screen. A
 // pane of a project that isn't open sends its requests to that project (projectAt, /api/p/<project>/…), so a copied
-// project's agents and teams (the same ids) sit beside the originals. Another project's Brain opens as a pane too
-// (brainpane.tsx); the open project's is the Brain chat. The plan:
+// project's agents and teams (the same ids) sit beside the originals. A project's Brain is a pane too (brainpane.tsx);
+// the whole Brain chat is Ctrl+K. Terminals are left out for now (their panes still work). The plan:
 // docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
+import { ENGINE_LABEL, ago, approvalCard, h, attempt, confirmBox, navigate, onEvent, onReconnect, toast } from '../core.ts';
 import { rpc, rpcAt } from '../client/rpc.ts';
 import { apiUrl, projectAt } from '../client/connection.ts';
 import { previewFile, previewTitle, revealLabel } from '../filepreview.tsx';
@@ -19,17 +19,23 @@ import { renderTeamChat } from '../teamchat.tsx';
 import { XTerm } from '../terminalview.tsx';
 import { BrainPane } from '../brainpane.tsx';
 import { reducedMotion } from '../motion.ts';
+import { icon } from '../icons.ts';
+import { useDragPreview } from '../taskmotion.ts';
 import { isMac } from '../shortcuts.ts';
 import { Button, IconButton } from '../ui/button.tsx';
 import { iconButtonClass } from '../ui/classes.ts';
-import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
+import { Dropdown, DropdownCheckboxItem, DropdownContent, DropdownGroup, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger } from '../ui/dropdown.tsx';
 import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { Skeleton, Bone } from '../ui/skeleton.tsx';
-import { Pick, STATUSES, StatusIcon, WhoMark, isWorking, openTaskComposer, taskHref, taskKey } from '../taskboard.tsx';
+import { Tooltip } from '../ui/tooltip.tsx';
+import { PILL, Pick, STATUSES, StatusIcon, WhoMark, confirmStop, openTaskComposer, taskHref, taskKey } from '../taskboard.tsx';
+import { Card, DropGhost, askWhyBlocked, byRank, cardKey, errorText, place, ref, same, startedNote } from '../taskcard.tsx';
+import type { Assignee, Placement } from '../taskcard.tsx';
+import type { BoardChange } from '../../shared/api/taskboard.ts';
 import type { Choice } from '../taskboard.tsx';
 import { PER_VIEW_MAX, PER_VIEW_MIN, STACK_MAX, closePane, dropPane, evenOut, loadLayout, movePane, openPane, paneKey, panesInOrder, prune, resizeColumn, resizeStack, saveLayout, setPerView, stackPane, togglePin, unstackPane } from '../overviewlayout.ts';
 import type { PaneRef, StripLayout } from '../overviewlayout.ts';
-import type { BoardStatus, FolderListing, OverviewData, OverviewProject, OverviewSession, TaskBoardData } from '../../shared/types.ts';
+import type { BoardStatus, BoardTask, FolderListing, OverviewData, OverviewProject, OverviewSession, TaskBoardData } from '../../shared/types.ts';
 
 type Sort = 'needs' | 'recent' | 'kind' | 'name' | 'mine';
 const ORDER_KEY = 'dash-overview-order';
@@ -54,12 +60,66 @@ const CHANGES = new Set(['agents', 'workflows', 'approvals', 'questions', 'runs'
 const KIND_ORDER: Record<OverviewSession['kind'], number> = { brain: 0, agent: 1, team: 2, terminal: 3, task: 4 };
 const STATUS_ORDER: Record<OverviewSession['status'], number> = { 'needs-you': 0, working: 1, idle: 2 };
 const sessionKey = (p: OverviewProject, s: OverviewSession) => `${p.id}/${s.kind}/${s.id}`;
-/** What a session opens as a pane: a chat, a terminal, or another project's Brain (the open project's is the Brain
- *  chat, and tasks open on their page). */
-const paneOf = (s: OverviewSession, projectId: string, active: string): PaneRef | null =>
-  s.kind === 'agent' || s.kind === 'team' || s.kind === 'terminal' || (s.kind === 'brain' && projectId !== active) ? { kind: s.kind, id: s.id, projectId } : null;
+/** What a session opens as a pane: a chat, a terminal, or a project's Brain (tasks open on their page). */
+const paneOf = (s: OverviewSession, projectId: string): PaneRef | null => (s.kind === 'task' ? null : { kind: s.kind, id: s.id, projectId });
 const STRIP = 'all';
+// Terminals aren't on the Overview for now (Terminals in the menu has them): they leave the list, and their panes go.
+const withoutTerminals = (d: OverviewData): OverviewData => ({ ...d, projects: d.projects.map((p) => ({ ...p, sessions: p.sessions.filter((s) => s.kind !== 'terminal') })) });
 const PANEL_KEY = 'dash-overview-panel';
+// the list at the left and the panel at the right: as wide as you drag them (remembered in this browser)
+const SIDE_WIDTH = { key: 'dash-overview-side-width', def: 320, min: 240, max: 560 };
+const PANEL_WIDTH = { key: 'dash-overview-panel-width', def: 384, min: 300, max: 720 };
+type StoredWidth = typeof SIDE_WIDTH;
+function useStoredWidth(w: StoredWidth): [number, (n: number) => void] {
+  const fit = (n: number) => Math.round(Math.min(w.max, Math.max(w.min, n)));
+  const [width, setWidth] = useState(() => {
+    const saved = Number(localStorage.getItem(w.key));
+    return saved ? fit(saved) : w.def;
+  });
+  useEffect(() => localStorage.setItem(w.key, String(width)), [w.key, width]);
+  return [width, (n: number) => setWidth(fit(n))];
+}
+/** The line at a side panel's edge: drag it (or use ← →) to make the panel wider or narrower; a double-click resets it.
+ *  edge: which side of the panel it is on. */
+function EdgeHandle({ label, edge, width, set, reset }: { label: string; edge: 'left' | 'right'; width: number; set: (n: number) => void; reset: number }) {
+  const out = edge === 'right' ? 1 : -1;
+  const down = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const start = e.clientX;
+    const from = width;
+    const body = document.body.style;
+    const move = (m: PointerEvent) => set(from + out * (m.clientX - start));
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      body.cursor = '';
+      body.userSelect = '';
+    };
+    // (the resize cursor stays, and nothing is selected, while the pointer is anywhere)
+    body.cursor = 'col-resize';
+    body.userSelect = 'none';
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  };
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label}
+      aria-valuenow={width}
+      tabIndex={0}
+      title="Drag to resize · double-click to reset"
+      className="edge-handle relative z-20 -mx-[3px] w-1.5 flex-none cursor-col-resize outline-none [transition:background-color_0.15s] hover:bg-accent/30 focus-visible:bg-accent/40 max-md:hidden"
+      onPointerDown={down}
+      onDoubleClick={() => set(reset)}
+      onKeyDown={(e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        e.preventDefault();
+        set(width + out * (e.key === 'ArrowRight' ? 16 : -16));
+      }}
+    />
+  );
+}
 type PanelId = 'needs' | 'tasks' | 'files';
 /** The panels beside the strip, one at a time. Changes and pull requests can be added as more entries later. */
 const PANELS: readonly { id: PanelId; label: string; icon: string }[] = [
@@ -112,6 +172,8 @@ export function sortSessions(list: OverviewSession[], sort: Sort, pinned: (s: Ov
 }
 
 function OverviewPage() {
+  const [sideWidth, setSideWidth] = useStoredWidth(SIDE_WIDTH);
+  const [panelWidth, setPanelWidth] = useStoredWidth(PANEL_WIDTH);
   const [data, setData] = useState<OverviewData | null>(null);
   const [error, setError] = useState('');
   const [scope, setScope] = useState(() => localStorage.getItem(SCOPE_KEY) || 'all');
@@ -148,7 +210,7 @@ function OverviewPage() {
   const load = useCallback(async () => {
     const request = ++serial.current;
     try {
-      const next = await rpc.status.overview();
+      const next = withoutTerminals(await rpc.status.overview());
       if (request === serial.current) (loadedFrom.current = request, setData(next), setError(''));
     } catch (e) {
       if (request === serial.current) setError(e instanceof Error ? e.message : String(e));
@@ -216,19 +278,15 @@ function OverviewPage() {
    *  the open project's Brain in the Brain chat. */
   const openSession = (p: OverviewProject, s: OverviewSession) => {
     if (!data) return;
-    const ref = paneOf(s, p.id, data.active);
+    const ref = paneOf(s, p.id);
     if (ref) return change((l) => openPane(l, ref));
-    if (s.kind === 'task') return navigate(taskHref({ projectId: p.id, id: s.id }));
-    openDock();
+    navigate(taskHref({ projectId: p.id, id: s.id }));
   };
-  /** A new terminal in the open project's folder, opened as a pane. */
-  const newTerminal = async () => {
-    const t = await attempt(() => rpc.terminals.create({ kind: 'shell', cwd: state.data?.project?.brainPath }));
-    if (!t) return;
-    change((l) => openPane(l, { kind: 'terminal', id: t.id, projectId: active }));
-    void load();
+  /** A double-click on one in the list closes its pane. */
+  const closeSession = (p: OverviewProject, s: OverviewSession) => {
+    const ref = paneOf(s, p.id);
+    if (ref) change((l) => closePane(l, paneKey(ref)));
   };
-
   // the projects this scope shows (a project picked before and since removed: all of them)
   const projects = useMemo(() => {
     if (!data) return [];
@@ -282,7 +340,7 @@ function OverviewPage() {
   const panes = layout ? panesInOrder(layout).length : 0;
   return (
     <div className="flex h-[calc(100vh-56px)] min-h-0 max-md:h-auto max-md:flex-col">
-      <aside aria-label="Projects and sessions" className="overview-sidebar flex w-80 flex-none flex-col gap-3 overflow-y-auto border-r border-line bg-panel p-2 max-md:w-full max-md:border-r-0 max-md:border-b">
+      <aside aria-label="Projects and sessions" className="overview-sidebar flex w-(--side-w) flex-none flex-col gap-3 overflow-y-auto border-r border-line bg-panel p-2 max-md:w-full max-md:border-r-0 max-md:border-b" style={{ '--side-w': `${sideWidth}px` } as CSSProperties}>
         <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
           <Pick label="Show" value={scope} choices={scopeChoices} onChange={pickScope} />
           <Pick label="Sort" value={sort} choices={sortChoices} onChange={pickSort} />
@@ -302,26 +360,28 @@ function OverviewPage() {
             pinned={(s) => pins.has(sessionKey(p, s))}
             onPin={(s) => toggleSet(sessionKey(p, s), setPins, PINS_KEY)}
             onOpen={(s) => open(p, s)}
-            onNewTerminal={p.id === data.active ? () => void newTerminal() : undefined}
+            onClose={(s) => closeSession(p, s)}
             shownAsPane={(s) => !!layout && panesInOrder(layout).some((x) => x.projectId === p.id && x.kind === s.kind && x.id === s.id)}
             onMove={sort === 'mine' && !q ? (from, onto, after) => reorder(p, sessions, from, onto, after) : undefined}
           />
         ))}
         {q && !shown.some((x) => x.sessions.length) ? <p className="m-0 px-3 py-2 text-[12.5px] text-faint">Nothing matches "{search.trim()}".</p> : null}
       </aside>
+      <EdgeHandle label="List width" edge="right" width={sideWidth} set={setSideWidth} reset={SIDE_WIDTH.def} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1">
           {layout && panes ? (
             <Strip layout={layout} change={change} projects={data.projects} active={active} onNextNeeding={nextNeeding} />
           ) : (
             <main className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-7 max-md:px-4">
-              <p className="m-0 text-[13px] text-dim">Click an agent, a team or a terminal, of any project, to open it here. They sit side by side and keep their width.</p>
+              <p className="m-0 text-[13px] text-dim">Click an agent, a team or the Brain, of any project, to open it here. They sit side by side and keep their width. A double-click in the list closes one.</p>
               <Section title="Needs you" empty="Nothing waits for you." items={needing} showProject={projects.length > 1} onOpen={open} />
               <Section title="Working now" empty="Nothing is working right now." items={working} showProject={projects.length > 1} onOpen={open} />
             </main>
           )}
+          {panel ? <EdgeHandle label="Panel width" edge="left" width={panelWidth} set={setPanelWidth} reset={PANEL_WIDTH.def} /> : null}
           {panel ? (
-            <aside aria-label={PANELS.find((x) => x.id === panel)!.label} className="overview-panel flex w-96 flex-none flex-col border-l border-line bg-panel max-lg:w-80">
+            <aside aria-label={PANELS.find((x) => x.id === panel)!.label} className="overview-panel flex w-(--panel-w) flex-none flex-col border-l border-line bg-panel max-md:w-80" style={{ '--panel-w': `${panelWidth}px` } as CSSProperties}>
               <div className="flex flex-none items-center gap-2 border-b border-line px-3 py-2">
                 <Icon name={PANELS.find((x) => x.id === panel)!.icon} size={14} className="text-dim" />
                 <h2 className="m-0 flex-1 text-[13.5px] font-semibold text-ink">{PANELS.find((x) => x.id === panel)!.label}</h2>
@@ -361,7 +421,7 @@ function OverviewPage() {
 }
 
 // ---------- the sidebar ----------
-function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPin, onOpen, onNewTerminal, shownAsPane, onMove }: {
+function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPin, onOpen, onClose, shownAsPane, onMove }: {
   project: OverviewProject;
   sessions: OverviewSession[];
   open: boolean;
@@ -370,7 +430,8 @@ function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPi
   pinned: (s: OverviewSession) => boolean;
   onPin: (s: OverviewSession) => void;
   onOpen: (s: OverviewSession) => void;
-  onNewTerminal?: () => void;
+  /** closes its pane (a double-click) */
+  onClose: (s: OverviewSession) => void;
   shownAsPane: (s: OverviewSession) => boolean;
   /** Your order: a row dragged onto another goes before it (upper half) or after it */
   onMove?: (from: string, onto: string, after: boolean) => void;
@@ -386,15 +447,10 @@ function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPi
           <span className={`flex-none text-[11.5px] ${p.needsYou ? 'text-amber' : 'text-faint'}`}>{summary}</span>
           <Icon name="chevron-down" size={12} className={`flex-none text-faint [transition:transform_0.15s] ${folded ? '-rotate-90' : ''}`} />
         </button>
-        {onNewTerminal ? (
-          <IconButton variant="plain" className="size-7! flex-none" aria-label={`New terminal in ${p.name}`} title="New terminal in the project's folder" onClick={onNewTerminal}>
-            <Icon name="terminal" size={13} />
-          </IconButton>
-        ) : null}
       </div>
       {folded ? null : (
-        <ul className="m-0 flex list-none flex-col p-0">
-          {sessions.map((s) => <SessionRow key={rowKey(s)} session={s} pinned={pinned(s)} shown={shownAsPane(s)} onPin={() => onPin(s)} onOpen={() => onOpen(s)} onMove={onMove ? (from, after) => onMove(from, rowKey(s), after) : undefined} />)}
+        <ul className="m-0 mt-0.5 flex list-none flex-col gap-0.5 p-0">
+          {sessions.map((s) => <SessionRow key={rowKey(s)} session={s} pinned={pinned(s)} shown={shownAsPane(s)} onPin={() => onPin(s)} onOpen={() => onOpen(s)} onClose={() => onClose(s)} onMove={onMove ? (from, after) => onMove(from, rowKey(s), after) : undefined} />)}
         </ul>
       )}
     </section>
@@ -409,16 +465,36 @@ function SessionMark({ session: s, size = 20 }: { session: Pick<OverviewSession,
   return <WhoMark who={s.kind === 'brain' ? 'brain' : `${s.kind}:${s.id}`} emoji={s.emoji} color={s.color} size={size} />;
 }
 
-/** How a session is doing: a breathing dot while it works, ! when it needs you, "ended" for a finished terminal. */
-function SessionStatus({ session: s }: { session: OverviewSession }) {
-  if (s.status === 'working') return <span className="session-status inline-flex size-4 flex-none items-center justify-center" title="Working" aria-label="Working"><span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" /></span>;
-  if (s.status === 'needs-you') return <span className="session-status grid size-4 flex-none place-items-center rounded-full bg-amber/15 text-[10.5px] font-bold text-amber" title={s.why || 'Needs you'} aria-label={`Needs you${s.why ? `: ${s.why}` : ''}`}>!</span>;
-  if (s.ended) return <span className="session-status flex-none text-[11px] text-faint" title={s.why}>ended</span>;
-  return null;
+/** A row's mark: the agent's emoji on a tint of its colour (an icon for the rest), with how it is doing on its
+ *  corner: a breathing dot while it works, amber when it needs you. */
+function SessionAvatar({ session: s }: { session: OverviewSession }) {
+  const ico = s.kind === 'brain' ? 'brain' : s.kind === 'team' ? 'users' : s.kind === 'terminal' ? 'terminal' : s.kind === 'task' ? 'kanban' : 'bot';
+  const tint = s.kind === 'agent' && s.color ? { background: `color-mix(in srgb, ${s.color} 16%, var(--color-panel-2))`, borderColor: `color-mix(in srgb, ${s.color} 35%, var(--color-line))` } : undefined;
+  return (
+    <span className="relative flex-none">
+      <span aria-hidden="true" className="grid size-8 place-items-center rounded-[9px] border border-line bg-panel-2 text-[17px] leading-none text-dim" style={tint}>
+        {s.kind === 'agent' && s.emoji ? s.emoji : <Icon name={ico} size={15} />}
+      </span>
+      {s.status === 'working' ? (
+        <span className="session-status absolute -right-0.5 -bottom-0.5 grid size-2.5 place-items-center rounded-full bg-panel" title="Working" aria-label="Working"><span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" /></span>
+      ) : s.status === 'needs-you' ? (
+        <span className="session-status absolute -right-0.5 -bottom-0.5 grid size-2.5 place-items-center rounded-full bg-panel" title={s.why || 'Needs you'} aria-label={`Needs you${s.why ? `: ${s.why}` : ''}`}><span className="size-1.5 rounded-full bg-amber" /></span>
+      ) : null}
+    </span>
+  );
+}
+
+const KIND_LABEL: Record<OverviewSession['kind'], string> = { agent: 'Agent', team: 'Team', brain: 'Brain', terminal: 'Terminal', task: 'Task' };
+/** A row's second line: what needs you, that it works, or what it is and when it last changed. */
+function SessionLine({ session: s }: { session: OverviewSession }) {
+  if (s.status === 'needs-you') return <span className="truncate text-amber">{s.why || 'Needs you'}</span>;
+  if (s.status === 'working') return <span className="truncate text-accent">Working…</span>;
+  const what = s.kind === 'agent' ? (s.engine && ENGINE_LABEL[s.engine]) || 'Agent' : KIND_LABEL[s.kind];
+  return <span className="truncate">{[what, s.ended ? 'ended' : '', ago(s.updatedAt)].filter(Boolean).join(' · ')}</span>;
 }
 
 const ROW_DRAG = 'text/x-overview-session';
-function SessionRow({ session: s, pinned, shown, onPin, onOpen, onMove }: { session: OverviewSession; pinned: boolean; shown: boolean; onPin: () => void; onOpen: () => void; onMove?: (from: string, after: boolean) => void }) {
+function SessionRow({ session: s, pinned, shown, onPin, onOpen, onClose, onMove }: { session: OverviewSession; pinned: boolean; shown: boolean; onPin: () => void; onOpen: () => void; onClose: () => void; onMove?: (from: string, after: boolean) => void }) {
   const [over, setOver] = useState<'before' | 'after' | null>(null);
   const half = (e: ReactDragEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -448,15 +524,19 @@ function SessionRow({ session: s, pinned, shown, onPin, onOpen, onMove }: { sess
       }
     : {};
   return (
-    <li {...drag} className={`group relative flex items-center gap-2 rounded-ctl pr-1.5 pl-4 hover:bg-ink/4 ${shown ? 'bg-ink/4' : ''} ${onMove ? 'cursor-grab' : ''} ${over === 'before' ? 'shadow-[inset_0_2px_0_var(--color-accent)]' : over === 'after' ? 'shadow-[inset_0_-2px_0_var(--color-accent)]' : ''}`}>
-      <button type="button" className="session-open flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent py-1.5 text-left text-[13px] text-ink" title={s.why || (s.updatedAt ? `Last change ${ago(s.updatedAt)}` : '')} aria-current={shown ? 'true' : undefined} onClick={onOpen}>
-        <SessionMark session={s} />
-        <span className="session-name min-w-0 flex-1 truncate">{label(s)}</span>
+    <li {...drag} className={`group relative flex items-center gap-1 rounded-box pr-1.5 pl-2 [transition:background-color_0.15s] hover:bg-ink/5 ${shown ? 'bg-ink/4' : ''} ${onMove ? 'cursor-grab' : ''} ${over === 'before' ? 'shadow-[inset_0_2px_0_var(--color-accent)]' : over === 'after' ? 'shadow-[inset_0_-2px_0_var(--color-accent)]' : ''}`}>
+      {/* (open on the strip: a line of the accent at its left) */}
+      {shown ? <span aria-hidden="true" className="absolute top-2.5 bottom-2.5 left-0 w-0.5 rounded-full bg-accent" /> : null}
+      <button type="button" className="session-open flex min-w-0 flex-1 cursor-pointer items-center gap-3 border-0 bg-transparent py-2 text-left" title={s.why || (s.updatedAt ? `Last change ${ago(s.updatedAt)}` : '')} aria-current={shown ? 'true' : undefined} onClick={onOpen} onDoubleClick={onClose}>
+        <SessionAvatar session={s} />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="session-name truncate text-[13.5px] leading-5 font-medium text-ink">{label(s)}</span>
+          <span className="flex min-w-0 text-[11.5px] leading-4 text-faint"><SessionLine session={s} /></span>
+        </span>
       </button>
       <IconButton variant="plain" className={`size-6! flex-none ${pinned ? 'text-accent' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}`} aria-label={pinned ? `Unpin ${label(s)}` : `Pin ${label(s)}`} aria-pressed={pinned} title={pinned ? 'Unpin' : 'Pin to the top'} onClick={onPin}>
         <Icon name="star" size={12} />
       </IconButton>
-      <SessionStatus session={s} />
     </li>
   );
 }
@@ -502,54 +582,236 @@ function NeedsPanel({ projects, active, needing, onOpen }: { projects: OverviewP
   );
 }
 
-const TASK_GROUPS: BoardStatus[] = ['in_progress', 'todo', 'in_review', 'blocked'];
-/** Tasks: the board's open tasks for what is shown, by column; a click opens the task. */
+// the panel's statuses, in the order it lists them (what is being worked on first); the open ones unless you pick
+const TASK_GROUPS: BoardStatus[] = ['in_progress', 'todo', 'in_review', 'blocked', 'done'];
+const OPEN_GROUPS = TASK_GROUPS.filter((x) => x !== 'done');
+const TASK_STATUS_KEY = 'dash-overview-task-statuses';
+// Done shows what was finished lately, as on the board
+const DONE_RECENT_MS = 14 * 86_400_000;
+function loadStatuses(): BoardStatus[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(TASK_STATUS_KEY) || 'null');
+    if (Array.isArray(saved)) return TASK_GROUPS.filter((x) => saved.includes(x));
+  } catch {
+    // (unreadable: the open ones)
+  }
+  return OPEN_GROUPS;
+}
+const statusLabel = (x: BoardStatus) => STATUSES.find((o) => o.value === x)!.label;
+
+/** Which statuses the Tasks panel shows: several at once, each with a check; the menu stays open while you pick. */
+function StatusFilter({ value, onChange }: { value: BoardStatus[]; onChange: (v: BoardStatus[]) => void }) {
+  const all = value.length === TASK_GROUPS.length;
+  const open = !all && value.length === OPEN_GROUPS.length && OPEN_GROUPS.every((x) => value.includes(x));
+  const label = all ? 'All statuses' : open ? 'Open tasks' : value.length === 1 ? statusLabel(value[0]) : value.length ? `${value.length} statuses` : 'No status';
+  return (
+    <Dropdown>
+      <DropdownTrigger className={PILL} aria-label={`Statuses shown: ${label}`}>
+        {value.length === 1 ? <StatusIcon status={value[0]} size={14} /> : <Icon name="list-checks" size={14} className="text-faint" />}
+        <span className="min-w-0 truncate">{label}</span>
+      </DropdownTrigger>
+      <DropdownContent align="start" className="min-w-52">
+        <DropdownGroup>
+          <DropdownLabel>Show</DropdownLabel>
+          {STATUSES.map((o) => (
+            <DropdownCheckboxItem key={o.value} checked={value.includes(o.value)} onCheckedChange={(on) => onChange(on ? [...value, o.value] : value.filter((x) => x !== o.value))} icon={<StatusIcon status={o.value} size={14} />}>
+              {o.value === 'done' ? 'Done (last 14 days)' : o.label}
+            </DropdownCheckboxItem>
+          ))}
+        </DropdownGroup>
+        <DropdownSeparator />
+        <DropdownItem onClick={() => onChange(OPEN_GROUPS)}>Open tasks only</DropdownItem>
+        <DropdownItem onClick={() => onChange(TASK_GROUPS)}>Every status</DropdownItem>
+      </DropdownContent>
+    </Dropdown>
+  );
+}
+
+/** Tasks: the board's tasks for what is shown (this project, all of them or one), by status, on the Tasks board's own
+ *  cards. A click opens one, its menu moves or removes it, the mark at its corner gives it to someone, and a card
+ *  dragged to another status moves it there. Each change shows at once, is saved, then read again. */
 function TasksPanel({ scope, data }: { scope: string; data: OverviewData }) {
   const project = scope === 'here' ? data.active : scope === 'all' || !data.projects.some((p) => p.id === scope) ? 'all' : scope;
   const [board, setBoard] = useState<TaskBoardData | null>(null);
-  const load = useCallback(() => void rpc.taskBoard.list({ project }).then(setBoard, () => setBoard({ projects: [], tasks: [], tags: {} })), [project]);
+  const [statuses, setStatuses] = useState(loadStatuses);
+  const pickStatuses = (v: BoardStatus[]) => {
+    const ordered = TASK_GROUPS.filter((x) => v.includes(x));
+    setStatuses(ordered);
+    localStorage.setItem(TASK_STATUS_KEY, JSON.stringify(ordered));
+  };
+  const [dragging, setDragging] = useState<BoardTask | null>(null);
+  const [drop, setDrop] = useState<{ status: BoardStatus; index: number } | null>(null);
+  const [slot, setSlot] = useState(80);
+  const root = useRef<HTMLDivElement>(null);
+  useDragPreview(root);
+  // (not read again under a card being dragged: once the drag is over)
+  const held = useRef({ drag: false, missed: false });
+  const load = useCallback(() => {
+    if (held.current.drag) return void (held.current.missed = true);
+    void rpc.taskBoard.list({ project }).then(setBoard, () => setBoard({ projects: [], tasks: [], tags: {} }));
+  }, [project]);
   useEffect(() => {
     load();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const off = onEvent((e) => e.type === 'board' && (clearTimeout(timer), (timer = setTimeout(load, 200))));
     return () => (clearTimeout(timer), off());
   }, [load]);
+  useEffect(() => {
+    held.current.drag = !!dragging;
+    if (!dragging && held.current.missed) (held.current.missed = false, load());
+    if (!dragging) return;
+    // (a drag whose end never came: the next press ends it)
+    const end = () => (setDragging(null), setDrop(null));
+    document.addEventListener('pointerdown', end, true);
+    return () => document.removeEventListener('pointerdown', end, true);
+  }, [dragging, load]);
+
   const many = project === 'all' && data.projects.length > 1;
+  const where = scope === 'here' ? 'This project' : project === 'all' ? 'All projects' : data.projects.find((p) => p.id === project)?.name || 'This project';
+  const tasks = board?.tasks || [];
+  const columnOf = (status: BoardStatus, without?: BoardTask) => tasks.filter((t) => t.status === status && !(without && same(t, without))).sort(byRank);
+  const now = Date.now();
+  const shownOf = (status: BoardStatus) => columnOf(status).filter((t) => status !== 'done' || now - (t.doneAt || t.updatedAt) < DONE_RECENT_MS);
+  const shownCount = statuses.reduce((n, x) => n + shownOf(x).length, 0);
+  const save = async (t: BoardTask, patch: BoardChange, respaced: Placement['respaced'] = []) => {
+    try {
+      if (respaced.length) await rpc.taskBoard.rerank({ ranks: respaced.map((r) => ({ projectId: r.task.projectId, id: r.task.id, status: r.task.status, rank: r.rank })) });
+      startedNote(t, (await rpc.taskBoard.change({ ...ref(t), ...patch, expectedUpdatedAt: t.updatedAt })).task);
+    } catch (e) {
+      toast(errorText(e), 'error');
+    }
+    load();
+  };
+  /** Moves a card (shown at once). As on the board: leaving In progress stops the work, after asking; Blocked asks why. */
+  const move = async (t: BoardTask, status: BoardStatus, { rank, respaced }: Placement) => {
+    if (status === t.status && rank === t.rank && !respaced.length) return;
+    if (status !== 'in_progress' && !(await confirmStop(t))) return;
+    const why = status === 'blocked' && t.status !== 'blocked' ? await askWhyBlocked(t) : undefined;
+    if (why === null) return;
+    const patch = { status, rank, ...(why !== undefined ? { blockedReason: why } : {}) };
+    const room = new Map(respaced.map((r) => [cardKey(r.task), r.rank]));
+    setBoard((b) => (b ? { ...b, tasks: b.tasks.map((x) => (same(x, t) ? { ...x, ...patch, ...(status === 'done' && x.status !== 'done' ? { doneAt: Date.now() } : {}) } : room.has(cardKey(x)) ? { ...x, rank: room.get(cardKey(x))! } : x)) } : b));
+    await save(t, patch, respaced);
+  };
+  // a place in a status as it is shown: between the shown cards either side of it, among all of that status's cards
+  const placeAt = (status: BoardStatus, index: number, t: BoardTask) => {
+    const others = shownOf(status).filter((x) => !same(x, t));
+    return place(columnOf(status, t), others[index - 1], others[index]);
+  };
+  const toColumn = (t: BoardTask, status: BoardStatus) => void move(t, status, placeAt(status, 0, t));
+  const step = (t: BoardTask, dir: -1 | 1) => {
+    const list = shownOf(t.status);
+    const j = list.findIndex((x) => same(x, t)) + dir;
+    if (j >= 0 && j < list.length) void move(t, t.status, placeAt(t.status, j, t));
+  };
+  const onDrop = (status: BoardStatus) => {
+    const t = dragging;
+    const at = drop;
+    setDragging(null);
+    setDrop(null);
+    if (t && at && at.status === status) void move(t, status, placeAt(status, at.index, t));
+  };
+  const assign = async (t: BoardTask, who: Assignee) => {
+    if (who.assignee === t.assignee || !(await confirmStop(t))) return;
+    setBoard((b) => (b ? { ...b, tasks: b.tasks.map((x) => (same(x, t) ? { ...x, ...who } : x)) } : b));
+    await save(t, { assignee: who.assignee });
+  };
+  const remove = async (t: BoardTask) => {
+    if (!(await confirmStop(t)) || !(await confirmBox(`Remove ${taskKey(t.number)} "${t.title}"?`, { ok: 'Remove', danger: true }))) return;
+    setBoard((b) => (b ? { ...b, tasks: b.tasks.filter((x) => !same(x, t)) } : b));
+    await attempt(() => rpc.taskBoard.remove(ref(t)));
+    load();
+  };
+  const compose = () => openTaskComposer({ projectId: project === 'all' ? data.active : project, projects: data.projects.map((p) => ({ id: p.id, name: p.name })), onCreated: load });
   return (
-    <div className="flex flex-col gap-4 p-3">
-      <Button variant="ghost" size="small" className="self-start" onClick={() => openTaskComposer({ projectId: project === 'all' ? data.active : project, projects: data.projects.map((p) => ({ id: p.id, name: p.name })), onCreated: load })}>
-        <Icon name="plus" size={13} />
-        New task
-      </Button>
-      {!board ? <p className="m-0 text-[12.5px] text-faint">Loading the tasks…</p> : null}
-      {board && !board.tasks.some((t) => t.status !== 'done') ? <p className="m-0 text-[12.5px] text-faint">No open tasks.</p> : null}
-      {board
-        ? TASK_GROUPS.map((status) => {
-            const list = board.tasks.filter((t) => t.status === status);
-            if (!list.length) return null;
-            return (
-              <section key={status} aria-label={STATUSES.find((x) => x.value === status)!.label} className="flex flex-col gap-1">
-                <h3 className="m-0 flex items-center gap-1.5 text-[12px] font-medium text-dim">
-                  <StatusIcon status={status} size={13} />
-                  {STATUSES.find((x) => x.value === status)!.label}
-                  <span className="font-normal text-faint">{list.length}</span>
-                </h3>
-                <ul className="m-0 flex list-none flex-col p-0">
-                  {list.map((t) => (
-                    <li key={`${t.projectId}/${t.id}`}>
-                      <a href={taskHref(t)} className="flex items-center gap-2 rounded-ctl px-2 py-1.5 text-[13px] text-ink no-underline hover:bg-ink/4">
-                        <span className="flex-none text-[11.5px] text-faint tabular-nums">{taskKey(t.number)}</span>
-                        <span className="min-w-0 flex-1 truncate">{t.title}{many ? <span className="text-faint">{` · ${t.projectName}`}</span> : null}</span>
-                        {isWorking(t) ? <span className={`size-1.5 flex-none rounded-full ${t.work?.state === 'waiting' ? 'bg-amber' : 'bg-accent motion-safe:animate-pulse'}`} title={`${t.workerName || 'Someone'} is working on it`} /> : null}
-                        {t.assignee ? <WhoMark who={t.assignee} emoji={t.assigneeEmoji} color={t.assigneeColor} size={18} /> : null}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            );
-          })
-        : null}
+    <div ref={root} className="flex flex-col gap-5 p-3">
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" size="small" onClick={compose}>
+            <Icon name="plus" size={13} />
+            New task
+          </Button>
+          <StatusFilter value={statuses} onChange={pickStatuses} />
+        </div>
+        {/* (the Show picker at the top of the list decides which projects) */}
+        <p className="m-0 px-0.5 text-[12px] text-faint">{board ? `${where} · ${shownCount} task${shownCount === 1 ? '' : 's'}` : where}</p>
+      </div>
+      {!board ? (
+        <Skeleton label="Loading the tasks…" className="flex flex-col gap-1.5">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex flex-col gap-3 rounded-[10px] border border-line bg-bg p-3">
+              <Bone className={`h-4 ${i % 2 ? 'w-1/2' : 'w-4/5'}`} />
+              <Bone className="h-3 w-20" />
+            </div>
+          ))}
+        </Skeleton>
+      ) : !statuses.length ? (
+        <p className="m-0 rounded-box border border-dashed border-line-2 px-4 py-8 text-center text-[13px] text-dim">Pick a status above to see its tasks.</p>
+      ) : (
+        statuses.map((status) => {
+          const list = shownOf(status);
+          const label = statusLabel(status);
+          const index = drop?.status === status ? drop.index : null;
+          const others = list.filter((t) => !dragging || !same(t, dragging));
+          const home = dragging && dragging.status === status ? list.findIndex((t) => same(t, dragging)) : -1;
+          // dropping a card where it already is changes nothing: no gap there
+          const gap = index !== null && index !== home ? index : null;
+          return (
+            <section
+              key={status}
+              aria-label={label}
+              data-status={status}
+              className="flex flex-col gap-1.5"
+              onDragOver={(e) => {
+                if (!dragging) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const cards = [...e.currentTarget.querySelectorAll<HTMLElement>('[data-task-id]')].filter((el) => el.dataset.taskId !== cardKey(dragging));
+                const at = cards.findIndex((el) => {
+                  const r = el.getBoundingClientRect();
+                  return e.clientY < r.top + r.height / 2;
+                });
+                const next = at === -1 ? cards.length : at;
+                setDrop((d) => (d?.status === status && d.index === next ? d : { status, index: next }));
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrop((d) => (d?.status === status ? null : d));
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                onDrop(status);
+              }}
+            >
+              <h3 className="m-0 flex items-center gap-2 px-1 text-[13px] font-semibold text-ink">
+                <StatusIcon status={status} size={14} />
+                {label}
+                <span className="rounded-full bg-ink/6 px-1.5 text-[11px] leading-[18px] font-normal text-dim tabular-nums">{list.length}</span>
+              </h3>
+              <ul className={`m-0 flex list-none flex-col gap-1.5 rounded-box p-1.5 [transition:background-color_0.15s,box-shadow_0.15s] ${index !== null ? 'bg-accent/6 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]' : 'bg-ink/[0.025]'}`}>
+                {list.map((t, i) => [
+                  gap !== null && dragging && others.indexOf(t) === gap ? <DropGhost key={`slot-${cardKey(t)}`} task={dragging} height={slot} /> : null,
+                  <Card
+                    key={cardKey(t)}
+                    task={t}
+                    showProject={many}
+                    first={i === 0}
+                    last={i === list.length - 1}
+                    dragging={!!dragging && same(dragging, t)}
+                    onDragStart={(el) => (setSlot(el.getBoundingClientRect().height), setDragging(t))}
+                    onDragEnd={() => (setDragging(null), setDrop(null))}
+                    onColumn={(x) => toColumn(t, x)}
+                    onStep={(d) => step(t, d)}
+                    onRemove={() => void remove(t)}
+                    onAssign={(who) => void assign(t, who)}
+                  />,
+                ])}
+                {gap !== null && dragging && gap >= others.length ? <DropGhost task={dragging} height={slot} /> : null}
+                {!list.length && gap === null ? <li className="px-3 py-3 text-center text-[12px] text-faint">{dragging ? 'Drop here' : status === 'done' ? 'Nothing done in the last 14 days' : 'No tasks'}</li> : null}
+              </ul>
+            </section>
+          );
+        })
+      )}
     </div>
   );
 }
@@ -734,18 +996,21 @@ function Strip({ layout, change, projects, active, onNextNeeding }: { layout: St
         {list.map((ref) => {
           const s = status(ref);
           return (
-            <button key={paneKey(ref)} type="button" className="pointer-events-auto relative cursor-pointer rounded-[8px] border-0 bg-transparent p-0 shadow-raised" title={`${s?.name || ref.id}${s?.status === 'needs-you' ? ' · needs you' : s?.status === 'working' ? ' · working' : ''}`} aria-label={`Go to ${s?.name || ref.id}`} onClick={() => change((l) => ({ ...l, focus: paneKey(ref) }))}>
+            <Tooltip key={paneKey(ref)} side={side === 'left' ? 'right' : 'left'} label={`${s?.name || ref.id}${s?.status === 'needs-you' ? ' · needs you' : s?.status === 'working' ? ' · working' : ''}`}>
+            <button type="button" className="pointer-events-auto relative cursor-pointer rounded-[8px] border-0 bg-transparent p-0 shadow-raised" aria-label={`Go to ${s?.name || ref.id}`} onClick={() => change((l) => ({ ...l, focus: paneKey(ref) }))}>
               <SessionMark session={s || { kind: ref.kind, id: ref.id }} size={22} />
               {s?.status === 'needs-you' ? <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber" /> : s?.status === 'working' ? <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-accent" /> : null}
             </button>
+            </Tooltip>
           );
         })}
       </div>
     ) : null;
 
   return (
-    <div className="relative flex min-h-0 flex-1">
-      <div ref={scroller} className="strip flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
+    <div className="relative flex min-h-0 min-w-0 flex-1">
+      {/* (it comes to rest at a pane's edge, never half-way through one; pinned ones stay out of the way) */}
+      <div ref={scroller} className="strip flex min-h-0 min-w-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:thin]" style={{ scrollPaddingLeft: pinnedWidth }}>
         {layout.columns.map((c, i) => (
           <StripColumnView
             key={paneKey(c.panes[0])}
@@ -804,7 +1069,7 @@ function StripColumnView({ index, column: c, style, focus, drawn, status, projec
     document.addEventListener('pointerup', up);
   };
   return (
-    <div ref={box} className={`strip-column relative flex h-full flex-none flex-col bg-bg ${c.pinned ? 'border-r border-line shadow-card' : ''}`} style={style} data-pinned={c.pinned || undefined}>
+    <div ref={box} className={`strip-column relative flex h-full flex-none flex-col bg-bg ${c.pinned ? 'border-r border-line shadow-card' : 'snap-start'}`} style={style} data-pinned={c.pinned || undefined}>
       {c.panes.map((ref, row) => (
         <Pane key={paneKey(ref)} paneRef={ref} projectName={projectName(ref)} share={c.heights[row] ?? 1 / c.panes.length} stacked={c.panes.length > 1} pinned={c.pinned} focused={focus === paneKey(ref)} drawn={drawn(ref)} session={status(ref)} change={change} canStack={row === 0 && canStack} resizeBelow={row < c.panes.length - 1 ? resizeHeight(row) : undefined} />
       ))}
@@ -814,6 +1079,32 @@ function StripColumnView({ index, column: c, style, focus, drawn, status, projec
 }
 
 const DRAG_TYPE = 'text/x-overview-pane';
+const DROP_LABEL = 'rounded-full bg-accent px-2.5 py-1 text-[12px] font-medium whitespace-nowrap text-on-accent shadow-raised';
+
+/** What a dragged pane will do where it is: a line of the accent at the side it goes to, or a dashed place in the
+ *  lower half to stack under this one, each with a label. */
+function DropMark({ how, name }: { how: 'before' | 'after' | 'stack'; name: string }) {
+  return (
+    <div aria-hidden="true" className="drop-mark pointer-events-none absolute inset-0 z-20 animate-[fade_0.12s_ease-out]">
+      {how === 'stack' ? (
+        <div className="absolute inset-x-2 top-1/2 bottom-2 grid place-items-center rounded-box border-2 border-dashed border-accent/60 bg-accent/8">
+          <span className={DROP_LABEL}>{`Stack under ${name}`}</span>
+        </div>
+      ) : (
+        <>
+          <div className={`absolute inset-y-2 w-[3px] rounded-full bg-accent ${how === 'before' ? 'left-1' : 'right-1'}`} />
+          <span className={`${DROP_LABEL} absolute top-1/2 -translate-y-1/2 ${how === 'before' ? 'left-3' : 'right-3'}`}>{how === 'before' ? 'Put before' : 'Put after'}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** The card a dragged pane shows under the pointer: its mark and name (off screen; the browser takes a picture of it). */
+function dragChip(s: Pick<OverviewSession, 'kind' | 'id' | 'emoji'>, name: string): HTMLElement {
+  const mark = s.kind === 'agent' && s.emoji ? h('span', { class: 'text-[15px] leading-none' }, s.emoji) : icon(s.kind === 'brain' ? 'brain' : s.kind === 'team' ? 'users' : s.kind === 'terminal' ? 'terminal' : 'bot', 15, 'text-dim');
+  return h('div', { class: 'fixed -top-[200px] left-0 flex items-center gap-2 rounded-full border border-line bg-raise py-1.5 pr-3.5 pl-2.5 text-[13px] font-medium text-ink shadow-pop' }, mark, name);
+}
 
 function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, drawn, session: s, change, canStack, resizeBelow }: {
   paneRef: PaneRef;
@@ -831,6 +1122,8 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
 }) {
   const key = paneKey(ref);
   const [over, setOver] = useState<'before' | 'after' | 'stack' | null>(null);
+  // being dragged: it fades, and shows no drop marks of its own
+  const [lifted, setLifted] = useState(false);
   const name = s?.name || (ref.kind === 'terminal' ? 'Terminal' : ref.id);
   const zone = (e: ReactDragEvent<HTMLElement>): 'before' | 'after' | 'stack' => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -846,15 +1139,18 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
       <section
         aria-label={name}
         data-pane={key}
-        className={`strip-pane relative flex min-h-0 flex-col border-l border-line ${focused ? 'outline-1 -outline-offset-1 outline-accent/60' : ''}`}
+        className={`strip-pane relative flex min-h-0 flex-col border-l border-line [transition:opacity_0.15s] ${focused ? 'outline-1 -outline-offset-1 outline-accent/60' : ''} ${lifted ? 'opacity-40' : ''}`}
         style={{ flex: `${share} 1 0` }}
         onPointerDownCapture={() => !focused && change((l) => ({ ...l, focus: key }))}
         onDragOver={(e) => {
-          if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
+          if (!e.dataTransfer.types.includes(DRAG_TYPE) || lifted) return;
           e.preventDefault();
-          setOver(zone(e));
+          e.dataTransfer.dropEffect = 'move';
+          const next = zone(e);
+          setOver((was) => (was === next ? was : next));
         }}
-        onDragLeave={() => setOver(null)}
+        // (moving onto something inside the pane isn't leaving it)
+        onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setOver(null)}
         onDrop={(e) => {
           const from = e.dataTransfer.getData(DRAG_TYPE);
           const how = zone(e);
@@ -864,17 +1160,25 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
           change((l) => dropPane(l, from, key, how) ?? l);
         }}
       >
-        <header className="flex flex-none items-center gap-2 border-b border-line bg-panel px-2 py-1.5">
-          <span
-            className="grid size-5 flex-none cursor-grab place-items-center text-faint hover:text-ink"
-            draggable
-            title="Drag onto another pane: its sides put it before or after, its middle stacks it"
-            aria-hidden="true"
-            onDragStart={(e) => {
-              e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData(DRAG_TYPE, key);
-            }}
-          >
+        {/* the header is the handle: drag it onto another pane */}
+        <header
+          className="flex flex-none cursor-grab items-center gap-2 border-b border-line bg-panel px-2 py-1.5 active:cursor-grabbing"
+          draggable
+          title="Drag onto another pane: its sides put it before or after, its middle stacks it"
+          onDragStart={(e) => {
+            if ((e.target as HTMLElement).closest('button')) return e.preventDefault();
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData(DRAG_TYPE, key);
+            // (a small card with its name under the pointer, not the browser's see-through copy of the whole pane)
+            const chip = dragChip(s || { kind: ref.kind, id: ref.id }, name);
+            document.body.append(chip);
+            e.dataTransfer.setDragImage?.(chip, 16, 16);
+            setTimeout(() => chip.remove());
+            setLifted(true);
+          }}
+          onDragEnd={() => setLifted(false)}
+        >
+          <span className="grid size-5 flex-none place-items-center text-faint hover:text-ink" aria-hidden="true">
             <Icon name="grip-vertical" size={12} />
           </span>
           <SessionMark session={s || { kind: ref.kind, id: ref.id }} size={18} />
@@ -891,8 +1195,9 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
             <DropdownContent align="end" className="min-w-52">
               <DropdownItem icon="star" onClick={() => change((l) => togglePin(l, key))}>{pinned ? 'Unpin' : 'Pin at the left'}</DropdownItem>
               {stacked ? <DropdownItem icon="columns-2" onClick={() => change((l) => unstackPane(l, key))}>Take out of the stack</DropdownItem> : canStack ? <DropdownItem icon="layers" onClick={() => change((l) => stackPane(l, key))}>Stack under the one before</DropdownItem> : null}
-              <DropdownItem onClick={() => change((l) => movePane(l, key, -1))}>Move left</DropdownItem>
-              <DropdownItem onClick={() => change((l) => movePane(l, key, 1))}>Move right</DropdownItem>
+              <DropdownItem icon="arrow-left" onClick={() => change((l) => movePane(l, key, -1))}>Move left</DropdownItem>
+              <DropdownItem icon="arrow-right" onClick={() => change((l) => movePane(l, key, 1))}>Move right</DropdownItem>
+              {ref.kind === 'brain' && !projectName ? <DropdownItem icon="sparkles" onClick={() => openDock()}>Open in the Brain chat</DropdownItem> : null}
               {(ref.kind === 'agent' || ref.kind === 'team') && !projectName ? <DropdownItem icon="external-link" onClick={() => (openChat(ref.kind === 'agent' ? 'agent' : 'team', ref.id), change((l) => closePane(l, key)))}>Open in a chat window</DropdownItem> : null}
               <DropdownItem icon="code" onClick={() => void openInVSCode(ref, !!projectName)}>Open folder in VS Code</DropdownItem>
               <DropdownSeparator />
@@ -904,7 +1209,7 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
         <div className="flex min-h-0 flex-1 flex-col">
           {drawn ? <PaneBody paneRef={ref} foreign={!!projectName} projectName={projectName || 'This project'} change={change} /> : <div className="grid flex-1 place-items-center text-[12px] text-faint">{name}</div>}
         </div>
-        {over ? <div aria-hidden="true" className={`pointer-events-none absolute z-20 rounded-[6px] bg-accent/15 outline-2 -outline-offset-2 outline-accent/60 ${over === 'before' ? 'inset-y-0 left-0 w-1/4' : over === 'after' ? 'inset-y-0 right-0 w-1/4' : 'inset-x-0 bottom-0 h-1/2'}`} /> : null}
+        {over ? <DropMark how={over} name={name} /> : null}
       </section>
       {resizeBelow ? <div role="separator" aria-orientation="horizontal" aria-label="Pane height" className="h-1.5 flex-none cursor-row-resize border-l border-line bg-line/40 hover:bg-accent/30" onPointerDown={resizeBelow} /> : null}
     </>
@@ -950,10 +1255,14 @@ function PaneBody({ paneRef: ref, foreign, projectName, change }: { paneRef: Pan
     return () => void (el.parentNode === at && el.remove());
   }, [ref.kind, ref.id, ref.projectId, foreign]);
   if (ref.kind === 'terminal') return <XTerm id={ref.id} className="min-h-0 flex-1 bg-bg px-2 py-1" />;
-  if (ref.kind === 'brain') return <div className="flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3"><BrainPane projectId={ref.projectId} projectName={projectName} onOpen={(kind, id) => change((l) => openPane(l, { kind, id, projectId: ref.projectId }))} /></div>;
+  if (ref.kind === 'brain') return <div className="flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3"><BrainPane projectId={ref.projectId} projectName={projectName} here={!foreign} onOpen={(kind, id) => change((l) => openPane(l, { kind, id, projectId: ref.projectId }))} /></div>;
   return <div ref={host} className="strip-chat flex min-h-0 flex-1 flex-col px-3 pt-1 pb-3" />;
 }
 
 export const flush = true;
+// (the sidebar folds to its icons: room for one more pane)
+export const slimNav = true;
+// (the Brain opens as a pane here, or with Ctrl+K / ⌘K: its button would cover the panes' message boxes)
+export const brainButton = false;
 export const title = () => 'Overview';
 export const { render, unmount } = reactPage(() => <OverviewPage />);

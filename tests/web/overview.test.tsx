@@ -35,6 +35,7 @@ class FakeSocket {
 }
 
 const now = Date.now();
+const card = { description: '', priority: 'normal', rank: 0, createdAt: 1, updatedAt: 1, assignee: '', assigneeName: 'Unassigned', tagList: [], commentCount: 0, fileCount: 0 };
 const session = (over: Partial<OverviewSession>): OverviewSession => ({ kind: 'agent', id: 'x', name: 'X', status: 'idle', updatedAt: now - 60_000, ...over });
 let data: OverviewData;
 let requests: { method: string; url: string; body?: unknown }[];
@@ -75,10 +76,12 @@ beforeEach(() => {
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url === '/api/overview') return slowOverview ? new Promise<Response>((r) => setTimeout(() => r(json(data)), slowOverview)) : json(data);
     if (url === '/api/task-board?project=all') return json({ projects: [], tasks: [
-      { id: 'bt1', number: 4, title: 'Edit the intro', status: 'in_progress', projectId: 'p2', projectName: 'Podcast', assignee: 'agent:host', assigneeName: 'Host', work: { state: 'working' }, workerName: 'Host' },
-      { id: 'bt2', number: 7, title: 'Order flour', status: 'todo', projectId: 'p1', projectName: 'Bakery', assignee: '' },
-      { id: 'bt3', number: 1, title: 'Old', status: 'done', projectId: 'p1', projectName: 'Bakery', assignee: '' },
+      { ...card, id: 'bt1', number: 4, title: 'Edit the intro', status: 'in_progress', projectId: 'p2', projectName: 'Podcast', assignee: 'agent:host', assigneeName: 'Host', work: { state: 'working' }, workerName: 'Host' },
+      { ...card, id: 'bt2', number: 7, title: 'Order flour', status: 'todo', projectId: 'p1', projectName: 'Bakery', updatedAt: 70 },
+      { ...card, id: 'bt3', number: 1, title: 'Old', status: 'done', projectId: 'p1', projectName: 'Bakery' },
+      { ...card, id: 'bt4', number: 9, title: 'Bake bread', status: 'done', projectId: 'p1', projectName: 'Bakery', doneAt: Date.now() - 60_000 },
     ] });
+    if (url === '/api/task-board/p1/bt2' && init.method === 'PUT') return json({ task: { ...card, id: 'bt2', projectId: 'p1', updatedAt: 71 } });
     if (url.startsWith('/api/projects/p1/folder')) {
       const path = decodeURIComponent(url.split('path=')[1] || '');
       return json(path === 'notes' ? { rel: 'notes', entries: [{ name: 'idea.md', dir: false, size: 2048, path: '/b/notes/idea.md', rel: 'notes/idea.md' }], more: 0 } : { rel: '', entries: [{ name: 'notes', dir: true, path: '/b/notes', rel: 'notes' }, { name: 'PROJECT.md', dir: false, size: 12, path: '/b/PROJECT.md', rel: 'PROJECT.md' }], more: 0 });
@@ -117,7 +120,7 @@ const panel = async (label: string) => {
 describe('the Overview', () => {
   it('lists every project\'s sessions, Needs you first, with what needs you and what works', async () => {
     await open();
-    expect(rows('Bakery')).toEqual(['Baker', 'Writer', 'Shop team', 'PowerShell', 'The Brain']);
+    expect(rows('Bakery')).toEqual(['Baker', 'Writer', 'Shop team', 'The Brain']);
     expect(rows('Podcast')).toEqual(['#4 Edit the intro', 'Host']);
     expect(group('Bakery').querySelector('.session-status[aria-label="Working"]')).not.toBeNull();
     const needs = el.querySelector<HTMLElement>('section[aria-label="Needs you"]')!;
@@ -127,8 +130,23 @@ describe('the Overview', () => {
     expect(el.querySelector('section[aria-label="Working now"]')!.textContent).toContain('Writer');
     expect(el.querySelector('.overview-status')!.textContent).toContain('2 need you');
     expect(el.querySelector('.overview-status')!.textContent).toContain('1 of 5 working');
-    expect(el.textContent).toContain('Click an agent, a team or a terminal, of any project, to open it here.');
+    expect(el.textContent).toContain('Click an agent, a team or the Brain, of any project, to open it here.');
     expect(el.querySelector('.overview-status')!.textContent).toContain('2 projects');
+  });
+
+  it('says under each name what needs you, that it works, or what it is and when it last changed', async () => {
+    await open();
+    const line = (name: string) => row('Bakery', name).querySelector('.session-name')!.nextElementSibling!.textContent;
+    expect(line('Baker')).toBe('Approval: Run a command');
+    expect(line('Writer')).toBe('Working…');
+    expect(line('Shop team')).toBe('Team · just now');
+    expect(line('The Brain')).toBe('Brain · just now');
+    expect(group('Bakery').querySelector('.session-status[aria-label="Needs you: Approval: Run a command"]')).not.toBeNull();
+  });
+
+  it('folds the app\'s sidebar to its icons, as the Station does, and leaves out the Ask the Brain button', () => {
+    expect(overview.slimNav).toBe(true);
+    expect(overview.brainButton).toBe(false);
   });
 
   it('pins a session to the top of its project, and remembers it', async () => {
@@ -154,29 +172,46 @@ describe('the Overview', () => {
     expect(rows('Bakery')).toEqual(['Writer']);
   });
 
-  it('opens the open project\'s chats and terminals as panes side by side, the Brain in its chat', async () => {
+  it('opens the open project\'s chats and its Brain as panes side by side', async () => {
     await open();
     await act(async () => row('Bakery', 'Writer').click());
     await act(async () => row('Bakery', 'Shop team').click());
-    await act(async () => row('Bakery', 'PowerShell').click());
     await settle();
-    expect(panes()).toEqual(['Writer', 'Shop team', 'PowerShell']);
+    expect(panes()).toEqual(['Writer', 'Shop team']);
     expect(el.querySelector('[data-pane="p1/agent:writer"]')!.textContent).toContain('agent chat writer');
     expect(el.querySelector('[data-pane="p1/team:t1"]')!.textContent).toContain('team chat t1');
-    expect(el.querySelector('[data-pane="p1/terminal:term1"]')!.textContent).toContain('terminal term1');
     expect(el.querySelector('[data-pane="p1/agent:writer"]')!.textContent).toContain('Working');
     // the sidebar marks what is open, and opening one again only focuses it
     expect(row('Bakery', 'Writer').getAttribute('aria-current')).toBe('true');
     await act(async () => row('Bakery', 'Writer').click());
-    expect(panes()).toEqual(['Writer', 'Shop team', 'PowerShell']);
+    expect(panes()).toEqual(['Writer', 'Shop team']);
+    // the Brain opens beside them too, next to the pane in use (its whole chat is Ctrl+K)
     await act(async () => row('Bakery', 'The Brain').click());
-    expect(opened.dock).toBe(1);
+    await settle();
+    expect(panes()).toEqual(['Writer', 'The Brain', 'Shop team']);
+    expect(el.querySelector('[data-pane="p1/brain:brain"]')!.textContent).toContain('brain of p1');
+    expect(opened.dock).toBe(0);
     expect(opened.chats).toEqual([]);
     expect(requests.some((r) => r.url.includes('/activate'))).toBe(false);
     // and it is all there again next time
     act(() => overview.unmount());
     await open();
-    expect(panes()).toEqual(['Writer', 'Shop team', 'PowerShell']);
+    expect(panes()).toEqual(['Writer', 'The Brain', 'Shop team']);
+  });
+
+  it('lets the strip be narrower than its panes, so it scrolls instead of growing', async () => {
+    await open();
+    await act(async () => row('Bakery', 'Writer').click());
+    await settle();
+    // (without min-w-0 the strip grows to fit its panes, and pane widths, taken from its width, grow with it)
+    const strip = el.querySelector<HTMLElement>('.strip')!;
+    for (let box: HTMLElement | null = strip; box && box !== el; box = box.parentElement) {
+      if (box.parentElement?.classList.contains('flex-col')) break;
+      expect(box.classList.contains('min-w-0'), box.className).toBe(true);
+    }
+    // and it comes to rest at a pane's edge
+    expect(strip.classList.contains('snap-x')).toBe(true);
+    expect(strip.querySelector('.strip-column')!.classList.contains('snap-start')).toBe(true);
   });
 
   it('moves, stacks, pins and closes panes with Ctrl+Alt keys, and changes the columns per view', async () => {
@@ -247,18 +282,33 @@ describe('the Overview', () => {
     expect(el.querySelector('.strip-per-view')!.textContent).toBe(before);
   });
 
-  it('opens a new terminal in the project as a pane, and leaves out panes that are gone', async () => {
+  it('leaves terminals out: not in the list, and a terminal pane saved before goes', async () => {
+    localStorage.setItem('dash-overview-strip:all', JSON.stringify({ perView: 2, focus: null, columns: [
+      { panes: [{ kind: 'terminal', id: 'term1', projectId: 'p1' }], width: 1, heights: [1], pinned: false },
+      { panes: [{ kind: 'agent', id: 'writer', projectId: 'p1' }], width: 1, heights: [1], pinned: false },
+    ] }));
     await open();
-    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="New terminal in Bakery"]')!.click());
-    await settle(400);
-    expect(requests.find((r) => r.url === '/api/terminals')).toMatchObject({ method: 'POST' });
-    expect(panes()).toEqual(['PowerShell 2']);
-    // the terminal ended and was closed elsewhere: the pane goes once the overview says so
-    data.projects[0].sessions = data.projects[0].sessions.filter((x) => x.id !== 'term2');
-    await act(async () => row('Bakery', 'Writer').click());
+    expect(rows('Bakery')).not.toContain('PowerShell');
+    expect(el.querySelector('button[aria-label="New terminal in Bakery"]')).toBeNull();
+    expect(panes()).toEqual(['Writer']);
+  });
+
+  it('leaves out panes whose agent is gone', async () => {
+    await open();
+    for (const name of ['Writer', 'Baker']) await act(async () => row('Bakery', name).click());
+    data.projects[0].sessions = data.projects[0].sessions.filter((x) => x.id !== 'baker');
     act(() => overview.unmount());
     await open();
     expect(panes()).toEqual(['Writer']);
+  });
+
+  it('closes a pane with a double-click on it in the list', async () => {
+    await open();
+    for (const name of ['Writer', 'Baker']) await act(async () => row('Bakery', name).click());
+    expect(panes()).toEqual(['Writer', 'Baker']);
+    await act(async () => void row('Bakery', 'Writer').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    expect(panes()).toEqual(['Baker']);
+    expect(row('Bakery', 'Writer').getAttribute('aria-current')).toBeNull();
   });
 
   it('reads the overview again while a reply streams, not only once it stops', async () => {
@@ -271,17 +321,6 @@ describe('the Overview', () => {
       await settle(100);
     }
     expect(asked()).toBeGreaterThan(before);
-  });
-
-  it('keeps a new terminal\'s pane while the overview that has it is still on its way', async () => {
-    await open();
-    slowOverview = 200;
-    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="New terminal in Bakery"]')!.click());
-    await settle(50);
-    // (not in the overview yet: it shows as "Terminal")
-    expect(panes()).toEqual(['Terminal']);
-    await settle(300);
-    expect(panes()).toEqual(['PowerShell 2']);
   });
 
   it('opens another project\'s agent and its Brain as panes that talk to that project, without opening it', async () => {
@@ -307,10 +346,15 @@ describe('the Overview', () => {
     expect(el.querySelector('[data-pane="p2/brain:brain"]')!.textContent).toContain('brain of p2');
     expect(opened.dock).toBe(0);
     expect(requests.some((r) => r.url.includes('/activate'))).toBe(false);
-    // the open project's Brain is the Brain chat
+    // the open project's Brain is a pane as well, whose menu opens the whole Brain chat
     await act(async () => row('Bakery', 'The Brain').click());
+    await settle();
+    expect(panes()).toEqual(['Host', 'The Brain', 'The Brain']);
+    const mine = el.querySelector<HTMLElement>('[data-pane="p1/brain:brain"]')!;
+    await act(async () => mine.querySelector<HTMLButtonElement>('button[aria-label="Actions for The Brain"]')!.click());
+    await settle();
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((m) => m.textContent === 'Open in the Brain chat')!.click());
     expect(opened.dock).toBe(1);
-    expect(panes()).toHaveLength(2);
   });
 
   it('puts an agent beside its twin of a copied project (the same id), each talking to its own project', async () => {
@@ -344,11 +388,111 @@ describe('the Overview', () => {
   it('lists the open tasks of what is shown by column in the Tasks panel', async () => {
     await open();
     const tasks = await panel('Tasks');
-    expect([...tasks.querySelectorAll('section h3')].map((h) => h.textContent)).toEqual(['In progress1', 'To do1']);
-    const links = [...tasks.querySelectorAll<HTMLAnchorElement>('a')];
-    expect(links.map((a) => a.textContent)).toEqual(['#4Edit the intro · Podcast', '#7Order flour · Bakery']);
-    expect(links[0].getAttribute('href')).toBe('#/tasks/p2/bt1');
+    // the open statuses, each a place to drop a card even when empty
+    expect([...tasks.querySelectorAll('section h3')].map((h) => h.textContent)).toEqual(['In progress1', 'To do1', 'In review0', 'Blocked0']);
+    expect(tasks.textContent).toContain('All projects · 2 tasks');
+    // the Tasks board's own cards
+    const cards = [...tasks.querySelectorAll<HTMLElement>('li[data-task-id]')];
+    expect(cards.map((c) => c.getAttribute('aria-label'))).toEqual(['#4 Edit the intro, In progress, Podcast', '#7 Order flour, To do, Bakery']);
+    expect(cards[0].querySelector('a')!.getAttribute('href')).toBe('#/tasks/p2/bt1');
+    expect(cards[0].querySelector('.work-mark[aria-label="Host is working on it"]')).not.toBeNull();
     expect(tasks.textContent).not.toContain('Old');
+    // a card's menu moves it, saved in its own project
+    await act(async () => cards[1].querySelector<HTMLButtonElement>('button[aria-label="Actions for Order flour"]')!.click());
+    await settle();
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((m) => m.textContent === 'In review')!.click());
+    await settle();
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/bt2', body: { status: 'in_review', expectedUpdatedAt: 70 } });
+  });
+
+  it('shows the statuses you pick in the Tasks panel, several at once, and remembers them', async () => {
+    await open();
+    const tasks = await panel('Tasks');
+    const pick = async (label: string) => {
+      await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')].find((m) => m.textContent?.startsWith(label))!.click());
+      await settle();
+    };
+    await act(async () => tasks.querySelector<HTMLButtonElement>('button[aria-label="Statuses shown: Open tasks"]')!.click());
+    await settle();
+    // Done (lately) on, To do and In review off
+    await pick('Done');
+    await pick('To do');
+    await pick('In review');
+    expect([...tasks.querySelectorAll('section h3')].map((h) => h.textContent)).toEqual(['In progress1', 'Blocked0', 'Done1']);
+    expect(tasks.textContent).toContain('Bake bread');
+    // (done longer ago than 14 days: left out)
+    expect(tasks.textContent).not.toContain('Old');
+    expect(JSON.parse(localStorage.getItem('dash-overview-task-statuses')!)).toEqual(['in_progress', 'blocked', 'done']);
+  });
+
+  it('moves a task to another status when its card is dragged there', async () => {
+    await open();
+    const tasks = await panel('Tasks');
+    const dragEvent = (kind: string) => {
+      const e = new DragEvent(kind, { bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'dataTransfer', { value: { effectAllowed: '', dropEffect: '', types: [], setData: () => {}, setDragImage: () => {} } });
+      return e;
+    };
+    const review = tasks.querySelector<HTMLElement>('section[data-status="in_review"]')!;
+    await act(async () => tasks.querySelector('[data-task-id="p1/bt2"]')!.dispatchEvent(dragEvent('dragstart')));
+    expect(review.textContent).toContain('Drop here');
+    await act(async () => review.dispatchEvent(dragEvent('dragover')));
+    await act(async () => review.dispatchEvent(dragEvent('drop')));
+    await settle();
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/bt2', body: { status: 'in_review', expectedUpdatedAt: 70 } });
+  });
+
+  it('lets you drag the list and the panel wider or narrower, and remembers it', async () => {
+    await open();
+    await panel('Tasks');
+    const list = el.querySelector<HTMLElement>('.overview-sidebar')!;
+    const handle = el.querySelector<HTMLElement>('[role="separator"][aria-label="List width"]')!;
+    expect(list.style.getPropertyValue('--side-w')).toBe('320px');
+    await act(async () => void handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
+    expect(list.style.getPropertyValue('--side-w')).toBe('336px');
+    await act(async () => {
+      handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 400, bubbles: true }));
+      document.dispatchEvent(new PointerEvent('pointermove', { clientX: 2000 }));
+      document.dispatchEvent(new PointerEvent('pointerup', {}));
+    });
+    // (no wider than 560)
+    expect(list.style.getPropertyValue('--side-w')).toBe('560px');
+    expect(localStorage.getItem('dash-overview-side-width')).toBe('560');
+    await act(async () => void handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    expect(list.style.getPropertyValue('--side-w')).toBe('320px');
+    // the panel's line is at its left: dragging left widens it
+    const side = el.querySelector<HTMLElement>('.overview-panel')!;
+    const edge = el.querySelector<HTMLElement>('[role="separator"][aria-label="Panel width"]')!;
+    await act(async () => {
+      edge.dispatchEvent(new PointerEvent('pointerdown', { clientX: 1000, bubbles: true }));
+      document.dispatchEvent(new PointerEvent('pointermove', { clientX: 900 }));
+      document.dispatchEvent(new PointerEvent('pointerup', {}));
+    });
+    expect(side.style.getPropertyValue('--panel-w')).toBe('484px');
+  });
+
+  it('marks where a dragged pane will go: before, after, or stacked under another', async () => {
+    await open();
+    for (const name of ['Writer', 'Baker']) await act(async () => row('Bakery', name).click());
+    const drag = (kind: string) => {
+      const e = new DragEvent(kind, { bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'dataTransfer', { value: { effectAllowed: '', dropEffect: '', types: ['text/x-overview-pane'], setData: () => {}, getData: () => 'p1/agent:baker', setDragImage: () => {} } });
+      return e;
+    };
+    const writer = el.querySelector<HTMLElement>('[data-pane="p1/agent:writer"]')!;
+    const baker = el.querySelector<HTMLElement>('[data-pane="p1/agent:baker"]')!;
+    await act(async () => baker.querySelector('header')!.dispatchEvent(drag('dragstart')));
+    expect(baker.className).toContain('opacity-40');
+    // (no layout here: the pointer is at the pane's middle, so it stacks)
+    await act(async () => writer.dispatchEvent(drag('dragover')));
+    expect(writer.querySelector('.drop-mark')!.textContent).toBe('Stack under Writer');
+    // the dragged pane shows no mark of its own
+    await act(async () => baker.dispatchEvent(drag('dragover')));
+    expect(baker.querySelector('.drop-mark')).toBeNull();
+    await act(async () => writer.dispatchEvent(drag('drop')));
+    await act(async () => baker.querySelector('header')!.dispatchEvent(drag('dragend')));
+    expect(el.querySelectorAll('.strip-column')).toHaveLength(1);
+    expect(el.querySelector('.drop-mark')).toBeNull();
   });
 
   it('browses a project folder in the Files panel and opens it in VS Code', async () => {

@@ -66,3 +66,16 @@ export function DropdownRadioItem({ icon, className = '', children, ...item }: M
     </Menu.RadioItem>
   );
 }
+
+/** One of several that can be on at once: a check at the right while it is; the menu stays open for the next. */
+export function DropdownCheckboxItem({ icon, className = '', children, ...item }: Menu.CheckboxItem.Props & { icon?: ReactNode }) {
+  return (
+    <Menu.CheckboxItem closeOnClick={false} className={`st-menu-item ${className}`.trim()} {...item}>
+      {icon}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      <Menu.CheckboxItemIndicator className="flex text-accent">
+        <Icon name="check" size={14} />
+      </Menu.CheckboxItemIndicator>
+    </Menu.CheckboxItem>
+  );
+}

@@ -26,6 +26,8 @@ import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowC
 import { ArrowDownIcon } from '@phosphor-icons/react/dist/csr/ArrowDown';
 import { ArrowSquareOutIcon } from '@phosphor-icons/react/dist/csr/ArrowSquareOut';
 import { ArrowUpIcon } from '@phosphor-icons/react/dist/csr/ArrowUp';
+import { ArrowLeftIcon } from '@phosphor-icons/react/dist/csr/ArrowLeft';
+import { ArrowRightIcon } from '@phosphor-icons/react/dist/csr/ArrowRight';
 import { ArrowsOutCardinalIcon } from '@phosphor-icons/react/dist/csr/ArrowsOutCardinal';
 import { ArrowsOutSimpleIcon } from '@phosphor-icons/react/dist/csr/ArrowsOutSimple';
 import { AtIcon } from '@phosphor-icons/react/dist/csr/At';
@@ -216,6 +218,8 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   'user-plus': UserPlusIcon,
   'arrow-up': ArrowUpIcon,
   'arrow-down': ArrowDownIcon,
+  'arrow-left': ArrowLeftIcon,
+  'arrow-right': ArrowRightIcon,
   ellipsis: DotsThreeIcon,
   'external-link': ArrowSquareOutIcon,
   'maximize-2': ArrowsOutSimpleIcon,
