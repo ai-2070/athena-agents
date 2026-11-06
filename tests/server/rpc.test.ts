@@ -14,6 +14,9 @@ const contract = {
     add: oc.route({ method: 'POST', path: '/things/{listId}' })
       .input(z.object({ listId: z.string(), name: z.string({ error: 'Give the thing a name.' }) }))
       .output(type<{ thing: { listId: string; name: string } }>()),
+    make: oc.route({ method: 'POST', path: '/things' })
+      .input(z.object({ name: z.string().optional() }))
+      .output(type<{ name?: string }>()),
     get: oc.route({ method: 'GET', path: '/things/{listId}/{id}' })
       .input(z.object({ listId: z.string(), id: z.string() }))
       .output(type<{ id: string }>()),
@@ -23,6 +26,7 @@ const os = implement(contract);
 const router = os.router({
   things: {
     add: os.things.add.handler(({ input }) => ({ thing: input })),
+    make: os.things.make.handler(({ input }) => input),
     get: os.things.get.handler(({ input }) => {
       if (input.id === 'gone') throw Object.assign(new Error('That thing is gone.'), { status: 404 });
       if (input.id === 'broken') throw new Error('The disk is full.');
@@ -31,11 +35,15 @@ const router = os.router({
   },
 });
 const handler = rpcHandler(router);
+// (the same routes with a 64-byte limit, under /small)
+const small = rpcHandler(router, 64);
 
 let base = '';
 const server = http.createServer(async (req, res) => {
   const scoped = /^\/api\/p\/[^/]+/.exec(req.url || '');
-  const { matched } = await handler.handle(req, res, { prefix: scoped ? (scoped[0] as `/${string}`) : '/api', context: {} });
+  const { matched } = req.url?.startsWith('/small/')
+    ? await small.handle(req, res, { prefix: '/small', context: {} })
+    : await handler.handle(req, res, { prefix: scoped ? (scoped[0] as `/${string}`) : '/api', context: {} });
   if (matched) return;
   // (the old routes: they read the body themselves)
   let body = '';
@@ -92,6 +100,40 @@ describe('oRPC routes', () => {
     const bad = await post('/api/things/l', '{nope');
     expect(bad.status).toBe(400);
     expect(await bad.json()).toEqual({ error: 'Body must be JSON' });
+  });
+
+  it('read no body as {}, as the old routes did', async () => {
+    const r = await fetch(`${base}/api/things`, { method: 'POST' });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({});
+    expect(await (await post('/api/things', '')).json()).toEqual({});
+  });
+
+  it('refuse null or a bare value as the body, in plain words', async () => {
+    for (const body of ['null', '"Cake"', '3']) {
+      const r = await post('/api/things', body);
+      expect(r.status).toBe(400);
+      expect(await r.json()).toEqual({ error: 'Body must be a JSON object' });
+    }
+    // (with the route's own fields in its address too)
+    expect(await (await post('/api/things/l', 'null')).json()).toEqual({ error: 'Body must be a JSON object' });
+  });
+
+  it('refuse a body over the limit with 413, in the old routes’ words', async () => {
+    const body = JSON.stringify({ name: 'x'.repeat(200) });
+    const answer = await new Promise<{ status: number; text: string }>((resolve, reject) => {
+      const req = http.request(`${base}/small/things`, { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) } }, (res) => {
+        let text = '';
+        res.on('data', (c) => (text += String(c)));
+        res.on('end', () => resolve({ status: res.statusCode || 0, text }));
+      });
+      req.on('error', reject);
+      req.end(body);
+    });
+    expect(answer.status).toBe(413);
+    expect(JSON.parse(answer.text)).toEqual({ error: 'Too large' });
+    // (under the limit is fine)
+    expect(await (await fetch(`${base}/small/things`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"name":"a"}' })).json()).toEqual({ name: 'a' });
   });
 
   it('leave a request that isn’t theirs to the old routes, body unread', async () => {

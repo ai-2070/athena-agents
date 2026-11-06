@@ -147,7 +147,7 @@ export const agentsRouter = os.router({
       }
       return { file: kb.addKnowledgeFile(id, name, content || '') };
     }),
-    remove: os.knowledge.remove.handler(({ input: { id, folder, label } }) => {
+    remove: os.knowledge.remove.handler(({ input: { params: { id }, query: { folder, label } } }) => {
       const a = agentOf(id);
       if (folder) agents.save({ ...a, knowledge: { folders: (a.knowledge?.folders || []).filter((f) => f !== folder) } });
       else if (label) kb.removeKnowledgeFile(id, label);

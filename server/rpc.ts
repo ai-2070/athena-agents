@@ -30,10 +30,32 @@ export function rpcErrorMessage(e: ORPCError<string, unknown>): string {
   return e.message;
 }
 
-/** Answers a router's procedures the way the old routes answer: JSON, never cached, errors as { error }. */
-export function rpcHandler(router: AnyRouter): OpenAPIHandler<Record<never, never>> {
+/** The body as the old routes read it: none is {}, and one that is there must be a JSON object (or list), not
+ *  null or a bare number or string. Over the limit is refused in the old routes' words. */
+function oldBody<R extends { body: () => Promise<unknown> }>(request: R): R {
+  let read: Promise<unknown> | undefined;
+  const body = async (): Promise<unknown> => {
+    let b: unknown;
+    try {
+      b = await request.body();
+    } catch (e) {
+      if (e instanceof ORPCError && e.code === 'PAYLOAD_TOO_LARGE') throw new ORPCError('PAYLOAD_TOO_LARGE', { status: 413, message: 'Too large', cause: e });
+      throw e;
+    }
+    if (b === undefined) return {};
+    if (b === null || typeof b !== 'object') throw new ORPCError('BAD_REQUEST', { message: 'Body must be a JSON object' });
+    return b;
+  };
+  return { ...request, body: () => (read ??= body()) };
+}
+
+/** Answers a router's procedures the way the old routes answer: JSON, never cached, errors as { error }.
+ *  maxBodySize: JSON_LIMIT, unless a test wants less. */
+export function rpcHandler(router: AnyRouter, maxBodySize = JSON_LIMIT): OpenAPIHandler<Record<never, never>> {
   return new OpenAPIHandler(router, {
-    plugins: [new BodyLimitPlugin({ maxBodySize: JSON_LIMIT })],
+    plugins: [new BodyLimitPlugin({ maxBodySize })],
+    // (the body is read only once a route matches: one that isn't ours keeps its body unread)
+    interceptors: [({ next, request, ...rest }) => next({ ...rest, request: oldBody(request) })],
     clientInterceptors: [
       async ({ next }) => {
         try {

@@ -132,9 +132,9 @@ export const agents = {
     add: oc.route({ method: 'POST', path: '/agents/{id}/knowledge' })
       .input(oneAgent.extend({ folder: z.string().optional(), url: z.string().optional(), name: z.string().optional(), content: z.string().optional() }))
       .output(type<{ ok?: true; file?: string }>()),
-    /** Unlinks a folder, or removes a file by its label. */
-    remove: oc.route({ method: 'DELETE', path: '/agents/{id}/knowledge' })
-      .input(oneAgent.extend({ folder: z.string().optional(), label: z.string().optional() }))
+    /** Unlinks a folder, or removes a file by its label (?folder= or ?label=, as the old route read them). */
+    remove: oc.route({ method: 'DELETE', path: '/agents/{id}/knowledge', inputStructure: 'detailed' })
+      .input(z.object({ params: oneAgent, query: z.object({ folder: z.string().optional(), label: z.string().optional() }) }))
       .output(type<{ ok: true }>()),
   },
 };

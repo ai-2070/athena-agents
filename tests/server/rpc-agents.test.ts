@@ -54,21 +54,22 @@ describe('agents over oRPC', () => {
     expect(await send('GET', `/api/agents/${a.id}`)).toEqual({ status: 404, json: { error: 'That agent is unavailable.' } });
   });
 
+  // (a removal is said in the address, ?label= or ?folder=, as the old route read it)
   it('add and remove what an agent knows: a file, a linked folder', async () => {
     const a = await make();
     const { file } = (await send('POST', `/api/agents/${a.id}/knowledge`, { name: 'notes.md', content: 'Bread rises.' })).json as { file: string };
     expect(fs.readFileSync(file, 'utf8')).toBe('Bread rises.');
     const label = ((await send('GET', `/api/agents/${a.id}`)).json.knowledgeFiles as { label: string }[])[0].label;
-    expect(await send('DELETE', `/api/agents/${a.id}/knowledge`, { label })).toEqual({ status: 200, json: { ok: true } });
+    expect(await send('DELETE', `/api/agents/${a.id}/knowledge?label=${encodeURIComponent(label)}`)).toEqual({ status: 200, json: { ok: true } });
     expect(fs.existsSync(file)).toBe(false);
 
     const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-'));
     expect(await send('POST', `/api/agents/${a.id}/knowledge`, { folder })).toEqual({ status: 200, json: { ok: true } });
     expect(agents.get(a.id)?.knowledge.folders).toEqual([folder]);
-    expect(await send('DELETE', `/api/agents/${a.id}/knowledge`, { folder })).toEqual({ status: 200, json: { ok: true } });
+    expect(await send('DELETE', `/api/agents/${a.id}/knowledge?folder=${encodeURIComponent(folder)}`)).toEqual({ status: 200, json: { ok: true } });
     expect(agents.get(a.id)?.knowledge.folders).toEqual([]);
     expect(await send('POST', `/api/agents/${a.id}/knowledge`, { folder: path.join(folder, 'missing') })).toMatchObject({ status: 400 });
-    expect(await send('DELETE', `/api/agents/${a.id}/knowledge`, {})).toEqual({ status: 400, json: { error: 'Say which file or folder to remove.' } });
+    expect(await send('DELETE', `/api/agents/${a.id}/knowledge`)).toEqual({ status: 400, json: { error: 'Say which file or folder to remove.' } });
   });
 });
 

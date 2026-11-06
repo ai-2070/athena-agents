@@ -864,7 +864,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
         <div key={f} className="list-row">
           <Icon name="folder" size={15} className="flex-none text-dim" />
           <div className="flex-1 min-w-0 font-mono text-[12.5px] wrap-anywhere">{f}</div>
-          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.agents.knowledge.remove({ id, folder: f })).then(load)}>Unlink</Button>
+          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.agents.knowledge.remove({ params: { id }, query: { folder: f } })).then(load)}>Unlink</Button>
         </div>
       ))}
       {info.files
@@ -876,7 +876,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
               {f.label}
               <span className="hint">{` · ${Math.max(1, Math.round(f.size / 1024))} KB`}</span>
             </div>
-            <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.agents.knowledge.remove({ id, label: f.label })).then(load)}>Remove</Button>
+            <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.agents.knowledge.remove({ params: { id }, query: { label: f.label } })).then(load)}>Remove</Button>
           </div>
         ))}
       <div className="flex flex-wrap items-center gap-2">
