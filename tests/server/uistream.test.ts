@@ -17,7 +17,7 @@ const open = (runId: string, { later, own, ended }: Opening = {}) =>
   streamRun({
     chatId: 'c1',
     runId: later ? new Promise<string | null>((r) => (startLater = r)) : runId,
-    items: replayItems,
+    turn: () => replayItems,
     waiting: 'Waiting for it to stop…',
     ...(own ? { ownSteer: own } : {}),
     ...(ended ? { live: () => false } : {}),
@@ -147,6 +147,30 @@ describe('streamRun() for a run that starts later', () => {
     const parts = last.parts.filter((p) => p.type !== 'step-start');
     expect(parts).toEqual([expect.objectContaining({ type: 'text', text: 'On the new plan.' })]);
     expect(data).toEqual([expect.objectContaining({ type: 'data-status', data: { text: 'Waiting for it to stop…' } })]);
+  });
+
+  it('shows what that run said before the stream knew it was the one (nothing missed, nothing twice)', async () => {
+    replayItems = [];
+    const { last } = await read('r22', async () => {
+      // it starts and speaks in the moment before the stream hears its id: its chat has it already
+      run({ kind: 'text', text: 'Started. ' }, 'r22');
+      replayItems = [{ type: 'user', text: 'go' }, { type: 'assistant', text: 'Started. ' }];
+      startLater!('r22');
+      await tick(10);
+      run({ kind: 'text', text: 'Carrying on.' }, 'r22');
+      run({ kind: 'done', text: '' }, 'r22');
+    }, { later: true });
+    expect(last.parts.filter((p) => p.type !== 'step-start')).toEqual([expect.objectContaining({ type: 'text', text: 'Started. Carrying on.' })]);
+  });
+
+  it('ends at once when that run ended before the stream knew it (its done went already)', async () => {
+    replayItems = [];
+    // (nothing after the start drives it: a stream that waited for the done would never end)
+    const { last } = await read('r23', async () => {
+      run({ kind: 'done', text: '' }, 'r23');
+      startLater!('r23');
+    }, { later: true, ended: true });
+    expect(last.parts.filter((p) => p.type !== 'step-start')).toEqual([]);
   });
 
   it('ends, with nothing in it, when that run never starts (it was taken back)', async () => {

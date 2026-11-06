@@ -95,6 +95,46 @@ describe('an agent chat’s stream over oRPC', () => {
     expect(shown(await reading)).toEqual(['So far. The rest.']);
   });
 
+  it('a steered message waits for the run before it, then shows all its new run said, even before it listened', async () => {
+    const a = newAgent({ name: 'Scout' });
+    const c = chats.create(a.id);
+    vi.spyOn(engines, 'runActive').mockReturnValue(true);
+    let start: (runId: string) => void = () => {};
+    vi.spyOn(engines, 'steerChat').mockResolvedValue({ runId: new Promise<string | null>((r) => (start = r)) });
+    const live = vi.spyOn(engines, 'liveChat').mockReturnValue(null);
+    const it = await rpc.agents.chats.stream({ id: a.id, chatId: c.id, text: 'New plan', steer: true });
+    const reading = readAll(it);
+    await tick();
+    // the new run starts and speaks in the moment before the stream hears its id
+    run(c.id, 'r-next', { kind: 'text', text: 'On the new plan. ' });
+    live.mockReturnValue({ ...c, items: [{ type: 'user', text: 'New plan' }, { type: 'assistant', text: 'On the new plan. ' }] });
+    start('r-next');
+    await tick();
+    run(c.id, 'r-next', { kind: 'text', text: 'Done.' });
+    run(c.id, 'r-next', { kind: 'done', text: '' });
+    expect(shown(await reading)).toEqual(['On the new plan. Done.']);
+  });
+
+  it('a message that joined the turn going on doesn’t replay that turn (the view shows it already)', async () => {
+    const a = newAgent({ name: 'Scout' });
+    const c = chats.create(a.id);
+    vi.spyOn(engines, 'runActive').mockReturnValue(true);
+    vi.spyOn(engines, 'steerChat').mockResolvedValue({ runId: 'r-join', steerId: 's1' });
+    vi.spyOn(engines, 'liveChat').mockReturnValue({ ...c, items: [{ type: 'user', text: 'go' }, { type: 'assistant', text: 'Shown already. ' }] });
+    const it = await rpc.agents.chats.stream({ id: a.id, chatId: c.id, text: 'Also this', steer: true });
+    const reading = readAll(it);
+    await tick();
+    run(c.id, 'r-join', { kind: 'text', text: 'And this too.' });
+    run(c.id, 'r-join', { kind: 'done', text: '' });
+    expect(shown(await reading)).toEqual(['And this too.']);
+  });
+
+  it('refuses attachments that aren’t files in plain words', async () => {
+    const a = newAgent({ name: 'Scout' });
+    const c = chats.create(a.id);
+    expect(await refused(rpc.agents.chats.stream({ id: a.id, chatId: c.id, text: 'hi', attachments: [1 as unknown as string] }))).toEqual({ status: 400, error: 'Each attachment is a file of the project.' });
+  });
+
   it('stops listening when the page stops reading (the run goes on)', async () => {
     const { a, c } = fakeRun('r-gone');
     const before = listening();
@@ -121,7 +161,25 @@ describe('the Brain’s streamed answer over oRPC', () => {
     expect(m.parts.find((p) => p.type === 'data-answer')).toMatchObject({ data: { answer: 'On it.' } });
   });
 
-  it('refuses nothing to ask before the stream starts', async () => {
+  it('refuses before the stream starts, in plain words: nothing to ask, a project that isn’t an id', async () => {
     expect(await refused(rpc.brain.stream({ text: '' }))).toEqual({ status: 400, error: 'Type a message first.' });
+    expect(await refused(rpc.brain.stream({ text: 'hi', project: 7 as unknown as string }))).toEqual({ status: 400, error: 'project must be the id of a project.' });
+    expect(await refused(rpc.brain.stream({ text: 'hi', attachments: [{}] as unknown as string[] }))).toEqual({ status: 400, error: 'Each attachment is a file of the project.' });
+  });
+});
+
+describe('a stream’s answer', () => {
+  it('asks a proxy not to hold it back, and isn’t cached', async () => {
+    vi.spyOn(overseer, 'ask').mockResolvedValue({ answer: 'Hi.', done: [], delegate: null } as unknown as Awaited<ReturnType<typeof overseer.ask>>);
+    const port = (server.address() as net.AddressInfo).port;
+    const res = await fetch(`http://127.0.0.1:${port}/api/brain/stream`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'hi' }) });
+    expect(res.headers.get('content-type')).toMatch(/^text\/event-stream/);
+    expect(res.headers.get('x-accel-buffering')).toBe('no');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    await res.text();
+    // (a plain JSON answer isn't a stream)
+    const plain = await fetch(`http://127.0.0.1:${port}/api/brain/skills`);
+    expect(plain.headers.get('x-accel-buffering')).toBeNull();
+    await plain.text();
   });
 });

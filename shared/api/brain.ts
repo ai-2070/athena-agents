@@ -4,6 +4,7 @@
 // stream is answered there too, as the Brain of that project.
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
+import { message } from './message.ts';
 import type { BrainAnswer, BrainChatMessage, BrainInfo, BrainPulse, UIStream } from '../types.ts';
 
 /** The agent chats and teams the Brain chat shows working. A list of the wrong kind is none: /stop always stops. */
@@ -12,10 +13,10 @@ const work = z.object({
   teams: z.array(z.string()).catch([]).optional(),
 });
 
+/** What you ask it, and from which project (none: the open one). */
 const question = z.object({
-  text: z.string({ error: 'Type a message first.' }).optional(),
-  project: z.string().nullable().optional(),
-  attachments: z.array(z.string(), { error: 'attachments must be a list.' }).optional(),
+  ...message,
+  project: z.string({ error: 'project must be the id of a project.' }).nullable().optional(),
 });
 
 export const brain = {

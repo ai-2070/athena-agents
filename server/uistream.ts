@@ -94,8 +94,9 @@ export interface StreamRunOptions {
   runId: string | Promise<string | null>;
   /** What it says while that run hasn't started yet. */
   waiting?: string;
-  /** The turn so far, shown first (a view opening while it runs). */
-  items?: readonly ChatItem[];
+  /** The run's turn so far (its chat's items), read the moment the run is known: at once, or when a run that
+   *  starts later starts. Shown first, so what it said before anyone listened isn't lost. */
+  turn?: () => readonly ChatItem[];
   /** the message this stream's request sent into the turn going on: the view shows it already */
   ownSteer?: string;
   /** whether the run is still going: one that ended before the stream began ends it at once */
@@ -107,7 +108,7 @@ const STOPPED = new Set(['Stopped.', 'Stopped to take your new message.']);
 
 /** The run as UI message chunks, until it ends. Listening starts at once (call it in the same moment the run
  *  starts or is read); a reader that goes away (cancels) stops it listening, not the run. */
-export function streamRun({ chatId, runId, items = [], waiting = 'Waiting…', ownSteer, live }: StreamRunOptions): ReadableStream<UIMessageChunk> {
+export function streamRun({ chatId, runId, turn = () => [], waiting = 'Waiting…', ownSteer, live }: StreamRunOptions): ReadableStream<UIMessageChunk> {
   let over = false;
   let stop = () => {};
   return new ReadableStream<UIMessageChunk>({
@@ -132,20 +133,22 @@ export function streamRun({ chatId, runId, items = [], waiting = 'Waiting…', o
         if (e.kind === 'done' || e.kind === 'error') end();
         else w.event(e);
       };
-      // (the replay and the listening start in the same moment, so nothing is missed or seen twice)
+      // From the moment the run is known: what it said so far, then the rest live. (The replay and the listening
+      // start in the same moment, so nothing is missed or seen twice.) A run that ended before anyone listened
+      // ends the stream at once: its done event went already.
+      const follow = (started: string) => {
+        id = started;
+        w.replay(turn());
+        if (live && !live(started)) end();
+      };
       w.start(`run-${id ?? `next-${Date.now()}`}`);
-      w.replay(items);
       bus.on('event', listen);
-      // (it ended before anyone listened: its done event went already)
-      if (id != null && live && !live(id)) return end();
-      if (typeof runId !== 'string') {
-        w.status(waiting);
-        // (its first events come later: a run streams only once its engine answers)
-        void runId.then(
-          (started) => (started ? void (id = started) : end()),
-          () => end(),
-        );
-      }
+      if (typeof runId === 'string') return follow(runId);
+      w.status(waiting);
+      void runId.then(
+        (started) => (started && !over ? follow(started) : end()),
+        () => end(),
+      );
     },
     cancel: () => stop(),
   });

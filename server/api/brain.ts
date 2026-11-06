@@ -6,20 +6,14 @@ import * as overseer from '../overseer.ts';
 import * as commands from '../commands.ts';
 import * as programs from '../programs.ts';
 import { brainSkillSlugs, setBrainSkills } from '../skills.ts';
-import { cleanAttachments } from '../uploads.ts';
 import { openWithShell } from '../util.ts';
 import { streamBrain } from '../uistream.ts';
-import { refuse } from './refuse.ts';
+import { saidSomething } from './said.ts';
 
 const os = implement(contract);
 
-// what was asked, and the files attached (only uploads of the project count); never nothing
-function question(input: { text?: string; attachments?: string[] }): { text: string; attachments: string[] } {
-  const attachments = cleanAttachments(input.attachments);
-  const text = (input.text ?? '').trim().slice(0, 20000);
-  if (!text && !attachments.length) return refuse('Type a message first.');
-  return { text, attachments };
-}
+// what was asked (its first 20000 characters), never nothing
+const question = (input: { text?: string; attachments?: string[] }) => saidSomething(input, { max: 20000 });
 
 export const brainRouter = os.router({
   info: os.info.handler(() => projects.brainInfo()),

@@ -4,6 +4,7 @@
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
 import type { Effort } from '../effort.ts';
+import { message } from './message.ts';
 import type { Agent, AgentDetail, Autonomy, BrainBrief, Chat, ChatSummary, EngineId, HarnessCommand, LoopInfo, QueuedMessage, UIStream } from '../types.ts';
 
 // (Records, so a new engine, autonomy or effort can't be left out here)
@@ -48,11 +49,6 @@ export type AgentPatch = z.input<typeof agentPatch>;
 
 const oneAgent = z.object({ id: z.string() });
 const oneChat = oneAgent.extend({ chatId: z.string() });
-// what you send: words, and files you attached (uploads of the project)
-const message = {
-  text: z.string({ error: 'Type a message first.' }).optional(),
-  attachments: z.array(z.string(), { error: 'attachments must be a list.' }).optional(),
-};
 /** A message sent now ({ runId }), or put in the queue because the agent is working here ({ queued }). */
 type Sent = { runId: string } | { queued: QueuedMessage };
 const chatPath = '/agents/{id}/chats/{chatId}';
