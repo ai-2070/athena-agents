@@ -2,9 +2,10 @@
 // app state, these are fetched from /api/p/<project>/agents when a pane needs them, and kept current while it shows
 // (projectlist.ts: one request at a time per project, however many panes).
 import { projectList } from './projectlist.ts';
+import { rpcAt } from './client/rpc.ts';
 import type { Agent } from '../shared/types.ts';
 
-const list = projectList<Agent>('/agents', ['agents']);
+const list = projectList<Agent>((at) => rpcAt(at).agents.list(), ['agents']);
 
 /** Fetches a project's agents (again). */
 export const loadProjectAgents = list.load;

@@ -4,26 +4,12 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { Dot } from '../ui/marks.tsx';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { GET, POST, attempt, ago, navigate, approvalCard } from '../core.ts';
+import { attempt, ago, navigate, approvalCard } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Avatar, DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { SelectControl } from '../ui/select.tsx';
-import type { ActivityEntry, AppState, Chat, LibraryAgentListing } from '../../shared/types.ts';
+import type { ActivityEntry, AppState, Program } from '../../shared/types.ts';
 import { appIconStyle, appIconUrl } from '../appicons.ts';
-
-/** One entry of GET /api/programs (only the fields this page reads). */
-interface ProgramInfo {
-  id: string;
-  name: string;
-  icon: string;
-  installed: boolean;
-  running: boolean;
-  serviceUrl: string | null;
-  version: string | null;
-}
-/** GET /api/library: only which agents are the starter team is used here. */
-interface LibraryStarters {
-  agents?: Pick<LibraryAgentListing, 'slug' | 'starter'>[];
-}
 
 const SERVICES = ['comfyui', 'lmstudio', 'ollama', 'netdesk', 'orca', 'blender', 'premiere', 'photoshop'];
 const KIND_ICON: Record<string, string> = { run: 'play', error: 'circle-x', approval: 'hand', social: 'send', workflow: 'workflow', program: 'monitor', mcp: 'plug', library: 'store', terminal: 'terminal', system: 'clock', notify: 'bell', skill: 'puzzle' };
@@ -35,11 +21,11 @@ const quick = { text: '', agentId: '' };
 
 function HomePage() {
   const d = useAppState();
-  const [progs, setProgs] = useState<ProgramInfo[] | null>(null);
+  const [progs, setProgs] = useState<Program[] | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   useEffect(() => {
-    void GET<ProgramInfo[]>('/programs').then(setProgs).catch(() => setProgs([]));
-    void GET<ActivityEntry[]>('/activity').then(setActivity).catch(() => {});
+    void rpc.programs.list({}).then(setProgs).catch(() => setProgs([]));
+    void rpc.status.activity().then(setActivity).catch(() => {});
   }, []);
   useServerEvents((ev) => ev.type === 'activity' && setActivity((a) => [ev.entry as ActivityEntry, ...a].slice(0, KEEP)));
   if (!d) return null;
@@ -133,7 +119,7 @@ function HomePage() {
               <div className="list">
                 {services.map((p) => (
                   <div key={p.id} className="list-row">
-                    <span className="w-6 text-center">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" style={appIconStyle(p.id)} /> : p.icon}</span>
+                    <span className="w-6 text-center">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" style={appIconStyle(p.id)} /> : null /* (a program without an icon of its own shows none) */}</span>
                     <div className="flex-1 min-w-0">
                       <div className="title">{p.name}</div>
                       <div className="hint">{p.running ? (p.serviceUrl ? `running · ${p.serviceUrl}` : 'running') : p.version ? `v${p.version}` : 'installed'}</div>
@@ -203,8 +189,8 @@ function QuickTask({ d }: { d: AppState }) {
     attempt(async () => {
       const t = text.trim();
       if (!t || !agentId) return;
-      const chat = await POST<Chat>(`/agents/${agentId}/chats`);
-      await POST(`/agents/${agentId}/chats/${chat.id}/messages`, { text: t });
+      const chat = await rpc.agents.chats.create({ id: agentId });
+      await rpc.agents.chats.send({ id: agentId, chatId: chat.id, text: t });
       quick.text = '';
       navigate(`#/agents/${agentId}/${chat.id}`);
     });
@@ -240,8 +226,8 @@ function Onboarding({ d }: { d: AppState }) {
   // One click: the library's agents marked starter (Coordinator, X Writer, Image Maker, Researcher…).
   const addStarterTeam = async () => {
     setAdding(true);
-    const lib = await GET<LibraryStarters>('/library').catch(() => null);
-    for (const a of (lib?.agents || []).filter((x) => x.starter)) await attempt(() => POST('/library/hire', { source: 'library', slug: a.slug }));
+    const lib = await rpc.library.list().catch(() => null);
+    for (const a of (lib?.agents || []).filter((x) => x.starter)) await attempt(() => rpc.library.hire({ source: 'library', slug: a.slug }));
     navigate('#/agents');
   };
   const steps = [

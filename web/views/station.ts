@@ -5,7 +5,8 @@
 import { engineConfigured } from '../engineavailability.ts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { h, mount, state, GET, POST, PUT, DEL, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
+import { h, mount, state, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { domButton, domButtonLink, domDot } from '../ui/dom.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.tsx';
@@ -38,7 +39,7 @@ import type { MenuEntry, StationMenu } from './stationmenu.tsx';
 import type { WorldView } from '../voxel/view.ts';
 import type { WorldLayer } from '../voxel/worldlayer.ts';
 import type { AgentTarget, SkinHost } from '../voxel/skins.ts';
-import type { ActivityEntry, Agent, AppState, Chat, Project, Routine, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
+import type { ActivityEntry, Agent, AppState, Chat, Project, Routine, StationLayout, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
 
 // ---------- types ----------
 /** A workflow run (GET /api/workflow-runs, /api/workflow-active and the 'workflow-run' event). */
@@ -51,9 +52,6 @@ interface WorkflowRun {
   error?: string | null;
 }
 /** Where things sit on the map that isn't a team (GET /api/layout). */
-interface StationLayout {
-  bench?: { x: number; z: number } | null;
-}
 
 /** What a tool call means, in words, for the monitor. */
 interface ToolDesc {
@@ -891,7 +889,7 @@ export async function render(el: HTMLElement): Promise<void> {
     drawHud();
     if (S.selected && S.selected.type !== 'agent' && S.selected.type !== 'branch') renderPanel();
   });
-  const feed = await GET<ActivityEntry[]>('/activity').catch((): ActivityEntry[] => []);
+  const feed = await rpc.status.activity().catch((): ActivityEntry[] => []);
   if (S) {
     S.feed = feed.slice(0, 4).map((a) => ({ text: a.text, kind: a.kind, ts: a.ts }));
     drawFeed();
@@ -907,7 +905,7 @@ export async function render(el: HTMLElement): Promise<void> {
     }
   }, 6000);
   S.progTimer = setInterval(async () => {
-    const p = await GET<Program[]>('/programs').catch(() => null);
+    const p = await rpc.programs.list({}).catch(() => null);
     if (S && p) {
       S.progs = p;
       if (!floorBusy && signature() !== S.signature) rebuild();
@@ -952,7 +950,7 @@ function teamView(w: TeamListing): TeamView {
 }
 
 async function loadData(): Promise<void> {
-  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([GET<Program[]>('/programs').catch((): Program[] => []), GET<TeamListing[]>('/workflows').catch((): TeamListing[] => []), GET<WorkflowRun[]>('/workflow-runs').catch((): WorkflowRun[] => []), GET<WorkflowRun[]>('/workflow-active').catch((): WorkflowRun[] => []), GET<StationLayout>('/layout').catch((): StationLayout => ({})), GET<Routine[]>('/routines').catch((): Routine[] => [])]);
+  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([rpc.programs.list({}).catch((): Program[] => []), rpc.workflows.list().catch((): TeamListing[] => []), rpc.workflows.runs.list({}).catch((): WorkflowRun[] => []), rpc.workflows.active().catch((): WorkflowRun[] => []), rpc.layout.get().catch((): StationLayout => ({})), rpc.routines.list().catch((): Routine[] => [])]);
   if (!S) return;
   S.layout = layout || {};
   S.progs = progs;
@@ -3158,7 +3156,7 @@ async function saveBranchPlace(wfId: string): Promise<void> {
 async function saveLayout(patch: StationLayout): Promise<void> {
   assertMounted(S);
   S.layout = { ...(S.layout || {}), ...patch };
-  await attempt(() => PUT('/layout', patch));
+  await attempt(() => rpc.layout.save(patch));
 }
 
 
@@ -3251,7 +3249,7 @@ async function dropAgent(): Promise<void> {
   if (!to || to.members.includes(agentId)) return;
   if (from && !st.copy) {
     setMembers(from, from.members.filter((x) => x !== agentId));
-    await attempt(() => PUT(`/workflows/${from.id}`, teamBody(from)));
+    await attempt(() => rpc.workflows.change(teamBody(from)));
   }
   setMembers(to, [...to.members, agentId]);
   await saveWorkflow(to);
@@ -3278,7 +3276,7 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
     toast(`${a.name} → ${w.name}`);
   };
   const newAgent = async () => {
-    const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
+    const a = await attempt(() => rpc.agents.create({ name: 'New agent' }));
     if (a) navigate(`#/agents/${a.id}/edit`);
   };
   if (p?.type === 'agent') {
@@ -3307,7 +3305,7 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
       'Delete agent',
       async () => {
         if (!(await confirmBox(`Delete ${a.name}? It is also taken off every team.`, { ok: 'Delete', danger: true }))) return;
-        await attempt(() => DEL(`/agents/${a.id}`), `Deleted ${a.name}`);
+        await attempt(() => rpc.agents.remove({ id: a.id }), `Deleted ${a.name}`);
         choose(null);
         refreshSoon(0);
         reloadWorkflows();
@@ -3345,7 +3343,7 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
       'Delete team',
       async () => {
         if (!(await confirmBox(`Delete the team "${w.name}" and its agents? Agents that are also on another team stay.`, { ok: 'Delete', danger: true }))) return;
-        await attempt(() => DEL(`/workflows/${w.id}`));
+        await attempt(() => rpc.workflows.remove({ id: w.id }));
         choose(null);
         refreshSoon(0);
         reloadWorkflows();
@@ -3638,7 +3636,7 @@ async function openFloor(): Promise<void> {
   // the old floor starts leaving now; the new one comes in when the project has loaded
   setFloorBusy(true);
   void floorSlide('out', floorDirection((d.projects || []).map((p) => p.id), d.project?.id, target.id) || 1);
-  const ok = await attempt(() => POST(`/projects/${target.id}/activate`), `Opened ${target.name}`);
+  const ok = await attempt(() => rpc.projects.activate({ id: target.id }), `Opened ${target.name}`);
   if (!ok) {
     // it did not open: bring the old floor back
     setFloorBusy(false);
@@ -3902,7 +3900,7 @@ function drawEmpty(d: AppState): void {
         domButton({ size: 'small', onclick: () => openDock('auto', 'Make me a team for ') }, 'Ask the Brain'),
         domButtonLink({ variant: 'ghost', size: 'small', href: '#/library' }, 'Agent library'),
         domButton({ variant: 'ghost', size: 'small', onclick: async () => {
-          const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
+          const a = await attempt(() => rpc.agents.create({ name: 'New agent' }));
           if (a) navigate(`#/agents/${a.id}/edit`);
         } }, 'Create your own'),
       ),
@@ -3988,7 +3986,7 @@ function tickClock(): void {
 }
 
 async function loadHeadbar(): Promise<void> {
-  const hb = await GET<Headbar>('/headbar').catch(() => null);
+  const hb = await rpc.status.headbar().catch(() => null);
   if (S && hb) {
     S.headbar = hb;
     setClaudeConnectors(hb.connectors || []);
@@ -4014,7 +4012,7 @@ function drawFeed(): void {
 }
 
 async function reloadRoutineCounts(): Promise<void> {
-  const list = await GET<Routine[]>('/routines').catch(() => null);
+  const list = await rpc.routines.list().catch(() => null);
   if (!S || !list) return;
   S.teamRoutines = routineCounts(list);
   for (const id of S.branches.keys()) drawBranchCard(id);
@@ -4022,7 +4020,7 @@ async function reloadRoutineCounts(): Promise<void> {
 
 async function reloadWorkflows(): Promise<void> {
   if (!S) return;
-  const [wfs, runs] = await Promise.all([GET<TeamListing[]>('/workflows').catch(() => S!.workflows), GET<WorkflowRun[]>('/workflow-runs').catch(() => S!.wfRuns)]);
+  const [wfs, runs] = await Promise.all([rpc.workflows.list().catch(() => S!.workflows), rpc.workflows.runs.list({}).catch(() => S!.wfRuns)]);
   if (!S) return;
   S.workflows = wfs.map(teamView);
   for (const w of wfs) {
@@ -4046,7 +4044,7 @@ function teamBody(wf: TeamView): Team {
   return { ...team, steps: teamSteps({ steps: stepList, members: team.members }) } as Team;
 }
 async function saveWorkflow(wf: TeamView): Promise<Team | undefined> {
-  const r = await attempt(() => PUT<Team>(`/workflows/${wf.id}`, teamBody(wf)));
+  const r = await attempt(() => rpc.workflows.change(teamBody(wf)));
   if (r) await reloadWorkflows();
   return r;
 }
@@ -4136,19 +4134,19 @@ function setMembers(wf: TeamView, members: string[]): void {
 
 // Clone / save as preset, for agents and teams.
 async function cloneAgent(a: Agent): Promise<Agent | undefined> {
-  const c = await attempt(() => POST<Agent>(`/agents/${a.id}/duplicate`), `Cloned ${a.name}`);
+  const c = await attempt(() => rpc.agents.duplicate({ id: a.id }), `Cloned ${a.name}`);
   if (c) refreshSoon(0);
   return c;
 }
 async function cloneTeam(w: TeamView, withAgents: boolean): Promise<void> {
-  const c = await attempt(() => POST<Team>(`/workflows/${w.id}/clone`, { withAgents }), withAgents ? `Cloned ${w.name} with copies of its agents` : `Cloned ${w.name}`);
+  const c = await attempt(() => rpc.workflows.clone({ id: w.id, withAgents }), withAgents ? `Cloned ${w.name} with copies of its agents` : `Cloned ${w.name}`);
   if (!c) return;
   if (withAgents) refreshSoon(0);
   await reloadWorkflows();
   choose({ type: 'branch', id: c.id });
 }
-const presetAgent = (a: Agent) => attempt(() => POST(`/presets/agent/${a.id}`), `Saved ${a.name} as a preset (Agent library › Your presets)`);
-const presetTeam = (w: TeamView) => attempt(() => POST(`/presets/team/${w.id}`), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
+const presetAgent = (a: Agent) => attempt(() => rpc.presets.saveAgent({ id: a.id }), `Saved ${a.name} as a preset (Agent library › Your presets)`);
+const presetTeam = (w: TeamView) => attempt(() => rpc.presets.saveTeam({ id: w.id }), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
 
 // What an agent is doing right now, in words ("Blender · rendering the scene", "thinking…").
 function nowText(agentId: string, wfId?: string): { st: 'needs' | 'idle' | 'working'; text: string } {
@@ -4168,7 +4166,7 @@ function nowText(agentId: string, wfId?: string): { st: 'needs' | 'idle' | 'work
 export async function answerLook(ev: ServerEvent): Promise<void> {
   if (typeof ev.request !== 'string') return;
   const drew = S?.worldLayer ? await S.worldLayer.look(ev).catch(() => false) : false;
-  if (!drew) await POST(`/world/snapshot/${encodeURIComponent(ev.request)}`, { error: "this tab doesn't show that world in the voxel look" }).catch(() => null);
+  if (!drew) await rpc.world.snapshot({ request: ev.request, error: "this tab doesn't show that world in the voxel look" }).catch(() => null);
 }
 
 export function onEvent(ev: ServerEvent): void | Promise<void> {
@@ -4182,7 +4180,7 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
   if (ev.type === 'world-anim' && typeof ev.agent === 'string' && typeof ev.clip === 'string') S.worldLayer?.play(ev.agent, ev.clip, typeof ev.times === 'number' ? ev.times : 1);
   // a program was opened or closed: light its tile and the desks that use it
   if (ev.type === 'programs') {
-    GET<Program[]>('/programs')
+    rpc.programs.list({})
       .then((p) => {
         if (!S || !p) return;
         S.progs = p;
@@ -4269,7 +4267,7 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       S.active.delete(r.workflowId);
       if (b) pulseAlong(r.workflowId, 1, 0, 8);
       feedPush(`${wf?.name || 'Team'} ${r.status === 'done' ? 'finished ✓' : r.status}${r.error ? `: ${r.error}` : ''}`, r.status === 'failed' ? 'error' : 'workflow');
-      GET<WorkflowRun[]>('/workflow-runs').then((runs) => S && ((S.wfRuns = runs), updateStatuses()));
+      rpc.workflows.runs.list({}).then((runs) => S && ((S.wfRuns = runs), updateStatuses()));
     }
     updateStatuses();
     drawHud();

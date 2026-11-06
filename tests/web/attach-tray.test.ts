@@ -122,6 +122,7 @@ describe('attachTray()', () => {
     await flush();
     await new Promise((r) => requestAnimationFrame(r));
     (tray.el.querySelector('.att-chip.error .att-x') as HTMLButtonElement).click();
+    await flush();
     expect(deleted).toEqual(['/up/docs/']);
   });
 
@@ -260,7 +261,7 @@ describe('looking at attached files before sending', () => {
 
   it('in the desktop app any uploaded file opens in its own program', async () => {
     const posted: unknown[] = [];
-    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => (posted.push([url, JSON.parse(String(init.body))]), new Response('{"ok":true}')));
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => (posted.push([url, init.body ? JSON.parse(String(init.body)) : null]), new Response('{"ok":true}')));
     state.data = { desktop: true } as AppState;
     try {
       const tray = attachTray();

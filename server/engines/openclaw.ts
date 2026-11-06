@@ -8,16 +8,11 @@ import { workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
 import { cliStatus, pipeLines, tail } from './cli.ts';
 import type { CliStatus } from './cli.ts';
-import type { Agent } from '../../shared/types.ts';
+import type { Agent, OpenClawAgent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 
 /** A row of `openclaw agents list --json`. */
-export interface OpenClawAgent {
-  id: string;
-  model: string;
-  workspace: string;
-  isDefault: boolean;
-}
+export type { OpenClawAgent } from '../../shared/types.ts';
 
 let agentsCache: { at: number; list: OpenClawAgent[] } = { at: 0, list: [] };
 export async function listAgents(): Promise<OpenClawAgent[]> {

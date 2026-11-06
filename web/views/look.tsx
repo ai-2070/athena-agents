@@ -7,7 +7,8 @@ import type { CSSProperties } from 'react';
 import { Radio } from '@base-ui/react/radio';
 import { RadioGroup } from '@base-ui/react/radio-group';
 import { Slider } from '@base-ui/react/slider';
-import { PUT, attempt, state } from '../core.ts';
+import { attempt, state } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { rememberSidebarPanel } from '../navlimits.tsx';
 import { ACCENTS, CHAT_FONTS, DEFAULT_LOOK, STATION_QUALITY, accentFor, accentTone, applyLook, stationLevel } from '../look.ts';
 import { onThemeChange } from '../theme.ts';
@@ -43,7 +44,7 @@ function OpacitySlider({ project, field, label, value, hint }: { project: Projec
   };
   const save = async (n: number | null) => {
     live(n ?? undefined);
-    await attempt(() => PUT(`/projects/${encodeURIComponent(project.id)}`, { [field]: n }));
+    await attempt(() => rpc.projects.change({ id: project.id, [field]: n }));
     setDragging(null);
   };
   return (
@@ -134,7 +135,7 @@ export function LookTab() {
     const next = unsaved.current;
     unsaved.current = null;
     if (!next) return;
-    void attempt(() => PUT('/settings', { look: next })).then((r) => {
+    void attempt(() => rpc.settings.save({ look: next })).then((r) => {
       if (r && state.data?.settings) state.data.settings.look = { ...next };
     });
   };

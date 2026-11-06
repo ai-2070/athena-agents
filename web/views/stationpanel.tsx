@@ -4,7 +4,8 @@
 import { StrictMode, Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { createAppRoot } from '../ui/root.tsx';
-import { GET, POST, PUT, DEL, attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
+import { attempt, navigate, approvalCard, ago, toast, promptBox, confirmBox, refreshSoon, onEvent } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
 import { openBranchBuilder } from '../builder.tsx';
 import { openDock } from '../dock.tsx';
@@ -30,7 +31,7 @@ import { WorldPanel } from './worldpanel.tsx';
 import { fileManager, previewFile, previewTitle } from '../filepreview.tsx';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, connectorLook } from './stationdata.ts';
 import type { AvailableIntegration, Connector, MapPick, Program, TeamView } from './stationdata.ts';
-import type { Agent, AppState, Project, RoutineListing, Team, TeamAccess, TeamState } from '../../shared/types.ts';
+import type { Agent, AppState, BrainInfo, Project, RoutineListing, Team, TeamAccess, TeamState } from '../../shared/types.ts';
 import { scheduleSummary } from '../../shared/routines.ts';
 
 const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
@@ -59,17 +60,6 @@ export interface StationPanelApi {
   zoomToTeam(id: string): void;
   /** the team builder, for a new team */
   newTeam(): void;
-}
-
-/** GET /api/brain: a look inside the Brain folder. */
-interface BrainInfo {
-  project: Project;
-  entries: { name: string; dir: boolean; path: string }[];
-  files: number;
-  sizeMB: number;
-  git: { branch: string; remote: string; url: string; last: string; changes: number } | null;
-  /** the description, or the first paragraph of PROJECT.md / README.md */
-  summary?: { text: string; from: 'description' | 'PROJECT.md' | 'README.md' | null };
 }
 
 /** Draws the panel into el (the map's panel element). update() draws it again. */
@@ -215,7 +205,7 @@ function BenchPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
   const used = new Set(api.teams().flatMap((w) => w.members || []));
   const bench = d.agents.filter((a) => !used.has(a.id));
   const newAgent = async () => {
-    const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
+    const a = await attempt(() => rpc.agents.create({ name: 'New agent' }));
     if (a) navigate(`#/agents/${a.id}/edit`);
   };
   return (
@@ -260,7 +250,7 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
   const [reload, setReload] = useState(0);
   useEffect(() => {
     let alive = true;
-    GET<BrainInfo>('/brain')
+    rpc.brain.info()
       .then((bi) => alive && (setInfo(bi), setError('')))
       .catch((e: Error) => alive && setError(e.message));
     return () => void (alive = false);
@@ -271,7 +261,7 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
     if (!name) return;
     const content = await promptBox(name, { multiline: true, placeholder: 'Anything the agents should know about this project.' });
     if (content == null) return;
-    await attempt(() => POST('/brain/note', { name, content }), 'Saved to notes/');
+    await attempt(() => rpc.brain.note({ name, content }), 'Saved to notes/');
     setReload((n) => n + 1);
   };
   return (
@@ -317,10 +307,10 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         </button>
         <div className="mt-6 mb-2 flex items-center gap-0.5">
           <div className="label flex-1">Brain folder</div>
-          <IconButton variant="plain" title="Open the folder" aria-label="Open folder" onClick={() => void attempt(() => POST('/brain/open', {}))}>
+          <IconButton variant="plain" title="Open the folder" aria-label="Open folder" onClick={() => void attempt(() => rpc.brain.open({}))}>
             <FolderIcon size={16} />
           </IconButton>
-          <IconButton variant="plain" title="Open in VS Code" aria-label="VS Code" onClick={() => void attempt(() => POST('/brain/open', { app: 'vscode' }))}>
+          <IconButton variant="plain" title="Open in VS Code" aria-label="VS Code" onClick={() => void attempt(() => rpc.brain.open({ app: 'vscode' }))}>
             <VSCodeIcon size={16} />
           </IconButton>
           <IconButton variant="plain" title="Add a note" aria-label="Add note" onClick={() => void addNote()}>
@@ -351,7 +341,7 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
                       </div>
                       <div className="hint">{`${info.git.branch} · ${info.git.last}${info.git.changes ? ` · ${info.git.changes} changed` : ''}`}</div>
                     </div>
-                    <Button variant="ghost" size="tiny" onClick={() => void attempt(() => POST<{ message: string }>('/brain/pull'), (r) => r.message)}>
+                    <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.brain.pull(), (r) => r.message)}>
                       Pull
                     </Button>
                   </div>
@@ -412,7 +402,7 @@ function BrainEntry({ entry: e }: { entry: BrainInfo['entries'][number] }) {
         <span className="min-w-0 truncate">{e.name}</span>
       </div>
     );
-  const go = () => (e.dir ? void attempt(() => POST('/brain/open', { path: e.path })) : previewFile(e.path, e.name));
+  const go = () => (e.dir ? void attempt(() => rpc.brain.open({ path: e.path })) : previewFile(e.path, e.name));
   return (
     <button type="button" className={FILE_OPENS} title={title} aria-label={title} onClick={go}>
       {e.dir ? <FolderIcon size={16} /> : <FileIcon name={e.name} size={16} />}
@@ -434,16 +424,18 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
     setEditing(true);
   };
   const save = async () => {
-    if (!proj.id) return;
-    if (await attempt(() => PUT<Project>(`/projects/${proj.id}`, { description: draft }), 'Saved')) {
+    const id = proj.id;
+    if (!id) return;
+    if (await attempt(() => rpc.projects.change({ id, description: draft }), 'Saved')) {
       refreshSoon(0);
       setEditing(false);
     }
   };
   const rename = async () => {
     const name = (await promptBox('Rename project', { value: proj.name || '' }))?.trim();
-    if (!name || name === proj.name || !proj.id) return;
-    if (await attempt(() => PUT(`/projects/${encodeURIComponent(proj.id!)}`, { name }), `Renamed to ${name}`)) refreshSoon(0);
+    const id = proj.id;
+    if (!name || name === proj.name || !id) return;
+    if (await attempt(() => rpc.projects.change({ id, name }), `Renamed to ${name}`)) refreshSoon(0);
   };
   return (
     <div className="mb-3 rounded-[10px] border border-line bg-panel p-3 shadow-[inset_0_1px_0_var(--glass-spec)]">
@@ -593,7 +585,7 @@ function ConnectionPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id
         </div>
         <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
           {prog && !prog.cli && (prog.exe || prog.shortcut) ? (
-            <Button size="small" onClick={() => void attempt(() => POST<{ message: string }>('/programs/launch', { program: prog.id }), (r) => r.message)}>
+            <Button size="small" onClick={() => void attempt(() => rpc.programs.launch({ program: prog.id }), (r) => r.message)}>
               Start
             </Button>
           ) : null}
@@ -631,8 +623,8 @@ const withMembers = (wf: TeamView, members: string[]): TeamView => ({
   steps: members.map((id) => ({ type: 'agent' as const, agentId: id })),
   lead: wf.lead && !members.includes(wf.lead) ? null : wf.lead,
 });
-const presetAgent = (a: Agent) => attempt(() => POST(`/presets/agent/${a.id}`), `Saved ${a.name} as a preset (Agent library › Your presets)`);
-const presetTeam = (w: TeamView) => attempt(() => POST(`/presets/team/${w.id}`), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
+const presetAgent = (a: Agent) => attempt(() => rpc.presets.saveAgent({ id: a.id }), `Saved ${a.name} as a preset (Agent library › Your presets)`);
+const presetTeam = (w: TeamView) => attempt(() => rpc.presets.saveTeam({ id: w.id }), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
 
 // (the tab you were on stays open when you pick another team)
 type TeamTab = 'members' | 'setup';
@@ -844,7 +836,7 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
     void api.saveTeam({ ...wf, schedule, enabled: schedule.type !== 'none' });
   };
   const cloneTeam = async (withAgents: boolean) => {
-    const c = await attempt(() => POST<Team>(`/workflows/${id}/clone`, { withAgents }), withAgents ? `Cloned ${wf.name} with copies of its agents` : `Cloned ${wf.name}`);
+    const c = await attempt(() => rpc.workflows.clone({ id, withAgents }), withAgents ? `Cloned ${wf.name} with copies of its agents` : `Cloned ${wf.name}`);
     if (!c) return;
     if (withAgents) refreshSoon(0);
     await api.reloadTeams();
@@ -852,7 +844,7 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
   };
   const remove = async () => {
     if (!(await confirmBox(`Delete the team "${wf.name}" and its agents? Agents that are also on another team stay. The team chat is removed.`, { ok: 'Delete', danger: true }))) return;
-    await attempt(() => DEL(`/workflows/${id}`));
+    await attempt(() => rpc.workflows.remove({ id }));
     api.choose(null);
     refreshSoon(0);
     void api.reloadTeams();
@@ -977,7 +969,7 @@ function TeamRoutines({ wf }: { wf: TeamView }) {
   const [list, setList] = useState<RoutineListing[] | null>(null);
   useEffect(() => {
     let live = true;
-    const load = () => void GET<RoutineListing[]>('/routines').then((l) => live && setList(l), () => live && setList([]));
+    const load = () => void rpc.routines.list().then((l) => live && setList(l), () => live && setList([]));
     load();
     // (a saved or deleted routine, a run (the card's last run), or a project switch)
     const off = onEvent((ev) => (ev.type === 'routines' || ev.type === 'routine-run' || ev.type === 'project') && load());
@@ -1027,7 +1019,7 @@ function SetupBox({ icon, title, hint, children }: { icon: string; title: string
 function SymbolPicker({ api, wf }: { api: StationPanelApi; wf: TeamView }) {
   const own = wf.markFile ? (wf.markFile.kind === 'image' ? 'picture' : '3D model') : null;
   const setEmoji = async (e: string) => {
-    if (wf.markFile) await attempt(() => DEL(`/workflows/${wf.id}/mark`));
+    if (wf.markFile) await attempt(() => rpc.workflows.removeMark({ id: wf.id }));
     await api.saveTeam({ ...wf, mark: e, markFile: null });
   };
   const current = wf.mark || DEFAULT_TEAM_MARK;
@@ -1065,7 +1057,7 @@ function ModelSection({ a }: { a: Agent }) {
   const [, redraw] = useState(0);
   const mi = modelInfo(a);
   const setAuth = async (v: string) => {
-    if (await attempt(() => PUT(`/agents/${a.id}`, { claudeAuth: v }), 'Saved')) {
+    if (await attempt(() => rpc.agents.change({ id: a.id, claudeAuth: v }), 'Saved')) {
       a.claudeAuth = v as Agent['claudeAuth'];
       refreshSoon(0);
       redraw((n) => n + 1);
@@ -1130,7 +1122,7 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
     toast(`Added ${a.name} to ${w.name}`);
   };
   const clone = async () => {
-    if (await attempt(() => POST<Agent>(`/agents/${a.id}/duplicate`), `Cloned ${a.name}`)) refreshSoon(0);
+    if (await attempt(() => rpc.agents.duplicate({ id: a.id }), `Cloned ${a.name}`)) refreshSoon(0);
   };
   const now = api.now(id, wfId);
   const connectors = a.engine === 'claude-code' ? api.connectors() : [];
@@ -1180,7 +1172,7 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
         <DomNode
           className="mt-3.5"
           make={() =>
-            skillPicker(a.skills || [], (v) => void attempt(() => PUT(`/agents/${id}`, { skills: v })).then(() => refreshSoon(0)), {
+            skillPicker(a.skills || [], (v) => void attempt(() => rpc.agents.change({ id, skills: v })).then(() => refreshSoon(0)), {
               inherited: [...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' })), ...onTeams.flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name })))],
               empty: 'No skills yet.',
             })

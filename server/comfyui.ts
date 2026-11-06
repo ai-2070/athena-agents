@@ -9,6 +9,9 @@ import { getSettings } from './store.ts';
 import type { FetchError } from './util.ts';
 import { decodePng, encodeAlphaPng, isPng, pngSize } from './png.ts';
 import type { ServerResponse } from 'node:http';
+import type { ComfyNodeError, ComfyOutputFile, ComfyQueueStatus, ComfyResultFile, ComfySeed, ComfyUploaded, PromptNodes, RunWorkflowDone, RunWorkflowQueued } from '../shared/types.ts';
+
+export type { ComfyNodeError, ComfyOutputFile, ComfyQueueStatus, ComfyResultFile, ComfySeed, ComfyUploaded, PromptNodes, RunWorkflowDone, RunWorkflowQueued } from '../shared/types.ts';
 
 /** A saved workflow file (ours in data/comfy-workflows, or one from ComfyUI's own folders). */
 export interface ComfyWorkflowFile {
@@ -77,26 +80,9 @@ interface NodeDef {
 }
 export type ObjectInfo = Record<string, NodeDef>;
 
-/** A file in a /history entry's outputs. */
-export interface ComfyOutputFile {
-  filename: string;
-  subfolder?: string;
-  type?: string;
-  [k: string]: unknown;
-}
 interface HistoryEntry {
   status?: { status_str?: string; completed?: boolean; messages?: [string, { exception_message?: string }][] };
   outputs?: Record<string, Record<string, unknown>>;
-}
-
-/** An output file with its kind ('images', 'gifs', 'videos', 'audio', '3d') and a dashboard URL to view it. */
-export type ComfyResultFile = ComfyOutputFile & { kind: string; url: string };
-
-/** What POST /prompt says about a node that failed its checks (its node_errors). */
-export interface ComfyNodeError {
-  class_type?: string;
-  dependent_outputs?: string[];
-  errors?: { type?: string; message?: string; details?: string; extra_info?: { input_name?: string } }[];
 }
 
 /** A file to send to ComfyUI for a run: it goes into ComfyUI's input folder, and its name into a loader node. */
@@ -110,13 +96,6 @@ export interface ComfyInputImage {
   /** white (the default): white marks the area to repaint. transparent: the mask's transparent pixels do. */
   maskKind?: 'white' | 'transparent';
 }
-/** One file a run sent to ComfyUI: the name ComfyUI gave it, and the input it was set on ("10.image"). */
-export interface ComfyUploaded {
-  file: string;
-  mask?: string;
-  value: string;
-  input: string;
-}
 
 export interface RunWorkflowOptions {
   workflow?: string;
@@ -129,41 +108,6 @@ export interface RunWorkflowOptions {
   timeoutSec?: number;
   onProgress?: (seconds: number) => void;
   signal?: AbortSignal | null;
-}
-/** A seed a run used, per node (a sampler's seed, a RandomNoise node's noise_seed). */
-export interface ComfySeed {
-  node: string;
-  title: string;
-  input: string;
-  value: number;
-}
-export interface RunWorkflowQueued {
-  promptId: string;
-  queued: true;
-  seeds: ComfySeed[];
-  warnings: string[];
-  uploaded: ComfyUploaded[];
-  nodeErrors: Record<string, ComfyNodeError>;
-}
-export interface RunWorkflowDone {
-  promptId: string;
-  workflow: string;
-  files: ComfyResultFile[];
-  seconds: number;
-  seeds: ComfySeed[];
-  warnings: string[];
-  uploaded: ComfyUploaded[];
-  /** Nodes ComfyUI left out because they failed its checks, with the outputs that needed them. */
-  nodeErrors: Record<string, ComfyNodeError>;
-}
-
-export interface ComfyQueueStatus {
-  running: boolean;
-  url?: string;
-  queueRunning?: number;
-  queuePending?: number;
-  devices?: { name: string; vramFreeGB: number; vramTotalGB: number }[];
-  version?: string | null;
 }
 
 const API_DIR = ensureDir(dataPath('comfy-workflows'));
@@ -476,15 +420,6 @@ export async function describeWorkflow(name: string | undefined) {
     }
   }
   return { workflow: workflow.name, file: workflow.file, prompts: findPromptNodes(api), editable, warnings };
-}
-
-/** Where a workflow's prompts are: the first text node of each, and every input prompt and negative replace. */
-export interface PromptNodes {
-  positive: string | null;
-  negative: string | null;
-  /** "nodeId.input" keys the prompt goes into (SDXL's text_g and text_l, Flux's clip_l and t5xxl…). */
-  promptInputs: string[];
-  negativeInputs: string[];
 }
 
 // The text inputs of the nodes that turn a prompt into conditioning: CLIPTextEncode's text, SDXL's text_g and

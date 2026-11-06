@@ -8,7 +8,8 @@ import { attachMentionEditor } from './chat/mentioneditor.ts';
 import { icon } from './icons.ts';
 import { Suspense, createContext, lazy, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { state, GET, POST, PUT, DEL, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
+import { state, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
+import { rpcAt } from './client/rpc.ts';
 import { attachTray } from './attach.tsx';
 import { projectAgents, useProjectAgents } from './projectagents.ts';
 import { projectAt } from './client/connection.ts';
@@ -202,7 +203,7 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
     // again: the event socket came back, and what happened while it was down never came as events
     const load = (again: boolean) => {
       const now: typeof early = (early = { loading: true, cleared: false, state: false, fresh: new Set(), turned: new Set() });
-      GET<TeamChatResponse>(`${projectAt(projectId)}/teams/${teamId}/chat`)
+      rpcAt(projectAt(projectId)).teams.chat({ id: teamId })
         .then((r) => {
           if (!alive || now !== early) return;
           c.team = r.team;
@@ -568,15 +569,15 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     commandChips(chips.current, {
       loop: store.current.loop,
       goal: store.current.goal,
-      onStopLoop: () => void attempt(() => DEL(`${at}/teams/${teamId}/loop`)),
-      onClearGoal: () => void attempt(() => DEL(`${at}/teams/${teamId}/goal`)).then((r) => r && ((store.current.goal = null), bump())),
+      onStopLoop: () => void attempt(() => rpcAt(at).teams.stopLoop({ id: teamId })),
+      onClearGoal: () => void attempt(() => rpcAt(at).teams.clearGoal({ id: teamId })).then((r) => r && ((store.current.goal = null), bump())),
     });
   }, [chipsSig, teamId, store, bump]);
 
   const unqueue = (q: QueuedMessage) => {
     store.current.held = store.current.held.filter((x) => x.id !== q.id);
     bump();
-    void attempt(() => DEL(`${at}/teams/${teamId}/queue/${q.id}`));
+    void attempt(() => rpcAt(at).teams.unqueue({ id: teamId, queueId: q.id }));
   };
   const keepEdit = (text: string) => keepLostEdit(text, input.current, restore);
   const editQueued = async (q: QueuedMessage, text: string) => {
@@ -585,7 +586,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
       bump();
     };
     put(text);
-    const r = await attempt(() => PUT<{ queued: QueuedMessage | null }>(`${at}/teams/${teamId}/queue/${q.id}`, { text }));
+    const r = await attempt(() => rpcAt(at).teams.editQueued({ id: teamId, queueId: q.id, text }));
     // not saved: it shows what will go after all; sent before the change got there: the new words come back to the box
     if (!r) put(q.text);
     else if (r.queued === null) keepEdit(text);
@@ -594,10 +595,10 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     const by = new Map(store.current.held.map((q) => [q.id, q]));
     store.current.held = ids.map((id) => by.get(id)).filter((q): q is QueuedMessage => !!q);
     bump();
-    void attempt(() => POST(`${at}/teams/${teamId}/queue/order`, { ids }));
+    void attempt(() => rpcAt(at).teams.orderQueue({ id: teamId, ids }));
   };
   const stop = async () => {
-    const r = await attempt(() => POST<{ unqueued?: QueuedMessage[] }>(`${at}/teams/${teamId}/stop`));
+    const r = await attempt(() => rpcAt(at).teams.stop({ id: teamId }));
     // what you queued comes back to the box, so stopping never loses it
     const back = r?.unqueued || [];
     if (back.length) restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
@@ -609,7 +610,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
   }, []);
   const clear = async (): Promise<boolean> => {
     if (!(await confirmBox('Clear this team chat? Each agent also forgets the conversation.', { ok: 'Clear', danger: true }))) return false;
-    return (await attempt(() => POST(`${at}/teams/${teamId}/clear`))) !== undefined;
+    return (await attempt(() => rpcAt(at).teams.clear({ id: teamId }))) !== undefined;
   };
   const held = (q: QueuedMessage | undefined) => {
     if (q && !store.current.held.some((x) => x.id === q.id)) {
@@ -631,22 +632,25 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     // (said no, or it failed: the /clear stays in the box)
     if (name === 'clear') return void ((await clear()) || restore(typed));
     if (name === 'goal' && !rest) {
-      const r = await attempt(() => GET<TeamChatResponse>(`${at}/teams/${teamId}/chat`));
+      const r = await attempt(() => rpcAt(at).teams.chat({ id: teamId }));
       return void (r && toast(r.goal ? `Goal: ${goalText(r.goal)}` : 'No goal yet. Type /goal and what done looks like.'));
     }
-    type Done = { goal?: BrainBrief | null; queued?: QueuedMessage };
-    const r = await attempt(() => POST<Done>(`${at}/teams/${teamId}/${name}`, name === 'goal' ? { text: rest } : {}));
-    if (!r) return restore(typed);
+    const calls = rpcAt(at).teams;
     if (name === 'goal') {
+      const r = await attempt(() => calls.goal({ id: teamId, text: rest }));
+      if (!r) return restore(typed);
       store.current.goal = r.goal || null;
-      bump();
+      return bump();
     }
-    held(r.queued);
+    if (name !== 'resend' && name !== 'resume') return restore(typed);
+    const r = await attempt(async () => (name === 'resend' ? await calls.resend({ id: teamId }) : await calls.resume({ id: teamId })));
+    if (!r) return restore(typed);
+    held('queued' in r ? r.queued : undefined);
   };
 
   const loopOff = async (rest: string, typed: string) => {
     emptyBox();
-    const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`${at}/teams/${teamId}/loop`, { text: rest, attachments: [] }));
+    const r = await attempt(() => rpcAt(at).teams.loop({ id: teamId, text: rest, attachments: [] }));
     if (!r) return restore(typed);
     store.current.loop = r.loop;
     bump();
@@ -674,7 +678,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
         if (LOOP_OFF.test(cmd.rest)) return loopOff(cmd.rest, typed);
         emptyBox();
         const taken = tray.take();
-        const r = await attempt(() => POST<{ loop: LoopInfo | null }>(`${at}/teams/${teamId}/loop`, { text: cmd.rest, attachments }));
+        const r = await attempt(() => rpcAt(at).teams.loop({ id: teamId, text: cmd.rest, attachments }));
         if (!r) return void (restore(typed), tray.put(taken));
         store.current.loop = r.loop;
         return bump();
@@ -683,9 +687,9 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
       if (cmd?.name === 'learn') {
         emptyBox();
         const taken = tray.take();
-        const r = await attempt(() => POST<{ message?: TeamMessage; queued?: QueuedMessage }>(`${at}/teams/${teamId}/learn`, { text: cmd.rest, attachments }));
+        const r = await attempt(() => rpcAt(at).teams.learn({ id: teamId, text: cmd.rest, attachments }));
         if (!r) return void (restore(typed), tray.put(taken));
-        return held(r.queued);
+        return held('queued' in r ? r.queued : undefined);
       }
       if (cmd && cmd.name !== 'queue') return command(cmd.name, cmd.rest, typed);
       // "/queue …": posted once nobody is working (now, if nobody is). Anything else while the team works
@@ -696,16 +700,16 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
       if (!text && !attachments.length) return void (typed && toast('Write the message after /queue'));
       emptyBox();
       const taken = tray.take();
-      const body = { text, replyTo: replyRef.current?.id || null, attachments };
-      type Sent = { message?: TeamMessage; queued?: QueuedMessage };
-      const r = await attempt((): Promise<Sent> => (queued != null ? POST<Sent>(`${at}/teams/${teamId}/queue`, body) : POST<TeamMessage>(`${at}/teams/${teamId}/${steer ? 'steer' : 'messages'}`, body).then((message) => ({ message }))));
+      const body = { id: teamId, text, replyTo: replyRef.current?.id || null, attachments };
+      const calls = rpcAt(at).teams;
+      const r = await attempt(async () => (queued != null ? await calls.queue(body) : { message: await (steer ? calls.steer(body) : calls.send(body)) }));
       if (!r) {
         restore(text);
         tray.put(taken);
         return;
       }
       setReplyTo(null);
-      held(r.queued);
+      held('queued' in r ? r.queued : undefined);
     } finally {
       sending.current = false;
     }

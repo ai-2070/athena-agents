@@ -7,7 +7,8 @@ import { useMentionBox, useMentionables } from './taskboard.tsx';
 import { mentionMenuOpen } from './routinemention.ts';
 import { createPortal, flushSync } from 'react-dom';
 import { createAppRoot } from './ui/root.tsx';
-import { h, state, GET, POST, attempt, md, onEvent, onState, navigate, refreshSoon, toast, confirmBox } from './core.ts';
+import { h, state, attempt, md, onEvent, onState, navigate, refreshSoon, toast, confirmBox } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { openBranchBuilder } from './builder.tsx';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.tsx';
 import { brainQueue, chatLoop, holdQueue, latestLoad } from './brainqueue.ts';
@@ -32,22 +33,14 @@ import type { AttachTray, PickedFile } from './attach.tsx';
 import type { PasteBox } from './pastes.ts';
 import type { AgentDraft, BranchDesign } from './builder.tsx';
 import type { TeamEvent } from './teamchat.tsx';
-import type { ActiveRun, Agent, AppState, BrainAnswer, BrainDelegate, BrainDone, BrainStep, Chat, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
+import type { Agent, AppState, BrainAnswer, BrainChatMessage, BrainDelegate, BrainDone, BrainStep, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
 import type { UIMessage } from 'ai';
 
 // A handed-off agent's turn, streamed in as it goes: the AI SDK pieces load when first needed.
 const TurnView = lazy(() => import('./chat/TurnView.tsx').then((m) => ({ default: m.TurnView })));
 
-/** One line of GET /api/brain/history. */
-export interface BrainHistoryEntry {
-  role: 'user' | 'brain';
-  text: string;
-  ts: number;
-  attachments?: string[];
-  done?: BrainDone[];
-  delegate?: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'>;
-  steps?: BrainStep[];
-}
+/** One line of the Brain's chat history. */
+export type BrainHistoryEntry = BrainChatMessage;
 /** A workflow run as 'workflow-run' events and GET /api/workflow-runs carry it (old step-list teams). */
 interface WorkflowRun {
   id: string;
@@ -231,7 +224,7 @@ const historyLoads = latestLoad();
 async function loadHistory() {
   const current = historyLoads.start();
   const project = D.project;
-  const msgs = await GET<BrainHistoryEntry[]>('/brain/history').catch((): BrainHistoryEntry[] => []);
+  const msgs = await rpc.brain.history().catch((): BrainHistoryEntry[] => []);
   if (!current() || project !== D.project || D.items.length) return;
   for (const m of msgs.slice(-6)) {
     if (m.role === 'user') D.items.push({ id: `h${m.ts}u`, kind: 'user', text: m.text, attachments: m.attachments });
@@ -266,7 +259,7 @@ export function savedAnswer(m: BrainHistoryEntry): { answer: string; done: Brain
 async function newConversation() {
   if (!(await confirmBox("Clear the Brain’s conversation and memory?", { ok: "Clear memory", danger: true }))) return;
   // keep the transcript if the Brain still remembers it
-  if (!(await attempt(() => POST('/brain/clear')))) return;
+  if (!(await attempt(() => rpc.brain.clear()))) return;
   brainAsks.reset(); // answers still on their way belong to the old conversation
   held.clear();
   loop.stop();
@@ -353,7 +346,7 @@ function toggle(open: boolean) {
 }
 
 async function loadWorkflows() {
-  D.workflows = await GET<TeamListing[]>('/workflows').catch(() => D.workflows);
+  D.workflows = await rpc.workflows.list().catch(() => D.workflows);
   checkTarget();
   draw();
 }
@@ -617,7 +610,7 @@ function DraftCard({ it }: { it: DraftItem }) {
     draw();
   };
   const create = async (thenRun: boolean) => {
-    const created = await attempt(() => POST<Agent>('/agents', a));
+    const created = await attempt(() => rpc.agents.create(a));
     if (!created) return;
     becomeNote(`Created ${created.emoji || ''} ${created.name}.`);
     refreshSoon(0);
@@ -1133,7 +1126,7 @@ async function steerBrain() {
     remove(x);
   }
   add({ kind: 'note', text: "Stopped the Brain's answer to take your new message." });
-  await attempt(() => POST('/brain/steer'));
+  await attempt(() => rpc.brain.steer());
 }
 
 // ---------- /queue ----------
@@ -1195,7 +1188,7 @@ async function brainStop() {
   const chats = D.items.filter((x): x is AgentItem => x.kind === 'agent' && !x.done).map((x) => ({ agentId: x.agentId, chatId: x.chatId }));
   const teams = [...new Set(D.items.filter((x): x is BranchItem => x.kind === 'branch' && !!(x.working.length || x.next?.length)).map((x) => x.wfId))];
   D.stoppedWork = { chats, teams };
-  const r = await attempt(() => POST<{ stopped: string[] }>('/brain/stop', { chats, teams }));
+  const r = await attempt(() => rpc.brain.stop({ chats, teams }));
   const what = [live.length ? 'the Brain' : '', ...(r?.stopped || []), looped ? 'the loop' : ''].filter(Boolean);
   add({ kind: 'note', text: what.length ? `Stopped ${what.join(', ')}. /resume picks it up again.` : 'Nothing was working.' });
 }
@@ -1205,7 +1198,7 @@ async function brainResume() {
   const ask = D.stoppedAsk;
   D.stoppedAsk = null;
   if (ask) void track(() => dispatch(ask.text, ask.attachments, ask.target, { goal: ask.goal }));
-  const r = await POST<{ resumed: string[]; chats: string[] }>('/brain/resume', D.stoppedWork || {}).catch((e: Error) => e);
+  const r = await rpc.brain.resume(D.stoppedWork || {}).catch((e: Error) => e);
   if (r instanceof Error) return void (ask || toast(r.message || 'Nothing to resume.'));
   D.stoppedWork = null;
   // (they work again: the chat waits for them before a /queue message or the loop's next one)
@@ -1279,7 +1272,7 @@ function follow(d: BrainDelegate) {
     const chatId = d.sent.chatId;
     const it = add({ kind: 'agent', agentId: d.id, chatId, text: '', tools: [], images: [], reason: 'from the Brain', done: false, started: true });
     // it may have finished before this answer got here (then no 'done' comes for this card)
-    void GET<ActiveRun[]>('/runs')
+    void rpc.runs.list()
       .then((runs) => {
         if (!runs.some((x) => x.chatId === chatId)) (it.done = true), draw();
       })
@@ -1288,7 +1281,7 @@ function follow(d: BrainDelegate) {
   if (d?.kind === 'branch' && d.sent?.ts) {
     const it = add({ kind: 'branch', wfId: d.id, name: d.name, reason: 'from the Brain', since: d.sent.ts, messages: [], working: [], briefId: d.sent.messageId });
     // the team may have answered before this answer got here: those messages came before the item did
-    void GET<{ messages: TeamMessage[]; working: string[]; queued: string[] }>(`/teams/${d.id}/chat`)
+    void rpc.teams.chat({ id: d.id })
       .then((t) => {
         if (!D.items.includes(it)) return;
         mergeTeamMessages(it, t.messages);
@@ -1313,10 +1306,10 @@ export function mergeTeamMessages(it: Pick<BranchItem, 'messages' | 'since' | 'b
 
 // goal: sent as its /goal (the Brain checks each turn and follows up)
 async function toAgent(agentId: string, text: string, reason = '', attachments: string[] = [], goal = false) {
-  const c = await attempt(() => POST<Chat>(`/agents/${agentId}/chats`));
+  const c = await attempt(() => rpc.agents.chats.create({ id: agentId }));
   if (!c) return;
   const it = add({ kind: 'agent', agentId, chatId: c.id, text: '', tools: [], images: [], reason, done: false });
-  const r = await attempt(() => (goal ? POST(`/agents/${agentId}/chats/${c.id}/goal`, { text }) : POST(`/agents/${agentId}/chats/${c.id}/messages`, { text, attachments })));
+  const r = await attempt(async () => (goal ? await rpc.agents.chats.goal({ id: agentId, chatId: c.id, text }) : await rpc.agents.chats.send({ id: agentId, chatId: c.id, text, attachments })));
   if (!r) {
     it.done = true;
     it.text = '(could not start)';
@@ -1334,7 +1327,7 @@ function again(it: AgentItem) {
 // A button in an agent's Rich answer: what it sends goes to that agent's chat, followed here.
 async function continueAgent(it: AgentItem, text: string) {
   if (!it.done) return toast('It is still working. Wait for it to finish.');
-  const r = await attempt(() => POST(`/agents/${it.agentId}/chats/${it.chatId}/messages`, { text, attachments: [] }));
+  const r = await attempt(() => rpc.agents.chats.send({ id: it.agentId, chatId: it.chatId, text, attachments: [] }));
   if (!r || !D.items.includes(it)) return;
   add({ kind: 'user', text });
   add({ kind: 'agent', agentId: it.agentId, chatId: it.chatId, text: '', tools: [], images: [], reason: it.reason, done: false, started: true });
@@ -1345,11 +1338,11 @@ async function toBranch(wfId: string, text: string, reason = '', attachments: st
   // (shown before it is sent, so it hears who starts working: the team starts before the reply comes)
   const it = add({ kind: 'branch', wfId, name: wf?.name || 'Team', reason, since: Date.now(), messages: [], working: [] });
   if (goal) {
-    if (!(await attempt(() => POST(`/teams/${wfId}/goal`, { text })))) remove(it);
+    if (!(await attempt(() => rpc.teams.goal({ id: wfId, text })))) remove(it);
     return draw();
   }
   // (while the team works, it changes its course: whoever is working takes it up now)
-  const msg = await attempt(() => POST<TeamMessage>(`/teams/${wfId}/steer`, { text, attachments }));
+  const msg = await attempt(() => rpc.teams.steer({ id: wfId, text, attachments }));
   if (!msg) {
     remove(it);
     return draw();
@@ -1362,7 +1355,7 @@ async function toBranch(wfId: string, text: string, reason = '', attachments: st
 async function newAgent(text: string, attachments: string[] = []) {
   const n = add({ kind: 'note', text: 'Designing an agent for this…', busy: true });
   const gen = conversation;
-  const a: Partial<AgentDraft> & Failed = await POST<AgentDraft>('/assist/agent', { text, attachments }).catch((e: Error) => ({ error: e.message }));
+  const a: Partial<AgentDraft> & Failed = await rpc.assist.agent({ text, attachments }).catch((e: Error) => ({ error: e.message }));
   // (a new conversation or another project since: the design belongs to the old one)
   if (gen !== conversation) return;
   remove(n);
@@ -1373,7 +1366,7 @@ async function newAgent(text: string, attachments: string[] = []) {
 async function newBranch(text: string, attachments: string[] = []) {
   const n = add({ kind: 'note', text: 'Building a team from your agents…', busy: true });
   const gen = conversation;
-  const design: Partial<BranchDesign> & Failed = await POST<BranchDesign>('/assist/branch', { text, attachments }).catch((e: Error) => ({ error: e.message }));
+  const design: Partial<BranchDesign> & Failed = await rpc.assist.branch({ text, attachments }).catch((e: Error) => ({ error: e.message }));
   if (gen !== conversation) return;
   remove(n);
   if (design.error) return add({ kind: 'note', text: `Couldn't build it: ${design.error}`, error: true });
@@ -1425,7 +1418,7 @@ function handleEvent(ev: ServerEvent) {
       it.done = true;
       if (e.kind === 'error') it.text += `\n\n**Error:** ${e.text}`;
       // the saved chat has the full answer
-      GET<Chat>(`/agents/${it.agentId}/chats/${it.chatId}`)
+      rpc.agents.chats.get({ id: it.agentId, chatId: it.chatId })
         .then((c) => {
           const lastUser = c.items.findLastIndex((x) => x.type === 'user');
           const answer = c.items.slice(lastUser + 1).filter((x): x is Extract<ChatItem, { type: 'assistant' }> => x.type === 'assistant').map((x) => x.text).join('\n\n');
@@ -1458,7 +1451,7 @@ function handleEvent(ev: ServerEvent) {
     it.steps = run.steps;
     if (run.status !== 'running') {
       it.error = run.error || null;
-      GET<WorkflowRun[]>(`/workflow-runs?workflowId=${it.wfId}`)
+      rpc.workflows.runs.list({ workflowId: it.wfId })
         .then((runs) => {
           const r = runs.find((x) => x.id === it.runId);
           if (r?.output) it.output = String(r.output).slice(0, 4000);

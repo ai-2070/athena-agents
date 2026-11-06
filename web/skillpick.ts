@@ -1,11 +1,12 @@
 // A small skill picker: the skills given here as chips (✕ to remove) and "+ Add skill" with the library.
 // Used for an agent, a team and the project.
-import { h, mount, GET } from './core.ts';
+import { h, mount } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { icon } from './icons.ts';
 import { skillIcon } from './skillicons.ts';
 import { openEditor, openGitHub, openImport } from './skilldialogs.tsx';
 import { openSkillPickerMenu } from './skillpickmenu.tsx';
-import type { ClaudeSkill, SkillListing } from '../shared/types.ts';
+import type { SkillListing } from '../shared/types.ts';
 
 /** A skill another level gives (the project, a team), shown greyed. */
 export interface InheritedSkill {
@@ -17,7 +18,7 @@ let cache: SkillListing[] | null = null;
 let loading: Promise<SkillListing[]> | null = null;
 export async function loadSkills(force = false): Promise<SkillListing[]> {
   if (cache && !force) return cache;
-  loading ||= GET<{ skills: SkillListing[]; claude: ClaudeSkill[] }>('/skills')
+  loading ||= rpc.skills.list()
     .then((r): SkillListing[] => (cache = r.skills))
     // not cached, so the next load tries again
     .catch((): SkillListing[] => [])
@@ -74,7 +75,7 @@ export function skillPicker(current: readonly string[] | null | undefined, onCha
       select: (slug) => { list = [...list, slug]; onChange(list); draw(); },
       make: () => openEditor(null, afterMake),
       github: () => openGitHub(afterMake),
-      importClaude: () => { void GET<{ claude: ClaudeSkill[] }>('/skills').then((result) => openImport(result.claude, afterMake)); },
+      importClaude: () => { void rpc.skills.list().then((result) => openImport(result.claude, afterMake)); },
     });
   };
   draw();

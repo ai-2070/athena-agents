@@ -94,6 +94,9 @@ export interface GatewayInstance {
   updatedAt: number;
 }
 
+/** A connection as the Gateways page lists it: who it answers as, and which of its secrets are saved. */
+export type GatewayListing = GatewayInstance & { targetName: string; credentials: Record<string, boolean> };
+
 /** Removing an instance keeps its identity and receipts, never its credentials. */
 export interface GatewayRetiredInstance {
   version: 1;
@@ -533,6 +536,13 @@ export type GatewayLocalConversation = { conversationId: string; projectId: stri
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
 /** An API model's advertised limits. Missing capabilities mean the provider did not say. */
+/** One entry of GET /api/models (engine=eve, codex, pi…): an API model's details, or less for an engine's own. */
+export interface ModelListing extends Partial<Omit<ApiModelInfo, 'id'>> {
+  id: string;
+  /** Codex: what the model is for */
+  description?: string;
+}
+
 export interface ApiModelInfo {
   id: string;
   name: string;
@@ -554,6 +564,17 @@ export interface RunBilling {
 }
 
 // ---------- agents ----------
+/** An agent as its page shows it: with its knowledge files, its workspace folder and the names of its tools. */
+export interface AgentDetail extends Agent {
+  knowledgeFiles: { label: string; size: number; own: boolean }[];
+  workspacePath: string;
+  tools: string[];
+}
+/** One of an agent's harness's own / commands (a Claude Code agent's), for the / menu. */
+export interface HarnessCommand {
+  name: string;
+  about: string;
+}
 export interface AgentSource {
   type: 'custom' | 'library' | 'hermes' | 'openclaw' | 'claude' | 'brain' | 'preset' | string;
   slug?: string;
@@ -665,6 +686,10 @@ export interface TeamState {
   /** /resume would pick something up (the team was stopped or paused) */
   resumable?: boolean;
 }
+
+/** A team's chat as its page shows it: the thread, who works now, each agent's own session for the team
+ *  (agentId → chatId), your /goal while the Brain follows it, and the other teams it can ask (#Team Name). */
+export type TeamChat = TeamState & { team: Team; messages: TeamMessage[]; sessions: Record<string, string>; goal: BrainBrief | null; others: TeamRef[] };
 
 /** A /loop going in a chat: the message sent again every so often (every, in ms) or after each answer. */
 export interface LoopInfo {
@@ -813,6 +838,54 @@ export interface TeamRelayJournal {
   closed: string[];
 }
 
+/** One step of a workflow run (old-style step workflows). */
+export interface WorkflowRunStep {
+  id?: string;
+  label: string;
+  type: string;
+  status: 'waiting' | 'running' | 'needs-you' | 'done' | 'failed' | 'skipped' | string;
+  output: unknown;
+  agentId?: string | null;
+  agentName?: string;
+  images?: string[];
+  startedAt?: number;
+  finishedAt?: number;
+  [k: string]: unknown;
+}
+
+/** A workflow run, stored in the "runs" collection. */
+export interface WorkflowRun {
+  id: string;
+  createdAt?: number;
+  updatedAt?: number;
+  workflowId: string;
+  workflowName: string;
+  input: string;
+  trigger: string;
+  status: 'running' | 'done' | 'failed' | 'stopped' | string;
+  steps: WorkflowRunStep[];
+  output?: unknown;
+  error?: string;
+  finishedAt?: number;
+  [k: string]: unknown;
+}
+
+/** A run going now, as the Station lights up its branch (GET /api/workflow-active). */
+export interface RunSummary {
+  id: string;
+  workflowId: string;
+  status: WorkflowRun['status'];
+  steps: { status: string; label: string; agentId: string | null }[];
+  error: string | null;
+}
+
+/** A starter team (GET /api/workflow-templates): the agents it needs, by name. */
+export interface WorkflowTemplateInfo {
+  name: string;
+  description: string;
+  needs: string[];
+}
+
 /** A team as GET /api/workflows returns it: with who is working and its latest message. */
 export interface TeamListing extends Team {
   state?: TeamState;
@@ -942,6 +1015,118 @@ export interface Project {
   world?: ProjectWorldLink;
   /** What the bottom of the sidebar last showed in this project; missing: Settings > Appearance's choice. */
   sidebar?: SidebarPanel;
+}
+/** A project as the server sends it: when its logo, 3D model and background last changed (null: it has none). */
+export type ProjectWithMedia = Project & { logoAt: number | null; modelAt: number | null; modelExt: string | null; backgroundAt: number | null };
+/** What a project folder saved by the dashboard holds (its .dashboard/project.json), at a glance. */
+export interface ProjectPeek {
+  name: string;
+  description: string;
+  agents: number;
+  teams: number;
+  savedAt: number;
+}
+/** A project on the start screen. */
+export type ProjectOverviewItem = Project & { agents: number; teams: number; hasProjectMd: boolean; saved: ProjectPeek | null };
+/** A folder in the projects folder that isn't a project yet. */
+export interface FoundFolder {
+  name: string;
+  folder: string;
+  /** PROJECT.md or BRAIN.md, when it has one */
+  brief: string | undefined;
+  saved: ProjectPeek | null;
+}
+/** The start screen: every project, and project folders on this computer that aren't on the list yet. */
+export interface ProjectsOverview {
+  active: string;
+  root: string;
+  projects: ProjectOverviewItem[];
+  found: FoundFolder[];
+}
+/** The last save of the open project into its folder (<project>/.dashboard). */
+export interface SaveStatus {
+  at: number;
+  error?: string;
+  agents?: number;
+  teams?: number;
+}
+/** The project's own settings as its folder saved them. */
+export interface SavedProjectSettings {
+  name?: string;
+  description?: string;
+  repo?: string;
+  skills?: string[];
+  brainPath?: string;
+  backgroundOpacity?: number;
+  mapDotsOpacity?: number;
+}
+/** What a project folder saved by the dashboard brought back when it was added. */
+export interface RestoreResult {
+  agents: number;
+  teams: number;
+  chats?: number;
+  /** kept versions of agents and teams (deleted ones included) */
+  versions?: number;
+  /** skills added to the library from the folder, and ones the library had already (by name) */
+  skills?: { added: string[]; kept: string[] };
+  project: SavedProjectSettings;
+}
+
+// ---------- backups ----------
+/** What the second line of a backup file says: shown before restoring. */
+export interface BackupSummary {
+  app: string;
+  format: number;
+  createdAt: number;
+  name: string;
+  description: string;
+  agents: number;
+  teams: number;
+  routines: number;
+  chats: number;
+  skills: number;
+  presets: number;
+  /** prefabs in the prefab library, shared by every project (older backups: missing) */
+  libraryPrefabs?: number;
+  knowledgeFiles: number;
+  /** MEMORY.md files of agents and the Brain (older backups: missing) */
+  memories?: number;
+  /** Kept versions of agents, teams and skills (older backups: missing) */
+  versions?: number;
+  /** The first few agents, to recognise the backup by */
+  agentList: { name: string; emoji: string }[];
+  /** Files left out because their kind's size limit was reached */
+  omitted: number;
+}
+/** A backup just made: its file in the backups folder. */
+export interface BackupResult {
+  file: string;
+  name: string;
+  size: number;
+  summary: BackupSummary;
+}
+
+/** What a backup (or a copy of a project) brought back. */
+export interface BackupRestoreResult {
+  agents: number;
+  teams: number;
+  routines: number;
+  chats: number;
+  knowledgeFiles: number;
+  /** MEMORY.md files brought back */
+  memories: number;
+  brainFiles: number;
+  /** skills added to the library; already there and the same; already there but different, so added under a new id */
+  skills: { added: number; same: number; renamed: { from: string; to: string }[] };
+  presets: { added: number; same: number };
+  /** prefab library entries added; already there */
+  libraryPrefabs: { added: number; same: number };
+  /** kept versions brought back (agents, teams and skills) */
+  versions: number;
+  /** routines and teams that ran on a schedule: paused, so a copy doesn't run them twice */
+  paused: number;
+  logo: boolean;
+  background: boolean;
 }
 
 // ---------- chats ----------
@@ -1586,7 +1771,7 @@ export interface AppState {
   /** each MCP server's label, service and "use for" (an older server leaves it out) */
   mcpInfo?: Record<string, McpServerInfo>;
   project: Project;
-  projectSaved: { at: number; error?: string; agents?: number; teams?: number } | null;
+  projectSaved: SaveStatus | null;
   projects: Project[];
   approvals: Approval[];
   outboxPending: number;
@@ -1666,6 +1851,61 @@ export interface PresetListing {
   lead: string | null;
   skills: string[];
   savedAt: number;
+}
+
+/** What a preset keeps of an agent: everything but what belongs to one copy of it. */
+export type AgentTemplate = Omit<Agent, 'id' | 'createdAt' | 'updatedAt' | 'lastModel' | 'lastModelAt' | 'pinned' | 'workspace' | '_teamSkills'>;
+/** What a preset keeps of a team (its members are kept as agents beside it). */
+export type TeamTemplate = Partial<Pick<Team, 'name' | 'description' | 'color' | 'access' | 'skills' | 'schedule'>>;
+export interface AgentPreset {
+  id: string;
+  kind: 'agent';
+  name: string;
+  description: string;
+  savedAt: number;
+  agent: AgentTemplate;
+}
+export interface TeamPreset {
+  id: string;
+  kind: 'team';
+  name: string;
+  description: string;
+  savedAt: number;
+  team: TeamTemplate;
+  members: AgentTemplate[];
+  leadIndex: number;
+}
+export type Preset = AgentPreset | TeamPreset;
+
+/** A Hermes profile on this PC (`hermes profile list`): hiring one makes a Hermes agent of it. */
+export interface HermesProfile {
+  name: string;
+  model: string;
+  gateway: string;
+  isDefault: boolean;
+}
+
+/** An OpenClaw agent on this PC (`openclaw agents list`): an agent of the dashboard can run as one. */
+export interface OpenClawAgent {
+  id: string;
+  model: string;
+  workspace: string;
+  isDefault: boolean;
+}
+
+/** A Claude Code subagent (~/.claude/agents/<slug>.md), as the Agent library lists it. */
+export interface ClaudeSubagentListing {
+  slug: string;
+  name: string;
+  description: string;
+  model: string;
+}
+
+/** GET /api/library: Athena's agents, this PC's Hermes profiles and Claude Code subagents. */
+export interface LibraryIndex {
+  agents: LibraryAgentListing[];
+  hermes: HermesProfile[];
+  claude: ClaudeSubagentListing[];
 }
 
 /** One of the Agent library's agents (library/athena-agents), as GET /api/library lists it: not hired yet. */
@@ -2083,6 +2323,67 @@ export interface UploadedFile {
   name: string;
   size: number;
 }
+/** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
+export interface BrainChatMessage {
+  role: 'user' | 'brain';
+  /** What was said. For the Brain, its answer alone: what it did is in done and delegate. */
+  text: string;
+  ts: number;
+  attachments?: string[];
+  from?: string;
+  operationId?: string;
+  /** What the Brain did with this answer, so a reopened chat shows it the way it first did. */
+  done?: BrainDone[];
+  /** Who it handed the work to, and where (a reopened chat follows that work again). */
+  delegate?: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'>;
+  /** The files it read while it answered (results cut short). */
+  steps?: BrainStep[];
+}
+
+/** A file or folder at the top of the Brain folder. */
+export interface BrainEntry {
+  name: string;
+  dir: boolean;
+  path: string;
+}
+
+export interface BrainGit {
+  branch: string;
+  remote: string;
+  url: string;
+  last: string;
+  changes: number;
+}
+
+/** What a project is about: its description, or the first paragraph of PROJECT.md / README.md. */
+export interface ProjectSummary {
+  text: string;
+  from: 'description' | 'PROJECT.md' | 'README.md' | null;
+}
+
+/** A look inside the Brain folder (GET /api/brain): top files and folders, size, and Git status. */
+export interface BrainInfo {
+  project: Project;
+  entries: BrainEntry[];
+  files: number;
+  sizeMB: number;
+  git: BrainGit | null;
+  summary: ProjectSummary;
+}
+
+/** The project at a glance, as the Brain sees it (GET /api/brain/pulse). */
+export interface BrainPulse {
+  project: string;
+  agents: number;
+  working: number;
+  teams: number;
+  teamsWorking: number;
+  approvals: number;
+  outbox: number;
+  questions: number;
+  brain: Settings['brain'] | null;
+}
+
 export interface BrainAnswer {
   answer: string;
   done: BrainDone[];
@@ -2098,6 +2399,57 @@ export interface UsageMeter {
   resetsAt?: number | null;
   text?: string | null;
 }
+/** A Claude plan window: how much is used, and when it starts over. */
+export interface UsageWindow {
+  percent: number;
+  resetsAt: number | null;
+}
+export interface ClaudeUsage {
+  session: UsageWindow | null;
+  week: UsageWindow | null;
+  at?: number;
+}
+/** A connector on your Claude account. */
+export interface Connector {
+  id: string;
+  name: string;
+  status: 'connected' | 'needs-auth' | 'failed' | 'off';
+  detail: string;
+}
+/** GET /api/headbar: the usage meters (one entry per provider that reports any) and Claude account connectors. */
+export interface HeadbarInfo {
+  usage: ClaudeUsage | null;
+  usages: ProviderUsage[];
+  connectors: Connector[];
+}
+/** What POST /api/settings/test-openrouter passes on from OpenRouter's /key endpoint. */
+export interface OpenRouterKeyInfo {
+  label?: string;
+  limit_remaining?: number | null;
+  usage?: number | null;
+}
+/** One of an X account's recent posts (GET /api/accounts/x/:id/posts). */
+export interface XPost {
+  id: string;
+  text: string;
+  createdAt?: string;
+  /** like_count, retweet_count, reply_count… as X counts them */
+  metrics?: Record<string, number>;
+  url: string;
+}
+/** One built-in tool as GET /api/tools lists it; risk 'varies' when it depends on what the call does. */
+export interface ToolListing {
+  name: string;
+  group: string;
+  risk: 'none' | 'low' | 'high' | 'varies';
+  description: string;
+}
+/** How each tool has been used on this computer, since when (GET /api/tool-stats). */
+export interface ToolStats {
+  since: number;
+  tools: ToolStat[];
+}
+
 export interface ProviderUsage {
   id: 'claude' | 'openrouter' | 'venice' | 'codex';
   name: string;
@@ -2147,6 +2499,237 @@ export interface AboutInfo {
   license: string;
   /** GitHub stars, when asked for (?stars=1) and GitHub answered; null otherwise (e.g. a private repo) */
   stars: number | null;
+}
+
+// ---------- ComfyUI and programs on this PC (server/comfyui.ts, server/programs.ts) ----------
+/** A file in a /history entry's outputs. */
+export interface ComfyOutputFile {
+  filename: string;
+  subfolder?: string;
+  type?: string;
+  [k: string]: unknown;
+}
+
+/** An output file with its kind ('images', 'gifs', 'videos', 'audio', '3d') and a dashboard URL to view it. */
+export type ComfyResultFile = ComfyOutputFile & { kind: string; url: string };
+
+/** What POST /prompt says about a node that failed its checks (its node_errors). */
+export interface ComfyNodeError {
+  class_type?: string;
+  dependent_outputs?: string[];
+  errors?: { type?: string; message?: string; details?: string; extra_info?: { input_name?: string } }[];
+}
+
+/** One file a run sent to ComfyUI: the name ComfyUI gave it, and the input it was set on ("10.image"). */
+export interface ComfyUploaded {
+  file: string;
+  mask?: string;
+  value: string;
+  input: string;
+}
+
+/** A seed a run used, per node (a sampler's seed, a RandomNoise node's noise_seed). */
+export interface ComfySeed {
+  node: string;
+  title: string;
+  input: string;
+  value: number;
+}
+
+export interface RunWorkflowQueued {
+  promptId: string;
+  queued: true;
+  seeds: ComfySeed[];
+  warnings: string[];
+  uploaded: ComfyUploaded[];
+  nodeErrors: Record<string, ComfyNodeError>;
+}
+
+export interface RunWorkflowDone {
+  promptId: string;
+  workflow: string;
+  files: ComfyResultFile[];
+  seconds: number;
+  seeds: ComfySeed[];
+  warnings: string[];
+  uploaded: ComfyUploaded[];
+  /** Nodes ComfyUI left out because they failed its checks, with the outputs that needed them. */
+  nodeErrors: Record<string, ComfyNodeError>;
+}
+
+export interface ComfyQueueStatus {
+  running: boolean;
+  url?: string;
+  queueRunning?: number;
+  queuePending?: number;
+  devices?: { name: string; vramFreeGB: number; vramTotalGB: number }[];
+  version?: string | null;
+}
+
+/** Where a workflow's prompts are: the first text node of each, and every input prompt and negative replace. */
+export interface PromptNodes {
+  positive: string | null;
+  negative: string | null;
+  /** "nodeId.input" keys the prompt goes into (SDXL's text_g and text_l, Flux's clip_l and t5xxl…). */
+  promptInputs: string[];
+  negativeInputs: string[];
+}
+
+/** A Start Menu shortcut. folder is relative to the Start Menu's Programs folder. */
+export interface StartMenuApp {
+  name: string;
+  shortcut: string;
+  folder: string;
+}
+
+/** A known program as discoverPrograms() reports it. */
+export interface Program {
+  id: string;
+  name: string;
+  category: string;
+  installed: boolean;
+  optional: boolean;
+  exe: string | null;
+  shortcut: string | null;
+  version: string | null;
+  versions: string[] | null;
+  cli: boolean;
+  running: boolean;
+  serviceUrl: string | null;
+  actions: string[];
+}
+
+// ---------- what this file returns ----------
+export interface BrainModel {
+  provider: BrainSetting['provider'];
+  model: string;
+  /** for this provider ('' = the model's default) */
+  effort: Effort | '';
+  fallback: boolean;
+}
+
+export type BrainRoute = { kind: 'none'; reason: string } | { kind: 'agent' | 'branch'; id: string; name: string; reason: string };
+
+/** A new agent the Brain designed (not saved yet). */
+export type AgentDraft = Pick<Agent, 'name' | 'emoji' | 'specialty' | 'systemPrompt' | 'toolGroups' | 'mcpServers' | 'engine'>;
+
+export type BranchMember = { agentId: string; newAgent?: undefined } | { newAgent: AgentDraft; agentId?: undefined };
+
+/** A team the Brain designed. leadIndex points into members (-1 = no lead). */
+export interface BranchDesign {
+  name: string;
+  description: string;
+  access: TeamAccess;
+  members: BranchMember[];
+  leadIndex: number;
+}
+
+// ---------- Skills from plain words ----------
+/** A skill the Brain wrote or changed from your words (not saved: you look it over first). */
+export interface SkillDraft {
+  name: string;
+  description: string;
+  body: string;
+  /** One sentence: what it wrote or changed */
+  note: string;
+}
+
+/** A backup file in the backups folder. */
+export interface BackupListing {
+  name: string;
+  size: number;
+  modifiedAt: number;
+  summary: BackupSummary | null;
+}
+
+export type FileKind = 'image' | 'video' | 'audio' | 'model' | 'file' | 'folder';
+
+/** What a chat needs to preview a mentioned path. ok: false when it isn't there or isn't allowed. */
+export type FileInfo = { path: string; ok: false } | { path: string; ok: true; kind: FileKind; name: string; size: number; modified: number };
+
+/** Where things sit on the Station map that aren't teams (data/projects/<id>/layout.json). */
+export interface StationLayout {
+  /** the bench of agents on no team; null: its own place */
+  bench?: { x: number; z: number } | null;
+}
+
+// ---------- MCP servers (server/mcp.ts) ----------
+/** One saved MCP server (data/mcp.json). */
+export interface McpServerConfig {
+  type: 'stdio' | 'http' | string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  url: string;
+  headers: Record<string, string>;
+  description: string;
+  enabled: boolean;
+  /** This copy's own name ("Work", "Client A"), for a service added more than once (several accounts). */
+  label?: string;
+  /** The service it is, when not worked out on its own (see kindOf): a ready-made server's name, or another server's kind. */
+  kind?: string;
+  /** When to pick this copy over the service's other ones: for the Brain, and the agent that has it. */
+  useFor?: string;
+}
+export type McpServers = Record<string, McpServerConfig>;
+
+/** What saveServer() accepts: a form body, a preset or an importable server. args may be one string. */
+export interface McpServerInput {
+  type?: string;
+  command?: string;
+  args?: string[] | string;
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  description?: string;
+  enabled?: boolean;
+  label?: string;
+  kind?: string;
+  useFor?: string;
+}
+
+export type McpPreset = {
+  name: string;
+  title: string;
+  description: string;
+  /** What to do outside the dashboard before it works (an editor plugin, a program), for the Brain to pass on. */
+  setup?: string;
+  /** The host every link of this service is on, when each account gets its own link (Composio) */
+  host?: string;
+} & (
+  | { type: 'stdio'; command: string; args: string[]; env?: Record<string, string> }
+  | { type: 'http'; url: string; headers: Record<string, string> }
+);
+
+export interface ImportableServer {
+  source: string;
+  name: string;
+  type: 'http' | 'stdio';
+  command?: string;
+  args: string[];
+  env: Record<string, string>;
+  url?: string;
+  headers: Record<string, string>;
+}
+
+export interface BridgeServerConfig {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+}
+/** A ready-made server as GET /api/mcp lists it: whether its command is on this PC, and whether it is added (and as
+ *  which servers). */
+export type McpPresetListing = McpPreset & { service: string; ready: boolean; installed: boolean; copies: string[] };
+
+/** GET /api/mcp: the servers (keys and logins hidden), the ready-made ones, what fits this PC, what a Claude config
+ *  has to import, and the bridge (its token hidden: POST /api/mcp-bridge gives it to copy). */
+export interface McpOverview {
+  servers: McpServers;
+  info: Record<string, McpServerInfo>;
+  presets: McpPresetListing[];
+  suggested: McpSuggestion[];
+  importable: ImportableServer[];
+  bridge: BridgeServerConfig;
 }
 
 /** An MCP server as the page shows it: a service can be added more than once (several accounts), each copy with a label. */
@@ -2421,6 +3004,46 @@ export interface ShownWorld {
   how: 'own' | 'shared' | 'carried' | 'none';
   /** for a carried-over or shared world: the project it was made for */
   fromProject?: string;
+}
+
+// ---------- the prefab library ----------
+/** A prefab shared to every world: its voxels use its own small palette. */
+export interface LibraryPrefab {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  by: string;
+  /** who published it (entries published before this was kept have only the name) */
+  builder?: WorldBuilder;
+  fromWorld: string;
+  size: Vec3;
+  voxels: number;
+  palette: VoxelMaterial[];
+  data: VoxelObjectData;
+  /** the point copies stand on and turn around, as its builder chose it (missing: bottom centre) */
+  pivotAt?: VoxelPrefabMeta['pivotAt'];
+  animations?: Record<string, AnimationClip>;
+  createdAt: number;
+}
+
+/** A prefab in the shared library as it is listed (GET /api/prefab-library): without its voxels. */
+export type LibraryPrefabListing = Omit<LibraryPrefab, 'data' | 'palette'>;
+
+/** An earlier WORLD.md, as its list shows it (chars: how long) and as one is read (item). */
+export interface WorldMdVersionEntry {
+  id: string;
+  at: number;
+  by: string;
+  note?: string;
+  chars: number;
+}
+export interface WorldMdVersion {
+  id: string;
+  at: number;
+  by: string;
+  note?: string;
+  item: { text: string };
 }
 
 /** A world in the list of worlds (GET /api/worlds). */

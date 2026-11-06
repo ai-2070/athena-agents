@@ -4,7 +4,8 @@
 // React; renderAgentChat() puts it into the window's tab (plain DOM) and hands back focus and destroy.
 import { StrictMode, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createAppRoot } from './ui/root.tsx';
-import { GET, POST, attempt } from './core.ts';
+import { attempt } from './core.ts';
+import { rpcAt } from './client/rpc.ts';
 import { projectAt } from './client/connection.ts';
 import { modelChip } from './models.tsx';
 import { attachTray } from './attach.tsx';
@@ -53,7 +54,7 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
     let live = true;
     chosen.current = false;
     // its own conversations, not the sessions it keeps for each team chat
-    void GET<ChatSummary[]>(`${at}/agents/${agentId}/chats`)
+    void rpcAt(at).agents.chats.list({ id: agentId })
       .catch((): ChatSummary[] => [])
       .then((chats) => {
         if (!live || chosen.current) return;
@@ -88,7 +89,7 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
   }, [pick, ask]);
 
   const fresh = async () => {
-    const c = await attempt(() => POST<Chat>(`${at}/agents/${agentId}/chats`));
+    const c = await attempt(() => rpcAt(at).agents.chats.create({ id: agentId }));
     if (c) {
       chosen.current = true;
       setPick((p) => ({ id: c.id, n: (p?.n || 0) + 1 }));

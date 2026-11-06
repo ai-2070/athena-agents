@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DEL, GET, confirmBox } from '../core.ts';
+import { confirmBox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Button } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { FieldRow, PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
@@ -27,7 +28,7 @@ export function GatewayRetiredView({ id, select, close, changed }: {
   const load = useCallback(async () => {
     const version = ++request.current;
     try {
-      const value = await GET<{ instances: GatewayRetiredInstance[] }>('/gateways/retired');
+      const value = await rpc.gateways.retired.list();
       if (mounted.current && request.current === version) { setRecords(value.instances); setError(''); }
     } catch (failure) { if (mounted.current && request.current === version) { setRecords(null); setError(failureMessage(failure)); } }
   }, []);
@@ -67,7 +68,7 @@ function RetiredHistory({ record, changed }: { record: GatewayRetiredInstance; c
   const load = useCallback(async () => {
     const version = ++request.current;
     try {
-      const value = await GET<{ events: GatewayInboxEvent[] }>(`/gateways/retired/${encodeURIComponent(record.id)}/inbox`);
+      const value = await rpc.gateways.retired.inbox({ id: record.id });
       if (mounted.current && request.current === version) { setEvents(value.events); setError(''); }
     } catch (failure) { if (mounted.current && request.current === version) { setEvents(null); setError(failureMessage(failure)); } }
   }, [record.id]);
@@ -78,7 +79,7 @@ function RetiredHistory({ record, changed }: { record: GatewayRetiredInstance; c
     active.current = true; setBusy(true); setNotice('');
     try {
       if (!await confirmBox(`Finish removing ${record.name}, ${platforms[record.platform]} account ${record.accountId}? Athena will drain its worker and clear only its local credentials and pairing under exclusive ownership. Saved receipts and native work stay. The connection remains blocked.`, { ok: 'Retry removal', danger: true }) || !mounted.current) return;
-      await DEL(`/gateways/${encodeURIComponent(record.id)}`);
+      await rpc.gateways.remove({ id: record.id });
       if (mounted.current) { setNotice('Removal finished. The connection stays blocked and saved receipts are kept.'); setError(''); await changed(); }
     } catch (failure) { if (mounted.current) setError(failureMessage(failure)); }
     finally { active.current = false; if (mounted.current) setBusy(false); }

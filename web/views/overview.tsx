@@ -8,7 +8,8 @@
 // docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { DEL, GET, POST, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
+import { ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
+import { rpc, rpcAt } from '../client/rpc.ts';
 import { apiUrl, projectAt } from '../client/connection.ts';
 import { previewFile, previewTitle, revealLabel } from '../filepreview.tsx';
 import { openChat } from '../chatwin.tsx';
@@ -70,7 +71,7 @@ const PANELS: readonly { id: PanelId; label: string; icon: string }[] = [
 /** Opens a pane's folder in VS Code: an agent's own workspace, or the project folder for a team or a terminal. */
 async function openInVSCode(ref: PaneRef, foreign: boolean): Promise<void> {
   const at = foreign ? projectAt(ref.projectId) : '';
-  const r = await attempt(() => (ref.kind === 'agent' ? POST<{ message?: string }>(`${at}/agents/${encodeURIComponent(ref.id)}/open-workspace`, { app: 'vscode' }) : POST<{ message?: string }>(`/projects/${encodeURIComponent(ref.projectId)}/open`, { app: 'vscode' })));
+  const r = await attempt(() => (ref.kind === 'agent' ? rpcAt(at).agents.openWorkspace({ id: ref.id, app: 'vscode' }) : rpc.projects.open({ id: ref.projectId, app: 'vscode' })));
   if (r?.message) toast(r.message);
 }
 // what each shortcut key types without modifiers
@@ -147,7 +148,7 @@ function OverviewPage() {
   const load = useCallback(async () => {
     const request = ++serial.current;
     try {
-      const next = await GET<OverviewData>('/overview');
+      const next = await rpc.status.overview();
       if (request === serial.current) (loadedFrom.current = request, setData(next), setError(''));
     } catch (e) {
       if (request === serial.current) setError(e instanceof Error ? e.message : String(e));
@@ -222,7 +223,7 @@ function OverviewPage() {
   };
   /** A new terminal in the open project's folder, opened as a pane. */
   const newTerminal = async () => {
-    const t = await attempt(() => POST<{ id: string; title: string }>('/terminals', { kind: 'shell', cwd: state.data?.project?.brainPath }));
+    const t = await attempt(() => rpc.terminals.create({ kind: 'shell', cwd: state.data?.project?.brainPath }));
     if (!t) return;
     change((l) => openPane(l, { kind: 'terminal', id: t.id, projectId: active }));
     void load();
@@ -506,7 +507,7 @@ const TASK_GROUPS: BoardStatus[] = ['in_progress', 'todo', 'in_review', 'blocked
 function TasksPanel({ scope, data }: { scope: string; data: OverviewData }) {
   const project = scope === 'here' ? data.active : scope === 'all' || !data.projects.some((p) => p.id === scope) ? 'all' : scope;
   const [board, setBoard] = useState<TaskBoardData | null>(null);
-  const load = useCallback(() => void GET<TaskBoardData>(`/task-board?project=${encodeURIComponent(project)}`).then(setBoard, () => setBoard({ projects: [], tasks: [], tags: {} })), [project]);
+  const load = useCallback(() => void rpc.taskBoard.list({ project }).then(setBoard, () => setBoard({ projects: [], tasks: [], tags: {} })), [project]);
   useEffect(() => {
     load();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -568,7 +569,7 @@ function FilesPanel({ projects, active }: { projects: OverviewProject[]; active:
   useEffect(() => {
     let live = true;
     setListing(null);
-    GET<FolderListing>(`/projects/${encodeURIComponent(projectId)}/folder?path=${encodeURIComponent(rel)}`).then((l) => live && (setListing(l), setError('')), (e: unknown) => live && setError(e instanceof Error ? e.message : String(e)));
+    rpc.projects.folder({ id: projectId, path: rel }).then((l) => live && (setListing(l), setError('')), (e: unknown) => live && setError(e instanceof Error ? e.message : String(e)));
     return () => void (live = false);
   }, [projectId, rel]);
   const project = projects.find((p) => p.id === projectId);
@@ -578,7 +579,7 @@ function FilesPanel({ projects, active }: { projects: OverviewProject[]; active:
     window.open(apiUrl(`${projectId === active ? '' : projectAt(projectId)}/file`, { path }), '_blank', 'noopener');
   };
   const openFolder = async (app?: 'vscode') => {
-    const r = await attempt(() => POST<{ message?: string }>(`/projects/${encodeURIComponent(projectId)}/open`, { path: rel, ...(app ? { app } : {}) }));
+    const r = await attempt(() => rpc.projects.open({ id: projectId, path: rel, ...(app ? { app } : {}) }));
     if (r?.message) toast(r.message);
   };
   return (
@@ -838,7 +839,7 @@ function Pane({ paneRef: ref, projectName, share, stacked, pinned, focused, draw
   };
   const endTerminal = async () => {
     if (!(await confirmBox(`End the terminal "${name}"? What runs in it stops.`, { ok: 'End terminal', danger: true }))) return;
-    if (await attempt(() => DEL(`/terminals/${encodeURIComponent(ref.id)}`))) change((l) => closePane(l, key));
+    if (await attempt(() => rpc.terminals.close({ id: ref.id }))) change((l) => closePane(l, key));
   };
   return (
     <>

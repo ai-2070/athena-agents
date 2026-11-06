@@ -7,7 +7,8 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { createAppRoot } from './ui/root.tsx';
-import { state, GET, PUT, attempt, refreshSoon, toast, navigate } from './core.ts';
+import { state, attempt, refreshSoon, toast, navigate } from './core.ts';
+import { rpc, rpcAt } from './client/rpc.ts';
 import { engineConfigured } from './engineavailability.ts';
 import { slideSegment } from './segmotion.ts';
 import { brandImage } from './brandimages.ts';
@@ -18,7 +19,7 @@ import { defaultModelForEngine } from '../shared/modeldefaults.ts';
 import { Button } from './ui/button.tsx';
 import { PopoverContent, PopoverRoot } from './ui/popover.tsx';
 import { DomNode, Icon, useAppState } from './ui/react.tsx';
-import type { Agent, ApiModelInfo, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel } from '../shared/types.ts';
+import type { Agent, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel, ModelListing } from '../shared/types.ts';
 
 /** What modelInfo() needs: an agent, or the Brain dressed up as one (brainAsAgent). */
 export interface ModelTarget {
@@ -47,12 +48,7 @@ export interface ModelInfo {
   brand: string | null;
   where: string;
 }
-/** One entry of GET /api/models (engine=eve, codex, pi…). */
-export interface ModelListing extends Partial<Omit<ApiModelInfo, 'id'>> {
-  id: string;
-  /** Codex: what the model is for */
-  description?: string;
-}
+export type { ModelListing } from '../shared/types.ts';
 /** A picker tab: an engine, Favorites, or LM Studio (API models on this PC, with a tab of their own). */
 type PickerTab = EngineId | 'fav' | 'lmstudio' | 'venice';
 interface ModelTab {
@@ -143,7 +139,7 @@ export async function toggleFavorite(m: ModelChoice): Promise<boolean> {
   const fav: FavoriteModel = { engine: m.engine, model: m.model || '', ...(m.engine === 'eve' ? { provider: m.provider || 'openrouter' } : {}) };
   const list = on ? [...before, fav] : before.filter((f) => !sameModel(f, m));
   if (state.data?.settings) state.data.settings.favoriteModels = list;
-  const r = await attempt(() => PUT('/settings', { favoriteModels: list }));
+  const r = await attempt(() => rpc.settings.save({ favoriteModels: list }));
   if (!r && state.data?.settings) state.data.settings.favoriteModels = before;
   return r ? on : !on;
 }
@@ -204,7 +200,7 @@ export function modelChip(agent: Agent, { onChange, compact = false, at = '' }: 
     e.stopPropagation();
     openModelPicker(chip, agent, async (patch) => {
       const sameOne = sameModel(agent, patch);
-      const r = await attempt(() => PUT<Agent>(`${at}/agents/${agent.id}`, patch));
+      const r = await attempt(() => rpcAt(at).agents.change({ id: agent.id, ...patch }));
       if (!r) return false;
       Object.assign(agent, patch);
       flushSync(draw);
@@ -249,7 +245,7 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
         toast("The Brain can't use that engine. Pick Claude, OpenRouter, Venice, Hermes or Codex.", 'error');
         return false;
       }
-      const r = await attempt(() => PUT('/settings', { brain }));
+      const r = await attempt(() => rpc.settings.save({ brain }));
       if (!r) return false;
       if (state.data?.settings) state.data.settings.brain = brain;
       flushSync(draw);
@@ -394,7 +390,7 @@ function LocalSection({ provider, label, howToStart = '', typeIn = false, cur, o
   const [ids, setIds] = useState<string[] | null>(null);
   useEffect(() => {
     let live = true;
-    GET<ModelListing[]>(`/models?engine=eve&provider=${provider}`).then(
+    rpc.status.models({ engine: 'eve', provider }).then(
       (ms) => { if (live) setIds(ms.map((m) => m.id)); },
       () => { if (live) setIds([]); },
     );
@@ -475,7 +471,7 @@ function OpenRouterBody({ cur, local, close, onPick, onChanged }: { cur: ModelTa
   const [all, setAll] = useState<ModelListing[]>([]);
   useEffect(() => {
     let live = true;
-    GET<ModelListing[]>('/models?engine=eve&provider=openrouter')
+    rpc.status.models({ engine: 'eve', provider: 'openrouter' })
       .then((ms) => { if (live) setAll(ms); })
       .catch(() => {});
     return () => { live = false; };
@@ -528,7 +524,7 @@ function CliBody({ engine, cur, close, onPick, onChanged }: { engine: 'pi' | 'om
   const [all, setAll] = useState<ModelListing[] | null>(null);
   useEffect(() => {
     let live = true;
-    GET<ModelListing[]>(`/models?engine=${engine}`).then(
+    rpc.status.models({ engine }).then(
       (ms) => { if (live) setAll(ms); },
       () => { if (live) setAll([]); },
     );
@@ -561,7 +557,7 @@ function CodexBody({ cur, close, onPick, onChanged }: { cur: ModelTarget; close:
   const [all, setAll] = useState<ModelListing[] | null>(null);
   useEffect(() => {
     let live = true;
-    GET<ModelListing[]>('/models?engine=codex').then(
+    rpc.status.models({ engine: 'codex' }).then(
       (ms) => { if (live) setAll(ms.some((m) => m.id) ? ms : CODEX_PICKS); },
       () => { if (live) setAll(CODEX_PICKS); },
     );
@@ -604,7 +600,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   useEffect(() => {
     if (!local) return;
     let live = true;
-    void GET<{ id: string; installed: boolean }[]>('/programs').then((programs) => {
+    void rpc.programs.list({}).then((programs) => {
       if (live && Array.isArray(programs)) setInstalledPrograms(new Set(programs.filter((program) => program.installed).map((program) => program.id)));
     }).catch(() => {});
     return () => { live = false; };
@@ -630,7 +626,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
     if (!needsVenice) return;
     let live = true;
     setVeniceError(null);
-    void GET<ModelListing[]>('/models?engine=eve&provider=venice').then(
+    void rpc.status.models({ engine: 'eve', provider: 'venice' }).then(
       (models) => { if (live) setVeniceModels(models); },
       () => { if (live) setVeniceError('Could not load Venice models.'); },
     );

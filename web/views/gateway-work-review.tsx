@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GET, POST, confirmBox } from '../core.ts';
+import { confirmBox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Button } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { PanelNote, Row, Section } from '../ui/controls.tsx';
@@ -11,14 +12,14 @@ const requestCount = (count: number): string => `${count} other saved ${count ==
 export function GatewayWorkReviewView({ instance, eventId, close, changed }: {
   instance: GatewayInstance; eventId: string; close: () => void; changed: () => Promise<void>;
 }) {
-  const root = `/gateways/${encodeURIComponent(instance.id)}/inbox/${encodeURIComponent(eventId)}/work-review`;
+  const at = { id: instance.id, eventId };
   const [preview, setPreview] = useState<GatewayWorkReview | null>(null); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [busy, setBusy] = useState(false);
   const mounted = useRef(false); const request = useRef(0); const active = useRef(false);
   const load = useCallback(async (clear = true) => {
     const version = ++request.current; if (clear) { setError(''); setNotice(''); }
-    try { const value = await GET<GatewayWorkReview>(root); if (mounted.current && version === request.current) setPreview(value); }
+    try { const value = await rpc.gateways.inbox.workReview(at); if (mounted.current && version === request.current) setPreview(value); }
     catch (failure) { if (mounted.current && version === request.current) { setPreview(null); setError(failure instanceof Error ? failure.message : 'Saved work could not load. Reload before reviewing it.'); } }
-  }, [root]);
+  }, [instance.id, eventId]);
   useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; request.current++; }; }, [load, instance.enabled]);
   useServerEvents((event) => { if ((event.type === 'gateways' && event.id === instance.id) || (event.type === 'gateway-inbox' && event.instanceId === instance.id)) void load(false); });
   const act = async (action: 'prepare' | 'keep') => {
@@ -27,7 +28,7 @@ export function GatewayWorkReviewView({ instance, eventId, close, changed }: {
     try {
       if (action === 'keep' && !await confirmBox(`Keep the work for ${platforms[preview.source.platform]} chat ${preview.source.conversationId}, message ${preview.source.messageId}, in Athena? Native work may still be running. This does not stop it, finish it or start it again. This request will never send a reply or files through this gateway. ${requestCount(preview.heldRequests)} ${preview.heldRequests === 1 ? 'stays' : 'stay'} held; new incoming messages will use a separate private conversation after enabling. This cannot be undone. Manage existing native work in Athena before continuing.`, { ok: 'Keep work in Athena', danger: true })) return;
       if (!mounted.current) return;
-      const value = await POST<GatewayWorkReview>(`${root}/${action}`, action === 'keep' ? { revision: preview.revision, acknowledgeMayStillRun: true, acknowledgeFreshConversation: true, acknowledgeNoReply: true } : undefined);
+      const value = action === 'keep' ? await rpc.gateways.inbox.keepWork({ params: at, body: { revision: preview.revision, acknowledgeMayStillRun: true, acknowledgeFreshConversation: true, acknowledgeNoReply: true } }) : await rpc.gateways.inbox.prepareWorkReview(at);
       if (mounted.current) { setPreview(value); setNotice(action === 'keep' ? 'Work kept in Athena. Ask the sender for a new message when ready. This instance is still paused.' : 'Interrupted receipts are now classified locally. Check the messaging app for uncertain notices or files.'); await changed(); }
     } catch (failure) { if (mounted.current) setError(failure instanceof Error ? failure.message : 'The work review could not save. Reload the current receipts.'); }
     finally { if (mounted.current) { await load(false); setBusy(false); } active.current = false; }

@@ -55,7 +55,7 @@ describe('project menu', () => {
     expect([...document.querySelectorAll('.proj-menu [data-id]')].map((el) => el.getAttribute('data-id'))).toEqual(['a', 'b', 'c']);
     await act(async () => { item('b').click(); });
     await settle();
-    expect(requests.filter((r) => r.url === '/api/projects/b/activate')).toEqual([{ method: 'POST', url: '/api/projects/b/activate', body: {} }]);
+    expect(requests.filter((r) => r.url === '/api/projects/b/activate')).toMatchObject([{ method: 'POST', url: '/api/projects/b/activate' }]);
     expect(document.querySelector('.proj-menu')).toBeNull();
   });
 

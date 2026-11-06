@@ -4,7 +4,8 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Autocomplete } from '@base-ui/react/autocomplete';
 import type { ReactNode } from 'react';
-import { GET, POST, PUT, DEL, attempt, refreshSoon, navigate, toast, confirmBox, promptBox, isRunning, ENGINE_LABEL } from '../core.ts';
+import { attempt, refreshSoon, navigate, toast, confirmBox, promptBox, isRunning, ENGINE_LABEL } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.tsx';
 import { memoryEditor } from '../memory.tsx';
@@ -23,29 +24,12 @@ import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
 import { CATEGORY_COLORS, ENGINE_NAMES, OTHER_COLOR, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
 import type { Slice } from '../agentstats.ts';
-import type { Agent, AppState, Autonomy, EngineStatus, McpServerInfo, Team, Terminal } from '../../shared/types.ts';
+import type { Agent, AgentDetail, AppState, Autonomy, EngineStatus, HermesProfile, McpServerInfo, OpenClawAgent, Team } from '../../shared/types.ts';
 
 const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
 
 /** GET /api/agents/:id: the agent plus its knowledge files and resolved workspace. */
-export interface AgentDetail extends Agent {
-  knowledgeFiles: { label: string; size: number; own: boolean }[];
-  workspacePath: string;
-  tools: string[];
-}
-/** One entry of GET /api/openclaw/agents. */
-interface OpenClawAgent {
-  id: string;
-  model: string;
-  isDefault: boolean;
-}
-/** One entry of GET /api/hermes/profiles. */
-interface HermesProfile {
-  name: string;
-  model: string;
-  gateway: string;
-  isDefault: boolean;
-}
+export type { AgentDetail };
 /** The part of GET /api/mcp used here. */
 interface McpListing {
   servers: Record<string, unknown>;
@@ -53,7 +37,7 @@ interface McpListing {
 }
 
 export async function openTerminal(agent: Pick<Agent, 'id'>): Promise<void> {
-  const t = await attempt(() => POST<Terminal>('/terminals', { kind: 'agent', agentId: agent.id }));
+  const t = await attempt(() => rpc.terminals.create({ kind: 'agent', agentId: agent.id }));
   if (t) navigate(`#/terminals/${t.id}`);
 }
 
@@ -214,7 +198,7 @@ function AgentsList() {
   const inPick = (a: Agent) => !pick || inSlice(pick.slice, pick.kind === 'category' ? agentCategory(a).id : pick.kind === 'engine' ? engineKey(a) : agentModel(a, d.settings.defaults).id);
   const shown = d.agents.filter((a) => (!q || `${a.name} ${a.specialty} ${a.description}`.toLowerCase().includes(q)) && inPick(a));
   const create = async () => {
-    const a = await attempt(() => POST<Agent>('/agents', { name: 'New agent' }));
+    const a = await attempt(() => rpc.agents.create({ name: 'New agent' }));
     if (a) navigate(`#/agents/${a.id}/edit`);
   };
   return (
@@ -345,7 +329,7 @@ function AgentEditor({ id }: { id: string }) {
   useEffect(() => {
     let live = true;
     // (Hermes profiles and OpenClaw agents ask their CLIs, which can be slow: they load with their engine's fields)
-    void Promise.all([GET<AgentDetail>(`/agents/${id}`), GET<McpListing>('/mcp').catch(() => ({ servers: {} })), GET<Team[]>('/workflows').catch((): Team[] => [])]).then(
+    void Promise.all([rpc.agents.get({ id }), rpc.mcp.list().catch((): McpListing => ({ servers: {} })), rpc.workflows.list().catch((): Team[] => [])]).then(
       ([agent, mcp, teams]) => live && setData({ agent, servers: Object.keys(mcp.servers), info: (mcp as McpListing).info, teams }),
     );
     return () => void (live = false);
@@ -410,7 +394,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
   }, [dirty]);
 
   const save = async (thenChat = false) => {
-    if (await attempt(() => PUT(`/agents/${id}`, a), 'Saved')) {
+    if (await attempt(() => rpc.agents.change({ ...a, id }), 'Saved')) {
       setDirty(false);
       if (thenChat) navigate(`#/agents/${id}`);
     }
@@ -423,14 +407,14 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
   };
   const del = async () => {
     if (!(await confirmBox(`Delete ${a.name}? Its chats stay in the data folder.`, { ok: 'Delete', danger: true }))) return;
-    if (await attempt(() => DEL(`/agents/${id}`), 'Deleted')) navigate('#/agents');
+    if (await attempt(() => rpc.agents.remove({ id }), 'Deleted')) navigate('#/agents');
   };
   const clone = async () => {
-    const c = await attempt(() => POST<Agent>(`/agents/${id}/duplicate`), 'Duplicated');
+    const c = await attempt(() => rpc.agents.duplicate({ id }), 'Duplicated');
     if (c) navigate(`#/agents/${c.id}/edit`);
   };
   const pin = () =>
-    void PUT(`/agents/${id}`, { pinned: !a.pinned }).then(() => {
+    void rpc.agents.change({ id, pinned: !a.pinned }).then(() => {
       setA((x) => ({ ...x, pinned: !x.pinned }));
       toast(a.pinned ? 'Unpinned' : 'Pinned');
     });
@@ -598,7 +582,7 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
                     <input className="code" value={a.workspace || ''} placeholder={agent.workspacePath} onChange={(e) => set('workspace', e.target.value.trim())} />
                   </Field>
                 </div>
-                <Button variant="ghost" onClick={() => void attempt(() => POST(`/agents/${id}/open-workspace`))}>
+                <Button variant="ghost" onClick={() => void attempt(() => rpc.agents.openWorkspace({ id }))}>
                   <Icon name="folder-open" size={14} />
                   Open folder
                 </Button>
@@ -619,10 +603,10 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
               </Button>
               {/* put back: show it as it is now (changes not saved yet are dropped) */}
               <DomNode as="span" make={() => historyButton('agent', id, () => (setDirty(false), reload()))} deps={[id]} />
-              <Button variant="ghost" size="small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => POST(`/presets/agent/${id}`), `Saved ${a.name} as a preset`)}><Icon name="bookmark-plus" size={13} />
+              <Button variant="ghost" size="small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => rpc.presets.saveAgent({ id }), `Saved ${a.name} as a preset`)}><Icon name="bookmark-plus" size={13} />
                 Save as preset
               </Button>
-              <Button variant="ghost" size="small" title="Write it to ~/.claude/agents so any Claude Code session can use it" onClick={() => void attempt(() => POST<{ file: string }>(`/agents/${id}/export-claude`), (r) => `Saved as ${r.file}`)}><Icon name="terminal" size={13} />
+              <Button variant="ghost" size="small" title="Write it to ~/.claude/agents so any Claude Code session can use it" onClick={() => void attempt(() => rpc.agents.exportClaude({ id }), (r) => `Saved as ${r.file}`)}><Icon name="terminal" size={13} />
                 Install in Claude Code
               </Button>
               <Button variant="danger" size="small" className="ml-auto" onClick={() => void del()}>
@@ -695,15 +679,14 @@ function EngineFields({ a, d, set, fit }: {
   const needs = a.engine === 'hermes' ? 'hermes' : a.engine === 'openclaw' ? 'openclaw' : null;
   useEffect(() => {
     let live = true;
-    if (needs === 'hermes') void GET<HermesProfile[]>('/hermes/profiles').then((p) => live && setProfiles(p)).catch(() => {});
-    if (needs === 'openclaw') void GET<OpenClawAgent[]>('/openclaw/agents').then((c) => live && setClawAgents(c)).catch(() => {});
+    if (needs === 'hermes') void rpc.engines.hermesProfiles().then((p) => live && setProfiles(p)).catch(() => {});
+    if (needs === 'openclaw') void rpc.engines.openclawAgents().then((c) => live && setClawAgents(c)).catch(() => {});
     return () => void (live = false);
   }, [needs]);
   useEffect(() => {
     let live = true;
-    const q = a.engine === 'eve' ? `engine=eve&provider=${a.provider}` : `engine=${a.engine}`;
     setModels([]);
-    void GET<ModelListing[]>(`/models?${q}`)
+    void rpc.status.models(a.engine === 'eve' ? { engine: 'eve', provider: a.provider } : { engine: a.engine })
       .catch((): ModelListing[] => [])
       .then((m) => live && setModels(m.slice(0, 600)));
     return () => void (live = false);
@@ -829,7 +812,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
   const [info, setInfo] = useState<{ folders: string[]; files: AgentDetail['knowledgeFiles'] } | null>(null);
   const load = useCallback(
     () =>
-      GET<AgentDetail>(`/agents/${id}`)
+      rpc.agents.get({ id })
         .then((fresh) => {
           setInfo({ folders: fresh.knowledge?.folders || [], files: fresh.knowledgeFiles });
           synced(fresh.knowledge);
@@ -845,7 +828,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
     if (!name) return;
     const content = await promptBox(name, { multiline: true, placeholder: 'Facts, style guides, product details, anything this agent should know.' });
     if (content == null) return;
-    await attempt(() => POST(`/agents/${id}/knowledge`, { name, content }), 'Added');
+    await attempt(() => rpc.agents.knowledge.add({ id, name, content }), 'Added');
     await load();
   };
   const upload = async (files: FileList | null) => {
@@ -854,7 +837,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
         toast(`${f.name} is over 5 MB; link its folder instead.`, 'warn');
         continue;
       }
-      await attempt(() => f.text().then((content) => POST(`/agents/${id}/knowledge`, { name: f.name, content })));
+      await attempt(() => f.text().then((content) => rpc.agents.knowledge.add({ id, name: f.name, content })));
     }
     toast('Uploaded');
     await load();
@@ -862,13 +845,13 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
   const addFolder = async () => {
     const folder = await promptBox('Link a folder or file', { label: 'Full path on this PC (the agent reads text files inside it)', placeholder: 'C:\\Users\\you\\Documents\\brand' });
     if (!folder) return;
-    await attempt(() => POST(`/agents/${id}/knowledge`, { folder: folder.trim().replace(/^"|"$/g, '') }), 'Linked');
+    await attempt(() => rpc.agents.knowledge.add({ id, folder: folder.trim().replace(/^"|"$/g, '') }), 'Linked');
     await load();
   };
   const addUrl = async () => {
     const url = await promptBox('Save a web page as knowledge', { placeholder: 'https://…' });
     if (!url) return;
-    await attempt(() => POST(`/agents/${id}/knowledge`, { url: url.trim() }), 'Saved');
+    await attempt(() => rpc.agents.knowledge.add({ id, url: url.trim() }), 'Saved');
     await load();
   };
   return (
@@ -881,7 +864,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
         <div key={f} className="list-row">
           <Icon name="folder" size={15} className="flex-none text-dim" />
           <div className="flex-1 min-w-0 font-mono text-[12.5px] wrap-anywhere">{f}</div>
-          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?folder=${encodeURIComponent(f)}`)).then(load)}>Unlink</Button>
+          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.agents.knowledge.remove({ params: { id }, query: { folder: f } })).then(load)}>Unlink</Button>
         </div>
       ))}
       {info.files
@@ -893,7 +876,7 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
               {f.label}
               <span className="hint">{` · ${Math.max(1, Math.round(f.size / 1024))} KB`}</span>
             </div>
-            <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/agents/${id}/knowledge?label=${encodeURIComponent(f.label)}`)).then(load)}>Remove</Button>
+            <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.agents.knowledge.remove({ params: { id }, query: { label: f.label } })).then(load)}>Remove</Button>
           </div>
         ))}
       <div className="flex flex-wrap items-center gap-2">

@@ -2,8 +2,8 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { Agent, AppState, Approval, ServerEvent } from '../shared/types.ts';
-import { GET, POST } from './client/http.ts';
 import { openSocket, setPageProject, setProjectFolders } from './client/connection.ts';
+import { rpc } from './client/rpc.ts';
 import { openDialog, showToast } from './ui/overlays.tsx';
 import type { ToastKind } from './ui/overlays.tsx';
 // (the class functions, not web/ui/dom.ts: that module builds on h() from here)
@@ -13,7 +13,7 @@ import { slideSegment } from './segmotion.ts';
 
 // ---------- API ----------
 // Requests live in web/client/; pages keep importing them from here.
-export { api, GET, POST, PUT, DEL } from './client/http.ts';
+export { api } from './client/http.ts';
 export type { ApiOptions } from './client/http.ts';
 
 // Run an action, show errors as toasts. Returns the result or undefined.
@@ -70,7 +70,7 @@ function setEventConnection(connected: boolean): void {
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 export async function refreshState(): Promise<void> {
   try {
-    state.data = await GET<AppState>('/state');
+    state.data = await rpc.status.state();
     setPageProject(state.data?.project?.id);
     setProjectFolders(state.data?.projects || [], state.data?.project?.id);
     for (const fn of state.listeners) fn(state.data);
@@ -489,7 +489,7 @@ export function approvalCard(a: Approval): HTMLDivElement {
   const note = h('input', { placeholder: 'Optional note for the agent (why not, what instead)' });
   const decide = (approved: boolean, always = false) =>
     attempt(async () => {
-      await POST(`/approvals/${a.id}`, { approved, always, message: note.value, edited: editor ? editor.value : null });
+      await rpc.approvals.decide({ id: a.id, approved, always, message: note.value, edited: editor ? editor.value : null });
       refreshSoon(0);
     });
   return h(

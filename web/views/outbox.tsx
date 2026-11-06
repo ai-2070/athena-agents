@@ -4,7 +4,8 @@
 import { Plate } from '../ui/surface.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GET, POST, PUT, DEL, attempt, toast, ago, refreshSoon } from '../core.ts';
+import { attempt, toast, ago, refreshSoon } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { fetchFile } from '../client/http.ts';
 import { fileUrl } from '../client/connection.ts';
 import { openFile } from '../filepreview.tsx';
@@ -46,7 +47,7 @@ export function Outbox() {
   const data = useAppState();
   const [list, setList] = useState<OutboxPost[] | null>(null);
   const version = useRef(0);
-  const reload = useCallback(async () => { const next = ++version.current; const value = await GET<OutboxPost[]>('/outbox'); if (next === version.current) setList(value); }, []);
+  const reload = useCallback(async () => { const next = ++version.current; const value = await rpc.outbox.list(); if (next === version.current) setList(value); }, []);
   useEffect(() => void reload().catch(() => setList([])), [reload]);
   useEffect(() => () => { version.current++; }, []);
   useServerEvents((ev) => { if (ev.type === 'project') setList(null); if (['outbox', 'project', 'gateway-inbox', 'gateway-health', 'gateways'].includes(ev.type)) void reload().catch(() => {}); });
@@ -83,7 +84,7 @@ export function Outbox() {
 /** What agents asked you (ask_user): the waiting ones first, then the last ones you answered. */
 function Questions() {
   const [list, setList] = useState<AgentQuestion[] | null>(null);
-  const reload = useCallback(() => GET<AgentQuestion[]>('/questions').then(setList), []);
+  const reload = useCallback(() => rpc.questions.list().then(setList), []);
   useEffect(() => void reload().catch(() => setList([])), [reload]);
   useServerEvents((ev) => (ev.type === 'questions' || ev.type === 'project') && void reload().catch(() => {}));
   if (!list?.length) return null;
@@ -115,7 +116,7 @@ function Compose({ accounts, added }: { accounts: string[]; added: () => void })
   const [text, setText] = useState('');
   const [account, setAccount] = useState(accounts[0]);
   const save = async () => {
-    if (await attempt(() => POST('/outbox', { platform: 'x', account, text }), 'Added to the Outbox')) {
+    if (await attempt(() => rpc.outbox.draft({ platform: 'x', account, text }), 'Added to the Outbox')) {
       setText('');
       added();
     }
@@ -178,7 +179,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
 
   const approve = async () => {
     setBusy(true);
-    const r = await attempt(() => POST<OutboxPost>(`/outbox/${p.id}/approve`, edits()));
+    const r = await attempt(() => rpc.outbox.approve({ id: p.id, ...edits() }));
     if (r?.status === 'posted') toast('Posted ✓');
     else if (r?.status === 'failed') toast(r.error as string, 'error', 8000);
     setBusy(false);
@@ -186,7 +187,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
   };
   const discuss = async () => {
     setBusy(true);
-    const r = await attempt(() => POST<OutboxPost>(`/outbox/${p.id}/discuss`, { text: note }), `Sent back to ${p.teamName || 'the team'}`);
+    const r = await attempt(() => rpc.outbox.discuss({ id: p.id, text: note }), `Sent back to ${p.teamName || 'the team'}`);
     setBusy(false);
     if (r) changed();
   };
@@ -263,9 +264,9 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
         <>
           <div className="flex flex-wrap items-center gap-3 mt-4">
             <Button size="small" disabled={busy} onClick={() => void approve()}><Icon name="check" size={13} />{p.platform === 'x' ? 'Approve & post' : 'Approve & send'}</Button>
-            <Button variant="ghost" size="small" onClick={() => void attempt(() => PUT(`/outbox/${p.id}`, edits()), 'Saved').then((r) => r && (edited.current = false))}><Icon name="save" size={13} />Save edits</Button>
+            <Button variant="ghost" size="small" onClick={() => void attempt(() => rpc.outbox.edit({ id: p.id, ...edits() }), 'Saved').then((r) => r && (edited.current = false))}><Icon name="save" size={13} />Save edits</Button>
             <Button variant="ghost" size="small" aria-expanded={discussing} title="Talk it over with the team that wrote it: your note goes into their chat and the draft is sent back" onClick={() => setDiscussing(!discussing)}><Icon name="message-circle" size={13} />Discuss with team</Button>
-            <Button variant="danger" size="small" onClick={() => void attempt(() => POST(`/outbox/${p.id}/reject`, {})).then(changed)}><Icon name="x" size={13} />Reject</Button>
+            <Button variant="danger" size="small" onClick={() => void attempt(() => rpc.outbox.reject({ id: p.id })).then(changed)}><Icon name="x" size={13} />Reject</Button>
           </div>
           {/* what should change: goes to the team's chat as a message to the agent who wrote it, and the draft leaves the Outbox */}
           {discussing ? (
@@ -280,7 +281,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
         </>
       ) : (
         <div className="flex flex-wrap items-center gap-3 mt-4">
-          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => DEL(`/outbox/${p.id}`)).then(changed)}><Icon name="trash-2" size={12} />Remove</Button>
+          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.outbox.remove({ id: p.id })).then(changed)}><Icon name="trash-2" size={12} />Remove</Button>
         </div>
       )}
     </Plate>

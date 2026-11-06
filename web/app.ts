@@ -1,5 +1,6 @@
 // App shell: navigation, routing, the "Needs you" drawer and live notifications.
-import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago, GET } from './core.ts';
+import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { backdropEscape } from './shortcuts.ts';
 import { domBadge, domButton, domDot } from './ui/dom.ts';
 import { badgeClass, buttonClass, iconButtonClass, pillClass } from './ui/classes.ts';
@@ -139,7 +140,7 @@ function renderNav() {
   // the version is asked for once (no GitHub call here: the star count is only fetched in Settings > About)
   if (!aboutAsked) {
     aboutAsked = true;
-    void GET<AboutInfo>('/about').then((a) => ((about = a), renderNav()), () => {});
+    void rpc.status.about({}).then((a) => ((about = a), renderNav()), () => {});
   }
   mount(document.getElementById('nav-about')!, navAbout());
 }

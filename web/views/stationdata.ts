@@ -7,7 +7,7 @@ import { craftIcon, craftColor } from '../crafticons.ts';
 import { INK, brandTone } from './stationpalette.ts';
 import { brandImage } from '../brandimages.ts';
 import { appIcon } from '../appicons.ts';
-import type { Agent, AppState, ProviderUsage, Routine, Team, TeamListing, TeamStep } from '../../shared/types.ts';
+import type { Agent, AppState, Connector, Routine, Team, TeamListing, TeamStep } from '../../shared/types.ts';
 
 /** A connection a step can reach: a service, a program, an MCP server ('mcp:x') or a Claude account connector ('cc:x'). */
 export interface Integration {
@@ -39,19 +39,8 @@ export interface AvailableIntegration extends Integration {
   program?: Program;
   missing?: boolean;
 }
-/** A connector on your Claude account (GET /api/headbar). */
-export interface Connector {
-  id: string;
-  name: string;
-  status: 'connected' | 'needs-auth' | 'failed' | 'off';
-  detail: string;
-}
 /** GET /api/headbar: usage meters and Claude account connectors. */
-export interface Headbar {
-  usage?: unknown;
-  usages: ProviderUsage[];
-  connectors: Connector[];
-}
+export type { Connector, HeadbarInfo as Headbar } from '../../shared/types.ts';
 /** A team as the map draws it: members, and one agent step per member. */
 /** A team as the map draws it: steps are one per member; stepList keeps its saved steps. */
 export type TeamView = TeamListing & { stepList?: TeamStep[] };

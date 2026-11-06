@@ -49,24 +49,9 @@ import { readWorldMd, writeWorldMd, writeWorldMdSection } from './voxel/worldmd.
 import { worldText } from './voxel/describe.ts';
 import { setEffect, setEnvironment, setLight } from './voxel/scene.ts';
 import { playAnimation, setAnimation, setSkin } from './voxel/characters.ts';
-import type { Agent, Approval, BrainAnswer, BrainDelegate, BrainDone, BrainStep, Project, Routine, Team } from '../shared/types.ts';
+import type { Agent, Approval, BrainAnswer, BrainChatMessage, BrainDelegate, BrainDone, BrainPulse, BrainStep, Project, Routine, Team } from '../shared/types.ts';
 
-/** One line of the Brain chat history (data/projects/<id>/brain-chat.json). */
-export interface BrainChatMessage {
-  role: 'user' | 'brain';
-  /** What was said. For the Brain, its answer alone: what it did is in done and delegate. */
-  text: string;
-  ts: number;
-  attachments?: string[];
-  from?: string;
-  operationId?: string;
-  /** What the Brain did with this answer, so a reopened chat shows it the way it first did. */
-  done?: BrainDone[];
-  /** Who it handed the work to, and where (a reopened chat follows that work again). */
-  delegate?: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'>;
-  /** The files it read while it answered (results cut short). */
-  steps?: BrainStep[];
-}
+export type { BrainChatMessage } from '../shared/types.ts';
 
 // A history line the way the Brain reads it back: what it said, then what it did.
 export function brainChatLine(m: BrainChatMessage): string {
@@ -2267,7 +2252,7 @@ export async function reviewApproval(item: Approval): Promise<BrainVerdict> {
 }
 
 // Small overview numbers for the UI.
-export function pulse() {
+export function pulse(): BrainPulse {
   const live = liveActivity();
   const teams = listTeams();
   return {

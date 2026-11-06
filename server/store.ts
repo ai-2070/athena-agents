@@ -6,7 +6,7 @@ import { EventEmitter } from 'node:events';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { DATA, HOME, dataPath, ensureDir, readJSON, writeJSON, uid, listFiles, exists } from './util.ts';
 import { keepVersion } from './versions.ts';
-import type { ActivityEntry, Agent, AgentQuestion, Artifact, Chat, ChatSummary, GatewayWhatsAppPairing, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team } from '../shared/types.ts';
+import type { ActivityEntry, Agent, AgentQuestion, Artifact, Chat, ChatSummary, GatewayWhatsAppPairing, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team, WorkflowRun } from '../shared/types.ts';
 
 ensureDir(DATA);
 
@@ -57,7 +57,9 @@ const DEFAULT_SETTINGS: Settings = {
 };
 
 /** What saveSettings takes: any top-level setting, with its own fields optional too (they are merged in). */
-export type SettingsPatch = { [K in keyof Settings]?: Settings[K] extends unknown[] ? Settings[K] : Settings[K] extends object ? Partial<Settings[K]> : Settings[K] };
+/** A change to the settings: any field, at any depth (saveSettings merges it into what is saved). Lists are whole. */
+type Patch<T> = T extends unknown[] ? T : T extends object ? { [K in keyof T]?: Patch<T[K]> } : T;
+export type SettingsPatch = Patch<Settings>;
 
 function merge<T>(base: T, over: unknown): T {
   if (Array.isArray(base) || typeof base !== 'object' || base == null) return (over === undefined ? base : over) as T;
@@ -173,6 +175,13 @@ export function listProjects(): Project[] {
   writeJSON(PROJECTS_FILE, first);
   madeDefault = true;
   return first;
+}
+
+/** A project by its id; one that isn't there is refused as a 404 (the routes answer it in these words). */
+export function projectById(id: string): Project {
+  const p = listProjects().find((x) => x.id === id);
+  if (!p) throw Object.assign(new Error('That project is unavailable.'), { status: 404 });
+  return p;
 }
 
 /** Was the default project just made (a fresh data folder)? Says so once: see projectsync's adoptSavedFolder. */
@@ -332,33 +341,8 @@ export function collection<T extends StoredItem>(name: string, { global = false,
   };
 }
 
-/** One step of a workflow run (old-style step workflows). */
-export interface WorkflowRunStep {
-  id?: string;
-  label: string;
-  type: string;
-  status: 'waiting' | 'running' | 'needs-you' | 'done' | 'failed' | 'skipped' | string;
-  output: unknown;
-  agentName?: string;
-  images?: string[];
-  startedAt?: number;
-  finishedAt?: number;
-  [k: string]: unknown;
-}
-
-/** A workflow run, stored in the "runs" collection. */
-export interface WorkflowRun extends StoredItem {
-  workflowId: string;
-  workflowName: string;
-  input: string;
-  trigger: string;
-  status: 'running' | 'done' | 'failed' | 'stopped' | string;
-  steps: WorkflowRunStep[];
-  output?: unknown;
-  error?: string;
-  finishedAt?: number;
-  [k: string]: unknown;
-}
+// (a workflow run and its steps are in shared/types.ts)
+export type { WorkflowRun, WorkflowRunStep } from '../shared/types.ts';
 
 // (an agent's last model and pin, and a team's place on the map and last scheduled run, aren't versions)
 export const agents = collection<Agent>('agents', { versioned: true, ignore: ['lastModel', 'lastModelAt', 'pinned'] });

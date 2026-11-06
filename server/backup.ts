@@ -25,7 +25,12 @@ import { savedOpacity } from '../shared/look.ts';
 import { restoredTasks } from './tasks.ts';
 import { restoredBoard } from './taskboard.ts';
 import { taskFilePath } from './boardfiles.ts';
-import type { Agent, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
+import type { Agent, BackupListing, BackupRestoreResult, BackupResult, BackupSummary, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
+
+export type { BackupListing } from '../shared/types.ts';
+
+// (the shapes the page reads: shared/types.ts)
+export type { BackupRestoreResult, BackupResult, BackupSummary };
 
 export const BACKUP_EXT = '.dashbackup';
 const MAGIC = 'MY-DASHBOARD-BACKUP';
@@ -83,32 +88,6 @@ export interface PackedFile {
   data: string;
 }
 
-/** What the second line of a backup file says: shown before restoring. */
-export interface BackupSummary {
-  app: string;
-  format: number;
-  createdAt: number;
-  name: string;
-  description: string;
-  agents: number;
-  teams: number;
-  routines: number;
-  chats: number;
-  skills: number;
-  presets: number;
-  /** prefabs in the prefab library, shared by every project (older backups: missing) */
-  libraryPrefabs?: number;
-  knowledgeFiles: number;
-  /** MEMORY.md files of agents and the Brain (older backups: missing) */
-  memories?: number;
-  /** Kept versions of agents, teams and skills (older backups: missing) */
-  versions?: number;
-  /** The first few agents, to recognise the backup by */
-  agentList: { name: string; emoji: string }[];
-  /** Files left out because their kind's size limit was reached */
-  omitted: number;
-}
-
 /** The whole backup (the gzipped part). */
 export interface BackupData {
   app: string;
@@ -147,43 +126,6 @@ export interface BackupData {
   taskFiles?: PackedFile[];
   /** Files left out because their kind's size limit was reached (see CAP) */
   omitted: number;
-}
-
-/** A backup file in the backups folder. */
-export interface BackupListing {
-  name: string;
-  size: number;
-  modifiedAt: number;
-  summary: BackupSummary | null;
-}
-
-export interface BackupResult {
-  file: string;
-  name: string;
-  size: number;
-  summary: BackupSummary;
-}
-
-export interface BackupRestoreResult {
-  agents: number;
-  teams: number;
-  routines: number;
-  chats: number;
-  knowledgeFiles: number;
-  /** MEMORY.md files brought back */
-  memories: number;
-  brainFiles: number;
-  /** skills added to the library; already there and the same; already there but different, so added under a new id */
-  skills: { added: number; same: number; renamed: { from: string; to: string }[] };
-  presets: { added: number; same: number };
-  /** prefab library entries added; already there */
-  libraryPrefabs: { added: number; same: number };
-  /** kept versions brought back (agents, teams and skills) */
-  versions: number;
-  /** routines and teams that ran on a schedule: paused, so a copy doesn't run them twice */
-  paused: number;
-  logo: boolean;
-  background: boolean;
 }
 
 // ---------- packing ----------
@@ -518,6 +460,21 @@ export function backupAndDeleteProject(id: string): { backup: BackupResult; setA
   const setAside = setAsideProjectData(id);
   log('project', `Deleted the project "${p.name}" (backup ${made.file}${setAside ? `, its data set aside in ${setAside}` : ''})`);
   return { backup: made, setAside };
+}
+
+// Restoring a backup and copying a project run one at a time: each holds a whole unpacked project in memory.
+let unpacking = false;
+/** Runs a restore or a copy unless one is going (then 409 with `busy`). What fails is answered 400 with its message. */
+export async function oneAtATime<T>(busy: string, fn: () => Promise<T>): Promise<T> {
+  if (unpacking) throw Object.assign(new Error(busy), { status: 409 });
+  unpacking = true;
+  try {
+    return await fn();
+  } catch (e) {
+    throw Object.assign(new Error(e instanceof Error ? e.message : String(e)), { status: 400 });
+  } finally {
+    unpacking = false;
+  }
 }
 
 /** A copy of a project (its agents, teams, routines, notes, skills and chats; schedules start paused) as a new project. */

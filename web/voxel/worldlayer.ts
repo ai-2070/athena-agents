@@ -6,8 +6,8 @@
 // It also tells the view where light comes from (spots of glowing voxels in objects and in every copy, and
 // the lights builders put up) and which effects to show where.
 import * as THREE from 'three';
-import { GET, POST } from '../client/http.ts';
 import { serverUrl } from '../client/connection.ts';
+import { rpc } from '../client/rpc.ts';
 import { themeColor } from '../theme.ts';
 import { meshObject } from './mesher.ts';
 import type { ObjectPart, RenderClass } from './mesher.ts';
@@ -162,7 +162,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
       if (!missing.length) return;
       await Promise.all(
         missing.map(async (id) => {
-          const d = await GET<VoxelObjectData>(`/worlds/${wid}/prefabs/${id}`).catch(() => null);
+          const d = await rpc.world.prefab({ wid, pid: id }).catch(() => null);
           const pm = prefabs.get(id);
           if (d && pm && !stale(wid)) prefabData.set(id, { stamp: stampOf(pm), data: d });
         }),
@@ -320,7 +320,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
   };
 
   async function load(): Promise<void> {
-    const s = await GET<ShownWithName>('/world').catch(() => null);
+    const s = await rpc.world.shown().catch(() => null);
     if (!alive || !s) return;
     shown = s;
     onShown?.(s);
@@ -420,7 +420,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
         if (stale()) return;
         continue;
       }
-      const data = await GET<VoxelObjectData>(`/worlds/${wid}/objects/${o.id}`).catch(() => null);
+      const data = await rpc.world.object({ wid, oid: o.id }).catch(() => null);
       if (stale()) return;
       if (!data) continue;
       const parts = await meshInWorker(data, w.palette);
@@ -555,7 +555,7 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
         } else lookBox(v, box);
         if (box.isEmpty()) return false;
         const image = view.snapshot({ box, azimuth: v.azimuth, elevation: v.elevation, zoom: v.zoom, width: v.width || 1024, height: v.height || 640, only: only?.group });
-        await POST(`/world/snapshot/${encodeURIComponent(req.request)}`, { image });
+        await rpc.world.snapshot({ request: req.request, image });
         return true;
       } catch {
         return false;

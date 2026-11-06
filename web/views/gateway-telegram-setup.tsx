@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GET, POST, confirmBox } from '../core.ts';
+import { confirmBox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Button } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { PanelNote, Row, Section } from '../ui/controls.tsx';
@@ -9,14 +10,14 @@ import type { GatewayInstance, GatewayTelegramSetup } from '../../shared/types.t
 export function TelegramSetupView({ instance, close, edit, pause, changed }: {
   instance: GatewayInstance; close: () => void; edit: () => void; pause: () => Promise<void>; changed: () => Promise<void>;
 }) {
-  const root = `/gateways/${encodeURIComponent(instance.id)}/telegram-setup`;
+  const id = instance.id;
   const [preview, setPreview] = useState<GatewayTelegramSetup | null>(null); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [busy, setBusy] = useState(false);
   const mounted = useRef(false); const request = useRef(0); const active = useRef(false);
   const load = useCallback(async (clear = true) => {
     const version = ++request.current; if (clear) { setError(''); setNotice(''); }
-    try { const value = await GET<GatewayTelegramSetup>(root); if (mounted.current && version === request.current) setPreview(value); }
+    try { const value = await rpc.gateways.telegram.setup({ id }); if (mounted.current && version === request.current) setPreview(value); }
     catch (failure) { if (mounted.current && version === request.current) { setPreview(null); setError(failure instanceof Error ? failure.message : 'Telegram setup could not load. Reload its saved status.'); } }
-  }, [root]);
+  }, [id]);
   useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; request.current++; }; }, [load, instance.enabled]);
   useServerEvents((event) => { if ((event.type === 'gateways' && event.id === instance.id) || (event.type === 'gateway-health' && event.instanceId === instance.id)) void load(false); });
   const act = async (action: 'check' | 'switch' | 'pause') => {
@@ -27,7 +28,7 @@ export function TelegramSetupView({ instance, close, edit, pause, changed }: {
       if (!mounted.current) return;
       if (action === 'pause') await pause();
       else {
-        const value = await POST<GatewayTelegramSetup>(`${root}/${action}`, action === 'switch' ? { revision: preview!.revision, acknowledgeStopped: true, acknowledgeKeepUpdates: true } : undefined);
+        const value = action === 'switch' ? await rpc.gateways.telegram.switchToPolling({ params: { id }, body: { revision: preview!.revision, acknowledgeStopped: true, acknowledgeKeepUpdates: true } }) : await rpc.gateways.telegram.check({ id });
         if (mounted.current) { setPreview(value); setNotice(action === 'check' ? 'Setup checked. No messages were received or sent.' : 'Polling verified. This instance is still paused; enable it from the gateway list when ready.'); }
       }
       if (mounted.current) await changed();

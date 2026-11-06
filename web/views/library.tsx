@@ -7,35 +7,16 @@ import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { h, GET, POST, PUT, DEL, attempt, navigate, md, modal, toast, refreshSoon, confirmBox } from '../core.ts';
+import { h, attempt, navigate, md, modal, toast, refreshSoon, confirmBox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Chips, SearchBox, Segmented, Tabs } from '../ui/controls.tsx';
 import { domButton } from '../ui/dom.ts';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { ProgramGlyph } from '../ui/programmark.tsx';
 import { modelInfo, openModelPicker } from '../models.tsx';
 import type { ModelPatch } from '../models.tsx';
-import type { Agent, AppState, EngineId, LibraryAgentListing, PresetListing, Team } from '../../shared/types.ts';
+import type { Agent, AppState, EngineId, LibraryAgentListing, LibraryIndex, PresetListing } from '../../shared/types.ts';
 
-/** A Hermes profile (`hermes profile list`). */
-interface HermesProfile {
-  name: string;
-  model: string;
-  gateway: string;
-  isDefault: boolean;
-}
-/** A Claude Code subagent (server/library.ts ClaudeSubagent without file). */
-interface ClaudeSubagentListing {
-  slug: string;
-  name: string;
-  description: string;
-  model: string;
-}
-/** GET /api/library */
-interface LibraryIndex {
-  agents: LibraryAgentListing[];
-  hermes: HermesProfile[];
-  claude: ClaudeSubagentListing[];
-}
 type Overrides = Pick<Agent, 'engine' | 'model'> & Partial<Pick<Agent, 'provider' | 'effort'>>;
 type HirePayload = { source: 'library'; slug: string; overrides: Overrides } | { source: 'hermes'; profile: string } | { source: 'claude'; slug: string };
 type Tab = 'athena' | 'hermes' | 'claude' | 'presets';
@@ -61,18 +42,18 @@ function overrides(engine: EngineId, data: AppState, choice: ModelPatch | null):
 }
 
 async function hire(payload: HirePayload, name: string): Promise<Agent | undefined> {
-  const a = await attempt(() => POST<Agent>('/library/hire', payload));
+  const a = await attempt(() => rpc.library.hire(payload));
   if (!a) return;
   refreshSoon(0);
   const branch = branchParam();
   if (branch) {
-    const wf = await GET<Team>(`/workflows/${branch}`).catch(() => null);
+    const wf = await rpc.workflows.get({ id: branch }).catch(() => null);
     if (wf) {
       wf.members = [...new Set([...(wf.members || []), a.id])];
       // the step list mirrors members (the Team editor and runs use it)
       const steps = wf.steps || [];
       if (!steps.some((s) => s.type === 'agent' && s.agentId === a.id)) wf.steps = [...steps, { id: Math.random().toString(36).slice(2), type: 'agent', agentId: a.id, prompt: steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}' }];
-      await PUT(`/workflows/${branch}`, wf).catch(() => {});
+      await rpc.workflows.change({ ...wf, id: branch }).catch(() => {});
       toast(`${name} joined the ${wf.name} team`);
       return a;
     }
@@ -82,7 +63,7 @@ async function hire(payload: HirePayload, name: string): Promise<Agent | undefin
 }
 
 async function preview(a: LibraryAgentListing, doHire: () => unknown) {
-  const full = await attempt(() => GET<{ body: string }>(`/library/agent/${a.slug}`));
+  const full = await attempt(() => rpc.library.agent({ slug: a.slug }));
   if (!full) return;
   const m = modal({
     title: `${a.emoji} ${a.name}`,
@@ -158,7 +139,7 @@ function LibraryPage() {
 
   useEffect(() => {
     let live = true;
-    Promise.all([GET<LibraryIndex>('/library'), GET<PresetListing[]>('/presets').catch((): PresetListing[] => [])])
+    Promise.all([rpc.library.list(), rpc.presets.list().catch((): PresetListing[] => [])])
       .then(([l, p]) => live && (setLib(l), setPresets(p)))
       .catch((e: unknown) => live && setFailed(e instanceof Error ? e.message : String(e)));
     return () => void (live = false);
@@ -201,7 +182,7 @@ function LibraryPage() {
         {tab === 'athena' ? <Athena lib={lib} overrides={ov} runsOn={runsOn} /> : null}
         {tab === 'hermes' ? <Hermes lib={lib} data={data} /> : null}
         {tab === 'claude' ? <Claude lib={lib} /> : null}
-        {tab === 'presets' ? <Presets presets={presets} reload={() => GET<PresetListing[]>('/presets').then(setPresets)} /> : null}
+        {tab === 'presets' ? <Presets presets={presets} reload={() => rpc.presets.list().then(setPresets)} /> : null}
       </Tabs>
     </>
   );
@@ -367,16 +348,16 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
   const [busy, setBusy] = useState<string | null>(null);
   const use = async (p: PresetListing) => {
     setBusy(p.id);
-    const r = await attempt(() => POST<{ agent?: Agent; team?: Team }>(`/presets/${p.id}/use`), p.kind === 'team' ? `Team "${p.name}" created with ${p.members!.length} agents` : `${p.name} created`);
+    const r = await attempt(() => rpc.presets.use({ id: p.id }), p.kind === 'team' ? `Team "${p.name}" created with ${p.members!.length} agents` : `${p.name} created`);
     setBusy(null);
     if (!r) return;
     refreshSoon(0);
-    if (r.agent) navigate(`#/agents/${r.agent.id}/edit`);
-    else navigate(`#/station?team=${r.team!.id}`);
+    if ('agent' in r) navigate(`#/agents/${r.agent.id}/edit`);
+    else navigate(`#/station?team=${r.team.id}`);
   };
   const del = async (p: PresetListing) => {
     if (!(await confirmBox(`Delete the preset "${p.name}"? Agents and teams made from it stay.`, { ok: 'Delete', danger: true }))) return;
-    if (await attempt(() => DEL(`/presets/${p.id}`), 'Deleted')) await reload();
+    if (await attempt(() => rpc.presets.remove({ id: p.id }), 'Deleted')) await reload();
   };
   const card = (p: PresetListing) => (
     <Card

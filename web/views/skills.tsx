@@ -6,7 +6,8 @@ import { Button } from '../ui/button.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
-import { GET, POST, PUT, DEL, attempt, refreshSoon, confirmBox, state } from '../core.ts';
+import { attempt, refreshSoon, confirmBox, state } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { logo } from '../icons.ts';
 import { SkillMark } from '../skillmark.tsx';
 import { skillPicker, loadSkills, forgetSkills } from '../skillpick.ts';
@@ -15,7 +16,7 @@ import { openEditor, openGitHub, openImport } from '../skilldialogs.tsx';
 import { DomNode, Icon, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { SearchBox } from '../ui/controls.tsx';
 import { buttonClass } from '../ui/classes.ts';
-import type { Agent, AppState, ClaudeSkill, ServerEvent, SkillInstallResult, SkillListing, TeamListing } from '../../shared/types.ts';
+import type { Agent, AppState, ClaudeSkill, ServerEvent, SkillListing, TeamListing } from '../../shared/types.ts';
 
 interface SkillsData {
   skills: SkillListing[];
@@ -31,21 +32,21 @@ export const flip = (list: readonly string[], slug: string, on: boolean): string
 
 // (the saved list goes into the page's state right away, so a menu drawn next shows it)
 const saveBrain = (skills: string[]) =>
-  attempt(() => PUT<{ skills: string[] }>('/brain/skills', { skills })).then((r) => {
+  attempt(() => rpc.brain.setSkills({ skills })).then((r) => {
     if (r && state.data) state.data.settings.brainSkills = r.skills;
     refreshSoon(0);
   });
-const saveProject = (id: string, skills: string[]) => attempt(() => PUT(`/projects/${id}`, { skills })).then(() => refreshSoon(0));
-const saveAgent = (a: Agent, skills: string[]) => attempt(() => PUT(`/agents/${a.id}`, { skills })).then(() => refreshSoon(0));
+const saveProject = (id: string, skills: string[]) => attempt(() => rpc.projects.change({ id, skills })).then(() => refreshSoon(0));
+const saveAgent = (a: Agent, skills: string[]) => attempt(() => rpc.agents.change({ id: a.id, skills })).then(() => refreshSoon(0));
 
 function SkillsPage({ open }: { open?: string }) {
   const d = useAppState();
   const [data, setData] = useState<SkillsData | null>(null);
   const [teams, setTeams] = useState<TeamListing[]>([]);
   const [query, setQuery] = useState(lastQuery);
-  const loadTeams = useCallback(() => GET<TeamListing[]>('/workflows').then(setTeams).catch(() => {}), []);
+  const loadTeams = useCallback(() => rpc.workflows.list().then(setTeams).catch(() => {}), []);
   const reload = useCallback(async () => {
-    const [s, t] = await Promise.all([GET<SkillsData>('/skills'), GET<TeamListing[]>('/workflows').catch((): TeamListing[] => [])]);
+    const [s, t] = await Promise.all([rpc.skills.list(), rpc.workflows.list().catch((): TeamListing[] => [])]);
     forgetSkills();
     await loadSkills(true);
     setData(s);
@@ -158,13 +159,13 @@ function SkillCard({ s, d, teams, reload, loadTeams }: { s: SkillListing; d: App
   const [updating, setUpdating] = useState(false);
   const update = async () => {
     setUpdating(true);
-    const r = await attempt(() => POST<SkillInstallResult>('/skills/install', { url: s.origin!.url }), (x) => (x.installed.length ? `Updated ${x.installed.map((i) => i.name).join(', ')}` : 'Nothing updated'));
+    const r = await attempt(() => rpc.skills.install({ url: s.origin!.url }), (x) => (x.installed.length ? `Updated ${x.installed.map((i) => i.name).join(', ')}` : 'Nothing updated'));
     setUpdating(false);
     if (r) await reload();
   };
   const remove = async () => {
     if (!(await confirmBox(`Delete the skill "${s.name}"? It is taken off every agent, team and project that has it.`, { ok: 'Delete', danger: true }))) return;
-    if (await attempt(() => DEL(`/skills/${s.slug}`), 'Deleted')) await reload();
+    if (await attempt(() => rpc.skills.remove({ slug: s.slug }), 'Deleted')) await reload();
   };
   const uses = [
     u.brain ? <span key="brain" className={USE_PROJ}><Icon name="brain" size={11} />The Brain</span> : null,
@@ -246,7 +247,7 @@ function GiveTo({ s, d, teams, loadTeams }: { s: SkillListing; d: AppState; team
                 <Menu.GroupLabel className="st-menu-head">A team</Menu.GroupLabel>
                 {teams.map((t) => {
                   const on = u.teams.some((x) => x.id === t.id);
-                  return item(t.id, on, t.name, <Icon name="users" size={14} />, () => attempt(() => PUT(`/workflows/${t.id}`, { skills: flip(t.skills || [], s.slug, on) })).then(loadTeams));
+                  return item(t.id, on, t.name, <Icon name="users" size={14} />, () => attempt(() => rpc.workflows.change({ id: t.id, skills: flip(t.skills || [], s.slug, on) })).then(loadTeams));
                 })}
               </Menu.Group>
             ) : null}

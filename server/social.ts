@@ -16,7 +16,7 @@ import * as reddit from './reddit.ts';
 import { xLength, X_MAX_LENGTH } from '../shared/xtext.ts';
 import type { FetchError } from './util.ts';
 import type { Collection } from './store.ts';
-import type { Accounts, GatewayOutboxApproval, OutboxPost, XAccount } from '../shared/types.ts';
+import type { Accounts, GatewayOutboxApproval, OutboxPost, XAccount, XPost } from '../shared/types.ts';
 import type { StoredRedditAccount } from './reddit.ts';
 
 /** A connected X account as accounts.json stores it (tokens never leave the server). */
@@ -323,7 +323,7 @@ async function xSendDm(accountId: string, handle: string, text: string) {
   return { id: r.data?.dm_event_id || r.data?.id };
 }
 
-export async function xRecentPosts(handle?: string, limit = 10) {
+export async function xRecentPosts(handle?: string, limit = 10): Promise<XPost[]> {
   const acc = resolveXAccount(handle);
   const r = await xCall<XTweetList>(acc.id, 'GET', `/users/${acc.id}/tweets?max_results=${Math.min(Math.max(limit, 5), 100)}&tweet.fields=created_at,public_metrics`);
   return (r.data || []).map((t) => ({ id: t.id, text: t.text, createdAt: t.created_at, metrics: t.public_metrics, url: `https://x.com/${acc.username}/status/${t.id}` }));

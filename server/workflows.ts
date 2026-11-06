@@ -8,8 +8,7 @@ import { requestApproval, cancelForRun } from './approvals.ts';
 import { draftPost } from './social.ts';
 import { postUserMessage, normalize, isStepList } from './teams.ts';
 import { pickMember } from './brain.ts';
-import type { WorkflowRun } from './store.ts';
-import type { Agent, Schedule, Team } from '../shared/types.ts';
+import type { Agent, RunSummary, Schedule, Team, WorkflowRun } from '../shared/types.ts';
 
 /** The schedule as this file and web/views/workflows.ts use it (minutes and days aren't in shared Schedule). */
 export interface WorkflowSchedule extends Schedule {
@@ -42,13 +41,7 @@ export interface WorkflowTemplate {
   schedule?: WorkflowSchedule;
 }
 
-export interface RunSummary {
-  id: string;
-  workflowId: string;
-  status: WorkflowRun['status'];
-  steps: { status: string; label: string; agentId: string | null }[];
-  error: string | null;
-}
+export type { RunSummary } from '../shared/types.ts';
 
 const WORKFLOW_AGENT: Pick<Agent, 'id' | 'name' | 'toolGroups' | 'autonomy' | 'knowledge'> = {
   id: '_workflow',

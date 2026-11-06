@@ -4,7 +4,8 @@
 import { createAppRoot } from './ui/root.tsx';
 import type { Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { GET, POST, PUT, state, toast } from './core.ts';
+import { state, toast } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { Dot } from './ui/marks.tsx';
 import { Button } from './ui/button.tsx';
 import { DomNode } from './ui/react.tsx';
@@ -44,7 +45,7 @@ export function rememberSidebarPanel(p: SidebarPanel): void {
   proj.sidebar = p;
   const listed = state.data?.projects?.find((x) => x.id === proj.id);
   if (listed && listed !== proj) listed.sidebar = p;
-  void PUT(`/projects/${encodeURIComponent(proj.id)}`, { sidebar: p }).catch((e: unknown) => toast((e as Error).message, 'error'));
+  void rpc.projects.change({ id: proj.id, sidebar: p }).catch((e: unknown) => toast((e as Error).message, 'error'));
 }
 
 // Switching Status / Limits: the old lines slide out toward where they sit (Status on the left, Limits on the
@@ -76,7 +77,7 @@ export function setSidebarPanel(p: SidebarPanel, redraw: () => void): void {
     rememberSidebarPanel(p);
     redraw();
     // also the default for projects that haven't picked one yet
-    void PUT('/settings', { look: { sidebar: p } }).catch((e: unknown) => toast((e as Error).message, 'error'));
+    void rpc.settings.save({ look: { sidebar: p } }).catch((e: unknown) => toast((e as Error).message, 'error'));
     if (reducedMotion() || typeof document.body.animate !== 'function') return;
     const now = host?.querySelector<HTMLElement>('.sidebar-panel-mark');
     if (now && mark?.width) flipFrom(now, mark, { duration: 260 });
@@ -105,7 +106,7 @@ const when = (at: number) => new Date(at).toLocaleString([], { weekday: 'short',
 function load(redraw: () => void): void {
   if (loading || Date.now() - loadedAt < stale()) return;
   loading = true;
-  GET<UsageLimits>('/usage-limits').then(
+  rpc.status.usageLimits().then(
     (l) => ((limits = l), (failed = false)),
     () => (failed = true),
   ).finally(() => {
@@ -206,7 +207,7 @@ async function useReset(redraw: () => void): Promise<void> {
   resetting = true;
   redraw();
   try {
-    const res = await POST<CodexResetResult>('/codex/reset', { creditId: next?.id || null });
+    const res = await rpc.engines.codexReset({ creditId: next?.id || null });
     limits = res.limits;
     loadedAt = Date.now();
     const left = res.limits.codex.resets?.available ?? 0;

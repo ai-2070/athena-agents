@@ -7,8 +7,9 @@ import { TAGS_PER_PROJECT, TAGS_PER_TASK, cleanTagText, isEmoji, splitTag, tagKe
 import type { TagMatch } from '../shared/boardtags.ts';
 import type { BoardComment, BoardPeople, BoardPriority, BoardStatus, BoardTag, BoardTagUse, BoardTask, Project, ProjectTask, TaskBoardData, TaskComment, TaskFile } from '../shared/types.ts';
 
-export const BOARD_STATUSES: readonly BoardStatus[] = ['todo', 'in_progress', 'in_review', 'blocked', 'done'];
-export const BOARD_PRIORITIES: readonly BoardPriority[] = ['urgent', 'high', 'normal', 'low'];
+import { BOARD_PRIORITIES, BOARD_STATUSES } from '../shared/api/taskboard.ts';
+
+export { BOARD_PRIORITIES, BOARD_STATUSES };
 
 interface BoardFile {
   tasks: ProjectTask[];

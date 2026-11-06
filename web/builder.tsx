@@ -4,7 +4,8 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { GET, POST, PUT, attempt, state, toast, refreshSoon } from './core.ts';
+import { attempt, state, toast, refreshSoon } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import type { ModalHandle } from './core.ts';
 import { teamSteps } from '../shared/teams.ts';
 import { mcpOptions } from './mcpcopies.ts';
@@ -18,18 +19,9 @@ import { Avatar, DomNode, Icon } from './ui/react.tsx';
 import { FileDrop, FormSection } from './ui/formsection.tsx';
 import type { Agent, Team, TeamAccess, TeamStep } from '../shared/types.ts';
 
-/** An agent the Brain designed (POST /api/assist/agent), not created yet. */
-export type AgentDraft = Pick<Agent, 'name' | 'emoji' | 'specialty' | 'systemPrompt' | 'toolGroups' | 'mcpServers' | 'engine'>;
-/** A team member: an existing agent, or one the Brain suggests hiring. */
-export type BranchMember = { agentId: string; newAgent?: undefined } | { newAgent: AgentDraft; agentId?: undefined };
-/** A team the Brain designed (POST /api/assist/branch). leadIndex points into members (-1 = no lead). */
-export interface BranchDesign {
-  name: string;
-  description: string;
-  access: TeamAccess;
-  members: BranchMember[];
-  leadIndex: number;
-}
+/** An agent the Brain designed, a team member (an agent there or one to hire), a team the Brain designed. */
+export type { AgentDraft, BranchDesign, BranchMember } from '../shared/types.ts';
+import type { BranchDesign, BranchMember } from '../shared/types.ts';
 export interface BranchBuilderOptions {
   wf?: Team | null;
   prefill?: Partial<BranchDesign> | null;
@@ -119,7 +111,7 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
       return;
     }
     setStatus('The Brain is picking agents…');
-    const design = await attempt(() => POST<BranchDesign>('/assist/branch', { text, attachments }));
+    const design = await attempt(() => rpc.assist.branch({ text, attachments }));
     building.current = false;
     setAsking(false);
     setStatus('');
@@ -144,7 +136,7 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
     // hire the new agents the Brain suggested; each becomes a normal member right away, so a retry won't hire it again
     for (const mem of [...b.members]) {
       if (!mem.newAgent) continue;
-      const a = await attempt(() => POST<Agent>('/agents', mem.newAgent));
+      const a = await attempt(() => rpc.agents.create(mem.newAgent));
       if (!a) return (refreshSoon(0), flushSync(redraw));
       hired.set(a.id, a);
       const done: BranchMember = { agentId: a.id };
@@ -158,8 +150,8 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
     const lead = b.lead?.agentId || null;
     const body = { name: b.name.trim(), description: b.description.trim(), members: ids, steps: teamSteps({ steps: own, members: ids }), lead, access: b.access, files: teamFiles };
     const saved = wf
-      ? await attempt(() => PUT<Team>(`/workflows/${wf.id}`, { ...rest, ...body }))
-      : await attempt(() => POST<Team>('/workflows', { ...body, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], schedule: { type: 'none' }, enabled: false }));
+      ? await attempt(() => rpc.workflows.change({ ...rest, ...body, id: wf.id }))
+      : await attempt(() => rpc.workflows.create({ ...body, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], schedule: { type: 'none' }, enabled: false }));
     if (!saved) {
       // already closed: nothing will save these now
       if (flags.closed) tray.discard();
@@ -390,7 +382,7 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
 
 export async function openBranchBuilder({ wf = null, prefill = null, describe = '', files = [], onSaved }: BranchBuilderOptions = {}): Promise<ModalHandle> {
   const d = state.data!;
-  const mcp = await GET<{ servers: Record<string, unknown> }>('/mcp').catch(() => ({ servers: {} as Record<string, unknown> }));
+  const mcp = await rpc.mcp.list().catch(() => ({ servers: {} as Record<string, unknown> }));
   // members: { agentId } for existing agents, { newAgent } for ones the Brain suggests hiring
   const fromTeam: BranchMember[] = (wf?.members || []).map((agentId) => ({ agentId }));
   // the lead is the member object itself, so removing or hiring others never loses it

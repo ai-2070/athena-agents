@@ -4,7 +4,8 @@
 import { Popover } from '@base-ui/react/popover';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
-import { DEL, GET, POST, PUT, confirmBox, onEvent, toast } from './core.ts';
+import { confirmBox, onEvent, toast } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { Button, IconButton } from './ui/button.tsx';
 import { Segmented } from './ui/controls.tsx';
 import { Pill } from './ui/marks.tsx';
@@ -17,7 +18,6 @@ import type { BoardTag, BoardTagUse } from '../shared/types.ts';
 
 const EmojiPicker = lazy(() => import('./ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const tagsPath = (projectId: string) => `/task-board-tags/${encodeURIComponent(projectId)}`;
 
 /** A tag as it shows on a card or a task: its emoji and its name. With onPick, a button (the board filters by it). */
 export function TagMark({ tag, onPick }: { tag: Pick<BoardTag, 'name' | 'emoji'>; onPick?: () => void }) {
@@ -54,7 +54,7 @@ export function useBoardTags(projectId: string, live = true): { tags: BoardTagUs
   const reload = useCallback(async () => {
     if (!projectId) return;
     try {
-      setTags((await GET<{ tags: BoardTagUse[] }>(tagsPath(projectId))).tags);
+      setTags((await rpc.taskBoard.tags.list({ projectId })).tags);
     } catch {
       setTags((t) => t || []);
     }
@@ -71,7 +71,7 @@ export function useBoardTags(projectId: string, live = true): { tags: BoardTagUs
 /** Makes a tag ("🐛 Bug" is the emoji and the name), or finds the one with that name (made: false). */
 async function makeTag(projectId: string, name: string, emoji?: string): Promise<(BoardTagUse & { made: boolean }) | null> {
   try {
-    return (await POST<{ tag: BoardTagUse & { made: boolean } }>(tagsPath(projectId), { name, ...(emoji ? { emoji } : {}) })).tag;
+    return (await rpc.taskBoard.tags.add({ projectId, name, ...(emoji ? { emoji } : {}) })).tag;
   } catch (e) {
     toast(errorText(e), 'error');
     return null;
@@ -295,7 +295,7 @@ export function TagManager({ projectId }: { projectId: string }) {
   const change = async (t: BoardTagUse, patch: { name?: string; emoji?: string }): Promise<boolean> => {
     let ok = true;
     try {
-      await PUT(`${tagsPath(projectId)}/${encodeURIComponent(t.id)}`, patch);
+      await rpc.taskBoard.tags.change({ projectId, tagId: t.id, ...patch });
     } catch (e) {
       toast(errorText(e), 'error');
       ok = false;
@@ -307,7 +307,7 @@ export function TagManager({ projectId }: { projectId: string }) {
     const ok = await confirmBox(`Delete the tag “${tagLabel(t)}”?${t.tasks ? ` It comes off ${t.tasks} task${t.tasks === 1 ? '' : 's'}.` : ''}`, { ok: 'Delete', danger: true });
     if (!ok) return;
     try {
-      await DEL(`${tagsPath(projectId)}/${encodeURIComponent(t.id)}`);
+      await rpc.taskBoard.tags.remove({ projectId, tagId: t.id });
     } catch (e) {
       toast(errorText(e), 'error');
     }

@@ -1,7 +1,8 @@
 // A team's symbol in the middle of its pod on the Station: an emoji (the default), or a picture or 3D model of your own.
-import { h, POST, DEL, attempt, toast } from './core.ts';
+import { h, attempt, toast } from './core.ts';
 import { readImage } from './projectlogo.ts';
 import { apiUrl } from './client/connection.ts';
+import { rpc } from './client/rpc.ts';
 import type { Team } from '../shared/types.ts';
 
 export const DEFAULT_TEAM_MARK = '💬';
@@ -57,7 +58,7 @@ export function pickTeamMark(t: Pick<Team, 'id' | 'name'>): Promise<boolean> {
       }
       // (a shrunk picture is a PNG now, whatever it was called)
       const name = !isModel && data.startsWith('data:image/png') ? file.name.replace(/\.\w+$/, '.png') : file.name;
-      const r = await attempt(() => POST<Team>(`/workflows/${encodeURIComponent(t.id)}/mark`, { name, data }), `New symbol for ${t.name}`);
+      const r = await attempt(() => rpc.workflows.setMark({ id: t.id, name, data }), `New symbol for ${t.name}`);
       resolve(!!r);
     });
     input.click();
@@ -65,5 +66,5 @@ export function pickTeamMark(t: Pick<Team, 'id' | 'name'>): Promise<boolean> {
 }
 
 export async function removeTeamMark(t: Pick<Team, 'id'>): Promise<boolean> {
-  return !!(await attempt(() => DEL<Team>(`/workflows/${encodeURIComponent(t.id)}/mark`)));
+  return !!(await attempt(() => rpc.workflows.removeMark({ id: t.id })));
 }

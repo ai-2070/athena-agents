@@ -3,7 +3,8 @@ import { Plate, PlateLink } from '../ui/surface.tsx';
 import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { GET, POST, PUT, DEL, attempt, navigate, confirmBox, promptBox, ago, lightbox } from '../core.ts';
+import { attempt, navigate, confirmBox, promptBox, ago, lightbox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { scheduleEditor, scheduleText } from '../schedule.tsx';
 import { Field, Switch } from '../ui/controls.tsx';
 import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
@@ -93,18 +94,18 @@ function WorkflowsList() {
   const [data, setData] = useState<{ list: Workflow[]; templates: WorkflowTemplate[] } | null>(null);
   useEffect(() => {
     let live = true;
-    void Promise.all([GET<Workflow[]>('/workflows'), GET<WorkflowTemplate[]>('/workflow-templates')]).then(([list, templates]) => live && setData({ list, templates }));
+    void Promise.all([rpc.workflows.list(), rpc.workflows.templates.list()]).then(([list, templates]) => live && setData({ list, templates }));
     return () => void (live = false);
   }, []);
   if (!data || !d) return null;
   const create = async () => {
     const name = await promptBox('Name the workflow', { value: 'New workflow' });
     if (!name) return;
-    const wf = await attempt(() => POST<Workflow>('/workflows', { name }));
+    const wf = await attempt(() => rpc.workflows.create({ name }));
     if (wf) navigate(`#/workflows/${wf.id}`);
   };
   const useTemplate = async (t: WorkflowTemplate) => {
-    const wf = await attempt(() => POST<Workflow>('/workflow-templates', { name: t.name }));
+    const wf = await attempt(() => rpc.workflows.templates.create({ name: t.name }));
     if (wf) navigate(`#/workflows/${wf.id}`);
   };
   return (
@@ -159,7 +160,7 @@ function WorkflowEditor({ id }: { id: string }) {
   const [loaded, setLoaded] = useState<{ wf: Workflow; tools: ToolInfo[] } | 'gone' | null>(null);
   useEffect(() => {
     let live = true;
-    void Promise.all([GET<Workflow>(`/workflows/${id}`), GET<{ tools: ToolInfo[] }>('/tools')])
+    void Promise.all([rpc.workflows.get({ id }), rpc.status.tools()])
       .then(([wf, t]) => live && setLoaded({ wf, tools: t.tools }))
       .catch(() => live && setLoaded('gone'));
     return () => void (live = false);
@@ -188,17 +189,17 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
   const setStep = (i: number, patch: Partial<WorkflowStep>) => change(steps.map((s, j) => (j === i ? { ...s, ...patch } : s)));
 
   const save = async () => {
-    const r = await attempt(() => PUT(`/workflows/${id}`, { ...sched.current, name, description, steps }), 'Saved');
+    const r = await attempt(() => rpc.workflows.change({ ...sched.current, name, description, steps, id }), 'Saved');
     if (r) setDirty(false);
     return r;
   };
   const run = async () => {
     if (dirty && !(await save())) return;
-    if (await attempt(() => POST(`/workflows/${id}/run`, { input }), 'Started')) setRunsVersion((v) => v + 1);
+    if (await attempt(() => rpc.workflows.run({ id, input }), 'Started')) setRunsVersion((v) => v + 1);
   };
   const del = async () => {
     if (!(await confirmBox(`Delete workflow "${name}"?`, { ok: 'Delete', danger: true }))) return;
-    await attempt(() => DEL(`/workflows/${id}`));
+    await attempt(() => rpc.workflows.remove({ id }));
     navigate('#/workflows');
   };
 
@@ -345,7 +346,7 @@ function Runs({ id, version }: { id: string; version: number }) {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const load = useCallback(() => {
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => void GET<WorkflowRun[]>(`/workflow-runs?workflowId=${id}`).then(setRuns).catch(() => setRuns([])), 150);
+    timer.current = setTimeout(() => void rpc.workflows.runs.list({ workflowId: id }).then(setRuns).catch(() => setRuns([])), 150);
   }, [id]);
   useEffect(() => (load(), () => clearTimeout(timer.current)), [load, version]);
   useServerEvents((ev) => ev.type === 'workflow-run' && load());
@@ -361,7 +362,7 @@ function Runs({ id, version }: { id: string; version: number }) {
               <b>{r.status}</b>
               <span className="hint">{`${ago(r.createdAt)} · ${r.trigger}`}</span>
               {r.status === 'running' ? (
-                <Button variant="danger" size="tiny" onClick={(e) => (e.preventDefault(), void attempt(() => POST(`/workflow-runs/${r.id}/stop`)))}>Stop</Button>
+                <Button variant="danger" size="tiny" onClick={(e) => (e.preventDefault(), void attempt(() => rpc.workflows.runs.stop({ id: r.id })))}>Stop</Button>
               ) : null}
             </span>
           </summary>

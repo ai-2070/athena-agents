@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GET, POST, PUT, DEL, confirmBox, toast } from '../core.ts';
+import { confirmBox, toast } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Button } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { FieldRow, PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
@@ -43,7 +44,7 @@ export function GatewaysTab() {
   const load = useCallback(async () => {
     const version = ++request.current;
     try {
-      const [gateways, all] = await Promise.all([GET<Listing>('/gateways'), GET<{ projects: ProjectChoice[] }>('/projects')]);
+      const [gateways, all] = await Promise.all([rpc.gateways.list(), rpc.projects.list()]);
       if (!mounted.current || version !== request.current) return;
       setListing(gateways); setProjects(all.projects); setError('');
       if (!linked.current) {
@@ -94,11 +95,11 @@ export function GatewaysTab() {
           {instance.platform === 'telegram' && <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => { setInbox(null); setTelegram(instance.id); history.replaceState(null, '', `#/settings?tab=gateways&telegram=${encodeURIComponent(instance.id)}`); }}>Set up Telegram</Button>}
           {instance.platform === 'whatsapp' && <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => { setInbox(null); setRelay(instance.id); history.replaceState(null, '', `#/settings?tab=gateways&relay=${encodeURIComponent(instance.id)}`); }}>Set up relay</Button>}
           <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => { setRecovery(null); setRelay(null); setInbox(instance.id); history.replaceState(null, '', `#/settings?tab=gateways&inbox=${encodeURIComponent(instance.id)}`); }}>Inbox</Button>
-          <Button size="small" variant="ghost" disabled={busy || panelOpen || (!instance.enabled && (!gatewayPlatformAvailable(instance.platform) || !credentialsReady))} onClick={() => void action(() => PUT(`/gateways/${instance.id}`, { ...gatewayConfig(instance), enabled: !instance.enabled }))}>{instance.enabled ? 'Pause' : 'Enable'}</Button>
+          <Button size="small" variant="ghost" disabled={busy || panelOpen || (!instance.enabled && (!gatewayPlatformAvailable(instance.platform) || !credentialsReady))} onClick={() => void action(() => rpc.gateways.change({ params: { id: instance.id }, body: { ...gatewayConfig(instance), enabled: !instance.enabled } }))}>{instance.enabled ? 'Pause' : 'Enable'}</Button>
           {instance.platform === 'discord' && (!instance.enabled || health?.recoveryRequired) && <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => { setInbox(null); setRecovery(instance.id); }}>Review recovery</Button>}
-          {instance.enabled && <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => void action(() => POST(`/gateways/${instance.id}/reconnect`))}>Reconnect</Button>}
+          {instance.enabled && <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => void action(() => rpc.gateways.reconnect({ id: instance.id }))}>Reconnect</Button>}
           <Button size="small" variant="danger" disabled={busy || panelOpen} onClick={() => void (async () => {
-            if (await confirmBox(`Delete ${instance.name}? Its connection and token will be removed. Saved conversation receipts remain for recovery.`, { ok: 'Delete', danger: true })) await action(() => DEL(`/gateways/${instance.id}`));
+            if (await confirmBox(`Delete ${instance.name}? Its connection and token will be removed. Saved conversation receipts remain for recovery.`, { ok: 'Delete', danger: true })) await action(() => rpc.gateways.remove({ id: instance.id }));
           })()}>Delete</Button>
         </Row>;
       })}
@@ -108,11 +109,11 @@ export function GatewaysTab() {
     {editor && <GatewayEditor key={typeof editor === 'string' ? editor : editor.id} platform={typeof editor === 'string' ? editor : editor.platform} instance={typeof editor === 'string' ? null : editor} projects={projects} close={close} saved={async () => { close(); await load(); }} />}
     {recoveryInstance && <DiscordRecoveryView key={recoveryInstance.id} instance={recoveryInstance} close={() => setRecovery(null)} changed={load} />}
     {recovery && listing && !recoveryInstance && <Row title="This gateway is no longer available"><Button size="small" variant="ghost" onClick={() => setRecovery(null)}>Close recovery</Button></Row>}
-    {relayInstance && <WhatsAppSetupView key={relayInstance.id} instance={relayInstance} close={closeRelay} changed={load} edit={() => edit(relayInstance)} pause={async () => { await PUT(`/gateways/${relayInstance.id}`, { ...gatewayConfig(relayInstance), enabled: false }); await load(); }} />}
+    {relayInstance && <WhatsAppSetupView key={relayInstance.id} instance={relayInstance} close={closeRelay} changed={load} edit={() => edit(relayInstance)} pause={async () => { await rpc.gateways.change({ params: { id: relayInstance.id }, body: { ...gatewayConfig(relayInstance), enabled: false } }); await load(); }} />}
     {relay && listing && !relayInstance && <Row title="This WhatsApp instance is no longer available"><Button size="small" variant="ghost" onClick={closeRelay}>Close setup</Button></Row>}
     {inboxInstance && <GatewayInboxView key={inboxInstance.id} instance={inboxInstance} close={closeInbox} />}
     {inbox && listing && !inboxInstance && <Row title="This gateway is no longer available"><Button size="small" variant="ghost" onClick={closeInbox}>Close inbox</Button></Row>}
-    {telegramInstance && <TelegramSetupView key={telegramInstance.id} instance={telegramInstance} close={closeTelegram} edit={() => edit(telegramInstance)} changed={load} pause={async () => { await PUT(`/gateways/${telegramInstance.id}`, { ...gatewayConfig(telegramInstance), enabled: false }); await load(); }} />}
+    {telegramInstance && <TelegramSetupView key={telegramInstance.id} instance={telegramInstance} close={closeTelegram} edit={() => edit(telegramInstance)} changed={load} pause={async () => { await rpc.gateways.change({ params: { id: telegramInstance.id }, body: { ...gatewayConfig(telegramInstance), enabled: false } }); await load(); }} />}
     {telegram && listing && !telegramInstance && <Row title="This Telegram instance is no longer available"><Button size="small" variant="ghost" onClick={closeTelegram}>Close setup</Button></Row>}
     {retired !== null && <GatewayRetiredView id={retired} select={selectRetired} close={() => { setRetired(null); history.replaceState(null, '', '#/settings?tab=gateways'); }} changed={load} />}
   </div>;
@@ -139,7 +140,7 @@ function GatewayEditor({ instance, platform, projects, close, saved }: { instanc
   const [targetError, setTargetError] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   useEffect(() => {
     let active = true; setTargets(null); setTargetError('');
-    void GET<GatewayTargets>(`/gateways/targets/${encodeURIComponent(config.projectId)}`).then((value) => { if (active) setTargets(value); }).catch((failure: unknown) => { if (active) setTargetError(message(failure)); });
+    void rpc.gateways.targets({ projectId: config.projectId }).then((value) => { if (active) setTargets(value); }).catch((failure: unknown) => { if (active) setTargetError(message(failure)); });
     return () => { active = false; };
   }, [config.projectId]);
   const patch = (value: Partial<Config>) => setConfig((before) => ({ ...before, ...value }));
@@ -151,15 +152,15 @@ function GatewayEditor({ instance, platform, projects, close, saved }: { instanc
     setBusy(true); setError(''); let configured = false;
     const body = { ...config, senderPolicy: whatsapp ? { platform: 'whatsapp', allowedPhones: lines(senders) } : { platform: discord ? 'discord' : slack ? 'slack' : 'telegram', allowedUserIds: lines(senders) }, scope: { ...config.scope, conversationIds: whatsapp ? [] : lines(scope), ...(discord ? { guildIds: lines(guilds) } : whatsapp ? { guildIds: [] } : {}) }, enabled: false };
     try {
-      const record = id ? await PUT<GatewayInstance>(`/gateways/${id}`, body) : await POST<GatewayInstance>('/gateways', body);
+      const record = id ? await rpc.gateways.change({ params: { id }, body }) : await rpc.gateways.create({ body });
       if (mounted.current) setId(record.id); configured = true;
       if (whatsapp) {
         const changes = { ...(removeAccess ? { accessToken: null } : accessToken.trim() ? { accessToken: accessToken.trim() } : {}), ...(removeSecret ? { signingSecret: null } : appSecret.trim() ? { signingSecret: appSecret.trim() } : {}) };
-        if (Object.keys(changes).length) await POST(`/gateways/${record.id}/credentials`, changes);
+        if (Object.keys(changes).length) await rpc.gateways.updateCredentials({ params: { id: record.id }, body: changes });
       } else if (slack) {
         const changes = { ...(removeToken ? { botToken: null } : token.trim() ? { botToken: token.trim() } : {}), ...(removeAppToken ? { appToken: null } : appToken.trim() ? { appToken: appToken.trim() } : {}) };
-        if (Object.keys(changes).length) await POST(`/gateways/${record.id}/credentials`, changes);
-      } else if (removeToken || token.trim()) await PUT(`/gateways/${record.id}/credentials`, removeToken ? {} : { botToken: token.trim() });
+        if (Object.keys(changes).length) await rpc.gateways.updateCredentials({ params: { id: record.id }, body: changes });
+      } else if (removeToken || token.trim()) await rpc.gateways.setCredentials({ params: { id: record.id }, body: removeToken ? {} : { botToken: token.trim() } });
       if (mounted.current) { setToken(''); setAppToken(''); setAccessToken(''); setAppSecret(''); toast('Gateway saved'); await saved(); }
     } catch (failure) { if (mounted.current) setError(`${configured ? 'The instance is saved paused. ' : ''}${message(failure)}`); }
     finally { if (mounted.current) setBusy(false); }

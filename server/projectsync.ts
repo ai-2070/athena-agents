@@ -21,15 +21,10 @@ import { WORLD_MD_MAX } from './voxel/worldmd.ts';
 import { rebase } from './backup.ts';
 import { restoredTasks } from './tasks.ts';
 import { restoredBoard } from './taskboard.ts';
-import type { Agent, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
+import type { Agent, Chat, Project, ProjectPeek, RestoreResult, Routine, SavedProjectSettings, SaveStatus, Team, VoxelWorld } from '../shared/types.ts';
 
-/** The last auto-save of a project (AppState.projectSaved). */
-export interface SaveStatus {
-  at: number;
-  error?: string;
-  agents?: number;
-  teams?: number;
-}
+// (the shapes the page reads: shared/types.ts)
+export type { ProjectPeek, RestoreResult, SaveStatus };
 
 /** <project folder>/.dashboard/project.json */
 export interface SavedProjectFile {
@@ -37,7 +32,7 @@ export interface SavedProjectFile {
   app: string;
   savedAt: number;
   /** brainPath: the folder it was saved from, so folders inside it move with a copy (older saves: missing) */
-  project: { name?: string; description?: string; repo?: string; skills?: string[]; brainPath?: string; backgroundOpacity?: number; mapDotsOpacity?: number };
+  project: SavedProjectSettings;
   agents: Agent[];
   teams: Team[];
   routines?: Routine[];
@@ -48,25 +43,6 @@ export interface SavedProjectFile {
   board?: unknown;
 }
 
-/** What a folder holds, if the dashboard saved a project in it. */
-export interface ProjectPeek {
-  name: string;
-  description: string;
-  agents: number;
-  teams: number;
-  savedAt: number;
-}
-
-export interface RestoreResult {
-  agents: number;
-  teams: number;
-  chats?: number;
-  /** kept versions of agents and teams (deleted ones included) */
-  versions?: number;
-  /** skills added to the library from the folder, and ones the library had already (by name) */
-  skills?: { added: string[]; kept: string[] };
-  project: SavedProjectFile['project'];
-}
 
 const FORMAT = 1;
 const DIR = '.dashboard';

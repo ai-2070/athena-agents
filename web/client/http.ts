@@ -38,10 +38,6 @@ export async function api<T = unknown>(path: string, { method = 'GET', body, raw
   if (!res.ok) throw errorOf(data, `${res.status} ${res.statusText}`, res.status);
   return data as T;
 }
-export const GET = <T = unknown>(p: string): Promise<T> => api<T>(p);
-export const POST = <T = unknown>(p: string, body: unknown = {}): Promise<T> => api<T>(p, { method: 'POST', body });
-export const PUT = <T = unknown>(p: string, body: unknown = {}): Promise<T> => api<T>(p, { method: 'PUT', body });
-export const DEL = <T = unknown>(p: string): Promise<T> => api<T>(p, { method: 'DELETE' });
 
 /** fetch with the dashboard's headers, for callers that read the answer themselves (the chat stream).
  *  Takes a full address, as the AI SDK hands it over. */

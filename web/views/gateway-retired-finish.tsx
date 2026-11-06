@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GET, POST, confirmBox } from '../core.ts';
+import { confirmBox } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { Button } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
 import { PanelNote, Row } from '../ui/controls.tsx';
@@ -14,15 +15,15 @@ const platforms = { telegram: 'Telegram', slack: 'Slack', discord: 'Discord', wh
 export function GatewayRetiredFinishView({ instanceId, eventId, close, changed }: {
   instanceId: string; eventId: string; close: () => void; changed: () => Promise<void>;
 }) {
-  const root = `/gateways/retired/${encodeURIComponent(instanceId)}/inbox/${encodeURIComponent(eventId)}/local-finish`;
+  const at = { id: instanceId, eventId };
   const [preview, setPreview] = useState<GatewayRetiredFinishReview | null>(null); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [busy, setBusy] = useState(false);
   const mounted = useRef(false); const request = useRef(0); const active = useRef(false);
   const load = useCallback(async (clear = true) => {
     const version = ++request.current;
     if (clear) { setError(''); setNotice(''); setPreview(null); }
-    try { const value = await GET<GatewayRetiredFinishReview>(root); if (mounted.current && request.current === version) setPreview(value); }
+    try { const value = await rpc.gateways.retired.finishReview(at); if (mounted.current && request.current === version) setPreview(value); }
     catch (failure) { if (mounted.current && request.current === version) { setPreview(null); setError(failure instanceof Error ? failure.message : 'Saved receipts could not load. Reload the local-finish review.'); } }
-  }, [root]);
+  }, [instanceId, eventId]);
   useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; request.current++; }; }, [load]);
   useServerEvents((event) => { if ((event.type === 'gateways' && event.id === instanceId) || (event.type === 'gateway-inbox' && event.instanceId === instanceId)) void load(false); });
   const act = async (prepare: boolean) => {
@@ -32,7 +33,7 @@ export function GatewayRetiredFinishView({ instanceId, eventId, close, changed }
       const source = `${platforms[snapshot.source.platform]} chat ${snapshot.source.conversationId}, message ${snapshot.source.messageId}, saved project ${snapshot.source.projectId}`;
       if (!prepare && !await confirmBox(`Finish ${snapshot.kind === 'work' ? 'gateway tracking for the saved native work' : 'remaining delivery'} for ${source} locally? ${snapshot.kind === 'work' ? 'Native work may still be running. Manage it through Athena’s usual controls. This receipt will never track it again or send its reply or files. ' : 'Uncertain parts may already have arrived. This receipt will never send again. '}The saved input, native work IDs, files, confirmed receipts and uncertainty stay. The removed connection remains blocked. This cannot be undone.`, { ok: 'Finish locally', danger: true })) return;
       if (!mounted.current) return;
-      const value = await POST<GatewayRetiredFinishReview>(prepare ? `${root}/prepare` : root, prepare ? { revision: snapshot.revision } : { revision: snapshot.revision, acknowledgeNoSend: true, acknowledgeMayStillRun: true });
+      const value = prepare ? await rpc.gateways.retired.prepareFinish({ params: at, body: { revision: snapshot.revision } }) : await rpc.gateways.retired.finish({ params: at, body: { revision: snapshot.revision, acknowledgeNoSend: true, acknowledgeMayStillRun: true } });
       if (mounted.current) { setPreview(value); setError(''); setNotice(prepare ? 'Interrupted receipts recovered locally. In-flight sends are now uncertain. No work was started and nothing was sent.' : 'Finished locally. Saved evidence is kept and the removed connection stays blocked.'); await changed(); }
     } catch (failure) { if (mounted.current) { setPreview(null); setError(failure instanceof Error ? failure.message : 'Local finish could not be saved. Reload its receipts before continuing.'); } }
     finally { active.current = false; if (mounted.current) setBusy(false); }

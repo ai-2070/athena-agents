@@ -1,7 +1,8 @@
 // Chat with one agent: the agent and its chats on the left; the conversation itself is the AI SDK chat
 // (web/chat): streaming answers, tool calls you can open, images, file previews, COMPACTED marks.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GET, POST, PUT, DEL, attempt, navigate, ago, confirmBox, promptBox, ENGINE_LABEL } from '../core.ts';
+import { attempt, navigate, ago, confirmBox, promptBox, ENGINE_LABEL } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
 import { openMemory } from '../memory.tsx';
 import { iconButtonClass } from '../ui/classes.ts';
@@ -35,19 +36,19 @@ function ChatPage({ agentId, chatId, view }: { agentId: string; chatId?: string;
   useEffect(() => {
     let live = true;
     void (async () => {
-      const agent = await GET<AgentDetail>(`/agents/${agentId}`).catch(() => null);
+      const agent = await rpc.agents.get({ id: agentId }).catch(() => null);
       if (!live) return;
       if (!agent) return setLoaded({ kind: 'gone' });
       view.setTitle(`${agent.emoji || ''} ${agent.name}`);
-      const chats = await GET<ChatSummary[]>(`/agents/${agentId}/chats`);
+      const chats = await rpc.agents.chats.list({ id: agentId });
       if (!live) return;
       if (!chatId) {
         // no chat in the address: the latest one, or a new one
-        const target = chats[0] || (await POST<Chat>(`/agents/${agentId}/chats`));
+        const target = chats[0] || (await rpc.agents.chats.create({ id: agentId }));
         if (live) location.replace(`#/agents/${agentId}/${target.id}`);
         return;
       }
-      const chat = await GET<Chat>(`/agents/${agentId}/chats/${chatId}`).catch(() => null);
+      const chat = await rpc.agents.chats.get({ id: agentId, chatId }).catch(() => null);
       if (!live) return;
       if (!chat) return void location.replace(`#/agents/${agentId}`);
       setLoaded({ kind: 'ready', agent, chat, chats });
@@ -95,7 +96,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
 
   const loadMemory = useCallback(
     (c: Chat) =>
-      GET<MemoryInfo>(`/agents/${agent.id}/chats/${c.id}/memory`)
+      rpc.agents.chats.memory({ id: agent.id, chatId: c.id })
         .then(setMemory)
         .catch(() => {}),
     [agent.id],
@@ -105,7 +106,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
     (c: Chat) => {
       setChat(c);
       void loadMemory(c);
-      void GET<ChatSummary[]>(`/agents/${agent.id}/chats`).then(setChats).catch(() => {});
+      void rpc.agents.chats.list({ id: agent.id }).then(setChats).catch(() => {});
     },
     [agent.id, loadMemory],
   );
@@ -116,20 +117,20 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
     if (isEmpty(chat.id)) return api.current?.focus();
     const empty = chats.find((c) => c.count === 0);
     if (empty) return navigate(`#/agents/${agent.id}/${empty.id}`);
-    const c = await attempt(() => POST<Chat>(`/agents/${agent.id}/chats`));
+    const c = await attempt(() => rpc.agents.chats.create({ id: agent.id }));
     if (c) navigate(`#/agents/${agent.id}/${c.id}`);
   };
   const rename = async () => {
     const t = await promptBox('Rename chat', { value: chat.title });
-    if (t && (await attempt(() => PUT(`/agents/${agent.id}/chats/${chat.id}`, { title: t })))) await api.current?.reload();
+    if (t && (await attempt(() => rpc.agents.chats.change({ id: agent.id, chatId: chat.id, title: t })))) await api.current?.reload();
   };
   const resetMemory = async () => {
     if (!(await confirmBox("Clear this chat’s memory? The messages will stay, but the agent will start fresh.", { ok: "Clear memory", danger: true }))) return;
-    if (await attempt(() => PUT(`/agents/${agent.id}/chats/${chat.id}`, { reset: true }), 'The agent will start fresh from your next message')) await api.current?.reload();
+    if (await attempt(() => rpc.agents.chats.change({ id: agent.id, chatId: chat.id, reset: true }), 'The agent will start fresh from your next message')) await api.current?.reload();
   };
   const removeChat = async () => {
     if (!(await confirmBox('Delete this chat?', { ok: 'Delete', danger: true }))) return;
-    await attempt(() => DEL(`/agents/${agent.id}/chats/${chat.id}`));
+    await attempt(() => rpc.agents.chats.remove({ id: agent.id, chatId: chat.id }));
     navigate(`#/agents/${agent.id}`);
   };
 

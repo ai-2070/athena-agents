@@ -3,7 +3,7 @@
 import { ButtonLink } from '../ui/button.tsx';
 import { Plate } from '../ui/surface.tsx';
 import { useEffect, useState } from 'react';
-import { GET } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { BRAND_IMAGE } from '../brand.ts';
 import { serverUrl } from '../client/connection.ts';
 import { logo } from '../icons.ts';
@@ -38,7 +38,7 @@ export function AboutTab() {
   const [about, setAbout] = useState<AboutInfo | null>(null);
   useEffect(() => {
     let live = true;
-    GET<AboutInfo>('/about?stars=1').then(
+    rpc.status.about({ stars: '1' }).then(
       (a) => live && setAbout(a),
       () => {},
     );

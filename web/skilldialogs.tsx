@@ -1,7 +1,8 @@
 // The Skills page's dialogs (React in Base UI dialogs): write or edit a skill, with the Brain's help
 // in plain words; install from GitHub; import from Claude Code. Each takes the page's reload().
 import { useEffect, useRef, useState } from 'react';
-import { GET, POST, PUT, attempt, toast } from './core.ts';
+import { attempt, toast } from './core.ts';
+import { rpc } from './client/rpc.ts';
 import { historyButton } from './history.tsx';
 import { attachTray } from './attach.tsx';
 import type { AttachTray } from './attach.tsx';
@@ -21,7 +22,7 @@ interface Fields {
 
 /** The skill editor: new or existing, with the Brain writing or changing it from plain words. */
 export async function openEditor(slug: string | null, reload: () => unknown): Promise<void> {
-  const s = slug ? await GET<Skill>(`/skills/${slug}`).catch(() => null) : null;
+  const s = slug ? await rpc.skills.get({ slug }).catch(() => null) : null;
   const tray = attachTray();
   openModal(slug ? `Edit skill · ${s?.name || slug}` : 'New skill', (close) => <SkillEditor slug={slug} s={s} reload={reload} close={close} tray={tray} />, {
     // the files were only for the Brain to read: they go with the dialog
@@ -82,7 +83,7 @@ function SkillEditor({ slug, s, reload, close, tray }: { slug: string | null; s:
       if (!attachments) return void setStatus('');
       setStatus(slug || name.current?.value || body.current?.value ? 'The Brain is changing the skill…' : 'The Brain is writing the skill…');
       const now = fields();
-      const draft = await attempt(() => POST<Fields & { note: string }>('/assist/skill', { text, slug: slug || undefined, current: now, attachments }));
+      const draft = await attempt(() => rpc.assist.skill({ text, slug: slug || undefined, current: now, attachments }));
       if (!draft) return void setStatus('');
       // (locked, so they match; if they somehow don't, what you typed wins)
       const still = fields();
@@ -103,7 +104,7 @@ function SkillEditor({ slug, s, reload, close, tray }: { slug: string | null; s:
   const save = async () => {
     setSaving(true);
     const v = fields();
-    const r = await attempt(() => (slug ? PUT(`/skills/${slug}`, v) : POST('/skills', v)), slug ? 'Saved' : 'Skill added');
+    const r = await attempt(() => (slug ? rpc.skills.change({ ...v, slug }) : rpc.skills.create(v)), slug ? 'Saved' : 'Skill added');
     setSaving(false);
     if (!r) return;
     close();
@@ -200,7 +201,7 @@ function GitHubDialog({ reload, close }: { reload: () => unknown; close: () => v
     const input = url.current;
     if (!input || !input.value.trim()) return input?.focus();
     setInstalling(true);
-    const r = await attempt(() => POST<SkillInstallResult>('/skills/install', { url: input.value.trim() }));
+    const r = await attempt(() => rpc.skills.install({ url: input.value.trim() }));
     setInstalling(false);
     if (!r) return;
     setResult(r);
@@ -259,7 +260,7 @@ function ImportDialog({ claude, reload, close }: { claude: ClaudeSkill[]; reload
   const [, redraw] = useState(0);
   const importSkill = async (c: ClaudeSkill) => {
     setBusy(c.slug);
-    const r = await attempt(() => POST('/skills/import', { name: c.slug }), `Imported ${c.name}`);
+    const r = await attempt(() => rpc.skills.import({ name: c.slug }), `Imported ${c.name}`);
     setBusy(null);
     if (!r) return; // failed: let them try again
     c.inLibrary = true;

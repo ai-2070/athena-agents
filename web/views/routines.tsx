@@ -5,7 +5,8 @@ import { FormSection } from '../ui/formsection.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { h, md, GET, POST, PUT, DEL, attempt, navigate, confirmBox, ago, state, toast } from '../core.ts';
+import { h, md, attempt, navigate, confirmBox, ago, state, toast } from '../core.ts';
+import { rpc } from '../client/rpc.ts';
 import { icon } from '../icons.ts';
 import { skillIcon } from '../skillicons.ts';
 import { loadSkills, skillsCache } from '../skillpick.ts';
@@ -34,7 +35,7 @@ export function candidates(d: Pick<AppState, 'agents'>, teams: readonly TeamList
 /** Loads the teams and the skills a routine can mention, and keeps the teams current. */
 function useTeams(): TeamListing[] | null {
   const [teams, setTeams] = useState<TeamListing[] | null>(null);
-  const load = useCallback(() => GET<TeamListing[]>('/workflows').catch((): TeamListing[] => []), []);
+  const load = useCallback(() => rpc.workflows.list().catch((): TeamListing[] => []), []);
   useEffect(() => {
     let live = true;
     void Promise.all([load(), loadSkills()]).then(([t]) => live && setTeams(t));
@@ -89,7 +90,7 @@ const BLANK: Routine = { id: '', name: 'New routine', text: '', mentions: [], sc
 function RoutinesList() {
   const teams = useTeams();
   const [list, setList] = useState<RoutineListing[] | null>(null);
-  const reload = useCallback(() => GET<RoutineListing[]>('/routines').then(setList).catch(() => {}), []);
+  const reload = useCallback(() => rpc.routines.list().then(setList).catch(() => {}), []);
   useEffect(() => void reload(), [reload]);
   useServerEvents((ev) => (ev.type === 'routines' || ev.type === 'routine-run') && void reload());
   if (!teams || !list) return <p className="text-dim">Loading routines…</p>;
@@ -133,11 +134,11 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
   useEffect(() => setOn(r.enabled), [r.enabled]);
   const toggleOn = async (v: boolean) => {
     setOn(v);
-    if (!(await attempt(() => PUT(`/routines/${r.id}`, { enabled: v }), v ? 'Routine on' : 'Routine off'))) setOn(!v);
+    if (!(await attempt(() => rpc.routines.change({ id: r.id, enabled: v }), v ? 'Routine on' : 'Routine off'))) setOn(!v);
   };
   const run = async () => {
     setRunning(true);
-    await attempt(() => POST(`/routines/${r.id}/run`, {}), 'Routine started');
+    await attempt(() => rpc.routines.run({ id: r.id }), 'Routine started');
     setRunning(false);
   };
   return (
@@ -189,7 +190,7 @@ function RoutineEditor({ id }: { id: string }) {
     setLoaded(id === NEW ? BLANK : null);
     if (id === NEW) return;
     let live = true;
-    void GET<Routine>(`/routines/${id}`)
+    void rpc.routines.get({ id })
       .then((r) => live && setLoaded(r))
       .catch(() => live && setLoaded('gone'));
     return () => void (live = false);
@@ -246,7 +247,7 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
     if (r.current.schedule?.type === 'daily' && r.current.schedule.times?.some((time) => !time)) return toast('Choose each daily time, or remove empty times', 'warn'), false;
     setSaving(true);
     const body = { name, description, text, schedule: r.current.schedule, enabled: r.current.enabled };
-    const out = await attempt(() => (isNew ? POST<Routine>('/routines', body) : PUT<Routine>(`/routines/${id}`, body)), isNew ? 'Routine added' : 'Saved');
+    const out = await attempt(() => (isNew ? rpc.routines.create(body) : rpc.routines.change({ ...body, id })), isNew ? 'Routine added' : 'Saved');
     setSaving(false);
     if (!out) return false;
     r.current.mentions = out.mentions;
@@ -257,20 +258,20 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   const run = async () => {
     if (dirty && !(await save())) return;
     setRunning(true);
-    await attempt(() => POST(`/routines/${id}/run`, { input: '' }), 'Routine started');
+    await attempt(() => rpc.routines.run({ id, input: '' }), 'Routine started');
     setRunning(false);
   };
   const switchActive = (v: boolean) => {
     setActive(v);
     r.current.enabled = v;
     if (isNew) setDirty(true);
-    else void attempt(() => PUT(`/routines/${id}`, { enabled: v }), v ? 'Routine on' : 'Routine off').then((ok) => {
+    else void attempt(() => rpc.routines.change({ id, enabled: v }), v ? 'Routine on' : 'Routine off').then((ok) => {
       if (!ok) { r.current.enabled = !v; setActive(!v); }
     });
   };
   const del = async () => {
     if (!(await confirmBox(`Delete the routine "${name}"?`, { ok: 'Delete', danger: true }))) return;
-    if (await attempt(() => DEL(`/routines/${id}`), 'Deleted')) navigate('#/routines');
+    if (await attempt(() => rpc.routines.remove({ id }), 'Deleted')) navigate('#/routines');
   };
 
   // who the text mentions
@@ -464,7 +465,7 @@ function Runs({ id, onLatest }: { id: string; onLatest?: (run: RoutineRun | null
     // a draft has no runs (an empty id would ask for every routine's)
     if (!id) return setRuns([]);
     // (a burst of events loads once)
-    timer.current = setTimeout(() => void GET<RoutineRun[]>(`/routine-runs?routineId=${encodeURIComponent(id)}`).then(setRuns).catch(() => setRuns([])), 150);
+    timer.current = setTimeout(() => void rpc.routines.runs.list({ routineId: id }).then(setRuns).catch(() => setRuns([])), 150);
   }, [id]);
   useEffect(() => (load(), () => clearTimeout(timer.current)), [load]);
   useEffect(() => onLatest?.(runs?.[0] ?? null), [runs, onLatest]);
@@ -532,7 +533,7 @@ function Runs({ id, onLatest }: { id: string; onLatest?: (run: RoutineRun | null
               </CollapsePanel>
             </CollapseRoot>
             {run.status === 'running' ? (
-              <Button variant="danger" size="tiny" className="absolute top-3 right-10" onClick={() => void attempt(() => POST(`/routine-runs/${run.id}/stop`))}>Stop</Button>
+              <Button variant="danger" size="tiny" className="absolute top-3 right-10" onClick={() => void attempt(() => rpc.routines.runs.stop({ id: run.id }))}>Stop</Button>
             ) : null}
           </div>
         );

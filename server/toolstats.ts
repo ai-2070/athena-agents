@@ -1,12 +1,9 @@
 // How the tools are used: calls, errors, refusals, time and result size per tool. Kept on this computer only
 // (data/tool-stats.json), to see which tools are slow, fail or overflow, and which are never used.
 import { dataPath, readJSON, writeJSON } from './util.ts';
-import type { ToolStat } from '../shared/types.ts';
+import type { ToolStat, ToolStats } from '../shared/types.ts';
 
-interface Saved {
-  since: number;
-  tools: ToolStat[];
-}
+type Saved = ToolStats;
 interface Live extends ToolStat {
   /** The latest call times, for p50/p95. */
   times: number[];
