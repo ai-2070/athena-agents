@@ -131,6 +131,20 @@ describe('the Overview', () => {
     expect(el.querySelector('.overview-status')!.textContent).toContain('2 projects');
   });
 
+  it('says under each name what needs you, that it works, or what it is and when it last changed', async () => {
+    await open();
+    const line = (name: string) => row('Bakery', name).querySelector('.session-name')!.nextElementSibling!.textContent;
+    expect(line('Baker')).toBe('Approval: Run a command');
+    expect(line('Writer')).toBe('Working…');
+    expect(line('Shop team')).toBe('Team · just now');
+    expect(line('PowerShell')).toBe('Terminal · just now');
+    expect(group('Bakery').querySelector('.session-status[aria-label="Needs you: Approval: Run a command"]')).not.toBeNull();
+  });
+
+  it('folds the app\'s sidebar to its icons, as the Station does', () => {
+    expect(overview.slimNav).toBe(true);
+  });
+
   it('pins a session to the top of its project, and remembers it', async () => {
     await open();
     await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Pin The Brain"]')!.click());
@@ -177,6 +191,18 @@ describe('the Overview', () => {
     act(() => overview.unmount());
     await open();
     expect(panes()).toEqual(['Writer', 'Shop team', 'PowerShell']);
+  });
+
+  it('lets the strip be narrower than its panes, so it scrolls instead of growing', async () => {
+    await open();
+    await act(async () => row('Bakery', 'Writer').click());
+    await settle();
+    // (without min-w-0 the strip grows to fit its panes, and pane widths, taken from its width, grow with it)
+    const strip = el.querySelector<HTMLElement>('.strip')!;
+    for (let box: HTMLElement | null = strip; box && box !== el; box = box.parentElement) {
+      if (box.parentElement?.classList.contains('flex-col')) break;
+      expect(box.classList.contains('min-w-0'), box.className).toBe(true);
+    }
   });
 
   it('moves, stacks, pins and closes panes with Ctrl+Alt keys, and changes the columns per view', async () => {

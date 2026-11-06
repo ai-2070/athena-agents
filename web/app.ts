@@ -53,6 +53,8 @@ export interface View {
   flush?: boolean;
   /** the Station: full-screen map, folded sidebar */
   station?: boolean;
+  /** the sidebar folds to its icons, as on the Station (it opens when pointed at) */
+  slimNav?: boolean;
 }
 interface Route {
   path: string;
@@ -67,6 +69,7 @@ interface NavLink extends Route {
 // The menu stays short. Other pages still open from links (branch editor, terminals, home).
 const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
+  { path: 'overview', label: 'Overview', ico: 'layout-grid', view: overviewView },
   { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => (state.data?.outboxPending || 0) + (state.data?.questions?.length || 0) },
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
   { path: 'tasks', label: 'Tasks', ico: 'kanban', view: tasksView },
@@ -79,8 +82,6 @@ const NAV: NavLink[] = [
 ];
 const HIDDEN: Route[] = [
   { path: 'home', label: 'Home', view: home },
-  // (out of the menu for now; #/overview still opens it)
-  { path: 'overview', label: 'Overview', view: overviewView },
   { path: 'workflows', label: 'Team editor', view: workflows },
   { path: 'programs', label: 'Programs', view: programs },
   { path: 'mcp', label: 'MCP servers', view: mcp },
@@ -93,22 +94,22 @@ const HIDDEN: Route[] = [
 const VIEW_PADDED = 'mx-auto w-full max-w-[1400px] min-w-0 px-10 pt-9 pb-20 *:animate-rise-in max-md:px-4 max-md:pt-5 max-md:pb-14';
 const VIEW_FLUSH = 'w-full min-w-0 *:animate-[fade_0.35s_ease-out]';
 
-// The sidebar's links. On the Station (body.station-mode) the bar folds to its icons: on a wide screen it is
+// The sidebar's links. On the Station and the Overview (body.nav-slim) the bar folds to its icons: on a wide screen it is
 // clipped to the icon strip and its text fades in when it opens (body.nav-wide); on a narrow one a hovered
 // icon shows its name beside it. Open, the links have the same padding as on every other page (the icons
 // ease over from their place in the strip).
 const NAV_LINK =
-  'group flex items-center gap-3 rounded-ctl px-3 py-2 text-[14px] leading-[1.3] font-medium [transition:background-color_0.15s,color_0.15s] in-[.station-mode]:relative max-md:in-[.station-mode]:justify-center max-md:in-[.station-mode]:px-0 max-md:in-[.station-mode.nav-wide]:justify-start max-md:in-[.station-mode.nav-wide]:px-3 md:in-[.station-mode]:w-8.5 md:in-[.station-mode]:justify-start md:in-[.station-mode]:px-[6px] md:in-[.station-mode.nav-wide]:w-auto md:in-[.station-mode.nav-wide]:px-3 md:in-[.station-mode]:[transition:background-color_0.15s,color_0.15s,padding_0.45s_cubic-bezier(.22,.9,.25,1)]';
+  'group flex items-center gap-3 rounded-ctl px-3 py-2 text-[14px] leading-[1.3] font-medium [transition:background-color_0.15s,color_0.15s] in-[.nav-slim]:relative max-md:in-[.nav-slim]:justify-center max-md:in-[.nav-slim]:px-0 max-md:in-[.nav-slim.nav-wide]:justify-start max-md:in-[.nav-slim.nav-wide]:px-3 md:in-[.nav-slim]:w-8.5 md:in-[.nav-slim]:justify-start md:in-[.nav-slim]:px-[6px] md:in-[.nav-slim.nav-wide]:w-auto md:in-[.nav-slim.nav-wide]:px-3 md:in-[.nav-slim]:[transition:background-color_0.15s,color_0.15s,padding_0.45s_cubic-bezier(.22,.9,.25,1)]';
 const NAV_LINK_OFF = 'text-dim hover:bg-ink/5 hover:text-ink';
 const NAV_LINK_ON = 'bg-ink/7 text-ink';
-const NAV_ICO = 'grid w-5 flex-none place-items-center text-center in-[.station-mode]:group-hover:text-accent';
+const NAV_ICO = 'grid w-5 flex-none place-items-center text-center in-[.nav-slim]:group-hover:text-accent';
 const NAV_ICO_OFF = 'text-icon group-hover:text-ink';
 const NAV_ICO_ON = 'text-accent';
 // the menu's own labels read in capitals (the text stays as written, so lookups and screen readers are unmoved)
 const NAV_TXT =
-  'uppercase tracking-[0.025em] in-[.station-mode]:[display:none] in-[.station-mode]:group-hover:absolute in-[.station-mode]:group-hover:left-[58px] in-[.station-mode]:group-hover:z-90 in-[.station-mode]:group-hover:block in-[.station-mode]:group-hover:rounded-ctl in-[.station-mode]:group-hover:border in-[.station-mode]:group-hover:border-line in-[.station-mode]:group-hover:bg-raise in-[.station-mode]:group-hover:shadow-pop in-[.station-mode]:group-hover:px-3 in-[.station-mode]:group-hover:py-1.5 in-[.station-mode]:group-hover:whitespace-nowrap in-[.station-mode]:group-hover:text-ink in-[.station-mode.nav-wide]:inline in-[.station-mode.nav-wide]:group-hover:static in-[.station-mode.nav-wide]:group-hover:border-0 in-[.station-mode.nav-wide]:group-hover:bg-transparent in-[.station-mode.nav-wide]:group-hover:p-0 in-[.station-mode.nav-wide]:group-hover:shadow-none in-[.station-mode.nav-wide]:group-hover:text-inherit md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode]:group-hover:static md:in-[.station-mode]:group-hover:border-0 md:in-[.station-mode]:group-hover:bg-transparent md:in-[.station-mode]:group-hover:p-0 md:in-[.station-mode]:group-hover:text-inherit md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
+  'uppercase tracking-[0.025em] in-[.nav-slim]:[display:none] in-[.nav-slim]:group-hover:absolute in-[.nav-slim]:group-hover:left-[58px] in-[.nav-slim]:group-hover:z-90 in-[.nav-slim]:group-hover:block in-[.nav-slim]:group-hover:rounded-ctl in-[.nav-slim]:group-hover:border in-[.nav-slim]:group-hover:border-line in-[.nav-slim]:group-hover:bg-raise in-[.nav-slim]:group-hover:shadow-pop in-[.nav-slim]:group-hover:px-3 in-[.nav-slim]:group-hover:py-1.5 in-[.nav-slim]:group-hover:whitespace-nowrap in-[.nav-slim]:group-hover:text-ink in-[.nav-slim.nav-wide]:inline in-[.nav-slim.nav-wide]:group-hover:static in-[.nav-slim.nav-wide]:group-hover:border-0 in-[.nav-slim.nav-wide]:group-hover:bg-transparent in-[.nav-slim.nav-wide]:group-hover:p-0 in-[.nav-slim.nav-wide]:group-hover:shadow-none in-[.nav-slim.nav-wide]:group-hover:text-inherit md:in-[.nav-slim]:inline md:in-[.nav-slim]:whitespace-nowrap md:in-[.nav-slim]:opacity-0 md:in-[.nav-slim]:[transition:opacity_0.2s_ease] md:in-[.nav-slim]:group-hover:static md:in-[.nav-slim]:group-hover:border-0 md:in-[.nav-slim]:group-hover:bg-transparent md:in-[.nav-slim]:group-hover:p-0 md:in-[.nav-slim]:group-hover:text-inherit md:in-[.nav-slim.nav-wide]:opacity-100 md:in-[.nav-slim.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 const NAV_COUNT =
-  'ml-auto in-[.station-mode]:[display:none] in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode]:inline md:in-[.station-mode]:whitespace-nowrap md:in-[.station-mode]:opacity-0 md:in-[.station-mode]:[transition:opacity_0.2s_ease] md:in-[.station-mode.nav-wide]:inline-grid md:in-[.station-mode.nav-wide]:opacity-100 md:in-[.station-mode.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
+  'ml-auto in-[.nav-slim]:[display:none] in-[.nav-slim.nav-wide]:inline-grid md:in-[.nav-slim]:inline md:in-[.nav-slim]:whitespace-nowrap md:in-[.nav-slim]:opacity-0 md:in-[.nav-slim]:[transition:opacity_0.2s_ease] md:in-[.nav-slim.nav-wide]:inline-grid md:in-[.nav-slim.nav-wide]:opacity-100 md:in-[.nav-slim.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 // the status list's scrolling part: its top and bottom fade instead of cutting off
 const NAV_LIST = 'nav-list flex min-h-0 min-w-0 flex-1 flex-col gap-px overflow-x-hidden overflow-y-auto pb-2 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-16px),transparent_100%)]';
 // a line of the status list at the bottom left
@@ -212,6 +213,7 @@ async function route() {
   const el = (viewEl = freshElement(viewEl));
   el.className = view.flush ? VIEW_FLUSH : VIEW_PADDED;
   document.body.classList.toggle('station-mode', !!view.station);
+  document.body.classList.toggle('nav-slim', !!(view.station || view.slimNav));
   document.body.classList.remove('nav-wide');
   // a full chat page has its own message box
   document.body.classList.toggle('in-chat', view === chat);
@@ -385,10 +387,10 @@ window.addEventListener('keydown', (e) => {
     }
   };
   edge.addEventListener('mouseenter', open);
-  // hovering the icon bar opens it (only on the Station, where it is folded)
+  // hovering the icon bar opens it (only where it is folded)
   nav.addEventListener('mouseenter', () => {
     clearTimeout(closeTimer);
-    if (document.body.classList.contains('station-mode')) open();
+    if (document.body.classList.contains('nav-slim')) open();
   });
   nav.addEventListener('mouseleave', () => {
     // opened by Esc: stays until Esc or a click elsewhere

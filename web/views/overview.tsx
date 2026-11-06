@@ -8,7 +8,7 @@
 // docs/internal/plans/OVERVIEW_LAYOUT_2026-11-03.md.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
+import { ENGINE_LABEL, ago, approvalCard, attempt, confirmBox, navigate, onEvent, onReconnect, onState, refreshSoon, state, toast } from '../core.ts';
 import { rpc, rpcAt } from '../client/rpc.ts';
 import { apiUrl, projectAt } from '../client/connection.ts';
 import { previewFile, previewTitle, revealLabel } from '../filepreview.tsx';
@@ -310,7 +310,7 @@ function OverviewPage() {
         {q && !shown.some((x) => x.sessions.length) ? <p className="m-0 px-3 py-2 text-[12.5px] text-faint">Nothing matches "{search.trim()}".</p> : null}
       </aside>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1">
           {layout && panes ? (
             <Strip layout={layout} change={change} projects={data.projects} active={active} onNextNeeding={nextNeeding} />
           ) : (
@@ -393,7 +393,7 @@ function ProjectGroup({ project: p, sessions, open, folded, onFold, pinned, onPi
         ) : null}
       </div>
       {folded ? null : (
-        <ul className="m-0 flex list-none flex-col p-0">
+        <ul className="m-0 mt-0.5 flex list-none flex-col gap-0.5 p-0">
           {sessions.map((s) => <SessionRow key={rowKey(s)} session={s} pinned={pinned(s)} shown={shownAsPane(s)} onPin={() => onPin(s)} onOpen={() => onOpen(s)} onMove={onMove ? (from, after) => onMove(from, rowKey(s), after) : undefined} />)}
         </ul>
       )}
@@ -409,12 +409,32 @@ function SessionMark({ session: s, size = 20 }: { session: Pick<OverviewSession,
   return <WhoMark who={s.kind === 'brain' ? 'brain' : `${s.kind}:${s.id}`} emoji={s.emoji} color={s.color} size={size} />;
 }
 
-/** How a session is doing: a breathing dot while it works, ! when it needs you, "ended" for a finished terminal. */
-function SessionStatus({ session: s }: { session: OverviewSession }) {
-  if (s.status === 'working') return <span className="session-status inline-flex size-4 flex-none items-center justify-center" title="Working" aria-label="Working"><span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" /></span>;
-  if (s.status === 'needs-you') return <span className="session-status grid size-4 flex-none place-items-center rounded-full bg-amber/15 text-[10.5px] font-bold text-amber" title={s.why || 'Needs you'} aria-label={`Needs you${s.why ? `: ${s.why}` : ''}`}>!</span>;
-  if (s.ended) return <span className="session-status flex-none text-[11px] text-faint" title={s.why}>ended</span>;
-  return null;
+/** A row's mark: the agent's emoji on a tint of its colour (an icon for the rest), with how it is doing on its
+ *  corner: a breathing dot while it works, amber when it needs you. */
+function SessionAvatar({ session: s }: { session: OverviewSession }) {
+  const ico = s.kind === 'brain' ? 'brain' : s.kind === 'team' ? 'users' : s.kind === 'terminal' ? 'terminal' : s.kind === 'task' ? 'kanban' : 'bot';
+  const tint = s.kind === 'agent' && s.color ? { background: `color-mix(in srgb, ${s.color} 16%, var(--color-panel-2))`, borderColor: `color-mix(in srgb, ${s.color} 35%, var(--color-line))` } : undefined;
+  return (
+    <span className="relative flex-none">
+      <span aria-hidden="true" className="grid size-8 place-items-center rounded-[9px] border border-line bg-panel-2 text-[17px] leading-none text-dim" style={tint}>
+        {s.kind === 'agent' && s.emoji ? s.emoji : <Icon name={ico} size={15} />}
+      </span>
+      {s.status === 'working' ? (
+        <span className="session-status absolute -right-0.5 -bottom-0.5 grid size-2.5 place-items-center rounded-full bg-panel" title="Working" aria-label="Working"><span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" /></span>
+      ) : s.status === 'needs-you' ? (
+        <span className="session-status absolute -right-0.5 -bottom-0.5 grid size-2.5 place-items-center rounded-full bg-panel" title={s.why || 'Needs you'} aria-label={`Needs you${s.why ? `: ${s.why}` : ''}`}><span className="size-1.5 rounded-full bg-amber" /></span>
+      ) : null}
+    </span>
+  );
+}
+
+const KIND_LABEL: Record<OverviewSession['kind'], string> = { agent: 'Agent', team: 'Team', brain: 'Brain', terminal: 'Terminal', task: 'Task' };
+/** A row's second line: what needs you, that it works, or what it is and when it last changed. */
+function SessionLine({ session: s }: { session: OverviewSession }) {
+  if (s.status === 'needs-you') return <span className="truncate text-amber">{s.why || 'Needs you'}</span>;
+  if (s.status === 'working') return <span className="truncate text-accent">Working…</span>;
+  const what = s.kind === 'agent' ? (s.engine && ENGINE_LABEL[s.engine]) || 'Agent' : KIND_LABEL[s.kind];
+  return <span className="truncate">{[what, s.ended ? 'ended' : '', ago(s.updatedAt)].filter(Boolean).join(' · ')}</span>;
 }
 
 const ROW_DRAG = 'text/x-overview-session';
@@ -448,15 +468,19 @@ function SessionRow({ session: s, pinned, shown, onPin, onOpen, onMove }: { sess
       }
     : {};
   return (
-    <li {...drag} className={`group relative flex items-center gap-2 rounded-ctl pr-1.5 pl-4 hover:bg-ink/4 ${shown ? 'bg-ink/4' : ''} ${onMove ? 'cursor-grab' : ''} ${over === 'before' ? 'shadow-[inset_0_2px_0_var(--color-accent)]' : over === 'after' ? 'shadow-[inset_0_-2px_0_var(--color-accent)]' : ''}`}>
-      <button type="button" className="session-open flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent py-1.5 text-left text-[13px] text-ink" title={s.why || (s.updatedAt ? `Last change ${ago(s.updatedAt)}` : '')} aria-current={shown ? 'true' : undefined} onClick={onOpen}>
-        <SessionMark session={s} />
-        <span className="session-name min-w-0 flex-1 truncate">{label(s)}</span>
+    <li {...drag} className={`group relative flex items-center gap-1 rounded-box pr-1.5 pl-2 [transition:background-color_0.15s] hover:bg-ink/5 ${shown ? 'bg-ink/4' : ''} ${onMove ? 'cursor-grab' : ''} ${over === 'before' ? 'shadow-[inset_0_2px_0_var(--color-accent)]' : over === 'after' ? 'shadow-[inset_0_-2px_0_var(--color-accent)]' : ''}`}>
+      {/* (open on the strip: a line of the accent at its left) */}
+      {shown ? <span aria-hidden="true" className="absolute top-2.5 bottom-2.5 left-0 w-0.5 rounded-full bg-accent" /> : null}
+      <button type="button" className="session-open flex min-w-0 flex-1 cursor-pointer items-center gap-3 border-0 bg-transparent py-2 text-left" title={s.why || (s.updatedAt ? `Last change ${ago(s.updatedAt)}` : '')} aria-current={shown ? 'true' : undefined} onClick={onOpen}>
+        <SessionAvatar session={s} />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="session-name truncate text-[13.5px] leading-5 font-medium text-ink">{label(s)}</span>
+          <span className="flex min-w-0 text-[11.5px] leading-4 text-faint"><SessionLine session={s} /></span>
+        </span>
       </button>
       <IconButton variant="plain" className={`size-6! flex-none ${pinned ? 'text-accent' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}`} aria-label={pinned ? `Unpin ${label(s)}` : `Pin ${label(s)}`} aria-pressed={pinned} title={pinned ? 'Unpin' : 'Pin to the top'} onClick={onPin}>
         <Icon name="star" size={12} />
       </IconButton>
-      <SessionStatus session={s} />
     </li>
   );
 }
@@ -534,7 +558,7 @@ function TasksPanel({ scope, data }: { scope: string; data: OverviewData }) {
                   {STATUSES.find((x) => x.value === status)!.label}
                   <span className="font-normal text-faint">{list.length}</span>
                 </h3>
-                <ul className="m-0 flex list-none flex-col p-0">
+                <ul className="m-0 mt-0.5 flex list-none flex-col gap-0.5 p-0">
                   {list.map((t) => (
                     <li key={`${t.projectId}/${t.id}`}>
                       <a href={taskHref(t)} className="flex items-center gap-2 rounded-ctl px-2 py-1.5 text-[13px] text-ink no-underline hover:bg-ink/4">
@@ -744,8 +768,8 @@ function Strip({ layout, change, projects, active, onNextNeeding }: { layout: St
     ) : null;
 
   return (
-    <div className="relative flex min-h-0 flex-1">
-      <div ref={scroller} className="strip flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
+    <div className="relative flex min-h-0 min-w-0 flex-1">
+      <div ref={scroller} className="strip flex min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
         {layout.columns.map((c, i) => (
           <StripColumnView
             key={paneKey(c.panes[0])}
@@ -955,5 +979,7 @@ function PaneBody({ paneRef: ref, foreign, projectName, change }: { paneRef: Pan
 }
 
 export const flush = true;
+// (the sidebar folds to its icons: room for one more pane)
+export const slimNav = true;
 export const title = () => 'Overview';
 export const { render, unmount } = reactPage(() => <OverviewPage />);

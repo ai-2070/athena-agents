@@ -3,7 +3,7 @@
 // React's hot swap would otherwise refuse: it only swaps files that export nothing but components.
 
 /** What the router reads from a page module (View in web/app.ts). */
-export const VIEW_EXPORTS = ['render', 'unmount', 'onEvent', 'title', 'flush', 'station'] as const;
+export const VIEW_EXPORTS = ['render', 'unmount', 'onEvent', 'title', 'flush', 'station', 'slimNav'] as const;
 
 // The pages: each one says so as it runs (the line scripts/vite-dev.ts adds to it, viewMark), so which files are
 // pages is decided in one place
