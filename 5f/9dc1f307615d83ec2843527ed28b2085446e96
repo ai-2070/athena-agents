@@ -1,0 +1,23 @@
+scripts/sync.ts
+  s_817535cca0863c::t_8fd7bc4f68e6c6 7-8,31-34,36,68-94,102-113
+package.json
+  s_817535cca0863c::t_8fd7bc4f68e6c6 42
+AGENTS.md
+  s_817535cca0863c::t_8fd7bc4f68e6c6 23-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5f9dc1f307615d83ec2843527ed28b2085446e96",
+  "prompts": {},
+  "sessions": {
+    "s_817535cca0863c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15b5e9b2-d931-4572-b04a-53e45f3810d3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
