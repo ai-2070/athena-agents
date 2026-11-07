@@ -154,12 +154,25 @@ function allowedRoots(agent: ToolAgent, write = false): string[] {
 }
 
 // read_document: what read_file may read, for an agent that reads files (the Files tools, or an engine's own); for
-// one that doesn't, only what it was handed: attached files and its knowledge.
+// one that doesn't, only what it was handed: its knowledge, and the files attached to messages in its own chats
+// (not everything attached anywhere in the project).
 function documentRoots(agent: ToolAgent): string[] {
   // (a stand-in, like a workflow, may carry no engine: its saved agent's counts)
   if (hasOwnFileTools(agent.engine ?? agentStore.get(agent.id)?.engine) || (agent.toolGroups || []).includes('files')) return allowedRoots(agent);
+  return [...kb.knowledgeRoots(agent), ...handedFiles(agent)];
+}
+
+// The files and folders attached to messages in an agent's chats in this project, while they are still in uploads/.
+function handedFiles(agent: ToolAgent): string[] {
   const uploads = safeUploadsRoot();
-  return [...kb.knowledgeRoots(agent), ...(uploads ? [uploads] : [])];
+  if (!uploads) return [];
+  let all: string[];
+  try {
+    all = chats.all(agent.id).flatMap((chat) => chat.items.flatMap((item) => ((item.type === 'user' || item.type === 'steer') && item.attachments) || []));
+  } catch {
+    return [];
+  }
+  return [...new Set(all)].filter((p) => insideRoots(p, [uploads]));
 }
 
 // abs: the path as asked (for messages). real: where it really is, links followed; use it for the file

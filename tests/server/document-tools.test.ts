@@ -1,11 +1,12 @@
 // Agents read documents: read_file gives a document's text, read_document does for every engine, and an agent without
-// the Files tools reads only what it was handed.
+// the Files tools reads only what it was handed (its knowledge, and what was attached in its own chats).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { callTool, toolDefs } from '../../server/tools.ts';
 import { newBatch } from '../../server/uploads.ts';
+import { chats } from '../../server/store.ts';
 import type { ToolAgent } from '../../server/tools.ts';
 import { docx, pdf, pptx } from './fixtures/documents.ts';
 
@@ -51,13 +52,30 @@ describe('read_document', () => {
     expect((await callTool(agent, 'read_document', { path: workspace })).text).toContain('is a folder');
   });
 
-  it('reads only attachments and knowledge for an agent without the Files tools', async () => {
-    const { agent, workspace } = setup({ engine: 'eve' });
+  it('reads only what it was handed for an agent without the Files tools', async () => {
+    const { agent, workspace } = setup({ id: 'handed-agent', engine: 'eve' });
     const { dir } = newBatch();
-    fs.writeFileSync(path.join(dir, 'deck.pptx'), pptx([['Launch plan']]));
-    const attached = await callTool(agent, 'read_document', { path: path.join(dir, 'deck.pptx') });
+    const deck = path.join(dir, 'deck.pptx');
+    fs.writeFileSync(deck, pptx([['Launch plan']]));
+    // attached in another agent's chat, in the same project: not this agent's to read
+    const other = path.join(dir, 'salaries.docx');
+    fs.writeFileSync(other, docx('<w:p><w:r><w:t>Pay review</w:t></w:r></w:p>'));
+    const theirs = chats.create('someone-else');
+    theirs.items.push({ type: 'user', text: 'Look', attachments: [other] });
+    chats.save(theirs);
+    expect((await callTool(agent, 'read_document', { path: other })).text).toContain('outside the folders');
+    const mine = chats.create(agent.id);
+    mine.items.push({ type: 'user', text: 'The deck', attachments: [deck] });
+    chats.save(mine);
+    const attached = await callTool(agent, 'read_document', { path: deck });
     expect(attached.text).toContain('PowerPoint, 1 slide');
     expect(attached.text).toContain('Launch plan');
+    // (a folder attached: the files in it too)
+    const folder = newBatch().dir;
+    fs.writeFileSync(path.join(folder, 'notes.pdf'), pdf('In the folder'));
+    mine.items.push({ type: 'steer', steerId: 's1', text: 'and these', attachments: [folder + path.sep] });
+    chats.save(mine);
+    expect((await callTool(agent, 'read_document', { path: path.join(folder, 'notes.pdf') })).text).toContain('In the folder');
     const own = await callTool(agent, 'read_document', { path: path.join(workspace, 'contract.pdf') });
     expect(own.isError).toBe(true);
     expect(own.text).toContain('outside the folders');
