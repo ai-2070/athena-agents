@@ -40,8 +40,9 @@ function sh(cmd: string[], cwd = root): void {
 // ---------- the server, bundled ----------
 async function bundleServer(): Promise<void> {
   const result = await Bun.build({
-    // the MCP bridge is its own entry: agents' CLIs start it as a separate process
-    entrypoints: [path.join(root, 'server', 'index.ts'), path.join(root, 'server', 'mcp-bridge.ts')],
+    // the MCP bridge is its own entry: agents' CLIs start it as a separate process. So is the PDF reader, with
+    // pdf.js inside it: it runs in a thread of its own (server/documents.ts)
+    entrypoints: [path.join(root, 'server', 'index.ts'), path.join(root, 'server', 'mcp-bridge.ts'), path.join(root, 'server', 'pdfworker.ts')],
     outdir: path.join(stage, 'server'),
     target: 'bun',
     format: 'esm',

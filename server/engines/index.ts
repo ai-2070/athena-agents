@@ -10,7 +10,7 @@ import { workspaceOf, toolsForAgent } from '../tools.ts';
 import { worldPrompt } from '../voxel/tools.ts';
 import { skillsPrompt } from '../skills.ts';
 import { accountsPrompt, teamWorkServers } from '../mcp.ts';
-import { withAttachments, attachmentNames } from '../uploads.ts';
+import { withAttachmentsRead, attachmentNames } from '../uploads.ts';
 import * as eve from './eve.ts';
 import * as claude from './claude.ts';
 import * as hermes from './hermes.ts';
@@ -521,8 +521,6 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
   const send = (event: RunEvent) => emit('run', { runId, agentId: agent.id, chatId: chat.id, projectId: entry.projectId, event });
   send({ kind: 'start', text, from, ...(attachments.length ? { attachments } : {}) });
   log('run', `${agent.name} started: ${(text || attachmentNames(attachments)).slice(0, 120)}`, { agentId: agent.id, chatId: chat.id });
-  // API models can't open files without the Files tools: small text files go along in full
-  const prompt = withAttachments(text, attachments, { inline: engineCapabilities(agent.engine).inlineAttachmentText ? 24000 : 0 });
 
   let current: ChatItemOf<'assistant'> | null = null; // assistant item being streamed
   // the engine has started on the message (written or called a tool): its own session has it
@@ -605,6 +603,10 @@ export function startRun(agent: Agent, chat: Chat, text: string, { depth = 0, fr
       chat.memoryAt = memoryAt;
       // (prompt: the message with its attachments, as the engine gets it)
       const seeded = async () => {
+        // API models can't open files without the Files tools: small text files and documents' text go along
+        // (reading a document can take a while: Stop stops it)
+        const prompt = await withAttachmentsRead(text, attachments, { inline: engineCapabilities(agent.engine).inlineAttachmentText ? 24000 : 0, rest: 'read_document', signal: controller.signal });
+        controller.signal.throwIfAborted();
         if (!cli) return prompt;
         const window = await contextInfo.contextWindow(agent, chat);
         const input = chat.reseed ? contextInfo.seedPrompt(chat.items, prompt, window, systemPrompt)
