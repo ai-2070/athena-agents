@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { agents, chats, withProject } from '../store.ts';
 import { readExecution } from '../execution.ts';
-import { cleanAttachments, safeUploadsRoot, withAttachmentsRead } from '../uploads.ts';
-import { DocumentError, documentHasText, readDocumentFile } from '../documents.ts';
+import { cleanAttachments, safeUploadsRoot, withAttachmentsReadWhole } from '../uploads.ts';
+import { isDocumentName } from '../documents.ts';
 import { estimateTokens, stopMark } from '../context.ts';
 import { listFiles, realTarget, isInside } from '../util.ts';
 import { privateDataPath } from '../private.ts';
@@ -85,17 +85,10 @@ function messageParts(receipt: ExecutionRun): Promise<EveMessagePart[]> {
 }
 
 // PDF, Word, Excel and PowerPoint files go as their text, in the message: compatible APIs take no Office files and
-// many no PDFs, and a PDF's pages cost far more than its text. A PDF with no text (a scan) still goes as itself, for
-// a model that can see its pages. One that can't be read isn't sent either (the message says why).
-async function sentAsText(file: string): Promise<boolean> {
-  try {
-    const read = await readDocumentFile(file);
-    return !!read && (read.kind !== 'pdf' || documentHasText(read));
-  } catch (e) {
-    if (e instanceof DocumentError) return true;
-    throw e;
-  }
-}
+// many no PDFs, and a PDF's pages cost far more than its text. Only a document whose text went along whole (or why it
+// can't be read) is left out as a file. A PDF that didn't fit, or has no text (a scan), still goes as itself; an
+// Office file never does, and the message points to read_document for what isn't there.
+const officeFile = (file: string) => isDocumentName(file) && !/\.pdf$/i.test(file);
 
 /** A message for Eve: its text (small text files and documents' text inline) and the attached files' bytes. */
 export async function eveMessage(text: string, saved: readonly string[]): Promise<EveMessagePart[]> {
@@ -103,13 +96,14 @@ export async function eveMessage(text: string, saved: readonly string[]): Promis
   if (attachments.length !== saved.length) throw new Error('An attached file is missing or outside this project. Attach it again before continuing.');
   const root = safeUploadsRoot();
   const realRoot = root && realTarget(root);
-  const parts: EveMessagePart[] = [{ type: 'text', text: (await withAttachmentsRead(text, attachments, { inline: 24000 })) || 'Please examine the attached files.' }];
+  const read = await withAttachmentsReadWhole(text, attachments, { inline: 24000, rest: 'read_document' });
+  const parts: EveMessagePart[] = [{ type: 'text', text: read.text || 'Please examine the attached files.' }];
   let total = 0;
   for (const attachment of attachments) {
     const target = realTarget(attachment);
     if (!realRoot || !target || !isInside(realRoot, target)) throw new Error('The attachment no longer belongs to this project.');
     const stat = fs.statSync(target);
-    if (stat.isDirectory() || (await sentAsText(target))) continue;
+    if (stat.isDirectory() || read.whole.has(attachment) || officeFile(target)) continue;
     if (stat.size > MAX_FILE || total + stat.size > MAX_TOTAL) throw new Error('Eve accepts up to 16 MB per file and 24 MB per turn. Use smaller attachments or the file tools.');
     const bytes = fs.readFileSync(target);
     if (bytes.length > MAX_FILE || total + bytes.length > MAX_TOTAL) throw new Error('The attached file grew too large. Attach a smaller copy.');

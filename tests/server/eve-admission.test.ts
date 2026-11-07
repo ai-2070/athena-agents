@@ -9,7 +9,7 @@ import { admitExecution, updateExecution } from '../../server/execution.ts';
 import { newBatch } from '../../server/uploads.ts';
 import { privateDataPath } from '../../server/private.ts';
 import { writeJSON } from '../../server/util.ts';
-import { admissionHistory, messageTokens, prepareAdmission, readAdmission, submitAdmission, validAdmission } from '../../server/eve/admission.ts';
+import { admissionHistory, eveMessage, messageTokens, prepareAdmission, readAdmission, submitAdmission, validAdmission } from '../../server/eve/admission.ts';
 import { readBinding, readRun, recordAdmissionReceipt, settleRun } from '../../server/eve/state.ts';
 import { prepareEveRecovery, stopEveRun } from '../../server/eve/recovery.ts';
 import { eveRuntime } from '../../server/eve/runtime.ts';
@@ -176,6 +176,19 @@ describe('saved Eve input admission', () => {
     expect(text).toContain('probably a scan');
     // (compatible APIs take no Word files, and the text is enough for a PDF that has some)
     expect(message.flatMap((part) => (part.type === 'file' ? [[part.filename, part.mediaType]] : []))).toEqual([['scan.pdf', 'application/pdf']]);
+  });
+
+  it("still sends a PDF whose text didn't all fit, and points to read_document for the rest", async () => {
+    const dir = newBatch().dir;
+    const files = { 'long.pdf': pdf(...Array.from({ length: 300 }, () => 'Clause '.repeat(12))), 'after.pdf': pdf('Signed on 3 May'), 'later.docx': docx('<w:p><w:r><w:t>Ship by Friday</w:t></w:r></w:p>') };
+    for (const [name, bytes] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), bytes);
+    const message = await eveMessage('Read these', Object.keys(files).map((name) => path.join(dir, name)));
+    const text = message.find((part): part is Extract<EveMessagePart, { type: 'text' }> => part.type === 'text')?.text ?? '';
+    expect(text).toContain('--- long.pdf (start) ---');
+    expect(text).not.toContain('Signed on 3 May');
+    expect(text).toContain('read it with read_document');
+    // the PDFs go as themselves (the first only started, the second not there at all); a Word file never does
+    expect(message.flatMap((part) => (part.type === 'file' ? [part.filename] : []))).toEqual(['long.pdf', 'after.pdf']);
   });
 
   it('retries a lost create receipt with the same operation key and saved file bytes', async () => {

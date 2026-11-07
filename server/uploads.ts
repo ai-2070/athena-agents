@@ -9,7 +9,7 @@ import { pipeline } from 'node:stream/promises';
 import type http from 'node:http';
 import { ensureDir, exists, isInside, realTarget } from './util.ts';
 import { ensureBrain } from './projects.ts';
-import { DocumentError, documentAbout, isDocumentName, readDocumentFile } from './documents.ts';
+import { DocumentError, documentAbout, documentHasText, isDocumentName, readDocumentFile } from './documents.ts';
 import type { Project, UploadedFile } from '../shared/types.ts';
 
 const MAX_ATTACHMENTS = 50;
@@ -303,45 +303,81 @@ function listAttachments(paths: string[]): Listed {
 
 /** Documents read at most for one message (each can take a while). */
 const DOCUMENTS_READ = 10;
+/** How long reading one message's documents may take in all; the ones after are listed only. */
+const DOCUMENTS_TIME_MS = 60_000;
+
+interface DocumentBody {
+  body: string;
+  /** Nothing more is in the file than this text (or why it can't be read): a scan's pages are. */
+  complete: boolean;
+}
+
+export interface AttachmentOptions {
+  inline?: number;
+  heading?: string;
+  /** The tool that reads a document whose text is cut short or left out (the message says to use it). */
+  rest?: string;
+  /** Stops reading the documents (a run's Stop button). */
+  signal?: AbortSignal;
+}
 
 // The text of the attached documents that fit in inline characters (after the text files before them): what it is,
 // then its text, or why it can't be read. By path.
-async function readDocuments(readable: Readable[], inline: number): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
+async function readDocuments(readable: Readable[], inline: number, signal?: AbortSignal): Promise<Map<string, DocumentBody>> {
+  const out = new Map<string, DocumentBody>();
+  const until = Date.now() + DOCUMENTS_TIME_MS;
   let left = inline;
   for (const r of readable) {
-    if (left < 300 || out.size >= DOCUMENTS_READ) break;
+    signal?.throwIfAborted();
+    if (left < 300 || out.size >= DOCUMENTS_READ || Date.now() > until - 1000) break;
     // (a text file goes along as renderAttachments sends it: under 2 MB, as much as is left)
     if (r.kind === 'text') {
       if (r.size <= 2_000_000) left -= Math.min(r.size, left);
       continue;
     }
-    let body: string;
+    let entry: DocumentBody;
     try {
-      const read = await readDocumentFile(r.abs);
+      const read = await readDocumentFile(r.abs, { signal, timeoutMs: until - Date.now() });
       if (!read) continue;
       const notes = read.notes.map((n) => `[${n}]`).join('\n');
-      body = `(${documentAbout(read)})${notes ? `\n${notes}` : ''}\n${read.text.trim() || '(no text in it)'}`;
+      entry = { body: `(${documentAbout(read)})${notes ? `\n${notes}` : ''}\n${read.text.trim() || '(no text in it)'}`, complete: documentHasText(read) };
     } catch (e) {
+      signal?.throwIfAborted();
       if (!(e instanceof DocumentError)) continue;
-      body = `(can't be read: ${e.message})`;
+      entry = { body: `(can't be read: ${e.message})`, complete: e.lasting };
     }
-    out.set(r.abs, body);
-    left -= Math.min(body.length, left);
+    out.set(r.abs, entry);
+    left -= Math.min(entry.body.length, left);
   }
   return out;
 }
 
-function renderAttachments({ lines, readable }: Listed, { inline = 0, heading = 'Attached files', documents }: { inline?: number; heading?: string; documents?: ReadonlyMap<string, string> }): string {
-  if (!lines.length) return '';
+interface Rendered {
+  text: string;
+  /** The documents whose text went along whole, or why they can't be read: their bytes would add nothing. */
+  whole: Set<string>;
+}
+
+function renderAttachments({ lines, readable }: Listed, { inline = 0, heading = 'Attached files', rest }: AttachmentOptions, documents?: ReadonlyMap<string, DocumentBody>): Rendered {
+  const whole = new Set<string>();
+  if (!lines.length) return { text: '', whole };
   let out = `[${heading}: saved in the project's Brain folder. Open them with your file tools when you need them.]\n${lines.join('\n')}`;
   let left = inline;
+  // a document with text to read that isn't all here (cut short, or never read)
+  let more = false;
   for (const t of readable) {
-    if (left < 300) break;
+    const doc = t.kind === 'document' ? documents?.get(t.abs) : undefined;
+    if (left < 300) {
+      if (t.kind === 'document' && (!doc || doc.complete)) more = true;
+      continue;
+    }
     let body = '';
     if (t.kind === 'document') {
-      body = documents?.get(t.abs) ?? '';
-      if (!body) continue;
+      if (!doc) {
+        more = true;
+        continue;
+      }
+      body = doc.body;
     } else {
       if (t.size > 2_000_000) continue;
       try {
@@ -355,23 +391,31 @@ function renderAttachments({ lines, readable }: Listed, { inline = 0, heading = 
     const part = body.slice(0, left);
     out += `\n\n--- ${t.label}${part.length < body.length ? ' (start)' : ''} ---\n${part}`;
     left -= part.length;
+    if (doc && part.length === body.length && doc.complete) whole.add(t.abs);
+    else if (doc && doc.complete) more = true;
   }
-  return out;
+  if (more && rest && documents) out += `\n\n[A document's text that is cut short or not shown here: read it with ${rest} (its path is in the list above).]`;
+  return { text: out, whole };
 }
 
 // The block added to a message: where each attached file or folder is, and (with inline > 0)
 // the text of small text files, for models that can't open files themselves.
-export function describeAttachments(paths: string[] | undefined, opts: { inline?: number; heading?: string } = {}): string {
+export function describeAttachments(paths: string[] | undefined, opts: AttachmentOptions = {}): string {
   if (!paths?.length) return '';
-  return renderAttachments(listAttachments(paths), opts);
+  return renderAttachments(listAttachments(paths), opts).text;
 }
 
 /** The same block, with the text of attached PDF, Word, Excel and PowerPoint files going along too (within inline). */
-export async function describeAttachmentsRead(paths: string[] | undefined, opts: { inline?: number; heading?: string } = {}): Promise<string> {
-  if (!paths?.length) return '';
+export async function describeAttachmentsRead(paths: string[] | undefined, opts: AttachmentOptions = {}): Promise<string> {
+  return (await readAttachments(paths, opts)).text;
+}
+
+/** The block with the documents' text, and which documents went along whole. */
+export async function readAttachments(paths: string[] | undefined, opts: AttachmentOptions = {}): Promise<Rendered> {
+  if (!paths?.length) return { text: '', whole: new Set() };
   const listed = listAttachments(paths);
-  const documents = opts.inline ? await readDocuments(listed.readable, opts.inline) : undefined;
-  return renderAttachments(listed, { ...opts, documents });
+  const documents = opts.inline ? await readDocuments(listed.readable, opts.inline, opts.signal) : undefined;
+  return renderAttachments(listed, opts, documents);
 }
 
 // The text an agent gets: what you wrote plus where the attachments are.
@@ -380,8 +424,14 @@ export function withAttachments(text: string, paths: string[] | undefined, opts:
 }
 
 /** The same, with the attached documents' text going along (describeAttachmentsRead). */
-export async function withAttachmentsRead(text: string, paths: string[] | undefined, opts: { inline?: number } = {}): Promise<string> {
+export async function withAttachmentsRead(text: string, paths: string[] | undefined, opts: AttachmentOptions = {}): Promise<string> {
   return joinNote(text, await describeAttachmentsRead(paths, opts));
+}
+
+/** The message and which documents went along whole (readAttachments). */
+export async function withAttachmentsReadWhole(text: string, paths: string[] | undefined, opts: AttachmentOptions = {}): Promise<Rendered> {
+  const read = await readAttachments(paths, opts);
+  return { text: joinNote(text, read.text), whole: read.whole };
 }
 
 const joinNote = (text: string, note: string) => (!note ? text : text.trim() ? `${text}\n\n${note}` : `Have a look at what I attached.\n\n${note}`);

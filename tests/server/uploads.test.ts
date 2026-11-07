@@ -5,7 +5,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import type http from 'node:http';
 import { describe, expect, it } from 'vitest';
-import { cleanAttachments, cleanName, describeAttachments, describeAttachmentsRead, newBatch, receive, receiveSource, cleanOwnedBatch, removeUpload, safeParts, safeUploadsRoot, uploadsRoot, withAttachments, attachmentNames } from '../../server/uploads.ts';
+import { cleanAttachments, cleanName, describeAttachments, describeAttachmentsRead, readAttachments, newBatch, receive, receiveSource, cleanOwnedBatch, removeUpload, safeParts, safeUploadsRoot, uploadsRoot, withAttachments, attachmentNames } from '../../server/uploads.ts';
 import { activeProject, setActiveProject } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { callTool } from '../../server/tools.ts';
@@ -152,6 +152,28 @@ describe('telling the agent', () => {
     expect(note).toContain('--- totals.xlsx (start) ---\n(Excel workbook, sheet: Totals)');
     const inlined = note.slice(note.indexOf('--- notes.md'));
     expect(inlined.length).toBeLessThan(1500 + 200);
+  });
+
+  it("says which documents went along whole, and where to read the rest of the others", async () => {
+    const { batch } = newBatch();
+    const short = await receive(body(Buffer.from(docx('<w:p><w:r><w:t>Ship by Friday</w:t></w:r></w:p>'))), batch, 'short.docx');
+    const long = await receive(body(Buffer.from(docx(`<w:p><w:r><w:t>${'word '.repeat(800)}</w:t></w:r></w:p>`))), batch, 'long.docx');
+    const scan = await receive(body(Buffer.from(pdf(''))), batch, 'scan.pdf');
+    const read = await readAttachments([short.path, scan.path, long.path], { inline: 2000, rest: 'read_document' });
+    expect([...read.whole]).toEqual([short.path]);
+    expect(read.text).toContain('--- long.docx (start) ---');
+    expect(read.text).toContain('read it with read_document');
+    // all there: nothing to point to
+    const all = await readAttachments([short.path], { inline: 2000, rest: 'read_document' });
+    expect(all.text).not.toContain('read_document');
+  });
+
+  it('stops reading documents when told to', async () => {
+    const { batch } = newBatch();
+    const contract = await receive(body(Buffer.from(pdf('Signed on 3 May, again'))), batch, 'contract-2.pdf');
+    const stop = new AbortController();
+    stop.abort(new Error('Stopped.'));
+    await expect(describeAttachmentsRead([contract.path], { inline: 5000, signal: stop.signal })).rejects.toThrow('Stopped.');
   });
 
   it('adds the list to the message, and says to look when there is no text', async () => {
