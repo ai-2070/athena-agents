@@ -727,7 +727,7 @@ function DockList({ settings }: { settings: AppState['settings'] | undefined }) 
             <p className="mt-1.5 mb-0 text-[13.5px] leading-[1.55] text-dim">Ask about the project, or ask for anything to be done. It sees every agent and team, builds teams from the Agent library, and hands work to the right one.</p>
             <div className="mt-5 flex w-full flex-col gap-1.5">
               {SUGGESTIONS.map((s) => (
-                <button key={s} className="dock-suggest" onClick={() => suggest(s)}>
+                <button type="button" key={s} className="dock-suggest" onClick={() => suggest(s)}>
                   {s}
                 </button>
               ))}
@@ -887,6 +887,7 @@ function DockView({ bar }: { bar: HTMLElement }) {
     <>
       {createPortal(
         <button
+          type="button"
           ref={(el) => void (D.launcher = el)}
           className={`dock-launcher glass relative flex items-center gap-2.5 py-2.5 pr-3 pl-3.5 whitespace-nowrap cursor-pointer rounded-full text-ink font-sans text-[14px] font-medium leading-[normal] [transition:transform_0.18s_var(--ease-soft),opacity_0.2s] hover:[transform:translateY(-1px)] in-[.in-chat]:hidden in-[.no-brain-button]:hidden max-md:in-[.nav-open]:hidden ${D.launcherHidden ? ' hidden' : ''}`}
           style={D.launcherFaded ? { opacity: 0 } : undefined}

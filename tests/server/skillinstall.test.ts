@@ -7,7 +7,7 @@ import * as skills from '../../server/skills.ts';
 import { historyOf, restoreVersion } from '../../server/history.ts';
 import { withActor } from '../../server/versions.ts';
 import { ask, clearHistory } from '../../server/overseer.ts';
-import { agents, saveSettings, activeProject, listProjects, saveProjects, setActiveProject, withProject } from '../../server/store.ts';
+import { agents, saveSettings, activeProject, listProjects, saveProjects, setActiveProject } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 
 // the "model" gives the answers queued here
@@ -42,7 +42,7 @@ const repos: Record<string, Record<string, Record<string, string>>> = {
     'feature/x': { 'SKILL.md': '---\nname: Branch skill\ndescription: Use on the branch.\n---\n\nFrom a branch.' },
   },
 };
-let calls: string[] = [];
+const calls: string[] = [];
 // repos whose whole tree GitHub cuts short, and file sizes GitHub reports bigger than they are
 const truncated = new Set(['big/repo']);
 const sizes: Record<string, number> = { 'skills/two/huge.bin': 3 * 1024 * 1024 };

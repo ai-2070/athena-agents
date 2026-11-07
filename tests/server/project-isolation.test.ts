@@ -1,6 +1,5 @@
 // Work that outlives an await stays in the project that started it, and what is kept in memory for a chat
 // (its run, queue, loop, steer, compaction) is by project: a cloned project has the same chat ids.
-import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -26,7 +25,7 @@ let server: http.Server;
 let base = '';
 const held: { release: () => void }[] = [];
 const sent: { role: string; content: unknown }[][] = [];
-let holdModels = false;
+const holdModels = false;
 const modelWaits: (() => void)[] = [];
 let hooks = 0;
 beforeAll(async () => {

@@ -62,7 +62,9 @@ export function projectList<T>(ask: (at: string) => Promise<T[]>, events: readon
   }
 
   function use(id: string | undefined): T[] {
+    // biome-ignore lint/correctness/useHookAtTopLevel: use() is the hook this store hands out
     const sub = useCallback((fn: () => void) => (id ? subscribe(id, fn) : () => {}), [id]);
+    // biome-ignore lint/correctness/useHookAtTopLevel: use() is the hook this store hands out
     return useSyncExternalStore(sub, () => (id ? get(id) : NONE));
   }
 

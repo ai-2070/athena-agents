@@ -14,7 +14,7 @@ vi.mock('../../server/artifacts.ts', () => ({ teamOf: (agentId: string) => (agen
 const { returnPost } = await import('../../server/social.ts');
 
 const draft = (over: Partial<OutboxItem> = {}): OutboxItem => {
-  const it: OutboxItem = { id: 'p1', platform: 'x', accountLabel: '@me', parts: ['First line\nsecond line', 'Part two'], images: ['C:\proj\hero.png'], status: 'pending', agentId: 'a1', agentName: 'Social Writer', teamId: 't1', teamName: 'Social', ...over };
+  const it: OutboxItem = { id: 'p1', platform: 'x', accountLabel: '@me', parts: ['First line\nsecond line', 'Part two'], images: ['C:\\proj\\hero.png'], status: 'pending', agentId: 'a1', agentName: 'Social Writer', teamId: 't1', teamName: 'Social', ...over };
   items.set(it.id, it);
   return it;
 };

@@ -241,6 +241,7 @@ export function rerankBoardTasks(items: unknown): void {
 }
 
 /** Changes one task in its own project and saves it; fn returns false to leave it as it was. */
+// biome-ignore lint/suspicious/noConfusingVoidType: fn may return nothing to keep the change
 export function editBoardTask(projectId: string, id: string, fn: (t: ProjectTask) => boolean | void): BoardTask {
   const p = projectOf(projectId);
   return withProject(p, () => {
@@ -411,7 +412,7 @@ function putTags(f: BoardFile, t: ProjectTask, input: BoardInput, by: string): v
   else delete t.tags;
 }
 const tasksWith = (f: BoardFile, tagId: string) => f.tasks.filter((t) => t.tags?.includes(tagId));
-const useOf = (f: BoardFile, tag: BoardTag): BoardTagUse => ({ ...tag, tasks: tasksWith(f, tag.id).length });
+const tagUse = (f: BoardFile, tag: BoardTag): BoardTagUse => ({ ...tag, tasks: tasksWith(f, tag.id).length });
 
 /** A tag of a project by its id or its name, or null. */
 export function findBoardTag(projectId: string, ref: unknown): BoardTag | null {
@@ -430,7 +431,7 @@ export function addBoardTag(projectId: string, input: TagInput, by = 'you'): Boa
     const f = read();
     const { tag, made } = makeTag(f, input, by);
     if (made) write(f, []);
-    return { ...useOf(f, tag), made };
+    return { ...tagUse(f, tag), made };
   });
 }
 
@@ -453,7 +454,7 @@ export function changeBoardTag(projectId: string, ref: string, input: TagInput):
       else delete tag.emoji;
     }
     write(f, tasksWith(f, tag.id).map((t) => t.id));
-    return useOf(f, tag);
+    return tagUse(f, tag);
   });
 }
 

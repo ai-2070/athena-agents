@@ -21,7 +21,7 @@ const draw = async (items: ChatItem[]) => {
   const el = document.createElement('div');
   document.body.append(el);
   root = createRoot(el);
-  await act(async () => root!.render(<>{toUIMessages(items).map((m) => <MessageView key={m.id} m={m} variant="full" busy={false} streaming={false} dim={false} onSend={() => {}} />)}</>));
+  await act(async () => root!.render(toUIMessages(items).map((m) => <MessageView key={m.id} m={m} variant="full" busy={false} streaming={false} dim={false} onSend={() => {}} />)));
   return el;
 };
 

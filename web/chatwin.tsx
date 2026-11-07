@@ -761,6 +761,7 @@ function ChatWindows() {
         const label = named ? `${tabInfo(open, busyAgents).label}${w.tabs.length > 1 ? ` +${w.tabs.length - 1}` : ''}` : `${w.tabs.length} chat${w.tabs.length === 1 ? '' : 's'}`;
         return createPortal(
           <button
+            type="button"
             ref={(el) => void (w.pill = el)}
             // (in the bottom bar, next to Ask the Brain, it sits in line there)
             className={`cw-pill glass fixed z-44 right-[84px] bottom-[22px] flex items-center gap-2.5 py-2.5 px-4 rounded-full text-ink cursor-pointer font-sans text-[13px] font-medium leading-[normal] animate-[cw-pop_.25s_ease-out] in-[.bottom-bar]:relative in-[.bottom-bar]:right-auto in-[.bottom-bar]:bottom-auto in-[.bottom-bar]:z-auto in-[.bottom-bar]:animate-none in-[.bottom-bar]:hover:[transform:translateY(-1px)] ${w.tabs.length && (w.min || w.shrinking) ? '' : ' hidden'}`}
@@ -868,6 +869,7 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
                     {busy ? <Dot tone="busy" aria-label="working" /> : null}
                   </Tabs.Tab>
                   <button
+                    type="button"
                     className={`cw-x text-faint cursor-pointer px-0.5 text-[11px] [transition:opacity_.15s,color_.15s] hover:text-ink ${on ? 'opacity-100' : 'opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100'}`}
                     title="Close" aria-label={`Close ${label}`} onClick={() => closeTab(t.key)}>
                     <Icon name="x" size={14} />

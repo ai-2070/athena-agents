@@ -15,8 +15,9 @@ state is plain JSON under `data/` (git-ignored). Mainly used on Windows; CI also
 bun install
 bun run dev          # hot reload for the page (Vite), restart the server on change; --no-hot: the bundle only
 bun run typecheck    # tsc for server/ and web/ (two separate tsconfigs)
+bun run lint         # Biome (lint only, the formatter is off); lint:fix applies its safe fixes
 bun run test         # Vitest, server + web projects
-bun run check        # typecheck + test: run this before you call a change done
+bun run check        # typecheck + lint + test: run this before you call a change done
 bun run build        # bundle web/ (and its Tailwind CSS) into public/dist
 bun run icons        # regenerate web/icons.ts after adding names in scripts/build-icons.ts
 bun server/index.ts --port 4900 --no-open   # a second instance that won't open a browser
@@ -26,7 +27,7 @@ bun scripts/build-desktop.ts && bun run desktop:smoke   # run the bundled server
 ```
 
 Single test file: `bunx vitest run tests/server/skills.test.ts`.
-CI (`.github/workflows/ci.yml`) runs typecheck, test and build on ubuntu and windows. All three must pass.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, test and build on ubuntu and windows. All four must pass.
 Its "Desktop app" job also stages the desktop app, runs the smoke test and checks the Rust code, and its "Skill scripts"
 job runs the tests of the scripts that come with the skills (`python -m pytest tests/skills`, Python 3.10, after
 `pip install -r tests/skills/requirements.txt`).
@@ -84,6 +85,9 @@ job runs the tests of the scripts that come with the skills (`python -m pytest t
   reads the source; never `` `bg-${x}` ``), and in plain DOM put them in attrs: `h('div', { class: 'flex gap-2' })`.
   Classes that code or tests look up stay as markers. `docs/internal/plans/tailwind.md` has the details.
 - Comments are short and in plain words; explain why, not what. Match the existing style.
+- Lint is Biome (`biome.json`): its recommended rules, minus the ones that fight this code's style (`!`, comma
+  expressions, assignments in conditions). Silence a single finding with `// biome-ignore lint/<group>/<rule>: <why>`
+  (in JSX, `{/* … */}`), never by turning a rule off for one file. React hook dependencies aren't checked yet.
 - The desktop app runs the server bundled into one file. Server imports must bundle with `Bun.build`
   (native modules go in `external` and get copied, like node-pty), and files read relative to `ROOT` must be
   copied in `scripts/build-desktop.ts`. The installed app folder is read-only: write under `DATA` only.

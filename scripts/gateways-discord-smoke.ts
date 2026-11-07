@@ -53,7 +53,7 @@ async function proof(): Promise<void> {
   const input = { id: messageId, channel_id: channel, guild_id: guild, author: { id: actor }, type: 0, content: 'Proof input', mentions: [{ id: bot }], attachments: [] };
   let gatewayOrigin = ''; let fileOrigin = ''; const posts: { payload: Record<string, unknown>; file?: Blob }[] = [];
   const fileInput = { ...input, id: '500000000000000002', content: '', attachments: [{ id: '600000000000000001', filename: 'proof.txt', size: 5, url: 'https://never-fetch.invalid/PRIVATE_URL' }] };
-  let edited = { ...input, content: 'Changed proof input' }; const failures: Error[] = [];
+  const edited = { ...input, content: 'Changed proof input' }; const failures: Error[] = [];
   const server = http.createServer(async (request, response) => {
     try {
       const endpoint = request.url ?? ''; calls.push(endpoint);

@@ -417,7 +417,7 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
         <Ago ts={m.ts} />
         <span className="flex-1 min-w-0" />
         {author ? (
-          <button className="tc-act" title={`Reply to ${author.name}`} aria-label={`Reply to ${author.name}`} onClick={() => onReply(m)}>
+          <button type="button" className="tc-act" title={`Reply to ${author.name}`} aria-label={`Reply to ${author.name}`} onClick={() => onReply(m)}>
             <Icon name="reply" size={13} />
           </button>
         ) : null}
@@ -916,7 +916,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
           <div className="flex items-center gap-2 text-[12.5px] text-ice">
             <Icon name="reply" size={12} />
             {`Replying to ${lastReply.current ? agentOf(lastReply.current.from)?.name || senderName(lastReply.current, (id) => agentOf(id)?.name) : ''}`}
-            <button className="tc-act" aria-label="Don't reply" onClick={() => reply(null)}>
+            <button type="button" className="tc-act" aria-label="Don't reply" onClick={() => reply(null)}>
               <Icon name="x" size={12} />
             </button>
           </div>
@@ -930,6 +930,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
           <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
             {suggest?.opts.map((o, i) => (
               <button
+                type="button"
                 key={`${o.t ? '#' : '@'}${o.label}`}
                 className={`tc-sopt${i === suggest.index ? ' on' : ''}`}
                 role="option"

@@ -6,7 +6,6 @@ import { newAgent } from '../../server/library.ts';
 import { activeProject, chats, saveSettings, workflows } from '../../server/store.ts';
 import { dataPath, readJSON, writeJSON } from '../../server/util.ts';
 import { getThread, postUserMessage, teamMessages, teamState } from '../../server/teams.ts';
-import { estimateTokens } from '../../server/context.ts';
 import type { Team, TeamMessage } from '../../shared/types.ts';
 
 let server: http.Server;

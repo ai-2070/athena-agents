@@ -77,7 +77,7 @@ describe('projectList()', () => {
     }
     await act(async () => root.render(<Pane />));
     await settle();
-    await act(async () => root.render(<></>));
+    await act(async () => root.render(null));
     asked = [];
     await event('things');
     await settle();

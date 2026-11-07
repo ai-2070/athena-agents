@@ -9,7 +9,7 @@ import { rpc } from '../client/rpc.ts';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton, deletedButton } from '../history.tsx';
 import { memoryEditor } from '../memory.tsx';
-import { ChipSet, Field, SearchBox, Segmented, Switch } from '../ui/controls.tsx';
+import { ChipSet, Field, SearchBox, Switch } from '../ui/controls.tsx';
 import { FormSection } from '../ui/formsection.tsx';
 import { buttonClass, chipClass } from '../ui/classes.ts';
 import { Dot, Pill } from '../ui/marks.tsx';

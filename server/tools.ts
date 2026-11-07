@@ -6,7 +6,7 @@ import { HOME, ROOT, IS_WIN, dataPath, ensureDir, run, truncate, truncateMiddle,
 import * as assetLib from './assets.ts';
 import type { AssetSource, AssetKind } from './assets.ts';
 import { mayaScript, houdiniScript, sibling, sbsrenderArgs, openscadArgs, prusaSlicerArgs, nvttArgs, handbrakeArgs, GPU_FIELDS, formatGpus } from './dcc.ts';
-import { agents as agentStore, chats, getSettings, emit, log } from './store.ts';
+import { agents as agentStore, getSettings, emit, log } from './store.ts';
 import { startHandoff, awaitHandoff, awaitHandoffs, listHandoffs, DEFAULT_WAIT_S, MAX_WAIT_S } from './handoffs.ts';
 
 /** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */

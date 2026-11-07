@@ -74,6 +74,7 @@ function DiffView({ older, newer }: { older: string; newer: string }) {
 function VersionRow({ on, title, sub, onclick }: { on: boolean; title: ReactNode; sub: ReactNode; onclick?: () => void }) {
   return (
     <button
+      type="button"
       className={`block w-full cursor-pointer rounded-ctl border px-3.5 py-3 text-left text-ink enabled:hover:bg-panel-2 disabled:cursor-default ${on ? 'border-accent bg-accent/8' : 'border-line bg-transparent'}`}
       onClick={onclick}
       disabled={!onclick}

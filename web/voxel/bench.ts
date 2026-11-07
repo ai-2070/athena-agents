@@ -55,7 +55,7 @@ function box(v: Volume, x0: number, y0: number, z0: number, x1: number, y1: numb
 function cherryTree(v: Volume, x: number, z: number, h: number, seed: number): void {
   // a trunk that leans a little, two branches, then clouds of blossom
   let tx = x;
-  let tz = z;
+  const tz = z;
   for (let y = 0; y < h; y++) {
     if (y > h * 0.4 && hash3(x, y, z, seed) < 0.25) tx += hash3(x, y, z, seed + 1) < 0.5 ? 1 : -1;
     box(v, tx, y, tz, tx + 1, y, tz + 1, M.bark);
@@ -108,7 +108,7 @@ export function benchIsland(radius = 90, voxelSize = 0.25): Volume {
       if (d > edge) continue;
       const t = d / edge;
       // the underside: a rough cone of rock hanging below the island
-      const bottom = -Math.round(4 + depth * Math.pow(1 - t, 0.75) * (0.75 + 0.5 * noise2(x, z, 9, seed + 1)));
+      const bottom = -Math.round(4 + depth * (1 - t) ** 0.75 * (0.75 + 0.5 * noise2(x, z, 9, seed + 1)));
       const pond = Math.hypot(x - R * 0.35, z + R * 0.3) < R * 0.18;
       const top = pond ? -3 : -1;
       for (let y = bottom; y <= top; y++) {

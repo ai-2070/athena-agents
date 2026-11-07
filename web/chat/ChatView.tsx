@@ -101,7 +101,7 @@ export function ChatView(p: ChatViewProps) {
   const app = useAppState();
   const chatIdRef = useRef<string | null>(p.chatId);
   const [chatId, setChatId] = useState<string | null>(p.chatId);
-  const [items, setItems] = useState<ChatItem[]>([]);
+  const [, setItems] = useState<ChatItem[]>([]);
   const [statusText, setStatusText] = useState('');
   const input = useRef<HTMLTextAreaElement>(null);
   // long pasted text, folded into a chip until it is sent
@@ -217,7 +217,6 @@ export function ChatView(p: ChatViewProps) {
       await reload();
       if (chatIdRef.current && state.data?.runs.some((r) => r.chatId === chatIdRef.current && oursRef.current(r.projectId))) await follow();
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // a run starting here from elsewhere, compactions, and runs ending without a stream (missed ones)
@@ -808,7 +807,7 @@ export function ChatView(p: ChatViewProps) {
               {/* a few things to try: each puts its words in the message box */}
               <div className={`mt-7 grid gap-2 text-left ${suggestions(agent).length > 1 ? 'sm:grid-cols-2' : 'mx-auto max-w-[300px]'}`}>
                 {suggestions(agent).map((t) => (
-                  <button key={t} className="group/try flex w-full cursor-pointer items-start gap-2.5 rounded-box border border-line bg-panel px-3.5 py-3 text-left text-[13px] leading-snug text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-[transform,background-color,color,border-color] duration-150 active:scale-[0.98] motion-reduce:transition-none hover:border-line-2 hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
+                  <button type="button" key={t} className="group/try flex w-full cursor-pointer items-start gap-2.5 rounded-box border border-line bg-panel px-3.5 py-3 text-left text-[13px] leading-snug text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-[transform,background-color,color,border-color] duration-150 active:scale-[0.98] motion-reduce:transition-none hover:border-line-2 hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
                     <Dom className="mt-px flex-none text-faint group-hover/try:text-accent" make={() => icon('sparkles', 14)} deps={[]} />
                     <span className="min-w-0 flex-1">{t}</span>
                   </button>

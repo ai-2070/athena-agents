@@ -38,7 +38,8 @@ export const openFile = (path: string, project?: string): void => void attempt((
 
 // ---------- looking files up: one request for everything asked for in the same moment ----------
 const known = new Map<string, { at: number; info: Promise<FileInfo> }>();
-let queue: { path: string; at: string; resolve: (i: FileInfo) => void }[] = [];
+const queue: { path: string; at: string; resolve: (i: FileInfo) => void }[] = [];
+// biome-ignore lint/correctness/noUnusedVariables: read by the ??= below
 let timer: ReturnType<typeof setTimeout> | null = null;
 // a file that isn't there may be written in a moment: ask again after a while
 const MISSING_FOR = 15_000;

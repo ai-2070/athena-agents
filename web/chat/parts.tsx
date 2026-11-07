@@ -62,7 +62,6 @@ export const Dom = memo(
     useEffect(() => {
       const node = make();
       ref.current?.replaceChildren(...(node ? [node] : []));
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, deps);
     return <div ref={ref} className={className} style={className ? undefined : { display: 'contents' }} />;
   },
@@ -72,6 +71,7 @@ export const Dom = memo(
 export const Markdown = memo(function Markdown({ text, className }: { text: string; className: string }) {
   // (md() is marked + DOMPurify, as everywhere in the dashboard)
   const html = useMemo(() => md(text).innerHTML, [text]);
+  // biome-ignore lint/security/noDangerouslySetInnerHtml: md() sanitizes with DOMPurify
   return <div className={`md ${className}`} dangerouslySetInnerHTML={{ __html: html }} />;
 });
 

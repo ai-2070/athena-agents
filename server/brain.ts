@@ -11,7 +11,7 @@ import { effortFor, isEffort } from '../shared/effort.ts';
 import { apiModelInfo, apiRequestOptions, resolveApiProvider } from './apiproviders.ts';
 import { apiErrorMessage } from './apiresponse.ts';
 import type { FetchError } from './util.ts';
-import type { Agent, AgentDraft, BrainModel, BrainRoute, BrainSetting, BranchDesign, BranchMember, Effort, EngineId, SkillDraft, Team, TeamAccess } from '../shared/types.ts';
+import type { Agent, AgentDraft, BrainModel, BrainRoute, BrainSetting, BranchDesign, BranchMember, EngineId, SkillDraft, Team } from '../shared/types.ts';
 
 export type { AgentDraft, BrainModel, BrainRoute, BranchDesign, BranchMember, SkillDraft } from '../shared/types.ts';
 

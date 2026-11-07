@@ -13,7 +13,7 @@ import { readObject, readPrefab, saveWorld, writeObject, writePrefab, worldVoxel
 import { changeWorld, shownWorld } from './link.ts';
 import { ANIM_LIMITS, cleanClip, skinUses } from './characters.ts';
 import { WORLD_LIMITS, cleanPivot, findObject, findPrefab, nesting, ownsObject, pivotOf as pivotFrom, placedCopies, prefabSize, remember, volumesMeta } from './build.ts';
-import type { AnimationClip, LibraryPrefab, PrefabInstance, Vec3, VoxelMaterial, VoxelObjectData, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
+import type { AnimationClip, LibraryPrefab, PrefabInstance, Vec3, VoxelObjectData, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
 
 export type { LibraryPrefab } from '../../shared/types.ts';
 

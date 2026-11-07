@@ -3,7 +3,7 @@
 import { Button } from '../ui/button.tsx';
 import { Dot } from '../ui/marks.tsx';
 import { Plate } from '../ui/surface.tsx';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { attempt, navigate } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
@@ -67,7 +67,7 @@ function TerminalsPage({ asked }: { asked?: string }) {
               <Dot tone={t.exited ? 'off' : 'on'} />
               {t.title}
             </a>
-            <button className="text-faint cursor-pointer px-1 hover:text-red" title="Close" aria-label={`Close ${t.title}`} onClick={() => void close(t.id)}>
+            <button type="button" className="text-faint cursor-pointer px-1 hover:text-red" title="Close" aria-label={`Close ${t.title}`} onClick={() => void close(t.id)}>
               ✕
             </button>
           </div>

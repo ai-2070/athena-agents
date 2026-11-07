@@ -170,7 +170,6 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
     setImagesNow(p.images || []);
     setTitleNow(serverTitle);
     // (fromServer stands for all three)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromServer]);
   const [discussing, setDiscussing] = useState(false);
   const [note, setNote] = useState('');

@@ -74,7 +74,7 @@ describe('settings sections and rows', () => {
           </FieldRow>
           <SwitchRow checked={false} onChange={(on) => seen.push(on)} title="Follow up" description="Checks the work." />
           <Row title="Autonomy">
-            <button>Auto</button>
+            <button type="button">Auto</button>
           </Row>
         </Section>,
       ),

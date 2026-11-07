@@ -54,7 +54,7 @@ interface CodexEvent {
 }
 
 // checking: the `codex login status` under way (until it ends, value is the last answer, or "not signed in" at first)
-let statusCache: { at: number; value: CodexStatus; checking: Promise<void> | null } = { at: 0, value: { installed: false, loggedIn: false, version: null }, checking: null };
+const statusCache: { at: number; value: CodexStatus; checking: Promise<void> | null } = { at: 0, value: { installed: false, loggedIn: false, version: null }, checking: null };
 export function status(): CodexStatus & { path: string | null } {
   const exe = which('codex');
   if (Date.now() - statusCache.at > 60_000) {

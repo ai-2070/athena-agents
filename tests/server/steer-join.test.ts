@@ -167,7 +167,7 @@ describe('a message while a team works', () => {
     await until(() => !teamState(team.id).working.length && getThread(team.id).messages.length >= 3);
     await new Promise((r) => setTimeout(r, 200));
     const names = { [worker.id]: 'Worker' };
-    expect(thread(team, names)).toEqual(['user: do the long job', 'user: also make it blue', expect.stringMatching(/^Worker: re: [^]*You \(the user\): also make it blue$/)]);
+    expect(thread(team, names)).toEqual(['user: do the long job', 'user: also make it blue', expect.stringMatching(/^Worker: re: [\s\S]*You \(the user\): also make it blue$/)]);
     // its work shows your message where it came in
     const reply = getThread(team.id).messages[2]!;
     const work = chats.get(worker.id, reply.turn!.chatId)!.items.slice(reply.turn!.from, reply.turn!.to);

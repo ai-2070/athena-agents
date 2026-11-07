@@ -10,7 +10,6 @@ import { projectAt } from './client/connection.ts';
 import { modelChip } from './models.tsx';
 import { attachTray } from './attach.tsx';
 import { memoryButton } from './memory.tsx';
-import { buttonClass } from './ui/classes.ts';
 import { DomNode, Icon, useAppState } from './ui/react.tsx';
 import { useProjectAgents } from './projectagents.ts';
 import { Button, ButtonLink } from './ui/button.tsx';
