@@ -1,0 +1,137 @@
+server/engines/codex.ts
+  s_9388c63be401b0::t_dff9e870e43749 57
+package.json
+  s_9388c63be401b0::t_095a4695cd6f41 116
+  s_9388c63be401b0::t_d7f567f2d518bc 46-47,53
+tests/server/skillinstall.test.ts
+  s_9388c63be401b0::t_4c03bd8c9be93f 10
+  s_9388c63be401b0::t_dff9e870e43749 45
+tests/web/dock.test.tsx
+  s_9388c63be401b0::t_dff9e870e43749 28
+tests/web/projectlist.test.tsx
+  s_9388c63be401b0::t_c33278ffd123f3 80
+tests/web/chat-stopped.test.tsx
+  s_9388c63be401b0::t_fe9f9322c9cd6d 24
+web/views/station.ts
+  s_9388c63be401b0::t_4c03bd8c9be93f 8
+  s_9388c63be401b0::t_fe9f9322c9cd6d 42
+  s_9388c63be401b0::t_dff9e870e43749 1218,2488
+tests/web/find.test.tsx
+  s_9388c63be401b0::t_b929977753a091 151,158
+tests/server/project-isolation.test.ts
+  s_9388c63be401b0::t_dff9e870e43749 28
+server/tools.ts
+  s_9388c63be401b0::t_fe9f9322c9cd6d 9
+server/voxel/prefabs.ts
+  s_9388c63be401b0::t_fe9f9322c9cd6d 16
+web/dock.tsx
+  s_9388c63be401b0::t_e6510b3e278475 890
+  s_9388c63be401b0::t_483a7caa878a0e 730
+web/views/gateways.tsx
+  s_9388c63be401b0::t_fe9f9322c9cd6d 86
+web/projectlist.ts
+  s_9388c63be401b0::t_c5ac9440a48c41 65,67
+AGENTS.md
+  s_9388c63be401b0::t_d5ccf03d0599a1 18,20,30,88-90
+README.md
+  s_9388c63be401b0::t_d5ccf03d0599a1 177
+web/navlimits.tsx
+  s_9388c63be401b0::t_c05d2fbf4ce828 200,272
+server/brain.ts
+  s_9388c63be401b0::t_4c03bd8c9be93f 14
+web/chat/ChatView.tsx
+  s_9388c63be401b0::t_c33278ffd123f3 104
+  s_9388c63be401b0::t_483a7caa878a0e 810
+tests/server/outbox-return.test.ts
+  s_9388c63be401b0::t_027b3096d40b24 17
+server/taskboard.ts
+  s_9388c63be401b0::t_c05d2fbf4ce828 415,434,457
+  s_9388c63be401b0::t_c5ac9440a48c41 244
+web/taskboard.tsx
+  s_9388c63be401b0::t_c5ac9440a48c41 79
+tests/server/gateway-whatsapp-relay.test.ts
+  s_9388c63be401b0::t_dff9e870e43749 143
+biome.json
+  s_9388c63be401b0::t_c6ee8209970b90 1,73
+  s_9388c63be401b0::t_dff9e870e43749 2-72
+web/views/stationpanel.tsx
+  s_9388c63be401b0::t_e6510b3e278475 674
+  s_9388c63be401b0::t_fe9f9322c9cd6d 23
+  s_9388c63be401b0::t_483a7caa878a0e 153,684
+web/views/workflows.tsx
+  s_9388c63be401b0::t_c05d2fbf4ce828 107,147
+server/overseer.ts
+  s_9388c63be401b0::t_dff9e870e43749 630,1718
+tests/web/chatwin.test.tsx
+  s_9388c63be401b0::t_dff9e870e43749 28
+web/history.tsx
+  s_9388c63be401b0::t_e6510b3e278475 77
+scripts/vite-dev.ts
+  s_9388c63be401b0::t_c5ac9440a48c41 104
+server/index.ts
+  s_9388c63be401b0::t_fe9f9322c9cd6d 9,11
+tests/server/uploads.test.ts
+  s_9388c63be401b0::t_fe9f9322c9cd6d 7
+web/views/agents.tsx
+  s_9388c63be401b0::t_fe9f9322c9cd6d 12
+web/chat/parts.tsx
+  s_9388c63be401b0::t_c5ac9440a48c41 74
+web/voxel/bench.ts
+  s_9388c63be401b0::t_dff9e870e43749 58,111
+web/teamchat.tsx
+  s_9388c63be401b0::t_483a7caa878a0e 420,919
+  s_9388c63be401b0::t_e6510b3e278475 933
+.github/workflows/ci.yml
+  s_9388c63be401b0::t_d7f567f2d518bc 50-52
+web/views/terminals.tsx
+  s_9388c63be401b0::t_fe9f9322c9cd6d 6
+  s_9388c63be401b0::t_483a7caa878a0e 70
+web/projects.tsx
+  s_9388c63be401b0::t_c05d2fbf4ce828 181,191,428
+web/app.ts
+  s_9388c63be401b0::t_027b3096d40b24 384
+  s_9388c63be401b0::t_dff9e870e43749 209
+server/gateways/slack.ts
+  s_9388c63be401b0::t_4c03bd8c9be93f 8
+tests/web/mcp.test.tsx
+  s_9388c63be401b0::t_c33278ffd123f3 235
+tests/server/brain-files.test.ts
+  s_9388c63be401b0::t_dff9e870e43749 2
+scripts/gateways-discord-smoke.ts
+  s_9388c63be401b0::t_dff9e870e43749 56
+tests/web/dock-reset.test.tsx
+  s_9388c63be401b0::t_dff9e870e43749 34
+relay/whatsapp/worker.ts
+  s_9388c63be401b0::t_fe9f9322c9cd6d 3
+tests/server/eve-retention.test.ts
+  s_9388c63be401b0::t_fe9f9322c9cd6d 5
+tests/server/steer-join.test.ts
+  s_9388c63be401b0::t_c33278ffd123f3 170
+tests/web/teamchat-turns.test.tsx
+  s_9388c63be401b0::t_c33278ffd123f3 171,195
+web/chatwin.tsx
+  s_9388c63be401b0::t_e6510b3e278475 764,872
+web/filepreview.tsx
+  s_9388c63be401b0::t_dff9e870e43749 41
+  s_9388c63be401b0::t_c5ac9440a48c41 42
+tests/web/controls.test.tsx
+  s_9388c63be401b0::t_483a7caa878a0e 77
+bun.lock
+  s_9388c63be401b0::t_a34f28fe095cf2 59,110-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d3176e94808ec2973bfeae3518475842ded18629",
+  "prompts": {},
+  "sessions": {
+    "s_9388c63be401b0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b31f09e-cf4e-4096-ae14-9d6a48016d4e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
