@@ -42,6 +42,7 @@ job runs the tests of the scripts that come with the skills (`python -m pytest t
 | `server/engines/` | Engines that run agents: `claude.ts` (Claude Code CLI), `codex.ts`, `hermes.ts`, `eve.ts` (Eve with any OpenAI-compatible API); `index.ts` starts and stops runs |
 | `server/eve/`, `runtime/eve/`, `runtime/eve-world/` | Eve bindings, input receipts, tool consent and event projection; the private Bun worker and its pinned local Workflow store. Eve owns the API loop and active compaction. `server/context.ts` estimates and admits full inputs; saved chat originals remain separate |
 | `server/tools.ts` | Built-in agent tools, each with a `Risk` (`none` / `low` / `high`) that decides when approval is asked |
+| `server/documents.ts`, `server/pdfworker.ts` | The text of PDF, Word, Excel and PowerPoint files for `read_file`, `read_document` and attached files (`uploads.ts`). Office files are unpacked within caps; a PDF is read by pdf.js (`unpdf`) in a thread of its own that is stopped when it runs too long. The worker imports nothing of the app's, and is its own entry in `scripts/build-desktop.ts` |
 | `server/mcp-bridge.ts` | Gives the dashboard tools to Claude Code and Codex over MCP |
 | `server/brain.ts`, `overseer.ts`, `teams.ts`, `learning.ts` | The Brain, approvals review, team chats, self-improvement |
 | `server/projectsync.ts`, `backup.ts`, `versions.ts` | Auto-save into `<project>/.dashboard`, `.dashbackup` files, version history |

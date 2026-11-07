@@ -5,12 +5,13 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import type http from 'node:http';
 import { describe, expect, it } from 'vitest';
-import { cleanAttachments, cleanName, describeAttachments, newBatch, receive, receiveSource, cleanOwnedBatch, removeUpload, safeParts, safeUploadsRoot, uploadsRoot, withAttachments, attachmentNames } from '../../server/uploads.ts';
+import { cleanAttachments, cleanName, describeAttachments, describeAttachmentsRead, newBatch, receive, receiveSource, cleanOwnedBatch, removeUpload, safeParts, safeUploadsRoot, uploadsRoot, withAttachments, attachmentNames } from '../../server/uploads.ts';
 import { activeProject, setActiveProject } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { callTool } from '../../server/tools.ts';
 import type { ToolAgent } from '../../server/tools.ts';
 import { isInside, IS_WIN } from '../../server/util.ts';
+import { compound, docx, pdf, xlsx } from './fixtures/documents.ts';
 
 // a request body as receive() reads it
 const body = (data: string | Buffer, headers: Record<string, string> = {}) => Object.assign(Readable.from([Buffer.from(data)]), { headers }) as unknown as http.IncomingMessage;
@@ -122,6 +123,35 @@ describe('telling the agent', () => {
     // without inline, just the list
     expect(describeAttachments([doc.path])).not.toContain('Ship it.');
     expect(attachmentNames([doc.path, folder.top])).toBe('brief.md, assets/');
+  });
+
+  it("can include the text of attached documents, or say why one can't be read", async () => {
+    const { batch } = newBatch();
+    const contract = await receive(body(Buffer.from(pdf('Signed on 3 May'))), batch, 'contract.pdf');
+    const brief = await receive(body(Buffer.from(docx('<w:p><w:r><w:t>Ship by Friday</w:t></w:r></w:p>'))), batch, 'docs/brief.docx');
+    const old = await receive(body(Buffer.from(compound())), batch, 'old.xls');
+    const paths = [contract.path, brief.top, old.path];
+    const note = await describeAttachmentsRead(paths, { inline: 5000 });
+    expect(note).toContain(`- ${contract.path} (PDF, `);
+    expect(note).toContain('--- contract.pdf ---\n(PDF, 1 page)\n--- Page 1 ---\nSigned on 3 May');
+    // documents in an attached folder too
+    expect(note).toContain('--- docs/brief.docx ---\n(Word document)\nShip by Friday');
+    expect(note).toContain("--- old.xls ---\n(can't be read: older Office files");
+    // the same list as without the text
+    expect(note.startsWith(describeAttachments(paths))).toBe(true);
+    // without inline, nothing is read
+    expect(await describeAttachmentsRead(paths)).toBe(describeAttachments(paths));
+  });
+
+  it("keeps documents' text within inline, after the text files before them", async () => {
+    const { batch } = newBatch();
+    const notes = await receive(body('n'.repeat(900)), batch, 'notes.md');
+    const rows = Array.from({ length: 200 }, (_, i) => `<row r="${i + 1}"><c r="A${i + 1}"><v>${1000 + i}</v></c></row>`).join('');
+    const sheet = await receive(body(Buffer.from(xlsx({ Totals: rows }))), batch, 'totals.xlsx');
+    const note = await describeAttachmentsRead([notes.path, sheet.path], { inline: 1500 });
+    expect(note).toContain('--- totals.xlsx (start) ---\n(Excel workbook, sheet: Totals)');
+    const inlined = note.slice(note.indexOf('--- notes.md'));
+    expect(inlined.length).toBeLessThan(1500 + 200);
   });
 
   it('adds the list to the message, and says to look when there is no text', async () => {

@@ -26,13 +26,24 @@ const isPlainFile = (p: string): boolean => {
 const slashed = (p: string): string => p.split(path.sep).join('/');
 
 /** Part of a text file, from line offset. A file read whole comes back exactly as it is. */
-export function readText(real: string, shown: string, { offset = 1, limit = READ_LINES, chars = READ_CHARS }: { offset?: number; limit?: number; chars?: number } = {}): string {
+export function readText(real: string, shown: string, opts: PageOptions = {}): string {
   const st = fs.statSync(real);
   if (st.isDirectory()) throw new Error(`${shown} is a folder: list it with list_files.`);
   if (st.size > READ_MAX_BYTES) throw new Error(`${shown} is ${sizeText(st.size)}, too big to read here. Look for what you need with search_files.`);
   const bytes = fs.readFileSync(real);
   if (looksBinary(bytes)) return `${shown} is not a text file (${sizeText(st.size)}).`;
-  const lines = bytes.toString('utf8').split('\n');
+  return pageText(bytes.toString('utf8'), opts);
+}
+
+export interface PageOptions {
+  offset?: number;
+  limit?: number;
+  chars?: number;
+}
+
+/** Part of a text, from line offset (a document's text pages the same way as a file's). Whole, it is as it was. */
+export function pageText(text: string, { offset = 1, limit = READ_LINES, chars = READ_CHARS }: PageOptions = {}): string {
+  const lines = text.split('\n');
   // (a final newline doesn't count as a line of its own)
   const total = lines.length - (lines.at(-1) === '' ? 1 : 0);
   const start = Math.min(Math.max(1, Math.floor(Number(offset) || 1)), Math.max(total, 1));
@@ -44,7 +55,7 @@ export function readText(real: string, shown: string, { offset = 1, limit = READ
     const line = lines[start - 1]!;
     return `${line.slice(0, chars)}\n\n[Line ${start} of ${total} is ${line.length} characters long: only its first ${chars} are shown.${start < total ? ` Continue with offset ${start + 1}.` : ''}]`;
   }
-  if (start === 1 && end >= total) return bytes.toString('utf8');
+  if (start === 1 && end >= total) return text;
   return `${lines.slice(start - 1, end).join('\n')}\n\n[Lines ${start}-${end} of ${total}.${end < total ? ` Continue with offset ${end + 1}.` : ''}]`;
 }
 

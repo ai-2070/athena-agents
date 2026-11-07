@@ -1,6 +1,6 @@
 // Checks what scripts/build-desktop.ts staged, the way the desktop app runs it: the bundled Bun
 // starts the bundled server on a free port with a throwaway data folder and home folder, the page and an API answer,
-// the MCP bridge starts, and the server stops by itself once its stdin closes.
+// the bundled tools work (a PDF is read too), the MCP bridge starts, and the server stops by itself once its stdin closes.
 // Run after build-desktop: bun scripts/desktop-smoke.ts [--target <triple>]
 import fs from 'node:fs';
 import os from 'node:os';
@@ -35,6 +35,21 @@ const freePort = (): Promise<number> =>
       s.close(() => (a && typeof a === 'object' ? resolve(a.port) : reject(new Error('no port'))));
     });
   });
+
+/** A one-page PDF saying text, with a correct cross-reference table. */
+function onePagePdf(text: string): string {
+  const stream = `BT /F1 12 Tf 72 720 Td (${text}) Tj ET`;
+  const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>', `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  let out = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  objects.forEach((body, i) => {
+    offsets.push(out.length);
+    out += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}`;
+  return `${out}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+}
 
 function fail(msg: string): never {
   console.error(`smoke: FAILED: ${msg}`);
@@ -128,6 +143,13 @@ try {
   const changed = JSON.parse(await historyTool('TaskUpdate', { tasks: updates })) as TaskBatchResult;
   if (changed.results.length !== 2 || !changed.results.every((r) => r.success && r.status === 'completed')) fail('the bundled update batch did not finish every task');
   console.log('smoke: bulk task create and update ok');
+
+  // the PDF reader runs in a thread of its own, from its own file in the bundle: read an attached PDF with it
+  const uploads = path.join(state.project.brainPath, 'uploads', 'smoke');
+  fs.mkdirSync(uploads, { recursive: true });
+  fs.writeFileSync(path.join(uploads, 'smoke.pdf'), onePagePdf('BUNDLED_PDF_SMOKE'));
+  if (!(await historyTool('read_document', { path: path.join(uploads, 'smoke.pdf') })).includes('BUNDLED_PDF_SMOKE')) fail('the bundled PDF reader did not read the PDF');
+  console.log('smoke: PDF reading ok');
 
   // the bridge, as Claude Code would start it: one MCP initialize request over stdio
   const bridge = Bun.spawn([bun, path.join(app, 'server', 'mcp-bridge.js')], {

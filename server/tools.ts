@@ -15,6 +15,7 @@ import { requestApproval } from './approvals.ts';
 import type { ApprovalDecision, ApprovalRequest } from './approvals.ts';
 import { readPage, pagePart, PAGE_CHARS, PAGE_MAX_CHARS } from './webread.ts';
 import * as files from './filetools.ts';
+import { readDocumentPart } from './documents.ts';
 import { accountOf } from './mcp.ts';
 import { knownPrograms, launchProgram, launchTarget, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
@@ -60,7 +61,7 @@ export interface ToolResult {
 }
 
 /** The part of an agent the tools use. Dashboard agents fit; so do stand-ins (workflows, external MCP clients). */
-export type ToolAgent = Pick<Agent, 'id' | 'name'> & Partial<Pick<Agent, 'toolGroups' | 'autonomy' | 'alwaysAllow' | 'workspace' | 'knowledge'>>;
+export type ToolAgent = Pick<Agent, 'id' | 'name'> & Partial<Pick<Agent, 'toolGroups' | 'autonomy' | 'alwaysAllow' | 'workspace' | 'knowledge' | 'engine'>>;
 
 /** Which run a tool call belongs to: approvals, the Stop button and delegation depth come from here. */
 export interface ToolRunInfo {
@@ -150,6 +151,15 @@ function allowedRoots(agent: ToolAgent, write = false): string[] {
   // (not when uploads/ is a link out of the Brain folder)
   const uploads = write ? null : safeUploadsRoot();
   return [workspaceOf(agent), dataPath('outputs'), ...(write ? [] : kb.knowledgeRoots(agent)), ...(uploads ? [uploads] : []), ...(s.allowedFolders || [])];
+}
+
+// read_document: what read_file may read, for an agent that reads files (the Files tools, or an engine's own); for
+// one that doesn't, only what it was handed: attached files and its knowledge.
+function documentRoots(agent: ToolAgent): string[] {
+  // (a stand-in, like a workflow, may carry no engine: its saved agent's counts)
+  if (hasOwnFileTools(agent.engine ?? agentStore.get(agent.id)?.engine) || (agent.toolGroups || []).includes('files')) return allowedRoots(agent);
+  const uploads = safeUploadsRoot();
+  return [...kb.knowledgeRoots(agent), ...(uploads ? [uploads] : [])];
 }
 
 // abs: the path as asked (for messages). real: where it really is, links followed; use it for the file
@@ -1237,7 +1247,7 @@ const TOOLS: ToolDef[] = [
     name: 'read_file',
     group: 'files',
     risk: 'none',
-    description: `Read a text file (workspace, knowledge, outputs or allowed folders). A long file comes in parts of up to ${files.READ_LINES} lines: continue with offset. paths reads up to 10 files in one call.`,
+    description: `Read a text file, or a PDF or Office file's text (workspace, knowledge, outputs or allowed folders). A long file comes in parts of up to ${files.READ_LINES} lines: continue with offset. paths reads up to 10 files in one call.`,
     parameters: obj({
       path: str('File path'),
       paths: { type: 'array', items: { type: 'string' }, maxItems: 10, description: 'Several files at once, instead of path' },
@@ -1247,23 +1257,42 @@ const TOOLS: ToolDef[] = [
     run: async ({ path: p, paths, offset, limit }: { path?: string; paths?: unknown; offset?: number; limit?: number }, ctx) => {
       const list = Array.isArray(paths) && paths.length ? paths.slice(0, 10).map(String) : p ? [String(p)] : [];
       if (!list.length) throw new Error('Give path (or paths).');
-      const read = (file: string, chars?: number) => {
+      const read = async (file: string, chars?: number) => {
         const { abs, real, ok } = resolveInside(ctx.agent, file);
         if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
-        return files.readText(real, abs, { offset, limit, chars });
+        return (await readDocumentPart(real, abs, { offset, limit, chars })) ?? files.readText(real, abs, { offset, limit, chars });
       };
-      if (list.length === 1) return { text: read(list[0]!) };
-      // several: each gets its share, so one long file can't crowd out the rest
+      if (list.length === 1) return { text: await read(list[0]!) };
+      // several: each gets its share, so one long file can't crowd out the rest (one at a time: a PDF gets a thread)
       const share = Math.floor(60_000 / list.length);
-      return { text: list.map((file) => {
+      const parts: string[] = [];
+      for (const file of list) {
         let body: string;
         try {
-          body = read(file, share);
+          body = await read(file, share);
         } catch (e) {
           body = `Error: ${(e as Error).message}`;
         }
-        return `===== ${file} =====\n${body}`;
-      }).join('\n\n') };
+        parts.push(`===== ${file} =====\n${body}`);
+      }
+      return { text: parts.join('\n\n') };
+    },
+  },
+  {
+    // every engine gets it: Eve's read_file reads documents too, but the coding engines' own file tools don't
+    name: 'read_document',
+    group: 'core',
+    risk: 'none',
+    description: 'Read the text of a PDF, Word, Excel or PowerPoint file (attached, or in your folders), in parts: continue with offset.',
+    parameters: obj({ path: str('File path'), offset: { type: 'number', description: 'First line' } }, ['path']),
+    run: async ({ path: p, offset }: { path: string; offset?: number }, ctx) => {
+      const abs = path.resolve(workspaceOf(ctx.agent), String(p || '.'));
+      const real = insideRoots(abs, documentRoots(ctx.agent));
+      if (!real) throw new Error(`${abs} is outside the folders this agent may use.`);
+      if (fs.statSync(real).isDirectory()) throw new Error(`${abs} is a folder, not a document.`);
+      const text = await readDocumentPart(real, abs, { offset });
+      if (text === null) throw new Error(`${abs} is not a PDF, Word, Excel or PowerPoint file.${hasOwnFileTools(ctx.agent.engine ?? agentStore.get(ctx.agent.id)?.engine) ? ' Open it with your own file tools.' : ''}`);
+      return { text };
     },
   },
   {
@@ -1592,7 +1621,7 @@ export async function callTool(agent: ToolAgent, calledAs: string, rawArgs: Tool
 }
 
 // Tools that read in parts already answer at a size the model chose (and task batches must stay whole).
-const PAGED = new Set(['read_file', 'fetch_url', 'read_conversation', 'read_skill', 'knowledge_read', 'TaskCreate', 'TaskUpdate']);
+const PAGED = new Set(['read_file', 'read_document', 'fetch_url', 'read_conversation', 'read_skill', 'knowledge_read', 'TaskCreate', 'TaskUpdate']);
 const SAVED_DAYS = 7;
 let prunedAt = 0;
 

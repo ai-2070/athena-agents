@@ -9,6 +9,7 @@ import { pipeline } from 'node:stream/promises';
 import type http from 'node:http';
 import { ensureDir, exists, isInside, realTarget } from './util.ts';
 import { ensureBrain } from './projects.ts';
+import { DocumentError, documentAbout, isDocumentName, readDocumentFile } from './documents.ts';
 import type { Project, UploadedFile } from '../shared/types.ts';
 
 const MAX_ATTACHMENTS = 50;
@@ -249,7 +250,7 @@ const isDir = (p: string) => {
   }
 };
 
-const kindOf = (name: string) => (IMAGE_EXT.test(name) ? 'image' : TEXT_EXT.test(name) ? 'text' : 'file');
+const kindOf = (name: string) => (IMAGE_EXT.test(name) ? 'image' : TEXT_EXT.test(name) ? 'text' : isDocumentName(name) ? 'document' : 'file');
 
 /** The images among the attachments (top-level files only): what vision models get to see. */
 export const attachedImages = (paths: string[]): string[] => paths.filter((p) => IMAGE_EXT.test(p) && !isDir(p));
@@ -259,12 +260,21 @@ export function attachmentNames(paths: string[] | undefined): string {
   return (paths || []).map((p) => `${path.basename(p)}${isDir(p) ? '/' : ''}`).join(', ');
 }
 
-// The block added to a message: where each attached file or folder is, and (with inline > 0)
-// the text of small text files, for models that can't open files themselves.
-export function describeAttachments(paths: string[] | undefined, { inline = 0, heading = 'Attached files' }: { inline?: number; heading?: string } = {}): string {
-  if (!paths?.length) return '';
+interface Readable {
+  label: string;
+  abs: string;
+  size: number;
+  kind: 'text' | 'document';
+}
+interface Listed {
+  lines: string[];
+  readable: Readable[];
+}
+
+// Each attachment's line (folders with their first files), and the files whose text could go along, in order.
+function listAttachments(paths: string[]): Listed {
   const lines: string[] = [];
-  const texts: { label: string; abs: string; size: number }[] = [];
+  const readable: Readable[] = [];
   for (const p of paths) {
     if (isDir(p)) {
       const files = folderFiles(p);
@@ -272,7 +282,10 @@ export function describeAttachments(paths: string[] | undefined, { inline = 0, h
       lines.push(`- ${p.replace(/[\\/]+$/, '')}${path.sep} (folder, ${files.length}${files.length >= 2000 ? '+' : ''} file${files.length === 1 ? '' : 's'}, ${kb(total)})`);
       for (const f of files.slice(0, 40)) lines.push(`    - ${f.rel} (${kb(f.size)})`);
       if (files.length > 40) lines.push(`    - …and ${files.length - 40} more`);
-      for (const f of files) if (kindOf(f.rel) === 'text') texts.push({ label: f.rel, abs: f.abs, size: f.size });
+      for (const f of files) {
+        const k = kindOf(f.rel);
+        if (k === 'text' || k === 'document') readable.push({ label: f.rel, abs: f.abs, size: f.size, kind: k });
+      }
     } else {
       let size = 0;
       try {
@@ -281,24 +294,64 @@ export function describeAttachments(paths: string[] | undefined, { inline = 0, h
         continue;
       }
       const k = kindOf(p);
-      lines.push(`- ${p} (${k === 'file' ? path.extname(p).slice(1).toUpperCase() || 'file' : k}, ${kb(size)})`);
-      if (k === 'text') texts.push({ label: path.basename(p), abs: p, size });
+      lines.push(`- ${p} (${k === 'file' || k === 'document' ? path.extname(p).slice(1).toUpperCase() || 'file' : k}, ${kb(size)})`);
+      if (k === 'text' || k === 'document') readable.push({ label: path.basename(p), abs: p, size, kind: k });
     }
   }
+  return { lines, readable };
+}
+
+/** Documents read at most for one message (each can take a while). */
+const DOCUMENTS_READ = 10;
+
+// The text of the attached documents that fit in inline characters (after the text files before them): what it is,
+// then its text, or why it can't be read. By path.
+async function readDocuments(readable: Readable[], inline: number): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  let left = inline;
+  for (const r of readable) {
+    if (left < 300 || out.size >= DOCUMENTS_READ) break;
+    // (a text file goes along as renderAttachments sends it: under 2 MB, as much as is left)
+    if (r.kind === 'text') {
+      if (r.size <= 2_000_000) left -= Math.min(r.size, left);
+      continue;
+    }
+    let body: string;
+    try {
+      const read = await readDocumentFile(r.abs);
+      if (!read) continue;
+      const notes = read.notes.map((n) => `[${n}]`).join('\n');
+      body = `(${documentAbout(read)})${notes ? `\n${notes}` : ''}\n${read.text.trim() || '(no text in it)'}`;
+    } catch (e) {
+      if (!(e instanceof DocumentError)) continue;
+      body = `(can't be read: ${e.message})`;
+    }
+    out.set(r.abs, body);
+    left -= Math.min(body.length, left);
+  }
+  return out;
+}
+
+function renderAttachments({ lines, readable }: Listed, { inline = 0, heading = 'Attached files', documents }: { inline?: number; heading?: string; documents?: ReadonlyMap<string, string> }): string {
   if (!lines.length) return '';
   let out = `[${heading}: saved in the project's Brain folder. Open them with your file tools when you need them.]\n${lines.join('\n')}`;
   let left = inline;
-  for (const t of texts) {
+  for (const t of readable) {
     if (left < 300) break;
-    if (t.size > 2_000_000) continue;
     let body = '';
-    try {
-      body = fs.readFileSync(t.abs, 'utf8');
-    } catch {
-      continue;
+    if (t.kind === 'document') {
+      body = documents?.get(t.abs) ?? '';
+      if (!body) continue;
+    } else {
+      if (t.size > 2_000_000) continue;
+      try {
+        body = fs.readFileSync(t.abs, 'utf8');
+      } catch {
+        continue;
+      }
+      // binary that only looks like text
+      if (body.includes('\u0000')) continue;
     }
-    // binary that only looks like text
-    if (body.includes('\u0000')) continue;
     const part = body.slice(0, left);
     out += `\n\n--- ${t.label}${part.length < body.length ? ' (start)' : ''} ---\n${part}`;
     left -= part.length;
@@ -306,9 +359,29 @@ export function describeAttachments(paths: string[] | undefined, { inline = 0, h
   return out;
 }
 
+// The block added to a message: where each attached file or folder is, and (with inline > 0)
+// the text of small text files, for models that can't open files themselves.
+export function describeAttachments(paths: string[] | undefined, opts: { inline?: number; heading?: string } = {}): string {
+  if (!paths?.length) return '';
+  return renderAttachments(listAttachments(paths), opts);
+}
+
+/** The same block, with the text of attached PDF, Word, Excel and PowerPoint files going along too (within inline). */
+export async function describeAttachmentsRead(paths: string[] | undefined, opts: { inline?: number; heading?: string } = {}): Promise<string> {
+  if (!paths?.length) return '';
+  const listed = listAttachments(paths);
+  const documents = opts.inline ? await readDocuments(listed.readable, opts.inline) : undefined;
+  return renderAttachments(listed, { ...opts, documents });
+}
+
 // The text an agent gets: what you wrote plus where the attachments are.
 export function withAttachments(text: string, paths: string[] | undefined, opts: { inline?: number } = {}): string {
-  const note = describeAttachments(paths, opts);
-  if (!note) return text;
-  return text.trim() ? `${text}\n\n${note}` : `Have a look at what I attached.\n\n${note}`;
+  return joinNote(text, describeAttachments(paths, opts));
 }
+
+/** The same, with the attached documents' text going along (describeAttachmentsRead). */
+export async function withAttachmentsRead(text: string, paths: string[] | undefined, opts: { inline?: number } = {}): Promise<string> {
+  return joinNote(text, await describeAttachmentsRead(paths, opts));
+}
+
+const joinNote = (text: string, note: string) => (!note ? text : text.trim() ? `${text}\n\n${note}` : `Have a look at what I attached.\n\n${note}`);

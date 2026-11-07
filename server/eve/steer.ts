@@ -23,7 +23,7 @@ export async function sendSteer(runId: string, steer: Pick<EveSteer, 'id' | 'tex
   const binding = run && readBinding(run.bindingId);
   if (!run || !binding?.sessionId || !canSteer(runId)) throw new Error('This turn can no longer take a message.');
   // (read before anything is saved: a missing file sends nothing)
-  const message = eveMessage(steer.text, steer.attachments);
+  const message = await eveMessage(steer.text, steer.attachments);
   recordSteer(runId, { ...steer, deliveryId: null, at: Date.now() });
   try {
     const host = await eveRuntime.ready();

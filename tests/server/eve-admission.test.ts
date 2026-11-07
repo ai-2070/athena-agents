@@ -16,7 +16,8 @@ import { eveRuntime } from '../../server/eve/runtime.ts';
 import { eveCoordinator } from '../../server/eve/coordinator.ts';
 import { run as runEve } from '../../server/engines/eve.ts';
 import { eveConfiguration } from '../../server/eve/bridge.ts';
-import type { ChatItem, ExecutionRun } from '../../shared/types.ts';
+import type { ChatItem, EveMessagePart, ExecutionRun } from '../../shared/types.ts';
+import { docx, pdf } from './fixtures/documents.ts';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -161,6 +162,20 @@ describe('saved Eve input admission', () => {
     expect(() => admissionHistory(input.bindingId, input.id, '0'.repeat(64))).toThrow('does not match');
     prepareEveRecovery();
     expect(readRun(input.id)?.status).toBe('running');
+  });
+
+  it('sends documents as their text, and a scanned PDF as itself', async () => {
+    const dir = newBatch().dir;
+    const files = { 'brief.docx': docx('<w:p><w:r><w:t>Ship by Friday</w:t></w:r></w:p>'), 'contract.pdf': pdf('Signed on 3 May'), 'scan.pdf': pdf('') };
+    for (const [name, bytes] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), bytes);
+    const own = fixture([], Object.keys(files).map((name) => path.join(dir, name)));
+    const { message } = await prepareAdmission(own.run.id, own.project);
+    const text = message.find((part): part is Extract<EveMessagePart, { type: 'text' }> => part.type === 'text')?.text ?? '';
+    expect(text).toContain('--- brief.docx ---\n(Word document)\nShip by Friday');
+    expect(text).toContain('--- contract.pdf ---\n(PDF, 1 page)\n--- Page 1 ---\nSigned on 3 May');
+    expect(text).toContain('probably a scan');
+    // (compatible APIs take no Word files, and the text is enough for a PDF that has some)
+    expect(message.flatMap((part) => (part.type === 'file' ? [[part.filename, part.mediaType]] : []))).toEqual([['scan.pdf', 'application/pdf']]);
   });
 
   it('retries a lost create receipt with the same operation key and saved file bytes', async () => {
