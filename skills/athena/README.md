@@ -1,13 +1,19 @@
-# Athena's skills
+# Athena skills
 
-Skills that come with the dashboard, written for it: one folder per skill (`<id>/SKILL.md`, plus the reference files,
-templates and scripts it names). They replace the copies of Hermes Agent's skills that used to ship in `skills/hermes/`
-(`replaced.json` and the table at the end say where each one went). The dashboard adds them to the skill library the
-first time it starts (`ensureBuiltinSkills` in `server/skills.ts`), and a skill the user deletes stays deleted. A
-change made here reaches every library whose copy nobody has changed, the next time the dashboard starts.
+The skills written for [Athena Agents](https://github.com/ai-2070/athena-agents) (the dashboard): one folder per skill
+(`<id>/SKILL.md`, plus the reference files, templates and scripts it names), and the tests of those scripts in
+`tests/`. They replace the copies of Hermes Agent's skills that used to ship in the dashboard's `skills/hermes/`
+(`replaced.json` and the table at the end say where each one went).
+
+The dashboard keeps a copy of this repo, without `tests/`, in its `skills/athena` folder and refreshes it with
+`bun run sync skills`. Change the skills here, not in that copy. The dashboard adds them to the skill library the
+first time it starts (`ensureBuiltinSkills` in its `server/skills.ts`), and a skill the user deletes stays deleted. A
+new copy reaches every library whose copy nobody has changed, the next time the dashboard starts.
 
 Everything here was written fresh, text and code. The old skills were a list of topics and know-how; the credit for
-them is at the end.
+them is at the end. The skills are MIT OR Apache-2.0, like the dashboard (`LICENSE-MIT`, `LICENSE-APACHE`); Hermes
+Agent's licence is kept as `LICENSE-hermes-agent`, and parts that came from elsewhere are credited at the end with
+their licences.
 
 ## The standard
 
@@ -158,8 +164,8 @@ skill that makes or changes files holds to this, and says so where it matters:
   to that service's limits.
 - Script names are unique across skills, except for a helper several skills need (finding LibreOffice, say), which is
   copied into each, because an agent reads only the skills it has. The tests check the copies are identical.
-- Every script has pytest tests in `tests/skills/<id>/`, outside the skill folder so they don't get copied into
-  people's libraries. They run on real files the test makes (a PDF, a workbook, a deck), not mocks, and on real
+- Every script has pytest tests in `tests/<id>/`, outside the skill folder so they don't get copied into people's
+  libraries. They run on real files the test makes (a PDF, a workbook, a deck), not mocks, and on real
   failures (an output path that's a folder, a password file saved as UTF-16), and check no traceback is printed. A
   script that needs a network service is tested against a fake server built from the service's real answers. CI runs them on Linux and Windows with Python 3.10, the oldest
   version the skills promise.
@@ -167,9 +173,10 @@ skill that makes or changes files holds to this, and says so where it matters:
 ## Changing a skill
 
 1. Read the standard above and the skill's whole folder.
-2. Change the text or the script; for a script, its tests too (`python -m pytest tests/skills/<id>`, with the packages
-   in `tests/skills/requirements.txt`).
-3. `bun run check`. `tests/server/athena-skills.test.ts` checks what can be checked mechanically: the frontmatter, the
+2. Change the text or the script; for a script, its tests too (`python -m pytest tests/<id>`, with the packages
+   in `tests/requirements.txt`).
+3. Bring the change into the dashboard (`bun run sync skills` there) and run its `bun run check`.
+   `tests/server/athena-skills.test.ts` checks what can be checked mechanically: the frontmatter, the
    length, that every file is named, no other agents' tool names or Hermes paths, no shouting, no unknown skill ids, no
    title heading, no text copied from the old skill. Whether the writing is good is for review.
 

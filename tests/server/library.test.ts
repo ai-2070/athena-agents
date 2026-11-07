@@ -1,4 +1,4 @@
-// The Agent library comes with the dashboard (library/athena-agents in the repo): no download, no data folder needed.
+// The Agent library comes with the dashboard (library/athena-souls in the repo): no download, no data folder needed.
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -79,10 +79,10 @@ describe('Claude Code subagents', () => {
   });
 });
 
-// Athena's agents (library/athena-agents). Its README.md has the standard each file follows; these checks catch
+// Athena's agents (library/athena-souls). Its README.md has the standard each file follows; these checks catch
 // what can be caught mechanically. Whether the writing is good is for review.
 describe("Athena's agents", () => {
-  const dir = path.join(ROOT, 'library', 'athena-agents');
+  const dir = path.join(ROOT, 'library', 'athena-souls');
   const groups = (JSON.parse(fs.readFileSync(path.join(dir, 'groups.json'), 'utf8')) as { groups: { id: string; label: string }[] }).groups;
   const KEYS = new Set(['name', 'description', 'emoji', 'color', 'specialty', 'group', 'tools', 'skills', 'engine', 'starter']);
   const ENGINE_IDS: EngineId[] = ['claude-code', 'eve', 'hermes', 'codex', 'pi', 'omp', 'openclaw'];
@@ -95,6 +95,13 @@ describe("Athena's agents", () => {
     const folders = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
     for (const f of folders) expect(ids).toContain(f);
     for (const { f } of files) expect(f).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*\.md$/);
+  });
+
+  it('is a copy of the athena-souls repo, and says which commit', () => {
+    // bun run sync writes it; the agents are changed in that repo
+    const source = JSON.parse(fs.readFileSync(path.join(dir, 'source.json'), 'utf8')) as { repo?: string; commit?: string };
+    expect(source.repo).toBe('ai-2070/athena-souls');
+    expect(source.commit).toMatch(/^[0-9a-f]{40}$/);
   });
 
   it('lists every file, in the order of groups.json, with unique slugs', () => {

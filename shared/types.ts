@@ -1915,7 +1915,7 @@ export interface LibraryIndex {
   claude: ClaudeSubagentListing[];
 }
 
-/** One of the Agent library's agents (library/athena-agents), as GET /api/library lists it: not hired yet. */
+/** One of the Agent library's agents (library/athena-souls), as GET /api/library lists it: not hired yet. */
 export interface LibraryAgentListing {
   slug: string;
   name: string;

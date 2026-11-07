@@ -696,7 +696,8 @@ taste-skill's own report is given (its last step), with its checks' results, and
 // `noLink`: its skills come without a link back to the repo (no "from" label, no "Download again"), because
 // the repo isn't public, or because the copy here leaves out files the installer can't take (too big), so
 // downloading it again would fail.
-// `athena` holds the dashboard's own skills (its README has the standard they follow).
+// `athena` holds the dashboard's own skills (its README has the standard they follow), a copy of the athena-skills
+// repo (scripts/sync.ts).
 const BUNDLED: { dir: string; repo: string; ref: string; under: string; noLink?: boolean }[] = [
   { dir: 'storytold', repo: 'hermes-pro/storytold-skills', ref: 'main', under: '' },
   { dir: 'oomol', repo: 'oomol-lab/oo-cli', ref: 'main', under: 'contrib/skills/shared' },
@@ -712,7 +713,7 @@ const BUNDLED: { dir: string; repo: string; ref: string; under: string; noLink?:
   // the repo is the skill, with 24 MB of built example pages and PDFs left out here (over the installer's limits)
   { dir: 'anatomy', repo: 'wheresryan22/anatomy', ref: 'main', under: '', noLink: true },
   { dir: 'subagent-skills', repo: 'ai-2070/subagent-skills', ref: 'master', under: '', noLink: true },
-  { dir: 'athena', repo: 'ai-2070/athena-agents', ref: 'main', under: 'skills/athena', noLink: true },
+  { dir: 'athena', repo: 'ai-2070/athena-skills', ref: 'main', under: '', noLink: true },
 ];
 
 /** The skill folders in a bundle's folder: the ones with a SKILL.md. */

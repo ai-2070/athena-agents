@@ -1,5 +1,6 @@
 // Athena's skills (skills/athena) replace the copies of Hermes Agent's skills. Its README.md has the standard each one
-// follows; these checks catch what can be caught mechanically. Whether the writing is good is for review.
+// follows; these checks catch what can be caught mechanically. Whether the writing is good is for review. The folder
+// is a copy of the athena-skills repo (bun run sync), where the skills' scripts and their tests live.
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -7,7 +8,6 @@ import { shippedSkillSlugs } from '../../server/skills.ts';
 import { ROOT, parseFrontmatter } from '../../server/util.ts';
 
 const dir = path.join(ROOT, 'skills', 'athena');
-const testsDir = path.join(ROOT, 'tests', 'skills');
 const replaced = JSON.parse(fs.readFileSync(path.join(dir, 'replaced.json'), 'utf8')) as { skills: Record<string, { now: string | null; path: string }> };
 // the 39 that replace Hermes's, and the ones of our own with no Hermes skill behind them
 const OWN = ['learn', 'one-take-video'];
@@ -55,12 +55,15 @@ describe("Athena's skills", () => {
     for (const old of Object.keys(replaced.skills)) expect(readme, old).toContain(`\`${old}\``);
   });
 
-  it('has a folder only for the planned ids, and test folders only for its skills', () => {
+  it('has a folder only for the planned ids', () => {
     for (const id of ids) expect(planned, id).toContain(id);
-    if (!fs.existsSync(testsDir)) return;
-    for (const e of fs.readdirSync(testsDir, { withFileTypes: true })) {
-      if (e.isDirectory() && !e.name.startsWith('.') && e.name !== '__pycache__') expect(ids, `tests/skills/${e.name}`).toContain(e.name);
-    }
+  });
+
+  it('is a copy of the athena-skills repo without its tests, and says which commit', () => {
+    const source = JSON.parse(fs.readFileSync(path.join(dir, 'source.json'), 'utf8')) as { repo?: string; commit?: string };
+    expect(source.repo).toBe('ai-2070/athena-skills');
+    expect(source.commit).toMatch(/^[0-9a-f]{40}$/);
+    expect(fs.existsSync(path.join(dir, 'tests')), 'tests/ is the repo\'s, not shipped').toBe(false);
   });
 
   it('keeps a helper several skills share identical in each', () => {
@@ -151,12 +154,5 @@ describe.each(ids)('the skill %s', (id) => {
       for (const f of mdUnder(path.join(hermes, ...s.path.split('/')))) for (const r of runs(fs.readFileSync(f, 'utf8'))) old.add(r);
     }
     for (const f of markdown(id)) expect([...runs(read(id, f))].filter((r) => old.has(r)), `${f}: words copied from the old skill`).toEqual([]);
-  });
-
-  it('has tests for its scripts', () => {
-    if (!scriptsOf(id).length) return;
-    const t = path.join(testsDir, id);
-    const tests = fs.existsSync(t) ? fs.readdirSync(t).filter((f) => /^test_.+\.py$/.test(f)) : [];
-    expect(tests.length, `scripts with no tests in tests/skills/${id}`).toBeGreaterThan(0);
   });
 });

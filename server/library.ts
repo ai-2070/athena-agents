@@ -1,4 +1,4 @@
-// Agent library: Athena's agents (library/athena-agents, one Markdown file each), your Hermes profiles and your
+// Agent library: Athena's agents (library/athena-souls, one Markdown file each), your Hermes profiles and your
 // Claude Code subagents. Plus creating, hiring and exporting agents.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,9 +20,9 @@ export interface ClaudeSubagent extends ClaudeSubagentListing {
   file: string;
 }
 
-// Athena's agents (the folder's README.md has the standard each file follows). Only the folders groups.json names
-// are read, in its order.
-const LIBRARY_DIR = path.join(ROOT, 'library', 'athena-agents');
+// Athena's agents (the folder's README.md has the standard each file follows), a copy of the athena-souls repo
+// (scripts/sync.ts). Only the folders groups.json names are read, in its order.
+const LIBRARY_DIR = path.join(ROOT, 'library', 'athena-souls');
 // (answered as a 404 by the routes)
 const notFound = (msg: string) => Object.assign(new Error(msg), { status: 404 });
 const commaList = (v: string | undefined): string[] => (v || '').split(',').map((x) => x.trim()).filter(Boolean);

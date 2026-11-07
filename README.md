@@ -187,7 +187,7 @@ Read [`AGENTS.md`](AGENTS.md) for the code layout, conventions and security rule
 
 Athena Agents is yours to use under either the [MIT license](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), whichever you prefer. Anything you contribute is offered under the same two licenses unless you say otherwise.
 
-Some bundled parts keep their own licenses: the skills in `skills/` (each folder's `README.md` says where it's from), the list of roles the Agent library started from (MIT, in `library/athena-agents/LICENSE-agency-agents`), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos belong to their owners.
+Some bundled parts keep their own licenses: the skills in `skills/` (each folder's `README.md` says where it's from), the list of roles the Agent library started from (MIT, in `library/athena-souls/LICENSE-agency-agents`), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos belong to their owners.
 
 ## Credits
 

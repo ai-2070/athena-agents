@@ -38,6 +38,7 @@
     "dev": "bun scripts/dev.ts",
     "build": "bun scripts/build-web.ts",
     "icons": "bun scripts/build-icons.ts",
+    "sync": "bun scripts/sync.ts",
     "typecheck": "tsc -p tsconfig.server.json && tsc -p tsconfig.web.json && tsc -p runtime/eve/tsconfig.json && tsc -p relay/whatsapp/tsconfig.json",
     "eve:build": "bun scripts/build-eve.ts",
     "eve:smoke": "bun scripts/eve-smoke.ts",

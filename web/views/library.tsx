@@ -1,4 +1,4 @@
-// Agent library: ready-made agents. Athena's own (library/athena-agents), Hermes profiles, Claude Code subagents and
+// Agent library: ready-made agents. Athena's own (library/athena-souls), Hermes profiles, Claude Code subagents and
 // your presets. A React page on Base UI controls.
 import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { Plate } from '../ui/surface.tsx';
