@@ -20,7 +20,8 @@ bun run test         # Vitest, server + web projects
 bun run check        # typecheck + lint + test: run this before you call a change done
 bun run build        # bundle web/ (and its Tailwind CSS) into public/dist
 bun run icons        # regenerate web/icons.ts after adding names in scripts/build-icons.ts
-bun run sync         # bring in the latest athena-souls and athena-skills repos (sync souls / sync skills: one)
+bun run sync         # bring in the latest athena-souls and athena-skills repos (sync souls / sync skills: one);
+                     # bun install does it too when they've moved on (not in CI, or with ATHENA_NO_SYNC=1)
 bun server/index.ts --port 4900 --no-open   # a second instance that won't open a browser
 bun scripts/try-agent.ts <agentId> "message" [--port 4800] [--approve]
 bun run desktop:dev    # the desktop app (needs Rust); desktop:build makes installers
