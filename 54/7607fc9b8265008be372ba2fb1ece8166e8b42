@@ -1,0 +1,234 @@
+package.json
+  s_817535cca0863c::t_1e5dcf290f8e10 41
+tests/server/athena-skills.test.ts
+  s_817535cca0863c::t_47535cc039157a 2-3,58,60-66
+library/athena-souls/design/brand-guardian.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-225
+library/athena-souls/marketing/content-creator.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-179
+library/athena-souls/business/grant-writer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-183
+library/athena-souls/engineering/technical-writer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-162
+library/athena-souls/media/3d-artist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-153
+library/athena-souls/business/pricing-analyst.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-237
+library/athena-souls/media/video-editor.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-198
+library/athena-souls/sales/offer-strategist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-197
+library/athena-souls/research/statistician.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-241
+library/athena-souls/engineering/accessibility-auditor.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-230
+library/athena-souls/business/bookkeeper.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-208
+library/athena-souls/engineering/performance-benchmarker.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-227
+library/athena-souls/groups.json
+  s_817535cca0863c::t_1e5dcf290f8e10 1-14
+skills/athena/LICENSE-APACHE
+  s_817535cca0863c::t_1e5dcf290f8e10 1-177
+library/athena-souls/engineering/senior-developer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-211
+library/athena-souls/marketing/youtube-strategist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-213
+server/skills.ts
+  s_817535cca0863c::t_1725ca153ce2ec 699-700,716
+library/athena-souls/sales/outbound-strategist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-178
+library/athena-souls/engineering/test-automation-engineer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-211
+library/athena-souls/LICENSE-agency-agents
+  s_817535cca0863c::t_1e5dcf290f8e10 1-21
+library/athena-souls/engineering/minimal-change-engineer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-158
+library/athena-souls/business/resume-tailor.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-186
+library/athena-souls/marketing/reddit-community-builder.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-187
+library/athena-souls/product/product-manager.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-166
+library/athena-souls/games/three-js-developer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-284
+library/athena-souls/engineering/software-architect.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-222
+library/athena-souls/business/document-maker.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-239
+library/athena-souls/games/blender-add-on-engineer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-225
+library/athena-souls/games/godot-developer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-260
+library/athena-souls/business/coordinator.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-149
+library/athena-souls/engineering/application-security-engineer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-233
+library/athena-souls/games/unity-developer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-242
+library/athena-souls/engineering/code-reviewer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-145
+library/athena-souls/marketing/growth-hacker.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-187
+library/athena-souls/marketing/pr-manager.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-175
+library/athena-souls/product/trend-researcher.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-202
+library/athena-souls/README.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-278
+library/athena-souls/games/technical-artist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-150
+library/athena-souls/research/executive-summary-writer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-196
+library/athena-souls/sales/support-responder.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-183
+library/athena-souls/engineering/database-optimizer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-307
+library/athena-souls/marketing/x-writer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-151
+library/athena-souls/LICENSE-MIT
+  s_817535cca0863c::t_1e5dcf290f8e10 1-21
+library/athena-souls/engineering/codebase-guide.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-173
+library/athena-souls/engineering/api-tester.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-205
+library/athena-souls/design/ui-finish-reviewer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-191
+library/athena-souls/business/translator.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-199
+library/athena-souls/business/investment-researcher.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-165
+library/athena-souls/engineering/mcp-builder.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-239
+library/athena-souls/engineering/site-reliability-engineer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-247
+library/athena-souls/marketing/ai-search-optimizer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-210
+library/athena-souls/business/mail-assistant.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-155
+library/athena-souls/business/legal-document-reviewer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-199
+library/athena-souls/design/ui-designer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-199
+library/athena-souls/engineering/mobile-app-builder.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-251
+library/athena-souls/product/project-manager.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-188
+server/library.ts
+  s_817535cca0863c::t_1725ca153ce2ec 1,23-25
+README.md
+  s_817535cca0863c::t_1725ca153ce2ec 190
+library/athena-souls/marketing/tiktok-strategist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-187
+library/athena-souls/marketing/book-co-author.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-226
+library/athena-souls/games/world-builder.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-152
+library/athena-souls/engineering/ai-code-security-auditor.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-219
+library/athena-souls/research/data-analyst.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-198
+library/athena-souls/source.json
+  s_817535cca0863c::t_1e5dcf290f8e10 1-4
+library/athena-souls/business/financial-analyst.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-145
+AGENTS.md
+  s_817535cca0863c::t_e748f3532c0690 23,32-33,61-62
+library/athena-souls/product/feedback-synthesizer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-183
+library/athena-souls/research/business-strategist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-180
+library/athena-souls/design/ux-architect.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-234
+library/athena-souls/engineering/prompt-engineer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-185
+library/athena-souls/games/narrative-designer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-207
+skills/athena/LICENSE-MIT
+  s_817535cca0863c::t_1e5dcf290f8e10 1-21
+library/athena-souls/business/chief-of-staff.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-173
+library/athena-souls/marketing/linkedin-writer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-136
+shared/types.ts
+  s_817535cca0863c::t_1725ca153ce2ec 1918
+library/athena-souls/sales/deal-strategist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-169
+library/athena-souls/design/ux-researcher.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-145
+library/athena-souls/research/tool-evaluator.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-197
+tests/server/library.test.ts
+  s_817535cca0863c::t_1725ca153ce2ec 1,82,85
+  s_817535cca0863c::t_47535cc039157a 100-106
+library/athena-souls/engineering/secrets-hygiene-engineer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-222
+library/athena-souls/engineering/data-engineer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-224
+library/athena-souls/engineering/security-architect.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-268
+scripts/sync.ts
+  s_817535cca0863c::t_4b5469ab7efa1a 1-75
+library/athena-souls/business/notes-steward.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-199
+library/athena-souls/engineering/devops-automator.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-219
+library/athena-souls/engineering/reality-checker.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-164
+library/athena-souls/marketing/social-media-strategist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-201
+library/athena-souls/business/operations-manager.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-225
+library/athena-souls/marketing/email-marketer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-230
+library/athena-souls/marketing/seo-specialist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-203
+library/athena-souls/LICENSE-APACHE
+  s_817535cca0863c::t_1e5dcf290f8e10 1-177
+library/athena-souls/marketing/paid-social-strategist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-245
+skills/athena/README.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1,3-11,14-16,167-168,176-179
+library/athena-souls/engineering/backend-architect.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-286
+library/athena-souls/games/game-designer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-188
+skills/athena/source.json
+  s_817535cca0863c::t_1e5dcf290f8e10 1-4
+library/athena-souls/engineering/ai-engineer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-255
+web/views/library.tsx
+  s_817535cca0863c::t_1725ca153ce2ec 1
+library/athena-souls/games/unreal-developer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-257
+library/athena-souls/engineering/frontend-developer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-250
+library/athena-souls/media/image-maker.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-154
+library/athena-souls/research/researcher.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-152
+library/athena-souls/product/meeting-notes-taker.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-178
+library/athena-souls/sales/proposal-writer.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-194
+library/athena-souls/engineering/penetration-tester.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-134
+library/athena-souls/marketing/search-ads-strategist.md
+  s_817535cca0863c::t_1e5dcf290f8e10 1-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "547607fc9b8265008be372ba2fb1ece8166e8b42",
+  "prompts": {},
+  "sessions": {
+    "s_817535cca0863c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15b5e9b2-d931-4572-b04a-53e45f3810d3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
