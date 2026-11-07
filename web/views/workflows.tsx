@@ -104,7 +104,7 @@ function WorkflowsList() {
     const wf = await attempt(() => rpc.workflows.create({ name }));
     if (wf) navigate(`#/workflows/${wf.id}`);
   };
-  const useTemplate = async (t: WorkflowTemplate) => {
+  const startFromTemplate = async (t: WorkflowTemplate) => {
     const wf = await attempt(() => rpc.workflows.templates.create({ name: t.name }));
     if (wf) navigate(`#/workflows/${wf.id}`);
   };
@@ -144,7 +144,7 @@ function WorkflowsList() {
               <div className="card-sub">{t.description}</div>
               <div className="hint">{missing.length ? `Uses: ${t.needs.join(', ')}. Missing ${missing.join(', ')} (add from Agent library > Athena, or pick other agents after).` : `Uses: ${t.needs.join(', ')}`}</div>
               <div className="card-foot">
-                <Button size="small" onClick={() => void useTemplate(t)}>Use template</Button>
+                <Button size="small" onClick={() => void startFromTemplate(t)}>Use template</Button>
               </div>
             </Plate>
           );

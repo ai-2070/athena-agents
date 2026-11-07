@@ -206,7 +206,7 @@ async function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean);
   const top = parts[0] || 'station';
   let view: View;
-  let params = parts.slice(1);
+  const params = parts.slice(1);
   if (top === 'agents' && params[0] && params[1] !== 'edit') view = chat;
   else view = [...NAV, ...HIDDEN].find((n) => n.path === top)?.view || station;
   if (current?.view?.unmount) current.view.unmount();
@@ -381,7 +381,7 @@ window.addEventListener('keydown', (e) => {
   document.body.append(edge);
   const nav = document.getElementById('nav')!;
   let byHover = false;
-  let closeTimer: ReturnType<typeof setTimeout> | undefined = undefined;
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
   const open = () => {
     clearTimeout(closeTimer);
     if (!document.body.classList.contains('nav-wide')) {

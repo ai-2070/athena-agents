@@ -20,7 +20,7 @@ import { icon, logo } from '../icons.ts';
 import { modelChip, modelInfo } from '../models.tsx';
 import { Avatar, DomNode, HoverScroll, Icon, IconWeightProvider, useAppState } from '../ui/react.tsx';
 import { Dot, Pill } from '../ui/marks.tsx';
-import { ChipSet, Segmented, Tabs } from '../ui/controls.tsx';
+import { ChipSet, Tabs } from '../ui/controls.tsx';
 import { Button, ButtonLink, IconButton } from '../ui/button.tsx';
 import { fieldTriggerClass } from '../ui/classes.ts';
 import { Plate } from '../ui/surface.tsx';
@@ -150,7 +150,7 @@ function ConnectionList({ api, d, ids }: { api: StationPanelApi; d: AppState; id
         if (!info) return null;
         const a = avail.get(id);
         return (
-          <button key={id} className={CONN} onClick={() => api.choose({ type: 'int', id })}>
+          <button type="button" key={id} className={CONN} onClick={() => api.choose({ type: 'int', id })}>
             <span className="st-badge" style={badgeStyle(info.color)}>
               <Mark id={id} size={12} />
             </span>
@@ -671,6 +671,7 @@ function TeamPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: stri
           <div className="flex flex-wrap gap-1.5">
             {members.map((a) => (
               <button
+                type="button"
                 key={a.id}
                 className={`${FACE} ${ts.working.includes(a.id) ? 'animate-[st-face-pulse_1.4s_ease-in-out_infinite] border-accent shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]' : 'border-line'}`}
                 title={`${a.name}${wf.lead === a.id ? ' · lead' : ''}${ts.working.includes(a.id) ? ' · working' : ''}`}
@@ -680,7 +681,7 @@ function TeamPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: stri
                 {wf.lead === a.id ? <span className={LEAD_STAR}>★</span> : null}
               </button>
             ))}
-            <button className={`${FACE} border-dashed text-dim`} title="Add someone" aria-label="Add someone" onClick={() => setTab('members')}>
+            <button type="button" className={`${FACE} border-dashed text-dim`} title="Add someone" aria-label="Add someone" onClick={() => setTab('members')}>
               <Icon name="user-plus" size={14} />
             </button>
           </div>

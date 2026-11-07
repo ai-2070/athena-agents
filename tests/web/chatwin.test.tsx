@@ -25,9 +25,7 @@ beforeEach(() => {
   window.__teams = [];
   vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(url.endsWith('/chats') ? [] : url.endsWith('/commands') ? [] : {}), { headers: { 'content-type': 'application/json' } }));
   // (no animations in happy-dom)
-  Element.prototype.animate ??= function () {
-    return { finished: Promise.resolve(), cancel() {}, onfinish: null } as unknown as Animation;
-  };
+  Element.prototype.animate ??= () => ({ finished: Promise.resolve(), cancel() {}, onfinish: null } as unknown as Animation);
   Element.prototype.getAnimations ??= () => [];
 });
 afterEach(async () => {

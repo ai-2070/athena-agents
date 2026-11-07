@@ -31,9 +31,7 @@ let holding = new Set<string>();
 let answer: ReadableStreamDefaultController<Uint8Array> | null = null;
 beforeAll(() => {
   document.body.append(Object.assign(document.createElement('div'), { id: 'modal-root' }), Object.assign(document.createElement('div'), { id: 'toasts' }));
-  Element.prototype.animate ??= function () {
-    return { finished: Promise.resolve(), cancel() {}, onfinish: null, effect: null } as unknown as Animation;
-  };
+  Element.prototype.animate ??= () => ({ finished: Promise.resolve(), cancel() {}, onfinish: null, effect: null } as unknown as Animation);
   Element.prototype.getAnimations ??= () => [];
   state.data = {
     runs: [],

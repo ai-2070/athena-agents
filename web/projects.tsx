@@ -178,7 +178,7 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
   // a blank name falls back to the repo's name (GitHub only); otherwise the server asks for one
   const repoName = () => (mode === 'github' && repo.trim().split('/').pop()?.replace(/\.git$/, '')) || '';
 
-  const usePicked = (src: PickSrc, sum: BackupSummary | null, label: string) => {
+  const pickBackup = (src: PickSrc, sum: BackupSummary | null, label: string) => {
     setPick({ src, summary: sum, label });
     // the backup's name and description, unless you typed your own
     if (sum && !touchedName.current) setName(sum.name);
@@ -188,7 +188,7 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
   const pickFile = async (f: File) => {
     const sum = await readBackupSummary(f).catch(() => null);
     if (!sum) return toast(`${f.name} isn't a dashboard backup (a ${BACKUP_EXT} file).`, 'error');
-    usePicked({ file: f }, sum, `${f.name} · ${fileSize(f.size)}`);
+    pickBackup({ file: f }, sum, `${f.name} · ${fileSize(f.size)}`);
   };
   const pickFileNow = useRef(pickFile);
   pickFileNow.current = pickFile;
@@ -425,7 +425,7 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
                       <div className="label">In your backups folder</div>
                       <div className="flex max-h-[210px] flex-col gap-2 overflow-y-auto p-px">
                         {backups.slice(0, 6).map((b) => (
-                          <button key={b.name} type="button" className={BACKUP_ITEM} onClick={() => usePicked({ listed: b.name }, b.summary, `${b.name} · ${fileSize(b.size)}`)}>
+                          <button key={b.name} type="button" className={BACKUP_ITEM} onClick={() => pickBackup({ listed: b.name }, b.summary, `${b.name} · ${fileSize(b.size)}`)}>
                             <Icon name="archive" size={15} />
                             <span className="flex min-w-0 flex-1 flex-col">
                               <span className="truncate text-[13.5px] font-semibold">{b.summary?.name || b.name}</span>

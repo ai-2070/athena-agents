@@ -1,5 +1,5 @@
 // What the Brain is told about attached files (an OpenRouter Brain can't open files, so it gets their text).
-import http from 'node:http';
+import type http from 'node:http';
 import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { saveSettings, setSecret } from '../../server/store.ts';

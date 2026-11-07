@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { GatewayWhatsAppRelayEnvelope, GatewayWhatsAppRelayLimits, GatewayWhatsAppRelayState, GatewayWhatsAppRelayStatus } from '../../shared/types.ts';
-import { base64, boundedBody, checkAccount, configuration, constantEqual, digest, errorResponse, fail, hex, json, parseJSON, randomKey, stateSchema, verifyMeta } from './protocol.ts';
+import { base64, boundedBody, checkAccount, configuration, constantEqual, digest, errorResponse, fail, json, parseJSON, randomKey, stateSchema, verifyMeta } from './protocol.ts';
 import type { RelayEnv } from './protocol.ts';
 
 const sequence = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER - 1);

@@ -76,6 +76,7 @@ export function TaskFiles({ task, files, onRemove }: { task: Pick<BoardTask, 'pr
       {files.map((f) => {
         const url = taskFileUrl(task, f);
         const remove = onRemove ? (
+          // biome-ignore lint/correctness/useJsxKeyInIterable: one child of the keyed element below, not a list item
           <button type="button" className="att-x" title="Remove" aria-label={`Remove ${f.name}`} onClick={() => onRemove(f)}><Icon name="x" size={12} /></button>
         ) : null;
         return IMAGE.test(f.name) ? (

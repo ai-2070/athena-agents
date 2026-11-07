@@ -25,9 +25,7 @@ const calls: { url: string; body: Record<string, unknown> }[] = [];
 beforeAll(() => {
   document.body.append(Object.assign(document.createElement('div'), { id: 'toasts' }));
   // (no animations in happy-dom)
-  Element.prototype.animate ??= function () {
-    return { finished: Promise.resolve(), cancel() {}, onfinish: null, effect: null } as unknown as Animation;
-  };
+  Element.prototype.animate ??= () => ({ finished: Promise.resolve(), cancel() {}, onfinish: null, effect: null } as unknown as Animation);
   Element.prototype.getAnimations ??= () => [];
   state.data = {
     runs: [],

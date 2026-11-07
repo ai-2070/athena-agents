@@ -1,0 +1,73 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "!skills",
+      "!public",
+      "!src-tauri"
+    ]
+  },
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "a11y": {
+        "noAutofocus": "off",
+        "noLabelWithoutControl": "off",
+        "noNoninteractiveElementToInteractiveRole": "off",
+        "noNoninteractiveTabindex": "off",
+        "noStaticElementInteractions": "off",
+        "useAriaPropsSupportedByRole": "off",
+        "useMediaCaption": "off",
+        "useSemanticElements": "off"
+      },
+      "complexity": {
+        "noCommaOperator": "off",
+        "useOptionalChain": "off"
+      },
+      "correctness": {
+        "noComponentHookFactories": "off",
+        "noVoidTypeReturn": "off",
+        "useExhaustiveDependencies": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "off",
+        "useTemplate": "off"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "off",
+        "noAssignInExpressions": "off",
+        "noControlCharactersInRegex": "off",
+        "noDuplicateTestHooks": "off",
+        "noFocusedTests": "off",
+        "noImplicitAnyLet": "off",
+        "noShadowRestrictedNames": "off",
+        "noTemplateCurlyInString": "off",
+        "noThenProperty": "off",
+        "useIterableCallbackReturn": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "tests/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noFocusedTests": "error"
+          }
+        }
+      }
+    }
+  ]
+}

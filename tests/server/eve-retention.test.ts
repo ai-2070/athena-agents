@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { activeProject, agents, chats, saveSettings } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
-import { beginRun, bindSession, conversationBinding, markProjected, readBinding, readRun, recordEvents, setRunStatus, settleRun } from '../../server/eve/state.ts';
+import { beginRun, bindSession, conversationBinding, markProjected, readBinding, readRun, setRunStatus, settleRun } from '../../server/eve/state.ts';
 import { operationsForRun, prepareOperation, readOperation, saveOperation } from '../../server/eve/operations.ts';
 import { decide, durableApproval, ensureDurableApproval } from '../../server/approvals.ts';
 import { EVE_RECEIPT_DAYS, removeOldEveReceipts } from '../../server/eve/retention.ts';

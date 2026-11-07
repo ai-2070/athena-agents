@@ -174,7 +174,7 @@ A Bun + TypeScript server (`server/`) and a React browser app (`web/`), with a T
 
 ```sh
 bun run dev          # page edits show at once (hot reload); the server restarts when its code changes
-bun run check        # typecheck and run the tests: do this before you send a change
+bun run check        # typecheck, lint and run the tests: do this before you send a change
 bun run build        # build the browser app into public/dist
 bun server/index.ts --port 4900 --no-open   # a second copy on another port
 ```

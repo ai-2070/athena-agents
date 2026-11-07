@@ -43,12 +43,14 @@
     "eve:smoke": "bun scripts/eve-smoke.ts",
     "eve:recovery": "bun scripts/eve-recovery-smoke.ts",
     "eve:integration": "bun scripts/eve-integration-smoke.ts",
+    "lint": "biome lint --error-on-warnings",
+    "lint:fix": "biome lint --write --error-on-warnings",
     "test": "vitest run",
     "test:watch": "vitest",
     "gateways:smoke": "bun scripts/gateways-smoke.ts",
     "gateways:slack-smoke": "bun scripts/gateways-slack-smoke.ts",
     "gateways:discord-smoke": "bun scripts/gateways-discord-smoke.ts",
-    "check": "bun run typecheck && bun run test",
+    "check": "bun run typecheck && bun run lint && bun run test",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "desktop:smoke": "bun scripts/desktop-smoke.ts",
@@ -113,6 +115,7 @@
     "zustand": "5.0.16"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.5",
     "@cloudflare/workers-types": "5.20261106.1",
     "@tailwindcss/node": "4.3.4",
     "@tailwindcss/oxide": "4.3.4",

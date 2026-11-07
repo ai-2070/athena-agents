@@ -5,7 +5,7 @@ import type { ChatInstance, Logger } from 'chat';
 import { z } from 'zod';
 import type { GatewayInbound, GatewayInboxEvent, GatewayOutgoingFile } from '../../shared/types.ts';
 import { slackChannelId, slackTimestamp, slackUserId, slackWorkspaceId } from '../../shared/gateway-slack.ts';
-import { getGatewayInstance, withGatewayRoute } from './instances.ts';
+import { getGatewayInstance } from './instances.ts';
 import { gatewayInputAllowed, GatewayFileLimitError } from './inbox.ts';
 import type { GatewayInbox } from './inbox.ts';
 import { GatewaySetupError } from './telegram.ts';

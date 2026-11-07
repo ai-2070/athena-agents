@@ -140,7 +140,7 @@ describe('hosted WhatsApp relay', () => {
   });
 
   it('preserves original whitespace, Unicode bytes and the signature/content-type headers', async () => {
-    const f = await fixture(); const paired = await f.pair(); const raw = '  ' + payload('😊 quoted \"text\"').replace(/,/g, ',\n') + '\n';
+    const f = await fixture(); const paired = await f.pair(); const raw = '  ' + payload('😊 quoted "text"').replace(/,/g, ',\n') + '\n';
     expect((await f.webhook(raw, { 'content-type': 'application/json; charset=utf-8' })).status).toBe(200);
     const envelope = (await (await f.pull(paired)).json() as { envelopes: GatewayWhatsAppRelayEnvelope[] }).envelopes[0];
     expect(Buffer.from(envelope.bodyBase64, 'base64').toString()).toBe(raw); expect(envelope.signature).toBe(signature(raw)); expect(envelope.contentType).toBe('application/json; charset=utf-8');

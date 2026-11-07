@@ -1,16 +1,10 @@
 // Attached files: safe names, only this project's uploads count, and how agents are told about them.
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import type http from 'node:http';
 import { describe, expect, it } from 'vitest';
-import { cleanAttachments, cleanName, describeAttachments, describeAttachmentsRead, readAttachments, newBatch, receive, receiveSource, cleanOwnedBatch, removeUpload, safeParts, safeUploadsRoot, uploadsRoot, withAttachments, attachmentNames } from '../../server/uploads.ts';
-import { activeProject, setActiveProject } from '../../server/store.ts';
-import { createProject } from '../../server/projects.ts';
-import { callTool } from '../../server/tools.ts';
-import type { ToolAgent } from '../../server/tools.ts';
-import { isInside, IS_WIN } from '../../server/util.ts';
+import { cleanAttachments, cleanName, describeAttachments, describeAttachmentsRead, readAttachments, newBatch, receive, receiveSource, cleanOwnedBatch, removeUpload, safeParts, uploadsRoot, withAttachments, attachmentNames } from '../../server/uploads.ts';
 import { compound, docx, pdf, xlsx } from './fixtures/documents.ts';
 
 // a request body as receive() reads it

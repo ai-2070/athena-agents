@@ -8,7 +8,6 @@ import type { Agent, Chat, ChatItem } from '../shared/types.ts';
 
 const isWord = (c: number): boolean => (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || (c >= 0xc0 && c <= 0x24f) || (c >= 0x370 && c <= 0x52f) || (c >= 0x590 && c <= 0x6ff);
 const isSpace = (c: number): boolean => c <= 32 || c === 0xa0 || (c >= 0x2000 && c <= 0x200b) || c === 0x3000;
-const isCjk = (c: number): boolean => (c >= 0x3040 && c <= 0x30ff) || (c >= 0x3400 && c <= 0x4dbf) || (c >= 0x4e00 && c <= 0x9fff) || (c >= 0xac00 && c <= 0xd7af) || (c >= 0xf900 && c <= 0xfaff) || (c >= 0x20000 && c <= 0x3134f);
 const isEmoji = (c: number): boolean => (c >= 0x1f000 && c <= 0x1faff) || (c >= 0x2600 && c <= 0x27bf);
 // What one character adds, given how long the word it continues is so far.
 const charCost = (c: number, run: number): number => (isWord(c) ? (run % 4 === 0 ? 1 : 0) : isSpace(c) ? 0 : isEmoji(c) ? 2 : 1);

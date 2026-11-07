@@ -197,7 +197,7 @@ function askReset(available: number, expiresAt: number | null, used: number): Pr
   });
 }
 
-async function useReset(redraw: () => void): Promise<void> {
+async function spendReset(redraw: () => void): Promise<void> {
   const r = limits?.codex.resets;
   if (!r || resetting) return;
   const next = r.credits[0];
@@ -269,7 +269,7 @@ function ResetCard({ redraw }: { redraw: () => void }) {
     <>
       <span className="text-[13px] font-semibold text-ink">{`${r.available} rate-limit reset${r.available === 1 ? '' : 's'} available`}</span>
       {next?.expiresAt ? <span className="text-[12px] text-faint" title={`Runs out ${when(next.expiresAt)}`}>{`Next expires in ${timeUntil(next.expiresAt)}`}</span> : null}
-      <Button variant="ghost" size="tiny" className="mt-1.5 self-start" disabled={resetting} onClick={() => void useReset(redraw)}>{resetting ? 'Resetting…' : 'Reset now'}</Button>
+      <Button variant="ghost" size="tiny" className="mt-1.5 self-start" disabled={resetting} onClick={() => void spendReset(redraw)}>{resetting ? 'Resetting…' : 'Reset now'}</Button>
     </>
   );
 }

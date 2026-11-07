@@ -101,6 +101,7 @@ export function dashPlugin({ css = incrementalCss({ minify: false }), serverBack
   // the font rules don't change while it runs (the files are the last build's, in public/dist/fonts)
   let fonts: string | null = null;
   // a reload waiting for the server: one is enough for any number of changes meanwhile
+  // biome-ignore lint/correctness/noUnusedVariables: read by the ??= below
   let waiting: Promise<void> | null = null;
   return {
     name: 'dash-dev',

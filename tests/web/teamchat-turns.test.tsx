@@ -168,7 +168,7 @@ describe('team chat turns', () => {
   it("a working agent's turn streams in: its tool calls and text as they come", async () => {
     const el = document.createElement('div');
     document.body.append(el);
-    const chat = (open = renderTeamChat(el, 't1'));
+    open = renderTeamChat(el, 't1');
     // (the chat views load on demand: wait for the stream to be asked for)
     for (let i = 0; i < 100 && !requests.includes('GET /api/agents/maker/chats/maker-chat/stream'); i++) await settle();
     expect(requests).toContain('GET /api/agents/maker/chats/maker-chat/stream');
@@ -192,7 +192,7 @@ describe('team chat turns', () => {
   it('"Show the work" opens the steps and tool calls behind a reply', async () => {
     const el = document.createElement('div');
     document.body.append(el);
-    const chat = (open = renderTeamChat(el, 't1'));
+    open = renderTeamChat(el, 't1');
     await settle();
     const work = el.querySelector('.tc-work')!;
     expect(work).not.toBeNull();

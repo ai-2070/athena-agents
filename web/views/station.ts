@@ -5,7 +5,7 @@
 import { engineConfigured } from '../engineavailability.ts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { h, mount, state, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon, modal } from '../core.ts';
+import { h, mount, state, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { domButton, domButtonLink, domDot } from '../ui/dom.ts';
 import { openTerminal } from './agents.tsx';
@@ -39,7 +39,7 @@ import type { MenuEntry, StationMenu } from './stationmenu.tsx';
 import type { WorldView } from '../voxel/view.ts';
 import type { WorldLayer } from '../voxel/worldlayer.ts';
 import type { AgentTarget, SkinHost } from '../voxel/skins.ts';
-import type { ActivityEntry, Agent, AppState, Chat, Project, Routine, StationLayout, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
+import type { ActivityEntry, Agent, AppState, Project, Routine, StationLayout, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
 
 // ---------- types ----------
 /** A workflow run (GET /api/workflow-runs, /api/workflow-active and the 'workflow-run' event). */
@@ -230,7 +230,6 @@ interface Label extends LabelSpec {
   /** what was last written to its style (written again only when it changes) */
   shown?: { display: string; transform: string; origin: string; placed?: boolean };
 }
-type PickType = 'agent' | 'branch' | 'bench' | 'brain' | 'int';
 /** A dashed wire from a header tile to a desk. */
 interface Link2d {
   intId: string;
@@ -1216,7 +1215,7 @@ function buildBrain(): void {
   // how far along the globe's two colours each point is (kept, so the points can be coloured again)
   const along = new Float32Array(N);
   for (let i = 0; i < N; i++) {
-    const r = 2.6 * Math.pow(Math.random(), 0.35);
+    const r = 2.6 * Math.random() ** 0.35;
     const th = Math.random() * Math.PI * 2;
     const ph = Math.acos(2 * Math.random() - 1);
     pos.set([r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph) * 0.8, r * Math.sin(ph) * Math.sin(th)], i * 3);
@@ -1533,8 +1532,6 @@ function showBrainLogo(url: string): void {
 }
 
 // ---------- layout ----------
-const STEP_GAP = 8;
-
 function rebuild(): void {
   const d = state.data;
   if (!d || !S) return;
@@ -1945,15 +1942,6 @@ function polyline(points: THREE.Vector3[]): (t: number) => THREE.Vector3 {
   };
 }
 
-// The fraction of a branch's path where step j sits.
-function stepT(branch: { path: THREE.Vector3[] }, j: number): number {
-  const pts = branch.path;
-  let total = 0;
-  const cum = [0];
-  for (let i = 0; i < pts.length - 1; i++) cum.push((total += pts[i].distanceTo(pts[i + 1])));
-  return total ? cum[Math.min(j + 1, cum.length - 1)] / total : 0;
-}
-
 // A box (or any shape) moved into place and painted one colour, to merge with others into one mesh.
 function painted(geo: THREE.BufferGeometry, x: number, y: number, z: number, hex: THREE.ColorRepresentation): THREE.BufferGeometry {
   geo.translate(x, y, z);
@@ -2307,12 +2295,6 @@ function updateStatuses(): void {
   for (const id of S.branches.keys()) drawBranchCard(id);
 }
 
-function wfStats(wfId: string) {
-  assertMounted(S);
-  const runs = S.wfRuns.filter((r) => r.workflowId === wfId);
-  return { total: runs.length, done: runs.filter((r) => r.status === 'done').length, failed: runs.filter((r) => r.status === 'failed').length, last: runs[0] || null };
-}
-
 function scheduleText(s: (Schedule & { minutes?: number }) | undefined): string {
   if (!s || s.type === 'none') return 'manual';
   if (s.type === 'interval') return `every ${s.minutes || 60} min`;
@@ -2503,7 +2485,7 @@ function loop(): void {
   // smooth camera moves
   const goal = S.cam.goal;
   if (goal) {
-    const k = 1 - Math.pow(0.0015, dt);
+    const k = 1 - 0.0015 ** dt;
     S.cam.target.lerp(goal.target, k);
     S.cam.zoom += (goal.zoom - S.cam.zoom) * k;
     if (S.cam.target.distanceTo(goal.target) < 0.02 && Math.abs(goal.zoom - S.cam.zoom) < 0.002) S.cam.goal = null;
@@ -3173,12 +3155,6 @@ function startAgentDrag(p: MapPick, copy = false): boolean {
   desk.group.traverse((o) => (o.userData.dragging = true));
   S.agentDrag = { desk, home: desk.group.position.clone(), marker, hint, target: null, copy };
   return true;
-}
-
-function distToSegment(p: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3): number {
-  const ab = b.clone().sub(a);
-  const t = Math.max(0, Math.min(1, p.clone().sub(a).dot(ab) / (ab.lengthSq() || 1)));
-  return p.distanceTo(a.clone().addScaledVector(ab, t));
 }
 
 function moveAgentDrag(g: THREE.Vector3, e: MouseEvent): void {

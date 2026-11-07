@@ -61,7 +61,6 @@ export function TurnView({ agentId, chatId, at = '', live, from, to, empty, onEn
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!messages.length) return loaded && empty ? <div className="hint">{empty}</div> : null;

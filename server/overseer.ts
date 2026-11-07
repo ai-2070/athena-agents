@@ -627,7 +627,7 @@ board_add and board_update also take "tags":["🐛 Bug","design"] (the task's wh
 {"do":"read_skill","skill":"<skill id>"}   (alone in its block, or with other look-ups: you get the skill's whole text, then answer again)
 {"do":"delete_skill","skill":"<skill id>"}
 {"do":"add_mcp","preset":"<ready-made name>"}  or  {"do":"add_mcp","import":"<name>","source":"<source, as in the snapshot>"}  or  {"do":"add_mcp","name":"…","description":"one line","command":"the program","args":["…"],"env":{"KEY":"value"}}  or  {"do":"add_mcp","name":"…","description":"…","url":"https://…","headers":{"Authorization":"Bearer …"}}   (a ready-made or imported one also takes "name", "env" and "headers"; another account of a service that is added already needs "label":"Work" and "useFor":"when to pick it")
-{"do":"update_mcp","server":"<name, or 'new'>","rename":"…","description":"…","label":"…","useFor":"…","service":"<the service it is another account of, or \"\" for its own>","command":"…","args":["the whole list"],"url":"…","env":{"KEY":"value","OLD_KEY":null},"headers":{…},"enabled":true|false}   (only the fields that change; in env and headers only the keys given change, null removes one)
+{"do":"update_mcp","server":"<name, or 'new'>","rename":"…","description":"…","label":"…","useFor":"…","service":"<the service it is another account of, or "" for its own>","command":"…","args":["the whole list"],"url":"…","env":{"KEY":"value","OLD_KEY":null},"headers":{…},"enabled":true|false}   (only the fields that change; in env and headers only the keys given change, null removes one)
 {"do":"remove_mcp","server":"<name>"}   (deletes it and takes it off every agent and team)
 {"do":"give_mcp","servers":["<name, or 'new'>",…],"to":"agent"|"team","id":"<agent or team id, or 'new'>"}   (or "targets":[{"to":…,"id":…},…] instead of "to"/"id", for several at once)
 {"do":"take_mcp","servers":["<name>",…],"to":…,"id":…}   (or "targets", like give_mcp)
@@ -1715,7 +1715,7 @@ function applyAsBrain(actions: BrainAction[], p: Project, { seenSkills = new Set
       }
       if (kind === 'create_team') {
         const members = resolveAll(act.members);
-        let lead = act.lead ? resolveAll([act.lead])[0] || null : null;
+        const lead = act.lead ? resolveAll([act.lead])[0] || null : null;
         if (lead && !members.includes(lead)) members.unshift(lead);
         if (!members.length) throw new Error('no agents to put on it');
         const wf = saveTeam({

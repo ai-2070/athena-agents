@@ -232,7 +232,7 @@ describe('openModal()', () => {
 describe('several accounts of one service', () => {
   const OOMOL = 'https://connector.oomol.com/v1/mcp';
   const oomolPreset = { name: 'oomol', title: 'OOMOL (remote)', service: 'OOMOL', description: 'Your OOMOL apps', ready: true, type: 'http', url: OOMOL, headers: { Authorization: 'Bearer YOUR_MCP_API_KEY' } };
-  const info = (name: string, title: string, label: string, useFor: string, copies: number) => ({ title, label, kind: 'oomol', service: 'OOMOL', useFor, copies });
+  const info = (_name: string, title: string, label: string, useFor: string, copies: number) => ({ title, label, kind: 'oomol', service: 'OOMOL', useFor, copies });
 
   it('adds another account from an added preset, with labels and what each is for', async () => {
     servers = { oomol: { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {} } };

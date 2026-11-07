@@ -148,12 +148,14 @@ function Lists({ a, b }: { a: string; b?: string }) {
     <>
       <section id="one">
         {findOne}
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: the test's own fixed markup */}
         <div ref={one} dangerouslySetInnerHTML={{ __html: a }} />
         <input id="in-one" />
       </section>
       {b !== undefined ? (
         <section id="two">
           {findTwo}
+          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: the test's own fixed markup */}
           <div ref={two} dangerouslySetInnerHTML={{ __html: b }} />
           <input id="in-two" />
         </section>

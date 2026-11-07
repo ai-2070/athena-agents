@@ -637,7 +637,6 @@ async function brainTurn(team: Team, msg: TeamMessage): Promise<void> {
   }
   r.episode.brain = n + 1;
   const epoch = r.epoch;
-  const pid = activeProject().id;
   r.running.add(BRAIN);
   r.brainCurrent = msg;
   state(team);
