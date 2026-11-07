@@ -11,6 +11,7 @@ import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { unzipSync } from 'fflate';
 import { ROOT } from './util.ts';
+import { log } from './store.ts';
 import { pageText, sizeText } from './filetools.ts';
 import type { PageOptions } from './filetools.ts';
 
@@ -37,8 +38,21 @@ export const EXCEL_LAST_COLUMN = 16_383;
 /** Characters of a workbook's text built at most, across its sheets. */
 const WORKBOOK_TEXT_MAX = 5_000_000;
 
-/** A document that can't be read, said plainly. */
-export class DocumentError extends Error {}
+/** A document that can't be read, said plainly. lasting: reading it again won't change that (so it is remembered). */
+export class DocumentError extends Error {
+  readonly lasting: boolean;
+  constructor(message: string, { lasting = true }: { lasting?: boolean } = {}) {
+    super(message);
+    this.lasting = lasting;
+  }
+}
+
+export interface ReadOptions {
+  /** Stops the read (a run's Stop button). */
+  signal?: AbortSignal;
+  /** How long a PDF may take, at most PDF_TIMEOUT_MS. */
+  timeoutMs?: number;
+}
 
 export interface DocumentRead {
   kind: DocumentKind;
@@ -79,8 +93,12 @@ function contains(bytes: Uint8Array, needle: Uint8Array): boolean {
   return false;
 }
 
-// (a PDF's header may come after some bytes of junk: pdf.js looks in the first 1024, and so does this)
-const pdfHeader = (bytes: Uint8Array) => {
+// A PDF starts with its header. pdf.js also finds one after up to 1024 bytes of junk, but a text file that only
+// mentions "%PDF-" is no PDF: that leeway is for files named .pdf.
+const PDF_NAME = /\.pdf$/i;
+const pdfHeader = (bytes: Uint8Array, name: string) => {
+  if (startsWith(bytes, PDF)) return true;
+  if (!PDF_NAME.test(name)) return false;
   const head = bytes.subarray(0, 1024);
   for (let at = head.indexOf(PDF[0]!); at !== -1; at = head.indexOf(PDF[0]!, at + 1)) if (startsWith(head, PDF, at)) return true;
   return false;
@@ -93,7 +111,7 @@ const pdfHeader = (bytes: Uint8Array) => {
  */
 export function documentKind(bytes: Uint8Array, name: string): DocumentKind | null {
   if (!bytes.length) return null;
-  if (pdfHeader(bytes)) return 'pdf';
+  if (pdfHeader(bytes, name)) return 'pdf';
   if (startsWith(bytes, ZIP)) {
     if (!contains(bytes, ascii('[Content_Types].xml'))) return null;
     if (contains(bytes, ascii('word/document.xml'))) return 'word';
@@ -113,7 +131,7 @@ function mayBeDocument(real: string): boolean {
     fd = fs.openSync(real, 'r');
     const n = fs.readSync(fd, head, 0, head.length, 0);
     const start = head.subarray(0, n);
-    return pdfHeader(start) || startsWith(start, ZIP) || startsWith(start, COMPOUND);
+    return pdfHeader(start, path.basename(real)) || startsWith(start, ZIP) || startsWith(start, COMPOUND);
   } catch {
     return false;
   } finally {
@@ -126,6 +144,17 @@ function mayBeDocument(real: string): boolean {
 // The last few documents read, by path, size and time changed: reading a long one in parts reads it once.
 const CACHE_CHARS = 20_000_000;
 const cache = new Map<string, DocumentRead>();
+// and the ones that couldn't be read, so a locked or hostile file doesn't cost its wait again on every message
+const FAILED_MAX = 200;
+const failed = new Map<string, string>();
+function rememberFailure(key: string, message: string): void {
+  failed.delete(key);
+  failed.set(key, message);
+  for (const k of failed.keys()) {
+    if (failed.size <= FAILED_MAX) break;
+    failed.delete(k);
+  }
+}
 function remember(key: string, read: DocumentRead): void {
   cache.delete(key);
   cache.set(key, read);
@@ -139,7 +168,7 @@ function remember(key: string, read: DocumentRead): void {
 }
 
 /** A document file's text, or null when the file isn't a document. Throws a DocumentError for one that can't be read. */
-export async function readDocumentFile(real: string): Promise<DocumentRead | null> {
+export async function readDocumentFile(real: string, opts: ReadOptions = {}): Promise<DocumentRead | null> {
   const st = fs.statSync(real);
   if (!st.isFile()) return null;
   const key = `${real}\u0000${st.size}\u0000${st.mtimeMs}`;
@@ -148,6 +177,8 @@ export async function readDocumentFile(real: string): Promise<DocumentRead | nul
     remember(key, known);
     return known;
   }
+  const failure = failed.get(key);
+  if (failure !== undefined) throw new DocumentError(failure);
   if (!mayBeDocument(real)) return null;
   if (st.size > DOCUMENT_MAX_BYTES) {
     if (!isDocumentName(real)) return null;
@@ -156,7 +187,13 @@ export async function readDocumentFile(real: string): Promise<DocumentRead | nul
   const bytes = fs.readFileSync(real);
   const kind = documentKind(bytes, path.basename(real));
   if (!kind) return null;
-  const read = await documentText(kind, bytes);
+  let read: DocumentRead;
+  try {
+    read = await documentText(kind, bytes, opts);
+  } catch (e) {
+    if (e instanceof DocumentError && e.lasting) rememberFailure(key, e.message);
+    throw e;
+  }
   remember(key, read);
   return read;
 }
@@ -186,10 +223,10 @@ export function documentAbout(read: DocumentRead): string {
  * What read_file and read_document answer for a document: what it is and anything to know, then its text from line
  * offset (the same parts a text file comes in). Null when the file isn't a document.
  */
-export async function readDocumentPart(real: string, shown: string, opts: PageOptions = {}): Promise<string | null> {
+export async function readDocumentPart(real: string, shown: string, opts: PageOptions & ReadOptions = {}): Promise<string | null> {
   let read: DocumentRead | null;
   try {
-    read = await readDocumentFile(real);
+    read = await readDocumentFile(real, opts);
   } catch (e) {
     if (e instanceof DocumentError) throw new Error(`${shown} can't be read: ${e.message}`);
     throw e;
@@ -203,10 +240,10 @@ export async function readDocumentPart(real: string, shown: string, opts: PageOp
 // ---------- the text of each kind ----------
 
 /** The text of a document's bytes, whole. */
-export async function documentText(kind: DocumentKind, bytes: Uint8Array): Promise<DocumentRead> {
+export async function documentText(kind: DocumentKind, bytes: Uint8Array, opts: ReadOptions = {}): Promise<DocumentRead> {
   switch (kind) {
     case 'pdf': {
-      const read = await pdfText(bytes);
+      const read = await pdfText(bytes, opts);
       const notes: string[] = [];
       if (read.read < read.total) notes.push(`Only the first ${read.read} of ${read.total} pages were read.`);
       const done: DocumentRead = { kind, text: read.text, notes, pages: { total: read.total, read: read.read } };
@@ -236,28 +273,86 @@ const PDF_WORKER = ((js) => (fs.existsSync(js) ? js : path.join(ROOT, 'server', 
 type PdfRead = { text: string; total: number; read: number };
 type PdfAnswer = PdfRead | { error: 'password' | 'unreadable' };
 
-/** A PDF's text page by page, read in a thread that is stopped after timeoutMs. */
-export async function pdfText(bytes: Uint8Array, timeoutMs = PDF_TIMEOUT_MS): Promise<PdfRead> {
-  const worker = new Worker(PDF_WORKER, {
-    // a copy: what's handed over is cloned anyway, and the caller keeps its own
-    workerData: { bytes: new Uint8Array(bytes), maxPages: PDF_MAX_PAGES },
-    // a decompression bomb runs the thread out of memory, not the server
-    resourceLimits: { maxOldGenerationSizeMb: PDF_MAX_HEAP_MB },
-  });
+// PDF threads going at once, across every run: each may hold a copy of its file and up to PDF_MAX_HEAP_MB.
+const PDF_THREADS = 2;
+let threads = 0;
+const waiting = new Set<() => void>();
+
+async function threadSlot(signal?: AbortSignal): Promise<() => void> {
+  while (threads >= PDF_THREADS) {
+    signal?.throwIfAborted();
+    await new Promise<void>((resolve) => {
+      const wake = () => {
+        waiting.delete(wake);
+        signal?.removeEventListener('abort', wake);
+        resolve();
+      };
+      waiting.add(wake);
+      signal?.addEventListener('abort', wake, { once: true });
+    });
+  }
+  signal?.throwIfAborted();
+  threads += 1;
+  let freed = false;
+  return () => {
+    if (freed) return;
+    freed = true;
+    threads -= 1;
+    // every waiter looks again (one that was stopped meanwhile just leaves)
+    for (const wake of [...waiting]) wake();
+  };
+}
+
+// The thread failing (it couldn't start, or crashed) is the reader's fault, not the file's: said so, and logged.
+function readerFailed(cause: unknown): DocumentError {
+  if (cause && typeof cause === 'object' && 'code' in cause && cause.code === 'ERR_WORKER_OUT_OF_MEMORY') return new DocumentError('it needs too much memory to read.');
+  log('error', `The PDF reader stopped working (${PDF_WORKER}): ${cause instanceof Error ? cause.message : String(cause)}`);
+  return new DocumentError("the PDF reader didn't work, so it couldn't be read. Try again; if it keeps happening, restart the dashboard.", { lasting: false });
+}
+
+/** A PDF's text page by page, read in a thread that is stopped after timeoutMs, or when signal is. */
+export async function pdfText(bytes: Uint8Array, { timeoutMs = PDF_TIMEOUT_MS, signal }: ReadOptions = {}): Promise<PdfRead> {
+  const free = await threadSlot(signal);
+  let worker: Worker;
+  try {
+    worker = new Worker(PDF_WORKER, {
+      // (handing it over copies it once: the caller keeps its own)
+      workerData: { bytes, maxPages: PDF_MAX_PAGES },
+      // a decompression bomb runs the thread out of memory, not the server
+      resourceLimits: { maxOldGenerationSizeMb: PDF_MAX_HEAP_MB },
+    });
+  } catch (e) {
+    free();
+    throw readerFailed(e);
+  }
+  const limit = Math.min(timeoutMs, PDF_TIMEOUT_MS);
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
   try {
     const answer = await new Promise<PdfAnswer>((resolve, reject) => {
-      timer = setTimeout(() => reject(new DocumentError('it took too long to read.')), timeoutMs);
-      worker.once('message', (message: PdfAnswer) => resolve(message));
-      worker.once('error', () => reject(new DocumentError("it isn't a PDF that can be read.")));
-      worker.once('exit', () => reject(new DocumentError("it isn't a PDF that can be read.")));
+      // only the first outcome counts: stopping the thread afterwards makes it exit, which is no failure
+      let settled = false;
+      const end = (settle: () => void) => {
+        if (settled) return;
+        settled = true;
+        settle();
+      };
+      // (cut short by a caller's budget, it may read in full another time)
+      timer = setTimeout(() => end(() => reject(new DocumentError('it took too long to read.', { lasting: limit >= PDF_TIMEOUT_MS }))), limit);
+      onAbort = () => end(() => reject(signal?.reason ?? new Error('Stopped.')));
+      if (signal?.aborted) onAbort();
+      signal?.addEventListener('abort', onAbort, { once: true });
+      worker.once('message', (message: PdfAnswer) => end(() => resolve(message)));
+      worker.once('error', (error) => end(() => reject(readerFailed(error))));
+      worker.once('exit', (code) => end(() => reject(readerFailed(new Error(`it ended (code ${code}) without an answer`)))));
     });
     if ('error' in answer) throw new DocumentError(answer.error === 'password' ? 'it is password protected.' : "it isn't a PDF that can be read.");
     return answer;
   } finally {
     clearTimeout(timer);
+    if (onAbort) signal?.removeEventListener('abort', onAbort);
     // whatever happened, the thread is done with: stop it if it still runs
-    void worker.terminate();
+    void worker.terminate().finally(free);
   }
 }
 
@@ -310,17 +405,35 @@ export function xmlText(text: string): string {
   });
 }
 
-/** Word or PowerPoint XML as text: paragraphs as lines, table cells split by " | ". `ns` is w (Word) or a (slides). */
+/**
+ * Word or PowerPoint XML as text: paragraphs as lines, a table's row on one line with its cells split by " | ". `ns`
+ * is w (Word) or a (slides). A cell's own paragraphs (every cell ends with one) are joined by spaces.
+ */
 function runsAsLines(xml: string, ns: 'w' | 'a'): string {
-  const token = new RegExp(`<${ns}:t(?:\\s[^>]*)?>([^<]*)</${ns}:t>|<${ns}:tab/>|<${ns}:br(?:\\s[^>]*)?/>|</${ns}:p>|</${ns}:tc>|</${ns}:tr>`, 'g');
-  let out = '';
+  const token = new RegExp(`<${ns}:t(?:\\s[^>]*)?>([^<]*)</${ns}:t>|<${ns}:tab/>|<${ns}:br(?:\\s[^>]*)?/>|<${ns}:tc(?:\\s[^>]*)?>|</${ns}:p>|</${ns}:tc>|</${ns}:tr>`, 'g');
+  // the text outside any cell, then one entry per cell open around this point (a table can sit in a cell)
+  const open: string[] = [''];
+  const add = (text: string) => {
+    open[open.length - 1] += text;
+  };
   for (const [tag, text] of xml.matchAll(token)) {
-    if (text !== undefined) out += xmlText(text);
-    else if (tag.startsWith(`<${ns}:tab`)) out += '\t';
-    else if (tag.startsWith(`<${ns}:br`) || tag === `</${ns}:p>` || tag === `</${ns}:tr>`) out += '\n';
-    else if (tag === `</${ns}:tc>`) out += ' | ';
+    const inCell = open.length > 1;
+    if (text !== undefined) add(xmlText(text));
+    else if (tag.startsWith(`<${ns}:tab`)) add(inCell ? ' ' : '\t');
+    else if (tag.startsWith(`<${ns}:br`) || tag === `</${ns}:p>`) add(inCell ? ' ' : '\n');
+    else if (tag === `</${ns}:tr>`) add(inCell ? ' ' : '\n');
+    else if (tag === `</${ns}:tc>`) {
+      if (!inCell) continue;
+      const cell = open.pop()!.replace(/\s+/g, ' ').replace(/(?: \|)+$/, '').trim();
+      add(`${cell} | `);
+    } else open.push('');
   }
-  return out
+  // (cells never closed: their text still counts)
+  while (open.length > 1) {
+    const cell = open.pop()!;
+    add(cell);
+  }
+  return open[0]!
     .replace(/ \| \n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -336,7 +449,7 @@ export function wordText(bytes: Uint8Array): string {
 /** Where each relationship of a part points: id → part name, from the folder the part is in. */
 function relationTargets(rels: string, folder: string): Map<string, string> {
   const targets = new Map<string, string>();
-  for (const [rel] of rels.matchAll(/<Relationship\b[^>]*>/g)) {
+  for (const [rel] of rels.matchAll(/<(?:\w+:)?Relationship\b[^>]*>/g)) {
     const id = /\bId="([^"]+)"/.exec(rel)?.[1];
     const target = /\bTarget="([^"]+)"/.exec(rel)?.[1];
     // (absolute targets start at the package's root)
@@ -356,8 +469,9 @@ function columnIndex(letters: string): number {
   return index - 1;
 }
 
+// SpreadsheetML's elements may carry a prefix (<x:row>, <x:c>), as files written with the Open XML SDK have them.
 /** Every <t>'s text in a fragment, run after run (a rich-text string's pieces). */
-const runsText = (fragment: string) => [...fragment.matchAll(/<t(?:\s[^>]*)?>([^<]*)<\/t>/g)].map((m) => xmlText(m[1]!)).join('');
+const runsText = (fragment: string) => [...fragment.matchAll(/<(?:\w+:)?t(?:\s[^>]*)?>([^<]*)<\/(?:\w+:)?t>/g)].map((m) => xmlText(m[1]!)).join('');
 
 /**
  * An Excel workbook's text: each sheet under its name, a row per line, cells split by tabs. Values are what Excel
@@ -368,31 +482,32 @@ export function excelText(bytes: Uint8Array): { text: string; sheets: string[]; 
   const workbook = parts.get('xl/workbook.xml');
   if (workbook === undefined) throw new DocumentError('it has no workbook in it.');
   const targets = relationTargets(parts.get('xl/_rels/workbook.xml.rels') ?? '', 'xl');
-  const shared = [...(parts.get('xl/sharedStrings.xml') ?? '').matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => runsText(m[1]!));
+  const shared = [...(parts.get('xl/sharedStrings.xml') ?? '').matchAll(/<(?:\w+:)?si>([\s\S]*?)<\/(?:\w+:)?si>/g)].map((m) => runsText(m[1]!));
   const sheets: string[] = [];
   const notes: string[] = [];
   const out: string[] = [];
   let length = 0;
   let cut = false;
-  for (const [sheet] of workbook.matchAll(/<sheet\b[^>]*>/g)) {
+  for (const [sheet] of workbook.matchAll(/<(?:\w+:)?sheet\b[^>]*>/g)) {
     const name = xmlText(/\bname="([^"]*)"/.exec(sheet)?.[1] ?? 'Sheet');
-    const relId = /\br:id="([^"]+)"/.exec(sheet)?.[1];
+    // (the relationships' prefix is usually r, but any will do)
+    const relId = /\s\w+:id="([^"]+)"/.exec(sheet)?.[1];
     const xml = relId ? parts.get(targets.get(relId) ?? '') : undefined;
     sheets.push(name);
     if (xml === undefined || cut) continue;
     const rows: string[] = [];
+    // rows with something in them: what the limit counts, and what the note says were left out
     let total = 0;
     // an empty row closes itself; matched first, so it can't swallow the next
-    for (const row of xml.matchAll(/<row\b[^>]*\/>|<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
-      total += 1;
-      if (rows.length >= SHEET_MAX_ROWS || cut) continue;
+    for (const row of xml.matchAll(/<(?:\w+:)?row\b[^>]*\/>|<(?:\w+:)?row\b[^>]*>([\s\S]*?)<\/(?:\w+:)?row>/g)) {
+      if (cut) break;
       const cells: string[] = [];
-      for (const cell of (row[1] ?? '').matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      for (const cell of (row[1] ?? '').matchAll(/<(?:\w+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?c>)/g)) {
         const attributes = cell[1]!;
         const body = cell[2] ?? '';
         const ref = /\br="([A-Z]+)\d+"/.exec(attributes)?.[1];
         const type = /\bt="([^"]+)"/.exec(attributes)?.[1];
-        const raw = /<v>([^<]*)<\/v>/.exec(body)?.[1];
+        const raw = /<(?:\w+:)?v>([^<]*)<\/(?:\w+:)?v>/.exec(body)?.[1];
         let value = '';
         if (type === 's') value = shared[Number(raw)] ?? '';
         else if (type === 'inlineStr') value = runsText(body);
@@ -404,16 +519,18 @@ export function excelText(bytes: Uint8Array): { text: string; sheets: string[]; 
       }
       while (cells.length && !cells.at(-1)) cells.pop();
       if (!cells.length) continue;
+      total += 1;
+      if (rows.length >= SHEET_MAX_ROWS) continue;
       const line = cells.join('\t');
       length += line.length + 1;
       if (length > WORKBOOK_TEXT_MAX) {
         cut = true;
         notes.push(`The workbook's text stops in sheet “${name}”, after ${WORKBOOK_TEXT_MAX} characters.`);
-        continue;
+        break;
       }
       rows.push(line);
     }
-    if (total > SHEET_MAX_ROWS) notes.push(`Sheet “${name}”: only the first ${SHEET_MAX_ROWS} of ${total} rows were read.`);
+    if (total > SHEET_MAX_ROWS) notes.push(`Sheet “${name}”: only the first ${SHEET_MAX_ROWS} of ${total} rows with something in them were read.`);
     out.push(`--- Sheet: ${name} ---\n${rows.join('\n')}`);
   }
   notes.push("Cells hold what Excel stored: a formula's last result, and a date as a serial number.");

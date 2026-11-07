@@ -6,7 +6,7 @@ import path from 'node:path';
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { DocumentError, EXCEL_LAST_COLUMN, PARTS_MAX, UNPACKED_MAX_BYTES, documentKind, documentText, pdfText, readDocumentFile, readDocumentPart } from '../../server/documents.ts';
-import { compound, declareSizes, docx, pdf, pptx, xlsx } from './fixtures/documents.ts';
+import { compound, declareSizes, docx, pdf, pptx, pptxRaw, prefixedXlsx, xlsx } from './fixtures/documents.ts';
 
 const folder = () => fs.mkdtempSync(path.join(os.homedir(), 'docs-'));
 
@@ -20,6 +20,14 @@ describe('telling a document by its bytes', () => {
     expect(documentKind(zipSync({ 'a.txt': strToU8('hi') }), 'a.docx')).toBeNull();
     expect(documentKind(strToU8('# Notes'), 'a.pdf')).toBeNull();
     expect(documentKind(new Uint8Array(), 'a.pdf')).toBeNull();
+  });
+
+  it('takes a PDF header after some junk only in a file named .pdf', () => {
+    const late = strToU8(`junk\n${new TextDecoder().decode(pdf('x'))}`);
+    expect(documentKind(late, 'scan.PDF')).toBe('pdf');
+    // a note or source file that mentions the header is still text
+    expect(documentKind(strToU8('# How PDFs start\nEvery one begins with %PDF-1.4'), 'notes.md')).toBeNull();
+    expect(documentKind(late, 'notes.md')).toBeNull();
   });
 
   it('takes a compound file for an older Office one only when its name agrees', () => {
@@ -38,7 +46,18 @@ describe('the text of each kind', () => {
     ));
     expect(read.text).toContain('Refund & credit\t agreed');
     expect(read.text).toContain('€40 &unknown;');
-    expect(read.text).toMatch(/Plan\n? \| Plus/);
+    expect(read.text).toContain('\nPlan | Plus');
+  });
+
+  it("keeps a table's row on one line, its cells' own paragraphs joined", async () => {
+    const cell = (...paragraphs: string[]) => `<w:tc><w:tcPr><w:tcW w:w="1"/></w:tcPr>${paragraphs.map((p) => `<w:p><w:r><w:t>${p}</w:t></w:r></w:p>`).join('')}</w:tc>`;
+    const read = await documentText('word', docx(
+      `<w:p><w:r><w:t>Before</w:t></w:r></w:p><w:tbl><w:tr>${cell('Name')}${cell('Age')}</w:tr><w:tr>${cell('Ana', 'Lopez')}${cell('42')}</w:tr></w:tbl><w:p><w:r><w:t>After</w:t></w:r></w:p>`,
+    ));
+    expect(read.text).toBe('Before\nName | Age\nAna Lopez | 42\nAfter');
+    // a deck's tables too
+    const slide = `<a:tbl><a:tr><a:tc><a:txBody><a:p><a:r><a:t>Q1</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Q2</a:t></a:r></a:p></a:txBody></a:tc></a:tr></a:tbl>`;
+    expect((await documentText('powerpoint', pptxRaw(slide))).text).toBe('--- Slide 1 ---\nQ1 | Q2');
   });
 
   it('reads each sheet of a workbook, cells in their columns', async () => {
@@ -49,6 +68,21 @@ describe('the text of each kind', () => {
     expect(read.sheets).toEqual(['Payments', 'Notes']);
     expect(read.text).toBe('--- Sheet: Payments ---\nName\t\tPaid\nAna\t42.5\tTRUE\n\n--- Sheet: Notes ---\n\ta < b');
     expect(read.notes.join(' ')).toContain('serial number');
+  });
+
+  it('reads a workbook whose elements carry a prefix', async () => {
+    const read = await documentText('excel', prefixedXlsx());
+    expect(read.sheets).toEqual(['Report']);
+    expect(read.text).toBe('--- Sheet: Report ---\nRegion\tTotal\nNorth\t12');
+  });
+
+  it('counts only rows with something in them toward the limit', async () => {
+    const filled = Array.from({ length: 1500 }, (_, i) => `<row r="${i * 2 + 1}"><c r="A${i * 2 + 1}"><v>${i}</v></c></row><row r="${i * 2 + 2}" s="1"><c r="A${i * 2 + 2}" s="1"/></row>`).join('');
+    const read = await documentText('excel', xlsx({ Data: filled }));
+    expect(read.text.split('\n')).toHaveLength(1501);
+    expect(read.notes.join(' ')).not.toContain('only the first');
+    const more = Array.from({ length: 2500 }, (_, i) => `<row r="${i + 1}"><c r="A${i + 1}"><v>${i}</v></c></row>`).join('');
+    expect((await documentText('excel', xlsx({ Data: more }))).notes.join(' ')).toContain('only the first 2000 of 2500 rows');
   });
 
   it("reads a deck's slides in the deck's order, not the files'", async () => {
@@ -68,8 +102,23 @@ describe('the text of each kind', () => {
 
   it("stops a PDF's thread when it takes too long, and still reads the next", async () => {
     const file = pdf('Contract signed 3 May');
-    await expect(pdfText(file, 1)).rejects.toThrow('took too long');
+    await expect(pdfText(file, { timeoutMs: 1 })).rejects.toThrow('took too long');
     expect((await pdfText(file)).text).toContain('Contract signed 3 May');
+  });
+
+  it("stops reading a PDF when it's told to, and reads it in full next time", async () => {
+    const file = path.join(folder(), 'long.pdf');
+    fs.writeFileSync(file, pdf('Contract signed 3 May'));
+    const stop = new AbortController();
+    stop.abort(new Error('Stopped.'));
+    await expect(readDocumentFile(file, { signal: stop.signal })).rejects.toThrow('Stopped.');
+    const reading = new AbortController();
+    const read = readDocumentFile(file, { signal: reading.signal });
+    reading.abort(new Error('Stopped.'));
+    await expect(read).rejects.toThrow('Stopped.');
+    // (cut short by a caller's budget, it isn't remembered as too slow either)
+    await expect(readDocumentFile(file, { timeoutMs: 1 })).rejects.toThrow('took too long');
+    expect((await readDocumentFile(file))?.text).toContain('Contract signed 3 May');
   });
 
   it('says when a PDF is password protected, or not a PDF at all', async () => {
@@ -143,6 +192,24 @@ describe('reading a file', () => {
     expect(whole).toContain('--- Sheet: Totals ---\n1\n2\n');
     const part = await readDocumentPart(file, 'sheet.xlsx', { offset: 11, limit: 5 });
     expect(part).toContain('\n\n10\n11\n12\n13\n14\n\n[Lines 11-15 of 31. Continue with offset 16.]');
+  });
+
+  it("remembers a document that can't be read while it stays the same", async () => {
+    const file = path.join(folder(), 'locked.pdf');
+    const plain = new TextDecoder().decode(pdf('secret'));
+    const locked = plain.replace('<< /Size 6 /Root 1 0 R >>', '<< /Size 6 /Root 1 0 R /Encrypt << /Filter /Standard /V 1 /R 2 /O (0123456789abcdef0123456789abcdef) /U (0123456789abcdef0123456789abcdef) /P -4 >> /ID [<00112233445566778899aabbccddeeff> <00112233445566778899aabbccddeeff>] >>');
+    // (a whole second: a file system keeps it exactly)
+    const when = 1_700_000_000;
+    fs.writeFileSync(file, locked);
+    fs.utimesSync(file, when, when);
+    await expect(readDocumentFile(file)).rejects.toThrow('password protected');
+    // the same size and time, other bytes: what was found the first time stands, with no new read
+    fs.writeFileSync(file, plain.padEnd(locked.length, '\n'));
+    fs.utimesSync(file, when, when);
+    await expect(readDocumentFile(file)).rejects.toThrow('password protected');
+    // changed, it is read again
+    fs.writeFileSync(file, plain);
+    expect((await readDocumentFile(file))?.text).toContain('secret');
   });
 
   it("says why a document can't be read", async () => {

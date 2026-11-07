@@ -29,6 +29,27 @@ export function pptx(slides: string[][], order = slides.map((_, i) => i + 1)): U
   });
 }
 
+/** A one-slide deck whose slide holds `xml` as it is (a table, say). */
+export function pptxRaw(xml: string): Uint8Array {
+  return zipSync({
+    ...TYPES,
+    'ppt/presentation.xml': strToU8('<p:presentation><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst></p:presentation>'),
+    'ppt/_rels/presentation.xml.rels': strToU8('<Relationships><Relationship Id="rId1" Type="slide" Target="slides/slide1.xml"/></Relationships>'),
+    'ppt/slides/slide1.xml': strToU8(`<p:sld><p:cSld><p:spTree><p:graphicFrame><a:graphic><a:graphicData>${xml}</a:graphicData></a:graphic></p:graphicFrame></p:spTree></p:cSld></p:sld>`),
+  });
+}
+
+/** A workbook written the way the Open XML SDK writes one: every element with the x: prefix. */
+export function prefixedXlsx(): Uint8Array {
+  return zipSync({
+    ...TYPES,
+    'xl/workbook.xml': strToU8('<x:workbook xmlns:x="main" xmlns:r="rels"><x:sheets><x:sheet name="Report" sheetId="1" r:id="R1a2"/></x:sheets></x:workbook>'),
+    'xl/_rels/workbook.xml.rels': strToU8('<Relationships><Relationship Id="R1a2" Type="worksheet" Target="/xl/worksheets/sheet.xml"/></Relationships>'),
+    'xl/sharedStrings.xml': strToU8('<x:sst><x:si><x:t>Region</x:t></x:si><x:si><x:t>North</x:t></x:si></x:sst>'),
+    'xl/worksheets/sheet.xml': strToU8('<x:worksheet><x:sheetData><x:row r="1"><x:c r="A1" t="s"><x:v>0</x:v></x:c><x:c r="B1" t="inlineStr"><x:is><x:t>Total</x:t></x:is></x:c></x:row><x:row r="2"><x:c r="A2" t="s"><x:v>1</x:v></x:c><x:c r="B2"><x:v>12</x:v></x:c></x:row></x:sheetData></x:worksheet>'),
+  });
+}
+
 /** A ZIP whose central directory says the parts `names` matches unpack to `size` bytes, as a hostile file's could. */
 export function declareSizes(zip: Uint8Array, names: RegExp, size: number): Uint8Array {
   const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
