@@ -1,0 +1,70 @@
+server/eve/steer.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 22-26
+server/brain.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 8,333-334,343,359,457
+README.md
+  s_9388c63be401b0::t_4d517a8e3936a5 141
+tests/server/uploads.test.ts
+  s_9388c63be401b0::t_53b8e1516c7060 7
+  s_9388c63be401b0::t_4d517a8e3936a5 8,122-171
+  s_9388c63be401b0::t_6cef93ea9b80bc 172
+scripts/build-desktop.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 43-45
+scripts/desktop-smoke.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 3,39-53,147-152
+  s_9388c63be401b0::t_d1736efad9f126 153
+tests/server/tool-budget.test.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 25-26,28,33-34
+tests/server/eve-admission.test.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 12,19-20,167-192
+  s_9388c63be401b0::t_2b34a2df1f06a7 193
+server/eve/admission.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 6-7,83,87-94,99-100,106,159
+package.json
+  s_9388c63be401b0::t_4d517a8e3936a5 104,112
+server/documents.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 1-551
+server/engines/index.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 13,606-609
+server/pdfworker.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 1-51
+AGENTS.md
+  s_9388c63be401b0::t_4d517a8e3936a5 46
+server/filetools.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 29,35-46,58
+server/overseer.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 26,2074,2077
+server/tools.ts
+  s_9388c63be401b0::t_4a670534a84ff0 9
+  s_9388c63be401b0::t_4d517a8e3936a5 18,64,156-177,1263,1273,1276,1278-1279,1281-1282,1285,1289-1308,1637
+tests/server/document-tools.test.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 1-85
+tests/server/fixtures/documents.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 1-88
+server/uploads.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 12,253,263-275,277,285-288,297-298,301-328,330-338,340-371,374-390,394-395,397-418,423-428,430-437
+tests/server/documents.test.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 1-220
+docs/guide.md
+  s_9388c63be401b0::t_4d517a8e3936a5 43-44,128
+tests/server/eve-steer.test.ts
+  s_9388c63be401b0::t_4d517a8e3936a5 1-44
+bun.lock
+  s_9388c63be401b0::t_046f9a5634281d 47,55,1512-1513
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4be00cf2819357eca458a8692eedfce823c6dfba",
+  "prompts": {},
+  "sessions": {
+    "s_9388c63be401b0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b31f09e-cf4e-4096-ae14-9d6a48016d4e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
