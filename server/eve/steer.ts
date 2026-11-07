@@ -19,11 +19,14 @@ export function canSteer(runId: string): boolean {
 /** Sends the message into the run's turn. Throws when Eve didn't take it: the caller sends it the
  *  ordinary way (stopping the run, which ends the session, so one Eve took after all never runs twice). */
 export async function sendSteer(runId: string, steer: Pick<EveSteer, 'id' | 'text' | 'attachments' | 'from' | 'teamMessageId'>): Promise<EveSteer> {
+  if (!canSteer(runId)) throw new Error('This turn can no longer take a message.');
+  // (read before anything is saved: a missing file sends nothing)
+  const message = await eveMessage(steer.text, steer.attachments);
+  // reading attached documents takes a while, and the turn may have ended meanwhile: looked at again, and saved
+  // with nothing awaited in between, so the end of the turn either finds the message or it is sent the ordinary way
   const run = readRun(runId);
   const binding = run && readBinding(run.bindingId);
   if (!run || !binding?.sessionId || !canSteer(runId)) throw new Error('This turn can no longer take a message.');
-  // (read before anything is saved: a missing file sends nothing)
-  const message = eveMessage(steer.text, steer.attachments);
   recordSteer(runId, { ...steer, deliveryId: null, at: Date.now() });
   try {
     const host = await eveRuntime.ready();

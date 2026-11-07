@@ -23,7 +23,7 @@ import type { BrainVerdict } from './approvals.ts';
 import { think, brainModel, parseJSON } from './brain.ts';
 import type { ThinkPart } from './brain.ts';
 import { readJSON, writeJSON, run, dataPath, exists, insideRoots } from './util.ts';
-import { describeAttachments, attachmentNames } from './uploads.ts';
+import { describeAttachmentsRead, attachmentNames } from './uploads.ts';
 import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, routineTargets, runningRoutineRuns, stopRoutineRun } from './routines.ts';
 import { listSkills, getSkill, findSkill, saveSkill, deleteSkillEverywhere, brainSkills, brainSkillSlugs, setBrainSkills } from './skills.ts';
 import type { SkillDetail } from './skills.ts';
@@ -2071,10 +2071,10 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false,
   const past = history(p.id, conversationId);
   const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? `User${m.from ? ` (${m.from})` : ''}` : 'Brain'}: ${cut(brainChatLine(m), 600)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`).join('\n')}` : '';
   // files the user attached: where they are (it can open them when it reads files), and the text of small ones
-  const files = attachments.length ? `\n\n${describeAttachments(attachments, { inline: canRead ? 8000 : 24000 })}\n(When you delegate, the attached files go along with your brief: mention them in it.)` : '';
+  const files = attachments.length ? `\n\n${await describeAttachmentsRead(attachments, { inline: canRead ? 8000 : 24000 })}\n(When you delegate, the attached files go along with your brief: mention them in it.)` : '';
   // files from earlier turns (the last few): where they are, and for a Brain that can't open files, their text
   const earlier = [...new Set(past.slice(-12).filter((m) => m.role === 'user' && m.attachments?.length).slice(-3).flatMap((m) => m.attachments || []))];
-  const earlierFiles = earlier.length ? `\n\n${describeAttachments(earlier, { inline: canRead ? 0 : 8000, heading: 'Files the user attached earlier in this chat' })}` : '';
+  const earlierFiles = earlier.length ? `\n\n${await describeAttachmentsRead(earlier, { inline: canRead ? 0 : 8000, heading: 'Files the user attached earlier in this chat' })}` : '';
   // skills: its own (in its instructions), and the whole text of the ones this message or the last few name
   const own = brainSkills();
   const named = skillTexts(skillsNamedIn([text, ...past.slice(-4).map(brainChatLine)].join('\n')).filter((slug) => !own.some((sk) => sk.slug === slug)));

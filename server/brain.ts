@@ -5,7 +5,7 @@ import { agents, workflows, getSecrets, getSettings } from './store.ts';
 import { TOOL_GROUPS } from './tools.ts';
 import { listServers, serversForPrompt } from './mcp.ts';
 import { run, which, tmpFile } from './util.ts';
-import { describeAttachments } from './uploads.ts';
+import { describeAttachmentsRead } from './uploads.ts';
 import { brainSession, systemMessage } from './promptcache.ts';
 import { effortFor, isEffort } from '../shared/effort.ts';
 import { apiModelInfo, apiRequestOptions, resolveApiProvider } from './apiproviders.ts';
@@ -330,8 +330,8 @@ function cleanAgent(j: AgentAnswer): AgentDraft {
 
 const AGENT_SCHEMA = `{"name":"short role name","emoji":"one emoji","specialty":"one line: what it is good at","instructions":"how it works: process, rules, what good output looks like (5-12 sentences, second person)","tools":["tool group ids"],"mcpServers":["names"]}`;
 
-// Files you attached: where they are, and the start of small text files (the design model can't open files).
-const filesFor = (attachments: string[] | undefined) => (attachments?.length ? `\n\n${describeAttachments(attachments, { inline: 12000 })}` : '');
+// Files you attached: where they are, and the start of small text files and documents (the design model can't open files).
+const filesFor = async (attachments: string[] | undefined) => (attachments?.length ? `\n\n${await describeAttachmentsRead(attachments, { inline: 12000 })}` : '');
 
 export async function designAgent(text: string, { attachments = [] }: { attachments?: string[] } = {}): Promise<AgentDraft> {
   const system = `You design one AI agent for the user's personal dashboard from their description.
@@ -340,7 +340,7 @@ ${TOOLS_TEXT}
 Available MCP servers: ${serversForPrompt() || '(none)'}
 Rules: posts and DMs always wait for the user's approval; never invent facts or numbers.
 Answer with JSON only: ${AGENT_SCHEMA}`;
-  return cleanAgent(parseJSON<AgentAnswer>(await think(system, `${text || 'Design the agent from the attached files: what they are about is what it should be good at.'}${filesFor(attachments)}`)));
+  return cleanAgent(parseJSON<AgentAnswer>(await think(system, `${text || 'Design the agent from the attached files: what they are about is what it should be good at.'}${await filesFor(attachments)}`)));
 }
 
 // ---------- New branch ----------
@@ -356,7 +356,7 @@ MCP servers: ${serversForPrompt() || '(none)'}
 Answer with JSON only:
 {"name":"short name","description":"one sentence: the team's shared goal","lead":"<existing agent id, or the 'name' of a new agent, or empty>","access":{"tools":["ids"],"mcpServers":["names"]},
  "members":[{"agentId":"<existing id>"} | {"newAgent":${AGENT_SCHEMA}}]}`;
-  const user = `Existing agents:\n${all.map(agentLine).join('\n') || '(none)'}\n\nWhat the team should do:\n${text || '(see the attached files)'}${filesFor(attachments)}`;
+  const user = `Existing agents:\n${all.map(agentLine).join('\n') || '(none)'}\n\nWhat the team should do:\n${text || '(see the attached files)'}${await filesFor(attachments)}`;
   const j = parseJSON<BranchAnswer>(await think(system, user));
   const members: BranchMember[] = [];
   for (const m of j.members || j.steps || []) {
@@ -454,7 +454,7 @@ Never put secrets (API keys, passwords, tokens) in a skill: if the request inclu
 ${library ? `Skills already in the library, the most related first (don't write a copy of one; if the request is the same as one, say so in "note"):\n${library}\n` : ''}Answer with JSON only: {"name":"…","description":"…","body":"the instructions in markdown","note":"one sentence: what you wrote or changed"}`;
   const cur = current ? `CURRENT skill:\nname: ${current.name}\ndescription: ${current.description}\n${files.length ? `extra files with it: ${files.slice(0, 40).join(', ')}\n` : ''}body:\n${current.body.trim() || '(empty)'}\n\n` : '';
   const what = request.trim() || (editing ? 'Improve it using the attached files.' : 'Write a skill from the attached files: the way of working they show.');
-  const user = `${cur}${editing ? 'What to change' : 'The skill to write'}:\n${what}${filesFor(attachments)}`;
+  const user = `${cur}${editing ? 'What to change' : 'The skill to write'}:\n${what}${await filesFor(attachments)}`;
   const CUT = "The Brain's answer was cut off before the end (the skill is long). Ask for a smaller change, or edit that part by hand.";
   let raw: string;
   try {
