@@ -2145,13 +2145,15 @@ export interface TaskFile {
 /** Where a task's work stands. starting: saved, not started yet. waiting: it needs your OK for a step. */
 export type TaskWorkState = 'starting' | 'working' | 'waiting' | 'review' | 'blocked' | 'stopped' | 'needs-review';
 
-/** An agent or team working on a task, in a conversation of its own (board-<taskId>). One at a time. */
+/** An agent, a team or the Brain working on a task, in a conversation of its own (board-<taskId>). One at a time. */
 export interface TaskWork {
-  /** chosen before anything starts: the run's id or the team message's id */
+  /** chosen before anything starts: the run's id, the team message's id or the Brain's answer's */
   operationId: string;
   conversationId: string;
-  /** who was given it: an agent, or a team (its private thread for this task) */
-  target: { kind: 'agent' | 'team'; id: string };
+  /** who was given it: an agent, a team (its private thread for this task) or the Brain (id 'brain') */
+  target: { kind: 'agent' | 'team' | 'brain'; id: string };
+  /** the Brain's work: the agent or team it handed the task to (chatId or teamId is theirs) */
+  handedTo?: { kind: 'agent' | 'team'; id: string };
   /** the agent's private chat for this task */
   chatId?: string;
   /** the team's private thread for this task */

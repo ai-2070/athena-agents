@@ -604,13 +604,13 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
   );
 }
 
-/** The agent's or team's work on the task: who, how it goes, and Stop, Start or Check saved work. Shown once the
- *  task is given to an agent or team. */
+/** The agent's, team's or Brain's work on the task: who, how it goes, and Stop, Start or Check saved work. Shown once
+ *  the task is given to one of them. */
 function WorkBox({ task, onChange }: { task: BoardTask; onChange: (t: BoardTask) => void }) {
   const app = useAppState();
   const [busy, setBusy] = useState(false);
   const w = task.work;
-  const canWork = /^(agent|team):/.test(task.assignee);
+  const canWork = task.assignee === 'brain' || /^(agent|team):/.test(task.assignee);
   if (!w && !canWork) return null;
   const going = isWorking(task);
   const act = async (what: 'start' | 'stop' | 'check') => {
@@ -629,11 +629,13 @@ function WorkBox({ task, onChange }: { task: BoardTask; onChange: (t: BoardTask)
   const who = w ? task.workerName || 'Someone' : task.assigneeName;
   // (its chat lives in the task's project: it opens from there)
   const here = app?.project?.id === task.projectId;
-  const openWork = w && here ? (w.chatId ? () => navigate(`#/agents/${w.target.id}/${w.chatId}`) : w.teamId ? () => void openChat('team', w.teamId!) : null) : null;
+  // (the Brain's work opens in the chat or thread of the agent or team it handed it to)
+  const agentId = w?.target.kind === 'agent' ? w.target.id : w?.handedTo?.kind === 'agent' ? w.handedTo.id : null;
+  const openWork = w && here ? (w.chatId && agentId ? () => navigate(`#/agents/${agentId}/${w.chatId}`) : w.teamId ? () => void openChat('team', w.teamId!) : null) : null;
   return (
     <section aria-label="Work" className="work-box flex flex-col gap-2.5 rounded-box border border-line bg-panel p-3 shadow-card">
       <div className="flex items-center gap-2 text-[12.5px]">
-        <WhoMark who={w ? `${w.target.kind}:${w.target.id}` : task.assignee} emoji={w ? undefined : task.assigneeEmoji} color={w ? undefined : task.assigneeColor} size={20} />
+        <WhoMark who={w ? (w.target.kind === 'brain' ? 'brain' : `${w.target.kind}:${w.target.id}`) : task.assignee} emoji={w ? undefined : task.assigneeEmoji} color={w ? undefined : task.assigneeColor} size={20} />
         <b className="min-w-0 truncate font-medium text-ink">{who}</b>
         {state ? (
           <span className={`work-state ml-auto inline-flex flex-none items-center gap-1 font-medium ${state.tone}`}>
