@@ -22,6 +22,12 @@ import { eveCounts } from './counts.ts';
 import type { Agent, Chat, EveModelSelection, EveRuntimeConfiguration } from '../../shared/types.ts';
 
 const schema = z.record(z.string(), z.json());
+/** A tool's input schema as models take it. Claude models refuse a schema with oneOf, anyOf or allOf at the top
+ *  level (an MCP server's tool can have one), and with it the whole request; the tool still checks its own input. */
+export function modelSchema(parameters: unknown): z.infer<typeof schema> {
+  const { oneOf: _one, anyOf: _any, allOf: _all, ...rest } = schema.parse(parameters);
+  return rest;
+}
 type Policy = { status: 'approved' | 'user-approval' | 'denied'; reason?: string };
 
 function invocationContext(bindingId: string, sessionId: string, runId?: string) {
@@ -81,7 +87,7 @@ export async function eveConfiguration(bindingId: string, sessionId: string, nat
       ...(selection.provider === 'venice' ? { spentUsd: readRun(run.id)?.charges?.reduce((sum, charge) => sum + (charge.cost || 0), 0) || 0 } : {}),
       apiKey: provider.headers.authorization?.replace(/^Bearer /, '') || '', headers,
       instructions,
-      tools: defs.map((tool) => ({ name: tool.function.name, description: tool.function.description || '', inputSchema: schema.parse(tool.function.parameters) })),
+      tools: defs.map((tool) => ({ name: tool.function.name, description: tool.function.description || '', inputSchema: modelSchema(tool.function.parameters) })),
     };
     const { apiKey: _key, headers: _headers, ...definition } = configuration;
     recordConfiguration(run.id, definition);

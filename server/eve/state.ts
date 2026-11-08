@@ -276,6 +276,13 @@ export function markProjected(id: string, count: number): void {
   saveRun({ ...run, projected: count });
 }
 
+/** What the chat says when an Eve turn did not finish: its limit, or what went wrong, in the model's words. */
+export function failureText(run: Pick<EveRunRecord, 'limitReason' | 'error'> | null | undefined): string {
+  if (run?.limitReason) return run.limitReason;
+  if (run?.error) return `Eve could not finish this work. The model said: ${run.error.slice(0, 900)}`;
+  return 'Eve could not finish this work. Check its saved results before continuing.';
+}
+
 export function settleRun(id: string, status: 'completed' | 'failed' | 'stopped' | 'interrupted', answer: string, error?: string): void {
   const run = readRun(id);
   if (!run) throw new Error('No such Eve run.');

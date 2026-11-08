@@ -6,7 +6,8 @@ import { deflateSync } from 'node:zlib';
 import { activeProject, agents, chats, saveSettings, setSecret } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 import { selectEveModel } from '../../server/eve/model.ts';
-import { attachSession, beginRun, bindSession, readRun, setRunStatus } from '../../server/eve/state.ts';
+import { attachSession, beginRun, bindSession, failureText, readRun, setRunStatus } from '../../server/eve/state.ts';
+import { apiErrorMessage } from '../../server/apiresponse.ts';
 import { projectEvent } from '../../server/eve/projection.ts';
 import { projectTranscript } from '../../server/eve/transcript.ts';
 import { eveUsage } from '../../server/eve/usage.ts';
@@ -16,6 +17,27 @@ import type { SessionStreamEvent } from 'eve/client';
 afterEach(() => vi.restoreAllMocks());
 const config: EveRuntimeConfiguration = { runId: 'model-proof', provider: 'openrouter', model: 'anthropic/claude-proof', baseUrl: 'https://provider.invalid/v1', apiKey: 'unit-fixture-key', headers: {}, instructions: '', contextWindow: 64000, tools: [], cacheKey: 'private-binding', effort: 'high', temperature: 0, maxModelSteps: 16, costLimitUsd: 2, costBaseline: 0 };
 const prompt = () => [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'Hello' }] }];
+
+// What OpenRouter answers when Anthropic refuses a request (a tool schema it doesn't take, here)
+const refused = { error: { message: 'Provider returned error', code: 400, metadata: {
+  raw: JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'tools.0.custom.input_schema: input_schema does not support oneOf, allOf, or anyOf at the top level' } }),
+  provider_name: 'Anthropic', is_byok: false,
+} } };
+const why = 'Anthropic: tools.0.custom.input_schema: input_schema does not support oneOf, allOf, or anyOf at the top level';
+
+describe('why a model call failed', () => {
+  it.each(['doGenerate', 'doStream'] as const)("%s says the provider's own reason, not only OpenRouter's", async (call) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json(refused, { status: 400 }));
+    await expect(athenaModel(config)[call]({ prompt: prompt() })).rejects.toThrow(`Provider returned error (${why})`);
+  });
+  it('the chat says what the model said, and the Brain reads the same reason', () => {
+    expect(failureText({ error: `Provider returned error (${why})` })).toBe(`Eve could not finish this work. The model said: Provider returned error (${why})`);
+    expect(failureText({ limitReason: 'Stopped after 16 model steps.', error: 'x' })).toBe('Stopped after 16 model steps.');
+    expect(failureText(null)).toContain('Check its saved results');
+    expect(apiErrorMessage(refused, 'fallback')).toBe(`Provider returned error (${why})`);
+    expect(apiErrorMessage({ error: { message: 'Rate limited' } }, 'fallback')).toBe('Rate limited');
+  });
+});
 
 describe('Eve model controls', () => {
   it.each(['lmstudio', 'custom'] as const)('uses the selected %s connection without remote-provider fields', async (provider) => {

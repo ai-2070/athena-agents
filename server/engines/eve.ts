@@ -6,7 +6,7 @@ import { eveCoordinator } from '../eve/coordinator.ts';
 import { prepareAdmission, submitAdmission, validAdmission } from '../eve/admission.ts';
 import { eveClient, stopEveRun, retireEveBindings } from '../eve/recovery.ts';
 import { canSteer, sendSteer } from '../eve/steer.ts';
-import { adoptRun, readBinding, readRun } from '../eve/state.ts';
+import { adoptRun, failureText, readBinding, readRun } from '../eve/state.ts';
 import { status } from '../providers.ts';
 import { contextWindow } from '../context.ts';
 import type { EngineRunArgs, EngineResult, TurnSteering } from './index.ts';
@@ -90,7 +90,7 @@ async function followRun(runId: string, bindingId: string, signal: AbortSignal, 
       })]);
     } finally { signal.removeEventListener('abort', aborted); }
     const result = readRun(runId);
-    if (signal.aborted || result?.status !== 'completed') throw new Error(result?.limitReason || 'Eve could not finish this work. Check its saved results before continuing.');
+    if (signal.aborted || result?.status !== 'completed') throw new Error(failureText(result));
     return { text: result.answer || '', ...eveUsage(runId), ...(window ? { window } : {}) };
   } finally {
     signal.removeEventListener('abort', stopped);
