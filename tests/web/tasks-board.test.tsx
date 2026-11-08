@@ -221,6 +221,27 @@ describe('the Tasks board', () => {
     expect(requests.find((r) => r.method === 'POST')).toMatchObject({ url: '/api/task-board/p1', body: { title: 'Taste the new cake', description: 'Before Friday.', status: 'in_review', priority: 'normal', assignee: '' } });
   });
 
+  it('drafts an empty new task only once you say what it should be', async () => {
+    await open();
+    await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Create a task in In review"]')!.click());
+    await settle();
+    const modal = document.querySelector<HTMLElement>('.modal')!;
+    await act(async () => [...modal.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Draft with the Brain')!.click());
+    await settle();
+    const popup = document.querySelector<HTMLElement>('.st-menu')!;
+    expect(popup.querySelector('h3')?.textContent).toBe('Draft this task');
+    const go = () => [...popup.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Draft')!;
+    // (with no title, no description and nothing asked the Brain has nothing to go on)
+    expect(go().disabled).toBe(true);
+    await act(async () => popup.querySelector('textarea')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(requests.some((r) => r.url === '/api/task-board-draft')).toBe(false);
+    await type(popup.querySelector('textarea')!, 'order the flowers');
+    expect(go().disabled).toBe(false);
+    await act(async () => popup.querySelector('textarea')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    await act(async () => [...modal.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Cancel')!.click());
+    await settle();
+  });
+
   it('says in the New task window whether who it\'s given to starts on it once it\'s made', async () => {
     await open();
     await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Create a task in To do"]')!.click());
@@ -436,8 +457,11 @@ describe('a task\'s own page', () => {
     const draft = [...el.querySelectorAll<HTMLButtonElement>('section[aria-label="Activity"] button')].find((b) => b.textContent === 'Draft with the Brain')!;
     await act(async () => draft.click());
     await settle();
-    await type(document.querySelector<HTMLInputElement>('input[placeholder^="e.g. make it a checklist"]')!, 'ask about the oven');
-    await act(async () => document.querySelector<HTMLInputElement>('input[placeholder^="e.g. make it a checklist"]')!.form!.requestSubmit());
+    const ask = () => document.querySelector<HTMLTextAreaElement>('.st-menu textarea')!;
+    expect(document.querySelector('.st-menu h3')?.textContent).toBe('Draft a comment');
+    await type(ask(), 'ask about the oven');
+    // (Enter drafts; Shift+Enter would start a new line)
+    await act(async () => ask().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     await settle();
     expect(requests.find((r) => r.url === '/api/task-board-draft')).toMatchObject({ method: 'POST', body: { projectId: 'p1', kind: 'comment', taskId: 'a', text: 'mine', instruction: 'ask about the oven' } });
     expect(box().value).toBe('Is the oven here yet?');

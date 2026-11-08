@@ -1,7 +1,7 @@
 // The Tasks board's shared parts: its five statuses and four priorities with their marks, the pill and row pickers,
 // and "New task", the window that makes one (a big title, its description, and its status, priority, who has it,
 // its tags and its project as pills along the bottom).
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { Popover } from '@base-ui/react/popover';
 import { confirmBox, h, md, state, toast } from './core.ts';
@@ -207,19 +207,29 @@ export function WhoMark({ who: ref, emoji, color, size = 20 }: { who: string; em
 /** Asks the Brain for a draft (nothing is saved). */
 export const askForDraft = (input: BoardDraftInput) => rpc.taskBoard.draft(input);
 
+/** What the "Draft with the Brain" box says where it is used: a heading, what the Brain reads, and a hint. */
+export interface DraftWording {
+  heading: string;
+  about: string;
+  placeholder: string;
+}
+
 /**
- * "Draft with the Brain": what it should say (optional), then the draft goes into the box. use() puts it there and
- * gives back how to take it out again; Undo shows for a while after.
+ * "Draft with the Brain": what it should say (optional), then the draft goes into the box. draft() puts it there and
+ * gives back how to take it out again; Undo shows for a while after. blank: nothing is written yet, so the Brain has
+ * to be told what to write (with nothing at all to go on it can't draft).
  */
-export function DraftWithBrain({ draft, disabled }: { draft: (instruction: string) => Promise<(() => void) | null>; disabled?: boolean }) {
+export function DraftWithBrain({ draft, disabled, blank, wording }: { draft: (instruction: string) => Promise<(() => void) | null>; disabled?: boolean; blank?: boolean; wording: DraftWording }) {
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState('');
   const [busy, setBusy] = useState(false);
   const [undo, setUndo] = useState<(() => void) | null>(null);
+  const id = useId();
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
+  const ready = !blank || instruction.trim() !== '';
   const go = async () => {
-    if (busy) return;
+    if (busy || !ready) return;
     setBusy(true);
     try {
       const back = await draft(instruction.trim());
@@ -245,20 +255,37 @@ export function DraftWithBrain({ draft, disabled }: { draft: (instruction: strin
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Positioner side="top" align="start" sideOffset={6} collisionPadding={8} positionMethod="fixed" className="z-96 outline-none">
-            <Popover.Popup className="st-menu dd static w-80! max-w-[calc(100vw-16px)]! p-3!">
+            <Popover.Popup className="st-menu dd static w-88! max-w-[calc(100vw-16px)]! p-4!">
               {/* (its own form: a submit here must not reach the form the button sits in, through React's tree) */}
-              <form className="flex flex-col gap-2.5" onSubmit={(e) => (e.preventDefault(), e.stopPropagation(), void go())}>
-                <label className="flex flex-col gap-1.5 text-[12.5px] text-dim">
-                  What should it say? <span className="text-faint">(optional)</span>
-                  <input autoFocus value={instruction} maxLength={2000} placeholder="e.g. make it a checklist, ask for the quote" onChange={(e) => setInstruction(e.currentTarget.value)} disabled={busy} />
-                </label>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11.5px] text-faint">It reads what is here and the task.</span>
-                  <Button type="submit" size="small" disabled={busy}>
-                    <Icon name="sparkles" size={13} />
-                    {busy ? 'Drafting…' : 'Draft'}
-                  </Button>
+              <form className="flex flex-col gap-3" onSubmit={(e) => (e.preventDefault(), e.stopPropagation(), void go())}>
+                <div className="flex flex-col gap-1">
+                  <h3 id={`${id}-heading`} className="text-[14px] font-medium text-ink">{wording.heading}</h3>
+                  <p id={`${id}-about`} className="text-[12.5px] leading-snug text-dim">
+                    {wording.about} <span className="text-faint">(optional)</span>
+                  </p>
                 </div>
+                <textarea
+                  autoFocus
+                  rows={3}
+                  value={instruction}
+                  maxLength={2000}
+                  aria-labelledby={`${id}-heading`}
+                  aria-describedby={`${id}-about`}
+                  placeholder={wording.placeholder}
+                  onChange={(e) => setInstruction(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    // Enter drafts and Shift+Enter starts a new line; the window behind must not see Enter (Ctrl+Enter there saves)
+                    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+                    e.stopPropagation();
+                    if (!e.shiftKey) (e.preventDefault(), e.currentTarget.form?.requestSubmit());
+                  }}
+                  disabled={busy}
+                  className="min-h-20 resize-y text-[13px] leading-relaxed"
+                />
+                <Button type="submit" variant="ghost" size="small" className="self-end" disabled={busy || !ready}>
+                  <Icon name="sparkles" size={13} />
+                  {busy ? 'Drafting…' : 'Draft'}
+                </Button>
               </form>
             </Popover.Popup>
           </Popover.Positioner>
@@ -461,6 +488,12 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
       <div className="modal-foot">
         <DraftWithBrain
           disabled={busy || !projectId}
+          wording={{
+            heading: 'Draft this task',
+            about: 'The Brain reads what you have typed and writes a title and description. Tell it what you want',
+            placeholder: 'e.g. Get three quotes for the venue by Friday',
+          }}
+          blank={!title.trim() && !description.trim()}
           draft={async (instruction) => {
             const d = await askForDraft({ projectId, kind: 'task', title, description, instruction });
             if (d.kind !== 'task') return null;
