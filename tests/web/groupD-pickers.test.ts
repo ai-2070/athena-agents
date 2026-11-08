@@ -40,6 +40,12 @@ afterEach(() => {
   state.data = null;
 });
 
+const tabs = () => [...document.querySelectorAll<HTMLButtonElement>('.model-tab')];
+const tabNamed = (label: string) => tabs().find((t) => t.textContent === label)!;
+const sources = () => [...document.querySelectorAll<HTMLButtonElement>('.model-sources button')];
+const source = (label: string) => sources().find((b) => b.textContent === label)!;
+const sourceOn = () => sources().find((b) => b.getAttribute('aria-pressed') === 'true')?.textContent;
+
 describe('model picker: models on this PC', () => {
   it("lists each local server's own models, so picking one never sends an empty model", async () => {
     serve((_m, path) => {
@@ -50,9 +56,10 @@ describe('model picker: models on this PC', () => {
     openModelPicker(document.body, { engine: 'eve', provider: 'ollama', model: 'llama3.2' }, (p) => picked.push(p));
     await settle();
     const menu = document.querySelector('.model-menu')!;
-    // LM Studio has its own tab, so it isn't listed here
+    // one source at a time: LM Studio's list isn't here
+    expect(sourceOn()).toBe('Ollama');
     expect(menu.textContent).not.toContain('LM Studio running');
-    expect(menu.textContent).toContain('No models found. Is Custom server running?');
+    expect(menu.textContent).toContain('On this PC · Ollama');
     expect(menu.querySelector('.st-menu-item.on')?.textContent).toContain('llama3.2');
     buttons(menu, 'qwen3')[0].click();
     expect(picked).toEqual([{ engine: 'eve', provider: 'ollama', model: 'qwen3', effort: '' }]);
@@ -63,30 +70,48 @@ describe('model picker: models on this PC', () => {
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'eve', provider: 'openrouter', model: 'x/y' }, (p) => picked.push(p));
     await settle();
-    [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === 'LM Studio')!.click();
+    source('LM Studio').click();
     await settle();
     const input = [...document.querySelectorAll<HTMLInputElement>('.model-search')].find((i) => i.placeholder.includes('LM Studio'))!;
     input.value = 'my-model';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     expect(picked).toEqual([{ engine: 'eve', provider: 'lmstudio', model: 'my-model', effort: '' }]);
   });
+
+  it('offers a custom server only once its address is set', async () => {
+    serve(() => ({ body: [] }));
+    openModelPicker(document.body, { engine: 'eve', provider: 'openrouter', model: 'x/y' }, () => {});
+    await settle();
+    expect(sources().map((b) => b.textContent)).not.toContain('Custom server');
+    state.data!.settings = { ...state.data!.settings, providers: { custom: { baseUrl: 'https://models.example/v1' } } } as AppState['settings'];
+    openModelPicker(document.body, { engine: 'eve', provider: 'openrouter', model: 'x/y' }, () => {});
+    await settle();
+    source('Custom server').click();
+    await settle();
+    expect(document.querySelector('.model-menu')!.textContent).toContain('No models found. Is Custom server running?');
+  });
 });
 
-describe('model picker: LM Studio tab', () => {
-  const tabs = () => [...document.querySelectorAll<HTMLButtonElement>('.model-tab')];
-
-  it('sits next to OpenRouter and lists LM Studio models', async () => {
+describe('model picker: Eve and where its model comes from', () => {
+  it('sits next to Claude, and lists LM Studio models under it', async () => {
     serve((_m, path) => (path === '/models?engine=eve&provider=lmstudio' ? { body: [{ id: 'qwen3-coder-30b' }] } : { body: [] }));
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, (p) => picked.push(p));
     await settle();
-    expect(tabs().map((t) => t.textContent).slice(0, 3)).toEqual(['Claude', 'OpenRouter', 'LM Studio']);
-    for (const [label, id] of [['Hermes', 'hermes'], ['pi', 'pi'], ['OMP', 'omp'], ['OpenClaw', 'openclaw'], ['Venice', 'venice']]) {
-      const image = tabs().find((tab) => tab.textContent === label)!.querySelector('img')!;
+    expect(tabs().map((t) => t.textContent).slice(0, 3)).toEqual(['Claude', 'Eve', 'Hermes']);
+    for (const [label, id] of [['Hermes', 'hermes'], ['pi', 'pi'], ['OMP', 'omp'], ['OpenClaw', 'openclaw']]) {
+      const image = tabNamed(label).querySelector('img')!;
       expect(image.getAttribute('src')).toBe(`/brand/engines/${id}.svg`);
       expect(image.width).toBe(13);
     }
-    tabs().find((t) => t.textContent === 'LM Studio')!.click();
+    // Eve's own wordmark, drawn in the text colour
+    expect(tabNamed('Eve').querySelector('svg.eve-mark path')?.getAttribute('fill')).toBe('currentColor');
+    // the sources show on Eve's tab only
+    expect(sources()).toEqual([]);
+    tabNamed('Eve').click();
+    expect(sources().map((b) => b.textContent)).toEqual(['OpenRouter', 'Venice', 'LM Studio', 'Ollama']);
+    expect(sourceOn()).toBe('OpenRouter');
+    source('LM Studio').click();
     await settle();
     const menu = document.querySelector('.model-menu')!;
     expect(menu.textContent).toContain('On this PC · LM Studio');
@@ -95,28 +120,35 @@ describe('model picker: LM Studio tab', () => {
     expect(picked).toEqual([{ engine: 'eve', provider: 'lmstudio', model: 'qwen3-coder-30b', effort: '' }]);
   });
 
-  it('opens on the LM Studio tab, marked in use, for an agent on LM Studio', async () => {
+  it('opens on Eve, marked in use, with the source the agent uses', async () => {
     serve(() => ({ body: [] }));
     openModelPicker(document.body, { engine: 'eve', provider: 'lmstudio', model: 'qwen3' }, () => {});
     await settle();
-    expect(document.querySelector('.model-tab.on')?.textContent).toBe('LM Studio');
-    expect(document.querySelector('.model-tab.cur')?.textContent).toBe('LM Studio');
+    expect(document.querySelector('.model-tab.on')?.textContent).toBe('Eve');
+    expect(document.querySelector('.model-tab.cur')?.textContent).toBe('Eve');
+    expect(sourceOn()).toBe('LM Studio');
     expect(document.querySelector('.model-menu .st-menu-item.on')?.textContent).toContain('qwen3');
+    // the effort row is for the model in use on its own source, and for what you pick on another
+    expect(document.querySelector('.model-menu')!.textContent).toContain('how hard it thinks');
+    source('OpenRouter').click();
+    expect(document.querySelector('.model-menu')!.textContent).toContain('for the model you pick here');
   });
 
   it('says how to start LM Studio when it lists no models', async () => {
     serve(() => ({ body: [] }));
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {});
     await settle();
-    tabs().find((t) => t.textContent === 'LM Studio')!.click();
+    tabNamed('Eve').click();
+    source('LM Studio').click();
     await settle();
     expect(document.querySelector('.model-menu')!.textContent).toContain('Is LM Studio running? (LM Studio > Developer > Start server)');
   });
 
-  it('is not offered where models on this PC cannot be used (the Brain)', () => {
+  it('offers no servers on this PC where they cannot be used (the Brain)', () => {
     serve(() => ({ body: [] }));
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {}, { local: false });
-    expect(tabs().map((t) => t.textContent)).not.toContain('LM Studio');
+    tabNamed('Eve').click();
+    expect(sources().map((b) => b.textContent)).toEqual(['OpenRouter', 'Venice']);
   });
 
   it("the Brain's picker offers only the engines the Brain can think with, favorites too", () => {
@@ -131,15 +163,39 @@ describe('model picker: LM Studio tab', () => {
     document.body.append(brainModelChip());
     document.querySelector<HTMLButtonElement>('.model-chip')!.click();
     const names = tabs().map((t) => t.textContent);
-    expect(names).toEqual(['Favorites', 'Claude', 'OpenRouter', 'Venice', 'Hermes', 'Codex']);
+    expect(names).toEqual(['Favorites', 'Claude', 'Eve', 'Hermes', 'Codex']);
     const rows = [...document.querySelectorAll('.model-body .model-row')].map((r) => r.textContent);
     expect(rows).toEqual([expect.stringContaining('gpt-5')]);
   });
 });
 
+describe('model picker: its button', () => {
+  it('closes the picker on a second click instead of opening it again', async () => {
+    serve(() => ({ body: [] }));
+    (state.data as unknown as { settings: Record<string, unknown> }).settings = { brain: { provider: 'claude', model: 'haiku' }, favoriteModels: [] };
+    const chip = brainModelChip();
+    document.body.append(chip);
+    const press = () => {
+      chip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      chip.click();
+    };
+    press();
+    await settle();
+    const first = document.querySelector('.model-menu')!;
+    expect(first.hasAttribute('data-ending-style')).toBe(false);
+    // the second press closes this one: no new picker opens over it
+    press();
+    await vi.waitFor(() => expect(document.querySelector('.model-menu')).toBeNull());
+    // and the third opens it again
+    press();
+    await settle();
+    expect(document.querySelectorAll('.model-menu')).toHaveLength(1);
+  });
+});
+
 describe('model picker: effort', () => {
   const levels = () => [...document.querySelectorAll<HTMLButtonElement>('.model-effort-level')];
-  const tab = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === label)!;
+  const tab = tabNamed;
 
   it("shows the engine's own levels and changes the effort of the model in use at once, staying open", () => {
     serve(() => ({ body: [] }));
@@ -215,14 +271,13 @@ describe('model picker: effort', () => {
 
 describe('model picker: Venice', () => {
   const catalog = [{ id: 'venice-chat', name: 'Venice Chat', tools: true, reasoningEfforts: ['low', 'high'], price: { in: 0.15, out: 0.6 } }, { id: 'offline-model', name: 'Offline model', offline: true }];
-  const tab = () => [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === 'Venice')!;
-
   it('opens on Venice and keeps its provider for effort-only edits and model choices', async () => {
     serve((_method, path) => ({ body: path.includes('provider=venice') ? catalog : [] }));
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'eve', provider: 'venice', model: 'venice-chat', effort: 'high' }, (p) => picked.push(p));
     await settle();
-    expect(tab().classList.contains('on')).toBe(true);
+    expect(tabNamed('Eve').classList.contains('on')).toBe(true);
+    expect(sourceOn()).toBe('Venice');
     expect(document.querySelector('.model-body')?.textContent).toContain('$0.15 / $0.60');
     const levels = [...document.querySelectorAll<HTMLButtonElement>('.model-effort-level')];
     expect(levels.map((b) => b.textContent)).toEqual(['Auto', 'Low', 'High']);
@@ -249,14 +304,16 @@ describe('model picker: Venice', () => {
     const chip = brainModelChip();
     document.body.append(chip);
     chip.click();
-    tab().click();
+    tabNamed('Eve').click();
+    source('Venice').click();
     await settle();
     buttons(document.querySelector('.model-body')!, 'Venice Chat')[0].click();
     await settle();
     expect(calls.find((c) => c.method === 'PUT' && c.path === '/settings')?.body).toEqual({ brain: { provider: 'venice', model: 'venice-chat', effort: '' } });
     chip.click();
     await settle();
-    expect(tab().classList.contains('on')).toBe(true);
+    expect(tabNamed('Eve').classList.contains('on')).toBe(true);
+    expect(sourceOn()).toBe('Venice');
   });
 
   it('keeps a selected model usable when discovery fails and offers manual entry', async () => {
@@ -281,7 +338,12 @@ describe('model picker: Venice', () => {
     const picked: ModelPatch[] = [];
     openModelPicker(document.body, { engine: 'eve', provider: 'venice', model: 'venice-chat' }, (p) => picked.push(p), { local: false, engines: ['eve'], providers: ['venice'] });
     await settle();
-    expect([...document.querySelectorAll('.model-tab')].map((b) => b.textContent)).toEqual(['Favorites', 'Venice']);
+    expect([...document.querySelectorAll('.model-tab')].map((b) => b.textContent)).toEqual(['Favorites', 'Eve']);
+    // (one source: no row to choose it)
+    tabNamed('Eve').click();
+    expect(sources()).toEqual([]);
+    expect(document.querySelector('.model-body')!.textContent).toContain('Venice');
+    tabNamed('Favorites').click();
     buttons(document.querySelector('.model-body')!, 'venice-chat')[0].click();
     expect(picked[0]?.provider).toBe('venice');
   });
@@ -502,19 +564,24 @@ describe('team builder: saving', () => {
 });
 
  describe('configured engines', () => {
-  it('hides engines without setup and favorites that use them', async () => {
+  it('hides engines without setup and favorites that use them, but always offers Eve', async () => {
     programs = [];
     state.data = { agents: [], engines: { hermes: { installed: true } }, secrets: {}, settings: { favoriteModels: [{ engine: 'eve', provider: 'venice', model: 'saved' }] } } as unknown as AppState;
     serve(() => ({ body: [] }));
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {});
     await settle();
-    expect([...document.querySelectorAll('.model-tab')].map(t => t.textContent)).toEqual(['Hermes']);
+    expect([...document.querySelectorAll('.model-tab')].map(t => t.textContent)).toEqual(['Eve', 'Hermes']);
+    // Eve is built in: with no source set up it says how to get one
+    expect(document.querySelector('.model-tab.on')?.textContent).toBe('Eve');
+    expect(sources()).toEqual([]);
+    expect(document.querySelector('[aria-label="Effort"]')).toBeNull();
+    expect(document.querySelector('.model-menu')?.textContent).toContain('Eve runs models from OpenRouter, Venice, or a model server on this PC. Set one up first.');
   });
   it('offers setup when no engines are configured', async () => {
     programs = [];
     state.data = { agents: [], engines: {}, secrets: {} } as unknown as AppState;
     serve(() => ({ body: [] }));
-    openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {});
+    openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, () => {}, { engines: ['claude-code'] });
     await settle();
     expect(document.querySelectorAll('.model-tab')).toHaveLength(0);
     expect(document.querySelector('.model-menu')?.textContent).toContain('No engines are set up yet.');

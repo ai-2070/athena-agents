@@ -468,7 +468,7 @@ export function ago(ts: number | null | undefined): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export const ENGINE_LABEL: Partial<Record<string, string>> = { 'claude-code': 'Claude Code', eve: 'API model', hermes: 'Hermes', codex: 'Codex', pi: 'pi', omp: 'oh-my-pi', openclaw: 'OpenClaw' };
+export const ENGINE_LABEL: Partial<Record<string, string>> = { 'claude-code': 'Claude Code', eve: 'Eve', hermes: 'Hermes', codex: 'Codex', pi: 'pi', omp: 'oh-my-pi', openclaw: 'OpenClaw' };
 export function engineBadge(agent: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>): HTMLSpanElement {
   const label = ENGINE_LABEL[agent.engine] || agent.engine;
   const extra = agent.engine === 'eve' ? ` · ${agent.provider}` : agent.engine === 'hermes' && agent.hermesProfile ? ` · ${agent.hermesProfile}` : agent.engine === 'openclaw' && agent.openclawAgent ? ` · ${agent.openclawAgent}` : '';

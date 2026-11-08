@@ -161,12 +161,12 @@ describe('Library page', () => {
   });
 
   it.each([{ effort: 'high' }, { effort: '' }])('keeps effort "$effort" when hiring with Venice', async ({ effort }) => {
-    state.data!.engineList.push({ id: 'eve', label: 'API model' } as AppState['engineList'][number]);
+    state.data!.engineList.push({ id: 'eve', label: 'Eve' } as AppState['engineList'][number]);
     await open();
-    await click(buttons('API model')[0]);
-    await click(buttons('Choose API model')[0]);
-    const veniceTab = [...document.querySelectorAll<HTMLButtonElement>('.model-tab')].find((b) => b.textContent === 'Venice')!;
-    await click(veniceTab);
+    await click(buttons('Eve')[0]);
+    await click(buttons('Choose Eve model')[0]);
+    const venice = [...document.querySelectorAll<HTMLButtonElement>('.model-sources button')].find((b) => b.textContent === 'Venice')!;
+    await click(venice);
     await settle();
     await click(document.querySelector<HTMLButtonElement>('button[title="High effort"]')!);
     if (!effort) await click(document.querySelector<HTMLButtonElement>('button[title="The model\'s own default"]')!);

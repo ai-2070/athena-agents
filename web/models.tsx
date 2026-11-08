@@ -1,6 +1,6 @@
 // Model names with versions, and one picker used everywhere a model can be switched
-// (agents, the Brain chat, Settings): tabs for your favorites, Claude Code, OpenRouter, LM Studio, Hermes, Codex, pi,
-// oh-my-pi and OpenClaw,
+// (agents, the Brain chat, Settings): tabs for your favorites and each engine (Claude Code, Eve, Hermes, Codex, pi,
+// oh-my-pi and OpenClaw), where Eve's models come from (OpenRouter, Venice or a server on this PC),
 // and how hard the model thinks (effort). The chips and the picker are React now: a chip is still the plain button
 // callers pass around (React draws what is inside it), and the picker mounts against the chip it opened from.
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
@@ -17,6 +17,8 @@ import { brandPath, logo } from './icons.ts';
 import { EFFORT_NAMES, effortFor, effortLevels, isEffort } from '../shared/effort.ts';
 import { defaultModelForEngine } from '../shared/modeldefaults.ts';
 import { Button } from './ui/button.tsx';
+import { Chips } from './ui/controls.tsx';
+import { EveMark } from './ui/evemark.tsx';
 import { PopoverContent, PopoverRoot } from './ui/popover.tsx';
 import { DomNode, Icon, useAppState } from './ui/react.tsx';
 import type { Agent, BrainSetting, Effort, EngineId, EngineStatus, FavoriteModel, ModelListing } from '../shared/types.ts';
@@ -49,16 +51,14 @@ export interface ModelInfo {
   where: string;
 }
 export type { ModelListing } from '../shared/types.ts';
-/** A picker tab: an engine, Favorites, or LM Studio (API models on this PC, with a tab of their own). */
-type PickerTab = EngineId | 'fav' | 'lmstudio' | 'venice';
+/** A picker tab: an engine, or Favorites. */
+type PickerTab = EngineId | 'fav';
 interface ModelTab {
   engine: PickerTab;
   label: string;
   brand: string | null;
   glyph?: string;
 }
-/** The tab a model belongs on: LM Studio models run on the API-model engine but get their own tab. */
-export const tabOf = (t: { engine: EngineId; provider?: string }): PickerTab => (t.engine === 'eve' && (t.provider === 'lmstudio' || t.provider === 'venice') ? t.provider : t.engine);
 
 // What Claude Code's short names point to today.
 const CLAUDE = [
@@ -73,15 +73,22 @@ const CODEX_PICKS: ModelListing[] = [{ id: 'gpt-6-astra', name: 'GPT-6-Astra', d
 
 const TABS: ModelTab[] = [
   { engine: 'claude-code', label: 'Claude', brand: 'claude' },
-  { engine: 'eve', label: 'OpenRouter', brand: 'openrouter', glyph: '◇' },
-  { engine: 'lmstudio', label: 'LM Studio', brand: null, glyph: 'LM' },
-  { engine: 'venice', label: 'Venice', brand: null },
+  { engine: 'eve', label: 'Eve', brand: null },
   { engine: 'hermes', label: 'Hermes', brand: null },
   { engine: 'codex', label: 'Codex', brand: 'openai' },
   { engine: 'pi', label: 'pi', brand: null },
   { engine: 'omp', label: 'OMP', brand: null },
   { engine: 'openclaw', label: 'OpenClaw', brand: null },
 ];
+// Where Eve's models come from. local: a server on this PC or one you point to (the Brain can't use them).
+const EVE_PROVIDERS = [
+  { id: 'openrouter', label: 'OpenRouter', local: false },
+  { id: 'venice', label: 'Venice', local: false },
+  { id: 'lmstudio', label: 'LM Studio', local: true },
+  { id: 'ollama', label: 'Ollama', local: true },
+  { id: 'custom', label: 'Custom server', local: true },
+] as const;
+type EveProvider = (typeof EVE_PROVIDERS)[number]['id'];
 // The CLI engines with their own model lists (GET /models?engine=…): what an empty model means, and where to set them up.
 const CLI_TABS: Partial<Record<EngineId, { name: string; own: string; find: string }>> = {
   pi: { name: 'pi', own: "pi's default model", find: 'pi coding agent' },
@@ -322,28 +329,6 @@ function Row({ label, sub, active, choice, brand = null, disabled = false, onPic
   );
 }
 
-/** A box to type a model id the list hasn't got (Enter picks it). */
-function FreeInput({ placeholder, onSubmit }: { placeholder: string; onSubmit: (model: string) => void }) {
-  const box = useRef<HTMLInputElement>(null);
-  // (a listener on the box itself, and the id read off it: the box is only typed in, never read back)
-  useEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const key = (e: KeyboardEvent) => {
-      const v = el.value.trim();
-      if (e.key === 'Enter' && v) onSubmit(v);
-    };
-    el.addEventListener('keydown', key);
-    return () => el.removeEventListener('keydown', key);
-  }, [onSubmit]);
-  return (
-    <label className="relative mt-2 block border-t border-line pt-2">
-      <span className="pointer-events-none absolute top-1/2 left-3 mt-1 -translate-y-1/2 text-faint"><Icon name="keyboard" size={14} /></span>
-      <input ref={box} className={`${SEARCH} my-0! pl-8.5!`} placeholder={placeholder} />
-    </label>
-  );
-}
-
 /** A line saying something isn't set up on this PC yet, and the way to Settings. */
 function Missing({ text, find, close }: { text: string; find: string; close: () => void }) {
   return (
@@ -360,6 +345,7 @@ function Missing({ text, find, close }: { text: string; find: string; close: () 
 /** The mark on a tab: a star for Favorites, else the engine's own app icon, logo or glyph. */
 function TabMark({ tab }: { tab: ModelTab }) {
   if (tab.engine === 'fav') return <Icon name="star" size={13} />;
+  if (tab.engine === 'eve') return <EveMark size={13} />;
   if (brandImage(tab.engine, 13)) return <DomNode as="span" className="dom-contents" make={() => brandImage(tab.engine, 13)} deps={[tab.engine]} />;
   if (tab.brand && brandPath(tab.brand)) return <BrandMark brand={tab.brand} size={13} fallback={null} />;
   if (appIconUrl(tab.engine)) return <DomNode as="span" className="dom-contents" make={() => appIcon(tab.engine, 13)} deps={[tab.engine]} />;
@@ -385,8 +371,9 @@ function LevelButton({ value, shown, onPick }: { value: Effort | ''; shown: Effo
   );
 }
 
-/** The models a server on this PC offers (LM Studio, Ollama, a custom one): its own list, and a box to type one. */
-function LocalSection({ provider, label, howToStart = '', typeIn = false, cur, onPick, onChanged }: { provider: string; label: string; howToStart?: string; typeIn?: boolean; cur: ModelTarget; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
+/** The models a server on this PC offers (LM Studio, Ollama, a custom one): its own list. Enter in the search box takes
+ *  any other id. */
+function LocalSection({ provider, label, howToStart = '', cur, onPick, onChanged }: { provider: string; label: string; howToStart?: string; cur: ModelTarget; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
   const [ids, setIds] = useState<string[] | null>(null);
   useEffect(() => {
     let live = true;
@@ -402,7 +389,7 @@ function LocalSection({ provider, label, howToStart = '', typeIn = false, cur, o
   const on = (id: string) => cur.engine === 'eve' && cur.provider === provider && cur.model === id;
   return (
     <>
-      <div className="st-menu-head">{`On this PC · ${label}`}</div>
+      <div className="st-menu-head">{provider === 'custom' ? label : `On this PC · ${label}`}</div>
       <div className="model-list">
         {list === null ? (
           <div className="model-sub px-2.5 py-1">Looking for models…</div>
@@ -412,7 +399,6 @@ function LocalSection({ provider, label, howToStart = '', typeIn = false, cur, o
           <div className="model-sub px-2.5 py-1">{`No models found. Is ${label} running?${howToStart ? ` (${howToStart})` : ''}`}</div>
         )}
       </div>
-      {typeIn ? <FreeInput placeholder={`or type a ${label} model id and press Enter`} onSubmit={(m) => onPick({ engine: 'eve', provider, model: m })} /> : null}
     </>
   );
 }
@@ -464,8 +450,8 @@ function VeniceBody({ cur, models, error, close, onPick, onChanged }: { cur: Mod
   </>;
 }
 
-/** OpenRouter: its own list (as much as the server knows), the picks everyone wants, and any server on this PC. */
-function OpenRouterBody({ cur, local, close, onPick, onChanged }: { cur: ModelTarget; local: boolean; close: () => void; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
+/** OpenRouter: its own list (as much as the server knows) and the picks everyone wants. */
+function OpenRouterBody({ cur, close, onPick, onChanged }: { cur: ModelTarget; close: () => void; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
   const hasKey = !!state.data?.secrets?.openrouterKey?.set;
   const q = useContext(SearchQuery);
   const [all, setAll] = useState<ModelListing[]>([]);
@@ -496,8 +482,6 @@ function OpenRouterBody({ cur, local, close, onPick, onChanged }: { cur: ModelTa
           />
         ))}
       </div>
-      {local ? <LocalSection provider="ollama" label="Ollama" typeIn cur={cur} onPick={onPick} onChanged={onChanged} /> : null}
-      {local ? <LocalSection provider="custom" label="Custom server" typeIn cur={cur} onPick={onPick} onChanged={onChanged} /> : null}
     </>
   );
 }
@@ -609,19 +593,27 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   const usable = (e: EngineId) => !engines || engines.includes(e);
   // favorites this picker can use (without local servers, only OpenRouter's API models)
   const favs = () => favoriteModels().filter((f) => configured(f.engine === 'eve' ? f.provider || 'openrouter' : f.engine) && usable(f.engine) && (!providers || f.engine !== 'eve' || providers.includes(f.provider || 'openrouter')) && (local || f.engine !== 'eve' || ['openrouter', 'venice'].includes(f.provider || 'openrouter')));
-  // LM Studio's tab only where models on this PC can be used (not for the Brain)
-  const myTabs = TABS.filter((t) => configured(t.engine) && (local || t.engine !== 'lmstudio') && (!providers || providers.includes(t.engine === 'eve' ? 'openrouter' : t.engine)) && (t.engine === 'fav' || usable(t.engine === 'lmstudio' || t.engine === 'venice' ? 'eve' : t.engine)));
-  const curTab = tabOf(cur);
+  // Eve's sources this picker may offer (servers on this PC only where they can be used, not for the Brain), and of those
+  // the ones set up (or in use now). Eve itself is built in: its tab shows even before a source is set up, to say how.
+  const curProvider = cur.engine === 'eve' ? cur.provider || 'openrouter' : '';
+  const eveOffered = EVE_PROVIDERS.filter((p) => (local || !p.local) && (!providers || providers.includes(p.id)));
+  const eveReady = eveOffered.filter((p) => configured(p.id) || p.id === curProvider);
+  const myTabs = TABS.filter((t) => usable(t.engine as EngineId) && (t.engine === 'eve' ? eveOffered.length > 0 : configured(t.engine) && (!providers || providers.includes(t.engine))));
+  const curTab: PickerTab = cur.engine;
   const homeTab = (): PickerTab => (myTabs.some((t) => t.engine === curTab) ? curTab : myTabs[0]?.engine || 'claude-code');
   const [, refresh] = useReducer((n: number) => n + 1, 0);
   const [requestedTab, setTab] = useState<PickerTab>(() => (favoriteModels().length ? 'fav' : curTab));
   const tab = requestedTab === 'fav' && favs().length ? 'fav' : myTabs.some((candidate) => candidate.engine === requestedTab) ? requestedTab : homeTab();
+  // which of Eve's sources the Eve tab shows: the one in use, else the first set up
+  const [requestedSource, setSource] = useState<string>(curProvider);
+  const source: EveProvider | '' = (eveReady.find((p) => p.id === requestedSource) || eveReady[0])?.id || '';
+  const sourceLabel = EVE_PROVIDERS.find((p) => p.id === source)?.label || '';
   // the effort asked for (kept as asked: each engine sends its nearest level)
   const [effort, setEffort] = useState<Effort | ''>(() => effortOf(cur));
   const asked = useRef<Effort | ''>(effort);
   const [veniceModels, setVeniceModels] = useState<ModelListing[] | null>(null);
   const [veniceError, setVeniceError] = useState<string | null>(null);
-  const needsVenice = configured('venice') && (tab === 'venice' || (cur.engine === 'eve' && cur.provider === 'venice') || (tab === 'fav' && favs().some((f) => f.provider === 'venice')));
+  const needsVenice = configured('venice') && ((tab === 'eve' && source === 'venice') || curProvider === 'venice' || (tab === 'fav' && favs().some((f) => f.provider === 'venice')));
   useEffect(() => {
     if (!needsVenice) return;
     let live = true;
@@ -638,11 +630,10 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
     asked.current = value;
     setEffort(value);
   };
-  const tabEngine = (): EngineId => (tab === 'fav' ? cur.engine : tab === 'lmstudio' || tab === 'venice' ? 'eve' : tab);
-  // the effort row is for the model in use, on Favorites and its own tab; on the others it is for what you pick here
-  const live = tab === 'fav' || tab === curTab;
-  const engine = tabEngine();
-  const provider = engine !== 'eve' ? undefined : live ? cur.provider : tab === 'lmstudio' ? 'lmstudio' : tab === 'venice' ? 'venice' : 'openrouter';
+  // the effort row is for the model in use, on Favorites and its own tab (and source); elsewhere it is for what you pick here
+  const live = tab === 'fav' || (tab === curTab && (tab !== 'eve' || source === curProvider));
+  const engine: EngineId = tab === 'fav' ? cur.engine : tab;
+  const provider = engine !== 'eve' ? undefined : tab === 'fav' ? cur.provider : source || undefined;
   const levelsFor = (choice: ModelChoice) => choice.provider === 'venice' ? veniceModels?.find((m) => m.id === choice.model)?.reasoningEfforts : undefined;
   const modelLevels = provider === 'venice' ? live ? levelsFor(cur) : veniceModels?.flatMap((m) => m.reasoningEfforts || []) : undefined;
   const levels = effortLevels(engine, provider, modelLevels);
@@ -670,9 +661,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   const search = useRef<HTMLInputElement>(null);
   const typedChoice = (model: string): ModelChoice | null =>
     tab === 'fav' ? null
-    : tab === 'eve' ? { engine: 'eve', provider: 'openrouter', model }
-    : tab === 'venice' ? { engine: 'eve', provider: 'venice', model }
-    : tab === 'lmstudio' ? { engine: 'eve', provider: 'lmstudio', model }
+    : tab === 'eve' ? source ? { engine: 'eve', provider: source, model } : null
     : { engine: tab, model };
   const pickRef = useRef(pick);
   pickRef.current = pick;
@@ -713,7 +702,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
     slideSegment(lastLevel.current, on);
     lastLevel.current = on;
   }, [shown, tab]);
-  const tabName = tab === 'fav' ? 'favorites' : tab === 'eve' ? 'OpenRouter models' : `${TABS.find((t) => t.engine === tab)?.label || ''} models`;
+  const tabName = tab === 'fav' ? 'favorites' : tab === 'eve' ? `${sourceLabel || 'Eve'} models` : `${TABS.find((t) => t.engine === tab)?.label || ''} models`;
 
   const menu = useRef<HTMLDivElement>(null);
   // Escape closes the picker and hands focus back; a click anywhere else closes it (the plain-DOM menu did both itself)
@@ -725,8 +714,10 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
       close();
       if (anchor instanceof HTMLElement) anchor.focus();
     };
+    // (a press on the button it opened from is left to that button's click, which closes it: see openModelPicker)
     const outside = (e: PointerEvent) => {
-      if (!menu.current?.contains(e.target as Node | null)) close();
+      const target = e.target as Node | null;
+      if (!menu.current?.contains(target) && !anchor.contains(target)) close();
     };
     document.addEventListener('keydown', escape, true);
     // (armed a moment later, so the click that opened the menu doesn't close it again)
@@ -742,9 +733,12 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   if (!myTabs.length && !favList.length) body = <Missing text="No engines are set up yet." find="Engines on this PC" close={close} />;
   else if (tab === 'fav') body = <FavoritesBody favs={favList} cur={cur} isUnavailable={isUnavailable} onPick={pick} onChanged={refresh} />;
   else if (tab === 'claude-code') body = <ClaudeBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
-  else if (tab === 'eve') body = <OpenRouterBody cur={cur} local={local} close={close} onPick={pick} onChanged={refresh} />;
-  else if (tab === 'venice') body = <VeniceBody cur={cur} models={veniceModels} error={veniceError} close={close} onPick={pick} onChanged={refresh} />;
-  else if (tab === 'lmstudio') body = <LocalSection provider="lmstudio" label="LM Studio" howToStart="LM Studio > Developer > Start server" cur={cur} onPick={pick} onChanged={refresh} />;
+  else if (tab === 'eve') {
+    if (source === 'openrouter') body = <OpenRouterBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
+    else if (source === 'venice') body = <VeniceBody cur={cur} models={veniceModels} error={veniceError} close={close} onPick={pick} onChanged={refresh} />;
+    else if (source) body = <LocalSection key={source} provider={source} label={sourceLabel} howToStart={source === 'lmstudio' ? 'LM Studio > Developer > Start server' : ''} cur={cur} onPick={pick} onChanged={refresh} />;
+    else body = <Missing text={`Eve runs models from ${eveOffered.some((p) => p.local) ? 'OpenRouter, Venice, or a model server on this PC' : eveOffered.map((p) => p.label).join(' or ')}. Set one up first.`} find={eveOffered[0]?.id === 'venice' ? 'Venice key' : 'OpenRouter key'} close={close} />;
+  }
   else if (tab === 'hermes') body = <HermesBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
   else if (tab === 'pi' || tab === 'omp' || tab === 'openclaw') body = <CliBody engine={tab} cur={cur} close={close} onPick={pick} onChanged={refresh} />;
   else body = <CodexBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
@@ -755,6 +749,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
       open={open}
       onOpenChange={(next, details) => {
         if (next) return;
+        if (details.reason === 'outside-press' && details.event.target instanceof Node && anchor.contains(details.event.target)) return;
         close();
         if (details.reason === 'escape-key' && anchor instanceof HTMLElement) anchor.focus();
       }}
@@ -789,7 +784,16 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
             </button>
           ))}
         </div>
-        {shownTabs.length && (provider !== 'venice' || levels.length) ? <div className="flex-none px-3 pb-2.5">
+        {tab === 'eve' && eveReady.length > 1 ? <div className="flex-none px-3 pb-2.5">
+          <Chips
+            label="Where Eve's model comes from"
+            className="model-sources"
+            options={eveReady.map((p) => ({ value: p.id, label: p.label, title: curProvider === p.id && cur.engine === 'eve' ? `${p.label} (in use)` : p.label }))}
+            value={source}
+            onChange={(v) => flushSync(() => setSource(v))}
+          />
+        </div> : null}
+        {shownTabs.length && (tab !== 'eve' || source) && (provider !== 'venice' || levels.length) ? <div className="flex-none px-3 pb-2.5">
           <div className="flex items-center gap-1.5 pb-2 font-sans text-[12px] font-medium leading-[normal] text-dim">
             <Icon name="gauge" size={13} />
             <span>Effort</span>
@@ -815,7 +819,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
         </div>
         <div className="model-body min-h-0 flex-1 overflow-y-auto px-1.5 py-1.5">
           <SearchQuery.Provider value={query.trim().toLowerCase()}>{body}</SearchQuery.Provider>
-          {noMatch ? <p className="model-sub px-2.5 py-2 whitespace-normal!">{typedChoice(query.trim()) ? `Nothing here matches. Press Enter to use "${query.trim()}" as the model id.` : 'None of your favorites match.'}</p> : null}
+          {noMatch ? <p className="model-sub px-2.5 py-2 whitespace-normal!">{typedChoice(query.trim()) ? `Nothing here matches. Press Enter to use "${query.trim()}" as the model id.` : tab === 'fav' ? 'None of your favorites match.' : 'Nothing here matches.'}</p> : null}
         </div>
       </PopoverContent>
     </PopoverRoot>
@@ -828,9 +832,14 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
 // (apply returns, or resolves to, false when that failed: the row goes back to what it was).
 // local: offer models on this PC (LM Studio, Ollama, a custom server); the Brain can't use them.
 // engines: only these engines' tabs and favorites (the Brain's picker); all when left out.
+// providers: only these of Eve's sources and engines' tabs; all when left out.
 let closeModelMenu: (() => void) | null = null;
+// the picker that is open (not fading out), the button it opened from, and whether that button was pressed since:
+// that press's click closes it rather than opening it again
+let openOne: { anchor: Element; pressed: boolean; close: () => void } | null = null;
 
 export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch: ModelPatch) => unknown, { title = 'Model', local = true, engines, providers }: { title?: string; local?: boolean; engines?: readonly EngineId[]; providers?: readonly string[] } = {}): void {
+  if (openOne?.anchor === anchor && openOne.pressed) return openOne.close();
   if (cur.engine === 'eve' && !cur.model) cur = { ...cur, model: defaultModelForEngine('eve', state.data?.settings?.defaults || {}, cur.provider) };
   // one picker at a time: whatever is up goes first, at once, so two are never in the way
   closeModelMenu?.();
@@ -846,6 +855,8 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
     done = true;
     clearTimeout(timer);
     if (closeModelMenu === remove) closeModelMenu = null;
+    if (openOne?.close === close) openOne = null;
+    anchor.removeEventListener('pointerdown', pressed, true);
     // (a page that was drawn over the menu left nothing to unmount)
     if (host.isConnected) root.unmount();
     host.remove();
@@ -853,12 +864,19 @@ export function openModelPicker(anchor: Element, cur: ModelTarget, apply: (patch
   const close = () => {
     if (!open) return;
     open = false;
+    if (openOne?.close === close) openOne = null;
     render(false);
     // it fades out with the page's own exit; this is the backstop in case it never says it is done
     clearTimeout(timer);
     timer = setTimeout(remove, 300);
   };
   closeModelMenu = remove;
+  const mine = { anchor, pressed: false, close };
+  function pressed() {
+    mine.pressed = true;
+  }
+  anchor.addEventListener('pointerdown', pressed, true);
+  openOne = mine;
   // (the popup is there the moment this returns: the chip's click reads it straight away)
   flushSync(() => render(true));
 }
