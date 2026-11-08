@@ -750,6 +750,11 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
         <DomNode as="span" make={() => tray.picker} deps={[tray]} />
         <DraftWithBrain
           disabled={busy}
+          wording={{
+            heading: 'Draft the description',
+            about: 'The Brain reads the title and what is here, and writes a description. Tell it what to cover',
+            placeholder: 'e.g. Make it a checklist',
+          }}
           draft={async (instruction) => {
             const d = await askForDraft({ projectId: task.projectId, kind: 'task', taskId: task.id, title: task.title, description: value, instruction });
             if (d.kind !== 'task') return null;
@@ -827,6 +832,11 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
           <DomNode as="span" make={() => tray.picker} deps={[tray]} />
           <DraftWithBrain
             disabled={busy}
+            wording={{
+              heading: 'Draft a comment',
+              about: 'The Brain reads the task, its comments and what is here, and writes a comment. Tell it what to say',
+              placeholder: 'e.g. Ask when the quote will be ready',
+            }}
             draft={async (instruction) => {
               const d = await askForDraft({ projectId: task.projectId, kind: 'comment', taskId: task.id, text, instruction });
               if (d.kind !== 'comment') return null;
