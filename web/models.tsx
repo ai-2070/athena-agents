@@ -564,6 +564,8 @@ function CodexBody({ cur, close, onPick, onChanged }: { cur: ModelTarget; close:
   );
 }
 
+const SIDES = ['top', 'bottom', 'left', 'right'] as const;
+
 interface PickerProps {
   anchor: Element;
   cur: ModelTarget;
@@ -705,6 +707,9 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
   const tabName = tab === 'fav' ? 'favorites' : tab === 'eve' ? `${sourceLabel || 'Eve'} models` : `${TABS.find((t) => t.engine === tab)?.label || ''} models`;
 
   const menu = useRef<HTMLDivElement>(null);
+  // the side it opened on (below the button, or wherever there was room): it stays there, so a tab with a shorter list
+  // doesn't send it to another side. It scrolls within the room it has instead.
+  const [side, setSide] = useState<(typeof SIDES)[number] | null>(null);
   // Escape closes the picker and hands focus back; a click anywhere else closes it (the plain-DOM menu did both itself)
   useEffect(() => {
     const escape = (e: KeyboardEvent) => {
@@ -753,11 +758,15 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
         close();
         if (details.reason === 'escape-key' && anchor instanceof HTMLElement) anchor.focus();
       }}
-      onOpenChangeComplete={(next) => { if (!next) setTimeout(dispose, 0); }}
+      onOpenChangeComplete={(next) => {
+        if (!next) return void setTimeout(dispose, 0);
+        const placed = SIDES.find((x) => x === menu.current?.getAttribute('data-side'));
+        if (placed) setSide(placed);
+      }}
     >
       <PopoverContent
         ref={menu}
-        positioner={{ anchor }}
+        positioner={side ? { anchor, side, collisionAvoidance: { side: 'shift', align: 'shift', fallbackAxisSide: 'none' } } : { anchor }}
         initialFocus={false}
         finalFocus={false}
         className="model-menu data-[ending-style]:pointer-events-none"
