@@ -1,8 +1,10 @@
-// Tasks board work: an agent or team picks up a task you move to In progress (or start), in a private conversation
-// of its own, board-<taskId> (private-conversations.ts, as Gateways uses). The work is saved on the task before it
-// starts, so a restart never starts it twice; a loop follows it like the gateway dispatcher does and settles the
-// card from the usual completion check (the automatic brief): In review when it's done, Blocked with the reason
-// when it can't go on. Workers comment and move their own card with board_task / board_reply (tools.ts).
+// Tasks board work: an agent, a team or the Brain picks up a task you move to In progress (or start), in a private
+// conversation of its own, board-<taskId> (private-conversations.ts, as Gateways uses). The work is saved on the task
+// before it starts, so a restart never starts it twice; a loop follows it like the gateway dispatcher does and settles
+// the card from the usual completion check (the automatic brief): In review when it's done, Blocked with the reason
+// when it can't go on. Workers comment and move their own card with board_task / board_reply (tools.ts). The Brain
+// answers in its private history for the task and does it itself or hands it on, and then the board follows the
+// agent or team it handed it to.
 import { agents, bus, chats, listProjects, withProject, workflows } from './store.ts';
 import { uid } from './util.ts';
 import { hasBackgroundWork, isChatBusy, queueMessage, runInfo, startRun, stopChat } from './engines/index.ts';
@@ -12,7 +14,8 @@ import { getTeam, getThread, isTeamBusy, postUserMessage, queueUserMessage, stop
 import { pickMember } from './brain.ts';
 import { listBriefs } from './briefs.ts';
 import { privateAgentChat, privateTeamId, privateTeamRecord } from './private-conversations.ts';
-import { addBoardComment, boardTags, changeBoardTask, editBoardTask, savedBoardTask, tagLine, tagsOf, tasksWithWork } from './taskboard.ts';
+import { addBoardComment, boardTags, changeBoardTask, editBoardTask, savedBoardTask, tagLine, tagsOf, tasksWithWork, workerOf } from './taskboard.ts';
+import { ask, history, stopAsks } from './overseer.ts';
 import { tagLabel } from '../shared/boardtags.ts';
 import { taskFilePath, workerFiles } from './boardfiles.ts';
 import type { BoardTag, BoardTask, Project, ProjectTask, ServerEvent, TaskFile, TaskWork } from '../shared/types.ts';
@@ -25,19 +28,33 @@ export const boardConversation = (taskId: string) => `board-${taskId}`;
 const fail = (message: string, status = 400): never => { throw Object.assign(new Error(message), { status }); };
 const projectOf = (id: string): Project => listProjects().find((p) => p.id === id) || fail('That project is unavailable.', 404);
 
-/** The agent or team a task's assignee names, when it can pick work up. */
+/** The agent, team or Brain a task's assignee names, when it can pick work up. */
 function targetOf(assignee: string): TaskWork['target'] | null {
+  if (assignee === 'brain') return { kind: 'brain', id: 'brain' };
   const m = /^(agent|team):([\w.-]+)$/.exec(assignee);
   return m ? { kind: m[1] as 'agent' | 'team', id: m[2] } : null;
 }
-const workerRef = (w: TaskWork) => `${w.target.kind}:${w.target.id}`;
+/** Whether moving a task given to this assignee to In progress starts work. */
+export const canPickUp = (assignee: string): boolean => targetOf(assignee) !== null;
+/** Who answers for the work: the worker, or the agent or team the Brain handed it to. */
+const workerRef = (w: TaskWork) => (w.handedTo ? `${w.handedTo.kind}:${w.handedTo.id}` : workerOf(w));
+/** The agent whose private chat does the work, if an agent does it. */
+const agentOf = (w: TaskWork): string | null => (w.target.kind === 'agent' ? w.target.id : w.handedTo?.kind === 'agent' ? w.handedTo.id : null);
 
 // ---------- what the worker is told ----------
 function fileNames(files: TaskFile[] | undefined): string {
   return (files || []).map((f) => f.name).join(', ');
 }
+const REPORT = 'Work on this task. Post what you find and what you made as a comment with board_reply, attaching finished files by their full paths. '
+  + 'When it is done, call board_reply with status in_review. If you can\'t finish it, call board_reply with status blocked and say why. Never mark it done: the user does that. '
+  + 'If you can\'t use the board tools, end with your result, or say clearly that you are blocked and why.';
+// (the Brain has no board_reply: it hands work on, or does it with its actions, and the board settles the card)
+const brainReport = (t: ProjectTask) => 'This task is given to you, the Brain, and you are in its own conversation. Take it on as you would a request in your chat: '
+  + 'hand the work to the agent or team best placed to do it with a clear brief (build one first if none fits), or do it yourself when it is yours to do (the dashboard\'s setup, the board). '
+  + `In a brief, say it is task #${t.number} on the Tasks board, so they report on it with board_reply. `
+  + 'Comment on the task with board_comment when there is something to note. Never move it to done: when the work is finished the board moves it to in_review, and the user checks it.';
 /** The task in one message: what it is, its tags (in its order), what was said, and how to report back. */
-function assignment(p: Project, t: ProjectTask, tags: readonly BoardTag[]): string {
+function assignment(p: Project, t: ProjectTask, tags: readonly BoardTag[], report = REPORT): string {
   const comments = (t.comments || []).map((c) => {
     const files = fileNames(c.files);
     return `- ${c.by === 'you' ? 'You' : c.by}: ${c.text}${files ? ` [files: ${files}]` : ''}`;
@@ -49,9 +66,7 @@ function assignment(p: Project, t: ProjectTask, tags: readonly BoardTag[]): stri
     t.description ? `\n${t.description}` : '',
     t.files?.length ? `\nFiles on the task (attached): ${fileNames(t.files)}` : '',
     comments.length ? `\nComments so far (oldest first):\n${comments.join('\n')}` : '',
-    '\nWork on this task. Post what you find and what you made as a comment with board_reply, attaching finished files by their full paths. '
-      + 'When it is done, call board_reply with status in_review. If you can\'t finish it, call board_reply with status blocked and say why. Never mark it done: the user does that. '
-      + 'If you can\'t use the board tools, end with your result, or say clearly that you are blocked and why.',
+    `\n${report}`,
   ].filter(Boolean).join('\n');
 }
 /** The task's files and its comments' files, where they are now. */
@@ -63,19 +78,19 @@ function attachmentsOf(p: Project, t: ProjectTask): string[] {
 // ---------- starting ----------
 const launching = new Set<string>();
 
-/** Starts the task's agent or team on it (Start, or your move to In progress). Nothing happens while it works. */
+/** Starts the task's agent, team or the Brain on it (Start, or your move to In progress). Nothing happens while it works. */
 export async function startWork(projectId: string, taskId: string): Promise<BoardTask> {
   const p = projectOf(projectId);
   return withProject(p, async () => {
     const t = savedBoardTask(projectId, taskId) || fail('That task is unavailable.', 404);
-    const target = targetOf(t.assignee) || fail('Give the task to an agent or a team first.');
+    const target = targetOf(t.assignee) || fail('Give the task to an agent, a team or the Brain first.');
     if (isWorking(t.work)) return editBoardTask(projectId, taskId, () => false);
-    if (target.kind === 'agent' ? !agents.get(target.id) : !workflows.get(target.id)) return fail('That agent or team is not in this project anymore.');
+    if (target.kind === 'agent' ? !agents.get(target.id) : target.kind === 'team' && !workflows.get(target.id)) return fail('That agent or team is not in this project anymore.');
     const conversationId = boardConversation(t.id);
     // (the private chat or thread is the same every time: a new start continues it, so the worker sees earlier tries)
     const chatId = target.kind === 'agent' ? privateAgentChat(conversationId, target.id).id : undefined;
     const teamId = target.kind === 'team' ? privateTeamId(conversationId, target.id) : undefined;
-    const operationId = uid(target.kind === 'agent' ? 'r' : 'm');
+    const operationId = uid(target.kind === 'agent' ? 'r' : target.kind === 'team' ? 'm' : 'b');
     const claimed: { task?: ProjectTask } = {};
     const saved = editBoardTask(projectId, taskId, (task) => {
       if (isWorking(task.work)) return false;
@@ -88,8 +103,9 @@ export async function startWork(projectId: string, taskId: string): Promise<Boar
     const launch = async (): Promise<BoardTask> => {
       try {
         // (the card editBoardTask gave back has the task's tags: no other read of the board)
-        const text = assignment(p, task, saved.tagList);
+        const text = assignment(p, task, saved.tagList, target.kind === 'brain' ? brainReport(task) : REPORT);
         const attachments = attachmentsOf(p, task);
+        if (target.kind === 'brain') return await brainStart(p, task, operationId, text, attachments);
         let started: Partial<TaskWork>;
         if (target.kind === 'agent') {
           const agent = agents.get(target.id)!;
@@ -109,12 +125,33 @@ export async function startWork(projectId: string, taskId: string): Promise<Boar
         void boardWork.wake();
       }
     };
-    // (an agent starts at once; a team first picks who takes it, which can ask a model: the card says Starting meanwhile)
+    // (an agent starts at once; a team first picks who takes it and the Brain thinks, which ask a model: the card says
+    // Starting meanwhile)
     if (target.kind === 'agent') return launch();
     void launch();
     return saved;
   });
 }
+
+/** The Brain answers the task in its own conversation; once it has, the work goes on with whoever it handed it to,
+ *  or is settled from its answer. Stopping it meanwhile (Stop, or moving the card) drops what it was about to do. */
+async function brainStart(p: Project, t: ProjectTask, operationId: string, text: string, attachments: string[]): Promise<BoardTask> {
+  const same = () => { const w = savedBoardTask(p.id, t.id)?.work; return w?.operationId === operationId && isWorking(w); };
+  const answer = await ask(text, { project: p.id, attachments, conversationId: boardConversation(t.id), from: BOARD_SENDER, operationId, proceed: same });
+  const d = answer.delegate;
+  const team = d?.kind === 'branch' && d.sent?.messageId ? privateTeamRecord(d.id) : null;
+  const handed: Partial<TaskWork> = d?.kind === 'agent' && d.sent?.chatId && d.sent.runId ? { handedTo: { kind: 'agent', id: d.id }, chatId: d.sent.chatId, runId: d.sent.runId }
+    : team ? { handedTo: { kind: 'team', id: team.target.id }, teamId: d!.id, messageId: d!.sent!.messageId }
+    : {};
+  // (what it said as it handed the work on is the task's note of who does it; done alone, its answer settles it)
+  if (handed.handedTo && same() && answer.answer.trim() && !brainCommented(savedBoardTask(p.id, t.id)!)) addBoardComment(p.id, t.id, answer.answer, 'brain');
+  return editBoardTask(p.id, t.id, (task) => {
+    if (task.work?.operationId !== operationId || !isWorking(task.work)) return false;
+    task.work = { ...task.work, ...handed, state: 'working' };
+  });
+}
+/** The Brain already commented on the task since its work started. */
+const brainCommented = (t: ProjectTask) => (t.comments || []).some((c) => c.by === 'brain' && c.at >= t.work!.startedAt);
 
 /** Changes the work saved on a task, if it is still the same work. */
 function setWork(projectId: string, taskId: string, operationId: string, patch: Partial<TaskWork>, also?: (t: ProjectTask) => void): BoardTask {
@@ -133,6 +170,7 @@ export function stopWork(projectId: string, taskId: string): BoardTask {
     const t = savedBoardTask(projectId, taskId) || fail('That task is unavailable.', 404);
     const w = t.work;
     if (!isWorking(w)) return editBoardTask(projectId, taskId, () => false);
+    if (w.target.kind === 'brain' && !w.handedTo) stopAsks(projectId, w.conversationId);
     if (w.chatId) stopChat(w.chatId, projectId);
     if (w.teamId && getTeam(w.teamId)) stopTeam(w.teamId);
     return setWork(projectId, taskId, w.operationId, { state: 'stopped', endedAt: Date.now() });
@@ -146,8 +184,10 @@ export async function passToWorker(projectId: string, taskId: string, text: stri
     const w = savedBoardTask(projectId, taskId)?.work;
     if (!isWorking(w)) return;
     const attachments = files.flatMap((f) => taskFilePath(p, f.path) ?? []);
-    if (w.chatId) {
-      const agent = agents.get(w.target.id); const chat = chats.get(w.target.id, w.chatId);
+    // (while the Brain still thinks, nobody has it yet: the comment waits on the task)
+    const agentId = agentOf(w);
+    if (w.chatId && agentId) {
+      const agent = agents.get(agentId); const chat = chats.get(agentId, w.chatId);
       if (agent && chat) queueMessage(agent, chat, text, attachments);
     } else if (w.teamId && getTeam(w.teamId)) await queueUserMessage(w.teamId, text, { attachments, route: pickMember });
   });
@@ -195,18 +235,18 @@ function approvalPending(w: TaskWork, projectId: string): boolean {
   });
 }
 
-function agentOutcome(projectId: string, w: TaskWork): Outcome {
+function agentOutcome(projectId: string, w: TaskWork, agentId: string): Outcome {
   const chatId = w.chatId!;
-  const chat = chats.get(w.target.id, chatId);
+  const chat = chats.get(agentId, chatId);
   if (!chat || chat.conversationId !== w.conversationId) return review('The task\'s chat is gone.');
-  const runs = readExecution().runs.filter((r) => r.projectId === projectId && r.chatId === chatId && r.agentId === w.target.id);
+  const runs = readExecution().runs.filter((r) => r.projectId === projectId && r.chatId === chatId && r.agentId === agentId);
   const run = runs.find((r) => r.id === w.runId);
   if (!run) return review('Its run can\'t be found. Open the chat to see where it got to.');
   const busy = runs.some((r) => r.status === 'running') || isChatBusy(chatId) || hasBackgroundWork(chatId)
     || readExecution().runs.some((r) => r.projectId === projectId && r.ownerChatId === chatId && r.status === 'running');
   if (busy) return { state: 'pending', waiting: approvalPending(w, projectId) };
   const last = runs.filter((r) => r.startedAt >= run.startedAt).sort((a, b) => a.startedAt - b.startedAt).at(-1)!;
-  const brief = fromBrief(briefOf('agent', w, w.target.id), () => last.answer || '');
+  const brief = fromBrief(briefOf('agent', w, agentId), () => last.answer || '');
   if (brief) return brief;
   if (last.status === 'completed') return { state: 'completed', answer: last.answer || '' };
   if (last.status === 'stopped') return { state: 'stopped' };
@@ -229,10 +269,27 @@ function teamOutcome(projectId: string, w: TaskWork): Outcome {
   return said ? { state: 'completed', answer: said } : review('No one on the team answered.');
 }
 
+/** The Brain's work: followed in the agent's chat or team's thread it handed it to, or settled from its own answer. */
+function brainOutcome(projectId: string, w: TaskWork): Outcome {
+  if (w.handedTo) return w.handedTo.kind === 'agent' ? agentOutcome(projectId, w, w.handedTo.id) : teamOutcome(projectId, w);
+  const said = history(projectId, w.conversationId).findLast((m) => m.role === 'brain' && m.operationId === w.operationId);
+  if (!said) return review('The Brain\'s answer can\'t be found. Start it again.');
+  const failed = (said.done || []).filter((d) => d.kind === 'error');
+  if (failed.length) return review(`The Brain couldn't do all of it: ${failed.map((d) => d.text).join(' ')}`);
+  return { state: 'completed', answer: said.text };
+}
+
+/** Where saved work stands, by its ids (after it started). */
+function started(projectId: string, w: TaskWork): Outcome {
+  if (w.target.kind === 'brain') return brainOutcome(projectId, w);
+  if (w.target.kind === 'agent') return w.runId ? agentOutcome(projectId, w, w.target.id) : review('It never started.');
+  return w.messageId ? teamOutcome(projectId, w) : review('It never started.');
+}
+
 /** Where a task's work stands now. */
 function outcome(projectId: string, w: TaskWork): Outcome {
   if (w.state === 'starting') return launching.has(w.operationId) ? { state: 'pending', waiting: false } : review('It was saved but may not have started (the dashboard stopped). Open the chat to check, then start it again.');
-  return w.target.kind === 'agent' ? agentOutcome(projectId, w) : teamOutcome(projectId, w);
+  return started(projectId, w);
 }
 
 /** Settles a task's work: moves the card and adds the worker's answer as a comment. */
@@ -246,8 +303,10 @@ function settle(projectId: string, t: ProjectTask, result: Outcome): void {
   const end = { endedAt: Date.now() };
   if (result.state === 'stopped') { setWork(projectId, t.id, w.operationId, { state: 'stopped', ...end }); return; }
   if (result.state === 'needs-review') { setWork(projectId, t.id, w.operationId, { state: 'needs-review', note: result.note, ...end }); return; }
-  // (a worker that already commented since it started has said its piece; the answer isn't repeated)
-  const commented = (t.comments || []).some((c) => c.by !== 'you' && c.by !== 'brain' && c.at >= w.startedAt);
+  // (a worker that already commented since it started has said its piece; the answer isn't repeated. The Brain's
+  // completion notes don't count, unless the Brain is the one answering)
+  const by = workerRef(w);
+  const commented = by === 'brain' ? brainCommented(t) : (t.comments || []).some((c) => c.by !== 'you' && c.by !== 'brain' && c.at >= w.startedAt);
   if (result.state === 'blocked') {
     const reason = result.summary;
     // (the reason comes from the completion check, so the Brain signs it)
@@ -257,7 +316,7 @@ function settle(projectId: string, t: ProjectTask, result: Outcome): void {
     });
     return;
   }
-  if (!commented && result.answer.trim()) addBoardComment(projectId, t.id, result.answer, workerRef(w));
+  if (!commented && result.answer.trim()) addBoardComment(projectId, t.id, result.answer, by);
   setWork(projectId, t.id, w.operationId, { state: 'review', ...end }, (task) => {
     if (task.status === 'blocked') task.work!.state = 'blocked';
     else if (task.status === 'in_progress') task.status = 'in_review';
@@ -271,7 +330,7 @@ export function checkWork(projectId: string, taskId: string, operationId: unknow
     const t = savedBoardTask(projectId, taskId) || fail('That task is unavailable.', 404);
     if (!t.work || t.work.operationId !== operationId) return fail('This work changed meanwhile. Reload the task.', 409);
     if (t.work.state !== 'needs-review') return editBoardTask(projectId, taskId, () => false);
-    const result = t.work.target.kind === 'agent' ? (t.work.runId ? agentOutcome(projectId, t.work) : review('It never started.')) : (t.work.messageId ? teamOutcome(projectId, t.work) : review('It never started.'));
+    const result = started(projectId, t.work);
     if (result.state === 'pending') setWork(projectId, taskId, t.work.operationId, { state: result.waiting ? 'waiting' : 'working', note: undefined, endedAt: undefined });
     else if (result.state !== 'needs-review') settle(projectId, savedBoardTask(projectId, taskId)!, result);
     else setWork(projectId, taskId, t.work.operationId, { note: result.note });
@@ -345,7 +404,9 @@ export function workerTask(runId: string | null | undefined, agentId: string): {
     const w = task?.work;
     if (!task || !isWorking(w) || w.conversationId !== run.conversationId) return unavailable();
     const chat = chats.get(run.agentId, run.chatId);
-    const own = w.target.kind === 'agent' ? run.agentId === w.target.id && run.chatId === w.chatId : !!w.teamId && chat?.teamId === w.teamId;
+    // (the worker's chat or thread; for the Brain's work, the one it handed it to)
+    const agentId = agentOf(w);
+    const own = w.teamId ? chat?.teamId === w.teamId : !!agentId && run.agentId === agentId && run.chatId === w.chatId;
     return own ? { run, task } : unavailable();
   });
 }

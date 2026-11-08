@@ -5,7 +5,7 @@ import { agents, workflows, listProjects, withProject, activeProject, emit } fro
 import { dataPath, readJSON, writeJSON, uid } from './util.ts';
 import { TAGS_PER_PROJECT, TAGS_PER_TASK, cleanTagText, isEmoji, splitTag, tagKey, tagLabel, tagNameProblem, tagsMatch } from '../shared/boardtags.ts';
 import type { TagMatch } from '../shared/boardtags.ts';
-import type { BoardComment, BoardPeople, BoardPriority, BoardStatus, BoardTag, BoardTagUse, BoardTask, Project, ProjectTask, TaskBoardData, TaskComment, TaskFile } from '../shared/types.ts';
+import type { BoardComment, BoardPeople, BoardPriority, BoardStatus, BoardTag, BoardTagUse, BoardTask, Project, ProjectTask, TaskBoardData, TaskComment, TaskFile, TaskWork } from '../shared/types.ts';
 
 import { BOARD_PRIORITIES, BOARD_STATUSES } from '../shared/api/taskboard.ts';
 
@@ -64,6 +64,8 @@ function who(ref: string, none: string): { name: string; emoji?: string; color?:
   }
   return { name: workflows.get(id)?.name || 'A former team' };
 }
+/** Who works on a task, as an assignee is written: brain, agent:<id> or team:<id>. */
+export const workerOf = (w: TaskWork): string => (w.target.kind === 'brain' ? 'brain' : `${w.target.kind}:${w.target.id}`);
 /** A task's tags, in its order, out of its project's (ids that point at nothing are skipped). */
 export function tagsOf(t: ProjectTask, tags: readonly BoardTag[]): BoardTag[] {
   return (t.tags || []).flatMap((id) => tags.filter((x) => x.id === id));
@@ -83,7 +85,7 @@ function card(p: Project, t: ProjectTask, tags: readonly BoardTag[], withComment
     ...(a.emoji ? { assigneeEmoji: a.emoji } : {}),
     ...(a.color ? { assigneeColor: a.color } : {}),
     creatorName: who(t.createdBy, 'You').name,
-    ...(t.work ? { workerName: who(`${t.work.target.kind}:${t.work.target.id}`, 'Unassigned').name } : {}),
+    ...(t.work ? { workerName: who(workerOf(t.work), 'Unassigned').name } : {}),
     tagList: tagsOf(t, tags),
   };
 }
@@ -318,7 +320,7 @@ const STATUS_LABEL: Record<BoardStatus, string> = { todo: 'To do', in_progress: 
 function line(t: ProjectTask, tags: readonly BoardTag[]): string {
   const comments = t.comments || [];
   const c = comments.at(-1);
-  const working = t.work && ['starting', 'working', 'waiting'].includes(t.work.state) ? ` | working: ${who(`${t.work.target.kind}:${t.work.target.id}`, 'someone').name}` : '';
+  const working = t.work && ['starting', 'working', 'waiting'].includes(t.work.state) ? ` | working: ${who(workerOf(t.work), 'someone').name}` : '';
   const files = (t.files?.length || 0) + comments.reduce((n, x) => n + (x.files?.length || 0), 0);
   const tagged = tagsOf(t, tags);
   return `#${t.number} [${STATUS_LABEL[t.status]}] ${t.priority === 'normal' ? '' : `(${t.priority}) `}${t.title} | ${t.assignee ? `${who(t.assignee, 'Unassigned').name} (${t.assignee})` : 'unassigned'}${tagged.length ? ` | tags: ${tagged.map(tagLabel).join(', ')}` : ''}${working}${files ? ` | files: ${files}` : ''}${t.blockedReason ? ` | blocked: ${t.blockedReason}` : ''}${t.description ? ` | ${t.description.replace(/\s+/g, ' ').slice(0, 140)}` : ''}${c ? ` | ${comments.length} comment${comments.length === 1 ? '' : 's'}, last from ${who(c.by, 'you').name}: "${c.text.replace(/\s+/g, ' ').slice(0, 120)}"` : ''}`;

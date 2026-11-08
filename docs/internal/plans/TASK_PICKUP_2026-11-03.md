@@ -27,7 +27,9 @@ Where it differs from the plan below:
 - **Not built:**
   - the card going back to In progress when the check finds the work unfinished after the worker said In review;
   - "started working" entries between the comments (the Work box and the started message say it);
-  - the Brain as an assignee (open question 3).
+  - the Brain as an assignee (open question 3). Built since (8 November): `ask()` in the task's conversation, then
+    the board follows the agent's chat or team's thread it handed the work to (`TaskWork.handedTo`), or settles from
+    the Brain's own answer.
 
 **Rewritten the same day to build on [Gateways](CHAT_GATEWAYS_2026-11-01.md) (`LZL0/gateways`, PR #112).** Gateways
 already hands a piece of outside work (a Telegram, Slack or Discord message) to the Brain, an agent or a team, gives it a

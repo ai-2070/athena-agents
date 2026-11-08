@@ -1,5 +1,5 @@
 // The Tasks board's routes (shared/api/taskboard.ts), on the same functions agents' tools use. A task you make
-// In progress for an agent or team, or move there, starts its work (boardwork.ts); moving it away or giving it to
+// In progress for an agent, a team or the Brain, or move there, starts its work (boardwork.ts); moving it away or giving it to
 // someone else stops it. Files are uploads of the open project, copied into the task's own.
 import { implement } from '@orpc/server';
 import { taskBoard as contract } from '../../shared/api/taskboard.ts';
@@ -18,7 +18,7 @@ export const taskBoard = os.router({
   add: os.add.handler(async ({ input: { projectId, files: list, ...fields } }) => {
     const files = await filesFromRequest(projectById(projectId), list ?? []);
     const task = board.addBoardTask(projectId, fields, 'you', files);
-    return { task: task.status === 'in_progress' && /^(agent|team):/.test(task.assignee) ? await work.startWork(projectId, task.id) : task };
+    return { task: task.status === 'in_progress' && work.canPickUp(task.assignee) ? await work.startWork(projectId, task.id) : task };
   }),
   get: os.get.handler(({ input }) => ({ task: board.boardTask(input.projectId, input.id) })),
   change: os.change.handler(async ({ input: { projectId, id, files: list, ...change } }) => {

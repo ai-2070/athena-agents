@@ -501,6 +501,20 @@ describe('a task\'s own page', () => {
     expect(document.getElementById('toasts')!.textContent).toContain('Photographer started on #3');
   });
 
+  it('lets the Brain start its task, and opens the chat of the agent it handed it to', async () => {
+    board[1] = { ...board[1], assignee: 'brain', assigneeName: 'The Brain' };
+    await open(['p1', 'b']);
+    const box = () => el.querySelector<HTMLElement>('section[aria-label="Work"]')!;
+    expect(box().textContent).toContain('Moving the task to In progress starts it.');
+    expect([...box().querySelectorAll('button')].some((b) => b.textContent?.includes('Start'))).toBe(true);
+    location.hash = '';
+    board[2] = { ...board[2], assignee: 'brain', assigneeName: 'The Brain', work: working({ target: { kind: 'brain', id: 'brain' }, handedTo: { kind: 'agent', id: 'x' } }), workerName: 'The Brain' };
+    await open(['p1', 'c']);
+    expect(box().textContent).toContain('The Brain');
+    await act(async () => [...box().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('Open chat'))!.click());
+    expect(location.hash).toBe('#/agents/x/ch1');
+  });
+
   it('says how to start a task given to an agent, and shows files on the task and its comments', async () => {
     board[1] = {
       ...board[1],

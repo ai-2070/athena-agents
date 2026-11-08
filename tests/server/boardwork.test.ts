@@ -1,15 +1,16 @@
-// Tasks board work: an assigned agent or team picks up a task in its own private conversation, and the card
-// settles from the run, the team thread and the completion check.
+// Tasks board work: an assigned agent, team or the Brain picks up a task in its own private conversation, and the card
+// settles from the run, the team thread, the Brain's answer and the completion check.
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { activeProject, chats, workflows } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 import { admitExecution, updateExecution } from '../../server/execution.ts';
-import { addBrief, updateBrief } from '../../server/briefs.ts';
+import { addBrief, listBriefs, updateBrief } from '../../server/briefs.ts';
+import { history } from '../../server/overseer.ts';
 import { getThread, isTeamBusy } from '../../server/teams.ts';
 import { addBoardTask, changeBoardTask, editBoardTask, restoredBoard, savedBoardTask } from '../../server/taskboard.ts';
-import { afterUserChange, boardWork, checkWork, startWork, stopWork, workerReply, BOARD_SENDER } from '../../server/boardwork.ts';
+import { afterUserChange, boardWork, canPickUp, checkWork, startWork, stopWork, workerReply, BOARD_SENDER } from '../../server/boardwork.ts';
 import { safeUploadsRoot } from '../../server/uploads.ts';
 import { agentBoardTags } from '../../server/boardtagtools.ts';
 import { createProject } from '../../server/projects.ts';
@@ -24,6 +25,9 @@ const calls = vi.hoisted(() => ({
   scopes: new Map<string, unknown>(),
   stopped: [] as string[],
   queued: [] as { chatId: string; text: string }[],
+  // what the Brain's model answers (the prompt it was given is kept)
+  think: (_system: string, _user: string): string | Promise<string> => 'Brain answer.',
+  asked: [] as string[],
 }));
 // Stop marks the chat's runs stopped, as the real one does once the run ends.
 async function stopFake() {
@@ -33,7 +37,11 @@ async function stopFake() {
     for (const r of readExecution().runs) if (r.chatId === chatId && r.status === 'running') update(r.id, { status: 'stopped' });
   } };
 }
-vi.mock('../../server/brain.ts', async (original) => ({ ...await original<typeof import('../../server/brain.ts')>(), brainModel: () => ({ provider: 'openrouter', model: 'mock' }), think: async () => 'Brain answer.' }));
+vi.mock('../../server/brain.ts', async (original) => ({
+  ...await original<typeof import('../../server/brain.ts')>(),
+  brainModel: () => ({ provider: 'openrouter', model: 'mock' }),
+  think: async (system: string, user: string) => (calls.asked.push(user), calls.think(system, user)),
+}));
 vi.mock('../../server/approvals.ts', async (original) => ({ ...await original<typeof import('../../server/approvals.ts')>(), listApprovals: () => calls.approvals }));
 vi.mock('../../server/engines/index.ts', async (original) => ({
   ...await original<typeof import('../../server/engines/index.ts')>(),
@@ -43,12 +51,12 @@ vi.mock('../../server/engines/index.ts', async (original) => ({
   queueMessage: (_agent: Agent, chat: Chat, text: string) => { calls.queued.push({ chatId: chat.id, text }); return { runId: 'queued' }; },
   startRun: (agent: Agent, chat: Chat, text: string, options: RunOptions) => {
     calls.runs.push({ agentId: agent.id, chatId: chat.id, text, options });
-    const id = options.reservedRunId!;
+    const id = options.reservedRunId || `brief-run-${calls.runs.length}`;
     admitExecution({ id, projectId: activeProject().id, agentId: agent.id, chatId: chat.id, engine: agent.engine, ownerChatId: chat.id, ownerAgentId: agent.id, parentRunId: null, depth: 0, text, from: options.from || null, attachments: options.attachments || [], startedAt: Date.now(), status: 'running' });
     return { runId: id, promise: Promise.resolve(''), signal: new AbortController().signal };
   },
 }));
-afterEach(() => { calls.runs = []; calls.approvals = []; calls.scopes.clear(); calls.stopped = []; calls.queued = []; });
+afterEach(() => { calls.runs = []; calls.approvals = []; calls.scopes.clear(); calls.stopped = []; calls.queued = []; calls.think = () => 'Brain answer.'; calls.asked = []; });
 
 const project = () => activeProject().id;
 const task = (id: string) => savedBoardTask(project(), id)!;
@@ -196,6 +204,101 @@ describe('a team picks up its task', () => {
     const done = task(t.id);
     expect(done.status).toBe('in_review');
     expect(done.comments?.at(-1)).toMatchObject({ by: `team:${team.id}`, text: 'Member final answer.' });
+  });
+});
+
+describe('the Brain picks up its task', () => {
+  const actions = (list: unknown[]) => `\n\`\`\`actions\n${JSON.stringify(list)}\n\`\`\``;
+
+  it('answers it in the task\'s own conversation and settles to In review with its answer', async () => {
+    expect(canPickUp('brain')).toBe(true);
+    expect(canPickUp('you')).toBe(false);
+    calls.think = () => 'I checked the settings: everything is in place.';
+    const t = addBoardTask(project(), { title: 'Check the settings', description: 'Make sure the keys are set.', assignee: 'brain' });
+    await move(t.id, { status: 'todo', rank: 3 });
+    changeBoardTask(project(), t.id, { status: 'in_progress' }); // the Brain's own board_update path
+    expect(calls.asked).toHaveLength(0);
+    changeBoardTask(project(), t.id, { status: 'todo' });
+
+    const card = await move(t.id, { status: 'in_progress' });
+    expect(card.work).toMatchObject({ target: { kind: 'brain', id: 'brain' }, conversationId: `board-${t.id}` });
+    expect(card.workerName).toBe('The Brain');
+    await expect.poll(() => task(t.id).status).toBe('in_review');
+    // it was told the task, as a message from the board, and sees only this task of the board
+    const prompt = calls.asked[0];
+    expect(prompt).toContain(`Task #${t.number}`);
+    expect(prompt).toContain('Make sure the keys are set.');
+    expect(prompt).toContain('given to you, the Brain');
+    expect(prompt).toContain(`USER (${BOARD_SENDER})`);
+    expect(history(project(), `board-${t.id}`).at(-1)).toMatchObject({ role: 'brain', text: 'I checked the settings: everything is in place.', operationId: card.work!.operationId });
+    const done = task(t.id);
+    expect(done.work).toMatchObject({ state: 'review' });
+    expect(done.comments?.at(-1)).toMatchObject({ by: 'brain', text: 'I checked the settings: everything is in place.' });
+    expect(done.comments).toHaveLength(1);
+  });
+
+  it('hands it to an agent in the task\'s chat, and the board follows that agent\'s work', async () => {
+    const agent = newAgent({ name: 'Brain helper' });
+    calls.think = () => `I gave this to the Brain helper.${actions([{ do: 'delegate', to: 'agent', id: agent.id, message: `Write the summary for task #1 on the Tasks board.` }])}`;
+    const t = addBoardTask(project(), { title: 'Write the summary', assignee: 'brain' });
+    await move(t.id, { status: 'in_progress' });
+    await expect.poll(() => task(t.id).work!.runId).toBeTruthy();
+    const w = task(t.id).work!;
+    expect(w).toMatchObject({ state: 'working', target: { kind: 'brain' }, handedTo: { kind: 'agent', id: agent.id } });
+    const run = calls.runs.at(-1)!;
+    expect(run).toMatchObject({ agentId: agent.id, chatId: w.chatId, options: { from: 'the Brain' } });
+    expect(chats.get(agent.id, w.chatId!)?.conversationId).toBe(`board-${t.id}`);
+    // what the Brain said as it handed it on is on the task
+    expect(task(t.id).comments?.at(-1)).toMatchObject({ by: 'brain', text: 'I gave this to the Brain helper.' });
+
+    // the agent it handed it to may use the task's board tools; another agent may not
+    const runId = scope(agent, w.chatId!, `board-${t.id}`);
+    expect(await workerReply(runId, agent.id, { text: 'Here is a first draft.' })).toContain('Commented');
+    const stranger = newAgent({ name: 'Brain stranger' });
+    await expect(workerReply(scope(stranger, w.chatId!, `board-${t.id}`, 'stranger-run'), stranger.id, { text: 'Hi' })).rejects.toThrow('isn\'t working on a Tasks board task');
+
+    // your comment while it works reaches that agent
+    const { passToWorker } = await import('../../server/boardwork.ts');
+    await passToWorker(project(), t.id, 'Keep it short.');
+    expect(calls.queued).toEqual([{ chatId: w.chatId, text: 'Keep it short.' }]);
+
+    // the brief the Brain opened settles it
+    updateExecution(w.runId!, { status: 'completed', answer: 'The summary is done.' });
+    await boardWork.wake();
+    expect(task(t.id).work!.state).toBe('working');
+    const brief = listBriefs().findLast((b) => b.kind === 'agent' && b.targetId === agent.id && b.chatId === w.chatId)!;
+    updateBrief(brief.id, { status: 'done', summary: 'Summary written.' });
+    await boardWork.wake();
+    const done = task(t.id);
+    expect(done).toMatchObject({ status: 'in_review', work: { state: 'review' } });
+    // (the agent commented itself, so its answer isn't repeated)
+    expect(done.comments?.map((c) => c.by)).toEqual(['brain', `agent:${agent.id}`]);
+  });
+
+  it('changes nothing when you stop it while it thinks', async () => {
+    let answer: (text: string) => void = () => {};
+    calls.think = () => new Promise<string>((resolve) => { answer = resolve; });
+    const t = addBoardTask(project(), { title: 'Think it over', assignee: 'brain', status: 'in_progress' });
+    await startWork(project(), t.id);
+    await expect.poll(() => calls.asked.length).toBe(1);
+    expect(task(t.id).work!.state).toBe('starting');
+    expect(stopWork(project(), t.id).work!.state).toBe('stopped');
+    answer(`Noted.${actions([{ do: 'board_comment', task: `#${t.number}`, text: 'Should not be saved.' }])}`);
+    await new Promise((r) => setTimeout(r, 50));
+    await boardWork.wake();
+    expect(task(t.id).work!.state).toBe('stopped');
+    expect(task(t.id).comments ?? []).toHaveLength(0);
+  });
+
+  it('may change only its own task there, and an action that fails puts the work in Needs review', async () => {
+    const other = addBoardTask(project(), { title: 'Someone else\'s task' });
+    calls.think = () => `Moved it.${actions([{ do: 'board_update', task: `#${other.number}`, status: 'done' }])}`;
+    const t = addBoardTask(project(), { title: 'Tidy the board', assignee: 'brain', status: 'in_progress' });
+    await startWork(project(), t.id);
+    await expect.poll(() => task(t.id).work!.state).toBe('needs-review');
+    expect(task(t.id).work!.note).toContain('only that task can be changed');
+    expect(task(other.id).status).toBe('todo');
+    expect(task(t.id).status).toBe('in_progress');
   });
 });
 
