@@ -1,0 +1,33 @@
+docs/guide.md
+  s_76574b359156ab::t_5ee75ea4894978 199
+web/views/tasks.tsx
+  s_76574b359156ab::t_3309148c642d04 753-754,757,835-836,839
+  s_76574b359156ab::t_b819b4a67b5dc8 755-756,837-838
+web/taskboard.tsx
+  s_76574b359156ab::t_3309148c642d04 4,277-278,280,491-492,495
+  s_76574b359156ab::t_71288d9d18fce0 493-494,496
+  s_76574b359156ab::t_b819b4a67b5dc8 219-220,222,230,232,263-265,285
+  s_76574b359156ab::t_5dbbf68d3db2a4 210-216,218,227,258,260-262,267-276,279,281-284,286-288
+tests/web/tasks-board.test.tsx
+  s_76574b359156ab::t_cca7dfdaa160d9 461,463-464
+  s_76574b359156ab::t_3309148c642d04 462
+  s_76574b359156ab::t_b7f54f14f4cc18 224-239,243-244
+  s_76574b359156ab::t_b819b4a67b5dc8 460
+  s_76574b359156ab::t_7631a85cb51ac0 240-242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "74d32c3d174b00757ca673038530fd59728e1d1d",
+  "prompts": {},
+  "sessions": {
+    "s_76574b359156ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ddee25a-eee2-447d-8e03-1915a5f59a8a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
