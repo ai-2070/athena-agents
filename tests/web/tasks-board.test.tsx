@@ -221,6 +221,32 @@ describe('the Tasks board', () => {
     expect(requests.find((r) => r.method === 'POST')).toMatchObject({ url: '/api/task-board/p1', body: { title: 'Taste the new cake', description: 'Before Friday.', status: 'in_review', priority: 'normal', assignee: '' } });
   });
 
+  it('says in the New task window whether who it\'s given to starts on it once it\'s made', async () => {
+    await open();
+    await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Create a task in To do"]')!.click());
+    await settle();
+    const modal = document.querySelector<HTMLElement>('.modal')!;
+    const note = () => modal.querySelector('.start-note')?.textContent || '';
+    const pick = async (trigger: string, item: string) => {
+      await act(async () => modal.querySelector<HTMLButtonElement>(`[aria-label="${trigger}"]`)!.click());
+      await settle();
+      await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((i) => i.textContent?.endsWith(item))!.click());
+      await settle();
+    };
+    // (no one picks it up: no note)
+    expect(note()).toBe('');
+    await pick('Assigned to: Unassigned', 'Photographer');
+    expect(note()).toBe("📷Assigned — won't start working in To do.");
+    await pick('Status: To do', 'In progress');
+    expect(note()).toBe('📷Photographer will start working right after creation.');
+    await pick('Assigned to: Photographer', 'The Brain');
+    expect(note()).toBe('The Brain will start working right after creation.');
+    await pick('Assigned to: The Brain', 'You');
+    expect(note()).toBe('');
+    await act(async () => [...modal.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Cancel')!.click());
+    await settle();
+  });
+
   it('moves a card between two with the same rank in "All projects", spacing the column out again', async () => {
     localStorage.setItem('dash-task-board', 'all');
     // (every project's first task has rank 0)

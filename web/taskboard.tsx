@@ -328,6 +328,23 @@ export function usePeople(projectId: string): BoardPeople | null {
   return people;
 }
 
+/**
+ * Under a new task: whether who it's given to starts on it once it's made. Only an agent, a team or the Brain picks
+ * work up, and only from In progress (as the server decides, boardwork.ts canPickUp).
+ */
+function StartNote({ assignee, status, people }: { assignee: string; status: BoardStatus; people: BoardPeople | null }) {
+  const agent = assignee.startsWith('agent:') ? people?.agents.find((a) => `agent:${a.id}` === assignee) : undefined;
+  const team = assignee.startsWith('team:') ? people?.teams.find((t) => `team:${t.id}` === assignee) : undefined;
+  const name = assignee === 'brain' ? 'The Brain' : agent?.name || team?.name;
+  if (!name) return null;
+  return (
+    <p className="start-note m-0 flex items-center gap-2 pt-1 text-[12.5px] text-dim" aria-live="polite">
+      <WhoMark who={assignee} emoji={agent?.emoji} color={agent?.color} size={22} />
+      {status === 'in_progress' ? `${name} will start working right after creation.` : `Assigned — won't start working in ${statusOf(status).label}.`}
+    </p>
+  );
+}
+
 export interface ComposerOptions {
   /** the project it goes to (the open one when left out) */
   projectId?: string;
@@ -429,6 +446,7 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
           className="min-h-36 resize-none border-0! bg-transparent! px-0! text-[14.5px]! leading-relaxed whitespace-pre-wrap text-ink shadow-none! outline-none focus:shadow-none! empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
         />
         <DomNode make={() => tray.el} deps={[tray]} />
+        <StartNote assignee={assignee} status={status} people={people} />
         <div className="flex flex-wrap items-center gap-1.5 pt-2">
           <DomNode as="span" make={() => tray.picker} deps={[tray]} />
           <Pick label="Status" value={status} choices={statusChoices(START_STATUSES)} onChange={(v) => setStatus(v as BoardStatus)} disabled={busy} />
