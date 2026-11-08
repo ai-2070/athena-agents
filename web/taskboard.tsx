@@ -485,30 +485,35 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
           ) : null}
         </div>
       </div>
-      <div className="modal-foot">
-        <DraftWithBrain
-          disabled={busy || !projectId}
-          wording={{
-            heading: 'Draft this task',
-            about: 'The Brain reads what you have typed and writes a title and description. Tell it what you want',
-            placeholder: 'e.g. Get three quotes for the venue by Friday',
-          }}
-          blank={!title.trim() && !description.trim()}
-          draft={async (instruction) => {
-            const d = await askForDraft({ projectId, kind: 'task', title, description, instruction });
-            if (d.kind !== 'task') return null;
-            const before = { title, description };
-            setTitle(d.title);
-            setDescription(d.description);
-            return () => (setTitle(before.title), setDescription(before.description));
-          }}
-        />
-        <Switch checked={another} onChange={setAnother} className="mr-auto text-[13px] text-dim" disabled={busy}>Create another</Switch>
-        <Button type="button" variant="ghost" onClick={close}>Cancel</Button>
-        <Button type="submit" disabled={busy || !title.trim()}>
-          {busy ? 'Creating…' : 'Create task'}
-          <kbd className="ml-1 rounded border border-current/25 px-1 font-sans text-[10px] opacity-70">Ctrl ↵</kbd>
-        </Button>
+      <div className="modal-foot items-center">
+        {/* (two groups, so Undo showing up wraps the left one, never Create task away from Cancel) */}
+        <div className="flex min-w-44 flex-1 flex-wrap items-center gap-x-2.5 gap-y-2">
+          <DraftWithBrain
+            disabled={busy || !projectId}
+            wording={{
+              heading: 'Draft this task',
+              about: 'The Brain reads what you have typed and writes a title and description. Tell it what you want',
+              placeholder: 'e.g. Get three quotes for the venue by Friday',
+            }}
+            blank={!title.trim() && !description.trim()}
+            draft={async (instruction) => {
+              const d = await askForDraft({ projectId, kind: 'task', title, description, instruction });
+              if (d.kind !== 'task') return null;
+              const before = { title, description };
+              setTitle(d.title);
+              setDescription(d.description);
+              return () => (setTitle(before.title), setDescription(before.description));
+            }}
+          />
+          <Switch checked={another} onChange={setAnother} className="text-[13px] text-dim" disabled={busy}>Create another</Switch>
+        </div>
+        <div className="ml-auto flex flex-none items-center gap-2.5">
+          <Button type="button" variant="ghost" onClick={close}>Cancel</Button>
+          <Button type="submit" disabled={busy || !title.trim()}>
+            {busy ? 'Creating…' : 'Create task'}
+            <kbd className="ml-1 rounded border border-current/25 px-1 font-sans text-[10px] opacity-70">Ctrl ↵</kbd>
+          </Button>
+        </div>
       </div>
     </form>
   );
