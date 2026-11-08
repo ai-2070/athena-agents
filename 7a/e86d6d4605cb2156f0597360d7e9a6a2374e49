@@ -1,0 +1,23 @@
+tests/server/setup.ts
+  s_88777d6310a163::t_ea50606f6e8585 18-22
+tests/server/ownership-port.test.ts
+  s_88777d6310a163::t_95a3306a66876a 2,7-8,30,35-47
+server/ownershipport.ts
+  s_88777d6310a163::t_3bb6d1b44c8520 8-12,14-15,24-28,31-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7ae86d6d4605cb2156f0597360d7e9a6a2374e49",
+  "prompts": {},
+  "sessions": {
+    "s_88777d6310a163": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4cda4b6e-be46-4dc4-a6b9-c8ebde48b446",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
