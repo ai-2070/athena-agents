@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
-import { brainModelChip, openModelPicker } from '../../web/models.tsx';
+import { brainModelChip, modelChip, openModelPicker } from '../../web/models.tsx';
 import { openBranchBuilder } from '../../web/builder.tsx';
 import type { ModelPatch } from '../../web/models.tsx';
-import type { AppState } from '../../shared/types.ts';
+import type { Agent, AppState } from '../../shared/types.ts';
 
 type Reply = { status?: number; body: unknown };
 type Route = (method: string, path: string, body: unknown) => Reply | undefined;
@@ -170,6 +170,18 @@ describe('model picker: Eve and where its model comes from', () => {
 });
 
 describe('model picker: its button', () => {
+  it("shows Eve's mark for an agent on Eve, even on a Claude model", async () => {
+    serve(() => ({ body: [] }));
+    const eve = modelChip({ id: 'a1', name: 'Builder', engine: 'eve', provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' } as Agent);
+    const claude = modelChip({ id: 'a2', name: 'Coder', engine: 'claude-code', model: 'haiku' } as Agent);
+    // (a chip draws a moment after it is made)
+    await vi.waitFor(() => expect(eve.textContent).toContain('Haiku 5.5'));
+    expect(eve.querySelector('svg.eve-mark')).not.toBeNull();
+    await vi.waitFor(() => expect(claude.textContent).toContain('Haiku'));
+    expect(claude.querySelector('svg.eve-mark')).toBeNull();
+  });
+
+
   it('closes the picker on a second click instead of opening it again', async () => {
     serve(() => ({ body: [] }));
     (state.data as unknown as { settings: Record<string, unknown> }).settings = { brain: { provider: 'claude', model: 'haiku' }, favoriteModels: [] };
