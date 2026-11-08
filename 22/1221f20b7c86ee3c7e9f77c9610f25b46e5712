@@ -1,0 +1,41 @@
+shared/types.ts
+  s_88777d6310a163::t_82a7060846d8b6 2148,2150,2153-2156
+server/taskboard.ts
+  s_88777d6310a163::t_8ef4aed385648d 67-68,88,323
+  s_88777d6310a163::t_00baca779b3c51 8
+server/overseer.ts
+  s_88777d6310a163::t_d729c6ba78bfc7 582
+tests/server/boardwork.test.ts
+  s_88777d6310a163::t_76ebc085a95be2 1-2,9-10,13,28-30,40-44,54,59,210-302
+  s_88777d6310a163::t_b14b6b00cba923 303-304
+tests/web/tasks-board.test.tsx
+  s_88777d6310a163::t_502dc3a48af5ae 504-517
+docs/guide.md
+  s_88777d6310a163::t_e5ff177f701850 201-202,204
+web/views/tasks.tsx
+  s_88777d6310a163::t_11d5f42e333467 607-608,613,632-634,638
+README.md
+  s_88777d6310a163::t_e5ff177f701850 106
+server/boardwork.ts
+  s_88777d6310a163::t_e4bdd4c173840c 1-7,17-18,31,33,37-42,48-55,57,69,81,86,88,93,106,108,128-129,136-155,173,187-190,238,240,242,249,272-288,292,306-309,319,333,407-409
+docs/internal/plans/TASK_PICKUP_2026-11-03.md
+  s_88777d6310a163::t_d4544cf59a86f3 30-32
+server/api/taskboard.ts
+  s_88777d6310a163::t_d729c6ba78bfc7 2,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "221221f20b7c86ee3c7e9f77c9610f25b46e5712",
+  "prompts": {},
+  "sessions": {
+    "s_88777d6310a163": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4cda4b6e-be46-4dc4-a6b9-c8ebde48b446",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
