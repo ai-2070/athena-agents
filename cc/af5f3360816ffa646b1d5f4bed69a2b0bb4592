@@ -1,0 +1,27 @@
+DESIGN.md
+  s_4a0fe3812f1a04::t_3b813aab88bddb 222-224
+web/taskboard.tsx
+  s_4a0fe3812f1a04::t_d78487d28c712e 293,360,366,426-427
+  s_4a0fe3812f1a04::t_5326ad7a761a34 461
+  s_4a0fe3812f1a04::t_3b813aab88bddb 428-460
+web/ui/overlays.tsx
+  s_4a0fe3812f1a04::t_f41380399fe04f 36-37,151,187,190
+web/styles/components.css
+  s_4a0fe3812f1a04::t_ace94f245671c7 461-474
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ccaf5f3360816ffa646b1d5f4bed69a2b0bb4592",
+  "prompts": {},
+  "sessions": {
+    "s_4a0fe3812f1a04": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4ed5e9d-9c96-4c33-be0c-3a79edc2ba52",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
