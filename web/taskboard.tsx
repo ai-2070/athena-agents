@@ -290,7 +290,7 @@ export function assigneeChoices(people: BoardPeople | null): Choice[] {
   ];
 }
 
-export const PILL = 'inline-flex h-7 max-w-56 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-panel/60 px-2.5 text-[12.5px] text-ink [transition:border-color_0.15s,background-color_0.15s] hover:border-line-2 hover:bg-panel-2 disabled:cursor-default disabled:opacity-60 data-popup-open:border-accent';
+export const PILL = 'inline-flex h-7 max-w-56 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-panel/60 px-2.5 text-[12.5px] text-ink shadow-[inset_0_1px_0_var(--glass-spec)] [transition:border-color_0.15s,background-color_0.15s] hover:border-line-2 hover:bg-panel-2 disabled:cursor-default disabled:opacity-60 data-popup-open:border-accent';
 export const ROW = 'flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-ctl px-2 py-1.5 text-left text-[13px] text-ink [transition:background-color_0.15s] hover:bg-panel-2 disabled:cursor-default data-popup-open:bg-panel-2';
 
 /** A property as a pill (the new task window) or a row (the task page), opening its choices. */
@@ -357,13 +357,13 @@ export interface ComposerOptions {
 /** "New task": a window with the title and description up top and the task's properties as pills at the bottom. */
 export function openTaskComposer(o: ComposerOptions = {}): void {
   openModal(
-    <span className="inline-flex items-center gap-1.5 text-[14px]">
+    <span className="inline-flex items-center gap-1.5 text-[13px]">
       <span className="font-normal text-dim">Tasks</span>
       <Icon name="chevron-right" size={13} className="text-faint" />
       New task
     </span>,
     (close) => <Composer {...o} close={close} />,
-    { medium: true },
+    { medium: true, variant: 'compose' },
   );
 }
 
@@ -423,39 +423,42 @@ function Composer({ projectId: startProject, status: startStatus = 'todo', proje
         }
       }}
     >
-      <div className="modal-body flex flex-col gap-2 pt-5!">
-        <input
-          ref={titleBox}
-          aria-label="Title"
-          autoFocus
-          required
-          placeholder="Task title"
-          value={title}
-          disabled={busy}
-          onChange={(e) => setTitle(e.currentTarget.value)}
-          className="border-0! bg-transparent! px-0! text-[20px]! font-semibold tracking-tight shadow-none! placeholder:text-faint focus:shadow-none!"
-        />
-        <textarea
-          ref={descBox}
-          aria-label="Description"
-          rows={6}
-          placeholder="Add a description: what needs to happen, and how you'll know it's done. Type @ to mention an agent, a team or a skill. Markdown supported."
-          value={description}
-          disabled={busy}
-          onChange={(e) => setDescription(e.currentTarget.value)}
-          className="min-h-36 resize-none border-0! bg-transparent! px-0! text-[14.5px]! leading-relaxed whitespace-pre-wrap text-ink shadow-none! outline-none focus:shadow-none! empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
-        />
-        <DomNode make={() => tray.el} deps={[tray]} />
-        <StartNote assignee={assignee} status={status} people={people} />
-        <div className="flex flex-wrap items-center gap-1.5 pt-2">
-          <DomNode as="span" make={() => tray.picker} deps={[tray]} />
-          <Pick label="Status" value={status} choices={statusChoices(START_STATUSES)} onChange={(v) => setStatus(v as BoardStatus)} disabled={busy} />
-          <Pick label="Priority" value={priority} choices={priorityChoices()} onChange={(v) => setPriority(v as BoardPriority)} disabled={busy} />
-          <Pick label="Assigned to" value={assignee} choices={assigneeChoices(people)} onChange={setAssignee} disabled={busy} />
-          <TagPicker projectId={projectId} value={tags} onChange={setTags} disabled={busy} />
-          {choices.length > 1 ? (
-            <Pick label="Project" value={projectId} choices={choices.map((p) => ({ value: p.id, label: p.name, mark: <Icon name="folder" size={14} className="text-faint" /> }))} onChange={(v) => (setProjectId(v), setAssignee(''), setTags([]))} disabled={busy} />
-          ) : null}
+      <div className="modal-body">
+        {/* (one glass field, like the Brain chat's composer: the words, then what the task is, in a row under them) */}
+        <div className="flex flex-col gap-2 rounded-[12px] border border-line-2 bg-panel px-4 pt-3.5 pb-3 shadow-[inset_0_1px_0_var(--glass-spec)] [transition:border-color_0.15s] focus-within:border-[color-mix(in_srgb,var(--color-ink)_12%,var(--color-line-2))]">
+          <input
+            ref={titleBox}
+            aria-label="Title"
+            autoFocus
+            required
+            placeholder="Task title"
+            value={title}
+            disabled={busy}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            className="border-0! bg-transparent! px-0! text-[20px]! font-semibold tracking-tight shadow-none! placeholder:text-faint focus:shadow-none!"
+          />
+          <textarea
+            ref={descBox}
+            aria-label="Description"
+            rows={6}
+            placeholder="Add a description: what needs to happen, and how you'll know it's done. Type @ to mention an agent, a team or a skill. Markdown supported."
+            value={description}
+            disabled={busy}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+            className="min-h-32 resize-none border-0! bg-transparent! px-0! text-[14.5px]! leading-relaxed whitespace-pre-wrap text-ink shadow-none! outline-none focus:shadow-none! empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
+          />
+          <DomNode make={() => tray.el} deps={[tray]} />
+          <StartNote assignee={assignee} status={status} people={people} />
+          <div className="flex flex-wrap items-center gap-1.5 pt-2">
+            <DomNode as="span" make={() => tray.picker} deps={[tray]} />
+            <Pick label="Status" value={status} choices={statusChoices(START_STATUSES)} onChange={(v) => setStatus(v as BoardStatus)} disabled={busy} />
+            <Pick label="Priority" value={priority} choices={priorityChoices()} onChange={(v) => setPriority(v as BoardPriority)} disabled={busy} />
+            <Pick label="Assigned to" value={assignee} choices={assigneeChoices(people)} onChange={setAssignee} disabled={busy} />
+            <TagPicker projectId={projectId} value={tags} onChange={setTags} disabled={busy} />
+            {choices.length > 1 ? (
+              <Pick label="Project" value={projectId} choices={choices.map((p) => ({ value: p.id, label: p.name, mark: <Icon name="folder" size={14} className="text-faint" /> }))} onChange={(v) => (setProjectId(v), setAssignee(''), setTags([]))} disabled={busy} />
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="modal-foot">

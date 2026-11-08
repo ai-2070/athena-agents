@@ -219,6 +219,9 @@ dropdown and the paperclip), `groupD-pickers.test.ts` (the model picker, includi
 
 - Floating dialogs, menus, chat windows, toasts, the approvals drawer and Station overlays use the shared glass material.
   Dialog backdrops do not blur: the dialog itself needs to see the page behind it.
+- The New task window is a writing window (`openModal(…, { variant: 'compose' })`, `.modal.compose`): no rules under the
+  header or above the buttons, the panel's fuller sheen plus a soft white light along the top edge (so it still reads as
+  glass over a black page), and the title, description and property pills in one glass field like the Brain composer.
 - Flat pages and the attached sidebar use plates instead of blur. `.glass-plate` gives them a panel fill, hairline edge and
   inset highlight; the glass tokens are available at the root for plates outside floating surfaces.
 - Outside the Station, dark pages sit on true black with a faint neutral gradient and near-black plates; the sidebar is

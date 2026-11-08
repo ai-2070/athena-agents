@@ -33,6 +33,8 @@ export interface DialogSpec {
   exit?: boolean;
   /** React content instead of body and foot: it draws its own .modal-body and .modal-foot. */
   content?: ReactNode;
+  /** A look of its own, as a class on the .modal (`compose`: a writing window, components.css). */
+  variant?: 'compose';
 }
 
 export interface OpenDialog {
@@ -146,7 +148,7 @@ function DialogView({ entry, container, children }: { entry: Entry; container: H
     <Dialog.Root open={entry.open} onOpenChange={(open) => !open && closeEntry(entry)} onOpenChangeComplete={(open) => !open && remove(entry)}>
       <Dialog.Portal container={container}>
         <Dialog.Viewport className={`modal-back${spec.exit !== false ? ' exit' : ''}`} ref={(el: HTMLDivElement | null) => void (entry.view.current = el || entry.view.current)}>
-          <Dialog.Popup ref={popup} className={`modal${spec.narrow ? ' narrow' : spec.medium ? ' medium' : ''}`} initialFocus={firstFocus}>
+          <Dialog.Popup ref={popup} className={`modal${spec.narrow ? ' narrow' : spec.medium ? ' medium' : ''}${spec.variant ? ` ${spec.variant}` : ''}`} initialFocus={firstFocus}>
             <div className="modal-head">
               {spec.titleNode ? <Dialog.Title>{spec.titleNode}</Dialog.Title> : <Dialog.Title ref={title} />}
               {/* (the same close button as the Station's side panel) */}
@@ -182,10 +184,10 @@ export function openDialog(spec: DialogSpec): OpenDialog {
 
 /** A dialog with React content, for React pages. content gets close(); it draws <div className="modal-body">
  *  and, if it has buttons, <div className="modal-foot">. It stacks with every other dialog. */
-export function openModal(title: ReactNode, content: (close: () => void) => ReactNode, { narrow = false, medium = false, onClose }: { narrow?: boolean; medium?: boolean; onClose?: () => void } = {}): OpenDialog {
+export function openModal(title: ReactNode, content: (close: () => void) => ReactNode, { narrow = false, medium = false, onClose, variant }: { narrow?: boolean; medium?: boolean; onClose?: () => void; variant?: DialogSpec['variant'] } = {}): OpenDialog {
   let handle: OpenDialog | null = null;
   const close = () => handle?.close();
-  handle = openDialog({ title: [], titleNode: title, body: [], foot: null, narrow, medium, onClose, content: <ModalContent render={() => content(close)} /> });
+  handle = openDialog({ title: [], titleNode: title, body: [], foot: null, narrow, medium, onClose, variant, content: <ModalContent render={() => content(close)} /> });
   return handle;
 }
 // (a component, so the content's hooks belong to it)

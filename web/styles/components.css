@@ -458,6 +458,20 @@ body:not(.station-mode) #view .glass-plate {
 :is(.st-panel, .modal) :is(input:not([type='checkbox'], [type='radio'], [type='range']), textarea, select):not(:focus) { box-shadow: inset 0 1px 0 var(--glass-spec); }
 /* A gentler sheen keeps the dialog header quiet. */
 .modal { --glass-sheen: light-dark(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.045)); }
+/* a writing window (New task): one sheet with no rules across it, the panel's fuller sheen and a soft white light along
+   its top edge, so it reads as glass even over a black page; what you write sits in one glass field (web/taskboard.tsx) */
+.modal.compose {
+  --glass-sheen: light-dark(rgb(255 255 255 / 0.6), rgb(255 255 255 / 0.09));
+  background:
+    radial-gradient(120% 70% at 50% -12%, light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.07)), transparent 62%),
+    linear-gradient(155deg, var(--glass-sheen) 0%, transparent 42%),
+    var(--glass-base);
+}
+.modal.compose .modal-head { padding: 14px 16px 10px 22px; border-bottom: 0; }
+.modal.compose .modal-body { padding: 4px 16px 0; }
+.modal.compose .modal-foot { padding: 14px 16px 16px; border-top: 0; align-items: center; gap: 8px; }
+@supports not (backdrop-filter: blur(1px)) { .modal.compose { background: light-dark(rgb(250 250 252 / 0.97), rgb(6 6 8 / 0.98)); } }
+@media (prefers-reduced-transparency: reduce) { .modal.compose { background: light-dark(#fafafc, #060608); } }
 /* a checkbox drawn by us (the browser's own is a stock blue square) */
 input[type='checkbox'] {
   appearance: none; -webkit-appearance: none; flex: none; display: inline-grid; place-content: center;
