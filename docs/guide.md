@@ -53,9 +53,9 @@ Claude Code, Codex, pi, oh-my-pi, Hermes and OpenClaw have their own tools for f
 
 In **Settings → General & keys → API keys**, save a Venice inference key from [Venice API settings](https://venice.ai/settings/api). **Test** checks the saved key without generating an answer. It shows access, expiration and any available USD, DIEM and bundled-credit balances separately. A valid key can still have blocked access or no credits. Remove or replace the key in the same row. Keys stay in the server's secret store and are excluded from project folders and backups.
 
-The chat model picker and Station’s AI engines strip show only engines that are set up: saved API keys, installed local engines and, where checked, an active sign-in. Add or change setup in **Settings**.
+The chat model picker and Station’s AI engines strip show only engines that are set up: saved API keys, installed local engines and, where checked, an active sign-in. Add or change setup in **Settings**. **Eve** is built in, so the picker always shows it: inside it, pick where its model comes from (OpenRouter, Venice, LM Studio, Ollama or a custom server, whichever are set up). With none set up yet, it says so and links to Settings.
 
-Pick **Venice** in the model picker for an agent or **The Brain's model**. In the agent editor, choose **API model**, then **Venice** as the provider. In the Agent library, choose **API model**, then **Choose API model** before hiring. Favorites keep their provider, so a Venice model stays on Venice when selected again. The Brain can also look up Venice models and move an agent or whole team onto one by name.
+Pick **Eve**, then **Venice**, in the model picker for an agent or **The Brain's model**. In the agent editor, choose **Eve**, then **Venice** as the provider. In the Agent library, choose **Eve**, then **Choose Eve model** before hiring. Favorites keep their provider, so a Venice model stays on Venice when selected again. The Brain can also look up Venice models and move an agent or whole team onto one by name.
 
 Venice models have their own ids. Set **Defaults for new agents → Venice model**, then **Save settings**, to supply a model when a Venice agent or the Brain has none selected. Otherwise choose a model explicitly. OpenRouter's default does not apply to Venice. The existing default engine choice stays unchanged.
 

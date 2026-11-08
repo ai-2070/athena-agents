@@ -196,7 +196,7 @@ export interface AskAgentOptions {
 const ENGINES = { 'claude-code': claude, eve, hermes, codex, pi, omp, openclaw } satisfies { [K in EngineId]: Engine<EngineStatus[K]> };
 export const ENGINE_LIST: EngineInfo[] = [
   { id: 'claude-code', label: 'Claude Code', description: 'The Claude Code CLI on this PC: its own coding, files, web search and your claude.ai connectors, plus the dashboard tools. Signs in with your Claude login, an Anthropic key, or OpenRouter.' },
-  { id: 'eve', label: 'API model', description: 'Any OpenRouter model, or a local model in LM Studio / Ollama. Uses the dashboard tools and MCP servers directly.' },
+  { id: 'eve', label: 'Eve', description: 'Eve, the built-in agent, on any OpenRouter or Venice model, or a model on this PC (LM Studio, Ollama) or another OpenAI-compatible server. Uses the dashboard tools and MCP servers directly.' },
   { id: 'hermes', label: 'Hermes', description: 'One of your Hermes Agent profiles, with its own memory, skills and tools.' },
   { id: 'codex', label: 'Codex', description: 'OpenAI Codex CLI on this PC: coding, shell and files with your ChatGPT login (codex login), plus the dashboard tools.' },
   { id: 'pi', label: 'pi', description: 'The pi coding agent on this PC: coding, shell and files on any model pi is signed in to. Runs its tools without asking.' },

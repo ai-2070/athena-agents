@@ -26,7 +26,7 @@ beforeEach(() => {
     runs: [],
     toolGroups: [{ id: 'files', label: 'Files', description: 'Read and write' }],
     engines: { 'claude-code': { installed: true } },
-    engineList: [{ id: 'claude-code', label: 'Claude Code' }, { id: 'eve', label: 'API model' }],
+    engineList: [{ id: 'claude-code', label: 'Claude Code' }, { id: 'eve', label: 'Eve' }],
     secrets: { anthropicKey: { set: false }, openrouterKey: { set: true } },
     settings: { defaults: { claudeModel: 'sonnet', openrouterModel: 'x/y' } },
     project: { id: 'p1', skills: [] },
@@ -105,9 +105,9 @@ describe('the overview: kinds of agents and their models', () => {
     // a click on it again, or on the chip, shows every agent
     await act(async () => el.querySelector<HTMLButtonElement>('.agents-pick')!.click());
     expect(cardNames()).toHaveLength(5);
-    // the models: Sonnet (the default too), Opus, and the API model without its provider part
+    // the models: Sonnet (the default too), Opus, and the Eve model without its provider part
     const models = [...el.querySelectorAll<HTMLButtonElement>('.agents-models button')];
-    expect(models.map((b) => b.getAttribute('aria-label'))).toEqual(['Sonnet on Claude Code: 3 of 5 agents', 'Opus on Claude Code: 1 of 5 agents', 'Sonnet on API model: 1 of 5 agents']);
+    expect(models.map((b) => b.getAttribute('aria-label'))).toEqual(['Sonnet on Claude Code: 3 of 5 agents', 'Opus on Claude Code: 1 of 5 agents', 'Sonnet on Eve: 1 of 5 agents']);
     await act(async () => models[1].click());
     expect(cardNames()).toEqual(['Seller 2']);
     await act(async () => models[1].click());

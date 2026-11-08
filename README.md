@@ -62,7 +62,7 @@ Open **Settings → General & keys** and set up the engines you want. You only n
 |---|---|
 | **Claude Code** | The `claude` CLI, signed in with your Claude account, an Anthropic key or OpenRouter. |
 | **OpenAI Codex** | The `codex` CLI and your ChatGPT login. Settings can install it and sign you in. |
-| **API model** | An OpenRouter or Venice key, a local Ollama or LM Studio server, or any OpenAI-compatible address. |
+| **Eve** | Built in. Runs any model from an OpenRouter or Venice key, a local Ollama or LM Studio server, or any OpenAI-compatible address. |
 | **Hermes** | Hermes installed, with a profile to use. |
 | **pi** / **oh-my-pi** | The `pi` or `omp` CLI, signed in to a model provider. |
 | **OpenClaw** | The `openclaw` CLI, set up with `openclaw onboard`. |

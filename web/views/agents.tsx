@@ -41,7 +41,7 @@ export async function openTerminal(agent: Pick<Agent, 'id'>): Promise<void> {
   if (t) navigate(`#/terminals/${t.id}`);
 }
 
-/** "Claude Code", "API model · openrouter", "Hermes · writer"… */
+/** "Claude Code", "Eve · openrouter", "Hermes · writer"… */
 export function engineLabel(a: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>): string {
   const label = ENGINE_LABEL[a.engine] || a.engine;
   const extra = a.engine === 'eve' ? ` · ${a.provider}` : a.engine === 'hermes' && a.hermesProfile ? ` · ${a.hermesProfile}` : a.engine === 'openclaw' && a.openclawAgent ? ` · ${a.openclawAgent}` : '';
