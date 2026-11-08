@@ -4,13 +4,30 @@ import { activeProject, agents, chats, saveSettings, setActiveProject, setSecret
 import { createProject } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
 import { beginRun, bindSession, readRun, setRunStatus } from '../../server/eve/state.ts';
-import { eveConfiguration, eveTool, eveToolPolicy, openEveBridge } from '../../server/eve/bridge.ts';
+import { eveConfiguration, eveTool, eveToolPolicy, modelSchema, openEveBridge } from '../../server/eve/bridge.ts';
 import { decide, listApprovals } from '../../server/approvals.ts';
 import { dataPath, ensureDir } from '../../server/util.ts';
 import { stopEveRun } from '../../server/eve/recovery.ts';
 import { writeMemory } from '../../server/memory.ts';
 
 describe('the private Eve tool bridge', () => {
+  it('sends no tool schema that Claude models refuse (oneOf, anyOf or allOf at the top level)', async () => {
+    const project = activeProject();
+    const agent = agents.save(newAgent({ engine: 'eve', name: 'Eve schema owner', provider: 'openrouter', model: 'anthropic/claude-haiku-5.5', toolGroups: ['agents', 'files', 'browser'], richAnswers: false }));
+    setSecret('openrouterKey', 'private-schema-fixture-key');
+    const chat = chats.create(agent.id, 'Schemas');
+    const binding = bindSession(agent, chat, project, 'schemas');
+    beginRun('schema-run', binding.id);
+    setRunStatus('schema-run', 'running');
+    const { tools } = await eveConfiguration(binding.id, 'session');
+    // (the task tools take one task or a batch: that used to be a top-level oneOf)
+    expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(['TaskCreate', 'TaskUpdate']));
+    for (const tool of tools) expect(Object.keys(tool.inputSchema).filter((key) => ['oneOf', 'anyOf', 'allOf'].includes(key)), tool.name).toEqual([]);
+    // an MCP server's tool can still have one: it is left out, the rest kept
+    expect(modelSchema({ type: 'object', properties: { a: { type: 'string' } }, anyOf: [{ required: ['a'] }], oneOf: [], allOf: [] })).toEqual({ type: 'object', properties: { a: { type: 'string' } } });
+    setRunStatus('schema-run', 'stopped');
+  });
+
   it('resolves current project permissions and keeps credentials out of the persisted run', async () => {
     saveSettings({ providers: { custom: { baseUrl: 'http://127.0.0.1:9876/v1', label: 'Fixture' } }, contextWindowTokens: 64000 });
     setSecret('customKey', 'private-eve-fixture-key');

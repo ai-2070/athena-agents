@@ -22,7 +22,7 @@ import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { SessionGone } from './cli.ts';
 import { engineCapabilities } from './capabilities.ts';
-import { activeEveRuns, invalidateConversation, lateSteers, updateSteer, readRun as readEveRun, sessionBindings, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
+import { activeEveRuns, failureText, invalidateConversation, lateSteers, updateSteer, readRun as readEveRun, sessionBindings, sessionContext as eveSessionContext, transcriptContext } from '../eve/state.ts';
 import { eveBillingItem, eveUsage } from '../eve/usage.ts';
 import { eveRuntime } from '../eve/runtime.ts';
 import { missedSteers } from '../eve/steer.ts';
@@ -275,7 +275,7 @@ export function finishNativeRun(runId: string): void {
     const failed = native.status === 'failed' || native.status === 'interrupted';
     const answer = native.answer || '';
     const forMessage = stopped && !!(entry.steered || entry.forMessage || saved.steered);
-    const error = stopped ? (forMessage ? 'Stopped to take your new message.' : 'Stopped.') : native.limitReason || (native.status === 'failed' ? 'Eve could not finish this work. Check the model connection and the saved results before continuing.' : native.error || 'Eve could not finish this work. Check what was done before continuing.');
+    const error = stopped ? (forMessage ? 'Stopped to take your new message.' : 'Stopped.') : native.limitReason || native.error ? failureText(native) : native.status === 'failed' ? 'Eve could not finish this work. Check the model connection and the saved results before continuing.' : 'Eve could not finish this work. Check what was done before continuing.';
     const chat = entry.chat;
     if (!chat._deleted && agentStore.get(entry.agentId) && chats.get(entry.agentId, chat.id)) {
       if (native.status !== 'completed') {

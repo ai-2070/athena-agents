@@ -10,7 +10,9 @@ const string: JSONSchema = { type: 'string' };
 const ids: JSONSchema = { type: 'array', items: string, maxItems: 40 };
 const create = { subject: string, description: string, activeForm: string, metadata: { type: 'object' }, scope, owner: string };
 const update = { taskId: string, subject: string, description: string, activeForm: string, owner: string, metadata: { type: 'object' }, status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'deleted'] }, addBlockedBy: ids, addBlocks: ids, removeBlockedBy: ids, removeBlocks: ids, expectedUpdatedAt: { type: 'number' } };
-const bulkSchema = (properties: Record<string, JSONSchema>, required: string[]): JSONSchema => ({ type: 'object', properties: { ...properties, tasks: { type: 'array', minItems: 1, items: { type: 'object', properties, required } } }, oneOf: [{ required }, { required: ['tasks'] }] });
+// One task's fields or a tasks array: runTaskBatch refuses both at once, and a single task checks its own fields.
+// (Not as a top-level oneOf: Claude models refuse a tool whose schema has one, and so the whole request.)
+const bulkSchema = (properties: Record<string, JSONSchema>, required: string[]): JSONSchema => ({ type: 'object', properties: { ...properties, tasks: { type: 'array', minItems: 1, items: { type: 'object', properties, required } } } });
 async function inContext<T>(ctx: ToolContext, fn: (access: TaskAccess) => T): Promise<T> {
   const { runInfo } = await import('./engines/index.ts');
   const run = ctx.runId ? runInfo(ctx.runId) : null;

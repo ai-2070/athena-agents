@@ -260,7 +260,8 @@ async function agentFinished(briefId: string, pid: string, answer: string, stopp
     const error = chat.items.findLast((i) => i.type === 'error');
     const cause = error?.type === 'error' ? error.text : 'The run failed.';
     const failures = (b.failures || 0) + 1;
-    if (failures <= 3 && /fetch failed|network|ECONN|ETIMEDOUT|timed? out|overload|\b50[234]\b/i.test(cause) && !/auth|credit|balance|context|quota|rate.limit/i.test(cause)) {
+    // (Eve retries its own model calls, so a failure it reports is past its retries: no second round here)
+    if (failures <= 3 && agent.engine !== 'eve' && /fetch failed|network|ECONN|ETIMEDOUT|timed? out|overload|\b50[234]\b/i.test(cause) && !/auth|credit|balance|context|quota|rate.limit/i.test(cause)) {
       updateBrief(b.id, { failures }, pid);
       const project = activeProject();
       const timer = setTimeout(() => withProject(project, () => {

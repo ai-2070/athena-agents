@@ -3,7 +3,7 @@ import type { MetadataExtractor } from '@ai-sdk/openai-compatible';
 import { randomUUID } from 'node:crypto';
 import { apiRequestOptions } from '../../../../server/apioptions.ts';
 import { completionBilling } from '../../../../server/apibilling.ts';
-import { numberOf, objectOf } from '../../../../server/apiresponse.ts';
+import { numberOf, objectOf, providerReason } from '../../../../server/apiresponse.ts';
 import type { EveModelCharge, EveRuntimeConfiguration } from '../../../../shared/types.ts';
 
 function reportedCost(value: unknown): number | undefined {
@@ -35,6 +35,21 @@ function metadataExtractorFor(config: EveRuntimeConfiguration): MetadataExtracto
       };
     },
   };
+}
+
+/** A failed model call, with the provider's own reason when the answer has one (OpenRouter keeps it out of the
+ *  message), so the chat can say why. */
+export function explained(error: unknown): unknown {
+  if (!(error instanceof Error) || !('responseBody' in error) || typeof error.responseBody !== 'string') return error;
+  let body: unknown;
+  try {
+    body = JSON.parse(error.responseBody);
+  } catch {
+    return error;
+  }
+  const reason = providerReason(body);
+  if (reason && !error.message.includes(reason)) error.message = `${error.message} (${reason})`;
+  return error;
 }
 
 export function reachedCostLimit(total: number, baseline: number, limit: number): boolean {
@@ -105,13 +120,23 @@ export function athenaModel(config: EveRuntimeConfiguration, beforeCall?: (repor
     specificationVersion: model.specificationVersion, provider: model.provider, modelId: model.modelId, supportedUrls: model.supportedUrls,
     doGenerate: async (options: Parameters<typeof model.doGenerate>[0]) => {
       await beforeCall?.(reportedCost);
-      const result = await model.doGenerate(withToolImages(options));
+      let result: Awaited<ReturnType<typeof model.doGenerate>>;
+      try {
+        result = await model.doGenerate(withToolImages(options));
+      } catch (error) {
+        throw explained(error);
+      }
       await charge(result.providerMetadata);
       return result;
     },
     doStream: async (options: Parameters<typeof model.doStream>[0]) => {
       await beforeCall?.(reportedCost);
-      const result = await model.doStream(withToolImages(options));
+      let result: Awaited<ReturnType<typeof model.doStream>>;
+      try {
+        result = await model.doStream(withToolImages(options));
+      } catch (error) {
+        throw explained(error);
+      }
       return { ...result, stream: result.stream.pipeThrough(new TransformStream({ async transform(part, controller) {
         if (part.type === 'finish') await charge(part.providerMetadata);
         controller.enqueue(part);
