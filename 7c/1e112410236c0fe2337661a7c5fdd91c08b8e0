@@ -1,0 +1,24 @@
+tests/web/tasks-board.test.tsx
+  s_4a0fe3812f1a04::t_84b408ac4dba6f 224-245,248-249
+  s_4a0fe3812f1a04::t_7107b950e605f2 246-247
+docs/guide.md
+  s_4a0fe3812f1a04::t_e94dc4ba03a0f9 193
+web/taskboard.tsx
+  s_4a0fe3812f1a04::t_1152774bb3a952 331-347,449
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7c1e112410236c0fe2337661a7c5fdd91c08b8e0",
+  "prompts": {},
+  "sessions": {
+    "s_4a0fe3812f1a04": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4ed5e9d-9c96-4c33-be0c-3a79edc2ba52",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
