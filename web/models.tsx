@@ -169,12 +169,13 @@ function EffortTag({ effort }: { effort: Effort | '' }) {
   );
 }
 
-/** What a chip shows: the model's mark, its short name, the effort, "latest" and a chevron. */
+/** What a chip shows: the mark of what runs it (Eve's own, whatever model it runs; else the model's), its short name,
+ *  the effort, "latest" and a chevron. */
 function ChipFace({ brand, engine, label, effort, latest }: { brand: string | null; engine: string; label: string; effort: Effort | ''; latest: boolean }) {
   const ownMark = !brand && brandImage(engine, 13);
   return (
     <>
-      <BrandMark brand={brand} size={13} fallback={ownMark ? <DomNode as="span" className="dom-contents" make={() => ownMark} deps={[engine]} /> : <Icon name="cpu" size={13} />} />
+      {engine === 'eve' ? <EveMark size={13} /> : <BrandMark brand={brand} size={13} fallback={ownMark ? <DomNode as="span" className="dom-contents" make={() => ownMark} deps={[engine]} /> : <Icon name="cpu" size={13} />} />}
       <span>{label}</span>
       <EffortTag effort={effort} />
       {latest ? <span className="model-latest">latest</span> : null}
