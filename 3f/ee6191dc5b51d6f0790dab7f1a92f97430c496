@@ -1,0 +1,39 @@
+tests/server/eve-model.test.ts
+  s_a7f366949eeab1::t_f4ff879aa1e8a6 9-10,21-40
+  s_a7f366949eeab1::t_2f03d8e10c63e1 41
+server/irc.ts
+  s_a7f366949eeab1::t_0abaed0a8ec7e0 263-264
+tests/server/eve-bridge.test.ts
+  s_a7f366949eeab1::t_f4ff879aa1e8a6 7,14-30
+server/eve/bridge.ts
+  s_a7f366949eeab1::t_960b7140ad4454 25-30,90
+server/tasktools.ts
+  s_a7f366949eeab1::t_960b7140ad4454 13-15
+server/engines/index.ts
+  s_a7f366949eeab1::t_8984deb96ae30c 25,278
+server/engines/eve.ts
+  s_a7f366949eeab1::t_8984deb96ae30c 9,93
+runtime/eve/agent/lib/model.ts
+  s_a7f366949eeab1::t_d948abd876032d 6,40-54
+  s_a7f366949eeab1::t_df3673ac1baf67 123-128,134-139
+server/eve/state.ts
+  s_a7f366949eeab1::t_d948abd876032d 279-285
+server/apiresponse.ts
+  s_a7f366949eeab1::t_d948abd876032d 13-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3fee6191dc5b51d6f0790dab7f1a92f97430c496",
+  "prompts": {},
+  "sessions": {
+    "s_a7f366949eeab1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbb7eeda-4613-40e5-a7e7-82e82a0e375c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
