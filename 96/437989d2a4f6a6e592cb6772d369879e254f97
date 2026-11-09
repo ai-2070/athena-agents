@@ -1,0 +1,14 @@
+bun.lock
+  h_64425bc75e3f3d 31-36,312,314,316,318,320,322,324,326,328,330,332,334,336
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "96437989d2a4f6a6e592cb6772d369879e254f97",
+  "prompts": {},
+  "humans": {
+    "h_64425bc75e3f3d": {
+      "author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
