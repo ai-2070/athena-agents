@@ -115,7 +115,7 @@
     "zustand": "5.0.16"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.5",
+    "@biomejs/biome": "2.6.6",
     "@cloudflare/workers-types": "5.20261106.1",
     "@tailwindcss/node": "4.3.4",
     "@tailwindcss/oxide": "4.3.4",
