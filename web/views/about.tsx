@@ -7,7 +7,7 @@ import { rpc } from '../client/rpc.ts';
 import { BRAND_IMAGE } from '../brand.ts';
 import { serverUrl } from '../client/connection.ts';
 import { logo } from '../icons.ts';
-import { PanelNote, Row, Section } from '../ui/controls.tsx';
+import { Row, Section } from '../ui/controls.tsx';
 import { DomNode, Icon, useAppState } from '../ui/react.tsx';
 import { REPO, repoLink } from '../../shared/about.ts';
 import type { AboutInfo } from '../../shared/types.ts';
@@ -97,7 +97,6 @@ export function AboutTab() {
           <Row title="Data">
             <span className={`${VALUE} font-mono text-[13px]`}>{data.dataDir}</span>
           </Row>
-          <PanelNote>Keys and account tokens are stored in that data folder on this PC and never sent to the browser.</PanelNote>
         </Section>
       ) : null}
     </div>
