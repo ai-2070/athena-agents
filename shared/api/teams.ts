@@ -3,9 +3,10 @@
 // themselves are shared/api/workflows.ts.)
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
-import type { BrainBrief, LoopInfo, QueuedMessage, TeamChat, TeamMessage } from '../types.ts';
+import type { BrainBrief, LoopInfo, QueuedMessage, TeamChat, TeamMessage, ThreadSummary } from '../types.ts';
 
 const oneTeam = z.object({ id: z.string() });
+const oneThread = oneTeam.extend({ chatId: z.string({ error: 'Say which chat.' }) });
 const message = {
   text: z.string({ error: 'Type a message first.' }).optional(),
   /** the message it answers */
@@ -50,4 +51,12 @@ export const teams = {
   stop: oc.route({ method: 'POST', path: '/teams/{id}/stop' }).input(oneTeam).output(type<{ ok: boolean; unqueued: QueuedMessage[] }>()),
   /** Empties its thread. */
   clear: oc.route({ method: 'POST', path: '/teams/{id}/clear' }).input(oneTeam).output(type<{ ok: true }>()),
+  /** Its conversations: the open thread first, then the past ones, newest first. */
+  threads: oc.route({ method: 'GET', path: '/teams/{id}/chats' }).input(oneTeam).output(type<ThreadSummary[]>()),
+  /** New chat: the thread is kept with the others (work going on in it stops), and an empty one opens. */
+  newThread: oc.route({ method: 'POST', path: '/teams/{id}/chats' }).input(oneTeam).output(type<{ id: string }>()),
+  /** Opens a past conversation (work going on in the open thread stops). */
+  openThread: oc.route({ method: 'POST', path: '/teams/{id}/chats/{chatId}/open' }).input(oneThread).output(type<{ id: string }>()),
+  /** Deletes a conversation, and the agents forget it (the open one is emptied). */
+  removeThread: oc.route({ method: 'DELETE', path: '/teams/{id}/chats/{chatId}' }).input(oneThread).output(type<{ ok: true }>()),
 };

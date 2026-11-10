@@ -20,6 +20,12 @@ class FakeSocket {
 }
 
 const serverEvent = (ev: object) => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
+// the Brain's open conversation, and the list of its chats
+let history: { role: string; text: string; ts: number }[] = [];
+const threads = [
+  { id: 't-now', title: 'Now', count: 2, createdAt: 3, updatedAt: 4, open: true },
+  { id: 't-old', title: 'an older question', count: 2, createdAt: 1, updatedAt: 2, open: false },
+];
 // Scout's chat, as saved
 let scout: { type: string; text: string }[] = [{ type: 'user', text: 'hello Scout' }];
 const calls: { url: string; body: Record<string, unknown> }[] = [];
@@ -54,7 +60,12 @@ beforeAll(() => {
         }),
         { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } },
       );
-    if (url === '/api/brain/history') return json([]);
+    if (url === '/api/brain/history') return json(history);
+    if (url === '/api/brain/chats') return json(init.method === 'POST' ? { id: `t${calls.length}` } : threads);
+    if (url === '/api/brain/chats/t-old/open') {
+      history = [{ role: 'user', text: 'an older question', ts: 1 }, { role: 'brain', text: 'An older answer.', ts: 2 }];
+      return json({ id: 't-old' });
+    }
     if (url === '/api/workflows') return json([]);
     if (url === '/api/brain/stop') {
       answer?.close();
@@ -88,12 +99,11 @@ const pick = async (label: string) => {
   await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((c) => c.textContent!.trim().endsWith(label))!.click());
   await settle();
 };
+// (New chat keeps the conversation in the list of earlier chats, so it doesn't ask first)
 const newConversation = async () => {
-  await act(async () => document.querySelector<HTMLButtonElement>('.dock button[aria-label="New conversation"]')!.click());
+  await act(async () => document.querySelector<HTMLButtonElement>('.dock button[aria-label="New chat"]')!.click());
   await settle();
-  expect(document.querySelector('[role="dialog"]')).not.toBeNull();
-  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((b) => b.textContent === 'Clear memory')!.click());
-  await settle();
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
 };
 const asked = () => calls.filter((c) => c.url === '/api/brain/stream').map((c) => c.body.text);
 
@@ -163,5 +173,29 @@ describe('the Brain chat after a new conversation', () => {
     expect(asked().at(-1)).toBe('second question');
     expect(calls.filter((c) => c.url === '/api/agents/a1/chats').length).toBe(before);
     holding = new Set();
+  });
+});
+
+describe('the earlier chats', () => {
+  it('opens one from the list, with the conversation it had', async () => {
+    await newConversation();
+    await act(async () => document.querySelector<HTMLButtonElement>('.dock .chat-list-toggle')!.click());
+    for (let i = 0; i < 20 && !document.querySelector('.chat-list-row'); i++) await settle();
+    const rows = [...document.querySelectorAll('.chat-list-row')].map((r) => r.textContent);
+    expect(rows[0]).toContain('Now');
+    expect(rows[1]).toContain('an older question');
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.chat-list-row button')].find((b) => b.textContent?.includes('an older question'))!.click());
+    for (let i = 0; i < 20 && !list().includes('An older answer.'); i++) await settle();
+    expect(calls.some((c) => c.url === '/api/brain/chats/t-old/open')).toBe(true);
+    expect(list()).toContain('an older question');
+    expect(list()).toContain('An older answer.');
+  });
+
+  it('shows the conversation another tab opened', async () => {
+    history = [{ role: 'user', text: 'from the other tab', ts: 5 }];
+    await serverEvent({ type: 'brain-chat', projectId: 'p1', thread: 't-other' });
+    for (let i = 0; i < 20 && !list().includes('from the other tab'); i++) await settle();
+    expect(list()).toContain('from the other tab');
+    expect(list()).not.toContain('An older answer.');
   });
 });

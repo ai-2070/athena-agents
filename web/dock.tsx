@@ -7,7 +7,7 @@ import { useMentionBox, useMentionables } from './taskboard.tsx';
 import { mentionMenuOpen } from './routinemention.ts';
 import { createPortal, flushSync } from 'react-dom';
 import { createAppRoot } from './ui/root.tsx';
-import { h, state, attempt, md, onEvent, onState, navigate, refreshSoon, toast, confirmBox } from './core.ts';
+import { h, state, attempt, md, onEvent, onState, navigate, refreshSoon, toast } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import { openBranchBuilder } from './builder.tsx';
 import { modelChip, modelInfo, brainModelChip, brainAsAgent } from './models.tsx';
@@ -20,7 +20,8 @@ import { attachTray } from './attach.tsx';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { openMemory, BRAIN } from './memory.tsx';
-import { TaskPanel } from './tasks.tsx';
+import { TasksAndChats } from './chatlist.tsx';
+import type { ChatListItem } from './chatlist.tsx';
 import { mentionPreviews } from './filepreview.tsx';
 import { useFind } from './ui/find.tsx';
 import { brainKeyLabel, brainKeyTitle, brainShortcut } from './shortcuts.ts';
@@ -220,21 +221,23 @@ export function attachToBrain(picked: PickedFile[]): void {
 
 // The last few turns with the Brain, so the chat picks up where it left off.
 // (only the newest load counts: one from a project you have since left must not fill this one's chat)
+// whole: a chat you opened from the list shows all that was kept of it (the work it handed on is followed for the last few)
 const historyLoads = latestLoad();
-async function loadHistory() {
+async function loadHistory({ whole = false }: { whole?: boolean } = {}) {
   const current = historyLoads.start();
   const project = D.project;
   const msgs = await rpc.brain.history().catch((): BrainHistoryEntry[] => []);
   if (!current() || project !== D.project || D.items.length) return;
-  for (const m of msgs.slice(-6)) {
+  const shown = whole ? msgs : msgs.slice(-6);
+  shown.forEach((m, i) => {
     if (m.role === 'user') D.items.push({ id: `h${m.ts}u`, kind: 'user', text: m.text, attachments: m.attachments });
     else {
       const b = savedAnswer(m);
       D.items.push({ id: `h${m.ts}b`, kind: 'brain', ...b, old: true });
       // the agent or team it handed the work to, followed below it again
-      if (b.delegate) follow(b.delegate);
+      if (b.delegate && i >= shown.length - 6) follow(b.delegate);
     }
-  }
+  });
   draw();
 }
 
@@ -256,16 +259,47 @@ export function savedAnswer(m: BrainHistoryEntry): { answer: string; done: Brain
   return { answer: lines.join('\n').trimEnd(), done, delegate: legacy };
 }
 
-async function newConversation() {
-  if (!(await confirmBox("Clear the Brain’s conversation and memory?", { ok: "Clear memory", danger: true }))) return;
-  // keep the transcript if the Brain still remembers it
-  if (!(await attempt(() => rpc.brain.clear()))) return;
+// ---------- the Brain chat's conversations ----------
+// New chat keeps the conversation with the earlier ones (the list beside it opens them again); the Brain starts
+// on an empty one. (The server swaps them: server/overseer.ts newBrainThread.)
+/** The conversation shown (null until this chat started or opened one), and switches on their way from here. */
+let thread: string | null = null;
+let switching = 0;
+async function switchThread(go: () => Promise<{ id: string }>, { whole = false }: { whole?: boolean } = {}): Promise<boolean> {
+  switching++;
+  const r = await attempt(go).finally(() => switching--);
+  if (!r) return false;
+  thread = r.id;
+  leaveConversation();
+  loadHistory({ whole });
+  return true;
+}
+const newConversation = () => switchThread(() => rpc.brain.newThread()).then((ok) => ok && D.input?.focus());
+const openConversation = (id: string) => switchThread(() => rpc.brain.openThread({ chatId: id }), { whole: true });
+async function removeConversation(c: ChatListItem): Promise<boolean> {
+  if ((await attempt(() => rpc.brain.removeThread({ chatId: c.id }))) === undefined) return false;
+  // (the open one was emptied: so is the chat)
+  if (c.open) {
+    leaveConversation();
+    draw();
+  }
+  return true;
+}
+// what was going on in the conversation just left goes with it
+function leaveConversation() {
   brainAsks.reset(); // answers still on their way belong to the old conversation
   held.clear();
   loop.stop();
   historyLoads.reset();
   forgetConversation();
   draw();
+}
+// another tab opened another conversation, or started a new one
+function threadChanged(id: string) {
+  if (switching || id === thread) return;
+  thread = id;
+  leaveConversation();
+  loadHistory({ whole: true });
 }
 
 // What belonged to the conversation just left: what /resume would pick up again, and (by the
@@ -291,6 +325,7 @@ function projectChanged(d: { project?: { id: string } | null }) {
   const first = D.project === null;
   D.project = id;
   if (first) return;
+  thread = null;
   brainAsks.reset();
   held.clear();
   loop.stop();
@@ -919,17 +954,19 @@ function DockView({ bar }: { bar: HTMLElement }) {
             Brain chat
           </b>
           <span className="flex-1 min-w-0" />
+          <IconButton variant="plain" onClick={() => void newConversation()} title="New chat (this one is kept under Chats)" aria-label="New chat">
+            <Icon name="square-pen" size={16} />
+          </IconButton>
           <IconButton variant="plain" onClick={() => openMemory(BRAIN)} title="The Brain's MEMORY.md: what it remembers across conversations" aria-label="The Brain's MEMORY.md">
             <Icon name="file-text" size={16} />
-          </IconButton>
-          <IconButton variant="plain" onClick={() => void newConversation()} title="New conversation (the Brain forgets this chat)" aria-label="New conversation">
-            <Icon name="rotate-ccw" size={16} />
           </IconButton>
           <IconButton variant="inset" onClick={() => toggle(false)} aria-label="Close">
             <Icon name="x" size={15} />
           </IconButton>
         </div>
-        <div className="px-5 max-sm:px-4"><TaskPanel filters /></div>
+        <div className="px-5 max-sm:px-4">
+          <TasksAndChats tasks={{ filters: true }} chats={{ load: () => rpc.brain.threads(), onOpen: (c) => void openConversation(c.id), onRemove: removeConversation }} />
+        </div>
         <DockList settings={data?.settings} />
         <div className="cmd-chips compact pt-2 px-5 pb-0 max-sm:pt-1 max-sm:px-0 hidden" ref={chips} />
         {/* your /queue messages, in the order they will go (click one to change it, drag to reorder, × takes one back) */}
@@ -1390,6 +1427,7 @@ async function newBranch(text: string, attachments: string[] = []) {
 // ---------- live updates ----------
 function handleEvent(ev: ServerEvent) {
   if (ev.type === 'workflows') loadWorkflows();
+  if (ev.type === 'brain-chat' && ev.projectId === D.project && !ev.conversationId && typeof ev.thread === 'string') threadChanged(ev.thread);
   // the Brain reviewed finished work by itself and recorded or improved a skill, or checked on work it
   // handed out (brain-note: done, stuck, or a team needs you)
   if ((ev.type === 'brain-learned' || ev.type === 'brain-note') && ev.projectId === D.project) {

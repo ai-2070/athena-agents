@@ -468,6 +468,13 @@ export function ago(ts: number | null | undefined): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/** Which group a chat goes in by when it was last used: Today, Yesterday, This week, This month or Older. */
+export function dayOf(t: number, now = Date.now()): string {
+  const start = (x: number) => new Date(x).setHours(0, 0, 0, 0);
+  const days = Math.round((start(now) - start(t)) / 86_400_000);
+  return days <= 0 ? 'Today' : days === 1 ? 'Yesterday' : days < 7 ? 'This week' : days < 31 ? 'This month' : 'Older';
+}
+
 export const ENGINE_LABEL: Partial<Record<string, string>> = { 'claude-code': 'Claude Code', eve: 'Eve', hermes: 'Hermes', codex: 'Codex', pi: 'pi', omp: 'oh-my-pi', openclaw: 'OpenClaw' };
 export function engineBadge(agent: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>): HTMLSpanElement {
   const label = ENGINE_LABEL[agent.engine] || agent.engine;

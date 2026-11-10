@@ -1,6 +1,6 @@
 // One agent's chat, for the floating chat window: its latest conversation as the AI SDK chat (web/chat,
 // the small version): streaming replies, tools it uses (with images), file previews, approvals it waits
-// on, and a composer with Stop. The bar above picks the model, starts a new chat, opens its MEMORY.md or the full page.
+// on, and a composer with Stop. Its earlier chats open beside its tasks; the bar above starts a new one, opens its MEMORY.md or the full page.
 // React; renderAgentChat() puts it into the window's tab (plain DOM) and hands back focus and destroy.
 import { StrictMode, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createAppRoot } from './ui/root.tsx';
@@ -13,6 +13,7 @@ import { memoryButton } from './memory.tsx';
 import { DomNode, Icon, useAppState } from './ui/react.tsx';
 import { useProjectAgents } from './projectagents.ts';
 import { Button, ButtonLink } from './ui/button.tsx';
+import type { ChatListItem } from './chatlist.tsx';
 import type { ChatViewApi } from './chat/ChatView.tsx';
 import type { Chat, ChatSummary } from '../shared/types.ts';
 
@@ -89,12 +90,25 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
 
   const fresh = async () => {
     const c = await attempt(() => rpcAt(at).agents.chats.create({ id: agentId }));
-    if (c) {
-      chosen.current = true;
-      setPick((p) => ({ id: c.id, n: (p?.n || 0) + 1 }));
-      setChatId(c.id);
-    }
+    if (c) openOne(c.id);
   };
+  // its earlier chats (its own: not the sessions it keeps for team chats, nor a gateway's)
+  const listChats = async (): Promise<ChatListItem[]> =>
+    (await rpcAt(at).agents.chats.list({ id: agentId }))
+      .filter((c) => !isTeamSession(c) && !c.conversationId)
+      .map((c) => ({ id: c.id, title: c.title || 'Chat', updatedAt: c.updatedAt, count: c.count, open: c.id === chatId }));
+  const openOne = (id: string | null) => {
+    chosen.current = true;
+    setPick((p) => ({ id, n: (p?.n || 0) + 1 }));
+    setChatId(id);
+  };
+  const removeOne = async (c: ChatListItem) => {
+    if ((await attempt(() => rpcAt(at).agents.chats.remove({ id: agentId, chatId: c.id }))) === undefined) return false;
+    // (the open one is gone: a new chat starts with your next message)
+    if (c.id === chatId) openOne(null);
+    return true;
+  };
+  const chats = { load: listChats, onOpen: (c: ChatListItem) => openOne(c.id), onRemove: removeOne };
   const chip = useMemo(() => agent ? modelChip(agent, { compact: true, at }) : null, [agent?.id, agent?.model, agent?.engine, agent?.provider, at]);
   return (
     <div className="flex flex-col gap-3 h-full" ref={root}>
@@ -124,6 +138,7 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
               footer={chip}
               onChat={(c: Chat) => setChatId(c.id)}
               apiRef={ask.api}
+              chats={chats}
               {...(projectId ? { agents: theirs, projectId } : {})}
             />
           </Suspense>
