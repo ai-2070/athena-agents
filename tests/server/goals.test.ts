@@ -447,7 +447,8 @@ describe('/goal in an agent chat', () => {
     expect(users(a.id, c.id)).toEqual(['/goal: Your goal: the login page works and has tests', 'the Brain: Add the tests too.']);
     expect(checked[0]).toContain("THE USER'S GOAL");
     expect(checked[0]).toContain('the login page works and has tests');
-    await until(() => notes(a.id, c.id).some((n) => n.startsWith('Goal reached.')));
+    // (the reply above says what was done: the note doesn't repeat the check's summary)
+    await until(() => notes(a.id, c.id).includes('Goal reached.'));
     expect(listBriefs().find((b) => b.id === goal!.id)?.followUps).toBe(1);
   });
 
@@ -503,7 +504,7 @@ describe('/goal in a team chat', () => {
     const said = getThread(t.id).messages.map((m) => `${m.from === lead.id ? 'Leader' : m.from}: ${m.text}`);
     expect(said[0]).toBe('user: Goal: a weekly report with a summary');
     expect(said).toContain('brain: @Leader add the summary.');
-    await until(() => getThread(t.id).messages.some((m) => m.from === 'system' && m.text.startsWith('Goal reached.')));
+    await until(() => getThread(t.id).messages.some((m) => m.from === 'system' && m.text === 'Goal reached.'));
     await until(() => !teamState(t.id).working.length);
   });
 });
@@ -581,7 +582,7 @@ describe('simple questions are not goals', () => {
     expect(briefIn(c.id)).toMatchObject({ recognized: true, followUps: 1 });
     // (once recognized, the next check doesn't ask again)
     expect(checkedSystems[1]).not.toContain('assignment: false when');
-    await until(() => notes(a.id, c.id).some((n) => n.startsWith('Recognized finished.')));
+    await until(() => notes(a.id, c.id).includes('Recognized finished.'));
   });
 
   it('the agent sets the goal with set_goal: it shows at once and the check reads it beside your words', async () => {

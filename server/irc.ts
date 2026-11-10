@@ -35,11 +35,12 @@ function tellUser(pid: string, text: string, conversationId?: string) {
 }
 
 // What the Brain says about a brief: a goal set in an agent's or team's chat is reported there, the rest in the Brain chat.
-function report(b: BrainBrief, pid: string, text: string) {
+// inChat: what the chat or team itself shows, when it differs from the Brain chat's report
+function report(b: BrainBrief, pid: string, text: string, inChat = text) {
   const scoped = b.kind === 'team' ? privateTeamRecord(b.targetId)?.conversationId : b.chatId ? chats.get(b.targetId, b.chatId)?.conversationId : undefined;
   if (b.origin !== 'chat' && !scoped) return tellUser(pid, text);
-  if (b.kind === 'team') postSystem(b.targetId, text.replace(/\*\*/g, ''));
-  else if (b.chatId) addChatNote(b.targetId, b.chatId, text.replace(/\*\*/g, ''));
+  if (b.kind === 'team') postSystem(b.targetId, inChat.replace(/\*\*/g, ''));
+  else if (b.chatId) addChatNote(b.targetId, b.chatId, inChat.replace(/\*\*/g, ''));
 }
 
 // ---------- handing work on ----------
@@ -168,7 +169,9 @@ function settle(brief: BrainBrief, pid: string, v: Verdict, followUp: (text: str
   if (v.done) {
     updateBrief(brief.id, { status: 'done', summary: v.summary, failures: 0 }, pid);
     log('brain', `${brief.name} finished what the Brain asked`);
-    report(brief, pid, brief.goal && !brief.automatic ? `**Goal reached.** ${v.summary || ''}`.trim() : `**${brief.name} finished.** ${v.summary || ''}`.trim());
+    const head = brief.goal && !brief.automatic ? '**Goal reached.**' : `**${brief.name} finished.**`;
+    // (in its own chat the reply just above already says what was done, so the note doesn't repeat it)
+    report(brief, pid, `${head} ${v.summary || ''}`.trim(), head);
     if (brief.kind === 'team') teamBackgroundFinished(brief.targetId);
     return;
   }
