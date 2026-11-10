@@ -1,6 +1,6 @@
 // The earlier chats beside the Tasks row (web/chatlist.tsx): they open below it like the tasks (one of the two at a
 // time), the open one first, empty ones left out, a search box once the list is long, opening one and deleting one
-// after asking; and in a team chat, New chat and a conversation opened elsewhere.
+// after asking, closing when another chat is shown; and in a team chat, New chat and a conversation opened elsewhere.
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
@@ -118,6 +118,19 @@ describe('the earlier chats beside the tasks', () => {
     expect(removed).toEqual(['a']);
   });
 
+  it('closes when another chat is shown (New chat)', async () => {
+    draw({ items: [item('now', 'Open', { open: true })] });
+    const chats: ChatListProps = { load: async () => [item('now', 'Open', { open: true })], onOpen: () => {}, onRemove: async () => true };
+    act(() => root.render(<TasksAndChats tasks={{ view: 'brain' }} chats={{ ...chats, switched: 0 }} />));
+    await openList();
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    // (drawn again with nothing switched: it stays open)
+    act(() => root.render(<TasksAndChats tasks={{ view: 'brain' }} chats={{ ...chats, switched: 0 }} />));
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    act(() => root.render(<TasksAndChats tasks={{ view: 'brain' }} chats={{ ...chats, switched: 1 }} />));
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('has a search box once the list is long', async () => {
     draw({ items: [item('now', 'Open', { open: true }), ...Array.from({ length: 9 }, (_, i) => item(`c${i}`, i === 4 ? 'Find the logo' : `Chat ${i}`))] });
     await openList();
@@ -176,6 +189,26 @@ describe("a team's chats", () => {
     expect(document.querySelector('#modal-root')!.textContent).toContain('Starting a new chat stops the team’s work.');
     await confirm('Stop and switch');
     expect(requests).toContain('POST /api/teams/t1/chats');
+  });
+
+  it('closes the list of chats when a new chat starts', async () => {
+    const el = await draw();
+    await act(async () => el.querySelector<HTMLButtonElement>('.chat-list-toggle')!.click());
+    await settle();
+    expect(el.querySelector('.chat-list-toggle')!.getAttribute('aria-expanded')).toBe('true');
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="New chat"]')!.click());
+    await settle();
+    expect(requests).toContain('POST /api/teams/t1/chats');
+    expect(el.querySelector('.chat-list-toggle')!.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('closes it too when another tab opens another chat', async () => {
+    const el = await draw();
+    await act(async () => el.querySelector<HTMLButtonElement>('.chat-list-toggle')!.click());
+    await settle();
+    await teamEvent({ kind: 'thread', id: 't-old' });
+    await settle();
+    expect(el.querySelector('.chat-list-toggle')!.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('asks too while only a /loop runs or messages are held, and says so', async () => {

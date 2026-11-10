@@ -86,6 +86,8 @@ interface TeamChatData {
   sessions: Record<string, string>;
   /** whose turn is going now, by the turn events (a state update can lag behind a turn's end) */
   turning: Set<string>;
+  /** goes up each time another chat is shown here (the Chats list closes) */
+  switched: number;
 }
 interface MentionOption {
   label: string;
@@ -115,7 +117,7 @@ const MENTION_TEAM = 'tc-mention tc-team cursor-pointer font-medium rounded-[5px
 const TYPING = 'flex items-center gap-2 text-[12.5px] leading-[normal] font-normal';
 /** the steps behind a reply, and a live turn */
 const TURN_BODY = 'mt-2 flex flex-col gap-2 min-w-0';
-const blank = (): TeamChatData => ({ team: null, others: [], messages: [], working: [], queued: [], held: [], loop: null, goal: null, activity: {}, sessions: {}, turning: new Set() });
+const blank = (): TeamChatData => ({ team: null, others: [], messages: [], working: [], queued: [], held: [], loop: null, goal: null, activity: {}, sessions: {}, turning: new Set(), switched: 0 });
 // The team's project, when it isn't the open one (an Overview pane): its members are the agents fetched for that
 // project (a copied project has agents with the same ids), and their turns are read from there.
 const TeamProject = createContext<string | undefined>(undefined);
@@ -172,7 +174,10 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
           early.cleared ||= early.loading;
         }
         // (the conversation opened instead: what it holds comes with a fresh look)
-        if (e.kind === 'thread') load(false);
+        if (e.kind === 'thread') {
+          c.switched++;
+          load(false);
+        }
         if (e.kind === 'turn' && e.state === 'start') {
           if (e.chatId) c.sessions = { ...c.sessions, [e.agentId]: e.chatId };
           c.turning = new Set(c.turning).add(e.agentId);
@@ -634,7 +639,10 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
   };
   const newThread = async () => {
     if (!(await leaveWork('Starting a new chat'))) return;
-    if (await attempt(() => rpcAt(at).teams.newThread({ id: teamId }))) input.current?.focus();
+    if (!(await attempt(() => rpcAt(at).teams.newThread({ id: teamId })))) return;
+    store.current.switched++;
+    bump();
+    input.current?.focus();
   };
   const openThread = async (chatId: string) => {
     if (!(await leaveWork('Opening another chat'))) return;
@@ -871,6 +879,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
           load: () => rpcAt(at).teams.threads({ id: teamId }),
           onOpen: (c) => void openThread(c.id),
           onRemove: removeThread,
+          switched: C.switched,
           // (the open one is emptied: what goes on in it stops too)
           removeNote: (c) => {
             const stops = c.open ? going() : '';

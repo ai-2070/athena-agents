@@ -265,11 +265,14 @@ export function savedAnswer(m: BrainHistoryEntry): { answer: string; done: Brain
 /** The conversation shown (null until this chat started or opened one), and switches on their way from here. */
 let thread: string | null = null;
 let switching = 0;
+/** Goes up each time another conversation is shown (the Chats list closes). */
+let switched = 0;
 async function switchThread(go: () => Promise<{ id: string }>, { whole = false }: { whole?: boolean } = {}): Promise<boolean> {
   switching++;
   const r = await attempt(go).finally(() => switching--);
   if (!r) return false;
   thread = r.id;
+  switched++;
   leaveConversation();
   loadHistory({ whole });
   return true;
@@ -298,6 +301,7 @@ function leaveConversation() {
 function threadChanged(id: string) {
   if (switching || id === thread) return;
   thread = id;
+  switched++;
   leaveConversation();
   loadHistory({ whole: true });
 }
@@ -326,6 +330,7 @@ function projectChanged(d: { project?: { id: string } | null }) {
   D.project = id;
   if (first) return;
   thread = null;
+  switched++;
   brainAsks.reset();
   held.clear();
   loop.stop();
@@ -965,7 +970,7 @@ function DockView({ bar }: { bar: HTMLElement }) {
           </IconButton>
         </div>
         <div className="px-5 max-sm:px-4">
-          <TasksAndChats tasks={{ filters: true }} chats={{ load: () => rpc.brain.threads(), onOpen: (c) => void openConversation(c.id), onRemove: removeConversation }} />
+          <TasksAndChats tasks={{ filters: true }} chats={{ load: () => rpc.brain.threads(), onOpen: (c) => void openConversation(c.id), onRemove: removeConversation, switched }} />
         </div>
         <DockList settings={data?.settings} />
         <div className="cmd-chips compact pt-2 px-5 pb-0 max-sm:pt-1 max-sm:px-0 hidden" ref={chips} />

@@ -30,6 +30,8 @@ export interface ChatListProps {
   removeNote?: string | ((item: ChatListItem) => string);
   /** At the end of the row (a team's New chat). */
   end?: ReactNode;
+  /** Goes up each time another chat is shown (New chat, or one opened from another tab): the list closes. */
+  switched?: number;
 }
 
 // a search box once there are more than this
@@ -57,6 +59,10 @@ export function TasksAndChats({ tasks, chats }: { tasks: Omit<ComponentProps<typ
     reload();
     // (asked for again each time it opens)
   }, [open]);
+  // another chat is shown now: the list is done with
+  useEffect(() => {
+    if (chats.switched) setShown((s) => (s === 'chats' ? null : s));
+  }, [chats.switched]);
 
   // empty chats aren't listed, except the open one (so you can see where you are); it comes first, then the newest
   const listed = (items || []).filter((c) => c.count > 0 || c.open).sort((a, b) => Number(b.open) - Number(a.open) || b.updatedAt - a.updatedAt);
