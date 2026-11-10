@@ -16,6 +16,8 @@ import { icon } from '../icons.ts';
 import { Dot } from '../ui/marks.tsx';
 
 import { TaskPanel } from '../tasks.tsx';
+import { TasksAndChats } from '../chatlist.tsx';
+import type { ChatListProps } from '../chatlist.tsx';
 import { Dom, Handoffs, MessageView, isRichCode } from './parts.tsx';
 import type { Variant } from './parts.tsx';
 import { beforeTurn, handoffMap, handoffsIn, searchText, toUIMessages, userParts } from './messages.ts';
@@ -74,6 +76,8 @@ export interface ChatViewProps {
   /** The chat's project, when it isn't the open one (an Overview pane): its requests go there, and runs, approvals
    *  and events of other projects (a copied project has the same agent and chat ids) are left out. */
   projectId?: string;
+  /** Its earlier chats, shown beside the tasks. */
+  chats?: ChatListProps;
 }
 
 /** The page's shared state (agents, runs, approvals), kept current. */
@@ -788,7 +792,16 @@ export function ChatView(p: ChatViewProps) {
     <ChatProject.Provider value={p.projectId}>
       <Handoffs.Provider value={handoffs}>
       {find}
-      {variant !== 'mini' && <div className={compact ? '' : 'px-10 max-md:px-4'}><TaskPanel view={`agent:${agent.id}`} scope={{ kind: 'agent', id: agent.id }} chatId={chatId || undefined} projectId={p.projectId} /></div>}
+      {variant !== 'mini' && (
+        <div className={compact ? '' : 'px-10 max-md:px-4'}>
+          {/* (the floating window's tab lists the agent's earlier chats beside its tasks) */}
+          {p.chats ? (
+            <TasksAndChats tasks={{ view: `agent:${agent.id}`, scope: { kind: 'agent', id: agent.id }, chatId: chatId || undefined, projectId: p.projectId }} chats={p.chats} />
+          ) : (
+            <TaskPanel view={`agent:${agent.id}`} scope={{ kind: 'agent', id: agent.id }} chatId={chatId || undefined} projectId={p.projectId} />
+          )}
+        </div>
+      )}
       <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto py-2' : compact ? 'ac-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-14px),transparent_100%)] flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pt-1 pb-2' : 'messages'} onScroll={onScroll}>
         {empty ? (
           variant === 'mini' ? (

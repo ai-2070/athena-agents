@@ -20,8 +20,7 @@ import { attachTray } from './attach.tsx';
 import { pasteBox } from './pastes.ts';
 import { QueuedList, keepLostEdit } from './queuedlist.tsx';
 import { openMemory, BRAIN } from './memory.tsx';
-import { TaskPanel } from './tasks.tsx';
-import { ChatList } from './chatlist.tsx';
+import { TasksAndChats } from './chatlist.tsx';
 import type { ChatListItem } from './chatlist.tsx';
 import { mentionPreviews } from './filepreview.tsx';
 import { useFind } from './ui/find.tsx';
@@ -955,18 +954,19 @@ function DockView({ bar }: { bar: HTMLElement }) {
             Brain chat
           </b>
           <span className="flex-1 min-w-0" />
+          <IconButton variant="plain" onClick={() => void newConversation()} title="New chat (this one is kept under Chats)" aria-label="New chat">
+            <Icon name="square-pen" size={16} />
+          </IconButton>
           <IconButton variant="plain" onClick={() => openMemory(BRAIN)} title="The Brain's MEMORY.md: what it remembers across conversations" aria-label="The Brain's MEMORY.md">
             <Icon name="file-text" size={16} />
-          </IconButton>
-          <ChatList load={() => rpc.brain.threads()} onOpen={(c) => void openConversation(c.id)} onRemove={removeConversation} />
-          <IconButton variant="plain" onClick={() => void newConversation()} title="New chat (this one is kept in the list of earlier chats)" aria-label="New chat">
-            <Icon name="square-pen" size={16} />
           </IconButton>
           <IconButton variant="inset" onClick={() => toggle(false)} aria-label="Close">
             <Icon name="x" size={15} />
           </IconButton>
         </div>
-        <div className="px-5 max-sm:px-4"><TaskPanel filters /></div>
+        <div className="px-5 max-sm:px-4">
+          <TasksAndChats tasks={{ filters: true }} chats={{ load: () => rpc.brain.threads(), onOpen: (c) => void openConversation(c.id), onRemove: removeConversation }} />
+        </div>
         <DockList settings={data?.settings} />
         <div className="cmd-chips compact pt-2 px-5 pb-0 max-sm:pt-1 max-sm:px-0 hidden" ref={chips} />
         {/* your /queue messages, in the order they will go (click one to change it, drag to reorder, × takes one back) */}

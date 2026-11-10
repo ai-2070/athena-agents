@@ -179,7 +179,7 @@ describe('the Brain chat after a new conversation', () => {
 describe('the earlier chats', () => {
   it('opens one from the list, with the conversation it had', async () => {
     await newConversation();
-    await act(async () => document.querySelector<HTMLButtonElement>('.dock button[aria-label="Earlier chats"]')!.click());
+    await act(async () => document.querySelector<HTMLButtonElement>('.dock .chat-list-toggle')!.click());
     for (let i = 0; i < 20 && !document.querySelector('.chat-list-row'); i++) await settle();
     const rows = [...document.querySelectorAll('.chat-list-row')].map((r) => r.textContent);
     expect(rows[0]).toContain('Now');

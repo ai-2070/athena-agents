@@ -91,7 +91,7 @@ Prefer something more playful? Turn on **Settings → Appearance → Station loo
 
 Everyone in a team sees the whole conversation. Your message goes to the lead, or to whoever you @mention. Agents hand work to each other with @mentions and post what they make right in the chat: images, video, audio and 3D models you can turn with the mouse. Write **#Team name** to ask another team.
 
-Chats open in floating windows. Drag tabs between windows, snap them side by side, or minimize them with **Ctrl+↓** / **⌘↓**. **New chat** starts a fresh conversation with a team, an agent or the Brain, and the clock button beside it lists the earlier ones to open again or delete.
+Chats open in floating windows. Drag tabs between windows, snap them side by side, or minimize them with **Ctrl+↓** / **⌘↓**. **New chat** starts a fresh conversation with a team, an agent or the Brain, and **Chats**, next to **Tasks** at the top of the chat, opens the earlier ones to pick up again or delete.
 
 ![The Launch team's chat with two finished images, next to the team panel listing its members and their models](docs/images/team-chat.png)
 

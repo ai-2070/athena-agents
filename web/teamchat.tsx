@@ -23,14 +23,13 @@ import { ReportLine, splitReport } from './ui/report.tsx';
 import { slideIn, reducedMotion } from './motion.ts';
 import { useFind } from './ui/find.tsx';
 import { queuedText } from '../shared/queue.ts';
-import { TaskPanel } from './tasks.tsx';
 import { goalText, parseCommand, showsGoal } from '../shared/commands.ts';
 import { commandChips, slashMenu } from './chatcommands.ts';
 import type { SlashMenu } from './chatcommands.ts';
 import { Avatar, DomNode, Icon, IconWeightProvider, mountReact, useAppState } from './ui/react.tsx';
 import { Dot } from './ui/marks.tsx';
 import { Button, IconButton } from './ui/button.tsx';
-import { ChatList } from './chatlist.tsx';
+import { TasksAndChats } from './chatlist.tsx';
 import type { Agent, BrainBrief, LoopInfo, QueuedMessage, RunEvent, Team, TeamMessage, TeamRef, TeamState } from '../shared/types.ts';
 
 // A working agent's turn (and the work behind a reply): the AI SDK pieces load when first needed.
@@ -854,17 +853,20 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     <div className={fill ? 'flex flex-col gap-2 h-full' : 'flex flex-col gap-2'} ref={root}>
       {find}
       {/* the tasks, and beside them the team's earlier chats and New chat */}
-      <div className="flex items-start gap-1">
-        <div className="min-w-0 flex-1">
-          <TaskPanel view={`team:${teamId}`} scope={{ kind: 'team', id: teamId }} projectId={projectId} />
-        </div>
-        <div className="flex flex-none items-center gap-0.5 pt-1">
-          <ChatList load={() => rpcAt(at).teams.threads({ id: teamId })} onOpen={(c) => void openThread(c.id)} onRemove={removeThread} removeNote="Each agent also forgets it." size={15} />
-          <IconButton variant="plain" title="New chat (this one is kept in the list of earlier chats)" aria-label="New chat" onClick={() => void newThread()}>
-            <Icon name="square-pen" size={15} />
-          </IconButton>
-        </div>
-      </div>
+      <TasksAndChats
+        tasks={{ view: `team:${teamId}`, scope: { kind: 'team', id: teamId }, projectId }}
+        chats={{
+          load: () => rpcAt(at).teams.threads({ id: teamId }),
+          onOpen: (c) => void openThread(c.id),
+          onRemove: removeThread,
+          removeNote: 'Each agent also forgets it.',
+          end: (
+            <IconButton variant="plain" title="New chat (this one is kept under Chats)" aria-label="New chat" onClick={() => void newThread()}>
+              <Icon name="square-pen" size={15} />
+            </IconButton>
+          ),
+        }}
+      />
       <div
         // (in a scrolling column, an item must keep its height: never squeezed by the list's;
         // -mt-2 takes back the column's gap: the tasks bar has room under it already)

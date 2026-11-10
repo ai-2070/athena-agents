@@ -1,5 +1,6 @@
 // The same task list in agent, team and Brain chats. Editing stays inline with the work.
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { confirmBox, onEvent, onReconnect, state } from './core.ts';
 import { projectAt } from './client/connection.ts';
 import { rpcAt } from './client/rpc.ts';
@@ -17,17 +18,27 @@ const scopeValue = (s: TaskScope) => s.kind === 'brain' ? 'brain' : `${s.kind}:$
 const scopeFrom = (value: string): TaskScope => value === 'brain' || value === 'all' ? { kind: 'brain' } : { kind: value.startsWith('team:') ? 'team' : 'agent', id: value.slice(value.indexOf(':') + 1) };
 
 /** foreign: the chat's project, when it isn't the open one (an Overview pane): the tasks are that project's. */
-export function TaskPanel({ view = 'all', scope = { kind: 'brain' }, filters = false, chatId, projectId: foreign }: { view?: string; scope?: TaskScope; filters?: boolean; chatId?: string; projectId?: string }) {
-  const open = useAppState()?.project?.id || '';
-  const projectId = foreign || open;
-  return <TaskList key={`${projectId}/${view}/${chatId || ''}`} view={view} scope={scope} filters={filters} chatId={chatId} projectId={projectId} at={projectAt(foreign)} />;
+/** What the Tasks row shows beside its button (the chat's earlier chats, web/chatlist.tsx), and its open state when
+ *  something outside opens and closes it (only one of the two panels is open at a time). */
+export interface TaskPanelShare {
+  beside?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-function TaskList({ view, scope, filters, chatId, projectId, at }: { view: string; scope: TaskScope; filters: boolean; chatId?: string; projectId: string; at: string }) {
+export function TaskPanel({ view = 'all', scope = { kind: 'brain' }, filters = false, chatId, projectId: foreign, share }: { view?: string; scope?: TaskScope; filters?: boolean; chatId?: string; projectId?: string; share?: TaskPanelShare }) {
+  const open = useAppState()?.project?.id || '';
+  const projectId = foreign || open;
+  return <TaskList key={`${projectId}/${view}/${chatId || ''}`} view={view} scope={scope} filters={filters} chatId={chatId} projectId={projectId} at={projectAt(foreign)} share={share} />;
+}
+
+function TaskList({ view, scope, filters, chatId, projectId, at, share }: { view: string; scope: TaskScope; filters: boolean; chatId?: string; projectId: string; at: string; share?: TaskPanelShare }) {
   const app = useAppState();
   const theirs = useProjectAgents(at ? projectId : undefined);
   const panelId = useId();
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = share?.open ?? ownOpen;
+  const setOpen = (o: boolean) => (share?.onOpenChange ? share.onOpenChange(o) : setOwnOpen(o));
   const [target, setTarget] = useState(view);
   const [status, setStatus] = useState<'open' | 'all' | TaskStatus>('open');
   const [search, setSearch] = useState('');
@@ -103,10 +114,11 @@ function TaskList({ view, scope, filters, chatId, projectId, at }: { view: strin
     finally { if (here()) { setClearing(false); await reload.current(); if (here() && failure) setError(failure); } }
   };
   return <CollapseRoot open={open} onOpenChange={setOpen} render={<section />} className="task-panel shrink-0 min-w-0 px-1 text-[13px]" aria-label="Tasks">
-    <div className="flex items-center gap-2 pt-1 pb-2">
+    <div className="flex flex-wrap items-center gap-2 pt-1 pb-2">
       <Button variant="plain" size="tiny" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}>
         <Icon name="list-checks" size={15} />Tasks<Icon name="chevron-down" size={12} className={`transition-transform duration-200 ease-in-out ${open ? '' : '-rotate-90'}`} />
       </Button>
+      {share?.beside}
       {open && <><span className="min-w-0 flex-1 text-dim" aria-live="polite">{page ? `${page.total} ${status === 'open' ? 'open' : 'tasks'}` : ''}</span><Button variant="ghost" size="tiny" disabled={clearing || loading || !page || !openCount} onClick={() => void clearTasks()}><Icon name="trash-2" size={14} />{clearing ? 'Clearing…' : 'Clear tasks'}</Button><Button variant="ghost" size="tiny" disabled={clearing} onClick={() => setEditing('new')}><Icon name="plus" size={14} />Add task</Button></>}
     </div>
     <CollapsePanel id={panelId}><div className="max-h-[min(55vh,420px)] overflow-y-auto border-y border-line pt-2 pb-1">

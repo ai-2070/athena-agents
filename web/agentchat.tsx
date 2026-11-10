@@ -1,6 +1,6 @@
 // One agent's chat, for the floating chat window: its latest conversation as the AI SDK chat (web/chat,
 // the small version): streaming replies, tools it uses (with images), file previews, approvals it waits
-// on, and a composer with Stop. The bar above opens an earlier chat, starts a new one, opens its MEMORY.md or the full page.
+// on, and a composer with Stop. Its earlier chats open beside its tasks; the bar above starts a new one, opens its MEMORY.md or the full page.
 // React; renderAgentChat() puts it into the window's tab (plain DOM) and hands back focus and destroy.
 import { StrictMode, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createAppRoot } from './ui/root.tsx';
@@ -13,7 +13,6 @@ import { memoryButton } from './memory.tsx';
 import { DomNode, Icon, useAppState } from './ui/react.tsx';
 import { useProjectAgents } from './projectagents.ts';
 import { Button, ButtonLink } from './ui/button.tsx';
-import { ChatList } from './chatlist.tsx';
 import type { ChatListItem } from './chatlist.tsx';
 import type { ChatViewApi } from './chat/ChatView.tsx';
 import type { Chat, ChatSummary } from '../shared/types.ts';
@@ -109,12 +108,12 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
     if (c.id === chatId) openOne(null);
     return true;
   };
+  const chats = { load: listChats, onOpen: (c: ChatListItem) => openOne(c.id), onRemove: removeOne };
   const chip = useMemo(() => agent ? modelChip(agent, { compact: true, at }) : null, [agent?.id, agent?.model, agent?.engine, agent?.provider, at]);
   return (
     <div className="flex flex-col gap-3 h-full" ref={root}>
       <div className="flex items-center gap-2 pt-1">
         <span className="flex-1 min-w-0" />
-        <ChatList load={listChats} onOpen={(c) => openOne(c.id)} onRemove={removeOne} size={14} />
         <Button size="tiny" variant="ghost" title="Start a fresh conversation" onClick={() => void fresh()}>
           <Icon name="plus" size={13} />
           New chat
@@ -139,6 +138,7 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
               footer={chip}
               onChat={(c: Chat) => setChatId(c.id)}
               apiRef={ask.api}
+              chats={chats}
               {...(projectId ? { agents: theirs, projectId } : {})}
             />
           </Suspense>

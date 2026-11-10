@@ -1,12 +1,13 @@
-// The list of earlier chats (web/chatlist.tsx): the open one first, empty ones left out, a search box once the list is
-// long, opening one and deleting one after asking; and in a team chat, New chat and a conversation opened elsewhere.
+// The earlier chats beside the Tasks row (web/chatlist.tsx): they open below it like the tasks (one of the two at a
+// time), the open one first, empty ones left out, a search box once the list is long, opening one and deleting one
+// after asking; and in a team chat, New chat and a conversation opened elsewhere.
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { connectEvents, state } from '../../web/core.ts';
-import { ChatList } from '../../web/chatlist.tsx';
-import type { ChatListItem } from '../../web/chatlist.tsx';
+import { TasksAndChats } from '../../web/chatlist.tsx';
+import type { ChatListItem, ChatListProps } from '../../web/chatlist.tsx';
 import { renderTeamChat } from '../../web/teamchat.tsx';
 import type { TeamChatApi } from '../../web/teamchat.tsx';
 import type { AppState } from '../../shared/types.ts';
@@ -33,8 +34,9 @@ beforeEach(() => {
 const now = Date.now();
 const item = (id: string, title: string, over: Partial<ChatListItem> = {}): ChatListItem => ({ id, title, updatedAt: now - 60_000, count: 2, open: false, ...over });
 const rows = () => [...document.querySelectorAll('.chat-list-row')].map((r) => r.querySelector('button')!.textContent);
+const toggle = () => document.querySelector<HTMLButtonElement>('.chat-list-toggle')!;
 const openList = async () => {
-  await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Earlier chats"]')!.click());
+  if (toggle().getAttribute('aria-expanded') !== 'true') await act(async () => toggle().click());
   await settle();
 };
 const confirm = async (label: string) => {
@@ -42,29 +44,26 @@ const confirm = async (label: string) => {
   await settle();
 };
 
-describe('the list of earlier chats', () => {
+describe('the earlier chats beside the tasks', () => {
   let root: Root;
   afterEach(() => act(() => root.unmount()));
-  const draw = (props: Partial<Parameters<typeof ChatList>[0]> & { items: ChatListItem[] }) => {
+  const draw = (props: Partial<ChatListProps> & { items: ChatListItem[] }) => {
     const host = document.body.appendChild(document.createElement('div'));
     root = createRoot(host);
     const opened: string[] = [];
     const removed: string[] = [];
     let list = props.items;
-    act(() =>
-      root.render(
-        <ChatList
-          load={async () => list}
-          onOpen={(c) => opened.push(c.id)}
-          onRemove={async (c) => {
-            removed.push(c.id);
-            list = list.filter((x) => x.id !== c.id);
-            return true;
-          }}
-          removeNote={props.removeNote}
-        />,
-      ),
-    );
+    const chats: ChatListProps = {
+      load: async () => list,
+      onOpen: (c) => void opened.push(c.id),
+      onRemove: async (c) => {
+        removed.push(c.id);
+        list = list.filter((x) => x.id !== c.id);
+        return true;
+      },
+      removeNote: props.removeNote,
+    };
+    act(() => root.render(<TasksAndChats tasks={{ view: 'brain' }} chats={chats} />));
     return { opened, removed };
   };
 
@@ -79,7 +78,21 @@ describe('the list of earlier chats', () => {
     await openList();
     await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.chat-list-row button')].find((b) => b.textContent?.includes('Social media'))!.click());
     expect(opened).toEqual(['a']);
-    expect(document.querySelector('.chat-list')).toBeNull();
+    // (it folds away again)
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('opens below the Tasks row, and only one of the two is open at a time', async () => {
+    draw({ items: [item('now', 'Open', { open: true })] });
+    const tasks = [...document.querySelectorAll<HTMLButtonElement>('.task-panel button')].find((b) => b.textContent?.includes('Tasks'))!;
+    // (the Chats button sits in the Tasks row)
+    expect(tasks.parentElement!.contains(toggle())).toBe(true);
+    await act(async () => tasks.click());
+    expect(tasks.getAttribute('aria-expanded')).toBe('true');
+    await openList();
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(tasks.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('.chat-list')!.textContent).toContain('No earlier chats.');
   });
 
   it('deletes one only after you say so, and says what else goes', async () => {
