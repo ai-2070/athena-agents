@@ -27,7 +27,7 @@ export interface ChatListProps {
   /** Deletes one (it was asked first); true once it is gone. */
   onRemove: (item: ChatListItem) => Promise<boolean>;
   /** What deleting one does, said when asking. */
-  removeNote?: string;
+  removeNote?: string | ((item: ChatListItem) => string);
   /** At the end of the row (a team's New chat). */
   end?: ReactNode;
 }
@@ -71,7 +71,8 @@ export function TasksAndChats({ tasks, chats }: { tasks: Omit<ComponentProps<typ
   };
   const remove = async (c: ChatListItem) => {
     const what = c.open ? 'Delete this chat? It is the one open now, so it empties.' : `Delete “${c.title}”?`;
-    if (!(await confirmBox(`${what}${chats.removeNote ? ` ${chats.removeNote}` : ''}`, { ok: 'Delete', danger: true }))) return;
+    const note = typeof chats.removeNote === 'function' ? chats.removeNote(c) : chats.removeNote;
+    if (!(await confirmBox(`${what}${note ? ` ${note}` : ''}`, { ok: 'Delete', danger: true }))) return;
     if (await chats.onRemove(c)) reload();
   };
 
