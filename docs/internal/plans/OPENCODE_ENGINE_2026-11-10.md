@@ -12,7 +12,15 @@ at `~/.bun/bin/opencode.exe`). opencode 1.x is not supported.*
   Registered everywhere the server names engines. 22 tests against a fake server.
 - **Step 2 (done): the page.** Settings › General card (with "needs an update" for 1.x), the model picker's tab,
   the agent editor, the status line, the Station's engine tiles, Programs, Terminals, the approval label, the mark.
-- **Step 3: docs and a live check** (README, `docs/guide.md`, a run with `scripts/try-agent.ts`).
+- **Step 3 (done): docs and a live check.** README and `docs/guide.md`. A throwaway dashboard (its own data
+  folder and project folder) ran an "Ask first" opencode agent on a cheap OpenRouter model: it read a file with its
+  own tool and called dashboard tools through the bridge; a file change and a command came to Needs you; a No went
+  back as its reason; a second message resumed the session; a message sent mid-turn showed as read while it worked
+  and changed the answer; Stop interrupted a 60-second command within about two seconds. Not checked live: the
+  interactive terminal.
+- **Found by the live check:** refusing one question makes opencode refuse every question still open in that
+  session. The others then stayed in Needs you, answering nothing. `withdrawApprovals` (`server/approvals.ts`) now
+  takes those back when `permission.replied` names a question we didn't answer.
 
 ### What the live probes settled (10–11 November, opencode 2.2.7)
 

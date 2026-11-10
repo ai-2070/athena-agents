@@ -21,7 +21,7 @@
 ## Why Athena
 
 - **Describe the job, get a team.** Tell the Brain what you want done. It sets up the agents, gives them instructions and tools, and hands out the work.
-- **Use any model, mix them freely.** Claude Code, OpenAI Codex, Hermes, pi, oh-my-pi, OpenClaw, or any OpenAI-compatible API, including local models through Ollama and LM Studio. One team can use several.
+- **Use any model, mix them freely.** Claude Code, OpenAI Codex, Hermes, pi, oh-my-pi, OpenClaw, opencode, or any OpenAI-compatible API, including local models through Ollama and LM Studio. One team can use several.
 - **You stay in charge.** Risky steps wait for your OK. Agents ask you when they're stuck. Posts and messages sit in the Outbox until you approve them.
 - **Your work stays with the project.** Each project keeps its own agents, teams, chats and results, saved into its folder and easy to back up.
 
@@ -66,6 +66,7 @@ Open **Settings → General & keys** and set up the engines you want. You only n
 | **Hermes** | Hermes installed, with a profile to use. |
 | **pi** / **oh-my-pi** | The `pi` or `omp` CLI, signed in to a model provider. |
 | **OpenClaw** | The `openclaw` CLI, set up with `openclaw onboard`. |
+| **opencode** | opencode 2 or later (`npm install -g @opencode/cli`). Its free models work right away; sign in to your own providers with `opencode auth login`. |
 
 Then pick **the Brain's model** on the same page. The Brain is the assistant that runs the project for you.
 

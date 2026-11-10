@@ -33,7 +33,15 @@ interface Fake {
   closed: number;
 }
 const fake: Fake = vi.hoisted(() => ({ calls: [], spawns: [], sessions: new Map(), models: [], onPrompt: () => {}, onSteer: () => {}, onReply: () => {}, inboxDelete: 204, closed: 0 }) as unknown as Fake);
-const approvals = vi.hoisted(() => ({ requests: [] as { title: string; detail?: string; data?: Record<string, unknown> }[], decide: (): { approved: boolean; always?: boolean; message?: string } => ({ approved: true }) }));
+type Decision = { approved: boolean; always?: boolean; message?: string };
+type Asked = { title: string; detail?: string; data?: Record<string, unknown> };
+const approvals = vi.hoisted(() => ({
+  requests: [] as Asked[],
+  decide: (_r: Asked): Decision | Promise<Decision> => ({ approved: true }),
+  /** the ones still waiting, and what withdrew them */
+  waiting: new Map<Asked, (d: Decision) => void>(),
+  withdrawn: [] as string[],
+}));
 
 function startFake(stdout: PassThrough): http.Server {
   const streams = new Set<http.ServerResponse>();
@@ -131,9 +139,23 @@ vi.mock('../../server/approvals.ts', async (orig) => {
   const real = await orig<typeof import('../../server/approvals.ts')>();
   return {
     ...real,
-    requestApproval: async (r: { title: string; detail?: string; data?: Record<string, unknown> }) => {
+    requestApproval: (r: Asked) => {
       approvals.requests.push(r);
-      return approvals.decide();
+      return new Promise<Decision>((resolve) => {
+        approvals.waiting.set(r, resolve);
+        void Promise.resolve(approvals.decide(r)).then((d) => {
+          approvals.waiting.delete(r);
+          resolve(d);
+        });
+      });
+    },
+    withdrawApprovals: (match: (item: Asked) => boolean, message: string) => {
+      for (const [r, resolve] of approvals.waiting)
+        if (match(r)) {
+          approvals.waiting.delete(r);
+          approvals.withdrawn.push(String(r.data?.permission));
+          resolve({ approved: false, message });
+        }
     },
   };
 });
@@ -211,6 +233,8 @@ beforeEach(() => {
   fake.closed = 0;
   approvals.requests = [];
   approvals.decide = () => ({ approved: true });
+  approvals.waiting.clear();
+  approvals.withdrawn = [];
 });
 
 describe('helpers', () => {
@@ -347,6 +371,17 @@ describe('a run', () => {
     };
     await expect(oc.opencode.run(argsOf(coder(), chatOf(), []))).rejects.toThrow('Free usage limit reached.');
   });
+
+  it('a failure after some text is still a failure (the text is in the chat already)', async () => {
+    fake.onPrompt = (push, sid) => {
+      push('session.execution.started', { sessionID: sid });
+      push('session.text.delta', { sessionID: sid, assistantMessageID: 'm', ordinal: 0, delta: 'Half an answ' });
+      push('session.execution.failed', { sessionID: sid, error: { type: 'provider', message: 'The provider hung up.' } });
+    };
+    const events: RunEvent[] = [];
+    await expect(oc.opencode.run(argsOf(coder(), chatOf(), events))).rejects.toThrow('The provider hung up.');
+    expect(events).toContainEqual({ kind: 'text', text: 'Half an answ' });
+  });
 });
 
 describe('its questions', () => {
@@ -373,6 +408,26 @@ describe('its questions', () => {
     fake.onReply = answered;
     await oc.opencode.run(argsOf(coder(), chatOf(), []));
     expect(callsTo(/permission\/per_1\/reply$/)[0]!.body).toEqual({ decision: 'reject', message: 'Not the build folder.' });
+  });
+
+  it('refusing one refuses every question still open: those leave Needs you', async () => {
+    // the command is refused; the file change is never answered by you
+    approvals.decide = (r) => (/command/.test(r.title) ? { approved: false, message: 'No commands.' } : new Promise<Decision>(() => {}));
+    fake.onPrompt = (push, sid) => {
+      push('session.execution.started', { sessionID: sid });
+      push('permission.asked', { id: 'per_edit', sessionID: sid, action: 'edit', resources: ['hello.txt'] });
+      push('permission.asked', { id: 'per_cmd', sessionID: sid, action: 'shell', resources: ['echo done'] });
+    };
+    fake.onReply = (push, sid, id) => {
+      push('permission.replied', { sessionID: sid, requestID: id, reply: 'reject' });
+      // (opencode refuses the other one too, by itself)
+      push('permission.replied', { sessionID: sid, requestID: 'per_edit', reply: 'reject' });
+      answered(push, sid);
+    };
+    await oc.opencode.run(argsOf(coder(), chatOf(), []));
+    expect(approvals.withdrawn).toEqual(['per_edit']);
+    expect(approvals.waiting.size).toBe(0);
+    expect(callsTo(/permission\/per_cmd\/reply$/)[0]!.body).toEqual({ decision: 'reject', message: 'No commands.' });
   });
 
   it('always allow: the agent is not asked about that again', async () => {

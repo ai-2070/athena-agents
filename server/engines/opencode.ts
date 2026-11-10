@@ -14,7 +14,7 @@ import { listServers } from '../mcp.ts';
 import { toolDefs, workspaceOf } from '../tools.ts';
 import { knowledgeRoots } from '../knowledge.ts';
 import { safeUploadsRoot, withAttachments } from '../uploads.ts';
-import { requestApproval } from '../approvals.ts';
+import { requestApproval, withdrawApprovals } from '../approvals.ts';
 import { EFFORTS, effortFor } from '../../shared/effort.ts';
 import { cliStatus, olderThan, pipeLines, steerEvent, tail, SessionGone } from './cli.ts';
 import type { ChildProcess } from 'node:child_process';
@@ -456,7 +456,7 @@ async function askPermission(agent: Agent, d: Record<string, unknown>, runId: st
   const resources = Array.isArray(d.resources) ? d.resources.map(String) : [];
   const detail = [str(d.message), ...resources].filter(Boolean).join('\n') || action;
   const verb = VERBS[action] || (action.includes('_') ? `use ${action.replace('_', ' › ')}` : `use ${action}`);
-  const decision = await requestApproval({ kind: 'opencode', title: `${agent.name} wants to ${verb}`, detail: detail.slice(0, 4000), agentId: agent.id, agentName: agent.name, data: { tool: key, args: { action, resources }, runId } });
+  const decision = await requestApproval({ kind: 'opencode', title: `${agent.name} wants to ${verb}`, detail: detail.slice(0, 4000), agentId: agent.id, agentName: agent.name, data: { tool: key, args: { action, resources }, runId, permission: str(d.id) } });
   if (decision.approved && decision.always) {
     const fresh = agents.get(agent.id);
     if (fresh) {
@@ -519,7 +519,12 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
     const sending = new Set<Promise<unknown>>();
     let taking = false;
     const post = (id: string, body: object) => srv.call('POST', `/api/session/${sessionId}/prompt`, { id, ...body });
-    const reply = (id: string) => (decision: 'once' | 'reject', message?: string) => srv.call('POST', `/api/session/${sessionId}/permission/${encodeURIComponent(id)}/reply`, { decision, ...(message ? { message } : {}) }).then(() => undefined, () => undefined);
+    // its questions we answered (the others it settled itself: refusing one refuses every question still open)
+    const answered = new Set<string>();
+    const reply = (id: string) => (decision: 'once' | 'reject', message?: string) => {
+      answered.add(id);
+      return srv.call('POST', `/api/session/${sessionId}/permission/${encodeURIComponent(id)}/reply`, { decision, ...(message ? { message } : {}) }).then(() => undefined, () => undefined);
+    };
     const stopTaking = () => {
       taking = false;
       intake.delete(runId);
@@ -558,6 +563,12 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
           void askPermission(agent, d, runId, reply(str(d.id))).catch((e: unknown) => log('opencode', `A permission question failed: ${(e as Error).message}`));
           continue;
         }
+        // one it settled itself leaves Needs you
+        if (ev.type === 'permission.replied') {
+          const id = str(d.requestID);
+          if (id && !answered.has(id)) withdrawApprovals((item) => item.data?.runId === runId && item.data?.permission === id, 'opencode no longer needs an answer to this.');
+          continue;
+        }
         if (ev.type === 'session.inbox.delivered') {
           const m = unread.get(str(d.inboxID));
           if (m) {
@@ -584,7 +595,7 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
           if (gone) unread.delete(key);
           else next = true;
         }
-        if (!next || !unread.size) {
+        if (!next) {
           ended = true;
           break;
         }
@@ -598,9 +609,10 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
         const end = await Promise.race([srv.ended, new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000))]);
         throw new Error(end ? `opencode exited (${end.code}) without an answer.${tail(end.stderr)}` : 'opencode stopped telling what it does before it answered.');
       }
-      if (r.error && !r.answer) throw new Error(r.error);
+      // (what it wrote before it failed is in the chat already)
+      if (r.error) throw new Error(r.error);
       return {
-        text: r.answer || (r.error ? r.error : ''),
+        text: r.answer,
         ...(r.tokens ? { tokens: r.tokens } : {}),
         ...(r.cached ? { cached: r.cached } : {}),
         ...(r.cost ? { cost: r.cost } : {}),
