@@ -63,7 +63,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.85",
-    "@ai-sdk/react": "4.0.167",
+    "@ai-sdk/react": "4.0.168",
     "@athena/eve-world": "file:./runtime/eve-world",
     "@base-ui/react": "1.9.0",
     "@chat-adapter/discord": "4.44.0",
