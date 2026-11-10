@@ -1,7 +1,7 @@
 // The agent chat page (React around the AI SDK chat): a gone agent, picking a chat, the list, memory, delete.
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { state } from '../../web/core.ts';
+import { dayGroups, dayOf, state } from '../../web/core.ts';
 import * as chatPage from '../../web/views/chat.tsx';
 import type { AppState } from '../../shared/types.ts';
 
@@ -113,6 +113,13 @@ describe('the agent chat page', () => {
   it('puts a chat under Today, Yesterday, This week, This month or Older', () => {
     const now = new Date(2026, 10, 2, 15).getTime();
     const day = 86_400_000;
-    expect([now - 60_000, now - day, now - 3 * day, now - 20 * day, now - 60 * day].map((t) => chatPage.dayOf(t, now))).toEqual(['Today', 'Yesterday', 'This week', 'This month', 'Older']);
+    expect([now - 60_000, now - day, now - 3 * day, now - 20 * day, now - 60 * day].map((t) => dayOf(t, now))).toEqual(['Today', 'Yesterday', 'This week', 'This month', 'Older']);
+  });
+
+  it('keeps one group per heading, even for a chat out of place', () => {
+    const at = (updatedAt: number, id: string) => ({ id, updatedAt });
+    const t = Date.now();
+    const groups = dayGroups([at(t, 'a'), at(t - 40 * 86_400_000, 'old'), at(t - 1000, 'b')]);
+    expect(groups.map((g) => [g.day, g.list.map((c) => c.id)])).toEqual([['Today', ['a', 'b']], ['Older', ['old']]]);
   });
 });

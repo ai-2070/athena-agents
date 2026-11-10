@@ -475,6 +475,19 @@ export function dayOf(t: number, now = Date.now()): string {
   return days <= 0 ? 'Today' : days === 1 ? 'Yesterday' : days < 7 ? 'This week' : days < 31 ? 'This month' : 'Older';
 }
 
+/** Chats grouped under their heading (dayOf, unless heading says otherwise), the groups in the order their first
+ *  chat comes. (A chat out of place joins its group, never a second one of the same name.) */
+export function dayGroups<T extends { updatedAt: number }>(list: T[], heading: (c: T) => string = (c) => dayOf(c.updatedAt)): { day: string; list: T[] }[] {
+  const groups = new Map<string, T[]>();
+  for (const c of list) {
+    const day = heading(c);
+    const g = groups.get(day);
+    if (g) g.push(c);
+    else groups.set(day, [c]);
+  }
+  return [...groups].map(([day, list]) => ({ day, list }));
+}
+
 export const ENGINE_LABEL: Partial<Record<string, string>> = { 'claude-code': 'Claude Code', eve: 'Eve', hermes: 'Hermes', codex: 'Codex', pi: 'pi', omp: 'oh-my-pi', openclaw: 'OpenClaw' };
 export function engineBadge(agent: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>): HTMLSpanElement {
   const label = ENGINE_LABEL[agent.engine] || agent.engine;

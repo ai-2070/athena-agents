@@ -43,7 +43,7 @@ export const BACKUP_MAX = UNPACKED_MAX;
 
 // How much of each kind is packed at most (the same limits as the auto-save into the project folder).
 // A file that doesn't fit any more is left out and counted (BackupSummary.omitted). Keep docs/guide.md in step.
-const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024, world: 300 * 1024 * 1024, library: 100 * 1024 * 1024, marks: 100 * 1024 * 1024 };
+const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, pastChats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024, world: 300 * 1024 * 1024, library: 100 * 1024 * 1024, marks: 100 * 1024 * 1024 };
 // A kept version in a backup: <kind>/<item id>/<version id>.json, and a skill version's files under
 // skills/<slug>/files-<version id>/. Agents and teams are the project's; skills are the library's
 // (deleted ones too, so Recently deleted comes back).
@@ -307,6 +307,9 @@ export function packProject(p: Project): BackupData {
   const chatBudget = budget(CAP.chats);
   const knowledgeBudget = budget(CAP.knowledge);
   const chats = packChats(id, chatBudget);
+  // the Brain's and the teams' past conversations, newest first
+  const pastBudget = budget(CAP.pastChats);
+  const pastChats = packPast(id, pastBudget);
   const knowledge = packTree(projectDir(id, 'knowledge'), knowledgeBudget);
   const memoryBudget = budget(CAP.memory);
   const memory = packTree(projectDir(id, 'memory'), memoryBudget).filter((f) => MEMORY_PATH.test(f.path));
@@ -349,7 +352,7 @@ export function packProject(p: Project): BackupData {
     tasks: readPlain<unknown>(projectDir(id, 'tasks.json'), { tasks: [] }),
     board: readPlain<unknown>(projectDir(id, 'board.json'), { tasks: [] }),
     teamChats: jsonFiles(projectDir(id, 'teamchats')).map((name) => ({ name, data: readJSON<unknown>(projectDir(id, 'teamchats', name)) })).filter((x) => x.data != null),
-    pastChats: packPast(id),
+    pastChats,
     chats,
     knowledge,
     memory,
@@ -363,7 +366,7 @@ export function packProject(p: Project): BackupData {
     prefabLibrary,
     teamMarks,
     taskFiles: [],
-    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted + worldBudget.omitted + libraryOmitted + marksBudget.omitted,
+    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + pastBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted + worldBudget.omitted + libraryOmitted + marksBudget.omitted,
   };
   // The files on board tasks and their comments (their copies in the uploads folder), the board's order first. No
   // limit of their own: as many as the backup can still hold (it unpacks to at most UNPACKED_MAX, files as base64).

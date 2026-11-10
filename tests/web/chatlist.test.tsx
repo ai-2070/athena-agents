@@ -82,6 +82,14 @@ describe('the earlier chats beside the tasks', () => {
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('puts the open one first and the rest newest first, whatever order they came in', async () => {
+    // (an agent's chats come newest first, so the open one can be in the middle)
+    draw({ items: [item('a', 'Ten o’clock', { updatedAt: now - 1000 }), item('b', 'Nine o’clock', { open: true, updatedAt: now - 3000 }), item('c', 'Eight o’clock', { updatedAt: now - 5000 })] });
+    await openList();
+    expect([...document.querySelectorAll('.chat-list [role="group"]')].map((g) => g.getAttribute('aria-label'))).toEqual(['Open now', 'Today']);
+    expect([...document.querySelectorAll('.chat-list-row .truncate')].map((t) => t.textContent)).toEqual(['Nine o’clock', 'Ten o’clock', 'Eight o’clock']);
+  });
+
   it('opens below the Tasks row, and only one of the two is open at a time', async () => {
     draw({ items: [item('now', 'Open', { open: true })] });
     const tasks = [...document.querySelectorAll<HTMLButtonElement>('.task-panel button')].find((b) => b.textContent?.includes('Tasks'))!;
@@ -128,16 +136,23 @@ describe("a team's chats", () => {
   let requests: string[] = [];
   let messages: object[] = [];
   let working: string[] = [];
+  let loop: object | null = null;
+  let held: object[] = [];
+  let chatsList: object[] = [];
   beforeEach(() => {
     requests = [];
     messages = [{ id: 'u1', ts: 0, from: 'user', text: 'Make a thumbnail', mentions: [] }];
     working = [];
+    loop = null;
+    held = [];
+    chatsList = [];
     state.data = { runs: [], approvals: [], agents: [{ id: 'lead', name: 'Lead', emoji: '🧭', color: '#fff' }] } as unknown as AppState;
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
       requests.push(`${init.method || 'GET'} ${url}`);
       const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
-      if (url === '/api/teams/t1/chat') return json({ team: { id: 't1', name: 'Thumbs', members: ['lead'], lead: 'lead', steps: [] }, messages, working, queued: [], sessions: {} });
+      if (url === '/api/teams/t1/chat') return json({ team: { id: 't1', name: 'Thumbs', members: ['lead'], lead: 'lead', steps: [] }, messages, working, queued: [], held, loop, sessions: {} });
       if (url === '/api/teams/t1/chats' && init.method === 'POST') return json({ id: 't-new' });
+      if (url === '/api/teams/t1/chats') return json(chatsList);
       return json({});
     });
   });
@@ -158,9 +173,32 @@ describe("a team's chats", () => {
     const el = await draw();
     await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="New chat"]')!.click());
     await settle();
-    expect(document.querySelector('#modal-root')!.textContent).toContain('The team is working. Starting a new chat stops its work.');
+    expect(document.querySelector('#modal-root')!.textContent).toContain('Starting a new chat stops the team’s work.');
     await confirm('Stop and switch');
     expect(requests).toContain('POST /api/teams/t1/chats');
+  });
+
+  it('asks too while only a /loop runs or messages are held, and says so', async () => {
+    loop = { id: 'l1', every: 60_000, text: 'Check the inbox', runs: 0 };
+    held = [{ id: 'q1', text: 'Later', ts: 1 }];
+    const el = await draw();
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="New chat"]')!.click());
+    await settle();
+    expect(document.querySelector('#modal-root')!.textContent).toContain('Starting a new chat stops your /loop and 1 held message.');
+    await confirm('Cancel');
+    expect(requests).not.toContain('POST /api/teams/t1/chats');
+  });
+
+  it('says what stops when the open chat is deleted while the team works', async () => {
+    working = ['lead'];
+    const el = await draw();
+    chatsList = [{ id: 't-open', title: 'Make a thumbnail', count: 1, createdAt: 0, updatedAt: Date.now(), open: true }];
+    await act(async () => el.querySelector<HTMLButtonElement>('.chat-list-toggle')!.click());
+    await settle();
+    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Delete Make a thumbnail"]')!.click());
+    await settle();
+    expect(document.querySelector('#modal-root')!.textContent).toContain('Each agent also forgets it, and it stops the team’s work.');
+    await confirm('Cancel');
   });
 
   it('shows the conversation opened instead, from here or another tab', async () => {

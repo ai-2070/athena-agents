@@ -23,8 +23,8 @@ import type { BrainVerdict } from './approvals.ts';
 import { think, brainModel, parseJSON } from './brain.ts';
 import type { ThinkPart } from './brain.ts';
 import { readJSON, writeJSON, run, dataPath, exists, insideRoots } from './util.ts';
-import { OPEN_THREAD, allPast, byRecent, dropPast, filePast, newThreadId, readPast, summarize } from './pastchats.ts';
-import type { ThreadMeta, ThreadOwner } from './pastchats.ts';
+import { deleteThread, filePast, listThreads, newThreadId, readPast, reopenThread, startThread } from './pastchats.ts';
+import type { ThreadMeta, ThreadOwner, ThreadPlace } from './pastchats.ts';
 import { describeAttachmentsRead, attachmentNames } from './uploads.ts';
 import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, routineTargets, runningRoutineRuns, stopRoutineRun } from './routines.ts';
 import { listSkills, getSkill, findSkill, saveSkill, deleteSkillEverywhere, brainSkills, brainSkillSlugs, setBrainSkills } from './skills.ts';
@@ -521,6 +521,11 @@ interface Asking {
   steered: boolean;
   /** past the point where it could still be stopped: what it does, it does */
   past: boolean;
+  /** what it answers, and /stop's count when it started (stopped since: nothing of it is kept) */
+  question: BrainChatMessage;
+  stopsAt: number;
+  /** the conversation its question went with when another one was opened meanwhile (its answer follows it there) */
+  filed?: string;
 }
 const asking = new Map<string, Set<Asking>>();
 /** A new message while the Brain answers: the answer being written changes nothing (like /stop), and the
@@ -549,17 +554,41 @@ function openThread(pid: string): BrainThread {
   const t = readJSON<BrainThread>(histFile(pid));
   return t && Array.isArray(t.messages) ? t : { messages: [] };
 }
-const yours = (m: BrainChatMessage) => (m.role === 'user' ? m.text : null);
-/** The Brain chat's conversations: the open one first, then the past ones newest first. */
-export function brainThreads(pid = activeProject().id): ThreadSummary[] {
-  const open = openThread(pid);
-  const past = allPast<BrainThread>(BRAIN_THREADS, pid).filter((t) => Array.isArray(t.messages)).map((t) => summarize(t, t.messages, yours, false));
-  return byRecent([summarize({ ...open, id: open.id || OPEN_THREAD }, open.messages, yours, true), ...past]);
+// The questions the Brain is still answering in the Brain chat. Not one you stopped (nothing of it is kept), but one
+// cut off by a new message is (its question stays, as answerNow keeps it), unless it was a /goal.
+function unanswered(pid: string): Asking[] {
+  const key = brainKey(pid);
+  return [...(asking.get(key) || [])].filter((a) => !a.filed && (a.past || (a.steered ? !a.goal : stopCount(key) === a.stopsAt)));
 }
-// the open conversation goes with the others (an empty one is just dropped)
+const NOT_ANSWERED = '(not answered here: another chat was opened while the Brain was thinking)';
+const CUT_OFF = '(stopped before answering: the user sent a new message)';
+// The open conversation goes with the others, with the questions still being answered in it (their answers
+// follow when they come: answerFiled). An empty one is just dropped.
 function fileOpenThread(pid: string): void {
   const open = openThread(pid);
-  if (open.messages.length) filePast(BRAIN_THREADS, { ...open, updatedAt: open.messages.at(-1)?.ts || Date.now() }, pid);
+  const waiting = unanswered(pid);
+  const messages = [...open.messages, ...waiting.flatMap((a): BrainChatMessage[] => [a.question, { role: 'brain', text: a.steered && !a.past ? CUT_OFF : NOT_ANSWERED, ts: a.question.ts + 1 }])];
+  if (!messages.length) return;
+  const id = filePast(BRAIN_THREADS, { ...open, messages: messages.slice(-HISTORY_KEEP), updatedAt: messages.at(-1)?.ts || Date.now() }, pid);
+  for (const a of waiting) a.filed = id;
+}
+// An answer that came after its conversation was filed away: it takes the place of the note that it hadn't come yet,
+// wherever that conversation is now (still with the others, or opened again).
+function answerFiled(pid: string, me: Asking, answer: BrainChatMessage): void {
+  if (!me.filed) return;
+  const open = openThread(pid);
+  const isOpen = open.id === me.filed;
+  const t = isOpen ? open : readPast<BrainThread>(BRAIN_THREADS, me.filed, pid);
+  if (!t || !Array.isArray(t.messages)) return;
+  const at = t.messages.findIndex((m) => m.role === 'user' && m.ts === me.question.ts && m.text === me.question.text);
+  const note = t.messages[at + 1];
+  if (at < 0 || note?.role !== 'brain' || note.text !== NOT_ANSWERED) return;
+  const messages = t.messages.with(at + 1, { ...answer, ts: note.ts });
+  if (isOpen) remember(messages, pid);
+  else {
+    filePast(BRAIN_THREADS, { ...t, messages }, pid);
+    emit('brain-chat', { projectId: pid });
+  }
 }
 // another conversation is the open one now: an answer still on its way belongs to the one left, and isn't saved into this one
 function showThread(pid: string, thread: BrainThread): void {
@@ -568,34 +597,29 @@ function showThread(pid: string, thread: BrainThread): void {
   writeJSON(histFile(pid), thread);
   emit('brain-chat', { projectId: pid, thread: thread.id });
 }
+// the Brain chat as a place with conversations (pastchats.ts has the steps)
+const brainPlace = (pid: string): ThreadPlace<BrainChatMessage, BrainThread> => ({
+  owner: BRAIN_THREADS,
+  pid,
+  open: () => openThread(pid),
+  blank: () => ({ messages: [] }),
+  yours: (m) => (m.role === 'user' ? m.text : null),
+  // (a question on its way into an empty chat: New chat keeps it with that one)
+  settled: () => !unanswered(pid).length,
+  leave: () => fileOpenThread(pid),
+  show: (thread) => showThread(pid, thread),
+  // (as /clear did: the Brain starts fresh)
+  clear: () => clearHistory(pid),
+  forget: () => emit('brain-chat', { projectId: pid }),
+});
+/** The Brain chat's conversations: the open one first, then the past ones newest first. */
+export const brainThreads = (pid = activeProject().id): ThreadSummary[] => listThreads(brainPlace(pid));
 /** New chat: the open conversation is kept with the others, and the Brain starts on an empty one. */
-export function newBrainThread(pid = activeProject().id): { id: string } {
-  const open = openThread(pid);
-  // (already a new one: nothing to file away)
-  if (!open.messages.length && open.id) return { id: open.id };
-  fileOpenThread(pid);
-  const id = newThreadId();
-  showThread(pid, { id, createdAt: Date.now(), messages: [] });
-  return { id };
-}
+export const newBrainThread = (pid = activeProject().id): { id: string } => startThread(brainPlace(pid));
 /** Opens a past conversation: the one open now takes its place among the others. */
-export function openBrainThread(id: string, pid = activeProject().id): { id: string } {
-  const open = openThread(pid);
-  if (id === OPEN_THREAD || id === open.id) return { id: open.id || OPEN_THREAD };
-  const past = readPast<BrainThread>(BRAIN_THREADS, id, pid);
-  if (!past || !Array.isArray(past.messages)) throw new Error('That chat is no longer there.');
-  fileOpenThread(pid);
-  showThread(pid, { id, createdAt: past.createdAt || past.messages[0]?.ts || Date.now(), messages: past.messages });
-  dropPast(BRAIN_THREADS, id, pid);
-  return { id };
-}
+export const openBrainThread = (id: string, pid = activeProject().id): { id: string } => reopenThread(brainPlace(pid), id);
 /** Deletes a conversation. The open one is emptied (as /clear did), and the Brain starts fresh. */
-export function removeBrainThread(id: string, pid = activeProject().id): void {
-  const open = openThread(pid);
-  if (id === OPEN_THREAD || id === open.id) return clearHistory(pid);
-  if (!dropPast(BRAIN_THREADS, id, pid)) throw new Error('That chat is no longer there.');
-  emit('brain-chat', { projectId: pid });
-}
+export const removeBrainThread = (id: string, pid = activeProject().id): void => deleteThread(brainPlace(pid), id);
 
 const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
 const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
@@ -2104,7 +2128,8 @@ async function askNow(text: string, opts: BrainAskOptions): Promise<BrainAnswer>
   checkProject(opts.project);
   const pid = activeProject().id;
   const key = brainKey(pid, opts.conversationId);
-  const me: Asking = { goal: !!opts.goal, steered: false, past: false };
+  const question: BrainChatMessage = { role: 'user', text, ...(opts.operationId ? { operationId: opts.operationId } : {}), ...(opts.from ? { from: opts.from } : {}), ts: Date.now(), ...(opts.attachments?.length ? { attachments: opts.attachments } : {}) };
+  const me: Asking = { goal: !!opts.goal, steered: false, past: false, question, stopsAt: stopCount(key) };
   const live = asking.get(key) || new Set<Asking>();
   live.add(me);
   asking.set(key, live);
@@ -2193,6 +2218,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false,
   // you started a new conversation while it thought: this answer belongs to the old one, so change nothing and don't bring it back
   if (generation(key) !== gen) {
     const dropped: BrainDone = { kind: 'error', text: 'You started a new conversation while the Brain was thinking, so nothing was changed.' };
+    if (me.filed) answerFiled(p.id, me, { role: 'brain', text: parsed.answer, ts: Date.now(), ...(parsed.actions.length ? { done: [dropped] } : {}) });
     return { answer: parsed.answer, done: parsed.actions.length ? [dropped] : [], delegate: null, model: bm, project: p.name };
   }
   me.past = true;
@@ -2233,7 +2259,10 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false,
   const now = Date.now();
   // on top of the history as it is now (not as it was before thinking), so nothing saved meanwhile is lost;
   // cleared meanwhile: this turn belongs to the old conversation, so it isn't brought back
-  if (!cleared()) remember([...history(p.id, conversationId), { role: 'user', text, ...(operationId ? { operationId } : {}), ...(from ? { from } : {}), ts: now, ...(attachments.length ? { attachments } : {}) }, { role: 'brain', text: r.answer, ...(operationId ? { operationId } : {}), ts: Date.now(), ...(done.length ? { done } : {}), ...(delegate ? { delegate: { kind: delegate.kind, id: delegate.id, name: delegate.name, message: delegate.message, ...(delegate.sent ? { sent: delegate.sent } : {}) } } : {}), ...(steps.length ? { steps: steps.map((st) => (st.state === 'running' ? { ...st, state: 'error' as const, output: '(no result)' } : st)) } : {}) }], p.id, conversationId);
+  const answered: BrainChatMessage = { role: 'brain', text: r.answer, ...(operationId ? { operationId } : {}), ts: Date.now(), ...(done.length ? { done } : {}), ...(delegate ? { delegate: { kind: delegate.kind, id: delegate.id, name: delegate.name, message: delegate.message, ...(delegate.sent ? { sent: delegate.sent } : {}) } } : {}), ...(steps.length ? { steps: steps.map((st) => (st.state === 'running' ? { ...st, state: 'error' as const, output: '(no result)' } : st)) } : {}) };
+  if (!cleared()) remember([...history(p.id, conversationId), { ...me.question, ts: now }, answered], p.id, conversationId);
+  // another conversation was opened meanwhile: the answer goes to the one its question went with
+  else if (me.filed) answerFiled(p.id, me, answered);
   return { ...r, model: bm, project: p.name };
 }
 

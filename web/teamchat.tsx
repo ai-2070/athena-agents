@@ -618,8 +618,20 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     return (await attempt(() => rpcAt(at).teams.clear({ id: teamId }))) !== undefined;
   };
   // New chat and the earlier ones: the server keeps the thread with the others ('cleared' or 'thread' comes back).
-  // Work going on in it stops, so that is asked first.
-  const leaveWork = async (what: string) => !busy.length || (await confirmBox(`The team is working. ${what} stops its work.`, { ok: 'Stop and switch' }));
+  // What goes on in it stops (server/teams.ts endThreadWork), so that is asked first.
+  const going = () => {
+    const parts = [
+      busy.length || C.turning.size ? 'the team’s work' : '',
+      C.loop ? 'your /loop' : '',
+      C.held.length ? `${C.held.length} held message${C.held.length === 1 ? '' : 's'}` : '',
+      C.goal ? 'the Brain’s follow-up on your /goal' : '',
+    ].filter(Boolean);
+    return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0] || '';
+  };
+  const leaveWork = async (what: string) => {
+    const stops = going();
+    return !stops || (await confirmBox(`${what} stops ${stops}.`, { ok: 'Stop and switch' }));
+  };
   const newThread = async () => {
     if (!(await leaveWork('Starting a new chat'))) return;
     if (await attempt(() => rpcAt(at).teams.newThread({ id: teamId }))) input.current?.focus();
@@ -859,7 +871,11 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
           load: () => rpcAt(at).teams.threads({ id: teamId }),
           onOpen: (c) => void openThread(c.id),
           onRemove: removeThread,
-          removeNote: 'Each agent also forgets it.',
+          // (the open one is emptied: what goes on in it stops too)
+          removeNote: (c) => {
+            const stops = c.open ? going() : '';
+            return stops ? `Each agent also forgets it, and it stops ${stops}.` : 'Each agent also forgets it.';
+          },
           end: (
             <IconButton variant="plain" title="New chat (this one is kept under Chats)" aria-label="New chat" onClick={() => void newThread()}>
               <Icon name="square-pen" size={15} />

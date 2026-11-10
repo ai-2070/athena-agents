@@ -1,5 +1,6 @@
 // The Brain's and the teams' earlier chats (server/pastchats.ts): New chat keeps the open conversation with the others,
 // opening one swaps the two (a team's agents keep their sessions for it), deleting one, the routes, and backups.
+import fs from 'node:fs';
 import http from 'node:http';
 import type net from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -8,7 +9,7 @@ import { activeProject, bus, chats, workflows } from '../../server/store.ts';
 import { dataPath, writeJSON } from '../../server/util.ts';
 import { addBrainNote, brainThreads, history, newBrainThread, openBrainThread, removeBrainThread } from '../../server/overseer.ts';
 import { getThread, newTeamThread, openTeamThread, removeTeamThread, teamThreads } from '../../server/teams.ts';
-import { packPast, pastIds, threadTitle, unpackPast } from '../../server/pastchats.ts';
+import { PAST_KEEP, filePast, packPast, pastIds, threadTitle, unpackPast } from '../../server/pastchats.ts';
 import { handleRpc } from '../../server/rpc.ts';
 import type { BrainChatMessage, ServerEvent, Team, TeamMessage } from '../../shared/types.ts';
 
@@ -144,6 +145,39 @@ describe("a team's chat", () => {
     expect(chats.get(a.id, session.id)).toBeNull();
   });
 
+  it('works for a team whose id can’t be a folder name', () => {
+    const a = newAgent({ name: `Dot ${Math.random()}`, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
+    const team = workflows.save({ id: `writers.v2 ${Date.now()}`, name: 'Writers v2', members: [a.id], lead: a.id, steps: [] } as Partial<Team>);
+    writeJSON(dataPath('projects', pid(), 'teamchats', `${team.id}.json`), { messages: [{ id: 'm1', ts: 1, from: 'user', text: 'Hi', mentions: [] }], sessions: {}, seen: {} });
+    newTeamThread(team.id);
+    expect(teamThreads(team.id).map((t) => [t.title, t.open])).toEqual([['New chat', true], ['Hi', false]]);
+    // (kept in a folder named after it, that backups carry)
+    expect(packPast(pid(), { left: Infinity, omitted: 0 }).some((p) => /^teams\/x-[0-9a-f]+\//.test(p.name))).toBe(true);
+  });
+
+  it(`keeps at most ${PAST_KEEP} earlier chats, and lets the agents forget the ones that go`, () => {
+    const { a, team } = setup();
+    const owner = { kind: 'team' as const, id: team.id };
+    const gone = chats.create(a.id, 'Team: Writers', team.id);
+    filePast(owner, { id: 't_oldest', messages: [{ id: 'x', ts: 5, from: 'user', text: 'Oldest', mentions: [] }], sessions: { [a.id]: gone.id }, seen: {} });
+    for (let i = 1; i < PAST_KEEP; i++) filePast(owner, { id: `t_${i}`, messages: [{ id: 'x', ts: 1000 + i, from: 'user', text: `Chat ${i}`, mentions: [] }], sessions: {}, seen: {} });
+    expect(pastIds(owner)).toHaveLength(PAST_KEEP);
+    newTeamThread(team.id);
+    const ids = pastIds(owner);
+    expect(ids).toHaveLength(PAST_KEEP);
+    expect(ids).not.toContain('t_oldest');
+    expect(chats.get(a.id, gone.id)).toBeNull();
+  });
+
+  it('shows a change made to an earlier chat outside the dashboard', () => {
+    const { team } = setup();
+    newTeamThread(team.id);
+    const past = teamThreads(team.id).find((t) => !t.open)!;
+    const f = dataPath('projects', pid(), 'past-chats', 'teams', team.id, `${past.id}.json`);
+    writeJSON(f, { id: past.id, messages: [{ id: 'm1', ts: 1000, from: 'user', text: 'Write a longer poem', mentions: [] }], sessions: {}, seen: {} });
+    expect(teamThreads(team.id).find((t) => !t.open)).toMatchObject({ title: 'Write a longer poem', count: 1 });
+  });
+
   it('refuses a team that is not there', () => {
     expect(() => teamThreads('nobody')).toThrow('No such team.');
     expect(() => newTeamThread('../../x')).toThrow('No such team.');
@@ -154,11 +188,24 @@ describe('backups', () => {
   it('carries the earlier chats, and puts back only names that are theirs', () => {
     brainSays(said('Back me up', 9000));
     newBrainThread();
-    const packed = packPast(pid());
+    const packed = packPast(pid(), { left: Infinity, omitted: 0 });
     expect(packed.some((p) => /^brain\/[\w-]+\.json$/.test(p.name) && JSON.stringify(p.data).includes('Back me up'))).toBe(true);
     const into = `restored-${Date.now()}`;
     unpackPast(into, [...packed, { name: '../../settings.json', data: { x: 1 } }, { name: 'brain/../../x.json', data: {} }]);
-    expect(packPast(into).map((p) => p.name).sort()).toEqual(packed.map((p) => p.name).sort());
+    expect(packPast(into, { left: Infinity, omitted: 0 }).map((p) => p.name).sort()).toEqual(packed.map((p) => p.name).sort());
+  });
+
+  it('takes the newest first, as many as fit, and counts the rest', () => {
+    const into = `budget-${Date.now()}`;
+    const old = filePast<{ id?: string; messages: unknown[] }>({ kind: 'brain' }, { messages: [{ role: 'user', text: 'old', ts: 1 }] }, into);
+    // (written later: newer)
+    const t = Date.now() / 1000;
+    fs.utimesSync(dataPath('projects', into, 'past-chats', 'brain', `${old}.json`), t - 60, t - 60);
+    const fresh = filePast<{ id?: string; messages: unknown[] }>({ kind: 'brain' }, { messages: [{ role: 'user', text: 'new', ts: 2 }] }, into);
+    const one = fs.statSync(dataPath('projects', into, 'past-chats', 'brain', `${fresh}.json`)).size;
+    const budget = { left: one, omitted: 0 };
+    expect(packPast(into, budget).map((p) => p.name)).toEqual([`brain/${fresh}.json`]);
+    expect(budget.omitted).toBe(1);
   });
 });
 
