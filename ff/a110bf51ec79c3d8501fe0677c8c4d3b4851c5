@@ -1,0 +1,36 @@
+server/overseer.ts
+  s_5670dec4b6606b::t_e45a1c96cefa7f 524-528
+  s_5670dec4b6606b::t_b0e976739a08c7 2143-2144
+  s_5670dec4b6606b::t_72ef95f324950a 2233
+  s_5670dec4b6606b::t_6b68f6afac40c8 2274-2277
+  s_bd832fd98b7376::t_fb52e913e4d1e3 564-573,576-598,610-611
+tests/server/past-chats-answering.test.ts
+  s_5670dec4b6606b::t_d90ad6584cd180 1-22,24-55
+  s_5670dec4b6606b::t_f59b9d15504f2c 23
+docs/guide.md
+  s_5670dec4b6606b::t_1189d260c413bf 101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ffa110bf51ec79c3d8501fe0677c8c4d3b4851c5",
+  "prompts": {},
+  "sessions": {
+    "s_5670dec4b6606b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78e33d2f-7d85-42f8-9076-d6ade75a14a4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    },
+    "s_bd832fd98b7376": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "680c70e8-2cea-4eef-b7f8-db34d7be63d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
