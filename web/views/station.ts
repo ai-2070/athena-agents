@@ -3778,6 +3778,7 @@ function drawHud(): void {
       { id: 'pi', name: 'pi', glyph: mark('pi', 15), color: '#9fd3a8', find: 'pi coding agent' },
       { id: 'omp', name: 'oh-my-pi', glyph: mark('omp', 15), color: '#c8a2f0', find: 'oh-my-pi' },
       { id: 'openclaw', name: 'OpenClaw', glyph: mark('openclaw', 15), color: '#ff6f5e', find: 'OpenClaw' },
+      { id: 'opencode', name: 'opencode', glyph: mark('opencode', 15), color: '#8a8686', find: 'opencode' },
     ] as const).map((e) => ({ ...e, brain: '', ready: !!d.engines[e.id]?.installed, why: d.engines[e.id]?.installed ? '' : 'not installed' })),
   ].filter((engine) => engineConfigured(engine.name === 'LM Studio' ? 'lmstudio' : engine.brain || engine.id, d, installedPrograms)).map((e: { id: string; uses?: (a: Agent) => boolean; brain: string; name: string; glyph: SVGSVGElement | HTMLImageElement | string; color: string; ready: boolean; why: string; find: string }) => {
     const uses = e.uses || ((a: Agent) => a.engine === e.id);

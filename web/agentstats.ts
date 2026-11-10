@@ -76,7 +76,7 @@ export function categorySlices(agents: Pick<Agent, 'source'>[]): Slice[] {
 export const modelSlices = (agents: (Pick<Agent, 'engine' | 'model'> & Partial<Pick<Agent, 'provider'>>)[], defaults?: Partial<Settings['defaults']>): Slice[] => slices(agents, (a) => agentModel(a, defaults), 5);
 
 /** The engine tiles at the Station's top right, by key: an API-model agent is on LM Studio or OpenRouter. */
-export const ENGINE_NAMES: Record<string, string> = { 'claude-code': 'Claude Code', openrouter: 'OpenRouter', venice: 'Venice', lmstudio: 'LM Studio', hermes: 'Hermes', codex: 'OpenAI Codex', pi: 'pi', omp: 'oh-my-pi', openclaw: 'OpenClaw' };
+export const ENGINE_NAMES: Record<string, string> = { 'claude-code': 'Claude Code', openrouter: 'OpenRouter', venice: 'Venice', lmstudio: 'LM Studio', hermes: 'Hermes', codex: 'OpenAI Codex', pi: 'pi', omp: 'oh-my-pi', openclaw: 'OpenClaw', opencode: 'opencode' };
 export const engineKey = (a: Pick<Agent, 'engine' | 'provider'>): string => (a.engine === 'eve' ? (a.provider === 'venice' ? 'venice' : a.provider === 'lmstudio' ? 'lmstudio' : 'openrouter') : a.engine);
 
 /** Does an agent belong to a slice (an Other slice: to any it stands for)? */

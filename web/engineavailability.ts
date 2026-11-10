@@ -9,6 +9,7 @@ export function engineConfigured(id: string, data: AppState | null, installedPro
   if (id === 'claude' || id === 'claude-code') return !!engines?.['claude-code']?.installed && !!(engines['claude-code'].loggedIn || data.secrets?.anthropicKey?.set || data.secrets?.openrouterKey?.set);
   if (id === 'codex') return !!(engines?.codex?.installed && engines.codex.loggedIn);
   if (id === 'hermes' || id === 'pi' || id === 'omp' || id === 'openclaw') return !!engines?.[id]?.installed;
+  if (id === 'opencode') return !!engines?.opencode?.installed && !engines.opencode.tooOld;
   if (id === 'lmstudio' || id === 'ollama') return installedPrograms.has(id);
   if (id === 'custom') return !!data.settings?.providers?.custom?.baseUrl?.trim();
   return false;

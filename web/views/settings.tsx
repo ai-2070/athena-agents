@@ -229,7 +229,7 @@ function SavedSwitch({ field, initial, on, off, reload, title, description }: { 
 }
 
 /** A provider's mark, bundled locally so it also works offline. */
-function Mark({ brand, glyph, engine }: { brand?: string; glyph?: string; engine?: 'hermes' | 'pi' | 'omp' | 'openclaw' | 'venice' }) {
+function Mark({ brand, glyph, engine }: { brand?: string; glyph?: string; engine?: 'hermes' | 'pi' | 'omp' | 'openclaw' | 'opencode' | 'venice' }) {
   const size = engine === 'pi' ? 15 : 17;
   if (engine) return <span className="ai-mark grid size-8 place-items-center rounded-ctl bg-panel-2"><img ref={(el) => { if (el) followTheme(el, engine); }} src={brandSrc(engine) ?? undefined} width={size} height={size} alt="" aria-hidden="true" className="object-contain" /></span>;
   // near-black brand colours (Anthropic, OpenAI) draw in the text colour, so they show on a dark page too
@@ -364,11 +364,12 @@ function VeniceDefault({ initial, onChange }: { initial: string; onChange: (valu
   </FieldRow>;
 }
 
-// pi, oh-my-pi and OpenClaw: found or not, and how to install them (they sign in to models in their own terminal).
-const CLIS: { id: keyof EngineStatus & ('pi' | 'omp' | 'openclaw'); label: string; cmd: string; then: string }[] = [
+// pi, oh-my-pi, OpenClaw and opencode: found or not, and how to install them (they sign in to models in their own terminal).
+const CLIS: { id: keyof EngineStatus & ('pi' | 'omp' | 'openclaw' | 'opencode'); label: string; cmd: string; then: string }[] = [
   { id: 'pi', label: 'pi coding agent', cmd: 'npm install -g @earendil-works/pi-coding-agent', then: 'Then sign in to a model provider with /login in pi.' },
   { id: 'omp', label: 'oh-my-pi', cmd: 'bun install -g @oh-my-pi/pi-coding-agent', then: 'Needs Bun. Then sign in with /login in omp.' },
   { id: 'openclaw', label: 'OpenClaw', cmd: 'npm install -g openclaw', then: 'Then run openclaw onboard.' },
+  { id: 'opencode', label: 'opencode', cmd: 'npm install -g @opencode/cli', then: 'Its free models work right away. To use your own accounts, run opencode auth login in a terminal.' },
 ];
 
 function Engines({ data, reload }: { data: AppState; reload: () => Promise<unknown> }) {
@@ -416,7 +417,9 @@ function Engines({ data, reload }: { data: AppState; reload: () => Promise<unkno
       </AiRow>
       <AiRow mark={<Mark engine="hermes" />} name="Hermes" status={data.engines.hermes.installed ? <Found /> : <Pill>not installed</Pill>} note={data.engines.hermes.installed ? 'Agents can run on your Hermes profiles.' : null} />
       {CLIS.map(({ id, label, cmd, then }) => {
-        const st: Partial<EngineStatus['pi']> = data.engines[id] || {};
+        const st: Partial<EngineStatus['opencode']> = data.engines[id] || {};
+        // (opencode 1.x is a different program as far as the dashboard goes: it needs updating)
+        if (st.installed && st.tooOld) return <AiRow key={id} mark={<Mark engine={id} />} name={label} status={<><Pill tone="warn">needs an update</Pill>{st.version ? <span className={AI_VERSION}>{st.version}</span> : null}</>} note="Agents need opencode 2 or later." below={<InstallCmd cmd={cmd} />} />;
         return <AiRow key={id} mark={<Mark engine={id} />} name={label} status={st.installed ? <Found version={st.version} /> : <Pill>not installed</Pill>} note={st.installed ? null : then} below={st.installed ? null : <InstallCmd cmd={cmd} />} />;
       })}
     </div>

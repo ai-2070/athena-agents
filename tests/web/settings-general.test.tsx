@@ -195,10 +195,10 @@ describe('General & keys', () => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t: string) => void copied.push(t) } });
     await open();
     const names = [...el.querySelectorAll('.ai-row .ai-name')].map((n) => n.textContent);
-    expect(names).toEqual(expect.arrayContaining(['Claude Code', 'OpenAI Codex', 'Hermes', 'pi coding agent', 'oh-my-pi', 'OpenClaw', 'OpenRouter key', 'Anthropic API key']));
+    expect(names).toEqual(expect.arrayContaining(['Claude Code', 'OpenAI Codex', 'Hermes', 'pi coding agent', 'oh-my-pi', 'OpenClaw', 'opencode', 'OpenRouter key', 'Anthropic API key']));
     // every engine and key row has a mark (a logo or its glyph)
     for (const r of el.querySelectorAll('.ai-list .ai-row')) expect(r.querySelector('.ai-mark')!.childNodes.length).toBeGreaterThan(0);
-    for (const [name, engine] of [['Venice key', 'venice'], ['Hermes', 'hermes'], ['pi coding agent', 'pi'], ['oh-my-pi', 'omp'], ['OpenClaw', 'openclaw']]) {
+    for (const [name, engine] of [['Venice key', 'venice'], ['Hermes', 'hermes'], ['pi coding agent', 'pi'], ['oh-my-pi', 'omp'], ['OpenClaw', 'openclaw'], ['opencode', 'opencode']]) {
       const row = [...el.querySelectorAll('.ai-row')].find((r) => r.querySelector('.ai-name')?.textContent === name)!;
       const image = row.querySelector<HTMLImageElement>('.ai-mark img')!;
       expect(image.getAttribute('src')).toBe(`/brand/engines/${engine}.svg`);

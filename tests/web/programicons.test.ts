@@ -18,7 +18,7 @@ describe('programIcon', () => {
   });
 
   it('uses local upstream artwork for the agents and programs with custom marks', () => {
-    for (const id of ['hermes', 'pi', 'omp', 'openclaw', 'venice', 'painter', 'designer', 'handbrakecli', 'imagemagick', 'prusaslicer', 'orcaslicer', 'vscode', 'orca', 'ffmpeg']) {
+    for (const id of ['hermes', 'pi', 'omp', 'openclaw', 'opencode', 'venice', 'painter', 'designer', 'handbrakecli', 'imagemagick', 'prusaslicer', 'orcaslicer', 'vscode', 'orca', 'ffmpeg']) {
       const image = programIcon(id, id, 24)!;
       expect(image.tagName.toLowerCase()).toBe('img');
       expect(image.getAttribute('src')).toMatch(new RegExp(`/brand/engines/${id}\\.(svg|png)$`));

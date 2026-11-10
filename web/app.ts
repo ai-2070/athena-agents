@@ -185,6 +185,7 @@ function navStatus(d: AppState) {
     e.pi?.installed ? line('on', 'pi coding agent', ver(e.pi.version) || 'found', S('tab=general&find=pi coding agent')) : null,
     e.omp?.installed ? line('on', 'oh-my-pi', ver(e.omp.version) || 'found', S('tab=general&find=oh-my-pi')) : null,
     e.openclaw?.installed ? line('on', 'OpenClaw', ver(e.openclaw.version) || 'found', S('tab=general&find=OpenClaw')) : null,
+    e.opencode?.installed ? line(e.opencode.tooOld ? 'warn' : 'on', 'opencode', e.opencode.tooOld ? 'needs an update' : ver(e.opencode.version) || 'found', S('tab=general&find=opencode')) : null,
     h('div', { class: heading }, 'Models and connections'),
     line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : b.provider === 'venice' ? ' · Venice' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
     line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),

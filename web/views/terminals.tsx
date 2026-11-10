@@ -110,6 +110,7 @@ function Launcher() {
           {e.pi?.installed ? card('pi', 'Interactive pi coding agent.', { kind: 'command', command: 'pi', title: 'pi' }, 'pi') : null}
           {e.omp?.installed ? card('oh-my-pi', 'Interactive oh-my-pi (omp).', { kind: 'command', command: 'omp', title: 'oh-my-pi' }, 'omp') : null}
           {e.openclaw?.installed ? card('OpenClaw', "OpenClaw's chat screen (through its Gateway).", { kind: 'command', command: 'openclaw', args: ['tui'], title: 'OpenClaw' }, 'openclaw') : null}
+          {e.opencode?.installed ? card('opencode', 'Interactive opencode.', { kind: 'command', command: 'opencode', args: ['--standalone'], title: 'opencode' }, 'opencode') : null}
           {card('Orca', 'Orca CLI: status, worktrees, agent sessions.', { kind: 'command', command: 'orca', args: ['status'], title: 'Orca' }, 'orca')}
         </div>
         {agents.length ? (
