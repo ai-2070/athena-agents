@@ -62,7 +62,7 @@
     "bun": ">=1.4"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "3.0.86",
+    "@ai-sdk/openai-compatible": "3.0.87",
     "@ai-sdk/react": "4.0.168",
     "@athena/eve-world": "file:./runtime/eve-world",
     "@base-ui/react": "1.9.0",
