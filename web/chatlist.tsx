@@ -1,14 +1,15 @@
 // The Tasks row of the Brain chat, a team's chat or an agent's tab, with the earlier chats beside it: "Chats" opens them
 // below the row the way "Tasks" opens the tasks (one of the two at a time). The list is newest first and grouped by
-// day, with the open one first. Click one to open it; the bin deletes one (after asking); a search box shows once the
+// day, with the open one first (whatever order they came in). Click one to open it; the bin deletes one (after asking); a search box shows once the
 // list is long. Each place says how its chats are listed, opened and deleted. (New chat is a button of its own.)
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
-import { ago, confirmBox, dayOf } from './core.ts';
+import { ago, confirmBox, dayGroups, dayOf } from './core.ts';
+import { latestLoad } from './brainqueue.ts';
 import { TaskPanel } from './tasks.tsx';
 import { CollapsePanel, CollapseRoot } from './ui/collapse.tsx';
 import { Icon } from './ui/react.tsx';
-import { Button } from './ui/button.tsx';
+import { Button, IconButton } from './ui/button.tsx';
 
 /** One chat in the list. open: the one shown now. */
 export interface ChatListItem {
@@ -20,7 +21,7 @@ export interface ChatListItem {
 }
 
 export interface ChatListProps {
-  /** The chats, newest first (asked for each time the list opens). */
+  /** The chats, in any order (asked for each time the list opens): the list puts the open one first, then the newest. */
   load: () => Promise<ChatListItem[]>;
   onOpen: (item: ChatListItem) => unknown;
   /** Deletes one (it was asked first); true once it is gone. */
@@ -43,12 +44,12 @@ export function TasksAndChats({ tasks, chats }: { tasks: Omit<ComponentProps<typ
   const [failed, setFailed] = useState('');
   const [find, setFind] = useState('');
   // (only the newest load counts)
-  const serial = useRef(0);
+  const loads = useRef(latestLoad()).current;
   const reload = () => {
-    const n = ++serial.current;
+    const current = loads.start();
     chats.load()
-      .then((list) => n === serial.current && (setItems(list), setFailed('')))
-      .catch((e: unknown) => n === serial.current && setFailed(e instanceof Error ? e.message : String(e)));
+      .then((list) => current() && (setItems(list), setFailed('')))
+      .catch((e: unknown) => current() && setFailed(e instanceof Error ? e.message : String(e)));
   };
   useEffect(() => {
     if (!open) return;
@@ -57,16 +58,11 @@ export function TasksAndChats({ tasks, chats }: { tasks: Omit<ComponentProps<typ
     // (asked for again each time it opens)
   }, [open]);
 
-  // empty chats aren't listed, except the open one (so you can see where you are)
-  const listed = (items || []).filter((c) => c.count > 0 || c.open);
+  // empty chats aren't listed, except the open one (so you can see where you are); it comes first, then the newest
+  const listed = (items || []).filter((c) => c.count > 0 || c.open).sort((a, b) => Number(b.open) - Number(a.open) || b.updatedAt - a.updatedAt);
   const q = find.trim().toLowerCase();
   const found = q ? listed.filter((c) => c.title.toLowerCase().includes(q)) : listed;
-  const groups: { day: string; list: ChatListItem[] }[] = [];
-  for (const c of found) {
-    const day = c.open ? 'Open now' : dayOf(c.updatedAt);
-    if (groups.at(-1)?.day === day) groups.at(-1)!.list.push(c);
-    else groups.push({ day, list: [c] });
-  }
+  const groups = dayGroups(found, (c) => (c.open ? 'Open now' : dayOf(c.updatedAt)));
   const earlier = listed.filter((c) => !c.open).length;
 
   const pick = (c: ChatListItem) => {
@@ -123,15 +119,15 @@ export function TasksAndChats({ tasks, chats }: { tasks: Omit<ComponentProps<typ
                       {/* (the bin takes the time's place while you point at the row) */}
                       <span className="flex-none text-[11px] text-faint tabular-nums group-hover/row:invisible group-focus-within/row:invisible">{c.count ? ago(c.updatedAt) : 'empty'}</span>
                     </button>
-                    <button
-                      type="button"
-                      className="chat-list-remove absolute right-1 flex size-7 items-center justify-center rounded-ctl text-faint opacity-0 hover:bg-red/10 hover:text-red focus-visible:opacity-100 group-hover/row:opacity-100"
+                    <IconButton
+                      variant="quiet"
+                      className="chat-list-remove absolute right-1 opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
                       title="Delete this chat"
                       aria-label={`Delete ${c.title}`}
                       onClick={() => void remove(c)}
                     >
                       <Icon name="trash-2" size={14} />
-                    </button>
+                    </IconButton>
                   </div>
                 ))}
               </div>

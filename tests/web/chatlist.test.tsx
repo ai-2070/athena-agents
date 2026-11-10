@@ -82,6 +82,14 @@ describe('the earlier chats beside the tasks', () => {
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('puts the open one first and the rest newest first, whatever order they came in', async () => {
+    // (an agent's chats come newest first, so the open one can be in the middle)
+    draw({ items: [item('a', 'Ten o’clock', { updatedAt: now - 1000 }), item('b', 'Nine o’clock', { open: true, updatedAt: now - 3000 }), item('c', 'Eight o’clock', { updatedAt: now - 5000 })] });
+    await openList();
+    expect([...document.querySelectorAll('.chat-list [role="group"]')].map((g) => g.getAttribute('aria-label'))).toEqual(['Open now', 'Today']);
+    expect([...document.querySelectorAll('.chat-list-row .truncate')].map((t) => t.textContent)).toEqual(['Nine o’clock', 'Ten o’clock', 'Eight o’clock']);
+  });
+
   it('opens below the Tasks row, and only one of the two is open at a time', async () => {
     draw({ items: [item('now', 'Open', { open: true })] });
     const tasks = [...document.querySelectorAll<HTMLButtonElement>('.task-panel button')].find((b) => b.textContent?.includes('Tasks'))!;

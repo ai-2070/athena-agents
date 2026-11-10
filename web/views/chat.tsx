@@ -1,7 +1,7 @@
 // Chat with one agent: the agent and its chats on the left; the conversation itself is the AI SDK chat
 // (web/chat): streaming answers, tool calls you can open, images, file previews, COMPACTED marks.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { attempt, navigate, ago, confirmBox, promptBox, dayOf, ENGINE_LABEL } from '../core.ts';
+import { attempt, navigate, ago, confirmBox, promptBox, dayGroups, ENGINE_LABEL } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
 import { openMemory } from '../memory.tsx';
@@ -144,12 +144,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
   // empty chats aren't listed (the open one is, so you can see where you are)
   const listed = chats.filter((c) => c.count > 0 || c.id === chat.id);
   const shown = q ? listed.filter((c) => (c.title || 'Chat').toLowerCase().includes(q)) : listed;
-  const groups: { day: string; list: ChatSummary[] }[] = [];
-  for (const c of shown) {
-    const day = dayOf(c.updatedAt);
-    if (groups.at(-1)?.day === day) groups.at(-1)!.list.push(c);
-    else groups.push({ day, list: [c] });
-  }
+  const groups = dayGroups(shown);
   return (
     <div className="grid h-[calc(100vh-56px)] grid-rows-[minmax(0,1fr)] grid-cols-[280px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
       <aside className="flex min-h-0 flex-col border-r border-line bg-bg max-md:border-r-0 max-md:border-b">
@@ -274,9 +269,6 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
     </div>
   );
 }
-
-/** The heading a chat goes under in the list, by the day it was last used. */
-export { dayOf };
 
 export const flush = true;
 export const title = (): string => 'Chat';
