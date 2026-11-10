@@ -4,6 +4,14 @@ import { icon } from '../icons.ts';
 /** A name the box shows as a pill, with an icon before it if it has one (a team, a skill). */
 export type MentionTag = string | { tag: string; icon?: string };
 
+// A zero-width space kept beside a pill with no text next to it. Browsers can't put the caret in an empty text node
+// next to a part that can't be edited, so without it a caret after a pill at the end of the text lands before it.
+// It's never part of the text.
+const EDGE = '\u200B';
+const real = (text: string) => text.replaceAll(EDGE, '');
+const graphemes = (text: string) => [...new Intl.Segmenter().segment(text)].length;
+const isPill = (node: Node | null): node is HTMLElement => node instanceof HTMLElement && !!node.dataset.mention;
+
 export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => MentionTag[]): () => void {
   const wasFocused = document.activeElement === input;
   const editor = document.createElement('div');
@@ -27,7 +35,7 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
   let sel = { start: input.value.length, end: input.value.length };
   const plain = (node: Node): string => {
     if (node instanceof HTMLElement && node.dataset.mention) return node.dataset.mention;
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType === Node.TEXT_NODE) return real(node.textContent || '');
     if (node instanceof HTMLBRElement) return '\n';
     return [...node.childNodes].map((child, i) => `${i && child instanceof HTMLDivElement ? '\n' : ''}${plain(child)}`).join('');
   };
@@ -41,8 +49,25 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
     const start = plain(before.cloneContents()).length;
     sel = { start, end: start + plain(selected.cloneContents()).length };
   };
+  // gives every pill a caret spot on both sides; true when it had to add one
+  const edges = (): boolean => {
+    let added = false;
+    for (const pill of editor.querySelectorAll<HTMLElement>('[data-mention]')) {
+      for (const [side, put] of [[pill.previousSibling, (n: Text) => pill.before(n)], [pill.nextSibling, (n: Text) => pill.after(n)]] as const) {
+        if (side?.nodeType === Node.TEXT_NODE && side.textContent) continue;
+        if (side?.nodeType === Node.TEXT_NODE) side.textContent = EDGE;
+        else put(document.createTextNode(EDGE));
+        added = true;
+      }
+    }
+    return added;
+  };
   let syncing = false;
   const changed = () => {
+    remember();
+    // (an empty box shows its placeholder again)
+    if (!plain(editor)) editor.replaceChildren();
+    else if (edges() && document.activeElement === editor) place(sel.start, sel.end);
     value.set!.call(input, plain(editor));
     remember();
     syncing = true;
@@ -80,13 +105,25 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
       start = i + 1;
     }
     editor.append(document.createTextNode(text.slice(start)));
+    edges();
+  };
+  // where an offset in the text falls in a text node, after any zero-width spaces there
+  const within = (node: Node, offset: number): number => {
+    const data = node.textContent || '';
+    let seen = 0;
+    let i = 0;
+    while (i < data.length && (seen < offset || data[i] === EDGE)) {
+      if (data[i] !== EDGE) seen++;
+      i++;
+    }
+    return i;
   };
   const place = (start: number, end: number) => {
     const point = (offset: number): [Node, number] => {
       let remaining = offset;
       for (const child of editor.childNodes) {
         const length = plain(child).length;
-        if (child.nodeType === Node.TEXT_NODE && remaining <= length) return [child, remaining];
+        if (child.nodeType === Node.TEXT_NODE && remaining <= length) return [child, within(child, remaining)];
         if (child instanceof HTMLElement && child.dataset.mention && remaining < length) return [editor, [...editor.childNodes].indexOf(child)];
         remaining -= length;
       }
@@ -131,11 +168,40 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
     const offset = selection.anchorOffset;
     let next: Node | null;
     if (node.nodeType === Node.TEXT_NODE) {
-      if (back ? offset > 0 : offset < (node.textContent || '').length) return null;
+      const data = node.textContent || '';
+      if (real(back ? data.slice(0, offset) : data.slice(offset))) return null;
       next = back ? node.previousSibling : node.nextSibling;
     } else next = back ? node.childNodes[offset - 1] ?? null : node.childNodes[offset] ?? null;
-    while (next && next.nodeType === Node.TEXT_NODE && !next.textContent) next = back ? next.previousSibling : next.nextSibling;
-    return next instanceof HTMLElement && next.dataset.mention ? next : null;
+    while (next && next.nodeType === Node.TEXT_NODE && !real(next.textContent || '')) next = back ? next.previousSibling : next.nextSibling;
+    return isPill(next) ? next : null;
+  };
+  // Backspace or Delete that would empty the text beside a pill: the browser would drop that text node and the caret
+  // with it (before the pill), so the box leaves a zero-width space and keeps the caret where it was
+  const emptyBeside = (back: boolean): boolean => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !selection.isCollapsed) return false;
+    const node = selection.anchorNode;
+    if (!node || node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return false;
+    if (!isPill(node.previousSibling) && !isPill(node.nextSibling)) return false;
+    const data = node.textContent || '';
+    const offset = selection.anchorOffset;
+    const taken = real(back ? data.slice(0, offset) : data.slice(offset));
+    const kept = real(back ? data.slice(offset) : data.slice(0, offset));
+    if (kept || graphemes(taken) !== 1) return false;
+    node.textContent = EDGE;
+    selection.collapse(node, isPill(node.previousSibling) ? 1 : 0);
+    changed();
+    return true;
+  };
+  // arrows step over a zero-width space as if it weren't there
+  const skipEdge = (back: boolean) => {
+    const selection = window.getSelection();
+    const node = selection?.anchorNode;
+    if (!selection?.isCollapsed || !node || node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return;
+    const data = node.textContent || '';
+    let offset = selection.anchorOffset;
+    while (back ? data[offset - 1] === EDGE : data[offset] === EDGE) offset += back ? -1 : 1;
+    if (offset !== selection.anchorOffset) selection.collapse(node, offset);
   };
   const removePill = (pill: HTMLElement) => {
     const before = document.createRange();
@@ -159,10 +225,16 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
       event.stopPropagation();
       return removePill(pill);
     }
+    if ((event.key === 'Backspace' || event.key === 'Delete') && !event.isComposing && !event.altKey && !event.ctrlKey && !event.metaKey && emptyBeside(event.key === 'Backspace')) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     remember();
     const forwarded = new KeyboardEvent('keydown', { key: event.key, code: event.code, shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, isComposing: event.isComposing, bubbles: true, cancelable: true });
     input.dispatchEvent(forwarded);
     if (forwarded.defaultPrevented) event.preventDefault();
+    else if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) skipEdge(event.key === 'ArrowLeft');
     // a new line as text, not the <div> the browser would add (a box that sends on Enter has taken it already)
     else if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); insertText('\n'); }
     event.stopPropagation();

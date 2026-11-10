@@ -70,6 +70,36 @@ describe('inline mention editor', () => {
     expect(other.input.value).toBe('Hi  there');
   });
 
+  it('keeps the caret after a pill when Backspace takes the space after it, so the next Backspace takes the pill', () => {
+    const key = (editor: HTMLElement, k: string) => {
+      const e = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true });
+      editor.dispatchEvent(e);
+      return e;
+    };
+    // as after picking @Ana from the menu: a space after it, the caret after the space
+    const { input, editor } = open('Ask @Ana ');
+    input.focus();
+    input.setSelectionRange(9, 9);
+    expect(key(editor, 'Backspace').defaultPrevented).toBe(true);
+    expect(input.value).toBe('Ask @Ana');
+    expect(input.selectionStart).toBe(8);
+    const caret = window.getSelection()!;
+    expect(caret.anchorNode?.previousSibling).toBe(editor.querySelector('[data-mention="@Ana"]'));
+    key(editor, 'Backspace');
+    expect(input.value).toBe('Ask ');
+    expect(editor.querySelector('[data-mention]')).toBeNull();
+  });
+
+  it('gives a pill at the end a place for the caret, which is never part of the text', () => {
+    const { input, editor } = open('Ask @Ana');
+    expect(editor.lastChild?.textContent).toBe('​');
+    expect(input.value).toBe('Ask @Ana');
+    input.focus();
+    input.setSelectionRange(8, 8);
+    expect(window.getSelection()!.anchorNode).toBe(editor.lastChild);
+    expect(input.selectionStart).toBe(8);
+  });
+
   it('tracks the caret and replaces a suggestion in the middle of a message', () => {
     const { input, editor } = open('Ask @An tomorrow');
     input.focus();
