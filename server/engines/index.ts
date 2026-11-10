@@ -17,6 +17,7 @@ import * as hermes from './hermes.ts';
 import * as codex from './codex.ts';
 import * as openclaw from './openclaw.ts';
 import { pi, omp } from './pi.ts';
+import { opencode } from './opencode.ts';
 import * as contextInfo from '../context.ts';
 import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { keepToolImages } from '../toolimages.ts';
@@ -193,7 +194,7 @@ export interface AskAgentOptions {
   reservedRunId?: string;
 }
 
-const ENGINES = { 'claude-code': claude, eve, hermes, codex, pi, omp, openclaw } satisfies { [K in EngineId]: Engine<EngineStatus[K]> };
+const ENGINES = { 'claude-code': claude, eve, hermes, codex, pi, omp, openclaw, opencode } satisfies { [K in EngineId]: Engine<EngineStatus[K]> };
 export const ENGINE_LIST: EngineInfo[] = [
   { id: 'claude-code', label: 'Claude Code', description: 'The Claude Code CLI on this PC: its own coding, files, web search and your claude.ai connectors, plus the dashboard tools. Signs in with your Claude login, an Anthropic key, or OpenRouter.' },
   { id: 'eve', label: 'Eve', description: 'Eve, the built-in agent, on any OpenRouter or Venice model, or a model on this PC (LM Studio, Ollama) or another OpenAI-compatible server. Uses the dashboard tools and MCP servers directly.' },
@@ -202,6 +203,7 @@ export const ENGINE_LIST: EngineInfo[] = [
   { id: 'pi', label: 'pi', description: 'The pi coding agent on this PC: coding, shell and files on any model pi is signed in to. Runs its tools without asking.' },
   { id: 'omp', label: 'oh-my-pi', description: 'oh-my-pi (omp) on this PC: pi with more tools (LSP, Python, web search, subagents). Runs its tools without asking.' },
   { id: 'openclaw', label: 'OpenClaw', description: 'One of your OpenClaw agents, with its own memory, skills, channels and tools.' },
+  { id: 'opencode', label: 'opencode', description: 'The opencode agent on this PC: coding, shell and files on its free models or any provider you signed in to, plus the dashboard tools. Asks before risky steps unless the agent runs on Full.' },
 ];
 
 const active = new Map<string, RunEntry>(); // runId -> { abort, agentId, chatId, chat, depth, parentRunId }
@@ -1335,6 +1337,7 @@ export function engineStatus(): EngineStatus {
     pi: pi.status(),
     omp: omp.status(),
     openclaw: openclaw.status(),
+    opencode: opencode.status(),
   };
 }
 

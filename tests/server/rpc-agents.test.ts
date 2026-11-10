@@ -29,7 +29,7 @@ const make = async (fields: Record<string, unknown> = {}) => (await send('POST',
 describe('agents over oRPC', () => {
   it('refuse a field of the wrong kind in plain words, and leave the agent as it was', async () => {
     const a = await make();
-    expect(await send('PUT', `/api/agents/${a.id}`, { engine: 'gpt-9' })).toEqual({ status: 400, json: { error: 'Choose an engine: claude-code, eve, hermes, codex, pi, omp or openclaw.' } });
+    expect(await send('PUT', `/api/agents/${a.id}`, { engine: 'gpt-9' })).toEqual({ status: 400, json: { error: 'Choose an engine: claude-code, eve, hermes, codex, pi, omp, openclaw or opencode.' } });
     expect(await send('PUT', `/api/agents/${a.id}`, { autonomy: 'yolo' })).toEqual({ status: 400, json: { error: 'Choose how freely it works: ask, auto or full.' } });
     expect(await send('PUT', `/api/agents/${a.id}`, { temperature: 'hot' })).toEqual({ status: 400, json: { error: 'temperature must be a number, or empty for the default.' } });
     expect(await send('PUT', `/api/agents/${a.id}`, { toolGroups: 'files' })).toEqual({ status: 400, json: { error: 'toolGroups must be a list.' } });

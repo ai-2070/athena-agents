@@ -6,6 +6,7 @@ import * as engines from '../engines/index.ts';
 import * as codexEngine from '../engines/codex.ts';
 import * as piEngine from '../engines/pi.ts';
 import * as openclawEngine from '../engines/openclaw.ts';
+import * as opencodeEngine from '../engines/opencode.ts';
 import { CLAUDE_MODELS } from '../engines/claude.ts';
 import * as usage from '../status.ts';
 import * as codexLimits from '../codexlimits.ts';
@@ -108,6 +109,7 @@ export const statusRouter = os.router({
     if (engine === 'codex') return codexModelList();
     if (engine === 'pi' || engine === 'omp') return piEngine.listModels(engine).catch(() => []);
     if (engine === 'openclaw') return openclawEngine.listModels().catch(() => []);
+    if (engine === 'opencode') return opencodeEngine.listModels().catch(() => []);
     return listModels(provider || 'openrouter');
   }),
   providers: os.providers.handler(() => Object.entries(PROVIDERS).map(([id, p]) => ({ id, label: p.label }))),

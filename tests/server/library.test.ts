@@ -85,7 +85,7 @@ describe("Athena's agents", () => {
   const dir = path.join(ROOT, 'library', 'athena-agents');
   const groups = (JSON.parse(fs.readFileSync(path.join(dir, 'groups.json'), 'utf8')) as { groups: { id: string; label: string }[] }).groups;
   const KEYS = new Set(['name', 'description', 'emoji', 'color', 'specialty', 'group', 'tools', 'skills', 'engine', 'starter']);
-  const ENGINE_IDS: EngineId[] = ['claude-code', 'eve', 'hermes', 'codex', 'pi', 'omp', 'openclaw'];
+  const ENGINE_IDS: EngineId[] = ['claude-code', 'eve', 'hermes', 'codex', 'pi', 'omp', 'openclaw', 'opencode'];
   const files = groups.flatMap((g) => (fs.existsSync(path.join(dir, g.id)) ? fs.readdirSync(path.join(dir, g.id)).map((f) => ({ group: g.id, f, file: path.join(dir, g.id, f) })) : []));
 
   it('has a folder only for the groups groups.json names, and only agent files in them', () => {

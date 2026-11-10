@@ -9,7 +9,7 @@ const text = (field: string) => z.string({ error: `${field} must be text.` });
 const list = (field: string) => z.array(z.string(), { error: `${field} must be a list.` });
 const count = (field: string) => z.number({ error: `${field} must be a number.` });
 const yesNo = (field: string) => z.boolean({ error: `${field} must be on or off.` });
-const engine = z.enum(ENGINES, { error: 'Choose an engine: claude-code, eve, hermes, codex, pi, omp or openclaw.' });
+const engine = z.enum(ENGINES, { error: 'Choose an engine: claude-code, eve, hermes, codex, pi, omp, openclaw or opencode.' });
 
 /** A change to the settings: every field and every part of one can be left out (the rest stays as saved). */
 const settingsPatch = z.object({

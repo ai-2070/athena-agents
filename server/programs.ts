@@ -215,6 +215,7 @@ const CATALOG: CatalogEntry[] = [
   { id: 'pi', name: 'pi', category: 'ai', detect: () => ({ exe: which('pi') }), cli: true, actions: ['terminal'] },
   { id: 'omp', name: 'oh-my-pi', category: 'ai', detect: () => ({ exe: which('omp') }), cli: true, actions: ['terminal'] },
   { id: 'openclaw', name: 'OpenClaw', category: 'ai', detect: () => ({ exe: which('openclaw') }), cli: true, actions: ['terminal'] },
+  { id: 'opencode', name: 'opencode', category: 'ai', detect: () => ({ exe: which('opencode') }), cli: true, actions: ['terminal'] },
   {
     id: 'orca',
     name: 'Orca',

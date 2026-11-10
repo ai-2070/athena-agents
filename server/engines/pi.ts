@@ -11,7 +11,7 @@ import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, HOME, da
 import { emit, internalToken, log } from '../store.ts';
 import { toolDefs, workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
-import { cliStatus, openInputs, pipeLines, tail, SessionGone } from './cli.ts';
+import { cliStatus, olderThan, openInputs, pipeLines, tail, SessionGone } from './cli.ts';
 import { splitContent } from '../toolimages.ts';
 import { withAttachments } from '../uploads.ts';
 import type { ChildProcess } from 'node:child_process';
@@ -217,18 +217,12 @@ export const SETTLE_WAIT = { ms: 30_000 };
 /** oh-my-pi said background work it started (a job, a task) may wake it again: how long that may take. */
 export const BACKGROUND_WAIT = { ms: 10 * 60_000 };
 
+// (its tests and older callers find it here)
+export { olderThan };
+
 /** Its version (Settings shows the same): only older pi needs telling apart. */
 export const versionOf = { get: (flavor: PiFlavor): string | null => status(flavor).version };
 
-/** Is version a older than b? (Plain numbers: 0.99.0, 1.5.0; anything else isn't older.) */
-export function olderThan(a: string | null, b: string): boolean {
-  const nums = (v: string) => v.replace(/^v/, '').split(/[.-]/).slice(0, 3).map((n) => Number.parseInt(n, 10));
-  const x = a ? nums(a) : [];
-  if (x.length < 3 || x.some((n) => Number.isNaN(n))) return false;
-  const y = nums(b);
-  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i]! < y[i]!;
-  return false;
-}
 /** The fields of their RPC frames (responses, oh-my-pi's prompt_result) and run events used here. */
 interface RpcFrame {
   command?: string;

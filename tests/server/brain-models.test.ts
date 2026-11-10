@@ -61,11 +61,11 @@ describe('providers and model lists', () => {
     expect(providerOfAgent({ engine: 'eve', provider: 'ollama' })).toBe('ollama');
     expect(providerOfAgent({ engine: 'claude-code', provider: 'openrouter' })).toBe('claude');
     expect(modelProvider('oh-my-pi')).toBe('omp');
-    for (const e of ['pi', 'omp', 'openclaw'] as const) expect(providerOfAgent({ engine: e, provider: 'openrouter' })).toBe(e);
+    for (const e of ['pi', 'omp', 'openclaw', 'opencode'] as const) expect(providerOfAgent({ engine: e, provider: 'openrouter' })).toBe(e);
   });
 
-  it('pi, oh-my-pi and OpenClaw take any model id, or none (their own default)', async () => {
-    for (const p of ['pi', 'omp', 'openclaw'] as const) {
+  it('pi, oh-my-pi, OpenClaw and opencode take any model id, or none (their own default)', async () => {
+    for (const p of ['pi', 'omp', 'openclaw', 'opencode'] as const) {
       expect(await checkModel(p, '')).toBeNull();
       expect(await checkModel(p, 'anthropic/claude-sonnet-5-5')).toBeNull();
     }

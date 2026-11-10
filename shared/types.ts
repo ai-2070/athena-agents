@@ -9,7 +9,7 @@ export type { Effort } from './effort.ts';
  *  (server/uistream.ts), read by the chat views with the AI SDK (web/chat/transport.ts). */
 export type UIStream = AsyncIteratorObject<UIMessageChunk, unknown, void>;
 
-export type EngineId = 'claude-code' | 'eve' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw';
+export type EngineId = 'claude-code' | 'eve' | 'hermes' | 'codex' | 'pi' | 'omp' | 'openclaw' | 'opencode';
 export type Autonomy = 'ask' | 'auto' | 'full';
 export type ProviderId = 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom';
 
@@ -1727,6 +1727,8 @@ export interface EngineStatus {
   pi: { installed: boolean; path: string | null; version: string | null };
   omp: { installed: boolean; path: string | null; version: string | null };
   openclaw: { installed: boolean; path: string | null; version: string | null };
+  /** tooOld: opencode 1.x, which agents can't run on */
+  opencode: { installed: boolean; path: string | null; version: string | null; tooOld: boolean };
 }
 
 export interface EngineInfo {

@@ -8,7 +8,7 @@ import { message } from './message.ts';
 import type { Agent, AgentDetail, Autonomy, BrainBrief, Chat, ChatSummary, EngineId, HarnessCommand, LoopInfo, QueuedMessage, UIStream } from '../types.ts';
 
 // (Records, so a new engine, autonomy or effort can't be left out here)
-export const ENGINES = { 'claude-code': 'claude-code', eve: 'eve', hermes: 'hermes', codex: 'codex', pi: 'pi', omp: 'omp', openclaw: 'openclaw' } as const satisfies Record<EngineId, EngineId>;
+export const ENGINES = { 'claude-code': 'claude-code', eve: 'eve', hermes: 'hermes', codex: 'codex', pi: 'pi', omp: 'omp', openclaw: 'openclaw', opencode: 'opencode' } as const satisfies Record<EngineId, EngineId>;
 export const AUTONOMY = { ask: 'ask', auto: 'auto', full: 'full' } as const satisfies Record<Autonomy, Autonomy>;
 export const EFFORT = { '': '', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' } as const satisfies Record<Effort | '', Effort | ''>;
 
@@ -23,7 +23,7 @@ const agentFields = {
   specialty: words('specialty'),
   description: words('description'),
   systemPrompt: words('systemPrompt'),
-  engine: z.enum(ENGINES, { error: 'Choose an engine: claude-code, eve, hermes, codex, pi, omp or openclaw.' }).optional(),
+  engine: z.enum(ENGINES, { error: 'Choose an engine: claude-code, eve, hermes, codex, pi, omp, openclaw or opencode.' }).optional(),
   model: words('model'),
   provider: words('provider'),
   claudeAuth: words('claudeAuth'),

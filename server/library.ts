@@ -123,7 +123,7 @@ export function newAgent(fields: Partial<Agent> = {}): Agent {
 }
 
 // (a Record, so a new engine can't be left out)
-const ENGINE_IDS: Record<EngineId, true> = { 'claude-code': true, eve: true, hermes: true, codex: true, pi: true, omp: true, openclaw: true };
+const ENGINE_IDS: Record<EngineId, true> = { 'claude-code': true, eve: true, hermes: true, codex: true, pi: true, omp: true, openclaw: true, opencode: true };
 const isEngineId = (e: string): e is EngineId => Object.hasOwn(ENGINE_IDS, e);
 
 // The agent gets a copy of the file's text, its tools and engine, and the skills it names that are in your skill

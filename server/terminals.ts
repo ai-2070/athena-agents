@@ -10,6 +10,7 @@ import { hermesArgs } from './engines/hermes.ts';
 import { codexLaunch, terminalPromptFile } from './engines/codex.ts';
 import { terminalArgs as piTerminalArgs, bridgeEnv } from './engines/pi.ts';
 import { openclawTerminalArgs } from './engines/openclaw.ts';
+import { terminalLaunch as opencodeTerminal } from './engines/opencode.ts';
 import { buildSystemPrompt } from './engines/index.ts';
 import { workspaceOf } from './tools.ts';
 
@@ -76,7 +77,12 @@ export function createTerminal({ kind = 'shell', agent = null, command = null, a
     } else if (agent.engine === 'openclaw') {
       cmd = 'openclaw';
       argv = openclawTerminalArgs(agent);
-    } else throw new Error('API-model agents chat in the dashboard; open a terminal for a Claude Code, Codex, Hermes, pi, oh-my-pi or OpenClaw agent.');
+    } else if (agent.engine === 'opencode') {
+      cmd = 'opencode';
+      const launch = opencodeTerminal(agent, buildSystemPrompt(agent));
+      argv = launch.args;
+      env = launch.env;
+    } else throw new Error('API-model agents chat in the dashboard; open a terminal for a Claude Code, Codex, Hermes, pi, oh-my-pi, OpenClaw or opencode agent.');
     name ||= `${agent.emoji || ''} ${agent.name}`.trim();
   } else if (kind === 'command' && command) {
     cmd = command;
