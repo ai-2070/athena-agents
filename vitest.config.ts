@@ -7,7 +7,7 @@ const workers = process.env.CI ? 2 : 4;
 
 export default defineConfig({
   test: {
-    globalSetup: ['tests/eve-build.ts'],
+    globalSetup: ['tests/eve-build.ts', 'tests/lock-ports.ts'],
     projects: [
       {
         test: {

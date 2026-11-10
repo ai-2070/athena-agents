@@ -3,10 +3,17 @@
 // a ready-made server, and the programs and ComfyUI answering when nothing is installed.
 import http from 'node:http';
 import type net from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { handleRpc } from '../../server/rpc.ts';
 import { internalToken } from '../../server/store.ts';
 import type { McpOverview, McpServerConfig } from '../../shared/types.ts';
+
+// (Hermes and OpenClaw installed on this computer would be asked for their profiles and agents: seconds each, and
+// past the time limit while other test runs share the computer)
+vi.mock('../../server/util.ts', async (orig) => {
+  const real = await orig<typeof import('../../server/util.ts')>();
+  return { ...real, which: (cmd: string) => (cmd === 'hermes' || cmd === 'openclaw' ? null : real.which(cmd)) };
+});
 
 let base = '';
 const server = http.createServer(async (req, res) => {

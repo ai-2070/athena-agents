@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll } from 'vitest';
+import { afterAll, inject } from 'vitest';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-test-'));
 process.env.DASH_DATA = path.join(dir, 'data');
@@ -15,11 +15,15 @@ process.env.HOME = home;
 process.env.USERPROFILE = home;
 // pi prefers this over the home folder: an inherited one would let pi's tests write your real mcp.json
 process.env.PI_CODING_AGENT_DIR = path.join(home, '.pi', 'agent');
-// lock ports (server/ownershipport.ts): a block of 1024 for this test worker, handed out one key at a time, so two
-// folders never meet on one port; the processes a test starts inherit it and find the same ports
+// lock ports (server/ownershipport.ts): a block for this test worker within this run's share (tests/lock-ports.ts),
+// handed out one key at a time, so two folders never meet on one port, not even another run's; the processes a test
+// starts inherit it and find the same ports. (The busiest file takes under a hundred.)
 const { OWNERSHIP_PORT_FIRST, OWNERSHIP_PORT_COUNT } = await import('../../server/ownershipport.ts');
+const { RUN_SLOTS, SLOT_WORKERS } = await import('../lock-ports.ts');
 const pool = Number(process.env.VITEST_POOL_ID) || 1;
-process.env.DASH_TEST_LOCK_PORTS = JSON.stringify({ dir: path.join(dir, 'lock-ports'), first: OWNERSHIP_PORT_FIRST + ((pool - 1) % (OWNERSHIP_PORT_COUNT / 1024)) * 1024, count: 1024 });
+const count = OWNERSHIP_PORT_COUNT / RUN_SLOTS / SLOT_WORKERS;
+const block = inject('lockSlot') * SLOT_WORKERS + ((pool - 1) % SLOT_WORKERS);
+process.env.DASH_TEST_LOCK_PORTS = JSON.stringify({ dir: path.join(dir, 'lock-ports'), first: OWNERSHIP_PORT_FIRST + block * count, count });
 if (os.homedir() !== home) throw new Error(`Tests could not use a throwaway home folder (got ${os.homedir()}); stopping so your real files stay untouched.`);
 // and the dashboard really uses the throwaway data folder
 const { dataPath } = await import('../../server/util.ts');

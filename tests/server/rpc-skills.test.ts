@@ -10,6 +10,13 @@ import * as presets from '../../server/presets.ts';
 import { agents } from '../../server/store.ts';
 import type { Agent, AgentPreset, LibraryIndex, Skill, VersionHistory } from '../../shared/types.ts';
 
+// (Hermes and OpenClaw installed on this computer would be asked for their profiles and agents: seconds each, and
+// past the time limit while other test runs share the computer)
+vi.mock('../../server/util.ts', async (orig) => {
+  const real = await orig<typeof import('../../server/util.ts')>();
+  return { ...real, which: (cmd: string) => (cmd === 'hermes' || cmd === 'openclaw' ? null : real.which(cmd)) };
+});
+
 let base = '';
 const server = http.createServer(async (req, res) => {
   if (!(await handleRpc(req, res, '/api'))) res.writeHead(404).end();
