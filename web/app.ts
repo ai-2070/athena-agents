@@ -71,9 +71,9 @@ interface NavLink extends Route {
 // The menu stays short. Other pages still open from links (branch editor, terminals, home).
 const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
-  { path: 'overview', label: 'Overview', ico: 'layout-grid', view: overviewView },
   { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => (state.data?.outboxPending || 0) + (state.data?.questions?.length || 0) },
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
+  { path: 'overview', label: 'Overview', ico: 'layout-grid', view: overviewView },
   { path: 'tasks', label: 'Tasks', ico: 'kanban', view: tasksView },
   // how many agents this project has
   { path: 'agents', label: 'Agents', ico: 'bot', view: agents, count: () => state.data?.agents?.length || 0 },
