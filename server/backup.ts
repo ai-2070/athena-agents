@@ -25,6 +25,7 @@ import { savedOpacity } from '../shared/look.ts';
 import { restoredTasks } from './tasks.ts';
 import { restoredBoard } from './taskboard.ts';
 import { taskFilePath } from './boardfiles.ts';
+import { PAST_NAME, packPast, unpackPast } from './pastchats.ts';
 import type { Agent, BackupListing, BackupRestoreResult, BackupResult, BackupSummary, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
 
 export type { BackupListing } from '../shared/types.ts';
@@ -104,6 +105,8 @@ export interface BackupData {
   /** the Tasks board */
   board?: unknown;
   teamChats: { name: string; data: unknown }[];
+  /** The Brain's and the teams' past conversations (pastchats.ts). Older backups: none. */
+  pastChats?: { name: string; data: unknown }[];
   chats: { agentId: string; chat: Chat }[];
   knowledge: PackedFile[];
   /** MEMORY.md files (see MEMORY_PATH). Older backups: empty. */
@@ -346,6 +349,7 @@ export function packProject(p: Project): BackupData {
     tasks: readPlain<unknown>(projectDir(id, 'tasks.json'), { tasks: [] }),
     board: readPlain<unknown>(projectDir(id, 'board.json'), { tasks: [] }),
     teamChats: jsonFiles(projectDir(id, 'teamchats')).map((name) => ({ name, data: readJSON<unknown>(projectDir(id, 'teamchats', name)) })).filter((x) => x.data != null),
+    pastChats: packPast(id),
     chats,
     knowledge,
     memory,
@@ -546,6 +550,7 @@ export function decodeBackup(buf: Buffer): BackupData {
     tasks: restoredTasks(b.tasks),
     board: restoredBoard(b.board),
     teamChats: arr<BackupData['teamChats'][number]>(b.teamChats).filter((c) => c && typeof c.name === 'string' && /^[\w.-]+\.json$/.test(c.name) && c.data != null),
+    pastChats: arr<{ name: string; data: unknown }>(b.pastChats).filter((c) => c && typeof c.name === 'string' && PAST_NAME.test(c.name) && c.data != null),
     chats: arr<BackupData['chats'][number]>(b.chats).filter((c) => c && typeof c.agentId === 'string' && CHAT_ID_RE.test(c.agentId) && c.chat && typeof c.chat.id === 'string' && CHAT_ID_RE.test(c.chat.id) && Array.isArray(c.chat.items)),
     knowledge: files(b.knowledge),
     memory: files(b.memory).filter((f) => isMemoryOwner(MEMORY_PATH.exec(f.path)?.[1])),
@@ -801,6 +806,7 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   // the board's files back into the uploads folder, where its tasks say they are (never over a file already there)
   for (const f of b.taskFiles || []) writePacked(path.join(newBrain, 'uploads'), f, { overwrite: false });
   for (const c of b.teamChats) writeJSON(projectDir(id, 'teamchats', c.name), c.data);
+  unpackPast(id, b.pastChats || []);
   // chats go back under the agent and id they were saved as (whatever the chat itself claims)
   const agentIds = new Set(b.agents.map((a) => a.id));
   let chats = 0;

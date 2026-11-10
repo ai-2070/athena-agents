@@ -1272,6 +1272,18 @@ export interface ChatSummary {
   conversationId?: string;
 }
 
+/** A conversation of the Brain or of a team, as their list of chats shows it. open: the one shown now (New chat
+ *  files it away with the others, and opening another swaps them). */
+export interface ThreadSummary {
+  id: string;
+  title: string;
+  /** how many messages it has */
+  count: number;
+  createdAt: number;
+  updatedAt: number;
+  open: boolean;
+}
+
 // ---------- runs and live events ----------
 export type RunEvent =
   | { kind: 'start'; text: string; from?: string | null; attachments?: string[] }

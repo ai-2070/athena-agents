@@ -6,7 +6,7 @@ import * as commands from '../commands.ts';
 import { pickMember } from '../brain.ts';
 import { openGoal } from '../briefs.ts';
 import { cleanAttachments } from '../uploads.ts';
-import { refuse } from './refuse.ts';
+import { refuse, refusing } from './refuse.ts';
 
 const os = implement(contract);
 
@@ -40,6 +40,13 @@ export const teamsRouter = os.router({
   }),
   clear: os.clear.handler(({ input }) => {
     teams.clearThread(teamOf(input.id));
+    return { ok: true as const };
+  }),
+  threads: os.threads.handler(({ input }) => teams.teamThreads(teamOf(input.id))),
+  newThread: os.newThread.handler(({ input }) => teams.newTeamThread(teamOf(input.id))),
+  openThread: os.openThread.handler(({ input }) => refusing(() => teams.openTeamThread(teamOf(input.id), input.chatId), 404)),
+  removeThread: os.removeThread.handler(({ input }) => {
+    refusing(() => teams.removeTeamThread(teamOf(input.id), input.chatId), 404);
     return { ok: true as const };
   }),
 });

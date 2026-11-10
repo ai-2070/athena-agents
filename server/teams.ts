@@ -10,6 +10,8 @@
 import { BUILD_ORDER, DIORAMA } from './voxel/diorama.ts';
 import { workflows as teamStore, agents, chats, emit, log, activeProject, openProject, getSettings, withProject, listProjects } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath, settledWithin } from './util.ts';
+import { OPEN_THREAD, allPast, byRecent, dropPast, filePast, newThreadId, readPast, summarize } from './pastchats.ts';
+import type { ThreadMeta, ThreadOwner } from './pastchats.ts';
 import { askAgent, hasBackgroundWork, joinChatTurn, missedMessages, nativeRunPromise, runInfo, stopChat, stopChildren, forgetChat, isStopping, RunStopped } from './engines/index.ts';
 import { readRun as readEveRun } from './eve/state.ts';
 import { readExecution } from './execution.ts';
@@ -19,7 +21,7 @@ import { attachmentNames, cleanAttachments } from './uploads.ts';
 import { soleHolder, servicesOf } from './services.ts';
 import { teamMessage } from './teamcontext.ts';
 import { clearWork, openBrief, stopTeamWork } from './briefs.ts';
-import type { Agent, LoopInfo, QueuedMessage, SavedTeamAssignment, SavedTeamInput, SavedTeamRelay, Team, TeamMessage, TeamRef, TeamRelay, TeamState } from '../shared/types.ts';
+import type { Agent, LoopInfo, QueuedMessage, SavedTeamAssignment, SavedTeamInput, SavedTeamRelay, Team, TeamMessage, TeamRef, TeamRelay, TeamState, ThreadSummary } from '../shared/types.ts';
 import type { LoopRequest } from '../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../shared/queue.ts';
 import { privateTeamDefinition, privateTeamRecord, privateTeams } from './private-conversations.ts';
@@ -35,8 +37,9 @@ const ANSWER_CHARS = 8000; // of a team's answer, passed back to the team that a
 /** Who the Brain is in a thread (TeamMessage.from, and in TeamState.working while it answers). */
 export const BRAIN = 'brain';
 
-/** The team chat file: the shared thread, each agent's own chat session, and how far each agent has read. */
-interface TeamChat {
+/** The team chat file: the shared thread, each agent's own chat session, and how far each agent has read.
+ *  id and createdAt: which conversation it is, in the team's list of chats (pastchats.ts). */
+interface TeamChat extends ThreadMeta {
   messages: TeamMessage[];
   sessions: Record<string, string>; // agentId -> chatId
   seen: Record<string, number>; // agentId -> messages.length when it last read
@@ -152,6 +155,8 @@ function loadChat(teamId: string, pid?: string): TeamChat {
   return readJSON<TeamChat>(chatFile(teamId, pid), { messages: [], sessions: {}, seen: {} });
 }
 function saveChat(teamId: string, c: TeamChat, pid?: string) {
+  // (a conversation gets its id once something is said in it)
+  if (!c.id && c.messages.length) Object.assign(c, { id: newThreadId(), createdAt: c.createdAt || c.messages[0].ts });
   writeJSON(chatFile(teamId, pid), c);
 }
 
@@ -887,7 +892,8 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
   if (isStopping()) return;
   if (r.stopped || r.epoch !== epoch) {
     // stopped or cleared meanwhile: if cleared, don't let this turn bring the agent's session back
-    if (loadChat(team.id, pid).sessions[agent.id] !== chatId) chats.remove(agent.id, chatId);
+    // (a conversation filed away by New chat keeps its sessions, for when it is opened again)
+    if (loadChat(team.id, pid).sessions[agent.id] !== chatId && !filedSession(team.id, agent.id, chatId, pid)) chats.remove(agent.id, chatId);
     return;
   }
   // your messages sent into its turn that it ended before reading leave that turn, so it doesn't show them as
@@ -1267,10 +1273,11 @@ export function stopTeam(teamId: string) {
   return true;
 }
 
-export function clearThread(teamId: string) {
-  if (!getTeam(teamId)) throw new Error('No such team.');
+/** Ends the work going on in a team's thread before it is emptied or swapped for another conversation, so nothing
+ *  late lands in the next one. */
+function endThreadWork(teamId: string): void {
   clearWork('team', teamId);
-  // drop queued work and turns still running, so nothing late lands in the empty thread
+  // drop queued work and turns still running
   const r = runtime(teamId);
   r.epoch++;
   r.queue = [];
@@ -1289,11 +1296,87 @@ export function clearThread(teamId: string) {
   r.episode = { turns: 0 };
   stopChildren(teamRunId(teamId));
   dropRelays(teamId, { cleared: true });
-  const c = loadChat(teamId);
-  writeJSON(chatFile(teamId), { messages: [], sessions: {}, seen: {} });
-  for (const [agentId, chatId] of Object.entries(c.sessions || {})) {
+}
+// the agents' sessions for a conversation that is gone: they forget it
+function dropSessions(sessions: Record<string, string> | undefined): void {
+  for (const [agentId, chatId] of Object.entries(sessions || {})) {
     forgetChat(chatId);
     chats.remove(agentId, chatId);
   }
+}
+
+export function clearThread(teamId: string) {
+  if (!getTeam(teamId)) throw new Error('No such team.');
+  endThreadWork(teamId);
+  const c = loadChat(teamId);
+  writeJSON(chatFile(teamId), { messages: [], sessions: {}, seen: {} });
+  dropSessions(c.sessions);
   emit('team', { teamId, event: { kind: 'cleared' } });
+}
+
+// ---------- the team's other conversations ----------
+// New chat files the thread away (pastchats.ts) with the agents' sessions for it, so they still remember it when
+// it is opened again; opening a past one swaps the two. Work going on in the open thread stops either way.
+const threadsOf = (teamId: string): ThreadOwner => ({ kind: 'team', id: teamId });
+const yours = (m: TeamMessage) => (m.from === 'user' ? m.text : null);
+/** The thread is no longer open: an agent's session belongs to one of the team's past conversations. */
+function filedSession(teamId: string, agentId: string, chatId: string, pid: string): boolean {
+  return allPast<TeamChat>(threadsOf(teamId), pid).some((t) => t.sessions?.[agentId] === chatId);
+}
+// the open thread goes with the others (an empty one is just dropped, with any sessions it had)
+function fileOpenThread(teamId: string, c: TeamChat): void {
+  if (c.messages.length) filePast(threadsOf(teamId), { ...c, updatedAt: c.messages.at(-1)?.ts || Date.now() });
+  else dropSessions(c.sessions);
+}
+function checkTeam(teamId: string): void {
+  if (!getTeam(teamId)) throw new Error('No such team.');
+}
+
+/** The team's conversations: the open one first, then the past ones newest first. */
+export function teamThreads(teamId: string): ThreadSummary[] {
+  checkTeam(teamId);
+  const open = loadChat(teamId);
+  const past = allPast<TeamChat>(threadsOf(teamId)).filter((t) => Array.isArray(t.messages)).map((t) => summarize(t, t.messages, yours, false));
+  return byRecent([summarize({ ...open, id: open.id || OPEN_THREAD }, open.messages, yours, true), ...past]);
+}
+
+/** New chat: the thread is kept with the others, and the team starts on an empty one. */
+export function newTeamThread(teamId: string): { id: string } {
+  checkTeam(teamId);
+  const c = loadChat(teamId);
+  // (already a new one: nothing to file away)
+  if (!c.messages.length && c.id) return { id: c.id };
+  endThreadWork(teamId);
+  fileOpenThread(teamId, c);
+  const id = newThreadId();
+  writeJSON(chatFile(teamId), { id, createdAt: Date.now(), messages: [], sessions: {}, seen: {} });
+  emit('team', { teamId, event: { kind: 'cleared' } });
+  return { id };
+}
+
+/** Opens a past conversation: the thread open now takes its place among the others. */
+export function openTeamThread(teamId: string, id: string): { id: string } {
+  checkTeam(teamId);
+  const c = loadChat(teamId);
+  if (id === OPEN_THREAD || id === c.id) return { id: c.id || OPEN_THREAD };
+  const past = readPast<TeamChat>(threadsOf(teamId), id);
+  if (!past || !Array.isArray(past.messages)) throw new Error('That chat is no longer there.');
+  endThreadWork(teamId);
+  fileOpenThread(teamId, c);
+  const { updatedAt: _left, ...thread } = past;
+  writeJSON(chatFile(teamId), { ...thread, id, sessions: past.sessions || {}, seen: past.seen || {} });
+  dropPast(threadsOf(teamId), id);
+  emit('team', { teamId, event: { kind: 'thread', id } });
+  return { id };
+}
+
+/** Deletes a conversation, and the agents forget it. The open one is emptied (as /clear does). */
+export function removeTeamThread(teamId: string, id: string): void {
+  checkTeam(teamId);
+  const c = loadChat(teamId);
+  if (id === OPEN_THREAD || id === c.id) return clearThread(teamId);
+  const past = readPast<TeamChat>(threadsOf(teamId), id);
+  if (!past || !dropPast(threadsOf(teamId), id)) throw new Error('That chat is no longer there.');
+  dropSessions(past.sessions);
+  emit('team', { teamId, event: { kind: 'threads' } });
 }

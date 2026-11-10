@@ -19,6 +19,7 @@ import { getWorld, worldDir, WORLD_ID } from './voxel/store.ts';
 import { setLink, usedBy } from './voxel/link.ts';
 import { WORLD_MD_MAX } from './voxel/worldmd.ts';
 import { rebase } from './backup.ts';
+import { PAST_DIR } from './pastchats.ts';
 import { restoredTasks } from './tasks.ts';
 import { restoredBoard } from './taskboard.ts';
 import type { Agent, Chat, Project, ProjectPeek, RestoreResult, Routine, SavedProjectSettings, SaveStatus, Team, VoxelWorld } from '../shared/types.ts';
@@ -190,6 +191,8 @@ export function saveProject(id: string): SaveStatus | null {
     });
     // team chat threads and the files you gave agents as knowledge (mirrored: what's deleted here goes there too)
     copyTree(projectDir(id, 'teamchats'), path.join(out, 'teamchats'), Infinity, { base: out, mirror: true });
+    // the Brain's and the teams' past conversations (pastchats.ts)
+    copyTree(projectDir(id, PAST_DIR), path.join(out, PAST_DIR), CHATS_CAP, { base: out, mirror: true });
     // agent chats: chats/<agent id>/<chat id>.json, the visible history plus the engine's memory (sessionId, llm)
     copyTree(projectDir(id, 'chats'), path.join(out, 'chats'), CHATS_CAP, { base: out, mirror: true });
     copyTree(projectDir(id, 'knowledge'), path.join(out, 'knowledge'), KNOWLEDGE_CAP, { base: out, mirror: true });
@@ -296,6 +299,8 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   }
   const marks = savedPath(folder, 'team-marks');
   if (marks) copyTree(marks, projectDir(id, 'team-marks'), MARKS_CAP * 2);
+  const past = savedPath(folder, PAST_DIR);
+  if (past) copyTree(past, projectDir(id, PAST_DIR), CHATS_CAP);
   restoreMemory(folder, id);
   const chatCount = restoreChats(folder, id, (j.agents || []).filter(safe).map((a) => a.id as string));
   const versionCount = restoreVersions(folder, id, move);

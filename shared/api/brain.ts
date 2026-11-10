@@ -5,13 +5,16 @@
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
 import { message } from './message.ts';
-import type { BrainAnswer, BrainChatMessage, BrainInfo, BrainPulse, UIStream } from '../types.ts';
+import type { BrainAnswer, BrainChatMessage, BrainInfo, BrainPulse, ThreadSummary, UIStream } from '../types.ts';
 
 /** The agent chats and teams the Brain chat shows working. A list of the wrong kind is none: /stop always stops. */
 const work = z.object({
   chats: z.array(z.object({ agentId: z.string(), chatId: z.string() })).catch([]).optional(),
   teams: z.array(z.string()).catch([]).optional(),
 });
+
+/** One of the Brain chat's conversations. */
+const oneThread = z.object({ chatId: z.string({ error: 'Say which chat.' }) });
 
 /** What you ask it, and from which project (none: the open one). */
 const question = z.object({
@@ -47,6 +50,14 @@ export const brain = {
   resume: oc.route({ method: 'POST', path: '/brain/resume' }).input(work).output(type<{ resumed: string[]; chats: string[]; teams: string[] }>()),
   history: oc.route({ method: 'GET', path: '/brain/history' }).output(type<BrainChatMessage[]>()),
   clear: oc.route({ method: 'POST', path: '/brain/clear' }).output(type<{ ok: true }>()),
+  /** The Brain chat's conversations: the open one first, then the past ones, newest first. */
+  threads: oc.route({ method: 'GET', path: '/brain/chats' }).output(type<ThreadSummary[]>()),
+  /** New chat: the open conversation is kept with the others, and an empty one opens. */
+  newThread: oc.route({ method: 'POST', path: '/brain/chats' }).output(type<{ id: string }>()),
+  /** Opens a past conversation in the Brain chat. */
+  openThread: oc.route({ method: 'POST', path: '/brain/chats/{chatId}/open' }).input(oneThread).output(type<{ id: string }>()),
+  /** Deletes a conversation (the open one is emptied). */
+  removeThread: oc.route({ method: 'DELETE', path: '/brain/chats/{chatId}' }).input(oneThread).output(type<{ ok: true }>()),
   /** What it is told about the project before it answers. */
   snapshot: oc.route({ method: 'GET', path: '/brain/snapshot' }).output(type<{ text: string }>()),
   /** The project at a glance: agents and teams, how many work, and what waits for you. */

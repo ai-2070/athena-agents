@@ -1,7 +1,7 @@
 // Chat with one agent: the agent and its chats on the left; the conversation itself is the AI SDK chat
 // (web/chat): streaming answers, tool calls you can open, images, file previews, COMPACTED marks.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { attempt, navigate, ago, confirmBox, promptBox, ENGINE_LABEL } from '../core.ts';
+import { attempt, navigate, ago, confirmBox, promptBox, dayOf, ENGINE_LABEL } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
 import { openMemory } from '../memory.tsx';
@@ -276,11 +276,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
 }
 
 /** The heading a chat goes under in the list, by the day it was last used. */
-export function dayOf(t: number, now = Date.now()): string {
-  const start = (x: number) => new Date(x).setHours(0, 0, 0, 0);
-  const days = Math.round((start(now) - start(t)) / 86_400_000);
-  return days <= 0 ? 'Today' : days === 1 ? 'Yesterday' : days < 7 ? 'This week' : days < 31 ? 'This month' : 'Older';
-}
+export { dayOf };
 
 export const flush = true;
 export const title = (): string => 'Chat';

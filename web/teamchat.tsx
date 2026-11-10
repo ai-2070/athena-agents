@@ -29,7 +29,8 @@ import { commandChips, slashMenu } from './chatcommands.ts';
 import type { SlashMenu } from './chatcommands.ts';
 import { Avatar, DomNode, Icon, IconWeightProvider, mountReact, useAppState } from './ui/react.tsx';
 import { Dot } from './ui/marks.tsx';
-import { Button } from './ui/button.tsx';
+import { Button, IconButton } from './ui/button.tsx';
+import { ChatList } from './chatlist.tsx';
 import type { Agent, BrainBrief, LoopInfo, QueuedMessage, RunEvent, Team, TeamMessage, TeamRef, TeamState } from '../shared/types.ts';
 
 // A working agent's turn (and the work behind a reply): the AI SDK pieces load when first needed.
@@ -41,7 +42,10 @@ export type TeamEvent =
   | ({ kind: 'state' } & TeamState)
   | { kind: 'routed'; to: string[]; why: string }
   | { kind: 'turn'; agentId: string; state: 'start' | 'end'; chatId?: string }
-  | { kind: 'cleared' };
+  | { kind: 'cleared' }
+  /** another of its conversations is open now (it is loaded again), or one was deleted from its list */
+  | { kind: 'thread'; id: string }
+  | { kind: 'threads' };
 /** GET /api/teams/:id/chat */
 export interface TeamChatResponse extends TeamState {
   team: Team;
@@ -163,11 +167,13 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
           Object.assign(c, { working: e.working, queued: e.queued, held: e.held || [], loop: e.loop || null });
           early.state ||= early.loading;
         }
-        if (e.kind === 'cleared') {
-          // (the agents' sessions are gone with it)
-          Object.assign(c, { messages: [], sessions: {}, working: [], held: [], loop: null, turning: new Set() });
+        if (e.kind === 'cleared' || e.kind === 'thread') {
+          // (the agents' sessions are gone with it, or are the other conversation's)
+          Object.assign(c, { messages: [], sessions: {}, working: [], held: [], loop: null, goal: null, activity: {}, turning: new Set() });
           early.cleared ||= early.loading;
         }
+        // (the conversation opened instead: what it holds comes with a fresh look)
+        if (e.kind === 'thread') load(false);
         if (e.kind === 'turn' && e.state === 'start') {
           if (e.chatId) c.sessions = { ...c.sessions, [e.agentId]: e.chatId };
           c.turning = new Set(c.turning).add(e.agentId);
@@ -612,6 +618,18 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     if (!(await confirmBox('Clear this team chat? Each agent also forgets the conversation.', { ok: 'Clear', danger: true }))) return false;
     return (await attempt(() => rpcAt(at).teams.clear({ id: teamId }))) !== undefined;
   };
+  // New chat and the earlier ones: the server keeps the thread with the others ('cleared' or 'thread' comes back).
+  // Work going on in it stops, so that is asked first.
+  const leaveWork = async (what: string) => !busy.length || (await confirmBox(`The team is working. ${what} stops its work.`, { ok: 'Stop and switch' }));
+  const newThread = async () => {
+    if (!(await leaveWork('Starting a new chat'))) return;
+    if (await attempt(() => rpcAt(at).teams.newThread({ id: teamId }))) input.current?.focus();
+  };
+  const openThread = async (chatId: string) => {
+    if (!(await leaveWork('Opening another chat'))) return;
+    await attempt(() => rpcAt(at).teams.openThread({ id: teamId, chatId }));
+  };
+  const removeThread = async (c: { id: string }) => (await attempt(() => rpcAt(at).teams.removeThread({ id: teamId, chatId: c.id }))) !== undefined;
   const held = (q: QueuedMessage | undefined) => {
     if (q && !store.current.held.some((x) => x.id === q.id)) {
       store.current.held = [...store.current.held, q];
@@ -835,7 +853,18 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
   return (
     <div className={fill ? 'flex flex-col gap-2 h-full' : 'flex flex-col gap-2'} ref={root}>
       {find}
-      <TaskPanel view={`team:${teamId}`} scope={{ kind: 'team', id: teamId }} projectId={projectId} />
+      {/* the tasks, and beside them the team's earlier chats and New chat */}
+      <div className="flex items-start gap-1">
+        <div className="min-w-0 flex-1">
+          <TaskPanel view={`team:${teamId}`} scope={{ kind: 'team', id: teamId }} projectId={projectId} />
+        </div>
+        <div className="flex flex-none items-center gap-0.5 pt-1">
+          <ChatList load={() => rpcAt(at).teams.threads({ id: teamId })} onOpen={(c) => void openThread(c.id)} onRemove={removeThread} removeNote="Each agent also forgets it." size={15} />
+          <IconButton variant="plain" title="New chat (this one is kept in the list of earlier chats)" aria-label="New chat" onClick={() => void newThread()}>
+            <Icon name="square-pen" size={15} />
+          </IconButton>
+        </div>
+      </div>
       <div
         // (in a scrolling column, an item must keep its height: never squeezed by the list's;
         // -mt-2 takes back the column's gap: the tasks bar has room under it already)

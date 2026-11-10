@@ -23,6 +23,8 @@ import type { BrainVerdict } from './approvals.ts';
 import { think, brainModel, parseJSON } from './brain.ts';
 import type { ThinkPart } from './brain.ts';
 import { readJSON, writeJSON, run, dataPath, exists, insideRoots } from './util.ts';
+import { OPEN_THREAD, allPast, byRecent, dropPast, filePast, newThreadId, readPast, summarize } from './pastchats.ts';
+import type { ThreadMeta, ThreadOwner } from './pastchats.ts';
 import { describeAttachmentsRead, attachmentNames } from './uploads.ts';
 import { listRoutines, saveRoutine, deleteRoutine, getRoutine, startRoutine, routineTargets, runningRoutineRuns, stopRoutineRun } from './routines.ts';
 import { listSkills, getSkill, findSkill, saveSkill, deleteSkillEverywhere, brainSkills, brainSkillSlugs, setBrainSkills } from './skills.ts';
@@ -49,7 +51,7 @@ import { readWorldMd, writeWorldMd, writeWorldMdSection } from './voxel/worldmd.
 import { worldText } from './voxel/describe.ts';
 import { setEffect, setEnvironment, setLight } from './voxel/scene.ts';
 import { playAnimation, setAnimation, setSkin } from './voxel/characters.ts';
-import type { Agent, Approval, BrainAnswer, BrainChatMessage, BrainDelegate, BrainDone, BrainPulse, BrainStep, Project, Routine, Team } from '../shared/types.ts';
+import type { Agent, Approval, BrainAnswer, BrainChatMessage, BrainDelegate, BrainDone, BrainPulse, BrainStep, Project, Routine, Team, ThreadSummary } from '../shared/types.ts';
 
 export type { BrainChatMessage } from '../shared/types.ts';
 
@@ -494,7 +496,11 @@ export function history(pid?: string, conversationId?: string): BrainChatMessage
   return saved?.messages || [];
 }
 function remember(msgs: BrainChatMessage[], pid?: string, conversationId?: string) {
-  writeJSON(histFile(pid, conversationId), { messages: msgs.slice(-HISTORY_KEEP) });
+  const file = histFile(pid, conversationId);
+  // (the Brain chat's conversation keeps its id and when it started, for its list of chats: pastchats.ts)
+  const was = conversationId === undefined ? readJSON<ThreadMeta>(file) : null;
+  const meta = conversationId === undefined && (was?.id || msgs.length) ? { id: was?.id || newThreadId(), createdAt: was?.createdAt || msgs[0]?.ts || Date.now() } : {};
+  writeJSON(file, { ...meta, messages: msgs.slice(-HISTORY_KEEP) });
   emit('brain-chat', { projectId: pid || activeProject().id, ...(conversationId ? { conversationId } : {}) });
 }
 // Bumped each time a project's Brain chat is cleared, so an answer still on its way can tell
@@ -532,6 +538,63 @@ export function clearHistory(pid = activeProject().id, conversationId?: string) 
 // A message from the Brain nobody asked for (what it learned from finished work), on top of the chat.
 export function addBrainNote(pid: string, text: string, done: BrainDone[] = [], conversationId?: string) {
   remember([...history(pid, conversationId), { role: 'brain', text, ts: Date.now(), ...(done.length ? { done } : {}) }], pid, conversationId);
+}
+
+// ---------- the Brain chat's other conversations ----------
+// New chat files the open conversation away (pastchats.ts) and starts an empty one; opening a past one swaps the two.
+// (Only the Brain chat's: a gateway's private conversations are one each.)
+type BrainThread = ThreadMeta & { messages: BrainChatMessage[] };
+const BRAIN_THREADS: ThreadOwner = { kind: 'brain' };
+function openThread(pid: string): BrainThread {
+  const t = readJSON<BrainThread>(histFile(pid));
+  return t && Array.isArray(t.messages) ? t : { messages: [] };
+}
+const yours = (m: BrainChatMessage) => (m.role === 'user' ? m.text : null);
+/** The Brain chat's conversations: the open one first, then the past ones newest first. */
+export function brainThreads(pid = activeProject().id): ThreadSummary[] {
+  const open = openThread(pid);
+  const past = allPast<BrainThread>(BRAIN_THREADS, pid).filter((t) => Array.isArray(t.messages)).map((t) => summarize(t, t.messages, yours, false));
+  return byRecent([summarize({ ...open, id: open.id || OPEN_THREAD }, open.messages, yours, true), ...past]);
+}
+// the open conversation goes with the others (an empty one is just dropped)
+function fileOpenThread(pid: string): void {
+  const open = openThread(pid);
+  if (open.messages.length) filePast(BRAIN_THREADS, { ...open, updatedAt: open.messages.at(-1)?.ts || Date.now() }, pid);
+}
+// another conversation is the open one now: an answer still on its way belongs to the one left, and isn't saved into this one
+function showThread(pid: string, thread: BrainThread): void {
+  const key = brainKey(pid);
+  generations.set(key, generation(key) + 1);
+  writeJSON(histFile(pid), thread);
+  emit('brain-chat', { projectId: pid, thread: thread.id });
+}
+/** New chat: the open conversation is kept with the others, and the Brain starts on an empty one. */
+export function newBrainThread(pid = activeProject().id): { id: string } {
+  const open = openThread(pid);
+  // (already a new one: nothing to file away)
+  if (!open.messages.length && open.id) return { id: open.id };
+  fileOpenThread(pid);
+  const id = newThreadId();
+  showThread(pid, { id, createdAt: Date.now(), messages: [] });
+  return { id };
+}
+/** Opens a past conversation: the one open now takes its place among the others. */
+export function openBrainThread(id: string, pid = activeProject().id): { id: string } {
+  const open = openThread(pid);
+  if (id === OPEN_THREAD || id === open.id) return { id: open.id || OPEN_THREAD };
+  const past = readPast<BrainThread>(BRAIN_THREADS, id, pid);
+  if (!past || !Array.isArray(past.messages)) throw new Error('That chat is no longer there.');
+  fileOpenThread(pid);
+  showThread(pid, { id, createdAt: past.createdAt || past.messages[0]?.ts || Date.now(), messages: past.messages });
+  dropPast(BRAIN_THREADS, id, pid);
+  return { id };
+}
+/** Deletes a conversation. The open one is emptied (as /clear did), and the Brain starts fresh. */
+export function removeBrainThread(id: string, pid = activeProject().id): void {
+  const open = openThread(pid);
+  if (id === OPEN_THREAD || id === open.id) return clearHistory(pid);
+  if (!dropPast(BRAIN_THREADS, id, pid)) throw new Error('That chat is no longer there.');
+  emit('brain-chat', { projectId: pid });
 }
 
 const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);

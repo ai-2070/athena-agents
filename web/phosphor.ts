@@ -50,6 +50,7 @@ import { CheckIcon } from '@phosphor-icons/react/dist/csr/Check';
 import { CheckCircleIcon } from '@phosphor-icons/react/dist/csr/CheckCircle';
 import { ClockIcon } from '@phosphor-icons/react/dist/csr/Clock';
 import { ClockCounterClockwiseIcon } from '@phosphor-icons/react/dist/csr/ClockCounterClockwise';
+import { NotePencilIcon } from '@phosphor-icons/react/dist/csr/NotePencil';
 import { CodeIcon } from '@phosphor-icons/react/dist/csr/Code';
 import { ColumnsIcon } from '@phosphor-icons/react/dist/csr/Columns';
 import { CompassToolIcon } from '@phosphor-icons/react/dist/csr/CompassTool';
@@ -274,6 +275,8 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   upload: UploadSimpleIcon,
   archive: ArchiveIcon,
   history: ClockCounterClockwiseIcon,
+  // a new chat
+  'square-pen': NotePencilIcon,
   'archive-restore': TrayArrowUpIcon,
   star: StarIcon,
   gauge: GaugeIcon,

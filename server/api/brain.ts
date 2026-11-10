@@ -9,6 +9,7 @@ import { brainSkillSlugs, setBrainSkills } from '../skills.ts';
 import { openWithShell } from '../util.ts';
 import { streamBrain } from '../uistream.ts';
 import { saidSomething } from './said.ts';
+import { refusing } from './refuse.ts';
 
 const os = implement(contract);
 
@@ -41,6 +42,10 @@ export const brainRouter = os.router({
   resume: os.resume.handler(({ input }) => commands.resumeBrain(input)),
   history: os.history.handler(() => overseer.history()),
   clear: os.clear.handler(() => (overseer.clearHistory(), { ok: true as const })),
+  threads: os.threads.handler(() => overseer.brainThreads()),
+  newThread: os.newThread.handler(() => overseer.newBrainThread()),
+  openThread: os.openThread.handler(({ input }) => refusing(() => overseer.openBrainThread(input.chatId), 404)),
+  removeThread: os.removeThread.handler(({ input }) => (refusing(() => overseer.removeBrainThread(input.chatId), 404), { ok: true as const })),
   snapshot: os.snapshot.handler(async () => ({ text: await overseer.snapshot() })),
   pulse: os.pulse.handler(() => overseer.pulse()),
   skills: os.skills.handler(() => ({ skills: brainSkillSlugs() })),
