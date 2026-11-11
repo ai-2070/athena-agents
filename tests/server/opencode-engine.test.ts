@@ -383,6 +383,36 @@ describe('a run', () => {
     expect(chat.sessionId).toBe('ses_old');
   });
 
+  it('on opencode’s default model, the effort still picks its variant', async () => {
+    fake.onPrompt = plainTurn;
+    const chat = chatOf();
+    const r = await oc.opencode.run(argsOf(coder({ effort: 'high' }), chat, []));
+    expect(callsTo(/^\/api\/session$/)[0]!.body!.model).toEqual({ providerID: 'openrouter', id: 'deepseek/flash', variant: 'high' });
+    expect(r.window).toBe(200000);
+  });
+
+  it('on opencode’s default model with no effort, a new session is left to follow its default', async () => {
+    fake.onPrompt = plainTurn;
+    await oc.opencode.run(argsOf(coder(), chatOf(), []));
+    expect(callsTo(/^\/api\/session$/)[0]!.body).not.toHaveProperty('model');
+  });
+
+  it('a session goes back to opencode’s default when the agent’s model is cleared', async () => {
+    fake.sessions.set('ses_old', { model: { providerID: 'opencode', id: 'big-pickle' } });
+    fake.onPrompt = plainTurn;
+    await oc.opencode.run(argsOf(coder(), chatOf('ses_old'), []));
+    expect(callsTo(/^\/api\/session\/[^/]+\/model$/)[0]!.body).toEqual({ model: { providerID: 'openrouter', id: 'deepseek/flash' } });
+  });
+
+  it('a session leaves its variant when the agent’s effort is cleared, and stays put when nothing changed', async () => {
+    fake.sessions.set('ses_old', { model: { providerID: 'openrouter', id: 'deepseek/flash', variant: 'high' } });
+    fake.onPrompt = plainTurn;
+    await oc.opencode.run(argsOf(coder({ model: 'openrouter/deepseek/flash', effort: 'high' }), chatOf('ses_old'), []));
+    expect(callsTo(/^\/api\/session\/[^/]+\/model$/)).toHaveLength(0);
+    await oc.opencode.run(argsOf(coder({ model: 'openrouter/deepseek/flash' }), chatOf('ses_old'), []));
+    expect(callsTo(/^\/api\/session\/[^/]+\/model$/)[0]!.body).toEqual({ model: { providerID: 'openrouter', id: 'deepseek/flash' } });
+  });
+
   it('a session opencode no longer has: the chat starts a new one with the chat so far', async () => {
     const chat = chatOf('ses_gone');
     const err = await oc.opencode.run(argsOf(coder(), chat, [])).catch((e: unknown) => e);

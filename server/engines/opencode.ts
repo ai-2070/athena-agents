@@ -524,19 +524,19 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
     // the chat's session: a new one under our own id, or the one it has (gone: a new one, with the chat so far)
     const want = agent.model ? modelRef(agent.model) : null;
     if (agent.model && !want) throw new Error(`"${agent.model}" isn't an opencode model: it is written provider/model, like openrouter/deepseek/deepseek-v4.1-flash.`);
-    let variant = '';
-    let window = 0;
-    if (want || agent.effort) {
-      const models = (await srv.call<ApiModel[]>('GET', '/api/model').catch(() => ({ status: 0, data: [] as ApiModel[] }))).data || [];
-      const fallback = want ? null : (await srv.call<ApiModel>('GET', '/api/model/default').catch(() => ({ status: 0, data: undefined }))).data;
-      const m = want ? models.find((x) => x.providerID === want.providerID && x.id === want.id) : fallback;
-      if (m) {
-        variant = variantFor(agent.effort, (m.variants || []).map((v) => v.id));
-        window = num(m.limit?.context);
-      }
-    }
-    const modelBody = want ? { ...want, ...(variant ? { variant } : {}) } : null;
+    // the model the session should be on: the agent's, or else opencode's default (asked for when there is an effort
+    // to give it, or a session to bring back to it), with the effort's variant
     let sessionId = chat.sessionId || '';
+    let target = want;
+    let m: ApiModel | undefined;
+    if (want) m = ((await srv.call<ApiModel[]>('GET', '/api/model').catch(() => ({ status: 0, data: [] as ApiModel[] }))).data || []).find((x) => x.providerID === want.providerID && x.id === want.id);
+    else if (agent.effort || sessionId) {
+      m = (await srv.call<ApiModel>('GET', '/api/model/default').catch(() => ({ status: 0, data: undefined }))).data;
+      if (m?.providerID && m.id) target = { providerID: m.providerID, id: m.id };
+    }
+    const variant = m ? variantFor(agent.effort, (m.variants || []).map((v) => v.id)) : '';
+    const window = num(m?.limit?.context);
+    const modelBody = target ? { ...target, ...(variant ? { variant } : {}) } : null;
     if (sessionId) {
       const s = /^ses/.test(sessionId) ? await srv.call<{ model?: { providerID?: string; id?: string; variant?: string } }>('GET', `/api/session/${encodeURIComponent(sessionId)}`).catch((e: unknown) => (e instanceof ApiError && (e.status === 404 || e.status === 400) ? null : Promise.reject(e))) : null;
       if (!s) {
@@ -544,12 +544,15 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
         chat.reseed = true;
         throw new SessionGone('Its opencode session is gone.');
       }
+      // (moved back too when the agent's model or effort was cleared)
       const has = s.data?.model;
-      if (modelBody && (has?.providerID !== modelBody.providerID || has?.id !== modelBody.id || (variant && has?.variant !== variant))) await srv.call('POST', `/api/session/${sessionId}/model`, { model: modelBody });
+      if (modelBody && (has?.providerID !== modelBody.providerID || has?.id !== modelBody.id || (has?.variant || '') !== variant)) await srv.call('POST', `/api/session/${sessionId}/model`, { model: modelBody });
     } else {
       sessionId = newId('ses');
       chat.sessionId = sessionId;
-      await srv.call('POST', '/api/session', { id: sessionId, agent: AGENT, location: { directory: workspace }, ...(modelBody ? { model: modelBody } : {}) });
+      // (on opencode's default without an effort, the session is left to follow its default)
+      const pin = want || variant ? modelBody : null;
+      await srv.call('POST', '/api/session', { id: sessionId, agent: AGENT, location: { directory: workspace }, ...(pin ? { model: pin } : {}) });
     }
 
     const reader = opencodeReader(onEvent);
