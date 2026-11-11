@@ -658,6 +658,25 @@ describe('a message sent while it works', () => {
     expect(events.some((e) => e.kind === 'steer')).toBe(false);
   });
 
+  it('Stop takes one it never read back out of its inbox too', async () => {
+    const runId = 'r-stop-unread';
+    let sid = '';
+    fake.onPrompt = (push, s) => {
+      sid = s;
+      push('session.execution.started', { sessionID: s });
+      push('session.text.delta', { sessionID: s, assistantMessageID: 'm1', ordinal: 0, delta: 'Working.' });
+    };
+    const ac = new AbortController();
+    const events: RunEvent[] = [];
+    const pending = oc.opencode.run({ ...argsOf(coder(), chatOf(), events, ac.signal), runId });
+    await wait(() => events.some((e) => e.kind === 'text'));
+    await oc.steer.send(runId, { id: 'st1', text: 'one more thing' });
+    ac.abort();
+    await expect(pending).rejects.toThrow('Stopped.');
+    const steered = callsTo(/\/prompt$/)[1]!.body!.id as string;
+    expect(callsTo(/\/inbox\//).map((c) => [c.method, c.route])).toEqual([['DELETE', `/api/session/${sid}/inbox/${steered}`]]);
+  });
+
   it('one it already took in as its turn ended: the turn it starts for it is followed to its end', async () => {
     fake.inboxDelete = 404;
     const runId = 'r-next';

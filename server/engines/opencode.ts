@@ -573,6 +573,18 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
       taking = false;
       intake.delete(runId);
     };
+    // the messages it hasn't read come back out of its inbox (the dashboard sends them next): false when one
+    // stays, because it had already taken it in
+    const takeBack = async (): Promise<boolean> => {
+      await Promise.allSettled([...sending]);
+      let all = true;
+      for (const key of [...unread.keys()]) {
+        const gone = await srv.call('DELETE', `/api/session/${sessionId}/inbox/${encodeURIComponent(key)}`).then(() => true, () => false);
+        if (gone) unread.delete(key);
+        else all = false;
+      }
+      return all;
+    };
     // (the server is closed only once these got there, or after a moment)
     let interrupting: Promise<unknown> = Promise.resolve();
     const onAbort = () => {
@@ -644,13 +656,7 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
         // its turn is over: no more messages go in. One it hasn't read yet comes back (it goes next, the
         // ordinary way), unless it already took it in: then the next turn it starts reads it, and we follow that.
         stopTaking();
-        await Promise.allSettled([...sending]);
-        let next = false;
-        for (const key of [...unread.keys()]) {
-          const gone = await srv.call('DELETE', `/api/session/${sessionId}/inbox/${encodeURIComponent(key)}`).then(() => true, () => false);
-          if (gone) unread.delete(key);
-          else next = true;
-        }
+        const next = !(await takeBack());
         // (this turn is over either way: if the next one never starts, the run ends with it)
         ended = true;
         if (!next) break;
@@ -680,6 +686,8 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
       signal.removeEventListener('abort', onAbort);
       stopTaking();
       await interrupting;
+      // (Stopped, or cut off: what it never read goes next, and must not wait in its inbox to be read twice)
+      if (unread.size) await takeBack();
     }
   } finally {
     stopStream.abort();
