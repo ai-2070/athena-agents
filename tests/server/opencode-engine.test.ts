@@ -30,9 +30,12 @@ interface Fake {
   onReply: (push: Push, sid: string, id: string) => void;
   /** what DELETE of an inbox entry answers */
   inboxDelete: number;
+  /** its stdin closed (it ends the polite way) */
   closed: number;
+  /** it was killed */
+  killed: number;
 }
-const fake: Fake = vi.hoisted(() => ({ calls: [], spawns: [], sessions: new Map(), models: [], onPrompt: () => {}, onSteer: () => {}, onReply: () => {}, inboxDelete: 204, closed: 0 }) as unknown as Fake);
+const fake: Fake = vi.hoisted(() => ({ calls: [], spawns: [], sessions: new Map(), models: [], onPrompt: () => {}, onSteer: () => {}, onReply: () => {}, inboxDelete: 204, closed: 0, killed: 0 }) as unknown as Fake);
 type Decision = { approved: boolean; always?: boolean; message?: string };
 type Asked = { title: string; detail?: string; data?: Record<string, unknown> };
 const approvals = vi.hoisted(() => ({
@@ -122,13 +125,24 @@ vi.mock('../../server/util.ts', async (orig) => {
       const briefFile = /\{file:([^}]+)\}/.exec(text)?.[1] || '';
       fake.spawns.push({ args, env, config: text, brief: briefFile ? fs.readFileSync(briefFile, 'utf8') : '' });
       const server = startFake(stdout);
-      stdin.resume();
-      stdin.on('finish', () => {
-        fake.closed++;
+      const end = () => {
         server.closeAllConnections();
         server.close();
         stdout.end();
         stderr.end();
+      };
+      // (killTree ends up in child.kill on every system here: the fake has no pid)
+      Object.assign(child, {
+        kill: () => {
+          fake.killed++;
+          end();
+          return true;
+        },
+      });
+      stdin.resume();
+      stdin.on('finish', () => {
+        fake.closed++;
+        end();
       });
       stdout.on('end', () => setImmediate(() => child.emit('close', 0)));
       return child;
@@ -231,6 +245,7 @@ beforeEach(() => {
   fake.onReply = () => {};
   fake.inboxDelete = 204;
   fake.closed = 0;
+  fake.killed = 0;
   approvals.requests = [];
   approvals.decide = () => ({ approved: true });
   approvals.waiting.clear();
@@ -458,6 +473,16 @@ describe('Stop', () => {
     await expect(pending).rejects.toThrow('Stopped.');
     expect(callsTo(/\/interrupt$/)).toHaveLength(1);
     await wait(() => fake.closed === 1);
+    // (asked to stop, not killed: the interrupt reached it and it saved the turn as stopped)
+    expect(fake.killed).toBe(0);
+  });
+
+  it('Stop while it starts: it is killed, and its turn never begins', async () => {
+    const ac = new AbortController();
+    ac.abort();
+    await expect(oc.opencode.run(argsOf(coder(), chatOf(), [], ac.signal))).rejects.toThrow('Stopped.');
+    expect(fake.killed).toBe(1);
+    expect(callsTo(/\/prompt$/)).toHaveLength(0);
   });
 });
 

@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { which, spawnCommand, killTree, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, dataPath, ensureDir } from '../util.ts';
+import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, dataPath, ensureDir } from '../util.ts';
 import { agents, internalToken, log } from '../store.ts';
 import { listServers } from '../mcp.ts';
 import { toolDefs, workspaceOf } from '../tools.ts';
@@ -205,29 +205,41 @@ export class ApiError extends Error {
   }
 }
 
+/** signal stops it only while it starts. After that close() ends it, so Stop can interrupt the turn first. */
 export async function startServer({ cwd, env, signal }: { cwd: string; env: NodeJS.ProcessEnv; signal: AbortSignal }): Promise<Server> {
   const password = crypto.randomBytes(24).toString('base64url');
   const child: ChildProcess = spawnCommand('opencode', ['serve', '--stdio', '--port', '0'], { cwd, env: { ...env, OPENCODE_PASSWORD: password }, stdio: ['pipe', 'pipe', 'pipe'] });
   let found: (url: string) => void = () => {};
   const at = new Promise<string>((resolve) => (found = resolve));
+  // (aborting this kills it: only on a failed start, or when it doesn't end after close())
+  const kill = new AbortController();
   const ended = pipeLines(child, {
     input: '',
     keepOpen: true,
-    signal,
+    signal: kill.signal,
     onLine: (line) => {
       const m = /^\{"url":"([^"]+)"\}$/.exec(line);
       if (m) found(m[1]!);
     },
   });
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let onStop = () => {};
   const url = await Promise.race([
     at,
     ended.then((e) => Promise.reject(new Error(`opencode's server stopped before it started (${e.code}).${tail(e.stderr)}`))),
     new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error('opencode\'s server did not start in time.')), START_WAIT.ms))),
+    new Promise<never>((_, reject) => {
+      onStop = () => reject(new Error('Stopped.'));
+      if (signal.aborted) onStop();
+      else signal.addEventListener('abort', onStop);
+    }),
   ]).catch((e: unknown) => {
-    killTree(child);
+    kill.abort();
     throw e;
-  }).finally(() => clearTimeout(timer));
+  }).finally(() => {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', onStop);
+  });
   const headers = { authorization: `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}`, 'content-type': 'application/json' };
   let closed = false;
   const server: Server = {
@@ -273,7 +285,7 @@ export async function startServer({ cwd, env, signal }: { cwd: string; env: Node
       if (closed) return;
       closed = true;
       child.stdin?.end();
-      const t = setTimeout(() => killTree(child), 5000);
+      const t = setTimeout(() => kill.abort(), 5000);
       t.unref?.();
       ended.then(() => clearTimeout(t));
     },
