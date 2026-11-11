@@ -254,6 +254,7 @@ beforeEach(() => {
   fake.inboxDelete = 204;
   fake.closed = 0;
   fake.killed = 0;
+  oc.forgetModels();
   approvals.requests = [];
   approvals.decide = () => ({ approved: true });
   approvals.waiting.clear();
@@ -710,5 +711,33 @@ describe('models', () => {
     const list = await oc.listModels();
     expect(list).toEqual([{ id: 'openrouter/deepseek/flash', name: 'DeepSeek Flash', context: 200000, variants: ['low', 'high', 'max'] }]);
     await wait(() => fake.closed === 1);
+  });
+
+  it('several asking at once start one server, and the list is kept', async () => {
+    const lists = await Promise.all([oc.listModels(), oc.listModels(), oc.listModels()]);
+    expect(lists.every((l) => l.length === 1)).toBe(true);
+    await oc.listModels();
+    expect(fake.spawns).toHaveLength(1);
+  });
+
+  it('an empty list is kept a short while too, not asked for on every look', async () => {
+    fake.models = [];
+    expect(await oc.listModels()).toEqual([]);
+    expect(await oc.listModels()).toEqual([]);
+    expect(fake.spawns).toHaveLength(1);
+  });
+
+  it('a run uses the kept list, and asks again only for a model it doesn’t have', async () => {
+    await oc.listModels();
+    fake.calls = [];
+    fake.onPrompt = plainTurn;
+    const r = await oc.opencode.run(argsOf(coder({ model: 'openrouter/deepseek/flash', effort: 'high' }), chatOf(), []));
+    expect(callsTo(/^\/api\/model$/)).toHaveLength(0);
+    expect(r.window).toBe(200000);
+    expect(callsTo(/^\/api\/session$/)[0]!.body!.model).toMatchObject({ variant: 'high' });
+    fake.models.push({ id: 'new-one', providerID: 'openrouter', name: 'New', enabled: true, variants: [{ id: 'max' }], limit: { context: 1000 } });
+    await oc.opencode.run(argsOf(coder({ model: 'openrouter/new-one', effort: 'max' }), chatOf(), []));
+    expect(callsTo(/^\/api\/model$/)).toHaveLength(1);
+    expect(callsTo(/^\/api\/session$/)[1]!.body!.model).toEqual({ providerID: 'openrouter', id: 'new-one', variant: 'max' });
   });
 });

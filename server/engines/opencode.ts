@@ -169,21 +169,37 @@ export interface OpencodeModel {
 }
 const toModel = (m: ApiModel): OpencodeModel => ({ id: `${m.providerID}/${m.id}`, name: m.name || m.id, ...(m.limit?.context ? { context: m.limit.context } : {}), variants: (m.variants || []).map((v) => v.id) });
 
+// The list is kept a minute (an empty one ten seconds: you may be signing in), and asked for once however many want it
 let modelCache: { at: number; list: OpencodeModel[] } = { at: 0, list: [] };
+let loading: Promise<OpencodeModel[]> | null = null;
+const cached = (): OpencodeModel[] | null => (modelCache.at && Date.now() - modelCache.at < (modelCache.list.length ? 60_000 : 10_000) ? modelCache.list : null);
+/** Forgets the list (tests). */
+export function forgetModels(): void {
+  modelCache = { at: 0, list: [] };
+}
+
+/** The models a server lists, kept for the next to ask. */
+async function modelsOf(server: Server): Promise<OpencodeModel[]> {
+  const r = await server.call<ApiModel[]>('GET', '/api/model');
+  const list = (r.data || []).filter((m) => m.enabled !== false).map(toModel);
+  modelCache = { at: Date.now(), list };
+  return list;
+}
+
 /** The models opencode can use (its free ones, and those of the providers it is signed in to). */
-export async function listModels(): Promise<OpencodeModel[]> {
-  if (Date.now() - modelCache.at < 60_000 && modelCache.list.length) return modelCache.list;
-  if (!which('opencode') || status().tooOld) return [];
-  const ac = new AbortController();
-  const server = await startServer({ cwd: ensureDir(dataPath('runtime')), env: process.env, signal: ac.signal });
-  try {
-    const r = await server.call<ApiModel[]>('GET', '/api/model');
-    const list = (r.data || []).filter((m) => m.enabled !== false).map(toModel);
-    if (list.length) modelCache = { at: Date.now(), list };
-    return list;
-  } finally {
-    server.close();
-  }
+export function listModels(): Promise<OpencodeModel[]> {
+  const have = cached();
+  if (have) return Promise.resolve(have);
+  if (!which('opencode') || status().tooOld) return Promise.resolve([]);
+  loading ??= (async () => {
+    const server = await startServer({ cwd: ensureDir(dataPath('runtime')), env: process.env, signal: new AbortController().signal });
+    try {
+      return await modelsOf(server);
+    } finally {
+      server.close();
+    }
+  })().finally(() => (loading = null));
+  return loading;
 }
 
 // ---------- its server ----------
@@ -528,14 +544,20 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
     // to give it, or a session to bring back to it), with the effort's variant
     let sessionId = chat.sessionId || '';
     let target = want;
-    let m: ApiModel | undefined;
-    if (want) m = ((await srv.call<ApiModel[]>('GET', '/api/model').catch(() => ({ status: 0, data: [] as ApiModel[] }))).data || []).find((x) => x.providerID === want.providerID && x.id === want.id);
-    else if (agent.effort || sessionId) {
-      m = (await srv.call<ApiModel>('GET', '/api/model/default').catch(() => ({ status: 0, data: undefined }))).data;
-      if (m?.providerID && m.id) target = { providerID: m.providerID, id: m.id };
+    let m: OpencodeModel | undefined;
+    if (want) {
+      // (the list kept from the model picker; asked for again when it doesn't have this one: it may be new)
+      const id = `${want.providerID}/${want.id}`;
+      m = cached()?.find((x) => x.id === id) || (await modelsOf(srv).catch(() => [])).find((x) => x.id === id);
+    } else if (agent.effort || sessionId) {
+      const d = (await srv.call<ApiModel>('GET', '/api/model/default').catch(() => ({ status: 0, data: undefined }))).data;
+      if (d?.providerID && d.id) {
+        target = { providerID: d.providerID, id: d.id };
+        m = toModel(d);
+      }
     }
-    const variant = m ? variantFor(agent.effort, (m.variants || []).map((v) => v.id)) : '';
-    const window = num(m?.limit?.context);
+    const variant = m ? variantFor(agent.effort, m.variants) : '';
+    const window = m?.context || 0;
     const modelBody = target ? { ...target, ...(variant ? { variant } : {}) } : null;
     if (sessionId) {
       const s = /^ses/.test(sessionId) ? await srv.call<{ model?: { providerID?: string; id?: string; variant?: string } }>('GET', `/api/session/${encodeURIComponent(sessionId)}`).catch((e: unknown) => (e instanceof ApiError && (e.status === 404 || e.status === 400) ? null : Promise.reject(e))) : null;
