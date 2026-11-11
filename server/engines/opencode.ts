@@ -10,7 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, dataPath, ensureDir } from '../util.ts';
 import { agents, internalToken, log } from '../store.ts';
-import { listServers } from '../mcp.ts';
+import { listServers, resolveCommand } from '../mcp.ts';
 import { toolDefs, workspaceOf } from '../tools.ts';
 import { knowledgeRoots } from '../knowledge.ts';
 import { safeUploadsRoot, withAttachments } from '../uploads.ts';
@@ -99,8 +99,11 @@ export function mcpServers(agent: Agent, runId = ''): Record<string, McpEntry> {
     // dashboard asks about those itself), so it goes by another name
     const key = /^dashboard_/i.test(name) ? `mcp-${name}` : name;
     if (out[key]) continue;
-    if (cfg.type === 'stdio') out[key] = { type: 'local', command: [cfg.command, ...(cfg.args || [])], ...(Object.keys(cfg.env || {}).length ? { environment: { ...cfg.env } } : {}) };
-    else if (cfg.url) out[key] = { type: 'remote', url: cfg.url, ...(Object.keys(cfg.headers || {}).length ? { headers: { ...cfg.headers } } : {}), oauth: false };
+    if (cfg.type === 'stdio') {
+      // (on Windows, npx and uvx are .cmd files it can't start directly)
+      const { command, args } = resolveCommand(cfg.command, cfg.args || []);
+      out[key] = { type: 'local', command: [command, ...args], ...(Object.keys(cfg.env || {}).length ? { environment: { ...cfg.env } } : {}) };
+    } else if (cfg.url) out[key] = { type: 'remote', url: cfg.url, ...(Object.keys(cfg.headers || {}).length ? { headers: { ...cfg.headers } } : {}), oauth: false };
   }
   return out;
 }

@@ -928,7 +928,7 @@ export function renameServer(from: string, to: string, cfg?: McpServerInput): st
 }
 
 // Windows can't spawn npx/uvx .cmd shims directly; resolve or wrap them.
-function resolveCommand(command: string, args: string[]): { command: string; args: string[] } {
+export function resolveCommand(command: string, args: string[]): { command: string; args: string[] } {
   if (!IS_WIN) return { command, args };
   const found = which(command);
   if (found && /\.exe$/i.test(found)) return { command: found, args };

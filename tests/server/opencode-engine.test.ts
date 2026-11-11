@@ -197,6 +197,7 @@ const { SessionGone } = await import('../../server/engines/cli.ts');
 const { newAgent } = await import('../../server/library.ts');
 const { agents } = await import('../../server/store.ts');
 const { safeUploadsRoot } = await import('../../server/uploads.ts');
+const { resolveCommand } = await import('../../server/mcp.ts');
 
 const chatOf = (sessionId: string | null = null) => ({ id: 'c1', items: [], sessionId }) as unknown as Chat;
 const argsOf = (agent: Agent, chat: Chat, events: RunEvent[], signal = new AbortController().signal) => ({
@@ -321,7 +322,11 @@ describe('the run config', () => {
     expect(Object.keys(s).sort()).toEqual(['dashboard', 'github', 'notes']);
     expect(s.dashboard).toMatchObject({ type: 'local', codemode: false, environment: { DASH_AGENT: a.id, DASH_RUN: 'r9' } });
     expect(s.dashboard!.environment).not.toHaveProperty('DASH_TOKEN');
-    expect(s.github).toEqual({ type: 'local', command: ['gh-mcp', 'serve'], environment: { GITHUB_TOKEN: 'secret-1' } });
+    // (started the way the dashboard starts it: on Windows a command without an .exe goes through cmd /c)
+    const gh = resolveCommand('gh-mcp', ['serve']);
+    expect(s.github).toEqual({ type: 'local', command: [gh.command, ...gh.args], environment: { GITHUB_TOKEN: 'secret-1' } });
+    if (process.platform === 'win32') expect(s.github!.command).toEqual([process.env.ComSpec || 'cmd.exe', '/c', 'gh-mcp', 'serve']);
+    else expect(s.github!.command).toEqual(['gh-mcp', 'serve']);
     expect(s.notes).toEqual({ type: 'remote', url: 'https://notes.example/mcp', headers: { Authorization: 'Bearer secret-2' }, oauth: false });
   });
   it('a server of yours named dashboard_… goes by another name, so the rule that allows the dashboard’s own tools misses it', () => {
