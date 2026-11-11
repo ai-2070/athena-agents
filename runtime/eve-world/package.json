@@ -6,6 +6,6 @@
   "exports": "./index.ts",
   "dependencies": {
     "@workflow/world": "5.1.0",
-    "@workflow/world-local": "5.2.0"
+    "@workflow/world-local": "5.2.1"
   }
 }
