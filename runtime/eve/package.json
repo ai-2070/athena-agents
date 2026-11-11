@@ -6,8 +6,8 @@
     "@athena/eve-world": "file:../eve-world",
     "@workflow/world-local": "5.2.0",
     "eve": "1.0.0-rc.2",
-    "ai": "7.0.164",
-    "@ai-sdk/openai-compatible": "3.0.86",
+    "ai": "7.0.165",
+    "@ai-sdk/openai-compatible": "3.0.87",
     "zod": "4.6.7",
     "just-bash": "3.6.0"
   }

@@ -62,8 +62,8 @@
     "bun": ">=1.4"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "3.0.86",
-    "@ai-sdk/react": "4.0.168",
+    "@ai-sdk/openai-compatible": "3.0.87",
+    "@ai-sdk/react": "4.0.169",
     "@athena/eve-world": "file:./runtime/eve-world",
     "@base-ui/react": "1.9.0",
     "@chat-adapter/discord": "4.44.0",
@@ -97,7 +97,7 @@
     "@workflow/world-local": "5.2.0",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
-    "ai": "7.0.164",
+    "ai": "7.0.165",
     "chat": "4.44.0",
     "dompurify": "3.4.17",
     "eve": "1.0.0-rc.2",
@@ -116,7 +116,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",
-    "@cloudflare/workers-types": "5.20261107.1",
+    "@cloudflare/workers-types": "5.20261108.1",
     "@tailwindcss/node": "4.3.5",
     "@tailwindcss/oxide": "4.3.5",
     "@tauri-apps/cli": "2.12.4",
