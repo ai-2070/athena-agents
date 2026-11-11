@@ -461,14 +461,14 @@ const VERBS: Record<string, string> = {
 };
 
 /** One of opencode's questions, to the dashboard's approvals (and the Brain). The answer goes back to it. */
-async function askPermission(agent: Agent, d: Record<string, unknown>, runId: string, reply: (decision: 'once' | 'reject', message?: string) => Promise<void>): Promise<void> {
+async function askPermission(agent: Agent, d: Record<string, unknown>, runId: string, reply: (decision: 'once' | 'reject', message?: string) => Promise<void>, helper = false): Promise<void> {
   const action = str(d.action) || 'tool';
   const key = `opencode:${action}`;
   if ((agents.get(agent.id)?.alwaysAllow || agent.alwaysAllow || []).includes(key)) return reply('once');
   const resources = Array.isArray(d.resources) ? d.resources.map(String) : [];
   const detail = [str(d.message), ...resources].filter(Boolean).join('\n') || action;
   const verb = VERBS[action] || (action.includes('_') ? `use ${action.replace('_', ' › ')}` : `use ${action}`);
-  const decision = await requestApproval({ kind: 'opencode', title: `${agent.name} wants to ${verb}`, detail: detail.slice(0, 4000), agentId: agent.id, agentName: agent.name, data: { tool: key, args: { action, resources }, runId, permission: str(d.id) } });
+  const decision = await requestApproval({ kind: 'opencode', title: `${agent.name}${helper ? "'s helper agent" : ''} wants to ${verb}`, detail: detail.slice(0, 4000), agentId: agent.id, agentName: agent.name, data: { tool: key, args: { action, resources }, runId, permission: str(d.id) } });
   if (decision.approved && decision.always) {
     const fresh = agents.get(agent.id);
     if (fresh) {
@@ -531,11 +531,13 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
     const sending = new Set<Promise<unknown>>();
     let taking = false;
     const post = (id: string, body: object) => srv.call('POST', `/api/session/${sessionId}/prompt`, { id, ...body });
+    // the chat's session and the helper agents it starts (each in a session of its own): their questions are ours too
+    const mine = new Set([sessionId]);
     // its questions we answered (the others it settled itself: refusing one refuses every question still open)
     const answered = new Set<string>();
-    const reply = (id: string) => (decision: 'once' | 'reject', message?: string) => {
+    const reply = (sid: string, id: string) => (decision: 'once' | 'reject', message?: string) => {
       answered.add(id);
-      return srv.call('POST', `/api/session/${sessionId}/permission/${encodeURIComponent(id)}/reply`, { decision, ...(message ? { message } : {}) }).then(() => undefined, () => undefined);
+      return srv.call('POST', `/api/session/${encodeURIComponent(sid)}/permission/${encodeURIComponent(id)}/reply`, { decision, ...(message ? { message } : {}) }).then(() => undefined, () => undefined);
     };
     const stopTaking = () => {
       taking = false;
@@ -543,7 +545,7 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
     };
     const onAbort = () => {
       stopTaking();
-      void srv.call('POST', `/api/session/${sessionId}/interrupt`).catch(() => {});
+      for (const sid of mine) void srv.call('POST', `/api/session/${encodeURIComponent(sid)}/interrupt`).catch(() => {});
       // (it may not say so: the stream ends after a moment either way)
       setTimeout(() => stopStream.abort(), 3000).unref?.();
     };
@@ -570,17 +572,24 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
       let waitingNext: ReturnType<typeof setTimeout> | undefined;
       for await (const ev of stream) {
         const d = ev.data;
-        if (d.sessionID !== undefined && d.sessionID !== sessionId) continue;
+        const sid = str(d.sessionID);
+        if (ev.type === 'session.created') {
+          const parent = str(d.parentID) || str((d.info as { parentID?: unknown } | undefined)?.parentID);
+          if (sid && mine.has(parent)) mine.add(sid);
+          continue;
+        }
         if (ev.type === 'permission.asked') {
-          void askPermission(agent, d, runId, reply(str(d.id))).catch((e: unknown) => log('opencode', `A permission question failed: ${(e as Error).message}`));
+          if (mine.has(sid)) void askPermission(agent, d, runId, reply(sid, str(d.id)), sid !== sessionId).catch((e: unknown) => log('opencode', `A permission question failed: ${(e as Error).message}`));
           continue;
         }
         // one it settled itself leaves Needs you
         if (ev.type === 'permission.replied') {
           const id = str(d.requestID);
-          if (id && !answered.has(id)) withdrawApprovals((item) => item.data?.runId === runId && item.data?.permission === id, 'opencode no longer needs an answer to this.');
+          if (mine.has(sid) && id && !answered.has(id)) withdrawApprovals((item) => item.data?.runId === runId && item.data?.permission === id, 'opencode no longer needs an answer to this.');
           continue;
         }
+        // the rest is the chat's own session (a helper's work shows as its tool call)
+        if (d.sessionID !== undefined && sid !== sessionId) continue;
         if (ev.type === 'session.inbox.delivered') {
           const m = unread.get(str(d.inboxID));
           if (m) {

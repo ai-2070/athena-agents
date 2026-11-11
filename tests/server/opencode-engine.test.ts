@@ -462,6 +462,39 @@ describe('its questions', () => {
     expect(callsTo(/permission\/per_cmd\/reply$/)[0]!.body).toEqual({ decision: 'reject', message: 'No commands.' });
   });
 
+  it('a helper agent’s questions come too, and the answer goes back to its session; another chat’s do not', async () => {
+    let main = '';
+    fake.onPrompt = (push, sid) => {
+      main = sid;
+      push('session.execution.started', { sessionID: sid });
+      push('session.created', { sessionID: 'ses_helper', parentID: sid, title: 'Look around' });
+      push('session.created', { sessionID: 'ses_helper2', parentID: 'ses_helper' });
+      push('permission.asked', { id: 'per_stranger', sessionID: 'ses_stranger', action: 'shell', resources: ['rm -rf /'] });
+      push('permission.asked', { id: 'per_h', sessionID: 'ses_helper2', action: 'shell', resources: ['ls'] });
+    };
+    fake.onReply = (push) => answered(push, main);
+    expect((await oc.opencode.run(argsOf(coder(), chatOf(), []))).text).toBe('Done.');
+    expect(approvals.requests).toHaveLength(1);
+    expect(approvals.requests[0]).toMatchObject({ title: 'Coder\'s helper agent wants to run a command', detail: 'ls' });
+    expect(callsTo(/\/permission\//).map((c) => c.route)).toEqual(['/api/session/ses_helper2/permission/per_h/reply']);
+  });
+
+  it('Stop interrupts its helper agents too', async () => {
+    fake.onPrompt = (push, sid) => {
+      push('session.execution.started', { sessionID: sid });
+      push('session.created', { sessionID: 'ses_helper', parentID: sid });
+      push('session.tool.input.started', { sessionID: sid, assistantMessageID: 'm', id: 'call_1', name: 'subagent' });
+      push('session.tool.called', { sessionID: sid, assistantMessageID: 'm', id: 'call_1', input: {} });
+    };
+    const ac = new AbortController();
+    const events: RunEvent[] = [];
+    const pending = oc.opencode.run(argsOf(coder(), chatOf(), events, ac.signal));
+    await wait(() => events.some((e) => e.kind === 'tool'));
+    ac.abort();
+    await expect(pending).rejects.toThrow('Stopped.');
+    expect(callsTo(/\/interrupt$/).map((c) => c.route)).toContain('/api/session/ses_helper/interrupt');
+  });
+
   it('always allow: the agent is not asked about that again', async () => {
     approvals.decide = () => ({ approved: true, always: true });
     fake.onPrompt = asking;
