@@ -275,8 +275,8 @@ export async function startServer({ cwd, env, signal }: { cwd: string; env: Node
             if (ev) yield ev;
           }
         }
-      } catch (e) {
-        if (!stop.aborted) throw e;
+      } catch {
+        // a dropped connection (it died, or let go of a slow reader) ends the stream: the run says what that means
       } finally {
         reader.releaseLock();
       }
@@ -590,7 +590,10 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
           }
           continue;
         }
-        if (ev.type === 'session.execution.started') clearTimeout(waitingNext);
+        if (ev.type === 'session.execution.started') {
+          clearTimeout(waitingNext);
+          ended = false;
+        }
         reader.handle(ev);
         if (!ENDS.has(ev.type)) continue;
         if (signal.aborted || ev.type === 'session.execution.interrupted') {
@@ -607,19 +610,20 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
           if (gone) unread.delete(key);
           else next = true;
         }
-        if (!next) {
-          ended = true;
-          break;
-        }
+        // (this turn is over either way: if the next one never starts, the run ends with it)
+        ended = true;
+        if (!next) break;
         waitingNext = setTimeout(() => stopStream.abort(), NEXT_WAIT.ms);
         waitingNext.unref?.();
       }
       clearTimeout(waitingNext);
       if (signal.aborted) throw new Error('Stopped.');
       const r = reader.result();
-      if (!ended && !r.answer) {
+      // the stream ended in the middle of a turn (it died, or dropped us): an error, even after some text
+      if (!ended) {
         const end = await Promise.race([srv.ended, new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000))]);
-        throw new Error(end ? `opencode exited (${end.code}) without an answer.${tail(end.stderr)}` : 'opencode stopped telling what it does before it answered.');
+        const what = r.answer ? 'before it finished its answer' : 'without an answer';
+        throw new Error(end ? `opencode exited (${end.code}) ${what}.${tail(end.stderr)}` : `opencode stopped telling what it does ${what}.`);
       }
       // (what it wrote before it failed is in the chat already)
       if (r.error) throw new Error(r.error);

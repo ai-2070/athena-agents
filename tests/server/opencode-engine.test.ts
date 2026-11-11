@@ -34,8 +34,10 @@ interface Fake {
   closed: number;
   /** it was killed */
   killed: number;
+  /** the last server started dies, printing this to stderr */
+  crash: (stderr: string) => void;
 }
-const fake: Fake = vi.hoisted(() => ({ calls: [], spawns: [], sessions: new Map(), models: [], onPrompt: () => {}, onSteer: () => {}, onReply: () => {}, inboxDelete: 204, closed: 0, killed: 0 }) as unknown as Fake);
+const fake: Fake = vi.hoisted(() => ({ calls: [], spawns: [], sessions: new Map(), models: [], onPrompt: () => {}, onSteer: () => {}, onReply: () => {}, inboxDelete: 204, closed: 0, killed: 0, crash: () => {} }) as unknown as Fake);
 type Decision = { approved: boolean; always?: boolean; message?: string };
 type Asked = { title: string; detail?: string; data?: Record<string, unknown> };
 const approvals = vi.hoisted(() => ({
@@ -139,6 +141,10 @@ vi.mock('../../server/util.ts', async (orig) => {
           return true;
         },
       });
+      fake.crash = (text) => {
+        stderr.write(text);
+        end();
+      };
       stdin.resume();
       stdin.on('finish', () => {
         fake.closed++;
@@ -396,6 +402,17 @@ describe('a run', () => {
     const events: RunEvent[] = [];
     await expect(oc.opencode.run(argsOf(coder(), chatOf(), events))).rejects.toThrow('The provider hung up.');
     expect(events).toContainEqual({ kind: 'text', text: 'Half an answ' });
+  });
+
+  it('it dies in the middle of its answer: an error with the end of what it printed, not half an answer', async () => {
+    fake.onPrompt = (push, sid) => {
+      push('session.execution.started', { sessionID: sid });
+      push('session.text.delta', { sessionID: sid, assistantMessageID: 'm', ordinal: 0, delta: 'Half an answ' });
+      setTimeout(() => fake.crash('panic: out of memory'), 20);
+    };
+    const err = (await oc.opencode.run(argsOf(coder(), chatOf(), [])).catch((e: unknown) => e)) as Error;
+    expect(err.message).toMatch(/before it finished its answer/);
+    expect(err.message).toContain('panic: out of memory');
   });
 });
 
