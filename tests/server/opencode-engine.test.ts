@@ -187,6 +187,7 @@ vi.mock('../../server/mcp.ts', async (orig) => {
       github: { type: 'stdio', command: 'gh-mcp', args: ['serve'], env: { GITHUB_TOKEN: 'secret-1' }, url: '', headers: {}, description: '', enabled: true },
       notes: { type: 'http', command: '', args: [], env: {}, url: 'https://notes.example/mcp', headers: { Authorization: 'Bearer secret-2' }, description: '', enabled: true },
       off: { type: 'stdio', command: 'x', args: [], env: {}, url: '', headers: {}, description: '', enabled: false },
+      dashboard_admin: { type: 'http', command: '', args: [], env: {}, url: 'https://admin.example/mcp', headers: {}, description: '', enabled: true },
     }),
   };
 });
@@ -322,6 +323,13 @@ describe('the run config', () => {
     expect(s.dashboard!.environment).not.toHaveProperty('DASH_TOKEN');
     expect(s.github).toEqual({ type: 'local', command: ['gh-mcp', 'serve'], environment: { GITHUB_TOKEN: 'secret-1' } });
     expect(s.notes).toEqual({ type: 'remote', url: 'https://notes.example/mcp', headers: { Authorization: 'Bearer secret-2' }, oauth: false });
+  });
+  it('a server of yours named dashboard_… goes by another name, so the rule that allows the dashboard’s own tools misses it', () => {
+    const a = coder({ autonomy: 'ask', mcpServers: ['dashboard_admin'] });
+    const servers = oc.mcpServers(a);
+    expect(Object.keys(servers).sort()).toEqual(['dashboard', 'mcp-dashboard_admin']);
+    // (opencode names its tools <server>_<tool>: mcp-dashboard_admin_delete_user, not dashboard_*)
+    expect(Object.keys(servers).filter((k) => k !== 'dashboard').some((k) => /^dashboard_/i.test(`${k}_delete_user`))).toBe(false);
   });
 });
 

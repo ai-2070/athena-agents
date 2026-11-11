@@ -95,8 +95,12 @@ export function mcpServers(agent: Agent, runId = ''): Record<string, McpEntry> {
   for (const name of agent.mcpServers || []) {
     const cfg = servers[name];
     if (!cfg || cfg.enabled === false || name === 'dashboard' || !/^[\w-]+$/.test(name)) continue;
-    if (cfg.type === 'stdio') out[name] = { type: 'local', command: [cfg.command, ...(cfg.args || [])], ...(Object.keys(cfg.env || {}).length ? { environment: { ...cfg.env } } : {}) };
-    else if (cfg.url) out[name] = { type: 'remote', url: cfg.url, ...(Object.keys(cfg.headers || {}).length ? { headers: { ...cfg.headers } } : {}), oauth: false };
+    // its tools are named <server>_<tool>: one called dashboard_… would pass as the dashboard's own (allowed, as the
+    // dashboard asks about those itself), so it goes by another name
+    const key = /^dashboard_/i.test(name) ? `mcp-${name}` : name;
+    if (out[key]) continue;
+    if (cfg.type === 'stdio') out[key] = { type: 'local', command: [cfg.command, ...(cfg.args || [])], ...(Object.keys(cfg.env || {}).length ? { environment: { ...cfg.env } } : {}) };
+    else if (cfg.url) out[key] = { type: 'remote', url: cfg.url, ...(Object.keys(cfg.headers || {}).length ? { headers: { ...cfg.headers } } : {}), oauth: false };
   }
   return out;
 }
