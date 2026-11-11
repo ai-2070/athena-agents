@@ -1,6 +1,6 @@
 // Effort: each engine gets the level it takes, on its own flag, and nothing when it's the model's default.
 import { describe, expect, it } from 'vitest';
-import { EFFORTS, effortFor, effortLevels } from '../../shared/effort.ts';
+import { EFFORTS, effortFor, effortLevels, nearestEffort } from '../../shared/effort.ts';
 import { claudeArgs } from '../../server/engines/claude.ts';
 import { codexArgs } from '../../server/engines/codex.ts';
 import { hermesArgs } from '../../server/engines/hermes.ts';
@@ -30,6 +30,13 @@ describe('effort levels', () => {
     expect(effortFor('claude-code', '')).toBe('');
     expect(effortFor('claude-code', 'ultra')).toBe('');
     expect(effortFor('claude-code', undefined)).toBe('');
+  });
+
+  it('the nearest of some levels: the lower one on a tie, nothing when there are none', () => {
+    expect(nearestEffort('high', ['low', 'high'])).toBe('high');
+    expect(nearestEffort('medium', ['low', 'high'])).toBe('low');
+    expect(nearestEffort('max', ['minimal', 'low'])).toBe('low');
+    expect(nearestEffort('high', [])).toBe('');
   });
 });
 

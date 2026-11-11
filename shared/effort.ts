@@ -30,6 +30,13 @@ export function effortFor(engine: EngineId, effort: unknown, provider?: string, 
   if (!isEffort(effort)) return '';
   const levels = effortLevels(engine, provider, modelLevels);
   if (!levels.length) return '';
-  if (levels.includes(effort)) return effort;
-  return levels.reduce((nearest, level) => Math.abs(EFFORTS.indexOf(level) - EFFORTS.indexOf(effort)) < Math.abs(EFFORTS.indexOf(nearest) - EFFORTS.indexOf(effort)) ? level : nearest);
+  return nearestEffort(effort, levels);
+}
+
+/** The level of these nearest to the one wanted (the lower one on a tie). '' when there are none. */
+export function nearestEffort(want: Effort, levels: readonly Effort[]): Effort | '' {
+  if (!levels.length) return '';
+  if (levels.includes(want)) return want;
+  const at = EFFORTS.indexOf(want);
+  return levels.reduce((nearest, level) => (Math.abs(EFFORTS.indexOf(level) - at) < Math.abs(EFFORTS.indexOf(nearest) - at) ? level : nearest));
 }

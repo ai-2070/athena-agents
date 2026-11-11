@@ -8,15 +8,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, dataPath, ensureDir } from '../util.ts';
-import { agents, internalToken, log } from '../store.ts';
+import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, dataPath, ensureDir } from '../util.ts';
+import { agents, log, rememberAlwaysAllow } from '../store.ts';
 import { listServers, resolveCommand } from '../mcp.ts';
 import { toolDefs, workspaceOf } from '../tools.ts';
 import { knowledgeRoots } from '../knowledge.ts';
 import { safeUploadsRoot, withAttachments } from '../uploads.ts';
 import { requestApproval, withdrawApprovals } from '../approvals.ts';
-import { EFFORTS, effortFor } from '../../shared/effort.ts';
-import { cliStatus, olderThan, pipeLines, steerEvent, tail, SessionGone } from './cli.ts';
+import { EFFORTS, effortFor, nearestEffort } from '../../shared/effort.ts';
+import { bridgeEnv, cliStatus, olderThan, pipeLines, steerEvent, tail, SessionGone } from './cli.ts';
 import type { ChildProcess } from 'node:child_process';
 import type { Agent, RunEvent } from '../../shared/types.ts';
 import type { Engine, EngineRunArgs, EngineResult, TurnMessage, TurnSteering } from './index.ts';
@@ -76,12 +76,6 @@ export function permissionRules(agent: Agent): Rule[] {
   // the dashboard asks about its own tools itself; opencode asking you mid-turn is the dashboard's ask_user
   rules.push(rule('dashboard_*', 'allow'), rule('question', 'deny'));
   return rules;
-}
-
-/** Tells the dashboard bridge which agent and run is calling (it reads its token from the data folder). */
-export function bridgeEnv(agentId: string, runId = ''): Record<string, string> {
-  internalToken();
-  return { DASH_PORT: String(PORT), DASH_DATA: DATA, DASH_AGENT: agentId, ...(runId ? { DASH_RUN: runId } : {}) };
 }
 
 type McpEntry = { type: 'local'; command: string[]; environment?: Record<string, string>; codemode?: boolean; timeout?: { execution: number } } | { type: 'remote'; url: string; headers?: Record<string, string>; oauth: false };
@@ -145,11 +139,7 @@ export function modelRef(model: string): { providerID: string; id: string } | nu
 /** The variant for an effort: the one of that name, or the nearest effort the model has ('' when it has none). */
 export function variantFor(effort: unknown, variants: string[]): string {
   const want = effortFor('opencode', effort);
-  if (!want) return '';
-  const have = EFFORTS.filter((e) => variants.includes(e));
-  if (!have.length) return '';
-  const at = EFFORTS.indexOf(want);
-  return have.reduce((best, e) => (Math.abs(EFFORTS.indexOf(e) - at) < Math.abs(EFFORTS.indexOf(best) - at) ? e : best));
+  return want ? nearestEffort(want, EFFORTS.filter((e) => variants.includes(e))) : '';
 }
 
 /** One of `GET /api/model` (only the fields used here). */
@@ -512,13 +502,7 @@ async function askPermission(agent: Agent, d: Record<string, unknown>, runId: st
     agentName: agent.name,
     data: { tool: `opencode:${action}`, args: { action, resources }, runId, permission: str(d.id), ...(perResource ? { alwaysMeans: `Allow ${resources.length > 1 ? `these ${noun}s` : `this ${noun}`} for this agent from now on (not every ${noun})` } : {}) },
   });
-  if (decision.approved && decision.always) {
-    const fresh = agents.get(agent.id);
-    if (fresh) {
-      fresh.alwaysAllow = [...new Set([...(fresh.alwaysAllow || []), ...keys])];
-      agents.save(fresh);
-    }
-  }
+  if (decision.approved && decision.always) rememberAlwaysAllow(agent.id, keys);
   return decision.approved ? reply('once') : reply('reject', decision.message || 'The user declined this. Ask them how to proceed.');
 }
 

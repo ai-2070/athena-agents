@@ -7,11 +7,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, HOME, dataPath, ensureDir, writeJSON } from '../util.ts';
-import { emit, internalToken, log } from '../store.ts';
+import { which, spawnCommand, run as runCmd, BRIDGE_SCRIPT, HOME, dataPath, ensureDir, writeJSON } from '../util.ts';
+import { emit, log } from '../store.ts';
 import { toolDefs, workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
-import { cliStatus, olderThan, openInputs, pipeLines, tail, SessionGone } from './cli.ts';
+import { bridgeEnv, cliStatus, olderThan, openInputs, pipeLines, tail, SessionGone } from './cli.ts';
 import { splitContent } from '../toolimages.ts';
 import { withAttachments } from '../uploads.ts';
 import type { ChildProcess } from 'node:child_process';
@@ -191,13 +191,6 @@ export function piArgs(flavor: PiFlavor, agent: Agent, { sessionId = '', resume 
   // oh-my-pi: never stop to ask about a tool (it can't ask from here, and these agents run on their own)
   if (flavor === 'omp') args.push('--approval-mode', 'yolo');
   return args;
-}
-
-/** Tells the dashboard bridge in their mcp.json which agent and run is calling. */
-export function bridgeEnv(agentId: string, runId = ''): Record<string, string> {
-  // (the bridge reads the token from the data folder, so it never sits in their environment: made now if it isn't yet)
-  internalToken();
-  return { DASH_PORT: String(PORT), DASH_DATA: DATA, DASH_AGENT: agentId, ...(runId ? { DASH_RUN: runId } : {}) };
 }
 
 export function status(flavor: PiFlavor): CliStatus {
