@@ -514,6 +514,36 @@ describe('its questions', () => {
     expect(agents.get(a.id)!.alwaysAllow).toContain('opencode:shell');
     expect(callsTo(/permission\/per_1\/reply$/)).toHaveLength(2);
   });
+
+  it('always allow outside its folder covers that folder only, and a .env file that file only', async () => {
+    approvals.decide = () => ({ approved: true, always: true });
+    let ask = { action: 'external_directory', resources: ['C:/Users/me/Downloads/*'] };
+    fake.onPrompt = (push, sid) => {
+      push('session.execution.started', { sessionID: sid });
+      push('permission.asked', { id: 'per_1', sessionID: sid, ...ask });
+    };
+    fake.onReply = answered;
+    const a = coder();
+    agents.save(a);
+    const runOnce = () => oc.opencode.run(argsOf(agents.get(a.id)!, chatOf(), []));
+    await runOnce();
+    expect(approvals.requests[0]!.data).toMatchObject({ tool: 'opencode:external_directory', alwaysMeans: 'Allow this folder for this agent from now on (not every folder)' });
+    expect(agents.get(a.id)!.alwaysAllow).toEqual(['opencode:external_directory:C:/Users/me/Downloads/*']);
+    // the same folder again: not asked
+    await runOnce();
+    expect(approvals.requests).toHaveLength(1);
+    // another folder (with that one): asked
+    ask = { action: 'external_directory', resources: ['C:/Users/me/Downloads/*', 'C:/*'] };
+    approvals.decide = () => ({ approved: true });
+    await runOnce();
+    expect(approvals.requests).toHaveLength(2);
+    // a .env file: its own name
+    ask = { action: 'read', resources: ['.env'] };
+    approvals.decide = () => ({ approved: true, always: true });
+    await runOnce();
+    expect(agents.get(a.id)!.alwaysAllow).toContain('opencode:read:.env');
+    expect(agents.get(a.id)!.alwaysAllow).not.toContain('opencode:read');
+  });
 });
 
 describe('Stop', () => {

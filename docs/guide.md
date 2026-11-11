@@ -398,7 +398,7 @@ Very long chats still scroll smoothly: from 50 messages on, the chat page and th
 | **Auto** (default) | For high-risk actions, such as shell commands, scripts and sending messages. |
 | **Full** | Tool approvals are skipped. Use only when you trust the agent and its access. |
 
-opencode agents follow the same three settings with opencode's own tools. **Ask first**: it reads and searches freely and asks before it edits, runs a command, fetches a page or starts a helper. **Auto**: it works freely in its folder and asks before it works outside it (the uploads folder and its knowledge folders aside) or reads a `.env` file. **Full**: it never asks.
+opencode agents follow the same three settings with opencode's own tools. **Ask first**: it reads and searches freely and asks before it edits, runs a command, fetches a page or starts a helper. **Auto**: it works freely in its folder and asks before it works outside it (the uploads folder and its knowledge folders aside) or reads a `.env` file. **Full**: it never asks. **Always allow** on a question about another folder or a `.env` file covers that folder or file only, not every one.
 
 Agents can't fetch the dashboard's own pages, so a web page can't lead them to your settings. The MCP servers page shows saved keys as dots; leave the dots when you edit a server to keep its key. A failed **Test** shows what the server printed, and a server that refuses its key says so. Slow tools that keep reporting progress don't time out early.
 

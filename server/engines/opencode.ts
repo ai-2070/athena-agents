@@ -464,19 +464,39 @@ const VERBS: Record<string, string> = {
   grep: 'search files',
 };
 
+// The guards Auto and Ask first keep (outside its folder, .env files): Always allow covers the folders or files it
+// asked about, never every folder or every .env file
+const PER_RESOURCE = new Set(['external_directory', 'read']);
+
+/** What Always allow saves for a question (all of them must be saved for it to go by without asking). */
+export function allowKeys(action: string, resources: string[]): string[] {
+  const key = `opencode:${action}`;
+  return PER_RESOURCE.has(action) && resources.length ? resources.map((r) => `${key}:${r}`) : [key];
+}
+
 /** One of opencode's questions, to the dashboard's approvals (and the Brain). The answer goes back to it. */
 async function askPermission(agent: Agent, d: Record<string, unknown>, runId: string, reply: (decision: 'once' | 'reject', message?: string) => Promise<void>, helper = false): Promise<void> {
   const action = str(d.action) || 'tool';
-  const key = `opencode:${action}`;
-  if ((agents.get(agent.id)?.alwaysAllow || agent.alwaysAllow || []).includes(key)) return reply('once');
   const resources = Array.isArray(d.resources) ? d.resources.map(String) : [];
+  const keys = allowKeys(action, resources);
+  const allowed = agents.get(agent.id)?.alwaysAllow || agent.alwaysAllow || [];
+  if (keys.every((k) => allowed.includes(k))) return reply('once');
   const detail = [str(d.message), ...resources].filter(Boolean).join('\n') || action;
   const verb = VERBS[action] || (action.includes('_') ? `use ${action.replace('_', ' › ')}` : `use ${action}`);
-  const decision = await requestApproval({ kind: 'opencode', title: `${agent.name}${helper ? "'s helper agent" : ''} wants to ${verb}`, detail: detail.slice(0, 4000), agentId: agent.id, agentName: agent.name, data: { tool: key, args: { action, resources }, runId, permission: str(d.id) } });
+  const perResource = PER_RESOURCE.has(action) && resources.length > 0;
+  const noun = action === 'read' ? 'file' : 'folder';
+  const decision = await requestApproval({
+    kind: 'opencode',
+    title: `${agent.name}${helper ? "'s helper agent" : ''} wants to ${verb}`,
+    detail: detail.slice(0, 4000),
+    agentId: agent.id,
+    agentName: agent.name,
+    data: { tool: `opencode:${action}`, args: { action, resources }, runId, permission: str(d.id), ...(perResource ? { alwaysMeans: `Allow ${resources.length > 1 ? `these ${noun}s` : `this ${noun}`} for this agent from now on (not every ${noun})` } : {}) },
+  });
   if (decision.approved && decision.always) {
     const fresh = agents.get(agent.id);
     if (fresh) {
-      fresh.alwaysAllow = [...new Set([...(fresh.alwaysAllow || []), key])];
+      fresh.alwaysAllow = [...new Set([...(fresh.alwaysAllow || []), ...keys])];
       agents.save(fresh);
     }
   }

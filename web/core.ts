@@ -525,7 +525,7 @@ export function approvalCard(a: Approval): HTMLDivElement {
       { class: 'mt-4 flex flex-wrap items-center gap-2' },
       // a setting says what its button does ("Turn on the voxel look"); it is asked each time, never always allowed
       h('button', { class: buttonClass('primary', 'small'), onclick: () => decide(true) }, a.kind === 'setting' && typeof a.data.allow === 'string' ? a.data.allow : editor ? 'Approve' : 'Allow'),
-      a.kind !== 'workflow' && a.kind !== 'setting' && a.kind !== 'tools' ? h('button', { class: buttonClass('ghost', 'small'), onclick: () => decide(true, true), title: 'Allow this tool for this agent from now on' }, 'Always allow') : null,
+      a.kind !== 'workflow' && a.kind !== 'setting' && a.kind !== 'tools' ? h('button', { class: buttonClass('ghost', 'small'), onclick: () => decide(true, true), title: typeof a.data.alwaysMeans === 'string' ? a.data.alwaysMeans : 'Allow this tool for this agent from now on' }, 'Always allow') : null,
       h('button', { class: buttonClass('danger', 'small'), onclick: () => decide(false) }, a.kind === 'setting' ? 'Not now' : editor ? 'Stop' : 'Deny'),
     ),
   );
