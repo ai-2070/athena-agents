@@ -570,9 +570,11 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
       taking = false;
       intake.delete(runId);
     };
+    // (the server is closed only once these got there, or after a moment)
+    let interrupting: Promise<unknown> = Promise.resolve();
     const onAbort = () => {
       stopTaking();
-      for (const sid of mine) void srv.call('POST', `/api/session/${encodeURIComponent(sid)}/interrupt`).catch(() => {});
+      interrupting = Promise.race([Promise.allSettled([...mine].map((sid) => srv.call('POST', `/api/session/${encodeURIComponent(sid)}/interrupt`))), new Promise((resolve) => setTimeout(resolve, 3000).unref?.())]);
       // (it may not say so: the stream ends after a moment either way)
       setTimeout(() => stopStream.abort(), 3000).unref?.();
     };
@@ -674,6 +676,7 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
     } finally {
       signal.removeEventListener('abort', onAbort);
       stopTaking();
+      await interrupting;
     }
   } finally {
     stopStream.abort();
