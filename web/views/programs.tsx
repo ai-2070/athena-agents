@@ -40,6 +40,7 @@ const ABOUT: Partial<Record<string, string>> = {
   pi: 'Agents can run on pi (Agents > Brain > pi).',
   omp: 'Agents can run on oh-my-pi (Agents > Brain > oh-my-pi).',
   openclaw: 'Agents can run on your OpenClaw agents (Agents > Brain > OpenClaw).',
+  opencode: 'Agents can run on opencode (Agents > Brain > opencode).',
   orca: 'Agents with the Orca tools can run Orca commands.',
   comfyui: 'Agents with ComfyUI tools run your saved workflows.',
   lmstudio: 'Start its local server to use local models (Eve > LM Studio).',
@@ -67,7 +68,7 @@ const ABOUT: Partial<Record<string, string>> = {
   ffmpeg: 'Agents cut, convert and inspect video and audio.',
   chrome: 'open_url can target it; add the Playwright MCP for full control.',
 };
-const CLI: Partial<Record<string, string>> = { claude: 'claude', hermes: 'hermes', pi: 'pi', omp: 'omp', openclaw: 'openclaw', orca: 'orca', gh: 'gh', python: 'python' };
+const CLI: Partial<Record<string, string>> = { claude: 'claude', hermes: 'hermes', pi: 'pi', omp: 'omp', openclaw: 'openclaw', opencode: 'opencode', orca: 'orca', gh: 'gh', python: 'python' };
 
 /** "v1.2 · running", or "installed · starting…" while it opens. */
 export const progState = (p: Pick<ProgramInfo, 'version' | 'cli' | 'running'>, starting = false): string =>

@@ -35,7 +35,7 @@ describe('tools by conversation', () => {
 
 describe('tools by engine', () => {
   it("doesn't list the dashboard's file and shell tools for engines that have their own", () => {
-    for (const engine of ['claude-code', 'codex', 'pi', 'omp', 'hermes', 'openclaw']) {
+    for (const engine of ['claude-code', 'codex', 'pi', 'omp', 'hermes', 'openclaw', 'opencode']) {
       const list = names(toolDefs(agent, { engine }));
       expect(list).not.toContain('read_file');
       expect(list).not.toContain('run_command');

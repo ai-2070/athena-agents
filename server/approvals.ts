@@ -208,6 +208,12 @@ export function listApprovals(): Approval[] {
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
+/** Takes back requests nobody needs answered any more (their engine settled them itself): they leave Needs you
+ *  and resolve as not approved. Saved (durable) ones stay: their run decides about those. */
+export function withdrawApprovals(match: (item: Approval) => boolean, message: string): void {
+  for (const [id, p] of pending) if (!p.durable && match(p.item)) finish(id, { approved: false, message });
+}
+
 // Cancel everything a stopped run was waiting on.
 export function cancelForRun(runId: string, { keepOutcomeChecks = false }: { keepOutcomeChecks?: boolean } = {}) {
   restoreDurableApprovals();

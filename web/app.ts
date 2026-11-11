@@ -170,7 +170,8 @@ function navStatus(d: AppState) {
   const cc: Partial<EngineStatus['claude-code']> = e['claude-code'] || {};
   const cx: Partial<EngineStatus['codex']> = e.codex || {};
   const b = d.settings?.brain || { provider: 'claude', model: 'haiku' };
-  const brainName = String(b.model || 'haiku').replace(/^anthropic\/claude-/, '').replace(/^./, (c) => c.toUpperCase());
+  // (opencode's ids are provider/model: the model's own name is the last part; its empty model is its default)
+  const brainName = (b.provider === 'opencode' ? String(b.model || 'default').split('/').pop()! : String(b.model || 'haiku').replace(/^anthropic\/claude-/, '')).replace(/^./, (c) => c.toUpperCase());
   const heading = 'mt-3 px-2 pb-1 text-[11px] leading-4 font-medium text-faint';
   const sv = d.projectSaved;
   const savedLine = sv ? (sv.error ? `not saved: ${sv.error}` : `auto-saved ${ago(sv.at)}`) : 'auto-save on';
@@ -185,8 +186,9 @@ function navStatus(d: AppState) {
     e.pi?.installed ? line('on', 'pi coding agent', ver(e.pi.version) || 'found', S('tab=general&find=pi coding agent')) : null,
     e.omp?.installed ? line('on', 'oh-my-pi', ver(e.omp.version) || 'found', S('tab=general&find=oh-my-pi')) : null,
     e.openclaw?.installed ? line('on', 'OpenClaw', ver(e.openclaw.version) || 'found', S('tab=general&find=OpenClaw')) : null,
+    e.opencode?.installed ? line(e.opencode.tooOld ? 'warn' : 'on', 'opencode', e.opencode.tooOld ? 'needs an update' : ver(e.opencode.version) || 'found', S('tab=general&find=opencode')) : null,
     h('div', { class: heading }, 'Models and connections'),
-    line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : b.provider === 'venice' ? ' · Venice' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
+    line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : b.provider === 'venice' ? ' · Venice' : b.provider === 'opencode' ? ' · opencode' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
     line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),
     d.outboxPending || d.questions?.length ? line('busy', 'Outbox', `${d.outboxPending + (d.questions?.length || 0)} waiting`, '#/outbox') : null,
     // (gateways are out of Settings for now: only ones already set up show here)

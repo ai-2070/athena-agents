@@ -3,7 +3,7 @@ import { serverUrl } from './client/connection.ts';
 import { isDark, onThemeChange } from './theme.ts';
 
 const IMAGES: Record<string, string> = {
-  hermes: 'hermes.svg', pi: 'pi.svg', omp: 'omp.svg', openclaw: 'openclaw.svg', venice: 'venice.svg',
+  hermes: 'hermes.svg', pi: 'pi.svg', omp: 'omp.svg', openclaw: 'openclaw.svg', opencode: 'opencode.svg', venice: 'venice.svg',
   painter: 'painter.svg', designer: 'designer.svg', handbrake: 'handbrakecli.png', handbrakecli: 'handbrakecli.png',
   imagemagick: 'imagemagick.png', prusaslicer: 'prusaslicer.svg', orcaslicer: 'orcaslicer.png',
   vscode: 'vscode.png', 'vs code': 'vscode.png', orca: 'orca.png', ffmpeg: 'ffmpeg.png',

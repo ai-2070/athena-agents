@@ -8,7 +8,7 @@ import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, ensureDir, insideRoots } from './util.ts';
 import * as store from './store.ts';
-import { agents, workflows, bus, getSettings, internalToken, log } from './store.ts';
+import { agents, workflows, bus, getSettings, internalToken, log, rememberAlwaysAllow } from './store.ts';
 import { requestApproval, setReviewer } from './approvals.ts';
 import * as engines from './engines/index.ts';
 import { eveRuntime } from './eve/runtime.ts';
@@ -317,13 +317,7 @@ async function claudePermission(agent: Agent | ExternalAgent, { tool_name, input
   const detail = input.command || input.file_path || input.url || input.pattern || JSON.stringify(input, null, 2);
   const account = mcp.accountOfTool(tool_name);
   const d = await requestApproval({ kind: 'claude', title: `${agent.name} wants to use ${tool_name}${account ? ` on ${account}` : ''}`, detail: String(detail).slice(0, 4000), agentId: agent.id, agentName: agent.name, data: { tool: tool_name, args: input, runId } });
-  if (d.approved && d.always) {
-    const fresh = agents.get(agent.id);
-    if (fresh) {
-      fresh.alwaysAllow = [...new Set([...(fresh.alwaysAllow || []), tool_name])];
-      agents.save(fresh);
-    }
-  }
+  if (d.approved && d.always) rememberAlwaysAllow(agent.id, [tool_name]);
   return d.approved ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: d.message || 'The user declined this. Ask them how to proceed.' };
 }
 

@@ -1,6 +1,6 @@
 // The Brain approves: it answers agents' permission requests and passes the unclear ones on to you.
 import { describe, it, expect, afterEach } from 'vitest';
-import { requestApproval, setReviewer, listApprovals, decide, cancelForRun } from '../../server/approvals.ts';
+import { requestApproval, setReviewer, listApprovals, decide, cancelForRun, withdrawApprovals } from '../../server/approvals.ts';
 import { saveSettings, getSettings } from '../../server/store.ts';
 import type { BrainVerdict } from '../../server/approvals.ts';
 
@@ -58,6 +58,16 @@ describe('the Brain approves', () => {
     release({ approve: true, reason: '' });
     await tick();
     expect(listApprovals()).toHaveLength(0);
+  });
+
+  it('takes back only the requests nobody needs answered any more', async () => {
+    setReviewer(null);
+    const gone = requestApproval({ title: 'Change a file', agentId: 'a1', data: { runId: 'r2', permission: 'per_1' } });
+    requestApproval({ title: 'Run a command', agentId: 'a1', data: { runId: 'r2', permission: 'per_2' } });
+    withdrawApprovals((item) => item.data.permission === 'per_1', 'It no longer needs an answer.');
+    expect(await gone).toEqual({ approved: false, message: 'It no longer needs an answer.' });
+    expect(listApprovals().map((a) => a.title)).toEqual(['Run a command']);
+    cancelForRun('r2');
   });
 
   it('asks you when the Brain fails', async () => {

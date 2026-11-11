@@ -1,7 +1,8 @@
-// Small helpers shared by the engines that run another agent CLI (Claude Code, pi, oh-my-pi, OpenClaw):
+// Small helpers shared by the engines that run another agent CLI (Claude Code, pi, oh-my-pi, OpenClaw, opencode):
 // its version for Settings, reading what it prints line by line, and the messages sent into a turn
 // while it works (for a CLI whose input stays open).
-import { which, killTree, run as runCmd } from '../util.ts';
+import { which, killTree, run as runCmd, PORT, DATA } from '../util.ts';
+import { internalToken } from '../store.ts';
 import type { ChildProcess } from 'node:child_process';
 import type { RunEvent } from '../../shared/types.ts';
 import type { TurnMessage, TurnSteering } from './index.ts';
@@ -22,6 +23,16 @@ export function cliStatus(cmd: string, parse: (out: string) => string = (s) => s
     runCmd(cmd, ['--version'], { timeout: 20000 }).then((r) => versions.set(cmd, { at: Date.now(), version: r.code === 0 ? parse(r.stdout) || null : null }));
   }
   return { installed: !!exe, path: exe, version: exe ? (versions.get(cmd)?.version ?? null) : null };
+}
+
+/** Is version a older than b? (Plain numbers: 0.99.0, 1.5.0; anything else isn't older.) */
+export function olderThan(a: string | null, b: string): boolean {
+  const nums = (v: string) => v.replace(/^v/, '').split(/[.-]/).slice(0, 3).map((n) => Number.parseInt(n, 10));
+  const x = a ? nums(a) : [];
+  if (x.length < 3 || x.some((n) => Number.isNaN(n))) return false;
+  const y = nums(b);
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i]! < y[i]!;
+  return false;
 }
 
 /** What a finished child left behind. */
@@ -77,6 +88,13 @@ export function pipeLines(child: ChildProcess, { input, signal, onLine, keepOpen
       resolve({ code: -1, stderr });
     });
   });
+}
+
+/** Tells the dashboard bridge (in a CLI's MCP config) which agent and run is calling. */
+export function bridgeEnv(agentId: string, runId = ''): Record<string, string> {
+  // (the bridge reads the token from the data folder, so it never sits in their environment: made now if it isn't yet)
+  internalToken();
+  return { DASH_PORT: String(PORT), DASH_DATA: DATA, DASH_AGENT: agentId, ...(runId ? { DASH_RUN: runId } : {}) };
 }
 
 /** The end of what a CLI printed to stderr, for an error message. */

@@ -8,9 +8,10 @@ import { listProfiles } from './engines/hermes.ts';
 import { listModels as piModels } from './engines/pi.ts';
 import { listModels as openclawModels } from './engines/openclaw.ts';
 import { listModels as codexModels } from './engines/codex.ts';
+import { listModels as opencodeModels, status as opencodeStatus } from './engines/opencode.ts';
 import type { Agent, EngineId, ProviderId } from '../shared/types.ts';
 
-export type ModelProvider = 'claude' | 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom' | 'codex' | 'hermes' | 'pi' | 'omp' | 'openclaw';
+export type ModelProvider = 'claude' | 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom' | 'codex' | 'hermes' | 'pi' | 'omp' | 'openclaw' | 'opencode';
 
 interface ProviderInfo {
   label: string;
@@ -31,11 +32,12 @@ export const MODEL_PROVIDERS: Record<ModelProvider, ProviderInfo> = {
   pi: { label: 'pi', engine: 'pi' },
   omp: { label: 'oh-my-pi', engine: 'omp' },
   openclaw: { label: 'OpenClaw', engine: 'openclaw' },
+  opencode: { label: 'opencode', engine: 'opencode' },
 };
 export const PROVIDER_IDS = Object.keys(MODEL_PROVIDERS) as ModelProvider[];
 
 // CLIs that pick a model themselves when none is named, and take any id they know (no fixed list to check against)
-const OWN_DEFAULT = new Set<ModelProvider>(['codex', 'hermes', 'pi', 'omp', 'openclaw']);
+const OWN_DEFAULT = new Set<ModelProvider>(['codex', 'hermes', 'pi', 'omp', 'openclaw', 'opencode']);
 
 /** Codex's models for the picker: its default first, then the ones Codex lists. */
 export async function codexModelList(): Promise<{ id: string; name: string; description?: string }[]> {
@@ -65,7 +67,7 @@ export function providerOfAgent(a: Pick<Agent, 'engine' | 'provider'>): ModelPro
   if (a.engine === 'claude-code') return 'claude';
   if (a.engine === 'codex') return 'codex';
   if (a.engine === 'hermes') return 'hermes';
-  if (a.engine === 'pi' || a.engine === 'omp' || a.engine === 'openclaw') return a.engine;
+  if (a.engine === 'pi' || a.engine === 'omp' || a.engine === 'openclaw' || a.engine === 'opencode') return a.engine;
   return modelProvider(a.provider) || 'openrouter';
 }
 
@@ -75,6 +77,7 @@ export function providerProblem(p: ModelProvider): string | null {
   if (p === 'codex') return which('codex') ? null : 'OpenAI Codex is not installed on this PC';
   if (p === 'hermes') return which('hermes') ? null : 'Hermes is not installed on this PC';
   if (p === 'pi' || p === 'omp' || p === 'openclaw') return which(p) ? null : `${MODEL_PROVIDERS[p].label} is not installed on this PC`;
+  if (p === 'opencode') return !which('opencode') ? 'opencode is not installed on this PC' : opencodeStatus().tooOld ? 'opencode on this PC is older than 2.0' : null;
   if (p === 'openrouter') return getSecrets().openrouterKey ? null : 'there is no OpenRouter key (Settings)';
   if (p === 'venice') return getSecrets().veniceKey ? null : 'there is no Venice key (Settings)';
   const base = getSettings().providers?.[p]?.baseUrl;
@@ -129,6 +132,7 @@ export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
     }
   } else if (p === 'pi' || p === 'omp') list = (await piModels(p).catch(() => [])).map((m) => ({ id: m.id, name: m.name, ...(m.context ? { note: `${Math.round(m.context / 1000)}k context` } : {}) }));
   else if (p === 'openclaw') list = (await openclawModels().catch(() => [])).map((m) => ({ id: m.id, name: m.name }));
+  else if (p === 'opencode') list = (await opencodeModels().catch(() => [])).map((m) => ({ id: m.id, name: m.name, ...(m.context ? { note: `${Math.round(m.context / 1000)}k context` } : {}) }));
   else if (p === 'venice' || !providerProblem(p)) {
     list = (await listModels(MODEL_PROVIDERS[p].provider!)).map((m) => ({
       id: m.id,
@@ -182,7 +186,7 @@ export async function findModels(providerName: unknown, query: unknown, { limit 
     const all = await availableModels(p);
     const hits = matchModels(all, q);
     const extra =
-      p === 'codex' ? '\n(Codex takes any model id your ChatGPT plan has; an empty model means Codex picks.)' : p === 'hermes' ? '\n(an empty model means the profile\'s own model)' : p === 'pi' || p === 'omp' ? '\n(ids are provider/model; an empty model means its own default)' : p === 'openclaw' ? "\n(an empty model means the OpenClaw agent's own model)" : p === 'claude' ? '\n(the short names always point to the latest version)' : '';
+      p === 'codex' ? '\n(Codex takes any model id your ChatGPT plan has; an empty model means Codex picks.)' : p === 'hermes' ? '\n(an empty model means the profile\'s own model)' : p === 'pi' || p === 'omp' || p === 'opencode' ? '\n(ids are provider/model; an empty model means its own default)' : p === 'openclaw' ? "\n(an empty model means the OpenClaw agent's own model)" : p === 'claude' ? '\n(the short names always point to the latest version)' : '';
     if (!all.length) {
       parts.push(`${label}: ${why ? `not usable: ${why}.` : OWN_DEFAULT.has(p) ? 'no list of models.' : "couldn't list its models (is it running?)."}${extra}`);
       continue;

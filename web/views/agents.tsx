@@ -692,7 +692,7 @@ function EngineFields({ a, d, set, fit }: {
     return () => void (live = false);
   }, [a.engine, a.provider]);
   const placeholder =
-    a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : a.provider === 'venice' ? 'Choose a Venice model' : 'anthropic/claude-sonnet-5.5';
+    a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : a.engine === 'opencode' ? 'its default (e.g. openrouter/deepseek/deepseek-v4.1-flash)' : a.provider === 'venice' ? 'Choose a Venice model' : 'anthropic/claude-sonnet-5.5';
   const pick = (label: string, value: string, options: SelectOption[], onChange: (v: string) => void, hint?: ReactNode) => (
     <Field label={label} hint={hint}>
       <SelectControl aria-label={label} value={value} options={options} onChange={onChange} />
@@ -804,6 +804,21 @@ function EngineFields({ a, d, set, fit }: {
         <p className="hint">Each chat here is its own OpenClaw session. It goes through your OpenClaw Gateway when it is running, else OpenClaw answers here on its own. OpenClaw's own approval settings apply to its tools.</p>
       </>
     );
+  else if (a.engine === 'opencode') {
+    const st: Partial<EngineStatus['opencode']> = d.engines.opencode || {};
+    parts = (
+      <>
+        <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
+          {model('Model', "Empty = opencode's default. Ids are provider/model, e.g. openrouter/deepseek/deepseek-v4.1-flash.")}
+          <div>
+            <div className="label">opencode</div>
+            <p className="hint">{!st.installed ? 'Not installed yet: npm install -g @opencode/cli' : st.tooOld ? `Found ${st.version}: agents need opencode 2 or later (npm install -g @opencode/cli)` : `Found${st.version ? ` · ${st.version}` : ''}`}</p>
+          </div>
+        </div>
+        <p className="hint">opencode works in the workspace folder with its own tools (read, edit, shell…) and the dashboard tools. It asks you before risky steps the way the autonomy below says. Its free models work right away; to use your own accounts, run opencode auth login in a terminal.</p>
+      </>
+    );
+  }
   return <div className="flex flex-col gap-4">{parts}</div>;
 }
 

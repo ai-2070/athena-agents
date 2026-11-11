@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeProject, agents, bus, chats, emit, getSettings, listProjects, saveSettings, secretStatus, setActiveProject, setSecret, withProject, workflows } from '../../server/store.ts';
+import { activeProject, agents, bus, chats, emit, getSettings, listProjects, rememberAlwaysAllow, saveSettings, secretStatus, setActiveProject, setSecret, withProject, workflows } from '../../server/store.ts';
 import { dataPath, readJSON, writeJSON } from '../../server/util.ts';
 import type { Agent } from '../../shared/types.ts';
 
@@ -58,6 +58,15 @@ describe('collections', () => {
     expect(agents.list().map((x) => x.id)).toContain('tester-1');
     agents.remove('tester-1');
     expect(agents.get('tester-1')).toBeNull();
+  });
+
+  it('Always allow adds to what the agent has, once each, and skips an agent that is gone', () => {
+    agents.save({ id: 'tester-2', name: 'Tester', alwaysAllow: ['Bash'] } as Partial<Agent>);
+    rememberAlwaysAllow('tester-2', ['Bash', 'opencode:read:.env']);
+    expect(agents.get('tester-2')?.alwaysAllow).toEqual(['Bash', 'opencode:read:.env']);
+    agents.remove('tester-2');
+    rememberAlwaysAllow('tester-2', ['Bash']);
+    expect(agents.get('tester-2')).toBeNull();
   });
 
   it('rejects ids that could escape the folder', () => {

@@ -36,7 +36,7 @@ it('uses the same helmet in the Station and About, including on another server',
 
 it('shares local engine marks between the Station and program list on another server', () => {
   setConnection({ base: 'http://127.0.0.1:4900' });
-  for (const id of ['hermes', 'pi', 'omp', 'openclaw', 'venice', 'vscode']) {
+  for (const id of ['hermes', 'pi', 'omp', 'openclaw', 'opencode', 'venice', 'vscode']) {
     const station = mark(id, 15) as HTMLImageElement;
     expect(station.tagName.toLowerCase()).toBe('img');
     expect(station.src).toBe((programIcon(id, id, 15) as HTMLImageElement).src);

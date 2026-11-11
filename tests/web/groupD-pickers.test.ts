@@ -33,7 +33,7 @@ beforeEach(() => {
   calls.length = 0;
   document.body.innerHTML = '<div id="toasts"></div><div id="modal-root"></div>';
   programs = [{ id: 'lmstudio', installed: true }, { id: 'ollama', installed: true }];
-  state.data = { agents: [], toolGroups: [], engines: { 'claude-code': { installed: true, loggedIn: true }, codex: { installed: true, loggedIn: true }, hermes: { installed: true }, pi: { installed: true }, omp: { installed: true }, openclaw: { installed: true } }, secrets: { openrouterKey: { set: true }, veniceKey: { set: true } }, runs: [], approvals: [] } as unknown as AppState;
+  state.data = { agents: [], toolGroups: [], engines: { 'claude-code': { installed: true, loggedIn: true }, codex: { installed: true, loggedIn: true }, hermes: { installed: true }, pi: { installed: true }, omp: { installed: true }, openclaw: { installed: true }, opencode: { installed: true, tooOld: false } }, secrets: { openrouterKey: { set: true }, veniceKey: { set: true } }, runs: [], approvals: [] } as unknown as AppState;
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -99,7 +99,7 @@ describe('model picker: Eve and where its model comes from', () => {
     openModelPicker(document.body, { engine: 'claude-code', model: 'sonnet' }, (p) => picked.push(p));
     await settle();
     expect(tabs().map((t) => t.textContent).slice(0, 3)).toEqual(['Claude', 'Eve', 'Hermes']);
-    for (const [label, id] of [['Hermes', 'hermes'], ['pi', 'pi'], ['OMP', 'omp'], ['OpenClaw', 'openclaw']]) {
+    for (const [label, id] of [['Hermes', 'hermes'], ['pi', 'pi'], ['OMP', 'omp'], ['OpenClaw', 'openclaw'], ['opencode', 'opencode']]) {
       const image = tabNamed(label).querySelector('img')!;
       expect(image.getAttribute('src')).toBe(`/brand/engines/${id}.svg`);
       expect(image.width).toBe(13);
@@ -163,7 +163,7 @@ describe('model picker: Eve and where its model comes from', () => {
     document.body.append(brainModelChip());
     document.querySelector<HTMLButtonElement>('.model-chip')!.click();
     const names = tabs().map((t) => t.textContent);
-    expect(names).toEqual(['Favorites', 'Claude', 'Eve', 'Hermes', 'Codex']);
+    expect(names).toEqual(['Favorites', 'Claude', 'Eve', 'Hermes', 'Codex', 'opencode']);
     const rows = [...document.querySelectorAll('.model-body .model-row')].map((r) => r.textContent);
     expect(rows).toEqual([expect.stringContaining('gpt-5')]);
   });

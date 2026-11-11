@@ -79,6 +79,7 @@ const TABS: ModelTab[] = [
   { engine: 'pi', label: 'pi', brand: null },
   { engine: 'omp', label: 'OMP', brand: null },
   { engine: 'openclaw', label: 'OpenClaw', brand: null },
+  { engine: 'opencode', label: 'opencode', brand: null },
 ];
 // Where Eve's models come from. local: a server on this PC or one you point to (the Brain can't use them).
 const EVE_PROVIDERS = [
@@ -94,6 +95,7 @@ const CLI_TABS: Partial<Record<EngineId, { name: string; own: string; find: stri
   pi: { name: 'pi', own: "pi's default model", find: 'pi coding agent' },
   omp: { name: 'oh-my-pi', own: "oh-my-pi's default model", find: 'oh-my-pi' },
   openclaw: { name: 'OpenClaw', own: "the OpenClaw agent's own model", find: 'OpenClaw' },
+  opencode: { name: 'opencode', own: "opencode's default model", find: 'opencode' },
 };
 // { name: "Claude Sonnet 5.5", short: "Sonnet 5.5", latest: true/false, brand: "claude" | null, where: "Claude Code · Claude login" }
 export function modelInfo(a: ModelTarget): ModelInfo {
@@ -108,8 +110,8 @@ export function modelInfo(a: ModelTarget): ModelInfo {
   if (a.engine === 'codex') return { name: m || 'Codex default model', short: m || 'Codex', latest: !m, brand: 'openai', where: 'OpenAI Codex · ChatGPT login' };
   if (a.engine === 'hermes') return { name: m || `Hermes profile "${a.hermesProfile || 'default'}"`, short: m ? m.split('/').pop()! : 'Hermes', latest: false, brand: null, where: `Hermes · ${a.hermesProfile || 'default'}` };
   if (a.engine === 'openclaw') return { name: m || `OpenClaw agent "${a.openclawAgent || 'default'}"`, short: m ? m.split('/').pop()! : 'OpenClaw', latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : null, where: `OpenClaw · ${a.openclawAgent || 'default agent'}` };
-  if (a.engine === 'pi' || a.engine === 'omp') {
-    const label = a.engine === 'pi' ? 'pi' : 'oh-my-pi';
+  if (a.engine === 'pi' || a.engine === 'omp' || a.engine === 'opencode') {
+    const label = a.engine === 'pi' ? 'pi' : a.engine === 'omp' ? 'oh-my-pi' : 'opencode';
     return { name: m || `${label} default model`, short: m ? m.split('/').pop()! : label, latest: false, brand: /claude|anthropic/.test(m) ? 'claude' : null, where: `${label}${m.includes('/') ? ` · ${m.split('/')[0]}` : ''}` };
   }
   const where = ({ venice: 'Venice', lmstudio: 'LM Studio', ollama: 'Ollama', custom: 'Custom server' } as Record<string, string | undefined>)[a.provider as string] || 'OpenRouter';
@@ -133,7 +135,7 @@ const withEffort = (a: ModelTarget) => {
 const sameModel = (a: ModelChoice, b: ModelChoice) => a.engine === b.engine && String(a.model || '') === String(b.model || '') && (a.engine !== 'eve' || (a.provider || 'openrouter') === (b.provider || 'openrouter'));
 
 // ---------- favorites (Settings: favoriteModels) ----------
-const ENGINES: EngineId[] = ['claude-code', 'eve', 'hermes', 'codex', 'pi', 'omp', 'openclaw'];
+const ENGINES: EngineId[] = ['claude-code', 'eve', 'hermes', 'codex', 'pi', 'omp', 'openclaw', 'opencode'];
 export function favoriteModels(): FavoriteModel[] {
   const list = state.data?.settings?.favoriteModels;
   return Array.isArray(list) ? list.filter((f) => f && ENGINES.includes(f.engine) && typeof f.model === 'string') : [];
@@ -223,11 +225,11 @@ export function modelChip(agent: Agent, { onChange, compact = false, at = '' }: 
 }
 
 // ---------- the Brain's own model ----------
-// settings.brain = { provider: 'claude' | 'openrouter' | 'hermes' | 'codex', model }
-const BRAIN_ENGINE: Record<string, EngineId | undefined> = { claude: 'claude-code', openrouter: 'eve', venice: 'eve', hermes: 'hermes', codex: 'codex' };
-const BRAIN_PROVIDER: Record<string, BrainSetting['provider'] | undefined> = { 'claude-code': 'claude', eve: 'openrouter', hermes: 'hermes', codex: 'codex' };
+// settings.brain = { provider: 'claude' | 'openrouter' | 'venice' | 'hermes' | 'codex' | 'opencode', model }
+const BRAIN_ENGINE: Record<string, EngineId | undefined> = { claude: 'claude-code', openrouter: 'eve', venice: 'eve', hermes: 'hermes', codex: 'codex', opencode: 'opencode' };
+const BRAIN_PROVIDER: Record<string, BrainSetting['provider'] | undefined> = { 'claude-code': 'claude', eve: 'openrouter', hermes: 'hermes', codex: 'codex', opencode: 'opencode' };
 /** The engines the Brain can think with (its picker offers only these). */
-const BRAIN_ENGINES: readonly EngineId[] = ['claude-code', 'eve', 'hermes', 'codex'];
+const BRAIN_ENGINES: readonly EngineId[] = ['claude-code', 'eve', 'hermes', 'codex', 'opencode'];
 export function brainAsAgent(b: { provider?: string; model?: string; effort?: Effort | '' } | null | undefined = state.data?.settings?.brain): ModelTarget & { model: string; provider: string } {
   const p = b?.provider || 'claude';
   const model = p === 'venice' ? b?.model || state.data?.settings?.defaults?.veniceModel || '' : b?.model ?? (p === 'claude' ? 'haiku' : '');
@@ -250,7 +252,7 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
       // (an engine the Brain can't think with is not offered; never quietly swap in Claude for one)
       const brain = brainSettingFromChoice(patch);
       if (!brain) {
-        toast("The Brain can't use that engine. Pick Claude, OpenRouter, Venice, Hermes or Codex.", 'error');
+        toast("The Brain can't use that engine. Pick Claude, OpenRouter, Venice, Hermes, Codex or opencode.", 'error');
         return false;
       }
       const r = await attempt(() => rpc.settings.save({ brain }));
@@ -502,7 +504,7 @@ function HermesBody({ cur, close, onPick, onChanged }: { cur: ModelTarget; close
 }
 
 /** A CLI engine with its own model list (GET /models?engine=…): what it is set to use, and its list. */
-function CliBody({ engine, cur, close, onPick, onChanged }: { engine: 'pi' | 'omp' | 'openclaw'; cur: ModelTarget; close: () => void; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
+function CliBody({ engine, cur, close, onPick, onChanged }: { engine: 'pi' | 'omp' | 'openclaw' | 'opencode'; cur: ModelTarget; close: () => void; onPick: (c: ModelChoice) => void; onChanged: () => void }) {
   const eng: Partial<EngineStatus> = state.data?.engines || {};
   const t = CLI_TABS[engine]!;
   const q = useContext(SearchQuery);
@@ -519,7 +521,7 @@ function CliBody({ engine, cur, close, onPick, onChanged }: { engine: 'pi' | 'om
   const shown = (q && all ? all.filter((m) => `${m.id} ${m.name}`.toLowerCase().includes(q)) : all || []).slice(0, 60);
   return (
     <>
-      {eng[engine] && !eng[engine].installed ? <Missing text={`${t.name} is not installed on this PC.`} find={t.find} close={close} /> : null}
+      {eng[engine] && !eng[engine].installed ? <Missing text={`${t.name} is not installed on this PC.`} find={t.find} close={close} /> : engine === 'opencode' && eng.opencode?.tooOld ? <Missing text="This opencode is older than 2.0: update it to run agents on it." find="opencode" close={close} /> : null}
       <div className="st-menu-head">{t.name}</div>
       <Row label={t.own} sub="whatever it is set to use" active={same('')} choice={{ engine, model: '' }} onPick={onPick} onChanged={onChanged} />
       <div className="model-list">
@@ -746,7 +748,7 @@ function ModelPicker({ anchor, cur, apply, title, local, engines, providers, ope
     else body = <Missing text={`Eve runs models from ${eveOffered.some((p) => p.local) ? 'OpenRouter, Venice, or a model server on this PC' : eveOffered.map((p) => p.label).join(' or ')}. Set one up first.`} find={eveOffered[0]?.id === 'venice' ? 'Venice key' : 'OpenRouter key'} close={close} />;
   }
   else if (tab === 'hermes') body = <HermesBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
-  else if (tab === 'pi' || tab === 'omp' || tab === 'openclaw') body = <CliBody engine={tab} cur={cur} close={close} onPick={pick} onChanged={refresh} />;
+  else if (tab === 'pi' || tab === 'omp' || tab === 'openclaw' || tab === 'opencode') body = <CliBody engine={tab} cur={cur} close={close} onPick={pick} onChanged={refresh} />;
   else body = <CodexBody cur={cur} close={close} onPick={pick} onChanged={refresh} />;
 
   const shownTabs: ModelTab[] = favList.length ? [{ engine: 'fav', label: 'Favorites', brand: null }, ...myTabs] : myTabs;

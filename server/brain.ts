@@ -1,5 +1,5 @@
 // The Brain's own thinking: pick the right agent or branch for a message, design a new agent, or build a branch.
-// Runs on the model you pick for it: Claude Code, OpenRouter, Hermes or Codex.
+// Runs on the model you pick for it: Claude Code, OpenRouter, Venice, Hermes, Codex or opencode.
 import fs from 'node:fs';
 import { agents, workflows, getSecrets, getSettings } from './store.ts';
 import { TOOL_GROUPS } from './tools.ts';
@@ -10,6 +10,7 @@ import { brainSession, systemMessage } from './promptcache.ts';
 import { effortFor, isEffort } from '../shared/effort.ts';
 import { apiModelInfo, apiRequestOptions, resolveApiProvider } from './apiproviders.ts';
 import { apiErrorMessage } from './apiresponse.ts';
+import { ask as askOpencode, status as opencodeStatus } from './engines/opencode.ts';
 import type { FetchError } from './util.ts';
 import type { Agent, AgentDraft, BrainModel, BrainRoute, BrainSetting, BranchDesign, BranchMember, EngineId, SkillDraft, Team } from '../shared/types.ts';
 
@@ -71,15 +72,15 @@ export interface ThinkOptions {
 const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
 
 // Which model the Brain uses (Settings > General > The Brain's model, or the chip in the Brain chat).
-// Claude Code, OpenRouter, Hermes or Codex. Falls back to whatever is available.
+// Claude Code, OpenRouter, Venice, Hermes, Codex or opencode. Falls back to whatever is available.
 export function brainModel(): BrainModel {
   const b: Partial<BrainSetting> = getSettings().brain || {};
   const key = !!getSecrets().openrouterKey;
-  const ok: Record<BrainSetting['provider'], boolean> = { claude: !!which('claude'), openrouter: key, venice: !!getSecrets().veniceKey, hermes: !!which('hermes'), codex: !!which('codex') };
-  const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']] ? (b.provider as BrainSetting['provider']) : (['claude', 'openrouter', 'hermes', 'codex', 'venice'] as const).find((x) => ok[x]) || b.provider || 'claude';
+  const ok: Record<BrainSetting['provider'], boolean> = { claude: !!which('claude'), openrouter: key, venice: !!getSecrets().veniceKey, hermes: !!which('hermes'), codex: !!which('codex'), opencode: !!which('opencode') && !opencodeStatus().tooOld };
+  const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']] ? (b.provider as BrainSetting['provider']) : (['claude', 'openrouter', 'hermes', 'codex', 'venice', 'opencode'] as const).find((x) => ok[x]) || b.provider || 'claude';
   const model = p === b.provider ? b.model ?? '' : '';
-  const dflt = { claude: 'haiku', openrouter: 'anthropic/claude-haiku-5.5', venice: getSettings().defaults.veniceModel, hermes: '', codex: '' }[p];
-  const engine = ({ claude: 'claude-code', openrouter: 'eve', venice: 'eve', hermes: 'hermes', codex: 'codex' } as const satisfies Record<BrainSetting['provider'], EngineId>)[p];
+  const dflt = { claude: 'haiku', openrouter: 'anthropic/claude-haiku-5.5', venice: getSettings().defaults.veniceModel, hermes: '', codex: '', opencode: '' }[p];
+  const engine = ({ claude: 'claude-code', openrouter: 'eve', venice: 'eve', hermes: 'hermes', codex: 'codex', opencode: 'opencode' } as const satisfies Record<BrainSetting['provider'], EngineId>)[p];
   const effort = p === b.provider ? p === 'venice' && isEffort(b.effort) ? b.effort : effortFor(engine, b.effort, p) : '';
   return { provider: p, model: model || dflt, effort, fallback: p !== (b.provider || 'claude') };
 }
@@ -106,7 +107,7 @@ interface CodexStep {
 const asText = (v: unknown): string => (typeof v === 'string' ? v : Array.isArray(v) ? v.map((c) => (c && typeof c === 'object' && 'text' in c ? String((c as { text: unknown }).text) : '')).join('\n') : v == null ? '' : JSON.stringify(v));
 
 // tools: read-only Claude Code tools (e.g. "Read,Glob,Grep") the Brain may use inside cwd.
-// Codex reads the folder in a read-only sandbox instead.
+// Codex reads the folder in a read-only sandbox instead; opencode, with tools set, may read, glob and grep in cwd.
 // onPart: the answer as it is written and the tools it uses, while it thinks (the Brain chat streams them).
 export async function think(system: string, user: string, { tools = '', cwd, timeout = 90000, maxTokens = 2500, onPart }: ThinkOptions = {}): Promise<string> {
   const bm = brainModel();
@@ -247,7 +248,8 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     if (!out) throw new Error(`Hermes didn't answer (${(r.stderr || '').trim().slice(-300)})`);
     return out;
   }
-  if (!which('claude')) throw new Error('The Brain needs Claude Code, an OpenRouter or Venice key, Hermes or Codex.');
+  if (bm.provider === 'opencode') return askOpencode({ system, user, model: bm.model, effort: bm.effort, cwd, read: !!tools, timeout, onPart: part });
+  if (!which('claude')) throw new Error('The Brain needs Claude Code, an OpenRouter or Venice key, Hermes, Codex or opencode.');
   const promptFile = tmpFile('brain-system.md');
   fs.writeFileSync(promptFile, system);
   // streamed (onPart): stream-json, with the text as it is written and the files it reads

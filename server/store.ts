@@ -346,6 +346,13 @@ export type { WorkflowRun, WorkflowRunStep } from '../shared/types.ts';
 
 // (an agent's last model and pin, and a team's place on the map and last scheduled run, aren't versions)
 export const agents = collection<Agent>('agents', { versioned: true, ignore: ['lastModel', 'lastModelAt', 'pinned'] });
+/** Always allow: these tools (or engine permissions) go by without asking for this agent from now on. */
+export function rememberAlwaysAllow(agentId: string, keys: string[]): void {
+  const fresh = agents.get(agentId);
+  if (!fresh) return;
+  fresh.alwaysAllow = [...new Set([...(fresh.alwaysAllow || []), ...keys])];
+  agents.save(fresh);
+}
 export const workflows = collection<Team>('workflows', { versioned: true, ignore: ['pos', 'rot', 'angle', 'lastScheduledAt', 'state', 'last'] });
 export const runs = collection<WorkflowRun>('runs');
 export const routines = collection<Routine>('routines');

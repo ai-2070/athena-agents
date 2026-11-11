@@ -55,6 +55,7 @@ const INDEX: IndexEntry[] = [
   { tab: 'general', find: 'pi coding agent', label: 'pi coding agent', words: 'pi earendil install' },
   { tab: 'general', find: 'oh-my-pi', label: 'oh-my-pi', words: 'omp oh my pi install' },
   { tab: 'general', find: 'OpenClaw', label: 'OpenClaw', words: 'openclaw claw gateway agents install' },
+  { tab: 'general', find: 'opencode', label: 'opencode', words: 'opencode open code sst anomaly install auth login' },
   { tab: 'general', find: "The Brain's model", label: "The Brain's model", words: 'brain auto router haiku sonnet opus model new team new agent auto-build' },
   { tab: 'general', find: 'The Brain approves', label: 'The Brain approves (auto-approval)', words: 'auto approve approval permissions brain allow needs you agents teams' },
   { tab: 'general', find: 'Defaults for new agents', label: 'Defaults for new agents', words: 'default engine model autonomy brain' },

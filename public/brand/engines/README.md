@@ -9,6 +9,8 @@ Vendored from the official project sites and repositories; brand names and marks
 
 OpenClaw’s animation elements are removed for a still settings icon.
 
+- opencode: https://raw.githubusercontent.com/anomalyco/opencode/739d2af27254cddb72d149e9098e522288c837f4/packages/app/public/favicon.svg, with its outer wrapper and empty colour-scheme style removed (the paths are unchanged)
+
 - Venice: https://venice.ai/brand/venice-keys-svg.zip (official keys mark). `venice.svg` has the approved Deep Blue fill and `venice-dark.svg` the Off White one, so the mark follows the app’s colour scheme; paths are unchanged.
 
 - handbrakecli.png: https://raw.githubusercontent.com/HandBrake/HandBrake/HEAD/win/CS/HandBrakeWPF/Views/Images/logo64.png
