@@ -7,9 +7,31 @@ import { matching } from '../../web/views/artifacts.tsx';
 import type { Artifact } from '../../shared/types.ts';
 
 const list: Artifact[] = [
-  { id: 'a1', title: 'Microduck TikTok (13 s, 9:16)', kind: 'file', path: 'C:\\net\\video\\microduck_tiktok.mp4', note: 'Cream microduck waddles in, hops', agentName: 'Studio Producer', teamName: 'Video & Motion' },
-  { id: 'a2', title: 'Weekly numbers', kind: 'text', text: 'Reach is up 12% on X this week', agentName: 'Analytics Reporter', teamName: 'Social' },
-  { id: 'a3', title: 'Renders', kind: 'folder', path: 'C:\\net\\video\\renders', agentName: '3D Artist', teamName: 'Video & Motion' },
+  {
+    id: 'a1',
+    title: 'Microduck TikTok (13 s, 9:16)',
+    kind: 'file',
+    path: 'C:\\net\\video\\microduck_tiktok.mp4',
+    note: 'Cream microduck waddles in, hops',
+    agentName: 'Studio Producer',
+    teamName: 'Video & Motion',
+  },
+  {
+    id: 'a2',
+    title: 'Weekly numbers',
+    kind: 'text',
+    text: 'Reach is up 12% on X this week',
+    agentName: 'Analytics Reporter',
+    teamName: 'Social',
+  },
+  {
+    id: 'a3',
+    title: 'Renders',
+    kind: 'folder',
+    path: 'C:\\net\\video\\renders',
+    agentName: '3D Artist',
+    teamName: 'Video & Motion',
+  },
 ];
 const ids = (q: string) => matching(list, q).map((a) => a.id);
 
@@ -88,7 +110,9 @@ describe('the Artifacts page', () => {
     await open();
     const removeBtn = [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Remove')!;
     await act(async () => removeBtn.click());
-    const sure = [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Remove')!;
+    const sure = [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find(
+      (b) => b.textContent === 'Remove',
+    )!;
     await act(async () => sure.click());
     await settle();
     expect(deleted).toEqual(['/api/artifacts/a2']);

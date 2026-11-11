@@ -12,7 +12,14 @@ import type { AppState, ChatItem } from '../../shared/types.ts';
 
 let root: Root | null = null;
 beforeEach(() => {
-  state.data = { runs: [], approvals: [], agents: [{ id: 'maker', name: 'Maker', emoji: '🎨', color: '#f60' }, { id: 'writer', name: 'Writer', emoji: '✍️' }] } as unknown as AppState;
+  state.data = {
+    runs: [],
+    approvals: [],
+    agents: [
+      { id: 'maker', name: 'Maker', emoji: '🎨', color: '#f60' },
+      { id: 'writer', name: 'Writer', emoji: '✍️' },
+    ],
+  } as unknown as AppState;
 });
 afterEach(() => {
   act(() => root?.unmount());
@@ -22,10 +29,39 @@ afterEach(() => {
 
 const ITEMS: ChatItem[] = [
   { type: 'user', text: 'make the launch kit' },
-  { type: 'tool', id: 'a1', name: 'mcp__dashboard__ask_agent', args: { agent: 'Maker', message: 'make the thumbnail' }, result: 'Sent to Maker (handle hmw2ab0by5a917f69). They are working on it now. Get the answer with await_agent and handle "hmw2ab0by5a917f69".', status: 'done' },
-  { type: 'tool', id: 'a2', name: 'ask_agent', args: { agent: 'Writer', message: 'write the post' }, result: 'Sent to Writer (handle h2). They are working on it now.', status: 'done' },
-  { type: 'tool', id: 'w1', name: 'await_agent', args: { handle: 'hmw2ab0by5a917f69' }, result: null, status: 'running' },
-  { type: 'tool', id: 'w2', name: 'await_agent', args: { handles: ['hmw2ab0by5a917f69', 'h2'], all: true }, result: null, status: 'running' },
+  {
+    type: 'tool',
+    id: 'a1',
+    name: 'mcp__dashboard__ask_agent',
+    args: { agent: 'Maker', message: 'make the thumbnail' },
+    result:
+      'Sent to Maker (handle hmw2ab0by5a917f69). They are working on it now. Get the answer with await_agent and handle "hmw2ab0by5a917f69".',
+    status: 'done',
+  },
+  {
+    type: 'tool',
+    id: 'a2',
+    name: 'ask_agent',
+    args: { agent: 'Writer', message: 'write the post' },
+    result: 'Sent to Writer (handle h2). They are working on it now.',
+    status: 'done',
+  },
+  {
+    type: 'tool',
+    id: 'w1',
+    name: 'await_agent',
+    args: { handle: 'hmw2ab0by5a917f69' },
+    result: null,
+    status: 'running',
+  },
+  {
+    type: 'tool',
+    id: 'w2',
+    name: 'await_agent',
+    args: { handles: ['hmw2ab0by5a917f69', 'h2'], all: true },
+    result: null,
+    status: 'running',
+  },
   // (a handle from before this chat's memory: shown as it is)
   { type: 'tool', id: 'w3', name: 'await_agent', args: { handle: 'hold' }, result: null, status: 'running' },
 ];
@@ -39,7 +75,9 @@ describe('agent tool cards', () => {
     await act(async () =>
       root!.render(
         <Handoffs.Provider value={handoffMap(handoffsIn(messages))}>
-          {messages.map((m) => <MessageView key={m.id} m={m} variant="full" busy streaming={false} dim={false} onSend={() => {}} />)}
+          {messages.map((m) => (
+            <MessageView key={m.id} m={m} variant="full" busy streaming={false} dim={false} onSend={() => {}} />
+          ))}
         </Handoffs.Provider>,
       ),
     );

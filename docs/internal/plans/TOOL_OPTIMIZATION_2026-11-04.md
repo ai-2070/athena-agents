@@ -12,12 +12,12 @@ get flooded by one oversized result. Safety does not change: every check in "Sec
 
 Measured from `toolsForAgent()` as JSON (name, description, schema), with tokens estimated as characters ÷ 3.6:
 
-| What the model gets | Tools | Characters | About tokens |
-|---|---|---|---|
-| Core tools, which every agent gets | 19 | 15 969 | 4 400 |
-| Voxel world group | 18 | 24 888 | 6 900 |
-| Social group | 12 | 4 831 | 1 300 |
-| Every group switched on | 91 | 62 931 | 17 500 |
+| What the model gets                | Tools | Characters | About tokens |
+| ---------------------------------- | ----- | ---------- | ------------ |
+| Core tools, which every agent gets | 19    | 15 969     | 4 400        |
+| Voxel world group                  | 18    | 24 888     | 6 900        |
+| Social group                       | 12    | 4 831      | 1 300        |
+| Every group switched on            | 91    | 62 931     | 17 500       |
 
 The agent's MCP servers come on top of this. The system prompt adds 3 000–4 500 characters more, plus up to
 about 9 000 for the world (`worldPrompt`, `server/voxel/tools.ts:723`).
@@ -153,19 +153,19 @@ Without a baseline we can't tell whether a change helped, and nothing stops the 
 
 ## Phase 1: stop repeating work (faster, no visible change)
 
-| # | Change | Where | Expected effect |
-|---|---|---|---|
-| 1.1 | Check permission by group: `core`, the agent's `toolGroups`, `memory` from `hasMemory`, and walk the knowledge folders only when the tool is in the `knowledge` group. Give `toolsForAgent` the same fast path for everything except the knowledge check. | `server/tools.ts:1171-1177, 1268` | No folder walk on ordinary calls. The `_workflow` knowledge folder is no longer created. |
-| 1.2 | Cache the MCP tool list per server. Drop it when the server sends `notifications/tools/list_changed`, when it reconnects, or when its settings change, with a 5-minute safety expiry. | `server/mcp.ts:1023` | One list request per server instead of one per lookup. Tool order stays the same between steps, which also keeps the provider's prompt cache. |
-| 1.3 | Eve: build the configuration **once per run** and keep it in memory by run id. Rebuild the tool list only when it really changes: `request_tool` gives a group, or an MCP list changes. The cheap checks (the run is still active, the session owns the binding, the cost and step limits) still run on every call. `/limit` stops rebuilding the whole configuration just to read two numbers. | `server/eve/bridge.ts:32-56, 198` | 4 prompt builds per step become 1 per run. |
-| 1.4 | Eve: freeze the system prompt for the whole run. Changes to MEMORY.md or WORLD.md show up in the next turn, as `memory_read` already promises. Tool results already tell the agent what changed. | same | The prompt cache no longer breaks mid-run. On long runs this is likely the largest saving in money. |
-| 1.5 | Eve: `/policy` and `/tool` share one route lookup per call, using the cached list from 1.2/1.3. Only the access checks run again (the MCP account still belongs to the agent, the server is still on). | `bridge.ts:67, 114, 120` | 3 tool-list builds per call become 0. |
-| 1.6 | Eve: keep an in-memory index of active runs and their operations, since the coordinator owns them in this process. Read from disk only on startup and recovery. Save operations per run (`operations/<runId>/…`), so `prepareOperation` reads one run's files. | `server/eve/state.ts:175`, `operations.ts:19-38` | Cost per call stops growing with history. |
-| 1.7 | Eve: clean up old receipts. Delete operation and admission files of runs that finished more than 30 days ago and whose results are already in the chat. Never touch `waiting`, `uncertain` or unchecked outcomes. | `server/eve/` | The folder stops growing forever. **Decision:** how long to keep them. |
-| 1.8 | Cache skill reads by folder and `mtime`. `findSkill` tries the exact slug before listing. `searchSkill` reads the skill once. | `server/skills.ts:640-672` | `read_skill` reads each file once. |
-| 1.9 | Keep a list of knowledge files per agent, keyed by each file's path, `mtime` and size. Re-read only the files that changed when searching. | `server/knowledge.ts:54-144` | `knowledge_search` and prompt builds stop re-reading every file. |
-| 1.10 | `searchConversations` parses each chat once. | `server/conversations.ts:37` | Half the parsing work. |
-| 1.11 | Wait up to 1 s before saving the chat after tool events, like text events do. Save at once when the run waits for an approval or a question, and when it ends. Use `findLast` instead of copying and reversing the item list. | `server/engines/index.ts:470-485` | Far fewer full-chat writes in busy runs. If the app crashes, what was there just before is lost; Eve's own receipts keep its outcomes anyway. |
+| #    | Change                                                                                                                                                                                                                                                                                                                                                                                          | Where                                            | Expected effect                                                                                                                               |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.1  | Check permission by group: `core`, the agent's `toolGroups`, `memory` from `hasMemory`, and walk the knowledge folders only when the tool is in the `knowledge` group. Give `toolsForAgent` the same fast path for everything except the knowledge check.                                                                                                                                       | `server/tools.ts:1171-1177, 1268`                | No folder walk on ordinary calls. The `_workflow` knowledge folder is no longer created.                                                      |
+| 1.2  | Cache the MCP tool list per server. Drop it when the server sends `notifications/tools/list_changed`, when it reconnects, or when its settings change, with a 5-minute safety expiry.                                                                                                                                                                                                           | `server/mcp.ts:1023`                             | One list request per server instead of one per lookup. Tool order stays the same between steps, which also keeps the provider's prompt cache. |
+| 1.3  | Eve: build the configuration **once per run** and keep it in memory by run id. Rebuild the tool list only when it really changes: `request_tool` gives a group, or an MCP list changes. The cheap checks (the run is still active, the session owns the binding, the cost and step limits) still run on every call. `/limit` stops rebuilding the whole configuration just to read two numbers. | `server/eve/bridge.ts:32-56, 198`                | 4 prompt builds per step become 1 per run.                                                                                                    |
+| 1.4  | Eve: freeze the system prompt for the whole run. Changes to MEMORY.md or WORLD.md show up in the next turn, as `memory_read` already promises. Tool results already tell the agent what changed.                                                                                                                                                                                                | same                                             | The prompt cache no longer breaks mid-run. On long runs this is likely the largest saving in money.                                           |
+| 1.5  | Eve: `/policy` and `/tool` share one route lookup per call, using the cached list from 1.2/1.3. Only the access checks run again (the MCP account still belongs to the agent, the server is still on).                                                                                                                                                                                          | `bridge.ts:67, 114, 120`                         | 3 tool-list builds per call become 0.                                                                                                         |
+| 1.6  | Eve: keep an in-memory index of active runs and their operations, since the coordinator owns them in this process. Read from disk only on startup and recovery. Save operations per run (`operations/<runId>/…`), so `prepareOperation` reads one run's files.                                                                                                                                  | `server/eve/state.ts:175`, `operations.ts:19-38` | Cost per call stops growing with history.                                                                                                     |
+| 1.7  | Eve: clean up old receipts. Delete operation and admission files of runs that finished more than 30 days ago and whose results are already in the chat. Never touch `waiting`, `uncertain` or unchecked outcomes.                                                                                                                                                                               | `server/eve/`                                    | The folder stops growing forever. **Decision:** how long to keep them.                                                                        |
+| 1.8  | Cache skill reads by folder and `mtime`. `findSkill` tries the exact slug before listing. `searchSkill` reads the skill once.                                                                                                                                                                                                                                                                   | `server/skills.ts:640-672`                       | `read_skill` reads each file once.                                                                                                            |
+| 1.9  | Keep a list of knowledge files per agent, keyed by each file's path, `mtime` and size. Re-read only the files that changed when searching.                                                                                                                                                                                                                                                      | `server/knowledge.ts:54-144`                     | `knowledge_search` and prompt builds stop re-reading every file.                                                                              |
+| 1.10 | `searchConversations` parses each chat once.                                                                                                                                                                                                                                                                                                                                                    | `server/conversations.ts:37`                     | Half the parsing work.                                                                                                                        |
+| 1.11 | Wait up to 1 s before saving the chat after tool events, like text events do. Save at once when the run waits for an approval or a question, and when it ends. Use `findLast` instead of copying and reversing the item list.                                                                                                                                                                   | `server/engines/index.ts:470-485`                | Far fewer full-chat writes in busy runs. If the app crashes, what was there just before is lost; Eve's own receipts keep its outcomes anyway. |
 
 Safety notes for this phase:
 
@@ -177,15 +177,15 @@ Safety notes for this phase:
 
 ## Phase 2: send fewer tokens with every request
 
-| # | Change | Where | Expected effect |
-|---|---|---|---|
-| 2.1 | **Tools that depend on the conversation.** `toolsForAgent(agent, run)` offers the board tools only in a board task's own conversation, and the gateway file tools only in a gateway assignment. The list must stay the same for a whole conversation, so the prompt cache stays valid. | `server/tools.ts:226-276, 1171`, `apitools.ts`, `/api/internal/tools` | About 2 500 characters (≈700 tokens) less on every other request. |
-| 2.2 | **Shorter `request_tool`.** List only the groups the agent doesn't have yet, with their short labels. Move the long descriptions into the approval text, where the user and the Brain read them. | `server/tools.ts:309-321` | About 1 800 characters less. |
-| 2.3 | **Say it once.** Cut the system-prompt paragraphs on Tasks, `set_goal` and search down to what the tool descriptions don't already say. That is one line about using the dashboard's task list instead of the CLI's own. | `server/engines/index.ts:379-381` | About 1 200 characters less. |
-| 2.4 | **Compact results.** Remove the JSON indenting at the seven places listed above, or use one line per item where that reads better (X posts, Reddit listings). Approval details stay readable for people. | `server/tools.ts:405-884` | About 40% smaller results for those tools. |
-| 2.5 | **Slimmer world tools.** Take `STEPS_HELP` out of `world_build` and point to `world_steps`. Shorten the descriptions of `world_script`, `world_animate` and `world_skin`. Say the WORLD.md advice in one place, not three. | `server/voxel/tools.ts` | Group from about 6 900 toward about 4 000 tokens. Check with `voxel-tools.test.ts` and a real build. |
-| 2.6 | **No duplicate tools on CLI engines.** Don't send the dashboard's `files` and `shell` tools to Claude Code, Codex or pi, which have their own. Eve keeps them. | `server/tools.ts:1171`, `index.ts:1303` | Less to choose from and fewer tokens. **Decision below.** |
-| 2.7 | Fix `run_command` off Windows: PowerShell on Windows, the user's `$SHELL` elsewhere. Describe the shell per platform. Fix "Windows PC" in the system prompt. | `server/tools.ts:1095-1104`, `index.ts:384` | `run_command` works on Mac and Linux. |
+| #   | Change                                                                                                                                                                                                                                                                                 | Where                                                                 | Expected effect                                                                                      |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 2.1 | **Tools that depend on the conversation.** `toolsForAgent(agent, run)` offers the board tools only in a board task's own conversation, and the gateway file tools only in a gateway assignment. The list must stay the same for a whole conversation, so the prompt cache stays valid. | `server/tools.ts:226-276, 1171`, `apitools.ts`, `/api/internal/tools` | About 2 500 characters (≈700 tokens) less on every other request.                                    |
+| 2.2 | **Shorter `request_tool`.** List only the groups the agent doesn't have yet, with their short labels. Move the long descriptions into the approval text, where the user and the Brain read them.                                                                                       | `server/tools.ts:309-321`                                             | About 1 800 characters less.                                                                         |
+| 2.3 | **Say it once.** Cut the system-prompt paragraphs on Tasks, `set_goal` and search down to what the tool descriptions don't already say. That is one line about using the dashboard's task list instead of the CLI's own.                                                               | `server/engines/index.ts:379-381`                                     | About 1 200 characters less.                                                                         |
+| 2.4 | **Compact results.** Remove the JSON indenting at the seven places listed above, or use one line per item where that reads better (X posts, Reddit listings). Approval details stay readable for people.                                                                               | `server/tools.ts:405-884`                                             | About 40% smaller results for those tools.                                                           |
+| 2.5 | **Slimmer world tools.** Take `STEPS_HELP` out of `world_build` and point to `world_steps`. Shorten the descriptions of `world_script`, `world_animate` and `world_skin`. Say the WORLD.md advice in one place, not three.                                                             | `server/voxel/tools.ts`                                               | Group from about 6 900 toward about 4 000 tokens. Check with `voxel-tools.test.ts` and a real build. |
+| 2.6 | **No duplicate tools on CLI engines.** Don't send the dashboard's `files` and `shell` tools to Claude Code, Codex or pi, which have their own. Eve keeps them.                                                                                                                         | `server/tools.ts:1171`, `index.ts:1303`                               | Less to choose from and fewer tokens. **Decision below.**                                            |
+| 2.7 | Fix `run_command` off Windows: PowerShell on Windows, the user's `$SHELL` elsewhere. Describe the shell per platform. Fix "Windows PC" in the system prompt.                                                                                                                           | `server/tools.ts:1095-1104`, `index.ts:384`                           | `run_command` works on Mac and Linux.                                                                |
 
 Not planned yet: `TaskCreate`/`TaskUpdate` could share one field list through `$defs`. It would save about 600
 characters, but some OpenAI-compatible local servers handle `$ref` badly. These schemas also deliberately
@@ -194,17 +194,17 @@ local models matter here.
 
 ## Phase 3: fewer calls per task
 
-| # | Tool | Change | Risk |
-|---|---|---|---|
-| 3.1 | `read_file` | `offset` and `limit` in lines. Says the total number of lines and where it stopped. `paths` reads up to 10 files in one call. Default cut at 2 000 lines or 40 000 characters. | none (unchanged) |
-| 3.2 | `edit_file` (new) | Replace exact text in a file: one or more `{ old, new }` pairs, each of which must match exactly once unless `all` is set. Same folders as `write_file`. The approval shows the change as a diff. | low, like `write_file` |
-| 3.3 | `find_files` (new) | Find files by name pattern (glob) inside the allowed folders. Skips links that point outside them, stops after 500 hits. | none |
-| 3.4 | `search_files` (new) | Find lines that match words or a regular expression, with the file and line number. Same folder rules, with caps on files, bytes and time. | none |
-| 3.5 | `list_files` | Optional `depth` and sizes. Says when the list was cut (today it silently stops at 500). | none |
-| 3.6 | `fetch_url` | Limit `max_chars` to 50 000. Add `offset` to continue. Keep each run's fetched page in memory, so continuing doesn't download it again. Turn HTML into Markdown (headings, lists, links), leaving out navigation and footers. Stop reading the body after a byte limit. | none (unchanged) |
-| 3.7 | `run_command` | Keep both the start and the end of long output. The exit code comes first. Limit `timeout_sec`. | high (unchanged) |
-| 3.8 | `await_agent` | Accept several handles and return the first to finish (or all, with `all: true`). `ask_agent` can take `wait_seconds` for quick questions, so one call is enough. | none |
-| 3.9 | `x_recent_posts`, `x_mentions` | Limit `limit` to 50, because each read is billed. Add `note` to `reddit_draft_post`'s schema. | none |
+| #   | Tool                           | Change                                                                                                                                                                                                                                                                  | Risk                   |
+| --- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| 3.1 | `read_file`                    | `offset` and `limit` in lines. Says the total number of lines and where it stopped. `paths` reads up to 10 files in one call. Default cut at 2 000 lines or 40 000 characters.                                                                                          | none (unchanged)       |
+| 3.2 | `edit_file` (new)              | Replace exact text in a file: one or more `{ old, new }` pairs, each of which must match exactly once unless `all` is set. Same folders as `write_file`. The approval shows the change as a diff.                                                                       | low, like `write_file` |
+| 3.3 | `find_files` (new)             | Find files by name pattern (glob) inside the allowed folders. Skips links that point outside them, stops after 500 hits.                                                                                                                                                | none                   |
+| 3.4 | `search_files` (new)           | Find lines that match words or a regular expression, with the file and line number. Same folder rules, with caps on files, bytes and time.                                                                                                                              | none                   |
+| 3.5 | `list_files`                   | Optional `depth` and sizes. Says when the list was cut (today it silently stops at 500).                                                                                                                                                                                | none                   |
+| 3.6 | `fetch_url`                    | Limit `max_chars` to 50 000. Add `offset` to continue. Keep each run's fetched page in memory, so continuing doesn't download it again. Turn HTML into Markdown (headings, lists, links), leaving out navigation and footers. Stop reading the body after a byte limit. | none (unchanged)       |
+| 3.7 | `run_command`                  | Keep both the start and the end of long output. The exit code comes first. Limit `timeout_sec`.                                                                                                                                                                         | high (unchanged)       |
+| 3.8 | `await_agent`                  | Accept several handles and return the first to finish (or all, with `all: true`). `ask_agent` can take `wait_seconds` for quick questions, so one call is enough.                                                                                                       | none                   |
+| 3.9 | `x_recent_posts`, `x_mentions` | Limit `limit` to 50, because each read is billed. Add `note` to `reddit_draft_post`'s schema.                                                                                                                                                                           | none                   |
 
 The new file tools are added to the `files` group, so no new switch is needed. `edit_file` and the new
 arguments go into `README.md` and `docs/guide.md`.
@@ -255,14 +255,14 @@ try to get around it.
 
 ## Order and size
 
-| Phase | Changes | Size | Ships separately |
-|---|---|---|---|
-| 0 | Budget test, call counters, local stats | small | yes, first |
-| 1 | Caching and fewer repeats (1.1–1.11) | medium; most of the work is in Eve's bridge and state | yes, in 2–3 commits: tools/MCP, Eve, stores |
-| 2 | Leaner lists and prompts, `run_command` fix | small to medium | yes |
-| 3 | File, fetch and delegation tools | medium | yes, with README and guide updates |
-| 4 | Shared result limit | small | yes |
-| 5, 6 | Load on demand, argument-based risk | medium each | after the decisions below |
+| Phase | Changes                                     | Size                                                  | Ships separately                            |
+| ----- | ------------------------------------------- | ----------------------------------------------------- | ------------------------------------------- |
+| 0     | Budget test, call counters, local stats     | small                                                 | yes, first                                  |
+| 1     | Caching and fewer repeats (1.1–1.11)        | medium; most of the work is in Eve's bridge and state | yes, in 2–3 commits: tools/MCP, Eve, stores |
+| 2     | Leaner lists and prompts, `run_command` fix | small to medium                                       | yes                                         |
+| 3     | File, fetch and delegation tools            | medium                                                | yes, with README and guide updates          |
+| 4     | Shared result limit                         | small                                                 | yes                                         |
+| 5, 6  | Load on demand, argument-based risk         | medium each                                           | after the decisions below                   |
 
 Every phase passes `bun run check` and the desktop smoke test (`scripts/desktop-smoke.ts` calls tools through the
 bundled server). Tests go in `tests/server`, next to the existing ones: `file-tools`, `skills`, `knowledge`,
@@ -299,13 +299,13 @@ Measured on 4 November 2026, with the tool lists as the model gets them (`tests/
 
 ### Sizes
 
-| What the model gets | Before | After |
-|---|---|---|
-| Core tools, which every agent carries | 19 tools, 15 969 characters (≈4 400 tokens) | 15 tools, 11 978 (≈3 300 tokens), 25% less |
-| Voxel world group | 18 tools, 24 888 | 17 tools, 15 476 (≈4 300 tokens), 38% less |
-| `request_tool` | 2 596 | 1 103 |
-| Every group, Eve agent | 91 tools, 62 931 | 87 tools, 52 893, with three new file tools included |
-| Every group, Claude Code agent | the same 62 931 | 80 tools, 49 275 (its own file and shell tools aren't doubled) |
+| What the model gets                   | Before                                      | After                                                          |
+| ------------------------------------- | ------------------------------------------- | -------------------------------------------------------------- |
+| Core tools, which every agent carries | 19 tools, 15 969 characters (≈4 400 tokens) | 15 tools, 11 978 (≈3 300 tokens), 25% less                     |
+| Voxel world group                     | 18 tools, 24 888                            | 17 tools, 15 476 (≈4 300 tokens), 38% less                     |
+| `request_tool`                        | 2 596                                       | 1 103                                                          |
+| Every group, Eve agent                | 91 tools, 62 931                            | 87 tools, 52 893, with three new file tools included           |
+| Every group, Claude Code agent        | the same 62 931                             | 80 tools, 49 275 (its own file and shell tools aren't doubled) |
 
 The core list stays above the 3 000-token target. Most of what is left is the Task tools' schemas, which follow
 Claude Code's published shape: single-task fields plus a `tasks` list with the same fields. Sharing them through
@@ -314,12 +314,12 @@ test now fails when any group grows past its ceiling.
 
 ### Repeated work, for one Eve step with one tool call (21 saved runs, from `tests/server/eve-calls.test.ts`)
 
-| | Before | After |
-|---|---|---|
-| System-prompt builds | 4 per step | 1 per run |
-| Tool-list builds | 7 | 6, now without MCP requests while nothing changed (lists are kept per connection) |
-| Run-file reads | 219 | 0 |
-| Operation-file reads | 26 | 0 |
+|                      | Before     | After                                                                             |
+| -------------------- | ---------- | --------------------------------------------------------------------------------- |
+| System-prompt builds | 4 per step | 1 per run                                                                         |
+| Tool-list builds     | 7          | 6, now without MCP requests while nothing changed (lists are kept per connection) |
+| Run-file reads       | 219        | 0                                                                                 |
+| Operation-file reads | 26         | 0                                                                                 |
 
 The instructions stay the same for a whole turn, so the prompt cache no longer breaks when MEMORY.md or WORLD.md
 change mid-run. Eve receipts of runs that ended more than 30 days ago are removed when they can no longer be needed.

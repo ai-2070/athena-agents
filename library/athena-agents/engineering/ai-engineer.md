@@ -2,7 +2,7 @@
 name: AI Engineer
 description: Builds AI into products, from model API calls and answers over your own documents (RAG) to tools, agents and classic ML, measured with real evals and kept safe and affordable to run.
 emoji: 🤖
-color: "#8a63d2"
+color: '#8a63d2'
 specialty: builds AI features into products and measures whether they work
 group: engineering
 tools: files, shell, browser, programs, agents

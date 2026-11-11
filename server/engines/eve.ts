@@ -32,26 +32,48 @@ export async function run({ runId, signal, adopt, depth, agent, chat }: EngineRu
   const input = await prepareAdmission(runId, project);
   const binding = readBinding(input.bindingId)!;
   await retireEveBindings(host, binding);
-  return followRun(runId, input.bindingId, signal, input.selection.contextWindow, async () => {
-    for (;;) {
-      signal.throwIfAborted();
-      try {
-        await submitAdmission(input, eveClient(host, input.bindingId), signal);
-        return host;
-      } catch {
-        const saved = readRun(runId);
-        if (signal.aborted || !saved || ['failed', 'stopped', 'interrupted'].includes(saved.status) || !validAdmission(runId)) throw new Error('Eve could not accept this input.');
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        try { host = await eveRuntime.ready(); }
-        catch { signal.throwIfAborted(); }
+  return followRun(
+    runId,
+    input.bindingId,
+    signal,
+    input.selection.contextWindow,
+    async () => {
+      for (;;) {
+        signal.throwIfAborted();
+        try {
+          await submitAdmission(input, eveClient(host, input.bindingId), signal);
+          return host;
+        } catch {
+          const saved = readRun(runId);
+          if (
+            signal.aborted ||
+            !saved ||
+            ['failed', 'stopped', 'interrupted'].includes(saved.status) ||
+            !validAdmission(runId)
+          )
+            throw new Error('Eve could not accept this input.');
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          try {
+            host = await eveRuntime.ready();
+          } catch {
+            signal.throwIfAborted();
+          }
+        }
       }
-    }
-  }, host);
+    },
+    host,
+  );
 }
 
 /** A turn Eve already started with a message that missed the turn before it: nothing to send, only to follow.
  *  If that turn never begins (the session broke), it gives up rather than wait forever. */
-async function follow(runId: string, signal: AbortSignal, adopt: NonNullable<EngineRunArgs['adopt']>, depth: number, window: number): Promise<EngineResult> {
+async function follow(
+  runId: string,
+  signal: AbortSignal,
+  adopt: NonNullable<EngineRunArgs['adopt']>,
+  depth: number,
+  window: number,
+): Promise<EngineResult> {
   const host = await eveRuntime.ready();
   signal.throwIfAborted();
   adoptRun(runId, adopt.bindingId, adopt.deliveryId, depth, null, adopt.steers);
@@ -76,19 +98,35 @@ async function follow(runId: string, signal: AbortSignal, adopt: NonNullable<Eng
 }
 
 /** Sends the input (start), then follows the run until it ends; Stop stops it in Eve too. */
-async function followRun(runId: string, bindingId: string, signal: AbortSignal, window: number, start: () => Promise<EveHost>, host: EveHost, watch?: Promise<never>): Promise<EngineResult> {
-  const stopped = () => { if (!isStopping()) void stopEveRun(runId); };
+async function followRun(
+  runId: string,
+  bindingId: string,
+  signal: AbortSignal,
+  window: number,
+  start: () => Promise<EveHost>,
+  host: EveHost,
+  watch?: Promise<never>,
+): Promise<EngineResult> {
+  const stopped = () => {
+    if (!isStopping()) void stopEveRun(runId);
+  };
   signal.addEventListener('abort', stopped, { once: true });
   try {
     host = await start();
     let aborted = () => {};
     try {
-      await Promise.race([eveCoordinator.follow(runId), ...(watch ? [watch] : []), new Promise<never>((_, reject) => {
-        aborted = () => reject(new Error('Stopped.'));
-        if (signal.aborted) aborted();
-        else signal.addEventListener('abort', aborted, { once: true });
-      })]);
-    } finally { signal.removeEventListener('abort', aborted); }
+      await Promise.race([
+        eveCoordinator.follow(runId),
+        ...(watch ? [watch] : []),
+        new Promise<never>((_, reject) => {
+          aborted = () => reject(new Error('Stopped.'));
+          if (signal.aborted) aborted();
+          else signal.addEventListener('abort', aborted, { once: true });
+        }),
+      ]);
+    } finally {
+      signal.removeEventListener('abort', aborted);
+    }
     const result = readRun(runId);
     if (signal.aborted || result?.status !== 'completed') throw new Error(failureText(result));
     return { text: result.answer || '', ...eveUsage(runId), ...(window ? { window } : {}) };

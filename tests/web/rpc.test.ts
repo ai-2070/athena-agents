@@ -9,9 +9,18 @@ import { contract as appContract } from '../../shared/api/index.ts';
 
 const contract = {
   things: {
-    list: oc.route({ method: 'GET', path: '/things' }).input(z.object({ q: z.string() })).output(type<{ things: string[] }>()),
-    add: oc.route({ method: 'POST', path: '/things/{listId}' }).input(z.object({ listId: z.string(), name: z.string() })).output(type<{ ok: boolean }>()),
-    remove: oc.route({ method: 'DELETE', path: '/things/{listId}/{id}' }).input(z.object({ listId: z.string(), id: z.string() })).output(type<{ ok: boolean }>()),
+    list: oc
+      .route({ method: 'GET', path: '/things' })
+      .input(z.object({ q: z.string() }))
+      .output(type<{ things: string[] }>()),
+    add: oc
+      .route({ method: 'POST', path: '/things/{listId}' })
+      .input(z.object({ listId: z.string(), name: z.string() }))
+      .output(type<{ ok: boolean }>()),
+    remove: oc
+      .route({ method: 'DELETE', path: '/things/{listId}/{id}' })
+      .input(z.object({ listId: z.string(), id: z.string() }))
+      .output(type<{ ok: boolean }>()),
   },
 };
 const rpc = rpcClient(contract);
@@ -19,10 +28,13 @@ const rpc = rpcClient(contract);
 type Call = { url: string; init: RequestInit };
 let calls: Call[] = [];
 const answer = (body: unknown, status = 200) =>
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
-    calls.push({ url, init });
-    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit = {}) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+    }),
+  );
 
 beforeEach(() => {
   calls = [];
@@ -82,9 +94,18 @@ describe('rpc calls', () => {
   });
 
   it('read the answer as JSON even when it doesn’t say it is, as api() does', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'This changed meanwhile.' }), { status: 409 })));
-    await expect(rpc.things.remove({ listId: 'l', id: 'x' })).rejects.toMatchObject({ message: 'This changed meanwhile.', status: 409 });
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ things: ['a'] }))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ error: 'This changed meanwhile.' }), { status: 409 })),
+    );
+    await expect(rpc.things.remove({ listId: 'l', id: 'x' })).rejects.toMatchObject({
+      message: 'This changed meanwhile.',
+      status: 409,
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ things: ['a'] }))),
+    );
     expect(await rpc.things.list({ q: '' })).toEqual({ things: ['a'] });
   });
 
@@ -93,7 +114,10 @@ describe('rpc calls', () => {
     const lean = rpcClient(minifyContractRouter(appContract)) as typeof appRpc;
     await lean.taskBoard.tags.list({ projectId: 'p 1' });
     await lean.taskBoard.comments.remove({ projectId: 'p1', id: 't1', commentId: 'c1' });
-    expect(calls.map((c) => `${c.init.method} ${c.url}`)).toEqual(['GET /api/task-board-tags/p%201', 'DELETE /api/task-board/p1/t1/comments/c1']);
+    expect(calls.map((c) => `${c.init.method} ${c.url}`)).toEqual([
+      'GET /api/task-board-tags/p%201',
+      'DELETE /api/task-board/p1/t1/comments/c1',
+    ]);
   });
 
   it('fail with the status when the server gave no words', async () => {
@@ -104,7 +128,12 @@ describe('rpc calls', () => {
   });
 
   it('pass on a server that can’t be reached as it is', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    );
     await expect(rpc.things.remove({ listId: 'l', id: 'x' })).rejects.toThrow('Failed to fetch');
   });
 });

@@ -16,9 +16,15 @@ const reader = { id: 'reader', name: 'Reader', toolGroups: ['browser'] };
 beforeAll(async () => {
   server = http.createServer((req, res) => {
     hits++;
-    if (req.url === '/long') return void res.writeHead(200, { 'content-type': 'text/plain' }).end(`${'x'.repeat(30_000)}THE-END`);
-    if (req.url === '/pic') return void res.writeHead(200, { 'content-type': 'image/png' }).end(Buffer.from([0x89, 0x50]));
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end('<html><head><title>Hi &amp; bye</title><script>evil()</script></head><body><nav>Menu</nav><h1>Big</h1><p>See <a href="/docs">the docs</a>.</p><pre>  keep   spacing</pre><footer>Legal</footer></body></html>');
+    if (req.url === '/long')
+      return void res.writeHead(200, { 'content-type': 'text/plain' }).end(`${'x'.repeat(30_000)}THE-END`);
+    if (req.url === '/pic')
+      return void res.writeHead(200, { 'content-type': 'image/png' }).end(Buffer.from([0x89, 0x50]));
+    res
+      .writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      .end(
+        '<html><head><title>Hi &amp; bye</title><script>evil()</script></head><body><nav>Menu</nav><h1>Big</h1><p>See <a href="/docs">the docs</a>.</p><pre>  keep   spacing</pre><footer>Legal</footer></body></html>',
+      );
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
 });
@@ -26,7 +32,10 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 describe('htmlToMarkdown', () => {
   it('keeps headings, links and code, and leaves out scripts, menus and footers', () => {
-    const md = htmlToMarkdown('<title>T</title><nav>Menu</nav><h2>Part</h2><ul><li>one</li><li>two</li></ul><p>A <a href="/x">link</a> &amp; <code>code</code>&#33;</p><pre>a\n  b</pre><script>x()</script><footer>F</footer>', 'https://example.com/page');
+    const md = htmlToMarkdown(
+      '<title>T</title><nav>Menu</nav><h2>Part</h2><ul><li>one</li><li>two</li></ul><p>A <a href="/x">link</a> &amp; <code>code</code>&#33;</p><pre>a\n  b</pre><script>x()</script><footer>F</footer>',
+      'https://example.com/page',
+    );
     expect(md).toContain('Title: T');
     expect(md).toContain('## Part');
     expect(md).toContain('- one\n- two');
@@ -66,7 +75,18 @@ describe('fetch_url', () => {
 
 describe('await_agent with several handles', () => {
   const handoff = (id: string, done: boolean) =>
-    saveHandoff({ id, from: 'boss', projectId: activeProject().id, to: 'helper', toName: `Helper ${id}`, chatId: `c-${id}`, runId: `r-${id}`, task: 'work', startedAt: Date.now() - 1000, ...(done ? { answer: `answer ${id}`, endedAt: Date.now() } : {}) });
+    saveHandoff({
+      id,
+      from: 'boss',
+      projectId: activeProject().id,
+      to: 'helper',
+      toName: `Helper ${id}`,
+      chatId: `c-${id}`,
+      runId: `r-${id}`,
+      task: 'work',
+      startedAt: Date.now() - 1000,
+      ...(done ? { answer: `answer ${id}`, endedAt: Date.now() } : {}),
+    });
 
   it('returns as soon as one is done, and says which are still working', async () => {
     handoff('h-done', true);

@@ -31,11 +31,11 @@
 
 Download the installer for your system from the **Releases** page and install it like any other app. You don't need anything else.
 
-| System | File |
-|---|---|
-| Windows (x64 or Arm) | `…_x64-setup.exe` or `…_arm64-setup.exe` (or the `.msi` on x64) |
-| macOS (Apple silicon or Intel) | `…_aarch64.dmg` or `…_x64.dmg` |
-| Linux (x64 or Arm) | `.deb`, `.rpm`, or `.AppImage` on x64 |
+| System                         | File                                                            |
+| ------------------------------ | --------------------------------------------------------------- |
+| Windows (x64 or Arm)           | `…_x64-setup.exe` or `…_arm64-setup.exe` (or the `.msi` on x64) |
+| macOS (Apple silicon or Intel) | `…_aarch64.dmg` or `…_x64.dmg`                                  |
+| Linux (x64 or Arm)             | `.deb`, `.rpm`, or `.AppImage` on x64                           |
 
 The installers aren't signed yet. On Windows, choose **More info → Run anyway**. On macOS, Control-click the app in Finder and choose **Open**.
 
@@ -58,22 +58,22 @@ On Windows you can also double-click [`start.cmd`](start.cmd). To add a desktop 
 
 Open **Settings → General & keys** and set up the engines you want. You only need one.
 
-| Engine | What you need |
-|---|---|
-| **Claude Code** | The `claude` CLI, signed in with your Claude account, an Anthropic key or OpenRouter. |
-| **OpenAI Codex** | The `codex` CLI and your ChatGPT login. Settings can install it and sign you in. |
-| **Eve** | Built in. Runs any model from an OpenRouter or Venice key, a local Ollama or LM Studio server, or any OpenAI-compatible address. |
-| **Hermes** | Hermes installed, with a profile to use. |
-| **pi** / **oh-my-pi** | The `pi` or `omp` CLI, signed in to a model provider. |
-| **OpenClaw** | The `openclaw` CLI, set up with `openclaw onboard`. |
-| **opencode** | opencode 2 or later (`npm install -g @opencode/cli`). Its free models work right away; sign in to your own providers with `opencode auth login`. |
+| Engine                | What you need                                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Claude Code**       | The `claude` CLI, signed in with your Claude account, an Anthropic key or OpenRouter.                                                            |
+| **OpenAI Codex**      | The `codex` CLI and your ChatGPT login. Settings can install it and sign you in.                                                                 |
+| **Eve**               | Built in. Runs any model from an OpenRouter or Venice key, a local Ollama or LM Studio server, or any OpenAI-compatible address.                 |
+| **Hermes**            | Hermes installed, with a profile to use.                                                                                                         |
+| **pi** / **oh-my-pi** | The `pi` or `omp` CLI, signed in to a model provider.                                                                                            |
+| **OpenClaw**          | The `openclaw` CLI, set up with `openclaw onboard`.                                                                                              |
+| **opencode**          | opencode 2 or later (`npm install -g @opencode/cli`). Its free models work right away; sign in to your own providers with `opencode auth login`. |
 
 Then pick **the Brain's model** on the same page. The Brain is the assistant that runs the project for you. It can think with Claude Code, Eve (OpenRouter or Venice), Hermes, Codex or opencode.
 
 ### Your first five minutes
 
 1. **Make a project.** Choose a folder, start an empty one, or clone a GitHub repo.
-2. **Ask the Brain.** Press **Space** on the map (or **Ctrl+K** / **⌘K** anywhere) and describe a small, concrete job: *"Set up a team to review our docs. One agent finds confusing steps, another suggests clearer wording. Don't change any files yet."*
+2. **Ask the Brain.** Press **Space** on the map (or **Ctrl+K** / **⌘K** anywhere) and describe a small, concrete job: _"Set up a team to review our docs. One agent finds confusing steps, another suggests clearer wording. Don't change any files yet."_
 3. **Check the team.** Look over each agent's model, instructions and tools, or hire a ready-made specialist from the Agent library.
 4. **Follow along.** Click a team on the map to open its panel and chat.
 5. **Answer what waits for you** in **Needs you** and the **Outbox**, and find finished work in **Artifacts**.
@@ -147,11 +147,11 @@ The [full guide](docs/guide.md) covers all of it in detail.
 
 Choose how much each agent may do on its own:
 
-| Setting | When it asks you first |
-|---|---|
-| **Ask first** | Before any step that could change something. |
+| Setting            | When it asks you first                                         |
+| ------------------ | -------------------------------------------------------------- |
+| **Ask first**      | Before any step that could change something.                   |
 | **Auto** (default) | Before risky steps: shell commands, scripts, sending messages. |
-| **Full** | Never. Only for agents and access you trust. |
+| **Full**           | Never. Only for agents and access you trust.                   |
 
 - **The Brain approves** routine, reversible requests for you and sends anything risky or unclear to **Needs you**. That's a model's judgment, not a guarantee.
 - **No login means no lock.** The app only listens on your own computer (`127.0.0.1`), but anyone who can reach it can use it. Never put it behind a public tunnel or proxy.

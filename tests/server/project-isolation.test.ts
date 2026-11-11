@@ -5,11 +5,34 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { activeProject, agents, chats, outbox, routineRuns, runs, saveSettings, setActiveProject, setSecret, withProject, workflows } from '../../server/store.ts';
+import {
+  activeProject,
+  agents,
+  chats,
+  outbox,
+  routineRuns,
+  runs,
+  saveSettings,
+  setActiveProject,
+  setSecret,
+  withProject,
+  workflows,
+} from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
 import { cloneProject } from '../../server/backup.ts';
-import { activeRuns, forgetChat, isChatBusy, liveChat, queueMessage, resetMemory, runInfo, startRun, steerChat, stopChat } from '../../server/engines/index.ts';
+import {
+  activeRuns,
+  forgetChat,
+  isChatBusy,
+  liveChat,
+  queueMessage,
+  resetMemory,
+  runInfo,
+  startRun,
+  steerChat,
+  stopChat,
+} from '../../server/engines/index.ts';
 import { awaitHandoff, listHandoffs, startHandoff } from '../../server/handoffs.ts';
 import { approvePost } from '../../server/social.ts';
 import { markInterruptedRuns } from '../../server/workflows.ts';
@@ -47,7 +70,9 @@ beforeAll(async () => {
     const last = String(j.messages.at(-1)?.content || '');
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: `re: ${last.slice(-30)}` } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
@@ -61,7 +86,7 @@ afterAll(() => {
 });
 
 const until = async (ok: () => boolean, ms = 5000) => {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 20));
   }
@@ -76,7 +101,8 @@ const releaseUntil = (ok: () => boolean) =>
 const settled = (chatId: string) => releaseUntil(() => !activeRuns().some((r) => r.chatId === chatId));
 const folder = (name: string) => path.join(os.homedir(), 'isolation', name);
 const apiAgent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
-const said = (role: string, text: string): ChatItem => (role === 'user' ? { type: 'user', text, ts: 1 } : { type: 'assistant', text, ts: 1 });
+const said = (role: string, text: string): ChatItem =>
+  role === 'user' ? { type: 'user', text, ts: 1 } : { type: 'assistant', text, ts: 1 };
 
 describe('a cloned chat', () => {
   it("has its own run, live copy, queue and stop: the original's work isn't the clone's", async () => {
@@ -105,7 +131,9 @@ describe('a cloned chat', () => {
     expect(runInfo(ra.runId)?.projectId).toBe(a.id);
     await settled(chat.id);
     await ra.promise;
-    withProject(a, () => expect(chats.get(agent.id, chat.id)!.items.filter((i) => i.type === 'assistant')).toHaveLength(1));
+    withProject(a, () =>
+      expect(chats.get(agent.id, chat.id)!.items.filter((i) => i.type === 'assistant')).toHaveLength(1),
+    );
   });
 });
 
@@ -243,7 +271,7 @@ describe('a cloned team', () => {
 });
 
 describe('conversation tools during a project switch', () => {
-  it('searches and reads the running agent\'s project, even when its clone is open', async () => {
+  it("searches and reads the running agent's project, even when its clone is open", async () => {
     const a = await createProject({ name: 'Search run A', mode: 'new', folder: folder('search-run-a') });
     const member = apiAgent('Search runner');
     const chat = chats.create(member.id, 'Original chat');
@@ -256,25 +284,67 @@ describe('conversation tools during a project switch', () => {
       const copy = chats.get(member.id, chat.id)!;
       copy.items.push({ type: 'user', text: 'CLONE_ONLY_PRIVATE' });
       chats.save(copy);
-      const scoped = await callTool(member, 'search_conversations', { query: 'ORIGINAL_ONLY_PRIVATE' }, { runId: going.runId });
+      const scoped = await callTool(
+        member,
+        'search_conversations',
+        { query: 'ORIGINAL_ONLY_PRIVATE' },
+        { runId: going.runId },
+      );
       expect(scoped.isError).toBe(false);
       expect(scoped.text).toContain('ORIGINAL_ONLY_PRIVATE');
-      expect((await callTool(member, 'search_conversations', { query: 'CLONE_ONLY_PRIVATE' }, { runId: going.runId })).text).toContain('"total":0');
-      expect((await callTool(member, 'read_conversation', { source: 'own', conversationId: chat.id, messageId: '0' }, { runId: going.runId })).text).toContain('ORIGINAL_ONLY_PRIVATE');
-      expect((await callTool(member, 'search_conversations', { query: 'ORIGINAL_ONLY_PRIVATE' })).text).toContain('"total":0');
+      expect(
+        (await callTool(member, 'search_conversations', { query: 'CLONE_ONLY_PRIVATE' }, { runId: going.runId })).text,
+      ).toContain('"total":0');
+      expect(
+        (
+          await callTool(
+            member,
+            'read_conversation',
+            { source: 'own', conversationId: chat.id, messageId: '0' },
+            { runId: going.runId },
+          )
+        ).text,
+      ).toContain('ORIGINAL_ONLY_PRIVATE');
+      expect((await callTool(member, 'search_conversations', { query: 'ORIGINAL_ONLY_PRIVATE' })).text).toContain(
+        '"total":0',
+      );
       const stranger = apiAgent('Wrong caller');
-      expect((await callTool(stranger, 'search_conversations', { query: 'PRIVATE' }, { runId: going.runId })).isError).toBe(true);
-      const created = await callTool(member, 'TaskCreate', { tasks: [{ subject: 'Original project task', description: 'Must stay in the original project.' }, { subject: 'Second original task', description: 'The whole batch stays here.' }] }, { runId: going.runId });
+      expect(
+        (await callTool(stranger, 'search_conversations', { query: 'PRIVATE' }, { runId: going.runId })).isError,
+      ).toBe(true);
+      const created = await callTool(
+        member,
+        'TaskCreate',
+        {
+          tasks: [
+            { subject: 'Original project task', description: 'Must stay in the original project.' },
+            { subject: 'Second original task', description: 'The whole batch stays here.' },
+          ],
+        },
+        { runId: going.runId },
+      );
       expect(created.isError).toBe(false);
       const batch = JSON.parse(created.text) as TaskBatchResult;
-      const ids = batch.results.flatMap((r) => r.success ? [r.taskId] : []);
+      const ids = batch.results.flatMap((r) => (r.success ? [r.taskId] : []));
       expect(ids).toHaveLength(2);
       const id = ids[0];
       expect(JSON.parse((await callTool(member, 'TaskGet', { taskId: id })).text).task).toBeNull();
-      expect(JSON.parse((await callTool(member, 'TaskGet', { taskId: id }, { runId: going.runId })).text).task.subject).toBe('Original project task');
-      const updated = JSON.parse((await callTool(member, 'TaskUpdate', { tasks: ids.map((taskId) => ({ taskId, status: 'completed' })) }, { runId: going.runId })).text) as TaskBatchResult;
+      expect(
+        JSON.parse((await callTool(member, 'TaskGet', { taskId: id }, { runId: going.runId })).text).task.subject,
+      ).toBe('Original project task');
+      const updated = JSON.parse(
+        (
+          await callTool(
+            member,
+            'TaskUpdate',
+            { tasks: ids.map((taskId) => ({ taskId, status: 'completed' })) },
+            { runId: going.runId },
+          )
+        ).text,
+      ) as TaskBatchResult;
       expect(updated.results.every((r) => r.success)).toBe(true);
-      for (const taskId of ids) expect(JSON.parse((await callTool(member, 'TaskGet', { taskId })).text).task).toBeNull();
+      for (const taskId of ids)
+        expect(JSON.parse((await callTool(member, 'TaskGet', { taskId })).text).task).toBeNull();
       expect((await callTool(stranger, 'TaskList', {}, { runId: going.runId })).isError).toBe(true);
     } finally {
       stopChat(chat.id, a.id);
@@ -305,8 +375,24 @@ describe('startup recovery', () => {
     const b = await createProject({ name: 'Crash B', mode: 'new', folder: folder('crash-b') });
     for (const p of [a, b])
       withProject(p, () => {
-        runs.save({ id: `wr-${p.id}`, workflowId: 'w', workflowName: 'W', input: '', trigger: 'manual', status: 'running', steps: [{ label: 's', type: 'agent', status: 'running', output: null }] } as WorkflowRun);
-        routineRuns.save({ id: `rr-${p.id}`, routineId: 'r', routineName: 'R', trigger: 'manual', status: 'running', skills: [], targets: [] } as RoutineRun);
+        runs.save({
+          id: `wr-${p.id}`,
+          workflowId: 'w',
+          workflowName: 'W',
+          input: '',
+          trigger: 'manual',
+          status: 'running',
+          steps: [{ label: 's', type: 'agent', status: 'running', output: null }],
+        } as WorkflowRun);
+        routineRuns.save({
+          id: `rr-${p.id}`,
+          routineId: 'r',
+          routineName: 'R',
+          trigger: 'manual',
+          status: 'running',
+          skills: [],
+          targets: [],
+        } as RoutineRun);
       });
     markInterruptedRuns();
     markInterruptedRoutines();

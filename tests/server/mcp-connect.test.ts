@@ -34,7 +34,8 @@ require('readline').createInterface({ input: process.stdin }).on('line', (line) 
 let dir = '';
 let script = '';
 const was = { ...mcp.TIMEOUTS };
-const local = (name: string, mode: string, env: Record<string, string> = {}) => mcp.saveServer(name, { type: 'stdio', command: process.execPath, args: [script, mode], env });
+const local = (name: string, mode: string, env: Record<string, string> = {}) =>
+  mcp.saveServer(name, { type: 'stdio', command: process.execPath, args: [script, mode], env });
 
 beforeAll(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-fake-'));
@@ -53,7 +54,10 @@ afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 describe('a local server that fails', () => {
   it('says what it printed, with its key hidden', async () => {
     local('broken', 'crash', { API_KEY: 'sk-secret-123' });
-    const err = await mcp.testServer('broken').then(() => null, (e: unknown) => e as Error);
+    const err = await mcp.testServer('broken').then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
     expect(err?.message).toContain('Couldn\'t start MCP server "broken"');
     expect(err?.message).toContain(`${mcp.OUTPUT_MARK}starting up\nError: the key ${mcp.HIDDEN} was refused`);
     expect(err?.message).not.toContain('sk-secret-123');
@@ -78,7 +82,9 @@ describe('slow requests', () => {
   it('give up at the overall limit, progress or not', async () => {
     Object.assign(mcp.TIMEOUTS, { call: 300, callMax: 250 });
     local('slow', 'progress');
-    await expect(mcp.callTool('slow', 'slow')).rejects.toThrow(/slow\.slow took too long: it went on for over .* in all/);
+    await expect(mcp.callTool('slow', 'slow')).rejects.toThrow(
+      /slow\.slow took too long: it went on for over .* in all/,
+    );
   });
 });
 
@@ -111,7 +117,10 @@ describe('a server at a link', () => {
 
   it('that answers neither way shows both errors', async () => {
     mcp.saveServer('gone', { type: 'http', url: `${base}/gone`, headers: {} });
-    const err = await mcp.testServer('gone').then(() => null, (e: unknown) => e as Error);
+    const err = await mcp.testServer('gone').then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
     expect(err?.message).toMatch(/Streamable HTTP: .*404/);
     expect(err?.message).toMatch(/SSE: .*404/);
   });

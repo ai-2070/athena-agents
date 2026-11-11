@@ -23,7 +23,7 @@ someone browses the wiki in a file manager.
 
 ## SCHEMA.md
 
-````markdown
+```markdown
 # Schema
 
 ## What this wiki covers
@@ -93,7 +93,7 @@ Why a list: free tagging drifts into near-duplicates (`ml`, `machine-learning`, 
   number, write it here.]
 - Pages and raw files are deleted only by the user, or with their yes; retired pages go to `_archive/`.
 - This file changes only with the user.
-````
+```
 
 ## index.md
 
@@ -103,12 +103,15 @@ Why a list: free tagging drifts into near-duplicates (`ml`, `machine-learning`, 
 [Two or three sentences: what the wiki covers and its main threads, so a reader knows where to start.]
 
 ## Sources
+
 - [[attention-paper]]: [one line: what the source is and why it's here]
 
 ## Entities
+
 - [[google-brain]]: [one line]
 
 ## Concepts
+
 - [[transformers]]: [one line]
 
 ## Analyses
@@ -127,17 +130,21 @@ One entry per ingest, filed answer, check and reorganisation, oldest first. Entr
 changed. Pages are named as plain text, so a later rename leaves no dead links here.
 
 ## [2026-11-04] create | Wiki started
+
 - Covers: [subject]
 
 ## [2026-11-04] ingest | Attention Is All You Need
+
 - Created: attention-paper, transformers, google-brain
 - Changed: none
 - Disagreements: none
 
 ## [2026-11-05] query | How do transformers differ from RNNs?
+
 - Filed: transformers-vs-rnns
 
 ## [2026-11-06] lint | 4 problems, all fixed
+
 - Fixed: 3 broken links in transformers; google-brain added to the index
 ```
 
@@ -168,17 +175,21 @@ ingested: 2026-11-04
 sha256: [what wiki_lint.py hash prints]
 confidence: high
 ---
+
 # Attention Is All You Need
 
 [Who made it, when, and what kind of source it is: paper, article, interview, data.]
 
 ## Main claims
+
 - [A claim, and where in the source it's made: section, page or timestamp.]
 
 ## What it changed here
+
 - [Pages created, claims added or changed, disagreements it opened.]
 
 ## Doubts and open questions
+
 - [What it doesn't show, what seems weak, what to look for next.]
 ```
 
@@ -195,20 +206,24 @@ type: concept
 tags: [method]
 created: 2026-11-04
 updated: 2026-11-04
-sources: ["[[attention-paper]]"]
+sources: ['[[attention-paper]]']
 confidence: medium
 ---
+
 # Transformers
 
 [What it is, in a sentence or two.]
 
 ## [Sections that fit the subject: how it works, history, who's involved, where things stand]
+
 [Each claim with its source: "... ([[attention-paper]], section 3)."]
 
 ## Where sources disagree
+
 [Each position, its source and date, and whether the newer one supersedes the older.]
 
 ## Related
+
 - [[google-brain]]: [how it relates]
 ```
 
@@ -224,17 +239,20 @@ type: analysis
 tags: [comparison]
 created: 2026-11-05
 updated: 2026-11-05
-sources: ["[[attention-paper]]", "[[rnn-survey]]"]
+sources: ['[[attention-paper]]', '[[rnn-survey]]']
 confidence: medium
 ---
+
 # Transformers compared with RNNs
 
 [The question as the user asked it, and the date.]
 
 ## Answer
+
 [The answer, each claim citing the pages it rests on.]
 
 ## What would change it
+
 [Gaps, assumptions, sources that would settle what's open.]
 ```
 

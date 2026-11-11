@@ -6,7 +6,9 @@ import type { ObjectInfo, UiWorkflow } from '../../server/comfyui.ts';
 
 const INFO: ObjectInfo = {
   CheckpointLoaderSimple: { input: { required: { ckpt_name: [['sdxl.safetensors'], {}] } } },
-  CLIPTextEncode: { input: { required: { text: ['STRING', { multiline: true, dynamicPrompts: true }], clip: ['CLIP', {}] } } },
+  CLIPTextEncode: {
+    input: { required: { text: ['STRING', { multiline: true, dynamicPrompts: true }], clip: ['CLIP', {}] } },
+  },
   KSampler: {
     input: {
       required: {
@@ -22,7 +24,20 @@ const INFO: ObjectInfo = {
         denoise: ['FLOAT', {}],
       },
     },
-    input_order: { required: ['model', 'seed', 'steps', 'cfg', 'sampler_name', 'scheduler', 'positive', 'negative', 'latent_image', 'denoise'] },
+    input_order: {
+      required: [
+        'model',
+        'seed',
+        'steps',
+        'cfg',
+        'sampler_name',
+        'scheduler',
+        'positive',
+        'negative',
+        'latent_image',
+        'denoise',
+      ],
+    },
   },
   // as ComfyUI 0.44 lists it (comfy_extras/nodes_post_processing.py), cut to two of its options
   ResizeImageMaskNode: {
@@ -33,7 +48,16 @@ const INFO: ObjectInfo = {
           'COMFY_DYNAMICCOMBO_V3',
           {
             options: [
-              { key: 'scale dimensions', inputs: { required: { width: ['INT', { default: 512 }], height: ['INT', { default: 512 }], crop: ['COMBO', { options: ['disabled', 'center'] }] } } },
+              {
+                key: 'scale dimensions',
+                inputs: {
+                  required: {
+                    width: ['INT', { default: 512 }],
+                    height: ['INT', { default: 512 }],
+                    crop: ['COMBO', { options: ['disabled', 'center'] }],
+                  },
+                },
+              },
               { key: 'scale by multiplier', inputs: { required: { multiplier: ['FLOAT', { default: 1 }] } } },
             ],
           },
@@ -44,10 +68,16 @@ const INFO: ObjectInfo = {
     input_order: { required: ['input', 'resize_type', 'scale_method'] },
   },
   ComfyMathExpression: { input: { required: { expression: ['STRING', {}], values: ['COMFY_AUTOGROW_V3', {}] } } },
-  ImageScaleBy: { input: { required: { image: ['IMAGE', {}], upscale_method: [['nearest-exact', 'lanczos'], {}], scale_by: ['FLOAT', {}] } } },
+  ImageScaleBy: {
+    input: {
+      required: { image: ['IMAGE', {}], upscale_method: [['nearest-exact', 'lanczos'], {}], scale_by: ['FLOAT', {}] },
+    },
+  },
   SaveImage: { input: { required: { images: ['IMAGE', {}], filename_prefix: ['STRING', {}] } } },
   LoadImage: { input: { required: { image: [['photo.png'], { image_upload: true }] } } },
-  RandomPick: { input: { required: { mode: [['a', 'b'], { control_after_generate: true }], strength: ['FLOAT', {}] } } },
+  RandomPick: {
+    input: { required: { mode: [['a', 'b'], { control_after_generate: true }], strength: ['FLOAT', {}] } },
+  },
   OldStyle: { input: { required: { seed_in: ['INT', { forceInput: true }], steps: ['INT', {}] } } },
 };
 const wf = (w: Partial<UiWorkflow>): UiWorkflow => ({ nodes: [], links: [], ...w });
@@ -82,7 +112,14 @@ describe('converting editor files', () => {
       INFO,
     );
     expect(warnings).toEqual([]);
-    expect(api['97'].inputs).toEqual({ input: ['2', 0], resize_type: 'scale dimensions', 'resize_type.width': 768, 'resize_type.height': 512, 'resize_type.crop': 'center', scale_method: 'area' });
+    expect(api['97'].inputs).toEqual({
+      input: ['2', 0],
+      resize_type: 'scale dimensions',
+      'resize_type.width': 768,
+      'resize_type.height': 512,
+      'resize_type.crop': 'center',
+      scale_method: 'area',
+    });
     expect(api['2'].inputs).toEqual({ image: 'photo.png' });
   });
 
@@ -94,15 +131,43 @@ describe('converting editor files', () => {
             id: 9,
             type: 'ResizeImageMaskNode',
             widgets_values: ['scale by multiplier', 1.5, 'lanczos'],
-            widgets_values_named: { resize_type: 'scale by multiplier', 'resize_type.multiplier': 1.5, scale_method: 'lanczos', control_after_generate: 'fixed' },
+            widgets_values_named: {
+              resize_type: 'scale by multiplier',
+              'resize_type.multiplier': 1.5,
+              scale_method: 'lanczos',
+              control_after_generate: 'fixed',
+            },
           },
-          { id: 3, type: 'KSampler', widgets_values_named: { seed: 7, control_after_generate: 'randomize', steps: 30, cfg: 5, sampler_name: 'euler', scheduler: 'karras', denoise: 1 } },
+          {
+            id: 3,
+            type: 'KSampler',
+            widgets_values_named: {
+              seed: 7,
+              control_after_generate: 'randomize',
+              steps: 30,
+              cfg: 5,
+              sampler_name: 'euler',
+              scheduler: 'karras',
+              denoise: 1,
+            },
+          },
         ],
       }),
       INFO,
     );
-    expect(api['9'].inputs).toEqual({ resize_type: 'scale by multiplier', 'resize_type.multiplier': 1.5, scale_method: 'lanczos' });
-    expect(api['3'].inputs).toEqual({ seed: 7, steps: 30, cfg: 5, sampler_name: 'euler', scheduler: 'karras', denoise: 1 });
+    expect(api['9'].inputs).toEqual({
+      resize_type: 'scale by multiplier',
+      'resize_type.multiplier': 1.5,
+      scale_method: 'lanczos',
+    });
+    expect(api['3'].inputs).toEqual({
+      seed: 7,
+      steps: 30,
+      cfg: 5,
+      sampler_name: 'euler',
+      scheduler: 'karras',
+      denoise: 1,
+    });
   });
 
   it("skips a seed's control value, a dropdown's two, and an old file's placeholder for a socket", () => {
@@ -112,14 +177,26 @@ describe('converting editor files', () => {
           { id: 3, type: 'KSampler', widgets_values: [42, 'randomize', 20, 7, 'dpmpp_2m', 'karras', 0.6] },
           { id: 4, type: 'RandomPick', widgets_values: ['b', 'increment', '', 0.3] },
           { id: 6, type: 'OldStyle', widgets_values: [0, 12] },
-          { id: 7, type: 'ComfyMathExpression', inputs: [{ name: 'values.a', type: '*', link: 3 }], widgets_values: ['a * 2'] },
+          {
+            id: 7,
+            type: 'ComfyMathExpression',
+            inputs: [{ name: 'values.a', type: '*', link: 3 }],
+            widgets_values: ['a * 2'],
+          },
           { id: 8, type: 'OldStyle', widgets_values: [12] },
         ],
         links: [[3, 3, 0, 7, 0, 'INT']],
       }),
       INFO,
     );
-    expect(api['3'].inputs).toEqual({ seed: 42, steps: 20, cfg: 7, sampler_name: 'dpmpp_2m', scheduler: 'karras', denoise: 0.6 });
+    expect(api['3'].inputs).toEqual({
+      seed: 42,
+      steps: 20,
+      cfg: 7,
+      sampler_name: 'dpmpp_2m',
+      scheduler: 'karras',
+      denoise: 0.6,
+    });
     expect(api['4'].inputs).toEqual({ mode: 'b', strength: 0.3 });
     expect(api['6'].inputs).toEqual({ steps: 12 });
     expect(api['8'].inputs).toEqual({ steps: 12 });
@@ -132,10 +209,28 @@ describe('converting editor files', () => {
       wf({
         nodes: [
           { id: 1, type: 'LoadImage', widgets_values: ['photo.png', 'image'] },
-          { id: 5, type: 'ImageScaleBy', mode: 4, inputs: [{ name: 'image', type: 'IMAGE', link: 10 }], outputs: [{ type: 'IMAGE' }], widgets_values: ['lanczos', 2] },
+          {
+            id: 5,
+            type: 'ImageScaleBy',
+            mode: 4,
+            inputs: [{ name: 'image', type: 'IMAGE', link: 10 }],
+            outputs: [{ type: 'IMAGE' }],
+            widgets_values: ['lanczos', 2],
+          },
           { id: 6, type: 'SaveImage', inputs: [{ name: 'images', type: 'IMAGE', link: 11 }], widgets_values: ['out'] },
-          { id: 7, type: 'ImageScaleBy', mode: 2, inputs: [{ name: 'image', type: 'IMAGE', link: null }], widgets_values: ['lanczos', 2] },
-          { id: 8, type: 'SaveImage', inputs: [{ name: 'images', type: 'IMAGE', link: 12 }], widgets_values: ['muted'] },
+          {
+            id: 7,
+            type: 'ImageScaleBy',
+            mode: 2,
+            inputs: [{ name: 'image', type: 'IMAGE', link: null }],
+            widgets_values: ['lanczos', 2],
+          },
+          {
+            id: 8,
+            type: 'SaveImage',
+            inputs: [{ name: 'images', type: 'IMAGE', link: 12 }],
+            widgets_values: ['muted'],
+          },
         ],
         links: [
           [10, 1, 0, 5, 0, 'IMAGE'],
@@ -156,8 +251,25 @@ describe('converting editor files', () => {
       wf({
         nodes: [
           { id: 4, type: 'CheckpointLoaderSimple', widgets_values: ['sdxl.safetensors'] },
-          { id: 10, type: SUB, inputs: [{ name: 'clip', type: 'CLIP', link: 1 }, { name: 'text', type: 'STRING', widget: { name: 'text' }, link: null }], outputs: [{ name: 'CONDITIONING', type: 'CONDITIONING' }], widgets_values: instanceValues },
-          { id: 3, type: 'KSampler', inputs: [{ name: 'model', type: 'MODEL', link: 3 }, { name: 'positive', type: 'CONDITIONING', link: 2 }], widgets_values: [1, 'fixed', 20, 7, 'euler', 'normal', 1] },
+          {
+            id: 10,
+            type: SUB,
+            inputs: [
+              { name: 'clip', type: 'CLIP', link: 1 },
+              { name: 'text', type: 'STRING', widget: { name: 'text' }, link: null },
+            ],
+            outputs: [{ name: 'CONDITIONING', type: 'CONDITIONING' }],
+            widgets_values: instanceValues,
+          },
+          {
+            id: 3,
+            type: 'KSampler',
+            inputs: [
+              { name: 'model', type: 'MODEL', link: 3 },
+              { name: 'positive', type: 'CONDITIONING', link: 2 },
+            ],
+            widgets_values: [1, 'fixed', 20, 7, 'euler', 'normal', 1],
+          },
         ],
         links: [
           [1, 4, 1, 10, 0, 'CLIP'],
@@ -168,9 +280,22 @@ describe('converting editor files', () => {
           subgraphs: [
             {
               id: SUB,
-              inputs: [{ name: 'clip', type: 'CLIP' }, { name: 'text', type: 'STRING' }],
+              inputs: [
+                { name: 'clip', type: 'CLIP' },
+                { name: 'text', type: 'STRING' },
+              ],
               outputs: [{ name: 'CONDITIONING', type: 'CONDITIONING' }],
-              nodes: [{ id: 1, type: 'CLIPTextEncode', inputs: [{ name: 'clip', type: 'CLIP', link: 11 }, { name: 'text', type: 'STRING', widget: { name: 'text' }, link: 12 }], widgets_values: ['a cat'] }],
+              nodes: [
+                {
+                  id: 1,
+                  type: 'CLIPTextEncode',
+                  inputs: [
+                    { name: 'clip', type: 'CLIP', link: 11 },
+                    { name: 'text', type: 'STRING', widget: { name: 'text' }, link: 12 },
+                  ],
+                  widgets_values: ['a cat'],
+                },
+              ],
               links: [
                 { id: 11, origin_id: -10, origin_slot: 0, target_id: 1, target_slot: 0, type: 'CLIP' },
                 { id: 12, origin_id: -10, origin_slot: 1, target_id: 1, target_slot: 1, type: 'STRING' },
@@ -182,7 +307,10 @@ describe('converting editor files', () => {
       });
     const { api, warnings } = uiToApi(file(['a lighthouse']), INFO);
     expect(warnings).toEqual([]);
-    expect(api['10:1']).toMatchObject({ class_type: 'CLIPTextEncode', inputs: { clip: ['4', 1], text: 'a lighthouse' } });
+    expect(api['10:1']).toMatchObject({
+      class_type: 'CLIPTextEncode',
+      inputs: { clip: ['4', 1], text: 'a lighthouse' },
+    });
     expect(api['3'].inputs.positive).toEqual(['10:1', 0]);
     expect(api['10']).toBeUndefined();
     expect(findPromptNodes(api).promptInputs).toEqual(['10:1.text']);

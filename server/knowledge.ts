@@ -5,7 +5,8 @@ import path from 'node:path';
 import { ensureDir, walk, exists } from './util.ts';
 import { projectData } from './store.ts';
 
-const TEXT_EXT = /\.(md|markdown|txt|json|ya?ml|csv|tsv|html?|xml|js|mjs|ts|tsx|jsx|py|rs|go|java|c|cpp|h|cs|css|scss|sql|sh|ps1|toml|ini|cfg|log|srt|vtt|rtf)$/i;
+const TEXT_EXT =
+  /\.(md|markdown|txt|json|ya?ml|csv|tsv|html?|xml|js|mjs|ts|tsx|jsx|py|rs|go|java|c|cpp|h|cs|css|scss|sql|sh|ps1|toml|ini|cfg|log|srt|vtt|rtf)$/i;
 const INLINE_LIMIT = 24_000;
 
 /** The part of an agent knowledge needs (an Agent fits; so do the stand-in agents workflows use). */
@@ -60,12 +61,20 @@ type Listed = KnowledgeFile & { follow: boolean };
 
 function walkKnowledge(own: string, folders: string[]): Listed[] {
   const files: Omit<Listed, 'size'>[] = [];
-  for (const f of walk(own, { maxDepth: 4, filter: plainText })) files.push({ path: f, label: path.relative(own, f), own: true, follow: false });
+  for (const f of walk(own, { maxDepth: 4, filter: plainText }))
+    files.push({ path: f, label: path.relative(own, f), own: true, follow: false });
   for (const folder of folders) {
     if (!exists(folder)) continue;
     const st = fs.statSync(folder);
     if (st.isFile()) files.push({ path: folder, label: path.basename(folder), own: false, follow: true });
-    else for (const f of walk(folder, { maxDepth: 5, filter: plainText, limit: 2000 })) files.push({ path: f, label: path.join(path.basename(folder), path.relative(folder, f)), own: false, follow: false });
+    else
+      for (const f of walk(folder, { maxDepth: 5, filter: plainText, limit: 2000 }))
+        files.push({
+          path: f,
+          label: path.join(path.basename(folder), path.relative(folder, f)),
+          own: false,
+          follow: false,
+        });
   }
   return files.map((f) => {
     let size = 0;
@@ -240,19 +249,38 @@ export function searchKnowledge(agent: KnowledgeAgent, query: unknown, limit = 6
         }
         if (n) score += 1 + Math.log(n);
       }
-      if (score > 0) hits.push({ file: f.label, line: i + 1, score: score + (low.includes(String(query).toLowerCase()) ? 3 : 0), text: chunk.slice(0, 1600) });
+      if (score > 0)
+        hits.push({
+          file: f.label,
+          line: i + 1,
+          score: score + (low.includes(String(query).toLowerCase()) ? 3 : 0),
+          text: chunk.slice(0, 1600),
+        });
     }
   }
   return hits.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
-export function readKnowledge(agent: KnowledgeAgent, label: string, offsetLine: number | null | undefined = 1, lines = 400): KnowledgeRead {
+export function readKnowledge(
+  agent: KnowledgeAgent,
+  label: string,
+  offsetLine: number | null | undefined = 1,
+  lines = 400,
+): KnowledgeRead {
   const files = listed(agent);
-  const f = files.find((x) => x.label === label) || files.find((x) => x.label.toLowerCase().includes(String(label).toLowerCase()));
+  const f =
+    files.find((x) => x.label === label) ||
+    files.find((x) => x.label.toLowerCase().includes(String(label).toLowerCase()));
   if (!f) throw new Error(`No knowledge file "${label}".`);
   const all = (statListed(f) ? read(f.path, 5_000_000) : '').split(/\r?\n/);
   const start = Math.max(0, (offsetLine || 1) - 1);
-  return { file: f.label, from: start + 1, to: Math.min(all.length, start + lines), total: all.length, text: all.slice(start, start + lines).join('\n') };
+  return {
+    file: f.label,
+    from: start + 1,
+    to: Math.min(all.length, start + lines),
+    total: all.length,
+    text: all.slice(start, start + lines).join('\n'),
+  };
 }
 
 /** The folders an agent may read its knowledge from (its own folder only once it has one). */

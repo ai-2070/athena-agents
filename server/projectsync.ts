@@ -9,8 +9,29 @@ import { bus, listProjects, activeProject, log, takeNewDefaultProject } from './
 import { updateProject } from './projects.ts';
 import { savedOpacity } from '../shared/look.ts';
 import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON, realTarget, uid } from './util.ts';
-import { VERSIONS_KEPT, keepVersion, withActor, canonical, versionFilesDir, checkVersion, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
-import { getSkill, forgetSkill, isSkillSlug, skillDir, skillVersionsDir, skillFromText, skillExtraFiles, skillFilesHash, copySkillFiles, skillVersionItem, SKILL_BODY_MAX } from './skills.ts';
+import {
+  VERSIONS_KEPT,
+  keepVersion,
+  withActor,
+  canonical,
+  versionFilesDir,
+  checkVersion,
+  cleanAgentVersion,
+  cleanTeamVersion,
+} from './versions.ts';
+import {
+  getSkill,
+  forgetSkill,
+  isSkillSlug,
+  skillDir,
+  skillVersionsDir,
+  skillFromText,
+  skillExtraFiles,
+  skillFilesHash,
+  copySkillFiles,
+  skillVersionItem,
+  SKILL_BODY_MAX,
+} from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
 import { cleanMemoryVersion, isMemoryOwner, putMemory, MEMORY_FILE, MEMORY_MAX } from './memory.ts';
 import { clearKnowledgeCache } from './knowledge.ts';
@@ -22,7 +43,18 @@ import { rebase } from './backup.ts';
 import { PAST_DIR } from './pastchats.ts';
 import { restoredTasks } from './tasks.ts';
 import { restoredBoard } from './taskboard.ts';
-import type { Agent, Chat, Project, ProjectPeek, RestoreResult, Routine, SavedProjectSettings, SaveStatus, Team, VoxelWorld } from '../shared/types.ts';
+import type {
+  Agent,
+  Chat,
+  Project,
+  ProjectPeek,
+  RestoreResult,
+  Routine,
+  SavedProjectSettings,
+  SaveStatus,
+  Team,
+  VoxelWorld,
+} from '../shared/types.ts';
 
 // (the shapes the page reads: shared/types.ts)
 export type { ProjectPeek, RestoreResult, SaveStatus };
@@ -43,7 +75,6 @@ export interface SavedProjectFile {
   /** the Tasks board */
   board?: unknown;
 }
-
 
 const FORMAT = 1;
 const DIR = '.dashboard';
@@ -74,8 +105,10 @@ const jsonFiles = (dir: string): string[] => {
     return [];
   }
 };
-const readAll = <T>(dir: string): T[] => jsonFiles(dir).map((n) => readJSON<T>(path.join(dir, n))).filter((x): x is T => Boolean(x));
-
+const readAll = <T>(dir: string): T[] =>
+  jsonFiles(dir)
+    .map((n) => readJSON<T>(path.join(dir, n)))
+    .filter((x): x is T => Boolean(x));
 
 // Refuse to write through a link anywhere from base down to target (a crafted project folder could
 // point .dashboard/... at another file).
@@ -106,7 +139,12 @@ function prune(dir: string, keep: Set<string>, base?: string) {
   for (const n of list) if (!keep.has(n)) fs.rmSync(path.join(dir, n), { recursive: true, force: true });
 }
 
-function copyTree(from: string, to: string, budget: number, { base, mirror = false }: { base?: string; mirror?: boolean } = {}): number {
+function copyTree(
+  from: string,
+  to: string,
+  budget: number,
+  { base, mirror = false }: { base?: string; mirror?: boolean } = {},
+): number {
   let used = 0;
   const walk = (src: string, dst: string) => {
     let st: fs.Stats;
@@ -167,20 +205,39 @@ export function saveProject(id: string): SaveStatus | null {
     noLinks(out, file);
     // Fewer agents, teams or routines than last time: keep the old copy as a backup first (last 10 kept).
     const prev = readJSON<Partial<SavedProjectFile>>(file, null);
-    if (prev && ((prev.agents || []).length > agents.length || (prev.teams || []).length > teams.length || (prev.routines || []).length > routines.length)) {
+    if (
+      prev &&
+      ((prev.agents || []).length > agents.length ||
+        (prev.teams || []).length > teams.length ||
+        (prev.routines || []).length > routines.length)
+    ) {
       const bdir = path.join(out, 'backups');
-      const bfile = path.join(bdir, `project-${new Date(prev.savedAt || Date.now()).toISOString().replace(/[:.]/g, '-')}.json`);
+      const bfile = path.join(
+        bdir,
+        `project-${new Date(prev.savedAt || Date.now()).toISOString().replace(/[:.]/g, '-')}.json`,
+      );
       noLinks(out, bfile);
       ensureDir(bdir);
       fs.copyFileSync(file, bfile);
-      const old = fs.readdirSync(bdir).filter((n) => n.endsWith('.json')).sort();
+      const old = fs
+        .readdirSync(bdir)
+        .filter((n) => n.endsWith('.json'))
+        .sort();
       for (const n of old.slice(0, Math.max(0, old.length - 10))) fs.rmSync(path.join(bdir, n), { force: true });
     }
     writeJSON<SavedProjectFile>(file, {
       format: FORMAT,
       app: 'my-dashboard',
       savedAt: Date.now(),
-      project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [], brainPath: p.brainPath, backgroundOpacity: p.backgroundOpacity, mapDotsOpacity: p.mapDotsOpacity },
+      project: {
+        name: p.name,
+        description: p.description || '',
+        repo: p.repo || '',
+        skills: p.skills || [],
+        brainPath: p.brainPath,
+        backgroundOpacity: p.backgroundOpacity,
+        mapDotsOpacity: p.mapDotsOpacity,
+      },
       agents,
       teams,
       routines,
@@ -202,16 +259,24 @@ export function saveProject(id: string): SaveStatus | null {
     copyTree(projectDir(id, 'memory'), path.join(out, 'memory'), MEMORY_CAP, { base: out, mirror: true });
     // the kept versions of agents, teams and memories (and of deleted ones, so they can be brought back there too)
     let left = VERSIONS_CAP;
-    for (const kind of VERSIONED) left -= copyTree(projectDir(id, 'versions', kind), path.join(out, 'versions', kind), left, { base: out, mirror: true });
+    for (const kind of VERSIONED)
+      left -= copyTree(projectDir(id, 'versions', kind), path.join(out, 'versions', kind), left, {
+        base: out,
+        mirror: true,
+      });
     if (exists(path.join(out, 'versions'))) prune(path.join(out, 'versions'), new Set(VERSIONED), out);
     // the skills the project uses, with their files and versions (skills it stopped using are dropped)
     const used = skillsUsed(id);
     let skillBudget = SKILLS_CAP;
     for (const slug of used) {
       skillBudget -= copyTree(skillDir(slug), path.join(out, 'skills', slug), skillBudget, { base: out, mirror: true });
-      skillBudget -= copyTree(skillVersionsDir(slug), path.join(out, 'skill-versions', slug), skillBudget, { base: out, mirror: true });
+      skillBudget -= copyTree(skillVersionsDir(slug), path.join(out, 'skill-versions', slug), skillBudget, {
+        base: out,
+        mirror: true,
+      });
     }
-    for (const sub of ['skills', 'skill-versions']) if (exists(path.join(out, sub))) prune(path.join(out, sub), new Set(used), out);
+    for (const sub of ['skills', 'skill-versions'])
+      if (exists(path.join(out, sub))) prune(path.join(out, sub), new Set(used), out);
     saveWorldCopy(p, out);
     noLinks(out, path.join(out, 'README.txt'));
     fs.writeFileSync(
@@ -267,7 +332,13 @@ function readSaved(folder: string): Partial<SavedProjectFile> | null {
 export function peek(folder: string): ProjectPeek | null {
   const j = readSaved(folder);
   if (!j) return null;
-  return { name: j.project?.name || '', description: j.project?.description || '', agents: (j.agents || []).length, teams: (j.teams || []).length, savedAt: j.savedAt || 0 };
+  return {
+    name: j.project?.name || '',
+    description: j.project?.description || '',
+    agents: (j.agents || []).length,
+    teams: (j.teams || []).length,
+    savedAt: j.savedAt || 0,
+  };
 }
 
 // Load a saved copy into a project that has no agents yet (a folder you just opened).
@@ -302,12 +373,26 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   const past = savedPath(folder, PAST_DIR);
   if (past) copyTree(past, projectDir(id, PAST_DIR), CHATS_CAP);
   restoreMemory(folder, id);
-  const chatCount = restoreChats(folder, id, (j.agents || []).filter(safe).map((a) => a.id as string));
+  const chatCount = restoreChats(
+    folder,
+    id,
+    (j.agents || []).filter(safe).map((a) => a.id as string),
+  );
   const versionCount = restoreVersions(folder, id, move);
   const skills = restoreSkills(folder, j.project?.name || path.basename(folder));
   restoreWorld(folder, id);
-  log('project', `Loaded ${(j.agents || []).length} agents, ${(j.teams || []).length} teams, ${chatCount} chats, ${skills.added.length} skills and ${versionCount} earlier versions from ${folder}`);
-  return { agents: (j.agents || []).length, teams: (j.teams || []).length, chats: chatCount, versions: versionCount, skills, project: j.project || {} };
+  log(
+    'project',
+    `Loaded ${(j.agents || []).length} agents, ${(j.teams || []).length} teams, ${chatCount} chats, ${skills.added.length} skills and ${versionCount} earlier versions from ${folder}`,
+  );
+  return {
+    agents: (j.agents || []).length,
+    teams: (j.teams || []).length,
+    chats: chatCount,
+    versions: versionCount,
+    skills,
+    project: j.project || {},
+  };
 }
 
 // An agent's workspace and knowledge folders inside the folder it was saved from (from), moved to the same
@@ -318,7 +403,8 @@ function movedAgent(from: string | undefined, to: string): (a: Agent) => Agent {
   return (a) => {
     const out: Agent = { ...a };
     if (typeof out.workspace === 'string' && out.workspace) out.workspace = String(move(out.workspace));
-    if (out.knowledge && Array.isArray(out.knowledge.folders)) out.knowledge = { ...out.knowledge, folders: out.knowledge.folders.map((f) => String(move(f))) };
+    if (out.knowledge && Array.isArray(out.knowledge.folders))
+      out.knowledge = { ...out.knowledge, folders: out.knowledge.folders.map((f) => String(move(f))) };
     return out;
   };
 }
@@ -342,7 +428,12 @@ export function adoptSavedFolder(id: string): RestoreResult | null {
 // Versions saved in <folder>/.dashboard/<parts>/<item id>/: each checked to be a plain file inside the
 // folder and a version (item checked by `check`), put back under the item and id it was saved as
 // (whatever the file itself claims). Newest first, at most VERSIONS_KEPT.
-function savedVersions<T>(folder: string, parts: string[], itemId: string, check: (item: Record<string, unknown>) => T | null): Version<T>[] {
+function savedVersions<T>(
+  folder: string,
+  parts: string[],
+  itemId: string,
+  check: (item: Record<string, unknown>) => T | null,
+): Version<T>[] {
   const dir = savedPath(folder, ...parts, itemId);
   if (!dir) return [];
   const out: Version<T>[] = [];
@@ -380,7 +471,14 @@ function restoreVersions(folder: string, id: string, move: (a: Agent) => Agent):
         const a = cleanAgentVersion(item, itemId);
         return a ? move(a as unknown as Agent) : null;
       };
-      const check = (item: Record<string, unknown>) => (kind === 'agents' ? agentVersion(item) : kind === 'workflows' ? cleanTeamVersion(item, itemId) : isMemoryOwner(itemId) ? cleanMemoryVersion(item, itemId) : null);
+      const check = (item: Record<string, unknown>) =>
+        kind === 'agents'
+          ? agentVersion(item)
+          : kind === 'workflows'
+            ? cleanTeamVersion(item, itemId)
+            : isMemoryOwner(itemId)
+              ? cleanMemoryVersion(item, itemId)
+              : null;
       for (const v of savedVersions<unknown>(folder, ['versions', kind], itemId, check)) {
         writeJSON(projectDir(id, 'versions', kind, itemId, `${v.id}.json`), v);
         n++;
@@ -417,7 +515,9 @@ function skillRefs(id: string): string[] {
     ...(p?.skills || []),
     ...readAll<Agent>(projectDir(id, 'agents')).flatMap((a) => a.skills || []),
     ...readAll<Team>(projectDir(id, 'workflows')).flatMap((t) => t.skills || []),
-    ...readAll<Routine>(projectDir(id, 'routines')).flatMap((r) => (r.mentions || []).filter((m) => m.kind === 'skill').map((m) => m.id)),
+    ...readAll<Routine>(projectDir(id, 'routines')).flatMap((r) =>
+      (r.mentions || []).filter((m) => m.kind === 'skill').map((m) => m.id),
+    ),
   ];
   return [...new Set(slugs)].filter((slug) => isSkillSlug(slug));
 }
@@ -446,10 +546,24 @@ function restoreSkills(folder: string, projectName: string): { added: string[]; 
     const have = getSkill(slug);
     if (have) {
       // the same when its SKILL.md and its extra files are (links in the folder's copy are skipped)
-      const theirs: SkillVersionItem = { ...skillFromText(fs.readFileSync(md, 'utf8').slice(0, SKILL_BODY_MAX * 2), slug), files: skillExtraFiles(src), filesHash: skillFilesHash(src) };
-      const ours: SkillVersionItem = { slug, name: have.name, description: have.description, body: have.body.trim(), files: skillExtraFiles(skillDir(slug)), filesHash: skillFilesHash(skillDir(slug)) };
+      const theirs: SkillVersionItem = {
+        ...skillFromText(fs.readFileSync(md, 'utf8').slice(0, SKILL_BODY_MAX * 2), slug),
+        files: skillExtraFiles(src),
+        filesHash: skillFilesHash(src),
+      };
+      const ours: SkillVersionItem = {
+        slug,
+        name: have.name,
+        description: have.description,
+        body: have.body.trim(),
+        files: skillExtraFiles(skillDir(slug)),
+        filesHash: skillFilesHash(skillDir(slug)),
+      };
       if (canonical(theirs, ['files']) === canonical(ours, ['files'])) continue;
-      const v = withActor('you', () => keepVersion(skillVersionsDir(slug), theirs, ours), { force: true, note: `the copy saved in the project "${projectName}"` });
+      const v = withActor('you', () => keepVersion(skillVersionsDir(slug), theirs, ours), {
+        force: true,
+        note: `the copy saved in the project "${projectName}"`,
+      });
       // its files go with it, so restoring it brings them
       if (v && theirs.files?.length) copySkillFiles(src, versionFilesDir(skillVersionsDir(slug), v.id));
       kept.push(have.name);
@@ -466,11 +580,16 @@ function restoreSkills(folder: string, projectName: string): { added: string[]; 
       writeJSON(path.join(skillVersionsDir(slug), `${v.id}.json`), v);
       // and the files kept with it (a deleted version's)
       const files = savedPath(folder, 'skill-versions', slug, `files-${v.id}`);
-      if (files && exists(files) && fs.lstatSync(files).isDirectory()) budget -= copyTree(files, versionFilesDir(skillVersionsDir(slug), v.id), budget);
+      if (files && exists(files) && fs.lstatSync(files).isDirectory())
+        budget -= copyTree(files, versionFilesDir(skillVersionsDir(slug), v.id), budget);
     }
     added.push(getSkill(slug)!.name);
   }
-  if (added.length) log('skill', `Added ${added.length} skill${added.length === 1 ? '' : 's'} from the project folder: ${added.join(', ')}`);
+  if (added.length)
+    log(
+      'skill',
+      `Added ${added.length} skill${added.length === 1 ? '' : 's'} from the project folder: ${added.join(', ')}`,
+    );
   return { added, kept };
 }
 
@@ -510,7 +629,8 @@ function saveWorldCopy(p: Project, out: string): void {
   }
   ensureDir(dst);
   let left = WORLD_CAP;
-  for (const sub of ['objects', 'prefabs', path.join('versions', 'world-md')]) left -= copyTree(worldDir(w.id, sub), path.join(dst, sub), left, { base: out, mirror: true });
+  for (const sub of ['objects', 'prefabs', path.join('versions', 'world-md')])
+    left -= copyTree(worldDir(w.id, sub), path.join(dst, sub), left, { base: out, mirror: true });
   for (const f of ['world.json', 'WORLD.md']) {
     const src = worldDir(w.id, f);
     const to = path.join(dst, f);
@@ -536,7 +656,8 @@ function restoreWorld(folder: string, id: string): boolean {
     const versions = savedPath(folder, 'world', 'versions', 'world-md');
     if (versions) copyTree(versions, worldDir(wid, 'versions', 'world-md'), WORLD_CAP);
     const md = savedPath(folder, 'world', 'WORLD.md');
-    if (md && fs.lstatSync(md).isFile() && fs.statSync(md).size <= WORLD_MD_MAX * 2) fs.copyFileSync(md, worldDir(wid, 'WORLD.md'));
+    if (md && fs.lstatSync(md).isFile() && fs.statSync(md).size <= WORLD_MD_MAX * 2)
+      fs.copyFileSync(md, worldDir(wid, 'WORLD.md'));
     writeJSON(worldDir(wid, 'world.json'), { ...saved, id: wid, homeProject: id });
   };
   const linkFile = savedPath(folder, 'world', 'link.json');
@@ -558,7 +679,20 @@ function restoreWorld(folder: string, id: string): boolean {
 }
 
 // Save after anything in the project changes.
-const WATCH = new Set(['agents', 'workflows', 'routines', 'tasks', 'board', 'layout', 'team', 'knowledge', 'memory', 'brain-chat', 'chats', 'skills']);
+const WATCH = new Set([
+  'agents',
+  'workflows',
+  'routines',
+  'tasks',
+  'board',
+  'layout',
+  'team',
+  'knowledge',
+  'memory',
+  'brain-chat',
+  'chats',
+  'skills',
+]);
 export function startAutoSave() {
   const fresh = takeNewDefaultProject();
   if (fresh) adoptSavedFolder(fresh.id);
@@ -568,7 +702,9 @@ export function startAutoSave() {
       // a world can be shared: every project using it saves
       for (const id of new Set([activeProject().id, ...usedBy(ev.world)])) saveSoon(id);
     } else if (ev.type === 'skills') {
-      const slugs = [ev.slug, ...(Array.isArray(ev.installed) ? ev.installed : [])].filter((x): x is string => typeof x === 'string');
+      const slugs = [ev.slug, ...(Array.isArray(ev.installed) ? ev.installed : [])].filter(
+        (x): x is string => typeof x === 'string',
+      );
       for (const id of new Set([activeProject().id, ...projectsWithSkills(slugs)])) saveSoon(id);
     } else if (WATCH.has(ev.type)) saveSoon(typeof ev.project === 'string' ? ev.project : activeProject().id);
     else if (ev.type === 'project') saveSoon(activeProject().id, 500);

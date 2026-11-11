@@ -28,7 +28,9 @@ describe('MCP presets', () => {
       for (const [k, v] of Object.entries(secrets)) {
         if (!/YOUR_/.test(v)) continue;
         // an env key is named in the description; a header placeholder is explained there too
-        expect(p.description, `${p.name} ${k}`).toMatch(p.type === 'stdio' ? new RegExp(k) : /Authorization header|key|token/i);
+        expect(p.description, `${p.name} ${k}`).toMatch(
+          p.type === 'stdio' ? new RegExp(k) : /Authorization header|key|token/i,
+        );
       }
     }
   });
@@ -53,7 +55,25 @@ describe('MCP presets', () => {
 
   it('include 3D sources, stock images, design and free creative programs', () => {
     const names = PRESETS.map((p) => p.name);
-    for (const n of ['tripo', 'meshy', 'sketchfab', 'unsplash', 'pixabay', 'pexels', 'canva', 'freepik', 'google-design', 'gimp', 'krita', 'inkscape', 'audacity', 'reaper', 'musescore', 'obs', 'topaz']) {
+    for (const n of [
+      'tripo',
+      'meshy',
+      'sketchfab',
+      'unsplash',
+      'pixabay',
+      'pexels',
+      'canva',
+      'freepik',
+      'google-design',
+      'gimp',
+      'krita',
+      'inkscape',
+      'audacity',
+      'reaper',
+      'musescore',
+      'obs',
+      'topaz',
+    ]) {
       expect(names, n).toContain(n);
     }
     const by = (name: string) => PRESETS.find((p) => p.name === name)!;
@@ -82,9 +102,12 @@ describe('MCP presets', () => {
     expect(args.slice(0, 2)).toEqual(['mcp', '--permissions']);
     const granted = args[2].split(',');
     // the sandbox and computer tools, and what its in-sandbox browser is driven through
-    expect(granted).toEqual(expect.arrayContaining(['sandbox:all', 'computer:all', 'images:all', 'spaces:list_tools', 'spaces:call_tool']));
+    expect(granted).toEqual(
+      expect.arrayContaining(['sandbox:all', 'computer:all', 'images:all', 'spaces:list_tools', 'spaces:call_tool']),
+    );
     // never everything: no moving logged-in sessions in, no public share links, not the whole of Spaces
-    for (const g of granted) expect(g, g).not.toMatch(/^(all|spaces:all|teleport:.*|share:.*|skills:(all|record|delete))$/);
+    for (const g of granted)
+      expect(g, g).not.toMatch(/^(all|spaces:all|teleport:.*|share:.*|skills:(all|record|delete))$/);
     expect(JSON.stringify(cua)).not.toContain('YOUR_');
     expect(presetNeeds(cua)).toMatch(/^setup: install the cua command .*Docker/);
   });
@@ -93,18 +116,35 @@ describe('MCP presets', () => {
     const by = (name: string) => PRESETS.find((p) => p.name === name)!;
     expect(presetNeeds(by('playwright'))).toBe('');
     expect(presetNeeds(by('brave-search'))).toBe('needs BRAVE_API_KEY');
-    expect(presetNeeds(by('linear'))).toBe('setup: sign in to Linear in the browser window that opens the first time it runs');
+    expect(presetNeeds(by('linear'))).toBe(
+      'setup: sign in to Linear in the browser window that opens the first time it runs',
+    );
     expect(presetNeeds(by('unity'))).toMatch(/^setup: install the "MCP for Unity" package/);
   });
 
   it('include services that sign in through the browser: nothing to paste, and the setup says whose sign-in opens', () => {
     const by = (name: string) => PRESETS.find((p) => p.name === name)!;
-    for (const n of ['notion', 'linear', 'atlassian', 'gitlab', 'sentry', 'vercel', 'cloudflare', 'supabase', 'huggingface', 'airtable', 'miro', 'dropbox']) {
+    for (const n of [
+      'notion',
+      'linear',
+      'atlassian',
+      'gitlab',
+      'sentry',
+      'vercel',
+      'cloudflare',
+      'supabase',
+      'huggingface',
+      'airtable',
+      'miro',
+      'dropbox',
+    ]) {
       const p = by(n);
       expect(signsInByBrowser(p), n).toBe(true);
       expect(remoteUrl(p), n).toMatch(/^https:\/\//);
       expect(p.type === 'stdio' && p.args.slice(0, 2), n).toEqual(['-y', 'mcp-remote']);
-      expect(presetNeeds(p), n).toMatch(/^setup: sign in to .+ in the browser window that opens the first time it runs$/);
+      expect(presetNeeds(p), n).toMatch(
+        /^setup: sign in to .+ in the browser window that opens the first time it runs$/,
+      );
       expect(p.description, n).toContain('a browser window opens to sign in');
     }
     // Notion no longer asks for an integration token
@@ -125,9 +165,24 @@ describe('MCP presets', () => {
   });
 
   it('count a hosted link added straight as the browser sign-in preset it is', () => {
-    const cfg = (o: Partial<McpServerConfig>): McpServerConfig => ({ type: 'http', command: '', args: [], env: {}, url: '', headers: {}, description: '', enabled: true, ...o });
+    const cfg = (o: Partial<McpServerConfig>): McpServerConfig => ({
+      type: 'http',
+      command: '',
+      args: [],
+      env: {},
+      url: '',
+      headers: {},
+      description: '',
+      enabled: true,
+      ...o,
+    });
     expect(kindOf('my-notion', cfg({ url: 'https://mcp.notion.com/mcp' }))).toBe('notion');
-    expect(kindOf('work-sentry', cfg({ type: 'stdio', command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.sentry.dev/mcp'] }))).toBe('sentry');
+    expect(
+      kindOf(
+        'work-sentry',
+        cfg({ type: 'stdio', command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.sentry.dev/mcp'] }),
+      ),
+    ).toBe('sentry');
     expect(kindOf('other', cfg({ url: 'https://example.com/mcp' }))).toBe('other');
   });
 });

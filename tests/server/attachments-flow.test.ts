@@ -25,17 +25,29 @@ beforeAll(async () => {
     seen.push(typeof last === 'string' ? last : JSON.stringify(last));
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Got it.' } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 const upload = async (rel: string, text: string) => {
   const { batch } = newBatch();
-  return (await receive(Object.assign(Readable.from([Buffer.from(text)]), { headers: {} }) as unknown as http.IncomingMessage, batch, rel)).path;
+  return (
+    await receive(
+      Object.assign(Readable.from([Buffer.from(text)]), { headers: {} }) as unknown as http.IncomingMessage,
+      batch,
+      rel,
+    )
+  ).path;
 };
 const waitFor = async (n: number, teamId: string) => {
   await expect.poll(() => getThread(teamId).messages.length, { timeout: 15000 }).toBeGreaterThanOrEqual(n);
@@ -45,7 +57,13 @@ describe('a team with files', () => {
   it('gives each member the team files once (new ones when added), and routes a files-only message on their names', async () => {
     const a = newAgent({ name: 'Analyst', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
     const guide = await upload('guide.md', 'GUIDE-TEXT: be brief.');
-    const team = workflows.save({ name: 'Numbers', members: [a.id], lead: null, steps: [], files: [guide] } as Partial<Team>);
+    const team = workflows.save({
+      name: 'Numbers',
+      members: [a.id],
+      lead: null,
+      steps: [],
+      files: [guide],
+    } as Partial<Team>);
     const sheet = await upload('sales.csv', 'SALES-ROWS');
     const routed: string[] = [];
     const route = async (text: string) => (routed.push(text), a.id);
@@ -79,7 +97,13 @@ describe('a team with files', () => {
     const outside = path.join(os.homedir(), 'private-team-file.md');
     fs.writeFileSync(outside, 'OUTSIDE-PRIVATE-TEXT');
     // saved straight to the store, as a restore from a folder or backup does (not through the routes)
-    const team = workflows.save({ name: 'Restored', members: [a.id], lead: null, steps: [], files: [outside] } as Partial<Team>);
+    const team = workflows.save({
+      name: 'Restored',
+      members: [a.id],
+      lead: null,
+      steps: [],
+      files: [outside],
+    } as Partial<Team>);
     seen.length = 0;
     await postUserMessage(team.id, 'Go', { route: async () => a.id });
     await waitFor(2, team.id);
@@ -92,7 +116,12 @@ describe('a team with files', () => {
 describe('Claude Code and the uploads folder', () => {
   it('adds uploads/ for an agent with its own workspace whenever the chat has had files', () => {
     const own = { workspace: path.join(path.dirname(uploadsRoot()), '..', 'elsewhere') } as Agent;
-    const withFiles = { items: [{ type: 'user' as const, text: 'see', attachments: ['/x/uploads/a.md'] }, { type: 'user' as const, text: 'follow-up' }] };
+    const withFiles = {
+      items: [
+        { type: 'user' as const, text: 'see', attachments: ['/x/uploads/a.md'] },
+        { type: 'user' as const, text: 'follow-up' },
+      ],
+    };
     expect(uploadsDirArgs(own, withFiles)).toEqual(['--add-dir', uploadsRoot()]);
     expect(uploadsDirArgs(own, { items: [] })).toEqual([]);
     expect(uploadsDirArgs(own, { items: [] }, ['/x/uploads/a.md'])).toEqual(['--add-dir', uploadsRoot()]);

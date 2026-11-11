@@ -22,7 +22,10 @@ export const settingsRouter = s.router({
     const key = store.getSecrets().openrouterKey;
     if (!key) return refuse('No OpenRouter key saved.');
     const r = await fetch('https://openrouter.ai/api/v1/key', { headers: { authorization: `Bearer ${key}` } });
-    const j = (await r.json().catch(() => ({}))) as { error?: { message?: string }; data?: OpenRouterKeyInfo } & OpenRouterKeyInfo;
+    const j = (await r.json().catch(() => ({}))) as {
+      error?: { message?: string };
+      data?: OpenRouterKeyInfo;
+    } & OpenRouterKeyInfo;
     if (!r.ok) return refuse(j.error?.message || `OpenRouter said ${r.status}`);
     return j.data || j;
   }),

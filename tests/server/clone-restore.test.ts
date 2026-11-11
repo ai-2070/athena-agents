@@ -14,7 +14,8 @@ import { dataPath } from '../../server/util.ts';
 import type { Project, Team } from '../../shared/types.ts';
 
 const folder = (name: string) => path.join(os.homedir(), 'clones', name);
-const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const png =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 const agentIn = (p: Project, id: string) => withProject(p, () => agents.get(id)!);
 
 describe('cloning a project', () => {
@@ -100,7 +101,9 @@ describe('opening a copied project folder', () => {
     expect(markFile(workflows.get(t.id)!)).not.toBeNull();
     // its kept versions too
     const vdir = dataPath('projects', b.id, 'versions', 'agents', a.id);
-    const versions = fs.readdirSync(vdir).map((n) => JSON.parse(fs.readFileSync(path.join(vdir, n), 'utf8')) as { item: { workspace?: string } });
+    const versions = fs
+      .readdirSync(vdir)
+      .map((n) => JSON.parse(fs.readFileSync(path.join(vdir, n), 'utf8')) as { item: { workspace?: string } });
     expect(versions.length).toBeGreaterThan(0);
     for (const v of versions) if (v.item.workspace) expect(v.item.workspace).toBe(moved);
   });

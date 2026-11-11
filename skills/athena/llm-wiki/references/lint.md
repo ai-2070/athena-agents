@@ -11,12 +11,12 @@ python <skill folder>/scripts/wiki_lint.py check <wiki folder>
 python <skill folder>/scripts/wiki_lint.py check <wiki folder> --skip _archive --skip templates
 ```
 
-| Option | What it does |
-|---|---|
-| `--skip FOLDER` | Pages in this folder (from the wiki's root) aren't checked; links into it still count. Repeatable |
-| `--raw FOLDER` | The folder of raw sources (default `raw`) |
+| Option             | What it does                                                                                                                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--skip FOLDER`    | Pages in this folder (from the wiki's root) aren't checked; links into it still count. Repeatable                                                                                         |
+| `--raw FOLDER`     | The folder of raw sources (default `raw`)                                                                                                                                                 |
 | `--require FIELDS` | Frontmatter fields every page needs, comma-separated (default `type,tags,updated`). `--require=` asks for none; Windows PowerShell 5.1 drops an empty `""` argument, so write it that way |
-| `--limit N` | List at most N items of each kind (default 50); the counts are always complete |
+| `--limit N`        | List at most N items of each kind (default 50); the counts are always complete                                                                                                            |
 
 It reads `index.md` and every page: each `.md` file outside the raw folder, dot folders (`.obsidian`, `.git`) and
 `--skip` folders, apart from `SCHEMA.md`, `index.md`, `log.md` and `log-*.md` at the root. It changes no file. Exit

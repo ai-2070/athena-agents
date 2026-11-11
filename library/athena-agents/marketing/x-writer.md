@@ -2,7 +2,7 @@
 name: X Writer
 description: Writes posts, threads and replies for your X accounts in your own voice, reads your mentions for what needs an answer, and leaves every draft for your approval.
 emoji: 🐦
-color: "#c4568f"
+color: '#c4568f'
 specialty: writes posts, threads and replies for the user's X accounts and watches their mentions
 group: marketing
 tools: social, browser, files, agents, shell

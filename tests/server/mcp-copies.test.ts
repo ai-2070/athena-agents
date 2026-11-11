@@ -6,7 +6,17 @@ import * as mcp from '../../server/mcp.ts';
 import { mcpToolName } from '../../server/apitools.ts';
 import type { McpServerConfig, McpServers } from '../../server/mcp.ts';
 
-const http = (url: string, extra: Partial<McpServerConfig> = {}): McpServerConfig => ({ type: 'http', command: '', args: [], env: {}, url, headers: {}, description: '', enabled: true, ...extra });
+const http = (url: string, extra: Partial<McpServerConfig> = {}): McpServerConfig => ({
+  type: 'http',
+  command: '',
+  args: [],
+  env: {},
+  url,
+  headers: {},
+  description: '',
+  enabled: true,
+  ...extra,
+});
 const OOMOL = 'https://connector.oomol.com/v1/mcp';
 
 describe('which service a server is', () => {
@@ -14,7 +24,9 @@ describe('which service a server is', () => {
     expect(mcp.kindOf('oomol', http('https://elsewhere.example/mcp'))).toBe('oomol');
     expect(mcp.kindOf('oomol-work', http(OOMOL))).toBe('oomol');
     expect(mcp.kindOf('my-composio', http('https://mcp.composio.dev/session/abc123'))).toBe('composio');
-    expect(mcp.kindOf('browser2', { ...http(''), type: 'stdio', command: 'npx', args: ['-y', '@playwright/mcp@latest'] })).toBe('playwright');
+    expect(
+      mcp.kindOf('browser2', { ...http(''), type: 'stdio', command: 'npx', args: ['-y', '@playwright/mcp@latest'] }),
+    ).toBe('playwright');
   });
 
   it('the one it was set to, or its own name when it is like no other', () => {
@@ -36,7 +48,12 @@ describe('adding another account of a ready-made server', () => {
     expect(() => mcp.addPreset('oomol')).toThrow(/added already.*label/);
     const made = mcp.addPreset('oomol', { label: 'Client A', useFor: 'everything for Client A' });
     expect(made.name).toBe('oomol-client-a');
-    expect(mcp.listServers()['oomol-client-a']).toMatchObject({ url: OOMOL, label: 'Client A', kind: 'oomol', useFor: 'everything for Client A' });
+    expect(mcp.listServers()['oomol-client-a']).toMatchObject({
+      url: OOMOL,
+      label: 'Client A',
+      kind: 'oomol',
+      useFor: 'everything for Client A',
+    });
     expect(mcp.listServers().oomol.label).toBeUndefined();
     // the same label again gets a number, a label with no letters it can use gets the service's name
     expect(mcp.addPreset('oomol', { label: 'Client A' }).name).toBe('oomol-client-a-2');
@@ -61,7 +78,10 @@ describe('adding another account of a ready-made server', () => {
     expect(again.server.env.MCP_REMOTE_CONFIG_DIR).toMatch(/dashboard-sentry-work-[0-9a-f]{8}$/);
     expect(again.server.env.MCP_REMOTE_CONFIG_DIR).not.toBe(first);
     // a copy made before keeps the folder it signed in with
-    const old = { args: ['-y', 'mcp-remote', 'https://mcp.sentry.dev/mcp'], env: { MCP_REMOTE_CONFIG_DIR: '/home/x/.mcp-auth/dashboard-sentry-old' } };
+    const old = {
+      args: ['-y', 'mcp-remote', 'https://mcp.sentry.dev/mcp'],
+      env: { MCP_REMOTE_CONFIG_DIR: '/home/x/.mcp-auth/dashboard-sentry-old' },
+    };
     expect(mcp.withOwnLogin('sentry-old', old)).toBe(old);
   });
 
@@ -70,7 +90,11 @@ describe('adding another account of a ready-made server', () => {
     expect(p.installed).toBe(true);
     expect(p.copies).toEqual(expect.arrayContaining(['oomol', 'oomol-client-a']));
     // a copy saved under any name counts as added
-    expect(mcp.suggestPresets([], { 'my-context': { ...http(''), type: 'stdio', command: 'x', kind: 'context7' } }).map((s) => s.name)).not.toContain('context7');
+    expect(
+      mcp
+        .suggestPresets([], { 'my-context': { ...http(''), type: 'stdio', command: 'x', kind: 'context7' } })
+        .map((s) => s.name),
+    ).not.toContain('context7');
   });
 
   it('changes only the label and "use for" of one already there, and they survive a rename', () => {
@@ -79,7 +103,10 @@ describe('adding another account of a ready-made server', () => {
     mcp.describeCopy('oomol', { useFor: 'my own mail and calendar' });
     expect(mcp.listServers().oomol.label).toBe('Personal');
     expect(mcp.renameServer('oomol', 'oomol-personal')).toBe('oomol-personal');
-    expect(mcp.listServers()['oomol-personal']).toMatchObject({ label: 'Personal', useFor: 'my own mail and calendar' });
+    expect(mcp.listServers()['oomol-personal']).toMatchObject({
+      label: 'Personal',
+      useFor: 'my own mail and calendar',
+    });
     expect(mcp.kindOf('oomol-personal', mcp.listServers()['oomol-personal'])).toBe('oomol');
   });
 
@@ -98,18 +125,33 @@ describe('agents with several accounts', () => {
 
   it('finds the copies that share a service and have no "use for"', () => {
     expect([...mcp.copiesByKind(servers).entries()]).toEqual([['oomol', ['oomol-work', 'oomol-personal']]]);
-    expect(mcp.copiesWithoutUseFor(['oomol-work', 'oomol-personal', 'playwright'], servers)).toEqual(['oomol-personal']);
+    expect(mcp.copiesWithoutUseFor(['oomol-work', 'oomol-personal', 'playwright'], servers)).toEqual([
+      'oomol-personal',
+    ]);
     // one copy alone needs none
     expect(mcp.copiesWithoutUseFor(['oomol-personal', 'playwright'], servers)).toEqual([]);
-    expect(mcp.serverInfo(servers)['oomol-work']).toEqual({ title: 'OOMOL: Work', label: 'Work', kind: 'oomol', service: 'OOMOL', useFor: 'acme.com mail and calendar', copies: 2 });
+    expect(mcp.serverInfo(servers)['oomol-work']).toEqual({
+      title: 'OOMOL: Work',
+      label: 'Work',
+      kind: 'oomol',
+      service: 'OOMOL',
+      useFor: 'acme.com mail and calendar',
+      copies: 2,
+    });
     expect(mcp.serverInfo(servers).playwright).toMatchObject({ title: 'playwright', copies: 1 });
   });
 
   it("uses the team's account during team work, in place of the agent's own of that service", () => {
-    expect(mcp.teamWorkServers(['oomol-personal', 'playwright'], ['oomol-work'], servers)).toEqual(['playwright', 'oomol-work']);
+    expect(mcp.teamWorkServers(['oomol-personal', 'playwright'], ['oomol-work'], servers)).toEqual([
+      'playwright',
+      'oomol-work',
+    ]);
     expect(mcp.teamWorkServers(['oomol-personal', 'oomol-work'], ['oomol-work'], servers)).toEqual(['oomol-work']);
     // a team with both gives both; a team without the service leaves the agent's own
-    expect(mcp.teamWorkServers(['oomol-personal'], ['oomol-work', 'oomol-personal'], servers).sort()).toEqual(['oomol-personal', 'oomol-work']);
+    expect(mcp.teamWorkServers(['oomol-personal'], ['oomol-work', 'oomol-personal'], servers).sort()).toEqual([
+      'oomol-personal',
+      'oomol-work',
+    ]);
     expect(mcp.teamWorkServers(['oomol-personal'], ['playwright'], servers)).toEqual(['oomol-personal', 'playwright']);
   });
 
@@ -117,7 +159,9 @@ describe('agents with several accounts', () => {
     const both = mcp.accountsPrompt(['oomol-work', 'oomol-personal', 'playwright'], servers);
     expect(both).toContain('# Accounts');
     expect(both).toContain('separate accounts of the same service');
-    expect(both).toContain('- OOMOL: Work (the MCP server "oomol-work": its tools have "oomol-work" in their names). Use it for: acme.com mail and calendar');
+    expect(both).toContain(
+      '- OOMOL: Work (the MCP server "oomol-work": its tools have "oomol-work" in their names). Use it for: acme.com mail and calendar',
+    );
     expect(both).toContain('- OOMOL: Personal (the MCP server "oomol-personal"');
     expect(both).not.toContain('playwright');
     expect(mcp.accountsPrompt(['oomol-work'], servers)).toContain('These MCP servers are accounts');
@@ -136,7 +180,7 @@ describe('agents with several accounts', () => {
     // only Claude Code's own form: "oomol-work__send" is no Claude Code tool name
     expect(mcp.accountOfTool('oomol-work__send_mail', servers)).toBe('');
     // copies without labels are still told apart, by name
-    const bare = { 'oomol': http(OOMOL), 'oomol-2': http(OOMOL) };
+    const bare = { oomol: http(OOMOL), 'oomol-2': http(OOMOL) };
     expect(mcp.accountOfTool('mcp__oomol-2__send', bare)).toBe('oomol-2');
     // a server named "mcp" doesn't take the tools of a server named "a"
     const odd = { mcp: http(OOMOL, { label: 'Wrong' }), a: http(OOMOL, { label: 'Right' }) };
@@ -144,15 +188,22 @@ describe('agents with several accounts', () => {
   });
 
   it('lists every copy of a service the agent holds, the ones with no label or "use for" too', () => {
-    const two = { oomol: http(OOMOL), 'oomol-work': http(OOMOL, { label: 'Work', kind: 'oomol', useFor: 'acme.com mail' }) };
+    const two = {
+      oomol: http(OOMOL),
+      'oomol-work': http(OOMOL, { label: 'Work', kind: 'oomol', useFor: 'acme.com mail' }),
+    };
     const text = mcp.accountsPrompt(['oomol', 'oomol-work'], two);
     expect(text).toContain('separate accounts of the same service');
-    expect(text).toContain('- OOMOL (no label) (the MCP server "oomol": its tools have "oomol" in their names). Nobody said what it is for: ask before you use it');
+    expect(text).toContain(
+      '- OOMOL (no label) (the MCP server "oomol": its tools have "oomol" in their names). Nobody said what it is for: ask before you use it',
+    );
     expect(text).toContain('- OOMOL: Work (the MCP server "oomol-work"');
   });
 
   it('lists copies for the Brain with their label and "use for", other servers by name', () => {
-    expect(mcp.serversForPrompt(servers)).toBe('oomol-work (OOMOL: Work; use for: acme.com mail and calendar), oomol-personal (OOMOL: Personal), playwright');
+    expect(mcp.serversForPrompt(servers)).toBe(
+      'oomol-work (OOMOL: Work; use for: acme.com mail and calendar), oomol-personal (OOMOL: Personal), playwright',
+    );
   });
 });
 
@@ -171,7 +222,13 @@ describe('the service of a server, as people name it and as it changes', () => {
   it('a renamed server stays the service it was, and the accounts of a renamed service follow it', () => {
     // the first GitHub, with arguments of its own: GitHub only by its name
     mcp.saveServer('github', { type: 'stdio', command: 'npx', args: ['-y', 'my-github-fork'] });
-    mcp.saveServer('github-work', { type: 'stdio', command: 'npx', args: ['-y', 'my-github-fork'], label: 'Work', kind: 'github' });
+    mcp.saveServer('github-work', {
+      type: 'stdio',
+      command: 'npx',
+      args: ['-y', 'my-github-fork'],
+      label: 'Work',
+      kind: 'github',
+    });
     mcp.renameServer('github', 'github-personal');
     expect(mcp.kindOf('github-personal', mcp.listServers()['github-personal'])).toBe('github');
     expect(mcp.copiesByKind().get('github')).toEqual(['github-work', 'github-personal']);
@@ -203,7 +260,7 @@ describe('the service of a server, as people name it and as it changes', () => {
     expect(mcp.copyName('oomol', 'Client A marketing depart ok', {})).toBe('oomol-client-a-marketing-depart');
   });
 
-  it("gives two MCP tools whose names meet when cut to 64 different names for an API-model agent", () => {
+  it('gives two MCP tools whose names meet when cut to 64 different names for an API-model agent', () => {
     const taken = new Set<string>();
     const server = 'oomol-client-a-marketing-departm';
     const a = mcpToolName(server, 'send_email_with_attachment_and_tracking', taken);
@@ -220,14 +277,30 @@ describe('the service of a server, as people name it and as it changes', () => {
     const servers: McpServers = { linear: http('https://mcp.linear.app/mcp') };
     expect(mcp.placeNew('notion', {}, servers)).toEqual({ name: 'notion', others: [] });
     expect(mcp.placeNew('linear', { label: 'Client' }, servers)).toEqual({ name: 'linear-client', others: ['linear'] });
-    expect(mcp.placeNew('linear', { name: 'issues', label: 'Client' }, servers)).toEqual({ name: 'issues', others: ['linear'] });
+    expect(mcp.placeNew('linear', { name: 'issues', label: 'Client' }, servers)).toEqual({
+      name: 'issues',
+      others: ['linear'],
+    });
   });
 
   it('changes a label or "use for" without touching the rest, and clears one given empty', () => {
-    mcp.saveServer('notes', { ...http('https://notes.example/mcp'), label: 'Mine', useFor: 'my notes', description: 'Notes' });
-    expect(mcp.describeCopy('notes', { label: 'Mine', useFor: 'my notes' })).toMatchObject({ label: 'Mine', useFor: 'my notes', description: 'Notes' });
+    mcp.saveServer('notes', {
+      ...http('https://notes.example/mcp'),
+      label: 'Mine',
+      useFor: 'my notes',
+      description: 'Notes',
+    });
+    expect(mcp.describeCopy('notes', { label: 'Mine', useFor: 'my notes' })).toMatchObject({
+      label: 'Mine',
+      useFor: 'my notes',
+      description: 'Notes',
+    });
     mcp.describeCopy('notes', { useFor: '' });
-    expect(mcp.listServers().notes).toEqual({ ...http('https://notes.example/mcp'), label: 'Mine', description: 'Notes' });
+    expect(mcp.listServers().notes).toEqual({
+      ...http('https://notes.example/mcp'),
+      label: 'Mine',
+      description: 'Notes',
+    });
     expect(() => mcp.describeCopy('nope', { label: 'x' })).toThrow(/No MCP server/);
   });
 });

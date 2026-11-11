@@ -36,7 +36,13 @@ export interface OpencodeStatus {
 }
 
 /** "opencode v2.2.7" → "2.2.7" */
-export const parseVersion = (out: string): string => out.trim().split('\n')[0]!.replace(/^opencode\s+/i, '').replace(/^v/, '').split(/\s/)[0] || '';
+export const parseVersion = (out: string): string =>
+  out
+    .trim()
+    .split('\n')[0]!
+    .replace(/^opencode\s+/i, '')
+    .replace(/^v/, '')
+    .split(/\s/)[0] || '';
 
 export function status(): OpencodeStatus {
   const s = cliStatus('opencode', parseVersion);
@@ -44,8 +50,12 @@ export function status(): OpencodeStatus {
 }
 
 function usable(): void {
-  if (!which('opencode')) throw new Error(`opencode is not installed (the \`opencode\` command was not found). Install it with: ${INSTALL}`);
-  if (status().tooOld) throw new Error(`This is opencode ${status().version}; agents need opencode 2 or later. Update it with: ${INSTALL}`);
+  if (!which('opencode'))
+    throw new Error(`opencode is not installed (the \`opencode\` command was not found). Install it with: ${INSTALL}`);
+  if (status().tooOld)
+    throw new Error(
+      `This is opencode ${status().version}; agents need opencode 2 or later. Update it with: ${INSTALL}`,
+    );
 }
 
 // ---------- the run's config ----------
@@ -70,21 +80,50 @@ export function permissionRules(agent: Agent): Rule[] {
       ? [rule('*', 'allow')]
       : mode === 'auto'
         ? // everything in its folder; outside it (the uploads and its knowledge folders aside) and .env files, it asks
-          [rule('*', 'allow'), rule('external_directory', 'ask'), ...[safeUploadsRoot(), ...knowledgeRoots(agent)].filter((d): d is string => !!d).flatMap(folderRules), rule('read', 'ask', '*.env'), rule('read', 'ask', '*.env.*')]
+          [
+            rule('*', 'allow'),
+            rule('external_directory', 'ask'),
+            ...[safeUploadsRoot(), ...knowledgeRoots(agent)].filter((d): d is string => !!d).flatMap(folderRules),
+            rule('read', 'ask', '*.env'),
+            rule('read', 'ask', '*.env.*'),
+          ]
         : // Ask first: it looks around freely, and asks before it changes or runs anything
-          [rule('*', 'ask'), rule('read', 'allow'), rule('glob', 'allow'), rule('grep', 'allow'), rule('skill', 'allow'), rule('read', 'ask', '*.env'), rule('read', 'ask', '*.env.*')];
+          [
+            rule('*', 'ask'),
+            rule('read', 'allow'),
+            rule('glob', 'allow'),
+            rule('grep', 'allow'),
+            rule('skill', 'allow'),
+            rule('read', 'ask', '*.env'),
+            rule('read', 'ask', '*.env.*'),
+          ];
   // the dashboard asks about its own tools itself; opencode asking you mid-turn is the dashboard's ask_user
   rules.push(rule('dashboard_*', 'allow'), rule('question', 'deny'));
   return rules;
 }
 
-type McpEntry = { type: 'local'; command: string[]; environment?: Record<string, string>; codemode?: boolean; timeout?: { execution: number } } | { type: 'remote'; url: string; headers?: Record<string, string>; oauth: false };
+type McpEntry =
+  | {
+      type: 'local';
+      command: string[];
+      environment?: Record<string, string>;
+      codemode?: boolean;
+      timeout?: { execution: number };
+    }
+  | { type: 'remote'; url: string; headers?: Record<string, string>; oauth: false };
 
 /** The MCP servers it gets: the dashboard bridge (when the agent has dashboard tools) and the agent's own. */
 export function mcpServers(agent: Agent, runId = ''): Record<string, McpEntry> {
   const out: Record<string, McpEntry> = {};
   // (an approval can keep a dashboard tool waiting a long time)
-  if (toolDefs(agent).length) out.dashboard = { type: 'local', command: [process.execPath, BRIDGE_SCRIPT], environment: bridgeEnv(agent.id, runId), codemode: false, timeout: { execution: 3_600_000 } };
+  if (toolDefs(agent).length)
+    out.dashboard = {
+      type: 'local',
+      command: [process.execPath, BRIDGE_SCRIPT],
+      environment: bridgeEnv(agent.id, runId),
+      codemode: false,
+      timeout: { execution: 3_600_000 },
+    };
   const servers = listServers();
   for (const name of agent.mcpServers || []) {
     const cfg = servers[name];
@@ -96,8 +135,18 @@ export function mcpServers(agent: Agent, runId = ''): Record<string, McpEntry> {
     if (cfg.type === 'stdio') {
       // (on Windows, npx and uvx are .cmd files it can't start directly)
       const { command, args } = resolveCommand(cfg.command, cfg.args || []);
-      out[key] = { type: 'local', command: [command, ...args], ...(Object.keys(cfg.env || {}).length ? { environment: { ...cfg.env } } : {}) };
-    } else if (cfg.url) out[key] = { type: 'remote', url: cfg.url, ...(Object.keys(cfg.headers || {}).length ? { headers: { ...cfg.headers } } : {}), oauth: false };
+      out[key] = {
+        type: 'local',
+        command: [command, ...args],
+        ...(Object.keys(cfg.env || {}).length ? { environment: { ...cfg.env } } : {}),
+      };
+    } else if (cfg.url)
+      out[key] = {
+        type: 'remote',
+        url: cfg.url,
+        ...(Object.keys(cfg.headers || {}).length ? { headers: { ...cfg.headers } } : {}),
+        oauth: false,
+      };
   }
   return out;
 }
@@ -108,7 +157,14 @@ export function mcpServers(agent: Agent, runId = ''): Record<string, McpEntry> {
 export function opencodeConfig(agent: Agent, { briefFile, runId = '' }: { briefFile: string; runId?: string }): object {
   return {
     $schema: 'https://opencode.ai/config.json',
-    agents: { [AGENT]: { mode: 'primary', description: `${agent.name} from Athena Agents`, system: `{file:${briefFile.replace(/\\/g, '/')}}`, permissions: permissionRules(agent) } },
+    agents: {
+      [AGENT]: {
+        mode: 'primary',
+        description: `${agent.name} from Athena Agents`,
+        system: `{file:${briefFile.replace(/\\/g, '/')}}`,
+        permissions: permissionRules(agent),
+      },
+    },
     default_agent: AGENT,
     mcp: { servers: mcpServers(agent, runId) },
   };
@@ -139,7 +195,12 @@ export function modelRef(model: string): { providerID: string; id: string } | nu
 /** The variant for an effort: the one of that name, or the nearest effort the model has ('' when it has none). */
 export function variantFor(effort: unknown, variants: string[]): string {
   const want = effortFor('opencode', effort);
-  return want ? nearestEffort(want, EFFORTS.filter((e) => variants.includes(e))) : '';
+  return want
+    ? nearestEffort(
+        want,
+        EFFORTS.filter((e) => variants.includes(e)),
+      )
+    : '';
 }
 
 /** One of `GET /api/model` (only the fields used here). */
@@ -157,12 +218,18 @@ export interface OpencodeModel {
   context?: number;
   variants: string[];
 }
-const toModel = (m: ApiModel): OpencodeModel => ({ id: `${m.providerID}/${m.id}`, name: m.name || m.id, ...(m.limit?.context ? { context: m.limit.context } : {}), variants: (m.variants || []).map((v) => v.id) });
+const toModel = (m: ApiModel): OpencodeModel => ({
+  id: `${m.providerID}/${m.id}`,
+  name: m.name || m.id,
+  ...(m.limit?.context ? { context: m.limit.context } : {}),
+  variants: (m.variants || []).map((v) => v.id),
+});
 
 // The list is kept a minute (an empty one ten seconds: you may be signing in), and asked for once however many want it
 let modelCache: { at: number; list: OpencodeModel[] } = { at: 0, list: [] };
 let loading: Promise<OpencodeModel[]> | null = null;
-const cached = (): OpencodeModel[] | null => (modelCache.at && Date.now() - modelCache.at < (modelCache.list.length ? 60_000 : 10_000) ? modelCache.list : null);
+const cached = (): OpencodeModel[] | null =>
+  modelCache.at && Date.now() - modelCache.at < (modelCache.list.length ? 60_000 : 10_000) ? modelCache.list : null;
 /** Forgets the list (tests). */
 export function forgetModels(): void {
   modelCache = { at: 0, list: [] };
@@ -182,7 +249,11 @@ export function listModels(): Promise<OpencodeModel[]> {
   if (have) return Promise.resolve(have);
   if (!which('opencode') || status().tooOld) return Promise.resolve([]);
   loading ??= (async () => {
-    const server = await startServer({ cwd: ensureDir(dataPath('runtime')), env: process.env, signal: new AbortController().signal });
+    const server = await startServer({
+      cwd: ensureDir(dataPath('runtime')),
+      env: process.env,
+      signal: new AbortController().signal,
+    });
     try {
       return await modelsOf(server);
     } finally {
@@ -219,9 +290,21 @@ export class ApiError extends Error {
 }
 
 /** signal stops it only while it starts. After that close() ends it, so Stop can interrupt the turn first. */
-export async function startServer({ cwd, env, signal }: { cwd: string; env: NodeJS.ProcessEnv; signal: AbortSignal }): Promise<Server> {
+export async function startServer({
+  cwd,
+  env,
+  signal,
+}: {
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  signal: AbortSignal;
+}): Promise<Server> {
   const password = crypto.randomBytes(24).toString('base64url');
-  const child: ChildProcess = spawnCommand('opencode', ['serve', '--stdio', '--port', '0'], { cwd, env: { ...env, OPENCODE_PASSWORD: password }, stdio: ['pipe', 'pipe', 'pipe'] });
+  const child: ChildProcess = spawnCommand('opencode', ['serve', '--stdio', '--port', '0'], {
+    cwd,
+    env: { ...env, OPENCODE_PASSWORD: password },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
   let found: (url: string) => void = () => {};
   const at = new Promise<string>((resolve) => (found = resolve));
   // (aborting this kills it: only on a failed start, or when it doesn't end after close())
@@ -239,27 +322,42 @@ export async function startServer({ cwd, env, signal }: { cwd: string; env: Node
   let onStop = () => {};
   const url = await Promise.race([
     at,
-    ended.then((e) => Promise.reject(new Error(`opencode's server stopped before it started (${e.code}).${tail(e.stderr)}`))),
-    new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error('opencode\'s server did not start in time.')), START_WAIT.ms))),
+    ended.then((e) =>
+      Promise.reject(new Error(`opencode's server stopped before it started (${e.code}).${tail(e.stderr)}`)),
+    ),
+    new Promise<never>(
+      (_, reject) =>
+        (timer = setTimeout(() => reject(new Error("opencode's server did not start in time.")), START_WAIT.ms)),
+    ),
     new Promise<never>((_, reject) => {
       onStop = () => reject(new Error('Stopped.'));
       if (signal.aborted) onStop();
       else signal.addEventListener('abort', onStop);
     }),
-  ]).catch((e: unknown) => {
-    kill.abort();
-    throw e;
-  }).finally(() => {
-    clearTimeout(timer);
-    signal.removeEventListener('abort', onStop);
-  });
-  const headers = { authorization: `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}`, 'content-type': 'application/json' };
+  ])
+    .catch((e: unknown) => {
+      kill.abort();
+      throw e;
+    })
+    .finally(() => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onStop);
+    });
+  const headers = {
+    authorization: `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}`,
+    'content-type': 'application/json',
+  };
   let closed = false;
   const server: Server = {
     url,
     ended,
     async call<T>(method: string, route: string, body?: unknown) {
-      const r = await fetch(url + route, { method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(60_000) });
+      const r = await fetch(url + route, {
+        method,
+        headers,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: AbortSignal.timeout(60_000),
+      });
       const text = await r.text();
       let json: unknown = null;
       try {
@@ -267,7 +365,11 @@ export async function startServer({ cwd, env, signal }: { cwd: string; env: Node
       } catch {
         /* not JSON */
       }
-      if (!r.ok) throw new ApiError((json as { message?: string } | null)?.message || text.slice(0, 300) || `opencode answered ${r.status}.`, r.status);
+      if (!r.ok)
+        throw new ApiError(
+          (json as { message?: string } | null)?.message || text.slice(0, 300) || `opencode answered ${r.status}.`,
+          r.status,
+        );
       return { status: r.status, data: (json as { data?: T } | null)?.data };
     },
     async *events(stop: AbortSignal) {
@@ -322,7 +424,9 @@ export function parseFrame(frame: string): OcEvent | null {
   if (!data) return null;
   try {
     const o = JSON.parse(data) as { type?: unknown; data?: unknown };
-    return typeof o.type === 'string' ? { type: o.type, data: o.data && typeof o.data === 'object' ? (o.data as Record<string, unknown>) : {} } : null;
+    return typeof o.type === 'string'
+      ? { type: o.type, data: o.data && typeof o.data === 'object' ? (o.data as Record<string, unknown>) : {} }
+      : null;
   } catch {
     return null;
   }
@@ -342,9 +446,16 @@ const errText = (x: unknown): string => str((x as { message?: unknown } | null)?
 /** A tool result's content ([{ type: 'text', text }, { type: 'file', uri, mime }]) as text and pictures. */
 export function toolOutput(content: unknown): { text: string; images: string[] } {
   if (!Array.isArray(content)) return { text: '', images: [] };
-  const text = content.map((c: { type?: string; text?: string; uri?: string; name?: string }) => (c?.type === 'text' ? c.text || '' : c?.uri ? `[${c.name || 'file'}]` : '')).filter(Boolean).join('\n');
+  const text = content
+    .map((c: { type?: string; text?: string; uri?: string; name?: string }) =>
+      c?.type === 'text' ? c.text || '' : c?.uri ? `[${c.name || 'file'}]` : '',
+    )
+    .filter(Boolean)
+    .join('\n');
   // (pictures it sent as data: URIs)
-  const images = content.map((c: { uri?: unknown }) => c?.uri).filter((u): u is string => typeof u === 'string' && u.startsWith('data:image/'));
+  const images = content
+    .map((c: { uri?: unknown }) => c?.uri)
+    .filter((u): u is string => typeof u === 'string' && u.startsWith('data:image/'));
   return { text, images };
 }
 
@@ -396,13 +507,20 @@ export function opencodeReader(onEvent: (ev: RunEvent) => void) {
     } else if (t === 'session.reasoning.started') onEvent({ kind: 'status', text: 'Thinking…' });
     else if (t === 'session.tool.input.started' && str(d.id)) names.set(str(d.id), str(d.name) || 'tool');
     else if (t === 'session.tool.called' && str(d.id)) {
-      const args = d.input && typeof d.input === 'object' && !Array.isArray(d.input) ? (d.input as Record<string, unknown>) : {};
+      const args =
+        d.input && typeof d.input === 'object' && !Array.isArray(d.input) ? (d.input as Record<string, unknown>) : {};
       onEvent({ kind: 'tool', id: str(d.id), name: names.get(str(d.id)) || 'tool', args });
     } else if ((t === 'session.tool.success' || t === 'session.tool.failed') && str(d.id)) {
       const out = toolOutput(d.content);
       const failed = t === 'session.tool.failed';
       const text = failed ? [errText(d.error), out.text].filter(Boolean).join('\n') : out.text;
-      onEvent({ kind: 'tool_result', id: str(d.id), text: text.slice(0, 20000), isError: failed, ...(out.images.length ? { images: out.images } : {}) });
+      onEvent({
+        kind: 'tool_result',
+        id: str(d.id),
+        text: text.slice(0, 20000),
+        isError: failed,
+        ...(out.images.length ? { images: out.images } : {}),
+      });
     } else if (t === 'session.step.ended' || (t === 'session.step.failed' && d.tokens)) {
       const u = (d.tokens || {}) as Tokens;
       const read = num(u.cache?.read);
@@ -416,11 +534,14 @@ export function opencodeReader(onEvent: (ev: RunEvent) => void) {
       const why = errText(d.error);
       onEvent({ kind: 'status', text: `Trying again (${num(d.attempt) || 1})${why ? `: ${why.slice(0, 100)}` : ''}` });
     } else if (t === 'session.compaction.started') onEvent({ kind: 'status', text: 'Compacting its memory…' });
-    else if (t === 'session.compaction.ended') onEvent({ kind: 'compacted', trigger: d.reason === 'manual' ? 'manual' : 'auto' });
-    else if (t === 'session.compaction.failed') onEvent({ kind: 'status', text: `Compacting its memory failed: ${errText(d.error).slice(0, 100)}` });
+    else if (t === 'session.compaction.ended')
+      onEvent({ kind: 'compacted', trigger: d.reason === 'manual' ? 'manual' : 'auto' });
+    else if (t === 'session.compaction.failed')
+      onEvent({ kind: 'status', text: `Compacting its memory failed: ${errText(d.error).slice(0, 100)}` });
     else if (t === 'session.execution.failed') error = errText(d.error) || 'opencode failed.';
     else if (t === 'session.execution.succeeded') error = '';
-    else if (t === 'session.execution.interrupted' && d.reason !== 'user') error = `opencode stopped the turn (${str(d.reason) || 'interrupted'}).`;
+    else if (t === 'session.execution.interrupted' && d.reason !== 'user')
+      error = `opencode stopped the turn (${str(d.reason) || 'interrupted'}).`;
   };
   return {
     handle,
@@ -484,7 +605,13 @@ export function allowKeys(action: string, resources: string[]): string[] {
 }
 
 /** One of opencode's questions, to the dashboard's approvals (and the Brain). The answer goes back to it. */
-async function askPermission(agent: Agent, d: Record<string, unknown>, runId: string, reply: (decision: 'once' | 'reject', message?: string) => Promise<void>, helper = false): Promise<void> {
+async function askPermission(
+  agent: Agent,
+  d: Record<string, unknown>,
+  runId: string,
+  reply: (decision: 'once' | 'reject', message?: string) => Promise<void>,
+  helper = false,
+): Promise<void> {
   const action = str(d.action) || 'tool';
   const resources = Array.isArray(d.resources) ? d.resources.map(String) : [];
   const keys = allowKeys(action, resources);
@@ -500,10 +627,22 @@ async function askPermission(agent: Agent, d: Record<string, unknown>, runId: st
     detail: detail.slice(0, 4000),
     agentId: agent.id,
     agentName: agent.name,
-    data: { tool: `opencode:${action}`, args: { action, resources }, runId, permission: str(d.id), ...(perResource ? { alwaysMeans: `Allow ${resources.length > 1 ? `these ${noun}s` : `this ${noun}`} for this agent from now on (not every ${noun})` } : {}) },
+    data: {
+      tool: `opencode:${action}`,
+      args: { action, resources },
+      runId,
+      permission: str(d.id),
+      ...(perResource
+        ? {
+            alwaysMeans: `Allow ${resources.length > 1 ? `these ${noun}s` : `this ${noun}`} for this agent from now on (not every ${noun})`,
+          }
+        : {}),
+    },
   });
   if (decision.approved && decision.always) rememberAlwaysAllow(agent.id, keys);
-  return decision.approved ? reply('once') : reply('reject', decision.message || 'The user declined this. Ask them how to proceed.');
+  return decision.approved
+    ? reply('once')
+    : reply('reject', decision.message || 'The user declined this. Ask them how to proceed.');
 }
 
 // ---------- a run ----------
@@ -523,7 +662,10 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
 
     // the chat's session: a new one under our own id, or the one it has (gone: a new one, with the chat so far)
     const want = agent.model ? modelRef(agent.model) : null;
-    if (agent.model && !want) throw new Error(`"${agent.model}" isn't an opencode model: it is written provider/model, like openrouter/deepseek/deepseek-v4.1-flash.`);
+    if (agent.model && !want)
+      throw new Error(
+        `"${agent.model}" isn't an opencode model: it is written provider/model, like openrouter/deepseek/deepseek-v4.1-flash.`,
+      );
     // the model the session should be on: the agent's, or else opencode's default (asked for when there is an effort
     // to give it, or a session to bring back to it), with the effort's variant
     let sessionId = chat.sessionId || '';
@@ -534,7 +676,8 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
       const id = `${want.providerID}/${want.id}`;
       m = cached()?.find((x) => x.id === id) || (await modelsOf(srv).catch(() => [])).find((x) => x.id === id);
     } else if (agent.effort || sessionId) {
-      const d = (await srv.call<ApiModel>('GET', '/api/model/default').catch(() => ({ status: 0, data: undefined }))).data;
+      const d = (await srv.call<ApiModel>('GET', '/api/model/default').catch(() => ({ status: 0, data: undefined })))
+        .data;
       if (d?.providerID && d.id) {
         target = { providerID: d.providerID, id: d.id };
         m = toModel(d);
@@ -544,7 +687,16 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
     const window = m?.context || 0;
     const modelBody = target ? { ...target, ...(variant ? { variant } : {}) } : null;
     if (sessionId) {
-      const s = /^ses/.test(sessionId) ? await srv.call<{ model?: { providerID?: string; id?: string; variant?: string } }>('GET', `/api/session/${encodeURIComponent(sessionId)}`).catch((e: unknown) => (e instanceof ApiError && (e.status === 404 || e.status === 400) ? null : Promise.reject(e))) : null;
+      const s = /^ses/.test(sessionId)
+        ? await srv
+            .call<{ model?: { providerID?: string; id?: string; variant?: string } }>(
+              'GET',
+              `/api/session/${encodeURIComponent(sessionId)}`,
+            )
+            .catch((e: unknown) =>
+              e instanceof ApiError && (e.status === 404 || e.status === 400) ? null : Promise.reject(e),
+            )
+        : null;
       if (!s) {
         chat.sessionId = null;
         chat.reseed = true;
@@ -552,13 +704,22 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
       }
       // (moved back too when the agent's model or effort was cleared)
       const has = s.data?.model;
-      if (modelBody && (has?.providerID !== modelBody.providerID || has?.id !== modelBody.id || (has?.variant || '') !== variant)) await srv.call('POST', `/api/session/${sessionId}/model`, { model: modelBody });
+      if (
+        modelBody &&
+        (has?.providerID !== modelBody.providerID || has?.id !== modelBody.id || (has?.variant || '') !== variant)
+      )
+        await srv.call('POST', `/api/session/${sessionId}/model`, { model: modelBody });
     } else {
       sessionId = newId('ses');
       chat.sessionId = sessionId;
       // (on opencode's default without an effort, the session is left to follow its default)
       const pin = want || variant ? modelBody : null;
-      await srv.call('POST', '/api/session', { id: sessionId, agent: AGENT, location: { directory: workspace }, ...(pin ? { model: pin } : {}) });
+      await srv.call('POST', '/api/session', {
+        id: sessionId,
+        agent: AGENT,
+        location: { directory: workspace },
+        ...(pin ? { model: pin } : {}),
+      });
     }
 
     const reader = opencodeReader(onEvent);
@@ -573,7 +734,15 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
     const answered = new Set<string>();
     const reply = (sid: string, id: string) => (decision: 'once' | 'reject', message?: string) => {
       answered.add(id);
-      return srv.call('POST', `/api/session/${encodeURIComponent(sid)}/permission/${encodeURIComponent(id)}/reply`, { decision, ...(message ? { message } : {}) }).then(() => undefined, () => undefined);
+      return srv
+        .call('POST', `/api/session/${encodeURIComponent(sid)}/permission/${encodeURIComponent(id)}/reply`, {
+          decision,
+          ...(message ? { message } : {}),
+        })
+        .then(
+          () => undefined,
+          () => undefined,
+        );
     };
     const stopTaking = () => {
       taking = false;
@@ -585,7 +754,10 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
       await Promise.allSettled([...sending]);
       let all = true;
       for (const key of [...unread.keys()]) {
-        const gone = await srv.call('DELETE', `/api/session/${sessionId}/inbox/${encodeURIComponent(key)}`).then(() => true, () => false);
+        const gone = await srv.call('DELETE', `/api/session/${sessionId}/inbox/${encodeURIComponent(key)}`).then(
+          () => true,
+          () => false,
+        );
         if (gone) unread.delete(key);
         else all = false;
       }
@@ -595,7 +767,12 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
     let interrupting: Promise<unknown> = Promise.resolve();
     const onAbort = () => {
       stopTaking();
-      interrupting = Promise.race([Promise.allSettled([...mine].map((sid) => srv.call('POST', `/api/session/${encodeURIComponent(sid)}/interrupt`))), new Promise((resolve) => setTimeout(resolve, 3000).unref?.())]);
+      interrupting = Promise.race([
+        Promise.allSettled(
+          [...mine].map((sid) => srv.call('POST', `/api/session/${encodeURIComponent(sid)}/interrupt`)),
+        ),
+        new Promise((resolve) => setTimeout(resolve, 3000).unref?.()),
+      ]);
       // (it may not say so: the stream ends after a moment either way)
       setTimeout(() => stopStream.abort(), 3000).unref?.();
     };
@@ -604,7 +781,8 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
       await post(newId('msg'), { text });
       taking = true;
       intake.set(runId, (m) => {
-        if (!taking || signal.aborted) return Promise.reject(new Error('opencode is no longer taking messages for this turn.'));
+        if (!taking || signal.aborted)
+          return Promise.reject(new Error('opencode is no longer taking messages for this turn.'));
         const key = newId('msg');
         unread.set(key, m);
         const p = post(key, { text: withAttachments(m.text, m.attachments || []), delivery: 'steer' }).then(
@@ -629,13 +807,20 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
           continue;
         }
         if (ev.type === 'permission.asked') {
-          if (mine.has(sid)) void askPermission(agent, d, runId, reply(sid, str(d.id)), sid !== sessionId).catch((e: unknown) => log('opencode', `A permission question failed: ${(e as Error).message}`));
+          if (mine.has(sid))
+            void askPermission(agent, d, runId, reply(sid, str(d.id)), sid !== sessionId).catch((e: unknown) =>
+              log('opencode', `A permission question failed: ${(e as Error).message}`),
+            );
           continue;
         }
         // one it settled itself leaves Needs you
         if (ev.type === 'permission.replied') {
           const id = str(d.requestID);
-          if (mine.has(sid) && id && !answered.has(id)) withdrawApprovals((item) => item.data?.runId === runId && item.data?.permission === id, 'opencode no longer needs an answer to this.');
+          if (mine.has(sid) && id && !answered.has(id))
+            withdrawApprovals(
+              (item) => item.data?.runId === runId && item.data?.permission === id,
+              'opencode no longer needs an answer to this.',
+            );
           continue;
         }
         // the rest is the chat's own session (a helper's work shows as its tool call)
@@ -674,9 +859,16 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
       const r = reader.result();
       // the stream ended in the middle of a turn (it died, or dropped us): an error, even after some text
       if (!ended) {
-        const end = await Promise.race([srv.ended, new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000))]);
+        const end = await Promise.race([
+          srv.ended,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000)),
+        ]);
         const what = r.answer ? 'before it finished its answer' : 'without an answer';
-        throw new Error(end ? `opencode exited (${end.code}) ${what}.${tail(end.stderr)}` : `opencode stopped telling what it does ${what}.`);
+        throw new Error(
+          end
+            ? `opencode exited (${end.code}) ${what}.${tail(end.stderr)}`
+            : `opencode stopped telling what it does ${what}.`,
+        );
       }
       // (what it wrote before it failed is in the chat already)
       if (r.error) throw new Error(r.error);
@@ -715,26 +907,82 @@ export const opencode: Engine<OpencodeStatus> = { run, status, steer };
 /** One line of `opencode run --format json` (the fields used here). */
 interface RunLine {
   type?: string;
-  part?: { id?: string; text?: string; tool?: string; state?: { status?: string; input?: unknown; output?: unknown; error?: unknown } };
+  part?: {
+    id?: string;
+    text?: string;
+    tool?: string;
+    state?: { status?: string; input?: unknown; output?: unknown; error?: unknown };
+  };
   error?: { message?: string };
 }
-export type AskPart = { kind: 'text'; text: string } | { kind: 'tool'; id: string; name: string; args?: unknown } | { kind: 'tool_result'; id: string; text: string; isError?: boolean };
+export type AskPart =
+  | { kind: 'text'; text: string }
+  | { kind: 'tool'; id: string; name: string; args?: unknown }
+  | { kind: 'tool_result'; id: string; text: string; isError?: boolean };
 
 /** The Brain asks opencode one thing: `opencode run` on its own private server, as an agent that can at most
  *  read (read, glob, grep) in cwd, with nothing kept in its session lists. The prompt goes in on stdin. */
-export async function ask({ system, user, model = '', effort = '', cwd, read = false, timeout = 90000, onPart }: { system: string; user: string; model?: string; effort?: string; cwd?: string; read?: boolean; timeout?: number; onPart?: (p: AskPart) => void }): Promise<string> {
+export async function ask({
+  system,
+  user,
+  model = '',
+  effort = '',
+  cwd,
+  read = false,
+  timeout = 90000,
+  onPart,
+}: {
+  system: string;
+  user: string;
+  model?: string;
+  effort?: string;
+  cwd?: string;
+  read?: boolean;
+  timeout?: number;
+  onPart?: (p: AskPart) => void;
+}): Promise<string> {
   usable();
   const ref = model ? modelRef(model) : null;
-  if (model && !ref) throw new Error(`"${model}" isn't an opencode model: it is written provider/model, like openrouter/deepseek/deepseek-v4.1-flash.`);
-  const variant = effort && model ? variantFor(effort, (await listModels().catch(() => [])).find((m) => m.id === model)?.variants || []) : '';
+  if (model && !ref)
+    throw new Error(
+      `"${model}" isn't an opencode model: it is written provider/model, like openrouter/deepseek/deepseek-v4.1-flash.`,
+    );
+  const variant =
+    effort && model
+      ? variantFor(effort, (await listModels().catch(() => [])).find((m) => m.id === model)?.variants || [])
+      : '';
   const dir = ensureDir(dataPath('tmp'));
   const tag = `opencode-brain-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
   const brief = path.join(dir, `${tag}.md`);
   const config = path.join(dir, `${tag}.json`);
   fs.writeFileSync(brief, system);
   // nothing but reading (when asked to), not even the MCP servers of the user's own opencode config
-  const permissions = [rule('*', 'deny'), ...(read ? [rule('read', 'allow'), rule('glob', 'allow'), rule('grep', 'allow'), rule('read', 'deny', '*.env'), rule('read', 'deny', '*.env.*')] : [])];
-  fs.writeFileSync(config, JSON.stringify({ $schema: 'https://opencode.ai/config.json', agents: { [BRAIN_AGENT]: { mode: 'primary', description: 'The Athena Agents Brain', system: `{file:${brief.replace(/\\/g, '/')}}`, permissions } } }));
+  const permissions = [
+    rule('*', 'deny'),
+    ...(read
+      ? [
+          rule('read', 'allow'),
+          rule('glob', 'allow'),
+          rule('grep', 'allow'),
+          rule('read', 'deny', '*.env'),
+          rule('read', 'deny', '*.env.*'),
+        ]
+      : []),
+  ];
+  fs.writeFileSync(
+    config,
+    JSON.stringify({
+      $schema: 'https://opencode.ai/config.json',
+      agents: {
+        [BRAIN_AGENT]: {
+          mode: 'primary',
+          description: 'The Athena Agents Brain',
+          system: `{file:${brief.replace(/\\/g, '/')}}`,
+          permissions,
+        },
+      },
+    }),
+  );
   const texts: string[] = [];
   let err = '';
   const onLine = (line: string) => {
@@ -752,14 +1000,38 @@ export async function ask({ system, user, model = '', effort = '', cwd, read = f
     } else if (ev.type === 'tool_use' && p.id) {
       const st = p.state || {};
       onPart?.({ kind: 'tool', id: p.id, name: p.tool || 'tool', args: st.input });
-      onPart?.({ kind: 'tool_result', id: p.id, text: (typeof st.output === 'string' ? st.output : errText(st.error) || JSON.stringify(st.output ?? '')).slice(0, 20000), isError: st.status === 'error' });
+      onPart?.({
+        kind: 'tool_result',
+        id: p.id,
+        text: (typeof st.output === 'string' ? st.output : errText(st.error) || JSON.stringify(st.output ?? '')).slice(
+          0,
+          20000,
+        ),
+        isError: st.status === 'error',
+      });
     } else if (ev.type === 'error') err = ev.error?.message || 'opencode failed.';
   };
   try {
-    const args = ['run', '--standalone', '--format', 'json', '--archived', '--agent', BRAIN_AGENT, ...(ref ? ['-m', `${model}${variant ? `#${variant}` : ''}`] : [])];
-    const r = await runCmd('opencode', args, { input: user, timeout, cwd, env: { ...process.env, OPENCODE_CONFIG: config }, onLine: (l) => onLine(l.trim()) });
+    const args = [
+      'run',
+      '--standalone',
+      '--format',
+      'json',
+      '--archived',
+      '--agent',
+      BRAIN_AGENT,
+      ...(ref ? ['-m', `${model}${variant ? `#${variant}` : ''}`] : []),
+    ];
+    const r = await runCmd('opencode', args, {
+      input: user,
+      timeout,
+      cwd,
+      env: { ...process.env, OPENCODE_CONFIG: config },
+      onLine: (l) => onLine(l.trim()),
+    });
     const answer = texts.join('\n\n');
-    if (!answer) throw new Error(`opencode didn't answer (${(err || r.stderr || '').trim().slice(-300) || `exit ${r.code}`})`);
+    if (!answer)
+      throw new Error(`opencode didn't answer (${(err || r.stderr || '').trim().slice(-300) || `exit ${r.code}`})`);
     return answer;
   } finally {
     fs.rmSync(brief, { force: true });
@@ -767,4 +1039,3 @@ export async function ask({ system, user, model = '', effort = '', cwd, read = f
   }
 }
 const BRAIN_AGENT = 'athena-brain';
-

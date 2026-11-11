@@ -28,7 +28,10 @@ export function textRanges(root: Element, query: string): Range[] {
   const out: Range[] = [];
   if (!q) return out;
   const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode: (n) => (n.parentElement && !SKIP.has(n.parentElement.tagName) && !n.parentElement.closest('[data-find-skip]') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+    acceptNode: (n) =>
+      n.parentElement && !SKIP.has(n.parentElement.tagName) && !n.parentElement.closest('[data-find-skip]')
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT,
   });
   for (let n = walk.nextNode(); n; n = walk.nextNode()) {
     const text = (n as Text).data.toLowerCase();
@@ -59,7 +62,8 @@ function lookOfMatches(): void {
   if (styled) return;
   styled = true;
   const el = document.createElement('style');
-  el.textContent = '::highlight(find){background:color-mix(in srgb,var(--color-amber) 45%,transparent);color:inherit}::highlight(find-current){background:var(--color-accent);color:var(--color-on-accent)}';
+  el.textContent =
+    '::highlight(find){background:color-mix(in srgb,var(--color-amber) 45%,transparent);color:inherit}::highlight(find-current){background:var(--color-accent);color:var(--color-on-accent)}';
   document.head.append(el);
 }
 
@@ -154,14 +158,31 @@ export function useFind(scroller: RefObject<HTMLElement | null>, items?: FindIte
     unpaint();
   }, []);
   const host = scroller.current?.parentElement;
-  return open && host ? createPortal(<FindBar scroller={scroller} host={host} items={items ?? null} focus={focus} onClose={close} />, host) : null;
+  return open && host
+    ? createPortal(
+        <FindBar scroller={scroller} host={host} items={items ?? null} focus={focus} onClose={close} />,
+        host,
+      )
+    : null;
 }
 
 // ---------- the box ----------
 type Hit = { item: number; nth: number };
 const bar = 'glass absolute right-5 z-30 flex items-center gap-1 rounded-box py-1 pr-1 pl-2.5';
 
-function FindBar({ scroller, host, items, focus, onClose }: { scroller: RefObject<HTMLElement | null>; host: HTMLElement; items: FindItems | null; focus: number; onClose: () => void }) {
+function FindBar({
+  scroller,
+  host,
+  items,
+  focus,
+  onClose,
+}: {
+  scroller: RefObject<HTMLElement | null>;
+  host: HTMLElement;
+  items: FindItems | null;
+  focus: number;
+  onClose: () => void;
+}) {
   const [query, setQuery] = useState('');
   const [total, setTotal] = useState(0);
   const [at, setAt] = useState(0);
@@ -185,48 +206,52 @@ function FindBar({ scroller, host, items, focus, onClose }: { scroller: RefObjec
   useEffect(() => unpaint, []);
 
   /** where every match is, drawn or not; and, for the ones drawn, lit up */
-  const look = useCallback((go: 'keep' | 'first' | number) => {
-    const el = scroller.current;
-    const { query: q, items: its } = live.current;
-    if (!el) return;
-    let n = 0;
-    let cur = go === 'first' ? 0 : go === 'keep' ? live.current.at : go;
-    let current: Range | null = null;
-    const all = textRanges(el, q);
-    if (its) {
-      const hits: Hit[] = [];
-      for (let i = 0; i < its.count; i++) for (let k = 0, c = countIn(its.text(i), q); k < c; k++) hits.push({ item: i, nth: k });
-      live.current.hits = hits;
-      n = hits.length;
-      cur = Math.min(cur, Math.max(0, n - 1));
-      const hit = hits[cur];
-      if (hit) {
-        const row = el.querySelector(`[data-index="${hit.item}"]`);
-        const ranges = row ? textRanges(row, q) : [];
-        current = ranges[Math.min(hit.nth, ranges.length - 1)] ?? null;
-        if (!row && go !== 'keep') {
-          // not drawn: scroll to it, then show it when it is
-          its.reveal(hit.item);
-          let tries = 0;
-          const wait = () => {
-            if (el.querySelector(`[data-index="${hit.item}"]`)) look(cur);
-            else if (++tries < 30) requestAnimationFrame(wait);
-          };
-          requestAnimationFrame(wait);
+  const look = useCallback(
+    (go: 'keep' | 'first' | number) => {
+      const el = scroller.current;
+      const { query: q, items: its } = live.current;
+      if (!el) return;
+      let n = 0;
+      let cur = go === 'first' ? 0 : go === 'keep' ? live.current.at : go;
+      let current: Range | null = null;
+      const all = textRanges(el, q);
+      if (its) {
+        const hits: Hit[] = [];
+        for (let i = 0; i < its.count; i++)
+          for (let k = 0, c = countIn(its.text(i), q); k < c; k++) hits.push({ item: i, nth: k });
+        live.current.hits = hits;
+        n = hits.length;
+        cur = Math.min(cur, Math.max(0, n - 1));
+        const hit = hits[cur];
+        if (hit) {
+          const row = el.querySelector(`[data-index="${hit.item}"]`);
+          const ranges = row ? textRanges(row, q) : [];
+          current = ranges[Math.min(hit.nth, ranges.length - 1)] ?? null;
+          if (!row && go !== 'keep') {
+            // not drawn: scroll to it, then show it when it is
+            its.reveal(hit.item);
+            let tries = 0;
+            const wait = () => {
+              if (el.querySelector(`[data-index="${hit.item}"]`)) look(cur);
+              else if (++tries < 30) requestAnimationFrame(wait);
+            };
+            requestAnimationFrame(wait);
+          }
         }
+      } else {
+        n = all.length;
+        cur = Math.min(cur, Math.max(0, n - 1));
+        current = all[cur] ?? null;
       }
-    } else {
-      n = all.length;
-      cur = Math.min(cur, Math.max(0, n - 1));
-      current = all[cur] ?? null;
-    }
-    setTotal(n);
-    setAt(cur);
-    live.current.at = cur;
-    live.current.total = n;
-    paint(all, current);
-    if (current && go !== 'keep') show(current);
-  }, [scroller]);
+      setTotal(n);
+      setAt(cur);
+      live.current.at = cur;
+      live.current.total = n;
+      paint(all, current);
+      if (current && go !== 'keep') show(current);
+    },
+    [scroller],
+  );
 
   useEffect(() => {
     // (typing waits a moment: a long chat is searched for each change)
@@ -247,7 +272,8 @@ function FindBar({ scroller, host, items, focus, onClose }: { scroller: RefObjec
   }, [scroller, look]);
 
   // (from what the last search found, not the last drawing: Enter can come twice in a row)
-  const step = (by: number) => live.current.total && look((live.current.at + by + live.current.total) % live.current.total);
+  const step = (by: number) =>
+    live.current.total && look((live.current.at + by + live.current.total) % live.current.total);
   return (
     <div className={bar} style={{ top }} role="search" data-find-skip="">
       <input
@@ -273,7 +299,13 @@ function FindBar({ scroller, host, items, focus, onClose }: { scroller: RefObjec
       <span className="min-w-12 text-center text-[12px] text-dim tabular-nums" aria-live="polite">
         {query ? (total ? `${at + 1} / ${total}` : 'None') : ''}
       </span>
-      <IconButton type="button" title="Previous (Shift+Enter)" aria-label="Previous match" disabled={!total} onClick={() => step(-1)}>
+      <IconButton
+        type="button"
+        title="Previous (Shift+Enter)"
+        aria-label="Previous match"
+        disabled={!total}
+        onClick={() => step(-1)}
+      >
         <Icon name="arrow-up" size={14} />
       </IconButton>
       <IconButton type="button" title="Next (Enter)" aria-label="Next match" disabled={!total} onClick={() => step(1)}>

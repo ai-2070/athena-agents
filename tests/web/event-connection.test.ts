@@ -6,7 +6,9 @@ class FakeSocket {
   onopen: (() => void) | null = null;
   onclose: (() => void) | null = null;
   onmessage: ((event: MessageEvent<string>) => void) | null = null;
-  constructor() { FakeSocket.last = this; }
+  constructor() {
+    FakeSocket.last = this;
+  }
 }
 
 afterEach(() => {
@@ -41,7 +43,10 @@ it('after the server comes back, loads the state again and tells reconnect liste
   vi.resetModules();
   vi.stubGlobal('WebSocket', FakeSocket);
   const asked: string[] = [];
-  vi.stubGlobal('fetch', async (url: string) => (asked.push(String(url)), new Response(JSON.stringify({ project: { id: 'test' } }))));
+  vi.stubGlobal(
+    'fetch',
+    async (url: string) => (asked.push(String(url)), new Response(JSON.stringify({ project: { id: 'test' } }))),
+  );
   const core = await import('../../web/core.ts');
   const reconnects = vi.fn();
   core.onReconnect(reconnects);

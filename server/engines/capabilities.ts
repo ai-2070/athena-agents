@@ -1,6 +1,11 @@
 import type { EngineCapabilities, EngineId } from '../../shared/types.ts';
 
-const native: EngineCapabilities = { nativeSession: true, directTools: false, inlineAttachmentText: false, durableSession: false };
+const native: EngineCapabilities = {
+  nativeSession: true,
+  directTools: false,
+  inlineAttachmentText: false,
+  durableSession: false,
+};
 const capabilities: Record<EngineId | 'eve', EngineCapabilities> = {
   'claude-code': native,
   codex: native,

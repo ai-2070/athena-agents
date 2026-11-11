@@ -122,6 +122,7 @@ Search Console and the business's own numbers, not by an audit tool's score.
    It prints each hop's status, `Location` and any `X-Robots-Tag`. In Windows PowerShell write `curl.exe`, since `curl`
    there can be an alias for `Invoke-WebRequest`. Some servers answer scripts differently from browsers; URL
    Inspection's live test shows what Googlebot gets. For more than a few dozen pages, use a crawler.
+
 3. Then the demand side: the site's queries and pages in Search Console, the results pages for its main queries, and
    what customers ask.
 4. Order the work by what it unblocks for the effort: blockers, then pages already close (on page two, or with many

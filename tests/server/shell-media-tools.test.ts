@@ -26,11 +26,24 @@ vi.mock('../../server/util.ts', async (orig) => {
 
 function agentWith(groups: string[]): { agent: ToolAgent; workspace: string } {
   const workspace = fs.mkdtempSync(path.join(os.homedir(), 'tools-'));
-  return { workspace, agent: { id: `t-${path.basename(workspace)}`, name: 'Tools', toolGroups: groups, autonomy: 'full', workspace, knowledge: { folders: [] } } };
+  return {
+    workspace,
+    agent: {
+      id: `t-${path.basename(workspace)}`,
+      name: 'Tools',
+      toolGroups: groups,
+      autonomy: 'full',
+      workspace,
+      knowledge: { folders: [] },
+    },
+  };
 }
 
 describe('pickShell()', () => {
-  const has = (...found: string[]) => (cmd: string) => (found.includes(cmd) ? `/bin/${cmd}` : null);
+  const has =
+    (...found: string[]) =>
+    (cmd: string) =>
+      found.includes(cmd) ? `/bin/${cmd}` : null;
 
   it('prefers PowerShell 7 everywhere it is installed', () => {
     expect(pickShell(true, has('pwsh', 'powershell')).name).toBe('PowerShell 7');
@@ -79,7 +92,10 @@ describe('media tools', () => {
     await callTool(agent, 'ffmpeg', { args: ['-n', '-i', 'in.mp4', 'out.mp4'] });
     await callTool(agent, 'ffprobe', { file: 'in.mp4' });
     await callTool(agent, 'imagemagick', { args: ['in.png', 'out.webp'] });
-    const hb = await callTool(agent, 'handbrake_encode', { input: path.join(workspace, 'in.mp4'), output: path.join(workspace, 'out.mkv') });
+    const hb = await callTool(agent, 'handbrake_encode', {
+      input: path.join(workspace, 'in.mp4'),
+      output: path.join(workspace, 'out.mkv'),
+    });
     expect(hb.text).toContain('HandBrake');
     expect(started.map((s) => s.cmd).sort()).toEqual(['HandBrakeCLI', 'ffmpeg', 'ffprobe', 'magick']);
     for (const s of started) expect(s.cwd).toBe(workspace);

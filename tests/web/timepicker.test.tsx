@@ -13,12 +13,16 @@ beforeEach(async () => {
   changed = vi.fn<(value: string) => void>();
   await act(async () => root.render(<TimePicker label="Reminder time" value="09:30" onChange={changed} />));
 });
-afterEach(async () => { await act(async () => root.unmount()); vi.restoreAllMocks(); });
+afterEach(async () => {
+  await act(async () => root.unmount());
+  vi.restoreAllMocks();
+});
 const click = (element: Element) => act(async () => (element as HTMLElement).click());
 const button = (text: string) => [...document.querySelectorAll('button')].find((b) => b.textContent === text)!;
 const open = () => click(document.querySelector('[data-time-picker]')!);
 const lists = () => [...document.querySelectorAll('[role="listbox"]')];
-const option = (column: number, text: string) => [...lists()[column].querySelectorAll('[role="option"]')].find((o) => o.textContent === text)!;
+const option = (column: number, text: string) =>
+  [...lists()[column].querySelectorAll('[role="option"]')].find((o) => o.textContent === text)!;
 
 it('shows AM/PM and confirms column picks as a 24-hour time', async () => {
   expect(document.querySelector('[data-time-picker]')!.textContent).toContain('09:30 AM');

@@ -6,7 +6,9 @@ import { privateDataPath } from '../private.ts';
 
 export class EveOwnershipError extends Error {
   constructor() {
-    super('Eve cannot claim its private ownership port. Close the other dashboard using this data folder, or check which local program is using that port.');
+    super(
+      'Eve cannot claim its private ownership port. Close the other dashboard using this data folder, or check which local program is using that port.',
+    );
     this.name = 'EveOwnershipError';
   }
 }
@@ -19,7 +21,9 @@ export function eveOwnershipPort(directory: string): number {
 }
 
 /** A kernel-held lease has no stale file to steal. A port collision fails closed. */
-export async function claimEveRuntime(directory = privateDataPath('runtime', 'eve', 'worker')): Promise<() => Promise<void>> {
+export async function claimEveRuntime(
+  directory = privateDataPath('runtime', 'eve', 'worker'),
+): Promise<() => Promise<void>> {
   const server = net.createServer((socket) => socket.destroy());
   try {
     server.listen({ host: '127.0.0.1', port: eveOwnershipPort(directory), exclusive: true });
@@ -30,5 +34,5 @@ export async function claimEveRuntime(directory = privateDataPath('runtime', 'ev
   }
   server.unref();
   let closing: Promise<void> | undefined;
-  return () => closing ??= new Promise<void>((resolve) => server.close(() => resolve()));
+  return () => (closing ??= new Promise<void>((resolve) => server.close(() => resolve())));
 }

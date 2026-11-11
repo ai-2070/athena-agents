@@ -4,7 +4,8 @@ import { appLogo, mark } from '../../web/views/stationdata.ts';
 
 describe('program icons', () => {
   it('finds ComfyUI in program, MCP server and connector names', () => {
-    for (const name of ['comfyui', 'ComfyUI', 'comfyui-mcp', 'mcp_ComfyUI']) expect(appIconUrl(name)).toBe('/app-icons/comfyui.png');
+    for (const name of ['comfyui', 'ComfyUI', 'comfyui-mcp', 'mcp_ComfyUI'])
+      expect(appIconUrl(name)).toBe('/app-icons/comfyui.png');
   });
 
   it('leaves other names alone', () => {

@@ -1,6 +1,14 @@
 // Previews of the files a chat mentions, each with Show in Explorer / Finder below it.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { filePreviews, forgetFiles, mentionPreviews, previewFile, previewKind, previewTitle, revealLabel } from '../../web/filepreview.tsx';
+import {
+  filePreviews,
+  forgetFiles,
+  mentionPreviews,
+  previewFile,
+  previewKind,
+  previewTitle,
+  revealLabel,
+} from '../../web/filepreview.tsx';
 import { state } from '../../web/core.ts';
 import type { AppState } from '../../shared/types.ts';
 
@@ -25,7 +33,15 @@ beforeEach(() => {
     calls.push({ url, body });
     if (url === '/api/file?path=%2Fw%2Fnotes.md') return new Response('# Notes\n\nHello');
     if (url === '/api/files/info')
-      return new Response(JSON.stringify(body.paths.map((p: string) => (FILES[p] ? { path: p, ok: true, name: p.split('/').pop(), modified: 0, ...FILES[p] } : { path: p, ok: false }))));
+      return new Response(
+        JSON.stringify(
+          body.paths.map((p: string) =>
+            FILES[p]
+              ? { path: p, ok: true, name: p.split('/').pop(), modified: 0, ...FILES[p] }
+              : { path: p, ok: false },
+          ),
+        ),
+      );
     return new Response(JSON.stringify({ ok: true }));
   });
 });
@@ -38,14 +54,27 @@ const settle = () => new Promise((r) => setTimeout(r, 60));
 
 describe('filePreviews()', () => {
   it('shows each kind of file with Show in Explorer / Finder below it, in one lookup', async () => {
-    const box = filePreviews(['/w/shot.png', '/w/clip.mp4', '/w/song.mp3', '/w/plan.pdf', '/w/renders', '/w/missing.png']);
+    const box = filePreviews([
+      '/w/shot.png',
+      '/w/clip.mp4',
+      '/w/song.mp3',
+      '/w/plan.pdf',
+      '/w/renders',
+      '/w/missing.png',
+    ]);
     document.body.append(box);
     expect(box.classList.contains('hidden')).toBe(true);
     await expect.poll(() => box.querySelectorAll('.fp-card').length).toBe(5);
     expect(calls.filter((c) => c.url === '/api/files/info')).toHaveLength(1);
     expect(box.classList.contains('hidden')).toBe(false);
     const cards = [...box.querySelectorAll('.fp-card')];
-    expect(cards.map((c) => c.className.split(' ').find((x) => x.startsWith('fp-kind-')))).toEqual(['fp-kind-image', 'fp-kind-video', 'fp-kind-audio', 'fp-kind-file', 'fp-kind-folder']);
+    expect(cards.map((c) => c.className.split(' ').find((x) => x.startsWith('fp-kind-')))).toEqual([
+      'fp-kind-image',
+      'fp-kind-video',
+      'fp-kind-audio',
+      'fp-kind-file',
+      'fp-kind-folder',
+    ]);
     // (a card never shares a class with what is inside it: "fp-file" is the file link's)
     expect(cards.some((c) => c.classList.contains('fp-file'))).toBe(false);
     expect(box.querySelector('img')!.getAttribute('src')).toBe('/api/file?path=%2Fw%2Fshot.png');
@@ -65,7 +94,10 @@ describe('filePreviews()', () => {
     document.body.append(box);
     await expect.poll(() => box.querySelectorAll('.fp-card').length).toBe(2);
     const cards = [...box.querySelectorAll('.fp-card')];
-    expect(cards.map((c) => c.className.split(' ').find((x) => x.startsWith('fp-kind-')))).toEqual(['fp-kind-model', 'fp-kind-model']);
+    expect(cards.map((c) => c.className.split(' ').find((x) => x.startsWith('fp-kind-')))).toEqual([
+      'fp-kind-model',
+      'fp-kind-model',
+    ]);
     expect(cards[0].querySelector('.fp-model')).not.toBeNull();
     expect(cards[0].querySelector('.fp-reveal')).not.toBeNull();
     // 80 MB: not loaded at all, said in words
@@ -191,7 +223,14 @@ describe('opening attached files', () => {
   });
 
   it('knows which files can be looked at', () => {
-    expect(['a.PNG', 'b.md', 'c.markdown', 'd.pdf', 'e.txt', 'f'].map(previewKind)).toEqual(['image', 'markdown', 'markdown', 'pdf', null, null]);
+    expect(['a.PNG', 'b.md', 'c.markdown', 'd.pdf', 'e.txt', 'f'].map(previewKind)).toEqual([
+      'image',
+      'markdown',
+      'markdown',
+      'pdf',
+      null,
+      null,
+    ]);
   });
 });
 
@@ -230,6 +269,11 @@ describe('in the desktop app', () => {
     previewFile('/w/plan.pdf', 'plan.pdf');
     await settle();
     expect(opened()).toEqual(['/w/data.csv', '/w/plan.pdf']);
-    expect(['a.png', 'b.md', 'c.pdf', 'd.zip'].map(previewTitle)).toEqual(['Show a.png bigger', 'Read b.md', 'Open c.pdf', 'Open d.zip']);
+    expect(['a.png', 'b.md', 'c.pdf', 'd.zip'].map(previewTitle)).toEqual([
+      'Show a.png bigger',
+      'Read b.md',
+      'Open c.pdf',
+      'Open d.zip',
+    ]);
   });
 });

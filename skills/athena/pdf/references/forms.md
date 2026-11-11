@@ -6,14 +6,14 @@ bottom-left corner, and a box is `[x0, y0, x1, y1]` with `x0 < x1` and `y0 < y1`
 
 ## What each field type takes
 
-| Type in `fields` | Write in values.json | Reads back as |
-|---|---|---|
-| `text` | a string (numbers are turned into strings) | the string |
-| `checkbox` | `true` / `false`, or its `on_value` (`"/Yes"`, `"Yes"`) | `/Yes` (its on-state) or `/Off` |
-| `radio` | one of `options`, with or without the slash (`"red"` or `"/red"`), or its label; `null` for none | `/red` or `/Off` |
-| `dropdown` | one option's value or its label | the option's value |
-| `listbox` | one option, or a list when `multi_select` is true | the value or list |
-| `signature`, `button` | can't be filled here | |
+| Type in `fields`      | Write in values.json                                                                             | Reads back as                   |
+| --------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------- |
+| `text`                | a string (numbers are turned into strings)                                                       | the string                      |
+| `checkbox`            | `true` / `false`, or its `on_value` (`"/Yes"`, `"Yes"`)                                          | `/Yes` (its on-state) or `/Off` |
+| `radio`               | one of `options`, with or without the slash (`"red"` or `"/red"`), or its label; `null` for none | `/red` or `/Off`                |
+| `dropdown`            | one option's value or its label                                                                  | the option's value              |
+| `listbox`             | one option, or a list when `multi_select` is true                                                | the value or list               |
+| `signature`, `button` | can't be filled here                                                                             |                                 |
 
 A checkbox's on-state isn't always `/Yes`: some forms use `/On`, `/1` or a word. `fields` shows the real one, and
 `fill` accepts `true` for whichever it is. Some forms number their buttons' states (`/0`, `/1`…) and keep what each
@@ -116,16 +116,36 @@ are drawn from `label`.
   "pages": 1,
   "title": "Membership form",
   "font_size": 10,
-  "texts": [{"page": 1, "at": [72, 780], "text": "Membership form", "size": 18}],
+  "texts": [{ "page": 1, "at": [72, 780], "text": "Membership form", "size": 18 }],
   "fields": [
-    {"name": "full_name", "type": "text", "page": 1, "box": [160, 700, 420, 720], "label": "Full name", "required": true},
-    {"name": "notes", "type": "text", "multiline": true, "box": [160, 600, 420, 680], "label": "Notes"},
-    {"name": "member", "type": "checkbox", "box": [160, 570, 174, 584], "label": "Existing member"},
-    {"name": "plan", "type": "radio", "label": "Plan", "value": "basic", "options": [
-      {"value": "basic", "box": [160, 540, 174, 554], "label": "Basic"},
-      {"value": "pro", "box": [240, 540, 254, 554], "label": "Pro"}]},
-    {"name": "country", "type": "dropdown", "box": [160, 500, 300, 518], "label": "Country",
-     "options": ["UK", "Ireland"], "value": "UK"}
+    {
+      "name": "full_name",
+      "type": "text",
+      "page": 1,
+      "box": [160, 700, 420, 720],
+      "label": "Full name",
+      "required": true
+    },
+    { "name": "notes", "type": "text", "multiline": true, "box": [160, 600, 420, 680], "label": "Notes" },
+    { "name": "member", "type": "checkbox", "box": [160, 570, 174, 584], "label": "Existing member" },
+    {
+      "name": "plan",
+      "type": "radio",
+      "label": "Plan",
+      "value": "basic",
+      "options": [
+        { "value": "basic", "box": [160, 540, 174, 554], "label": "Basic" },
+        { "value": "pro", "box": [240, 540, 254, 554], "label": "Pro" }
+      ]
+    },
+    {
+      "name": "country",
+      "type": "dropdown",
+      "box": [160, 500, 300, 518],
+      "label": "Country",
+      "options": ["UK", "Ireland"],
+      "value": "UK"
+    }
   ]
 }
 ```

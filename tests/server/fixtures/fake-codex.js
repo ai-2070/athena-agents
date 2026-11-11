@@ -11,11 +11,21 @@ process.stdin.on('end', () => {
     process.exit(1);
   }
   if (process.env.FAKE_CODEX_MODE === 'tasks') {
-    const text = JSON.stringify({ results: Array.from({ length: 300 }, (_, index) => ({ index, success: false, error: 'That task is unavailable.', code: 404 })) });
+    const text = JSON.stringify({
+      results: Array.from({ length: 300 }, (_, index) => ({
+        index,
+        success: false,
+        error: 'That task is unavailable.',
+        code: 404,
+      })),
+    });
     for (const tool of ['TaskCreate', 'TaskUpdate']) {
       const item = { id: tool, type: 'mcp_tool_call', server: 'dashboard', tool, arguments: { tasks: [] } };
       say({ type: 'item.started', item });
-      say({ type: 'item.completed', item: { ...item, result: { content: [{ type: 'text', text }] }, status: 'completed' } });
+      say({
+        type: 'item.completed',
+        item: { ...item, result: { content: [{ type: 'text', text }] }, status: 'completed' },
+      });
     }
   }
   const quoted = process.argv.some((a) => /^mcp_servers\.dashboard\.command=".+"$/.test(a));

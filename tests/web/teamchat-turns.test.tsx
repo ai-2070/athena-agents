@@ -25,7 +25,8 @@ function uiStream() {
   let ctl!: ReadableStreamDefaultController<Uint8Array>;
   const body = new ReadableStream<Uint8Array>({ start: (c) => void (ctl = c) });
   return {
-    response: () => new Response(body, { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } }),
+    response: () =>
+      new Response(body, { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } }),
     push: (c: UIMessageChunk) => ctl.enqueue(enc.encode(`data: ${JSON.stringify(c)}\n\n`)),
     end: () => (ctl.enqueue(enc.encode('event: done\n\n')), ctl.close()),
   };
@@ -53,7 +54,15 @@ beforeEach(() => {
   bodies = {};
   missed = [];
   live = uiStream();
-  state.data = { engines: { 'claude-code': { installed: true, loggedIn: true } }, runs: [], approvals: [], agents: [{ id: 'lead', name: 'Lead', emoji: '🧭', color: '#fff' }, { id: 'maker', name: 'Maker', emoji: '🎨', color: '#fff' }] } as unknown as AppState;
+  state.data = {
+    engines: { 'claude-code': { installed: true, loggedIn: true } },
+    runs: [],
+    approvals: [],
+    agents: [
+      { id: 'lead', name: 'Lead', emoji: '🧭', color: '#fff' },
+      { id: 'maker', name: 'Maker', emoji: '🎨', color: '#fff' },
+    ],
+  } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     requests.push(`${init.method || 'GET'} ${url}`);
     if (init.body) bodies[url] = JSON.parse(String(init.body));
@@ -65,7 +74,14 @@ beforeEach(() => {
         team: { id: 't1', name: 'Thumbs', members: ['lead', 'maker'], lead: 'lead', steps: [] },
         messages: [
           { id: 'u1', ts: 0, from: 'user', text: 'Make a thumbnail', mentions: [] },
-          { id: 'm1', ts: 1, from: 'lead', text: 'Plan: @Maker make the thumbnail.', mentions: ['maker'], turn: { chatId: 'lead-chat', from: 0, to: 3 } },
+          {
+            id: 'm1',
+            ts: 1,
+            from: 'lead',
+            text: 'Plan: @Maker make the thumbnail.',
+            mentions: ['maker'],
+            turn: { chatId: 'lead-chat', from: 0, to: 3 },
+          },
           ...missed,
         ],
         working: ['maker'],
@@ -82,7 +98,8 @@ beforeEach(() => {
       return json({ queued: text === 'gone' ? null : { id: url.split('/').pop(), text, ts: 1 } });
     }
     if (url === '/api/teams/t1/stop') return json({ ok: true, unqueued: [{ id: 'q2', text: 'and a logo', ts: 6 }] });
-    if (url === '/api/agents/lead/chats/lead-chat') return json({ id: 'lead-chat', agentId: 'lead', items: SESSION } as Partial<Chat>);
+    if (url === '/api/agents/lead/chats/lead-chat')
+      return json({ id: 'lead-chat', agentId: 'lead', items: SESSION } as Partial<Chat>);
     return json({});
   });
 });
@@ -93,7 +110,8 @@ afterEach(() => {
   open = null;
   document.body.innerHTML = '';
 });
-const teamEvent = (event: object) => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'team', teamId: 't1', ts: 0, event }) }));
+const teamEvent = (event: object) =>
+  act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'team', teamId: 't1', ts: 0, event }) }));
 
 describe('team chat box', () => {
   it('a mention asked for as the chat opens lands in the box once it is drawn', async () => {
@@ -117,8 +135,9 @@ describe('team chat box', () => {
     open = renderTeamChat(el, 't1');
     await settle();
     await act(async () => el.querySelector<HTMLButtonElement>('.model-chip')!.click());
-    const haiku = [...document.querySelectorAll<HTMLButtonElement>('.model-menu .st-menu-item')]
-      .find((button) => button.textContent?.includes('Haiku (latest)'));
+    const haiku = [...document.querySelectorAll<HTMLButtonElement>('.model-menu .st-menu-item')].find((button) =>
+      button.textContent?.includes('Haiku (latest)'),
+    );
     expect(haiku).toBeDefined();
     await act(async () => haiku!.click());
     await settle();
@@ -146,7 +165,12 @@ describe('team chat search', () => {
     await settle();
     const bar = () => el.querySelector<HTMLElement>('[role="search"]');
     el.querySelector('textarea')!.focus();
-    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true, cancelable: true })));
+    await act(
+      async () =>
+        void document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true, cancelable: true }),
+        ),
+    );
     expect(bar()).not.toBeNull();
     const box = bar()!.querySelector('input')!;
     await act(async () => {
@@ -156,10 +180,16 @@ describe('team chat search', () => {
     await act(() => new Promise((r) => setTimeout(r, 300)));
     expect(bar()!.querySelector('[aria-live]')!.textContent).toBe('1 / 2');
     // a new message with the word: the count follows
-    await teamEvent({ kind: 'message', message: { id: 'm2', ts: 9, from: 'maker', text: 'The thumbnail is ready', mentions: [] } });
+    await teamEvent({
+      kind: 'message',
+      message: { id: 'm2', ts: 9, from: 'maker', text: 'The thumbnail is ready', mentions: [] },
+    });
     await act(() => new Promise((r) => setTimeout(r, 300)));
     expect(bar()!.querySelector('[aria-live]')!.textContent).toBe('1 / 3');
-    await act(async () => void box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
+    await act(
+      async () =>
+        void box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })),
+    );
     expect(bar()).toBeNull();
   });
 });
@@ -176,7 +206,13 @@ describe('team chat turns', () => {
     expect(block.textContent).toContain('Maker');
     await act(async () => {
       live.push({ type: 'start', messageId: 'run-x' });
-      live.push({ type: 'tool-input-available', toolCallId: 'g1', toolName: 'comfyui_run', input: { workflow: 'thumb' }, dynamic: true });
+      live.push({
+        type: 'tool-input-available',
+        toolCallId: 'g1',
+        toolName: 'comfyui_run',
+        input: { workflow: 'thumb' },
+        dynamic: true,
+      });
       live.push({ type: 'text-start', id: 'a' });
       live.push({ type: 'text-delta', id: 'a', delta: 'Rendering the thumbnail' });
     });
@@ -184,7 +220,16 @@ describe('team chat turns', () => {
     expect(block.querySelector('details.tool .tname')!.textContent).toBe('comfyui_run');
     expect(block.textContent).toContain('Rendering the thumbnail');
     // its turn ends: the live block goes (the reply comes as a message)
-    await act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'team', teamId: 't1', ts: 0, event: { kind: 'turn', agentId: 'maker', state: 'end' } }) }));
+    await act(async () =>
+      FakeSocket.last!.onmessage!({
+        data: JSON.stringify({
+          type: 'team',
+          teamId: 't1',
+          ts: 0,
+          event: { kind: 'turn', agentId: 'maker', state: 'end' },
+        }),
+      }),
+    );
     await settle();
     expect(el.querySelector('.tc-live')).toBeNull();
   });
@@ -215,7 +260,15 @@ describe('team chat turns', () => {
 
   it('a turn stopped for your new message keeps its work on show, with a quiet line instead of a reply', async () => {
     missed = [
-      { id: 'm2', ts: 2, from: 'lead', text: '(stopped to take your new message)', stopped: 'steer', mentions: [], turn: { chatId: 'lead-chat', from: 0, to: 3 } },
+      {
+        id: 'm2',
+        ts: 2,
+        from: 'lead',
+        text: '(stopped to take your new message)',
+        stopped: 'steer',
+        mentions: [],
+        turn: { chatId: 'lead-chat', from: 0, to: 3 },
+      },
       // (saved before stops were marked: read from its text)
       { id: 'm3', ts: 3, from: 'lead', text: '(stopped)', mentions: [] },
     ];
@@ -224,7 +277,10 @@ describe('team chat turns', () => {
     open = renderTeamChat(el, 't1');
     await settle();
     const lines = [...el.querySelectorAll('.tc-stopped')].map((n) => n.textContent);
-    expect(lines).toEqual(['Stopped to take your new message. Its work so far is kept.', 'Stopped. Its work so far is kept.']);
+    expect(lines).toEqual([
+      'Stopped to take your new message. Its work so far is kept.',
+      'Stopped. Its work so far is kept.',
+    ]);
     expect(el.textContent).not.toContain('(stopped');
     // its work is open from the start (no click), the steps it got done
     const work = el.querySelectorAll('.tc-work')[1]!;
@@ -239,7 +295,13 @@ describe('team chat turns', () => {
 
   it("a delegated member's report shows as one line, with the report behind Show the report", async () => {
     missed = [
-      { id: 's1', ts: 2, from: 'system', text: 'Delegated work for @Maker finished:\n**1. Honeycomb** fits: a new Marketing Ops role.', mentions: [] },
+      {
+        id: 's1',
+        ts: 2,
+        from: 'system',
+        text: 'Delegated work for @Maker finished:\n**1. Honeycomb** fits: a new Marketing Ops role.',
+        mentions: [],
+      },
       { id: 's2', ts: 3, from: 'system', text: 'Stopped. Nothing new will start until you write again.', mentions: [] },
     ];
     const el = document.createElement('div');
@@ -262,7 +324,9 @@ describe('team chat turns', () => {
 
   it('a long message folds with Show more; a short one does not', async () => {
     // (happy-dom has no layout: the lead's reply is made to measure tall)
-    const tall = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+    const tall = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
       return this.textContent?.includes('Plan:') ? 900 : 40;
     });
     try {
@@ -327,8 +391,23 @@ describe('team chat turns', () => {
     const watch = new MutationObserver((rs) => rs.forEach((r) => removed.push(...r.removedNodes)));
     watch.observe(list, { childList: true });
     // a working agent's words (each one used to redraw the whole thread), then a new message
-    for (const w of ['Rendering', ' the', ' thumbnail']) await act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'run', ts: 0, runId: 'r', agentId: 'maker', chatId: 'maker-chat', event: { kind: 'text', text: w } }) }));
-    await teamEvent({ kind: 'message', message: { id: 'm2', ts: 2, from: 'maker', text: 'Done, saved as thumb.png.', mentions: [] } });
+    for (const w of ['Rendering', ' the', ' thumbnail'])
+      await act(async () =>
+        FakeSocket.last!.onmessage!({
+          data: JSON.stringify({
+            type: 'run',
+            ts: 0,
+            runId: 'r',
+            agentId: 'maker',
+            chatId: 'maker-chat',
+            event: { kind: 'text', text: w },
+          }),
+        }),
+      );
+    await teamEvent({
+      kind: 'message',
+      message: { id: 'm2', ts: 2, from: 'maker', text: 'Done, saved as thumb.png.', mentions: [] },
+    });
     await settle();
     watch.disconnect();
     const after = [...list.querySelectorAll(':scope > .tc-msg:not(.tc-live)')];
@@ -408,10 +487,19 @@ describe('team chat turns', () => {
     document.body.append(el);
     open = renderTeamChat(el, 't1');
     await settle();
-    await teamEvent({ kind: 'state', working: ['maker'], queued: [], held: [{ id: 'q1', text: 'first', ts: 1 }, { id: 'q2', text: 'second', ts: 2 }] });
+    await teamEvent({
+      kind: 'state',
+      working: ['maker'],
+      queued: [],
+      held: [
+        { id: 'q1', text: 'first', ts: 1 },
+        { id: 'q2', text: 'second', ts: 2 },
+      ],
+    });
     await settle();
     const box = el.querySelector('textarea')!;
-    const key = (t: Element, k: string, more: KeyboardEventInit = {}) => act(async () => t.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...more })));
+    const key = (t: Element, k: string, more: KeyboardEventInit = {}) =>
+      act(async () => t.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...more })));
     // (not with words in the box: Up moves in them)
     box.value = 'draft';
     await key(box, 'ArrowUp');
@@ -448,10 +536,19 @@ describe('team chat turns', () => {
     document.body.append(el);
     open = renderTeamChat(el, 't1');
     await settle();
-    await teamEvent({ kind: 'state', working: ['maker'], queued: [], held: [{ id: 'q1', text: 'first', ts: 1 }, { id: 'q2', text: 'second', ts: 2 }] });
+    await teamEvent({
+      kind: 'state',
+      working: ['maker'],
+      queued: [],
+      held: [
+        { id: 'q1', text: 'first', ts: 1 },
+        { id: 'q2', text: 'second', ts: 2 },
+      ],
+    });
     await settle();
     const box = el.querySelector('textarea')!;
-    const key = (t: Element, k: string) => act(async () => t.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })));
+    const key = (t: Element, k: string) =>
+      act(async () => t.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })));
     const texts = () => [...el.querySelectorAll('.queued-text')].map((n) => n.textContent);
     // not saved: it shows what will go after all
     await key(box, 'ArrowUp');
@@ -473,11 +570,23 @@ describe('team chat turns', () => {
     document.body.append(el);
     open = renderTeamChat(el, 't1');
     await settle();
-    await teamEvent({ kind: 'state', working: ['maker'], queued: [], held: [{ id: 'q1', text: 'first', ts: 1 }, { id: 'q2', text: 'second', ts: 2 }, { id: 'q3', text: 'third', ts: 3 }] });
+    await teamEvent({
+      kind: 'state',
+      working: ['maker'],
+      queued: [],
+      held: [
+        { id: 'q1', text: 'first', ts: 1 },
+        { id: 'q2', text: 'second', ts: 2 },
+        { id: 'q3', text: 'third', ts: 3 },
+      ],
+    });
     await settle();
     const order = () => [...el.querySelectorAll('.queued-text')].map((n) => n.textContent);
     const row = (id: string) => el.querySelector(`[data-qid="${id}"]`)!;
-    const drag = (type: string, target: Element, dataTransfer: DataTransfer) => act(async () => void target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer })));
+    const drag = (type: string, target: Element, dataTransfer: DataTransfer) =>
+      act(
+        async () => void target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer })),
+      );
     // third dragged onto the top half of first: it goes above it
     const dt = new DataTransfer();
     await drag('dragstart', row('q3'), dt);
@@ -488,7 +597,12 @@ describe('team chat turns', () => {
     expect(order()).toEqual(['third', 'first', 'second']);
     expect(bodies['/api/teams/t1/queue/order']).toEqual({ ids: ['q3', 'q1', 'q2'] });
     // the keyboard: Alt+Down moves it one down
-    await act(async () => void row('q3').querySelector('.queued-text')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true })));
+    await act(
+      async () =>
+        void row('q3')
+          .querySelector('.queued-text')!
+          .dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true })),
+    );
     await settle();
     expect(order()).toEqual(['first', 'third', 'second']);
     expect(bodies['/api/teams/t1/queue/order']).toEqual({ ids: ['q1', 'q3', 'q2'] });
@@ -550,7 +664,8 @@ describe('team chat turns', () => {
     open = renderTeamChat(el, 't1');
     await settle();
     const box = el.querySelector('textarea')!;
-    const enter = () => act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    const enter = () =>
+      act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     box.value = '/go';
     box.dispatchEvent(new Event('input'));
     expect([...el.querySelectorAll('.slash-menu .slash-name')].map((n) => n.textContent)).toEqual(['/goal']);
@@ -564,8 +679,32 @@ describe('team chat turns', () => {
     await settle();
     expect(bodies['/api/teams/t1/loop']).toEqual({ text: '2x status please', attachments: [] });
     expect(requests).not.toContain('POST /api/teams/t1/messages');
-    await teamEvent({ kind: 'state', working: ['lead'], queued: [], held: [], loop: { text: 'status please', every: null, times: 2, done: 1, next: null } });
-    await act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'brief', ts: 0, brief: { id: 'b1', kind: 'team', targetId: 't1', name: 'Thumbs', text: 'x', goal: 'a launch plan everyone signed off', ts: 0, followUps: 0, status: 'open' } }) }));
+    await teamEvent({
+      kind: 'state',
+      working: ['lead'],
+      queued: [],
+      held: [],
+      loop: { text: 'status please', every: null, times: 2, done: 1, next: null },
+    });
+    await act(async () =>
+      FakeSocket.last!.onmessage!({
+        data: JSON.stringify({
+          type: 'brief',
+          ts: 0,
+          brief: {
+            id: 'b1',
+            kind: 'team',
+            targetId: 't1',
+            name: 'Thumbs',
+            text: 'x',
+            goal: 'a launch plan everyone signed off',
+            ts: 0,
+            followUps: 0,
+            status: 'open',
+          },
+        }),
+      }),
+    );
     await settle();
     expect(el.querySelector('.cmd-chip.loop')!.textContent).toContain('after each answer · 1 of 2 sent');
     expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('Goal: a launch plan everyone signed off');

@@ -52,15 +52,15 @@ environment. A browser's developer tools copy any request as a curl command.
 
 A layer can only be judged once the ones before it work.
 
-| Layer | What to check | Signs it's this one |
-|---|---|---|
-| Reaching the host | the name resolves, the port answers, VPN, proxy (`HTTPS_PROXY`, `NO_PROXY`), firewall | curl exits 6 (name), 7 (connection) or 28 (time limit); Python's `ConnectionError`, `ConnectTimeout` |
-| Time | a slow connection or a slow server: curl's `-w` timings | slow to connect is the network; slow to the first byte is the server's work |
-| TLS | expired, wrong host name, self-signed, missing intermediate, a company proxy's root | curl exits 35 or 60; Python's `SSLError` |
-| Credentials | the header really sent, the scheme, expiry, scopes, which environment the key is for | 401, 403, sometimes 404 |
-| The request | method, path, `Content-Type` matching the body, required fields, value formats | 400, 404, 405, 415, 422 |
-| Reading the reply | the `Content-Type` before parsing; an empty body on 204; the charset | a parse error on a 200 |
-| Meaning | `"ok": false` inside a 200, GraphQL `errors`, missing pages, wrong ids, time zones, units | the code runs, the result is wrong |
+| Layer             | What to check                                                                             | Signs it's this one                                                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Reaching the host | the name resolves, the port answers, VPN, proxy (`HTTPS_PROXY`, `NO_PROXY`), firewall     | curl exits 6 (name), 7 (connection) or 28 (time limit); Python's `ConnectionError`, `ConnectTimeout` |
+| Time              | a slow connection or a slow server: curl's `-w` timings                                   | slow to connect is the network; slow to the first byte is the server's work                          |
+| TLS               | expired, wrong host name, self-signed, missing intermediate, a company proxy's root       | curl exits 35 or 60; Python's `SSLError`                                                             |
+| Credentials       | the header really sent, the scheme, expiry, scopes, which environment the key is for      | 401, 403, sometimes 404                                                                              |
+| The request       | method, path, `Content-Type` matching the body, required fields, value formats            | 400, 404, 405, 415, 422                                                                              |
+| Reading the reply | the `Content-Type` before parsing; an empty body on 204; the charset                      | a parse error on a 200                                                                               |
+| Meaning           | `"ok": false` inside a 200, GraphQL `errors`, missing pages, wrong ids, time zones, units | the code runs, the result is wrong                                                                   |
 
 - **Give every request a time limit.** `requests` waits forever without `timeout=`, as does Windows PowerShell 5.1's
   `Invoke-RestMethod` without `-TimeoutSec`. A `(connect, read)` pair tells "can't reach it" from "it's thinking".

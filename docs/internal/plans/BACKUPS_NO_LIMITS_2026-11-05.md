@@ -24,20 +24,21 @@ A restored backup or a clone then shows the chats as they were: attachments open
   read"). Base64 makes files a third bigger, so the files share well under that.
 - **Limits for each kind** (`CAP`):
 
-  | Kind | Limit |
-  |---|---|
-  | Chats | 200 MB |
-  | Voxel world | 300 MB |
-  | Prefab library | 100 MB |
+  | Kind                     | Limit  |
+  | ------------------------ | ------ |
+  | Chats                    | 200 MB |
+  | Voxel world              | 300 MB |
+  | Prefab library           | 100 MB |
   | Team pictures and models | 100 MB |
-  | Knowledge files | 50 MB |
-  | Skills | 50 MB |
-  | Earlier versions | 50 MB |
-  | MEMORY.md files | 20 MB |
-  | PROJECT.md and notes | 20 MB |
+  | Knowledge files          | 50 MB  |
+  | Skills                   | 50 MB  |
+  | Earlier versions         | 50 MB  |
+  | MEMORY.md files          | 20 MB  |
+  | PROJECT.md and notes     | 20 MB  |
 
   Files past a limit are counted in `omitted`. The Backups window lists the limits when that count isn't zero
   (`web/backup.tsx`).
+
 - **Attachments.** Chats go in (up to their limit), but the files attached in them don't. Only Tasks board files do,
   with whatever room is left (`taskFiles`). Tool pictures (`tool-images/<agent>/<chat>/` in the project's data) don't
   go in either.
@@ -118,6 +119,7 @@ support to hold files over 4 GB, and it gives up the readable header lines the b
   - every tool picture link in those chats.
 
   Board task files are relative already.
+
 - **Upload limit.** `FILE_LIMIT` goes: a dropped backup streams to disk as now, with the free-space check in its place.
 - **Clone** writes a temporary backup in the data folder and restores from it, then deletes it. It no longer holds a
   project in memory.

@@ -28,14 +28,18 @@ let output = '';
 let child: ChildProcess | undefined;
 let launches = 0;
 const interrupt = process.argv.includes('--interrupt-after-reply');
-const checkpointWindow = process.argv.find((value) => value.startsWith('--checkpoint-window='))?.split('=')[1] || 'intent';
+const checkpointWindow =
+  process.argv.find((value) => value.startsWith('--checkpoint-window='))?.split('=')[1] || 'intent';
 assert(['intent', 'event', 'cleanup', 'model'].includes(checkpointWindow));
 const interruptModel = interrupt && checkpointWindow === 'model';
 let checkpointHeld = false;
 const checkpointProbe = path.join(temporary, 'checkpoint-probe.mjs');
 // Hold a real filesystem write at each commit boundary, then kill the worker.
 // This preload exists only in this throwaway fixture, never in the runtime build.
-if (interrupt && !interruptModel) fs.writeFileSync(checkpointProbe, `
+if (interrupt && !interruptModel)
+  fs.writeFileSync(
+    checkpointProbe,
+    `
 import fs from 'node:fs';
 let completed = 0;
 let target;
@@ -56,7 +60,8 @@ fs.promises.writeFile = async function (file, data, ...options) {
   }
   return write.call(this, file, data, ...options);
 };
-`);
+`,
+  );
 
 const fixture = http.createServer(async (req, res) => {
   try {
@@ -67,7 +72,7 @@ const fixture = http.createServer(async (req, res) => {
     if (req.url === '/v1/chat/completions') {
       assert.equal(req.headers.authorization, 'Bearer fixture-provider-key');
       assert('model' in body && 'messages' in body);
-      const request = body as typeof observations[number];
+      const request = body as (typeof observations)[number];
       observations.push(request);
       const seenToolResult = JSON.stringify(request.messages).includes('ATHENA_TOOL_RESULT');
       const tool = request.tools?.find((item) => item.function.name.includes('probe'));
@@ -75,24 +80,72 @@ const fixture = http.createServer(async (req, res) => {
       assert.equal(request.tools?.length, 1, 'Eve default tools must be disabled.');
       const delta = seenToolResult
         ? { content: 'ATHENA_EVE_REPLY' }
-        : { tool_calls: [{ index: 0, id: 'probe-call', type: 'function', function: { name: tool.function.name, arguments: '{"value":"proof"}' } }] };
+        : {
+            tool_calls: [
+              {
+                index: 0,
+                id: 'probe-call',
+                type: 'function',
+                function: { name: tool.function.name, arguments: '{"value":"proof"}' },
+              },
+            ],
+          };
       res.writeHead(200, { 'content-type': 'text/event-stream' });
-      res.write(`data: ${JSON.stringify({ id: 'fixture', object: 'chat.completion.chunk', model: request.model, choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`);
-      if (interruptModel && observations.length === 2) { modelHeld = true; return; }
-      res.end(`data: ${JSON.stringify({ id: 'fixture', object: 'chat.completion.chunk', model: request.model, choices: [{ index: 0, delta: {}, finish_reason: seenToolResult ? 'stop' : 'tool_calls' }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ id: 'fixture', object: 'chat.completion.chunk', model: request.model, choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`,
+      );
+      if (interruptModel && observations.length === 2) {
+        modelHeld = true;
+        return;
+      }
+      res.end(
+        `data: ${JSON.stringify({ id: 'fixture', object: 'chat.completion.chunk', model: request.model, choices: [{ index: 0, delta: {}, finish_reason: seenToolResult ? 'stop' : 'tool_calls' }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`,
+      );
       return;
     }
     assert.equal(req.headers.authorization, `Bearer ${bridgeToken}`);
     assert('binding' in body && body.binding === binding);
     res.setHeader('content-type', 'application/json');
     if (req.url === '/configuration') {
-      res.end(JSON.stringify({ runId: 'smoke-run', provider: 'custom', model: 'athena-proof', baseUrl: `${fixtureUrl}/v1`, apiKey: 'fixture-provider-key', instructions: 'ATHENA_DYNAMIC_INSTRUCTIONS', contextWindow: 64000, effort: '', cacheKey: 'smoke-binding', maxModelSteps: 16, costLimitUsd: 2, costBaseline: 0, tools: [{ name: 'probe', description: 'Read the proof value.', inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'], additionalProperties: false } }] }));
+      res.end(
+        JSON.stringify({
+          runId: 'smoke-run',
+          provider: 'custom',
+          model: 'athena-proof',
+          baseUrl: `${fixtureUrl}/v1`,
+          apiKey: 'fixture-provider-key',
+          instructions: 'ATHENA_DYNAMIC_INSTRUCTIONS',
+          contextWindow: 64000,
+          effort: '',
+          cacheKey: 'smoke-binding',
+          maxModelSteps: 16,
+          costLimitUsd: 2,
+          costBaseline: 0,
+          tools: [
+            {
+              name: 'probe',
+              description: 'Read the proof value.',
+              inputSchema: {
+                type: 'object',
+                properties: { value: { type: 'string' } },
+                required: ['value'],
+                additionalProperties: false,
+              },
+            },
+          ],
+        }),
+      );
     } else if (req.url === '/policy') {
       res.end(JSON.stringify({ status: 'approved' }));
     } else {
       assert.equal(req.url, '/tool');
       assert('input' in body);
-      assert(body.input && typeof body.input === 'object' && 'sessionId' in body.input && typeof body.input.sessionId === 'string');
+      assert(
+        body.input &&
+          typeof body.input === 'object' &&
+          'sessionId' in body.input &&
+          typeof body.input.sessionId === 'string',
+      );
       assert('callId' in body.input && typeof body.input.callId === 'string');
       assert('name' in body.input && body.input.name === 'probe');
       assert('args' in body.input);
@@ -128,29 +181,57 @@ async function stop() {
 
 async function start() {
   launches++;
-  child = spawn(executable, [...(interrupt && !interruptModel && launches === 1 ? [path.basename(executable).startsWith('node') ? '--import' : '--preload', checkpointProbe] : []), entry], {
-    cwd: temporary,
-    windowsHide: true,
-    env: {
-      ...process.env, NODE_ENV: 'production', HOST: '127.0.0.1', NITRO_HOST: '127.0.0.1', PORT: String(runtimePort), NITRO_PORT: String(runtimePort),
-      HOME: temporary, USERPROFILE: temporary, DASH_DATA: temporary,
-      WORKFLOW_LOCAL_DATA_DIR: path.join(temporary, 'workflow'), WORKFLOW_LOCAL_BASE_URL: runtimeUrl,
-      WORKFLOW_INLINE_OWNERSHIP: '0',
-      ATHENA_EVE_TOKEN: token, ATHENA_EVE_BRIDGE_TOKEN: bridgeToken, ATHENA_EVE_BRIDGE_URL: fixtureUrl,
+  child = spawn(
+    executable,
+    [
+      ...(interrupt && !interruptModel && launches === 1
+        ? [path.basename(executable).startsWith('node') ? '--import' : '--preload', checkpointProbe]
+        : []),
+      entry,
+    ],
+    {
+      cwd: temporary,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        NODE_ENV: 'production',
+        HOST: '127.0.0.1',
+        NITRO_HOST: '127.0.0.1',
+        PORT: String(runtimePort),
+        NITRO_PORT: String(runtimePort),
+        HOME: temporary,
+        USERPROFILE: temporary,
+        DASH_DATA: temporary,
+        WORKFLOW_LOCAL_DATA_DIR: path.join(temporary, 'workflow'),
+        WORKFLOW_LOCAL_BASE_URL: runtimeUrl,
+        WORKFLOW_INLINE_OWNERSHIP: '0',
+        ATHENA_EVE_TOKEN: token,
+        ATHENA_EVE_BRIDGE_TOKEN: bridgeToken,
+        ATHENA_EVE_BRIDGE_URL: fixtureUrl,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
     },
-    stdio: ['ignore', 'pipe', 'pipe'],
+  );
+  child.stdout?.on('data', (data: Buffer) => {
+    output += data.toString();
   });
-  child.stdout?.on('data', (data: Buffer) => { output += data.toString(); });
-  child.stderr?.on('data', (data: Buffer) => { output += data.toString(); if (data.toString().includes('ATHENA_CHECKPOINT_HELD')) checkpointHeld = true; });
+  child.stderr?.on('data', (data: Buffer) => {
+    output += data.toString();
+    if (data.toString().includes('ATHENA_CHECKPOINT_HELD')) checkpointHeld = true;
+  });
   let spawnError: Error | undefined;
-  child.on('error', (error) => { spawnError = error; });
+  child.on('error', (error) => {
+    spawnError = error;
+  });
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     if (spawnError) throw spawnError;
     if (child.exitCode !== null) throw new Error(`Eve exited: ${output}`);
     try {
       if ((await fetch(`${runtimeUrl}/eve/v1/health`, { signal: AbortSignal.timeout(1000) })).ok) return;
-    } catch { /* wait for the private server */ }
+    } catch {
+      /* wait for the private server */
+    }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`Eve did not start: ${output}`);
@@ -160,7 +241,11 @@ try {
   const started = performance.now();
   await start();
   console.log(`eve smoke: private runtime ready in ${Math.round(performance.now() - started)} ms`);
-  const refused = await fetch(`${runtimeUrl}/eve/v1/session`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'unauthorized' }) });
+  const refused = await fetch(`${runtimeUrl}/eve/v1/session`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message: 'unauthorized' }),
+  });
   assert.equal(refused.status, 401);
   assert.equal(observations.length, 0);
   const client = new Client({ baseUrl: runtimeUrl, auth: { bearer: token }, headers: { 'x-athena-binding': binding } });
@@ -184,9 +269,13 @@ try {
   // interruption between those boundaries is a separate recovery case.
   const checkpointDeadline = Date.now() + 5000;
   for (; !interrupt && !interruptModel;) {
-    const stepFiles = fs.readdirSync(path.join(temporary, '.eve', '.workflow-data', 'steps'), { recursive: true, encoding: 'utf8' }).filter((file) => file.endsWith('.json'));
+    const stepFiles = fs
+      .readdirSync(path.join(temporary, '.eve', '.workflow-data', 'steps'), { recursive: true, encoding: 'utf8' })
+      .filter((file) => file.endsWith('.json'));
     const running = stepFiles.some((file) => {
-      const step: unknown = JSON.parse(fs.readFileSync(path.join(temporary, '.eve', '.workflow-data', 'steps', file), 'utf8'));
+      const step: unknown = JSON.parse(
+        fs.readFileSync(path.join(temporary, '.eve', '.workflow-data', 'steps', file), 'utf8'),
+      );
       return typeof step === 'object' && step !== null && 'status' in step && step.status === 'running';
     });
     if (!running) break;
@@ -197,7 +286,10 @@ try {
     while (!checkpointHeld && Date.now() < checkpointDeadline) await new Promise((resolve) => setTimeout(resolve, 10));
     assert(checkpointHeld, 'The fault probe must hold the reply checkpoint before killing the process.');
   }
-  if (!interruptModel) { await stop(); await start(); }
+  if (!interruptModel) {
+    await stop();
+    await start();
+  }
   console.log('eve smoke: runtime restarted, sending follow-up');
   const attached = client.sessions.attach(saved.sessionId, { streamIndex: saved.streamIndex });
   const response = await attached.send('Continue after restart.');
@@ -211,7 +303,12 @@ try {
   const media = await attached.send([
     { type: 'text', text: 'Inspect the attached image and document.' },
     { type: 'file', data: `data:image/png;base64,${png}`, mediaType: 'image/png', filename: 'proof.png' },
-    { type: 'file', data: `data:application/pdf;base64,${Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF').toString('base64')}`, mediaType: 'application/pdf', filename: 'proof.pdf' },
+    {
+      type: 'file',
+      data: `data:application/pdf;base64,${Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF').toString('base64')}`,
+      mediaType: 'application/pdf',
+      filename: 'proof.pdf',
+    },
   ]);
   const mediaResult = await media.result({ signal: AbortSignal.timeout(30000) });
   assert.equal(mediaResult.status, 'completed', JSON.stringify(mediaResult));

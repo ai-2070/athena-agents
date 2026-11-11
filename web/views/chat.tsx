@@ -96,7 +96,8 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
 
   const loadMemory = useCallback(
     (c: Chat) =>
-      rpc.agents.chats.memory({ id: agent.id, chatId: c.id })
+      rpc.agents.chats
+        .memory({ id: agent.id, chatId: c.id })
         .then(setMemory)
         .catch(() => {}),
     [agent.id],
@@ -106,7 +107,10 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
     (c: Chat) => {
       setChat(c);
       void loadMemory(c);
-      void rpc.agents.chats.list({ id: agent.id }).then(setChats).catch(() => {});
+      void rpc.agents.chats
+        .list({ id: agent.id })
+        .then(setChats)
+        .catch(() => {});
     },
     [agent.id, loadMemory],
   );
@@ -122,11 +126,24 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
   };
   const rename = async () => {
     const t = await promptBox('Rename chat', { value: chat.title });
-    if (t && (await attempt(() => rpc.agents.chats.change({ id: agent.id, chatId: chat.id, title: t })))) await api.current?.reload();
+    if (t && (await attempt(() => rpc.agents.chats.change({ id: agent.id, chatId: chat.id, title: t }))))
+      await api.current?.reload();
   };
   const resetMemory = async () => {
-    if (!(await confirmBox("Clear this chat’s memory? The messages will stay, but the agent will start fresh.", { ok: "Clear memory", danger: true }))) return;
-    if (await attempt(() => rpc.agents.chats.change({ id: agent.id, chatId: chat.id, reset: true }), 'The agent will start fresh from your next message')) await api.current?.reload();
+    if (
+      !(await confirmBox('Clear this chat’s memory? The messages will stay, but the agent will start fresh.', {
+        ok: 'Clear memory',
+        danger: true,
+      }))
+    )
+      return;
+    if (
+      await attempt(
+        () => rpc.agents.chats.change({ id: agent.id, chatId: chat.id, reset: true }),
+        'The agent will start fresh from your next message',
+      )
+    )
+      await api.current?.reload();
   };
   const removeChat = async () => {
     if (!(await confirmBox('Delete this chat?', { ok: 'Delete', danger: true }))) return;
@@ -136,7 +153,9 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
 
   const tools = agent.tools || [];
   const info = modelInfo(agent);
-  const how = memory ? `${memory.estimated ? 'Estimated context use. ' : ''}${ENGINE_LABEL[agent.engine] || 'The engine'} manages its own memory.` : '';
+  const how = memory
+    ? `${memory.estimated ? 'Estimated context use. ' : ''}${ENGINE_LABEL[agent.engine] || 'The engine'} manages its own memory.`
+    : '';
   const full = !!memory && memory.tokens >= memory.window * 0.85;
   // a search box once the list is long; the chats grouped by the day they were last used
   const [find, setFind] = useState('');
@@ -146,14 +165,21 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
   const shown = q ? listed.filter((c) => (c.title || 'Chat').toLowerCase().includes(q)) : listed;
   const groups = dayGroups(shown);
   return (
-    <div className="grid h-[calc(100vh-56px)] grid-rows-[minmax(0,1fr)] grid-cols-[280px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1" ref={page}>
+    <div
+      className="grid h-[calc(100vh-56px)] grid-rows-[minmax(0,1fr)] grid-cols-[280px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1"
+      ref={page}
+    >
       <aside className="flex min-h-0 flex-col border-r border-line bg-bg max-md:border-r-0 max-md:border-b">
         <div className="border-b border-line px-4 pt-5 pb-4">
           <div className="flex items-start gap-3">
             <Avatar agent={agent} />
             <div className="min-w-0 flex-1 pt-0.5">
-              <div className="truncate text-[15px] leading-[1.3] font-semibold text-ink" title={agent.name}>{agent.name}</div>
-              {agent.specialty ? <p className="m-0 mt-0.5 line-clamp-2 text-[12.5px] leading-[1.45] text-dim">{agent.specialty}</p> : null}
+              <div className="truncate text-[15px] leading-[1.3] font-semibold text-ink" title={agent.name}>
+                {agent.name}
+              </div>
+              {agent.specialty ? (
+                <p className="m-0 mt-0.5 line-clamp-2 text-[12.5px] leading-[1.45] text-dim">{agent.specialty}</p>
+              ) : null}
             </div>
           </div>
           <div className="mt-3 flex min-w-0 items-center gap-1.5 text-[12px] text-dim" title={info.where}>
@@ -167,15 +193,36 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
               <Icon name="plus" size={14} />
               New chat
             </Button>
-            <ButtonLink variant="ghost" size="small" className="size-8! px-0!" href={`#/agents/${agent.id}/edit`} title="Edit the agent" aria-label="Edit the agent">
+            <ButtonLink
+              variant="ghost"
+              size="small"
+              className="size-8! px-0!"
+              href={`#/agents/${agent.id}/edit`}
+              title="Edit the agent"
+              aria-label="Edit the agent"
+            >
               <Icon name="pencil" size={14} />
             </ButtonLink>
             {agent.engine !== 'eve' ? (
-              <Button variant="ghost" size="small" className="size-8! px-0!" title="Open this agent in a live terminal" aria-label="Open in a terminal" onClick={() => void openTerminal(agent)}>
+              <Button
+                variant="ghost"
+                size="small"
+                className="size-8! px-0!"
+                title="Open this agent in a live terminal"
+                aria-label="Open in a terminal"
+                onClick={() => void openTerminal(agent)}
+              >
                 <Icon name="terminal" size={14} />
               </Button>
             ) : null}
-            <Button variant="ghost" size="small" className="size-8! px-0!" title="MEMORY.md: what it remembers across chats" aria-label="MEMORY.md" onClick={() => openMemory(agent.id, agent.name)}>
+            <Button
+              variant="ghost"
+              size="small"
+              className="size-8! px-0!"
+              title="MEMORY.md: what it remembers across chats"
+              aria-label="MEMORY.md"
+              onClick={() => openMemory(agent.id, agent.name)}
+            >
               <Icon name="file-text" size={14} />
             </Button>
           </div>
@@ -184,23 +231,45 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
               <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-ctl py-1 text-[12px] text-dim hover:text-ink [&::-webkit-details-marker]:hidden">
                 <Icon name="wrench" size={13} className="text-faint" />
                 {`${tools.length} tool${tools.length === 1 ? '' : 's'}`}
-                <Icon name="chevron-down" size={12} className="ml-auto text-faint transition-transform duration-200 group-open/tools:rotate-180" />
+                <Icon
+                  name="chevron-down"
+                  size={12}
+                  className="ml-auto text-faint transition-transform duration-200 group-open/tools:rotate-180"
+                />
               </summary>
               <div className="chat-tools mt-2 flex max-h-40 flex-wrap gap-1 overflow-y-auto">
-                {tools.map((t) => <code key={t} className="rounded-[6px] border border-line bg-panel-2 px-1.5 py-0.5 font-mono text-[11px] text-dim">{t}</code>)}
+                {tools.map((t) => (
+                  <code
+                    key={t}
+                    className="rounded-[6px] border border-line bg-panel-2 px-1.5 py-0.5 font-mono text-[11px] text-dim"
+                  >
+                    {t}
+                  </code>
+                ))}
               </div>
             </details>
           ) : null}
         </div>
-        <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2.5 pt-3 pb-4 max-md:max-h-56 max-md:flex-none" aria-label="Chats">
+        <nav
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2.5 pt-3 pb-4 max-md:max-h-56 max-md:flex-none"
+          aria-label="Chats"
+        >
           <div className="flex items-baseline justify-between px-2 pb-2 text-[12px] font-medium text-dim">
             <span>Chats</span>
             <span className="text-faint tabular-nums">{listed.length}</span>
           </div>
           {listed.length > 8 ? (
             <label className="relative mx-1 mb-2 block">
-              <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-faint"><Icon name="search" size={13} /></span>
-              <input className="h-8! py-0! pl-8! text-[12.5px]!" aria-label="Find a chat" placeholder="Find a chat" value={find} onChange={(e) => setFind(e.currentTarget.value)} />
+              <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-faint">
+                <Icon name="search" size={13} />
+              </span>
+              <input
+                className="h-8! py-0! pl-8! text-[12.5px]!"
+                aria-label="Find a chat"
+                placeholder="Find a chat"
+                value={find}
+                onChange={(e) => setFind(e.currentTarget.value)}
+              />
             </label>
           ) : null}
           {groups.map((g) => (
@@ -217,7 +286,11 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
                     href={`#/agents/${agent.id}/${c.id}`}
                     title={`${c.title || 'Chat'} · ${c.count} item${c.count === 1 ? '' : 's'}`}
                   >
-                    <Icon name={routine ? 'repeat' : 'message-circle'} size={14} className={`flex-none ${on ? 'text-accent' : 'text-faint'}`} />
+                    <Icon
+                      name={routine ? 'repeat' : 'message-circle'}
+                      size={14}
+                      className={`flex-none ${on ? 'text-accent' : 'text-faint'}`}
+                    />
                     <span className={`t min-w-0 flex-1 truncate ${on ? 'font-medium' : ''}`}>{c.title || 'Chat'}</span>
                     <span className="flex-none text-[11px] text-faint tabular-nums">{ago(c.updatedAt)}</span>
                   </a>
@@ -230,9 +303,18 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
       </aside>
       <div className="flex min-h-0 min-w-0 flex-col [&_.composer]:border-0 [&_.composer]:bg-transparent">
         <div className="chat-head flex min-h-14 items-center gap-3 border-b border-line px-8 py-2.5 max-md:px-4">
-          <button type="button" className="group/title flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left" title="Rename this chat" onClick={() => void rename()}>
+          <button
+            type="button"
+            className="group/title flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left"
+            title="Rename this chat"
+            onClick={() => void rename()}
+          >
             <span className="chat-title truncate text-[14px] font-semibold text-ink">{chat.title || 'Chat'}</span>
-            <Icon name="pencil" size={13} className="flex-none text-faint opacity-0 transition-opacity group-hover/title:opacity-100 group-focus-visible/title:opacity-100" />
+            <Icon
+              name="pencil"
+              size={13}
+              className="flex-none text-faint opacity-0 transition-opacity group-hover/title:opacity-100 group-focus-visible/title:opacity-100"
+            />
           </button>
           {memory ? (
             // how full the chat's memory is: a thin bar and a number, amber when nearly full
@@ -242,27 +324,58 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
             >
               Memory
               <span className="relative h-1.5 w-14 overflow-hidden rounded-full bg-ink/[0.08] max-sm:hidden">
-                <span aria-hidden="true" className={`absolute inset-y-0 left-0 rounded-full ${full ? 'bg-amber' : 'bg-accent'}`} style={{ width: `${Math.max(0, Math.min(100, memory.percent))}%` }} />
+                <span
+                  aria-hidden="true"
+                  className={`absolute inset-y-0 left-0 rounded-full ${full ? 'bg-amber' : 'bg-accent'}`}
+                  style={{ width: `${Math.max(0, Math.min(100, memory.percent))}%` }}
+                />
               </span>
               {`${memory.percent}%`}
             </span>
           ) : null}
           <Dropdown>
-            <DropdownTrigger className={iconButtonClass('inset', 'flex-none')} aria-label="Chat options" title="Rename, clear memory or delete">
+            <DropdownTrigger
+              className={iconButtonClass('inset', 'flex-none')}
+              aria-label="Chat options"
+              title="Rename, clear memory or delete"
+            >
               <Icon name="ellipsis" size={16} />
             </DropdownTrigger>
             <DropdownContent align="end" className="min-w-48">
-              <DropdownItem icon="pencil" onClick={() => void rename()}>Rename</DropdownItem>
-              <DropdownItem icon="rotate-ccw" title="Keep the messages here but start the agent fresh" onClick={() => void resetMemory()}>Clear memory</DropdownItem>
+              <DropdownItem icon="pencil" onClick={() => void rename()}>
+                Rename
+              </DropdownItem>
+              <DropdownItem
+                icon="rotate-ccw"
+                title="Keep the messages here but start the agent fresh"
+                onClick={() => void resetMemory()}
+              >
+                Clear memory
+              </DropdownItem>
               <DropdownSeparator />
-              <DropdownItem icon="trash-2" danger onClick={() => void removeChat()}>Delete</DropdownItem>
+              <DropdownItem icon="trash-2" danger onClick={() => void removeChat()}>
+                Delete
+              </DropdownItem>
             </DropdownContent>
           </Dropdown>
         </div>
         {/* the reading column: the messages and the composer below them sit here, centred on the page */}
         <div className="chat-body mx-auto flex min-h-0 w-full max-w-[760px] flex-1 flex-col">
           <Suspense fallback={null}>
-            <ChatView agent={{ id: agent.id, name: agent.name, emoji: agent.emoji, specialty: agent.specialty, tools: agent.tools }} chatId={chat.id} tray={tray} footer={footer} onChat={onChat} apiRef={api} />
+            <ChatView
+              agent={{
+                id: agent.id,
+                name: agent.name,
+                emoji: agent.emoji,
+                specialty: agent.specialty,
+                tools: agent.tools,
+              }}
+              chatId={chat.id}
+              tray={tray}
+              footer={footer}
+              onChat={onChat}
+              apiRef={api}
+            />
           </Suspense>
         </div>
       </div>
@@ -272,4 +385,6 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
 
 export const flush = true;
 export const title = (): string => 'Chat';
-export const { render, unmount } = reactPage((params, view) => <ChatPage agentId={params[0]} chatId={params[1]} view={view} />);
+export const { render, unmount } = reactPage((params, view) => (
+  <ChatPage agentId={params[0]} chatId={params[1]} view={view} />
+));

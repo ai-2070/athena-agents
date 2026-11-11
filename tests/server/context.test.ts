@@ -8,7 +8,15 @@ import type { ChatItem } from '../../shared/types.ts';
 describe('engine-owned context', () => {
   it('reseeds a CLI from complete originals after the last reset', () => {
     const result = 'Original result '.repeat(4000);
-    const items: ChatItem[] = [{ type: 'user', text: 'Forgotten' }, { type: 'meta', text: 'Clear', reset: true }, { type: 'user', text: 'Kept' }, { type: 'compaction', id: 'native', text: '', mode: 'engine', trigger: 'auto', upto: 2 }, { type: 'tool', id: 'read', name: 'read_file', args: { path: 'report' }, result, status: 'done' }, { type: 'assistant', text: 'Answer' }, { type: 'user', text: 'Next' }];
+    const items: ChatItem[] = [
+      { type: 'user', text: 'Forgotten' },
+      { type: 'meta', text: 'Clear', reset: true },
+      { type: 'user', text: 'Kept' },
+      { type: 'compaction', id: 'native', text: '', mode: 'engine', trigger: 'auto', upto: 2 },
+      { type: 'tool', id: 'read', name: 'read_file', args: { path: 'report' }, result, status: 'done' },
+      { type: 'assistant', text: 'Answer' },
+      { type: 'user', text: 'Next' },
+    ];
     const seed = seedPrompt(items, 'Next', 128000);
     expect(seed).not.toContain('Forgotten');
     expect(seed).toContain(result);

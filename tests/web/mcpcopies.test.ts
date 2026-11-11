@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { copiesWarning, mcpOptions } from '../../web/mcpcopies.ts';
 import type { McpServerInfo } from '../../shared/types.ts';
 
-const copy = (kind: string, service: string, label: string, useFor: string, copies = 2): McpServerInfo => ({ title: `${service}: ${label}`, label, kind, service, useFor, copies });
+const copy = (kind: string, service: string, label: string, useFor: string, copies = 2): McpServerInfo => ({
+  title: `${service}: ${label}`,
+  label,
+  kind,
+  service,
+  useFor,
+  copies,
+});
 const info: Record<string, McpServerInfo> = {
   'oomol-work': copy('oomol', 'OOMOL', 'Work', 'acme.com mail'),
   playwright: { title: 'playwright', label: '', kind: 'playwright', service: 'Browser control', useFor: '', copies: 1 },
@@ -18,11 +25,16 @@ describe('MCP chips', () => {
       { value: 'playwright', label: 'playwright' },
     ]);
     // an older server sends no info: plain names
-    expect(mcpOptions(['a', 'b'], undefined)).toEqual([{ value: 'a', label: 'a' }, { value: 'b', label: 'b' }]);
+    expect(mcpOptions(['a', 'b'], undefined)).toEqual([
+      { value: 'a', label: 'a' },
+      { value: 'b', label: 'b' },
+    ]);
   });
 
   it('warn only when one holder has several accounts of a service and one says nothing', () => {
-    expect(copiesWarning(['oomol-work', 'oomol-home'], info)).toBe('OOMOL: Home has no "use for" line, so it can\'t tell its OOMOL accounts apart. Say what each is for on the MCP servers page.');
+    expect(copiesWarning(['oomol-work', 'oomol-home'], info)).toBe(
+      'OOMOL: Home has no "use for" line, so it can\'t tell its OOMOL accounts apart. Say what each is for on the MCP servers page.',
+    );
     expect(copiesWarning(['oomol-home', 'playwright'], info)).toBe('');
     expect(copiesWarning(['oomol-work', 'oomol-home'], undefined)).toBe('');
   });

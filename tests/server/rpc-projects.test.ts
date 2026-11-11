@@ -22,20 +22,42 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
 const send = async (method: string, p: string, body?: unknown) => {
-  const r = await fetch(base + p, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const r = await fetch(base + p, {
+    method,
+    headers: { 'content-type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
   return { status: r.status, json: (await r.json()) as Record<string, unknown> };
 };
 const folderFor = (name: string) => fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
 
 describe('projects over oRPC', () => {
   it('refuse a field of the wrong kind in plain words', async () => {
-    expect(await send('POST', '/api/projects', {})).toEqual({ status: 400, json: { error: 'Give the project a name.' } });
+    expect(await send('POST', '/api/projects', {})).toEqual({
+      status: 400,
+      json: { error: 'Give the project a name.' },
+    });
     const id = activeProject().id;
-    expect(await send('PUT', `/api/projects/${id}`, { skills: 'all' })).toEqual({ status: 400, json: { error: 'skills must be a list.' } });
-    expect(await send('PUT', `/api/projects/${id}`, { sidebar: 'chat' })).toEqual({ status: 400, json: { error: 'The sidebar shows "status" or "limits".' } });
-    expect(await send('PUT', `/api/projects/${id}`, { backgroundOpacity: true })).toEqual({ status: 400, json: { error: 'An opacity is a percent from 0 to 100.' } });
-    expect(await send('POST', '/api/projects/order', { ids: 'a,b' })).toEqual({ status: 400, json: { error: 'ids must be a list.' } });
-    expect(await send('POST', `/api/projects/${id}/logo`, { data: 5 })).toEqual({ status: 400, json: { error: 'Pick a PNG, JPG, WebP or GIF image.' } });
+    expect(await send('PUT', `/api/projects/${id}`, { skills: 'all' })).toEqual({
+      status: 400,
+      json: { error: 'skills must be a list.' },
+    });
+    expect(await send('PUT', `/api/projects/${id}`, { sidebar: 'chat' })).toEqual({
+      status: 400,
+      json: { error: 'The sidebar shows "status" or "limits".' },
+    });
+    expect(await send('PUT', `/api/projects/${id}`, { backgroundOpacity: true })).toEqual({
+      status: 400,
+      json: { error: 'An opacity is a percent from 0 to 100.' },
+    });
+    expect(await send('POST', '/api/projects/order', { ids: 'a,b' })).toEqual({
+      status: 400,
+      json: { error: 'ids must be a list.' },
+    });
+    expect(await send('POST', `/api/projects/${id}/logo`, { data: 5 })).toEqual({
+      status: 400,
+      json: { error: 'Pick a PNG, JPG, WebP or GIF image.' },
+    });
   });
 
   it('make a project in an existing folder, list it, rename it, put it first and open it', async () => {
@@ -45,7 +67,9 @@ describe('projects over oRPC', () => {
     expect(p).toMatchObject({ name: 'Bakery', restored: null });
     const list = (await send('GET', '/api/projects')).json as { projects: { id: string }[]; root: string };
     expect(list.projects.map((x) => x.id)).toContain(p.id);
-    expect((await send('PUT', `/api/projects/${p.id}`, { name: 'The bakery', description: 'Bread.' })).json).toMatchObject({ name: 'The bakery', description: 'Bread.' });
+    expect(
+      (await send('PUT', `/api/projects/${p.id}`, { name: 'The bakery', description: 'Bread.' })).json,
+    ).toMatchObject({ name: 'The bakery', description: 'Bread.' });
     const order = (await send('POST', '/api/projects/order', { ids: [p.id] })).json as { projects: { id: string }[] };
     expect(order.projects[0].id).toBe(p.id);
     expect((await send('POST', `/api/projects/${p.id}/activate`)).json).toMatchObject({ id: p.id });
@@ -60,7 +84,9 @@ describe('projects over oRPC', () => {
     bus.on('event', listen);
     try {
       const id = activeProject().id;
-      expect((await send('PUT', `/api/projects/${id}`, { backgroundOpacity: '40%' })).json).toMatchObject({ backgroundOpacity: 40 });
+      expect((await send('PUT', `/api/projects/${id}`, { backgroundOpacity: '40%' })).json).toMatchObject({
+        backgroundOpacity: 40,
+      });
       expect(seen.some((e) => e.type === 'project-logo')).toBe(true);
       seen.length = 0;
       await send('PUT', `/api/projects/${id}`, { description: 'Only words.' });
@@ -76,11 +102,15 @@ describe('projects over oRPC', () => {
     const p = (await send('POST', '/api/projects', { name: 'Notes', mode: 'existing', folder })).json as { id: string };
     const listing = (await send('GET', `/api/projects/${p.id}/folder?path=`)).json as { entries: { name: string }[] };
     expect(listing.entries.map((e) => e.name)).toContain('README.md');
-    expect(await send('GET', '/api/projects/nope/folder')).toEqual({ status: 404, json: { error: 'That project is unavailable.' } });
+    expect(await send('GET', '/api/projects/nope/folder')).toEqual({
+      status: 404,
+      json: { error: 'That project is unavailable.' },
+    });
   });
 
   it('take a project off the list', async () => {
-    const p = (await send('POST', '/api/projects', { name: 'Leaving', mode: 'existing', folder: folderFor('leaving') })).json as { id: string };
+    const p = (await send('POST', '/api/projects', { name: 'Leaving', mode: 'existing', folder: folderFor('leaving') }))
+      .json as { id: string };
     const left = (await send('DELETE', `/api/projects/${p.id}`)).json as unknown as { id: string }[];
     expect(left.map((x) => x.id)).not.toContain(p.id);
   });

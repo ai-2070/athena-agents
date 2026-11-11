@@ -4,27 +4,46 @@ import { strToU8, zipSync } from 'fflate';
 const TYPES = { '[Content_Types].xml': strToU8('<Types/>') };
 
 export function docx(body: string): Uint8Array {
-  return zipSync({ ...TYPES, 'word/document.xml': strToU8(`<?xml version="1.0"?><w:document xmlns:w="w"><w:body>${body}</w:body></w:document>`) });
+  return zipSync({
+    ...TYPES,
+    'word/document.xml': strToU8(`<?xml version="1.0"?><w:document xmlns:w="w"><w:body>${body}</w:body></w:document>`),
+  });
 }
 
 export function xlsx(sheets: Record<string, string>, shared: string[] = []): Uint8Array {
   const names = Object.keys(sheets);
   return zipSync({
     ...TYPES,
-    'xl/workbook.xml': strToU8(`<workbook><sheets>${names.map((name, i) => `<sheet name="${name}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`),
-    'xl/_rels/workbook.xml.rels': strToU8(`<Relationships>${names.map((_, i) => `<Relationship Id="rId${i + 1}" Type="worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}</Relationships>`),
+    'xl/workbook.xml': strToU8(
+      `<workbook><sheets>${names.map((name, i) => `<sheet name="${name}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`,
+    ),
+    'xl/_rels/workbook.xml.rels': strToU8(
+      `<Relationships>${names.map((_, i) => `<Relationship Id="rId${i + 1}" Type="worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}</Relationships>`,
+    ),
     'xl/sharedStrings.xml': strToU8(`<sst>${shared.map((text) => `<si><t>${text}</t></si>`).join('')}</sst>`),
-    ...Object.fromEntries(names.map((name, i) => [`xl/worksheets/sheet${i + 1}.xml`, strToU8(`<worksheet><sheetData>${sheets[name]}</sheetData></worksheet>`)])),
+    ...Object.fromEntries(
+      names.map((name, i) => [
+        `xl/worksheets/sheet${i + 1}.xml`,
+        strToU8(`<worksheet><sheetData>${sheets[name]}</sheetData></worksheet>`),
+      ]),
+    ),
   });
 }
 
 /** A deck whose slides are listed in `order` (file numbers), each slide's paragraphs given. */
 export function pptx(slides: string[][], order = slides.map((_, i) => i + 1)): Uint8Array {
-  const slide = (paragraphs: string[]) => strToU8(`<p:sld><p:cSld><p:spTree><p:sp><p:txBody>${paragraphs.map((p) => `<a:p><a:r><a:t>${p}</a:t></a:r></a:p>`).join('')}</p:txBody></p:sp></p:spTree></p:cSld></p:sld>`);
+  const slide = (paragraphs: string[]) =>
+    strToU8(
+      `<p:sld><p:cSld><p:spTree><p:sp><p:txBody>${paragraphs.map((p) => `<a:p><a:r><a:t>${p}</a:t></a:r></a:p>`).join('')}</p:txBody></p:sp></p:spTree></p:cSld></p:sld>`,
+    );
   return zipSync({
     ...TYPES,
-    'ppt/presentation.xml': strToU8(`<p:presentation><p:sldIdLst>${order.map((n) => `<p:sldId id="${255 + n}" r:id="rId${n}"/>`).join('')}</p:sldIdLst></p:presentation>`),
-    'ppt/_rels/presentation.xml.rels': strToU8(`<Relationships>${slides.map((_, i) => `<Relationship Id="rId${i + 1}" Type="slide" Target="slides/slide${i + 1}.xml"/>`).join('')}</Relationships>`),
+    'ppt/presentation.xml': strToU8(
+      `<p:presentation><p:sldIdLst>${order.map((n) => `<p:sldId id="${255 + n}" r:id="rId${n}"/>`).join('')}</p:sldIdLst></p:presentation>`,
+    ),
+    'ppt/_rels/presentation.xml.rels': strToU8(
+      `<Relationships>${slides.map((_, i) => `<Relationship Id="rId${i + 1}" Type="slide" Target="slides/slide${i + 1}.xml"/>`).join('')}</Relationships>`,
+    ),
     ...Object.fromEntries(slides.map((paragraphs, i) => [`ppt/slides/slide${i + 1}.xml`, slide(paragraphs)])),
   });
 }
@@ -33,9 +52,15 @@ export function pptx(slides: string[][], order = slides.map((_, i) => i + 1)): U
 export function pptxRaw(xml: string): Uint8Array {
   return zipSync({
     ...TYPES,
-    'ppt/presentation.xml': strToU8('<p:presentation><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst></p:presentation>'),
-    'ppt/_rels/presentation.xml.rels': strToU8('<Relationships><Relationship Id="rId1" Type="slide" Target="slides/slide1.xml"/></Relationships>'),
-    'ppt/slides/slide1.xml': strToU8(`<p:sld><p:cSld><p:spTree><p:graphicFrame><a:graphic><a:graphicData>${xml}</a:graphicData></a:graphic></p:graphicFrame></p:spTree></p:cSld></p:sld>`),
+    'ppt/presentation.xml': strToU8(
+      '<p:presentation><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst></p:presentation>',
+    ),
+    'ppt/_rels/presentation.xml.rels': strToU8(
+      '<Relationships><Relationship Id="rId1" Type="slide" Target="slides/slide1.xml"/></Relationships>',
+    ),
+    'ppt/slides/slide1.xml': strToU8(
+      `<p:sld><p:cSld><p:spTree><p:graphicFrame><a:graphic><a:graphicData>${xml}</a:graphicData></a:graphic></p:graphicFrame></p:spTree></p:cSld></p:sld>`,
+    ),
   });
 }
 
@@ -43,10 +68,16 @@ export function pptxRaw(xml: string): Uint8Array {
 export function prefixedXlsx(): Uint8Array {
   return zipSync({
     ...TYPES,
-    'xl/workbook.xml': strToU8('<x:workbook xmlns:x="main" xmlns:r="rels"><x:sheets><x:sheet name="Report" sheetId="1" r:id="R1a2"/></x:sheets></x:workbook>'),
-    'xl/_rels/workbook.xml.rels': strToU8('<Relationships><Relationship Id="R1a2" Type="worksheet" Target="/xl/worksheets/sheet.xml"/></Relationships>'),
+    'xl/workbook.xml': strToU8(
+      '<x:workbook xmlns:x="main" xmlns:r="rels"><x:sheets><x:sheet name="Report" sheetId="1" r:id="R1a2"/></x:sheets></x:workbook>',
+    ),
+    'xl/_rels/workbook.xml.rels': strToU8(
+      '<Relationships><Relationship Id="R1a2" Type="worksheet" Target="/xl/worksheets/sheet.xml"/></Relationships>',
+    ),
     'xl/sharedStrings.xml': strToU8('<x:sst><x:si><x:t>Region</x:t></x:si><x:si><x:t>North</x:t></x:si></x:sst>'),
-    'xl/worksheets/sheet.xml': strToU8('<x:worksheet><x:sheetData><x:row r="1"><x:c r="A1" t="s"><x:v>0</x:v></x:c><x:c r="B1" t="inlineStr"><x:is><x:t>Total</x:t></x:is></x:c></x:row><x:row r="2"><x:c r="A2" t="s"><x:v>1</x:v></x:c><x:c r="B2"><x:v>12</x:v></x:c></x:row></x:sheetData></x:worksheet>'),
+    'xl/worksheets/sheet.xml': strToU8(
+      '<x:worksheet><x:sheetData><x:row r="1"><x:c r="A1" t="s"><x:v>0</x:v></x:c><x:c r="B1" t="inlineStr"><x:is><x:t>Total</x:t></x:is></x:c></x:row><x:row r="2"><x:c r="A2" t="s"><x:v>1</x:v></x:c><x:c r="B2"><x:v>12</x:v></x:c></x:row></x:sheetData></x:worksheet>',
+    ),
   });
 }
 
@@ -69,7 +100,10 @@ export function pdf(...pages: string[]): Uint8Array {
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', `<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`];
   for (const [i, text] of pages.entries()) {
     const stream = text ? `BT /F1 12 Tf 72 720 Td (${text}) Tj ET` : '';
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${4 + i * 2} 0 R /Resources << /Font << /F1 ${font} 0 R >> >> >>`, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${4 + i * 2} 0 R /Resources << /Font << /F1 ${font} 0 R >> >> >>`,
+      `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    );
   }
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
   let out = '%PDF-1.4\n';
@@ -85,4 +119,5 @@ export function pdf(...pages: string[]): Uint8Array {
 }
 
 /** The start of a compound file (what older Office files are), padded to a sector. */
-export const compound = (): Uint8Array => Uint8Array.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, ...new Array(504).fill(0)]);
+export const compound = (): Uint8Array =>
+  Uint8Array.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, ...new Array(504).fill(0)]);

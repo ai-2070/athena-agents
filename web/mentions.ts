@@ -7,8 +7,14 @@ const EXT = String.raw`\.[A-Za-z0-9]{1,8}`;
 const QUOTED = new RegExp(String.raw`[\x60"'(<]((?:[A-Za-z]:[\\/]|/)[^\x60"'<>()\r\n|*?]*?${EXT})[\x60"')>]`, 'g');
 // without spaces, anywhere: C:\a\b.png, C:/a/b.png, /home/me/b.png (not the end of a web link). The last
 // part is greedy, so a name with dots keeps its whole extension (archive.tar.gz).
-const WIN = new RegExp(String.raw`(?<![\w/\\.])[A-Za-z]:[\\/](?:[^\s"'\x60<>|*?()\[\]\\/\r\n]+[\\/])*[^\s"'\x60<>|*?()\[\]\\/\r\n]+${EXT}(?![\w\\/])`, 'g');
-const POSIX = new RegExp(String.raw`(?<![\w.:/\\~-])/(?:[^\s"'\x60<>()\[\]/\r\n]+/)*[^\s"'\x60<>()\[\]/\r\n]+${EXT}(?![\w/])`, 'g');
+const WIN = new RegExp(
+  String.raw`(?<![\w/\\.])[A-Za-z]:[\\/](?:[^\s"'\x60<>|*?()\[\]\\/\r\n]+[\\/])*[^\s"'\x60<>|*?()\[\]\\/\r\n]+${EXT}(?![\w\\/])`,
+  'g',
+);
+const POSIX = new RegExp(
+  String.raw`(?<![\w.:/\\~-])/(?:[^\s"'\x60<>()\[\]/\r\n]+/)*[^\s"'\x60<>()\[\]/\r\n]+${EXT}(?![\w/])`,
+  'g',
+);
 const FILE_URL = /file:\/\/\/?([^\s"'`<>()]+)/gi;
 
 // Windows paths are the same file in any case and with either slash; others only as written.

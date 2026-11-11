@@ -1,17 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { composeSwaps, expandInstances, instanceMatrix, mirrorData, reachablePrefabs, swapPalette, variantKey } from '../../web/voxel/instances.ts';
+import {
+  composeSwaps,
+  expandInstances,
+  instanceMatrix,
+  mirrorData,
+  reachablePrefabs,
+  swapPalette,
+  variantKey,
+} from '../../web/voxel/instances.ts';
 import type { PrefabLookup } from '../../web/voxel/instances.ts';
 import { chunkKey, decodeChunk, encodeChunk, getVoxel, newVolume, setVoxel } from '../../shared/voxel.ts';
 import type { PrefabInstance, Vec3, VoxelMaterial, VoxelObjectData } from '../../shared/types.ts';
 
-const at = (m: THREE.Matrix4, p: Vec3) => new THREE.Vector3(...p).applyMatrix4(m).toArray().map((n) => Math.round(n * 1e6) / 1e6 + 0);
+const at = (m: THREE.Matrix4, p: Vec3) =>
+  new THREE.Vector3(...p)
+    .applyMatrix4(m)
+    .toArray()
+    .map((n) => Math.round(n * 1e6) / 1e6 + 0);
 const F = new THREE.Matrix4().makeScale(-1, 1, 1);
 
-function data(cells: [number, number, number, number][] = [], instances?: PrefabInstance[], size = 0.25): VoxelObjectData {
+function data(
+  cells: [number, number, number, number][] = [],
+  instances?: PrefabInstance[],
+  size = 0.25,
+): VoxelObjectData {
   const v = newVolume(size);
   for (const [x, y, z, m] of cells) setVoxel(v, x, y, z, m);
-  return { volumes: [{ id: 'v', voxelSize: size, chunks: Object.fromEntries([...v.chunks].map(([k, c]) => [k, encodeChunk(c)])) }], ...(instances ? { instances } : {}) };
+  return {
+    volumes: [
+      { id: 'v', voxelSize: size, chunks: Object.fromEntries([...v.chunks].map(([k, c]) => [k, encodeChunk(c)])) },
+    ],
+    ...(instances ? { instances } : {}),
+  };
 }
 
 describe('instanceMatrix', () => {
@@ -46,13 +67,37 @@ describe('expandInstances', () => {
 
   it('never loops on a prefab that holds itself, and stops at 4 levels', () => {
     prefabs.a = { data: data([], [{ prefab: 'b', p: [1, 0, 0] }]), pivot: [0, 0, 0] };
-    prefabs.b = { data: data([], [{ prefab: 'a', p: [1, 0, 0] }, { prefab: 'self', p: [0, 0, 0] }]), pivot: [0, 0, 0] };
+    prefabs.b = {
+      data: data(
+        [],
+        [
+          { prefab: 'a', p: [1, 0, 0] },
+          { prefab: 'self', p: [0, 0, 0] },
+        ],
+      ),
+      pivot: [0, 0, 0],
+    };
     prefabs.self = { data: data([], [{ prefab: 'self', p: [1, 0, 0] }]), pivot: [0, 0, 0] };
     expect(expandInstances([{ prefab: 'a', p: [0, 0, 0] }], lookup).map((c) => c.prefab)).toEqual(['a', 'b', 'self']);
-    for (let i = 1; i <= 5; i++) prefabs[`n${i}`] = { data: data([], i < 5 ? [{ prefab: `n${i + 1}`, p: [1, 0, 0] }] : []), pivot: [0, 0, 0] };
-    expect(expandInstances([{ prefab: 'n1', p: [0, 0, 0] }], lookup).map((c) => c.prefab)).toEqual(['n1', 'n2', 'n3', 'n4']);
-    expect([...reachablePrefabs([{ prefab: 'n1', p: [0, 0, 0] }], (id) => prefabs[id]?.data)]).toEqual(['n1', 'n2', 'n3', 'n4']);
-    expect([...reachablePrefabs([{ prefab: 'a', p: [0, 0, 0] }], (id) => prefabs[id]?.data)].sort()).toEqual(['a', 'b', 'self']);
+    for (let i = 1; i <= 5; i++)
+      prefabs[`n${i}`] = { data: data([], i < 5 ? [{ prefab: `n${i + 1}`, p: [1, 0, 0] }] : []), pivot: [0, 0, 0] };
+    expect(expandInstances([{ prefab: 'n1', p: [0, 0, 0] }], lookup).map((c) => c.prefab)).toEqual([
+      'n1',
+      'n2',
+      'n3',
+      'n4',
+    ]);
+    expect([...reachablePrefabs([{ prefab: 'n1', p: [0, 0, 0] }], (id) => prefabs[id]?.data)]).toEqual([
+      'n1',
+      'n2',
+      'n3',
+      'n4',
+    ]);
+    expect([...reachablePrefabs([{ prefab: 'a', p: [0, 0, 0] }], (id) => prefabs[id]?.data)].sort()).toEqual([
+      'a',
+      'b',
+      'self',
+    ]);
   });
 
   it('skips copies of prefabs that are gone, and odd entries', () => {
@@ -67,20 +112,27 @@ describe('expandInstances', () => {
     expect(c.variant.mirror).toBe(true);
     const q: Vec3 = [0.7, 0.3, -0.4];
     // expected: T(p) R S F T(-pivot) on the original; drawn: the copy's matrix on the mirrored point F q
-    const want = instanceMatrix(i, [0, 0, 0]).multiply(F).multiply(new THREE.Matrix4().makeTranslation(-0.5, 0, -0.25));
+    const want = instanceMatrix(i, [0, 0, 0])
+      .multiply(F)
+      .multiply(new THREE.Matrix4().makeTranslation(-0.5, 0, -0.25));
     expect(at(c.matrix, [-q[0], q[1], q[2]])).toEqual(at(want, q));
   });
 
   it('copies inside a mirrored copy are mirrored with it', () => {
     prefabs.person = { data: data([[0, 0, 0, 1]]), pivot: [0.1, 0, 0.1] };
-    prefabs.boat = { data: data([[0, 0, 0, 2]], [{ prefab: 'person', p: [1, 0.5, 0.3], turn: 40, roll: 90 }]), pivot: [0.6, 0, 0.2] };
+    prefabs.boat = {
+      data: data([[0, 0, 0, 2]], [{ prefab: 'person', p: [1, 0.5, 0.3], turn: 40, roll: 90 }]),
+      pivot: [0.6, 0, 0.2],
+    };
     const outer: PrefabInstance = { prefab: 'boat', p: [5, 0, 5], turn: 20, mirror: true };
     const flat = expandInstances([outer], lookup);
     const inner = flat[1];
     expect(inner.variant.mirror).toBe(true);
     const g: Vec3 = [0.3, 0.2, -0.1];
     // the truth: the boat's mirrored frame, then the person's own frame, on the person's original point
-    const boatFrame = instanceMatrix({ ...outer }, [0, 0, 0]).multiply(F).multiply(new THREE.Matrix4().makeTranslation(-0.6, 0, -0.2));
+    const boatFrame = instanceMatrix({ ...outer }, [0, 0, 0])
+      .multiply(F)
+      .multiply(new THREE.Matrix4().makeTranslation(-0.6, 0, -0.2));
     const want = boatFrame.multiply(instanceMatrix(prefabs.boat.data.instances![0], prefabs.person.pivot));
     expect(at(inner.matrix, [-g[0], g[1], g[2]])).toEqual(at(want, g));
   });
@@ -108,7 +160,15 @@ describe('swaps', () => {
   ];
 
   it("a parent's swaps apply after the child's own, and to what the child already uses", () => {
-    expect([...composeSwaps({ Shirt: 'Cloth Red' }, new Map([['cloth red', 'blue'], ['hat', 'gold']]))]).toEqual([
+    expect([
+      ...composeSwaps(
+        { Shirt: 'Cloth Red' },
+        new Map([
+          ['cloth red', 'blue'],
+          ['hat', 'gold'],
+        ]),
+      ),
+    ]).toEqual([
       ['shirt', 'blue'],
       ['cloth red', 'blue'],
       ['hat', 'gold'],
@@ -139,7 +199,9 @@ describe('mirrorData', () => {
     for (const [k, text] of Object.entries(m.volumes[0].chunks)) v.chunks.set(k, decodeChunk(text));
     expect([getVoxel(v, -1, 0, 0), getVoxel(v, -18, 2, 3), getVoxel(v, 4, 1, 1)]).toEqual([1, 2, 3]);
     expect(getVoxel(v, 0, 0, 0)).toBe(0);
-    expect(Object.keys(m.volumes[0].chunks).sort()).toEqual([chunkKey(-1, 0, 0), chunkKey(-2, 0, 0), chunkKey(0, 0, 0)].sort());
+    expect(Object.keys(m.volumes[0].chunks).sort()).toEqual(
+      [chunkKey(-1, 0, 0), chunkKey(-2, 0, 0), chunkKey(0, 0, 0)].sort(),
+    );
     // twice is the original
     expect(mirrorData(m).volumes[0].chunks).toEqual(d.volumes[0].chunks);
   });

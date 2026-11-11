@@ -27,15 +27,22 @@ beforeAll(async () => {
     await new Promise((r) => setTimeout(r, delay));
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: `Done: ${task}` } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-const agent = (name: string, toolGroups: string[] = []) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups });
+const agent = (name: string, toolGroups: string[] = []) =>
+  newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups });
 const handleOf = (text: string) => /handle (h\w+)/.exec(text)![1];
 
 describe('ask_agent and await_agent', () => {
@@ -47,11 +54,15 @@ describe('ask_agent and await_agent', () => {
     expect(sent.isError).toBe(false);
     expect(sent.text).toMatch(/^Sent to Helper \(handle h\w+\)/);
     // back before the work is done
-    expect((await callTool(boss, 'await_agent', {}, { depth: 0 })).text).toMatch(/→ Helper: "count the files" — working/);
+    expect((await callTool(boss, 'await_agent', {}, { depth: 0 })).text).toMatch(
+      /→ Helper: "count the files" — working/,
+    );
     const got = await callTool(boss, 'await_agent', { handle: handleOf(sent.text) }, { depth: 0 });
     expect(got).toMatchObject({ text: 'Helper says:\nDone: count the files', isError: false });
     // (still there for a later look)
-    expect((await callTool(boss, 'await_agent', {}, { depth: 0 })).text).toMatch(/→ Helper: "count the files" — done, answer ready/);
+    expect((await callTool(boss, 'await_agent', {}, { depth: 0 })).text).toMatch(
+      /→ Helper: "count the files" — done, answer ready/,
+    );
   });
 
   it('several at once run in parallel; a short wait says it is still going, and again collects it', async () => {
@@ -60,33 +71,50 @@ describe('ask_agent and await_agent', () => {
     const a = agent('Helper A');
     const b = agent('Helper B');
     let release = () => {};
-    held = new Promise<void>((resolve) => { release = resolve; });
+    held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     try {
-      const ha = handleOf((await callTool(boss, 'ask_agent', { agent: a.name, message: 'part one' }, { depth: 0 })).text);
-      const hb = handleOf((await callTool(boss, 'ask_agent', { agent: b.name, message: 'part two' }, { depth: 0 })).text);
+      const ha = handleOf(
+        (await callTool(boss, 'ask_agent', { agent: a.name, message: 'part one' }, { depth: 0 })).text,
+      );
+      const hb = handleOf(
+        (await callTool(boss, 'ask_agent', { agent: b.name, message: 'part two' }, { depth: 0 })).text,
+      );
       const early = await callTool(boss, 'await_agent', { handle: ha, wait_seconds: 1 }, { depth: 0 });
       expect(early.isError).toBe(false);
-      expect(early.text).toMatch(/^Helper A is still working on it \(.+ so far\)\.[\s\S]*Call await_agent again with handle h/);
+      expect(early.text).toMatch(
+        /^Helper A is still working on it \(.+ so far\)\.[\s\S]*Call await_agent again with handle h/,
+      );
       // Both requests must arrive before either can finish, regardless of worker startup time.
       await expect.poll(() => waiting, { timeout: 20000 }).toBe(2);
       release();
-      expect((await callTool(boss, 'await_agent', { handle: ha }, { depth: 0 })).text).toBe('Helper A says:\nDone: part one');
-      expect((await callTool(boss, 'await_agent', { handle: hb }, { depth: 0 })).text).toBe('Helper B says:\nDone: part two');
+      expect((await callTool(boss, 'await_agent', { handle: ha }, { depth: 0 })).text).toBe(
+        'Helper A says:\nDone: part one',
+      );
+      expect((await callTool(boss, 'await_agent', { handle: hb }, { depth: 0 })).text).toBe(
+        'Helper B says:\nDone: part two',
+      );
     } finally {
       release();
       held = undefined;
     }
   });
 
-  it("only the asker collects it; a wrong handle says so; too deep is refused", async () => {
+  it('only the asker collects it; a wrong handle says so; too deep is refused', async () => {
     delay = 0;
     const boss = agent('Boss 3', ['agents']);
     const other = agent('Other', ['agents']);
     const helper = agent('Helper C');
     const h = handleOf((await callTool(boss, 'ask_agent', { agent: helper.name, message: 'x' }, { depth: 0 })).text);
-    expect(await callTool(other, 'await_agent', { handle: h }, { depth: 0 })).toMatchObject({ isError: true, text: 'That handle belongs to another agent.' });
+    expect(await callTool(other, 'await_agent', { handle: h }, { depth: 0 })).toMatchObject({
+      isError: true,
+      text: 'That handle belongs to another agent.',
+    });
     expect((await callTool(boss, 'await_agent', { handle: 'h-nope' }, { depth: 0 })).isError).toBe(true);
-    expect((await callTool(boss, 'ask_agent', { agent: helper.name, message: 'x' }, { depth: 3 })).text).toMatch(/Too many agents deep/);
+    expect((await callTool(boss, 'ask_agent', { agent: helper.name, message: 'x' }, { depth: 3 })).text).toMatch(
+      /Too many agents deep/,
+    );
     await callTool(boss, 'await_agent', { handle: h }, { depth: 0 });
   });
 
@@ -95,7 +123,10 @@ describe('ask_agent and await_agent', () => {
     const boss = agent('Boss 4', ['agents']);
     const helper = agent('Helper D');
     const ctl = new AbortController();
-    const h = handleOf((await callTool(boss, 'ask_agent', { agent: helper.name, message: 'slow' }, { depth: 0, signal: ctl.signal })).text);
+    const h = handleOf(
+      (await callTool(boss, 'ask_agent', { agent: helper.name, message: 'slow' }, { depth: 0, signal: ctl.signal }))
+        .text,
+    );
     ctl.abort();
     const got = await callTool(boss, 'await_agent', { handle: h }, { depth: 0 });
     expect(got).toMatchObject({ isError: true, text: "Helper D couldn't finish: it was stopped" });

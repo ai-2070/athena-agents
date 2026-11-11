@@ -28,16 +28,16 @@ outside the chat (a ticket, a task, an email) until the user has seen the list a
 Read the whole thing once, then put every candidate in one bin. Only commitments become action items; the rest are
 listed apart or left out.
 
-| Bin | In a meeting | In a document |
-|---|---|---|
-| Decision | settled by people who could settle it ("OK, December it is") | an approval, a signed term |
-| Commitment | someone took it on ("I'll send the quote by Friday") | `must`, `shall`, `will`, "agrees to" |
-| Proposal | floated, not settled ("we could…", "what if…") | `should`, "we recommend" |
-| Right | | `may`, "is entitled to", with its window |
-| Prohibition | | `must not`, `shall not`: a standing rule, not a task |
-| Open question | asked and not answered | a term never defined, an appendix not attached |
-| Risk or condition | "if legal says no, it slips" | "subject to", "provided that", "unless" |
-| Context | background, status updates | recitals, definitions |
+| Bin               | In a meeting                                                 | In a document                                        |
+| ----------------- | ------------------------------------------------------------ | ---------------------------------------------------- |
+| Decision          | settled by people who could settle it ("OK, December it is") | an approval, a signed term                           |
+| Commitment        | someone took it on ("I'll send the quote by Friday")         | `must`, `shall`, `will`, "agrees to"                 |
+| Proposal          | floated, not settled ("we could…", "what if…")               | `should`, "we recommend"                             |
+| Right             |                                                              | `may`, "is entitled to", with its window             |
+| Prohibition       |                                                              | `must not`, `shall not`: a standing rule, not a task |
+| Open question     | asked and not answered                                       | a term never defined, an appendix not attached       |
+| Risk or condition | "if legal says no, it slips"                                 | "subject to", "provided that", "unless"              |
+| Context           | background, status updates                                   | recitals, definitions                                |
 
 - A brainstorm is not a decision, and nobody objecting is not agreement. When you can't tell whether something was
   settled, make it an open question ("decided, or only proposed?"). When a later line changes an earlier one

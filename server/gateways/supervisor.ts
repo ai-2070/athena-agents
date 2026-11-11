@@ -1,4 +1,16 @@
-import type { GatewayDeliveryReview, GatewayHealth, GatewayReconciliation, GatewayStatus, GatewayTelegramSetup, GatewayWhatsAppCheck, GatewayWhatsAppRecovery, GatewayWhatsAppSenders, GatewayWhatsAppSetup, GatewayWorkReview, ServerEvent } from '../../shared/types.ts';
+import type {
+  GatewayDeliveryReview,
+  GatewayHealth,
+  GatewayReconciliation,
+  GatewayStatus,
+  GatewayTelegramSetup,
+  GatewayWhatsAppCheck,
+  GatewayWhatsAppRecovery,
+  GatewayWhatsAppSenders,
+  GatewayWhatsAppSetup,
+  GatewayWorkReview,
+  ServerEvent,
+} from '../../shared/types.ts';
 import { gatewayNeedsReview, gatewayPlatformAvailable } from '../../shared/gateways.ts';
 import { bus, emit, listProjects } from '../store.ts';
 import { GatewayCleanupError, GatewayInbox, gatewayInboxHistory } from './inbox.ts';
@@ -6,7 +18,13 @@ import { GatewayStateAdapter } from './state.ts';
 import { getGatewayInstance, listGatewayInstances, removeGatewayInstance, retireGatewayInstance } from './instances.ts';
 import { gatewayRetirement, gatewayRetirementIds } from './retirement.ts';
 import { reviewDiscordRecovery } from './discord-recovery.ts';
-import { checkWhatsAppSetup, finishWhatsAppPairing, pairWhatsApp, replaceWhatsAppPairing, reviewWhatsAppPairing } from './whatsapp-setup.ts';
+import {
+  checkWhatsAppSetup,
+  finishWhatsAppPairing,
+  pairWhatsApp,
+  replaceWhatsAppPairing,
+  reviewWhatsAppPairing,
+} from './whatsapp-setup.ts';
 import { inspectWhatsAppRecovery, restoreWhatsAppRecovery, reviewWhatsAppRecovery } from './whatsapp-recovery.ts';
 import { claimGatewayAccount, claimGatewayState } from './ownership.ts';
 import { GatewayWorker } from './worker.ts';
@@ -29,19 +47,30 @@ export class GatewaySupervisor {
   private mediaTimer: ReturnType<typeof setInterval> | undefined;
   private readonly worker: (instanceId: string, health: (value: GatewayHealth) => void) => GatewayWorker;
 
-  constructor(worker = (instanceId: string, health: (value: GatewayHealth) => void) => new GatewayWorker(instanceId, { health })) {
+  constructor(
+    worker = (instanceId: string, health: (value: GatewayHealth) => void) => new GatewayWorker(instanceId, { health }),
+  ) {
     this.worker = worker;
   }
 
   private changed = (event: ServerEvent): void => {
-    if ((event.type === 'gateway-inbox' || event.type === 'gateway-health') && typeof event.instanceId === 'string') this.changedInboxes.add(event.instanceId);
-    if (event.type === 'gateways' && typeof event.id === 'string') { this.changedInboxes.add(event.id); void this.reconnect(event.id); }
-    if (event.type === 'projects' || ((event.type === 'agents' || event.type === 'workflows') && event.removed === true)) {
+    if ((event.type === 'gateway-inbox' || event.type === 'gateway-health') && typeof event.instanceId === 'string')
+      this.changedInboxes.add(event.instanceId);
+    if (event.type === 'gateways' && typeof event.id === 'string') {
+      this.changedInboxes.add(event.id);
+      void this.reconnect(event.id);
+    }
+    if (
+      event.type === 'projects' ||
+      ((event.type === 'agents' || event.type === 'workflows') && event.removed === true)
+    ) {
       for (const instance of listGatewayInstances()) void this.reconnect(instance.id);
     }
   };
 
-  health(): GatewayHealth[] { return [...this.statuses.values()].map((value) => ({ ...value })); }
+  health(): GatewayHealth[] {
+    return [...this.statuses.values()].map((value) => ({ ...value }));
+  }
 
   /** Read each changed journal once per state refresh, rather than for every delivery mutation. */
   summary(): GatewayStatus[] {
@@ -52,15 +81,26 @@ export class GatewaySupervisor {
     const projects = new Map(listProjects().map((project) => [project.id, project.name]));
     return instances.map((instance) => {
       if (!this.reviews.has(instance.id) || this.changedInboxes.has(instance.id)) {
-        try { this.reviews.set(instance.id, gatewayInboxHistory(instance.id).filter(gatewayNeedsReview).length); }
-        catch { this.reviews.set(instance.id, null); }
+        try {
+          this.reviews.set(instance.id, gatewayInboxHistory(instance.id).filter(gatewayNeedsReview).length);
+        } catch {
+          this.reviews.set(instance.id, null);
+        }
         this.changedInboxes.delete(instance.id);
       }
       return {
-        id: instance.id, name: instance.name, platform: instance.platform, projectId: instance.projectId,
-        projectName: projects.get(instance.projectId) || 'Project unavailable', enabled: instance.enabled,
-        status: !instance.enabled ? 'paused' : !projects.has(instance.projectId) ? 'needs-setup'
-          : this.statuses.get(instance.id)?.status ?? (gatewayPlatformAvailable(instance.platform) ? 'connecting' : 'needs-setup'),
+        id: instance.id,
+        name: instance.name,
+        platform: instance.platform,
+        projectId: instance.projectId,
+        projectName: projects.get(instance.projectId) || 'Project unavailable',
+        enabled: instance.enabled,
+        status: !instance.enabled
+          ? 'paused'
+          : !projects.has(instance.projectId)
+            ? 'needs-setup'
+            : (this.statuses.get(instance.id)?.status ??
+              (gatewayPlatformAvailable(instance.platform) ? 'connecting' : 'needs-setup')),
         reviewCount: this.reviews.get(instance.id) ?? null,
       };
     });
@@ -81,35 +121,74 @@ export class GatewaySupervisor {
   dismissRequest(instanceId: string, eventId: string, body: unknown): Promise<void> {
     const task = this.pending.then(async () => {
       const instance = getGatewayInstance(instanceId);
-      if (this.closed || instance.enabled) throw Object.assign(new Error('Pause this gateway before dismissing a held request.'), { status: 400 });
-      await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
-      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined;
+      if (this.closed || instance.enabled)
+        throw Object.assign(new Error('Pause this gateway before dismissing a held request.'), { status: 400 });
+      await this.workers.get(instanceId)?.stop();
+      this.workers.delete(instanceId);
+      const state = new GatewayStateAdapter(instanceId);
+      let release: (() => Promise<void>) | undefined;
       try {
-        release = await claimGatewayAccount(instance.platform, instance.accountId); await state.connect();
+        release = await claimGatewayAccount(instance.platform, instance.accountId);
+        await state.connect();
         new GatewayInbox(state).dismissRequest(eventId, body);
       } catch (error) {
         if (error instanceof Error && 'status' in error) throw error;
-        throw Object.assign(new Error('This request could not be dismissed. Check storage and ownership, then reload its saved receipt.'), { status: 503 });
-      } finally { await state.disconnect(); await release?.(); }
+        throw Object.assign(
+          new Error('This request could not be dismissed. Check storage and ownership, then reload its saved receipt.'),
+          { status: 503 },
+        );
+      } finally {
+        await state.disconnect();
+        await release?.();
+      }
     });
-    this.pending = task.then(() => {}, () => {}); return task;
+    this.pending = task.then(
+      () => {},
+      () => {},
+    );
+    return task;
   }
 
-  private deliveryReviewTask(instanceId: string, work: (inbox: GatewayInbox) => GatewayDeliveryReview): Promise<GatewayDeliveryReview> {
+  private deliveryReviewTask(
+    instanceId: string,
+    work: (inbox: GatewayInbox) => GatewayDeliveryReview,
+  ): Promise<GatewayDeliveryReview> {
     const task = this.pending.then(async () => {
       const instance = getGatewayInstance(instanceId);
-      if (this.closed || instance.enabled) throw Object.assign(new Error('Pause this gateway before reviewing delivery.'), { status: 400 });
-      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined; let reviewing = false;
+      if (this.closed || instance.enabled)
+        throw Object.assign(new Error('Pause this gateway before reviewing delivery.'), { status: 400 });
+      const state = new GatewayStateAdapter(instanceId);
+      let release: (() => Promise<void>) | undefined;
+      let reviewing = false;
       try {
-        await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
-        release = await claimGatewayAccount(instance.platform, instance.accountId); await state.connect();
-        reviewing = true; return work(new GatewayInbox(state));
+        await this.workers.get(instanceId)?.stop();
+        this.workers.delete(instanceId);
+        release = await claimGatewayAccount(instance.platform, instance.accountId);
+        await state.connect();
+        reviewing = true;
+        return work(new GatewayInbox(state));
       } catch (error) {
-        if (reviewing && error instanceof Error && 'status' in error && (error.status === 400 || error.status === 404 || error.status === 409 || error.status === 503)) throw error;
-        throw Object.assign(new Error('Delivery could not be reviewed safely. Check storage and ownership, then reload its receipts.'), { status: 503 });
-      } finally { await state.disconnect(); await release?.(); }
+        if (
+          reviewing &&
+          error instanceof Error &&
+          'status' in error &&
+          (error.status === 400 || error.status === 404 || error.status === 409 || error.status === 503)
+        )
+          throw error;
+        throw Object.assign(
+          new Error('Delivery could not be reviewed safely. Check storage and ownership, then reload its receipts.'),
+          { status: 503 },
+        );
+      } finally {
+        await state.disconnect();
+        await release?.();
+      }
     });
-    this.pending = task.then(() => {}, () => {}); return task;
+    this.pending = task.then(
+      () => {},
+      () => {},
+    );
+    return task;
   }
 
   prepareDeliveryReview(instanceId: string, eventId: string): Promise<GatewayDeliveryReview> {
@@ -120,21 +199,46 @@ export class GatewaySupervisor {
     return this.deliveryReviewTask(instanceId, (inbox) => inbox.reviewDelivery(eventId, body));
   }
 
-  private workReviewTask(instanceId: string, work: (inbox: GatewayInbox) => GatewayWorkReview): Promise<GatewayWorkReview> {
+  private workReviewTask(
+    instanceId: string,
+    work: (inbox: GatewayInbox) => GatewayWorkReview,
+  ): Promise<GatewayWorkReview> {
     const task = this.pending.then(async () => {
       const instance = getGatewayInstance(instanceId);
-      if (this.closed || instance.enabled) throw Object.assign(new Error('Pause this gateway before reviewing saved work.'), { status: 400 });
-      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined; let reviewing = false;
+      if (this.closed || instance.enabled)
+        throw Object.assign(new Error('Pause this gateway before reviewing saved work.'), { status: 400 });
+      const state = new GatewayStateAdapter(instanceId);
+      let release: (() => Promise<void>) | undefined;
+      let reviewing = false;
       try {
-        await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
-        release = await claimGatewayAccount(instance.platform, instance.accountId); await state.connect(); reviewing = true;
+        await this.workers.get(instanceId)?.stop();
+        this.workers.delete(instanceId);
+        release = await claimGatewayAccount(instance.platform, instance.accountId);
+        await state.connect();
+        reviewing = true;
         return work(new GatewayInbox(state));
       } catch (error) {
-        if (reviewing && error instanceof Error && 'status' in error && (error.status === 400 || error.status === 404 || error.status === 409 || error.status === 503)) throw error;
-        throw Object.assign(new Error('Saved work could not be reviewed safely. Check storage and ownership, then reload its receipts.'), { status: 503 });
-      } finally { await state.disconnect(); await release?.(); }
+        if (
+          reviewing &&
+          error instanceof Error &&
+          'status' in error &&
+          (error.status === 400 || error.status === 404 || error.status === 409 || error.status === 503)
+        )
+          throw error;
+        throw Object.assign(
+          new Error('Saved work could not be reviewed safely. Check storage and ownership, then reload its receipts.'),
+          { status: 503 },
+        );
+      } finally {
+        await state.disconnect();
+        await release?.();
+      }
     });
-    this.pending = task.then(() => {}, () => {}); return task;
+    this.pending = task.then(
+      () => {},
+      () => {},
+    );
+    return task;
   }
   prepareWorkReview(instanceId: string, eventId: string): Promise<GatewayWorkReview> {
     return this.workReviewTask(instanceId, (inbox) => inbox.prepareWorkReview(eventId));
@@ -146,28 +250,54 @@ export class GatewaySupervisor {
   private outboxReviewTask(instanceId: string, work: (ledger: GatewayOutboxLedger) => void): Promise<void> {
     const task = this.pending.then(async () => {
       const instance = getGatewayInstance(instanceId);
-      if (this.closed || instance.enabled) throw Object.assign(new Error('Pause the selected gateway before reviewing its saved Outbox delivery.'), { status: 400 });
-      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined; let reviewing = false;
+      if (this.closed || instance.enabled)
+        throw Object.assign(new Error('Pause the selected gateway before reviewing its saved Outbox delivery.'), {
+          status: 400,
+        });
+      const state = new GatewayStateAdapter(instanceId);
+      let release: (() => Promise<void>) | undefined;
+      let reviewing = false;
       try {
-        await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
-        release = await claimGatewayAccount(instance.platform, instance.accountId); await state.connect();
+        await this.workers.get(instanceId)?.stop();
+        this.workers.delete(instanceId);
+        release = await claimGatewayAccount(instance.platform, instance.accountId);
+        await state.connect();
         reviewing = true;
-        if (getGatewayInstance(instanceId).enabled) throw Object.assign(new Error('Pause this gateway before changing its Outbox delivery receipts.'), { status: 400 });
+        if (getGatewayInstance(instanceId).enabled)
+          throw Object.assign(new Error('Pause this gateway before changing its Outbox delivery receipts.'), {
+            status: 400,
+          });
         work(new GatewayOutboxLedger(state, new GatewayInbox(state)));
       } catch (error) {
         if (reviewing && error instanceof Error && 'status' in error) throw error;
-        throw Object.assign(new Error('This Outbox delivery could not be reviewed safely. Check storage and ownership, then reload its receipts.'), { status: 503 });
-      } finally { await state.disconnect(); await release?.(); }
+        throw Object.assign(
+          new Error(
+            'This Outbox delivery could not be reviewed safely. Check storage and ownership, then reload its receipts.',
+          ),
+          { status: 503 },
+        );
+      } finally {
+        await state.disconnect();
+        await release?.();
+      }
     });
-    this.pending = task.then(() => {}, () => {}); return task;
+    this.pending = task.then(
+      () => {},
+      () => {},
+    );
+    return task;
   }
 
   finishOutbox(instanceId: string, projectId: string, postId: string, body: unknown): Promise<void> {
-    return this.outboxReviewTask(instanceId, (ledger) => { ledger.recover({ projectId, postId }); ledger.finishLocal(projectId, postId, body); });
+    return this.outboxReviewTask(instanceId, (ledger) => {
+      ledger.recover({ projectId, postId });
+      ledger.finishLocal(projectId, postId, body);
+    });
   }
   prepareOutboxReview(instanceId: string, projectId: string, postId: string): Promise<void> {
     return this.outboxReviewTask(instanceId, (ledger) => {
-      if (!ledger.list().some((entry) => entry.projectId === projectId && entry.postId === postId)) throw Object.assign(new Error('No such saved Outbox delivery.'), { status: 404 });
+      if (!ledger.list().some((entry) => entry.projectId === projectId && entry.postId === postId))
+        throw Object.assign(new Error('No such saved Outbox delivery.'), { status: 404 });
       ledger.recover({ projectId, postId });
     });
   }
@@ -177,7 +307,8 @@ export class GatewaySupervisor {
 
   reconcile(instanceId: string, eventId: string): GatewayReconciliation {
     const worker = this.workers.get(instanceId);
-    if (!worker) throw Object.assign(new Error('Connect this gateway before checking its saved work.'), { status: 400 });
+    if (!worker)
+      throw Object.assign(new Error('Connect this gateway before checking its saved work.'), { status: 400 });
     return worker.reconcile(eventId);
   }
 
@@ -191,65 +322,129 @@ export class GatewaySupervisor {
     const worker = this.workers.get(instanceId);
     if (worker) return worker.cleanup(body);
     const instance = getGatewayInstance(instanceId);
-    if (instance.enabled) throw Object.assign(new Error('Pause this gateway or let it finish connecting before cleaning receipts.'), { status: 400 });
+    if (instance.enabled)
+      throw Object.assign(new Error('Pause this gateway or let it finish connecting before cleaning receipts.'), {
+        status: 400,
+      });
     const state = new GatewayStateAdapter(instanceId);
     try {
       await state.connect();
       return new GatewayInbox(state).cleanup(body);
     } catch (error) {
-      throw Object.assign(new Error(error instanceof GatewayCleanupError ? error.message : 'This inbox could not be cleaned safely. Check storage and ownership before retrying.'), { status: 400 });
-    } finally { await state.disconnect(); }
+      throw Object.assign(
+        new Error(
+          error instanceof GatewayCleanupError
+            ? error.message
+            : 'This inbox could not be cleaned safely. Check storage and ownership before retrying.',
+        ),
+        { status: 400 },
+      );
+    } finally {
+      await state.disconnect();
+    }
   }
 
   reviewDiscordRecovery(instanceId: string, body: unknown): Promise<void> {
     const task = this.pending.then(async () => {
       const instance = getGatewayInstance(instanceId);
-      if (instance.platform !== 'discord' || instance.enabled) throw Object.assign(new Error('Pause this Discord instance before reviewing its recovery gap.'), { status: 400 });
-      await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
-      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined;
+      if (instance.platform !== 'discord' || instance.enabled)
+        throw Object.assign(new Error('Pause this Discord instance before reviewing its recovery gap.'), {
+          status: 400,
+        });
+      await this.workers.get(instanceId)?.stop();
+      this.workers.delete(instanceId);
+      const state = new GatewayStateAdapter(instanceId);
+      let release: (() => Promise<void>) | undefined;
       try {
-        release = await claimGatewayAccount('discord', instance.accountId); await state.connect();
+        release = await claimGatewayAccount('discord', instance.accountId);
+        await state.connect();
         reviewDiscordRecovery(state, body);
         const health: GatewayHealth = { instanceId, status: 'paused', reason: '', attempts: 0, updatedAt: Date.now() };
-        this.statuses.set(instanceId, health); emit('gateway-health', { ...health });
-      } finally { await state.disconnect(); await release?.(); }
+        this.statuses.set(instanceId, health);
+        emit('gateway-health', { ...health });
+      } finally {
+        await state.disconnect();
+        await release?.();
+      }
     });
-    this.pending = task.then(() => {}, () => {}); return task;
+    this.pending = task.then(
+      () => {},
+      () => {},
+    );
+    return task;
   }
 
   private whatsAppSetupTask<T>(instanceId: string, work: (inbox: GatewayInbox) => T | Promise<T>): Promise<T> {
     const task = this.pending.then(async () => {
       const instance = getGatewayInstance(instanceId);
-      if (this.closed || instance.platform !== 'whatsapp' || instance.enabled) throw Object.assign(new Error('Pause this WhatsApp instance before changing its setup or recovery.'), { status: 400 });
-      await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
-      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined;
+      if (this.closed || instance.platform !== 'whatsapp' || instance.enabled)
+        throw Object.assign(new Error('Pause this WhatsApp instance before changing its setup or recovery.'), {
+          status: 400,
+        });
+      await this.workers.get(instanceId)?.stop();
+      this.workers.delete(instanceId);
+      const state = new GatewayStateAdapter(instanceId);
+      let release: (() => Promise<void>) | undefined;
       try {
-        release = await claimGatewayAccount('whatsapp', instance.accountId); await state.connect();
+        release = await claimGatewayAccount('whatsapp', instance.accountId);
+        await state.connect();
         const result = await work(new GatewayInbox(state));
         const health: GatewayHealth = { instanceId, status: 'paused', reason: '', attempts: 0, updatedAt: Date.now() };
-        this.statuses.set(instanceId, health); emit('gateway-health', { ...health }); return result;
-      } finally { await state.disconnect(); await release?.(); }
+        this.statuses.set(instanceId, health);
+        emit('gateway-health', { ...health });
+        return result;
+      } finally {
+        await state.disconnect();
+        await release?.();
+      }
     });
-    this.pending = task.then(() => {}, () => {}); return task;
+    this.pending = task.then(
+      () => {},
+      () => {},
+    );
+    return task;
   }
 
-  private telegramSetupTask(instanceId: string, work: (state: GatewayStateAdapter) => Promise<GatewayTelegramSetup>): Promise<GatewayTelegramSetup> {
+  private telegramSetupTask(
+    instanceId: string,
+    work: (state: GatewayStateAdapter) => Promise<GatewayTelegramSetup>,
+  ): Promise<GatewayTelegramSetup> {
     const task = this.pending.then(async () => {
       const instance = getGatewayInstance(instanceId);
-      if (this.closed || instance.platform !== 'telegram' || instance.enabled) throw Object.assign(new Error('Pause this Telegram instance before checking or switching setup.'), { status: 400 });
-      const state = new GatewayStateAdapter(instanceId); let release: (() => Promise<void>) | undefined; let checking = false;
+      if (this.closed || instance.platform !== 'telegram' || instance.enabled)
+        throw Object.assign(new Error('Pause this Telegram instance before checking or switching setup.'), {
+          status: 400,
+        });
+      const state = new GatewayStateAdapter(instanceId);
+      let release: (() => Promise<void>) | undefined;
+      let checking = false;
       try {
-        await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
-        release = await claimGatewayAccount('telegram', instance.accountId); await state.connect(); checking = true;
+        await this.workers.get(instanceId)?.stop();
+        this.workers.delete(instanceId);
+        release = await claimGatewayAccount('telegram', instance.accountId);
+        await state.connect();
+        checking = true;
         const result = await work(state);
         const health: GatewayHealth = { instanceId, status: 'paused', reason: '', attempts: 0, updatedAt: Date.now() };
-        this.statuses.set(instanceId, health); emit('gateway-health', { ...health }); return result;
+        this.statuses.set(instanceId, health);
+        emit('gateway-health', { ...health });
+        return result;
       } catch (error) {
         if (checking && error instanceof Error && 'status' in error) throw error;
-        throw Object.assign(new Error('Telegram setup could not be checked safely. Check storage and ownership, then reload setup.'), { status: 503 });
-      } finally { await state.disconnect(); await release?.(); }
+        throw Object.assign(
+          new Error('Telegram setup could not be checked safely. Check storage and ownership, then reload setup.'),
+          { status: 503 },
+        );
+      } finally {
+        await state.disconnect();
+        await release?.();
+      }
     });
-    this.pending = task.then(() => {}, () => {}); return task;
+    this.pending = task.then(
+      () => {},
+      () => {},
+    );
+    return task;
   }
 
   checkTelegramSetup(instanceId: string): Promise<GatewayTelegramSetup> {
@@ -304,90 +499,181 @@ export class GatewaySupervisor {
   start(): Promise<void> {
     if (this.closed) return Promise.resolve();
     if (!this.listening) {
-      bus.on('event', this.changed); this.listening = true;
-      this.mediaTimer = setInterval(() => { void this.cleanRetiredMedia(); }, 60 * 60 * 1000);
+      bus.on('event', this.changed);
+      this.listening = true;
+      this.mediaTimer = setInterval(
+        () => {
+          void this.cleanRetiredMedia();
+        },
+        60 * 60 * 1000,
+      );
       this.mediaTimer.unref();
     }
     let retired: string[] = [];
     try {
       retired = gatewayRetirementIds().filter((id) => {
-        try { const record = gatewayRetirement(id); return record !== undefined && record.completedAt === undefined; }
-        catch { return false; } // Keep a broken record blocked without delaying another instance's removal.
+        try {
+          const record = gatewayRetirement(id);
+          return record !== undefined && record.completedAt === undefined;
+        } catch {
+          return false;
+        } // Keep a broken record blocked without delaying another instance's removal.
       });
-    } catch { /* An unreadable directory cannot safely resume pending removals. */ }
-    return Promise.allSettled([...retired.map((id) => this.removeInstance(id)), ...listGatewayInstances().map((instance) => this.reconnect(instance.id))]).then(() => this.cleanRetiredMedia()).then(() => {});
+    } catch {
+      /* An unreadable directory cannot safely resume pending removals. */
+    }
+    return Promise.allSettled([
+      ...retired.map((id) => this.removeInstance(id)),
+      ...listGatewayInstances().map((instance) => this.reconnect(instance.id)),
+    ])
+      .then(() => this.cleanRetiredMedia())
+      .then(() => {});
   }
 
   /** Retry local scratch cleanup on startup and hourly; one blocked instance cannot delay the rest. */
   async cleanRetiredMedia(): Promise<{ removed: number; blocked: number }> {
     let ids: string[];
-    try { ids = gatewayRetirementIds(); } catch { return { removed: 0, blocked: 1 }; }
-    let removed = 0; let blocked = 0;
+    try {
+      ids = gatewayRetirementIds();
+    } catch {
+      return { removed: 0, blocked: 1 };
+    }
+    let removed = 0;
+    let blocked = 0;
     for (const id of ids) {
       if (this.closed) break;
       try {
         const retired = gatewayRetirement(id);
-        if (retired?.completedAt === undefined || Date.now() - retired.completedAt < GATEWAY_MEDIA_RETENTION_MS) continue;
+        if (retired?.completedAt === undefined || Date.now() - retired.completedAt < GATEWAY_MEDIA_RETENTION_MS)
+          continue;
         removed += (await this.retiredReviewTask(id, () => cleanRetiredGatewayMedia(id))).removed;
-      } catch { blocked++; }
+      } catch {
+        blocked++;
+      }
     }
     return { removed, blocked };
   }
 
   removeInstance(instanceId: string): Promise<void> {
     const task = this.pending.then(async () => {
-      if (this.closed) throw Object.assign(new Error('Restart Athena before continuing gateway removal.'), { status: 503 });
+      if (this.closed)
+        throw Object.assign(new Error('Restart Athena before continuing gateway removal.'), { status: 503 });
       let saved = false;
-      let releaseAccount: (() => Promise<void>) | undefined; let releaseState: (() => Promise<void>) | undefined;
+      let releaseAccount: (() => Promise<void>) | undefined;
+      let releaseState: (() => Promise<void>) | undefined;
       try {
-        const retired = retireGatewayInstance(instanceId); saved = true;
+        const retired = retireGatewayInstance(instanceId);
+        saved = true;
         if (retired.completedAt !== undefined) return;
-        await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
+        await this.workers.get(instanceId)?.stop();
+        this.workers.delete(instanceId);
         releaseAccount = await claimGatewayAccount(retired.platform, retired.accountId);
         releaseState = await claimGatewayState(instanceId);
         removeGatewayInstance(instanceId);
-        this.statuses.delete(instanceId); this.reviews.delete(instanceId); this.changedInboxes.delete(instanceId);
+        this.statuses.delete(instanceId);
+        this.reviews.delete(instanceId);
+        this.changedInboxes.delete(instanceId);
       } catch (error) {
-        if (!saved && error instanceof Error && 'status' in error && (error.status === 400 || error.status === 404 || error.status === 503)) throw error;
-        throw Object.assign(new Error('Gateway removal could not finish safely. Its saved receipts are kept. Check storage and ownership, then retry removal.'), { status: 503 });
-      } finally { await releaseState?.(); await releaseAccount?.(); }
+        if (
+          !saved &&
+          error instanceof Error &&
+          'status' in error &&
+          (error.status === 400 || error.status === 404 || error.status === 503)
+        )
+          throw error;
+        throw Object.assign(
+          new Error(
+            'Gateway removal could not finish safely. Its saved receipts are kept. Check storage and ownership, then retry removal.',
+          ),
+          { status: 503 },
+        );
+      } finally {
+        await releaseState?.();
+        await releaseAccount?.();
+      }
     });
-    this.pending = task.then(() => {}, () => {}); return task;
+    this.pending = task.then(
+      () => {},
+      () => {},
+    );
+    return task;
   }
 
   private retiredReviewTask<T>(instanceId: string, work: () => T): Promise<T> {
     const task = this.pending.then(async () => {
-      let releaseAccount: (() => Promise<void>) | undefined; let releaseState: (() => Promise<void>) | undefined;
+      let releaseAccount: (() => Promise<void>) | undefined;
+      let releaseState: (() => Promise<void>) | undefined;
       try {
         const retired = gatewayRetirement(instanceId);
         if (!retired) throw Object.assign(new Error('No such removed gateway instance.'), { status: 404 });
-        if (this.closed || retired.completedAt === undefined) throw Object.assign(new Error('Finish removing this instance before changing its saved receipts.'), { status: 409 });
-        await this.workers.get(instanceId)?.stop(); this.workers.delete(instanceId);
-        releaseAccount = await claimGatewayAccount(retired.platform, retired.accountId); releaseState = await claimGatewayState(instanceId);
-        if (this.closed || JSON.stringify(gatewayRetirement(instanceId)) !== JSON.stringify(retired)) throw Object.assign(new Error('The removal record changed. Reload before finishing locally.'), { status: 409 });
+        if (this.closed || retired.completedAt === undefined)
+          throw Object.assign(new Error('Finish removing this instance before changing its saved receipts.'), {
+            status: 409,
+          });
+        await this.workers.get(instanceId)?.stop();
+        this.workers.delete(instanceId);
+        releaseAccount = await claimGatewayAccount(retired.platform, retired.accountId);
+        releaseState = await claimGatewayState(instanceId);
+        if (this.closed || JSON.stringify(gatewayRetirement(instanceId)) !== JSON.stringify(retired))
+          throw Object.assign(new Error('The removal record changed. Reload before finishing locally.'), {
+            status: 409,
+          });
         return await work();
       } catch (error) {
-        if (error instanceof Error && 'status' in error && (error.status === 400 || error.status === 404 || error.status === 409 || error.status === 503)) throw error;
-        throw Object.assign(new Error('Saved receipts could not be finished safely. Check storage and ownership, then reload the local-finish review.'), { status: 503 });
-      } finally { await releaseState?.(); await releaseAccount?.(); }
+        if (
+          error instanceof Error &&
+          'status' in error &&
+          (error.status === 400 || error.status === 404 || error.status === 409 || error.status === 503)
+        )
+          throw error;
+        throw Object.assign(
+          new Error(
+            'Saved receipts could not be finished safely. Check storage and ownership, then reload the local-finish review.',
+          ),
+          { status: 503 },
+        );
+      } finally {
+        await releaseState?.();
+        await releaseAccount?.();
+      }
     });
-    this.pending = task.then(() => {}, () => {}); return task;
+    this.pending = task.then(
+      () => {},
+      () => {},
+    );
+    return task;
   }
 
   prepareRetiredFinish(instanceId: string, eventId: string, body: unknown): Promise<GatewayRetiredFinishReview> {
-    return this.retiredReviewTask(instanceId, () => new GatewayInbox({ instanceId, inboxFile: () => privateDataPath('gateways-runtime', instanceId, 'inbox.json') }).prepareRetiredFinish(eventId, body));
+    return this.retiredReviewTask(instanceId, () =>
+      new GatewayInbox({
+        instanceId,
+        inboxFile: () => privateDataPath('gateways-runtime', instanceId, 'inbox.json'),
+      }).prepareRetiredFinish(eventId, body),
+    );
   }
 
   finishRetired(instanceId: string, eventId: string, body: unknown): Promise<GatewayRetiredFinishReview> {
-    return this.retiredReviewTask(instanceId, () => new GatewayInbox({ instanceId, inboxFile: () => privateDataPath('gateways-runtime', instanceId, 'inbox.json') }).finishRetired(eventId, body));
+    return this.retiredReviewTask(instanceId, () =>
+      new GatewayInbox({
+        instanceId,
+        inboxFile: () => privateDataPath('gateways-runtime', instanceId, 'inbox.json'),
+      }).finishRetired(eventId, body),
+    );
   }
 
   prepareRetiredOutbox(instanceId: string, projectId: string, postId: string, body: unknown): Promise<void> {
-    return this.retiredReviewTask(instanceId, () => { checkGatewayPostDelivery(instanceId, projectId, postId); reviewRetiredGatewayOutbox(instanceId, projectId, postId, body, true); });
+    return this.retiredReviewTask(instanceId, () => {
+      checkGatewayPostDelivery(instanceId, projectId, postId);
+      reviewRetiredGatewayOutbox(instanceId, projectId, postId, body, true);
+    });
   }
 
   finishRetiredOutbox(instanceId: string, projectId: string, postId: string, body: unknown): Promise<void> {
-    return this.retiredReviewTask(instanceId, () => { checkGatewayPostDelivery(instanceId, projectId, postId); reviewRetiredGatewayOutbox(instanceId, projectId, postId, body, false); });
+    return this.retiredReviewTask(instanceId, () => {
+      checkGatewayPostDelivery(instanceId, projectId, postId);
+      reviewRetiredGatewayOutbox(instanceId, projectId, postId, body, false);
+    });
   }
 
   reconnect(instanceId: string): Promise<void> {
@@ -396,22 +682,46 @@ export class GatewaySupervisor {
       await this.workers.get(instanceId)?.stop();
       this.workers.delete(instanceId);
       let instance;
-      try { instance = getGatewayInstance(instanceId); }
-      catch { this.statuses.delete(instanceId); return; }
+      try {
+        instance = getGatewayInstance(instanceId);
+      } catch {
+        this.statuses.delete(instanceId);
+        return;
+      }
       const publish = (health: GatewayHealth) => {
         this.statuses.set(instanceId, health);
         emit('gateway-health', { ...health });
       };
       if (!instance.enabled || !gatewayPlatformAvailable(instance.platform)) {
-        publish({ instanceId, status: instance.enabled ? 'needs-setup' : 'paused', reason: instance.enabled ? 'This platform is not available yet.' : '', attempts: 0, updatedAt: Date.now() });
+        publish({
+          instanceId,
+          status: instance.enabled ? 'needs-setup' : 'paused',
+          reason: instance.enabled ? 'This platform is not available yet.' : '',
+          attempts: 0,
+          updatedAt: Date.now(),
+        });
         return;
       }
       const worker = this.worker(instanceId, publish);
       this.workers.set(instanceId, worker);
-      void worker.start().catch(() => publish({ instanceId, status: 'needs-setup', reason: 'This gateway could not stop or reconnect safely. Restart Athena before retrying.', attempts: 0, updatedAt: Date.now() }));
+      void worker.start().catch(() =>
+        publish({
+          instanceId,
+          status: 'needs-setup',
+          reason: 'This gateway could not stop or reconnect safely. Restart Athena before retrying.',
+          attempts: 0,
+          updatedAt: Date.now(),
+        }),
+      );
     });
     this.pending = task.catch(() => {
-      const health: GatewayHealth = { instanceId, status: 'needs-setup', reason: 'This gateway could not stop safely. Restart Athena before retrying.', attempts: 0, updatedAt: Date.now() };
+      const health: GatewayHealth = {
+        instanceId,
+        status: 'needs-setup',
+        reason: 'This gateway could not stop safely. Restart Athena before retrying.',
+        attempts: 0,
+        updatedAt: Date.now(),
+      };
       this.statuses.set(instanceId, health);
       emit('gateway-health', { ...health });
     });
@@ -420,7 +730,8 @@ export class GatewaySupervisor {
 
   async stop(): Promise<void> {
     this.closed = true;
-    clearInterval(this.mediaTimer); this.mediaTimer = undefined;
+    clearInterval(this.mediaTimer);
+    this.mediaTimer = undefined;
     bus.off('event', this.changed);
     await this.pending;
     await Promise.all([...this.workers.values()].map((worker) => worker.stop()));

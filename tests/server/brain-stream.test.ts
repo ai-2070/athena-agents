@@ -54,7 +54,9 @@ describe('think() with onPart', () => {
     vi.stubGlobal('fetch', async () => {
       const enc = new TextEncoder();
       const body = `data: ${JSON.stringify({ choices: [{ delta: { content: '{"half": ' } }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'length' }] })}\n\n`;
-      return new Response(new ReadableStream({ start: (c) => (c.enqueue(enc.encode(body)), c.close()) }), { status: 200 });
+      return new Response(new ReadableStream({ start: (c) => (c.enqueue(enc.encode(body)), c.close()) }), {
+        status: 200,
+      });
     });
     await expect(think('system', 'user', { onPart: () => {} })).rejects.toThrow(/cut off/);
   });
@@ -75,7 +77,9 @@ describe('think() with onPart', () => {
 describe('run() with onLine', () => {
   it("gets each line of a program's output as it comes, the last one too", async () => {
     const lines: string[] = [];
-    const r = await run(process.execPath, ['-e', "process.stdout.write('one\\ntwo\\nthree')"], { onLine: (l) => lines.push(l) });
+    const r = await run(process.execPath, ['-e', "process.stdout.write('one\\ntwo\\nthree')"], {
+      onLine: (l) => lines.push(l),
+    });
     expect(r.code).toBe(0);
     expect(lines).toEqual(['one', 'two', 'three']);
   });

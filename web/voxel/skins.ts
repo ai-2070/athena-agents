@@ -60,7 +60,13 @@ export interface SkinHost {
 /** A prefab variant, meshed and shared (counted: release it when done). */
 export interface SharedMesh {
   key: string;
-  parts: { geo: THREE.BufferGeometry; cls: RenderClass; local: THREE.Matrix4; lights?: Float32Array; voxelSize?: number }[];
+  parts: {
+    geo: THREE.BufferGeometry;
+    cls: RenderClass;
+    local: THREE.Matrix4;
+    lights?: Float32Array;
+    voxelSize?: number;
+  }[];
 }
 
 /** What skins need from the world layer: the world, its prefabs' voxels, meshes of them. */
@@ -95,8 +101,9 @@ export interface SkinPlan {
 export function agentPlan(s: AgentSkin | undefined, has: (id: string) => boolean): SkinPlan {
   const plan: SkinPlan = { hideAll: !!s?.hidden, hide: [], models: [], label: s?.label !== false };
   if (!s || s.hidden) return plan;
-  if (s.character && has(s.character)) plan.hide.push('person'), plan.models.push({ role: 'character', prefab: s.character });
-  if (s.desk && has(s.desk)) plan.hide.push('furniture'), plan.models.push({ role: 'desk', prefab: s.desk });
+  if (s.character && has(s.character))
+    (plan.hide.push('person'), plan.models.push({ role: 'character', prefab: s.character }));
+  if (s.desk && has(s.desk)) (plan.hide.push('furniture'), plan.models.push({ role: 'desk', prefab: s.desk }));
   return plan;
 }
 export function teamPlan(s: TeamSkin | undefined, has: (id: string) => boolean): SkinPlan {
@@ -106,8 +113,9 @@ export function teamPlan(s: TeamSkin | undefined, has: (id: string) => boolean):
     plan.hide.push('floor', 'hub', 'extras');
     return plan;
   }
-  if (s.platform && has(s.platform)) plan.hide.push('floor'), plan.models.push({ role: 'platform', prefab: s.platform });
-  if (s.hub && has(s.hub)) plan.hide.push('hub'), plan.models.push({ role: 'hub', prefab: s.hub });
+  if (s.platform && has(s.platform))
+    (plan.hide.push('floor'), plan.models.push({ role: 'platform', prefab: s.platform }));
+  if (s.hub && has(s.hub)) (plan.hide.push('hub'), plan.models.push({ role: 'hub', prefab: s.hub }));
   return plan;
 }
 export function brainPlan(s: BrainSkin | undefined, has: (id: string) => boolean): SkinPlan {
@@ -115,7 +123,7 @@ export function brainPlan(s: BrainSkin | undefined, has: (id: string) => boolean
   if (!s || s.hidden) return plan;
   if (s.globe === false) plan.hide.push('globe');
   // a shell takes the pedestal's place and wraps the globe
-  if (s.shell && has(s.shell)) plan.hide.push('base'), plan.models.push({ role: 'shell', prefab: s.shell });
+  if (s.shell && has(s.shell)) (plan.hide.push('base'), plan.models.push({ role: 'shell', prefab: s.shell }));
   return plan;
 }
 
@@ -204,22 +212,59 @@ export class SkinLayer {
     const has = (id: string) => prefabs.has(id);
     const v = this.host.version();
     this.version = v;
-    const want = new Map<string, { plan: SkinPlan; anchorOf: () => THREE.Object3D | null; hideOf: (role: SkinPlan['hide'][number]) => THREE.Object3D[]; all: () => THREE.Object3D | null; skin: AgentSkin | TeamSkin | BrainSkin | undefined; label: [Parameters<SkinHost['setLabel']>[0], string]; pick: unknown; agent?: AgentTarget }>();
+    const want = new Map<
+      string,
+      {
+        plan: SkinPlan;
+        anchorOf: () => THREE.Object3D | null;
+        hideOf: (role: SkinPlan['hide'][number]) => THREE.Object3D[];
+        all: () => THREE.Object3D | null;
+        skin: AgentSkin | TeamSkin | BrainSkin | undefined;
+        label: [Parameters<SkinHost['setLabel']>[0], string];
+        pick: unknown;
+        agent?: AgentTarget;
+      }
+    >();
     if (w) {
       const b = this.host.brain();
       const bs = skins?.brain;
       if (b && bs) {
-        want.set('brain', { plan: brainPlan(bs, has), anchorOf: () => b.anchor, hideOf: (r) => (r === 'base' ? b.base : r === 'globe' ? b.globe : []), all: () => b.anchor, skin: bs, label: ['brain', 'brain'], pick: b.pick });
+        want.set('brain', {
+          plan: brainPlan(bs, has),
+          anchorOf: () => b.anchor,
+          hideOf: (r) => (r === 'base' ? b.base : r === 'globe' ? b.globe : []),
+          all: () => b.anchor,
+          skin: bs,
+          label: ['brain', 'brain'],
+          pick: b.pick,
+        });
       }
       for (const [id, ts] of Object.entries(skins?.teams || {})) {
         const t = this.host.team(id);
         if (!t) continue;
-        want.set(`team:${id}`, { plan: teamPlan(ts, has), anchorOf: () => t.anchor, hideOf: (r) => (r === 'floor' ? t.floor : r === 'hub' ? t.hub : r === 'extras' ? t.extras : []), all: () => null, skin: ts, label: ['branch', id], pick: t.pick });
+        want.set(`team:${id}`, {
+          plan: teamPlan(ts, has),
+          anchorOf: () => t.anchor,
+          hideOf: (r) => (r === 'floor' ? t.floor : r === 'hub' ? t.hub : r === 'extras' ? t.extras : []),
+          all: () => null,
+          skin: ts,
+          label: ['branch', id],
+          pick: t.pick,
+        });
       }
       for (const a of this.host.agents()) {
         const as = skins?.agents?.[a.agentId];
         if (!as) continue;
-        want.set(`agent:${a.key}`, { plan: agentPlan(as, has), anchorOf: () => a.anchor, hideOf: (r) => (r === 'person' ? [a.person] : r === 'furniture' ? a.furniture : []), all: () => a.anchor, skin: as, label: ['agent', a.agentId], pick: a.pick, agent: a });
+        want.set(`agent:${a.key}`, {
+          plan: agentPlan(as, has),
+          anchorOf: () => a.anchor,
+          hideOf: (r) => (r === 'person' ? [a.person] : r === 'furniture' ? a.furniture : []),
+          all: () => a.anchor,
+          skin: as,
+          label: ['agent', a.agentId],
+          pick: a.pick,
+          agent: a,
+        });
       }
     }
     // what each needs, as a fingerprint: the skin, its prefabs' versions, the palette (all of it: a ramp or
@@ -227,10 +272,22 @@ export class SkinLayer {
     const palette = w ? JSON.stringify(w.palette) : '';
     const fingerprintOf = (key: string, x: { plan: SkinPlan; skin: unknown }) => {
       const prefabIds = x.plan.models.map((m) => m.prefab);
-      return JSON.stringify([key, v, x.skin, prefabIds.map((id) => [id, stamp(prefabs.get(id)), prefabs.get(id)?.animations ? JSON.stringify(prefabs.get(id)!.animations) : '']), palette.length, hashText(palette)]);
+      return JSON.stringify([
+        key,
+        v,
+        x.skin,
+        prefabIds.map((id) => [
+          id,
+          stamp(prefabs.get(id)),
+          prefabs.get(id)?.animations ? JSON.stringify(prefabs.get(id)!.animations) : '',
+        ]),
+        palette.length,
+        hashText(palette),
+      ]);
     };
     // the nested parts aren't named by the skin: an edited part (or one put in place of another) redresses too
-    const partsKeyOf = (parts: Set<string>) => JSON.stringify([...parts].sort().map((id) => [id, stamp(prefabs.get(id))]));
+    const partsKeyOf = (parts: Set<string>) =>
+      JSON.stringify([...parts].sort().map((id) => [id, stamp(prefabs.get(id))]));
     for (const [key, d] of this.dressed) {
       const x = want.get(key);
       if (!x || fingerprintOf(key, x) !== d.fingerprint || partsKeyOf(d.parts) !== d.partsKey) this.undress(key);
@@ -240,7 +297,18 @@ export class SkinLayer {
       const anchor = x.anchorOf();
       if (!anchor) continue;
       const fp = fingerprintOf(key, x);
-      const d: Dressed = { fingerprint: fp, anchor, local: localMatrix(x.skin), root: new THREE.Group(), hidden: [], label: null, meshKeys: [], parts: new Set(), partsKey: '', glow: [] };
+      const d: Dressed = {
+        fingerprint: fp,
+        anchor,
+        local: localMatrix(x.skin),
+        root: new THREE.Group(),
+        hidden: [],
+        label: null,
+        meshKeys: [],
+        parts: new Set(),
+        partsKey: '',
+        glow: [],
+      };
       d.root.matrixAutoUpdate = false;
       this.dressed.set(key, d);
       // take the classic models off
@@ -338,7 +406,15 @@ export class SkinLayer {
         const size = m.getMaxScaleOnAxis();
         for (let i = 0; i + LIGHT_STRIDE <= g.lights.length; i += LIGHT_STRIDE) {
           v.set(g.lights[i], g.lights[i + 1], g.lights[i + 2]).applyMatrix4(m);
-          out.push({ x: v.x, y: v.y, z: v.z, r: g.lights[i + 3] ** 2.2, g: g.lights[i + 4] ** 2.2, b: g.lights[i + 5] ** 2.2, strength: glowStrength(g.lights[i + 6], size) });
+          out.push({
+            x: v.x,
+            y: v.y,
+            z: v.z,
+            r: g.lights[i + 3] ** 2.2,
+            g: g.lights[i + 4] ** 2.2,
+            b: g.lights[i + 5] ** 2.2,
+            strength: glowStrength(g.lights[i + 6], size),
+          });
         }
       }
   }
@@ -346,7 +422,12 @@ export class SkinLayer {
   /** Adds to `box` where the skins of the Brain, a team or an agent are now. */
   boundsOf(kind: 'brain' | 'team' | 'agent', id: string, box: THREE.Box3): void {
     for (const [key, d] of this.dressed) {
-      const hit = kind === 'brain' ? key === 'brain' : kind === 'team' ? key === `team:${id}` : d.agentId === id || key.startsWith(`agent:${id}`);
+      const hit =
+        kind === 'brain'
+          ? key === 'brain'
+          : kind === 'team'
+            ? key === `team:${id}`
+            : d.agentId === id || key.startsWith(`agent:${id}`);
       if (!hit) continue;
       d.root.updateWorldMatrix(true, true);
       box.expandByObject(d.root);
@@ -364,7 +445,18 @@ export class SkinLayer {
   /** A prefab on its own (for a picture of it): a model, and how to give its meshes back. */
   async standalone(prefab: string): Promise<{ group: THREE.Group; release: () => void } | null> {
     await this.ctx.loadPrefabs([prefab]);
-    const d: Dressed = { fingerprint: '', anchor: new THREE.Object3D(), local: new THREE.Matrix4(), root: new THREE.Group(), hidden: [], label: null, meshKeys: [], parts: new Set(), partsKey: '', glow: [] };
+    const d: Dressed = {
+      fingerprint: '',
+      anchor: new THREE.Object3D(),
+      local: new THREE.Matrix4(),
+      root: new THREE.Group(),
+      hidden: [],
+      label: null,
+      meshKeys: [],
+      parts: new Set(),
+      partsKey: '',
+      glow: [],
+    };
     const model = await this.model(prefab, d);
     if (!model) {
       for (const k of d.meshKeys) this.ctx.release(k);
@@ -377,7 +469,8 @@ export class SkinLayer {
   play(agentId: string, clip: string, times = 1): boolean {
     let any = false;
     const now = this.clock.getElapsedTime();
-    for (const d of this.dressed.values()) if (d.agentId === agentId && d.animator) any = d.animator.play(clip, now, times) || any;
+    for (const d of this.dressed.values())
+      if (d.agentId === agentId && d.animator) any = d.animator.play(clip, now, times) || any;
     return any;
   }
 
@@ -391,7 +484,10 @@ export class SkinLayer {
       d.root.matrixWorldNeedsUpdate = true;
       if (d.rig && d.animator) {
         const st = d.status?.() || 'idle';
-        d.animator.setState(stateClip(d.skin, st, (c) => d.animator!.has(c)), now);
+        d.animator.setState(
+          stateClip(d.skin, st, (c) => d.animator!.has(c)),
+          now,
+        );
         applyPose(d.rig, d.animator.update(now));
       }
     }
@@ -408,7 +504,11 @@ function localMatrix(s: { offset?: Vec3; turn?: number; scale?: number } | undef
   const m = new THREE.Matrix4();
   const off = s?.offset && s.offset.length === 3 ? s.offset : [0, 0, 0];
   const sc = s?.scale && s.scale > 0 ? s.scale : 1;
-  return m.compose(new THREE.Vector3(off[0], off[1], off[2]), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, (s?.turn || 0) * DEG, 0)), new THREE.Vector3(sc, sc, sc));
+  return m.compose(
+    new THREE.Vector3(off[0], off[1], off[2]),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0, (s?.turn || 0) * DEG, 0)),
+    new THREE.Vector3(sc, sc, sc),
+  );
 }
 
 function hashText(s: string): string {

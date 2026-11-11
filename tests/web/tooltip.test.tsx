@@ -19,7 +19,15 @@ afterEach(() => act(() => root.unmount()));
 
 describe('the tooltip', () => {
   it('shows its label while the pointer is over what it belongs to, and goes when it leaves', async () => {
-    await act(async () => root.render(<Tooltip label="Writer · working"><button type="button" aria-label="Go to Writer">W</button></Tooltip>));
+    await act(async () =>
+      root.render(
+        <Tooltip label="Writer · working">
+          <button type="button" aria-label="Go to Writer">
+            W
+          </button>
+        </Tooltip>,
+      ),
+    );
     const button = document.querySelector<HTMLButtonElement>('button')!;
     expect(document.querySelector('.tooltip')).toBeNull();
     await act(async () => {

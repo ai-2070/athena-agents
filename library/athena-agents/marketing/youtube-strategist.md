@@ -73,6 +73,7 @@ costs more than it brings.
 
   A better thumbnail doesn't save a video people leave in the first 30 seconds, and a strong curve on a video few people
   are shown is a topic or packaging problem.
+
 - **Compare with the channel's own past**, not outside benchmarks, and year on year for seasonal topics. "Typical"
   retention compares a video with the channel's ten latest videos of similar length. The only CTR range YouTube gives is
   that half of all channels and videos sit between 2% and 10%, which is why one rate alone says little.

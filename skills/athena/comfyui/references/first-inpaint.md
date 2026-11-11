@@ -21,12 +21,12 @@ The Templates button in ComfyUI's left sidebar opens the template browser; searc
 Opening a template costs nothing, and ComfyUI then lists the model files it lacks, with their sizes ("Missing models"
 in `references/setup-and-deps.md`). For photos, start from **Flux.1 Inpaint**:
 
-| File | Folder under `models` | Size |
-|---|---|---|
-| `flux1-fill-dev.safetensors` | `diffusion_models` | 23.8 GB |
-| `t5xxl_fp16.safetensors` | `text_encoders` | 9.8 GB |
-| `clip_l.safetensors` | `text_encoders` | 0.25 GB |
-| `ae.safetensors` | `vae` | 0.34 GB |
+| File                         | Folder under `models` | Size    |
+| ---------------------------- | --------------------- | ------- |
+| `flux1-fill-dev.safetensors` | `diffusion_models`    | 23.8 GB |
+| `t5xxl_fp16.safetensors`     | `text_encoders`       | 9.8 GB  |
+| `clip_l.safetensors`         | `text_encoders`       | 0.25 GB |
+| `ae.safetensors`             | `vae`                 | 0.34 GB |
 
 About 34 GB in all, as Hugging Face counts; Windows shows each file a little smaller. `t5xxl_fp8_e4m3fn.safetensors`
 (4.9 GB, from huggingface.co/comfyanonymous/flux_text_encoders, where the template's own text encoders come from) can
@@ -115,16 +115,42 @@ to the sky the user wants. Saved from ComfyUI (File › Save), it shows in the d
 
 ```json
 {
-  "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "512-inpainting-ema.safetensors"}},
-  "2": {"class_type": "LoadImage", "inputs": {"image": "photo.png"}},
-  "3": {"class_type": "ImageScaleToTotalPixels", "inputs": {"image": ["2", 0], "upscale_method": "lanczos", "megapixels": 0.25, "resolution_steps": 8}},
-  "4": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["1", 1], "text": "clear blue sky with a few high white clouds, bright afternoon light"}},
-  "5": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["1", 1], "text": "text, watermark"}},
-  "6": {"class_type": "VAEEncodeForInpaint", "inputs": {"pixels": ["3", 0], "vae": ["1", 2], "mask": ["2", 1], "grow_mask_by": 6}},
-  "7": {"class_type": "KSampler", "inputs": {"model": ["1", 0], "positive": ["4", 0], "negative": ["5", 0], "latent_image": ["6", 0], "seed": 1, "steps": 20, "cfg": 8.0, "sampler_name": "uni_pc_bh2", "scheduler": "normal", "denoise": 1.0}},
-  "8": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["1", 2]}},
-  "9": {"class_type": "ImageCompositeMasked", "inputs": {"destination": ["2", 0], "source": ["8", 0], "mask": ["2", 1], "x": 0, "y": 0, "resize_source": true}},
-  "10": {"class_type": "SaveImage", "inputs": {"images": ["9", 0], "filename_prefix": "new_sky"}}
+  "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "512-inpainting-ema.safetensors" } },
+  "2": { "class_type": "LoadImage", "inputs": { "image": "photo.png" } },
+  "3": {
+    "class_type": "ImageScaleToTotalPixels",
+    "inputs": { "image": ["2", 0], "upscale_method": "lanczos", "megapixels": 0.25, "resolution_steps": 8 }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "clip": ["1", 1], "text": "clear blue sky with a few high white clouds, bright afternoon light" }
+  },
+  "5": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": "text, watermark" } },
+  "6": {
+    "class_type": "VAEEncodeForInpaint",
+    "inputs": { "pixels": ["3", 0], "vae": ["1", 2], "mask": ["2", 1], "grow_mask_by": 6 }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "latent_image": ["6", 0],
+      "seed": 1,
+      "steps": 20,
+      "cfg": 8.0,
+      "sampler_name": "uni_pc_bh2",
+      "scheduler": "normal",
+      "denoise": 1.0
+    }
+  },
+  "8": { "class_type": "VAEDecode", "inputs": { "samples": ["7", 0], "vae": ["1", 2] } },
+  "9": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": { "destination": ["2", 0], "source": ["8", 0], "mask": ["2", 1], "x": 0, "y": 0, "resize_source": true }
+  },
+  "10": { "class_type": "SaveImage", "inputs": { "images": ["9", 0], "filename_prefix": "new_sky" } }
 }
 ```
 

@@ -21,7 +21,10 @@ import type { Engine, EngineRunArgs, EngineResult } from './index.ts';
 
 export type PiFlavor = 'pi' | 'omp';
 const LABEL: Record<PiFlavor, string> = { pi: 'pi', omp: 'oh-my-pi' };
-const INSTALL: Record<PiFlavor, string> = { pi: 'npm install -g @earendil-works/pi-coding-agent', omp: 'bun install -g @oh-my-pi/pi-coding-agent' };
+const INSTALL: Record<PiFlavor, string> = {
+  pi: 'npm install -g @earendil-works/pi-coding-agent',
+  omp: 'bun install -g @oh-my-pi/pi-coding-agent',
+};
 
 // ---------- the event stream (only the fields used here) ----------
 interface PiUsage {
@@ -84,7 +87,13 @@ export function toolText(result: unknown): string {
   return result == null ? '' : JSON.stringify(result);
 }
 
-const messageText = (m: PiMessage | undefined): string => (typeof m?.content === 'string' ? m.content : (m?.content || []).filter((c) => c?.type === 'text').map((c) => c.text || '').join(''));
+const messageText = (m: PiMessage | undefined): string =>
+  typeof m?.content === 'string'
+    ? m.content
+    : (m?.content || [])
+        .filter((c) => c?.type === 'text')
+        .map((c) => c.text || '')
+        .join('');
 
 /** Reads the event stream into chat events and the run's answer, usage and session. */
 export function piReader(onEvent: (ev: RunEvent) => void, onSession: (id: string) => void) {
@@ -138,21 +147,45 @@ export function piReader(onEvent: (ev: RunEvent) => void, onSession: (id: string
       cost += u.cost?.total || 0;
       const ctx = (u.input || 0) + (u.cacheRead || 0) + (u.cacheWrite || 0) + (u.output || 0);
       if (ctx) context = ctx;
-      lastError = m.stopReason === 'error' || m.stopReason === 'aborted' ? m.errorMessage || `The model stopped (${m.stopReason}).` : '';
+      lastError =
+        m.stopReason === 'error' || m.stopReason === 'aborted'
+          ? m.errorMessage || `The model stopped (${m.stopReason}).`
+          : '';
     } else if (t === 'tool_execution_start' && ev.toolCallId) {
       streamed = '';
-      onEvent({ kind: 'tool', id: ev.toolCallId, name: ev.toolName || 'tool', args: ev.args && typeof ev.args === 'object' ? ev.args : {} });
+      onEvent({
+        kind: 'tool',
+        id: ev.toolCallId,
+        name: ev.toolName || 'tool',
+        args: ev.args && typeof ev.args === 'object' ? ev.args : {},
+      });
     } else if (t === 'tool_execution_end' && ev.toolCallId) {
       // (a picture it read, a screenshot: shown under the tool call)
       const images = toolImages(ev.result);
       const text = toolText(ev.result);
       const taskResult = /(?:^|[_:])Task(?:Create|Update)$/.test(ev.toolName || '');
-      onEvent({ kind: 'tool_result', id: ev.toolCallId, text: taskResult ? text : text.slice(0, 20000), isError: !!ev.isError, ...(images.length ? { images } : {}) });
-    } else if (t === 'auto_retry_start') onEvent({ kind: 'status', text: `Trying again (${ev.attempt || 1}/${ev.maxAttempts || '?'})${ev.errorMessage ? `: ${ev.errorMessage.slice(0, 100)}` : ''}` });
-    else if (t === 'compaction_start' || t === 'auto_compaction_start') onEvent({ kind: 'status', text: 'Compacting its memory…' });
+      onEvent({
+        kind: 'tool_result',
+        id: ev.toolCallId,
+        text: taskResult ? text : text.slice(0, 20000),
+        isError: !!ev.isError,
+        ...(images.length ? { images } : {}),
+      });
+    } else if (t === 'auto_retry_start')
+      onEvent({
+        kind: 'status',
+        text: `Trying again (${ev.attempt || 1}/${ev.maxAttempts || '?'})${ev.errorMessage ? `: ${ev.errorMessage.slice(0, 100)}` : ''}`,
+      });
+    else if (t === 'compaction_start' || t === 'auto_compaction_start')
+      onEvent({ kind: 'status', text: 'Compacting its memory…' });
     else if ((t === 'compaction_end' || t === 'auto_compaction_end') && !ev.aborted) {
       const r = (ev as { result?: { tokensBefore?: number } }).result;
-      if (r) onEvent({ kind: 'compacted', trigger: ev.reason === 'manual' ? 'manual' : 'auto', ...(r.tokensBefore ? { tokensBefore: r.tokensBefore } : {}) });
+      if (r)
+        onEvent({
+          kind: 'compacted',
+          trigger: ev.reason === 'manual' ? 'manual' : 'auto',
+          ...(r.tokensBefore ? { tokensBefore: r.tokensBefore } : {}),
+        });
     } else if (t === 'notice' && ev.level !== 'info') {
       // (oh-my-pi: its warnings, as { level, message: string })
       const msg: unknown = ev.message;
@@ -178,7 +211,16 @@ function promptFile(agent: Agent, name: string, systemPrompt: string): string {
   return file;
 }
 
-export function piArgs(flavor: PiFlavor, agent: Agent, { sessionId = '', resume = false, instructions = '', interactive = false }: { sessionId?: string; resume?: boolean; instructions?: string; interactive?: boolean } = {}): string[] {
+export function piArgs(
+  flavor: PiFlavor,
+  agent: Agent,
+  {
+    sessionId = '',
+    resume = false,
+    instructions = '',
+    interactive = false,
+  }: { sessionId?: string; resume?: boolean; instructions?: string; interactive?: boolean } = {},
+): string[] {
   // (RPC: a message sent while it works can go in)
   const args: string[] = interactive ? [] : ['--mode', 'rpc'];
   if (agent.model) args.push('--model', agent.model);
@@ -194,7 +236,14 @@ export function piArgs(flavor: PiFlavor, agent: Agent, { sessionId = '', resume 
 }
 
 export function status(flavor: PiFlavor): CliStatus {
-  return cliStatus(flavor, (s) => s.trim().replace(/^omp\//, '').split(/\s/)[0]);
+  return cliStatus(
+    flavor,
+    (s) =>
+      s
+        .trim()
+        .replace(/^omp\//, '')
+        .split(/\s/)[0],
+  );
 }
 
 // ---------- RPC mode: a message while it works ----------
@@ -237,7 +286,15 @@ const DIALOGS = new Set(['select', 'confirm', 'input', 'editor', 'ask']);
  *  it), and closing its input once it has settled (pi: agent_settled; oh-my-pi: its prompt_result or
  *  session_settled). Its other events go to the reader. oh-my-pi names a new session itself: get_session_stats
  *  says which (get_state would too, but brings its whole system prompt and every tool along). */
-function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: string, reader: ReturnType<typeof piReader>, onEvent: (ev: RunEvent) => void, signal: AbortSignal) {
+function rpcTurn(
+  flavor: PiFlavor,
+  child: ChildProcess,
+  runId: string,
+  text: string,
+  reader: ReturnType<typeof piReader>,
+  onEvent: (ev: RunEvent) => void,
+  signal: AbortSignal,
+) {
   const send = (o: object) => void (child.stdin?.writable && child.stdin.write(`${JSON.stringify(o)}\n`));
   // its own message came by first: the user messages after it are the ones sent while it worked
   let prompted = false;
@@ -276,7 +333,8 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
     if (!line.startsWith('{')) return;
     const ev = JSON.parse(line) as PiEvent & RpcFrame;
     if (ev.type === 'response') {
-      if (ev.id === 'session' && typeof ev.data?.sessionId === 'string' && ev.data.sessionId) reader.handle({ type: 'session', id: ev.data.sessionId });
+      if (ev.id === 'session' && typeof ev.data?.sessionId === 'string' && ev.data.sessionId)
+        reader.handle({ type: 'session', id: ev.data.sessionId });
       // an error for its message after it took it (oh-my-pi: its run's tracking failed): its run, if any, has
       // ended or ends on its own; a run that is over closes its input in time
       if (ev.id === 'prompt' && !ev.success && admitted) {
@@ -284,7 +342,10 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
         if (!live) input.closeIn(SETTLE_WAIT.ms);
       }
       // its own message refused, or taken by a command with no run (pi: handled; oh-my-pi: no agent): nothing more comes
-      else if (ev.id === 'prompt' && (!ev.success || ev.data?.disposition === 'handled' || ev.data?.agentInvoked === false)) {
+      else if (
+        ev.id === 'prompt' &&
+        (!ev.success || ev.data?.disposition === 'handled' || ev.data?.agentInvoked === false)
+      ) {
         if (!ev.success) refused = why(ev.error);
         close();
       }
@@ -299,7 +360,12 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
       else if (ev.command === 'steer' && ev.id && ev.data?.disposition === 'handled') shown(ev.id);
       return;
     }
-    if (ev.type === 'extension_ui_request') return void (ev.method && DIALOGS.has(ev.method) && send({ type: 'extension_ui_response', id: ev.id, cancelled: true }));
+    if (ev.type === 'extension_ui_request')
+      return void (
+        ev.method &&
+        DIALOGS.has(ev.method) &&
+        send({ type: 'extension_ui_response', id: ev.id, cancelled: true })
+      );
     if (ev.type === 'message_end' && ev.message?.role === 'user') {
       if (!prompted) {
         prompted = true;
@@ -311,7 +377,9 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
       // words (a skill, a prompt template) or files alone. Anything else is no message of ours (an extension's).
       const said = messageText(ev.message);
       const [first] = input.unread;
-      const mine = [...input.unread].find(([, m]) => !!m.text && said.includes(m.text)) ?? (first && (!first[1].text.trim() || first[1].text.startsWith('/')) ? first : undefined);
+      const mine =
+        [...input.unread].find(([, m]) => !!m.text && said.includes(m.text)) ??
+        (first && (!first[1].text.trim() || first[1].text.startsWith('/')) ? first : undefined);
       if (mine) shown(mine[0]);
       return;
     }
@@ -344,8 +412,14 @@ function rpcTurn(flavor: PiFlavor, child: ChildProcess, runId: string, text: str
 /** What oh-my-pi says when --resume names a session it doesn't have. */
 const SESSION_NOT_FOUND = /Session "[^"]*" not found/i;
 
-async function run(flavor: PiFlavor, { agent, chat, text, signal, onEvent, systemPrompt, runId }: EngineRunArgs): Promise<EngineResult> {
-  if (!which(flavor)) throw new Error(`${LABEL[flavor]} is not installed (the \`${flavor}\` command was not found). Install it with: ${INSTALL[flavor]}`);
+async function run(
+  flavor: PiFlavor,
+  { agent, chat, text, signal, onEvent, systemPrompt, runId }: EngineRunArgs,
+): Promise<EngineResult> {
+  if (!which(flavor))
+    throw new Error(
+      `${LABEL[flavor]} is not installed (the \`${flavor}\` command was not found). Install it with: ${INSTALL[flavor]}`,
+    );
   // pi: a new chat gets its own session id now; oh-my-pi names a new session itself (in its first line)
   const resume = !!chat.sessionId;
   const sessionId = chat.sessionId || (flavor === 'pi' ? crypto.randomUUID() : '');
@@ -362,7 +436,11 @@ async function run(flavor: PiFlavor, { agent, chat, text, signal, onEvent, syste
     brief += `\n\n(The dashboard's own tools can't be used in this run: ${bridge.problem} Use only your built-in tools, and tell the user this when a task needs the dashboard's tools.)`;
   }
   const instructions = promptFile(agent, `${flavor}-${runId || Date.now().toString(36)}.md`, brief);
-  const child = spawnCommand(flavor, piArgs(flavor, agent, { sessionId, resume, instructions }), { cwd: workspaceOf(agent), stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...bridgeEnv(agent.id, runId) } });
+  const child = spawnCommand(flavor, piArgs(flavor, agent, { sessionId, resume, instructions }), {
+    cwd: workspaceOf(agent),
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, ...bridgeEnv(agent.id, runId) },
+  });
   // (pi makes the session with that id even if its first line goes missing)
   if (sessionId) chat.sessionId = sessionId;
   const reader = piReader(onEvent, (id) => (chat.sessionId = id));
@@ -384,7 +462,13 @@ async function run(flavor: PiFlavor, { agent, chat, text, signal, onEvent, syste
       }
       throw new Error(msg);
     }
-    return { text: r.answer, ...(r.tokens ? { tokens: r.tokens } : {}), ...(r.cached ? { cached: r.cached } : {}), ...(r.cost ? { cost: r.cost } : {}), ...(r.context ? { context: r.context } : {}) };
+    return {
+      text: r.answer,
+      ...(r.tokens ? { tokens: r.tokens } : {}),
+      ...(r.cached ? { cached: r.cached } : {}),
+      ...(r.cost ? { cost: r.cost } : {}),
+      ...(r.context ? { context: r.context } : {}),
+    };
   } finally {
     rpc.close();
     fs.rmSync(instructions, { force: true });
@@ -393,7 +477,10 @@ async function run(flavor: PiFlavor, { agent, chat, text, signal, onEvent, syste
 
 /** The interactive terminal: the agent brief stays in a file for the whole session. */
 export function terminalArgs(flavor: PiFlavor, agent: Agent, systemPrompt: string): string[] {
-  return piArgs(flavor, agent, { interactive: true, instructions: promptFile(agent, `terminal-${flavor}-instructions.md`, systemPrompt) });
+  return piArgs(flavor, agent, {
+    interactive: true,
+    instructions: promptFile(agent, `terminal-${flavor}-instructions.md`, systemPrompt),
+  });
 }
 
 export const pi: Engine<CliStatus> = { run: (a) => run('pi', a), status: () => status('pi'), steer };
@@ -433,10 +520,23 @@ export async function listModels(flavor: PiFlavor): Promise<PiModel[]> {
   else {
     const r = await runCmd('omp', ['models', '--json'], { timeout: 60000, maxBytes: 20_000_000 });
     try {
-      const j = JSON.parse(r.stdout.slice(r.stdout.indexOf('{'))) as { models?: { selector?: string; provider?: string; id?: string; name?: string; contextWindow?: number; kind?: string }[] };
+      const j = JSON.parse(r.stdout.slice(r.stdout.indexOf('{'))) as {
+        models?: {
+          selector?: string;
+          provider?: string;
+          id?: string;
+          name?: string;
+          contextWindow?: number;
+          kind?: string;
+        }[];
+      };
       list = (j.models || [])
         .filter((m) => (m.kind || 'chat') === 'chat' && (m.selector || m.id))
-        .map((m) => ({ id: m.selector || `${m.provider}/${m.id}`, name: m.name || m.id || '', ...(m.contextWindow ? { context: m.contextWindow } : {}) }));
+        .map((m) => ({
+          id: m.selector || `${m.provider}/${m.id}`,
+          name: m.name || m.id || '',
+          ...(m.contextWindow ? { context: m.contextWindow } : {}),
+        }));
     } catch {
       /* not JSON */
     }
@@ -464,12 +564,16 @@ export function addBridge(flavor: PiFlavor): string {
     try {
       parsed = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^﻿/, ''));
     } catch {
-      throw new Error(`${file} isn't valid JSON, so it was left as it is. Fix it (or add the dashboard there yourself) and try again.`);
+      throw new Error(
+        `${file} isn't valid JSON, so it was left as it is. Fix it (or add the dashboard there yourself) and try again.`,
+      );
     }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(`${file} isn't an MCP config (a JSON object), so it was left as it is.`);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      throw new Error(`${file} isn't an MCP config (a JSON object), so it was left as it is.`);
     cfg = parsed as typeof cfg;
   }
-  const servers = cfg.mcpServers && typeof cfg.mcpServers === 'object' && !Array.isArray(cfg.mcpServers) ? cfg.mcpServers : {};
+  const servers =
+    cfg.mcpServers && typeof cfg.mcpServers === 'object' && !Array.isArray(cfg.mcpServers) ? cfg.mcpServers : {};
   // a call can wait while you decide on an approval: pi counts seconds, oh-my-pi milliseconds
   servers.dashboard = { command: process.execPath, args: [BRIDGE_SCRIPT], timeout: flavor === 'pi' ? 3600 : 3_600_000 };
   ensureDir(path.dirname(file));
@@ -484,16 +588,25 @@ export function ensureBridge(flavor: PiFlavor): { added: string } | { problem: s
   let entry: { command?: unknown; args?: unknown } | undefined;
   if (fs.existsSync(file)) {
     try {
-      const cfg = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) as { mcpServers?: Record<string, typeof entry> } | null;
+      const cfg = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) as {
+        mcpServers?: Record<string, typeof entry>;
+      } | null;
       entry = cfg?.mcpServers?.dashboard;
     } catch {
-      return { problem: `${file} isn't valid JSON, so the dashboard wasn't added to it. Fix it, then use the MCP servers page to add the dashboard.` };
+      return {
+        problem: `${file} isn't valid JSON, so the dashboard wasn't added to it. Fix it, then use the MCP servers page to add the dashboard.`,
+      };
     }
   }
   // a program by name is found on the PATH; one by path must be there (a hand-made entry is kept when it works)
   const there = (p: unknown) => typeof p === 'string' && (path.isAbsolute(p) ? fs.existsSync(p) : !!which(p));
   const script = Array.isArray(entry?.args) ? entry.args[0] : undefined;
-  if (entry && there(entry.command) && (typeof script !== 'string' || !path.isAbsolute(script) || fs.existsSync(script))) return null;
+  if (
+    entry &&
+    there(entry.command) &&
+    (typeof script !== 'string' || !path.isAbsolute(script) || fs.existsSync(script))
+  )
+    return null;
   try {
     return { added: addBridge(flavor) };
   } catch (e) {

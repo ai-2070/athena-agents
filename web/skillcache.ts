@@ -6,7 +6,8 @@ let cache: SkillListing[] | null = null;
 let loading: Promise<SkillListing[]> | null = null;
 export async function loadSkills(force = false): Promise<SkillListing[]> {
   if (cache && !force) return cache;
-  loading ||= rpc.skills.list()
+  loading ||= rpc.skills
+    .list()
     .then((r): SkillListing[] => (cache = r.skills))
     // not cached, so the next load tries again
     .catch((): SkillListing[] => [])

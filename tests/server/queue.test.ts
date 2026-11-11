@@ -8,10 +8,25 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // The steering here is the stop-and-go-next way (every engine that can't take a message mid-turn): Eve's
 // joining a turn is in steer-join.test.ts.
-vi.mock('../../server/eve/steer.ts', async (orig) => ({ ...(await orig<typeof import('../../server/eve/steer.ts')>()), canSteer: () => false }));
+vi.mock('../../server/eve/steer.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/eve/steer.ts')>()),
+  canSteer: () => false,
+}));
 import { newAgent } from '../../server/library.ts';
 import { chats, saveSettings, workflows } from '../../server/store.ts';
-import { activeRuns, askAgent, editQueued, loopOf, orderQueued, queueMessage, queuedMessages, startLoop, steerChat, stopChat, unqueue } from '../../server/engines/index.ts';
+import {
+  activeRuns,
+  askAgent,
+  editQueued,
+  loopOf,
+  orderQueued,
+  queueMessage,
+  queuedMessages,
+  startLoop,
+  steerChat,
+  stopChat,
+  unqueue,
+} from '../../server/engines/index.ts';
 import { getThread, queueUserMessage, stopTeam, teamState, unqueueTeam } from '../../server/teams.ts';
 import { queuedText } from '../../shared/queue.ts';
 import type { Team } from '../../shared/types.ts';
@@ -29,11 +44,17 @@ beforeAll(async () => {
     await new Promise<void>((release) => waiting.push({ last, release }));
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: `re: ${last.slice(-40)}` } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
 });
 afterAll(() => {
   for (const w of waiting.splice(0)) w.release();
@@ -41,7 +62,7 @@ afterAll(() => {
 });
 
 const until = async (ok: () => boolean, ms = 15000) => {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 20));
   }
@@ -55,7 +76,8 @@ const release = async () => {
   return w.last;
 };
 const agent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
-const userTexts = (agentId: string, chatId: string) => (chats.get(agentId, chatId)?.items || []).filter((i) => i.type === 'user').map((i) => i.text);
+const userTexts = (agentId: string, chatId: string) =>
+  (chats.get(agentId, chatId)?.items || []).filter((i) => i.type === 'user').map((i) => i.text);
 const running = (chatId: string) => activeRuns().some((r) => r.chatId === chatId);
 
 describe('queuedText()', () => {
@@ -142,7 +164,13 @@ describe('/queue in an agent chat', () => {
 describe('/queue in a team chat', () => {
   const team = () => {
     const solo = agent('Solo');
-    return workflows.save({ name: `Q ${Math.random()}`, description: '', members: [solo.id], lead: solo.id, steps: [] } as Partial<Team>);
+    return workflows.save({
+      name: `Q ${Math.random()}`,
+      description: '',
+      members: [solo.id],
+      lead: solo.id,
+      steps: [],
+    } as Partial<Team>);
   };
 
   it('posts now when nobody is working, else once the team is done', async () => {
@@ -153,14 +181,23 @@ describe('/queue in a team chat', () => {
     const later = await queueUserMessage(t.id, 'and then this');
     expect('queued' in later).toBe(true);
     expect(teamState(t.id).held?.map((q) => q.text)).toEqual(['and then this']);
-    expect(getThread(t.id).messages.filter((m) => m.from === 'user').map((m) => m.text)).toEqual(['start']);
+    expect(
+      getThread(t.id)
+        .messages.filter((m) => m.from === 'user')
+        .map((m) => m.text),
+    ).toEqual(['start']);
 
     await release();
     await until(() => getThread(t.id).messages.filter((m) => m.from === 'user').length === 2);
     expect(teamState(t.id).held).toEqual([]);
     await release();
     await until(() => !teamState(t.id).working.length && !teamState(t.id).queued.length);
-    expect(getThread(t.id).messages.map((m) => m.from === 'user' ? `you: ${m.text}` : 'agent')).toEqual(['you: start', 'agent', 'you: and then this', 'agent']);
+    expect(getThread(t.id).messages.map((m) => (m.from === 'user' ? `you: ${m.text}` : 'agent'))).toEqual([
+      'you: start',
+      'agent',
+      'you: and then this',
+      'agent',
+    ]);
   });
 
   it('Stop hands the held messages back and posts none of them', async () => {
@@ -174,7 +211,11 @@ describe('/queue in a team chat', () => {
     waiting.splice(0).forEach((w) => w.release());
     await until(() => !teamState(t.id).working.length);
     await new Promise((r) => setTimeout(r, 50));
-    expect(getThread(t.id).messages.filter((m) => m.from === 'user').map((m) => m.text)).toEqual(['start']);
+    expect(
+      getThread(t.id)
+        .messages.filter((m) => m.from === 'user')
+        .map((m) => m.text),
+    ).toEqual(['start']);
   });
 
   it('refuses an empty /queue', async () => {
@@ -196,7 +237,10 @@ describe('steering an agent chat: a message while it works', () => {
     await steerChat(a, c, 'change of plan');
     expect(queuedMessages(c.id).map((q) => q.text)).toEqual(['then tidy up']);
     expect(running(c.id)).toBe(true);
-    expect(chats.get(a.id, c.id)!.items.find((i) => i.type === 'error')).toMatchObject({ text: 'Stopped to take your new message.', stopped: 'steer' });
+    expect(chats.get(a.id, c.id)!.items.find((i) => i.type === 'error')).toMatchObject({
+      text: 'Stopped to take your new message.',
+      stopped: 'steer',
+    });
     expect(await release()).toContain('change of plan');
     expect(await release()).toContain('then tidy up');
     await until(() => !running(c.id));
@@ -217,7 +261,9 @@ describe('steering an agent chat: a message while it works', () => {
     // the stopped run ended by itself later: your message went first, the queued one still waits
     const started = await runId;
     expect(typeof started).toBe('string');
-    expect(chats.get(a.id, c.id)!.items.some((i) => i.type === 'error' && i.text === 'Stopped to take your new message.')).toBe(true);
+    expect(
+      chats.get(a.id, c.id)!.items.some((i) => i.type === 'error' && i.text === 'Stopped to take your new message.'),
+    ).toBe(true);
     expect(await release()).toContain('change of plan');
     expect(await release()).toContain('then tidy up');
     await until(() => !running(c.id));

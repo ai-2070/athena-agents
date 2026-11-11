@@ -7,9 +7,27 @@ import path from 'node:path';
 import { dataPath, readJSON, writeJSON, fetchJSON, uid } from './util.ts';
 import { viewable, kindOf } from './files.ts';
 import { teamOf } from './artifacts.ts';
-import { getSettings, getSecrets, getGatewaySecrets, outbox as outboxStore, emit, log, activeProject, withProject } from './store.ts';
+import {
+  getSettings,
+  getSecrets,
+  getGatewaySecrets,
+  outbox as outboxStore,
+  emit,
+  log,
+  activeProject,
+  withProject,
+} from './store.ts';
 import { listGatewayInstances } from './gateways/instances.ts';
-import { approveGatewayPost, assertGatewayDraftMutable, checkGatewayDraft, gatewayDraftRevision, gatewayPost, gatewayTextParts, prepareGatewayPost, projectGatewayPost } from './gateways/outbox-posts.ts';
+import {
+  approveGatewayPost,
+  assertGatewayDraftMutable,
+  checkGatewayDraft,
+  gatewayDraftRevision,
+  gatewayPost,
+  gatewayTextParts,
+  prepareGatewayPost,
+  projectGatewayPost,
+} from './gateways/outbox-posts.ts';
 import type { GatewayOutboxReadCache } from './gateways/outbox-posts.ts';
 export { prepareGatewayPost } from './gateways/outbox-posts.ts';
 import * as reddit from './reddit.ts';
@@ -146,9 +164,18 @@ const saveAccounts = (a: AccountsFile) => writeJSON(ACCOUNTS_FILE, a);
 export function listAccounts(): Accounts {
   const a = loadAccounts();
   const s = getSettings();
-  const gateways = listGatewayInstances().filter((instance) => instance.projectId === activeProject().id && Boolean(getGatewaySecrets(instance.id).botToken));
+  const gateways = listGatewayInstances().filter(
+    (instance) => instance.projectId === activeProject().id && Boolean(getGatewaySecrets(instance.id).botToken),
+  );
   return {
-    x: Object.values(a.x || {}).map(({ id, username, name, autopost, connectedAt, avatar }) => ({ id, username, name, autopost: !!autopost, connectedAt, avatar })),
+    x: Object.values(a.x || {}).map(({ id, username, name, autopost, connectedAt, avatar }) => ({
+      id,
+      username,
+      name,
+      autopost: !!autopost,
+      connectedAt,
+      avatar,
+    })),
     xAppConfigured: !!s.x.clientId,
     telegram: { configured: gateways.some((instance) => instance.platform === 'telegram') },
     discord: { configured: gateways.some((instance) => instance.platform === 'discord') },
@@ -197,9 +224,17 @@ export async function xAuthCallback({ code, state, error }: OAuthQuery): Promise
   const tok = await fetchJSON<XToken>('https://api.x.com/2/oauth2/token', {
     method: 'POST',
     headers: tokenHeaders(),
-    body: new URLSearchParams({ code: String(code), grant_type: 'authorization_code', client_id: clientId, redirect_uri: p.redirectUri, code_verifier: p.verifier }),
+    body: new URLSearchParams({
+      code: String(code),
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      redirect_uri: p.redirectUri,
+      code_verifier: p.verifier,
+    }),
   });
-  const me = await fetchJSON<{ data: XUser }>(`${X_API}/users/me?user.fields=profile_image_url,name,username`, { headers: { authorization: `Bearer ${tok.access_token}` } });
+  const me = await fetchJSON<{ data: XUser }>(`${X_API}/users/me?user.fields=profile_image_url,name,username`, {
+    headers: { authorization: `Bearer ${tok.access_token}` },
+  });
   const a = loadAccounts();
   a.x ||= {};
   const prev: Partial<StoredXAccount> = a.x[me.data.id] || {};
@@ -233,7 +268,11 @@ async function xToken(accountId: string): Promise<string> {
     const tok = await fetchJSON<XToken>('https://api.x.com/2/oauth2/token', {
       method: 'POST',
       headers: tokenHeaders(),
-      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: acc.refreshToken, client_id: getSettings().x.clientId }),
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: acc.refreshToken,
+        client_id: getSettings().x.clientId,
+      }),
     }).catch((e: FetchError) => {
       throw new Error(`Couldn't refresh @${acc.username}'s sign-in (${e.message}). Reconnect it in Connections.`);
     });
@@ -277,34 +316,68 @@ async function xCall<T>(accountId: string, method: string, pathname: string, bod
 // The alt text, if any, is added to the uploaded image (POST /2/media/metadata) before the post is made.
 async function xUploadImage(accountId: string, file: string, alt = ''): Promise<string> {
   const token = await xToken(accountId);
-  const type = ({ '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' } as Record<string, string>)[path.extname(file).toLowerCase()] || 'image/png';
+  const type =
+    (
+      { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' } as Record<
+        string,
+        string
+      >
+    )[path.extname(file).toLowerCase()] || 'image/png';
   const form = new FormData();
   form.append('media', new Blob([fs.readFileSync(file)], { type }), path.basename(file));
   form.append('media_category', 'tweet_image');
   try {
-    const r = await fetchJSON<{ data?: { id?: string }; media_id_string?: string }>(`${X_API}/media/upload`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: form, timeout: 60000 });
+    const r = await fetchJSON<{ data?: { id?: string }; media_id_string?: string }>(`${X_API}/media/upload`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+      body: form,
+      timeout: 60000,
+    });
     const id = r.data?.id || r.media_id_string;
     if (!id) throw new Error('X did not return a media id');
-    if (alt) await fetchJSON(`${X_API}/media/metadata`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ id, metadata: { alt_text: { text: alt } } }) });
+    if (alt)
+      await fetchJSON(`${X_API}/media/metadata`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ id, metadata: { alt_text: { text: alt } } }),
+      });
     return id;
   } catch (e) {
     const err = e as FetchError;
-    const scope = err.status === 401 || err.status === 403 ? ' If this account was connected before images were supported, reconnect it in Connections so X can grant the media permission.' : '';
+    const scope =
+      err.status === 401 || err.status === 403
+        ? ' If this account was connected before images were supported, reconnect it in Connections so X can grant the media permission.'
+        : '';
     throw new Error(`Uploading ${path.basename(file)} to X failed: ${err.message}.${scope}`);
   }
 }
 
 // Post one tweet or a thread (each part replies to the one before).
 // Already-posted parts (doneIds) are skipped, so a retry continues a half-posted thread.
-async function xPublish(accountId: string, parts: string[], replyTo: string | null | undefined, doneIds: string[] = [], images: string[] = [], onPart: (ids: string[]) => void = () => {}, imageAlt: Record<string, string> = {}) {
+async function xPublish(
+  accountId: string,
+  parts: string[],
+  replyTo: string | null | undefined,
+  doneIds: string[] = [],
+  images: string[] = [],
+  onPart: (ids: string[]) => void = () => {},
+  imageAlt: Record<string, string> = {},
+) {
   const acc = loadAccounts().x[accountId];
   if (!acc) throw new Error('That X account is no longer connected.');
   const ids = [...doneIds];
   let parent = ids.at(-1) || replyTo || null;
   for (const text of parts.slice(ids.length)) {
     // the images go on the first tweet of the post
-    const media = !ids.length && images.length ? { media: { media_ids: await Promise.all(images.map((p) => xUploadImage(accountId, p, imageAlt[p]))) } } : {};
-    const res = await xCall<{ data: { id: string } }>(accountId, 'POST', '/tweets', { text, ...media, ...(parent ? { reply: { in_reply_to_tweet_id: parent } } : {}) });
+    const media =
+      !ids.length && images.length
+        ? { media: { media_ids: await Promise.all(images.map((p) => xUploadImage(accountId, p, imageAlt[p]))) } }
+        : {};
+    const res = await xCall<{ data: { id: string } }>(accountId, 'POST', '/tweets', {
+      text,
+      ...media,
+      ...(parent ? { reply: { in_reply_to_tweet_id: parent } } : {}),
+    });
     ids.push(res.data.id);
     parent = res.data.id;
     onPart(ids);
@@ -313,11 +386,23 @@ async function xPublish(accountId: string, parts: string[], replyTo: string | nu
 }
 
 async function xSendDm(accountId: string, handle: string, text: string) {
-  const user = await xCall<{ data: { id: string } }>(accountId, 'GET', `/users/by/username/${encodeURIComponent(handle)}`).catch((e: FetchError) => {
+  const user = await xCall<{ data: { id: string } }>(
+    accountId,
+    'GET',
+    `/users/by/username/${encodeURIComponent(handle)}`,
+  ).catch((e: FetchError) => {
     throw new Error(`Couldn't find @${handle} on X (${e.message}).`);
   });
-  const r = await xCall<{ data?: { dm_event_id?: string; id?: string } }>(accountId, 'POST', `/dm_conversations/with/${user.data.id}/messages`, { text }).catch((e: FetchError) => {
-    if (e.status === 403) throw new Error(`X refused the DM (${e.message}). Reconnect your account in Connections so it may send DMs, and check that @${handle} accepts messages from you.`);
+  const r = await xCall<{ data?: { dm_event_id?: string; id?: string } }>(
+    accountId,
+    'POST',
+    `/dm_conversations/with/${user.data.id}/messages`,
+    { text },
+  ).catch((e: FetchError) => {
+    if (e.status === 403)
+      throw new Error(
+        `X refused the DM (${e.message}). Reconnect your account in Connections so it may send DMs, and check that @${handle} accepts messages from you.`,
+      );
     throw e;
   });
   return { id: r.data?.dm_event_id || r.data?.id };
@@ -325,15 +410,35 @@ async function xSendDm(accountId: string, handle: string, text: string) {
 
 export async function xRecentPosts(handle?: string, limit = 10): Promise<XPost[]> {
   const acc = resolveXAccount(handle);
-  const r = await xCall<XTweetList>(acc.id, 'GET', `/users/${acc.id}/tweets?max_results=${Math.min(Math.max(limit, 5), 100)}&tweet.fields=created_at,public_metrics`);
-  return (r.data || []).map((t) => ({ id: t.id, text: t.text, createdAt: t.created_at, metrics: t.public_metrics, url: `https://x.com/${acc.username}/status/${t.id}` }));
+  const r = await xCall<XTweetList>(
+    acc.id,
+    'GET',
+    `/users/${acc.id}/tweets?max_results=${Math.min(Math.max(limit, 5), 100)}&tweet.fields=created_at,public_metrics`,
+  );
+  return (r.data || []).map((t) => ({
+    id: t.id,
+    text: t.text,
+    createdAt: t.created_at,
+    metrics: t.public_metrics,
+    url: `https://x.com/${acc.username}/status/${t.id}`,
+  }));
 }
 
 export async function xMentions(handle?: string, limit = 10) {
   const acc = resolveXAccount(handle);
-  const r = await xCall<XTweetList>(acc.id, 'GET', `/users/${acc.id}/mentions?max_results=${Math.min(Math.max(limit, 5), 100)}&tweet.fields=created_at,author_id&expansions=author_id&user.fields=username`);
+  const r = await xCall<XTweetList>(
+    acc.id,
+    'GET',
+    `/users/${acc.id}/mentions?max_results=${Math.min(Math.max(limit, 5), 100)}&tweet.fields=created_at,author_id&expansions=author_id&user.fields=username`,
+  );
   const users = new Map((r.includes?.users || []).map((u) => [u.id, u.username]));
-  return (r.data || []).map((t) => ({ id: t.id, text: t.text, from: users.get(t.author_id), createdAt: t.created_at, url: `https://x.com/i/status/${t.id}` }));
+  return (r.data || []).map((t) => ({
+    id: t.id,
+    text: t.text,
+    from: users.get(t.author_id),
+    createdAt: t.created_at,
+    url: `https://x.com/i/status/${t.id}`,
+  }));
 }
 
 export function setAutopost(accountId: string, on: unknown) {
@@ -364,9 +469,11 @@ export function checkImages(platform: string, images: unknown, roots?: string[])
   return list.map((raw) => {
     const real = viewable(raw, roots);
     if (!real) throw new Error(`${raw} is not a file in this project's folders, so it can't be attached.`);
-    if (kindOf(real) !== 'image' || /\.gif$/i.test(real)) throw new Error(`${path.basename(real)} is not a PNG, JPEG or WebP image.`);
+    if (kindOf(real) !== 'image' || /\.gif$/i.test(real))
+      throw new Error(`${path.basename(real)} is not a PNG, JPEG or WebP image.`);
     const size = fs.statSync(real).size;
-    if (size > X_IMAGE_MAX) throw new Error(`${path.basename(real)} is ${(size / 1048576).toFixed(1)} MB; X allows images up to 5 MB.`);
+    if (size > X_IMAGE_MAX)
+      throw new Error(`${path.basename(real)} is ${(size / 1048576).toFixed(1)} MB; X allows images up to 5 MB.`);
     return real;
   });
 }
@@ -397,7 +504,28 @@ export function xTooLong(parts: string[]): { part: string; length: number } | nu
   return null;
 }
 
-export async function draftPost({ platform = 'x', account, text, thread = null, images = null, imageAlt = null, imageRoots, replyTo = null, to = null, agentId = null, chatId = null, agentName = '', note = '', subreddit = '', title = '', link = '', parent = '', flairId = '', flairText = '', gateway }: DraftInput): Promise<OutboxItem & { autoPosted?: boolean }> {
+export async function draftPost({
+  platform = 'x',
+  account,
+  text,
+  thread = null,
+  images = null,
+  imageAlt = null,
+  imageRoots,
+  replyTo = null,
+  to = null,
+  agentId = null,
+  chatId = null,
+  agentName = '',
+  note = '',
+  subreddit = '',
+  title = '',
+  link = '',
+  parent = '',
+  flairId = '',
+  flairText = '',
+  gateway,
+}: DraftInput): Promise<OutboxItem & { autoPosted?: boolean }> {
   const team = agentId ? teamOf(agentId, chatId) : null;
   const teamFields = team ? { teamId: team.id, teamName: team.name } : {};
   // Reddit: a post (subreddit + title + text or link) or a comment (parent = post/comment id or URL)
@@ -410,7 +538,8 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
     if (isComment) {
       const m = /comments\/(\w+)(?:\/[^/]*\/(\w+))?/.exec(parentId);
       if (m) parentId = m[2] ? `t1_${m[2]}` : `t3_${m[1]}`;
-      if (!/^t[13]_\w+$/.test(parentId)) throw new Error('Reply to what? Give the post or comment URL, or its id like t3_abc123.');
+      if (!/^t[13]_\w+$/.test(parentId))
+        throw new Error('Reply to what? Give the post or comment URL, or its id like t3_abc123.');
       if (!body) throw new Error('The comment is empty.');
     } else {
       if (!/^\w{2,21}$/.test(sr)) throw new Error('Which subreddit? For example LocalLLaMA.');
@@ -419,10 +548,31 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
     }
     const fid = isComment ? '' : String(flairId || '').trim();
     const ftext = isComment ? '' : String(flairText || '').trim();
-    if (fid.length > 36) throw new Error('A flair id is at most 36 characters (Reddit gives it with the subreddit\'s flairs).');
+    if (fid.length > 36)
+      throw new Error("A flair id is at most 36 characters (Reddit gives it with the subreddit's flairs).");
     if (ftext.length > 64) throw new Error('Flair text can be at most 64 characters.');
     const label = isComment ? `u/${acc.username} · comment` : `u/${acc.username} → r/${sr}`;
-    const item = outbox.save({ id: uid('p'), platform: 'reddit', accountId: acc.id, accountLabel: label, parts: [body || link], reddit: { kind: isComment ? 'comment' : 'post', subreddit: sr, title: String(title).trim().slice(0, 300), link: link || '', parent: parentId, ...(fid ? { flairId: fid } : {}), ...(ftext ? { flairText: ftext } : {}) }, agentId, agentName, ...teamFields, note, status: 'pending' });
+    const item = outbox.save({
+      id: uid('p'),
+      platform: 'reddit',
+      accountId: acc.id,
+      accountLabel: label,
+      parts: [body || link],
+      reddit: {
+        kind: isComment ? 'comment' : 'post',
+        subreddit: sr,
+        title: String(title).trim().slice(0, 300),
+        link: link || '',
+        parent: parentId,
+        ...(fid ? { flairId: fid } : {}),
+        ...(ftext ? { flairText: ftext } : {}),
+      },
+      agentId,
+      agentName,
+      ...teamFields,
+      note,
+      status: 'pending',
+    });
     log('social', `${agentName || 'You'} drafted a Reddit ${isComment ? 'comment' : 'post'} (${label})`, { agentId });
     if (acc.autopost) return { ...(await approvePost(item.id)), autoPosted: true };
     return item;
@@ -431,32 +581,74 @@ export async function draftPost({ platform = 'x', account, text, thread = null, 
   if (!parts.length) throw new Error('The post is empty.');
   const imagePaths = checkImages(platform, images, imageRoots);
   if (gatewayPost({ platform })) {
-    const item: OutboxItem = { id: uid('p'), platform, parts: gatewayTextParts(platform, parts), agentId, agentName, ...teamFields, note, status: 'pending' };
+    const item: OutboxItem = {
+      id: uid('p'),
+      platform,
+      parts: gatewayTextParts(platform, parts),
+      agentId,
+      agentName,
+      ...teamFields,
+      note,
+      status: 'pending',
+    };
     if (!gateway) return projectGatewayPost(outbox.save(item));
     const checked = checkGatewayDraft(item, gateway, item.parts);
-    return projectGatewayPost(outbox.save({ ...item, gateway: checked.selected, accountLabel: checked.preview.recipient.instanceName }));
+    return projectGatewayPost(
+      outbox.save({ ...item, gateway: checked.selected, accountLabel: checked.preview.recipient.instanceName }),
+    );
   }
   const alts = imagePaths.length && imageAlt?.length ? pairImageAlt(images, imageAlt, imagePaths) : {};
   let accountId: string | null = null;
   let accountLabel = platform;
   if (platform === 'x_dm') {
-    const handle = String(to || '').replace(/^@/, '').trim();
+    const handle = String(to || '')
+      .replace(/^@/, '')
+      .trim();
     if (!/^\w{1,15}$/.test(handle)) throw new Error('Who is the DM for? Give their X handle.');
     const body = parts.join('\n\n');
     if (body.length > 10000) throw new Error('DMs can be at most 10,000 characters.');
     const acc = resolveXAccount(account);
-    const item = outbox.save({ id: uid('p'), platform, accountId: acc.id, accountLabel: `@${acc.username} → DM @${handle}`, to: handle, parts: [body], agentId, agentName, ...teamFields, note, status: 'pending' });
+    const item = outbox.save({
+      id: uid('p'),
+      platform,
+      accountId: acc.id,
+      accountLabel: `@${acc.username} → DM @${handle}`,
+      to: handle,
+      parts: [body],
+      agentId,
+      agentName,
+      ...teamFields,
+      note,
+      status: 'pending',
+    });
     log('social', `${agentName || 'You'} drafted a DM to @${handle}`, { agentId });
     return item; // DMs always wait for you, even with auto-post on
   }
   if (platform === 'x') {
     const tooLong = xTooLong(parts);
-    if (tooLong) throw new Error(`A post is ${tooLong.length} characters as X counts them (emoji and most non-Latin letters count 2, a link 23); X allows ${X_MAX_LENGTH}. Shorten it or split it into a thread.`);
+    if (tooLong)
+      throw new Error(
+        `A post is ${tooLong.length} characters as X counts them (emoji and most non-Latin letters count 2, a link 23); X allows ${X_MAX_LENGTH}. Shorten it or split it into a thread.`,
+      );
     const acc = resolveXAccount(account);
     accountId = acc.id;
     accountLabel = `@${acc.username}`;
   }
-  const item = outbox.save({ id: uid('p'), platform, accountId, accountLabel, parts, ...(imagePaths.length ? { images: imagePaths } : {}), ...(Object.keys(alts).length ? { imageAlt: alts } : {}), replyTo, agentId, agentName, ...teamFields, note, status: 'pending' });
+  const item = outbox.save({
+    id: uid('p'),
+    platform,
+    accountId,
+    accountLabel,
+    parts,
+    ...(imagePaths.length ? { images: imagePaths } : {}),
+    ...(Object.keys(alts).length ? { imageAlt: alts } : {}),
+    replyTo,
+    agentId,
+    agentName,
+    ...teamFields,
+    note,
+    status: 'pending',
+  });
   log('social', `${agentName || 'You'} drafted a ${platform} post for ${accountLabel}`, { agentId });
   const acc = platform === 'x' ? loadAccounts().x[String(accountId)] : null;
   // a reply always waits for you, even with auto-post on (X allows AI replies only with your OK)
@@ -473,8 +665,14 @@ const publishing = new Set<string>();
 // Publishing takes a while: the post is saved in the project it is in, whichever project is open by then.
 export function approvePost(id: string, edits: ApproveEdits | null = null): Promise<OutboxItem> {
   const project = activeProject();
-  return withProject(project, () => approveIn(`${project.id}
-${id}`, id, edits));
+  return withProject(project, () =>
+    approveIn(
+      `${project.id}
+${id}`,
+      id,
+      edits,
+    ),
+  );
 }
 
 async function approveIn(key: string, id: string, edits: ApproveEdits | null): Promise<OutboxItem> {
@@ -487,21 +685,45 @@ async function approveIn(key: string, id: string, edits: ApproveEdits | null): P
   const posted = item.postIds?.length || 0;
   // Parts already on X can't be edited any more.
   if (edits?.images && item.images) item.images = item.images.filter((p) => edits.images!.includes(p));
-  if (edits?.parts) item.parts = [...item.parts.slice(0, posted), ...edits.parts.slice(posted).map((p) => String(p).trim()).filter(Boolean)];
+  if (edits?.parts)
+    item.parts = [
+      ...item.parts.slice(0, posted),
+      ...edits.parts
+        .slice(posted)
+        .map((p) => String(p).trim())
+        .filter(Boolean),
+    ];
   item.status = 'posting';
   outbox.save(item);
   try {
     if (item.platform === 'x') {
       const tooLong = xTooLong(item.parts.slice(posted));
-      if (tooLong) throw new Error(`A part is ${tooLong.length} characters as X counts them; X allows ${X_MAX_LENGTH}. Shorten it first.`);
-      const r = await xPublish(String(item.accountId), item.parts, item.replyTo, item.postIds || [], item.images || [], (ids) => {
-        item.postIds = [...ids];
-        outbox.save(item);
-      }, item.imageAlt || {});
+      if (tooLong)
+        throw new Error(
+          `A part is ${tooLong.length} characters as X counts them; X allows ${X_MAX_LENGTH}. Shorten it first.`,
+        );
+      const r = await xPublish(
+        String(item.accountId),
+        item.parts,
+        item.replyTo,
+        item.postIds || [],
+        item.images || [],
+        (ids) => {
+          item.postIds = [...ids];
+          outbox.save(item);
+        },
+        item.imageAlt || {},
+      );
       Object.assign(item, { status: 'posted', url: r.url, postIds: r.ids, postedAt: Date.now(), error: null });
     } else if (item.platform === 'x_dm') {
       const r = await xSendDm(String(item.accountId), String(item.to), item.parts.join('\n\n'));
-      Object.assign(item, { status: 'posted', postIds: [r.id], postedAt: Date.now(), error: null, url: 'https://x.com/messages' });
+      Object.assign(item, {
+        status: 'posted',
+        postIds: [r.id],
+        postedAt: Date.now(),
+        error: null,
+        url: 'https://x.com/messages',
+      });
     } else if (item.platform === 'reddit') {
       if (edits?.title != null && item.reddit) item.reddit.title = String(edits.title).trim();
       const r = await reddit.publish(item);
@@ -509,7 +731,9 @@ async function approveIn(key: string, id: string, edits: ApproveEdits | null): P
     } else throw new Error(`Posting to ${item.platform} isn't supported yet.`);
     log('social', `Posted to ${item.accountLabel}${item.url ? `: ${item.url}` : ''}`, { agentId: item.agentId });
   } catch (e) {
-    const part = item.postIds?.length ? ` (${item.postIds.length} of ${item.parts.length} parts are already posted; approving again continues from there)` : '';
+    const part = item.postIds?.length
+      ? ` (${item.postIds.length} of ${item.parts.length} parts are already posted; approving again continues from there)`
+      : '';
     Object.assign(item, { status: 'failed', error: (e as Error).message + part });
     log('error', `Post to ${item.accountLabel} failed: ${(e as Error).message}`);
   } finally {
@@ -522,20 +746,40 @@ async function approveIn(key: string, id: string, edits: ApproveEdits | null): P
  * Send a draft back to the team that wrote it, with your feedback: it goes into their chat as a message to its author,
  * and the draft leaves the Outbox as "sent back" (the author saves a new one once it is revised).
  */
-export function returnPost(id: string, feedback: string, send: (teamId: string, text: string) => Promise<unknown>): Promise<OutboxItem> {
+export function returnPost(
+  id: string,
+  feedback: string,
+  send: (teamId: string, text: string) => Promise<unknown>,
+): Promise<OutboxItem> {
   return withProject(activeProject(), () => returnIn(id, feedback, send));
 }
 
-async function returnIn(id: string, feedback: string, send: (teamId: string, text: string) => Promise<unknown>): Promise<OutboxItem> {
+async function returnIn(
+  id: string,
+  feedback: string,
+  send: (teamId: string, text: string) => Promise<unknown>,
+): Promise<OutboxItem> {
   const item = outbox.get(id);
   if (!item) throw new Error('No such post.');
   assertGatewayDraftMutable(item);
-  if (item.status !== 'pending' && item.status !== 'failed') throw new Error('Only a post that is waiting can be sent back.');
+  if (item.status !== 'pending' && item.status !== 'failed')
+    throw new Error('Only a post that is waiting can be sent back.');
   const note = String(feedback || '').trim();
   if (!note) throw new Error('Say what should change first.');
-  const team = item.teamId ? { id: item.teamId, name: item.teamName || 'the team' } : item.agentId ? teamOf(item.agentId) : null;
+  const team = item.teamId
+    ? { id: item.teamId, name: item.teamName || 'the team' }
+    : item.agentId
+      ? teamOf(item.agentId)
+      : null;
   if (!team) throw new Error("This draft isn't linked to a team, so there is nowhere to send it back to.");
-  const quoted = item.parts.map((t) => t.split('\n').map((l) => `> ${l}`).join('\n')).join('\n>\n');
+  const quoted = item.parts
+    .map((t) =>
+      t
+        .split('\n')
+        .map((l) => `> ${l}`)
+        .join('\n'),
+    )
+    .join('\n>\n');
   const images = item.images?.length ? `\nImages with it: ${item.images.map((p) => path.basename(p)).join(', ')}` : '';
   const who = item.agentName ? `@${item.agentName}` : 'Team';
   const text = `${who}: I'm sending your ${item.platform} draft for ${item.accountLabel || item.platform} back for changes (Outbox id ${item.id}). It is out of the Outbox now.\n\nYour draft:\n${quoted}${images}\n\nMy feedback: ${note}\n\nPlease talk it through with me if something is unclear, and save a revised draft when it is ready.`;
@@ -553,13 +797,33 @@ export function rejectPost(id: string, reason = '') {
   return outbox.save(item);
 }
 
-export function listPosts(): OutboxItem[] { const cache: GatewayOutboxReadCache = new Map(); return outbox.list().map((item) => projectGatewayPost(item, cache)).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)); }
+export function listPosts(): OutboxItem[] {
+  const cache: GatewayOutboxReadCache = new Map();
+  return outbox
+    .list()
+    .map((item) => projectGatewayPost(item, cache))
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+}
 
-export function editPost(id: string, body: { parts?: string[]; images?: string[]; title?: string; gateway?: OutboxPost['gateway']; draftRevision?: string }): OutboxItem {
-  const item = outbox.get(id); if (!item) throw new Error('No such post.');
+export function editPost(
+  id: string,
+  body: {
+    parts?: string[];
+    images?: string[];
+    title?: string;
+    gateway?: OutboxPost['gateway'];
+    draftRevision?: string;
+  },
+): OutboxItem {
+  const item = outbox.get(id);
+  if (!item) throw new Error('No such post.');
   assertGatewayDraftMutable(item);
   if (gatewayPost(item)) {
-    prepareGatewayPost(id, { gateway: body.gateway ?? item.gateway, parts: body.parts ?? item.parts, draftRevision: body.draftRevision });
+    prepareGatewayPost(id, {
+      gateway: body.gateway ?? item.gateway,
+      parts: body.parts ?? item.parts,
+      draftRevision: body.draftRevision,
+    });
     return projectGatewayPost(outbox.get(id)!);
   }
   if (body.parts) item.parts = body.parts;
@@ -569,20 +833,45 @@ export function editPost(id: string, body: { parts?: string[]; images?: string[]
 }
 
 export function removePost(id: string): void {
-  const item = outbox.get(id); if (item) assertGatewayDraftMutable(item); outbox.remove(id);
+  const item = outbox.get(id);
+  if (item) assertGatewayDraftMutable(item);
+  outbox.remove(id);
 }
 
 // These high-risk helpers are called only after the tool's normal approval, with a named recipient.
-function sendGateway(platform: 'telegram' | 'discord', text: string, gateway?: OutboxPost['gateway'], author: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'> = {}, signal?: AbortSignal): Promise<string> {
+function sendGateway(
+  platform: 'telegram' | 'discord',
+  text: string,
+  gateway?: OutboxPost['gateway'],
+  author: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'> = {},
+  signal?: AbortSignal,
+): Promise<string> {
   return withProject(activeProject(), async () => {
-    if (!gateway) throw new Error('Choose an explicit gateway instance and known conversation. Set up fresh credentials in Settings › Gateways; old global tokens and webhooks are no longer used.');
+    if (!gateway)
+      throw new Error(
+        'Choose an explicit gateway instance and known conversation. Set up fresh credentials in Settings › Gateways; old global tokens and webhooks are no longer used.',
+      );
     signal?.throwIfAborted();
     const item = await draftPost({ platform, text, gateway, ...author });
     signal?.throwIfAborted();
-    const preview = prepareGatewayPost(item.id, { gateway, parts: item.parts, draftRevision: gatewayDraftRevision(outbox.get(item.id)!) });
+    const preview = prepareGatewayPost(item.id, {
+      gateway,
+      parts: item.parts,
+      draftRevision: gatewayDraftRevision(outbox.get(item.id)!),
+    });
     await approvePost(item.id, { gatewayApproval: preview.approval, draftRevision: preview.draftRevision });
     return `Approved and queued on ${platform === 'telegram' ? 'Telegram' : 'Discord'} (Outbox id ${item.id}). Check the Outbox for each part’s delivery result.`;
   });
 }
-export const sendTelegram = (text: string, gateway?: OutboxPost['gateway'], author?: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'>, signal?: AbortSignal) => sendGateway('telegram', text, gateway, author, signal);
-export const sendDiscord = (text: string, gateway?: OutboxPost['gateway'], author?: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'>, signal?: AbortSignal) => sendGateway('discord', text, gateway, author, signal);
+export const sendTelegram = (
+  text: string,
+  gateway?: OutboxPost['gateway'],
+  author?: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'>,
+  signal?: AbortSignal,
+) => sendGateway('telegram', text, gateway, author, signal);
+export const sendDiscord = (
+  text: string,
+  gateway?: OutboxPost['gateway'],
+  author?: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'>,
+  signal?: AbortSignal,
+) => sendGateway('discord', text, gateway, author, signal);

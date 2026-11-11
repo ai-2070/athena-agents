@@ -6,15 +6,34 @@ import { newAgent } from '../../server/library.ts';
 import { agents, bus, saveSettings, workflows } from '../../server/store.ts';
 import { getThread, postUserMessage } from '../../server/teams.ts';
 import { saveSkill } from '../../server/skills.ts';
-import { checkRoutineSchedules, deleteRoutine, getRoutine, listRuns, routineTargets, saveRoutine, startRoutine } from '../../server/routines.ts';
+import {
+  checkRoutineSchedules,
+  deleteRoutine,
+  getRoutine,
+  listRuns,
+  routineTargets,
+  saveRoutine,
+  startRoutine,
+} from '../../server/routines.ts';
 import { due } from '../../server/workflows.ts';
-import { cleanSchedule, scheduleSummary, timeText, findMentions, mentionPattern, mentionQuery, renameMentions } from '../../shared/routines.ts';
+import {
+  cleanSchedule,
+  scheduleSummary,
+  timeText,
+  findMentions,
+  mentionPattern,
+  mentionQuery,
+  renameMentions,
+} from '../../shared/routines.ts';
 import type { RoutineMention, RoutineRun, Team } from '../../shared/types.ts';
 
 describe('mentionPattern()', () => {
-  it('finds any of the names by findMentions\' rules, longest first, and nothing with no names', () => {
+  it("finds any of the names by findMentions' rules, longest first, and nothing with no names", () => {
     const re = mentionPattern(['Trend', 'Trend Scout', ' ']);
-    expect([...'@Trend Scout, @Trendy, bob@Trend, (@trend)'.matchAll(re)].map((m) => m[2])).toEqual(['Trend Scout', 'trend']);
+    expect([...'@Trend Scout, @Trendy, bob@Trend, (@trend)'.matchAll(re)].map((m) => m[2])).toEqual([
+      'Trend Scout',
+      'trend',
+    ]);
     expect('@ anything'.match(mentionPattern([]))).toBeNull();
   });
 });
@@ -35,7 +54,10 @@ describe('findMentions()', () => {
     expect(findMentions('@Trend and @Trend again', c).map((m) => m.id)).toEqual(['a1']);
   });
   it('gives a clash to the earlier candidate', () => {
-    const clash: RoutineMention[] = [{ kind: 'agent', id: 'a', name: 'Writer' }, { kind: 'skill', id: 'w', name: 'Writer' }];
+    const clash: RoutineMention[] = [
+      { kind: 'agent', id: 'a', name: 'Writer' },
+      { kind: 'skill', id: 'w', name: 'Writer' },
+    ];
     expect(findMentions('@Writer', clash)).toEqual([{ kind: 'agent', id: 'a', name: 'Writer' }]);
   });
 });
@@ -64,7 +86,10 @@ describe('daily schedules', () => {
   });
 
   it('cleans, sorts and deduplicates multiple times', () => {
-    expect(cleanSchedule({ type: 'daily', times: ['17:30', '8:05', '08:05', '24:00', 'noon', null] })).toEqual({ type: 'daily', times: ['08:05', '17:30'] });
+    expect(cleanSchedule({ type: 'daily', times: ['17:30', '8:05', '08:05', '24:00', 'noon', null] })).toEqual({
+      type: 'daily',
+      times: ['08:05', '17:30'],
+    });
   });
 
   it('runs each time once, including nearby times, and respects days and the on switch', () => {
@@ -79,7 +104,9 @@ describe('daily schedules', () => {
     routine.lastScheduledAt = at(9, 15);
     expect(due(routine, at(17, 30))).toBe(true);
     expect(due({ ...routine, enabled: false }, at(17, 30))).toBe(false);
-    expect(due({ ...routine, schedule: { ...schedule, days: [(new Date(at(17)).getDay() + 1) % 7] } }, at(17, 30))).toBe(false);
+    expect(
+      due({ ...routine, schedule: { ...schedule, days: [(new Date(at(17)).getDay() + 1) % 7] } }, at(17, 30)),
+    ).toBe(false);
     routine.lastScheduledAt = at(17, 30);
     expect(due(routine, at(17, 31))).toBe(false);
   });
@@ -87,7 +114,9 @@ describe('daily schedules', () => {
 
 describe('cleanSchedule()', () => {
   it('counts each day once, so repeats of one day are not every day', () => {
-    expect(cleanSchedule({ type: 'daily', times: ['8:05'], days: ['Mon', 'Mon', 'Mon', 'Mon', 'Mon', 'Mon', 'Mon'] })).toEqual({ type: 'daily', times: ['08:05'], days: [1] });
+    expect(
+      cleanSchedule({ type: 'daily', times: ['8:05'], days: ['Mon', 'Mon', 'Mon', 'Mon', 'Mon', 'Mon', 'Mon'] }),
+    ).toEqual({ type: 'daily', times: ['08:05'], days: [1] });
     expect(cleanSchedule({ type: 'daily', days: [0, 1, 2, 3, 4, 5, 6] })).toEqual({ type: 'daily', times: ['09:00'] });
   });
   it('keeps intervals at 5 minutes or more, and drops what it does not know', () => {
@@ -99,8 +128,18 @@ describe('cleanSchedule()', () => {
 
 describe('renameMentions() and mentionQuery()', () => {
   it('renames only whole mentions, longest first', () => {
-    const stored: RoutineMention[] = [{ kind: 'agent', id: 'a1', name: 'Trend' }, { kind: 'agent', id: 'a2', name: 'Trend Scout' }];
-    const text = renameMentions('@Trend Scout and @Trend', stored, new Map([['agent:a1', 'Writer'], ['agent:a2', 'Trend Scout']]));
+    const stored: RoutineMention[] = [
+      { kind: 'agent', id: 'a1', name: 'Trend' },
+      { kind: 'agent', id: 'a2', name: 'Trend Scout' },
+    ];
+    const text = renameMentions(
+      '@Trend Scout and @Trend',
+      stored,
+      new Map([
+        ['agent:a1', 'Writer'],
+        ['agent:a2', 'Trend Scout'],
+      ]),
+    );
     expect(text).toBe('@Trend Scout and @Writer');
   });
   it('knows when the caret is in a mention being typed', () => {
@@ -121,14 +160,23 @@ beforeAll(async () => {
     for await (const ch of req) body += ch;
     const j = JSON.parse(body) as { messages: { content: string }[] };
     asked.push({ system: j.messages[0].content, last: j.messages.at(-1)!.content });
-    const reply = j.messages[0].content.includes('You are Boss') && !/@Helper: Done/.test(j.messages.at(-1)!.content) ? '@Helper please do the work.' : 'Done.';
+    const reply =
+      j.messages[0].content.includes('You are Boss') && !/@Helper: Done/.test(j.messages.at(-1)!.content)
+        ? '@Helper please do the work.'
+        : 'Done.';
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: reply } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
@@ -138,7 +186,7 @@ const waitFor = async (fn: () => boolean) => {
 };
 
 describe('a routine', () => {
-  it('tells open tabs when it is saved or deleted (the Station counts a team\'s routines)', () => {
+  it("tells open tabs when it is saved or deleted (the Station counts a team's routines)", () => {
     const seen: unknown[] = [];
     const listen = (ev: { type: string; id?: unknown }) => ev.type === 'routines' && seen.push(ev.id);
     bus.on('event', listen);
@@ -196,7 +244,12 @@ describe('a routine', () => {
   });
 
   it('a switched-off routine does not run, by hand or on its schedule, until it is switched on', async () => {
-    const r = saveRoutine({ name: 'Paused', text: 'Do it.', schedule: { type: 'interval', minutes: 5 }, enabled: true });
+    const r = saveRoutine({
+      name: 'Paused',
+      text: 'Do it.',
+      schedule: { type: 'interval', minutes: 5 },
+      enabled: true,
+    });
     saveRoutine({ enabled: false }, r.id);
     await expect(startRoutine(r.id)).rejects.toThrow(/switched off/);
     checkRoutineSchedules(Date.now() + 3_600_000);
@@ -215,9 +268,23 @@ describe('a routine', () => {
     const solo = agent('Analyst');
     const lead = agent('Editor');
     const member = agent('Copywriter');
-    const team = workflows.save({ name: 'Content Crew', description: '', members: [lead.id, member.id], lead: lead.id, steps: [] } as Partial<Team>);
-    const r = saveRoutine({ name: 'Weekly post', text: '@Analyst sums up the week. @Content Crew writes the post, @Copywriter drafts it. Use @House style.' });
-    expect(r.mentions.map((m) => `${m.kind}:${m.name}`)).toEqual(['agent:Analyst', 'team:Content Crew', 'agent:Copywriter', 'skill:House style']);
+    const team = workflows.save({
+      name: 'Content Crew',
+      description: '',
+      members: [lead.id, member.id],
+      lead: lead.id,
+      steps: [],
+    } as Partial<Team>);
+    const r = saveRoutine({
+      name: 'Weekly post',
+      text: '@Analyst sums up the week. @Content Crew writes the post, @Copywriter drafts it. Use @House style.',
+    });
+    expect(r.mentions.map((m) => `${m.kind}:${m.name}`)).toEqual([
+      'agent:Analyst',
+      'team:Content Crew',
+      'agent:Copywriter',
+      'skill:House style',
+    ]);
     const targets = routineTargets(getRoutine(r.id)!);
     expect(targets.teams.map((t) => t.id)).toEqual([team.id]);
     expect(targets.agents.map((a) => a.id)).toEqual([solo.id]); // the Copywriter is reached through the team
@@ -229,7 +296,10 @@ describe('a routine', () => {
     expect(latest!.status).toBe('done');
     expect(latest!.id).toBe(run.id);
     expect(latest!.skills).toEqual(['house-style']);
-    expect(latest!.targets.map((t) => `${t.kind}:${t.name}:${t.status}`).sort()).toEqual(['agent:Analyst:done', 'team:Content Crew:sent']);
+    expect(latest!.targets.map((t) => `${t.kind}:${t.name}:${t.status}`).sort()).toEqual([
+      'agent:Analyst:done',
+      'team:Content Crew:sent',
+    ]);
     expect(latest!.targets.find((t) => t.kind === 'agent')!.chatId).toBeTruthy();
 
     // the team chat got the routine, and the @mentioned member picked it up (not the lead)
@@ -254,7 +324,13 @@ describe("a routine's skills in a team", () => {
     saveSkill({ name: 'Handoff guide', description: 'How to hand work on.', body: 'Be clear.' });
     const boss = agent('Boss');
     const helper = agent('Helper');
-    const team = workflows.save({ name: 'Duo', description: '', members: [boss.id, helper.id], lead: boss.id, steps: [] } as Partial<Team>);
+    const team = workflows.save({
+      name: 'Duo',
+      description: '',
+      members: [boss.id, helper.id],
+      lead: boss.id,
+      steps: [],
+    } as Partial<Team>);
     const helperAsks = () => asked.filter((a) => a.system.includes('You are Helper'));
     const quiet = () => {
       const t = getThread(team.id);

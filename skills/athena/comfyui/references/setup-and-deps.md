@@ -75,15 +75,15 @@ current steps for each GPU.
 
 Inside a ComfyUI folder (or Desktop's shared folder, for models, input and output):
 
-| Folder | What goes there |
-|---|---|
-| `models/checkpoints` | Full checkpoints (model, text encoder and VAE in one file) |
-| `models/diffusion_models` | Diffusion models on their own; older ComfyUI calls it `models/unet`, and both are read |
-| `models/text_encoders` | Text encoders (CLIP, T5 and so on); older name `models/clip`, both read |
-| `models/vae`, `models/loras`, `models/controlnet`, `models/clip_vision`, `models/upscale_models`, `models/embeddings` | What they say |
-| `custom_nodes/` | Node packs, one folder each |
-| `input/`, `output/` | Files for Load Image and the like; results |
-| `user/default/workflows/` | The workflows ComfyUI saves |
+| Folder                                                                                                                | What goes there                                                                        |
+| --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `models/checkpoints`                                                                                                  | Full checkpoints (model, text encoder and VAE in one file)                             |
+| `models/diffusion_models`                                                                                             | Diffusion models on their own; older ComfyUI calls it `models/unet`, and both are read |
+| `models/text_encoders`                                                                                                | Text encoders (CLIP, T5 and so on); older name `models/clip`, both read                |
+| `models/vae`, `models/loras`, `models/controlnet`, `models/clip_vision`, `models/upscale_models`, `models/embeddings` | What they say                                                                          |
+| `custom_nodes/`                                                                                                       | Node packs, one folder each                                                            |
+| `input/`, `output/`                                                                                                   | Files for Load Image and the like; results                                             |
+| `user/default/workflows/`                                                                                             | The workflows ComfyUI saves                                                            |
 
 `GET /models` on the server lists every models folder it knows, custom nodes' included, and `scripts/comfy_check.py`
 names the folder for each missing model. To share model folders with another install or app, ComfyUI reads
@@ -137,6 +137,7 @@ Updating: Desktop updates itself; the portable build runs `update\update_comfyui
   A big file takes longer than the shell's default 300 seconds: use comfy-cli's `--background`, or start curl with
   `Start-Process`, and check the file's size afterwards. comfy-cli reads Hugging Face and Civitai tokens from
   `HF_API_TOKEN` and `CIVITAI_API_TOKEN` when the user has set them.
+
 - ComfyUI notices a new model file without a restart; the editor's lists catch up after Edit › Refresh Node
   Definitions.
 

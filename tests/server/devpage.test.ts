@@ -12,14 +12,27 @@ describe('viteOrigin', () => {
   });
 
   it('ignores anything else', () => {
-    for (const v of [undefined, '', 'http://example.com:5173', 'https://127.0.0.1:5173', 'http://127.0.0.1', 'http://127.0.0.1:0', 'http://127.0.0.1:70000', 'http://127.0.0.1:5173/x', 'http://127.0.0.1.evil.com:5173', 'javascript:alert(1)'])
+    for (const v of [
+      undefined,
+      '',
+      'http://example.com:5173',
+      'https://127.0.0.1:5173',
+      'http://127.0.0.1',
+      'http://127.0.0.1:0',
+      'http://127.0.0.1:70000',
+      'http://127.0.0.1:5173/x',
+      'http://127.0.0.1.evil.com:5173',
+      'javascript:alert(1)',
+    ])
       expect(viteOrigin(v)).toBeNull();
   });
 });
 
 describe('viteFromArgs', () => {
   it("takes the dev server from the server's command line", () => {
-    expect(viteFromArgs(['--no-open', '--vite', 'http://127.0.0.1:5173', '--port', '4900'], {})).toBe('http://127.0.0.1:5173');
+    expect(viteFromArgs(['--no-open', '--vite', 'http://127.0.0.1:5173', '--port', '4900'], {})).toBe(
+      'http://127.0.0.1:5173',
+    );
     expect(viteFromArgs(['--vite', 'http://example.com:5173'], {})).toBeNull();
     expect(viteFromArgs(['--vite'], {})).toBeNull();
   });
@@ -45,7 +58,9 @@ describe('pageCsp', () => {
   it('lets in only the dev server with one', () => {
     const csp = pageCsp(4800, 'http://127.0.0.1:5173');
     expect(csp).toContain("script-src 'self' http://127.0.0.1:5173;");
-    expect(csp).toContain('connect-src \'self\' ws://localhost:4800 ws://127.0.0.1:4800 http://127.0.0.1:5173 ws://127.0.0.1:5173;');
+    expect(csp).toContain(
+      "connect-src 'self' ws://localhost:4800 ws://127.0.0.1:4800 http://127.0.0.1:5173 ws://127.0.0.1:5173;",
+    );
     expect(csp).not.toContain('unsafe-eval');
     expect(csp).toContain("frame-ancestors 'none'");
   });

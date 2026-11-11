@@ -23,9 +23,21 @@ describe('mentionPattern()', () => {
 });
 
 describe('senderName()', () => {
-  const msg = (m: Partial<TeamMessage>): TeamMessage => ({ id: 'm', ts: 0, from: 'user', text: '', mentions: [], ...m });
+  const msg = (m: Partial<TeamMessage>): TeamMessage => ({
+    id: 'm',
+    ts: 0,
+    from: 'user',
+    text: '',
+    mentions: [],
+    ...m,
+  });
   it('names another team, you, the Brain and agents', () => {
-    expect(senderName(msg({ from: 'team:t1', relay: { teamId: 't1', teamName: 'Design', by: 'a1', byName: 'Ana' } }), () => 'x')).toBe('#Design');
+    expect(
+      senderName(
+        msg({ from: 'team:t1', relay: { teamId: 't1', teamName: 'Design', by: 'a1', byName: 'Ana' } }),
+        () => 'x',
+      ),
+    ).toBe('#Design');
     expect(senderName(msg({ from: 'user' }), () => 'x')).toBe('You');
     expect(senderName(msg({ from: 'brain' }), () => 'x')).toBe('Brain');
     expect(senderName(msg({ from: 'a1' }), (id) => (id === 'a1' ? 'Ana' : undefined))).toBe('Ana');
@@ -39,7 +51,11 @@ describe('a team chat with other teams', () => {
   });
 
   it("draws another team's message in its colour, marks #Teams, and suggests teams after #", async () => {
-    state.data = { runs: [], approvals: [], agents: [{ id: 'ana', name: 'Ana', emoji: '🎨', color: '#fff' }] } as unknown as AppState;
+    state.data = {
+      runs: [],
+      approvals: [],
+      agents: [{ id: 'ana', name: 'Ana', emoji: '🎨', color: '#fff' }],
+    } as unknown as AppState;
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     const sent: unknown[] = [];
     vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
@@ -50,7 +66,14 @@ describe('a team chat with other teams', () => {
             others: [{ id: 't1', name: 'Design', color: '#ff00aa', mark: 'D', description: 'Logos and banners' }],
             messages: [
               { id: 'm1', ts: 1, from: 'ana', text: 'Ask #Design for a banner', mentions: [] },
-              { id: 'm2', ts: 2, from: 'team:t1', text: 'Here it is', mentions: [], relay: { teamId: 't1', teamName: 'Design', by: 'x', byName: 'Max', answers: true } },
+              {
+                id: 'm2',
+                ts: 2,
+                from: 'team:t1',
+                text: 'Here it is',
+                mentions: [],
+                relay: { teamId: 't1', teamName: 'Design', by: 'x', byName: 'Max', answers: true },
+              },
             ],
             working: [],
             queued: [],

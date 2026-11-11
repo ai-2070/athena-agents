@@ -107,6 +107,7 @@ no-copied-runs rule).
    - "unsure" where the picture doesn't settle it.
 
    The notes, not the pictures, carry the work forward if the context fills.
+
 6. **Exact values.** Pixels misread URLs, file names and numbers. For each value the skill depends on, check it
    against a sharper frame, anything else the agent can read (the browser's history, the app's own files), or the
    user. List what's still unsure in the report.
@@ -137,6 +138,7 @@ recording to an agent that has them, as `/learn` already does for sources it can
 
 Standard library only, as now. It calls `ffprobe` and `ffmpeg` with `subprocess` (no shell), and follows the script
 rules:
+
 - UTF-8 JSON out;
 - exit 0 done, 1 done with warnings, 2 couldn't (one line on stderr);
 - `os.replace` for what it writes;
@@ -144,12 +146,14 @@ rules:
 
 **`probe <video> -o learn-work/probe`** gives the length, size, frame rate, and whether there's a sound track. It also
 saves two check frames, `check-20.png` and `check-70.png`.
+
 - Browsers' recorders write WebM files with no length in them, so `ffprobe` reports none. The script then reads the
   last packet's time, with a warning (exit 1).
 - Not a video: exit 2.
 - No FFmpeg: exit 2, with a line on getting it (the Programs page shows whether it's found).
 
 **`frames <video> -o learn-work/frames [--max 30] [--every 20] [--change 0.02] [--width 1280] [--sheet 2x2] [--at 12.4,30]`**:
+
 1. **Find the changes:** one decoding pass,
    `ffmpeg -i <video> -vf "select='gt(scene,<change>)',showinfo" -f null -`. The change times come from `showinfo`'s
    `pts_time` on stderr.
@@ -198,12 +202,14 @@ recordings (see Status); the change level started at 0.05.
 - **Output** goes through the shared `run` fixture's cp1252 pipe.
 
 Elsewhere:
+
 - **CI:** the "Skill scripts" job installs FFmpeg on Linux and Windows. Locally, the FFmpeg tests skip when it's
   missing.
 - `tests/server/athena-skills.test.ts` checks the skill's format and Files list, as it does now.
 
 **A trial before calling it done:** three real silent recordings, learned by an agent on the Claude engine and by one
 on an Eve model that sees pictures.
+
 - The recordings: a desktop app, a web app, and one near the 10-minute length.
 - Read the skills cold. Do they run as written? Are the inputs right?
 - The trial runs agents, so it waits for your OK.
@@ -232,7 +238,7 @@ on an Eve model that sees pictures.
    - The browser's own "Stop sharing" works as Stop and save.
    - It stops and saves by itself at 10 minutes, with a warning a minute before.
 5. On save, the recording goes into the chat's attachment tray, like any file. The text box then reads `/learn <what
-   you said you'd show>`, and Enter sends it: you can add to it first, and it goes through the `/learn` path step 1
+you said you'd show>`, and Enter sends it: you can add to it first, and it goes through the `/learn` path step 1
    built.
 
 **Recordings are kept** in the project's Brain folder until you remove them. The agent's report says where, and they

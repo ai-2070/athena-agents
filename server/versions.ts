@@ -35,7 +35,11 @@ export const COALESCE_MS = 3 * 60_000;
 const actor = new AsyncLocalStorage<{ by: Actor; note?: string; force?: boolean; kept: Map<string, string> }>();
 /** Run fn as one change by `by` (e.g. one answer of the Brain): each item it changes gets one version,
  *  however soon after the last one. force: always keep a version (a restore). */
-export function withActor<T>(by: Actor, fn: () => T, { note, force = false }: { note?: string; force?: boolean } = {}): T {
+export function withActor<T>(
+  by: Actor,
+  fn: () => T,
+  { note, force = false }: { note?: string; force?: boolean } = {},
+): T {
   return actor.run({ by, note, force, kept: new Map() }, fn);
 }
 export const currentActor = (): Actor => actor.getStore()?.by || 'you';
@@ -63,7 +67,9 @@ export function canonical(value: unknown, ignore: readonly string[] = []): strin
 export function changedFields(a: unknown, b: unknown, ignore: readonly string[] = []): string[] {
   const ra = (a && typeof a === 'object' ? a : {}) as Record<string, unknown>;
   const rb = (b && typeof b === 'object' ? b : {}) as Record<string, unknown>;
-  return [...new Set([...Object.keys(ra), ...Object.keys(rb)])].filter((k) => !ignore.includes(k) && canonical(ra[k]) !== canonical(rb[k])).sort();
+  return [...new Set([...Object.keys(ra), ...Object.keys(rb)])]
+    .filter((k) => !ignore.includes(k) && canonical(ra[k]) !== canonical(rb[k]))
+    .sort();
 }
 
 // ---------- reading and writing ----------
@@ -75,7 +81,8 @@ let lastStamp = 0;
 const FUTURE_SLACK_MS = 60_000;
 // how far ahead of the clock a version made here can be (see stamp)
 const STAMP_SLACK_MS = 1000;
-const stamp = (after = 0) => (lastStamp = Math.max(Date.now(), lastStamp + 1, after < Date.now() + FUTURE_SLACK_MS ? after + 1 : 0));
+const stamp = (after = 0) =>
+  (lastStamp = Math.max(Date.now(), lastStamp + 1, after < Date.now() + FUTURE_SLACK_MS ? after + 1 : 0));
 /** A version's files kept next to it (a deleted skill's extra files): <dir>/files-<version id>. */
 export const versionFilesDir = (dir: string, id: string): string => path.join(dir, `files-${id}`);
 
@@ -96,7 +103,17 @@ export function getVersion<T>(dir: string, id: string): Version<T> | null {
  *  same change as the last version (the same withActor run, or else edits close together). Returns the
  *  version kept, or null. extra: kept with a deleted one besides the item (a skill's extra files).
  *  prune: false leaves old versions for the caller to prune (one it is still reading from, a restore). */
-export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore = [], deleted = false, extra, prune = true }: { ignore?: readonly string[]; deleted?: boolean; extra?: Partial<T>; prune?: boolean } = {}): Version<T> | null {
+export function keepVersion<T>(
+  dir: string,
+  before: T,
+  after: T | null,
+  {
+    ignore = [],
+    deleted = false,
+    extra,
+    prune = true,
+  }: { ignore?: readonly string[]; deleted?: boolean; extra?: Partial<T>; prune?: boolean } = {},
+): Version<T> | null {
   if (!before) return null;
   if (!deleted && after && canonical(before, ignore) === canonical(after, ignore)) return null;
   const ctx = actor.getStore();
@@ -112,8 +129,20 @@ export function keepVersion<T>(dir: string, before: T, after: T | null, { ignore
     writeJSON(path.join(dir, `${v.id}.json`), v);
     return v;
   }
-  if (!deleted && !ctx?.force && (ctx ? mine !== undefined : last && !last.deleted && last.by === by && age > -STAMP_SLACK_MS && age < COALESCE_MS)) return null;
-  const v: Version<T> = { id: uid('v'), at: stamp(last?.at), by, ...(deleted ? { deleted: true } : {}), ...(ctx?.note ? { note: ctx.note } : {}), item: { ...before, ...extra } };
+  if (
+    !deleted &&
+    !ctx?.force &&
+    (ctx ? mine !== undefined : last && !last.deleted && last.by === by && age > -STAMP_SLACK_MS && age < COALESCE_MS)
+  )
+    return null;
+  const v: Version<T> = {
+    id: uid('v'),
+    at: stamp(last?.at),
+    by,
+    ...(deleted ? { deleted: true } : {}),
+    ...(ctx?.note ? { note: ctx.note } : {}),
+    item: { ...before, ...extra },
+  };
   writeJSON(path.join(ensureDir(dir), `${v.id}.json`), v);
   ctx?.kept.set(path.resolve(dir), v.id);
   if (prune) pruneVersions(dir);
@@ -130,11 +159,24 @@ export function pruneVersions(dir: string) {
 
 /** A version read from somewhere else (a project folder, a backup), checked field by field, or null.
  *  vid: the id it was saved under (whatever the version claims); check: the item, cleaned, or null. */
-export function checkVersion<T>(raw: unknown, vid: string, check: (item: Record<string, unknown>) => T | null): Version<T> | null {
+export function checkVersion<T>(
+  raw: unknown,
+  vid: string,
+  check: (item: Record<string, unknown>) => T | null,
+): Version<T> | null {
   if (!/^[\w-]+$/.test(vid) || !raw || typeof raw !== 'object') return null;
   const v = raw as Partial<Version<unknown>>;
   // (a time in the future would make every later edit look like part of the same change, and be dropped)
-  if (typeof v.at !== 'number' || !Number.isFinite(v.at) || v.at < 0 || v.at > Date.now() + FUTURE_SLACK_MS || !v.item || typeof v.item !== 'object' || Array.isArray(v.item)) return null;
+  if (
+    typeof v.at !== 'number' ||
+    !Number.isFinite(v.at) ||
+    v.at < 0 ||
+    v.at > Date.now() + FUTURE_SLACK_MS ||
+    !v.item ||
+    typeof v.item !== 'object' ||
+    Array.isArray(v.item)
+  )
+    return null;
   const item = check(v.item as Record<string, unknown>);
   if (!item) return null;
   return {
@@ -174,7 +216,25 @@ const obj = (x: unknown) => (x && typeof x === 'object' && !Array.isArray(x) ? (
 /** An agent version made elsewhere, cleaned (see above), as the agent `id`'s; null without a name. */
 export function cleanAgentVersion(item: Fields, id: string): Fields | null {
   const out = keepTyped(item, {
-    ...Object.fromEntries(['name', 'emoji', 'color', 'specialty', 'description', 'systemPrompt', 'engine', 'model', 'provider', 'claudeAuth', 'hermesProfile', 'openclawAgent', 'autonomy', 'workspace', 'lastModel'].map((k) => [k, str])),
+    ...Object.fromEntries(
+      [
+        'name',
+        'emoji',
+        'color',
+        'specialty',
+        'description',
+        'systemPrompt',
+        'engine',
+        'model',
+        'provider',
+        'claudeAuth',
+        'hermesProfile',
+        'openclawAgent',
+        'autonomy',
+        'workspace',
+        'lastModel',
+      ].map((k) => [k, str]),
+    ),
     ...Object.fromEntries(['toolGroups', 'mcpServers', 'alwaysAllow', 'skills'].map((k) => [k, strList])),
     temperature: (x) => (x === '' ? '' : num(x)),
     effort: (x) => (x === '' || isEffort(x) ? x : undefined),
@@ -207,7 +267,13 @@ export function cleanTeamVersion(item: Fields, id: string): Fields | null {
     schedule: (x) => {
       const s = obj(x);
       if (!s || !isStr(s.type)) return undefined;
-      return keepTyped(s, { type: str, times: strList, input: str, minutes: num, days: (d) => (Array.isArray(d) && d.every((n) => typeof n === 'number') ? d : undefined) });
+      return keepTyped(s, {
+        type: str,
+        times: strList,
+        input: str,
+        minutes: num,
+        days: (d) => (Array.isArray(d) && d.every((n) => typeof n === 'number') ? d : undefined),
+      });
     },
   });
   return isStr(out.name) ? { ...out, id } : null;
@@ -217,7 +283,10 @@ export function cleanTeamVersion(item: Fields, id: string): Fields | null {
 export function deletedIn<T>(root: string, stillThere: (id: string) => boolean): { id: string; version: Version<T> }[] {
   let ids: string[] = [];
   try {
-    ids = fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    ids = fs
+      .readdirSync(root, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
   } catch {
     return [];
   }

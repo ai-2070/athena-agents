@@ -10,8 +10,14 @@ export const questions = {
   /** The latest 100, newest first. */
   list: oc.route({ method: 'GET', path: '/questions' }).output(type<AgentQuestion[]>()),
   /** A choice, your own words, or both; it goes to the agent's chat (or its team's) if it stopped waiting. */
-  answer: oc.route({ method: 'POST', path: '/questions/{id}/answer' })
-    .input(oneItem.extend({ choice: z.string({ error: 'choice must be one of its choices.' }).optional(), text: z.string({ error: 'Type your answer.' }).optional() }))
+  answer: oc
+    .route({ method: 'POST', path: '/questions/{id}/answer' })
+    .input(
+      oneItem.extend({
+        choice: z.string({ error: 'choice must be one of its choices.' }).optional(),
+        text: z.string({ error: 'Type your answer.' }).optional(),
+      }),
+    )
     .output(type<AgentQuestion>()),
   dismiss: oc.route({ method: 'POST', path: '/questions/{id}/dismiss' }).input(oneItem).output(type<AgentQuestion>()),
   remove: oc.route({ method: 'DELETE', path: '/questions/{id}' }).input(oneItem).output(type<{ ok: true }>()),
@@ -22,12 +28,15 @@ export const approvals = {
   list: oc.route({ method: 'GET', path: '/approvals' }).output(type<Approval[]>()),
   /** Allow or deny, with a note for the agent; always: allow it from now on; edited: the text, changed (a workflow's
    *  approval step). ok: false when it was already decided. */
-  decide: oc.route({ method: 'POST', path: '/approvals/{id}' })
-    .input(oneItem.extend({
-      approved: z.boolean({ error: 'approved must be true or false.' }).optional(),
-      always: z.boolean({ error: 'always must be true or false.' }).optional(),
-      message: z.string({ error: 'The note must be text.' }).optional(),
-      edited: z.string({ error: 'The changed text must be text.' }).nullable().optional(),
-    }))
+  decide: oc
+    .route({ method: 'POST', path: '/approvals/{id}' })
+    .input(
+      oneItem.extend({
+        approved: z.boolean({ error: 'approved must be true or false.' }).optional(),
+        always: z.boolean({ error: 'always must be true or false.' }).optional(),
+        message: z.string({ error: 'The note must be text.' }).optional(),
+        edited: z.string({ error: 'The changed text must be text.' }).nullable().optional(),
+      }),
+    )
     .output(type<{ ok: boolean }>()),
 };

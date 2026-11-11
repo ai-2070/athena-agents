@@ -43,13 +43,13 @@ sees it.
 
 **Pick the model for the question.**
 
-| Question | Model | Read |
-|---|---|---|
-| What is the business worth on its own cash flows? | DCF | `references/dcf.md` |
-| What could a financial buyer pay, and what would it earn? | LBO | `references/lbo.md` |
-| How do earnings, balance sheet and cash move together? Can it fund itself? | Three-statement | `references/three-statement.md` |
-| What do similar companies trade at? | Comparable companies | `references/comps.md` |
-| Does buying the target raise or lower the buyer's earnings per share? | Merger | `references/merger.md` |
+| Question                                                                   | Model                | Read                            |
+| -------------------------------------------------------------------------- | -------------------- | ------------------------------- |
+| What is the business worth on its own cash flows?                          | DCF                  | `references/dcf.md`             |
+| What could a financial buyer pay, and what would it earn?                  | LBO                  | `references/lbo.md`             |
+| How do earnings, balance sheet and cash move together? Can it fund itself? | Three-statement      | `references/three-statement.md` |
+| What do similar companies trade at?                                        | Comparable companies | `references/comps.md`           |
+| Does buying the target raise or lower the buyer's earnings per share?      | Merger               | `references/merger.md`          |
 
 They combine: a DCF often sits on a three-statement forecast, and comps give the exit multiple for a DCF or an LBO.
 Read `references/conventions.md` before building or changing any of them; it holds the detail of the rules below.

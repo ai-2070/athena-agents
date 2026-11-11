@@ -66,7 +66,11 @@ export async function run({ agent, chat, text, signal, onEvent, systemPrompt }: 
   if (chat.sessionId) args.push('--resume', chat.sessionId, '--no-restore-cwd');
   // Hermes keeps its own system prompt; our agent brief is sent with the first message.
   const query = chat.sessionId ? text : `${systemPrompt}\n\n---\n\n${text}`;
-  const child = spawnCommand('hermes', args, { cwd: workspaceOf(agent), stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+  const child = spawnCommand('hermes', args, {
+    cwd: workspaceOf(agent),
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+  });
   const onAbort = () => killTree(child);
   signal.addEventListener('abort', onAbort);
   let buf = '';
@@ -82,9 +86,22 @@ export async function run({ agent, chat, text, signal, onEvent, systemPrompt }: 
     else if (msg.type === 'result') result = msg;
     else if (/tool/.test(msg.type || '')) {
       const id = msg.id || msg.tool_call_id || `h${++toolN}`;
-      if (/result|output|end/.test(msg.type!)) onEvent({ kind: 'tool_result', id: msg.tool_call_id || msg.id || `h${toolN}`, text: String(msg.output ?? msg.result ?? msg.text ?? ''), isError: !!msg.error });
-      else onEvent({ kind: 'tool', id, name: msg.name || msg.tool || 'tool', args: msg.args || msg.arguments || msg.input || {} });
-    } else if (msg.type === 'status' || msg.type === 'progress') onEvent({ kind: 'status', text: msg.text || msg.message || '' });
+      if (/result|output|end/.test(msg.type!))
+        onEvent({
+          kind: 'tool_result',
+          id: msg.tool_call_id || msg.id || `h${toolN}`,
+          text: String(msg.output ?? msg.result ?? msg.text ?? ''),
+          isError: !!msg.error,
+        });
+      else
+        onEvent({
+          kind: 'tool',
+          id,
+          name: msg.name || msg.tool || 'tool',
+          args: msg.args || msg.arguments || msg.input || {},
+        });
+    } else if (msg.type === 'status' || msg.type === 'progress')
+      onEvent({ kind: 'status', text: msg.text || msg.message || '' });
   };
 
   // stdio is all 'pipe' above, so these streams exist.
@@ -126,7 +143,9 @@ export async function run({ agent, chat, text, signal, onEvent, systemPrompt }: 
   }
   signal.removeEventListener('abort', onAbort);
   if (signal.aborted) throw new Error('Stopped.');
-  if (!result) throw new Error(`Hermes exited (${code}) without an answer.${stderr ? `\n${stderr.trim().slice(-1500)}` : ''}`);
-  if (result.exit_code && result.exit_code !== 0) throw new Error(result.text || `Hermes failed (exit ${result.exit_code}).`);
+  if (!result)
+    throw new Error(`Hermes exited (${code}) without an answer.${stderr ? `\n${stderr.trim().slice(-1500)}` : ''}`);
+  if (result.exit_code && result.exit_code !== 0)
+    throw new Error(result.text || `Hermes failed (exit ${result.exit_code}).`);
   return { text: result.text || '', tokens: result.tokens?.total || 0 };
 }

@@ -23,11 +23,21 @@ const { RUN_SLOTS, SLOT_WORKERS } = await import('../lock-ports.ts');
 const pool = Number(process.env.VITEST_POOL_ID) || 1;
 const count = OWNERSHIP_PORT_COUNT / RUN_SLOTS / SLOT_WORKERS;
 const block = inject('lockSlot') * SLOT_WORKERS + ((pool - 1) % SLOT_WORKERS);
-process.env.DASH_TEST_LOCK_PORTS = JSON.stringify({ dir: path.join(dir, 'lock-ports'), first: OWNERSHIP_PORT_FIRST + block * count, count });
-if (os.homedir() !== home) throw new Error(`Tests could not use a throwaway home folder (got ${os.homedir()}); stopping so your real files stay untouched.`);
+process.env.DASH_TEST_LOCK_PORTS = JSON.stringify({
+  dir: path.join(dir, 'lock-ports'),
+  first: OWNERSHIP_PORT_FIRST + block * count,
+  count,
+});
+if (os.homedir() !== home)
+  throw new Error(
+    `Tests could not use a throwaway home folder (got ${os.homedir()}); stopping so your real files stay untouched.`,
+  );
 // and the dashboard really uses the throwaway data folder
 const { dataPath } = await import('../../server/util.ts');
-if (!path.resolve(dataPath()).startsWith(path.resolve(dir))) throw new Error(`The data folder is ${dataPath()}, not the throwaway one; stopping so your real data stays untouched.`);
+if (!path.resolve(dataPath()).startsWith(path.resolve(dir)))
+  throw new Error(
+    `The data folder is ${dataPath()}, not the throwaway one; stopping so your real data stays untouched.`,
+  );
 
 afterAll(async () => {
   const { stopAllRuns } = await import('../../server/engines/index.ts');

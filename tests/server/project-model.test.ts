@@ -53,7 +53,9 @@ describe('project 3D model', () => {
     const p = await createProject({ name: 'Model two', mode: 'new', folder: folder('model-two') });
     setModel(p.id, 'ship.glb', url(GLB));
     setModel(p.id, 'part.obj', url(OBJ));
-    expect(fs.readdirSync(path.join(p.brainPath, '.dashboard')).filter((n) => n.startsWith('brain-model.'))).toEqual(['brain-model.obj']);
+    expect(fs.readdirSync(path.join(p.brainPath, '.dashboard')).filter((n) => n.startsWith('brain-model.'))).toEqual([
+      'brain-model.obj',
+    ]);
     expect(withLogo(p).modelExt).toBe('obj');
   });
 

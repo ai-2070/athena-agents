@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import { fitCamera, snapCamera, SNAP_DISTANCE } from '../../web/voxel/snapshot.ts';
 import { arcAt, arcPoint, growAt, BuildFx } from '../../web/voxel/buildfx.ts';
 
-const box = (min: [number, number, number], max: [number, number, number]) => new THREE.Box3(new THREE.Vector3(...min), new THREE.Vector3(...max));
+const box = (min: [number, number, number], max: [number, number, number]) =>
+  new THREE.Box3(new THREE.Vector3(...min), new THREE.Vector3(...max));
 
 /** Where the box's corners land in the camera's view (-1..1 is on the picture). */
 function onScreen(b: THREE.Box3, cam: THREE.Camera) {
@@ -22,7 +23,7 @@ function onScreen(b: THREE.Box3, cam: THREE.Camera) {
 }
 
 describe('aiming a picture', () => {
-  it('fits the box on the picture with a little room, from the Station\'s angle', () => {
+  it("fits the box on the picture with a little room, from the Station's angle", () => {
     const b = box([-5, 0, -3], [5, 4, 3]);
     const f = fitCamera(b, 45, 35, 1, 1.6);
     const cam = snapCamera(f);

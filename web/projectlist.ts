@@ -47,7 +47,10 @@ export function projectList<T>(ask: (at: string) => Promise<T[]>, events: readon
     if (!set) {
       set = new Set();
       listeners.set(id, set);
-      offs.set(id, onEvent((e) => void (events.includes(e.type) && load(id))));
+      offs.set(
+        id,
+        onEvent((e) => void (events.includes(e.type) && load(id))),
+      );
       void load(id);
     }
     set.add(fn);

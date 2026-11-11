@@ -55,18 +55,18 @@ difference is usually the cause:
 
 ## 4. The usual causes
 
-| What the log shows | Usually |
-|---|---|
-| An assertion fails, `FAILED test_…` | Your change, or a test that relied on the old behaviour: decide which is right before touching either |
-| `ModuleNotFoundError`, `Cannot find module`, a dependency that won't resolve | A dependency missing from the manifest, or a lock file not updated with it |
-| An error about the lock file being out of date | The manifest changed without the lock file: run the install locally and commit the lock |
-| A formatter or linter listing files | Run the repo's format or lint command and commit what it changes |
-| Type errors | Fix the types; silencing one (`# type: ignore`, `any`) needs a reason the user accepts |
-| `Resource not accessible by integration` | The workflow's token lacks a permission (its `permissions:` block): a CI change, the user's call |
-| Empty secrets or sign-in errors, on a PR from a fork | Secrets aren't passed to fork runs |
-| `has exceeded the maximum execution time`, or cancelled | A hang or a slow step; or a newer push cancelled the run, and the newer run is the one to read |
-| `startup_failure`, or the workflow never ran | Invalid workflow YAML; `gh run view <run id>` shows GitHub's note on it |
-| A required check stays "Expected — Waiting for status to be reported" | The workflow that reports it didn't run for this PR: path or branch filters, or a renamed job |
+| What the log shows                                                           | Usually                                                                                               |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| An assertion fails, `FAILED test_…`                                          | Your change, or a test that relied on the old behaviour: decide which is right before touching either |
+| `ModuleNotFoundError`, `Cannot find module`, a dependency that won't resolve | A dependency missing from the manifest, or a lock file not updated with it                            |
+| An error about the lock file being out of date                               | The manifest changed without the lock file: run the install locally and commit the lock               |
+| A formatter or linter listing files                                          | Run the repo's format or lint command and commit what it changes                                      |
+| Type errors                                                                  | Fix the types; silencing one (`# type: ignore`, `any`) needs a reason the user accepts                |
+| `Resource not accessible by integration`                                     | The workflow's token lacks a permission (its `permissions:` block): a CI change, the user's call      |
+| Empty secrets or sign-in errors, on a PR from a fork                         | Secrets aren't passed to fork runs                                                                    |
+| `has exceeded the maximum execution time`, or cancelled                      | A hang or a slow step; or a newer push cancelled the run, and the newer run is the one to read        |
+| `startup_failure`, or the workflow never ran                                 | Invalid workflow YAML; `gh run view <run id>` shows GitHub's note on it                               |
+| A required check stays "Expected — Waiting for status to be reported"        | The workflow that reports it didn't run for this PR: path or branch filters, or a renamed job         |
 
 ## 5. Fix it, then read again
 

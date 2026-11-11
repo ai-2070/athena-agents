@@ -16,7 +16,15 @@ import { Dot } from './ui/marks.tsx';
 import type { BrainAnswer, BrainDelegate, BrainDone, BrainStep } from '../shared/types.ts';
 
 type Said = { id: string; ts: number; role: 'user'; text: string; attachments?: string[] };
-type Answer = { id: string; ts: number; role: 'brain'; answer: string; done: BrainDone[]; delegate?: BrainDelegate; steps?: BrainStep[] };
+type Answer = {
+  id: string;
+  ts: number;
+  role: 'brain';
+  answer: string;
+  done: BrainDone[];
+  delegate?: BrainDelegate;
+  steps?: BrainStep[];
+};
 type Item = Said | Answer;
 /** A question on its way: what you asked, and the answer as it streams in. */
 interface Asking {
@@ -29,11 +37,23 @@ interface Asking {
 const KEEP = 30;
 
 const fromHistory = (m: BrainHistoryEntry): Item =>
-  m.role === 'user' ? { id: `${m.ts}u`, ts: m.ts, role: 'user', text: m.text, attachments: m.attachments } : { id: `${m.ts}b`, ts: m.ts, role: 'brain', ...savedAnswer(m) };
+  m.role === 'user'
+    ? { id: `${m.ts}u`, ts: m.ts, role: 'user', text: m.text, attachments: m.attachments }
+    : { id: `${m.ts}b`, ts: m.ts, role: 'brain', ...savedAnswer(m) };
 
 /** onOpen: opens an agent's or team's pane (of this project), for work the Brain handed on. here: the project is the
  *  open one (its Brain is just "the Brain"). */
-export function BrainPane({ projectId, projectName, here = false, onOpen }: { projectId: string; projectName: string; here?: boolean; onOpen?: (kind: 'agent' | 'team', id: string) => void }) {
+export function BrainPane({
+  projectId,
+  projectName,
+  here = false,
+  onOpen,
+}: {
+  projectId: string;
+  projectName: string;
+  here?: boolean;
+  onOpen?: (kind: 'agent' | 'team', id: string) => void;
+}) {
   const whose = here ? 'the Brain' : `${projectName}'s Brain`;
   const at = projectAt(projectId);
   const [items, setItems] = useState<Item[]>([]);
@@ -52,7 +72,9 @@ export function BrainPane({ projectId, projectName, here = false, onOpen }: { pr
   const refill = () => setFilled(!!box.current?.value.trim() || tray.count() > 0);
 
   const load = useCallback(async () => {
-    const msgs = await rpcAt(at).brain.history().catch(() => null);
+    const msgs = await rpcAt(at)
+      .brain.history()
+      .catch(() => null);
     if (!msgs || !Array.isArray(msgs)) return;
     setItems(msgs.slice(-KEEP).map(fromHistory));
     setLoaded(true);
@@ -63,7 +85,17 @@ export function BrainPane({ projectId, projectName, here = false, onOpen }: { pr
       if (ev.projectId !== projectId) return;
       // (an answer on its way is saved when it ends: this pane reads the history again then)
       if (ev.type === 'brain-chat' && !ev.conversationId && !askingRef.current) void load();
-      if (ev.type === 'brain-note' || ev.type === 'brain-learned') setNotes((n) => [...n, { id: `n${ev.ts}`, ts: ev.ts, role: 'brain', answer: String(ev.answer || ''), done: (ev.done as BrainDone[]) || [] }]);
+      if (ev.type === 'brain-note' || ev.type === 'brain-learned')
+        setNotes((n) => [
+          ...n,
+          {
+            id: `n${ev.ts}`,
+            ts: ev.ts,
+            role: 'brain',
+            answer: String(ev.answer || ''),
+            done: (ev.done as BrainDone[]) || [],
+          },
+        ]);
     });
     const back = onReconnect(() => void load());
     return () => (off(), back());
@@ -95,11 +127,17 @@ export function BrainPane({ projectId, projectName, here = false, onOpen }: { pr
     setAsking({ text, attachments, answer: '', steps: [] });
     let failed = '';
     try {
-      const [{ readUIMessageStream }, { brainStream }] = await Promise.all([import('ai'), import('./chat/transport.ts')]);
+      const [{ readUIMessageStream }, { brainStream }] = await Promise.all([
+        import('ai'),
+        import('./chat/transport.ts'),
+      ]);
       const stream = await brainStream({ text, project: projectId, attachments }, { at, signal: stop.signal });
       let answer: BrainAnswer | null = null;
       const errors: string[] = [];
-      for await (const m of readUIMessageStream({ stream, onError: (e) => errors.push(e instanceof Error ? e.message : String(e)) })) {
+      for await (const m of readUIMessageStream({
+        stream,
+        onError: (e) => errors.push(e instanceof Error ? e.message : String(e)),
+      })) {
         const now = brainProgress(m);
         setAsking((a) => (a ? { ...a, ...now } : a));
         const d = m.parts.find((p) => p.type === 'data-answer') as { data?: BrainAnswer } | undefined;
@@ -130,7 +168,11 @@ export function BrainPane({ projectId, projectName, here = false, onOpen }: { pr
   return (
     <div ref={root} className="brain-pane flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex justify-end pt-1">
-        <DomNode as="span" make={() => memoryButton(BRAIN, `${projectName}'s Brain`, { size: 'tiny', projectId })} deps={[projectId, projectName]} />
+        <DomNode
+          as="span"
+          make={() => memoryButton(BRAIN, `${projectName}'s Brain`, { size: 'tiny', projectId })}
+          deps={[projectId, projectName]}
+        />
       </div>
       <div
         ref={list}
@@ -140,8 +182,20 @@ export function BrainPane({ projectId, projectName, here = false, onOpen }: { pr
           near.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         }}
       >
-        {loaded && !shown.length && !asking ? <p className="m-auto max-w-72 text-center text-[13px] text-dim">{here ? 'Ask the Brain about this project, or for work done here.' : `Ask ${projectName}'s Brain about that project, or for work done there. The dashboard stays on the project that is open.`}</p> : null}
-        {shown.map((it) => (it.role === 'user' ? <Question key={it.id} text={it.text} attachments={it.attachments} /> : <BrainAnswerView key={it.id} it={it} onOpen={onOpen} />))}
+        {loaded && !shown.length && !asking ? (
+          <p className="m-auto max-w-72 text-center text-[13px] text-dim">
+            {here
+              ? 'Ask the Brain about this project, or for work done here.'
+              : `Ask ${projectName}'s Brain about that project, or for work done there. The dashboard stays on the project that is open.`}
+          </p>
+        ) : null}
+        {shown.map((it) =>
+          it.role === 'user' ? (
+            <Question key={it.id} text={it.text} attachments={it.attachments} />
+          ) : (
+            <BrainAnswerView key={it.id} it={it} onOpen={onOpen} />
+          ),
+        )}
         {asking ? (
           <>
             <Question text={asking.text} attachments={asking.attachments} />
@@ -156,7 +210,11 @@ export function BrainPane({ projectId, projectName, here = false, onOpen }: { pr
           className={`dock-input w-full ${COMPOSER_TEXT}`}
           rows={2}
           aria-label={`Message ${whose}`}
-          placeholder={asking ? 'The Brain is answering…' : `Ask ${here ? 'the Brain' : `${projectName}'s Brain`}…  (Enter to send)`}
+          placeholder={
+            asking
+              ? 'The Brain is answering…'
+              : `Ask ${here ? 'the Brain' : `${projectName}'s Brain`}…  (Enter to send)`
+          }
           onInput={refill}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -165,14 +223,31 @@ export function BrainPane({ projectId, projectName, here = false, onOpen }: { pr
             }
           }}
         />
-        <div className={`${COMPOSER_BTNS} items-center px-2 pt-1 pb-2`} style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+        <div
+          className={`${COMPOSER_BTNS} items-center px-2 pt-1 pb-2`}
+          style={{ flexDirection: 'row', justifyContent: 'flex-end' }}
+        >
           <DomNode as="span" make={() => tray.picker} deps={[tray]} />
           {asking ? (
-            <Button key="stop" variant="danger" className="size-8! px-0!" onClick={stop} title="Stop the Brain's answer" aria-label="Stop">
+            <Button
+              key="stop"
+              variant="danger"
+              className="size-8! px-0!"
+              onClick={stop}
+              title="Stop the Brain's answer"
+              aria-label="Stop"
+            >
               <Icon name="square" size={14} />
             </Button>
           ) : (
-            <Button key="send" className="size-8! px-0!" onClick={() => void ask()} disabled={!filled} title="Send (Enter)" aria-label="Send">
+            <Button
+              key="send"
+              className="size-8! px-0!"
+              onClick={() => void ask()}
+              disabled={!filled}
+              title="Send (Enter)"
+              aria-label="Send"
+            >
               <Icon name="arrow-up" size={16} />
             </Button>
           )}
@@ -192,11 +267,31 @@ function Question({ text, attachments }: { text: string; attachments?: string[] 
   );
 }
 
-const DONE_ICONS: Record<string, string> = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', model: 'cpu', mcp: 'plug', stop: 'square', memory: 'file-text', error: 'triangle-alert', note: 'check' };
+const DONE_ICONS: Record<string, string> = {
+  team: 'users',
+  hired: 'user-plus',
+  file: 'file-text',
+  routine: 'repeat',
+  skill: 'puzzle',
+  model: 'cpu',
+  mcp: 'plug',
+  stop: 'square',
+  memory: 'file-text',
+  error: 'triangle-alert',
+  note: 'check',
+};
 const ACT = 'flex items-center gap-2.5 rounded-ctl border px-3 py-1.5 text-[13px]';
 
 /** A Brain answer: the tools it used, its words, what it did, and the work it handed on. */
-function BrainAnswerView({ it, live = false, onOpen }: { it: Pick<Answer, 'answer' | 'done' | 'delegate' | 'steps'>; live?: boolean; onOpen?: (kind: 'agent' | 'team', id: string) => void }) {
+function BrainAnswerView({
+  it,
+  live = false,
+  onOpen,
+}: {
+  it: Pick<Answer, 'answer' | 'done' | 'delegate' | 'steps'>;
+  live?: boolean;
+  onOpen?: (kind: 'agent' | 'team', id: string) => void;
+}) {
   const to = it.delegate;
   return (
     <div className="brain text-[13.5px] leading-[1.6] wrap-anywhere">
@@ -233,7 +328,10 @@ function BrainAnswerView({ it, live = false, onOpen }: { it: Pick<Answer, 'answe
       {it.done.length ? (
         <div className="mt-3 flex flex-col gap-2">
           {it.done.map((d, i) => (
-            <div key={i} className={`${ACT} ${d.kind === 'error' ? 'border-[color-mix(in_srgb,var(--color-amber)_35%,var(--color-line))] bg-amber/8' : 'border-line bg-panel'}`}>
+            <div
+              key={i}
+              className={`${ACT} ${d.kind === 'error' ? 'border-[color-mix(in_srgb,var(--color-amber)_35%,var(--color-line))] bg-amber/8' : 'border-line bg-panel'}`}
+            >
               <Icon name={DONE_ICONS[d.kind] || 'check'} size={13} />
               <span className="flex-1">{d.text}</span>
             </div>

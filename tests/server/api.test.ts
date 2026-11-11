@@ -9,7 +9,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import type { GatewayDeliveryReview, GatewayHealth, GatewayInstance, GatewayDiscordRecovery, GatewayRequestReview, GatewayTelegramSetup, GatewayWhatsAppSetup, GatewayWorkReview, OutboxPost } from '../../shared/types.ts';
+import type {
+  GatewayDeliveryReview,
+  GatewayHealth,
+  GatewayInstance,
+  GatewayDiscordRecovery,
+  GatewayRequestReview,
+  GatewayTelegramSetup,
+  GatewayWhatsAppSetup,
+  GatewayWorkReview,
+  OutboxPost,
+} from '../../shared/types.ts';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 // set in beforeAll: a port nothing else is using (see startServer)
@@ -37,8 +47,11 @@ async function stopServer(child: ChildProcess): Promise<void> {
   const pid = child.pid;
   if (!pid) return;
   const signalGroup = (signal: NodeJS.Signals) => {
-    try { process.kill(-pid, signal); }
-    catch (e) { if (!(e instanceof Error) || !('code' in e) || e.code !== 'ESRCH') throw e; }
+    try {
+      process.kill(-pid, signal);
+    } catch (e) {
+      if (!(e instanceof Error) || !('code' in e) || e.code !== 'ESRCH') throw e;
+    }
   };
   if (child.exitCode !== null || child.signalCode !== null) {
     if (process.platform !== 'win32') signalGroup('SIGKILL');
@@ -114,44 +127,77 @@ describe('API', () => {
     expect(st.dataDir.startsWith(tmp)).toBe(true);
   });
 
-  it("refuses a change made for a project that is no longer open (finding 19)", async () => {
+  it('refuses a change made for a project that is no longer open (finding 19)', async () => {
     const st = await (await req('/api/state')).json();
-    const stale = await req('/api/agents', { method: 'POST', headers: { ...json, 'x-dash-project': 'another-project' }, body: JSON.stringify({ name: 'Stale' }) });
+    const stale = await req('/api/agents', {
+      method: 'POST',
+      headers: { ...json, 'x-dash-project': 'another-project' },
+      body: JSON.stringify({ name: 'Stale' }),
+    });
     expect(stale.status).toBe(409);
     const agents = await (await req('/api/agents')).json();
     expect(agents.some((a: { name: string }) => a.name === 'Stale')).toBe(false);
-    const fresh = await req('/api/agents', { method: 'POST', headers: { ...json, 'x-dash-project': st.project.id }, body: JSON.stringify({ name: 'Fresh' }) });
+    const fresh = await req('/api/agents', {
+      method: 'POST',
+      headers: { ...json, 'x-dash-project': st.project.id },
+      body: JSON.stringify({ name: 'Fresh' }),
+    });
     expect(fresh.status).toBe(200);
     await req(`/api/agents/${(await fresh.json()).id}`, { method: 'DELETE', headers: json });
   });
 
   it('creates an agent and a team', async () => {
-    const a = await (await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Tester' }) })).json();
+    const a = await (
+      await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Tester' }) })
+    ).json();
     expect(a.id).toMatch(/^tester-/);
-    const t = await (await req('/api/workflows', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Crew', members: [a.id], lead: a.id }) })).json();
+    const t = await (
+      await req('/api/workflows', {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ name: 'Crew', members: [a.id], lead: a.id }),
+      })
+    ).json();
     const list = await (await req('/api/workflows')).json();
     expect(list.find((x: { id: string }) => x.id === t.id)).toMatchObject({ name: 'Crew', members: [a.id] });
   });
 
   it('creates, lists, reads and updates persistent tasks through the real API', async () => {
-    const created = await req('/api/tasks', { method: 'POST', headers: json, body: JSON.stringify({ subject: 'API task', description: 'Check the real task routes.' }) });
+    const created = await req('/api/tasks', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ subject: 'API task', description: 'Check the real task routes.' }),
+    });
     expect(created.status).toBe(200);
     const { task } = await created.json();
     expect((await (await req(`/api/tasks/${task.id}`)).json()).task.subject).toBe('API task');
     const page = await (await req('/api/tasks?view=all&status=open')).json();
     expect(page.tasks.some((t: { id: string }) => t.id === task.id)).toBe(true);
-    const update = await req(`/api/tasks/${task.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ status: 'completed', expectedUpdatedAt: task.updatedAt }) });
+    const update = await req(`/api/tasks/${task.id}`, {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ status: 'completed', expectedUpdatedAt: task.updatedAt }),
+    });
     expect((await update.json()).task.status).toBe('completed');
-    const stale = await req(`/api/tasks/${task.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ subject: 'stale', expectedUpdatedAt: task.updatedAt }) });
+    const stale = await req(`/api/tasks/${task.id}`, {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ subject: 'stale', expectedUpdatedAt: task.updatedAt }),
+    });
     expect(stale.status).toBe(409);
     const invalid = await req('/api/tasks', { method: 'POST', headers: json, body: JSON.stringify({ subject: '' }) });
     expect(invalid.status).toBe(400);
-    const unsafe = await req(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status: 'pending' }) });
+    const unsafe = await req(`/api/tasks/${task.id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'pending' }),
+    });
     expect(unsafe.status).toBe(403);
   });
 
   it('deletes a team with its agents, but keeps agents that are on another team', async () => {
-    const send = async (method: string, p: string, body?: unknown) => (await req(p, { method, headers: json, ...(body ? { body: JSON.stringify(body) } : {}) })).json();
+    const send = async (method: string, p: string, body?: unknown) =>
+      (await req(p, { method, headers: json, ...(body ? { body: JSON.stringify(body) } : {}) })).json();
     const solo = await send('POST', '/api/agents', { name: 'Only Here' });
     const shared = await send('POST', '/api/agents', { name: 'Also Elsewhere' });
     const t = await send('POST', '/api/workflows', { name: 'Doomed', members: [solo.id, shared.id], lead: solo.id });
@@ -164,41 +210,70 @@ describe('API', () => {
   });
 
   it("keeps a team's emoji symbol, and a picture or model only through its own route", async () => {
-    const send = async (method: string, p: string, body?: unknown) => req(p, { method, headers: json, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const send = async (method: string, p: string, body?: unknown) =>
+      req(p, { method, headers: json, ...(body ? { body: JSON.stringify(body) } : {}) });
     const a = await (await send('POST', '/api/agents', { name: 'Symbol Tester' })).json();
-    const t = await (await send('POST', '/api/workflows', { name: 'Symbols', members: [a.id], lead: a.id, mark: '🎬' })).json();
+    const t = await (
+      await send('POST', '/api/workflows', { name: 'Symbols', members: [a.id], lead: a.id, mark: '🎬' })
+    ).json();
     expect(t.mark).toBe('🎬');
     // anything that is not an emoji falls back to the default (empty)
     expect((await (await send('PUT', `/api/workflows/${t.id}`, { mark: '@' })).json()).mark).toBe('');
     // saving a team cannot make it point at a file: markFile only comes from the picture/model route
-    const spoof = await (await send('PUT', `/api/workflows/${t.id}`, { markFile: { kind: 'image', ext: 'png', at: 1 } })).json();
+    const spoof = await (
+      await send('PUT', `/api/workflows/${t.id}`, { markFile: { kind: 'image', ext: 'png', at: 1 } })
+    ).json();
     expect(spoof.markFile ?? null).toBeNull();
     expect((await send('GET', `/api/workflows/${t.id}/mark`)).status).toBe(404);
     // a real picture goes in, comes back out, and saving the team afterwards keeps it
-    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const png =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
     const saved = await (await send('POST', `/api/workflows/${t.id}/mark`, { name: 'badge.png', data: png })).json();
     expect(saved.markFile).toMatchObject({ kind: 'image', ext: 'png' });
     expect((await send('GET', `/api/workflows/${t.id}/mark`)).headers.get('content-type')).toBe('image/png');
-    expect((await (await send('PUT', `/api/workflows/${t.id}`, { description: 'x' })).json()).markFile).toMatchObject({ kind: 'image' });
-    expect((await send('POST', `/api/workflows/${t.id}/mark`, { name: 'bad.png', data: 'data:image/png;base64,AAAA' })).status).toBeGreaterThanOrEqual(400);
+    expect((await (await send('PUT', `/api/workflows/${t.id}`, { description: 'x' })).json()).markFile).toMatchObject({
+      kind: 'image',
+    });
+    expect(
+      (await send('POST', `/api/workflows/${t.id}/mark`, { name: 'bad.png', data: 'data:image/png;base64,AAAA' }))
+        .status,
+    ).toBeGreaterThanOrEqual(400);
     expect((await (await send('DELETE', `/api/workflows/${t.id}/mark`)).json()).markFile).toBeNull();
     expect((await send('GET', `/api/workflows/${t.id}/mark`)).status).toBe(404);
   });
 
   it('makes and edits a routine that mentions an agent and a team', async () => {
     // its own agent and team, so this test runs on its own too
-    const post = async (p: string, body: unknown) => (await req(p, { method: 'POST', headers: json, body: JSON.stringify(body) })).json();
+    const post = async (p: string, body: unknown) =>
+      (await req(p, { method: 'POST', headers: json, body: JSON.stringify(body) })).json();
     const a = await post('/api/agents', { name: 'Routine Tester' });
     await post('/api/workflows', { name: 'Routine Crew', members: [a.id], lead: a.id });
-    const empty = await req('/api/routines', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Daily' }) });
+    const empty = await req('/api/routines', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ name: 'Daily' }),
+    });
     expect(empty.status).toBe(400);
-    const created = await req('/api/routines', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Daily', text: 'Check the launch.' }) });
+    const created = await req('/api/routines', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ name: 'Daily', text: 'Check the launch.' }),
+    });
     expect(created.status).toBe(200);
     const r = await created.json();
     // A valid routine with nobody mentioned cannot run yet.
     expect((await req(`/api/routines/${r.id}/run`, { method: 'POST', headers: json, body: '{}' })).status).toBe(400);
-    const saved = await (await req(`/api/routines/${r.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ text: 'Have @Routine Tester and @Routine Crew check in.' }) })).json();
-    expect(saved.mentions.map((m: { kind: string; name: string }) => `${m.kind}:${m.name}`)).toEqual(['agent:Routine Tester', 'team:Routine Crew']);
+    const saved = await (
+      await req(`/api/routines/${r.id}`, {
+        method: 'PUT',
+        headers: json,
+        body: JSON.stringify({ text: 'Have @Routine Tester and @Routine Crew check in.' }),
+      })
+    ).json();
+    expect(saved.mentions.map((m: { kind: string; name: string }) => `${m.kind}:${m.name}`)).toEqual([
+      'agent:Routine Tester',
+      'team:Routine Crew',
+    ]);
     const list = await (await req('/api/routines')).json();
     expect(list.find((x: { id: string }) => x.id === r.id)).toMatchObject({ name: 'Daily', lastRun: null });
     expect((await req('/api/routines/nope')).status).toBe(404);
@@ -206,11 +281,19 @@ describe('API', () => {
   });
 
   it('never sends secrets to the browser', async () => {
-    await req('/api/secrets', { method: 'POST', headers: json, body: JSON.stringify({ key: 'openrouterKey', value: 'sk-or-v1-supersecretvalue9999' }) });
+    await req('/api/secrets', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ key: 'openrouterKey', value: 'sk-or-v1-supersecretvalue9999' }),
+    });
     const text = await (await req('/api/state')).text();
     expect(text).not.toContain('supersecretvalue');
     expect(JSON.parse(text).secrets.openrouterKey).toEqual({ set: true, hint: '…9999' });
-    await req('/api/secrets', { method: 'POST', headers: json, body: JSON.stringify({ key: 'veniceKey', value: 'venice-supersecretvalue4321' }) });
+    await req('/api/secrets', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ key: 'veniceKey', value: 'venice-supersecretvalue4321' }),
+    });
     const venice = await (await req('/api/state')).text();
     expect(venice).not.toContain('supersecretvalue');
     expect(JSON.parse(venice).secrets.veniceKey).toEqual({ set: true, hint: '…4321' });
@@ -230,258 +313,869 @@ describe('API', () => {
 
 describe('gateway configuration API', () => {
   it('keeps gateway drafts unsent until a recipient is reviewed and refuses the old implicit test-send route', async () => {
-    const response = await req('/api/outbox', { method: 'POST', headers: json, body: JSON.stringify({ platform: 'telegram', text: 'Local draft only' }) });
-    expect(response.ok).toBe(true); const draft = await response.json() as OutboxPost; expect(draft.status).toBe('pending'); expect(draft.gateway).toBeUndefined(); expect(draft.gatewayDraftRevision).toMatch(/^[a-f0-9]{64}$/);
+    const response = await req('/api/outbox', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ platform: 'telegram', text: 'Local draft only' }),
+    });
+    expect(response.ok).toBe(true);
+    const draft = (await response.json()) as OutboxPost;
+    expect(draft.status).toBe('pending');
+    expect(draft.gateway).toBeUndefined();
+    expect(draft.gatewayDraftRevision).toMatch(/^[a-f0-9]{64}$/);
     expect((await req('/api/outbox/gateway-destinations')).ok).toBe(true);
-    expect((await req(`/api/outbox/${draft.id}/gateway-review`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status).toBe(403);
-    expect((await req(`/api/outbox/${draft.id}/approve`, { method: 'POST', headers: json, body: '{}' })).ok).toBe(false);
-    expect((await req(`/api/outbox/${draft.id}/gateway-finish`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeNoSend: true }) })).ok).toBe(false);
+    expect(
+      (
+        await req(`/api/outbox/${draft.id}/gateway-review`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        })
+      ).status,
+    ).toBe(403);
+    expect((await req(`/api/outbox/${draft.id}/approve`, { method: 'POST', headers: json, body: '{}' })).ok).toBe(
+      false,
+    );
+    expect(
+      (
+        await req(`/api/outbox/${draft.id}/gateway-finish`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeNoSend: true }),
+        })
+      ).ok,
+    ).toBe(false);
     expect((await req(`/api/outbox/${draft.id}/gateway-delivery`)).status).toBe(409);
-    for (const suffix of ['gateway-delivery', 'gateway-delivery/prepare', 'gateway-finish']) expect((await req(`/api/outbox/${draft.id}/${suffix}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status).toBe(403);
-    expect((await req(`/api/outbox/${draft.id}/gateway-delivery`, { method: 'POST', headers: json, body: JSON.stringify({ action: 'retry', index: 0, revision: 'a'.repeat(64), acknowledgeRemaining: true, acknowledgePossibleDuplicate: true }) })).ok).toBe(false);
-    const old = await req('/api/social/test', { method: 'POST', headers: json, body: JSON.stringify({ platform: 'telegram' }) }); expect(old.status).toBe(400); expect(await old.text()).toContain('Old global tokens');
-    const listed = await (await req('/api/outbox')).json() as OutboxPost[]; expect(listed.find((item) => item.id === draft.id)).toMatchObject({ status: 'pending', parts: ['Local draft only'] });
+    for (const suffix of ['gateway-delivery', 'gateway-delivery/prepare', 'gateway-finish'])
+      expect(
+        (
+          await req(`/api/outbox/${draft.id}/${suffix}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: '{}',
+          })
+        ).status,
+      ).toBe(403);
+    expect(
+      (
+        await req(`/api/outbox/${draft.id}/gateway-delivery`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({
+            action: 'retry',
+            index: 0,
+            revision: 'a'.repeat(64),
+            acknowledgeRemaining: true,
+            acknowledgePossibleDuplicate: true,
+          }),
+        })
+      ).ok,
+    ).toBe(false);
+    const old = await req('/api/social/test', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ platform: 'telegram' }),
+    });
+    expect(old.status).toBe(400);
+    expect(await old.text()).toContain('Old global tokens');
+    const listed = (await (await req('/api/outbox')).json()) as OutboxPost[];
+    expect(listed.find((item) => item.id === draft.id)).toMatchObject({
+      status: 'pending',
+      parts: ['Local draft only'],
+    });
     expect((await req(`/api/outbox/${draft.id}`, { method: 'DELETE', headers: json })).ok).toBe(true);
   });
 
   it('keeps paused native work locally behind current-receipt and request guards without changing native evidence', async () => {
-    const state = await (await req('/api/state')).json() as { project: { id: string } };
-    const config = { name: 'Keep native work', platform: 'telegram', accountId: '9540000001', projectId: state.project.id, target: { kind: 'brain' },
-      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
-      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
-    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
-    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true }); const file = path.join(directory, 'inbox.json');
-    const route = { instanceId: instance.id, projectId: instance.projectId, target: instance.target, generation: instance.routeGeneration }; const eventId = 'c'.repeat(64);
-    const dispatch = { state: 'needs-review', startedAt: 1, conversation: { kind: 'brain', projectId: instance.projectId, conversationId: 'binding', sender: 'Alice' }, brain: { answer: 'PRIVATE_INTERMEDIATE_ANSWER', delegate: null } };
-    fs.writeFileSync(file, JSON.stringify({ version: 1, nextSequence: 2,
-      bindings: [{ id: 'binding', accountId: instance.accountId, conversationId: '123', threadId: '', route, createdAt: 1 }],
-      events: [{ id: eventId, bindingId: 'binding', route, sequence: 1, receivedAt: 1, status: 'needs-review', operationId: 'native-operation', dispatch,
-        input: { platform: 'telegram', accountId: instance.accountId, conversationId: '123', threadId: '', sourceMessageId: '1', sourceEventId: '1', kind: 'message',
-          actor: { id: '123', label: 'Alice', kind: 'user' }, directMessage: true, triggered: false, text: 'Saved request', media: [] } }],
-    }));
-    const url = `/api/gateways/${instance.id}/inbox/${eventId}/work-review`; const before = fs.readFileSync(file, 'utf8');
-    const preview = await (await req(url)).json() as GatewayWorkReview; expect(preview).toMatchObject({ canKeep: true, operationId: 'native-operation', native: { state: 'needs-review' } });
-    expect(JSON.stringify(preview)).not.toContain('PRIVATE_INTERMEDIATE_ANSWER'); expect(fs.readFileSync(file, 'utf8')).toBe(before);
-    const body = JSON.stringify({ revision: preview.revision, acknowledgeMayStillRun: true, acknowledgeFreshConversation: true, acknowledgeNoReply: true });
-    expect((await req(`${url}/prepare`, { method: 'POST' })).status).toBe(403); expect((await req(`${url}/keep`, { method: 'POST', body })).status).toBe(403);
-    expect((await req(`${url}/keep`, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status).toBe(403);
-    expect((await req(`${url}/keep`, { method: 'POST', headers: json, body: JSON.stringify({ revision: preview.revision, acknowledgeNoReply: true }) })).status).toBe(409);
-    expect((await req(`${url}/keep`, { method: 'POST', headers: json, body })).status).toBe(200); expect((await req(`${url}/keep`, { method: 'POST', headers: json, body })).status).toBe(409);
-    const saved = JSON.parse(fs.readFileSync(file, 'utf8')) as { events: { status: string; operationId: string; dispatch: unknown; reply?: unknown; workKept: unknown }[] };
-    expect(saved.events[0]).toMatchObject({ status: 'needs-review', operationId: 'native-operation', dispatch }); expect(saved.events[0].reply).toBeUndefined(); expect(saved.events[0].workKept).toBeDefined();
-    const summary = await (await req('/api/state')).json() as { gateways: { id: string; reviewCount: number }[] }; expect(summary.gateways.find((item) => item.id === instance.id)?.reviewCount).toBe(0);
+    const state = (await (await req('/api/state')).json()) as { project: { id: string } };
+    const config = {
+      name: 'Keep native work',
+      platform: 'telegram',
+      accountId: '9540000001',
+      projectId: state.project.id,
+      target: { kind: 'brain' },
+      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] },
+      scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 },
+      enabled: false,
+    };
+    const instance = (await (
+      await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })
+    ).json()) as GatewayInstance;
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id);
+    fs.mkdirSync(directory, { recursive: true });
+    const file = path.join(directory, 'inbox.json');
+    const route = {
+      instanceId: instance.id,
+      projectId: instance.projectId,
+      target: instance.target,
+      generation: instance.routeGeneration,
+    };
+    const eventId = 'c'.repeat(64);
+    const dispatch = {
+      state: 'needs-review',
+      startedAt: 1,
+      conversation: { kind: 'brain', projectId: instance.projectId, conversationId: 'binding', sender: 'Alice' },
+      brain: { answer: 'PRIVATE_INTERMEDIATE_ANSWER', delegate: null },
+    };
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        nextSequence: 2,
+        bindings: [
+          { id: 'binding', accountId: instance.accountId, conversationId: '123', threadId: '', route, createdAt: 1 },
+        ],
+        events: [
+          {
+            id: eventId,
+            bindingId: 'binding',
+            route,
+            sequence: 1,
+            receivedAt: 1,
+            status: 'needs-review',
+            operationId: 'native-operation',
+            dispatch,
+            input: {
+              platform: 'telegram',
+              accountId: instance.accountId,
+              conversationId: '123',
+              threadId: '',
+              sourceMessageId: '1',
+              sourceEventId: '1',
+              kind: 'message',
+              actor: { id: '123', label: 'Alice', kind: 'user' },
+              directMessage: true,
+              triggered: false,
+              text: 'Saved request',
+              media: [],
+            },
+          },
+        ],
+      }),
+    );
+    const url = `/api/gateways/${instance.id}/inbox/${eventId}/work-review`;
+    const before = fs.readFileSync(file, 'utf8');
+    const preview = (await (await req(url)).json()) as GatewayWorkReview;
+    expect(preview).toMatchObject({
+      canKeep: true,
+      operationId: 'native-operation',
+      native: { state: 'needs-review' },
+    });
+    expect(JSON.stringify(preview)).not.toContain('PRIVATE_INTERMEDIATE_ANSWER');
+    expect(fs.readFileSync(file, 'utf8')).toBe(before);
+    const body = JSON.stringify({
+      revision: preview.revision,
+      acknowledgeMayStillRun: true,
+      acknowledgeFreshConversation: true,
+      acknowledgeNoReply: true,
+    });
+    expect((await req(`${url}/prepare`, { method: 'POST' })).status).toBe(403);
+    expect((await req(`${url}/keep`, { method: 'POST', body })).status).toBe(403);
+    expect(
+      (await req(`${url}/keep`, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status,
+    ).toBe(403);
+    expect(
+      (
+        await req(`${url}/keep`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ revision: preview.revision, acknowledgeNoReply: true }),
+        })
+      ).status,
+    ).toBe(409);
+    expect((await req(`${url}/keep`, { method: 'POST', headers: json, body })).status).toBe(200);
+    expect((await req(`${url}/keep`, { method: 'POST', headers: json, body })).status).toBe(409);
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+      events: { status: string; operationId: string; dispatch: unknown; reply?: unknown; workKept: unknown }[];
+    };
+    expect(saved.events[0]).toMatchObject({ status: 'needs-review', operationId: 'native-operation', dispatch });
+    expect(saved.events[0].reply).toBeUndefined();
+    expect(saved.events[0].workKept).toBeDefined();
+    const summary = (await (await req('/api/state')).json()) as { gateways: { id: string; reviewCount: number }[] };
+    expect(summary.gateways.find((item) => item.id === instance.id)?.reviewCount).toBe(0);
     await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
   });
 
   it('serves local Telegram setup status without secrets and guards explicit provider checks and switches', async () => {
-    const state = await (await req('/api/state')).json() as { project: { id: string } };
-    const config = { name: 'Telegram switch', platform: 'telegram', accountId: '9550000001', projectId: state.project.id, target: { kind: 'brain' },
-      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
-      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
-    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
-    await req(`/api/gateways/${instance.id}/credentials`, { method: 'POST', headers: json, body: JSON.stringify({ botToken: 'PRIVATE_TELEGRAM_SETUP_TOKEN' }) });
-    const url = `/api/gateways/${instance.id}/telegram-setup`; const initial = await (await req(url)).json() as GatewayTelegramSetup;
-    expect(initial).toMatchObject({ revision: null, check: null, attempt: null, switches: 0 }); expect(JSON.stringify(initial)).not.toContain('PRIVATE_TELEGRAM_SETUP_TOKEN');
+    const state = (await (await req('/api/state')).json()) as { project: { id: string } };
+    const config = {
+      name: 'Telegram switch',
+      platform: 'telegram',
+      accountId: '9550000001',
+      projectId: state.project.id,
+      target: { kind: 'brain' },
+      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] },
+      scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 },
+      enabled: false,
+    };
+    const instance = (await (
+      await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })
+    ).json()) as GatewayInstance;
+    await req(`/api/gateways/${instance.id}/credentials`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ botToken: 'PRIVATE_TELEGRAM_SETUP_TOKEN' }),
+    });
+    const url = `/api/gateways/${instance.id}/telegram-setup`;
+    const initial = (await (await req(url)).json()) as GatewayTelegramSetup;
+    expect(initial).toMatchObject({ revision: null, check: null, attempt: null, switches: 0 });
+    expect(JSON.stringify(initial)).not.toContain('PRIVATE_TELEGRAM_SETUP_TOKEN');
     for (const suffix of ['check', 'switch']) {
       expect((await req(`${url}/${suffix}`, { method: 'POST', body: '{}' })).status).toBe(403);
-      expect((await req(`${url}/${suffix}`, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body: '{}' })).status).toBe(403);
+      expect(
+        (
+          await req(`${url}/${suffix}`, {
+            method: 'POST',
+            headers: { ...json, 'sec-fetch-site': 'cross-site' },
+            body: '{}',
+          })
+        ).status,
+      ).toBe(403);
     }
-    expect((await req(`${url}/switch`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeStopped: true, acknowledgeKeepUpdates: true }) })).status).toBe(409);
-    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true });
-    fs.writeFileSync(path.join(directory, 'telegram-setup.json'), JSON.stringify({ version: 1, switches: [{ at: 1, state: 'started', revision: 'a'.repeat(64) }] }));
-    const saved = await (await req(url)).json() as GatewayTelegramSetup; expect(saved).toMatchObject({ revision: null, attempt: { at: 1, state: 'started' }, switches: 1 });
-    expect(saved.attempt).not.toHaveProperty('revision'); expect((await req('/api/gateways/missing/telegram-setup')).status).toBe(404);
+    expect(
+      (
+        await req(`${url}/switch`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeStopped: true, acknowledgeKeepUpdates: true }),
+        })
+      ).status,
+    ).toBe(409);
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id);
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(
+      path.join(directory, 'telegram-setup.json'),
+      JSON.stringify({ version: 1, switches: [{ at: 1, state: 'started', revision: 'a'.repeat(64) }] }),
+    );
+    const saved = (await (await req(url)).json()) as GatewayTelegramSetup;
+    expect(saved).toMatchObject({ revision: null, attempt: { at: 1, state: 'started' }, switches: 1 });
+    expect(saved.attempt).not.toHaveProperty('revision');
+    expect((await req('/api/gateways/missing/telegram-setup')).status).toBe(404);
     await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
   });
 
   it('reviews a paused completed delivery locally behind request guards and keeps its native and remaining receipts', async () => {
-    const state = await (await req('/api/state')).json() as { project: { id: string } };
-    const config = { name: 'Local delivery', platform: 'telegram', accountId: '9600000001', projectId: state.project.id, target: { kind: 'brain' },
-      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
-      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
-    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
-    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true }); const file = path.join(directory, 'inbox.json');
-    const route = { instanceId: instance.id, projectId: instance.projectId, target: instance.target, generation: instance.routeGeneration }; const eventId = 'b'.repeat(64);
-    const dispatch = { state: 'completed', startedAt: 1, runId: 'native-run', conversation: { kind: 'brain', projectId: instance.projectId, conversationId: 'binding', sender: 'Alice' }, answer: 'Saved answer' };
-    fs.writeFileSync(file, JSON.stringify({ version: 1, nextSequence: 2,
-      bindings: [{ id: 'binding', accountId: instance.accountId, conversationId: '123', threadId: '', route, createdAt: 1 }],
-      events: [{ id: eventId, bindingId: 'binding', route, sequence: 1, receivedAt: 1, status: 'done', operationId: 'native-operation', dispatch,
-        reply: { createdAt: 1, parts: [{ text: 'Attempted', status: 'sending', attempts: 1 }, { text: 'Remaining', status: 'pending', attempts: 0 }] },
-        input: { platform: 'telegram', accountId: instance.accountId, conversationId: '123', threadId: '', sourceMessageId: '1', sourceEventId: '1', kind: 'message',
-          actor: { id: '123', label: 'Alice', kind: 'user' }, directMessage: true, triggered: false, text: 'Saved request', media: [] } }],
-    }));
-    const url = `/api/gateways/${instance.id}/inbox/${eventId}/delivery-review`; const before = fs.readFileSync(file, 'utf8');
-    const interrupted = await (await req(url)).json() as GatewayDeliveryReview; expect(interrupted.needsPrepare).toBe(true); expect(fs.readFileSync(file, 'utf8')).toBe(before);
+    const state = (await (await req('/api/state')).json()) as { project: { id: string } };
+    const config = {
+      name: 'Local delivery',
+      platform: 'telegram',
+      accountId: '9600000001',
+      projectId: state.project.id,
+      target: { kind: 'brain' },
+      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] },
+      scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 },
+      enabled: false,
+    };
+    const instance = (await (
+      await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })
+    ).json()) as GatewayInstance;
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id);
+    fs.mkdirSync(directory, { recursive: true });
+    const file = path.join(directory, 'inbox.json');
+    const route = {
+      instanceId: instance.id,
+      projectId: instance.projectId,
+      target: instance.target,
+      generation: instance.routeGeneration,
+    };
+    const eventId = 'b'.repeat(64);
+    const dispatch = {
+      state: 'completed',
+      startedAt: 1,
+      runId: 'native-run',
+      conversation: { kind: 'brain', projectId: instance.projectId, conversationId: 'binding', sender: 'Alice' },
+      answer: 'Saved answer',
+    };
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        nextSequence: 2,
+        bindings: [
+          { id: 'binding', accountId: instance.accountId, conversationId: '123', threadId: '', route, createdAt: 1 },
+        ],
+        events: [
+          {
+            id: eventId,
+            bindingId: 'binding',
+            route,
+            sequence: 1,
+            receivedAt: 1,
+            status: 'done',
+            operationId: 'native-operation',
+            dispatch,
+            reply: {
+              createdAt: 1,
+              parts: [
+                { text: 'Attempted', status: 'sending', attempts: 1 },
+                { text: 'Remaining', status: 'pending', attempts: 0 },
+              ],
+            },
+            input: {
+              platform: 'telegram',
+              accountId: instance.accountId,
+              conversationId: '123',
+              threadId: '',
+              sourceMessageId: '1',
+              sourceEventId: '1',
+              kind: 'message',
+              actor: { id: '123', label: 'Alice', kind: 'user' },
+              directMessage: true,
+              triggered: false,
+              text: 'Saved request',
+              media: [],
+            },
+          },
+        ],
+      }),
+    );
+    const url = `/api/gateways/${instance.id}/inbox/${eventId}/delivery-review`;
+    const before = fs.readFileSync(file, 'utf8');
+    const interrupted = (await (await req(url)).json()) as GatewayDeliveryReview;
+    expect(interrupted.needsPrepare).toBe(true);
+    expect(fs.readFileSync(file, 'utf8')).toBe(before);
     expect((await req(`${url}/prepare`, { method: 'POST' })).status).toBe(403);
-    const preview = await (await req(`${url}/prepare`, { method: 'POST', headers: json })).json() as GatewayDeliveryReview; expect(preview.items[0].canConfirm).toBe(true);
-    const body = JSON.stringify({ action: 'confirm', revision: preview.revision, target: { kind: 'text', index: 0 }, remoteId: 'checked-in-app', acknowledgeChecked: true });
+    const preview = (await (
+      await req(`${url}/prepare`, { method: 'POST', headers: json })
+    ).json()) as GatewayDeliveryReview;
+    expect(preview.items[0].canConfirm).toBe(true);
+    const body = JSON.stringify({
+      action: 'confirm',
+      revision: preview.revision,
+      target: { kind: 'text', index: 0 },
+      remoteId: 'checked-in-app',
+      acknowledgeChecked: true,
+    });
     expect((await req(url, { method: 'POST', body })).status).toBe(403);
-    expect((await req(url, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status).toBe(403);
-    const confirmed = await (await req(url, { method: 'POST', headers: json, body })).json() as GatewayDeliveryReview; expect(confirmed.items[0].status).toBe('sent');
+    expect(
+      (await req(url, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status,
+    ).toBe(403);
+    const confirmed = (await (await req(url, { method: 'POST', headers: json, body })).json()) as GatewayDeliveryReview;
+    expect(confirmed.items[0].status).toBe('sent');
     expect((await req(url, { method: 'POST', headers: json, body })).status).toBe(409);
     const close = JSON.stringify({ action: 'finish-local', revision: confirmed.revision, acknowledgeNoSend: true });
-    expect((await req(url, { method: 'POST', headers: json, body: close })).status).toBe(200); expect((await req(url, { method: 'POST', headers: json, body: close })).status).toBe(409);
-    const saved = JSON.parse(fs.readFileSync(file, 'utf8')) as { events: { operationId: string; dispatch: unknown; reply: { parts: { status: string }[] }; deliveryFinished: unknown }[] };
-    expect(saved.events[0].dispatch).toEqual(dispatch); expect(saved.events[0].operationId).toBe('native-operation'); expect(saved.events[0].reply.parts.map((part) => part.status)).toEqual(['sent', 'pending']); expect(saved.events[0].deliveryFinished).toBeDefined();
+    expect((await req(url, { method: 'POST', headers: json, body: close })).status).toBe(200);
+    expect((await req(url, { method: 'POST', headers: json, body: close })).status).toBe(409);
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+      events: {
+        operationId: string;
+        dispatch: unknown;
+        reply: { parts: { status: string }[] };
+        deliveryFinished: unknown;
+      }[];
+    };
+    expect(saved.events[0].dispatch).toEqual(dispatch);
+    expect(saved.events[0].operationId).toBe('native-operation');
+    expect(saved.events[0].reply.parts.map((part) => part.status)).toEqual(['sent', 'pending']);
+    expect(saved.events[0].deliveryFinished).toBeDefined();
     await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
   });
 
   it('dismisses only a current paused unstarted request behind the existing request guards', async () => {
-    const state = await (await req('/api/state')).json() as { project: { id: string } };
-    const config = { name: 'Held request', platform: 'telegram', accountId: '9800000001', projectId: state.project.id, target: { kind: 'brain' },
-      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
-      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
-    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
-    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true });
-    const route = { instanceId: instance.id, projectId: instance.projectId, target: instance.target, generation: instance.routeGeneration }; const eventId = 'a'.repeat(64);
-    fs.writeFileSync(path.join(directory, 'inbox.json'), JSON.stringify({ version: 1, nextSequence: 2,
-      bindings: [{ id: 'binding', accountId: instance.accountId, conversationId: '123', threadId: '', route, createdAt: 1 }],
-      events: [{ id: eventId, bindingId: 'binding', route, sequence: 1, receivedAt: 1, status: 'needs-review',
-        input: { platform: 'telegram', accountId: instance.accountId, conversationId: '123', threadId: '', sourceMessageId: '1', sourceEventId: '1', kind: 'message',
-          actor: { id: '123', label: 'Alice', kind: 'user' }, directMessage: true, triggered: false, text: 'Saved request', media: [] } }],
-    }));
-    const base = `/api/gateways/${instance.id}/inbox/${eventId}`; const preview = await (await req(`${base}/review`)).json() as GatewayRequestReview;
-    expect(preview).toMatchObject({ canDismiss: true, reason: '' }); expect(preview.revision).toMatch(/^[a-f0-9]{64}$/);
+    const state = (await (await req('/api/state')).json()) as { project: { id: string } };
+    const config = {
+      name: 'Held request',
+      platform: 'telegram',
+      accountId: '9800000001',
+      projectId: state.project.id,
+      target: { kind: 'brain' },
+      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] },
+      scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 },
+      enabled: false,
+    };
+    const instance = (await (
+      await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })
+    ).json()) as GatewayInstance;
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id);
+    fs.mkdirSync(directory, { recursive: true });
+    const route = {
+      instanceId: instance.id,
+      projectId: instance.projectId,
+      target: instance.target,
+      generation: instance.routeGeneration,
+    };
+    const eventId = 'a'.repeat(64);
+    fs.writeFileSync(
+      path.join(directory, 'inbox.json'),
+      JSON.stringify({
+        version: 1,
+        nextSequence: 2,
+        bindings: [
+          { id: 'binding', accountId: instance.accountId, conversationId: '123', threadId: '', route, createdAt: 1 },
+        ],
+        events: [
+          {
+            id: eventId,
+            bindingId: 'binding',
+            route,
+            sequence: 1,
+            receivedAt: 1,
+            status: 'needs-review',
+            input: {
+              platform: 'telegram',
+              accountId: instance.accountId,
+              conversationId: '123',
+              threadId: '',
+              sourceMessageId: '1',
+              sourceEventId: '1',
+              kind: 'message',
+              actor: { id: '123', label: 'Alice', kind: 'user' },
+              directMessage: true,
+              triggered: false,
+              text: 'Saved request',
+              media: [],
+            },
+          },
+        ],
+      }),
+    );
+    const base = `/api/gateways/${instance.id}/inbox/${eventId}`;
+    const preview = (await (await req(`${base}/review`)).json()) as GatewayRequestReview;
+    expect(preview).toMatchObject({ canDismiss: true, reason: '' });
+    expect(preview.revision).toMatch(/^[a-f0-9]{64}$/);
     const body = JSON.stringify({ revision: preview.revision, acknowledgeDismiss: true });
     expect((await req(`${base}/dismiss`, { method: 'POST', body })).status).toBe(403);
-    expect((await req(`${base}/dismiss`, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status).toBe(403);
-    expect((await req(`${base}/dismiss`, { method: 'POST', headers: json, body: JSON.stringify({ revision: preview.revision }) })).status).toBe(409);
+    expect(
+      (await req(`${base}/dismiss`, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body }))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await req(`${base}/dismiss`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ revision: preview.revision }),
+        })
+      ).status,
+    ).toBe(409);
     expect((await req(`${base}/dismiss`, { method: 'POST', headers: json, body })).status).toBe(200);
     expect((await req(`${base}/dismiss`, { method: 'POST', headers: json, body })).status).toBe(409);
-    const saved = await (await req(`/api/gateways/${instance.id}/inbox`)).json() as { events: { input: { text: string }; dismissed: { revision: string }; operationId?: string }[] };
-    expect(saved.events[0]).toMatchObject({ input: { text: 'Saved request' }, dismissed: { revision: preview.revision } }); expect(saved.events[0].operationId).toBeUndefined();
-    const navigation = await (await req('/api/state')).json() as { gateways: { id: string; status: string; reviewCount: number }[] };
-    expect(navigation.gateways.find((item) => item.id === instance.id)).toMatchObject({ status: 'paused', reviewCount: 0 });
+    const saved = (await (await req(`/api/gateways/${instance.id}/inbox`)).json()) as {
+      events: { input: { text: string }; dismissed: { revision: string }; operationId?: string }[];
+    };
+    expect(saved.events[0]).toMatchObject({
+      input: { text: 'Saved request' },
+      dismissed: { revision: preview.revision },
+    });
+    expect(saved.events[0].operationId).toBeUndefined();
+    const navigation = (await (await req('/api/state')).json()) as {
+      gateways: { id: string; status: string; reviewCount: number }[];
+    };
+    expect(navigation.gateways.find((item) => item.id === instance.id)).toMatchObject({
+      status: 'paused',
+      reviewCount: 0,
+    });
     await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
   });
 
   it('guards paused WhatsApp pairing finish and unknown-attempt review without exposing keys or private pairing metadata', async () => {
-    const state = await (await req('/api/state')).json() as { project: { id: string } };
-    const config = { name: 'WhatsApp pairing', platform: 'whatsapp', accountId: '9500000001', projectId: state.project.id, target: { kind: 'brain' },
-      senderPolicy: { platform: 'whatsapp', allowedPhones: ['+436641234567'] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
-      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
-    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
-    const url = `/api/gateways/${instance.id}`; const file = path.join(tmp, 'data', 'gateway-secrets.json');
-    const records = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown> : {};
-    const connection = { origin: 'https://private-relay.example', installationId: '00000000-0000-4000-8000-000000000002', businessAccountId: '9000000001', phoneNumberId: instance.accountId, epoch: '00000000-0000-4000-8000-000000000001' };
-    records[instance.id] = { relayKey: 'b'.repeat(64), whatsappPairing: { phase: 'received', attemptId: '00000000-0000-4000-8000-000000000003', connection, cursor: 0, gap: false } };
+    const state = (await (await req('/api/state')).json()) as { project: { id: string } };
+    const config = {
+      name: 'WhatsApp pairing',
+      platform: 'whatsapp',
+      accountId: '9500000001',
+      projectId: state.project.id,
+      target: { kind: 'brain' },
+      senderPolicy: { platform: 'whatsapp', allowedPhones: ['+436641234567'] },
+      scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 },
+      enabled: false,
+    };
+    const instance = (await (
+      await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })
+    ).json()) as GatewayInstance;
+    const url = `/api/gateways/${instance.id}`;
+    const file = path.join(tmp, 'data', 'gateway-secrets.json');
+    const records = fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>) : {};
+    const connection = {
+      origin: 'https://private-relay.example',
+      installationId: '00000000-0000-4000-8000-000000000002',
+      businessAccountId: '9000000001',
+      phoneNumberId: instance.accountId,
+      epoch: '00000000-0000-4000-8000-000000000001',
+    };
+    records[instance.id] = {
+      relayKey: 'b'.repeat(64),
+      whatsappPairing: {
+        phase: 'received',
+        attemptId: '00000000-0000-4000-8000-000000000003',
+        connection,
+        cursor: 0,
+        gap: false,
+      },
+    };
     fs.writeFileSync(file, JSON.stringify(records));
-    const text = await (await req(`${url}/whatsapp-setup`)).text(); expect(text).not.toContain('private-relay'); expect(text).not.toContain('b'.repeat(64)); expect(text).not.toContain(connection.epoch);
-    const preview = JSON.parse(text) as GatewayWhatsAppSetup; expect(preview).toMatchObject({ paired: false, pending: { phase: 'received' } });
-    const listing = await (await req('/api/gateways')).text(); expect(listing).not.toContain('whatsappPairing'); expect(listing).not.toContain('b'.repeat(64));
-    for (const suffix of ['/whatsapp-pairing', '/whatsapp-pairing/replace', '/whatsapp-pairing/finish', '/whatsapp-pairing/review', '/whatsapp-recovery', '/whatsapp-recovery/inspect', '/whatsapp-recovery/restore', '/whatsapp-setup/check', '/whatsapp-senders/review']) {
+    const text = await (await req(`${url}/whatsapp-setup`)).text();
+    expect(text).not.toContain('private-relay');
+    expect(text).not.toContain('b'.repeat(64));
+    expect(text).not.toContain(connection.epoch);
+    const preview = JSON.parse(text) as GatewayWhatsAppSetup;
+    expect(preview).toMatchObject({ paired: false, pending: { phase: 'received' } });
+    const listing = await (await req('/api/gateways')).text();
+    expect(listing).not.toContain('whatsappPairing');
+    expect(listing).not.toContain('b'.repeat(64));
+    for (const suffix of [
+      '/whatsapp-pairing',
+      '/whatsapp-pairing/replace',
+      '/whatsapp-pairing/finish',
+      '/whatsapp-pairing/review',
+      '/whatsapp-recovery',
+      '/whatsapp-recovery/inspect',
+      '/whatsapp-recovery/restore',
+      '/whatsapp-setup/check',
+      '/whatsapp-senders/review',
+    ]) {
       expect((await req(url + suffix, { method: 'POST', body: '{}' })).status).toBe(403);
-      expect((await req(url + suffix, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body: '{}' })).status).toBe(403);
+      expect(
+        (await req(url + suffix, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body: '{}' }))
+          .status,
+      ).toBe(403);
     }
-    expect((await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64) }) })).status).toBe(409);
+    expect(
+      (
+        await req(`${url}/whatsapp-pairing/finish`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ revision: 'a'.repeat(64) }),
+        })
+      ).status,
+    ).toBe(409);
     const body = JSON.stringify({ revision: preview.pending!.revision });
-    expect(await (await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body })).json()).toEqual({ paired: true, pending: null, recoveryRequired: false });
+    expect(await (await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body })).json()).toEqual(
+      { paired: true, pending: null, recoveryRequired: false },
+    );
     expect((await req(`${url}/whatsapp-pairing/finish`, { method: 'POST', headers: json, body })).status).toBe(409);
     expect((await req(`${url}/whatsapp-setup/check`, { method: 'POST', headers: json })).status).toBe(400);
     const replacementText = await (await req(`${url}/whatsapp-replacement`)).text();
-    expect(JSON.parse(replacementText)).toMatchObject({ revision: expect.stringMatching(/^[a-f0-9]{64}$/), retired: 0 });
-    for (const value of [connection.origin, connection.installationId, connection.epoch, 'b'.repeat(64)]) expect(replacementText).not.toContain(value);
-    expect((await req(`${url}/whatsapp-pairing/replace`, { method: 'POST', headers: json, body: '{}' })).status).toBe(400);
+    expect(JSON.parse(replacementText)).toMatchObject({
+      revision: expect.stringMatching(/^[a-f0-9]{64}$/),
+      retired: 0,
+    });
+    for (const value of [connection.origin, connection.installationId, connection.epoch, 'b'.repeat(64)])
+      expect(replacementText).not.toContain(value);
+    expect((await req(`${url}/whatsapp-pairing/replace`, { method: 'POST', headers: json, body: '{}' })).status).toBe(
+      400,
+    );
     const sendersText = await (await req(`${url}/whatsapp-senders`)).text();
-    for (const value of [connection.origin, connection.installationId, connection.businessAccountId, connection.epoch, 'b'.repeat(64)]) expect(sendersText).not.toContain(value);
-    expect(JSON.parse(sendersText)).toMatchObject({ retired: 0, waiting: 0, unallowed: 0, senders: [{ phone: '+436641234567', status: 'needs-proof', revision: null }] });
-    expect((await req(`${url}/whatsapp-senders/review`, { method: 'POST', headers: json, body: '{}' })).status).toBe(409);
+    for (const value of [
+      connection.origin,
+      connection.installationId,
+      connection.businessAccountId,
+      connection.epoch,
+      'b'.repeat(64),
+    ])
+      expect(sendersText).not.toContain(value);
+    expect(JSON.parse(sendersText)).toMatchObject({
+      retired: 0,
+      waiting: 0,
+      unallowed: 0,
+      senders: [{ phone: '+436641234567', status: 'needs-proof', revision: null }],
+    });
+    expect((await req(`${url}/whatsapp-senders/review`, { method: 'POST', headers: json, body: '{}' })).status).toBe(
+      409,
+    );
     expect((await req(`${url}/whatsapp-pairing`, { method: 'POST', headers: json, body: '{}' })).status).toBe(400);
     const inboxFile = path.join(tmp, 'data', 'gateways-runtime', instance.id, 'inbox.json');
     const inbox = JSON.parse(fs.readFileSync(inboxFile, 'utf8')) as { whatsappRelay: Record<string, unknown> };
-    inbox.whatsappRelay.recovery = { at: Date.now(), reason: 'gap' }; inbox.whatsappRelay.gapReview = { at: Date.now(), from: 0, through: 2, remoteCursor: 0 };
+    inbox.whatsappRelay.recovery = { at: Date.now(), reason: 'gap' };
+    inbox.whatsappRelay.gapReview = { at: Date.now(), from: 0, through: 2, remoteCursor: 0 };
     fs.writeFileSync(inboxFile, JSON.stringify(inbox));
-    const recoveryText = await (await req(`${url}/whatsapp-recovery`)).text(); expect(recoveryText).not.toContain('private-relay'); expect(recoveryText).not.toContain('cursor'); expect(recoveryText).not.toContain('b'.repeat(64));
-    expect(JSON.parse(recoveryText)).toMatchObject({ reason: 'gap', gap: { revision: expect.stringMatching(/^[a-f0-9]{64}$/) } });
-    expect((await req(`${url}/whatsapp-recovery`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeGap: true }) })).status).toBe(409);
-    expect((await req(`${url}/whatsapp-recovery/restore`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeRestore: true }) })).status).toBe(409);
-    inbox.whatsappRelay.recovery = { at: Date.now(), reason: 'installation' }; delete inbox.whatsappRelay.gapReview; fs.writeFileSync(inboxFile, JSON.stringify(inbox));
+    const recoveryText = await (await req(`${url}/whatsapp-recovery`)).text();
+    expect(recoveryText).not.toContain('private-relay');
+    expect(recoveryText).not.toContain('cursor');
+    expect(recoveryText).not.toContain('b'.repeat(64));
+    expect(JSON.parse(recoveryText)).toMatchObject({
+      reason: 'gap',
+      gap: { revision: expect.stringMatching(/^[a-f0-9]{64}$/) },
+    });
+    expect(
+      (
+        await req(`${url}/whatsapp-recovery`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeGap: true }),
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await req(`${url}/whatsapp-recovery/restore`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeRestore: true }),
+        })
+      ).status,
+    ).toBe(409);
+    inbox.whatsappRelay.recovery = { at: Date.now(), reason: 'installation' };
+    delete inbox.whatsappRelay.gapReview;
+    fs.writeFileSync(inboxFile, JSON.stringify(inbox));
     const restorationText = await (await req(`${url}/whatsapp-recovery`)).text();
-    for (const privateValue of [connection.origin, connection.installationId, connection.businessAccountId, connection.phoneNumberId, connection.epoch, 'b'.repeat(64)]) expect(restorationText).not.toContain(privateValue);
-    expect(JSON.parse(restorationText)).toMatchObject({ reason: 'installation', gap: null, restoration: { revision: expect.stringMatching(/^[a-f0-9]{64}$/) } });
+    for (const privateValue of [
+      connection.origin,
+      connection.installationId,
+      connection.businessAccountId,
+      connection.phoneNumberId,
+      connection.epoch,
+      'b'.repeat(64),
+    ])
+      expect(restorationText).not.toContain(privateValue);
+    expect(JSON.parse(restorationText)).toMatchObject({
+      reason: 'installation',
+      gap: null,
+      restoration: { revision: expect.stringMatching(/^[a-f0-9]{64}$/) },
+    });
     await req(url, { method: 'DELETE', headers: json });
-    const other = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify({ ...config, accountId: '9500000002' }) })).json() as GatewayInstance;
+    const other = (await (
+      await req('/api/gateways', {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ ...config, accountId: '9500000002' }),
+      })
+    ).json()) as GatewayInstance;
     const current = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
-    current[other.id] = { whatsappPairing: { phase: 'requesting', attemptId: '00000000-0000-4000-8000-000000000004', origin: 'https://relay.example', businessAccountId: '9000000001', phoneNumberId: other.accountId } }; fs.writeFileSync(file, JSON.stringify(current));
-    const pending = await (await req(`/api/gateways/${other.id}/whatsapp-setup`)).json() as GatewayWhatsAppSetup;
-    expect((await req(`/api/gateways/${other.id}/whatsapp-pairing/review`, { method: 'POST', headers: json, body: JSON.stringify({ revision: pending.pending!.revision }) })).status).toBe(409);
-    expect(await (await req(`/api/gateways/${other.id}/whatsapp-pairing/review`, { method: 'POST', headers: json, body: JSON.stringify({ revision: pending.pending!.revision, acknowledgeRemoteRevoked: true }) })).json()).toEqual({ paired: false, pending: null, recoveryRequired: false });
+    current[other.id] = {
+      whatsappPairing: {
+        phase: 'requesting',
+        attemptId: '00000000-0000-4000-8000-000000000004',
+        origin: 'https://relay.example',
+        businessAccountId: '9000000001',
+        phoneNumberId: other.accountId,
+      },
+    };
+    fs.writeFileSync(file, JSON.stringify(current));
+    const pending = (await (await req(`/api/gateways/${other.id}/whatsapp-setup`)).json()) as GatewayWhatsAppSetup;
+    expect(
+      (
+        await req(`/api/gateways/${other.id}/whatsapp-pairing/review`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ revision: pending.pending!.revision }),
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      await (
+        await req(`/api/gateways/${other.id}/whatsapp-pairing/review`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ revision: pending.pending!.revision, acknowledgeRemoteRevoked: true }),
+        })
+      ).json(),
+    ).toEqual({ paired: false, pending: null, recoveryRequired: false });
     await req(`/api/gateways/${other.id}`, { method: 'DELETE', headers: json });
   });
 
   it('guards explicit Discord recovery review and never exposes its private session', async () => {
-    const state = await (await req('/api/state')).json() as { project: { id: string } };
-    const config = { name: 'Discord recovery', platform: 'discord', accountId: '900000000000000001', projectId: state.project.id, target: { kind: 'brain' },
-      senderPolicy: { platform: 'discord', allowedUserIds: [] }, scope: { directMessages: true, conversationIds: [], guildIds: [] },
-      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false };
-    const instance = await (await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })).json() as GatewayInstance;
-    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id); fs.mkdirSync(directory, { recursive: true }); const file = path.join(directory, 'discord-gateway.json');
-    const saved = { version: 1, accountId: instance.accountId, intents: 1 | 512 | 4096 | 32768, session: { id: 'PRIVATE_SESSION', url: 'wss://gateway.discord.gg/', sequence: 42 }, gap: { at: Date.now(), reason: 'session-lost' } };
-    fs.writeFileSync(file, JSON.stringify(saved)); const url = `/api/gateways/${instance.id}/discord-recovery`;
-    const preview = await (await req(url)).json() as GatewayDiscordRecovery; expect(preview.gap?.revision).toMatch(/^[a-f0-9]{64}$/); expect(JSON.stringify(preview)).not.toContain('PRIVATE_'); expect(JSON.stringify(preview)).not.toContain('discord.gg');
+    const state = (await (await req('/api/state')).json()) as { project: { id: string } };
+    const config = {
+      name: 'Discord recovery',
+      platform: 'discord',
+      accountId: '900000000000000001',
+      projectId: state.project.id,
+      target: { kind: 'brain' },
+      senderPolicy: { platform: 'discord', allowedUserIds: [] },
+      scope: { directMessages: true, conversationIds: [], guildIds: [] },
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 },
+      enabled: false,
+    };
+    const instance = (await (
+      await req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(config) })
+    ).json()) as GatewayInstance;
+    const directory = path.join(tmp, 'data', 'gateways-runtime', instance.id);
+    fs.mkdirSync(directory, { recursive: true });
+    const file = path.join(directory, 'discord-gateway.json');
+    const saved = {
+      version: 1,
+      accountId: instance.accountId,
+      intents: 1 | 512 | 4096 | 32768,
+      session: { id: 'PRIVATE_SESSION', url: 'wss://gateway.discord.gg/', sequence: 42 },
+      gap: { at: Date.now(), reason: 'session-lost' },
+    };
+    fs.writeFileSync(file, JSON.stringify(saved));
+    const url = `/api/gateways/${instance.id}/discord-recovery`;
+    const preview = (await (await req(url)).json()) as GatewayDiscordRecovery;
+    expect(preview.gap?.revision).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(preview)).not.toContain('PRIVATE_');
+    expect(JSON.stringify(preview)).not.toContain('discord.gg');
     const body = JSON.stringify({ revision: preview.gap!.revision, acknowledgeGap: true });
     expect((await req(url, { method: 'POST', body })).status).toBe(403);
-    expect((await req(url, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status).toBe(403);
-    expect((await req(url, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeGap: true }) })).status).toBe(409);
-    expect((await req(url, { method: 'POST', headers: json, body })).status).toBe(200); expect(await (await req(url)).json()).toEqual({ gap: null });
+    expect(
+      (await req(url, { method: 'POST', headers: { ...json, 'sec-fetch-site': 'cross-site' }, body })).status,
+    ).toBe(403);
+    expect(
+      (
+        await req(url, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ revision: 'a'.repeat(64), acknowledgeGap: true }),
+        })
+      ).status,
+    ).toBe(409);
+    expect((await req(url, { method: 'POST', headers: json, body })).status).toBe(200);
+    expect(await (await req(url)).json()).toEqual({ gap: null });
     expect((await req(url, { method: 'POST', headers: json, body })).status).toBe(409);
-    const after = JSON.parse(fs.readFileSync(file, 'utf8')) as { session?: unknown; reviewedGaps: unknown[] }; expect(after.session).toBeUndefined(); expect(after.reviewedGaps).toHaveLength(1);
+    const after = JSON.parse(fs.readFileSync(file, 'utf8')) as { session?: unknown; reviewedGaps: unknown[] };
+    expect(after.session).toBeUndefined();
+    expect(after.reviewedGaps).toHaveLength(1);
     await req(`/api/gateways/${instance.id}`, { method: 'DELETE', headers: json });
   });
 
   it('keeps multiple instances and credentials separate behind the existing request guards', async () => {
-    const state = await (await req('/api/state')).json() as { project: { id: string } };
+    const state = (await (await req('/api/state')).json()) as { project: { id: string } };
     const config = {
-      name: 'First Telegram', platform: 'telegram', accountId: '30000', projectId: state.project.id,
-      target: { kind: 'brain' }, senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] },
+      name: 'First Telegram',
+      platform: 'telegram',
+      accountId: '30000',
+      projectId: state.project.id,
+      target: { kind: 'brain' },
+      senderPolicy: { platform: 'telegram', allowedUserIds: ['123'] },
       scope: { directMessages: true, conversationIds: [], guildIds: [] },
-      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 }, enabled: false,
+      fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 },
+      enabled: false,
     };
-    const unguarded = await req('/api/gateways', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) });
+    const unguarded = await req('/api/gateways', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(config),
+    });
     expect(unguarded.status).toBe(403);
-    const create = async (body: unknown) => req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(body) });
-    const one = await (await create(config)).json() as GatewayInstance;
+    const create = async (body: unknown) =>
+      req('/api/gateways', { method: 'POST', headers: json, body: JSON.stringify(body) });
+    const one = (await (await create(config)).json()) as GatewayInstance;
     const targets = await req(`/api/gateways/targets/${state.project.id}`);
     expect(targets.status).toBe(200);
     expect(await targets.json()).toMatchObject({ agents: expect.any(Array), teams: expect.any(Array) });
     expect((await req('/api/gateways/targets/missing')).status).toBe(400);
-    const two = await (await create({ ...config, name: 'Second Telegram', accountId: '30001' })).json() as GatewayInstance;
+    const two = (await (
+      await create({ ...config, name: 'Second Telegram', accountId: '30001' })
+    ).json()) as GatewayInstance;
     expect(one.id).not.toBe(two.id);
     expect((await create(config)).status).toBe(400);
-    const credentials = await req(`/api/gateways/${one.id}/credentials`, { method: 'PUT', headers: json, body: JSON.stringify({ botToken: 'private-gateway-token' }) });
+    const credentials = await req(`/api/gateways/${one.id}/credentials`, {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ botToken: 'private-gateway-token' }),
+    });
     expect(await credentials.json()).toEqual({ botToken: true });
-    expect((await req(`/api/gateways/${one.id}/credentials`, { method: 'POST', body: JSON.stringify({ appToken: 'private-app-token' }) })).status).toBe(403);
-    expect(await (await req(`/api/gateways/${one.id}/credentials`, { method: 'POST', headers: json, body: JSON.stringify({ appToken: 'private-app-token' }) })).json()).toEqual({ botToken: true, appToken: true });
-    expect(await (await req(`/api/gateways/${one.id}/credentials`, { method: 'POST', headers: json, body: JSON.stringify({ appToken: null }) })).json()).toEqual({ botToken: true });
+    expect(
+      (
+        await req(`/api/gateways/${one.id}/credentials`, {
+          method: 'POST',
+          body: JSON.stringify({ appToken: 'private-app-token' }),
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      await (
+        await req(`/api/gateways/${one.id}/credentials`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ appToken: 'private-app-token' }),
+        })
+      ).json(),
+    ).toEqual({ botToken: true, appToken: true });
+    expect(
+      await (
+        await req(`/api/gateways/${one.id}/credentials`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ appToken: null }),
+        })
+      ).json(),
+    ).toEqual({ botToken: true });
     const listing = await req('/api/gateways');
-    const listed = await listing.json() as { instances: (GatewayInstance & { credentials: Record<string, boolean> })[]; health: GatewayHealth[] };
+    const listed = (await listing.json()) as {
+      instances: (GatewayInstance & { credentials: Record<string, boolean> })[];
+      health: GatewayHealth[];
+    };
     expect(JSON.stringify(listed)).not.toContain('private-gateway-token');
     expect(listed.instances.find((instance) => instance.id === one.id)?.credentials).toEqual({ botToken: true });
     expect(listed.instances.find((instance) => instance.id === two.id)?.credentials).toEqual({});
-    const navigation = await (await req('/api/state')).json() as { gateways: { id: string; status: string; reviewCount: number | null }[] };
-    expect(navigation.gateways.find((instance) => instance.id === one.id)).toMatchObject({ status: 'paused', reviewCount: 0 });
+    const navigation = (await (await req('/api/state')).json()) as {
+      gateways: { id: string; status: string; reviewCount: number | null }[];
+    };
+    expect(navigation.gateways.find((instance) => instance.id === one.id)).toMatchObject({
+      status: 'paused',
+      reviewCount: 0,
+    });
     expect(JSON.stringify(navigation.gateways)).not.toContain('private-gateway-token');
     expect(JSON.stringify(navigation.gateways)).not.toContain('credentials');
     expect((await create({ ...config, accountId: '30002', botToken: 'do-not-echo-this' })).status).toBe(400);
     expect((await req(`/api/gateways/${one.id}/reconnect`, { method: 'POST', headers: json })).status).toBe(200);
-    expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-files`, { method: 'POST', headers: json })).status).toBe(400);
+    expect(
+      (await req(`/api/gateways/${one.id}/inbox/missing/retry-files`, { method: 'POST', headers: json })).status,
+    ).toBe(400);
     expect(await (await req(`/api/gateways/${one.id}/inbox`)).json()).toEqual({ events: [] });
-    expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-reply`, { method: 'POST', headers: json })).status).toBe(400);
+    expect(
+      (await req(`/api/gateways/${one.id}/inbox/missing/retry-reply`, { method: 'POST', headers: json })).status,
+    ).toBe(400);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/retry-reply`, { method: 'POST' })).status).toBe(403);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/reconcile`, { method: 'POST' })).status).toBe(403);
-    expect((await req(`/api/gateways/${one.id}/inbox/missing/reconcile`, { method: 'POST', headers: json })).status).toBe(400);
+    expect(
+      (await req(`/api/gateways/${one.id}/inbox/missing/reconcile`, { method: 'POST', headers: json })).status,
+    ).toBe(400);
     expect((await req(`/api/gateways/${one.id}/inbox/missing/group-album`, { method: 'POST' })).status).toBe(403);
-    expect((await req(`/api/gateways/${one.id}/inbox/missing/group-album`, { method: 'POST', headers: json, body: JSON.stringify({ eventIds: ['missing', 'other'] }) })).status).toBe(400);
+    expect(
+      (
+        await req(`/api/gateways/${one.id}/inbox/missing/group-album`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ eventIds: ['missing', 'other'] }),
+        })
+      ).status,
+    ).toBe(400);
     expect((await req(`/api/gateways/${one.id}/inbox/cleanup`, { method: 'POST' })).status).toBe(403);
-    expect((await req(`/api/gateways/${one.id}/inbox/cleanup`, { method: 'POST', headers: json, body: JSON.stringify({ before: Date.now(), eventIds: [] }) })).status).toBe(400);
-    expect((await req(`/api/gateways/${one.id}/inbox/missing/files`, { method: 'POST', headers: json, body: JSON.stringify({ paths: ['file.txt'] }) })).status).toBe(400);
-    expect((await req(`/api/gateways/${one.id}/inbox/missing/files/0/retry`, { method: 'POST', headers: json })).status).toBe(400);
-    expect((await req(`/api/gateways/${one.id}/inbox/missing/files/0/skip`, { method: 'POST', headers: json })).status).toBe(400);
-    expect((await req(`/api/gateways/${one.id}/inbox/missing/files`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ paths: ['file.txt'] }) })).status).toBe(403);
-    expect((await req(`/api/gateways/${one.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ ...config, name: 'Renamed Telegram' }) })).status).toBe(200);
+    expect(
+      (
+        await req(`/api/gateways/${one.id}/inbox/cleanup`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ before: Date.now(), eventIds: [] }),
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await req(`/api/gateways/${one.id}/inbox/missing/files`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ paths: ['file.txt'] }),
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (await req(`/api/gateways/${one.id}/inbox/missing/files/0/retry`, { method: 'POST', headers: json })).status,
+    ).toBe(400);
+    expect(
+      (await req(`/api/gateways/${one.id}/inbox/missing/files/0/skip`, { method: 'POST', headers: json })).status,
+    ).toBe(400);
+    expect(
+      (
+        await req(`/api/gateways/${one.id}/inbox/missing/files`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ paths: ['file.txt'] }),
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await req(`/api/gateways/${one.id}`, {
+          method: 'PUT',
+          headers: json,
+          body: JSON.stringify({ ...config, name: 'Renamed Telegram' }),
+        })
+      ).status,
+    ).toBe(200);
     expect((await req(`/api/gateways/${one.id}`, { method: 'DELETE' })).status).toBe(403);
     expect((await req(`/api/gateways/${one.id}`, { method: 'DELETE', headers: json })).status).toBe(200);
-    const retired = await (await req('/api/gateways/retired')).json() as { instances: { id: string; completedAt?: number }[] };
+    const retired = (await (await req('/api/gateways/retired')).json()) as {
+      instances: { id: string; completedAt?: number }[];
+    };
     expect(retired.instances).toContainEqual(expect.objectContaining({ id: one.id, completedAt: expect.any(Number) }));
     expect(JSON.stringify(retired)).not.toMatch(/private-gateway-token|private-app-token|credentials|botToken/);
     expect(await (await req(`/api/gateways/retired/${one.id}/inbox`)).json()).toEqual({ events: [] });
@@ -489,14 +1183,27 @@ describe('gateway configuration API', () => {
     expect((await req('/api/gateways/retired/missing/inbox')).status).toBe(404);
     expect((await req(`/api/gateways/retired/${one.id}/inbox/missing/local-finish`)).status).toBe(404);
     for (const suffix of ['local-finish', 'local-finish/prepare']) {
-      expect((await req(`/api/gateways/retired/${one.id}/inbox/missing/${suffix}`, { method: 'POST' })).status).toBe(403);
-      expect((await req(`/api/gateways/retired/${one.id}/inbox/missing/${suffix}`, { method: 'POST', headers: json, body: JSON.stringify({ revision: 'a'.repeat(64) }) })).status).toBe(404);
+      expect((await req(`/api/gateways/retired/${one.id}/inbox/missing/${suffix}`, { method: 'POST' })).status).toBe(
+        403,
+      );
+      expect(
+        (
+          await req(`/api/gateways/retired/${one.id}/inbox/missing/${suffix}`, {
+            method: 'POST',
+            headers: json,
+            body: JSON.stringify({ revision: 'a'.repeat(64) }),
+          })
+        ).status,
+      ).toBe(404);
     }
     expect((await req(`/api/gateways/${one.id}`, { method: 'DELETE', headers: json })).status).toBe(200);
-    const remaining = await (await req('/api/gateways')).json() as { instances: GatewayInstance[] };
+    const remaining = (await (await req('/api/gateways')).json()) as { instances: GatewayInstance[] };
     expect(remaining.instances.some((instance) => instance.id === one.id)).toBe(false);
     expect(remaining.instances.some((instance) => instance.id === two.id)).toBe(true);
-    const secrets = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'gateway-secrets.json'), 'utf8')) as Record<string, unknown>;
+    const secrets = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'gateway-secrets.json'), 'utf8')) as Record<
+      string,
+      unknown
+    >;
     expect(Object.hasOwn(secrets, one.id)).toBe(false);
     await req(`/api/gateways/${two.id}`, { method: 'DELETE', headers: json });
   });
@@ -513,19 +1220,33 @@ describe('backups', () => {
     const bytes = fs.readFileSync(made.file);
     // the file as the body: bigger than a JSON body may be is fine too, but it needs the x-dash header
     expect((await req('/api/backups/restore', { method: 'POST', body: bytes })).status).toBe(403);
-    const up = await req('/api/backups/restore?name=From%20upload', { method: 'POST', headers: { 'x-dash': '1', 'content-type': 'application/octet-stream' }, body: bytes });
+    const up = await req('/api/backups/restore?name=From%20upload', {
+      method: 'POST',
+      headers: { 'x-dash': '1', 'content-type': 'application/octet-stream' },
+      body: bytes,
+    });
     expect(up.status).toBe(200);
     const p1 = await up.json();
-    expect(p1).toMatchObject({ name: 'From upload', restored: { agents: made.summary.agents, teams: made.summary.teams } });
+    expect(p1).toMatchObject({
+      name: 'From upload',
+      restored: { agents: made.summary.agents, teams: made.summary.teams },
+    });
 
-    const p2 = await (await req(`/api/backups/restore?file=${encodeURIComponent(made.name)}&name=From%20folder`, { method: 'POST', headers: { 'x-dash': '1' } })).json();
+    const p2 = await (
+      await req(`/api/backups/restore?file=${encodeURIComponent(made.name)}&name=From%20folder`, {
+        method: 'POST',
+        headers: { 'x-dash': '1' },
+      })
+    ).json();
     expect(p2.name).toBe('From folder');
     expect(p2.brainPath).not.toBe(p1.brainPath);
 
     const bad = await req('/api/backups/restore', { method: 'POST', headers: { 'x-dash': '1' }, body: 'not a backup' });
     expect(bad.status).toBe(400);
     expect((await bad.json()).error).toMatch(/isn't a dashboard backup/);
-    expect((await req('/api/backups/restore?file=..%2Fsecrets.json', { method: 'POST', headers: { 'x-dash': '1' } })).status).toBe(400);
+    expect(
+      (await req('/api/backups/restore?file=..%2Fsecrets.json', { method: 'POST', headers: { 'x-dash': '1' } })).status,
+    ).toBe(400);
     expect((await req('/api/backups/restore', { method: 'POST', headers: { 'x-dash': '1' } })).status).toBe(400);
   });
 
@@ -533,14 +1254,22 @@ describe('backups', () => {
     const received = path.join(tmp, 'data', 'tmp', 'received');
     // bigger than a JSON body may be: it still arrives (and is turned away as not a backup)
     const big = Buffer.alloc(30 * 1024 * 1024, 0x61);
-    const r = await req('/api/backups/restore', { method: 'POST', headers: { 'x-dash': '1', 'content-type': 'application/octet-stream' }, body: big });
+    const r = await req('/api/backups/restore', {
+      method: 'POST',
+      headers: { 'x-dash': '1', 'content-type': 'application/octet-stream' },
+      body: big,
+    });
     expect(r.status).toBe(400);
     expect((await r.json()).error).toMatch(/isn't a dashboard backup/);
     expect(fs.existsSync(received) ? fs.readdirSync(received) : []).toEqual([]);
     // and after a restore that worked
     const st = await (await req('/api/state')).json();
     const made = await (await req(`/api/projects/${st.project.id}/backup`, { method: 'POST', headers: json })).json();
-    const ok = await req('/api/backups/restore?name=Streamed', { method: 'POST', headers: { 'x-dash': '1' }, body: fs.readFileSync(made.file) });
+    const ok = await req('/api/backups/restore?name=Streamed', {
+      method: 'POST',
+      headers: { 'x-dash': '1' },
+      body: fs.readFileSync(made.file),
+    });
     expect(ok.status).toBe(200);
     expect(fs.readdirSync(received)).toEqual([]);
   });
@@ -559,13 +1288,21 @@ describe('local-only security', () => {
   it('rejects requests for another host name (DNS rebinding)', async () => {
     const r = await new Promise<number>((resolve) => {
       // fetch won't let us change Host, so use a raw request
-      http.get({ host: '127.0.0.1', port, path: '/api/state', headers: { host: `evil.example:${port}` } }, (res) => resolve(res.statusCode || 0)).on('error', () => resolve(0));
+      http
+        .get({ host: '127.0.0.1', port, path: '/api/state', headers: { host: `evil.example:${port}` } }, (res) =>
+          resolve(res.statusCode || 0),
+        )
+        .on('error', () => resolve(0));
     });
     expect(r).toBe(421);
   });
 
   it('needs the x-dash header for changes (no simple cross-site POSTs)', async () => {
-    const r = await req('/api/agents', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'X' }) });
+    const r = await req('/api/agents', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'X' }),
+    });
     expect(r.status).toBe(403);
   });
 
@@ -588,7 +1325,8 @@ describe('local-only security', () => {
     const page = async () => (await req('/')).text();
     expect(await page()).toContain('<html lang="en">');
     // Settings > Appearance > Colour scheme
-    const save = (theme: string) => req('/api/settings', { method: 'PUT', headers: json, body: JSON.stringify({ look: { theme } }) });
+    const save = (theme: string) =>
+      req('/api/settings', { method: 'PUT', headers: json, body: JSON.stringify({ look: { theme } }) });
     expect((await save('dark')).status).toBe(200);
     expect(await page()).toContain('<html lang="en" data-theme="dark">');
     const settings = (await (await req('/api/settings')).json()) as { settings: { look: { theme: string } } };
@@ -611,7 +1349,9 @@ describe('local-only security', () => {
   });
 
   it("won't serve files outside its own folders", async () => {
-    expect((await req('/api/file?path=' + encodeURIComponent(path.join(root, 'package.json')))).status).toBeGreaterThanOrEqual(400);
+    expect(
+      (await req('/api/file?path=' + encodeURIComponent(path.join(root, 'package.json')))).status,
+    ).toBeGreaterThanOrEqual(400);
     // fetch would normalise a plain "/../", so encode the slash: the server decodes it after parsing the URL
     expect((await req('/%2e%2e%2fpackage.json')).status).not.toBe(200);
     expect((await req('/..%2fpackage.json')).status).not.toBe(200);
@@ -627,7 +1367,12 @@ describe('local-only security', () => {
 });
 
 describe('attached files', () => {
-  const upload = (batch: string, rel: string, data: string, headers: Record<string, string> = { 'x-dash': '1' }) => req(`/api/uploads/${batch}?path=${encodeURIComponent(rel)}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', ...headers }, body: data });
+  const upload = (batch: string, rel: string, data: string, headers: Record<string, string> = { 'x-dash': '1' }) =>
+    req(`/api/uploads/${batch}?path=${encodeURIComponent(rel)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream', ...headers },
+      body: data,
+    });
 
   it('saves dropped files and folders in the project folder, and never outside it', async () => {
     const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
@@ -647,30 +1392,76 @@ describe('attached files', () => {
     expect(await shown.text()).toBe('# Brief');
   });
 
-  it('makes, renames and deletes a project\'s board tags, and the board lists them', async () => {
+  it("makes, renames and deletes a project's board tags, and the board lists them", async () => {
     const st = await (await req('/api/state')).json();
     const pid = st.project.id as string;
     // like every change, it needs the dashboard's own header
-    expect((await req(`/api/task-board-tags/${pid}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Bug' }) })).status).toBe(403);
-    const { tag } = await (await req(`/api/task-board-tags/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ name: '🐛 API bug' }) })).json();
+    expect(
+      (
+        await req(`/api/task-board-tags/${pid}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name: 'Bug' }),
+        })
+      ).status,
+    ).toBe(403);
+    const { tag } = await (
+      await req(`/api/task-board-tags/${pid}`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ name: '🐛 API bug' }),
+      })
+    ).json();
     expect(tag).toMatchObject({ name: 'API bug', emoji: '🐛', tasks: 0, made: true });
-    const bad = await req(`/api/task-board-tags/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ name: 'x', emoji: 'nope' }) });
+    const bad = await req(`/api/task-board-tags/${pid}`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ name: 'x', emoji: 'nope' }),
+    });
     expect(bad.status).toBe(400);
     expect((await bad.json()).error).toBe('Choose one emoji for the tag.');
 
-    const { task } = await (await req(`/api/task-board/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ title: 'Tagged by API', tags: [tag.id, 'API extra'] }) })).json();
+    const { task } = await (
+      await req(`/api/task-board/${pid}`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ title: 'Tagged by API', tags: [tag.id, 'API extra'] }),
+      })
+    ).json();
     expect(task.tagList.map((x: { name: string }) => x.name)).toEqual(['API bug', 'API extra']);
-    await req(`/api/task-board/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ title: 'Untagged by API' }) });
+    await req(`/api/task-board/${pid}`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ title: 'Untagged by API' }),
+    });
     // the board has every card (the page filters by tag itself) and the project's tags
     const shown = await (await req(`/api/task-board?project=${pid}`)).json();
-    expect(shown.tasks.map((t: { title: string }) => t.title)).toEqual(expect.arrayContaining(['Tagged by API', 'Untagged by API']));
-    expect(shown.tags[pid].map((x: { name: string }) => x.name)).toEqual(expect.arrayContaining(['API bug', 'API extra']));
+    expect(shown.tasks.map((t: { title: string }) => t.title)).toEqual(
+      expect.arrayContaining(['Tagged by API', 'Untagged by API']),
+    );
+    expect(shown.tags[pid].map((x: { name: string }) => x.name)).toEqual(
+      expect.arrayContaining(['API bug', 'API extra']),
+    );
 
-    const renamed = await (await req(`/api/task-board-tags/${pid}/${tag.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ name: 'API defect', emoji: '🪲' }) })).json();
+    const renamed = await (
+      await req(`/api/task-board-tags/${pid}/${tag.id}`, {
+        method: 'PUT',
+        headers: json,
+        body: JSON.stringify({ name: 'API defect', emoji: '🪲' }),
+      })
+    ).json();
     expect(renamed.tag).toMatchObject({ name: 'API defect', emoji: '🪲', tasks: 1 });
-    expect((await (await req(`/api/task-board-tags/${pid}`)).json()).tags.map((x: { name: string }) => x.name)).toEqual(expect.arrayContaining(['API defect', 'API extra']));
-    expect(await (await req(`/api/task-board-tags/${pid}/${tag.id}`, { method: 'DELETE', headers: { 'x-dash': '1' } })).json()).toMatchObject({ tasks: 1 });
-    expect((await req(`/api/task-board-tags/${pid}/${tag.id}`, { method: 'DELETE', headers: { 'x-dash': '1' } })).status).toBe(404);
+    expect((await (await req(`/api/task-board-tags/${pid}`)).json()).tags.map((x: { name: string }) => x.name)).toEqual(
+      expect.arrayContaining(['API defect', 'API extra']),
+    );
+    expect(
+      await (
+        await req(`/api/task-board-tags/${pid}/${tag.id}`, { method: 'DELETE', headers: { 'x-dash': '1' } })
+      ).json(),
+    ).toMatchObject({ tasks: 1 });
+    expect(
+      (await req(`/api/task-board-tags/${pid}/${tag.id}`, { method: 'DELETE', headers: { 'x-dash': '1' } })).status,
+    ).toBe(404);
     const after = (await (await req(`/api/task-board/${pid}/${task.id}`)).json()).task;
     expect(after.tagList.map((x: { name: string }) => x.name)).toEqual(['API extra']);
   });
@@ -681,8 +1472,16 @@ describe('attached files', () => {
     const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
     const menu = await (await upload(batch, 'menu.txt', 'Soup')).json();
     const other = await (await upload(batch, 'other.txt', 'Bread')).json();
-    const { task } = await (await req(`/api/task-board/${pid}`, { method: 'POST', headers: json, body: JSON.stringify({ title: 'With files', files: [menu.path] }) })).json();
-    expect(task.files).toEqual([expect.objectContaining({ path: `${batch}/menu.txt`, name: 'menu.txt', size: 4, by: 'you' })]);
+    const { task } = await (
+      await req(`/api/task-board/${pid}`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ title: 'With files', files: [menu.path] }),
+      })
+    ).json();
+    expect(task.files).toEqual([
+      expect.objectContaining({ path: `${batch}/menu.txt`, name: 'menu.txt', size: 4, by: 'you' }),
+    ]);
     const file = (rel: string) => req(`/api/task-board-file/${pid}/${task.id}?path=${encodeURIComponent(rel)}`);
     const got = await file(task.files[0].path);
     expect(got.status).toBe(200);
@@ -693,10 +1492,26 @@ describe('attached files', () => {
     const elsewhere = await req(`/api/task-board-file/nope/${task.id}?path=${encodeURIComponent(task.files[0].path)}`);
     expect(elsewhere.status).toBe(404);
     expect(await elsewhere.json()).toEqual({ error: 'That project is unavailable.' });
-    const commented = (await (await req(`/api/task-board/${pid}/${task.id}/comments`, { method: 'POST', headers: json, body: JSON.stringify({ text: '', files: [other.path] }) })).json()).task;
+    const commented = (
+      await (
+        await req(`/api/task-board/${pid}/${task.id}/comments`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ text: '', files: [other.path] }),
+        })
+      ).json()
+    ).task;
     expect(commented.comments.at(-1).files[0].name).toBe('other.txt');
     expect(await (await file(`${batch}/other.txt`)).text()).toBe('Bread');
-    const kept = (await (await req(`/api/task-board/${pid}/${task.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ files: [] }) })).json()).task;
+    const kept = (
+      await (
+        await req(`/api/task-board/${pid}/${task.id}`, {
+          method: 'PUT',
+          headers: json,
+          body: JSON.stringify({ files: [] }),
+        })
+      ).json()
+    ).task;
     expect(kept.files).toBeUndefined();
     expect(kept.fileCount).toBe(1);
   });
@@ -727,77 +1542,142 @@ describe('attached files', () => {
     expect((await req('/api/uploads', { method: 'POST' })).status).toBe(403);
     const st = await (await req('/api/state')).json();
     const brainMd = path.join(st.project.brainPath, 'BRAIN.md');
-    expect((await req(`/api/uploads?path=${encodeURIComponent(brainMd)}`, { method: 'DELETE', headers: json })).status).toBe(403);
+    expect(
+      (await req(`/api/uploads?path=${encodeURIComponent(brainMd)}`, { method: 'DELETE', headers: json })).status,
+    ).toBe(403);
     expect(fs.existsSync(brainMd)).toBe(true);
   });
 
   it('sends attachments with agent and team messages (a message can be files only)', async () => {
     const { batch } = await (await req('/api/uploads', { method: 'POST', headers: json })).json();
     const f = await (await upload(batch, 'data.csv', 'a,b\n1,2')).json();
-    const a = await (await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Reader' }) })).json();
+    const a = await (
+      await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Reader' }) })
+    ).json();
     const c = await (await req(`/api/agents/${a.id}/chats`, { method: 'POST', headers: json })).json();
     const outside = path.join(root, 'package.json');
-    const sent = await req(`/api/agents/${a.id}/chats/${c.id}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: '', attachments: [f.path, outside] }) });
+    const sent = await req(`/api/agents/${a.id}/chats/${c.id}/messages`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ text: '', attachments: [f.path, outside] }),
+    });
     expect(sent.status).toBe(200);
     const chat = await (await req(`/api/agents/${a.id}/chats/${c.id}`)).json();
     expect(chat.items[0]).toMatchObject({ type: 'user', text: '', attachments: [f.path] });
     expect(chat.title).toBe('data.csv');
     // nothing to send: no text, no (valid) files
-    expect((await req(`/api/agents/${a.id}/chats/${c.id}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: ' ', attachments: [outside] }) })).status).toBe(400);
+    expect(
+      (
+        await req(`/api/agents/${a.id}/chats/${c.id}/messages`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ text: ' ', attachments: [outside] }),
+        })
+      ).status,
+    ).toBe(400);
 
-    const t = await (await req('/api/workflows', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Readers', members: [a.id], files: [f.path, outside] }) })).json();
+    const t = await (
+      await req('/api/workflows', {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ name: 'Readers', members: [a.id], files: [f.path, outside] }),
+      })
+    ).json();
     expect(t.files).toEqual([f.path]);
-    const m = await (await req(`/api/teams/${t.id}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ text: 'Sum it', attachments: [f.path] }) })).json();
+    const m = await (
+      await req(`/api/teams/${t.id}/messages`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ text: 'Sum it', attachments: [f.path] }),
+      })
+    ).json();
     expect(m).toMatchObject({ from: 'user', text: 'Sum it', attachments: [f.path] });
   });
 
   it('keeps memory information without the old compaction controls', async () => {
-    const a = await (await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Memory', engine: 'eve', provider: 'custom' }) })).json();
+    const a = await (
+      await req('/api/agents', {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ name: 'Memory', engine: 'eve', provider: 'custom' }),
+      })
+    ).json();
     const c = await (await req(`/api/agents/${a.id}/chats`, { method: 'POST', headers: json })).json();
     const path_ = `/api/agents/${a.id}/chats/${c.id}`;
-    expect((await (await req(`${path_}/memory`)).json())).toMatchObject({ tokens: expect.any(Number), window: expect.any(Number), estimated: true });
+    expect(await (await req(`${path_}/memory`)).json()).toMatchObject({
+      tokens: expect.any(Number),
+      window: expect.any(Number),
+      estimated: true,
+    });
     expect((await req(`${path_}/compact`, { method: 'POST', headers: json })).status).toBe(404);
     expect((await req(`${path_}/compactions/0`, { method: 'PUT', headers: json, body: '{}' })).status).toBe(404);
   });
 });
 
 describe('agent runs and projects', () => {
-  it('works with a project that isn\'t open through /api/p/<id>/…, only for the routes an Overview pane uses', async () => {
-    const send = (p: string, body: unknown, headers: Record<string, string> = json) => req(p, { method: 'POST', headers, body: JSON.stringify(body) });
+  it("works with a project that isn't open through /api/p/<id>/…, only for the routes an Overview pane uses", async () => {
+    const send = (p: string, body: unknown, headers: Record<string, string> = json) =>
+      req(p, { method: 'POST', headers, body: JSON.stringify(body) });
     const home = path.join(tmp, 'home');
-    const other = await (await send('/api/projects', { name: 'Scoped other', mode: 'new', folder: path.join(home, 'scoped-other') })).json();
-    const writer = await (await send('/api/agents', { name: 'Scoped writer', engine: 'eve', provider: 'custom', model: 'mock' })).json();
-    const open = await (await send('/api/projects', { name: 'Scoped open', mode: 'new', folder: path.join(home, 'scoped-open') })).json();
+    const other = await (
+      await send('/api/projects', { name: 'Scoped other', mode: 'new', folder: path.join(home, 'scoped-other') })
+    ).json();
+    const writer = await (
+      await send('/api/agents', { name: 'Scoped writer', engine: 'eve', provider: 'custom', model: 'mock' })
+    ).json();
+    const open = await (
+      await send('/api/projects', { name: 'Scoped open', mode: 'new', folder: path.join(home, 'scoped-open') })
+    ).json();
     // (the page shows the open project and says so with its changes)
     const page = { ...json, 'x-dash-project': open.id };
     expect((await (await req('/api/agents')).json()).some((a: { id: string }) => a.id === writer.id)).toBe(false);
-    expect((await (await req(`/api/p/${other.id}/agents`)).json()).map((a: { id: string }) => a.id)).toContain(writer.id);
+    expect((await (await req(`/api/p/${other.id}/agents`)).json()).map((a: { id: string }) => a.id)).toContain(
+      writer.id,
+    );
     const chat = await (await send(`/api/p/${other.id}/agents/${writer.id}/chats`, {}, page)).json();
     expect(chat.agentId).toBe(writer.id);
-    expect((await (await req(`/api/p/${other.id}/agents/${writer.id}/chats`)).json()).map((c: { id: string }) => c.id)).toContain(chat.id);
+    expect(
+      (await (await req(`/api/p/${other.id}/agents/${writer.id}/chats`)).json()).map((c: { id: string }) => c.id),
+    ).toContain(chat.id);
     expect((await req(`/api/agents/${writer.id}/chats/${chat.id}`)).status).toBe(404);
     // attached files land in that project's folder
     const { batch } = await (await send(`/api/p/${other.id}/uploads`, {}, page)).json();
-    const f = await (await req(`/api/p/${other.id}/uploads/${batch}?path=note.txt`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-dash': '1' }, body: 'hi' })).json();
+    const f = await (
+      await req(`/api/p/${other.id}/uploads/${batch}?path=note.txt`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream', 'x-dash': '1' },
+        body: 'hi',
+      })
+    ).json();
     expect(fs.realpathSync(f.path).startsWith(fs.realpathSync(path.join(other.brainPath, 'uploads')))).toBe(true);
     // its files show through its own address, not the open project's
     const shown = await req(`/api/p/${other.id}/file?path=${encodeURIComponent(f.path)}`);
     expect(shown.status).toBe(200);
     expect(await shown.text()).toBe('hi');
     expect((await req(`/api/file?path=${encodeURIComponent(f.path)}`)).status).not.toBe(200);
-    const info = async (at: string) => (await (await send(`/api${at}/files/info`, { paths: [f.path] }, page)).json())[0];
+    const info = async (at: string) =>
+      (await (await send(`/api${at}/files/info`, { paths: [f.path] }, page)).json())[0];
     expect(await info(`/p/${other.id}`)).toMatchObject({ ok: true, name: 'note.txt', size: 2 });
     expect(await info('')).toMatchObject({ ok: false });
     // the Files panel lists its folders, never outside the project folder
     const top = await (await req(`/api/projects/${other.id}/folder`)).json();
     expect(top.rel).toBe('');
     expect(top.entries).toContainEqual(expect.objectContaining({ name: 'uploads', dir: true, rel: 'uploads' }));
-    const inside = await (await req(`/api/projects/${other.id}/folder?path=${encodeURIComponent(`uploads/${batch}`)}`)).json();
-    expect(inside.entries).toEqual([expect.objectContaining({ name: 'note.txt', dir: false, size: 2, rel: `uploads/${batch}/note.txt` })]);
+    const inside = await (
+      await req(`/api/projects/${other.id}/folder?path=${encodeURIComponent(`uploads/${batch}`)}`)
+    ).json();
+    expect(inside.entries).toEqual([
+      expect.objectContaining({ name: 'note.txt', dir: false, size: 2, rel: `uploads/${batch}/note.txt` }),
+    ]);
     expect((await req(`/api/projects/${other.id}/folder?path=${encodeURIComponent('../..')}`)).status).toBe(403);
     // a chat's tasks, the teams, and the Brain's chat are that project's
-    const task = await (await send(`/api/p/${other.id}/tasks`, { subject: 'Scoped task', description: 'Made from a pane' }, page)).json();
-    const listed = async (at: string) => (await (await req(`/api${at}/tasks?view=all&status=all`)).json()).tasks.map((t: { subject: string }) => t.subject);
+    const task = await (
+      await send(`/api/p/${other.id}/tasks`, { subject: 'Scoped task', description: 'Made from a pane' }, page)
+    ).json();
+    const listed = async (at: string) =>
+      (await (await req(`/api${at}/tasks?view=all&status=all`)).json()).tasks.map(
+        (t: { subject: string }) => t.subject,
+      );
     expect(task).toMatchObject({ task: { subject: 'Scoped task' } });
     expect(await listed(`/p/${other.id}`)).toContain('Scoped task');
     expect(await listed('')).not.toContain('Scoped task');
@@ -809,17 +1689,32 @@ describe('agent runs and projects', () => {
     const ask = (projectId: string) => {
       const dir = path.join(tmp, 'data', 'projects', projectId, 'questions');
       fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(path.join(dir, 'twin-q.json'), JSON.stringify({ id: 'twin-q', question: 'Which style?', choices: ['Flat'], status: 'waiting', agentId: writer.id, agentName: 'Scoped writer', createdAt: Date.now() }));
+      fs.writeFileSync(
+        path.join(dir, 'twin-q.json'),
+        JSON.stringify({
+          id: 'twin-q',
+          question: 'Which style?',
+          choices: ['Flat'],
+          status: 'waiting',
+          agentId: writer.id,
+          agentName: 'Scoped writer',
+          createdAt: Date.now(),
+        }),
+      );
     };
     ask(other.id);
     ask(open.id);
-    expect((await (await req(`/api/p/${other.id}/questions`)).json()).map((q: { id: string }) => q.id)).toContain('twin-q');
+    expect((await (await req(`/api/p/${other.id}/questions`)).json()).map((q: { id: string }) => q.id)).toContain(
+      'twin-q',
+    );
     expect((await send(`/api/p/${other.id}/questions/twin-q/dismiss`, {}, page)).status).toBe(200);
-    const statusIn = async (at: string) => (await (await req(`/api${at}/questions`)).json()).find((q: { id: string }) => q.id === 'twin-q')?.status;
+    const statusIn = async (at: string) =>
+      (await (await req(`/api${at}/questions`)).json()).find((q: { id: string }) => q.id === 'twin-q')?.status;
     expect(await statusIn(`/p/${other.id}`)).toBe('dismissed');
     expect(await statusIn('')).toBe('waiting');
     // its agents' MEMORY.md (and its versions) are read and saved there
-    const put = (at: string, text: string) => req(`/api${at}/memory/${writer.id}`, { method: 'PUT', headers: page, body: JSON.stringify({ text }) });
+    const put = (at: string, text: string) =>
+      req(`/api${at}/memory/${writer.id}`, { method: 'PUT', headers: page, body: JSON.stringify({ text }) });
     expect((await put(`/p/${other.id}`, 'Use British spelling.')).status).toBe(200);
     expect((await (await req(`/api/p/${other.id}/memory/${writer.id}`)).json()).text).toContain('British spelling');
     expect((await req(`/api/memory/${writer.id}`)).status).toBe(404);
@@ -829,7 +1724,9 @@ describe('agent runs and projects', () => {
     expect((await req(`/api/p/${other.id}/projects`)).status).toBe(404);
     expect((await req('/api/p/no-such-project/agents')).status).toBe(404);
     // an ordinary change still has to be for the open project
-    expect((await send(`/api/agents/${writer.id}/chats`, {}, { ...json, 'x-dash-project': other.id })).status).toBe(409);
+    expect((await send(`/api/agents/${writer.id}/chats`, {}, { ...json, 'x-dash-project': other.id })).status).toBe(
+      409,
+    );
   });
 
   it("tool calls through the MCP bridge stay in the run's project after you open another", async () => {
@@ -839,34 +1736,70 @@ describe('agent runs and projects', () => {
       if (rq.url?.endsWith('/models')) return rs.end(JSON.stringify({ data: [{ id: 'mock' }] }));
       new Promise<void>((r) => (release = r)).then(() => {
         rs.writeHead(200, { 'content-type': 'text/event-stream' });
-        rs.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+        rs.end(
+          `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+        );
       });
     });
     await new Promise<void>((r) => model.listen(0, '127.0.0.1', () => r()));
     try {
-      const send = async (p: string, body: unknown, method = 'POST') => (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
-      await send('/api/settings', { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } }, 'PUT');
+      const send = async (p: string, body: unknown, method = 'POST') =>
+        (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
+      await send(
+        '/api/settings',
+        { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } },
+        'PUT',
+      );
       const home = path.join(tmp, 'home');
       const a = await send('/api/projects', { name: 'Bridge A', mode: 'new', folder: path.join(home, 'bridge-a') });
-      const agent = await send('/api/agents', { name: 'Bridged', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: ['files'], autonomy: 'auto' });
+      const agent = await send('/api/agents', {
+        name: 'Bridged',
+        engine: 'eve',
+        provider: 'custom',
+        model: 'mock',
+        toolGroups: ['files'],
+        autonomy: 'auto',
+      });
       const chat = await send(`/api/agents/${agent.id}/chats`, {});
       const { runId } = await send(`/api/agents/${agent.id}/chats/${chat.id}/messages`, { text: 'hello' });
       const b = await send('/api/projects', { name: 'Bridge B', mode: 'new', folder: path.join(home, 'bridge-b') });
       expect((await (await req('/api/state')).json()).project.id).toBe(b.id);
 
-      const internal = { 'content-type': 'application/json', 'x-dash-internal': fs.readFileSync(path.join(tmp, 'data', '.internal-token'), 'utf8').trim() };
-      const tools = await (await req(`/api/internal/tools?agent=${agent.id}&run=${runId}`, { headers: internal })).json();
+      const internal = {
+        'content-type': 'application/json',
+        'x-dash-internal': fs.readFileSync(path.join(tmp, 'data', '.internal-token'), 'utf8').trim(),
+      };
+      const tools = await (
+        await req(`/api/internal/tools?agent=${agent.id}&run=${runId}`, { headers: internal })
+      ).json();
       // the run's own agent (files only), not the outside-client stand-in
       expect(tools.tools.map((t: { name: string }) => t.name)).toContain('write_file');
       expect(tools.tools.map((t: { name: string }) => t.name)).not.toContain('list_programs');
-      const r = await (await req('/api/internal/tools/call', { method: 'POST', headers: internal, body: JSON.stringify({ agent: agent.id, run: runId, name: 'write_file', args: { path: 'bridge.txt', content: 'via-bridge' } }) })).json();
+      const r = await (
+        await req('/api/internal/tools/call', {
+          method: 'POST',
+          headers: internal,
+          body: JSON.stringify({
+            agent: agent.id,
+            run: runId,
+            name: 'write_file',
+            args: { path: 'bridge.txt', content: 'via-bridge' },
+          }),
+        })
+      ).json();
       expect(r.isError).toBe(false);
       expect(fs.readFileSync(path.join(a.brainPath, 'bridge.txt'), 'utf8')).toBe('via-bridge');
       expect(fs.existsSync(path.join(b.brainPath, 'bridge.txt'))).toBe(false);
       // a picture comes back as data, which is all MCP takes
       const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
       fs.writeFileSync(path.join(a.brainPath, 'render.png'), Buffer.from(png, 'base64'));
-      const seen = await (await req('/api/internal/tools/call', { method: 'POST', headers: internal, body: JSON.stringify({ agent: agent.id, run: runId, name: 'view_image', args: { path: 'render.png' } }) })).json();
+      const seen = await (
+        await req('/api/internal/tools/call', {
+          method: 'POST',
+          headers: internal,
+          body: JSON.stringify({ agent: agent.id, run: runId, name: 'view_image', args: { path: 'render.png' } }),
+        })
+      ).json();
       expect(seen.images).toEqual([`data:image/png;base64,${png}`]);
     } finally {
       release();
@@ -880,27 +1813,57 @@ describe('agent runs and projects', () => {
       if (rq.url?.endsWith('/models')) return rs.end(JSON.stringify({ data: [{ id: 'mock' }] }));
       new Promise<void>((r) => (release = r)).then(() => {
         rs.writeHead(200, { 'content-type': 'text/event-stream' });
-        rs.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+        rs.end(
+          `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+        );
       });
     });
     await new Promise<void>((r) => model.listen(0, '127.0.0.1', () => r()));
     try {
-      const send = async (p: string, body: unknown, method = 'POST') => (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
-      await send('/api/settings', { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } }, 'PUT');
+      const send = async (p: string, body: unknown, method = 'POST') =>
+        (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
+      await send(
+        '/api/settings',
+        { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } },
+        'PUT',
+      );
       // the agent has no Files tools of its own; its team gives them
-      const agent = await send('/api/agents', { name: 'Team helper', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [], autonomy: 'auto' });
-      const team = await send('/api/workflows', { name: 'File team', members: [agent.id], lead: agent.id, access: { toolGroups: ['files'] } });
+      const agent = await send('/api/agents', {
+        name: 'Team helper',
+        engine: 'eve',
+        provider: 'custom',
+        model: 'mock',
+        toolGroups: [],
+        autonomy: 'auto',
+      });
+      const team = await send('/api/workflows', {
+        name: 'File team',
+        members: [agent.id],
+        lead: agent.id,
+        access: { toolGroups: ['files'] },
+      });
       await send(`/api/teams/${team.id}/messages`, { text: `@${agent.name} write it down` });
       let run: { id: string; agentId: string } | undefined;
       for (let i = 0; i < 100 && !run; i++) {
-        run = ((await (await req('/api/runs')).json()) as { id: string; agentId: string }[]).find((r) => r.agentId === agent.id);
+        run = ((await (await req('/api/runs')).json()) as { id: string; agentId: string }[]).find(
+          (r) => r.agentId === agent.id,
+        );
         if (!run) await new Promise((r) => setTimeout(r, 50));
       }
       expect(run).toBeTruthy();
-      const internal = { 'content-type': 'application/json', 'x-dash-internal': fs.readFileSync(path.join(tmp, 'data', '.internal-token'), 'utf8').trim() };
-      const tools = await (await req(`/api/internal/tools?agent=${agent.id}&run=${run!.id}`, { headers: internal })).json();
+      const internal = {
+        'content-type': 'application/json',
+        'x-dash-internal': fs.readFileSync(path.join(tmp, 'data', '.internal-token'), 'utf8').trim(),
+      };
+      const tools = await (
+        await req(`/api/internal/tools?agent=${agent.id}&run=${run!.id}`, { headers: internal })
+      ).json();
       expect(tools.tools.map((t: { name: string }) => t.name)).toContain('list_files');
-      const r = await req('/api/internal/tools/call', { method: 'POST', headers: internal, body: JSON.stringify({ agent: agent.id, run: run!.id, name: 'list_files', args: {} }) });
+      const r = await req('/api/internal/tools/call', {
+        method: 'POST',
+        headers: internal,
+        body: JSON.stringify({ agent: agent.id, run: run!.id, name: 'list_files', args: {} }),
+      });
       expect(r.status).toBe(200);
       // without the run it is the agent's own tools only
       const own = await (await req(`/api/internal/tools?agent=${agent.id}`, { headers: internal })).json();
@@ -912,7 +1875,8 @@ describe('agent runs and projects', () => {
   });
 
   it('keeps versions of an agent, restores one, and brings back a deleted one', async () => {
-    const send = async (p: string, body: unknown, method = 'POST') => (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
+    const send = async (p: string, body: unknown, method = 'POST') =>
+      (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
     const a = await send('/api/agents', { name: 'Api versions', systemPrompt: 'First.' });
     await send(`/api/agents/${a.id}`, { systemPrompt: 'Second.' }, 'PUT');
     const hist = await (await req(`/api/versions/agent/${a.id}`)).json();
@@ -933,12 +1897,21 @@ describe('agent runs and projects', () => {
 });
 
 describe('effort and favorite models', () => {
-  const send = async (p: string, body: unknown, method = 'POST') => (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
+  const send = async (p: string, body: unknown, method = 'POST') =>
+    (await req(p, { method, headers: json, body: JSON.stringify(body) })).json();
 
   it("reads and edits an agent's and the Brain's MEMORY.md, with history", async () => {
-    const a = await (await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Rememberer' }) })).json();
-    const put = (owner: string, body: unknown, headers: Record<string, string> = json) => req(`/api/memory/${owner}`, { method: 'PUT', headers, body: JSON.stringify(body) });
-    expect(await (await req(`/api/memory/${a.id}`)).json()).toMatchObject({ owner: a.id, name: 'Rememberer', text: '', updatedAt: 0 });
+    const a = await (
+      await req('/api/agents', { method: 'POST', headers: json, body: JSON.stringify({ name: 'Rememberer' }) })
+    ).json();
+    const put = (owner: string, body: unknown, headers: Record<string, string> = json) =>
+      req(`/api/memory/${owner}`, { method: 'PUT', headers, body: JSON.stringify(body) });
+    expect(await (await req(`/api/memory/${a.id}`)).json()).toMatchObject({
+      owner: a.id,
+      name: 'Rememberer',
+      text: '',
+      updatedAt: 0,
+    });
     expect((await put(a.id, { text: '- Likes lists.' })).status).toBe(200);
     expect((await put(a.id, { text: '- Likes short lists.' })).status).toBe(200);
     expect(await (await req(`/api/memory/${a.id}`)).json()).toMatchObject({ text: '- Likes short lists.\n' });
@@ -961,7 +1934,10 @@ describe('effort and favorite models', () => {
   });
 
   it('keeps favorite models in the settings', async () => {
-    const favoriteModels = [{ engine: 'claude-code', model: 'opus' }, { engine: 'eve', provider: 'openrouter', model: 'x/y' }];
+    const favoriteModels = [
+      { engine: 'claude-code', model: 'opus' },
+      { engine: 'eve', provider: 'openrouter', model: 'x/y' },
+    ];
     expect((await send('/api/settings', { favoriteModels }, 'PUT')).favoriteModels).toEqual(favoriteModels);
     expect((await (await req('/api/state')).json()).settings.favoriteModels).toEqual(favoriteModels);
     expect((await send('/api/settings', { favoriteModels: [] }, 'PUT')).favoriteModels).toEqual([]);
@@ -979,31 +1955,52 @@ describe('effort and favorite models', () => {
         if (JSON.stringify(body.messages).includes('You are Thinker')) bodies.push(body);
         if (refuse === 'http' && 'reasoning_effort' in body) {
           rs.writeHead(400, { 'content-type': 'application/json' });
-          return rs.end(JSON.stringify({ error: { message: 'Unrecognized request argument supplied: reasoning_effort' } }));
+          return rs.end(
+            JSON.stringify({ error: { message: 'Unrecognized request argument supplied: reasoning_effort' } }),
+          );
         }
         if (refuse === 'stream' && 'reasoning_effort' in body) {
           // a 200 whose stream carries the error (no HTTP status on it)
           rs.writeHead(200, { 'content-type': 'text/event-stream' });
-          return rs.end(`data: ${JSON.stringify({ error: { message: 'reasoning_effort is not supported by this model' } })}\n\n`);
+          return rs.end(
+            `data: ${JSON.stringify({ error: { message: 'reasoning_effort is not supported by this model' } })}\n\n`,
+          );
         }
         if (refuse === 'late' && 'reasoning_effort' in body) {
           // part of the answer, then an error: never asked again (it would show twice)
           rs.writeHead(200, { 'content-type': 'text/event-stream' });
-          return rs.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'half' } }] })}\n\ndata: ${JSON.stringify({ error: { message: 'reasoning budget exceeded' } })}\n\n`);
+          return rs.end(
+            `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'half' } }] })}\n\ndata: ${JSON.stringify({ error: { message: 'reasoning budget exceeded' } })}\n\n`,
+          );
         }
         rs.writeHead(200, { 'content-type': 'text/event-stream' });
-        rs.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+        rs.end(
+          `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ok' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+        );
       });
     });
     await new Promise<void>((r) => model.listen(0, '127.0.0.1', () => r()));
     try {
-      await send('/api/settings', { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } }, 'PUT');
-      const agent = await send('/api/agents', { name: 'Thinker', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [], effort: 'max' });
+      await send(
+        '/api/settings',
+        { providers: { custom: { baseUrl: `http://127.0.0.1:${(model.address() as { port: number }).port}/v1` } } },
+        'PUT',
+      );
+      const agent = await send('/api/agents', {
+        name: 'Thinker',
+        engine: 'eve',
+        provider: 'custom',
+        model: 'mock',
+        toolGroups: [],
+        effort: 'max',
+      });
       const ask = async (text: string) => {
         const chat = await send(`/api/agents/${agent.id}/chats`, {});
         await send(`/api/agents/${agent.id}/chats/${chat.id}/messages`, { text });
         for (let i = 0; i < 100; i++) {
-          const items = (await (await req(`/api/agents/${agent.id}/chats/${chat.id}`)).json()).items as { type: string }[];
+          const items = (await (await req(`/api/agents/${agent.id}/chats/${chat.id}`)).json()).items as {
+            type: string;
+          }[];
           if (items.some((x) => x.type === 'assistant' || x.type === 'error')) return items;
           await new Promise((r) => setTimeout(r, 50));
         }
@@ -1037,7 +2034,8 @@ describe('effort and favorite models', () => {
 });
 
 describe('/ commands over the API', () => {
-  const send = async (p: string, body: unknown = {}, method = 'POST') => req(p, { method, headers: json, body: JSON.stringify(body) });
+  const send = async (p: string, body: unknown = {}, method = 'POST') =>
+    req(p, { method, headers: json, body: JSON.stringify(body) });
 
   it('agent chats: /goal shows, /loop is checked, /resume and /resend say when there is nothing to do', async () => {
     const a = await (await send('/api/agents', { name: 'Cmd agent' })).json();

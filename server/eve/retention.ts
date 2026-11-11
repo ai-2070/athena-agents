@@ -17,7 +17,10 @@ const undecided = (key: string) => {
  * Removes the receipts of runs that ended long ago, once everything in them is in the chat and nothing
  * waits for a person: no open operation, no consent or outcome check still undecided. Returns the run ids.
  */
-export function removeOldEveReceipts({ now = Date.now(), keepMs = EVE_RECEIPT_DAYS * DAY }: { now?: number; keepMs?: number } = {}): string[] {
+export function removeOldEveReceipts({
+  now = Date.now(),
+  keepMs = EVE_RECEIPT_DAYS * DAY,
+}: { now?: number; keepMs?: number } = {}): string[] {
   const runs = runSummaries();
   const working = new Set(runs.filter((run) => !runEnded(run.status)).map((run) => run.bindingId));
   const removed: string[] = [];
@@ -27,7 +30,13 @@ export function removeOldEveReceipts({ now = Date.now(), keepMs = EVE_RECEIPT_DA
     if (!runEnded(run.status) || !Number.isFinite(ended) || now - ended <= keepMs) continue;
     if ((run.projected || 0) < run.events) continue;
     const operations = operationSummaries(run.id);
-    if (operations.some((operation) => OPEN.includes(operation.status) || undecided(operation.id) || undecided(`reconcile:${operation.id}`))) continue;
+    if (
+      operations.some(
+        (operation) =>
+          OPEN.includes(operation.status) || undecided(operation.id) || undecided(`reconcile:${operation.id}`),
+      )
+    )
+      continue;
     if (run.status !== 'completed') {
       // conversationBinding() skips a binding by its failed, stopped or interrupted run: without the run
       // the binding must already be retired, or it would be used again.

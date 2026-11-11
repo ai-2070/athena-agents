@@ -122,21 +122,36 @@ export function connectEvents(): void {
 export type Child = Node | string | number | null | undefined | false | readonly Child[];
 
 /** The tag name in 'div.card#id' notation: 'div'. */
-export type TagName<S extends string> = S extends `${infer A}.${string}` ? TagName<A> : S extends `${infer A}#${string}` ? TagName<A> : S;
+export type TagName<S extends string> = S extends `${infer A}.${string}`
+  ? TagName<A>
+  : S extends `${infer A}#${string}`
+    ? TagName<A>
+    : S;
 /** The element h() makes for a tag: h('input') is an HTMLInputElement, unknown tags an HTMLElement. */
-export type ElementFor<S extends string> = S extends unknown ? (TagName<S> extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[TagName<S>] : HTMLElement) : never;
+export type ElementFor<S extends string> = S extends unknown
+  ? TagName<S> extends keyof HTMLElementTagNameMap
+    ? HTMLElementTagNameMap[TagName<S>]
+    : HTMLElement
+  : never;
 
 type FormControl = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
 /** The event an on… handler gets: currentTarget is the element; for input/change on a form control, so is target. */
-export type HandlerEvent<E extends HTMLElement, K extends keyof HTMLElementEventMap> = HTMLElementEventMap[K] & { currentTarget: E } & (K extends 'input' | 'change' ? (E extends FormControl ? { target: E } : unknown) : unknown);
+export type HandlerEvent<E extends HTMLElement, K extends keyof HTMLElementEventMap> = HTMLElementEventMap[K] & {
+  currentTarget: E;
+} & (K extends 'input' | 'change' ? (E extends FormControl ? { target: E } : unknown) : unknown);
 export type EventAttrs<E extends HTMLElement> = {
   [K in keyof HTMLElementEventMap as `on${K}`]?: ((e: HandlerEvent<E, K>) => unknown) | null | false;
 };
 
-type CssProp = Exclude<{ [K in keyof CSSStyleDeclaration]: CSSStyleDeclaration[K] extends string ? K : never }[keyof CSSStyleDeclaration], number>;
+type CssProp = Exclude<
+  { [K in keyof CSSStyleDeclaration]: CSSStyleDeclaration[K] extends string ? K : never }[keyof CSSStyleDeclaration],
+  number
+>;
 /** style: { fontSize: '12px', zIndex: 95, '--c': '#fff' } (copied onto el.style), or a CSS string. */
 // (Webkit-cased names like WebkitLineClamp work in browsers but are missing from TypeScript's DOM types.)
-export type StyleAttrs = { [K in CssProp]?: string | number | null } & { [k: `--${string}` | `Webkit${string}`]: string | number | null | undefined };
+export type StyleAttrs = { [K in CssProp]?: string | number | null } & {
+  [k: `--${string}` | `Webkit${string}`]: string | number | null | undefined;
+};
 
 export type Attrs<E extends HTMLElement = HTMLElement> = EventAttrs<E> & {
   class?: string | null | false;
@@ -165,7 +180,8 @@ export function h(tag: string, attrs?: unknown, ...children: Child[]): HTMLEleme
   }
   for (const [k, v] of Object.entries(attrs as Record<string, unknown>)) {
     if (v == null || v === false) continue;
-    if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v as EventListener);
+    if (k.startsWith('on') && typeof v === 'function')
+      el.addEventListener(k.slice(2).toLowerCase(), v as EventListener);
     else if (k === 'class') el.className += ` ${v}`;
     else if (k === 'style' && typeof v === 'object') {
       // CSS variables ('--c') need setProperty; Object.assign silently drops them
@@ -174,8 +190,7 @@ export function h(tag: string, attrs?: unknown, ...children: Child[]): HTMLEleme
         if (sk.startsWith('--')) el.style.setProperty(sk, String(sv));
         else (el.style as unknown as Record<string, unknown>)[sk] = sv;
       }
-    }
-    else if (k === 'html') el.innerHTML = v as string;
+    } else if (k === 'html') el.innerHTML = v as string;
     else if (k === 'value') (el as { value?: unknown }).value = v;
     else if (k === 'checked') (el as HTMLInputElement).checked = !!v;
     else if (k === 'dataset') Object.assign(el.dataset, v);
@@ -273,7 +288,7 @@ export function mdChunks(text: string, size = 8000): { raw: string; render: () =
     open = fence ? `${fenceLine}\n` : '';
   };
   let blank = false;
-  for (let ls = 0; ls < text.length; ) {
+  for (let ls = 0; ls < text.length;) {
     const nl = text.indexOf('\n', ls);
     const le = nl < 0 ? text.length : nl + 1;
     const head = text.slice(ls, Math.min(le, ls + 200));
@@ -303,7 +318,15 @@ export function mdChunks(text: string, size = 8000): { raw: string; render: () =
   const tail = defs.length ? `\n\n${defs.join('\n')}\n` : '';
   return pieces.map((p) => {
     const raw = text.slice(p.from, p.to);
-    return { raw, render: () => mdFill(mdDiv(), DOMPurify.isSupported ? (marked.parse(p.open + raw + p.close + tail, MD_OPTIONS) as string) : '', raw) };
+    return {
+      raw,
+      render: () =>
+        mdFill(
+          mdDiv(),
+          DOMPurify.isSupported ? (marked.parse(p.open + raw + p.close + tail, MD_OPTIONS) as string) : '',
+          raw,
+        ),
+    };
   });
 }
 
@@ -331,11 +354,28 @@ export interface ModalHandle {
   /** The backdrop (.modal-back); the dialog is the .modal inside it. */
   el: HTMLDivElement;
 }
-export function modal({ title, body, foot = [], narrow = false, exit = true, onClose }: ModalOptions = {}): ModalHandle {
-  return openDialog({ title: asNodes(title), body: asNodes(body), foot: foot.length ? asNodes(foot) : null, narrow, exit, onClose });
+export function modal({
+  title,
+  body,
+  foot = [],
+  narrow = false,
+  exit = true,
+  onClose,
+}: ModalOptions = {}): ModalHandle {
+  return openDialog({
+    title: asNodes(title),
+    body: asNodes(body),
+    foot: foot.length ? asNodes(foot) : null,
+    narrow,
+    exit,
+    onClose,
+  });
 }
 
-export function confirmBox(text: Child, { ok = 'Yes', danger = false }: { ok?: string; danger?: boolean } = {}): Promise<boolean> {
+export function confirmBox(
+  text: Child,
+  { ok = 'Yes', danger = false }: { ok?: string; danger?: boolean } = {},
+): Promise<boolean> {
   return new Promise((resolve) => {
     let m: ModalHandle;
     const done = (v: boolean) => {
@@ -362,9 +402,14 @@ export interface PromptOptions {
   placeholder?: string;
   ok?: string;
 }
-export function promptBox(title: Child, { label = '', value = '', multiline = false, placeholder = '', ok = 'Save' }: PromptOptions = {}): Promise<string | null> {
+export function promptBox(
+  title: Child,
+  { label = '', value = '', multiline = false, placeholder = '', ok = 'Save' }: PromptOptions = {},
+): Promise<string | null> {
   return new Promise((resolve) => {
-    const input: HTMLTextAreaElement | HTMLInputElement = multiline ? h('textarea', { value, placeholder, rows: 8 }) : h('input', { value, placeholder });
+    const input: HTMLTextAreaElement | HTMLInputElement = multiline
+      ? h('textarea', { value, placeholder, rows: 8 })
+      : h('input', { value, placeholder });
     let m: ModalHandle;
     const done = (v: string | null) => {
       resolve(v);
@@ -381,7 +426,8 @@ export function promptBox(title: Child, { label = '', value = '', multiline = fa
       onClose: () => resolve(null),
     });
     setTimeout(() => input.focus(), 30);
-    if (!multiline) (input as HTMLInputElement).addEventListener('keydown', (e) => e.key === 'Enter' && done(input.value));
+    if (!multiline)
+      (input as HTMLInputElement).addEventListener('keydown', (e) => e.key === 'Enter' && done(input.value));
   });
 }
 
@@ -402,25 +448,39 @@ export interface Option<V extends string = string> {
 }
 export type OptionList<V extends string = string> = readonly (V | Option<V>)[];
 
-export function seg<V extends string>(options: OptionList<V>, value: V | null | undefined, onChange: (v: V) => void): HTMLDivElement {
+export function seg<V extends string>(
+  options: OptionList<V>,
+  value: V | null | undefined,
+  onChange: (v: V) => void,
+): HTMLDivElement {
   const wrap = h('div.seg');
   for (const o of options) {
     const opt: Option<V> = typeof o === 'string' ? { value: o, label: o } : o;
-    const button = h(`button${opt.value === value ? '.on' : ''}`, {
-      type: 'button', title: opt.title || '', onclick: () => {
-        const previous = wrap.querySelector<HTMLButtonElement>('button.on');
-        previous?.classList.remove('on');
-        button.classList.add('on');
-        slideSegment(previous, button);
-        onChange(opt.value);
+    const button = h(
+      `button${opt.value === value ? '.on' : ''}`,
+      {
+        type: 'button',
+        title: opt.title || '',
+        onclick: () => {
+          const previous = wrap.querySelector<HTMLButtonElement>('button.on');
+          previous?.classList.remove('on');
+          button.classList.add('on');
+          slideSegment(previous, button);
+          onChange(opt.value);
+        },
       },
-    }, opt.label);
+      opt.label,
+    );
     wrap.append(button);
   }
   return wrap;
 }
 
-export function chipSet<V extends string>(options: OptionList<V>, selected: readonly V[] | null | undefined, onChange: (v: V[]) => void): HTMLDivElement {
+export function chipSet<V extends string>(
+  options: OptionList<V>,
+  selected: readonly V[] | null | undefined,
+  onChange: (v: V[]) => void,
+): HTMLDivElement {
   const set = new Set<V>(selected || []);
   const wrap = h('div', { class: CHIPS_CLASS });
   for (const o of options) {
@@ -446,18 +506,27 @@ export function toggle(checked: boolean | null | undefined, onChange: (checked: 
 // A switch with its text next to it. The text is its own <label for=…>, so clicking it flips the
 // switch (a toggle() inside another <label> nests labels, and the outer one then does nothing).
 let toggleIds = 0;
-export function toggleRow(checked: boolean | null | undefined, onChange: (checked: boolean) => void, text: Child, cls = ''): HTMLDivElement {
+export function toggleRow(
+  checked: boolean | null | undefined,
+  onChange: (checked: boolean) => void,
+  text: Child,
+  cls = '',
+): HTMLDivElement {
   const t = toggle(checked, onChange);
   const input = t.querySelector('input')!;
   input.id = `toggle-${++toggleIds}`;
   // (cls is in h() notation: '.a.b')
-  return h('div', { class: `flex flex-wrap items-center gap-2.5 ${cls.split('.').join(' ')}` }, t, h('label.toggle-text', { class: 'cursor-pointer', for: input.id }, text));
+  return h(
+    'div',
+    { class: `flex flex-wrap items-center gap-2.5 ${cls.split('.').join(' ')}` },
+    t,
+    h('label.toggle-text', { class: 'cursor-pointer', for: input.id }, text),
+  );
 }
 
 export function field(label: Child, control: Child, hint?: Child): HTMLLabelElement {
   return h('label.field', h('span', label), control, hint ? h('span.hint', hint) : null);
 }
-
 
 export function ago(ts: number | null | undefined): string {
   if (!ts) return '';
@@ -477,7 +546,10 @@ export function dayOf(t: number, now = Date.now()): string {
 
 /** Chats grouped under their heading (dayOf, unless heading says otherwise), the groups in the order their first
  *  chat comes. (A chat out of place joins its group, never a second one of the same name.) */
-export function dayGroups<T extends { updatedAt: number }>(list: T[], heading: (c: T) => string = (c) => dayOf(c.updatedAt)): { day: string; list: T[] }[] {
+export function dayGroups<T extends { updatedAt: number }>(
+  list: T[],
+  heading: (c: T) => string = (c) => dayOf(c.updatedAt),
+): { day: string; list: T[] }[] {
   const groups = new Map<string, T[]>();
   for (const c of list) {
     const day = heading(c);
@@ -488,15 +560,37 @@ export function dayGroups<T extends { updatedAt: number }>(list: T[], heading: (
   return [...groups].map(([day, list]) => ({ day, list }));
 }
 
-export const ENGINE_LABEL: Partial<Record<string, string>> = { 'claude-code': 'Claude Code', eve: 'Eve', hermes: 'Hermes', codex: 'Codex', pi: 'pi', omp: 'oh-my-pi', openclaw: 'OpenClaw', opencode: 'opencode' };
-export function engineBadge(agent: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>): HTMLSpanElement {
+export const ENGINE_LABEL: Partial<Record<string, string>> = {
+  'claude-code': 'Claude Code',
+  eve: 'Eve',
+  hermes: 'Hermes',
+  codex: 'Codex',
+  pi: 'pi',
+  omp: 'oh-my-pi',
+  openclaw: 'OpenClaw',
+  opencode: 'opencode',
+};
+export function engineBadge(
+  agent: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>,
+): HTMLSpanElement {
   const label = ENGINE_LABEL[agent.engine] || agent.engine;
-  const extra = agent.engine === 'eve' ? ` · ${agent.provider}` : agent.engine === 'hermes' && agent.hermesProfile ? ` · ${agent.hermesProfile}` : agent.engine === 'openclaw' && agent.openclawAgent ? ` · ${agent.openclawAgent}` : '';
+  const extra =
+    agent.engine === 'eve'
+      ? ` · ${agent.provider}`
+      : agent.engine === 'hermes' && agent.hermesProfile
+        ? ` · ${agent.hermesProfile}`
+        : agent.engine === 'openclaw' && agent.openclawAgent
+          ? ` · ${agent.openclawAgent}`
+          : '';
   return h('span', { class: pillClass('dim') }, `${label}${extra}`);
 }
 
 export function avatar(agent: Partial<Pick<Agent, 'color' | 'emoji'>>, lg = false): HTMLDivElement {
-  return h(`div.avatar${lg ? '.lg' : ''}`, { style: { '--agent-color': agent.color || 'var(--color-accent)' } }, agent.emoji || '🤖');
+  return h(
+    `div.avatar${lg ? '.lg' : ''}`,
+    { style: { '--agent-color': agent.color || 'var(--color-accent)' } },
+    agent.emoji || '🤖',
+  );
 }
 
 export function isRunning(agentId: string): boolean {
@@ -509,13 +603,33 @@ export function approvalCard(a: Approval): HTMLDivElement {
   const note = h('input', { placeholder: 'Optional note for the agent (why not, what instead)' });
   const decide = (approved: boolean, always = false) =>
     attempt(async () => {
-      await rpc.approvals.decide({ id: a.id, approved, always, message: note.value, edited: editor ? editor.value : null });
+      await rpc.approvals.decide({
+        id: a.id,
+        approved,
+        always,
+        message: note.value,
+        edited: editor ? editor.value : null,
+      });
       refreshSoon(0);
     });
   return h(
     'div.approval',
     h('div.t', a.title),
-    h('div.label', { class: 'mb-3' }, a.kind === 'claude' ? 'Claude Code permission' : a.kind === 'opencode' ? 'opencode permission' : a.kind === 'workflow' ? 'Workflow checkpoint' : a.kind === 'setting' ? 'A setting' : a.kind === 'tools' ? 'Asks for tools' : 'Tool call'),
+    h(
+      'div.label',
+      { class: 'mb-3' },
+      a.kind === 'claude'
+        ? 'Claude Code permission'
+        : a.kind === 'opencode'
+          ? 'opencode permission'
+          : a.kind === 'workflow'
+            ? 'Workflow checkpoint'
+            : a.kind === 'setting'
+              ? 'A setting'
+              : a.kind === 'tools'
+                ? 'Asks for tools'
+                : 'Tool call',
+    ),
     a.brainNote ? h('div.hint', `The Brain passed this to you: ${a.brainNote}`) : null,
     a.detail && !editor ? h('pre', a.detail) : null,
     editor ? h('div', h('div.hint', 'You can edit this before it continues:'), editor) : null,
@@ -524,9 +638,30 @@ export function approvalCard(a: Approval): HTMLDivElement {
       'div',
       { class: 'mt-4 flex flex-wrap items-center gap-2' },
       // a setting says what its button does ("Turn on the voxel look"); it is asked each time, never always allowed
-      h('button', { class: buttonClass('primary', 'small'), onclick: () => decide(true) }, a.kind === 'setting' && typeof a.data.allow === 'string' ? a.data.allow : editor ? 'Approve' : 'Allow'),
-      a.kind !== 'workflow' && a.kind !== 'setting' && a.kind !== 'tools' ? h('button', { class: buttonClass('ghost', 'small'), onclick: () => decide(true, true), title: typeof a.data.alwaysMeans === 'string' ? a.data.alwaysMeans : 'Allow this tool for this agent from now on' }, 'Always allow') : null,
-      h('button', { class: buttonClass('danger', 'small'), onclick: () => decide(false) }, a.kind === 'setting' ? 'Not now' : editor ? 'Stop' : 'Deny'),
+      h(
+        'button',
+        { class: buttonClass('primary', 'small'), onclick: () => decide(true) },
+        a.kind === 'setting' && typeof a.data.allow === 'string' ? a.data.allow : editor ? 'Approve' : 'Allow',
+      ),
+      a.kind !== 'workflow' && a.kind !== 'setting' && a.kind !== 'tools'
+        ? h(
+            'button',
+            {
+              class: buttonClass('ghost', 'small'),
+              onclick: () => decide(true, true),
+              title:
+                typeof a.data.alwaysMeans === 'string'
+                  ? a.data.alwaysMeans
+                  : 'Allow this tool for this agent from now on',
+            },
+            'Always allow',
+          )
+        : null,
+      h(
+        'button',
+        { class: buttonClass('danger', 'small'), onclick: () => decide(false) },
+        a.kind === 'setting' ? 'Not now' : editor ? 'Stop' : 'Deny',
+      ),
     ),
   );
 }

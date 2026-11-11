@@ -7,7 +7,17 @@ import { activeProject, agents, emit, workflows } from '../store.ts';
 import { readPrefab, saveWorld } from './store.ts';
 import { changeWorld, shownWorld } from './link.ts';
 import { findPrefab, remember } from './build.ts';
-import type { AgentSkin, AnimKey, AnimationClip, BrainSkin, TeamSkin, Vec3, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
+import type {
+  AgentSkin,
+  AnimKey,
+  AnimationClip,
+  BrainSkin,
+  TeamSkin,
+  Vec3,
+  VoxelPrefabMeta,
+  VoxelWorld,
+  WorldBuilder,
+} from '../../shared/types.ts';
 
 export const ANIM_LIMITS = { clips: 24, tracks: 40, keys: 64, duration: 60 };
 const EASES = ['linear', 'smooth', 'step', 'bounce'] as const;
@@ -19,7 +29,8 @@ const num = (v: unknown, what: string, min: number, max: number): number => {
   return Math.max(min, Math.min(max, n));
 };
 const vec = (v: unknown, what: string, lim: number): Vec3 => {
-  if (!Array.isArray(v) || v.length !== 3 || v.some((n) => !Number.isFinite(Number(n)))) throw bad(`${what} must be [x, y, z]`);
+  if (!Array.isArray(v) || v.length !== 3 || v.some((n) => !Number.isFinite(Number(n))))
+    throw bad(`${what} must be [x, y, z]`);
   return v.map((n) => Math.max(-lim, Math.min(lim, Number(n)))) as Vec3;
 };
 
@@ -39,19 +50,23 @@ export function partNames(w: VoxelWorld, prefabId: string, depth = 0, seen = new
 export function cleanClip(raw: Record<string, unknown>): AnimationClip {
   const duration = num(raw.duration ?? 1, 'duration', 0.1, ANIM_LIMITS.duration);
   const tracks = raw.tracks;
-  if (!tracks || typeof tracks !== 'object' || Array.isArray(tracks)) throw bad('tracks is {"part name": [keys…]} ("self" moves the whole character)');
+  if (!tracks || typeof tracks !== 'object' || Array.isArray(tracks))
+    throw bad('tracks is {"part name": [keys…]} ("self" moves the whole character)');
   const names = Object.keys(tracks);
   if (!names.length) throw bad('an animation needs at least one track');
   if (names.length > ANIM_LIMITS.tracks) throw bad(`at most ${ANIM_LIMITS.tracks} parts in one animation`);
   const out: AnimationClip = { duration, loop: raw.loop !== false, tracks: {} };
   for (const name of names) {
     const keys = (tracks as Record<string, unknown>)[name];
-    if (!Array.isArray(keys) || !keys.length) throw bad(`track "${name}" is a list of keys like {"t": 0.5, "turn": [30, 0, 0]}`);
+    if (!Array.isArray(keys) || !keys.length)
+      throw bad(`track "${name}" is a list of keys like {"t": 0.5, "turn": [30, 0, 0]}`);
     if (keys.length > ANIM_LIMITS.keys) throw bad(`track "${name}": at most ${ANIM_LIMITS.keys} keys`);
     const clean: AnimKey[] = keys.map((k, i) => {
       if (!k || typeof k !== 'object') throw bad(`track "${name}", key ${i + 1} must be an object`);
       const o = k as Record<string, unknown>;
-      const key: AnimKey = { t: num(o.t ?? i / Math.max(1, keys.length - 1), `track "${name}", key ${i + 1}: t`, 0, 1) };
+      const key: AnimKey = {
+        t: num(o.t ?? i / Math.max(1, keys.length - 1), `track "${name}", key ${i + 1}: t`, 0, 1),
+      };
       if (o.turn !== undefined) key.turn = vec(o.turn, `track "${name}", key ${i + 1}: turn`, 3600);
       if (o.move !== undefined) key.move = vec(o.move, `track "${name}", key ${i + 1}: move`, 50);
       if (o.scale !== undefined) key.scale = num(o.scale, `track "${name}", key ${i + 1}: scale`, 0.05, 10);
@@ -59,7 +74,8 @@ export function cleanClip(raw: Record<string, unknown>): AnimationClip {
         if (!EASES.includes(o.ease as (typeof EASES)[number])) throw bad(`ease is ${EASES.join(', ')}`);
         key.ease = o.ease as AnimKey['ease'];
       }
-      if (!key.turn && !key.move && key.scale === undefined) throw bad(`track "${name}", key ${i + 1}: give turn, move or scale`);
+      if (!key.turn && !key.move && key.scale === undefined)
+        throw bad(`track "${name}", key ${i + 1}: give turn, move or scale`);
       return key;
     });
     out.tracks[name.trim().toLowerCase()] = clean.sort((a, b) => a.t - b.t);
@@ -85,10 +101,19 @@ function setAnimationIn(w: VoxelWorld, req: AnimRequest): { prefab: VoxelPrefabM
   if (!p) throw bad(`There's no prefab "${req.prefab}".`, 404);
   const parts = partNames(w, p.id);
   if (req.action === 'list') {
-    const clips = Object.entries(p.animations || {}).map(([n, c]) => `- "${n}": ${c.duration}s, ${c.loop ? 'loops' : 'plays once'}, moves ${Object.keys(c.tracks).join(', ')}`);
-    return { prefab: p, text: `"${p.name}" has the parts: ${parts.join(', ') || 'none (place part prefabs in it with "name" to give it parts; "self" moves it whole)'}.\n${clips.length ? `Animations:\n${clips.join('\n')}` : 'No animations yet.'}` };
+    const clips = Object.entries(p.animations || {}).map(
+      ([n, c]) =>
+        `- "${n}": ${c.duration}s, ${c.loop ? 'loops' : 'plays once'}, moves ${Object.keys(c.tracks).join(', ')}`,
+    );
+    return {
+      prefab: p,
+      text: `"${p.name}" has the parts: ${parts.join(', ') || 'none (place part prefabs in it with "name" to give it parts; "self" moves it whole)'}.\n${clips.length ? `Animations:\n${clips.join('\n')}` : 'No animations yet.'}`,
+    };
   }
-  const clipName = String(req.clip ?? '').trim().toLowerCase().slice(0, 40);
+  const clipName = String(req.clip ?? '')
+    .trim()
+    .toLowerCase()
+    .slice(0, 40);
   if (!clipName) throw bad('Name the animation (e.g. "idle", "working", "needs", "cheer").');
   const before = structuredClone(p);
   if (req.action === 'remove') {
@@ -97,12 +122,19 @@ function setAnimationIn(w: VoxelWorld, req: AnimRequest): { prefab: VoxelPrefabM
   } else {
     const clip = cleanClip(req.fields || {});
     p.animations = p.animations || {};
-    if (!p.animations[clipName] && Object.keys(p.animations).length >= ANIM_LIMITS.clips) throw bad(`a prefab can have ${ANIM_LIMITS.clips} animations`);
+    if (!p.animations[clipName] && Object.keys(p.animations).length >= ANIM_LIMITS.clips)
+      throw bad(`a prefab can have ${ANIM_LIMITS.clips} animations`);
     p.animations[clipName] = clip;
   }
   p.updatedAt = Date.now();
   p.lastBy = req.by;
-  remember(w.id, { by: req.by, kind: 'prefab', what: `${req.action === 'remove' ? 'removed' : 'designed'} the animation ${clipName} of ${p.name}`, objectId: p.id, metaBefore: before });
+  remember(w.id, {
+    by: req.by,
+    kind: 'prefab',
+    what: `${req.action === 'remove' ? 'removed' : 'designed'} the animation ${clipName} of ${p.name}`,
+    objectId: p.id,
+    metaBefore: before,
+  });
   saveWorld(w, { prefabs: [p.id], animations: true, by: req.by.name });
   if (req.action === 'remove') return { prefab: p, text: `Removed the animation "${clipName}" from "${p.name}".` };
   const clip = p.animations![clipName];
@@ -114,17 +146,30 @@ function setAnimationIn(w: VoxelWorld, req: AnimRequest): { prefab: VoxelPrefabM
 }
 
 /** Plays an animation once (or a few times) on an agent's character, then it goes back to its state's. */
-export function playAnimation(req: { by: WorldBuilder; agent: string; clip: string; times?: unknown; project?: string }): string {
+export function playAnimation(req: {
+  by: WorldBuilder;
+  agent: string;
+  clip: string;
+  times?: unknown;
+  project?: string;
+}): string {
   // playing changes nothing, so a carried-over world isn't copied for it
   const w = shownWorld(req.project || activeProject().id).world;
   if (!w) throw bad('There is no world yet.', 404);
-  const a = agents.get(req.agent) || agents.list().find((x) => x.name.toLowerCase() === String(req.agent).trim().toLowerCase());
+  const a =
+    agents.get(req.agent) || agents.list().find((x) => x.name.toLowerCase() === String(req.agent).trim().toLowerCase());
   if (!a) throw bad(`There's no agent "${req.agent}".`, 404);
   const skin = w.skins.agents[a.id];
   const character = skin?.character ? w.prefabs.find((p) => p.id === skin.character) : null;
-  if (!character) throw bad(`${a.name} doesn't have a voxel form in this world yet. Give it one first with world_skin "character".`);
-  const clip = String(req.clip ?? '').trim().toLowerCase();
-  if (!character.animations?.[clip]) throw bad(`"${character.name}" has no animation "${clip}" (it has: ${Object.keys(character.animations || {}).join(', ') || 'none'}).`);
+  if (!character)
+    throw bad(`${a.name} doesn't have a voxel form in this world yet. Give it one first with world_skin "character".`);
+  const clip = String(req.clip ?? '')
+    .trim()
+    .toLowerCase();
+  if (!character.animations?.[clip])
+    throw bad(
+      `"${character.name}" has no animation "${clip}" (it has: ${Object.keys(character.animations || {}).join(', ') || 'none'}).`,
+    );
   const times = req.times === undefined ? 1 : Math.round(num(req.times, 'times', 1, 20));
   emit('world-anim', { world: w.id, agent: a.id, clip, times });
   return `${a.name} plays "${clip}"${times > 1 ? ` ${times} times` : ''}.`;
@@ -137,7 +182,10 @@ export type SkinTarget = 'agent' | 'team' | 'brain';
 function prefabId(w: VoxelWorld, ref: unknown, what: string): string | undefined {
   if (ref === null || ref === '') return undefined;
   const p = findPrefab(w, ref);
-  if (!p) throw bad(`There's no prefab "${String(ref)}" for the ${what}. world_prefab "list" shows them; build one with world_build and "prefab".`);
+  if (!p)
+    throw bad(
+      `There's no prefab "${String(ref)}" for the ${what}. world_prefab "list" shows them; build one with world_build and "prefab".`,
+    );
   return p.id;
 }
 
@@ -172,7 +220,10 @@ export function setSkin(req: SkinRequest): { world: VoxelWorld; text: string } {
 function setSkinIn(w: VoxelWorld, req: SkinRequest): { world: VoxelWorld; text: string } {
   const target = skinTarget(req.to, req.id);
   const f = req.fields;
-  const list = (req.to === 'agent' ? w.skins.agents : req.to === 'team' ? w.skins.teams : null) as Record<string, AgentSkin | TeamSkin> | null;
+  const list = (req.to === 'agent' ? w.skins.agents : req.to === 'team' ? w.skins.teams : null) as Record<
+    string,
+    AgentSkin | TeamSkin
+  > | null;
   const before = (list ? list[target.id] : w.skins.brain) || null;
   let skin: AgentSkin & TeamSkin & BrainSkin = f.clear === true ? {} : structuredClone(before || {});
   if (f.clear !== true) {
@@ -180,7 +231,8 @@ function setSkinIn(w: VoxelWorld, req: SkinRequest): { world: VoxelWorld; text: 
       if (f.character !== undefined) skin.character = prefabId(w, f.character, 'character');
       if (f.desk !== undefined) skin.desk = prefabId(w, f.desk, 'desk');
       if (f.states !== undefined) {
-        if (!f.states || typeof f.states !== 'object') throw bad('states is {"idle": "clip", "working": "clip", "needs": "clip"}');
+        if (!f.states || typeof f.states !== 'object')
+          throw bad('states is {"idle": "clip", "working": "clip", "needs": "clip"}');
         const st: NonNullable<AgentSkin['states']> = {};
         for (const k of ['idle', 'working', 'needs'] as const) {
           const v = (f.states as Record<string, unknown>)[k];
@@ -212,13 +264,27 @@ function setSkinIn(w: VoxelWorld, req: SkinRequest): { world: VoxelWorld; text: 
     else list[target.id] = skin;
   } else if (empty) delete w.skins.brain;
   else w.skins.brain = skin;
-  remember(w.id, { by: req.by, kind: 'skin', what: `${f.clear === true ? 'undressed' : 'dressed'} ${target.name}`, objectId: `${req.to}:${target.id}`, metaBefore: null, sceneBefore: before });
+  remember(w.id, {
+    by: req.by,
+    kind: 'skin',
+    what: `${f.clear === true ? 'undressed' : 'dressed'} ${target.name}`,
+    objectId: `${req.to}:${target.id}`,
+    metaBefore: null,
+    sceneBefore: before,
+  });
   saveWorld(w, { skins: true, by: req.by.name });
   // a state that names an animation the character doesn't have
   const character = skin.character ? w.prefabs.find((p) => p.id === skin.character) : null;
   const missing = character ? Object.values(skin.states || {}).filter((c) => !character.animations?.[c]) : [];
-  const note = missing.length ? ` Note: "${character!.name}" has no animation ${missing.map((c) => `"${c}"`).join(', ')} yet (design it with world_animate).` : '';
-  return { world: w, text: empty ? `${cap(target.name)} looks classic again.` : `${cap(target.name)} in this world: ${skinText(w, skin)}.${note}` };
+  const note = missing.length
+    ? ` Note: "${character!.name}" has no animation ${missing.map((c) => `"${c}"`).join(', ')} yet (design it with world_animate).`
+    : '';
+  return {
+    world: w,
+    text: empty
+      ? `${cap(target.name)} looks classic again.`
+      : `${cap(target.name)} in this world: ${skinText(w, skin)}.${note}`,
+  };
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -252,7 +318,11 @@ export function skinText(w: VoxelWorld, s: AgentSkin & TeamSkin & BrainSkin): st
     s.hub ? `the hub ${pname(w, s.hub)}` : '',
     s.shell ? `the shell ${pname(w, s.shell)}` : '',
     s.globe === false ? 'no globe' : '',
-    s.states ? `animations ${Object.entries(s.states).map(([k, v]) => `${k}: "${v}"`).join(', ')}` : '',
+    s.states
+      ? `animations ${Object.entries(s.states)
+          .map(([k, v]) => `${k}: "${v}"`)
+          .join(', ')}`
+      : '',
     s.offset ? `moved ${s.offset.join(', ')}` : '',
     s.turn ? `turned ${s.turn}°` : '',
     s.scale && s.scale !== 1 ? `scale ${s.scale}` : '',
@@ -264,7 +334,11 @@ export function skinText(w: VoxelWorld, s: AgentSkin & TeamSkin & BrainSkin): st
 export function skinsText(w: VoxelWorld): string {
   const lines: string[] = [];
   if (w.skins.brain) lines.push(`- the Brain: ${skinText(w, w.skins.brain)}`);
-  for (const [id, s] of Object.entries(w.skins.teams)) lines.push(`- team ${workflows.get(id)?.name || `${id} (another project's)`}: ${skinText(w, s)}`);
-  for (const [id, s] of Object.entries(w.skins.agents)) lines.push(`- ${agents.get(id)?.name || `agent ${id} (another project's)`}: ${skinText(w, s)}`);
-  return lines.length ? `Skins (the voxel look of the Brain, teams and agents; anything not listed looks classic):\n${lines.join('\n')}` : 'No skins: the Brain, the team platforms and the agents look classic. Dress them with world_skin.';
+  for (const [id, s] of Object.entries(w.skins.teams))
+    lines.push(`- team ${workflows.get(id)?.name || `${id} (another project's)`}: ${skinText(w, s)}`);
+  for (const [id, s] of Object.entries(w.skins.agents))
+    lines.push(`- ${agents.get(id)?.name || `agent ${id} (another project's)`}: ${skinText(w, s)}`);
+  return lines.length
+    ? `Skins (the voxel look of the Brain, teams and agents; anything not listed looks classic):\n${lines.join('\n')}`
+    : 'No skins: the Brain, the team platforms and the agents look classic. Dress them with world_skin.';
 }

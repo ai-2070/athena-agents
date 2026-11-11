@@ -1,6 +1,6 @@
 # Replace the built-in API agent with Eve
 
-*Plan, 1 November 2026; progress updated 2 November. The Eve cutover and compaction removal are implemented. Local Windows integration, build, desktop smoke and Rust checks pass. Final full-suite and Linux/Windows CI validation are being completed. Gateways are explicitly outside this session. Breaking changes are expected; no backward compatibility or saved-session migration is required.*
+_Plan, 1 November 2026; progress updated 2 November. The Eve cutover and compaction removal are implemented. Local Windows integration, build, desktop smoke and Rust checks pass. Final full-suite and Linux/Windows CI validation are being completed. Gateways are explicitly outside this session. Breaking changes are expected; no backward compatibility or saved-session migration is required._
 
 ## Progress
 
@@ -44,7 +44,6 @@ Native summary costs now use Eve's model-usage total plus reported SDK costs tha
 reached a refreshed native view. A real compaction test proves a charged summary blocks the next
 model request when it reaches the turn budget. The model's already charged request cannot be undone.
 
-
 ## Earlier phase notes (historical)
 
 Lifecycle integration now retires native sessions on clear/delete, engine changes, model generations
@@ -57,7 +56,6 @@ Before a resumed model call, the bridge checks the live owner and runtime versio
 children can continue under a completed parent only with matching saved project, depth and root
 ownership. Ancestor receipts remain while descendants are unfinished. Windows `bun run check` passes:
 210 files, 1,702 tests, 20 intentional skips.
-
 
 The cutover registers `eve` throughout engine settings, Brain routing and model selection, removes
 `server/engines/openai.ts`, and routes normal turns through the private native worker. Shutdown
@@ -72,7 +70,6 @@ original seeds fail explicitly. The settings retain a context-window override on
 commands build the private worker. Typecheck and frontend build pass; the full Windows suite passed
 1,696 tests with one effort-test assertion failure, corrected and followed by all 34 API tests passing
 (20 intentional skips). The UI detector reports no findings. Final full-suite and desktop checks follow.
-
 
 Engine lifecycle integration now saves input receipts, agent-chat queues and delegation handles in
 private metadata outside project copies. Queue removal and run admission share one atomic write.
@@ -335,16 +332,16 @@ a second implementation of Gateways.
 
 ## Starting implementation (before the cutover)
 
-| Area | Current ownership and relevant files |
-|---|---|
+| Area                    | Current ownership and relevant files                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | API calls and tool loop | `server/engines/openai.ts`: raw Chat Completions streaming, provider configuration, tool routing, image handling, retries, limits and compaction calls |
-| Run lifecycle | `server/engines/index.ts`: project binding, session seeding, events, stop/steer, queues, run completion and transcript saving |
-| Active model history | `Chat.llm` in `shared/types.ts`, rebuilt from `Chat.items` when needed |
-| Context and compaction | `server/compaction.ts`, `shared/compaction.ts`, manual routes in `server/index.ts`, `/compact`, `web/compactmark.ts`, chat rendering and Settings |
-| Teams | `server/teams.ts`, `server/teamcontext.ts`: full shared-message imports, stable source IDs and per-member sessions |
-| Memory and recall | `server/memory.ts`, `server/knowledge.ts`, `server/conversations.ts`, history tools in `server/tools.ts` |
-| Brain | `server/brain.ts` has separate short inference paths; `server/overseer.ts` owns Brain chat and orchestration |
-| Desktop | `scripts/build-desktop.ts` bundles the server for Bun; Tauri starts it with bundled Bun |
+| Run lifecycle           | `server/engines/index.ts`: project binding, session seeding, events, stop/steer, queues, run completion and transcript saving                          |
+| Active model history    | `Chat.llm` in `shared/types.ts`, rebuilt from `Chat.items` when needed                                                                                 |
+| Context and compaction  | `server/compaction.ts`, `shared/compaction.ts`, manual routes in `server/index.ts`, `/compact`, `web/compactmark.ts`, chat rendering and Settings      |
+| Teams                   | `server/teams.ts`, `server/teamcontext.ts`: full shared-message imports, stable source IDs and per-member sessions                                     |
+| Memory and recall       | `server/memory.ts`, `server/knowledge.ts`, `server/conversations.ts`, history tools in `server/tools.ts`                                               |
+| Brain                   | `server/brain.ts` has separate short inference paths; `server/overseer.ts` owns Brain chat and orchestration                                           |
+| Desktop                 | `scripts/build-desktop.ts` bundles the server for Bun; Tauri starts it with bundled Bun                                                                |
 
 The current API loop already contains substantial product behavior. Replacing its file is only one
 part of the change. Callers also infer capability from `engine === 'openai'`; replace those branches
@@ -508,20 +505,20 @@ No historical-version compatibility layer is required. Notify the user when an u
 Remove our custom compaction system as a product feature, rather than running it before or after Eve.
 Each engine owns active-context management. Preserve original conversations independently.
 
-| Existing behavior | Planned outcome |
-|---|---|
-| API instant/summary compaction, history trimming and overflow retries | Delete; Eve owns these concerns |
-| Global Chat memory switches, keep-message count and threshold | Remove; expose only supported engine-specific controls if needed later |
-| Dashboard compaction fallback for CLI engines | Remove; native CLI context handling remains; unsupported/oversized seeds fail explicitly |
-| Editable compaction checkpoints | Remove across engines; do not promise editing Eve's private summary |
-| `/compact instant` and `/compact summary` | Remove; optional `/compact` only when the engine has a supported native operation |
-| Compaction timeline marker | Keep as a read-only engine event when available; no fabricated editable summary |
-| Memory/context meter | Show engine-reported values or a labeled estimate; unknown is allowed |
-| `recall_history` | Remove in favor of the existing original-message search/read tools |
-| `search_conversations`, `read_conversation` | Keep with existing own/team/project access boundaries |
-| `MEMORY.md`, knowledge and skills | Keep as standing context; these are not compaction |
-| Full team transcript and source IDs | Keep; compaction cannot advance a read mark or discard an undelivered source |
-| Model switch / missing native session | Create a fresh session from admitted original context; no silent clipping |
+| Existing behavior                                                     | Planned outcome                                                                          |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| API instant/summary compaction, history trimming and overflow retries | Delete; Eve owns these concerns                                                          |
+| Global Chat memory switches, keep-message count and threshold         | Remove; expose only supported engine-specific controls if needed later                   |
+| Dashboard compaction fallback for CLI engines                         | Remove; native CLI context handling remains; unsupported/oversized seeds fail explicitly |
+| Editable compaction checkpoints                                       | Remove across engines; do not promise editing Eve's private summary                      |
+| `/compact instant` and `/compact summary`                             | Remove; optional `/compact` only when the engine has a supported native operation        |
+| Compaction timeline marker                                            | Keep as a read-only engine event when available; no fabricated editable summary          |
+| Memory/context meter                                                  | Show engine-reported values or a labeled estimate; unknown is allowed                    |
+| `recall_history`                                                      | Remove in favor of the existing original-message search/read tools                       |
+| `search_conversations`, `read_conversation`                           | Keep with existing own/team/project access boundaries                                    |
+| `MEMORY.md`, knowledge and skills                                     | Keep as standing context; these are not compaction                                       |
+| Full team transcript and source IDs                                   | Keep; compaction cannot advance a read mark or discard an undelivered source             |
+| Model switch / missing native session                                 | Create a fresh session from admitted original context; no silent clipping                |
 
 Extract shared token estimation, model window metadata and admission checks into `server/context.ts`
 and any DOM-free shared formatting into a small shared module. Delete `server/compaction.ts` and

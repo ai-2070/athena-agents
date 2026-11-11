@@ -21,13 +21,13 @@ its Graph API v1 and Recommendations API v1 documentation (`https://api.semantic
 
 ## The ids it takes
 
-| Form | Example |
-|---|---|
-| `ARXIV:<id>`, with no version: one record covers every version | `ARXIV:2106.15928`, `ARXIV:hep-th/0601001` |
-| `DOI:<doi>` | `DOI:10.18653/v1/N18-3011` |
-| `CorpusId:`, `ACL:`, `PMID:`, `PMCID:`, `MAG:` | `CorpusId:215416146`, `ACL:W12-3903`, `PMID:19872477` |
-| `URL:<link>` to semanticscholar.org, arxiv.org, aclweb.org, acm.org or biorxiv.org | `URL:https://arxiv.org/abs/2106.15928v1` |
-| its own `paperId`, 40 hexadecimal characters | `649def34f8be52c8b66281af98ae884c09aef38b` |
+| Form                                                                               | Example                                               |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `ARXIV:<id>`, with no version: one record covers every version                     | `ARXIV:2106.15928`, `ARXIV:hep-th/0601001`            |
+| `DOI:<doi>`                                                                        | `DOI:10.18653/v1/N18-3011`                            |
+| `CorpusId:`, `ACL:`, `PMID:`, `PMCID:`, `MAG:`                                     | `CorpusId:215416146`, `ACL:W12-3903`, `PMID:19872477` |
+| `URL:<link>` to semanticscholar.org, arxiv.org, aclweb.org, acm.org or biorxiv.org | `URL:https://arxiv.org/abs/2106.15928v1`              |
+| its own `paperId`, 40 hexadecimal characters                                       | `649def34f8be52c8b66281af98ae884c09aef38b`            |
 
 The script turns arXiv ids and links, bare DOIs and doi.org links into these forms and passes the prefixed ones
 through.
@@ -37,16 +37,16 @@ through.
 Every address below is a GET that answers JSON, after `https://api.semanticscholar.org`. Without `fields=` an answer
 holds only `paperId` and `title`.
 
-| To get | Address |
-|---|---|
-| One paper | `/graph/v1/paper/ARXIV:2402.03300?fields=title,year,venue,citationCount,influentialCitationCount,externalIds,openAccessPdf` |
-| Who cites it | `/graph/v1/paper/ARXIV:2402.03300/citations?fields=title,year,citationCount,isInfluential,contexts&limit=100` |
-| What it cites | `/graph/v1/paper/ARXIV:2402.03300/references?fields=title,year,externalIds,citationCount&limit=100` |
-| Papers like it | `/recommendations/v1/papers/forpaper/ARXIV:2402.03300?fields=title,year,externalIds&limit=20&from=recent` |
-| A paper from its title | `/graph/v1/paper/search/match?query=Attention+Is+All+You+Need&fields=title,year,externalIds` |
-| A search beyond arXiv | `/graph/v1/paper/search?query=group+relative+policy+optimization&fields=title,year,venue,externalIds&limit=20&year=2024-` |
-| Authors by name | `/graph/v1/author/search?query=Yann+LeCun&fields=name,affiliations,paperCount,citationCount,hIndex` |
-| An author's papers | `/graph/v1/author/<authorId>/papers?fields=title,year,externalIds,citationCount&limit=100` |
+| To get                 | Address                                                                                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| One paper              | `/graph/v1/paper/ARXIV:2402.03300?fields=title,year,venue,citationCount,influentialCitationCount,externalIds,openAccessPdf` |
+| Who cites it           | `/graph/v1/paper/ARXIV:2402.03300/citations?fields=title,year,citationCount,isInfluential,contexts&limit=100`               |
+| What it cites          | `/graph/v1/paper/ARXIV:2402.03300/references?fields=title,year,externalIds,citationCount&limit=100`                         |
+| Papers like it         | `/recommendations/v1/papers/forpaper/ARXIV:2402.03300?fields=title,year,externalIds&limit=20&from=recent`                   |
+| A paper from its title | `/graph/v1/paper/search/match?query=Attention+Is+All+You+Need&fields=title,year,externalIds`                                |
+| A search beyond arXiv  | `/graph/v1/paper/search?query=group+relative+policy+optimization&fields=title,year,venue,externalIds&limit=20&year=2024-`   |
+| Authors by name        | `/graph/v1/author/search?query=Yann+LeCun&fields=name,affiliations,paperCount,citationCount,hIndex`                         |
+| An author's papers     | `/graph/v1/author/<authorId>/papers?fields=title,year,externalIds,citationCount&limit=100`                                  |
 
 - **Paging.** Citations, references, author search and an author's papers take `limit` up to 1000 and `offset`; the
   answer has `next` while there are more. Relevance search takes `limit` up to 100 and reaches only its first 1,000
@@ -64,9 +64,9 @@ holds only `paperId` and `title`.
   single closest title, or a 404 "Title match not found".
 - **Only by POST**, so through the script: `/graph/v1/paper/batch` (up to 500 ids as `{"ids": [...]}`, answering
   `null` for each id it doesn't know) and `/recommendations/v1/papers` (`{"positivePaperIds": [...],
-  "negativePaperIds": [...]}`).
+"negativePaperIds": [...]}`).
 - **Errors** are JSON: 404 `{"error": "Paper with id ... not found"}`, 400 `{"error": "Unrecognized or unsupported
-  fields: [...]"}`, 429 `{"message": "Too Many Requests. ...", "code": "429"}`.
+fields: [...]"}`, 429 `{"message": "Too Many Requests. ...", "code": "429"}`.
 
 Fields worth asking for on a paper: `title`, `year`, `publicationDate`, `authors`, `venue`, `journal`,
 `citationCount`, `influentialCitationCount`, `referenceCount`, `externalIds` (ArXiv, DOI, ACL, PubMed, DBLP…),

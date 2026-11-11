@@ -46,18 +46,18 @@ python <skill folder>/scripts/pdf_tool.py info input.pdf
 
 Then pick the route:
 
-| The job | Route |
-|---|---|
-| Read the text | `pdf_tool.py text` (`--out pdf-work/text.txt` for long documents, `--layout` for columns) |
-| Tables | `pdf_tool.py tables` (`--csv-dir`; `--strategy text` when the table has no ruled lines) |
-| Scanned pages | render and read a page or two; OCR for more: `references/extraction-and-ocr.md` |
-| Merge, reorder, pull out, split, rotate | `pdf_tool.py merge`, `pick`, `split`, `rotate` |
-| Fill a form | `pdf_forms.py fields`, then `fill`, then `flatten` if the copy goes to someone |
-| A form with no fields | `pdf_forms.py layout`, a spec, `check`, `build --on`: `references/forms.md` |
-| A new document | `pdf_create.py spec.json -o out.pdf` |
-| Watermark, letterhead, page label, signature picture | `pdf_tool.py stamp` |
-| Password, restrictions, PDF/A, redaction | `references/archival-and-security.md` |
-| A smaller file | `pdf_tool.py compress`; Ghostscript when photos are the bulk |
+| The job                                              | Route                                                                                     |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Read the text                                        | `pdf_tool.py text` (`--out pdf-work/text.txt` for long documents, `--layout` for columns) |
+| Tables                                               | `pdf_tool.py tables` (`--csv-dir`; `--strategy text` when the table has no ruled lines)   |
+| Scanned pages                                        | render and read a page or two; OCR for more: `references/extraction-and-ocr.md`           |
+| Merge, reorder, pull out, split, rotate              | `pdf_tool.py merge`, `pick`, `split`, `rotate`                                            |
+| Fill a form                                          | `pdf_forms.py fields`, then `fill`, then `flatten` if the copy goes to someone            |
+| A form with no fields                                | `pdf_forms.py layout`, a spec, `check`, `build --on`: `references/forms.md`               |
+| A new document                                       | `pdf_create.py spec.json -o out.pdf`                                                      |
+| Watermark, letterhead, page label, signature picture | `pdf_tool.py stamp`                                                                       |
+| Password, restrictions, PDF/A, redaction             | `references/archival-and-security.md`                                                     |
+| A smaller file                                       | `pdf_tool.py compress`; Ghostscript when photos are the bulk                              |
 
 Storytold's `pdfcraft` skill drives an installed Acrobat-style app. It's the better route for true redaction, digital
 signatures, editing text in place and rendering exactly as a viewer does, when the user has it. Word and PowerPoint

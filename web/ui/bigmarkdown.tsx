@@ -16,7 +16,15 @@ const PX_PER_CHAR = 0.32;
 
 type Chunks = ReturnType<typeof mdChunks>;
 
-function Pieces({ chunks, scroller, reveal }: { chunks: Chunks; scroller: () => HTMLElement | null; reveal: MutableRefObject<((i: number) => void) | null> }) {
+function Pieces({
+  chunks,
+  scroller,
+  reveal,
+}: {
+  chunks: Chunks;
+  scroller: () => HTMLElement | null;
+  reveal: MutableRefObject<((i: number) => void) | null>;
+}) {
   const pxOf = (i: number) => Math.max(80, chunks[i].raw.length * PX_PER_CHAR);
   const v = useVirtualizer({
     count: chunks.length,
@@ -37,7 +45,13 @@ function Pieces({ chunks, scroller, reveal }: { chunks: Chunks; scroller: () => 
     <div className="md-window relative w-full" style={{ height: v.getTotalSize() }}>
       {v.getVirtualItems().map((row) => (
         // (flow-root: the margins of its first and last block stay inside, so the measured height has them)
-        <div key={row.key} ref={v.measureElement} data-index={row.index} className="absolute top-0 left-0 w-full flow-root" style={{ transform: `translateY(${row.start}px)` }}>
+        <div
+          key={row.key}
+          ref={v.measureElement}
+          data-index={row.index}
+          className="absolute top-0 left-0 w-full flow-root"
+          style={{ transform: `translateY(${row.start}px)` }}
+        >
           <DomNode
             deps={[chunks, row.index]}
             make={() => {
@@ -63,7 +77,10 @@ function MarkdownDoc({ text }: { text: string }) {
   const big = text.length >= BIG_MARKDOWN;
   const chunks = useMemo(() => (big ? mdChunks(text) : []), [text, big]);
   const reveal = useRef<((i: number) => void) | null>(null);
-  const find = useFind(body, big ? { count: chunks.length, text: (i) => chunks[i].raw, reveal: (i) => reveal.current?.(i) } : null);
+  const find = useFind(
+    body,
+    big ? { count: chunks.length, text: (i) => chunks[i].raw, reveal: (i) => reveal.current?.(i) } : null,
+  );
   return (
     <div ref={host}>
       {find}

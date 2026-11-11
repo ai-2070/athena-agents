@@ -108,11 +108,11 @@ stock share.
 
 ## A minimal layout
 
-| Sheet | Rows |
-|---|---|
-| Inputs | buyer, target and deal inputs with sources; synergy phasing by year; grid steps; tolerance |
-| Merger | offer price, equity price, exchange ratio, new shares; sources and uses; goodwill; pro forma net income by year; shares; EPS GAAP and adjusted; accretion; breakeven synergies; grids |
-| SensCalc | one column per grid point |
-| Checks | the rows above |
+| Sheet    | Rows                                                                                                                                                                                  |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs   | buyer, target and deal inputs with sources; synergy phasing by year; grid steps; tolerance                                                                                            |
+| Merger   | offer price, equity price, exchange ratio, new shares; sources and uses; goodwill; pro forma net income by year; shares; EPS GAAP and adjusted; accretion; breakeven synergies; grids |
+| SensCalc | one column per grid point                                                                                                                                                             |
+| Checks   | the rows above                                                                                                                                                                        |
 
 Show the user the purchase price and sources and uses, then the year-1 bridge, before the grids.

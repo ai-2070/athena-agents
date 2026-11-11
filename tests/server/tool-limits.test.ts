@@ -21,7 +21,8 @@ describe('clipForModel', () => {
 
   it('leaves short results, tools that read in parts, and task batches alone', () => {
     expect(clipForModel({ text: 'short' }, 'x', null).text).toBe('short');
-    for (const name of ['read_file', 'fetch_url', 'TaskCreate', 'TaskUpdate']) expect(clipForModel({ text: long }, name, null).text).toBe(long);
+    for (const name of ['read_file', 'fetch_url', 'TaskCreate', 'TaskUpdate'])
+      expect(clipForModel({ text: long }, name, null).text).toBe(long);
   });
 
   it('follows the setting, and 0 means no limit', () => {
@@ -56,6 +57,10 @@ describe('tool stats', () => {
     for (const a of listApprovals()) decide(a.id, { approved: false });
     await pending;
     saveToolStats();
-    expect(JSON.parse(fs.readFileSync(dataPath('tool-stats.json'), 'utf8')).tools.some((t: { name: string }) => t.name === 'notify_user')).toBe(true);
+    expect(
+      JSON.parse(fs.readFileSync(dataPath('tool-stats.json'), 'utf8')).tools.some(
+        (t: { name: string }) => t.name === 'notify_user',
+      ),
+    ).toBe(true);
   });
 });

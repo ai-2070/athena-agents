@@ -2,7 +2,7 @@
 name: Mail Assistant
 description: Reads and sorts your Gmail, says what needs you today, drafts replies in your voice, tracks follow-ups and finds meeting times, through the Gmail and Calendar connectors on your Claude account.
 emoji: ✉️
-color: "#d6803b"
+color: '#d6803b'
 specialty: reads, sorts and drafts the user's Gmail and helps them schedule from it
 group: business
 tools: files, browser, agents, shell

@@ -3,7 +3,23 @@ import { describe, expect, it } from 'vitest';
 import { activeProject, agents, chats, setActiveProject, withProject } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
-import { activeEveRuns, attachSession, awaitingTakeover, beginRun, bindSession, readBinding, readRun, recordCharge, recordEvents, recordSteer, retireSession, sessionContext, setRunStatus, settleRun, updateSteer } from '../../server/eve/state.ts';
+import {
+  activeEveRuns,
+  attachSession,
+  awaitingTakeover,
+  beginRun,
+  bindSession,
+  readBinding,
+  readRun,
+  recordCharge,
+  recordEvents,
+  recordSteer,
+  retireSession,
+  sessionContext,
+  setRunStatus,
+  settleRun,
+  updateSteer,
+} from '../../server/eve/state.ts';
 import { eveUsage } from '../../server/eve/usage.ts';
 import { projectEvent } from '../../server/eve/projection.ts';
 import { dataPath } from '../../server/util.ts';
@@ -44,7 +60,13 @@ describe('a message that missed the turn it was sent into', () => {
     beginRun('late-run', own.binding.id);
     setRunStatus('late-run', 'running', 'first-delivery');
     // sent long before the turn ended (a slow final step)
-    recordSteer('late-run', { id: 'late-steer', text: 'and a summary', attachments: [], deliveryId: null, at: Date.now() - 5 * 60_000 });
+    recordSteer('late-run', {
+      id: 'late-steer',
+      text: 'and a summary',
+      attachments: [],
+      deliveryId: null,
+      at: Date.now() - 5 * 60_000,
+    });
     updateSteer('late-run', 'late-steer', { deliveryId: 'late-delivery' });
     expect(awaitingTakeover(own.binding.id)).toBe(false);
     settleRun('late-run', 'completed', 'done');
@@ -60,12 +82,18 @@ describe('Eve run ledger', () => {
     const own = fixture();
     beginRun('charge-run', own.binding.id);
     setRunStatus('charge-run', 'running');
-    const charge = { id: '93a7ee0d-f227-4a5c-b01e-52188d88b8b1', cost: 0.02, billing: { source: 'estimated' as const, chargedUsd: 0, chargedDiem: 0.1 } };
+    const charge = {
+      id: '93a7ee0d-f227-4a5c-b01e-52188d88b8b1',
+      cost: 0.02,
+      billing: { source: 'estimated' as const, chargedUsd: 0, chargedDiem: 0.1 },
+    };
     recordCharge('charge-run', charge);
     recordCharge('charge-run', charge);
     expect(readRun('charge-run')?.charges).toEqual([charge]);
     expect(() => recordCharge('charge-run', { ...charge, cost: 0.03 })).toThrow('changed');
-    recordEvents('charge-run', { line: 1, index: 0 }, [{ kind: 'usage', inputTokens: 10, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0.02 }]);
+    recordEvents('charge-run', { line: 1, index: 0 }, [
+      { kind: 'usage', inputTokens: 10, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0.02 },
+    ]);
     expect(eveUsage('charge-run')).toMatchObject({ cost: 0.02, tokens: 12, billing: charge.billing });
   });
 
@@ -89,11 +117,25 @@ describe('Eve run ledger', () => {
   it('saves committed original text once, including several facts in a source line', () => {
     const own = fixture();
     beginRun('projection-run', own.binding.id);
-    const source = { type: 'content.completed', data: { partId: 'part', runId: 'model', kind: 'text', value: 'Complete original', phase: 'reply' }, meta: { position: { line: 3, index: 0 }, at: new Date().toISOString() } } as const;
-    expect(projectEvent('projection-run', source).map((item) => item.event)).toEqual([{ kind: 'text', text: 'Complete original' }]);
+    const source = {
+      type: 'content.completed',
+      data: { partId: 'part', runId: 'model', kind: 'text', value: 'Complete original', phase: 'reply' },
+      meta: { position: { line: 3, index: 0 }, at: new Date().toISOString() },
+    } as const;
+    expect(projectEvent('projection-run', source).map((item) => item.event)).toEqual([
+      { kind: 'text', text: 'Complete original' },
+    ]);
     expect(projectEvent('projection-run', source)).toEqual([]);
-    projectEvent('projection-run', { ...source, data: { ...source.data, partId: 'second', value: 'Second original' }, meta: { ...source.meta, position: { line: 3, index: 1 } } });
-    projectEvent('projection-run', { type: 'content.delta', data: { partId: 'third', delta: 'preview' }, meta: { ...source.meta, position: { line: 4, index: 0 } } });
+    projectEvent('projection-run', {
+      ...source,
+      data: { ...source.data, partId: 'second', value: 'Second original' },
+      meta: { ...source.meta, position: { line: 3, index: 1 } },
+    });
+    projectEvent('projection-run', {
+      type: 'content.delta',
+      data: { partId: 'third', delta: 'preview' },
+      meta: { ...source.meta, position: { line: 4, index: 0 } },
+    });
     expect(readRun('projection-run')?.events).toHaveLength(2);
     expect(readRun('projection-run')?.cursor).toEqual({ line: 3, index: 1 });
     expect(() => recordEvents('projection-run', { line: -1, index: 0 }, [])).toThrow('position');
@@ -103,10 +145,27 @@ describe('Eve run ledger', () => {
     const own = fixture();
     beginRun('tool-projection', own.binding.id);
     const meta = { position: { line: 1, index: 0 }, at: new Date().toISOString() };
-    projectEvent('tool-projection', { type: 'call.requested', data: { callId: 'tool', owner: { runId: 'model' }, capability: { kind: 'tool', name: 'read_file' }, input: { path: 'report' } }, meta });
-    const result = projectEvent('tool-projection', { type: 'call.settled', data: { callId: 'tool', outcome: 'completed', output: { text: 'original result', isError: true } }, meta: { ...meta, position: { line: 1, index: 1 } } });
+    projectEvent('tool-projection', {
+      type: 'call.requested',
+      data: {
+        callId: 'tool',
+        owner: { runId: 'model' },
+        capability: { kind: 'tool', name: 'read_file' },
+        input: { path: 'report' },
+      },
+      meta,
+    });
+    const result = projectEvent('tool-projection', {
+      type: 'call.settled',
+      data: { callId: 'tool', outcome: 'completed', output: { text: 'original result', isError: true } },
+      meta: { ...meta, position: { line: 1, index: 1 } },
+    });
     expect(result[0]?.event).toEqual({ kind: 'tool_result', id: 'tool', text: 'original result', isError: true });
-    const mark = projectEvent('tool-projection', { type: 'context.settled', data: { changeId: 'compact', kind: 'compaction', outcome: 'completed' }, meta: { ...meta, position: { line: 2, index: 0 } } });
+    const mark = projectEvent('tool-projection', {
+      type: 'context.settled',
+      data: { changeId: 'compact', kind: 'compaction', outcome: 'completed' },
+      meta: { ...meta, position: { line: 2, index: 0 } },
+    });
     expect(mark[0]?.event).toEqual({ kind: 'compacted' });
   });
 });

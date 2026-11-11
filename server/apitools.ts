@@ -9,7 +9,8 @@ export interface ToolDef {
   function: { name: string; description?: string; parameters: unknown };
 }
 
-export type ToolRoute = { kind: 'builtin'; name: string } | { kind: 'mcp'; server: string; name: string; risk: 'low' | 'high' };
+export type ToolRoute =
+  { kind: 'builtin'; name: string } | { kind: 'mcp'; server: string; name: string; risk: 'low' | 'high' };
 
 const safeName = (s: string): string => s.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
 
@@ -22,9 +23,18 @@ export function mcpToolName(server: string, tool: string, taken: { has(name: str
   return name;
 }
 
-export async function gatherTools(agent: Agent, onEvent: (ev: RunEvent) => void, scope: ToolScope = { engine: agent.engine }): Promise<{ defs: ToolDef[]; route: Map<string, ToolRoute> }> {
-  const defs: ToolDef[] = toolDefs(agent, scope).map((t): ToolDef => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
-  const route = new Map<string, ToolRoute>(defs.map((d): [string, ToolRoute] => [d.function.name, { kind: 'builtin', name: d.function.name }]));
+export async function gatherTools(
+  agent: Agent,
+  onEvent: (ev: RunEvent) => void,
+  scope: ToolScope = { engine: agent.engine },
+): Promise<{ defs: ToolDef[]; route: Map<string, ToolRoute> }> {
+  const defs: ToolDef[] = toolDefs(agent, scope).map((t): ToolDef => ({
+    type: 'function',
+    function: { name: t.name, description: t.description, parameters: t.parameters },
+  }));
+  const route = new Map<string, ToolRoute>(
+    defs.map((d): [string, ToolRoute] => [d.function.name, { kind: 'builtin', name: d.function.name }]),
+  );
   const servers = mcp.listServers();
   // (a server you turned off isn't started or offered)
   for (const server of (agent.mcpServers || []).filter((n) => mcp.isEnabled(n, servers))) {
@@ -35,7 +45,14 @@ export async function gatherTools(agent: Agent, onEvent: (ev: RunEvent) => void,
       for (const t of tools) {
         const name = mcpToolName(server, t.name, route);
         route.set(name, { kind: 'mcp', server, name: t.name, risk: mcp.mcpToolRisk(t) });
-        defs.push({ type: 'function', function: { name, description: `[${shown}] ${t.description || ''}`.slice(0, 1000), parameters: t.inputSchema || { type: 'object', properties: {} } } });
+        defs.push({
+          type: 'function',
+          function: {
+            name,
+            description: `[${shown}] ${t.description || ''}`.slice(0, 1000),
+            parameters: t.inputSchema || { type: 'object', properties: {} },
+          },
+        });
       }
     } catch (e) {
       onEvent({ kind: 'status', text: `MCP server ${server} unavailable: ${(e as Error).message}` });

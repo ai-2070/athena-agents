@@ -58,14 +58,19 @@ describe('request_tool', () => {
     expect((await callTool(agent, 'request_tool', { tools: 'files', why: ' ' })).text).toMatch(/Say what you need/);
     const has = agents.save({ ...newAgent({ name: 'Filer', toolGroups: ['files'] }), engine: 'eve' });
     expect((await callTool(has, 'request_tool', { tools: 'files', why: 'x' })).text).toMatch(/already have/);
-    expect((await callTool({ id: '_external', name: 'Outside' }, 'request_tool', { tools: 'files', why: 'x' })).text).toMatch(/Only the dashboard's agents/);
+    expect(
+      (await callTool({ id: '_external', name: 'Outside' }, 'request_tool', { tools: 'files', why: 'x' })).text,
+    ).toMatch(/Only the dashboard's agents/);
     expect(listApprovals()).toHaveLength(0);
   });
 
   it('tells an agent on a coding engine to use its own file and command tools', async () => {
     setReviewer(async () => ({ approve: true, reason: '' }));
     const agent = agents.save({ ...newAgent({ name: 'Native', toolGroups: [] }), engine: 'claude-code' });
-    for (const tools of ['files', 'shell']) expect((await callTool(agent, 'request_tool', { tools, why: 'to read the notes' })).text).toMatch(/own tools for files and commands/);
+    for (const tools of ['files', 'shell'])
+      expect((await callTool(agent, 'request_tool', { tools, why: 'to read the notes' })).text).toMatch(
+        /own tools for files and commands/,
+      );
     expect(listApprovals()).toHaveLength(0);
     expect(agents.get(agent.id)!.toolGroups).toEqual([]);
   });

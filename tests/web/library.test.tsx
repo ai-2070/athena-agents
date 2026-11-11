@@ -29,7 +29,8 @@ let slowLibrary: Promise<void> | null;
 let el: HTMLElement;
 
 const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
-const buttons = (text: string) => [...el.querySelectorAll<HTMLButtonElement>('button')].filter((b) => b.textContent?.trim() === text);
+const buttons = (text: string) =>
+  [...el.querySelectorAll<HTMLButtonElement>('button')].filter((b) => b.textContent?.trim() === text);
 const click = (b: HTMLElement) => act(async () => b.click());
 
 beforeEach(() => {
@@ -61,10 +62,16 @@ beforeEach(() => {
     }
     if (url === '/api/presets') return json(presets);
     if (url === '/api/state') return json(state.data);
-    if (url === '/api/models?engine=eve&provider=venice') return json([{ id: 'venice-chat', name: 'Venice Chat', reasoningEfforts: ['low', 'high'] }]);
+    if (url === '/api/models?engine=eve&provider=venice')
+      return json([{ id: 'venice-chat', name: 'Venice Chat', reasoningEfforts: ['low', 'high'] }]);
     if (url.startsWith('/api/models?')) return json([]);
     if (url === '/api/library/hire') return json({ id: 'new-1', name: 'Hired' });
-    if (url === '/api/library/agent/a0') return json({ slug: 'a0', name: 'Brand Guardian', body: '---\nname: Brand Guardian\n---\n\nKeep the brand **consistent**.' });
+    if (url === '/api/library/agent/a0')
+      return json({
+        slug: 'a0',
+        name: 'Brand Guardian',
+        body: '---\nname: Brand Guardian\n---\n\nKeep the brand **consistent**.',
+      });
     if (url.startsWith('/api/presets/') && method === 'DELETE') return json({ ok: true });
     return json({});
   });
@@ -83,7 +90,12 @@ describe('Library page', () => {
   it('opens on Athena with labelled tabs, and remembers the tab you picked', async () => {
     await open();
     const tabs = [...el.querySelectorAll<HTMLElement>('[role="tab"]')];
-    expect(tabs.map((t) => t.textContent)).toEqual(['Athena (3)', 'Hermes profiles (0)', 'Claude Code subagents (0)', 'Your presets (0)']);
+    expect(tabs.map((t) => t.textContent)).toEqual([
+      'Athena (3)',
+      'Hermes profiles (0)',
+      'Claude Code subagents (0)',
+      'Your presets (0)',
+    ]);
     expect(el.querySelector('[role="tablist"]')!.getAttribute('aria-label')).toBe('Agent library');
     expect(tabs[0].classList.contains('on')).toBe(true);
     expect(tabs[0].getAttribute('aria-selected')).toBe('true');
@@ -104,7 +116,12 @@ describe('Library page', () => {
     await open();
     const titles = () => [...el.querySelectorAll('.card-title')].map((t) => t.textContent);
     expect(titles()).toEqual(['Brand Guardian', 'Agent 1', 'Agent 2']);
-    expect([...el.querySelectorAll('[aria-label="Group"] button')].map((b) => b.textContent)).toEqual(['All', 'Starter team', 'Engineering', 'Design']);
+    expect([...el.querySelectorAll('[aria-label="Group"] button')].map((b) => b.textContent)).toEqual([
+      'All',
+      'Starter team',
+      'Engineering',
+      'Design',
+    ]);
     const search = el.querySelector<HTMLInputElement>('input[aria-label="Search the agents"]')!;
     expect(search.placeholder).toMatch(/^Search 3 agents/);
     await act(async () => {
@@ -160,34 +177,50 @@ describe('Library page', () => {
     expect(document.getElementById('toasts')!.textContent).toContain('Brand Guardian joined your team');
   });
 
-  it.each([{ effort: 'high' }, { effort: '' }])('keeps effort "$effort" when hiring with Venice', async ({ effort }) => {
-    state.data!.engineList.push({ id: 'eve', label: 'Eve' } as AppState['engineList'][number]);
-    await open();
-    await click(buttons('Eve')[0]);
-    await click(buttons('Choose Eve model')[0]);
-    const venice = [...document.querySelectorAll<HTMLButtonElement>('.model-sources button')].find((b) => b.textContent === 'Venice')!;
-    await click(venice);
-    await settle();
-    await click(document.querySelector<HTMLButtonElement>('button[title="High effort"]')!);
-    if (!effort) await click(document.querySelector<HTMLButtonElement>('button[title="The model\'s own default"]')!);
-    const model = [...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) => b.textContent?.includes('Venice Chat'))!;
-    await click(model);
-    await settle();
-    expect(el.textContent).toContain('Venice · venice-chat');
-    await click(buttons('Venice · venice-chat')[0]);
-    await settle();
-    expect(document.querySelector('.model-effort-level.on')?.textContent).toBe(effort ? 'High' : 'Auto');
-    await click([...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) => b.textContent?.includes('Venice Chat'))!);
-    await click(el.querySelector<HTMLButtonElement>('.card .btn.small')!);
-    expect(requests.find((r) => r.url === '/api/library/hire')?.body).toMatchObject({ source: 'library', overrides: { engine: 'eve', provider: 'venice', model: 'venice-chat', effort } });
-  });
+  it.each([{ effort: 'high' }, { effort: '' }])(
+    'keeps effort "$effort" when hiring with Venice',
+    async ({ effort }) => {
+      state.data!.engineList.push({ id: 'eve', label: 'Eve' } as AppState['engineList'][number]);
+      await open();
+      await click(buttons('Eve')[0]);
+      await click(buttons('Choose Eve model')[0]);
+      const venice = [...document.querySelectorAll<HTMLButtonElement>('.model-sources button')].find(
+        (b) => b.textContent === 'Venice',
+      )!;
+      await click(venice);
+      await settle();
+      await click(document.querySelector<HTMLButtonElement>('button[title="High effort"]')!);
+      if (!effort) await click(document.querySelector<HTMLButtonElement>('button[title="The model\'s own default"]')!);
+      const model = [...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) =>
+        b.textContent?.includes('Venice Chat'),
+      )!;
+      await click(model);
+      await settle();
+      expect(el.textContent).toContain('Venice · venice-chat');
+      await click(buttons('Venice · venice-chat')[0]);
+      await settle();
+      expect(document.querySelector('.model-effort-level.on')?.textContent).toBe(effort ? 'High' : 'Auto');
+      await click(
+        [...document.querySelectorAll<HTMLButtonElement>('.model-list .st-menu-item')].find((b) =>
+          b.textContent?.includes('Venice Chat'),
+        )!,
+      );
+      await click(el.querySelector<HTMLButtonElement>('.card .btn.small')!);
+      expect(requests.find((r) => r.url === '/api/library/hire')?.body).toMatchObject({
+        source: 'library',
+        overrides: { engine: 'eve', provider: 'venice', model: 'venice-chat', effort },
+      });
+    },
+  );
 
   it('deletes a preset only after you confirm', async () => {
     presets = [{ id: 'p1', kind: 'agent', name: 'Helper', emoji: '🙂' }];
     location.hash = '#/library?tab=presets';
     await open();
     await click(el.querySelector<HTMLButtonElement>('[aria-label="Delete the preset Helper"]')!);
-    const sure = [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Delete')!;
+    const sure = [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find(
+      (b) => b.textContent === 'Delete',
+    )!;
     presets = [];
     await click(sure);
     await settle();

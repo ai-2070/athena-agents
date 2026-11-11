@@ -21,14 +21,43 @@ import { CollapsePanel, CollapseRoot, CollapseTrigger } from '../ui/collapse.tsx
 import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { Dot, Pill } from '../ui/marks.tsx';
 import type { PillTone } from '../ui/classes.ts';
-import type { AppState, Routine, RoutineListing, RoutineMention, RoutineMentionKind, RoutineRun, RoutineRunTarget, TeamListing } from '../../shared/types.ts';
+import type {
+  AppState,
+  Routine,
+  RoutineListing,
+  RoutineMention,
+  RoutineMentionKind,
+  RoutineRun,
+  RoutineRunTarget,
+  TeamListing,
+} from '../../shared/types.ts';
 
 /** Agents, teams and skills a routine can mention. Agents first: on a name clash they win (the server does the same). */
 export function candidates(d: Pick<AppState, 'agents'>, teams: readonly TeamListing[]): Candidate[] {
   return [
-    ...d.agents.map((a): Candidate => ({ kind: 'agent', id: a.id, name: a.name, lead: h('span', { class: 'w-3.5 text-center flex-none' }, a.emoji || '🤖'), sub: a.specialty || a.description || '', color: a.color })),
-    ...teams.map((t): Candidate => ({ kind: 'team', id: t.id, name: t.name, lead: icon('users', 14), sub: `${t.members.length} member${t.members.length === 1 ? '' : 's'}${t.description ? ` · ${t.description}` : ''}`, color: t.color })),
-    ...skillsCache().map((s): Candidate => ({ kind: 'skill', id: s.slug, name: s.name, lead: skillIcon(s.slug, 14), sub: s.description })),
+    ...d.agents.map((a): Candidate => ({
+      kind: 'agent',
+      id: a.id,
+      name: a.name,
+      lead: h('span', { class: 'w-3.5 text-center flex-none' }, a.emoji || '🤖'),
+      sub: a.specialty || a.description || '',
+      color: a.color,
+    })),
+    ...teams.map((t): Candidate => ({
+      kind: 'team',
+      id: t.id,
+      name: t.name,
+      lead: icon('users', 14),
+      sub: `${t.members.length} member${t.members.length === 1 ? '' : 's'}${t.description ? ` · ${t.description}` : ''}`,
+      color: t.color,
+    })),
+    ...skillsCache().map((s): Candidate => ({
+      kind: 'skill',
+      id: s.slug,
+      name: s.name,
+      lead: skillIcon(s.slug, 14),
+      sub: s.description,
+    })),
   ];
 }
 
@@ -46,7 +75,8 @@ function useTeams(): TeamListing[] | null {
 }
 
 // a mention as a chip: a team in its own color (--c), a skill in the accent, crossed out once it's gone
-const CHIP = 'pill-shadow inline-flex items-center gap-1.5 py-0.5 px-2.5 rounded-full border border-line-2 text-[12px] whitespace-nowrap max-w-full overflow-hidden text-ellipsis [&_.ico-svg]:flex-none';
+const CHIP =
+  'pill-shadow inline-flex items-center gap-1.5 py-0.5 px-2.5 rounded-full border border-line-2 text-[12px] whitespace-nowrap max-w-full overflow-hidden text-ellipsis [&_.ico-svg]:flex-none';
 const CHIP_KIND: Record<RoutineMentionKind, string> = {
   agent: '[&_.ico-svg]:text-dim',
   team: '[&_.ico-svg]:text-dim border-[color-mix(in_srgb,var(--c,var(--color-accent))_45%,var(--color-line))]',
@@ -65,8 +95,18 @@ function MentionChip({ m, teams, extra }: { m: RoutineMention; teams: readonly T
   const t = m.kind === 'team' ? teams.find((x) => x.id === m.id) : null;
   const look = m.missing ? 'border-dashed text-faint bg-transparent line-through' : `text-ink ${CHIP_BG[m.kind]}`;
   return (
-    <span className={`${CHIP} ${CHIP_KIND[m.kind]} ${look}`} style={t?.color ? ({ '--c': t.color } as CSSProperties) : undefined} title={m.missing ? `${m.name} no longer exists` : KIND_LABEL[m.kind].slice(0, -1)}>
-      {m.kind === 'agent' ? <span>{a?.emoji || '🤖'}</span> : m.kind === 'skill' ? <DomNode as="span" className="flex flex-none" make={() => skillIcon(m.id, 12)} deps={[m.id]} /> : <Icon name="users" size={11} />}
+    <span
+      className={`${CHIP} ${CHIP_KIND[m.kind]} ${look}`}
+      style={t?.color ? ({ '--c': t.color } as CSSProperties) : undefined}
+      title={m.missing ? `${m.name} no longer exists` : KIND_LABEL[m.kind].slice(0, -1)}
+    >
+      {m.kind === 'agent' ? (
+        <span>{a?.emoji || '🤖'}</span>
+      ) : m.kind === 'skill' ? (
+        <DomNode as="span" className="flex flex-none" make={() => skillIcon(m.id, 12)} deps={[m.id]} />
+      ) : (
+        <Icon name="users" size={11} />
+      )}
       {m.name}
       {extra}
     </span>
@@ -74,10 +114,25 @@ function MentionChip({ m, teams, extra }: { m: RoutineMention; teams: readonly T
 }
 
 function StatusIcon({ status }: { status: string }) {
-  if (status === 'done' || status === 'sent') return <span className="text-ok" aria-label="done">✓</span>;
-  if (status === 'failed') return <span className="text-red" aria-label="failed">✕</span>;
+  if (status === 'done' || status === 'sent')
+    return (
+      <span className="text-ok" aria-label="done">
+        ✓
+      </span>
+    );
+  if (status === 'failed')
+    return (
+      <span className="text-red" aria-label="failed">
+        ✕
+      </span>
+    );
   if (status === 'running') return <Dot tone="busy" aria-label="running" />;
-  if (status === 'stopped') return <span className="text-amber" aria-label="stopped">■</span>;
+  if (status === 'stopped')
+    return (
+      <span className="text-amber" aria-label="stopped">
+        ■
+      </span>
+    );
   return <span className="text-faint">·</span>;
 }
 
@@ -85,21 +140,39 @@ function StatusIcon({ status }: { status: string }) {
 /** A new routine is only a draft in the editor: nothing is saved until it has something to do. */
 const NEW = 'new';
 const create = (): void => navigate(`#/routines/${NEW}`);
-const BLANK: Routine = { id: '', name: 'New routine', text: '', mentions: [], schedule: { type: 'none' }, enabled: true };
+const BLANK: Routine = {
+  id: '',
+  name: 'New routine',
+  text: '',
+  mentions: [],
+  schedule: { type: 'none' },
+  enabled: true,
+};
 
 function RoutinesList() {
   const teams = useTeams();
   const [list, setList] = useState<RoutineListing[] | null>(null);
-  const reload = useCallback(() => rpc.routines.list().then(setList).catch(() => {}), []);
+  const reload = useCallback(
+    () =>
+      rpc.routines
+        .list()
+        .then(setList)
+        .catch(() => {}),
+    [],
+  );
   useEffect(() => void reload(), [reload]);
   useServerEvents((ev) => (ev.type === 'routines' || ev.type === 'routine-run') && void reload());
   if (!teams || !list) return <p className="text-dim">Loading routines…</p>;
   return (
     <>
-      <p className="lede max-w-[68ch]">A routine is work you want done again and again: a morning news check, a weekly report, a content plan. Write it once, @mention the agents and teams who do it and the skills they should use, then run it by hand or on a schedule.</p>
+      <p className="lede max-w-[68ch]">
+        A routine is work you want done again and again: a morning news check, a weekly report, a content plan. Write it
+        once, @mention the agents and teams who do it and the skills they should use, then run it by hand or on a
+        schedule.
+      </p>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
         <h2 className="section m-0">{`Your routines${list.length ? ` (${list.length})` : ''}`}</h2>
-        <Button  onClick={() => void create()}>
+        <Button onClick={() => void create()}>
           <Icon name="plus" size={14} />
           New routine
         </Button>
@@ -113,8 +186,11 @@ function RoutinesList() {
       ) : (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
           <p className="m-0 text-dim">No routines yet.</p>
-          <p className="hint m-0 max-w-130">Example: "Every morning, @Researcher finds the 3 biggest AI stories, then @Content Team turns them into a post using @Brand voice."</p>
-          <Button  onClick={() => void create()}>
+          <p className="hint m-0 max-w-130">
+            Example: "Every morning, @Researcher finds the 3 biggest AI stories, then @Content Team turns them into a
+            post using @Brand voice."
+          </p>
+          <Button onClick={() => void create()}>
             <Icon name="plus" size={14} />
             Write your first routine
           </Button>
@@ -134,7 +210,8 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
   useEffect(() => setOn(r.enabled), [r.enabled]);
   const toggleOn = async (v: boolean) => {
     setOn(v);
-    if (!(await attempt(() => rpc.routines.change({ id: r.id, enabled: v }), v ? 'Routine on' : 'Routine off'))) setOn(!v);
+    if (!(await attempt(() => rpc.routines.change({ id: r.id, enabled: v }), v ? 'Routine on' : 'Routine off')))
+      setOn(!v);
   };
   const run = async () => {
     setRunning(true);
@@ -142,18 +219,43 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
     setRunning(false);
   };
   return (
-    <div className={`card glass-plate hover:shadow-none gap-3 !rounded-[10px] !p-4 ${on ? '' : '[&>:not(:first-child)]:opacity-55'}`}>
+    <div
+      className={`card glass-plate hover:shadow-none gap-3 !rounded-[10px] !p-4 ${on ? '' : '[&>:not(:first-child)]:opacity-55'}`}
+    >
       <div className="flex items-center gap-3">
-        <div className="skill-ico !h-9 !w-9 !rounded-[8px]"><Icon name="repeat" size={16} /></div>
-        <div className="flex-1 min-w-0">
-          <a className="skill-name text-[14px] font-semibold text-ink hover:text-ink hover:underline" href={`#/routines/${r.id}`}>{r.name}</a>
-          <div className="hint mt-0.5 flex items-start gap-1.5"><Icon name={r.schedule?.type === 'daily' ? 'calendar' : r.schedule?.type === 'interval' ? 'repeat' : 'hand'} size={13} className="mt-0.5 shrink-0" /><span>{!on ? 'Switched off · ' : ''}{scheduleSummary(r.schedule)}</span></div>
+        <div className="skill-ico !h-9 !w-9 !rounded-[8px]">
+          <Icon name="repeat" size={16} />
         </div>
-        <Switch checked={on} onChange={(v) => void toggleOn(v)} className="flex-none flex-nowrap" >
-          <span className="text-[12.5px] font-medium text-dim" title={`Switch ${r.name} ${on ? 'off' : 'on'}`}>{on ? 'On' : 'Off'}</span>
+        <div className="flex-1 min-w-0">
+          <a
+            className="skill-name text-[14px] font-semibold text-ink hover:text-ink hover:underline"
+            href={`#/routines/${r.id}`}
+          >
+            {r.name}
+          </a>
+          <div className="hint mt-0.5 flex items-start gap-1.5">
+            <Icon
+              name={r.schedule?.type === 'daily' ? 'calendar' : r.schedule?.type === 'interval' ? 'repeat' : 'hand'}
+              size={13}
+              className="mt-0.5 shrink-0"
+            />
+            <span>
+              {!on ? 'Switched off · ' : ''}
+              {scheduleSummary(r.schedule)}
+            </span>
+          </div>
+        </div>
+        <Switch checked={on} onChange={(v) => void toggleOn(v)} className="flex-none flex-nowrap">
+          <span className="text-[12.5px] font-medium text-dim" title={`Switch ${r.name} ${on ? 'off' : 'on'}`}>
+            {on ? 'On' : 'Off'}
+          </span>
         </Switch>
       </div>
-      {r.description || r.text ? <p className={DESC}>{r.description || r.text}</p> : <p className={DESC}>Nothing written yet.</p>}
+      {r.description || r.text ? (
+        <p className={DESC}>{r.description || r.text}</p>
+      ) : (
+        <p className={DESC}>Nothing written yet.</p>
+      )}
       {r.mentions.length ? (
         <div className={CHIPS}>
           {r.mentions.map((m) => (
@@ -164,7 +266,12 @@ function RoutineCard({ r, teams }: { r: RoutineListing; teams: TeamListing[] }) 
         <span className="hint">Nobody mentioned yet</span>
       )}
       <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-line pt-3">
-        <Button size="small" disabled={running || !on} title={on ? undefined : 'Switch the routine on to run it'} onClick={() => void run()}>
+        <Button
+          size="small"
+          disabled={running || !on}
+          title={on ? undefined : 'Switch the routine on to run it'}
+          onClick={() => void run()}
+        >
           <Icon name="play" size={13} />
           Run
         </Button>
@@ -190,7 +297,8 @@ function RoutineEditor({ id }: { id: string }) {
     setLoaded(id === NEW ? BLANK : null);
     if (id === NEW) return;
     let live = true;
-    void rpc.routines.get({ id })
+    void rpc.routines
+      .get({ id })
       .then((r) => live && setLoaded(r))
       .catch(() => live && setLoaded('gone'));
     return () => void (live = false);
@@ -203,7 +311,10 @@ function RoutineEditor({ id }: { id: string }) {
     );
   if (!loaded || !teams) return <p className="text-dim">Loading routines…</p>;
   // (from a team's panel on the Station: a new routine starts with that team mentioned)
-  const team = loaded === BLANK ? teams.find((t) => t.id === new URLSearchParams(location.hash.split('?')[1] || '').get('team')) : undefined;
+  const team =
+    loaded === BLANK
+      ? teams.find((t) => t.id === new URLSearchParams(location.hash.split('?')[1] || '').get('team'))
+      : undefined;
   return <EditorForm key={loaded.id} first={team ? { ...BLANK, text: `@${team.name} ` } : loaded} teams={teams} />;
 }
 
@@ -235,19 +346,32 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   candsRef.current = cands;
   useEffect(() => {
     // mentions show as pills, like in a team chat's message box
-    const offEditor = attachMentionEditor(ta.current!, () => candsRef.current().map((c) => ({ tag: `@${c.name}`, icon: c.kind === 'team' ? 'users' : c.kind === 'skill' ? 'puzzle' : undefined })));
-    const offMenu = attachMentions(ta.current!, () => candsRef.current(), () => {});
+    const offEditor = attachMentionEditor(ta.current!, () =>
+      candsRef.current().map((c) => ({
+        tag: `@${c.name}`,
+        icon: c.kind === 'team' ? 'users' : c.kind === 'skill' ? 'puzzle' : undefined,
+      })),
+    );
+    const offMenu = attachMentions(
+      ta.current!,
+      () => candsRef.current(),
+      () => {},
+    );
     return () => (offMenu(), offEditor());
   }, []);
 
   const save = async (): Promise<boolean> => {
     // never an empty routine
-    if (!text.trim()) return toast('Write what the routine should do first', 'warn'), ta.current?.focus(), false;
-    if (!name.trim()) return toast('Give the routine a name', 'warn'), false;
-    if (r.current.schedule?.type === 'daily' && r.current.schedule.times?.some((time) => !time)) return toast('Choose each daily time, or remove empty times', 'warn'), false;
+    if (!text.trim()) return (toast('Write what the routine should do first', 'warn'), ta.current?.focus(), false);
+    if (!name.trim()) return (toast('Give the routine a name', 'warn'), false);
+    if (r.current.schedule?.type === 'daily' && r.current.schedule.times?.some((time) => !time))
+      return (toast('Choose each daily time, or remove empty times', 'warn'), false);
     setSaving(true);
     const body = { name, description, text, schedule: r.current.schedule, enabled: r.current.enabled };
-    const out = await attempt(() => (isNew ? rpc.routines.create(body) : rpc.routines.change({ ...body, id })), isNew ? 'Routine added' : 'Saved');
+    const out = await attempt(
+      () => (isNew ? rpc.routines.create(body) : rpc.routines.change({ ...body, id })),
+      isNew ? 'Routine added' : 'Saved',
+    );
     setSaving(false);
     if (!out) return false;
     r.current.mentions = out.mentions;
@@ -265,9 +389,13 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
     setActive(v);
     r.current.enabled = v;
     if (isNew) setDirty(true);
-    else void attempt(() => rpc.routines.change({ id, enabled: v }), v ? 'Routine on' : 'Routine off').then((ok) => {
-      if (!ok) { r.current.enabled = !v; setActive(!v); }
-    });
+    else
+      void attempt(() => rpc.routines.change({ id, enabled: v }), v ? 'Routine on' : 'Routine off').then((ok) => {
+        if (!ok) {
+          r.current.enabled = !v;
+          setActive(!v);
+        }
+      });
   };
   const del = async () => {
     if (!(await confirmBox(`Delete the routine "${name}"?`, { ok: 'Delete', danger: true }))) return;
@@ -277,7 +405,8 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   // who the text mentions
   const found = findMentions(text, cands());
   const mTeams = found.filter((m) => m.kind === 'team');
-  const viaTeam = (agentId: string) => mTeams.map((m) => teams.find((t) => t.id === m.id)).find((t) => t?.members.includes(agentId));
+  const viaTeam = (agentId: string) =>
+    mTeams.map((m) => teams.find((t) => t.id === m.id)).find((t) => t?.members.includes(agentId));
   const gone = missing.filter((m) => findMentions(text, [m]).length);
   const doers = [
     ...mTeams.map((m) => <MentionChip key={`t:${m.id}`} m={m} teams={teams} />),
@@ -285,21 +414,40 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
       .filter((m) => m.kind === 'agent')
       .map((m) => {
         const t = viaTeam(m.id);
-        return <MentionChip key={`a:${m.id}`} m={m} teams={teams} extra={t ? <span className="text-[11.5px] leading-[normal] font-normal text-faint">{`in ${t.name}`}</span> : null} />;
+        return (
+          <MentionChip
+            key={`a:${m.id}`}
+            m={m}
+            teams={teams}
+            extra={
+              t ? <span className="text-[11.5px] leading-[normal] font-normal text-faint">{`in ${t.name}`}</span> : null
+            }
+          />
+        );
       }),
   ];
-  const skills = found.filter((m) => m.kind === 'skill').map((m) => <MentionChip key={`s:${m.id}`} m={m} teams={teams} />);
+  const skills = found
+    .filter((m) => m.kind === 'skill')
+    .map((m) => <MentionChip key={`s:${m.id}`} m={m} teams={teams} />);
   const whoRow = (label: string, ico: string, items: ReactNode[], empty: string) => (
     <div className="grid grid-cols-[112px_minmax(0,1fr)] items-start gap-3 max-sm:grid-cols-1 max-sm:gap-1.5">
       <div className="inline-flex items-center gap-2 pt-1 text-[12.5px] leading-[normal] font-medium text-dim">
         <Icon name={ico} size={13} />
         {label}
       </div>
-      <div className={CHIPS}>{items.length ? items : <span className="pt-0.5 text-[12.5px] text-faint">{empty}</span>}</div>
+      <div className={CHIPS}>
+        {items.length ? items : <span className="pt-0.5 text-[12.5px] text-faint">{empty}</span>}
+      </div>
     </div>
   );
   const insert = (kind: RoutineMentionKind, label: string, ico: string) => (
-    <Button variant="ghost" size="tiny" type="button" title={`Mention ${label.toLowerCase()}`} onClick={() => startMention(ta.current!, kind)}>
+    <Button
+      variant="ghost"
+      size="tiny"
+      type="button"
+      title={`Mention ${label.toLowerCase()}`}
+      onClick={() => startMention(ta.current!, kind)}
+    >
       <Icon name={ico} size={12} />
       {label}
     </Button>
@@ -310,18 +458,31 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
   return (
     <div className="mx-auto max-w-6xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <ButtonLink variant="ghost" size="small" href="#/routines">← Routines</ButtonLink>
+        <ButtonLink variant="ghost" size="small" href="#/routines">
+          ← Routines
+        </ButtonLink>
         <div className="flex items-center gap-3">
           {dirty && !isNew ? <span className="text-[12.5px] text-faint">Unsaved changes</span> : null}
-          <Button disabled={!canSave} title={!text.trim() ? 'Write what the routine should do first' : undefined} onClick={() => void save()}>Save</Button>
+          <Button
+            disabled={!canSave}
+            title={!text.trim() ? 'Write what the routine should do first' : undefined}
+            onClick={() => void save()}
+          >
+            Save
+          </Button>
         </div>
       </div>
       <div className="mb-7 flex items-start gap-4">
-        <span aria-hidden="true" className="grid size-11 flex-none place-items-center rounded-[12px] border border-accent/25 bg-accent/10 text-accent">
+        <span
+          aria-hidden="true"
+          className="grid size-11 flex-none place-items-center rounded-[12px] border border-accent/25 bg-accent/10 text-accent"
+        >
           <Icon name="repeat" size={20} />
         </span>
         <div className="min-w-0">
-          <h1 className="m-0 truncate text-[22px] leading-[1.2] font-semibold text-ink">{isNew ? 'New routine' : name || 'Routine'}</h1>
+          <h1 className="m-0 truncate text-[22px] leading-[1.2] font-semibold text-ink">
+            {isNew ? 'New routine' : name || 'Routine'}
+          </h1>
           <p className="hint mt-1.5 mb-0">{description || 'Set the work, who does it and when it runs.'}</p>
         </div>
       </div>
@@ -334,15 +495,31 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
                 <input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} />
               </Field>
               <Field label="Description">
-                <input value={description} placeholder="Optional, shown on the card" onChange={(e) => (setDescription(e.target.value), setDirty(true))} />
+                <input
+                  value={description}
+                  placeholder="Optional, shown on the card"
+                  onChange={(e) => (setDescription(e.target.value), setDirty(true))}
+                />
               </Field>
             </div>
           </FormSection>
           <FormSection
             icon="list-checks"
             title="What to do"
-            hint={<>Type <b className="font-semibold text-ink">@</b> to mention an agent, a team or a skill. Agents and teams each get the routine (an agent in a mentioned team gets it in that team chat); skills are given to all of them.</>}
-            end={<>{insert('agent', 'Agent', 'bot')}{insert('team', 'Team', 'users')}{insert('skill', 'Skill', 'puzzle')}</>}
+            hint={
+              <>
+                Type <b className="font-semibold text-ink">@</b> to mention an agent, a team or a skill. Agents and
+                teams each get the routine (an agent in a mentioned team gets it in that team chat); skills are given to
+                all of them.
+              </>
+            }
+            end={
+              <>
+                {insert('agent', 'Agent', 'bot')}
+                {insert('team', 'Team', 'users')}
+                {insert('skill', 'Skill', 'puzzle')}
+              </>
+            }
           >
             <textarea
               ref={ta}
@@ -351,7 +528,9 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
               rows={9}
               aria-label="What to do"
               value={text}
-              placeholder={'What should be done? Type @ to mention who does it and the skills to use.\n\ne.g. @Researcher find the 3 most interesting AI stories from the last day, with links. Then @Content Team writes one X post about the best one using @Brand voice.'}
+              placeholder={
+                'What should be done? Type @ to mention who does it and the skills to use.\n\ne.g. @Researcher find the 3 most interesting AI stories from the last day, with links. Then @Content Team writes one X post about the best one using @Brand voice.'
+              }
               onChange={(e) => (setText(e.target.value), setDirty(true))}
             />
             {/* who the text mentions, read back as chips */}
@@ -375,9 +554,19 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
                 <span className="text-[13.5px] font-semibold text-ink">{active ? 'Routine on' : 'Routine off'}</span>
               </Switch>
               <p className="m-0 text-[12.5px] leading-normal text-dim">
-                {!active ? "It doesn't run, by hand or on its schedule." : kind === 'none' ? 'It runs when you press Run now.' : `Runs by hand, and ${scheduleSummary(schedule).replace(/^./, (c) => c.toLowerCase())}.`}
+                {!active
+                  ? "It doesn't run, by hand or on its schedule."
+                  : kind === 'none'
+                    ? 'It runs when you press Run now.'
+                    : `Runs by hand, and ${scheduleSummary(schedule).replace(/^./, (c) => c.toLowerCase())}.`}
               </p>
-              <Button variant="ghost" className="w-full justify-center" disabled={running || isNew || !active} title={isNew || !active ? 'Save the routine first, and switch it on, to run it' : undefined} onClick={() => void run()}>
+              <Button
+                variant="ghost"
+                className="w-full justify-center"
+                disabled={running || isNew || !active}
+                title={isNew || !active ? 'Save the routine first, and switch it on, to run it' : undefined}
+                onClick={() => void run()}
+              >
                 <Icon name="play" size={14} />
                 Run now
               </Button>
@@ -396,7 +585,10 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
             <div className="flex flex-col gap-4 border-t border-line pt-5">
               <div className="flex items-center gap-3">
-                <span aria-hidden="true" className="grid size-8 flex-none place-items-center rounded-[9px] border border-line bg-panel-2 text-dim">
+                <span
+                  aria-hidden="true"
+                  className="grid size-8 flex-none place-items-center rounded-[9px] border border-line bg-panel-2 text-dim"
+                >
                   <Icon name="calendar" size={15} />
                 </span>
                 <div className="min-w-0">
@@ -404,7 +596,21 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
                   <p className="m-0 text-[12.5px] text-dim">{scheduleSummary(schedule)}</p>
                 </div>
               </div>
-              <DomNode make={() => scheduleEditor(r.current, () => (setDirty(true), setKind(r.current.schedule?.type || 'none'), scheduleChanged((n) => n + 1)), { inputLabel: 'Additional instructions for scheduled runs (optional)', inputHint: 'Added to the main instructions when this routine runs automatically. Not used by Run now.', showToggle: false })} deps={[id]} />
+              <DomNode
+                make={() =>
+                  scheduleEditor(
+                    r.current,
+                    () => (setDirty(true), setKind(r.current.schedule?.type || 'none'), scheduleChanged((n) => n + 1)),
+                    {
+                      inputLabel: 'Additional instructions for scheduled runs (optional)',
+                      inputHint:
+                        'Added to the main instructions when this routine runs automatically. Not used by Run now.',
+                      showToggle: false,
+                    },
+                  )
+                }
+                deps={[id]}
+              />
               {kind !== 'none' ? <p className="hint m-0">Runs while the dashboard is open.</p> : null}
             </div>
           </Plate>
@@ -414,14 +620,18 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             <Runs id={id} onLatest={setLast} />
           </FormSection>
         </Plate>
-        {!isNew && <div className="col-span-2 flex justify-end max-lg:col-span-1">
-          <Button variant="danger" onClick={() => void del()}><Icon name="trash-2" size={14} />Delete routine</Button>
-        </div>}
+        {!isNew && (
+          <div className="col-span-2 flex justify-end max-lg:col-span-1">
+            <Button variant="danger" onClick={() => void del()}>
+              <Icon name="trash-2" size={14} />
+              Delete routine
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
 
 /** How a run (or one of its agents) ended, as a pill's tone and words. */
 const RUN_LOOK: Record<string, { tone: PillTone; label: string }> = {
@@ -448,9 +658,17 @@ type Who = { emoji?: string; color?: string } | undefined;
 function TargetMark({ t, agent, small = false }: { t: RoutineRunTarget; agent: Who; small?: boolean }) {
   const size = small ? 'size-6 rounded-[7px] text-[12px] ring-2 ring-panel' : 'size-8 rounded-[9px] text-[15px]';
   return t.kind === 'team' ? (
-    <span className={`grid flex-none place-items-center border border-line bg-panel-2 text-dim ${size}`} title={t.name}><Icon name="users" size={small ? 12 : 15} /></span>
+    <span className={`grid flex-none place-items-center border border-line bg-panel-2 text-dim ${size}`} title={t.name}>
+      <Icon name="users" size={small ? 12 : 15} />
+    </span>
   ) : (
-    <span className={`avatar ${size}`} style={{ '--agent-color': agent?.color || 'var(--color-accent)' } as CSSProperties} title={t.name}>{agent?.emoji || '🤖'}</span>
+    <span
+      className={`avatar ${size}`}
+      style={{ '--agent-color': agent?.color || 'var(--color-accent)' } as CSSProperties}
+      title={t.name}
+    >
+      {agent?.emoji || '🤖'}
+    </span>
   );
 }
 
@@ -465,7 +683,14 @@ function Runs({ id, onLatest }: { id: string; onLatest?: (run: RoutineRun | null
     // a draft has no runs (an empty id would ask for every routine's)
     if (!id) return setRuns([]);
     // (a burst of events loads once)
-    timer.current = setTimeout(() => void rpc.routines.runs.list({ routineId: id }).then(setRuns).catch(() => setRuns([])), 150);
+    timer.current = setTimeout(
+      () =>
+        void rpc.routines.runs
+          .list({ routineId: id })
+          .then(setRuns)
+          .catch(() => setRuns([])),
+      150,
+    );
   }, [id]);
   useEffect(() => (load(), () => clearTimeout(timer.current)), [load]);
   useEffect(() => onLatest?.(runs?.[0] ?? null), [runs, onLatest]);
@@ -509,17 +734,29 @@ function Runs({ id, onLatest }: { id: string; onLatest?: (run: RoutineRun | null
                   {run.trigger === 'manual' ? 'Run by hand' : run.trigger === 'schedule' ? 'Scheduled' : run.trigger}
                 </span>
                 <span className="flex items-center -space-x-1.5" aria-label={run.targets.map((t) => t.name).join(', ')}>
-                  {run.targets.slice(0, 5).map((t) => <TargetMark key={`${t.kind}:${t.id}`} t={t} agent={agentOf(t)} small />)}
+                  {run.targets.slice(0, 5).map((t) => (
+                    <TargetMark key={`${t.kind}:${t.id}`} t={t} agent={agentOf(t)} small />
+                  ))}
                 </span>
-                <span className="ml-auto shrink-0 text-[12px] text-faint tabular-nums" title={run.createdAt ? new Date(run.createdAt).toLocaleString() : undefined}>
-                  {ago(run.createdAt)}{took ? ` · took ${took}` : ''}
+                <span
+                  className="ml-auto shrink-0 text-[12px] text-faint tabular-nums"
+                  title={run.createdAt ? new Date(run.createdAt).toLocaleString() : undefined}
+                >
+                  {ago(run.createdAt)}
+                  {took ? ` · took ${took}` : ''}
                 </span>
                 {run.status === 'running' ? <span className="w-14 flex-none" aria-hidden="true" /> : null}
-                <Icon name="chevron-down" size={14} className={`flex-none text-dim transition-transform duration-200 ease-in-out ${isOpen(run, i) ? 'rotate-180' : ''}`} />
+                <Icon
+                  name="chevron-down"
+                  size={14}
+                  className={`flex-none text-dim transition-transform duration-200 ease-in-out ${isOpen(run, i) ? 'rotate-180' : ''}`}
+                />
               </CollapseTrigger>
               <CollapsePanel>
                 <div className="flex flex-col gap-1 border-t border-line px-4 py-3">
-                  {run.error ? <p className="m-0 rounded-ctl bg-red/8 px-3 py-2 text-[13px] text-red">{run.error}</p> : null}
+                  {run.error ? (
+                    <p className="m-0 rounded-ctl bg-red/8 px-3 py-2 text-[13px] text-red">{run.error}</p>
+                  ) : null}
                   {run.targets.map((t) => (
                     <TargetRow key={`${t.kind}:${t.id}`} t={t} agent={agentOf(t)} />
                   ))}
@@ -533,7 +770,14 @@ function Runs({ id, onLatest }: { id: string; onLatest?: (run: RoutineRun | null
               </CollapsePanel>
             </CollapseRoot>
             {run.status === 'running' ? (
-              <Button variant="danger" size="tiny" className="absolute top-3 right-10" onClick={() => void attempt(() => rpc.routines.runs.stop({ id: run.id }))}>Stop</Button>
+              <Button
+                variant="danger"
+                size="tiny"
+                className="absolute top-3 right-10"
+                onClick={() => void attempt(() => rpc.routines.runs.stop({ id: run.id }))}
+              >
+                Stop
+              </Button>
             ) : null}
           </div>
         );
@@ -579,4 +823,12 @@ function TargetRow({ t, agent }: { t: RoutineRunTarget; agent: Who }) {
 }
 
 export const title = (p: string[]) => (p[0] ? 'Routine' : 'Routines');
-export const { render, unmount } = reactPage((p) => (p[0] ? <ProjectScoped><RoutineEditor id={p[0]} /></ProjectScoped> : <RoutinesList />));
+export const { render, unmount } = reactPage((p) =>
+  p[0] ? (
+    <ProjectScoped>
+      <RoutineEditor id={p[0]} />
+    </ProjectScoped>
+  ) : (
+    <RoutinesList />
+  ),
+);

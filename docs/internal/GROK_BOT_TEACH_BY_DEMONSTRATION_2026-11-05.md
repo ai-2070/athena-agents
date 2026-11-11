@@ -103,6 +103,7 @@ The skill is long and procedural. In order:
    - specific URLs, page titles, names and the elements clicked.
 
    It can ask the same subagent follow-up questions about unclear steps.
+
 3. **Cross-check with the browser.** While the video model works, it reads Chrome's open tabs (the DevTools
    `/json/list` endpoint) and a copy of Chrome's History database, limited to the recording's time window. It does
    this strictly read-only: no new tabs, no DevTools socket, no navigation, no cookies, and never when running a
@@ -147,7 +148,7 @@ and personal details become placeholders. A demonstration that was mostly enteri
 **Thin:**
 
 - **One example, no narration.** The docs admit the skill is a draft: decision rules and failure handling can't be
-  seen in one run, and without audio the user can't say *why* they clicked something. The only intent captured is
+  seen in one run, and without audio the user can't say _why_ they clicked something. The only intent captured is
   the sentence typed before recording.
 - **Browser workflows on the Bot's computer only.** Nothing on the user's own desktop, and nothing outside Chrome
   gets the history cross-check.
@@ -172,6 +173,7 @@ exact strings from somewhere other than pixels. Options, roughly in order of eff
      targets.
 
    No new code beyond the skill text.
+
 2. **Record from the dashboard.** The browser app can capture a screen or a window with `getDisplayMedia` (a page
    served from `127.0.0.1` counts as secure, so browsers allow it), record it with `MediaRecorder`, upload it, and
    start `/learn` with it attached. The desktop app's webviews (WebView2 on Windows, WKWebView on macOS) need checking
@@ -191,6 +193,7 @@ over: placeholders for secrets, deleting the video, confirm-first steps, never r
 agent still tells the user it's a draft from one example, and asks for the decision rules it can't show.
 
 These are planned in [Teach by showing](plans/TEACH_BY_DEMONSTRATION_2026-11-05.md):
+
 - option 1 now, without narration;
 - option 2 later in the week of 9 November, also without narration;
 - narration and option 3 as a later step, not yet scheduled.

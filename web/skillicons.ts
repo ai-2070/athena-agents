@@ -44,7 +44,12 @@ export function skillIcon(slug: string | null | undefined, size = 16): Element {
     img.draggable = false;
     img.className = 'skill-mark-img flex-none';
     img.style.borderRadius = `${Math.max(3, Math.round(size * 0.24))}px`;
-    if (m.tile) Object.assign(img.style, { background: m.tile, padding: `${Math.max(1, Math.round(size * 0.12))}px`, boxSizing: 'border-box' });
+    if (m.tile)
+      Object.assign(img.style, {
+        background: m.tile,
+        padding: `${Math.max(1, Math.round(size * 0.12))}px`,
+        boxSizing: 'border-box',
+      });
     return img;
   }
   if ('logo' in m) return logo(m.logo, size) || icon('puzzle', size);

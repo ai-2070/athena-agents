@@ -31,7 +31,13 @@ describe('hiring from the Agent library', () => {
     const have = saveSkill({ name: pick.skills[0], description: 'Use it for the test.', body: 'Steps.' })!;
     expect(have.slug).toBe(pick.skills[0]);
     const hired = library.hireFromLibrary(pick.slug);
-    expect(hired).toMatchObject({ name: pick.name, emoji: pick.emoji, color: pick.color, specialty: pick.specialty, description: pick.description });
+    expect(hired).toMatchObject({
+      name: pick.name,
+      emoji: pick.emoji,
+      color: pick.color,
+      specialty: pick.specialty,
+      description: pick.description,
+    });
     expect(hired.systemPrompt).toBe(parseFrontmatter(before).body.trim());
     expect(hired.toolGroups).toEqual(pick.tools);
     expect(hired.skills).toEqual([pick.skills[0]]);
@@ -47,7 +53,10 @@ describe('hiring from the Agent library', () => {
     try {
       expect(library.hireFromLibrary(own.slug).engine).toBe(own.engine);
       expect(library.hireFromLibrary(plain.slug).engine).toBe('codex');
-      expect(library.hireFromLibrary(own.slug, { engine: 'eve', model: 'some/model' })).toMatchObject({ engine: 'eve', model: 'some/model' });
+      expect(library.hireFromLibrary(own.slug, { engine: 'eve', model: 'some/model' })).toMatchObject({
+        engine: 'eve',
+        model: 'some/model',
+      });
     } finally {
       saveSettings({ defaults: { engine: 'claude-code' } });
     }
@@ -57,15 +66,26 @@ describe('hiring from the Agent library', () => {
     expect(() => library.hireFromLibrary('no-such-specialist')).toThrow('not in the library');
   });
 
-  it("tells a library hire, and no other agent, that its role is a starting point", () => {
+  it('tells a library hire, and no other agent, that its role is a starting point', () => {
     const hired = library.hireFromLibrary(library.libraryAgents()[0].slug);
     const prompt = buildSystemPrompt(hired);
     expect(prompt).toContain(LIBRARY_ROLE_LINE);
     // right after its own instructions
     expect(prompt.indexOf(LIBRARY_ROLE_LINE)).toBe(prompt.indexOf(hired.systemPrompt) + hired.systemPrompt.length + 1);
-    expect(buildSystemPrompt(library.newAgent({ name: 'Mine', systemPrompt: 'Do my thing.' }))).not.toContain(LIBRARY_ROLE_LINE);
-    expect(buildSystemPrompt(library.newAgent({ name: 'Made by the Brain', source: { type: 'brain' } }))).not.toContain(LIBRARY_ROLE_LINE);
-    expect(buildSystemPrompt(library.newAgent({ name: 'Old hire', source: { type: 'agency', slug: 'engineering-code-reviewer', division: 'engineering' } }))).not.toContain(LIBRARY_ROLE_LINE);
+    expect(buildSystemPrompt(library.newAgent({ name: 'Mine', systemPrompt: 'Do my thing.' }))).not.toContain(
+      LIBRARY_ROLE_LINE,
+    );
+    expect(buildSystemPrompt(library.newAgent({ name: 'Made by the Brain', source: { type: 'brain' } }))).not.toContain(
+      LIBRARY_ROLE_LINE,
+    );
+    expect(
+      buildSystemPrompt(
+        library.newAgent({
+          name: 'Old hire',
+          source: { type: 'agency', slug: 'engineering-code-reviewer', division: 'engineering' },
+        }),
+      ),
+    ).not.toContain(LIBRARY_ROLE_LINE);
   });
 });
 
@@ -83,16 +103,36 @@ describe('Claude Code subagents', () => {
 // what can be caught mechanically. Whether the writing is good is for review.
 describe("Athena's agents", () => {
   const dir = path.join(ROOT, 'library', 'athena-agents');
-  const groups = (JSON.parse(fs.readFileSync(path.join(dir, 'groups.json'), 'utf8')) as { groups: { id: string; label: string }[] }).groups;
-  const KEYS = new Set(['name', 'description', 'emoji', 'color', 'specialty', 'group', 'tools', 'skills', 'engine', 'starter']);
+  const groups = (
+    JSON.parse(fs.readFileSync(path.join(dir, 'groups.json'), 'utf8')) as { groups: { id: string; label: string }[] }
+  ).groups;
+  const KEYS = new Set([
+    'name',
+    'description',
+    'emoji',
+    'color',
+    'specialty',
+    'group',
+    'tools',
+    'skills',
+    'engine',
+    'starter',
+  ]);
   const ENGINE_IDS: EngineId[] = ['claude-code', 'eve', 'hermes', 'codex', 'pi', 'omp', 'openclaw', 'opencode'];
-  const files = groups.flatMap((g) => (fs.existsSync(path.join(dir, g.id)) ? fs.readdirSync(path.join(dir, g.id)).map((f) => ({ group: g.id, f, file: path.join(dir, g.id, f) })) : []));
+  const files = groups.flatMap((g) =>
+    fs.existsSync(path.join(dir, g.id))
+      ? fs.readdirSync(path.join(dir, g.id)).map((f) => ({ group: g.id, f, file: path.join(dir, g.id, f) }))
+      : [],
+  );
 
   it('has a folder only for the groups groups.json names, and only agent files in them', () => {
     const ids = groups.map((g) => g.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const g of groups) expect(g.label).toBeTruthy();
-    const folders = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
+    const folders = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name);
     for (const f of folders) expect(ids).toContain(f);
     for (const { f } of files) expect(f).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*\.md$/);
   });
@@ -140,15 +180,32 @@ describe("Athena's agents", () => {
     }
     // each agent's emoji is its avatar on the cards
     const emoji = files.map(({ file }) => parseFrontmatter(fs.readFileSync(file, 'utf8')).meta.emoji);
-    for (const e of new Set(emoji)) if (emoji.filter((x) => x === e).length > 1) problems.push(`emoji ${e} is used by more than one agent`);
+    for (const e of new Set(emoji))
+      if (emoji.filter((x) => x === e).length > 1) problems.push(`emoji ${e} is used by more than one agent`);
     expect(problems).toEqual([]);
     // the Home page's starter team
-    expect(library.libraryAgents().filter((a) => a.starter).map((a) => a.name).sort()).toEqual(['3D Artist', 'Coordinator', 'Image Maker', 'Mail Assistant', 'Researcher', 'Video Editor', 'World Builder', 'X Writer']);
+    expect(
+      library
+        .libraryAgents()
+        .filter((a) => a.starter)
+        .map((a) => a.name)
+        .sort(),
+    ).toEqual([
+      '3D Artist',
+      'Coordinator',
+      'Image Maker',
+      'Mail Assistant',
+      'Researcher',
+      'Video Editor',
+      'World Builder',
+      'X Writer',
+    ]);
   });
 
   it('is written to the standard, not the old Agency template', () => {
     // a role is a starting point, not a fence, and the model's limits come from its tools at run time
-    const FENCE = /outside (?:of )?your (?:scope|role|remit)|\bnot your (?:job|role)\b|\byou (?:cannot|can't|are unable to|are not able to) (?:see images|see the screen|view images|browse the web|run code|execute code|access the internet|open files)\b/i;
+    const FENCE =
+      /outside (?:of )?your (?:scope|role|remit)|\bnot your (?:job|role)\b|\byou (?:cannot|can't|are unable to|are not able to) (?:see images|see the screen|view images|browse the web|run code|execute code|access the internet|open files)\b/i;
     const problems: string[] = [];
     for (const { file } of files) {
       const text = fs.readFileSync(file, 'utf8');
@@ -167,7 +224,8 @@ describe("Athena's agents", () => {
       let code = false;
       for (const [i, line] of body.split(/\r?\n/).entries()) {
         if (/^\s*```/.test(line)) code = !code;
-        else if (!code && !line.startsWith('|')) check(line.length <= 120, `body line ${i + 1} is ${line.length} characters`);
+        else if (!code && !line.startsWith('|'))
+          check(line.length <= 120, `body line ${i + 1} is ${line.length} characters`);
       }
     }
     expect(problems).toEqual([]);

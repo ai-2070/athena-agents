@@ -35,7 +35,9 @@ export const brainRouter = os.router({
     const project = input.project ?? null;
     // (refused before the stream starts, so it comes back as an error the chat can show)
     overseer.checkProject(project);
-    return streamToEventIterator(streamBrain((onPart) => overseer.ask(text, { project, attachments, onPart, goal: input.goal === true })));
+    return streamToEventIterator(
+      streamBrain((onPart) => overseer.ask(text, { project, attachments, onPart, goal: input.goal === true })),
+    );
   }),
   steer: os.steer.handler(() => (overseer.steerAsks(), { ok: true as const })),
   stop: os.stop.handler(({ input }) => commands.stopBrain(input)),
@@ -45,7 +47,9 @@ export const brainRouter = os.router({
   threads: os.threads.handler(() => overseer.brainThreads()),
   newThread: os.newThread.handler(() => overseer.newBrainThread()),
   openThread: os.openThread.handler(({ input }) => refusing(() => overseer.openBrainThread(input.chatId), 404)),
-  removeThread: os.removeThread.handler(({ input }) => (refusing(() => overseer.removeBrainThread(input.chatId), 404), { ok: true as const })),
+  removeThread: os.removeThread.handler(
+    ({ input }) => (refusing(() => overseer.removeBrainThread(input.chatId), 404), { ok: true as const }),
+  ),
   snapshot: os.snapshot.handler(async () => ({ text: await overseer.snapshot() })),
   pulse: os.pulse.handler(() => overseer.pulse()),
   skills: os.skills.handler(() => ({ skills: brainSkillSlugs() })),

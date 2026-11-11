@@ -8,9 +8,30 @@ import { addBrief, listBriefs } from '../../server/briefs.ts';
 import { resumeInTeam } from '../../server/commands.ts';
 import { admitExecution, readExecution, updateExecution } from '../../server/execution.ts';
 import { finishNativeRun, nativeRunPromise, recoverExecution, restoreNativeRun } from '../../server/engines/index.ts';
-import { attachSession, beginRun, bindSession, readRun, sessionContext, setRunStatus, settleRun } from '../../server/eve/state.ts';
+import {
+  attachSession,
+  beginRun,
+  bindSession,
+  readRun,
+  sessionContext,
+  setRunStatus,
+  settleRun,
+} from '../../server/eve/state.ts';
 import { prepareEveRecovery, stopEveRun } from '../../server/eve/recovery.ts';
-import { clearThread, getThread, isTeamBusy, postUserMessage, queueUserMessage, recoverTeamWork, resumeTeam, setBrainHandlers, stopTeam, teamMessages, teamState, unqueueTeam } from '../../server/teams.ts';
+import {
+  clearThread,
+  getThread,
+  isTeamBusy,
+  postUserMessage,
+  queueUserMessage,
+  recoverTeamWork,
+  resumeTeam,
+  setBrainHandlers,
+  stopTeam,
+  teamMessages,
+  teamState,
+  unqueueTeam,
+} from '../../server/teams.ts';
 import { readRelayWork, readTeamWork, saveRelayWork, saveTeamWork } from '../../server/teamwork.ts';
 import { dataPath, readJSON, writeJSON } from '../../server/util.ts';
 import type { ExecutionRun, SavedTeamWork, Team, TeamMessage } from '../../shared/types.ts';
@@ -20,11 +41,58 @@ function fixture() {
   const agent = newAgent({ name: 'Team reader', engine: 'eve', toolGroups: [] });
   const team = workflows.save({ name: 'Saved team', members: [agent.id], lead: agent.id, steps: [] } as Partial<Team>);
   const chat = chats.create(agent.id, 'Member memory', team.id);
-  const message: TeamMessage = { id: 'original-message', ts: Date.now(), from: 'user', text: 'Original assignment', mentions: [agent.id] };
+  const message: TeamMessage = {
+    id: 'original-message',
+    ts: Date.now(),
+    from: 'user',
+    text: 'Original assignment',
+    mentions: [agent.id],
+  };
   const threadFile = dataPath('projects', project.id, 'teamchats', `${team.id}.json`);
-  writeJSON(threadFile, { messages: [message], sessions: { [agent.id]: chat.id }, seen: { [agent.id]: 0 }, filesSent: {} });
-  const work: SavedTeamWork = { projectId: project.id, teamId: team.id, current: [{ agentId: agent.id, msgIds: [message.id], skills: ['original-skill'], returning: false, delivery: { runId: `member-${agent.id}`, chatId: chat.id, from: 0, readUpto: 1, files: [] } }], queue: [], interrupted: [], held: [], pending: [], assigned: [JSON.stringify([agent.id, message.id])], brain: [], episode: { turns: 1 }, stopped: false, epoch: 0 };
-  const run: ExecutionRun = { id: work.current[0]!.delivery!.runId, projectId: project.id, agentId: agent.id, chatId: chat.id, engine: agent.engine, parentRunId: `team:${project.id}/${team.id}`, ownerChatId: chat.id, ownerAgentId: agent.id, depth: 1, text: 'Member task', from: `team ${team.name}`, attachments: [], startedAt: Date.now(), status: 'running' };
+  writeJSON(threadFile, {
+    messages: [message],
+    sessions: { [agent.id]: chat.id },
+    seen: { [agent.id]: 0 },
+    filesSent: {},
+  });
+  const work: SavedTeamWork = {
+    projectId: project.id,
+    teamId: team.id,
+    current: [
+      {
+        agentId: agent.id,
+        msgIds: [message.id],
+        skills: ['original-skill'],
+        returning: false,
+        delivery: { runId: `member-${agent.id}`, chatId: chat.id, from: 0, readUpto: 1, files: [] },
+      },
+    ],
+    queue: [],
+    interrupted: [],
+    held: [],
+    pending: [],
+    assigned: [JSON.stringify([agent.id, message.id])],
+    brain: [],
+    episode: { turns: 1 },
+    stopped: false,
+    epoch: 0,
+  };
+  const run: ExecutionRun = {
+    id: work.current[0]!.delivery!.runId,
+    projectId: project.id,
+    agentId: agent.id,
+    chatId: chat.id,
+    engine: agent.engine,
+    parentRunId: `team:${project.id}/${team.id}`,
+    ownerChatId: chat.id,
+    ownerAgentId: agent.id,
+    depth: 1,
+    text: 'Member task',
+    from: `team ${team.name}`,
+    attachments: [],
+    startedAt: Date.now(),
+    status: 'running',
+  };
   return { project, agent, team, chat, message, threadFile, work, run };
 }
 
@@ -52,8 +120,16 @@ describe('saved team assignments', () => {
     expect(teamState(own.team.id)).toMatchObject({ working: [own.agent.id], resumable: false });
     expect(readTeamWork(own.project.id, own.team.id)?.current[0]?.delivery).toEqual(own.work.current[0]?.delivery);
     const done = nativeRunPromise(own.run.id)!;
-    const later = readJSON<{ messages: TeamMessage[]; sessions: Record<string, string>; seen: Record<string, number> }>(own.threadFile)!;
-    later.messages.push({ id: 'later-message', from: 'system', text: 'A message arriving while this turn works', ts: Date.now(), mentions: [] });
+    const later = readJSON<{ messages: TeamMessage[]; sessions: Record<string, string>; seen: Record<string, number> }>(
+      own.threadFile,
+    )!;
+    later.messages.push({
+      id: 'later-message',
+      from: 'system',
+      text: 'A message arriving while this turn works',
+      ts: Date.now(),
+      mentions: [],
+    });
     writeJSON(own.threadFile, later);
     const other = await createProject({ name: 'Another open project' });
     await withProject(other, async () => {
@@ -62,7 +138,9 @@ describe('saved team assignments', () => {
       expect(await done).toBe('Native team result');
     });
     await expect.poll(() => withProject(own.project, () => teamState(own.team.id).working.length)).toBe(0);
-    expect(withProject(own.project, () => teamMessages(own.team.id).filter((m) => m.from === own.agent.id))).toMatchObject([{ id: `reply-${own.run.id}`, text: 'Native team result' }]);
+    expect(
+      withProject(own.project, () => teamMessages(own.team.id).filter((m) => m.from === own.agent.id)),
+    ).toMatchObject([{ id: `reply-${own.run.id}`, text: 'Native team result' }]);
     expect(readJSON<{ seen: Record<string, number> }>(own.threadFile)!.seen[own.agent.id]).toBe(1);
     expect(readExecution().runs.filter((run) => run.chatId === own.chat.id)).toHaveLength(1);
     expect(readTeamWork(own.project.id, own.team.id)?.current).toEqual([]);
@@ -80,7 +158,11 @@ describe('saved team assignments', () => {
     settleRun(own.run.id, 'completed', 'One recovered reply');
     finishNativeRun(own.run.id);
     await expect.poll(() => teamState(own.team.id).working.length).toBe(0);
-    expect(teamMessages(own.team.id).filter((m) => m.from === own.agent.id).map((m) => m.text)).toEqual(['One recovered reply']);
+    expect(
+      teamMessages(own.team.id)
+        .filter((m) => m.from === own.agent.id)
+        .map((m) => m.text),
+    ).toEqual(['One recovered reply']);
     expect(readTeamWork(own.project.id, own.team.id)?.interrupted).toEqual(own.work.queue);
     expect(teamState(own.team.id).held).toEqual(own.work.held);
     expect(readExecution().runs.filter((run) => run.chatId === own.chat.id)).toHaveLength(1);
@@ -96,7 +178,9 @@ describe('saved team assignments', () => {
     settleRun(own.run.id, 'failed', '', 'The model disconnected.');
     finishNativeRun(own.run.id);
     await expect.poll(() => teamState(own.team.id).working.length).toBe(0);
-    expect(readJSON<{ seen: Record<string, number>; filesSent: Record<string, string[]> }>(own.threadFile)).toMatchObject({ seen: { [own.agent.id]: 0 }, filesSent: {} });
+    expect(
+      readJSON<{ seen: Record<string, number>; filesSent: Record<string, string[]> }>(own.threadFile),
+    ).toMatchObject({ seen: { [own.agent.id]: 0 }, filesSent: {} });
     expect(teamMessages(own.team.id).find((m) => m.from === own.agent.id)?.text).toContain('hit a problem');
   });
 
@@ -109,7 +193,10 @@ describe('saved team assignments', () => {
     stopTeam(own.team.id);
     finishNativeRun(own.run.id);
     await expect.poll(() => teamState(own.team.id).working.length).toBe(0);
-    expect(readTeamWork(own.project.id, own.team.id)?.interrupted?.map((q) => q.msgIds)).toEqual([[own.message.id], ['paused-earlier']]);
+    expect(readTeamWork(own.project.id, own.team.id)?.interrupted?.map((q) => q.msgIds)).toEqual([
+      [own.message.id],
+      ['paused-earlier'],
+    ]);
     expect(teamMessages(own.team.id).filter((m) => m.from === own.agent.id)).toEqual([]);
     prepareEveRecovery();
     expect(readRun(own.run.id)?.status).toBe('stopped');
@@ -126,7 +213,15 @@ describe('saved team assignments', () => {
 
   it('pauses after a restart without advancing read marks or discarding queued messages', () => {
     const { project, agent, team, threadFile, work, run } = fixture();
-    work.held = [{ id: 'held-message', text: 'Next assignment', attachments: ['notes.txt'], replyTo: 'original-message', ts: Date.now() }];
+    work.held = [
+      {
+        id: 'held-message',
+        text: 'Next assignment',
+        attachments: ['notes.txt'],
+        replyTo: 'original-message',
+        ts: Date.now(),
+      },
+    ];
     saveTeamWork(work);
     admitExecution(run);
     recoverExecution();
@@ -144,10 +239,18 @@ describe('saved team assignments', () => {
     const { project, agent, team, chat, threadFile, work, run } = fixture();
     saveTeamWork(work);
     admitExecution(run);
-    chat.items = [{ type: 'user', text: run.text, runId: run.id }, { type: 'assistant', text: 'Saved result' }];
+    chat.items = [
+      { type: 'user', text: run.text, runId: run.id },
+      { type: 'assistant', text: 'Saved result' },
+    ];
     chats.save(chat);
     // A paused team can collect an answer after the ordinary receipt retention window.
-    updateExecution(run.id, { status: 'completed', answer: 'Saved result', endedAt: Date.now() - 7 * 60 * 60 * 1000, settled: true });
+    updateExecution(run.id, {
+      status: 'completed',
+      answer: 'Saved result',
+      endedAt: Date.now() - 7 * 60 * 60 * 1000,
+      settled: true,
+    });
     recoverTeamWork();
     expect(resumeTeam(team.id)).toBe(1);
     await expect.poll(() => teamState(team.id).working.length).toBe(0);
@@ -162,8 +265,18 @@ describe('saved team assignments', () => {
 
   it('does not duplicate a posted reply when recovery repeats between posting and finishing the assignment', async () => {
     const { agent, team, threadFile, work, run } = fixture();
-    const original = readJSON<{ messages: TeamMessage[]; sessions: Record<string, string>; seen: Record<string, number> }>(threadFile)!;
-    original.messages.push({ id: `reply-${run.id}`, ts: Date.now(), from: agent.id, text: 'Already posted', mentions: [] });
+    const original = readJSON<{
+      messages: TeamMessage[];
+      sessions: Record<string, string>;
+      seen: Record<string, number>;
+    }>(threadFile)!;
+    original.messages.push({
+      id: `reply-${run.id}`,
+      ts: Date.now(),
+      from: agent.id,
+      text: 'Already posted',
+      mentions: [],
+    });
     writeJSON(threadFile, original);
     saveTeamWork(work);
     admitExecution(run);
@@ -183,20 +296,36 @@ describe('saved team assignments', () => {
     recoverTeamWork();
     expect(listBriefs().find((b) => b.id === brief.id)?.status).toBe('stopped');
     const observed: string[] = [];
-    setBrainHandlers({ reply: async () => null, idle: (id) => {
-      if (id === team.id) observed.push(listBriefs().find((b) => b.id === brief.id)!.status);
-    } });
+    setBrainHandlers({
+      reply: async () => null,
+      idle: (id) => {
+        if (id === team.id) observed.push(listBriefs().find((b) => b.id === brief.id)!.status);
+      },
+    });
     try {
       expect(resumeInTeam(team.id)).toEqual({ resumed: true });
       await expect.poll(() => observed.length).toBeGreaterThan(0);
       expect(observed).toEqual(['open']);
-    } finally { setBrainHandlers(null); }
+    } finally {
+      setBrainHandlers(null);
+    }
   });
 
   it('claims a held message once when the process ended after routing but before queue cleanup', async () => {
     const { project, agent, team, work, run } = fixture();
     work.held = [{ id: 'original-message', text: 'Original assignment', ts: Date.now() }];
-    work.pending = [{ id: 'original-message', from: 'user', text: 'Original assignment', replyTo: null, attachments: [], skills: [], to: [agent.id], track: true }];
+    work.pending = [
+      {
+        id: 'original-message',
+        from: 'user',
+        text: 'Original assignment',
+        replyTo: null,
+        attachments: [],
+        skills: [],
+        to: [agent.id],
+        track: true,
+      },
+    ];
     saveTeamWork(work);
     admitExecution(run);
     updateExecution(run.id, { status: 'completed', answer: 'One result', endedAt: Date.now(), settled: true });
@@ -205,29 +334,78 @@ describe('saved team assignments', () => {
     expect(readTeamWork(project.id, team.id)?.pending).toEqual([]);
     expect(resumeTeam(team.id)).toBe(1);
     await expect.poll(() => teamState(team.id).working.length).toBe(0);
-    expect(teamMessages(team.id).filter((m) => m.from === agent.id).map((m) => m.text)).toEqual(['One result']);
+    expect(
+      teamMessages(team.id)
+        .filter((m) => m.from === agent.id)
+        .map((m) => m.text),
+    ).toEqual(['One result']);
     expect(teamMessages(team.id).filter((m) => m.id === 'original-message')).toHaveLength(1);
   });
 
   it('restores a cross-team request and returns its saved result without repeating either delivery', async () => {
     const { project, agent, team, threadFile, work, run } = fixture();
-    const asker = workflows.save({ name: 'Asking team', members: [agent.id], lead: agent.id, steps: [] } as Partial<Team>);
-    const source: TeamMessage = { id: 'cross-team-question', ts: Date.now(), from: 'user', text: '#Saved team please help', mentions: [] };
-    writeJSON(dataPath('projects', project.id, 'teamchats', `${asker.id}.json`), { messages: [source], sessions: {}, seen: {} });
-    const thread = readJSON<{ messages: TeamMessage[]; sessions: Record<string, string>; seen: Record<string, number> }>(threadFile)!;
-    thread.messages[0] = { ...thread.messages[0]!, id: 'forwarded-question', from: `team:${asker.id}`, text: source.text };
+    const asker = workflows.save({
+      name: 'Asking team',
+      members: [agent.id],
+      lead: agent.id,
+      steps: [],
+    } as Partial<Team>);
+    const source: TeamMessage = {
+      id: 'cross-team-question',
+      ts: Date.now(),
+      from: 'user',
+      text: '#Saved team please help',
+      mentions: [],
+    };
+    writeJSON(dataPath('projects', project.id, 'teamchats', `${asker.id}.json`), {
+      messages: [source],
+      sessions: {},
+      seen: {},
+    });
+    const thread = readJSON<{
+      messages: TeamMessage[];
+      sessions: Record<string, string>;
+      seen: Record<string, number>;
+    }>(threadFile)!;
+    thread.messages[0] = {
+      ...thread.messages[0]!,
+      id: 'forwarded-question',
+      from: `team:${asker.id}`,
+      text: source.text,
+    };
     writeJSON(threadFile, thread);
     work.current[0]!.msgIds = ['forwarded-question'];
     work.assigned = [JSON.stringify([agent.id, 'forwarded-question'])];
     saveTeamWork(work);
-    saveRelayWork({ active: [{ id: 'saved-relay', from: asker.id, to: team.id, by: 'user', askId: source.id, postedId: 'forwarded-question', pid: project.id, depth: 1, returning: false, skills: [], deliveries: [{ id: 'forwarded-question', messageId: source.id }] }], closed: [] });
+    saveRelayWork({
+      active: [
+        {
+          id: 'saved-relay',
+          from: asker.id,
+          to: team.id,
+          by: 'user',
+          askId: source.id,
+          postedId: 'forwarded-question',
+          pid: project.id,
+          depth: 1,
+          returning: false,
+          skills: [],
+          deliveries: [{ id: 'forwarded-question', messageId: source.id }],
+        },
+      ],
+      closed: [],
+    });
     admitExecution(run);
     updateExecution(run.id, { status: 'completed', answer: 'Saved team result', endedAt: Date.now(), settled: true });
     recoverTeamWork();
     expect(teamState(asker.id).resumable).toBe(true);
     expect(resumeTeam(team.id)).toBe(2);
     await expect.poll(() => readRelayWork().active.length).toBe(0);
-    expect(teamMessages(asker.id).filter((m) => m.id === 'relay-answer-saved-relay').map((m) => m.text)).toEqual(['Saved team result']);
+    expect(
+      teamMessages(asker.id)
+        .filter((m) => m.id === 'relay-answer-saved-relay')
+        .map((m) => m.text),
+    ).toEqual(['Saved team result']);
     expect(teamState(asker.id).resumable).toBe(false);
     expect(readRelayWork().closed).toContain(JSON.stringify([project.id, asker.id, team.id, source.id]));
     recoverTeamWork();
@@ -250,12 +428,29 @@ describe('saved team assignments', () => {
   it('Stop removes saved queued and routing inputs before stopping members; clear also removes assignments', () => {
     const { project, team, work } = fixture();
     work.held = [{ id: 'held-stop', text: 'Queued', ts: Date.now() }];
-    work.pending = [{ id: 'routing-stop', from: 'user', text: 'Routing', replyTo: null, attachments: [], skills: [], to: [], track: true }];
+    work.pending = [
+      {
+        id: 'routing-stop',
+        from: 'user',
+        text: 'Routing',
+        replyTo: null,
+        attachments: [],
+        skills: [],
+        to: [],
+        track: true,
+      },
+    ];
     saveTeamWork(work);
     stopTeam(team.id);
     expect(readTeamWork(project.id, team.id)).toMatchObject({ held: [], pending: [], stopped: true });
     clearThread(team.id);
-    expect(readTeamWork(project.id, team.id)).toMatchObject({ held: [], pending: [], interrupted: [], current: [], queue: [] });
+    expect(readTeamWork(project.id, team.id)).toMatchObject({
+      held: [],
+      pending: [],
+      interrupted: [],
+      current: [],
+      queue: [],
+    });
     expect(getThread(team.id).resumable).toBe(false);
     expect(teamMessages(team.id)).toEqual([]);
   });
@@ -263,21 +458,42 @@ describe('saved team assignments', () => {
   it('recovers a pending Brain message from its posted answer without asking the Brain again', async () => {
     const { team, threadFile, work } = fixture();
     work.current = [];
-    const msg: TeamMessage = { id: 'question-for-brain', ts: Date.now(), from: 'user', text: '@Brain check this', mentions: [] };
+    const msg: TeamMessage = {
+      id: 'question-for-brain',
+      ts: Date.now(),
+      from: 'user',
+      text: '@Brain check this',
+      mentions: [],
+    };
     work.brain = [msg];
     const thread = readJSON<{ messages: TeamMessage[] }>(threadFile)!;
-    thread.messages.push(msg, { id: `brain-${msg.id}`, ts: Date.now(), from: 'brain', text: 'Saved Brain answer', mentions: [], replyTo: msg.id });
+    thread.messages.push(msg, {
+      id: `brain-${msg.id}`,
+      ts: Date.now(),
+      from: 'brain',
+      text: 'Saved Brain answer',
+      mentions: [],
+      replyTo: msg.id,
+    });
     writeJSON(threadFile, thread);
     saveTeamWork(work);
     let asked = 0;
-    setBrainHandlers({ reply: async () => { asked++; return 'New answer'; }, idle: () => {} });
+    setBrainHandlers({
+      reply: async () => {
+        asked++;
+        return 'New answer';
+      },
+      idle: () => {},
+    });
     try {
       recoverTeamWork();
       expect(resumeTeam(team.id)).toBe(1);
       await expect.poll(() => teamState(team.id).working.length).toBe(0);
       expect(asked).toBe(0);
       expect(teamMessages(team.id).filter((m) => m.id === `brain-${msg.id}`)).toHaveLength(1);
-    } finally { setBrainHandlers(null); }
+    } finally {
+      setBrainHandlers(null);
+    }
   });
 
   it('survives an independent process ending during routing without posting the original twice', () => {
@@ -307,7 +523,9 @@ describe('saved team assignments', () => {
     workflows.save({ ...team, lead: null });
     const controller = new AbortController();
     let pick = (_id: string) => {};
-    const routed = new Promise<string>((resolve) => { pick = resolve; });
+    const routed = new Promise<string>((resolve) => {
+      pick = resolve;
+    });
     const pending = postUserMessage(team.id, 'Choose a member', { route: () => routed, signal: controller.signal });
     expect(isTeamBusy(team.id)).toBe(true);
     expect(await queueUserMessage(team.id, 'Wait for routing')).toHaveProperty('queued');

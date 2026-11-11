@@ -15,26 +15,57 @@ import { BUILD_ORDER, DIORAMA, DIORAMA_TINY } from './diorama.ts';
 import { requestLook } from './look.ts';
 import { exportFiles, importVox, writeFiles, writePicture } from './exchange.ts';
 import { objectMap } from './describe.ts';
-import { changePrefab, deletePrefab, importPrefab, libraryEntryFor, libraryList, prefabList, publishPrefab, savePrefabFrom } from './prefabs.ts';
+import {
+  changePrefab,
+  deletePrefab,
+  importPrefab,
+  libraryEntryFor,
+  libraryList,
+  prefabList,
+  publishPrefab,
+  savePrefabFrom,
+} from './prefabs.ts';
 import { copiesByOthers, materialUsers, othersText, redefinedInScript, redefinedInSteps } from './reach.ts';
 import { shownWorld } from './link.ts';
 import { worldInfo } from './describe.ts';
-import { KEEP_WORLD_MD, readWorldMd, worldMdStamp, writeWorldMd, writeWorldMdSection, worldMdContext } from './worldmd.ts';
+import {
+  KEEP_WORLD_MD,
+  readWorldMd,
+  worldMdStamp,
+  writeWorldMd,
+  writeWorldMdSection,
+  worldMdContext,
+} from './worldmd.ts';
 import type { JSONSchema, Risk, ToolArgs, ToolContext, ToolDef, ToolResult, ToolRunInfo, ToolAgent } from '../tools.ts';
 import type { VoxelWorld, WorldBuilder, WorldLookView } from '../../shared/types.ts';
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
-type Gate = (agent: ToolAgent, name: string, risk: Risk, args: ToolArgs, ctx?: ToolRunInfo, detail?: string | null) => Promise<ToolResult | null>;
+type Gate = (
+  agent: ToolAgent,
+  name: string,
+  risk: Risk,
+  args: ToolArgs,
+  ctx?: ToolRunInfo,
+  detail?: string | null,
+) => Promise<ToolResult | null>;
 
 const str = (description: string): JSONSchema => ({ type: 'string', description });
 const num = (description: string): JSONSchema => ({ type: 'number', description });
 const vec = (description: string): JSONSchema => ({ type: 'array', items: { type: 'number' }, description });
-const oneOf = (values: readonly string[], description?: string): JSONSchema => ({ type: 'string', enum: [...values], ...(description ? { description } : {}) });
+const oneOf = (values: readonly string[], description?: string): JSONSchema => ({
+  type: 'string',
+  enum: [...values],
+  ...(description ? { description } : {}),
+});
 const ANCHOR = 'world, brain, team:<id> or agent:<id>';
 const PIN = 'Pin it to an object (name or id): position is then from it';
 const LOOK_TARGETS: WorldLookView['target'][] = ['overview', 'brain', 'team', 'agent', 'object', 'prefab'];
-const obj = (properties: Record<string, JSONSchema>, required: string[] = []): JSONSchema => ({ type: 'object', properties, ...(required.length ? { required } : {}) });
+const obj = (properties: Record<string, JSONSchema>, required: string[] = []): JSONSchema => ({
+  type: 'object',
+  properties,
+  ...(required.length ? { required } : {}),
+});
 const builderOf = (ctx: ToolContext): WorldBuilder => ({ kind: 'agent', id: ctx.agent.id, name: ctx.agent.name });
 const failed = (e: unknown): ToolResult => ({ text: e instanceof Error ? e.message : String(e), isError: true });
 
@@ -74,7 +105,8 @@ export function voxelLookRequest(ctx: ToolContext): ApprovalRequest {
   return {
     kind: 'setting',
     title: `${agent.name} wants to see the voxel world`,
-    detail: 'The Station is in the classic look, which doesn\'t draw the world your agents build. Turn on the voxel look (Settings › Appearance › Station look) so they can look at their work? It shows the world on the Station in every project and uses more graphics power; Settings › Appearance switches it back.',
+    detail:
+      "The Station is in the classic look, which doesn't draw the world your agents build. Turn on the voxel look (Settings › Appearance › Station look) so they can look at their work? It shows the world on the Station in every project and uses more graphics power; Settings › Appearance switches it back.",
     agentId: agent.id,
     agentName: agent.name,
     data: { setting: 'stationLook', value: 'world', allow: 'Turn on the voxel look', runId: ctx.runId },
@@ -83,8 +115,8 @@ export function voxelLookRequest(ctx: ToolContext): ApprovalRequest {
 
 let askingForLook: Promise<boolean> | null = null;
 function askForVoxelLook(ctx: ToolContext): Promise<boolean> {
-  const ask = () => (ctx.approvalDecision || requestApproval)(voxelLookRequest(ctx))
-    .then((d) => {
+  const ask = () =>
+    (ctx.approvalDecision || requestApproval)(voxelLookRequest(ctx)).then((d) => {
       if (d.approved) {
         saveSettings({ look: { stationLook: 'world' } });
         log('settings', `Turned on the voxel look for ${ctx.agent.name}`, { agentId: ctx.agent.id });
@@ -113,26 +145,43 @@ interface WorldApprovalCheck {
   request?: ApprovalRequest;
 }
 
-function othersCheck(ctx: ToolContext, ref: unknown, doing: string, kind: 'object' | 'prefab' = 'object'): WorldApprovalCheck | null {
+function othersCheck(
+  ctx: ToolContext,
+  ref: unknown,
+  doing: string,
+  kind: 'object' | 'prefab' = 'object',
+): WorldApprovalCheck | null {
   const shown = shownWorld();
   if (!shown.world || shown.how === 'carried') return null;
   const target = kind === 'prefab' ? findPrefab(shown.world, ref) : findObject(shown.world, ref);
   if (!target || ownsObject(builderOf(ctx), target)) return null;
-  return { name: 'world_change_others', risk: 'high', detail: `${ctx.agent.name} wants to ${doing} "${target.name}", which ${target.by.name} built.`, scope: { worldId: shown.world.id, kind, id: target.id, by: target.by } };
+  return {
+    name: 'world_change_others',
+    risk: 'high',
+    detail: `${ctx.agent.name} wants to ${doing} "${target.name}", which ${target.by.name} built.`,
+    scope: { worldId: shown.world.id, kind, id: target.id, by: target.by },
+  };
 }
 
 // The palette is the whole world's: changing a material others built with changes their builds too.
 function paletteCheck(ctx: ToolContext, args: ToolArgs, script: boolean): WorldApprovalCheck | null {
   const shown = shownWorld();
   if (!shown.world || shown.how === 'carried') return null;
-  const names = script ? redefinedInScript(shown.world.palette, args.code) : redefinedInSteps(shown.world.palette, args.steps);
+  const names = script
+    ? redefinedInScript(shown.world.palette, args.code)
+    : redefinedInSteps(shown.world.palette, args.steps);
   const users = materialUsers(shown.world, builderOf(ctx), names);
   if (!users.size) return null;
   const list = [...users.keys()].sort();
   const work = [...new Map([...users.values()].flat().map((x) => [x.where, x])).values()];
   const by = [...new Map(work.map((x) => [`${x.by.kind}:${x.by.id || x.by.name}`, x.by])).values()];
   const them = list.length > 1 ? 'them' : 'it';
-  return { name: 'world_change_others', risk: 'high', detail: `${ctx.agent.name} wants to change the material${list.length > 1 ? 's' : ''} ${list.map((n) => `"${n}"`).join(', ')}, which other builders used too: ${othersText(work)}. Everything made of ${them} would change.`, scope: { worldId: shown.world.id, kind: 'material', materials: list, by } };
+  return {
+    name: 'world_change_others',
+    risk: 'high',
+    detail: `${ctx.agent.name} wants to change the material${list.length > 1 ? 's' : ''} ${list.map((n) => `"${n}"`).join(', ')}, which other builders used too: ${othersText(work)}. Everything made of ${them} would change.`,
+    scope: { worldId: shown.world.id, kind: 'material', materials: list, by },
+  };
 }
 
 // A prefab's copies stand in other builders' work: rebuilding it changes every copy.
@@ -145,7 +194,12 @@ function copiesCheck(ctx: ToolContext, ref: unknown): WorldApprovalCheck | null 
   const work = copiesByOthers(shown.world, builderOf(ctx), p.id);
   if (!work.length) return null;
   const by = [...new Map(work.map((x) => [`${x.by.kind}:${x.by.id || x.by.name}`, x.by])).values()];
-  return { name: 'world_change_others', risk: 'high', detail: `${ctx.agent.name} wants to change the prefab "${p.name}", which other builders placed copies of: ${othersText(work)}. Every copy would change.`, scope: { worldId: shown.world.id, kind: 'prefab-copies', id: p.id, by } };
+  return {
+    name: 'world_change_others',
+    risk: 'high',
+    detail: `${ctx.agent.name} wants to change the prefab "${p.name}", which other builders placed copies of: ${othersText(work)}. Every copy would change.`,
+    scope: { worldId: shown.world.id, kind: 'prefab-copies', id: p.id, by },
+  };
 }
 
 // Publishing under a name already in the library replaces that entry: someone else's asks first.
@@ -154,18 +208,38 @@ function publishCheck(ctx: ToolContext, ref: unknown): WorldApprovalCheck | null
   const p = w ? findPrefab(w, ref) : null;
   const e = p ? libraryEntryFor(p.name, builderOf(ctx)) : null;
   if (!p || !e || e.mine) return null;
-  return { name: 'world_change_others', risk: 'high', detail: `${ctx.agent.name} wants to publish "${p.name}" to the prefab library, which replaces the "${e.name}" that ${e.by} published there.`, scope: { kind: 'library', id: e.id, by: e.by } };
+  return {
+    name: 'world_change_others',
+    risk: 'high',
+    detail: `${ctx.agent.name} wants to publish "${p.name}" to the prefab library, which replaces the "${e.name}" that ${e.by} published there.`,
+    scope: { kind: 'library', id: e.id, by: e.by },
+  };
 }
 
 /** Refuses a build that changes a material other builders used when the user wasn't asked about it
  *  (a script can name one in a way that can't be read before it runs). */
-function materialGuard(ctx: ToolContext, asked: WorldApprovalCheck[], script: boolean): ((w: VoxelWorld, changed: string[]) => void) | undefined {
+function materialGuard(
+  ctx: ToolContext,
+  asked: WorldApprovalCheck[],
+  script: boolean,
+): ((w: VoxelWorld, changed: string[]) => void) | undefined {
   if (shownWorld().how === 'carried') return undefined;
-  const ok = new Set(asked.flatMap((c) => (c.scope?.kind === 'material' && Array.isArray(c.scope.materials) ? c.scope.materials.map(String) : [])));
+  const ok = new Set(
+    asked.flatMap((c) =>
+      c.scope?.kind === 'material' && Array.isArray(c.scope.materials) ? c.scope.materials.map(String) : [],
+    ),
+  );
   return (w, changed) => {
-    const users = materialUsers(w, builderOf(ctx), changed.filter((n) => !ok.has(n)));
+    const users = materialUsers(
+      w,
+      builderOf(ctx),
+      changed.filter((n) => !ok.has(n)),
+    );
     const [name, work] = [...users][0] || [];
-    if (name && work) throw new BuildError(`It would change the material "${name}", which other builders used too (${othersText(work)}). ${script ? `Write its name out in the code, like material("${name}", …), so the user can be asked` : 'Call again so the user can be asked'}, or give your material a new name.`);
+    if (name && work)
+      throw new BuildError(
+        `It would change the material "${name}", which other builders used too (${othersText(work)}). ${script ? `Write its name out in the code, like material("${name}", …), so the user can be asked` : 'Call again so the user can be asked'}, or give your material a new name.`,
+      );
   };
 }
 
@@ -173,13 +247,27 @@ function skinCheck(ctx: ToolContext, args: ToolArgs): WorldApprovalCheck | null 
   const { to, id, hidden } = args;
   if (to !== 'agent' && to !== 'team' && to !== 'brain') return null;
   const target = skinTarget(to, to === 'agent' ? String(id || ctx.agent.id) : typeof id === 'string' ? id : undefined);
-  const mine = to === 'agent' ? target.id === ctx.agent.id : to === 'team' ? (workflows.get(target.id)?.members || []).includes(ctx.agent.id) : false;
-  return mine ? null : { name: 'world_skin_others', risk: 'high', detail: `${ctx.agent.name} wants to change how ${target.name} looks in the voxel world${hidden === true ? ' (take it off the map)' : ''}.`, scope: { worldId: shownWorld().world?.id || null, kind: to, id: target.id } };
+  const mine =
+    to === 'agent'
+      ? target.id === ctx.agent.id
+      : to === 'team'
+        ? (workflows.get(target.id)?.members || []).includes(ctx.agent.id)
+        : false;
+  return mine
+    ? null
+    : {
+        name: 'world_skin_others',
+        risk: 'high',
+        detail: `${ctx.agent.name} wants to change how ${target.name} looks in the voxel world${hidden === true ? ' (take it off the map)' : ''}.`,
+        scope: { worldId: shownWorld().world?.id || null, kind: to, id: target.id },
+      };
 }
 
 /** A build's ownership checks: whose object or prefab it is, whose copies of it stand elsewhere, whose materials it changes. */
 function buildChecks(args: ToolArgs, ctx: ToolContext): WorldApprovalCheck[] {
-  const own = args.prefab ? othersCheck(ctx, args.prefab, 'change the prefab', 'prefab') : othersCheck(ctx, args.object, 'change');
+  const own = args.prefab
+    ? othersCheck(ctx, args.prefab, 'change the prefab', 'prefab')
+    : othersCheck(ctx, args.object, 'change');
   const copies = args.prefab ? copiesCheck(ctx, args.prefab) : null;
   // (a call with code is a script: world_script became world_build's "code")
   const script = typeof args.code === 'string' && args.code !== '';
@@ -190,7 +278,8 @@ function buildChecks(args: ToolArgs, ctx: ToolContext): WorldApprovalCheck[] {
 export function worldApprovalChecks(name: string, args: ToolArgs, ctx: ToolContext): WorldApprovalCheck[] {
   let check: WorldApprovalCheck | null = null;
   switch (name) {
-    case 'world_build': case 'world_script':
+    case 'world_build':
+    case 'world_script':
       return buildChecks(args, ctx);
     case 'world_object':
       if (args.duplicate !== true && args.delete !== true) check = othersCheck(ctx, args.object, 'change');
@@ -201,20 +290,37 @@ export function worldApprovalChecks(name: string, args: ToolArgs, ctx: ToolConte
       if (args.action === 'publish') check = publishCheck(ctx, args.prefab);
       break;
     case 'world_animate':
-      if (args.action === 'set' || args.action === 'remove') check = othersCheck(ctx, args.prefab, 'change the animations of', 'prefab');
+      if (args.action === 'set' || args.action === 'remove')
+        check = othersCheck(ctx, args.prefab, 'change the animations of', 'prefab');
       break;
     case 'world_skin':
-      try { check = skinCheck(ctx, args); } catch { /* invalid targets fail in the tool */ }
+      try {
+        check = skinCheck(ctx, args);
+      } catch {
+        /* invalid targets fail in the tool */
+      }
       break;
     case 'world_look': {
       const world = shownWorld().world;
       const target = args.target || 'overview';
-      if (!world || getSettings().look.stationLook === 'world' || !LOOK_TARGETS.includes(String(target) as WorldLookView['target'])) break;
+      if (
+        !world ||
+        getSettings().look.stationLook === 'world' ||
+        !LOOK_TARGETS.includes(String(target) as WorldLookView['target'])
+      )
+        break;
       try {
-        if (target === 'team' || target === 'agent') skinTarget(target, String(args.name || (target === 'agent' ? ctx.agent.id : '')));
-        if (target === 'object' && !findObject(world, args.name) || target === 'prefab' && !findPrefab(world, args.name)) break;
+        if (target === 'team' || target === 'agent')
+          skinTarget(target, String(args.name || (target === 'agent' ? ctx.agent.id : '')));
+        if (
+          (target === 'object' && !findObject(world, args.name)) ||
+          (target === 'prefab' && !findPrefab(world, args.name))
+        )
+          break;
         check = { risk: 'high', request: voxelLookRequest(ctx) };
-      } catch { /* invalid targets fail in the tool */ }
+      } catch {
+        /* invalid targets fail in the tool */
+      }
       break;
     }
   }
@@ -223,14 +329,33 @@ export function worldApprovalChecks(name: string, args: ToolArgs, ctx: ToolConte
 
 export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
   // asks first when an agent changes what someone else built (the Brain and you never need to)
-  const othersFirst = async (ctx: ToolContext, args: ToolArgs, ref: unknown, doing: string, kind: 'object' | 'prefab' = 'object'): Promise<ToolResult | null> => {
+  const othersFirst = async (
+    ctx: ToolContext,
+    args: ToolArgs,
+    ref: unknown,
+    doing: string,
+    kind: 'object' | 'prefab' = 'object',
+  ): Promise<ToolResult | null> => {
     const check = othersCheck(ctx, ref, doing, kind);
-    return check ? gate(ctx.agent, check.name!, check.risk, args, { ...ctx, approvalScope: check.scope }, check.detail) : null;
+    return check
+      ? gate(ctx.agent, check.name!, check.risk, args, { ...ctx, approvalScope: check.scope }, check.detail)
+      : null;
   };
   // asks about each check in turn; the first no stops there
-  const checksFirst = async (ctx: ToolContext, args: ToolArgs, checks: WorldApprovalCheck[]): Promise<ToolResult | null> => {
+  const checksFirst = async (
+    ctx: ToolContext,
+    args: ToolArgs,
+    checks: WorldApprovalCheck[],
+  ): Promise<ToolResult | null> => {
     for (const check of checks) {
-      const refused = await gate(ctx.agent, check.name!, check.risk, args, { ...ctx, approvalScope: check.scope }, check.detail);
+      const refused = await gate(
+        ctx.agent,
+        check.name!,
+        check.risk,
+        args,
+        { ...ctx, approvalScope: check.scope },
+        check.detail,
+      );
       if (refused) return refused;
     }
     return null;
@@ -241,9 +366,15 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_info',
       group: 'world',
       risk: 'none',
-      description: "The voxel world in words: every object and prefab (who built it, where, how big), the look, recent changes, the map's layout (the Brain, team platforms, your plot) and what to keep clear. Call it before building.",
-      parameters: obj({ map: str('An object or prefab to map from above'), voxel_size: num('With map: which of its voxel sizes') }),
-      run: async ({ map, voxel_size }: { map?: string; voxel_size?: number }, ctx) => ({ text: worldInfo({ agentId: ctx.agent.id, map, size: voxel_size }) }),
+      description:
+        "The voxel world in words: every object and prefab (who built it, where, how big), the look, recent changes, the map's layout (the Brain, team platforms, your plot) and what to keep clear. Call it before building.",
+      parameters: obj({
+        map: str('An object or prefab to map from above'),
+        voxel_size: num('With map: which of its voxel sizes'),
+      }),
+      run: async ({ map, voxel_size }: { map?: string; voxel_size?: number }, ctx) => ({
+        text: worldInfo({ agentId: ctx.agent.id, map, size: voxel_size }),
+      }),
     },
     {
       name: 'world_build',
@@ -257,7 +388,10 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
         code: str('Or JavaScript instead of steps'),
         description: str('Prefab: one line on what it is'),
         tags: { type: 'array', items: { type: 'string' }, description: 'Prefab: words to find it by' },
-        pivot: { description: 'Prefab: the point it turns around: "bottom" (default), "top" (an arm hangs from it), "center" or [x, y, z]' },
+        pivot: {
+          description:
+            'Prefab: the point it turns around: "bottom" (default), "top" (an arm hangs from it), "center" or [x, y, z]',
+        },
         anchor: str(`New object: ${ANCHOR} (default world)`),
         position: vec('New object: [x, y, z] map units from the anchor'),
         voxel_size: num("Starting voxel size (default: the world's, usually 0.25)"),
@@ -268,25 +402,66 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       // (it never took steps: any it was sent were ignored, so they still are)
       aliases: [{ name: 'world_script', args: ({ steps: _ignored, ...rest }) => rest }],
       run: async (args, ctx) => {
-        const a = args as { object?: string; prefab?: string; description?: unknown; tags?: unknown; pivot?: unknown; steps?: unknown; code?: unknown; anchor?: unknown; position?: unknown; voxel_size?: unknown; units?: unknown; seed?: unknown };
+        const a = args as {
+          object?: string;
+          prefab?: string;
+          description?: unknown;
+          tags?: unknown;
+          pivot?: unknown;
+          steps?: unknown;
+          code?: unknown;
+          anchor?: unknown;
+          position?: unknown;
+          voxel_size?: unknown;
+          units?: unknown;
+          seed?: unknown;
+        };
         // some models send every field, empty: those don't count
         const given = (v: unknown) => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && !v.length);
         const code = given(a.code);
         if (code && given(a.steps)) return { text: 'Give "steps" or "code", not both.', isError: true };
-        if (!code && !given(a.steps)) return { text: 'Give "steps" (a list of build steps) or "code" (a JavaScript program).', isError: true };
+        if (!code && !given(a.steps))
+          return { text: 'Give "steps" (a list of build steps) or "code" (a JavaScript program).', isError: true };
         const checks = buildChecks(args, ctx);
         const refused = await checksFirst(ctx, args, checks);
         if (refused) return refused;
         try {
-          const target = { by: builderOf(ctx), object: a.object, prefab: a.prefab, description: a.description, tags: a.tags, pivot: a.pivot, anchor: a.anchor, position: a.position, voxelSize: a.voxel_size };
+          const target = {
+            by: builderOf(ctx),
+            object: a.object,
+            prefab: a.prefab,
+            description: a.description,
+            tags: a.tags,
+            pivot: a.pivot,
+            anchor: a.anchor,
+            position: a.position,
+            voxelSize: a.voxel_size,
+          };
           let printed: string[] = [];
           let r: ReturnType<typeof build>;
           if (code) {
             const qjs = await loadSandbox();
             const seed = a.seed === undefined ? 1 : Math.round(Number(a.seed)) || 1;
-            r = build({ ...target, steps: [], drive: (api) => void (printed = runScript(qjs, String(a.code ?? ''), api, seed).log), seed, materialsOk: materialGuard(ctx, checks, true) });
-          } else r = build({ ...target, steps: a.steps, units: a.units, seed: a.seed, materialsOk: materialGuard(ctx, checks, false) });
-          log('world', `${ctx.agent.name} ${r.created ? 'built' : 'changed'} ${r.kind === 'prefab' ? 'the prefab ' : ''}"${r.object.name}" in the world${code ? ' with a script' : ''}`, { agentId: ctx.agent.id });
+            r = build({
+              ...target,
+              steps: [],
+              drive: (api) => void (printed = runScript(qjs, String(a.code ?? ''), api, seed).log),
+              seed,
+              materialsOk: materialGuard(ctx, checks, true),
+            });
+          } else
+            r = build({
+              ...target,
+              steps: a.steps,
+              units: a.units,
+              seed: a.seed,
+              materialsOk: materialGuard(ctx, checks, false),
+            });
+          log(
+            'world',
+            `${ctx.agent.name} ${r.created ? 'built' : 'changed'} ${r.kind === 'prefab' ? 'the prefab ' : ''}"${r.object.name}" in the world${code ? ' with a script' : ''}`,
+            { agentId: ctx.agent.id },
+          );
           return { text: `${r.text}${printed.length ? `\nThe script's log:\n${printed.join('\n')}` : ''}` };
         } catch (e) {
           return failed(e instanceof BuildError ? new Error(`Nothing was built. ${e.message}`) : e);
@@ -297,13 +472,18 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_steps',
       group: 'world',
       risk: 'none',
-      description: "The full build reference, by topic: every step, option and function, stock materials, characters and animations. Look here before using anything world_build doesn't show.",
+      description:
+        "The full build reference, by topic: every step, option and function, stock materials, characters and animations. Look here before using anything world_build doesn't show.",
       parameters: obj({ topic: oneOf([...Object.keys(STEP_TOPICS), 'all']) }),
       run: async ({ topic }: { topic?: string }) => {
-        const t = String(topic || 'all').trim().toLowerCase();
+        const t = String(topic || 'all')
+          .trim()
+          .toLowerCase();
         if (t === 'all') return { text: Object.values(STEP_TOPICS).join('\n\n') };
         const text = STEP_TOPICS[t];
-        return text ? { text } : { text: `No topic "${topic}". Topics: ${Object.keys(STEP_TOPICS).join(', ')}, or "all".`, isError: true };
+        return text
+          ? { text }
+          : { text: `No topic "${topic}". Topics: ${Object.keys(STEP_TOPICS).join(', ')}, or "all".`, isError: true };
       },
     },
     {
@@ -311,7 +491,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       group: 'world',
       // deleting is high; changing someone else's object asks too (see run)
       risk: ({ delete: del }: { delete?: boolean }) => (del === true ? 'high' : 'low'),
-      description: 'Move, turn, scale, rename, hide, copy, re-anchor or delete an object in the voxel world. Only the fields you give change. world_undo brings a deleted one back.',
+      description:
+        'Move, turn, scale, rename, hide, copy, re-anchor or delete an object in the voxel world. Only the fields you give change. world_undo brings a deleted one back.',
       parameters: obj(
         {
           object: str('Name or id'),
@@ -336,7 +517,19 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
         }
         try {
           // only the tool's own fields: which project's world it changes is never the model's to pick
-          const r = changeObject({ by: builderOf(ctx), object: String(a.object ?? ''), name: a.name, position: a.position, move: a.move, rotation: a.rotation, scale: a.scale, anchor: a.anchor, hidden: a.hidden, duplicate: a.duplicate, delete: a.delete });
+          const r = changeObject({
+            by: builderOf(ctx),
+            object: String(a.object ?? ''),
+            name: a.name,
+            position: a.position,
+            move: a.move,
+            rotation: a.rotation,
+            scale: a.scale,
+            anchor: a.anchor,
+            hidden: a.hidden,
+            duplicate: a.duplicate,
+            delete: a.delete,
+          });
           log('world', `${ctx.agent.name}: ${r.text.split('.')[0]}`, { agentId: ctx.agent.id });
           return { text: r.text };
         } catch (e) {
@@ -348,7 +541,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_undo',
       group: 'world',
       risk: 'low',
-      description: "Undo your last change in the voxel world (a build, a move, a delete); call again to go further back. It won't undo over someone else's later change.",
+      description:
+        "Undo your last change in the voxel world (a build, a move, a delete); call again to go further back. It won't undo over someone else's later change.",
       parameters: obj({}),
       run: async (_args, ctx) => {
         try {
@@ -362,13 +556,17 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_prefab',
       group: 'world',
       risk: ({ action }: { action?: string }) => (action === 'delete' ? 'high' : 'low'),
-      description: 'Prefabs: small models made once and placed many times. "list": this world\'s, where each is used. "save": one from an object or a box of it. "change". "delete": only when no copy is placed. "publish": to the library every world shares (replacing someone else\'s entry asks first). "library": search it. "import": take one from it. Build new ones with world_build "prefab".',
+      description:
+        'Prefabs: small models made once and placed many times. "list": this world\'s, where each is used. "save": one from an object or a box of it. "change". "delete": only when no copy is placed. "publish": to the library every world shares (replacing someone else\'s entry asks first). "library": search it. "import": take one from it. Build new ones with world_build "prefab".',
       parameters: obj(
         {
           action: oneOf(['list', 'save', 'change', 'delete', 'publish', 'library', 'import']),
           prefab: str('The prefab (name or id); save, import: the new name'),
           from: str('save: the object to take it from'),
-          box: { type: 'object', description: 'save: {"min": [x, y, z], "max": [x, y, z]} map units from its origin (default: all of it)' },
+          box: {
+            type: 'object',
+            description: 'save: {"min": [x, y, z], "max": [x, y, z]} map units from its origin (default: all of it)',
+          },
           replace: { type: 'boolean', description: 'save: leave a copy of it where that part was' },
           name: str('change: a new name; import: the library prefab to take'),
           description: str('save, change: one line on what it is'),
@@ -379,7 +577,17 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
         ['action'],
       ),
       run: async (args, ctx) => {
-        const a = args as { action?: string; prefab?: string; from?: string; box?: unknown; replace?: boolean; name?: string; description?: unknown; tags?: unknown; query?: string };
+        const a = args as {
+          action?: string;
+          prefab?: string;
+          from?: string;
+          box?: unknown;
+          replace?: boolean;
+          name?: string;
+          description?: unknown;
+          tags?: unknown;
+          query?: string;
+        };
         const by = builderOf(ctx);
         try {
           const w = shownWorld().world;
@@ -393,12 +601,31 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
                 const refused = await othersFirst(ctx, args, a.from, 'change');
                 if (refused) return refused;
               }
-              return { text: savePrefabFrom({ by, name: String(a.prefab || a.name || ''), from: String(a.from || ''), box: a.box, description: a.description, tags: a.tags, replace: a.replace === true }).text };
+              return {
+                text: savePrefabFrom({
+                  by,
+                  name: String(a.prefab || a.name || ''),
+                  from: String(a.from || ''),
+                  box: a.box,
+                  description: a.description,
+                  tags: a.tags,
+                  replace: a.replace === true,
+                }).text,
+              };
             }
             case 'change': {
               const refused = await othersFirst(ctx, args, a.prefab, 'change the prefab', 'prefab');
               if (refused) return refused;
-              return { text: changePrefab({ by, prefab: String(a.prefab || ''), name: a.name, description: a.description, tags: a.tags, pivot: (a as { pivot?: unknown }).pivot }).text };
+              return {
+                text: changePrefab({
+                  by,
+                  prefab: String(a.prefab || ''),
+                  name: a.name,
+                  description: a.description,
+                  tags: a.tags,
+                  pivot: (a as { pivot?: unknown }).pivot,
+                }).text,
+              };
             }
             case 'delete':
               return { text: deletePrefab({ by, prefab: String(a.prefab || '') }) };
@@ -409,9 +636,18 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
               return { text: publishPrefab({ by, prefab: String(a.prefab || '') }) };
             }
             case 'import':
-              return { text: importPrefab({ by, name: String(a.name || a.prefab || ''), as: a.name && a.prefab ? a.prefab : undefined }).text };
+              return {
+                text: importPrefab({
+                  by,
+                  name: String(a.name || a.prefab || ''),
+                  as: a.name && a.prefab ? a.prefab : undefined,
+                }).text,
+              };
             default:
-              return { text: 'action is "list", "save", "change", "delete", "publish", "library" or "import".', isError: true };
+              return {
+                text: 'action is "list", "save", "change", "delete", "publish", "library" or "import".',
+                isError: true,
+              };
           }
         } catch (e) {
           return failed(e);
@@ -443,7 +679,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       ),
       run: async (args, ctx) => {
         const { action, light, ...fields } = args as Record<string, unknown> & { action?: string; light?: string };
-        if (action !== 'add' && action !== 'change' && action !== 'remove') return { text: 'action is "add", "change" or "remove".', isError: true };
+        if (action !== 'add' && action !== 'change' && action !== 'remove')
+          return { text: 'action is "add", "change" or "remove".', isError: true };
         try {
           return { text: setLight({ by: builderOf(ctx), action, light, fields }).text };
         } catch (e) {
@@ -474,7 +711,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       ),
       run: async (args, ctx) => {
         const { action, effect, ...fields } = args as Record<string, unknown> & { action?: string; effect?: string };
-        if (action !== 'add' && action !== 'change' && action !== 'remove') return { text: 'action is "add", "change" or "remove".', isError: true };
+        if (action !== 'add' && action !== 'change' && action !== 'remove')
+          return { text: 'action is "add", "change" or "remove".', isError: true };
         try {
           return { text: setEffect({ by: builderOf(ctx), action, effect, fields }).text };
         } catch (e) {
@@ -486,7 +724,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_environment',
       group: 'world',
       risk: 'low',
-      description: 'The voxel world\'s time of day, sky, sun, fog, weather and wind: a preset, then any part, e.g. {"preset": "dusk", "sun": {"elevation": 8}, "weather": "snow"}. Match WORLD.md.',
+      description:
+        'The voxel world\'s time of day, sky, sun, fog, weather and wind: a preset, then any part, e.g. {"preset": "dusk", "sun": {"elevation": 8}, "weather": "snow"}. Match WORLD.md.',
       parameters: obj({
         preset: oneOf(Object.keys(ENV_PRESETS)),
         sky: { type: 'object', description: '{top, horizon, bottom}: #rrggbb' },
@@ -511,7 +750,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_look',
       group: 'world',
       risk: 'none',
-      description: 'A picture of the voxel world, or of one thing in it (the Brain, a team, an agent, an object, a prefab on its own), from any angle. Look after you build, and fix what looks wrong.',
+      description:
+        'A picture of the voxel world, or of one thing in it (the Brain, a team, an agent, an object, a prefab on its own), from any angle. Look after you build, and fix what looks wrong.',
       parameters: obj({
         target: oneOf(LOOK_TARGETS, 'Default overview'),
         name: str('The team, agent, object or prefab (name or id)'),
@@ -526,7 +766,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
         const w = shown.world;
         if (!w) return { text: 'There is no world yet: build something first.' };
         const target = (a.target || 'overview') as WorldLookView['target'];
-        if (!LOOK_TARGETS.includes(target)) return { text: 'target is overview, brain, team, agent, object or prefab.', isError: true };
+        if (!LOOK_TARGETS.includes(target))
+          return { text: 'target is overview, brain, team, agent, object or prefab.', isError: true };
         let id: string | undefined;
         let label = target === 'overview' ? 'the whole world' : target === 'brain' ? 'the Brain' : '';
         try {
@@ -543,18 +784,33 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
         } catch (e) {
           return failed(e);
         }
-        const n = (v: unknown, min: number, max: number) => (v === undefined || !Number.isFinite(Number(v)) ? undefined : Math.max(min, Math.min(max, Number(v))));
-        const view: WorldLookView = { target, ...(id ? { id } : {}), azimuth: n(a.azimuth, -720, 720), elevation: n(a.elevation, 5, 90), zoom: n(a.zoom, 0.2, 8), width: 1024, height: 640 };
+        const n = (v: unknown, min: number, max: number) =>
+          v === undefined || !Number.isFinite(Number(v)) ? undefined : Math.max(min, Math.min(max, Number(v)));
+        const view: WorldLookView = {
+          target,
+          ...(id ? { id } : {}),
+          azimuth: n(a.azimuth, -720, 720),
+          elevation: n(a.elevation, 5, 90),
+          zoom: n(a.zoom, 0.2, 8),
+          width: 1024,
+          height: 640,
+        };
         let turnedOn = false;
         if (getSettings().look.stationLook !== 'world') {
           ctx.progress?.('Asking you to turn on the voxel look…');
           turnedOn = await askForVoxelLook(ctx);
-          if (!turnedOn) return { text: `No picture: the user kept the Station in the classic look, which doesn't draw the voxel world. Don't ask again in this task.${target === 'object' || target === 'prefab' ? `\nHere is a map from above instead.\n${objectMap(w, id!)}` : '\nworld_info has where everything stands.'}` };
+          if (!turnedOn)
+            return {
+              text: `No picture: the user kept the Station in the classic look, which doesn't draw the voxel world. Don't ask again in this task.${target === 'object' || target === 'prefab' ? `\nHere is a map from above instead.\n${objectMap(w, id!)}` : '\nworld_info has where everything stands.'}`,
+            };
         }
         ctx.progress?.(`Looking at ${label}…`);
         let r = await requestLook(w.id, activeProject().id, view);
         // just switched: the open Stations are still loading the world, so ask again for a few seconds
-        for (const until = Date.now() + LOOK_SWITCH_MS; turnedOn && !r.image && r.note !== 'no page is open' && Date.now() < until; ) {
+        for (
+          const until = Date.now() + LOOK_SWITCH_MS;
+          turnedOn && !r.image && r.note !== 'no page is open' && Date.now() < until;
+        ) {
           await new Promise((done) => setTimeout(done, 1500));
           r = await requestLook(w.id, activeProject().id, view);
         }
@@ -563,19 +819,30 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
           if ((a as { save?: boolean }).save === true) {
             const { addArtifact } = await import('../artifacts.ts');
             const file = writePicture(files.writableDir(ctx, 'pictures'), `${w.name} ${label}`, r.image);
-            addArtifact({ title: `${cap(label)} in ${w.name}`, path: file, note: 'A picture of the voxel world', agentId: ctx.agent.id });
+            addArtifact({
+              title: `${cap(label)} in ${w.name}`,
+              path: file,
+              note: 'A picture of the voxel world',
+              agentId: ctx.agent.id,
+            });
             saved = ` Saved to Artifacts: ${file}`;
           }
-          return { text: `${cap(label)} in "${w.name}" (${w.environment.preset}${view.azimuth !== undefined ? `, from ${view.azimuth}°` : ''}).${saved}`, images: [r.image] };
+          return {
+            text: `${cap(label)} in "${w.name}" (${w.environment.preset}${view.azimuth !== undefined ? `, from ${view.azimuth}°` : ''}).${saved}`,
+            images: [r.image],
+          };
         }
         // no picture: why, so the user can be asked for the right thing, and the next best thing
         const why =
           getSettings().look.stationLook !== 'world'
-            ? 'the Station is in the classic look, which doesn\'t draw the voxel world. Ask the user to turn on Settings › Appearance › Station look › Voxel world.'
+            ? "the Station is in the classic look, which doesn't draw the voxel world. Ask the user to turn on Settings › Appearance › Station look › Voxel world."
             : r.note === 'no page is open'
-              ? 'the dashboard isn\'t open in any window. Ask the user to open the Station.'
+              ? "the dashboard isn't open in any window. Ask the user to open the Station."
               : `no open Station could draw it (${r.note || 'no answer'}). Ask the user to open the Station with this project open.`;
-        const map = target === 'object' || target === 'prefab' ? `\nHere is a map from above instead.\n${objectMap(w, id!)}` : '\nworld_info has where everything stands in the meantime.';
+        const map =
+          target === 'object' || target === 'prefab'
+            ? `\nHere is a map from above instead.\n${objectMap(w, id!)}`
+            : '\nworld_info has where everything stands in the meantime.';
         return { text: `No picture: ${why}${map}` };
       },
     },
@@ -583,7 +850,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_import',
       group: 'world',
       risk: 'low',
-      description: 'Bring a MagicaVoxel .vox file into the voxel world as a prefab (to place copies of) or an object. It must be in a folder you may read.',
+      description:
+        'Bring a MagicaVoxel .vox file into the voxel world as a prefab (to place copies of) or an object. It must be in a folder you may read.',
       parameters: obj(
         {
           file: str('The .vox file'),
@@ -596,10 +864,27 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
         ['file'],
       ),
       run: async (args, ctx) => {
-        const a = args as { file?: string; as?: string; name?: string; voxel_size?: unknown; anchor?: unknown; position?: unknown };
+        const a = args as {
+          file?: string;
+          as?: string;
+          name?: string;
+          voxel_size?: unknown;
+          anchor?: unknown;
+          position?: unknown;
+        };
         try {
           const file = files.readable(ctx, a.file);
-          return { text: importVox({ by: builderOf(ctx), file, as: a.as === 'object' ? 'object' : 'prefab', name: String(a.name || ''), voxelSize: a.voxel_size, anchor: a.anchor, position: a.position }) };
+          return {
+            text: importVox({
+              by: builderOf(ctx),
+              file,
+              as: a.as === 'object' ? 'object' : 'prefab',
+              name: String(a.name || ''),
+              voxelSize: a.voxel_size,
+              anchor: a.anchor,
+              position: a.position,
+            }),
+          };
         } catch (e) {
           return failed(e);
         }
@@ -609,7 +894,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_export',
       group: 'world',
       risk: 'low',
-      description: 'Save an object, a prefab or the whole voxel world to Artifacts as "glb" (a glTF 3D model for Blender, game engines, the web) or "vox" (MagicaVoxel: a file per voxel size, no placed copies, not the whole world).',
+      description:
+        'Save an object, a prefab or the whole voxel world to Artifacts as "glb" (a glTF 3D model for Blender, game engines, the web) or "vox" (MagicaVoxel: a file per voxel size, no placed copies, not the whole world).',
       parameters: obj(
         {
           what: oneOf(['object', 'prefab', 'world']),
@@ -622,13 +908,22 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
         const a = args as { what?: string; name?: string; format?: string };
         const w = shownWorld().world;
         if (!w) return { text: 'There is no world yet.', isError: true };
-        if (a.what !== 'object' && a.what !== 'prefab' && a.what !== 'world') return { text: 'what is "object", "prefab" or "world".', isError: true };
+        if (a.what !== 'object' && a.what !== 'prefab' && a.what !== 'world')
+          return { text: 'what is "object", "prefab" or "world".', isError: true };
         try {
           const out = exportFiles(w, a.what, a.name, a.format === 'vox' ? 'vox' : 'glb');
           const paths = writeFiles(files.writableDir(ctx, 'exports'), out.files);
           const { addArtifact } = await import('../artifacts.ts');
-          for (const p of paths) addArtifact({ title: out.files.length > 1 ? `${out.title}: ${p.split(/[\\/]/).pop()}` : out.title, path: p, note: out.note || 'Made from the voxel world', agentId: ctx.agent.id });
-          return { text: `Saved ${paths.join(', ')} (${out.files.map((f) => `${Math.round(f.bytes.length / 1024)} KB`).join(', ')}) and added ${paths.length > 1 ? 'them' : 'it'} to Artifacts.${out.note ? ` ${out.note}` : ''}` };
+          for (const p of paths)
+            addArtifact({
+              title: out.files.length > 1 ? `${out.title}: ${p.split(/[\\/]/).pop()}` : out.title,
+              path: p,
+              note: out.note || 'Made from the voxel world',
+              agentId: ctx.agent.id,
+            });
+          return {
+            text: `Saved ${paths.join(', ')} (${out.files.map((f) => `${Math.round(f.bytes.length / 1024)} KB`).join(', ')}) and added ${paths.length > 1 ? 'them' : 'it'} to Artifacts.${out.note ? ` ${out.note}` : ''}`,
+          };
         } catch (e) {
           return failed(e);
         }
@@ -639,7 +934,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       group: 'world',
       // dressing yourself or your own team is yours to do; anyone else, or the Brain, asks first (see run)
       risk: 'low',
-      description: 'Dress an agent, a team or the Brain in the voxel world with prefabs, or take them off the map. Only the fields you give change. You and your own team need no OK; anyone else, or the Brain, asks the user first.',
+      description:
+        'Dress an agent, a team or the Brain in the voxel world with prefabs, or take them off the map. Only the fields you give change. You and your own team need no OK; anyone else, or the Brain, asks the user first.',
       parameters: obj(
         {
           to: oneOf(['agent', 'team', 'brain']),
@@ -663,11 +959,19 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       run: async (args, ctx) => {
         const { to, id, ...fields } = args as Record<string, unknown> & { to?: string; id?: string };
         try {
-          if (to !== 'agent' && to !== 'team' && to !== 'brain') return { text: 'to is "agent", "team" or "brain".', isError: true };
+          if (to !== 'agent' && to !== 'team' && to !== 'brain')
+            return { text: 'to is "agent", "team" or "brain".', isError: true };
           const target = skinTarget(to, to === 'agent' ? id || ctx.agent.id : id);
           const check = skinCheck(ctx, args);
           if (check) {
-            const refused = await gate(ctx.agent, check.name!, check.risk, args, { ...ctx, approvalScope: check.scope }, check.detail);
+            const refused = await gate(
+              ctx.agent,
+              check.name!,
+              check.risk,
+              args,
+              { ...ctx, approvalScope: check.scope },
+              check.detail,
+            );
             if (refused) return refused;
           }
           return { text: setSkin({ by: builderOf(ctx), to, id: target.id, fields }).text };
@@ -680,7 +984,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_animate',
       group: 'world',
       risk: 'low',
-      description: 'Design the animations of a character prefab (the form an agent takes), or play one. Its named parts turn around their pivots; "self" moves all of it, so a prefab without parts moves too. Clips named "idle", "working" and "needs" play while the agent is idle, working or waiting for the user. "list": its parts and clips. "play": once on an agent wearing it. Example: world_steps "characters".',
+      description:
+        'Design the animations of a character prefab (the form an agent takes), or play one. Its named parts turn around their pivots; "self" moves all of it, so a prefab without parts moves too. Clips named "idle", "working" and "needs" play while the agent is idle, working or waiting for the user. "list": its parts and clips. "play": once on an agent wearing it. Example: world_steps "characters".',
       parameters: obj(
         {
           action: oneOf(['set', 'remove', 'list', 'play']),
@@ -688,22 +993,52 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
           clip: str("The animation's name"),
           duration: num('set: seconds'),
           loop: { type: 'boolean', description: 'set: loop (default true)' },
-          tracks: { type: 'object', description: 'set: {"part name" or "self": [{"t": 0 to 1, "turn": [x, y, z] degrees, "move": [x, y, z] map units, "scale", "ease": "linear|smooth|step|bounce"}, …]}' },
+          tracks: {
+            type: 'object',
+            description:
+              'set: {"part name" or "self": [{"t": 0 to 1, "turn": [x, y, z] degrees, "move": [x, y, z] map units, "scale", "ease": "linear|smooth|step|bounce"}, …]}',
+          },
           agent: str('play: the agent (name or id; default: you)'),
           times: num('play: how many times (default 1)'),
         },
         ['action'],
       ),
       run: async (args, ctx) => {
-        const a = args as { action?: string; prefab?: string; clip?: string; duration?: unknown; loop?: unknown; tracks?: unknown; agent?: string; times?: unknown };
+        const a = args as {
+          action?: string;
+          prefab?: string;
+          clip?: string;
+          duration?: unknown;
+          loop?: unknown;
+          tracks?: unknown;
+          agent?: string;
+          times?: unknown;
+        };
         try {
-          if (a.action === 'play') return { text: playAnimation({ by: builderOf(ctx), agent: a.agent || ctx.agent.id, clip: String(a.clip || ''), times: a.times }) };
-          if (a.action !== 'set' && a.action !== 'remove' && a.action !== 'list') return { text: 'action is "set", "remove", "list" or "play".', isError: true };
+          if (a.action === 'play')
+            return {
+              text: playAnimation({
+                by: builderOf(ctx),
+                agent: a.agent || ctx.agent.id,
+                clip: String(a.clip || ''),
+                times: a.times,
+              }),
+            };
+          if (a.action !== 'set' && a.action !== 'remove' && a.action !== 'list')
+            return { text: 'action is "set", "remove", "list" or "play".', isError: true };
           if (a.action !== 'list') {
             const refused = await othersFirst(ctx, args, a.prefab, 'change the animations of', 'prefab');
             if (refused) return refused;
           }
-          return { text: setAnimation({ by: builderOf(ctx), prefab: String(a.prefab || ''), action: a.action, clip: a.clip, fields: { duration: a.duration, loop: a.loop, tracks: a.tracks } }).text };
+          return {
+            text: setAnimation({
+              by: builderOf(ctx),
+              prefab: String(a.prefab || ''),
+              action: a.action,
+              clip: a.clip,
+              fields: { duration: a.duration, loop: a.loop, tracks: a.tracks },
+            }).text,
+          };
         } catch (e) {
           return failed(e);
         }
@@ -713,11 +1048,13 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_md_read',
       group: 'world',
       risk: 'none',
-      description: 'Read the whole WORLD.md as it is now (your instructions have it as it was when this chat started, maybe cut short).',
+      description:
+        'Read the whole WORLD.md as it is now (your instructions have it as it was when this chat started, maybe cut short).',
       parameters: obj({}),
       run: async (_args, ctx) => {
         const w = shownWorld().world;
-        if (!w) return { text: 'There is no world yet: your first world_build starts one, with a WORLD.md to fill in.' };
+        if (!w)
+          return { text: 'There is no world yet: your first world_build starts one, with a WORLD.md to fill in.' };
         mdRead.set(readKey(ctx, w.id), worldMdStamp(w.id));
         return { text: readWorldMd(w.id) };
       },
@@ -726,7 +1063,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_md_section',
       group: 'world',
       risk: 'low',
-      description: "Replace one section of WORLD.md, or add to its end. A section that isn't there yet is added. The earlier version is kept.",
+      description:
+        "Replace one section of WORLD.md, or add to its end. A section that isn't there yet is added. The earlier version is kept.",
       parameters: obj(
         {
           section: str('Its heading, or a path: "Places › Koi pond"'),
@@ -737,7 +1075,11 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       ),
       run: async ({ section, content, append }: { section: string; content: string; append?: boolean }, ctx) => {
         const w = shownWorld().world;
-        if (!w || shownWorld().how === 'carried') return { text: "This project has no world of its own yet: build something first (it makes this project's world), then write its WORLD.md.", isError: true };
+        if (!w || shownWorld().how === 'carried')
+          return {
+            text: "This project has no world of its own yet: build something first (it makes this project's world), then write its WORLD.md.",
+            isError: true,
+          };
         try {
           // only a builder that had read the version it changed has read the result (it never sees the rest)
           const key = readKey(ctx, w.id);
@@ -754,14 +1096,24 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
       name: 'world_md_write',
       group: 'world',
       risk: 'low',
-      description: 'Replace the whole WORLD.md, over the version you read with world_md_read in this chat. For one section use world_md_section. The earlier version is kept.',
+      description:
+        'Replace the whole WORLD.md, over the version you read with world_md_read in this chat. For one section use world_md_section. The earlier version is kept.',
       parameters: obj({ content: str('The whole new WORLD.md (Markdown)') }, ['content']),
       run: async ({ content }: { content: string }, ctx) => {
         const w = shownWorld().world;
-        if (!w || shownWorld().how === 'carried') return { text: "This project has no world of its own yet: build something first (it makes this project's world), then write its WORLD.md.", isError: true };
+        if (!w || shownWorld().how === 'carried')
+          return {
+            text: "This project has no world of its own yet: build something first (it makes this project's world), then write its WORLD.md.",
+            isError: true,
+          };
         const seen = mdRead.get(readKey(ctx, w.id));
-        if (seen === undefined) return { text: 'Read WORLD.md with world_md_read first, so nothing in it is lost.', isError: true };
-        if (seen !== worldMdStamp(w.id)) return { text: 'WORLD.md changed since you read it. Read it again with world_md_read, then write.', isError: true };
+        if (seen === undefined)
+          return { text: 'Read WORLD.md with world_md_read first, so nothing in it is lost.', isError: true };
+        if (seen !== worldMdStamp(w.id))
+          return {
+            text: 'WORLD.md changed since you read it. Read it again with world_md_read, then write.',
+            isError: true,
+          };
         try {
           const r = withActor('agent', () => writeWorldMd(w.id, content));
           mdRead.set(readKey(ctx, w.id), r.updatedAt);
@@ -778,7 +1130,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
 export function worldPrompt(toolNames: string[]): string {
   if (!toolNames.includes('world_build')) return '';
   const shown = shownWorld();
-  if (!shown.world) return `\n# The voxel world\n${DIORAMA}\n${BUILD_ORDER}\nThere is no world yet. Your first world_build starts this project's world; then fill in its WORLD.md (world_md_section) with what it is. ${KEEP_WORLD_MD}`;
+  if (!shown.world)
+    return `\n# The voxel world\n${DIORAMA}\n${BUILD_ORDER}\nThere is no world yet. Your first world_build starts this project's world; then fill in its WORLD.md (world_md_section) with what it is. ${KEEP_WORLD_MD}`;
   return worldMdContext(shown.world.id, shown.world.name);
 }
 

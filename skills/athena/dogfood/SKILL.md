@@ -60,12 +60,28 @@ failed resources and unsuccessful `fetch` calls, misses what happened during loa
 it on each new page, and name in the report the pages whose load-time errors weren't captured.
 
 ```js
-(() => { if (window.__qa) return 'already on'; const log = (window.__qa = []);
-  addEventListener('error', (e) => log.push(e.message ? `error: ${e.message}` : `not loaded: ${e.target.src || e.target.href}`), true);
+(() => {
+  if (window.__qa) return 'already on';
+  const log = (window.__qa = []);
+  addEventListener(
+    'error',
+    (e) => log.push(e.message ? `error: ${e.message}` : `not loaded: ${e.target.src || e.target.href}`),
+    true,
+  );
   addEventListener('unhandledrejection', (e) => log.push(`rejected: ${e.reason}`));
-  const ce = console.error; console.error = (...a) => { log.push(`console: ${a.join(' ')}`); ce.apply(console, a); };
-  const f = window.fetch; window.fetch = async (...a) => { const r = await f(...a); if (!r.ok) log.push(`HTTP ${r.status}: ${r.url}`); return r; };
-  return 'on'; })()
+  const ce = console.error;
+  console.error = (...a) => {
+    log.push(`console: ${a.join(' ')}`);
+    ce.apply(console, a);
+  };
+  const f = window.fetch;
+  window.fetch = async (...a) => {
+    const r = await f(...a);
+    if (!r.ok) log.push(`HTTP ${r.status}: ${r.url}`);
+    return r;
+  };
+  return 'on';
+})();
 ```
 
 Look in the network log for what succeeds but is wrong: a 200 carrying an error in its body, the same request sent

@@ -18,7 +18,8 @@ export interface UserAnswer {
 }
 
 /** How the wait ended. */
-export type AskOutcome = { kind: 'answer'; choice: string; text: string } | { kind: 'dismissed' } | { kind: 'timeout' } | { kind: 'stopped' };
+export type AskOutcome =
+  { kind: 'answer'; choice: string; text: string } | { kind: 'dismissed' } | { kind: 'timeout' } | { kind: 'stopped' };
 
 export interface AskInput {
   question: string;
@@ -35,7 +36,10 @@ export interface AskInput {
 // questions an agent is waiting on right now, by id (in memory: after a restart nobody waits, and answers go as messages)
 const waiting = new Map<string, { runId: string | null; resolve: (o: AskOutcome) => void }>();
 
-const clean = (s: unknown, max: number) => String(s ?? '').trim().slice(0, max);
+const clean = (s: unknown, max: number) =>
+  String(s ?? '')
+    .trim()
+    .slice(0, max);
 
 /** The choices as the agent gave them: short, no blanks, no repeats. */
 export function cleanChoices(raw: unknown): string[] {
@@ -44,12 +48,32 @@ export function cleanChoices(raw: unknown): string[] {
 }
 
 /** Puts a question in the Outbox. (ask() also waits for the answer.) */
-export function addQuestion({ question, detail, choices, agentId = null, chatId = null, runId = null, teamId: explicitTeam = null, briefId, operationId }: AskInput): AgentQuestion {
+export function addQuestion({
+  question,
+  detail,
+  choices,
+  agentId = null,
+  chatId = null,
+  runId = null,
+  teamId: explicitTeam = null,
+  briefId,
+  operationId,
+}: AskInput): AgentQuestion {
   const text = clean(question, 2000);
   if (!text) throw new Error('Say what you want to ask the user (question).');
   const existing = operationId ? questions.list().find((item) => item.operationId === operationId) : null;
   if (existing) {
-    if (canonical([existing.question, existing.detail || '', existing.choices, existing.agentId, existing.chatId, existing.runId]) !== canonical([text, clean(detail, 8000), cleanChoices(choices), agentId, chatId, runId])) throw new Error('The saved question does not match this tool call.');
+    if (
+      canonical([
+        existing.question,
+        existing.detail || '',
+        existing.choices,
+        existing.agentId,
+        existing.chatId,
+        existing.runId,
+      ]) !== canonical([text, clean(detail, 8000), cleanChoices(choices), agentId, chatId, runId])
+    )
+      throw new Error('The saved question does not match this tool call.');
     return existing;
   }
   const agent = agentId ? agents.get(agentId) : null;
@@ -77,7 +101,10 @@ export function addQuestion({ question, detail, choices, agentId = null, chatId 
 }
 
 /** Asks you and waits for your answer: until you answer or dismiss it, the run is stopped, or waitMs runs out. */
-export async function ask(input: AskInput, { signal, waitMs = WAIT_MS }: { signal?: AbortSignal; waitMs?: number } = {}): Promise<{ question: AgentQuestion; outcome: AskOutcome }> {
+export async function ask(
+  input: AskInput,
+  { signal, waitMs = WAIT_MS }: { signal?: AbortSignal; waitMs?: number } = {},
+): Promise<{ question: AgentQuestion; outcome: AskOutcome }> {
   const q = addQuestion(input);
   if (signal?.aborted) return { question: closeQuestion(q.id, 'The run was stopped.'), outcome: { kind: 'stopped' } };
   const outcome = await new Promise<AskOutcome>((resolve) => {
@@ -93,7 +120,8 @@ export async function ask(input: AskInput, { signal, waitMs = WAIT_MS }: { signa
     waiting.set(q.id, { runId: q.runId || null, resolve: done });
   });
   // stopped: you said stop, so the question goes too
-  if (outcome.kind === 'stopped') return { question: closeQuestion(q.id, 'The run was stopped before you answered.'), outcome };
+  if (outcome.kind === 'stopped')
+    return { question: closeQuestion(q.id, 'The run was stopped before you answered.'), outcome };
   return { question: questions.get(q.id) || q, outcome };
 }
 
@@ -105,8 +133,14 @@ export function closeQuestion(id: string, note: string): AgentQuestion {
 }
 
 /** The message an answer becomes when the agent isn't waiting for it any more. */
-export function answerMessage(q: Pick<AgentQuestion, 'question' | 'agentName'>, { choice, text }: { choice: string; text: string }, team = false): string {
-  const said = [choice ? `My answer: ${choice}` : '', text ? (choice ? `And: ${text}` : `My answer: ${text}`) : ''].filter(Boolean).join('\n');
+export function answerMessage(
+  q: Pick<AgentQuestion, 'question' | 'agentName'>,
+  { choice, text }: { choice: string; text: string },
+  team = false,
+): string {
+  const said = [choice ? `My answer: ${choice}` : '', text ? (choice ? `And: ${text}` : `My answer: ${text}`) : '']
+    .filter(Boolean)
+    .join('\n');
   return `${team && q.agentName ? `@${q.agentName}: ` : ''}You asked me in the Outbox: "${q.question}"\n\n${said}`;
 }
 
@@ -145,7 +179,8 @@ async function answerNow(id: string, { choice, text }: UserAnswer): Promise<Agen
   const picked = clean(choice, 200);
   const wrote = clean(text, 8000);
   if (!picked && !wrote) throw Object.assign(new Error('Pick an answer or write one first.'), { status: 400 });
-  if (picked && q.choices.length && !q.choices.includes(picked)) throw Object.assign(new Error("That isn't one of the choices."), { status: 400 });
+  if (picked && q.choices.length && !q.choices.includes(picked))
+    throw Object.assign(new Error("That isn't one of the choices."), { status: 400 });
   // taken before anything is awaited, so two answers at once (two tabs, the Outbox and the chat) can't both go
   const claim = claimOf(q.id);
   answering.add(claim);
@@ -163,8 +198,12 @@ async function deliver(q: AgentQuestion, answer: { choice: string; text: string 
   const w = waiting.get(q.id);
   // (its run may have ended without the wait noticing, e.g. the CLI quit: then it goes as a message)
   const operation = q.operationId ? (await import('./eve/operations.ts')).readOperation(q.operationId) : null;
-  const durable = operation?.questionId === q.id && operation.runId === q.runId && !!engines.runInfo(q.runId) && operation.status === 'waiting';
-  const live = durable || !!w && (!w.runId || !!engines.runInfo(w.runId));
+  const durable =
+    operation?.questionId === q.id &&
+    operation.runId === q.runId &&
+    !!engines.runInfo(q.runId) &&
+    operation.status === 'waiting';
+  const live = durable || (!!w && (!w.runId || !!engines.runInfo(w.runId)));
   let delivered: AgentQuestion['delivered'] = 'nowhere';
   let note = '';
   if (live) {
@@ -185,8 +224,18 @@ async function deliver(q: AgentQuestion, answer: { choice: string; text: string 
       } else note = q.agentId ? 'The chat it was asked in is gone, so the answer went nowhere.' : '';
     }
   }
-  const saved = questions.save({ ...q, status: 'answered', ...(picked ? { choice: picked } : {}), ...(wrote ? { reply: wrote } : {}), answeredAt: Date.now(), delivered, ...(note ? { note } : {}) });
-  log('approval', `You answered ${q.agentName || 'an agent'}: ${(picked || wrote).slice(0, 120)}`, { agentId: q.agentId });
+  const saved = questions.save({
+    ...q,
+    status: 'answered',
+    ...(picked ? { choice: picked } : {}),
+    ...(wrote ? { reply: wrote } : {}),
+    answeredAt: Date.now(),
+    delivered,
+    ...(note ? { note } : {}),
+  });
+  log('approval', `You answered ${q.agentName || 'an agent'}: ${(picked || wrote).slice(0, 120)}`, {
+    agentId: q.agentId,
+  });
   // (a wait whose run is gone ends too: nobody reads it, but it isn't kept)
   w?.resolve({ kind: 'answer', ...answer });
   return saved;

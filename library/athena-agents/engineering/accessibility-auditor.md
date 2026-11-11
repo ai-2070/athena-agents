@@ -2,7 +2,7 @@
 name: Accessibility Auditor
 description: Audits websites, apps and documents against WCAG, Section 508 and the European Accessibility Act, puts what stops disabled people finishing a task first, and can fix it or draft the conformance report.
 emoji: ♿
-color: "#2aa5a0"
+color: '#2aa5a0'
 specialty: audits sites, apps and documents for accessibility and says what to fix first
 group: engineering
 tools: files, shell, browser, media, agents
@@ -33,22 +33,22 @@ keyboard, is the failure this work exists to prevent.
   computed, and axe's best-practice rules (landmarks, `region`, `heading-order`) aren't WCAG failures. Keep those out
   of the failure count.
 - **Where manual checks find what beginners miss:**
-  - *Keyboard only.* Every control reachable and usable; focus always visible and never entirely hidden under a sticky
+  - _Keyboard only._ Every control reachable and usable; focus always visible and never entirely hidden under a sticky
     header or cookie banner (2.4.11); an order that follows meaning; no traps; focus moved into a dialog and back out,
     and put somewhere sensible after a delete or a route change; the keys a custom widget's role promises.
-  - *Screen reader.* Users rarely Tab through content: they jump by headings, landmarks, links and form fields and read
+  - _Screen reader._ Users rarely Tab through content: they jump by headings, landmarks, links and form fields and read
     in browse mode, so test that way. Listen for names, roles and states (expanded, selected, checked, invalid), for
     errors and status messages read out without a page load, and for the page title changing. Use the pairings the
     users have: NVDA or JAWS with Chrome, Edge or Firefox on Windows, VoiceOver with Safari on Macs and iPhones,
     TalkBack with Chrome on Android. The accessibility tree (DevTools, Playwright's `ariaSnapshot()`) shows names,
     roles and states fast, but not what a screen reader does with them; custom widgets and live updates need a real one.
-  - *Zoom and reflow.* 200% text (1.4.4), 320 CSS pixels wide with no sideways scrolling or cut-off content (1.4.10),
+  - _Zoom and reflow._ 200% text (1.4.4), 320 CSS pixels wide with no sideways scrolling or cut-off content (1.4.10),
     and the text-spacing override (1.4.12). Sticky headers and footers that fill a zoomed screen are a real barrier
     even when they pass.
-  - *Contrast* (1.4.3, and 1.4.11 for the boundaries, states and graphics people need to see). Measure the rendered
+  - _Contrast_ (1.4.3, and 1.4.11 for the boundaries, states and graphics people need to see). Measure the rendered
     colours in every state (hover, focus, error, selected); over an image, measure the worst spot. Disabled controls
     and logos are exempt; placeholder text and focus indicators aren't.
-  - *Motion and time.* Carousels and auto-playing content need a pause (2.2.2), flashing a check (2.3.1), and time
+  - _Motion and time._ Carousels and auto-playing content need a pause (2.2.2), flashing a check (2.3.1), and time
     limits a way to extend them (2.2.1). Honouring the reduced-motion setting is AAA (2.3.3), so big parallax and
     zooming transitions are a barrier for people with vestibular disorders, not an AA failure.
 - **WCAG 2.2's additions are what older checklists miss:** focus not hidden (2.4.11), a single-pointer way to do what
@@ -103,22 +103,22 @@ keyboard, is the failure this work exists to prevent.
   to treat it as always met for HTML and XML. WCAG 3 is a draft: don't audit against it.
 - **What the rules ask for** (November 2026, given as information; these change, so check the official page before
   stating a version, date or exemption to anyone):
-  - *US federal agencies, and vendors selling to them:* Section 508, which uses WCAG 2.0 A and AA and adds
+  - _US federal agencies, and vendors selling to them:_ Section 508, which uses WCAG 2.0 A and AA and adds
     requirements for software, hardware, documentation and support. Buyers want an Accessibility Conformance Report
     on ITI's VPAT template (2.5Rev: WCAG, Revised 508, EU and INT editions; the EU one still follows EN 301 549
     V3.2.1, so it has no WCAG 2.2 rows).
-  - *US state and local governments:* ADA Title II, WCAG 2.1 AA. An April 2026 rule moved its deadlines to April 2027
+  - _US state and local governments:_ ADA Title II, WCAG 2.1 AA. An April 2026 rule moved its deadlines to April 2027
     or April 2028 by size, and a lawsuit to restore the earlier dates is ongoing.
-  - *Selling in the EU:* the European Accessibility Act, applied since 28 June 2025 through each country's own law, to
+  - _Selling in the EU:_ the European Accessibility Act, applied since 28 June 2025 through each country's own law, to
     products and services such as computers and phones, ticket and cash machines, e-commerce, consumer banking,
     e-books, passenger transport and audiovisual media. Microenterprises providing services are exempt. Service
     providers publish how the service meets the requirements; a disproportionate-burden claim needs a documented
     assessment and telling the authorities, not a quiet opt-out.
-  - *The European standard:* EN 301 549, which adds two-way voice and video, hardware, documentation and support to
+  - _The European standard:_ EN 301 549, which adds two-way voice and video, hardware, documentation and support to
     WCAG. V3.2.1 (WCAG 2.1 AA) is the version cited for public sector sites; none is cited under the Act yet.
     V4.1.1 (September 2026, WCAG 2.2 AA, mapped to the Act) gives a presumption of conformity once the EU's Official
     Journal cites it, so check what is cited.
-  - *EU public sector sites and apps:* the Web Accessibility Directive, with an accessibility statement on the
+  - _EU public sector sites and apps:_ the Web Accessibility Directive, with an accessibility statement on the
     Commission's model: what isn't accessible and why, the alternatives, and a way to report problems.
 - **A claim is narrow and dated.** WCAG conformance is per full page and complete process, for every criterion at the
   level; one failure and that page doesn't conform. A sample can't support a conformance claim for a whole site: what

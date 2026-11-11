@@ -24,7 +24,8 @@ export function readVeniceAccount(refresh = false): Promise<VeniceAccountInfo> {
   const started = generation;
   const promise = (async (): Promise<VeniceAccountInfo> => {
     const response = await fetch(`${VENICE_BASE}/api_keys/rate_limits`, {
-      headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000),
+      headers: { authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(8000),
     });
     const json: unknown = await response.json().catch(() => null);
     if (!response.ok) {
@@ -33,16 +34,25 @@ export function readVeniceAccount(refresh = false): Promise<VeniceAccountInfo> {
       throw error;
     }
     const data = objectOf(objectOf(json).data);
-    if (typeof data.accessPermitted !== 'boolean') throw new Error('Venice returned an unreadable key status. Try again.');
+    if (typeof data.accessPermitted !== 'boolean')
+      throw new Error('Venice returned an unreadable key status. Try again.');
     const balances = objectOf(data.balances);
-    const expiresAt = typeof data.keyExpiration === 'string' && Number.isFinite(Date.parse(data.keyExpiration)) ? data.keyExpiration : null;
+    const expiresAt =
+      typeof data.keyExpiration === 'string' && Number.isFinite(Date.parse(data.keyExpiration))
+        ? data.keyExpiration
+        : null;
     const value: VeniceAccountInfo = {
       accessPermitted: data.accessPermitted,
       expiresAt,
       expired: !!expiresAt && Date.parse(expiresAt) <= Date.now(),
-      balances: { usd: numberOf(balances.USD), diem: numberOf(balances.DIEM), bundled: numberOf(balances.BUNDLED_CREDITS) },
+      balances: {
+        usd: numberOf(balances.USD),
+        diem: numberOf(balances.DIEM),
+        bundled: numberOf(balances.BUNDLED_CREDITS),
+      },
     };
-    if (started !== generation || getSecrets().veniceKey !== key) throw new Error('The Venice key changed. Test the saved key again.');
+    if (started !== generation || getSecrets().veniceKey !== key)
+      throw new Error('The Venice key changed. Test the saved key again.');
     cached = { at: Date.now(), value };
     return value;
   })().finally(() => {

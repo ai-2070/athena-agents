@@ -38,7 +38,9 @@ describe("a fresh profile's default project", () => {
     expect(store.activeProject().description).toBe('Saved by the other profile');
     // and the save that follows keeps what was there
     sync.saveProject('default');
-    const saved = JSON.parse(fs.readFileSync(path.join(brain, '.dashboard', 'project.json'), 'utf8')) as { agents: { name: string }[] };
+    const saved = JSON.parse(fs.readFileSync(path.join(brain, '.dashboard', 'project.json'), 'utf8')) as {
+      agents: { name: string }[];
+    };
     expect(saved.agents.map((a) => a.name)).toEqual(['Kept']);
     // a project that already has agents is never loaded over
     expect(sync.adoptSavedFolder('default')).toBeNull();

@@ -68,14 +68,33 @@ const ABOUT: Partial<Record<string, string>> = {
   ffmpeg: 'Agents cut, convert and inspect video and audio.',
   chrome: 'open_url can target it; add the Playwright MCP for full control.',
 };
-const CLI: Partial<Record<string, string>> = { claude: 'claude', hermes: 'hermes', pi: 'pi', omp: 'omp', openclaw: 'openclaw', opencode: 'opencode', orca: 'orca', gh: 'gh', python: 'python' };
+const CLI: Partial<Record<string, string>> = {
+  claude: 'claude',
+  hermes: 'hermes',
+  pi: 'pi',
+  omp: 'omp',
+  openclaw: 'openclaw',
+  opencode: 'opencode',
+  orca: 'orca',
+  gh: 'gh',
+  python: 'python',
+};
 
 /** "v1.2 · running", or "installed · starting…" while it opens. */
 export const progState = (p: Pick<ProgramInfo, 'version' | 'cli' | 'running'>, starting = false): string =>
-  [p.version ? `v${p.version}` : p.cli && !starting ? 'command line' : 'installed', starting ? ' · starting…' : p.running ? ' · running' : ''].join('');
+  [
+    p.version ? `v${p.version}` : p.cli && !starting ? 'command line' : 'installed',
+    starting ? ' · starting…' : p.running ? ' · running' : '',
+  ].join('');
 
 async function openCli(p: ProgramInfo): Promise<void> {
-  const t = await attempt(() => rpc.terminals.create({ kind: 'command', command: CLI[p.id], args: p.id === 'orca' ? ['status'] : p.id === 'openclaw' ? ['tui'] : [] }));
+  const t = await attempt(() =>
+    rpc.terminals.create({
+      kind: 'command',
+      command: CLI[p.id],
+      args: p.id === 'orca' ? ['status'] : p.id === 'openclaw' ? ['tui'] : [],
+    }),
+  );
   if (t) navigate(`#/terminals/${t.id}`);
 }
 
@@ -99,17 +118,28 @@ export function ProgramsTab() {
   // a program opened or closed (the server checks every few seconds)
   useServerEvents((ev) => {
     if (ev.type !== 'programs') return;
-    void rpc.programs.list({}).then((p) => {
-      setProgs(p);
-      setStarting((s) => new Set([...s].filter((id) => !p.find((x) => x.id === id)?.running)));
-    }).catch(() => {});
+    void rpc.programs
+      .list({})
+      .then((p) => {
+        setProgs(p);
+        setStarting((s) => new Set([...s].filter((id) => !p.find((x) => x.id === id)?.running)));
+      })
+      .catch(() => {});
   });
 
-  if (failed) return <Plate className="rounded-box p-6"><p className="text-red">Something went wrong: {failed}</p></Plate>;
+  if (failed)
+    return (
+      <Plate className="rounded-box p-6">
+        <p className="text-red">Something went wrong: {failed}</p>
+      </Plate>
+    );
   if (!progs) return <p className="text-dim">Looking around this PC…</p>;
 
   const start = async (p: ProgramInfo) => {
-    const r = await attempt(() => rpc.programs.launch({ program: p.id }), (x) => x.message);
+    const r = await attempt(
+      () => rpc.programs.launch({ program: p.id }),
+      (x) => x.message,
+    );
     // already open: no "programs" event will come to clear "starting…"
     if (r && !p.running) setStarting((s) => new Set(s).add(p.id));
   };
@@ -117,7 +147,9 @@ export function ProgramsTab() {
     <>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <p className="lede m-0 max-w-[68ch]">{`Found ${progs.filter((p) => p.installed).length} programs. Agents can use the ones with tools; you can start any of them from here.`}</p>
-        <Button variant="ghost" size="small" onClick={() => void load(true)}>Scan again</Button>
+        <Button variant="ghost" size="small" onClick={() => void load(true)}>
+          Scan again
+        </Button>
       </div>
       {comfy ? <ComfyPanel comfy={comfy} rescan={() => void load(true)} /> : null}
       {CATS.map(([cat, label]) => {
@@ -130,12 +162,42 @@ export function ProgramsTab() {
               return (
                 <div key={p.id} data-prog={p.id}>
                   <Row
-                    title={<span className="flex flex-wrap items-center gap-2.5"><span className="avatar size-8 after:hidden"><DomNode as="span" className="dom-contents" make={() => programIcon(p.id, p.name, 20)} deps={[p.id, themeTick]} /></span><span>{p.name}</span><Dot tone={p.running ? 'on' : isStarting ? 'busy' : 'off'} /></span>}
-                    description={<><span className="hint prog-state">{progState(p, isStarting)}</span>{ABOUT[p.id] ? <span className="block mt-1">{ABOUT[p.id]}</span> : null}</>}
+                    title={
+                      <span className="flex flex-wrap items-center gap-2.5">
+                        <span className="avatar size-8 after:hidden">
+                          <DomNode
+                            as="span"
+                            className="dom-contents"
+                            make={() => programIcon(p.id, p.name, 20)}
+                            deps={[p.id, themeTick]}
+                          />
+                        </span>
+                        <span>{p.name}</span>
+                        <Dot tone={p.running ? 'on' : isStarting ? 'busy' : 'off'} />
+                      </span>
+                    }
+                    description={
+                      <>
+                        <span className="hint prog-state">{progState(p, isStarting)}</span>
+                        {ABOUT[p.id] ? <span className="block mt-1">{ABOUT[p.id]}</span> : null}
+                      </>
+                    }
                   >
-                    {p.actions.includes('launch') || (!p.cli && p.exe) ? <Button size="small" onClick={() => void start(p)}>Start</Button> : null}
-                    {p.serviceUrl ? <ButtonLink variant="ghost" size="small" href={p.serviceUrl} target="_blank" rel="noopener">Open</ButtonLink> : null}
-                    {p.actions.includes('terminal') ? <Button variant="ghost" size="small" onClick={() => void openCli(p)}>Terminal</Button> : null}
+                    {p.actions.includes('launch') || (!p.cli && p.exe) ? (
+                      <Button size="small" onClick={() => void start(p)}>
+                        Start
+                      </Button>
+                    ) : null}
+                    {p.serviceUrl ? (
+                      <ButtonLink variant="ghost" size="small" href={p.serviceUrl} target="_blank" rel="noopener">
+                        Open
+                      </ButtonLink>
+                    ) : null}
+                    {p.actions.includes('terminal') ? (
+                      <Button variant="ghost" size="small" onClick={() => void openCli(p)}>
+                        Terminal
+                      </Button>
+                    ) : null}
                   </Row>
                 </div>
               );
@@ -145,7 +207,11 @@ export function ProgramsTab() {
       })}
       <Section className="mt-10" headingClassName="section" title="Not found">
         <div className="px-5 py-4 text-[13px] leading-normal text-dim">
-          {progs.filter((p) => !p.installed).map((p) => p.name).join(', ') || 'Everything in the catalog was found.'} Set custom paths in Settings.
+          {progs
+            .filter((p) => !p.installed)
+            .map((p) => p.name)
+            .join(', ') || 'Everything in the catalog was found.'}{' '}
+          Set custom paths in Settings.
         </div>
       </Section>
       <Section className="mt-10" headingClassName="section" title="All apps (Start Menu)">
@@ -158,17 +224,49 @@ export function ProgramsTab() {
 function AllApps() {
   const [apps, setApps] = useState<StartMenuApp[] | null>(null);
   const [query, setQuery] = useState('');
-  useEffect(() => void rpc.programs.all().then(setApps).catch(() => setApps([])), []);
+  useEffect(
+    () =>
+      void rpc.programs
+        .all()
+        .then(setApps)
+        .catch(() => setApps([])),
+    [],
+  );
   if (!apps) return null;
   const ql = query.toLowerCase();
-  const shown = apps.filter((a) => !ql || a.name.toLowerCase().includes(ql) || a.folder.toLowerCase().includes(ql)).slice(0, 120);
+  const shown = apps
+    .filter((a) => !ql || a.name.toLowerCase().includes(ql) || a.folder.toLowerCase().includes(ql))
+    .slice(0, 120);
   return (
     <div className="prog-apps">
-      <div className="px-5 py-4"><SearchBox className="max-w-[420px]" placeholder={`Search ${apps.length} apps`} label="Search the Start Menu apps" value={query} onChange={setQuery} /></div>
+      <div className="px-5 py-4">
+        <SearchBox
+          className="max-w-[420px]"
+          placeholder={`Search ${apps.length} apps`}
+          label="Search the Start Menu apps"
+          value={query}
+          onChange={setQuery}
+        />
+      </div>
       <div className="divide-y divide-line border-t border-line">
         {shown.map((a) => (
-          <Row key={a.shortcut || a.name} title={<span className="prog-app-name">{a.name}</span>} description={a.folder || undefined}>
-            <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.programs.launch({ program: a.name }), (r) => r.message)}>Start</Button>
+          <Row
+            key={a.shortcut || a.name}
+            title={<span className="prog-app-name">{a.name}</span>}
+            description={a.folder || undefined}
+          >
+            <Button
+              variant="ghost"
+              size="tiny"
+              onClick={() =>
+                void attempt(
+                  () => rpc.programs.launch({ program: a.name }),
+                  (r) => r.message,
+                )
+              }
+            >
+              Start
+            </Button>
           </Row>
         ))}
       </div>
@@ -193,38 +291,94 @@ function ComfyPanel({ comfy, rescan }: { comfy: ComfyInfo; rescan: () => void })
   };
   const device = st.devices?.[0];
   return (
-    <Section title={<span className="flex items-center gap-2"><img className="app-icon" src={appIconUrl('comfyui')!} width={20} height={20} alt="" style={appIconStyle('comfyui', 20)} /> ComfyUI</span>} action={!st.running ? (
-      <Button size="small" onClick={() => void attempt(() => rpc.comfyui.start(), 'Starting ComfyUI… give it a minute').then(() => setTimeout(rescan, 20000))}>Start ComfyUI</Button>
-    ) : (
-      <ButtonLink variant="ghost" size="small" href={st.url} target="_blank" rel="noopener">Open ComfyUI</ButtonLink>
-    )}>
+    <Section
+      title={
+        <span className="flex items-center gap-2">
+          <img
+            className="app-icon"
+            src={appIconUrl('comfyui')!}
+            width={20}
+            height={20}
+            alt=""
+            style={appIconStyle('comfyui', 20)}
+          />{' '}
+          ComfyUI
+        </span>
+      }
+      action={
+        !st.running ? (
+          <Button
+            size="small"
+            onClick={() =>
+              void attempt(() => rpc.comfyui.start(), 'Starting ComfyUI… give it a minute').then(() =>
+                setTimeout(rescan, 20000),
+              )
+            }
+          >
+            Start ComfyUI
+          </Button>
+        ) : (
+          <ButtonLink variant="ghost" size="small" href={st.url} target="_blank" rel="noopener">
+            Open ComfyUI
+          </ButtonLink>
+        )
+      }
+    >
       <div className="flex flex-wrap gap-2 px-5 py-4">
         <Pill tone={st.running ? 'ok' : 'dim'}>{st.running ? `running · ${st.url}` : 'not running'}</Pill>
-        {device ? <Pill>{`${device.name.replace(/^cuda:\d+\s*/, '').slice(0, 40)} · ${device.vramFreeGB}/${device.vramTotalGB} GB free`}</Pill> : null}
+        {device ? (
+          <Pill>{`${device.name.replace(/^cuda:\d+\s*/, '').slice(0, 40)} · ${device.vramFreeGB}/${device.vramTotalGB} GB free`}</Pill>
+        ) : null}
       </div>
       {comfy.workflows.length ? (
         <div className="flex flex-col gap-4 px-5 py-4">
           <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
             <Field label="Workflow">
-              <SelectControl aria-label="Workflow" value={workflow} onChange={setWorkflow} options={comfy.workflows.map((w) => ({ value: w.name, label: w.name }))} />
+              <SelectControl
+                aria-label="Workflow"
+                value={workflow}
+                onChange={setWorkflow}
+                options={comfy.workflows.map((w) => ({ value: w.name, label: w.name }))}
+              />
             </Field>
             <div />
           </div>
-          <textarea rows={2} aria-label="Prompt" placeholder="Prompt (replaces the positive prompt in the workflow)" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+          <textarea
+            rows={2}
+            aria-label="Prompt"
+            placeholder="Prompt (replaces the positive prompt in the workflow)"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+          />
           <div className="flex flex-wrap items-center gap-3">
-            <Button disabled={running} onClick={() => void run()}>{running ? 'Running…' : 'Run'}</Button>
-            <span className="hint">{st.running ? 'Images appear below. Agents with the ComfyUI tools can do the same.' : 'Start ComfyUI first.'}</span>
+            <Button disabled={running} onClick={() => void run()}>
+              {running ? 'Running…' : 'Run'}
+            </Button>
+            <span className="hint">
+              {st.running
+                ? 'Images appear below. Agents with the ComfyUI tools can do the same.'
+                : 'Start ComfyUI first.'}
+            </span>
           </div>
           <div className="tool-images">
             {images.map((url) => (
-              <button key={url} type="button" className="img-button" aria-label="Show the image big" onClick={() => lightbox(url)}>
+              <button
+                key={url}
+                type="button"
+                className="img-button"
+                aria-label="Show the image big"
+                onClick={() => lightbox(url)}
+              >
                 <img src={url} alt="" />
               </button>
             ))}
           </div>
         </div>
       ) : (
-        <p className="hint m-0 px-5 py-4">No saved workflows found. Save one in ComfyUI (Workflow &gt; Save), or drop an API-format JSON into the dashboard data/comfy-workflows folder.</p>
+        <p className="hint m-0 px-5 py-4">
+          No saved workflows found. Save one in ComfyUI (Workflow &gt; Save), or drop an API-format JSON into the
+          dashboard data/comfy-workflows folder.
+        </p>
       )}
     </Section>
   );

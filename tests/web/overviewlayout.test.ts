@@ -1,7 +1,25 @@
 // The Overview's strip as data: opening, closing, moving, stacking, pinning and dropping panes (of any project),
 // columns per view and widths, leaving out gone panes, and what is saved in this browser.
 import { beforeEach, describe, expect, it } from 'vitest';
-import { closePane, dropPane, emptyLayout, evenOut, loadLayout, movePane, openPane, paneKey, panesInOrder, prune, resizeColumn, resizeStack, saveLayout, setPerView, stackPane, togglePin, unstackPane } from '../../web/overviewlayout.ts';
+import {
+  closePane,
+  dropPane,
+  emptyLayout,
+  evenOut,
+  loadLayout,
+  movePane,
+  openPane,
+  paneKey,
+  panesInOrder,
+  prune,
+  resizeColumn,
+  resizeStack,
+  saveLayout,
+  setPerView,
+  stackPane,
+  togglePin,
+  unstackPane,
+} from '../../web/overviewlayout.ts';
 import type { PaneRef, StripLayout } from '../../web/overviewlayout.ts';
 
 const a: PaneRef = { kind: 'agent', id: 'a', projectId: 'p1' };
@@ -17,7 +35,7 @@ const three = () => [a, b, t].reduce(openPane, emptyLayout());
 beforeEach(() => localStorage.clear());
 
 describe('the strip', () => {
-  it('opens a pane next to the one in use (any project\'s), and only focuses one already open', () => {
+  it("opens a pane next to the one in use (any project's), and only focuses one already open", () => {
     let l = three();
     expect(keys(l)).toEqual(['agent:a', 'agent:b', 'team:t']);
     expect(k.t).toBe('p2/team:t');
@@ -104,7 +122,22 @@ describe('the strip', () => {
     expect(loadLayout('other').columns).toEqual([]);
     localStorage.setItem('dash-overview-strip:broken', '{broken');
     expect(loadLayout('broken')).toEqual(emptyLayout());
-    localStorage.setItem('dash-overview-strip:p4', JSON.stringify({ columns: [{ panes: [{ kind: 'nope', id: 1 }, { kind: 'agent', id: 'a' }], width: 99 }], perView: 40, focus: 'agent:a' }));
+    localStorage.setItem(
+      'dash-overview-strip:p4',
+      JSON.stringify({
+        columns: [
+          {
+            panes: [
+              { kind: 'nope', id: 1 },
+              { kind: 'agent', id: 'a' },
+            ],
+            width: 99,
+          },
+        ],
+        perView: 40,
+        focus: 'agent:a',
+      }),
+    );
     expect(loadLayout('p4').columns).toEqual([]);
     const fixed = loadLayout('p4', 'p4');
     expect(panesInOrder(fixed)).toEqual([{ kind: 'agent', id: 'a', projectId: 'p4' }]);

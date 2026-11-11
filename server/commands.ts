@@ -60,7 +60,12 @@ export function resumeInChat(agentId: string, chatId: string): { resumed: true }
 const offWords = /^(off|stop|end|cancel)$/i;
 
 /** /loop [15m] [5x] message, or /loop off. */
-export function loopInChat(agentId: string, chatId: string, rest: string, attachments: string[] = []): { loop: LoopInfo | null } {
+export function loopInChat(
+  agentId: string,
+  chatId: string,
+  rest: string,
+  attachments: string[] = [],
+): { loop: LoopInfo | null } {
   const { agent, chat } = agentChat(agentId, chatId);
   if (offWords.test(rest)) {
     if (!engines.stopLoop(chat.id, 'Loop stopped.')) throw fail(400, 'No loop is going here.');
@@ -100,7 +105,11 @@ export function resendInTeam(teamId: string) {
   const t = team(teamId);
   const last = teams.lastUserMessage(t.id);
   if (!last) throw fail(400, 'Nothing to send again yet.');
-  return teams.queueUserMessage(t.id, last.text, { replyTo: last.replyTo || null, route: pickMember, attachments: last.attachments || [] });
+  return teams.queueUserMessage(t.id, last.text, {
+    replyTo: last.replyTo || null,
+    route: pickMember,
+    attachments: last.attachments || [],
+  });
 }
 
 /** /learn in a team: the member best placed for it learns, and saves the skill. */
@@ -114,7 +123,8 @@ export function resumeInTeam(teamId: string): { resumed: true } {
   const brief = stoppedBrief('team', t.id);
   const picked = brief ? resumeBrief(brief, RESUME_TEXT) : teams.resumeTeam(t.id) > 0;
   // A stopped goal with no saved work stays stopped.
-  if (!picked && brief) throw fail(409, 'Nothing was left to pick up again. Write in the chat to start the work again.');
+  if (!picked && brief)
+    throw fail(409, 'Nothing was left to pick up again. Write in the chat to start the work again.');
   if (!picked) throw fail(400, "Nothing to resume: the team wasn't stopped or paused.");
   return { resumed: true };
 }
@@ -150,7 +160,9 @@ export interface BrainWork {
   teams?: string[];
 }
 const cleanWork = (w: BrainWork) => ({
-  chats: (Array.isArray(w.chats) ? w.chats : []).filter((c) => typeof c?.agentId === 'string' && typeof c?.chatId === 'string').slice(0, 50),
+  chats: (Array.isArray(w.chats) ? w.chats : [])
+    .filter((c) => typeof c?.agentId === 'string' && typeof c?.chatId === 'string')
+    .slice(0, 50),
   teams: (Array.isArray(w.teams) ? w.teams : []).filter((t): t is string => typeof t === 'string').slice(0, 50),
 });
 
@@ -172,17 +184,29 @@ export function stopBrain(work: BrainWork): { stopped: string[] } {
   lastStop.set(pid, Date.now());
   const names = new Set<string>();
   // (marked stopped first, so their follow-up checks don't run on the cut-off work)
-  for (const b of stoppedBriefs(listBriefs(pid).filter((x) => ['open', 'blocked', 'stuck'].includes(x.status) && x.origin !== 'chat'))) {
-    if (b.kind === 'team' && teamBusy(b.targetId)) teams.stopTeam(b.targetId), names.add(b.name);
-    if (b.kind === 'agent' && b.chatId) stopAgentChat(b.chatId), names.add(b.name);
+  for (const b of stoppedBriefs(
+    listBriefs(pid).filter((x) => ['open', 'blocked', 'stuck'].includes(x.status) && x.origin !== 'chat'),
+  )) {
+    if (b.kind === 'team' && teamBusy(b.targetId)) (teams.stopTeam(b.targetId), names.add(b.name));
+    if (b.kind === 'agent' && b.chatId) (stopAgentChat(b.chatId), names.add(b.name));
   }
   for (const c of list)
-    if (engines.isChatBusy(c.chatId) || engines.queuedMessages(c.chatId).length || listBriefs(pid).some((b) => b.chatId === c.chatId && ['open', 'blocked', 'stuck'].includes(b.status))) {
+    if (
+      engines.isChatBusy(c.chatId) ||
+      engines.queuedMessages(c.chatId).length ||
+      listBriefs(pid).some((b) => b.chatId === c.chatId && ['open', 'blocked', 'stuck'].includes(b.status))
+    ) {
       stopAgentChat(c.chatId);
       names.add(agents.get(c.agentId)?.name || 'an agent');
     }
   for (const id of teamIds)
-    if (teams.getTeam(id) && (teamBusy(id) || listBriefs(pid).some((b) => b.kind === 'team' && b.targetId === id && ['open', 'blocked', 'stuck'].includes(b.status)))) {
+    if (
+      teams.getTeam(id) &&
+      (teamBusy(id) ||
+        listBriefs(pid).some(
+          (b) => b.kind === 'team' && b.targetId === id && ['open', 'blocked', 'stuck'].includes(b.status),
+        ))
+    ) {
       teams.stopTeam(id);
       names.add(teams.getTeam(id)?.name || 'a team');
     }
@@ -274,8 +298,12 @@ export function harnessCommands(agentId: string): HarnessCommand[] {
       }
     for (const e of names(path.join(root, 'skills'))) {
       const file = path.join(root, 'skills', e.name, 'SKILL.md');
-      if (e.isDirectory() && !ours.has(e.name) && fs.existsSync(file)) out.set(e.name, { name: e.name, about: describe(file) });
+      if (e.isDirectory() && !ours.has(e.name) && fs.existsSync(file))
+        out.set(e.name, { name: e.name, about: describe(file) });
     }
   }
-  return [...out.values()].filter((c) => /^[\w:.-]+$/.test(c.name)).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 100);
+  return [...out.values()]
+    .filter((c) => /^[\w:.-]+$/.test(c.name))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, 100);
 }

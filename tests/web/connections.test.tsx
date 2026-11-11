@@ -11,7 +11,18 @@ import type { AppState, OutboxPost } from '../../shared/types.ts';
 const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
 
 const post = (over: Partial<OutboxPost> = {}): OutboxPost =>
-  ({ id: 'p1', platform: 'x', status: 'pending', accountLabel: '@ada', agentName: 'Writer', teamName: 'Social', parts: ['Hello world'], images: ['C:\\out\\a.png', 'C:\\out\\b.png'], createdAt: Date.now(), ...over }) as OutboxPost;
+  ({
+    id: 'p1',
+    platform: 'x',
+    status: 'pending',
+    accountLabel: '@ada',
+    agentName: 'Writer',
+    teamName: 'Social',
+    parts: ['Hello world'],
+    images: ['C:\\out\\a.png', 'C:\\out\\b.png'],
+    createdAt: Date.now(),
+    ...over,
+  }) as OutboxPost;
 let posts: OutboxPost[];
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
@@ -21,7 +32,10 @@ beforeEach(() => {
   el = document.getElementById('view')!;
   posts = [post(), post({ id: 'p2', status: 'posted', parts: ['Old one'], images: undefined, url: 'https://x.com/1' })];
   requests = [];
-  state.data = { outboxPending: 1, accounts: { x: [{ id: 'x1', username: 'ada', name: 'Ada', autopost: false, connectedAt: Date.now() }], reddit: [] } } as unknown as AppState;
+  state.data = {
+    outboxPending: 1,
+    accounts: { x: [{ id: 'x1', username: 'ada', name: 'Ada', autopost: false, connectedAt: Date.now() }], reddit: [] },
+  } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
     const body = init.body ? JSON.parse(String(init.body)) : null;
@@ -32,8 +46,20 @@ beforeEach(() => {
       posts = posts.map((p, i) => (i === 0 ? { ...p, status: 'posted' } : p));
       return json(posts[0]);
     }
-    if (url === '/api/settings' && method === 'GET') return json({ settings: { x: { clientId: 'cid' }, reddit: {}, telegram: { chatId: '' } }, secrets: { xClientSecret: { set: false }, redditClientSecret: { set: false }, telegramBotToken: { set: false }, discordWebhook: { set: true, hint: '…abc' } } });
-    if (url === '/api/accounts') return json(state.data!.accounts && { ...state.data!.accounts, xAppConfigured: true, redditAppConfigured: false });
+    if (url === '/api/settings' && method === 'GET')
+      return json({
+        settings: { x: { clientId: 'cid' }, reddit: {}, telegram: { chatId: '' } },
+        secrets: {
+          xClientSecret: { set: false },
+          redditClientSecret: { set: false },
+          telegramBotToken: { set: false },
+          discordWebhook: { set: true, hint: '…abc' },
+        },
+      });
+    if (url === '/api/accounts')
+      return json(
+        state.data!.accounts && { ...state.data!.accounts, xAppConfigured: true, redditAppConfigured: false },
+      );
     if (url === '/api/state') return json(state.data);
     return json({ ok: true });
   });
@@ -44,7 +70,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const btn = (root: ParentNode, text: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
+const btn = (root: ParentNode, text: string) =>
+  [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
 const type = (input: HTMLInputElement | HTMLTextAreaElement, text: string) =>
   act(async () => {
     const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -69,7 +96,9 @@ describe('the Outbox', () => {
     posts = statuses.map((status, i) => post({ id: `p${i}`, status }));
     await openOutbox();
     const labels = [...el.querySelectorAll('.pill')].map((pill) => pill.textContent);
-    expect(labels).toEqual(expect.arrayContaining(['Waiting', 'Failed', 'Posting…', 'Posted', 'Rejected', 'Sent back']));
+    expect(labels).toEqual(
+      expect.arrayContaining(['Waiting', 'Failed', 'Posting…', 'Posted', 'Rejected', 'Sent back']),
+    );
     for (const label of ['Approve & post', 'Save edits', 'Discuss with team', 'Reject', 'Copy', 'Save']) {
       const action = [...el.querySelectorAll('button, a')].find((element) => element.textContent === label)!;
       expect(action.querySelector('svg')).not.toBeNull();
@@ -79,7 +108,10 @@ describe('the Outbox', () => {
 
   it('lists what waits and the history, with a live character count', async () => {
     await openOutbox();
-    expect([...el.querySelectorAll('h2.section')].map((h) => h.textContent)).toEqual(['Waiting for you (1)', 'History']);
+    expect([...el.querySelectorAll('h2.section')].map((h) => h.textContent)).toEqual([
+      'Waiting for you (1)',
+      'History',
+    ]);
     const text = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Text"]')!;
     await type(text, 'x'.repeat(281));
     const count = text.parentElement!.querySelector('.tabular-nums')!;
@@ -102,7 +134,10 @@ describe('the Outbox', () => {
     await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Take a.png off the post"]')!.click());
     await act(async () => btn(el, 'Approve & post').click());
     await settle();
-    expect(requests.find((r) => r.url === '/api/outbox/p1/approve')!.body).toEqual({ parts: ['Hello there'], images: ['C:\\out\\b.png'] });
+    expect(requests.find((r) => r.url === '/api/outbox/p1/approve')!.body).toEqual({
+      parts: ['Hello there'],
+      images: ['C:\\out\\b.png'],
+    });
     expect(document.getElementById('toasts')!.textContent).toContain('Posted ✓');
     expect(el.textContent).toContain('Waiting for you (0)');
   });
@@ -110,7 +145,10 @@ describe('the Outbox', () => {
   it("shows each image's alt text, and the file name when there is none", async () => {
     posts = [post({ imageAlt: { 'C:\\out\\a.png': 'A red bike against a wall' } })];
     await openOutbox();
-    expect([...el.querySelectorAll('img')].map((i) => i.getAttribute('alt'))).toEqual(['A red bike against a wall', 'b.png']);
+    expect([...el.querySelectorAll('img')].map((i) => i.getAttribute('alt'))).toEqual([
+      'A red bike against a wall',
+      'b.png',
+    ]);
   });
 
   it('sends a draft back to its team with your note', async () => {
@@ -136,7 +174,8 @@ describe('the Outbox', () => {
     }
     vi.stubGlobal('WebSocket', FakeSocket);
     connectEvents();
-    const outboxEvent = () => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'outbox', ts: 0 }) }));
+    const outboxEvent = () =>
+      act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'outbox', ts: 0 }) }));
     await openOutbox();
     const text = () => el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Text"]')!;
     // (saved in another tab)
@@ -172,13 +211,22 @@ describe('the Outbox', () => {
   });
 
   it('lets you change a Reddit post title before approving', async () => {
-    posts = [post({ platform: 'reddit', images: undefined, reddit: { kind: 'post', subreddit: 'rust', title: 'Old title' } } as Partial<OutboxPost>)];
+    posts = [
+      post({
+        platform: 'reddit',
+        images: undefined,
+        reddit: { kind: 'post', subreddit: 'rust', title: 'Old title' },
+      } as Partial<OutboxPost>),
+    ];
     await openOutbox();
     expect(el.textContent).toContain('Post in r/rust');
     await type(el.querySelector<HTMLInputElement>('input[aria-label="Title"]')!, 'New title');
     await act(async () => btn(el, 'Approve & send').click());
     await settle();
-    expect(requests.find((r) => r.url.endsWith('/approve'))!.body).toEqual({ parts: ['Hello world'], title: 'New title' });
+    expect(requests.find((r) => r.url.endsWith('/approve'))!.body).toEqual({
+      parts: ['Hello world'],
+      title: 'New title',
+    });
   });
 });
 
@@ -225,10 +273,17 @@ describe('Connections', () => {
   });
 
   it('turning auto-post off that can not be saved puts the switch back on', async () => {
-    state.data = { ...state.data!, accounts: { x: [{ id: 'x1', username: 'ada', name: 'Ada', autopost: true, connectedAt: Date.now() }], reddit: [] } } as unknown as AppState;
+    state.data = {
+      ...state.data!,
+      accounts: {
+        x: [{ id: 'x1', username: 'ada', name: 'Ada', autopost: true, connectedAt: Date.now() }],
+        reddit: [],
+      },
+    } as unknown as AppState;
     const ok = globalThis.fetch;
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
-      if (url === '/api/accounts/x/x1') return new Response(JSON.stringify({ error: 'Could not save it.' }), { status: 500 });
+      if (url === '/api/accounts/x/x1')
+        return new Response(JSON.stringify({ error: 'Could not save it.' }), { status: 500 });
       return ok(url, init);
     });
     await openConnections('#/settings?tab=connections&sub=accounts');
@@ -243,16 +298,31 @@ describe('Connections', () => {
   it('saves the X app, and shows the callback address to register', async () => {
     await openConnections('#/settings?tab=connections&sub=accounts');
     expect(el.querySelector('.conn-steps code')!.textContent).toBe(`${location.origin}/oauth/x/callback`);
-    const id = [...el.querySelectorAll('label.field')].find((f) => f.textContent?.startsWith('Client ID') && f.querySelector('input')?.placeholder === 'Client ID from your X app')!.querySelector('input')!;
+    const id = [...el.querySelectorAll('label.field')]
+      .find(
+        (f) =>
+          f.textContent?.startsWith('Client ID') &&
+          f.querySelector('input')?.placeholder === 'Client ID from your X app',
+      )!
+      .querySelector('input')!;
     await type(id, ' new-id ');
     await act(async () => btn(el.querySelectorAll('.col.gap-lg')[1] as HTMLElement, 'Save').click());
     await settle();
-    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/settings')!.body).toEqual({ x: { clientId: 'new-id' } });
+    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/settings')!.body).toEqual({
+      x: { clientId: 'new-id' },
+    });
   });
   it('links Telegram and Discord to fresh gateway setup instead of accepting old tokens or webhooks', async () => {
     await openConnections('#/settings?tab=connections&sub=accounts');
-    expect(el.textContent).toContain('old global token and chat ID are no longer used'); expect(el.textContent).toContain('Old channel webhooks are no longer used');
-    expect([...el.querySelectorAll('a')].filter((link) => link.textContent === 'Open Gateways').map((link) => link.getAttribute('href'))).toEqual(['#/settings?tab=gateways', '#/settings?tab=gateways']);
-    expect(el.querySelector('input[placeholder*="BotFather"]')).toBeNull(); expect(el.querySelector('input[placeholder*="discord.com/api/webhooks"]')).toBeNull(); expect([...el.querySelectorAll('button')].map((button) => button.textContent)).not.toContain('Send test');
+    expect(el.textContent).toContain('old global token and chat ID are no longer used');
+    expect(el.textContent).toContain('Old channel webhooks are no longer used');
+    expect(
+      [...el.querySelectorAll('a')]
+        .filter((link) => link.textContent === 'Open Gateways')
+        .map((link) => link.getAttribute('href')),
+    ).toEqual(['#/settings?tab=gateways', '#/settings?tab=gateways']);
+    expect(el.querySelector('input[placeholder*="BotFather"]')).toBeNull();
+    expect(el.querySelector('input[placeholder*="discord.com/api/webhooks"]')).toBeNull();
+    expect([...el.querySelectorAll('button')].map((button) => button.textContent)).not.toContain('Send test');
   });
 });

@@ -24,8 +24,16 @@ export async function listAgents(): Promise<OpenClawAgent[]> {
     const rows = JSON.parse(r.stdout.slice(r.stdout.indexOf('['))) as unknown;
     if (Array.isArray(rows))
       list = rows
-        .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object' && typeof (x as { id?: unknown }).id === 'string')
-        .map((x) => ({ id: String(x.id), model: typeof x.model === 'string' ? x.model : '', workspace: typeof x.workspace === 'string' ? x.workspace : '', isDefault: x.isDefault === true }));
+        .filter(
+          (x): x is Record<string, unknown> =>
+            !!x && typeof x === 'object' && typeof (x as { id?: unknown }).id === 'string',
+        )
+        .map((x) => ({
+          id: String(x.id),
+          model: typeof x.model === 'string' ? x.model : '',
+          workspace: typeof x.workspace === 'string' ? x.workspace : '',
+          isDefault: x.isDefault === true,
+        }));
   } catch {
     /* not JSON: none */
   }
@@ -43,7 +51,11 @@ export async function listModels(): Promise<{ id: string; name: string; context?
   const rows = Array.isArray(reply?.models) ? (reply.models as Record<string, unknown>[]) : [];
   const list = rows
     .filter((m) => m && typeof m.key === 'string' && m.available !== false)
-    .map((m) => ({ id: String(m.key), name: typeof m.name === 'string' ? m.name : String(m.key), ...(typeof m.contextWindow === 'number' ? { context: m.contextWindow } : {}) }));
+    .map((m) => ({
+      id: String(m.key),
+      name: typeof m.name === 'string' ? m.name : String(m.key),
+      ...(typeof m.contextWindow === 'number' ? { context: m.contextWindow } : {}),
+    }));
   if (list.length) modelsCache = { at: Date.now(), list };
   return list;
 }
@@ -64,7 +76,15 @@ interface OpenClawMeta {
   finalAssistantVisibleText?: string;
   error?: { kind?: string; message?: string };
   toolSummary?: { calls?: number; tools?: string[] };
-  agentMeta?: { sessionId?: string; provider?: string; model?: string; usage?: OpenClawUsage; costUsd?: number; promptTokens?: number; contextTokens?: number };
+  agentMeta?: {
+    sessionId?: string;
+    provider?: string;
+    model?: string;
+    usage?: OpenClawUsage;
+    costUsd?: number;
+    promptTokens?: number;
+    contextTokens?: number;
+  };
 }
 interface OpenClawReply {
   ok?: boolean;
@@ -79,7 +99,10 @@ interface OpenClawReply {
 // Agent ids and session keys go on the command line: keep them to plain characters.
 const safeId = (s: string) => /^[\w.:-]{1,120}$/.test(s);
 
-export function openclawArgs(agent: Agent, { sessionKey, messageFile, local = false }: { sessionKey: string; messageFile: string; local?: boolean }): string[] {
+export function openclawArgs(
+  agent: Agent,
+  { sessionKey, messageFile, local = false }: { sessionKey: string; messageFile: string; local?: boolean },
+): string[] {
   const args = ['agent'];
   if (agent.openclawAgent && safeId(agent.openclawAgent)) args.push('--agent', agent.openclawAgent);
   args.push('--session-key', sessionKey, '--message-file', messageFile, '--json', '--timeout', '0');
@@ -117,10 +140,17 @@ export function readReply(reply: OpenClawReply): EngineResult & { model?: string
     const e = reply.error;
     throw new Error(typeof e === 'string' ? e : e?.message || 'OpenClaw failed.');
   }
-  if (reply.status === 'in_flight') throw new Error('OpenClaw is still answering an earlier message in this chat. Try again in a moment.');
+  if (reply.status === 'in_flight')
+    throw new Error('OpenClaw is still answering an earlier message in this chat. Try again in a moment.');
   const body = reply.result && (reply.result.payloads || reply.result.meta) ? reply.result : reply;
   const meta = body.meta || {};
-  const text = (body.payloads || []).map((p) => p?.text || '').filter(Boolean).join('\n\n') || meta.finalAssistantVisibleText || '';
+  const text =
+    (body.payloads || [])
+      .map((p) => p?.text || '')
+      .filter(Boolean)
+      .join('\n\n') ||
+    meta.finalAssistantVisibleText ||
+    '';
   if (meta.error?.message && !text) throw new Error(meta.error.message);
   if (meta.aborted && !text) throw new Error('OpenClaw stopped before it answered.');
   const am = meta.agentMeta || {};
@@ -138,12 +168,32 @@ export function readReply(reply: OpenClawReply): EngineResult & { model?: string
   };
 }
 
-const gatewayDown = (r: OpenClawReply | null) => !!r && r.ok === false && !r.runId && /gateway not reachable|ECONNREFUSED|gateway.{0,40}(closed|not running|unavailable)/i.test(typeof r.error === 'string' ? r.error : r.error?.message || '');
+const gatewayDown = (r: OpenClawReply | null) =>
+  !!r &&
+  r.ok === false &&
+  !r.runId &&
+  /gateway not reachable|ECONNREFUSED|gateway.{0,40}(closed|not running|unavailable)/i.test(
+    typeof r.error === 'string' ? r.error : r.error?.message || '',
+  );
 
-export async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: EngineRunArgs): Promise<EngineResult> {
-  if (!which('openclaw')) throw new Error('OpenClaw is not installed (the `openclaw` command was not found). Install it with: npm install -g openclaw');
+export async function run({
+  agent,
+  chat,
+  text,
+  signal,
+  onEvent,
+  systemPrompt,
+  runId,
+}: EngineRunArgs): Promise<EngineResult> {
+  if (!which('openclaw'))
+    throw new Error(
+      'OpenClaw is not installed (the `openclaw` command was not found). Install it with: npm install -g openclaw',
+    );
   // A chat's session: its own key under the OpenClaw agent. Clear memory starts a new one.
-  const sessionKey = chat.sessionId && safeId(chat.sessionId) ? chat.sessionId : `dashboard-${chat.id}-${Date.now().toString(36)}`.replace(/[^\w.:-]/g, '');
+  const sessionKey =
+    chat.sessionId && safeId(chat.sessionId)
+      ? chat.sessionId
+      : `dashboard-${chat.id}-${Date.now().toString(36)}`.replace(/[^\w.:-]/g, '');
   const fresh = sessionKey !== chat.sessionId;
   // OpenClaw keeps its own system prompt; our agent brief goes with a session's first message.
   const message = fresh ? `<agent-instructions>\n${systemPrompt}\n</agent-instructions>\n\n${text}` : text;
@@ -151,7 +201,10 @@ export async function run({ agent, chat, text, signal, onEvent, systemPrompt, ru
   const messageFile = path.join(dir, `openclaw-${runId || Date.now().toString(36)}.md`);
   fs.writeFileSync(messageFile, message);
   const once = async (local: boolean) => {
-    const child = spawnCommand('openclaw', openclawArgs(agent, { sessionKey, messageFile, local }), { cwd: workspaceOf(agent), stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawnCommand('openclaw', openclawArgs(agent, { sessionKey, messageFile, local }), {
+      cwd: workspaceOf(agent),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     let out = '';
     const end = await pipeLines(child, { signal, onLine: (l) => (out += `${l}\n`) });
     return { reply: parseReply(out), ...end };
@@ -171,7 +224,14 @@ export async function run({ agent, chat, text, signal, onEvent, systemPrompt, ru
     if (!res.text) throw new Error(`OpenClaw finished without an answer.${tail(r.stderr, 600)}`);
     chat.sessionId = sessionKey;
     onEvent({ kind: 'text', text: res.text });
-    return { text: res.text, ...(res.tokens ? { tokens: res.tokens } : {}), ...(res.cached ? { cached: res.cached } : {}), ...(res.cost ? { cost: res.cost } : {}), ...(res.context ? { context: res.context } : {}), ...(res.window ? { window: res.window } : {}) };
+    return {
+      text: res.text,
+      ...(res.tokens ? { tokens: res.tokens } : {}),
+      ...(res.cached ? { cached: res.cached } : {}),
+      ...(res.cost ? { cost: res.cost } : {}),
+      ...(res.context ? { context: res.context } : {}),
+      ...(res.window ? { window: res.window } : {}),
+    };
   } finally {
     fs.rmSync(messageFile, { force: true });
   }

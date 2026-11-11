@@ -26,7 +26,9 @@ describe('run_command', () => {
   });
 
   it('keeps the end of long output, where errors usually are', async () => {
-    const command = /PowerShell/.test(commandShell().name) ? '1..4000 | ForEach-Object { "line $_" }; "LAST-LINE"' : 'for i in $(seq 1 4000); do echo "line $i"; done; echo LAST-LINE';
+    const command = /PowerShell/.test(commandShell().name)
+      ? '1..4000 | ForEach-Object { "line $_" }; "LAST-LINE"'
+      : 'for i in $(seq 1 4000); do echo "line $i"; done; echo LAST-LINE';
     const r = await callTool(shell, 'run_command', { command });
     expect(r.text).toContain('line 1');
     expect(r.text).toContain('LAST-LINE');
@@ -46,6 +48,7 @@ describe('schemas', () => {
   });
 
   it('X reads say how many they return at most', () => {
-    for (const name of ['x_recent_posts', 'x_mentions']) expect(toolDefs(shell).find((t) => t.name === name)!.parameters.properties!.limit.description).toMatch(/5-50/);
+    for (const name of ['x_recent_posts', 'x_mentions'])
+      expect(toolDefs(shell).find((t) => t.name === name)!.parameters.properties!.limit.description).toMatch(/5-50/);
   });
 });

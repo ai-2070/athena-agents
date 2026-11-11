@@ -63,7 +63,9 @@ const touchesStyles = (file: string): boolean => inWeb(file) && /\.(tsx?|css)$/.
  *  pieces the pages use). It exports the router's hooks next to its components: web/dev/hot.ts. */
 export function isViewFile(id: string, code: string): boolean {
   if (!/\/web\/views\/[^/]+\.tsx$/.test(id.replace(/\\/g, '/').split('?')[0])) return false;
-  return /^export\s+(?:(?:async\s+)?function\s+render\b|(?:const|let)\s+(?:render\b|\{[^}]*\brender\b))|^export\s*\{[^}]*\brender\b/m.test(code);
+  return /^export\s+(?:(?:async\s+)?function\s+render\b|(?:const|let)\s+(?:render\b|\{[^}]*\brender\b))|^export\s*\{[^}]*\brender\b/m.test(
+    code,
+  );
 }
 
 /** What a page gets in development: it tells the page's hot-reload rules it is a page (so React's check leaves out
@@ -82,7 +84,9 @@ export function viewMark(id: string): string {
 /** What to do with a change to these modules: swap them in place ('hot': each one swaps itself, React components)
  *  or reload the page. A plain module (state, sockets, listeners, three.js) run a second time next to its first
  *  copy would leave the page half old, half new, so it reloads, even when only hot-swappable files import it. */
-export function changeKind(modules: readonly { id: string | null; isSelfAccepting?: boolean }[]): 'hot' | 'reload' | 'none' {
+export function changeKind(
+  modules: readonly { id: string | null; isSelfAccepting?: boolean }[],
+): 'hot' | 'reload' | 'none' {
   const code = modules.filter((m) => m.id !== STYLES);
   if (!code.length) return 'none';
   return code.every((m) => m.isSelfAccepting) ? 'hot' : 'reload';
@@ -135,12 +139,20 @@ export function dashPlugin({ css = incrementalCss({ minify: false }), serverBack
       if (env.name !== 'client') return;
       // The styles first, for a reload as much as for a swap: the reloaded page asks for them again
       const styles = env.moduleGraph.getModuleById(STYLES);
-      const restyled = !!styles && touchesStyles(file) && (await css.update(file).catch((e: unknown) => (env.logger.error(`styles: ${e instanceof Error ? e.message : String(e)}`), false)));
+      const restyled =
+        !!styles &&
+        touchesStyles(file) &&
+        (await css
+          .update(file)
+          .catch((e: unknown) => (env.logger.error(`styles: ${e instanceof Error ? e.message : String(e)}`), false)));
       if (styles && restyled) env.moduleGraph.invalidateModule(styles);
       if (changeKind(modules) === 'reload') {
         const reload = () => env.hot.send({ type: 'full-reload', path: '*' });
         if (serverBack && !inWeb(file)) {
-          env.logger.info(`page reload ${path.relative(path.dirname(WEB), file)} once the server is back (it restarts too)`, { timestamp: true });
+          env.logger.info(
+            `page reload ${path.relative(path.dirname(WEB), file)} once the server is back (it restarts too)`,
+            { timestamp: true },
+          );
           waiting ??= serverBack().finally(() => {
             waiting = null;
             reload();
@@ -161,7 +173,21 @@ export function dashPlugin({ css = incrementalCss({ minify: false }), serverBack
  *  begin (`bun --watch` stops it at once), then until it answers, or gives up after timeout. */
 export async function serverBack(
   url: string,
-  { settle = 1000, every = 250, timeout = 30_000, get = (u: string) => fetch(u, { signal: AbortSignal.timeout(2000) }), sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)), now = () => Date.now() }: { settle?: number; every?: number; timeout?: number; get?: (url: string) => Promise<Response>; sleep?: (ms: number) => Promise<void>; now?: () => number } = {},
+  {
+    settle = 1000,
+    every = 250,
+    timeout = 30_000,
+    get = (u: string) => fetch(u, { signal: AbortSignal.timeout(2000) }),
+    sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
+    now = () => Date.now(),
+  }: {
+    settle?: number;
+    every?: number;
+    timeout?: number;
+    get?: (url: string) => Promise<Response>;
+    sleep?: (ms: number) => Promise<void>;
+    now?: () => number;
+  } = {},
 ): Promise<void> {
   await sleep(settle);
   const end = now() + timeout;
@@ -195,7 +221,12 @@ export interface DevServerOptions {
 }
 
 /** Starts the dev server on this machine only. */
-export async function startVite({ port = 5173, logLevel = 'info', cacheDir = path.join(ROOT, 'node_modules', '.vite'), dashboard }: DevServerOptions = {}): Promise<DevServer> {
+export async function startVite({
+  port = 5173,
+  logLevel = 'info',
+  cacheDir = path.join(ROOT, 'node_modules', '.vite'),
+  dashboard,
+}: DevServerOptions = {}): Promise<DevServer> {
   fs.mkdirSync(cacheDir, { recursive: true });
   const vite = await createServer({
     configFile: false,

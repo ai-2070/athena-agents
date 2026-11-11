@@ -3,9 +3,33 @@
 // the task belongs to (withProject), whichever project is open.
 import { agents, workflows, listProjects, withProject, activeProject, emit } from './store.ts';
 import { dataPath, readJSON, writeJSON, uid } from './util.ts';
-import { TAGS_PER_PROJECT, TAGS_PER_TASK, cleanTagText, isEmoji, splitTag, tagKey, tagLabel, tagNameProblem, tagsMatch } from '../shared/boardtags.ts';
+import {
+  TAGS_PER_PROJECT,
+  TAGS_PER_TASK,
+  cleanTagText,
+  isEmoji,
+  splitTag,
+  tagKey,
+  tagLabel,
+  tagNameProblem,
+  tagsMatch,
+} from '../shared/boardtags.ts';
 import type { TagMatch } from '../shared/boardtags.ts';
-import type { BoardComment, BoardPeople, BoardPriority, BoardStatus, BoardTag, BoardTagUse, BoardTask, Project, ProjectTask, TaskBoardData, TaskComment, TaskFile, TaskWork } from '../shared/types.ts';
+import type {
+  BoardComment,
+  BoardPeople,
+  BoardPriority,
+  BoardStatus,
+  BoardTag,
+  BoardTagUse,
+  BoardTask,
+  Project,
+  ProjectTask,
+  TaskBoardData,
+  TaskComment,
+  TaskFile,
+  TaskWork,
+} from '../shared/types.ts';
 
 import { BOARD_PRIORITIES, BOARD_STATUSES } from '../shared/api/taskboard.ts';
 
@@ -22,7 +46,11 @@ const file = () => dataPath('projects', activeProject().id, 'board.json');
 const read = (): BoardFile => {
   const f = readJSON<Partial<BoardFile>>(file(), {});
   const tasks = Array.isArray(f.tasks) ? f.tasks : [];
-  return { tasks, next: typeof f.next === 'number' ? f.next : tasks.reduce((n, t) => Math.max(n, t.number || 0), 0) + 1, tags: Array.isArray(f.tags) ? f.tags : [] };
+  return {
+    tasks,
+    next: typeof f.next === 'number' ? f.next : tasks.reduce((n, t) => Math.max(n, t.number || 0), 0) + 1,
+    tags: Array.isArray(f.tags) ? f.tags : [],
+  };
 };
 function write(f: BoardFile, ids: string[]): void {
   writeJSON(file(), f);
@@ -30,24 +58,34 @@ function write(f: BoardFile, ids: string[]): void {
   emit('board', { projectId: activeProject().id, ids });
 }
 
-const fail = (message: string, status = 400): never => { throw Object.assign(new Error(message), { status }); };
+const fail = (message: string, status = 400): never => {
+  throw Object.assign(new Error(message), { status });
+};
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, name: string, required = false): string => {
-  if (typeof v !== 'string' || (required && !v.trim())) return fail(`${name} must be ${required ? 'non-empty text' : 'text'}.`);
+  if (typeof v !== 'string' || (required && !v.trim()))
+    return fail(`${name} must be ${required ? 'non-empty text' : 'text'}.`);
   return v.trim();
 };
 function projectOf(id: unknown): Project {
   const p = typeof id === 'string' ? listProjects().find((x) => x.id === id) : undefined;
   return p || fail('That project is unavailable.', 404);
 }
-const status = (v: unknown): BoardStatus => (BOARD_STATUSES as readonly unknown[]).includes(v) ? v as BoardStatus : fail('Choose a status: To do, In progress, In review, Blocked or Done.');
-const priority = (v: unknown): BoardPriority => (BOARD_PRIORITIES as readonly unknown[]).includes(v) ? v as BoardPriority : fail('Choose a priority: urgent, high, normal or low.');
+const status = (v: unknown): BoardStatus =>
+  (BOARD_STATUSES as readonly unknown[]).includes(v)
+    ? (v as BoardStatus)
+    : fail('Choose a status: To do, In progress, In review, Blocked or Done.');
+const priority = (v: unknown): BoardPriority =>
+  (BOARD_PRIORITIES as readonly unknown[]).includes(v)
+    ? (v as BoardPriority)
+    : fail('Choose a priority: urgent, high, normal or low.');
 /** '' , you, brain, or an agent or team of this project (inside withProject). */
 function assignee(v: unknown): string {
   if (v === '' || v === 'you' || v === 'brain') return v;
   const m = typeof v === 'string' ? /^(agent|team):([\w.-]+)$/.exec(v) : null;
   if (!m) return fail('assignee must be empty, you, brain, agent:<id> or team:<id>.');
-  if (m[1] === 'agent' ? !agents.get(m[2]) : !workflows.get(m[2])) return fail('That agent or team is not in this project.');
+  if (m[1] === 'agent' ? !agents.get(m[2]) : !workflows.get(m[2]))
+    return fail('That agent or team is not in this project.');
   return v as string;
 }
 const rank = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : fail('rank must be a number.'));
@@ -60,12 +98,15 @@ function who(ref: string, none: string): { name: string; emoji?: string; color?:
   const id = ref.slice(ref.indexOf(':') + 1);
   if (ref.startsWith('agent:')) {
     const a = agents.get(id);
-    return a ? { name: a.name, ...(a.emoji ? { emoji: a.emoji } : {}), ...(a.color ? { color: a.color } : {}) } : { name: 'A former agent' };
+    return a
+      ? { name: a.name, ...(a.emoji ? { emoji: a.emoji } : {}), ...(a.color ? { color: a.color } : {}) }
+      : { name: 'A former agent' };
   }
   return { name: workflows.get(id)?.name || 'A former team' };
 }
 /** Who works on a task, as an assignee is written: brain, agent:<id> or team:<id>. */
-export const workerOf = (w: TaskWork): string => (w.target.kind === 'brain' ? 'brain' : `${w.target.kind}:${w.target.id}`);
+export const workerOf = (w: TaskWork): string =>
+  w.target.kind === 'brain' ? 'brain' : `${w.target.kind}:${w.target.id}`;
 /** A task's tags, in its order, out of its project's (ids that point at nothing are skipped). */
 export function tagsOf(t: ProjectTask, tags: readonly BoardTag[]): BoardTag[] {
   return (t.tags || []).flatMap((id) => tags.filter((x) => x.id === id));
@@ -93,25 +134,39 @@ function named(c: TaskComment): BoardComment {
   const w = who(c.by, 'You');
   return { ...c, byName: w.name, ...(w.emoji ? { byEmoji: w.emoji } : {}) };
 }
-const order = (a: ProjectTask, b: ProjectTask) => a.rank - b.rank || b.createdAt - a.createdAt || a.id.localeCompare(b.id);
+const order = (a: ProjectTask, b: ProjectTask) =>
+  a.rank - b.rank || b.createdAt - a.createdAt || a.id.localeCompare(b.id);
 
 /** The cards of one project, or of all of them ('all'), in board order; every project with its open count; and the
  *  shown projects' tags (the page filters by them itself). */
 export function taskBoard(project: string): TaskBoardData {
   const all = listProjects();
-  const chosen = project === 'all' ? all : [all.find((p) => p.id === project) || fail('That project is unavailable.', 404)];
+  const chosen =
+    project === 'all' ? all : [all.find((p) => p.id === project) || fail('That project is unavailable.', 404)];
   // each project's board is read once: for its open count, and for its cards when it is shown
   const boards = new Map(all.map((p) => [p.id, withProject(p, () => read())]));
-  const tasks = chosen.flatMap((p) => withProject(p, () => { const f = boards.get(p.id)!; return f.tasks.map((t) => card(p, t, f.tags)); }));
+  const tasks = chosen.flatMap((p) =>
+    withProject(p, () => {
+      const f = boards.get(p.id)!;
+      return f.tasks.map((t) => card(p, t, f.tags));
+    }),
+  );
   tasks.sort(order);
-  const projects = all.map((p) => ({ id: p.id, name: p.name, open: boards.get(p.id)!.tasks.filter((t) => t.status !== 'done').length }));
+  const projects = all.map((p) => ({
+    id: p.id,
+    name: p.name,
+    open: boards.get(p.id)!.tasks.filter((t) => t.status !== 'done').length,
+  }));
   return { projects, tasks, tags: Object.fromEntries(chosen.map((p) => [p.id, uses(boards.get(p.id)!)])) };
 }
 
 /** One project's cards (not the others': the Overview page asks project by project). */
 export function projectCards(projectId: string): BoardTask[] {
   const p = projectOf(projectId);
-  return withProject(p, () => { const f = read(); return f.tasks.map((t) => card(p, t, f.tags)); });
+  return withProject(p, () => {
+    const f = read();
+    return f.tasks.map((t) => card(p, t, f.tags));
+  });
 }
 
 /** One task as its page shows it. */
@@ -127,7 +182,12 @@ export function boardTask(projectId: string, id: string): BoardTask {
 /** The agents and teams a project's tasks can go to. */
 export function boardPeople(projectId: string): BoardPeople {
   return withProject(projectOf(projectId), () => ({
-    agents: agents.list().map((a) => ({ id: a.id, name: a.name, ...(a.emoji ? { emoji: a.emoji } : {}), ...(a.color ? { color: a.color } : {}) })),
+    agents: agents.list().map((a) => ({
+      id: a.id,
+      name: a.name,
+      ...(a.emoji ? { emoji: a.emoji } : {}),
+      ...(a.color ? { color: a.color } : {}),
+    })),
     teams: workflows.list().map((t) => ({ id: t.id, name: t.name })),
   }));
 }
@@ -164,7 +224,9 @@ export function addBoardTask(projectId: string, input: BoardInput, by = 'you', f
       priority: input.priority === undefined ? 'normal' : priority(input.priority),
       assignee: input.assignee === undefined ? '' : assignee(input.assignee),
       rank: input.rank === undefined ? (top ? top.rank - 1024 : 0) : rank(input.rank),
-      ...(s === 'blocked' && typeof input.blockedReason === 'string' && input.blockedReason.trim() ? { blockedReason: text(input.blockedReason, 'blockedReason') } : {}),
+      ...(s === 'blocked' && typeof input.blockedReason === 'string' && input.blockedReason.trim()
+        ? { blockedReason: text(input.blockedReason, 'blockedReason') }
+        : {}),
       createdBy: by,
       createdAt: now,
       updatedAt: now,
@@ -178,13 +240,20 @@ export function addBoardTask(projectId: string, input: BoardInput, by = 'you', f
 }
 
 /** Moves (status, rank) or edits a task in its own project. Leaving Blocked drops its reason. by: who makes any new tag. */
-export function changeBoardTask(projectId: string, id: string, input: BoardInput & { expectedUpdatedAt?: unknown }, files?: TaskFile[], by = 'you'): BoardTask {
+export function changeBoardTask(
+  projectId: string,
+  id: string,
+  input: BoardInput & { expectedUpdatedAt?: unknown },
+  files?: TaskFile[],
+  by = 'you',
+): BoardTask {
   const p = projectOf(projectId);
   if (!object(input)) return fail('Say what changes.');
   return withProject(p, () => {
     const f = read();
     const t = f.tasks.find((x) => x.id === id) || fail('That task is unavailable.', 404);
-    if (typeof input.expectedUpdatedAt === 'number' && input.expectedUpdatedAt !== t.updatedAt) return fail('This task changed meanwhile. Reload it before saving.', 409);
+    if (typeof input.expectedUpdatedAt === 'number' && input.expectedUpdatedAt !== t.updatedAt)
+      return fail('This task changed meanwhile. Reload it before saving.', 409);
     if (input.title !== undefined) t.title = text(input.title, 'title', true);
     if (input.description !== undefined) t.description = text(input.description, 'description');
     if (input.priority !== undefined) t.priority = priority(input.priority);
@@ -221,7 +290,8 @@ export function rerankBoardTasks(items: unknown): void {
   if (!Array.isArray(items)) return fail('ranks must be a list.');
   const byProject = new Map<string, Map<string, { status: BoardStatus; rank: number }>>();
   for (const v of items) {
-    if (!object(v) || typeof v.projectId !== 'string' || typeof v.id !== 'string') return fail('Each rank needs a projectId and an id.');
+    if (!object(v) || typeof v.projectId !== 'string' || typeof v.id !== 'string')
+      return fail('Each rank needs a projectId and an id.');
     const ranks = byProject.get(v.projectId) || new Map<string, { status: BoardStatus; rank: number }>();
     ranks.set(v.id, { status: status(v.status), rank: rank(v.rank) });
     byProject.set(v.projectId, ranks);
@@ -235,7 +305,7 @@ export function rerankBoardTasks(items: unknown): void {
       const ids: string[] = [];
       for (const t of f.tasks) {
         const r = ranks.get(t.id);
-        if (r && r.status === t.status && r.rank !== t.rank) (t.rank = r.rank), ids.push(t.id);
+        if (r && r.status === t.status && r.rank !== t.rank) ((t.rank = r.rank), ids.push(t.id));
       }
       if (ids.length) write(f, ids);
     });
@@ -264,19 +334,40 @@ export function savedBoardTask(projectId: string, id: string): ProjectTask | nul
 
 /** Every project's tasks that have work going (starting, working or waiting). */
 export function tasksWithWork(): { projectId: string; task: ProjectTask }[] {
-  return listProjects().flatMap((p) => withProject(p, () => read().tasks.filter((t) => t.work && ['starting', 'working', 'waiting'].includes(t.work.state)).map((task) => ({ projectId: p.id, task }))));
+  return listProjects().flatMap((p) =>
+    withProject(p, () =>
+      read()
+        .tasks.filter((t) => t.work && ['starting', 'working', 'waiting'].includes(t.work.state))
+        .map((task) => ({ projectId: p.id, task })),
+    ),
+  );
 }
 
 /** Adds a comment (Markdown) to a task: from you, the Brain ('brain') or an agent ('agent:<id>'), with files
  *  already copied into the task's project. */
-export function addBoardComment(projectId: string, taskId: string, text: unknown, by = 'you', files: TaskFile[] = []): BoardTask {
+export function addBoardComment(
+  projectId: string,
+  taskId: string,
+  text: unknown,
+  by = 'you',
+  files: TaskFile[] = [],
+): BoardTask {
   const p = projectOf(projectId);
   return withProject(p, () => {
     const f = read();
     const t = f.tasks.find((x) => x.id === taskId) || fail('That task is unavailable.', 404);
     const comments = t.comments || [];
     const now = Date.now();
-    t.comments = [...comments, { id: uid('c'), by, text: files.length && (typeof text !== 'string' || !text.trim()) ? '' : text_(text), at: now, ...(files.length ? { files } : {}) }];
+    t.comments = [
+      ...comments,
+      {
+        id: uid('c'),
+        by,
+        text: files.length && (typeof text !== 'string' || !text.trim()) ? '' : text_(text),
+        at: now,
+        ...(files.length ? { files } : {}),
+      },
+    ];
     t.updatedAt = Math.max(now, t.updatedAt + 1);
     write(f, [t.id]);
     return card(p, t, f.tags, true);
@@ -311,16 +402,28 @@ export function findBoardTask(projectId: string, ref: unknown): BoardTask {
     if (hit) return card(p, hit, f.tags);
     const named = all.filter((t) => t.title.toLowerCase() === r.toLowerCase());
     if (named.length === 1) return card(p, named[0], f.tags);
-    return fail(named.length ? `${named.length} tasks are called "${r}": use its #number` : `no task "${r}" on the board`, 404);
+    return fail(
+      named.length ? `${named.length} tasks are called "${r}": use its #number` : `no task "${r}" on the board`,
+      404,
+    );
   });
 }
 
-const STATUS_LABEL: Record<BoardStatus, string> = { todo: 'To do', in_progress: 'In progress', in_review: 'In review', blocked: 'Blocked', done: 'Done' };
+const STATUS_LABEL: Record<BoardStatus, string> = {
+  todo: 'To do',
+  in_progress: 'In progress',
+  in_review: 'In review',
+  blocked: 'Blocked',
+  done: 'Done',
+};
 /** One task as the Brain and agents read it (inside withProject). */
 function line(t: ProjectTask, tags: readonly BoardTag[]): string {
   const comments = t.comments || [];
   const c = comments.at(-1);
-  const working = t.work && ['starting', 'working', 'waiting'].includes(t.work.state) ? ` | working: ${who(workerOf(t.work), 'someone').name}` : '';
+  const working =
+    t.work && ['starting', 'working', 'waiting'].includes(t.work.state)
+      ? ` | working: ${who(workerOf(t.work), 'someone').name}`
+      : '';
   const files = (t.files?.length || 0) + comments.reduce((n, x) => n + (x.files?.length || 0), 0);
   const tagged = tagsOf(t, tags);
   return `#${t.number} [${STATUS_LABEL[t.status]}] ${t.priority === 'normal' ? '' : `(${t.priority}) `}${t.title} | ${t.assignee ? `${who(t.assignee, 'Unassigned').name} (${t.assignee})` : 'unassigned'}${tagged.length ? ` | tags: ${tagged.map(tagLabel).join(', ')}` : ''}${working}${files ? ` | files: ${files}` : ''}${t.blockedReason ? ` | blocked: ${t.blockedReason}` : ''}${t.description ? ` | ${t.description.replace(/\s+/g, ' ').slice(0, 140)}` : ''}${c ? ` | ${comments.length} comment${comments.length === 1 ? '' : 's'}, last from ${who(c.by, 'you').name}: "${c.text.replace(/\s+/g, ' ').slice(0, 120)}"` : ''}`;
@@ -330,7 +433,10 @@ function line(t: ProjectTask, tags: readonly BoardTag[]): string {
 function linesOf(f: BoardFile, max: number, only?: string): string[] {
   const tasks = f.tasks.filter((t) => !only || t.id === only).sort(order);
   const open = tasks.filter((t) => t.status !== 'done');
-  const done = tasks.filter((t) => t.status === 'done').sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 5);
+  const done = tasks
+    .filter((t) => t.status === 'done')
+    .sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0))
+    .slice(0, 5);
   return [...open.slice(0, max), ...done].map((t) => line(t, f.tags));
 }
 /** The board as the Brain sees it: open tasks, then the last few done, one line each. */
@@ -362,7 +468,8 @@ function uses(f: BoardFile): BoardTagUse[] {
     .map((x) => ({ ...x, tasks: f.tasks.filter((t) => t.tags?.includes(x.id)).length }))
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 }
-const byName = (f: BoardFile, name: string): BoardTag | undefined => f.tags.find((x) => tagKey(x.name) === tagKey(name));
+const byName = (f: BoardFile, name: string): BoardTag | undefined =>
+  f.tags.find((x) => tagKey(x.name) === tagKey(name));
 /** A tag by its id or its name (a leading emoji and case don't matter). */
 function findTag(f: BoardFile, ref: unknown): BoardTag | undefined {
   if (typeof ref !== 'string') return undefined;
@@ -386,18 +493,36 @@ function makeTag(f: BoardFile, input: TagInput, by: string): { tag: BoardTag; ma
   const emoji = input.emoji === undefined ? split.emoji : emojiOf(input.emoji) || split.emoji;
   const same = byName(f, split.name);
   if (same) return { tag: same, made: false };
-  if (f.tags.length >= TAGS_PER_PROJECT) return fail(`A project can have up to ${TAGS_PER_PROJECT} tags. Delete one you no longer use first.`);
-  const tag: BoardTag = { id: uid('tag'), name: split.name, ...(emoji ? { emoji } : {}), createdBy: by, createdAt: Date.now() };
+  if (f.tags.length >= TAGS_PER_PROJECT)
+    return fail(`A project can have up to ${TAGS_PER_PROJECT} tags. Delete one you no longer use first.`);
+  const tag: BoardTag = {
+    id: uid('tag'),
+    name: split.name,
+    ...(emoji ? { emoji } : {}),
+    createdBy: by,
+    createdAt: Date.now(),
+  };
   f.tags.push(tag);
   return { tag, made: true };
 }
 /** Tag names or ids, as a list or as text with commas ("bug, design"). */
 function tagRefs(v: unknown, field: string): string[] {
-  const list = typeof v === 'string' ? v.split(',') : Array.isArray(v) && v.every((x) => typeof x === 'string') ? v as string[] : fail(`${field} must be a list of tag names.`);
+  const list =
+    typeof v === 'string'
+      ? v.split(',')
+      : Array.isArray(v) && v.every((x) => typeof x === 'string')
+        ? (v as string[])
+        : fail(`${field} must be a list of tag names.`);
   return list.map(cleanTagText).filter(Boolean);
 }
 function tagIds(f: BoardFile, refs: string[], by: string): string[] {
-  return refs.map((r) => findTag(f, r)?.id || (TAG_ID.test(r) ? fail('That tag is unavailable. Reload and try again.', 404) : makeTag(f, { name: r }, by).tag.id));
+  return refs.map(
+    (r) =>
+      findTag(f, r)?.id ||
+      (TAG_ID.test(r)
+        ? fail('That tag is unavailable. Reload and try again.', 404)
+        : makeTag(f, { name: r }, by).tag.id),
+  );
 }
 /** Puts the input's tags on a task: tags (the whole list), then addTags, then removeTags. New names make tags. */
 function putTags(f: BoardFile, t: ProjectTask, input: BoardInput, by: string): void {
@@ -455,7 +580,10 @@ export function changeBoardTag(projectId: string, ref: string, input: TagInput):
       if (e) tag.emoji = e;
       else delete tag.emoji;
     }
-    write(f, tasksWith(f, tag.id).map((t) => t.id));
+    write(
+      f,
+      tasksWith(f, tag.id).map((t) => t.id),
+    );
     return tagUse(f, tag);
   });
 }
@@ -472,7 +600,10 @@ export function removeBoardTag(projectId: string, ref: string): { tag: BoardTag;
       if (!t.tags.length) delete t.tags;
       t.updatedAt = Math.max(now, t.updatedAt + 1);
     }
-    write({ ...f, tags: f.tags.filter((x) => x.id !== tag.id) }, had.map((t) => t.id));
+    write(
+      { ...f, tags: f.tags.filter((x) => x.id !== tag.id) },
+      had.map((t) => t.id),
+    );
     return { tag, tasks: had.length };
   });
 }
@@ -496,29 +627,53 @@ export interface BoardQuery {
   limit?: unknown;
 }
 /** Tasks found by their tags (and status), as the Brain and agents read them; and the names no tag has. */
-export function findBoardTasks(projectId: string, q: BoardQuery): { lines: string[]; total: number; unknown: string[]; tagLine: string } {
+export function findBoardTasks(
+  projectId: string,
+  q: BoardQuery,
+): { lines: string[]; total: number; unknown: string[]; tagLine: string } {
   if (!object(q)) return fail('Say which tags to look for.');
   const wanted = q.tags === undefined ? [] : tagRefs(q.tags, 'tags');
-  const match: TagMatch = q.match === undefined || q.match === 'any' ? 'any' : q.match === 'all' ? 'all' : fail('match must be any or all.');
+  const match: TagMatch =
+    q.match === undefined || q.match === 'any' ? 'any' : q.match === 'all' ? 'all' : fail('match must be any or all.');
   const untagged = q.untagged === true;
   if (!wanted.length && !untagged) return fail('Name the tags to look for, or ask for untagged tasks.');
   const st = q.status === undefined || q.status === 'open' ? 'open' : q.status === 'all' ? 'all' : status(q.status);
-  const limit = q.limit === undefined ? 50 : typeof q.limit === 'number' && Number.isInteger(q.limit) && q.limit > 0 ? Math.min(q.limit, 200) : fail('limit must be a whole number above 0.');
+  const limit =
+    q.limit === undefined
+      ? 50
+      : typeof q.limit === 'number' && Number.isInteger(q.limit) && q.limit > 0
+        ? Math.min(q.limit, 200)
+        : fail('limit must be a whole number above 0.');
   return withProject(projectOf(projectId), () => {
     const f = read();
     const unknown = wanted.filter((r) => !findTag(f, r));
     // (an id names its tag; a name is matched as a name)
     const names = wanted.map((r) => findTag(f, r)?.name ?? r);
     const hits = f.tasks
-      .filter((t) => (st === 'all' || (st === 'open' ? t.status !== 'done' : t.status === st)) && tagsMatch(tagsOf(t, f.tags).map((x) => x.name), names, match, untagged))
+      .filter(
+        (t) =>
+          (st === 'all' || (st === 'open' ? t.status !== 'done' : t.status === st)) &&
+          tagsMatch(
+            tagsOf(t, f.tags).map((x) => x.name),
+            names,
+            match,
+            untagged,
+          ),
+      )
       .sort((a, b) => BOARD_STATUSES.indexOf(a.status) - BOARD_STATUSES.indexOf(b.status) || order(a, b));
-    return { lines: hits.slice(0, limit).map((t) => line(t, f.tags)), total: hits.length, unknown, tagLine: unknown.length ? tagLine(uses(f)) : '' };
+    return {
+      lines: hits.slice(0, limit).map((t) => line(t, f.tags)),
+      total: hits.length,
+      unknown,
+      tagLine: unknown.length ? tagLine(uses(f)) : '',
+    };
   });
 }
 /** findBoardTasks as the Brain and agents read it: the lines, how many more there are, and the names no tag has. */
 export function findBoardTasksText(projectId: string, q: BoardQuery): string {
   const found = findBoardTasks(projectId, q);
-  const more = found.total > found.lines.length ? `\n(${found.total - found.lines.length} more: ask with a higher limit)` : '';
+  const more =
+    found.total > found.lines.length ? `\n(${found.total - found.lines.length} more: ask with a higher limit)` : '';
   const unknown = found.unknown.length ? `\nNo tag called: ${found.unknown.join(', ')}. ${found.tagLine}` : '';
   return `${found.lines.join('\n') || 'No tasks match.'}${more}${unknown}`;
 }
@@ -538,10 +693,20 @@ export function restoredBoard(raw: unknown): BoardFile {
   const tasks: ProjectTask[] = [];
   const seen = new Set<string>();
   for (const v of values) {
-    if (!object(v) || typeof v.id !== 'string' || !/^[\w.-]+$/.test(v.id) || seen.has(v.id) || typeof v.title !== 'string' || !v.title.trim()) continue;
+    if (
+      !object(v) ||
+      typeof v.id !== 'string' ||
+      !/^[\w.-]+$/.test(v.id) ||
+      seen.has(v.id) ||
+      typeof v.title !== 'string' ||
+      !v.title.trim()
+    )
+      continue;
     const num = (x: unknown, d: number) => (typeof x === 'number' && Number.isFinite(x) ? x : d);
     const ref = (x: unknown) => (typeof x === 'string' && /^(|you|brain|(?:agent|team):[\w.-]+)$/.test(x) ? x : '');
-    const s: BoardStatus = (BOARD_STATUSES as readonly unknown[]).includes(v.status) ? v.status as BoardStatus : 'todo';
+    const s: BoardStatus = (BOARD_STATUSES as readonly unknown[]).includes(v.status)
+      ? (v.status as BoardStatus)
+      : 'todo';
     const files = restoredFiles(v.files);
     tasks.push({
       id: v.id,
@@ -549,25 +714,54 @@ export function restoredBoard(raw: unknown): BoardFile {
       title: v.title,
       description: typeof v.description === 'string' ? v.description : '',
       status: s,
-      priority: (BOARD_PRIORITIES as readonly unknown[]).includes(v.priority) ? v.priority as BoardPriority : 'normal',
+      priority: (BOARD_PRIORITIES as readonly unknown[]).includes(v.priority)
+        ? (v.priority as BoardPriority)
+        : 'normal',
       assignee: ref(v.assignee),
       rank: num(v.rank, 0),
-      ...(s === 'blocked' && typeof v.blockedReason === 'string' && v.blockedReason ? { blockedReason: v.blockedReason } : {}),
+      ...(s === 'blocked' && typeof v.blockedReason === 'string' && v.blockedReason
+        ? { blockedReason: v.blockedReason }
+        : {}),
       createdBy: ref(v.createdBy) || 'you',
       createdAt: num(v.createdAt, Date.now()),
       updatedAt: num(v.updatedAt, Date.now()),
       ...(s === 'done' ? { doneAt: num(v.doneAt, num(v.updatedAt, Date.now())) } : {}),
       ...(files.length ? { files } : {}),
       ...(() => {
-        const kept = Array.isArray(v.tags) ? [...new Set(v.tags.flatMap((x) => (typeof x === 'string' && same.get(x)) || []))].slice(0, TAGS_PER_TASK) : [];
+        const kept = Array.isArray(v.tags)
+          ? [...new Set(v.tags.flatMap((x) => (typeof x === 'string' && same.get(x)) || []))].slice(0, TAGS_PER_TASK)
+          : [];
         return kept.length ? { tags: kept } : {};
       })(),
       // (work isn't kept: its runs and threads belong to the copy it was saved from)
-      ...(Array.isArray(v.comments) ? { comments: v.comments.filter((c): c is Record<string, unknown> => object(c) && typeof c.id === 'string' && /^[\w.-]+$/.test(c.id) && typeof c.text === 'string' && (!!c.text.trim() || restoredFiles(c.files).length > 0)).map((c) => ({ id: c.id as string, by: ref(c.by) || 'you', text: c.text as string, at: num(c.at, Date.now()), ...(typeof c.editedAt === 'number' ? { editedAt: c.editedAt } : {}), ...(restoredFiles(c.files).length ? { files: restoredFiles(c.files) } : {}) })) } : {}),
+      ...(Array.isArray(v.comments)
+        ? {
+            comments: v.comments
+              .filter(
+                (c): c is Record<string, unknown> =>
+                  object(c) &&
+                  typeof c.id === 'string' &&
+                  /^[\w.-]+$/.test(c.id) &&
+                  typeof c.text === 'string' &&
+                  (!!c.text.trim() || restoredFiles(c.files).length > 0),
+              )
+              .map((c) => ({
+                id: c.id as string,
+                by: ref(c.by) || 'you',
+                text: c.text as string,
+                at: num(c.at, Date.now()),
+                ...(typeof c.editedAt === 'number' ? { editedAt: c.editedAt } : {}),
+                ...(restoredFiles(c.files).length ? { files: restoredFiles(c.files) } : {}),
+              })),
+          }
+        : {}),
     });
     seen.add(v.id);
   }
-  const next = Math.max(object(raw) && typeof raw.next === 'number' ? raw.next : 1, tasks.reduce((n, t) => Math.max(n, t.number), 0) + 1);
+  const next = Math.max(
+    object(raw) && typeof raw.next === 'number' ? raw.next : 1,
+    tasks.reduce((n, t) => Math.max(n, t.number), 0) + 1,
+  );
   return { tasks, next, tags };
 }
 
@@ -577,7 +771,14 @@ function restoredTags(raw: unknown): { tags: BoardTag[]; same: Map<string, strin
   const out: BoardTag[] = [];
   const same = new Map<string, string>();
   for (const x of Array.isArray(raw) ? raw : []) {
-    if (!object(x) || typeof x.id !== 'string' || !/^[\w.-]+$/.test(x.id) || typeof x.name !== 'string' || same.has(x.id)) continue;
+    if (
+      !object(x) ||
+      typeof x.id !== 'string' ||
+      !/^[\w.-]+$/.test(x.id) ||
+      typeof x.name !== 'string' ||
+      same.has(x.id)
+    )
+      continue;
     const split = splitTag(x.name);
     if (tagNameProblem(split.name)) continue;
     const twin = out.find((y) => tagKey(y.name) === tagKey(split.name));
@@ -592,7 +793,8 @@ function restoredTags(raw: unknown): { tags: BoardTag[]; same: Map<string, strin
       id: x.id,
       name: split.name,
       ...(emoji ? { emoji } : {}),
-      createdBy: typeof x.createdBy === 'string' && /^(you|brain|agent:[\w.-]+)$/.test(x.createdBy) ? x.createdBy : 'you',
+      createdBy:
+        typeof x.createdBy === 'string' && /^(you|brain|agent:[\w.-]+)$/.test(x.createdBy) ? x.createdBy : 'you',
       createdAt: typeof x.createdAt === 'number' && Number.isFinite(x.createdAt) ? x.createdAt : Date.now(),
     });
   }
@@ -604,14 +806,21 @@ function restoredFiles(raw: unknown): TaskFile[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter(object).flatMap((x) => {
     const rel = typeof x.path === 'string' ? x.path : '';
-    if (!rel || /^[\\/]|^[a-z]:/i.test(rel) || rel.split(/[\\/]/).some((part) => !part || part === '.' || part === '..')) return [];
-    return [{
-      path: rel,
-      name: typeof x.name === 'string' && x.name ? x.name : rel.split(/[\\/]/).at(-1)!,
-      size: typeof x.size === 'number' && x.size >= 0 ? x.size : 0,
-      ...(typeof x.sha256 === 'string' && /^[a-f0-9]{64}$/.test(x.sha256) ? { sha256: x.sha256 } : {}),
-      by: typeof x.by === 'string' && /^(you|agent:[\w.-]+)$/.test(x.by) ? x.by : 'you',
-      at: typeof x.at === 'number' ? x.at : Date.now(),
-    }];
+    if (
+      !rel ||
+      /^[\\/]|^[a-z]:/i.test(rel) ||
+      rel.split(/[\\/]/).some((part) => !part || part === '.' || part === '..')
+    )
+      return [];
+    return [
+      {
+        path: rel,
+        name: typeof x.name === 'string' && x.name ? x.name : rel.split(/[\\/]/).at(-1)!,
+        size: typeof x.size === 'number' && x.size >= 0 ? x.size : 0,
+        ...(typeof x.sha256 === 'string' && /^[a-f0-9]{64}$/.test(x.sha256) ? { sha256: x.sha256 } : {}),
+        by: typeof x.by === 'string' && /^(you|agent:[\w.-]+)$/.test(x.by) ? x.by : 'you',
+        at: typeof x.at === 'number' ? x.at : Date.now(),
+      },
+    ];
   });
 }

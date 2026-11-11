@@ -15,7 +15,11 @@ vi.mock('../../server/util.ts', async (orig) => ({
   openWithShell: (p: string) => shell.opened.push(p),
 }));
 
-const write = (p: string, body = 'x') => (fs.mkdirSync(path.dirname(p), { recursive: true }), fs.writeFileSync(p, body), p);
+const write = (p: string, body = 'x') => (
+  fs.mkdirSync(path.dirname(p), { recursive: true }),
+  fs.writeFileSync(p, body),
+  p
+);
 
 describe('fileInfo()', () => {
   it('says what each mentioned file is, inside the project', () => {
@@ -31,9 +35,11 @@ describe('fileInfo()', () => {
   });
 
   it('tells 3D models the page can show from other files', () => {
-    for (const f of ['ship.glb', 'ship.GLTF', 'part.obj', 'part.stl', 'scan.ply', 'rig.fbx']) expect(kindOf(f), f).toBe('model');
+    for (const f of ['ship.glb', 'ship.GLTF', 'part.obj', 'part.stl', 'scan.ply', 'rig.fbx'])
+      expect(kindOf(f), f).toBe('model');
     // (a Blender scene or a Unity package can't be drawn: they stay plain files)
-    for (const f of ['scene.blend', 'level.unitypackage', 'shot.png', 'notes.md']) expect(kindOf(f), f).not.toBe('model');
+    for (const f of ['scene.blend', 'level.unitypackage', 'shot.png', 'notes.md'])
+      expect(kindOf(f), f).not.toBe('model');
   });
 
   it('knows nothing about files outside the project, missing files, or relative paths', () => {
@@ -98,7 +104,9 @@ describe('open()', () => {
   it('never starts programs or scripts', () => {
     const before = shell.opened.length;
     for (const name of ['setup.exe', 'run.BAT', 'x.ps1', 'tool.py', 'a.lnk', 'trick.cmd.', 'Thing.app'])
-      expect(() => open(write(path.join(ensureBrain(), 'open', name)))).toThrow(expect.objectContaining({ status: 403 }));
+      expect(() => open(write(path.join(ensureBrain(), 'open', name)))).toThrow(
+        expect.objectContaining({ status: 403 }),
+      );
     expect(shell.opened.length).toBe(before);
   });
 
@@ -111,7 +119,13 @@ describe('open()', () => {
 
 describe('kindOf()', () => {
   it('tells images, videos, audio, files and folders apart', () => {
-    expect(['a.PNG', 'b.jpeg', 'c.mov', 'd.m4a', 'e.pdf'].map((p) => kindOf(p))).toEqual(['image', 'image', 'video', 'audio', 'file']);
+    expect(['a.PNG', 'b.jpeg', 'c.mov', 'd.m4a', 'e.pdf'].map((p) => kindOf(p))).toEqual([
+      'image',
+      'image',
+      'video',
+      'audio',
+      'file',
+    ]);
     expect(kindOf('x', true)).toBe('folder');
   });
 });

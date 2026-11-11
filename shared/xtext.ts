@@ -23,14 +23,19 @@ const weightOf = (cp: number): number => (LIGHT.some(([a, b]) => cp >= a && cp <
 const EMOJI = /\p{Emoji_Presentation}|\p{Extended_Pictographic}️|\p{Regional_Indicator}|⃣|‍|\p{Emoji_Modifier}/u;
 
 // Links X shortens: with http(s)://, or a bare domain with a common ending (example.com/page). Not emails.
-const TLDS = 'com|org|net|io|ai|dev|co|app|me|gg|tv|xyz|info|edu|gov|uk|de|fr|jp|ca|au|us|ly|so|sh|to|be|nl|es|it|ch|se|no|fi|in|br|ru|cn|eu|news|blog|site|tech|online|store';
-const URL = new RegExp(`https?://[^\\s<>"]+|(?<![@\\w./-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:${TLDS})(?![a-z0-9-])(?:[/?#][^\\s<>"]*)?`, 'giu');
+const TLDS =
+  'com|org|net|io|ai|dev|co|app|me|gg|tv|xyz|info|edu|gov|uk|de|fr|jp|ca|au|us|ly|so|sh|to|be|nl|es|it|ch|se|no|fi|in|br|ru|cn|eu|news|blog|site|tech|online|store';
+const URL = new RegExp(
+  `https?://[^\\s<>"]+|(?<![@\\w./-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:${TLDS})(?![a-z0-9-])(?:[/?#][^\\s<>"]*)?`,
+  'giu',
+);
 
 /** A link without the punctuation that ends the sentence around it ("see example.com." → "example.com"). */
 function trimLink(link: string): string {
   let s = link.replace(/[.,!?;:'"]+$/, '');
   // a ")" that closes nothing in the link belongs to the text
-  while (s.endsWith(')') && (s.match(/\(/g)?.length || 0) < (s.match(/\)/g)?.length || 0)) s = s.slice(0, -1).replace(/[.,!?;:'"]+$/, '');
+  while (s.endsWith(')') && (s.match(/\(/g)?.length || 0) < (s.match(/\)/g)?.length || 0))
+    s = s.slice(0, -1).replace(/[.,!?;:'"]+$/, '');
   return s;
 }
 

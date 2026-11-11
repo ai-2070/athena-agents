@@ -1,6 +1,16 @@
 // The Agents page's overview: an agent's category and model, and counting them into chart slices.
 import { describe, expect, it } from 'vitest';
-import { CATEGORY_COLORS, OTHER_COLOR, agentCategory, agentModel, categorySlices, divisionLabel, engineKey, inSlice, slices } from '../../web/agentstats.ts';
+import {
+  CATEGORY_COLORS,
+  OTHER_COLOR,
+  agentCategory,
+  agentModel,
+  categorySlices,
+  divisionLabel,
+  engineKey,
+  inSlice,
+  slices,
+} from '../../web/agentstats.ts';
 import type { Agent } from '../../shared/types.ts';
 
 const src = (source: Agent['source']) => ({ source });
@@ -9,9 +19,15 @@ describe('agent categories', () => {
   it("an Agent library hire's group, else where it came from", () => {
     expect(divisionLabel('game-development')).toBe('Game Development');
     expect(divisionLabel('gis')).toBe('GIS');
-    expect(agentCategory(src({ type: 'library', slug: 'pricing-analyst', division: 'business' }))).toEqual({ id: 'division:business', label: 'Business' });
+    expect(agentCategory(src({ type: 'library', slug: 'pricing-analyst', division: 'business' }))).toEqual({
+      id: 'division:business',
+      label: 'Business',
+    });
     // older hires keep the division they were saved with
-    expect(agentCategory(src({ type: 'agency', division: 'paid-media' }))).toEqual({ id: 'division:paid-media', label: 'Paid Media' });
+    expect(agentCategory(src({ type: 'agency', division: 'paid-media' }))).toEqual({
+      id: 'division:paid-media',
+      label: 'Paid Media',
+    });
     expect(agentCategory(src({ type: 'starter' })).label).toBe('Your own');
     expect(agentCategory(src({ type: 'brain' })).label).toBe('Made by the Brain');
     expect(agentCategory(src({ type: 'custom' })).label).toBe('Your own');
@@ -19,7 +35,9 @@ describe('agent categories', () => {
   });
 
   it('colours the six biggest in a fixed order and folds the rest into a grey Other', () => {
-    const agents = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].flatMap((d, i) => Array.from({ length: 10 - i }, () => src({ type: 'library', division: d })));
+    const agents = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].flatMap((d, i) =>
+      Array.from({ length: 10 - i }, () => src({ type: 'library', division: d })),
+    );
     const s = categorySlices(agents);
     expect(s.map((x) => x.label)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'Other']);
     expect(s.map((x) => x.color)).toEqual([...CATEGORY_COLORS, OTHER_COLOR]);
@@ -31,13 +49,20 @@ describe('agent categories', () => {
   it("doesn't make an Other of just one", () => {
     const agents = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((d) => src({ type: 'library', division: d }));
     expect(categorySlices(agents).map((x) => x.label)).not.toContain('Other');
-    expect(slices([1, 2, 3], (n) => ({ id: String(n), label: String(n) }), 1).map((x) => x.label)).toEqual(['1', 'Other']);
+    expect(slices([1, 2, 3], (n) => ({ id: String(n), label: String(n) }), 1).map((x) => x.label)).toEqual([
+      '1',
+      'Other',
+    ]);
   });
 });
 
 describe('agent models', () => {
   it('names the model as you would: aliases capitalised, no provider part, the default when none is set', () => {
-    expect(agentModel({ engine: 'claude-code', model: '' }, { claudeModel: 'opus' })).toEqual({ id: 'claude-code|opus', label: 'Opus', sub: 'Claude Code' });
+    expect(agentModel({ engine: 'claude-code', model: '' }, { claudeModel: 'opus' })).toEqual({
+      id: 'claude-code|opus',
+      label: 'Opus',
+      sub: 'Claude Code',
+    });
     expect(agentModel({ engine: 'claude-code', model: 'sonnet' }).label).toBe('Sonnet');
     expect(agentModel({ engine: 'eve', model: 'google/gemini-3-pro' }).label).toBe('gemini-3-pro');
     expect(agentModel({ engine: 'codex', model: '' }).label).toBe("Codex's default");
@@ -49,7 +74,10 @@ describe('agent models', () => {
     expect(engineKey({ engine: 'eve', provider: 'openrouter' })).toBe('openrouter');
     expect(engineKey({ engine: 'codex', provider: '' })).toBe('codex');
     expect(engineKey({ engine: 'eve', provider: 'venice' })).toBe('venice');
-    const venice = agentModel({ engine: 'eve', provider: 'venice', model: '' }, { veniceModel: 'shared-model', openrouterModel: 'other-model' });
+    const venice = agentModel(
+      { engine: 'eve', provider: 'venice', model: '' },
+      { veniceModel: 'shared-model', openrouterModel: 'other-model' },
+    );
     expect(venice).toMatchObject({ label: 'shared-model', sub: 'Venice' });
     expect(venice.id).not.toBe(agentModel({ engine: 'eve', provider: 'openrouter', model: 'shared-model' }).id);
   });

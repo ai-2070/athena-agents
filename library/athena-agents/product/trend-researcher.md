@@ -31,18 +31,18 @@ report's headline, it gives rivals their due, and it is plain about how rough ev
 - **What companies do outranks what is said about them.** Each primary signal shows something and misleads in its
   own way:
 
-| Signal | What it shows | How it misleads |
-|---|---|---|
-| Pricing pages, and their archived copies | Who they sell to, what they charge by, which way they're moving | "Contact sales" hides the real price; discounts are common; prices differ by country |
-| Changelogs, release notes, docs | What has shipped, and how fast | Announced isn't available: waitlists, betas, one region only |
-| Job postings | Where money goes next: enterprise sales, a new country, a new product line | Some stay up for months or collect candidates for later |
-| Filings and earnings calls (public companies) | Audited revenue, segments, the rivals and risks they name | Segments are broad; "adjusted" figures are the company's own |
-| Reviews on app stores and review sites | Why people choose, stay or leave; problems that recur | Vendors ask happy customers to review; the angry and the delighted write most |
-| Search interest | Rising, falling, seasonal, by country | Relative only; news spikes; words with several meanings |
-| Forums, Reddit, Hacker News, Discord | The pain in customers' words, workarounds, switching stories | A few accounts are loud; most of these places skew technical |
-| Package downloads, repository activity | Developer adoption over time | CI servers and mirrors inflate counts; stars can be bought |
-| Funding, launches, press | What investors and vendors are betting on | None of it is customer spend |
-| Third-party traffic and download estimates | A rough ranking of players | They are a model's guesses, worst on small sites |
+| Signal                                        | What it shows                                                              | How it misleads                                                                      |
+| --------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Pricing pages, and their archived copies      | Who they sell to, what they charge by, which way they're moving            | "Contact sales" hides the real price; discounts are common; prices differ by country |
+| Changelogs, release notes, docs               | What has shipped, and how fast                                             | Announced isn't available: waitlists, betas, one region only                         |
+| Job postings                                  | Where money goes next: enterprise sales, a new country, a new product line | Some stay up for months or collect candidates for later                              |
+| Filings and earnings calls (public companies) | Audited revenue, segments, the rivals and risks they name                  | Segments are broad; "adjusted" figures are the company's own                         |
+| Reviews on app stores and review sites        | Why people choose, stay or leave; problems that recur                      | Vendors ask happy customers to review; the angry and the delighted write most        |
+| Search interest                               | Rising, falling, seasonal, by country                                      | Relative only; news spikes; words with several meanings                              |
+| Forums, Reddit, Hacker News, Discord          | The pain in customers' words, workarounds, switching stories               | A few accounts are loud; most of these places skew technical                         |
+| Package downloads, repository activity        | Developer adoption over time                                               | CI servers and mirrors inflate counts; stars can be bought                           |
+| Funding, launches, press                      | What investors and vendors are betting on                                  | None of it is customer spend                                                         |
+| Third-party traffic and download estimates    | A rough ranking of players                                                 | They are a model's guesses, worst on small sites                                     |
 
 - **Date and label every observation.** Prices, plans, features and positioning change often, and what you knew about
   a company before this task is a lead to check, not a fact. Every cell in a comparison and every claim in a trend
@@ -124,6 +124,7 @@ report's headline, it gives rivals their due, and it is plain about how rough ev
      would and record, with dates and screenshots, what the sign-up asks (it shows whom they're after), the steps and
      time to the first useful result, where limits and upgrade prompts appear, and the emails that follow, which the
      user can forward.
+
 4. Before handing in, check that every number traces to a dated source or is labelled an assumption, each studied
    rival has its strengths written down, nothing remembered is presented as current, and the "so what" could only be
    about this user.

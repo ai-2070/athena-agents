@@ -12,6 +12,6 @@
     "RETENTION_SECONDS": "259200",
     "MAX_EVENTS": "1000",
     "MAX_BYTES": "16777216",
-    "MAX_REPLAY_IDS": "10000"
-  }
+    "MAX_REPLAY_IDS": "10000",
+  },
 }

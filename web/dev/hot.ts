@@ -3,7 +3,16 @@
 // React's hot swap would otherwise refuse: it only swaps files that export nothing but components.
 
 /** What the router reads from a page module (View in web/app.ts). */
-export const VIEW_EXPORTS = ['render', 'unmount', 'onEvent', 'title', 'flush', 'station', 'slimNav', 'brainButton'] as const;
+export const VIEW_EXPORTS = [
+  'render',
+  'unmount',
+  'onEvent',
+  'title',
+  'flush',
+  'station',
+  'slimNav',
+  'brainButton',
+] as const;
 
 // The pages: each one says so as it runs (the line scripts/vite-dev.ts adds to it, viewMark), so which files are
 // pages is decided in one place
@@ -54,7 +63,15 @@ const harmless = (what: unknown): boolean => {
  *  crash guard caught (web/ui/root.tsx) isn't uncaught: it stays on screen, and fixing the code draws it again. Only
  *  armed by an update, so a page that breaks while loading isn't reloaded over and over. Harmless errors (above)
  *  don't count: a reload loses the page's state, which keeping is the point of a hot swap. */
-export function watchUpdates(hot: HotEvents, { win = window, reload = () => win.location.reload(), within = BROKE_WITHIN_MS, now = () => Date.now() }: { win?: Window; reload?: () => void; within?: number; now?: () => number } = {}): () => void {
+export function watchUpdates(
+  hot: HotEvents,
+  {
+    win = window,
+    reload = () => win.location.reload(),
+    within = BROKE_WITHIN_MS,
+    now = () => Date.now(),
+  }: { win?: Window; reload?: () => void; within?: number; now?: () => number } = {},
+): () => void {
   let updated = -Infinity;
   let reloading = false;
   hot.on('vite:afterUpdate', () => void (updated = now()));

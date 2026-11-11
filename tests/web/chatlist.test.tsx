@@ -32,7 +32,14 @@ beforeEach(() => {
 });
 
 const now = Date.now();
-const item = (id: string, title: string, over: Partial<ChatListItem> = {}): ChatListItem => ({ id, title, updatedAt: now - 60_000, count: 2, open: false, ...over });
+const item = (id: string, title: string, over: Partial<ChatListItem> = {}): ChatListItem => ({
+  id,
+  title,
+  updatedAt: now - 60_000,
+  count: 2,
+  open: false,
+  ...over,
+});
 const rows = () => [...document.querySelectorAll('.chat-list-row')].map((r) => r.querySelector('button')!.textContent);
 const toggle = () => document.querySelector<HTMLButtonElement>('.chat-list-toggle')!;
 const openList = async () => {
@@ -40,7 +47,11 @@ const openList = async () => {
   await settle();
 };
 const confirm = async (label: string) => {
-  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === label)!.click());
+  await act(async () =>
+    [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')]
+      .find((b) => b.textContent === label)!
+      .click(),
+  );
   await settle();
 };
 
@@ -68,15 +79,29 @@ describe('the earlier chats beside the tasks', () => {
   };
 
   it('shows the open one first and leaves out empty ones; picking another opens it', async () => {
-    const { opened } = draw({ items: [item('now', 'Today’s plan', { open: true, count: 0 }), item('a', 'Social media team'), item('empty', 'New chat', { count: 0 })] });
+    const { opened } = draw({
+      items: [
+        item('now', 'Today’s plan', { open: true, count: 0 }),
+        item('a', 'Social media team'),
+        item('empty', 'New chat', { count: 0 }),
+      ],
+    });
     await openList();
     expect(rows().map((t) => t?.replace(/\s+/g, ' '))).toEqual(['Today’s planempty', 'Social media team1m ago']);
-    expect([...document.querySelectorAll('.chat-list [role="group"]')].map((g) => g.getAttribute('aria-label'))).toEqual(['Open now', 'Today']);
+    expect(
+      [...document.querySelectorAll('.chat-list [role="group"]')].map((g) => g.getAttribute('aria-label')),
+    ).toEqual(['Open now', 'Today']);
     // (the open one is already there: nothing to open)
-    await act(async () => document.querySelector<HTMLButtonElement>('.chat-list-row button[aria-current="true"]')!.click());
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('.chat-list-row button[aria-current="true"]')!.click(),
+    );
     expect(opened).toEqual([]);
     await openList();
-    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.chat-list-row button')].find((b) => b.textContent?.includes('Social media'))!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('.chat-list-row button')]
+        .find((b) => b.textContent?.includes('Social media'))!
+        .click(),
+    );
     expect(opened).toEqual(['a']);
     // (it folds away again)
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
@@ -84,15 +109,29 @@ describe('the earlier chats beside the tasks', () => {
 
   it('puts the open one first and the rest newest first, whatever order they came in', async () => {
     // (an agent's chats come newest first, so the open one can be in the middle)
-    draw({ items: [item('a', 'Ten o’clock', { updatedAt: now - 1000 }), item('b', 'Nine o’clock', { open: true, updatedAt: now - 3000 }), item('c', 'Eight o’clock', { updatedAt: now - 5000 })] });
+    draw({
+      items: [
+        item('a', 'Ten o’clock', { updatedAt: now - 1000 }),
+        item('b', 'Nine o’clock', { open: true, updatedAt: now - 3000 }),
+        item('c', 'Eight o’clock', { updatedAt: now - 5000 }),
+      ],
+    });
     await openList();
-    expect([...document.querySelectorAll('.chat-list [role="group"]')].map((g) => g.getAttribute('aria-label'))).toEqual(['Open now', 'Today']);
-    expect([...document.querySelectorAll('.chat-list-row .truncate')].map((t) => t.textContent)).toEqual(['Nine o’clock', 'Ten o’clock', 'Eight o’clock']);
+    expect(
+      [...document.querySelectorAll('.chat-list [role="group"]')].map((g) => g.getAttribute('aria-label')),
+    ).toEqual(['Open now', 'Today']);
+    expect([...document.querySelectorAll('.chat-list-row .truncate')].map((t) => t.textContent)).toEqual([
+      'Nine o’clock',
+      'Ten o’clock',
+      'Eight o’clock',
+    ]);
   });
 
   it('opens below the Tasks row, and only one of the two is open at a time', async () => {
     draw({ items: [item('now', 'Open', { open: true })] });
-    const tasks = [...document.querySelectorAll<HTMLButtonElement>('.task-panel button')].find((b) => b.textContent?.includes('Tasks'))!;
+    const tasks = [...document.querySelectorAll<HTMLButtonElement>('.task-panel button')].find((b) =>
+      b.textContent?.includes('Tasks'),
+    )!;
     // (the Chats button sits in the Tasks row)
     expect(tasks.parentElement!.contains(toggle())).toBe(true);
     await act(async () => tasks.click());
@@ -104,11 +143,16 @@ describe('the earlier chats beside the tasks', () => {
   });
 
   it('deletes one only after you say so, and says what else goes', async () => {
-    const { removed } = draw({ items: [item('now', 'Open', { open: true }), item('a', 'Old one')], removeNote: 'Each agent also forgets it.' });
+    const { removed } = draw({
+      items: [item('now', 'Open', { open: true }), item('a', 'Old one')],
+      removeNote: 'Each agent also forgets it.',
+    });
     await openList();
     await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Delete Old one"]')!.click());
     await settle();
-    expect(document.querySelector('#modal-root')!.textContent).toContain('Delete “Old one”? Each agent also forgets it.');
+    expect(document.querySelector('#modal-root')!.textContent).toContain(
+      'Delete “Old one”? Each agent also forgets it.',
+    );
     await confirm('Cancel');
     expect(removed).toEqual([]);
     await openList();
@@ -120,7 +164,11 @@ describe('the earlier chats beside the tasks', () => {
 
   it('closes when another chat is shown (New chat)', async () => {
     draw({ items: [item('now', 'Open', { open: true })] });
-    const chats: ChatListProps = { load: async () => [item('now', 'Open', { open: true })], onOpen: () => {}, onRemove: async () => true };
+    const chats: ChatListProps = {
+      load: async () => [item('now', 'Open', { open: true })],
+      onOpen: () => {},
+      onRemove: async () => true,
+    };
     act(() => root.render(<TasksAndChats tasks={{ view: 'brain' }} chats={{ ...chats, switched: 0 }} />));
     await openList();
     expect(toggle().getAttribute('aria-expanded')).toBe('true');
@@ -132,7 +180,12 @@ describe('the earlier chats beside the tasks', () => {
   });
 
   it('has a search box once the list is long', async () => {
-    draw({ items: [item('now', 'Open', { open: true }), ...Array.from({ length: 9 }, (_, i) => item(`c${i}`, i === 4 ? 'Find the logo' : `Chat ${i}`))] });
+    draw({
+      items: [
+        item('now', 'Open', { open: true }),
+        ...Array.from({ length: 9 }, (_, i) => item(`c${i}`, i === 4 ? 'Find the logo' : `Chat ${i}`)),
+      ],
+    });
     await openList();
     const find = document.querySelector<HTMLInputElement>('input[aria-label="Find a chat"]')!;
     expect(find).not.toBeNull();
@@ -159,11 +212,24 @@ describe("a team's chats", () => {
     loop = null;
     held = [];
     chatsList = [];
-    state.data = { runs: [], approvals: [], agents: [{ id: 'lead', name: 'Lead', emoji: '🧭', color: '#fff' }] } as unknown as AppState;
+    state.data = {
+      runs: [],
+      approvals: [],
+      agents: [{ id: 'lead', name: 'Lead', emoji: '🧭', color: '#fff' }],
+    } as unknown as AppState;
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
       requests.push(`${init.method || 'GET'} ${url}`);
       const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
-      if (url === '/api/teams/t1/chat') return json({ team: { id: 't1', name: 'Thumbs', members: ['lead'], lead: 'lead', steps: [] }, messages, working, queued: [], held, loop, sessions: {} });
+      if (url === '/api/teams/t1/chat')
+        return json({
+          team: { id: 't1', name: 'Thumbs', members: ['lead'], lead: 'lead', steps: [] },
+          messages,
+          working,
+          queued: [],
+          held,
+          loop,
+          sessions: {},
+        });
       if (url === '/api/teams/t1/chats' && init.method === 'POST') return json({ id: 't-new' });
       if (url === '/api/teams/t1/chats') return json(chatsList);
       return json({});
@@ -173,7 +239,10 @@ describe("a team's chats", () => {
     open?.destroy();
     open = null;
   });
-  const teamEvent = (event: object) => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'team', teamId: 't1', ts: 0, event }) }));
+  const teamEvent = (event: object) =>
+    act(async () =>
+      FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'team', teamId: 't1', ts: 0, event }) }),
+    );
   const draw = async () => {
     const el = document.body.appendChild(document.createElement('div'));
     open = renderTeamChat(el, 't1');
@@ -217,7 +286,9 @@ describe("a team's chats", () => {
     const el = await draw();
     await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="New chat"]')!.click());
     await settle();
-    expect(document.querySelector('#modal-root')!.textContent).toContain('Starting a new chat stops your /loop and 1 held message.');
+    expect(document.querySelector('#modal-root')!.textContent).toContain(
+      'Starting a new chat stops your /loop and 1 held message.',
+    );
     await confirm('Cancel');
     expect(requests).not.toContain('POST /api/teams/t1/chats');
   });
@@ -225,12 +296,16 @@ describe("a team's chats", () => {
   it('says what stops when the open chat is deleted while the team works', async () => {
     working = ['lead'];
     const el = await draw();
-    chatsList = [{ id: 't-open', title: 'Make a thumbnail', count: 1, createdAt: 0, updatedAt: Date.now(), open: true }];
+    chatsList = [
+      { id: 't-open', title: 'Make a thumbnail', count: 1, createdAt: 0, updatedAt: Date.now(), open: true },
+    ];
     await act(async () => el.querySelector<HTMLButtonElement>('.chat-list-toggle')!.click());
     await settle();
     await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Delete Make a thumbnail"]')!.click());
     await settle();
-    expect(document.querySelector('#modal-root')!.textContent).toContain('Each agent also forgets it, and it stops the team’s work.');
+    expect(document.querySelector('#modal-root')!.textContent).toContain(
+      'Each agent also forgets it, and it stops the team’s work.',
+    );
     await confirm('Cancel');
   });
 

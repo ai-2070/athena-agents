@@ -43,15 +43,15 @@ python <skill folder>/scripts/xlsx_tool.py info budget.xlsx
   form controls, threaded comments, sparklines, chart styles). Charts, tables, names, notes and validations survive.
 - `macros`, hidden sheets and rows, `merged`, `tables`, `names`, `protected`, `saved_errors`.
 
-| The job | Route |
-|---|---|
-| Read values or formulas | `xlsx_tool.py read`; recalculate a copy first when results are missing |
-| Change cells, append rows, rename a sheet, set formats, names, widths | `xlsx_tool.py edit` with a change list |
-| Insert or delete rows or columns | `xlsx_tool.py restructure`, one operation per run |
-| CSV to workbook, or back | `xlsx_tool.py from-csv`, `to-csv` |
-| A new workbook | `xlsx_create.py` with a JSON spec |
-| Check formulas, get current results | `soffice.py recalc` into `xlsx-work`, then `read` the copy |
-| Compare two versions | `xlsx_tool.py diff` |
+| The job                                                               | Route                                                                  |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Read values or formulas                                               | `xlsx_tool.py read`; recalculate a copy first when results are missing |
+| Change cells, append rows, rename a sheet, set formats, names, widths | `xlsx_tool.py edit` with a change list                                 |
+| Insert or delete rows or columns                                      | `xlsx_tool.py restructure`, one operation per run                      |
+| CSV to workbook, or back                                              | `xlsx_tool.py from-csv`, `to-csv`                                      |
+| A new workbook                                                        | `xlsx_create.py` with a JSON spec                                      |
+| Check formulas, get current results                                   | `soffice.py recalc` into `xlsx-work`, then `read` the copy             |
+| Compare two versions                                                  | `xlsx_tool.py diff`                                                    |
 
 `references/create-spec.md` has the spec and the change list; `references/restructuring.md` has the rules of moving.
 
@@ -165,7 +165,7 @@ Password); a workbook that has one can't be read here, so ask for an unprotected
 - `scripts/soffice.py`: finds LibreOffice, recalculates a workbook into a copy and lists its error cells
   (`recalc`), and converts files (`convert old.xls --to xlsx -o new.xlsx`, or `--to pdf` to look at a sheet).
   `--soffice <path>` points at a LibreOffice outside the usual folders; `convert` and `recalc` take `--timeout
-  <seconds>` (default 180), and `recalc` takes `--limit <n>` error cells to list (default 100).
+<seconds>` (default 180), and `recalc` takes `--limit <n>` error cells to list (default 100).
 - `references/create-spec.md`: every key of the spec and of `edit`'s change list. Open it before writing either.
 - `references/restructuring.md`: how references move on insert and delete, and how to fix what a restructure lists
   as not moved. Open it whenever its result lists anything.

@@ -6,5 +6,8 @@ import type { ActiveRun } from '../types.ts';
 export const runs = {
   list: oc.route({ method: 'GET', path: '/runs' }).output(type<ActiveRun[]>()),
   /** ok: false when it had already ended. */
-  stop: oc.route({ method: 'POST', path: '/runs/{id}/stop' }).input(z.object({ id: z.string() })).output(type<{ ok: boolean }>()),
+  stop: oc
+    .route({ method: 'POST', path: '/runs/{id}/stop' })
+    .input(z.object({ id: z.string() }))
+    .output(type<{ ok: boolean }>()),
 };

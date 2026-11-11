@@ -44,17 +44,17 @@ installed, the theme's colours, sections, and text that sits on the master rathe
 every slide's shapes with their ids and names (groups opened), tables, chart data, alt text, speaker notes and word
 counts. Before changing a deck, render the slides you'll touch, so you have something to compare the result with.
 
-| The job | Route |
-|---|---|
-| A new deck on a plain design | `pptx_deck.py new plan.json -o deck.pptx` (16:9 unless the plan says `"size": "4:3"`) |
-| A new deck in the company's look | `info brand.potx`, then `pptx_deck.py new plan.json --template brand.potx -o deck.pptx` |
-| A template with `{{fields}}` or sample slides to fill in | `pptx_deck.py edit template.pptx plan.json -o deck.pptx`: `fill`, `text` |
-| New words, a chart's numbers, a picture, the slide order | `pptx_deck.py edit deck.pptx plan.json -o deck-v2.pptx` |
-| What a deck says (a summary, the notes) | `outline`; SmartArt words and speaker notes are in it |
-| Slides as pictures | `render --out-dir <folder>` (`--width`, `--format jpg`) |
-| A PDF of the deck | `soffice.py convert deck.pptx --to pdf -o deck.pdf` (hidden slides are left out) |
-| The pictures inside a deck | `images --out-dir <folder>` |
-| An old `.ppt` | `soffice.py convert old.ppt --to pptx -o old.pptx` first |
+| The job                                                  | Route                                                                                   |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| A new deck on a plain design                             | `pptx_deck.py new plan.json -o deck.pptx` (16:9 unless the plan says `"size": "4:3"`)   |
+| A new deck in the company's look                         | `info brand.potx`, then `pptx_deck.py new plan.json --template brand.potx -o deck.pptx` |
+| A template with `{{fields}}` or sample slides to fill in | `pptx_deck.py edit template.pptx plan.json -o deck.pptx`: `fill`, `text`                |
+| New words, a chart's numbers, a picture, the slide order | `pptx_deck.py edit deck.pptx plan.json -o deck-v2.pptx`                                 |
+| What a deck says (a summary, the notes)                  | `outline`; SmartArt words and speaker notes are in it                                   |
+| Slides as pictures                                       | `render --out-dir <folder>` (`--width`, `--format jpg`)                                 |
+| A PDF of the deck                                        | `soffice.py convert deck.pptx --to pdf -o deck.pdf` (hidden slides are left out)        |
+| The pictures inside a deck                               | `images --out-dir <folder>`                                                             |
+| An old `.ppt`                                            | `soffice.py convert old.ppt --to pptx -o old.pptx` first                                |
 
 `references/deck-spec.md` has every step a plan can hold, with examples; read it before writing one.
 

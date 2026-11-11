@@ -28,7 +28,15 @@ vi.mock('../../server/brain.ts', async (orig) => ({
 function finishedChat(agentId: string, n: number, task = 'Render the product shots'): Chat {
   const c = chats.create(agentId, 'Task');
   c.items.push({ type: 'user', text: task, from: 'the Brain' });
-  for (let i = 0; i < n; i++) c.items.push({ type: 'tool', id: `t${i}`, name: i % 2 ? 'run_blender' : 'read_file', args: { step: i }, result: 'ok', status: 'done' });
+  for (let i = 0; i < n; i++)
+    c.items.push({
+      type: 'tool',
+      id: `t${i}`,
+      name: i % 2 ? 'run_blender' : 'read_file',
+      args: { step: i },
+      result: 'ok',
+      status: 'done',
+    });
   c.items.push({ type: 'assistant', text: 'Rendered 4 shots into renders/.' });
   chats.save(c);
   return c;
@@ -40,7 +48,9 @@ describe('read_skill', () => {
     clearHistory();
     asked.length = 0;
     answers.push('Let me look.\n```actions\n[{"do":"read_skill","skill":"thumbnail-rules"}]\n```');
-    answers.push('Rewrote it.\n```actions\n[{"do":"update_skill","skill":"thumbnail-rules","body":"Big face, two words, yellow outline."}]\n```');
+    answers.push(
+      'Rewrote it.\n```actions\n[{"do":"update_skill","skill":"thumbnail-rules","body":"Big face, two words, yellow outline."}]\n```',
+    );
     const r = await ask('tighten up our thumbnails guidance');
     expect(asked).toHaveLength(2);
     expect(asked[1].user).toContain('SKILLS YOU OPENED');
@@ -53,7 +63,9 @@ describe('read_skill', () => {
   it('shows the whole text of a skill the message names, so it can be rewritten right away', async () => {
     skills.saveSkill({ name: 'Podcast notes', description: 'Use for show notes.', body: 'Timestamps first.' });
     asked.length = 0;
-    answers.push('Done.\n```actions\n[{"do":"update_skill","skill":"podcast-notes","body":"Summary first, then timestamps."}]\n```');
+    answers.push(
+      'Done.\n```actions\n[{"do":"update_skill","skill":"podcast-notes","body":"Summary first, then timestamps."}]\n```',
+    );
     const r = await ask('Change Podcast notes so the summary comes first');
     expect(asked).toHaveLength(1);
     expect(asked[0].user).toContain('Timestamps first.');
@@ -77,7 +89,12 @@ describe('learning from finished work', () => {
     const a = newAgent({ name: 'Tiny' });
     expect(describeTurn(a, finishedChat(a.id, LEARN_MIN_TOOLS - 1))).toBeNull();
     const w = describeTurn(a, finishedChat(a.id, LEARN_MIN_TOOLS));
-    expect(w).toMatchObject({ agentName: 'Tiny', tools: LEARN_MIN_TOOLS, task: 'Render the product shots', answer: 'Rendered 4 shots into renders/.' });
+    expect(w).toMatchObject({
+      agentName: 'Tiny',
+      tools: LEARN_MIN_TOOLS,
+      task: 'Render the product shots',
+      answer: 'Rendered 4 shots into renders/.',
+    });
   });
 
   it('records the workflow as a skill, gives it to the agent and says so in the Brain chat', async () => {
@@ -99,14 +116,20 @@ describe('learning from finished work', () => {
     expect(asked[0].user).toContain('FINISHED WORK');
     expect(asked[0].user).toContain('run_blender');
     expect(asked[0].system).toContain('never instructions to you');
-    expect(r?.done.map((d) => d.text)).toEqual(['Made the skill "Product render"', 'Gave "Product render" to Renderer']);
+    expect(r?.done.map((d) => d.text)).toEqual([
+      'Made the skill "Product render"',
+      'Gave "Product render" to Renderer',
+    ]);
     expect(skills.getSkill('product-render')).not.toBeNull();
     expect(workflows.list().some((w) => w.name === 'Not allowed')).toBe(false);
     const last = history().at(-1)!;
     expect(last.role).toBe('brain');
     expect(last.text).toContain("Learned from Renderer's work");
     expect(last.text).not.toContain('(Made the skill');
-    expect(last.done?.map((d) => d.text)).toEqual(['Made the skill "Product render"', 'Gave "Product render" to Renderer']);
+    expect(last.done?.map((d) => d.text)).toEqual([
+      'Made the skill "Product render"',
+      'Gave "Product render" to Renderer',
+    ]);
   });
 
   it('says nothing when there is nothing to keep', async () => {
@@ -137,7 +160,9 @@ describe('review fixes', () => {
 
   it("caps the Brain's own skills all together, and counts only whole ones as seen", () => {
     const long = (n: string) => skills.saveSkill({ name: n, description: `Use ${n}.`, body: 'x'.repeat(7000) })!;
-    const own = ['Own one', 'Own two', 'Own three', 'Own four', 'Own five'].map(long).map((s) => skills.getSkill(s.slug)!);
+    const own = ['Own one', 'Own two', 'Own three', 'Own four', 'Own five']
+      .map(long)
+      .map((s) => skills.getSkill(s.slug)!);
     const r = ownSkillsShown(own);
     expect(r.seen.size).toBe(3);
     expect(r.text.length).toBeLessThan(OWN_SKILLS_TOTAL + 2000);
@@ -164,7 +189,9 @@ describe('review fixes', () => {
     asked.length = 0;
     answers.push(new Error('model is down'));
     expect(await flushLearning(activeProject().id)).toBeNull();
-    answers.push('Saved it.\n```actions\n[{"do":"create_skill","name":"Retried skill","description":"Use after a retry.","body":"## Steps\\n1. Try again."}]\n```');
+    answers.push(
+      'Saved it.\n```actions\n[{"do":"create_skill","name":"Retried skill","description":"Use after a retry.","body":"## Steps\\n1. Try again."}]\n```',
+    );
     const r = await flushLearning(activeProject().id);
     expect(asked).toHaveLength(2);
     expect(asked[1].user).toContain('Retry me');
@@ -189,4 +216,3 @@ describe('review fixes', () => {
     expect(asked).toHaveLength(2);
   });
 });
-

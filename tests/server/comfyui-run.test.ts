@@ -31,7 +31,11 @@ const renamed: Record<string, string> = { 'photo.png': 'photo (1).png' };
 
 const OBJECT_INFO = {
   LoadImage: { input: { required: { image: [['example.png'], { image_upload: true }] } } },
-  LoadImageMask: { input: { required: { image: [['example.png'], { image_upload: true }], channel: [['alpha', 'red', 'green', 'blue'], {}] } } },
+  LoadImageMask: {
+    input: {
+      required: { image: [['example.png'], { image_upload: true }], channel: [['alpha', 'red', 'green', 'blue'], {}] },
+    },
+  },
   LoadImageOutput: { input: { required: { image: ['COMBO', { image_upload: true, image_folder: 'output' }] } } },
   LoadVideo: { input: { required: { file: [['clip.mp4'], { video_upload: true }] } } },
 };
@@ -51,7 +55,9 @@ beforeAll(async () => {
     if (route === '/system_stats') return json({ system: {}, devices: [] });
     if (route === '/object_info') return json(OBJECT_INFO);
     if (route === '/upload/image' || route === '/upload/mask') {
-      const form = await new Response(body, { headers: { 'content-type': String(req.headers['content-type']) } }).formData();
+      const form = await new Response(body, {
+        headers: { 'content-type': String(req.headers['content-type']) },
+      }).formData();
       const file = form.get('image');
       if (!file || typeof file === 'string') return json({ error: 'no image' }, 400);
       const fields: Record<string, string> = {};
@@ -65,7 +71,8 @@ beforeAll(async () => {
       prompts.push(JSON.parse(body.toString()) as { prompt: ApiWorkflow });
       return json({ prompt_id: 'job-1', number: 1, node_errors: nodeErrors });
     }
-    if (route === '/history/job-1') return json({ 'job-1': { status: { status_str: 'success', completed: true }, outputs } });
+    if (route === '/history/job-1')
+      return json({ 'job-1': { status: { status_str: 'success', completed: true }, outputs } });
     if (route === '/queue') return json({ queue_running: [], queue_pending: [] });
     json({}, 404);
   });
@@ -89,16 +96,33 @@ const IMG2IMG: ApiWorkflow = {
   '7': node('CLIPTextEncode', { text: 'blurry', clip: ['4', 1] }),
   '10': node('LoadImage', { image: 'example.png' }),
   '11': node('VAEEncode', { pixels: ['10', 0], vae: ['4', 2] }),
-  '3': node('KSampler', { seed: 1, steps: 20, model: ['4', 0], positive: ['6', 0], negative: ['7', 0], latent_image: ['11', 0] }),
+  '3': node('KSampler', {
+    seed: 1,
+    steps: 20,
+    model: ['4', 0],
+    positive: ['6', 0],
+    negative: ['7', 0],
+    latent_image: ['11', 0],
+  }),
   '8': node('VAEDecode', { samples: ['3', 0], vae: ['4', 2] }),
   '9': node('SaveImage', { images: ['8', 0], filename_prefix: 'out' }),
 };
-const WITH_MASK_NODE: ApiWorkflow = { ...IMG2IMG, '12': node('LoadImageMask', { image: 'example.png', channel: 'red' }) };
+const WITH_MASK_NODE: ApiWorkflow = {
+  ...IMG2IMG,
+  '12': node('LoadImageMask', { image: 'example.png', channel: 'red' }),
+};
 saveApiWorkflow('img2img', IMG2IMG);
 saveApiWorkflow('two-loaders', WITH_MASK_NODE);
 
 const workspace = fs.mkdtempSync(path.join(os.homedir(), 'comfy-ws-'));
-const agent: ToolAgent = { id: 'comfy-agent', name: 'Artist', toolGroups: ['comfyui'], autonomy: 'full', workspace, knowledge: { folders: [] } };
+const agent: ToolAgent = {
+  id: 'comfy-agent',
+  name: 'Artist',
+  toolGroups: ['comfyui'],
+  autonomy: 'full',
+  workspace,
+  knowledge: { folders: [] },
+};
 
 // A grey PNG whose rows use each of the five PNG row filters in turn (CRCs left at 0: nothing here checks them).
 function paeth(a: number, b: number, c: number): number {
@@ -131,7 +155,12 @@ function greyPng(w: number, h: number, grey: number[]): Buffer {
     head.write(kind, 4, 'latin1');
     return Buffer.concat([head, data, Buffer.alloc(4)]);
   };
-  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(Buffer.concat(rows))), chunk('IEND', Buffer.alloc(0))]);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', zlib.deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 }
 
 const W = 6;
@@ -155,7 +184,10 @@ describe('sending input pictures with a run', () => {
   });
 
   it("puts a black-and-white mask into the picture's transparency, on a copy named after it", async () => {
-    const r = await callTool(agent, 'comfyui_run', { workflow: 'img2img', images: [{ file: 'photo.png', mask: 'mask.png' }] });
+    const r = await callTool(agent, 'comfyui_run', {
+      workflow: 'img2img',
+      images: [{ file: 'photo.png', mask: 'mask.png' }],
+    });
     expect(r.isError, r.text).toBe(false);
     expect(uploads.map((u) => u.route)).toEqual(['/upload/image', '/upload/mask']);
     const mask = uploads[1];
@@ -174,7 +206,13 @@ describe('sending input pictures with a run', () => {
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(/2 Load Image nodes: 10 \(LoadImage\), 12 \(LoadImageMask\)/);
     expect(uploads).toEqual([]);
-    const ok = await callTool(agent, 'comfyui_run', { workflow: 'two-loaders', images: [{ file: 'photo.png', node: '10' }, { file: 'mask.png', node: '12' }] });
+    const ok = await callTool(agent, 'comfyui_run', {
+      workflow: 'two-loaders',
+      images: [
+        { file: 'photo.png', node: '10' },
+        { file: 'mask.png', node: '12' },
+      ],
+    });
     expect(ok.isError, ok.text).toBe(false);
     expect(prompts[0].prompt['10'].inputs.image).toBe('photo (1).png');
     expect(prompts[0].prompt['12'].inputs.image).toBe('mask.png');
@@ -183,12 +221,21 @@ describe('sending input pictures with a run', () => {
   it("won't send a file from outside the agent's folders, or a mask that's wrong", async () => {
     const outside = fs.mkdtempSync(path.join(os.homedir(), 'comfy-outside-'));
     fs.writeFileSync(path.join(outside, 'secret.png'), photo);
-    const far = await callTool(agent, 'comfyui_run', { workflow: 'img2img', images: [{ file: path.join(outside, 'secret.png') }] });
+    const far = await callTool(agent, 'comfyui_run', {
+      workflow: 'img2img',
+      images: [{ file: path.join(outside, 'secret.png') }],
+    });
     expect(far.isError).toBe(true);
     expect(far.text).toMatch(/outside the folders/);
-    const nothing = await callTool(agent, 'comfyui_run', { workflow: 'img2img', images: [{ file: 'photo.png', mask: 'black.png' }] });
+    const nothing = await callTool(agent, 'comfyui_run', {
+      workflow: 'img2img',
+      images: [{ file: 'photo.png', mask: 'black.png' }],
+    });
     expect(nothing.text).toMatch(/marks nothing to repaint/);
-    const size = await callTool(agent, 'comfyui_run', { workflow: 'img2img', images: [{ file: 'photo.png', mask: 'small-mask.png' }] });
+    const size = await callTool(agent, 'comfyui_run', {
+      workflow: 'img2img',
+      images: [{ file: 'photo.png', mask: 'small-mask.png' }],
+    });
     expect(size.text).toMatch(/3x3 but the picture is 6x5/);
     expect(uploads).toEqual([]);
     expect(prompts).toEqual([]);
@@ -208,19 +255,28 @@ describe('sending input pictures with a run', () => {
   });
 });
 
-describe("what a run reports back", () => {
+describe('what a run reports back', () => {
   it('lists the nodes ComfyUI left out of a run it accepted', async () => {
     nodeErrors = {
       '12': {
         class_type: 'ResizeImageMaskNode',
         dependent_outputs: ['15'],
-        errors: [{ type: 'required_input_missing', message: 'Required input is missing', details: 'resize_type.width', extra_info: { input_name: 'resize_type.width' } }],
+        errors: [
+          {
+            type: 'required_input_missing',
+            message: 'Required input is missing',
+            details: 'resize_type.width',
+            extra_info: { input_name: 'resize_type.width' },
+          },
+        ],
       },
     };
     const r = await callTool(agent, 'comfyui_run', { workflow: 'img2img' });
     expect(r.isError, r.text).toBe(false);
     expect(r.text).toContain('Left out by ComfyUI (the rest ran):');
-    expect(r.text).toContain('node 12 (ResizeImageMaskNode) failed ComfyUI\'s checks, so output node 15 didn\'t run: required_input_missing: Required input is missing (resize_type.width) [input "resize_type.width"]');
+    expect(r.text).toContain(
+      'node 12 (ResizeImageMaskNode) failed ComfyUI\'s checks, so output node 15 didn\'t run: required_input_missing: Required input is missing (resize_type.width) [input "resize_type.width"]',
+    );
     const done = await runWorkflow({ workflow: 'img2img' });
     expect(done.nodeErrors).toEqual(nodeErrors);
   });
@@ -228,7 +284,11 @@ describe("what a run reports back", () => {
   it('returns 3D files like the others', async () => {
     outputs = {
       '9': { images: [{ filename: 'out_00001_.png', subfolder: '', type: 'output' }] },
-      '20': { '3d': [{ filename: 'mesh_00001_.glb', subfolder: '3d', type: 'output' }], camera_info: [null], model_3d_info: [] },
+      '20': {
+        '3d': [{ filename: 'mesh_00001_.glb', subfolder: '3d', type: 'output' }],
+        camera_info: [null],
+        model_3d_info: [],
+      },
       '21': { result: ['3d/preview3d_ab.glb', null, null] },
       '22': { text: ['not a file'] },
     };
@@ -247,14 +307,35 @@ describe('finding the prompts', () => {
     const sdxl: ApiWorkflow = {
       ...IMG2IMG,
       '6': node('CLIPTextEncodeSDXL', { text_g: 'a cat', text_l: 'a cat', width: 1024, height: 1024, clip: ['4', 1] }),
-      '7': node('CLIPTextEncodeSDXL', { text_g: 'blurry', text_l: 'blurry', width: 1024, height: 1024, clip: ['4', 1] }),
+      '7': node('CLIPTextEncodeSDXL', {
+        text_g: 'blurry',
+        text_l: 'blurry',
+        width: 1024,
+        height: 1024,
+        clip: ['4', 1],
+      }),
     };
-    expect(findPromptNodes(sdxl)).toEqual({ positive: '6', negative: '7', promptInputs: ['6.text_g', '6.text_l'], negativeInputs: ['7.text_g', '7.text_l'] });
-    expect(findPromptNodes(IMG2IMG)).toEqual({ positive: '6', negative: '7', promptInputs: ['6.text'], negativeInputs: ['7.text'] });
+    expect(findPromptNodes(sdxl)).toEqual({
+      positive: '6',
+      negative: '7',
+      promptInputs: ['6.text_g', '6.text_l'],
+      negativeInputs: ['7.text_g', '7.text_l'],
+    });
+    expect(findPromptNodes(IMG2IMG)).toEqual({
+      positive: '6',
+      negative: '7',
+      promptInputs: ['6.text'],
+      negativeInputs: ['7.text'],
+    });
     saveApiWorkflow('sdxl', sdxl);
     await runWorkflow({ workflow: 'sdxl', prompt: 'a lighthouse', negative: 'fog' });
     const sent = prompts[0].prompt;
-    expect([sent['6'].inputs.text_g, sent['6'].inputs.text_l, sent['7'].inputs.text_g, sent['7'].inputs.text_l]).toEqual(['a lighthouse', 'a lighthouse', 'fog', 'fog']);
+    expect([
+      sent['6'].inputs.text_g,
+      sent['6'].inputs.text_l,
+      sent['7'].inputs.text_g,
+      sent['7'].inputs.text_l,
+    ]).toEqual(['a lighthouse', 'a lighthouse', 'fog', 'fog']);
   });
 
   it("follows a Flux guider's one conditioning, with no negative to set", async () => {
@@ -265,13 +346,27 @@ describe('finding the prompts', () => {
       '22': node('BasicGuider', { model: ['12', 0], conditioning: ['26', 0] }),
       '12': node('UNETLoader', { unet_name: 'flux1-dev.safetensors', weight_dtype: 'default' }),
       '25': node('RandomNoise', { noise_seed: 5 }),
-      '13': node('SamplerCustomAdvanced', { noise: ['25', 0], guider: ['22', 0], sampler: ['16', 0], sigmas: ['17', 0], latent_image: ['5', 0] }),
+      '13': node('SamplerCustomAdvanced', {
+        noise: ['25', 0],
+        guider: ['22', 0],
+        sampler: ['16', 0],
+        sigmas: ['17', 0],
+        latent_image: ['5', 0],
+      }),
       '9': node('SaveImage', { images: ['8', 0], filename_prefix: 'flux' }),
     };
-    expect(findPromptNodes(flux)).toEqual({ positive: '6', negative: null, promptInputs: ['6.clip_l', '6.t5xxl'], negativeInputs: [] });
+    expect(findPromptNodes(flux)).toEqual({
+      positive: '6',
+      negative: null,
+      promptInputs: ['6.clip_l', '6.t5xxl'],
+      negativeInputs: [],
+    });
     saveApiWorkflow('flux', flux);
     const r = await runWorkflow({ workflow: 'flux', prompt: 'a lighthouse', negative: 'fog' });
-    expect([prompts[0].prompt['6'].inputs.clip_l, prompts[0].prompt['6'].inputs.t5xxl]).toEqual(['a lighthouse', 'a lighthouse']);
+    expect([prompts[0].prompt['6'].inputs.clip_l, prompts[0].prompt['6'].inputs.t5xxl]).toEqual([
+      'a lighthouse',
+      'a lighthouse',
+    ]);
     expect(r.warnings.join(' ')).toMatch(/no negative prompt/);
   });
 
@@ -280,20 +375,56 @@ describe('finding the prompts', () => {
       '6': node('CLIPTextEncode', { text: 'a cat', clip: ['4', 1] }),
       '35': node('FluxGuidance', { guidance: 3.5, conditioning: ['6', 0] }),
       '33': node('ConditioningZeroOut', { conditioning: ['6', 0] }),
-      '3': node('KSampler', { seed: 1, positive: ['35', 0], negative: ['33', 0], model: ['4', 0], latent_image: ['5', 0] }),
+      '3': node('KSampler', {
+        seed: 1,
+        positive: ['35', 0],
+        negative: ['33', 0],
+        model: ['4', 0],
+        latent_image: ['5', 0],
+      }),
     };
-    expect(findPromptNodes(zeroed)).toEqual({ positive: '6', negative: null, promptInputs: ['6.text'], negativeInputs: [] });
+    expect(findPromptNodes(zeroed)).toEqual({
+      positive: '6',
+      negative: null,
+      promptInputs: ['6.text'],
+      negativeInputs: [],
+    });
   });
 
   it("follows SD3's three text fields, a ControlNet in between, and a prompt held in a string node", () => {
     const sd3: ApiWorkflow = {
       '20': node('PrimitiveStringMultiline', { value: 'a cat' }),
-      '6': node('CLIPTextEncodeSD3', { clip_l: ['20', 0], clip_g: ['20', 0], t5xxl: ['20', 0], empty_padding: 'none', clip: ['4', 1] }),
+      '6': node('CLIPTextEncodeSD3', {
+        clip_l: ['20', 0],
+        clip_g: ['20', 0],
+        t5xxl: ['20', 0],
+        empty_padding: 'none',
+        clip: ['4', 1],
+      }),
       '7': node('CLIPTextEncode', { text: 'blurry', clip: ['4', 1] }),
-      '14': node('ControlNetApplyAdvanced', { positive: ['6', 0], negative: ['7', 0], control_net: ['15', 0], image: ['16', 0], strength: 0.8, start_percent: 0, end_percent: 1 }),
+      '14': node('ControlNetApplyAdvanced', {
+        positive: ['6', 0],
+        negative: ['7', 0],
+        control_net: ['15', 0],
+        image: ['16', 0],
+        strength: 0.8,
+        start_percent: 0,
+        end_percent: 1,
+      }),
       '17': node('CFGGuider', { model: ['4', 0], positive: ['14', 0], negative: ['14', 1], cfg: 4 }),
-      '13': node('SamplerCustomAdvanced', { noise: ['25', 0], guider: ['17', 0], sampler: ['16', 0], sigmas: ['18', 0], latent_image: ['5', 0] }),
+      '13': node('SamplerCustomAdvanced', {
+        noise: ['25', 0],
+        guider: ['17', 0],
+        sampler: ['16', 0],
+        sigmas: ['18', 0],
+        latent_image: ['5', 0],
+      }),
     };
-    expect(findPromptNodes(sd3)).toEqual({ positive: '6', negative: '7', promptInputs: ['20.value'], negativeInputs: ['7.text'] });
+    expect(findPromptNodes(sd3)).toEqual({
+      positive: '6',
+      negative: '7',
+      promptInputs: ['20.value'],
+      negativeInputs: ['7.text'],
+    });
   });
 });

@@ -14,7 +14,15 @@ import { FileIcon, FolderIcon, VSCodeIcon } from '../ui/fileicons.tsx';
 import { openChat } from '../chatwin.tsx';
 import { skillPicker } from '../skillpick.ts';
 import { historyButton } from '../history.tsx';
-import { projectMark, pickLogo, removeLogo, pickModel, removeModel, pickBackground, removeBackground } from '../projectlogo.ts';
+import {
+  projectMark,
+  pickLogo,
+  removeLogo,
+  pickModel,
+  removeModel,
+  pickBackground,
+  removeBackground,
+} from '../projectlogo.ts';
 import { pickTeamMark, DEFAULT_TEAM_MARK } from '../teammark.ts';
 import { icon, logo } from '../icons.ts';
 import { modelChip, modelInfo } from '../models.tsx';
@@ -31,7 +39,16 @@ import { WorldPanel } from './worldpanel.tsx';
 import { fileManager, previewFile, previewTitle } from '../filepreview.tsx';
 import { wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, connectorLook } from './stationdata.ts';
 import type { AvailableIntegration, Connector, MapPick, Program, TeamView } from './stationdata.ts';
-import type { Agent, AppState, BrainInfo, Project, RoutineListing, Team, TeamAccess, TeamState } from '../../shared/types.ts';
+import type {
+  Agent,
+  AppState,
+  BrainInfo,
+  Project,
+  RoutineListing,
+  Team,
+  TeamAccess,
+  TeamState,
+} from '../../shared/types.ts';
 import { scheduleSummary } from '../../shared/routines.ts';
 
 const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
@@ -84,7 +101,15 @@ export function mountStationPanel(el: HTMLElement, api: StationPanelApi): { upda
   };
 }
 
-function Panel({ api, subscribe, version }: { api: StationPanelApi; subscribe: (l: () => void) => () => void; version: () => number }) {
+function Panel({
+  api,
+  subscribe,
+  version,
+}: {
+  api: StationPanelApi;
+  subscribe: (l: () => void) => () => void;
+  version: () => number;
+}) {
   useSyncExternalStore(subscribe, version);
   const d = useAppState();
   const p = api.selected();
@@ -94,23 +119,29 @@ function Panel({ api, subscribe, version }: { api: StationPanelApi; subscribe: (
   if (p.type === 'bench') return <BenchPanel api={api} d={d} />;
   if (p.type === 'brain') return <BrainPanel key={d.project?.id || ''} api={api} d={d} />;
   if (p.type === 'int') return <ConnectionPanel key={`c:${p.id}`} api={api} d={d} id={p.id} />;
-  if (p.type === 'world') return <WorldPanel onClose={() => api.choose(null)} teamName={(id) => api.teams().find((t) => t.id === id)?.name} />;
+  if (p.type === 'world')
+    return (
+      <WorldPanel onClose={() => api.choose(null)} teamName={(id) => api.teams().find((t) => t.id === id)?.name} />
+    );
   return null;
 }
 
 // (st-panel-title stays as a mark the tests look for)
 const TITLE = 'st-panel-title font-sans text-[16px] leading-[1.25] font-semibold tracking-[-0.015em] mt-0.5';
 // (the soft fade at both ends lets what scrolls past the head and the foot melt into the glass instead of being cut off)
-const BODY = 'min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-18px),transparent_100%)]';
+const BODY =
+  'min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-18px),transparent_100%)]';
 // a row in the connection and team lists (st-conn stays as a mark the tests look for)
 const CONN =
   'st-conn glass-plate flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-[13px] text-ink [transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s] hover:border-line-2 hover:bg-panel-2';
 const CONNS = 'mt-3 flex flex-col gap-2';
 // a file or folder in the Brain list (st-file stays as a mark the tests look for); one that opens is a button that lights up
-const FILE = 'st-file flex min-w-0 items-center gap-1.5 overflow-hidden py-0.5 text-left text-[12.5px] text-ellipsis whitespace-nowrap text-dim';
+const FILE =
+  'st-file flex min-w-0 items-center gap-1.5 overflow-hidden py-0.5 text-left text-[12.5px] text-ellipsis whitespace-nowrap text-dim';
 const FILE_OPENS = `${FILE} group cursor-pointer rounded-[4px] border-0 bg-transparent px-0 [transition:color_0.18s_cubic-bezier(0.37,0,0.63,1),translate_0.18s_cubic-bezier(0.37,0,0.63,1)] hover:translate-x-1 hover:text-accent focus-visible:text-accent`;
 // the Brain's three numbers
-const STAT = 'flex flex-col gap-1 rounded-[10px] border border-line bg-panel p-3 text-[12px] leading-[normal] font-medium text-dim shadow-[inset_0_1px_0_var(--glass-spec)]';
+const STAT =
+  'flex flex-col gap-1 rounded-[10px] border border-line bg-panel p-3 text-[12px] leading-[normal] font-medium text-dim shadow-[inset_0_1px_0_var(--glass-spec)]';
 const STAT_N = 'font-sans text-[22px] leading-[1.1] font-semibold tabular-nums tracking-[-0.02em] text-ink';
 // Quick actions stay quiet until hovered; the lead remains visible.
 const FACE =
@@ -137,7 +168,8 @@ function Mark({ id, size }: { id: string; size: number }) {
 }
 const toNode = (x: Node | string): Node => (typeof x === 'string' ? document.createTextNode(x) : x);
 // (the badge's mark is its colour mixed toward the text colour, so a pale brand still reads on white)
-const badgeStyle = (color: string) => ({ '--c': color, color: 'color-mix(in srgb, var(--c) 72%, var(--color-ink))' }) as CSSProperties;
+const badgeStyle = (color: string) =>
+  ({ '--c': color, color: 'color-mix(in srgb, var(--c) 72%, var(--color-ink))' }) as CSSProperties;
 
 /** The connections in ids, each with whether it is set up and running. */
 function ConnectionList({ api, d, ids }: { api: StationPanelApi; d: AppState; ids: Set<string> }) {
@@ -155,7 +187,9 @@ function ConnectionList({ api, d, ids }: { api: StationPanelApi; d: AppState; id
               <Mark id={id} size={12} />
             </span>
             <span className="grow min-w-0 flex-1">{info.label}</span>
-            <span className={`text-[12px] leading-[normal] font-medium ${!a ? 'text-red' : a.live ? 'text-ok' : 'text-amber'}`}>
+            <span
+              className={`text-[12px] leading-[normal] font-medium ${!a ? 'text-red' : a.live ? 'text-ok' : 'text-amber'}`}
+            >
               {!a ? 'Not set up' : a.live ? 'Ready' : 'Not running'}
             </span>
           </button>
@@ -217,7 +251,9 @@ function BenchPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         </div>
       </PanelHead>
       <div className={BODY}>
-        <p className="hint">Agents not in a team yet. Drag one onto a team on the map, or open it and add it to a team.</p>
+        <p className="hint">
+          Agents not in a team yet. Drag one onto a team on the map, or open it and add it to a team.
+        </p>
         <div className="list">
           {bench.map((a) => (
             <Pick key={a.id} onClick={() => api.choose({ type: 'agent', id: a.id })}>
@@ -250,7 +286,8 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
   const [reload, setReload] = useState(0);
   useEffect(() => {
     let alive = true;
-    rpc.brain.info()
+    rpc.brain
+      .info()
       .then((bi) => alive && (setInfo(bi), setError('')))
       .catch((e: Error) => alive && setError(e.message));
     return () => void (alive = false);
@@ -259,7 +296,10 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
   const addNote = async () => {
     const name = await promptBox('New note in the Brain', { value: 'note.md' });
     if (!name) return;
-    const content = await promptBox(name, { multiline: true, placeholder: 'Anything the agents should know about this project.' });
+    const content = await promptBox(name, {
+      multiline: true,
+      placeholder: 'Anything the agents should know about this project.',
+    });
     if (content == null) return;
     await attempt(() => rpc.brain.note({ name, content }), 'Saved to notes/');
     setReload((n) => n + 1);
@@ -268,7 +308,12 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
     <>
       <PanelHead api={api}>
         {proj.logoAt ? (
-          <DomNode as="span" className="grid size-10 flex-none place-items-center overflow-hidden rounded-[10px] border border-line bg-ink/5" make={() => projectMark(proj as Project, 40)} deps={[proj.id, proj.logoAt]} />
+          <DomNode
+            as="span"
+            className="grid size-10 flex-none place-items-center overflow-hidden rounded-[10px] border border-line bg-ink/5"
+            make={() => projectMark(proj as Project, 40)}
+            deps={[proj.id, proj.logoAt]}
+          />
         ) : (
           <span className="st-badge lg" style={badgeStyle('var(--color-accent)')}>
             <Icon name="brain" size={18} />
@@ -282,7 +327,13 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
       <div className={BODY}>
         <About
           proj={proj}
-          summary={proj.description ? { text: proj.description, from: 'description' } : info?.summary?.text ? info.summary : null}
+          summary={
+            proj.description
+              ? { text: proj.description, from: 'description' }
+              : info?.summary?.text
+                ? info.summary
+                : null
+          }
           fromPath={info?.entries.find((e) => !e.dir && e.name === info.summary?.from)?.path}
         />
         <div className="grid grid-cols-[repeat(3,1fr)] gap-2">
@@ -298,19 +349,34 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
         </div>
         <button
           type="button"
-          className={fieldTriggerClass('panel', 'mt-3 text-dim shadow-[inset_0_1px_0_var(--glass-spec)] [transition:background-color_0.15s,border-color_0.15s,color_0.15s] hover:bg-panel-2 hover:text-ink')}
+          className={fieldTriggerClass(
+            'panel',
+            'mt-3 text-dim shadow-[inset_0_1px_0_var(--glass-spec)] [transition:background-color_0.15s,border-color_0.15s,color_0.15s] hover:bg-panel-2 hover:text-ink',
+          )}
           onClick={() => openDock()}
         >
           <Icon name="sparkles" size={14} className="text-accent" />
           <span className="flex-1">Ask the Brain…</span>
-          <kbd className="rounded-[5px] border border-line px-1.5 py-px font-sans text-[11px] leading-[normal] text-faint">{brainKeyLabel(true)}</kbd>
+          <kbd className="rounded-[5px] border border-line px-1.5 py-px font-sans text-[11px] leading-[normal] text-faint">
+            {brainKeyLabel(true)}
+          </kbd>
         </button>
         <div className="mt-6 mb-2 flex items-center gap-0.5">
           <div className="label flex-1">Brain folder</div>
-          <IconButton variant="plain" title="Open the folder" aria-label="Open folder" onClick={() => void attempt(() => rpc.brain.open({}))}>
+          <IconButton
+            variant="plain"
+            title="Open the folder"
+            aria-label="Open folder"
+            onClick={() => void attempt(() => rpc.brain.open({}))}
+          >
             <FolderIcon size={16} />
           </IconButton>
-          <IconButton variant="plain" title="Open in VS Code" aria-label="VS Code" onClick={() => void attempt(() => rpc.brain.open({ app: 'vscode' }))}>
+          <IconButton
+            variant="plain"
+            title="Open in VS Code"
+            aria-label="VS Code"
+            onClick={() => void attempt(() => rpc.brain.open({ app: 'vscode' }))}
+          >
             <VSCodeIcon size={16} />
           </IconButton>
           <IconButton variant="plain" title="Add a note" aria-label="Add note" onClick={() => void addNote()}>
@@ -318,7 +384,9 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
           </IconButton>
         </div>
         <div className="overflow-hidden rounded-[10px] border border-line bg-panel shadow-[inset_0_1px_0_var(--glass-spec)]">
-          <div className="border-b border-line px-3 py-2 font-mono text-[11.5px] leading-[1.5] text-dim wrap-anywhere">{proj.brainPath || ''}</div>
+          <div className="border-b border-line px-3 py-2 font-mono text-[11.5px] leading-[1.5] text-dim wrap-anywhere">
+            {proj.brainPath || ''}
+          </div>
           <div className="px-3 py-2.5">
             {error ? (
               <p className="hint m-0">{error}</p>
@@ -328,7 +396,12 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
               <>
                 {info.git ? (
                   <div className={`${CONN} mb-2.5`}>
-                    <DomNode as="span" className="dom-contents" make={() => logo('github', 16) || icon('git-branch', 16)} deps={[]} />
+                    <DomNode
+                      as="span"
+                      className="dom-contents"
+                      make={() => logo('github', 16) || icon('git-branch', 16)}
+                      deps={[]}
+                    />
                     <div className="min-w-0 flex-1">
                       <div>
                         {info.git.url ? (
@@ -341,7 +414,16 @@ function BrainPanel({ api, d }: { api: StationPanelApi; d: AppState }) {
                       </div>
                       <div className="hint">{`${info.git.branch} · ${info.git.last}${info.git.changes ? ` · ${info.git.changes} changed` : ''}`}</div>
                     </div>
-                    <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.brain.pull(), (r) => r.message)}>
+                    <Button
+                      variant="ghost"
+                      size="tiny"
+                      onClick={() =>
+                        void attempt(
+                          () => rpc.brain.pull(),
+                          (r) => r.message,
+                        )
+                      }
+                    >
                       Pull
                     </Button>
                   </div>
@@ -414,7 +496,15 @@ function BrainEntry({ entry: e }: { entry: BrainInfo['entries'][number] }) {
 // What the project is about, and its logo (shown here, on the start screen, in the project menu and in the globe),
 // 3D model and the background picture behind the map.
 // fromPath: the file the text comes from (PROJECT.md / README.md), which opens to read when clicked
-function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: { text: string; from: string | null } | null; fromPath?: string }) {
+function About({
+  proj,
+  summary,
+  fromPath,
+}: {
+  proj: Partial<Project>;
+  summary: { text: string; from: string | null } | null;
+  fromPath?: string;
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const text = summary?.text || '';
@@ -447,7 +537,12 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
           onClick={() => ref && void pickLogo(ref)}
         >
           {proj.logoAt ? (
-            <DomNode as="span" className="dom-contents" make={() => projectMark(proj as Project, 56)} deps={[proj.id, proj.logoAt]} />
+            <DomNode
+              as="span"
+              className="dom-contents"
+              make={() => projectMark(proj as Project, 56)}
+              deps={[proj.id, proj.logoAt]}
+            />
           ) : (
             <span className="flex flex-col items-center gap-1 text-[11px] text-dim">
               <Icon name="image" size={20} />
@@ -458,7 +553,15 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
         <div className="min-w-0 flex-1">
           {editing ? (
             <div className="flex flex-col gap-2.5">
-              <textarea className="w-full" rows={4} autoFocus aria-label="What this project is about" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="What is this project? Who is it for, what should come out of it?" />
+              <textarea
+                className="w-full"
+                rows={4}
+                autoFocus
+                aria-label="What this project is about"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="What is this project? Who is it for, what should come out of it?"
+              />
               <div className="flex flex-wrap items-center gap-1.5">
                 <Button size="small" onClick={() => void save()}>
                   Save
@@ -479,7 +582,11 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
                     title={`Read ${summary.from}`}
                     onClick={() => previewFile(fromPath, summary.from!)}
                   >
-                    <Icon name="file-text" size={12} className="flex-none text-faint transition-colors duration-180 ease-[cubic-bezier(0.37,0,0.63,1)] group-hover:text-accent" />
+                    <Icon
+                      name="file-text"
+                      size={12}
+                      className="flex-none text-faint transition-colors duration-180 ease-[cubic-bezier(0.37,0,0.63,1)] group-hover:text-accent"
+                    />
                     {`from ${summary.from}`}
                   </button>
                 ) : (
@@ -488,7 +595,9 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
               ) : null}
             </>
           ) : (
-            <p className="hint">No description yet. Say what the project is about, or ask the Brain to write PROJECT.md.</p>
+            <p className="hint">
+              No description yet. Say what the project is about, or ask the Brain to write PROJECT.md.
+            </p>
           )}
         </div>
       </div>
@@ -498,7 +607,12 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
             <Icon name="pencil" size={12} />
             {text ? 'Edit description' : 'Add a description'}
           </Button>
-          <Button variant="ghost" size="tiny" title="Change the name of this project (its folder keeps its name)" onClick={() => void rename()}>
+          <Button
+            variant="ghost"
+            size="tiny"
+            title="Change the name of this project (its folder keeps its name)"
+            onClick={() => void rename()}
+          >
             <Icon name="pencil" size={12} />
             Rename
           </Button>
@@ -511,7 +625,12 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
               Remove logo
             </Button>
           ) : null}
-          <Button variant="ghost" size="tiny" title="A 3D model (.glb, .obj, .stl, .ply, .fbx) that replaces the logo inside the Brain" onClick={() => ref && void pickModel(ref)}>
+          <Button
+            variant="ghost"
+            size="tiny"
+            title="A 3D model (.glb, .obj, .stl, .ply, .fbx) that replaces the logo inside the Brain"
+            onClick={() => ref && void pickModel(ref)}
+          >
             <Icon name="box" size={12} />
             {proj.modelAt ? 'Change 3D model' : 'Add 3D model'}
           </Button>
@@ -520,7 +639,12 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
               Remove 3D model
             </Button>
           ) : null}
-          <Button variant="ghost" size="tiny" title="A picture behind the map, in this project only" onClick={() => ref && void pickBackground(ref)}>
+          <Button
+            variant="ghost"
+            size="tiny"
+            title="A picture behind the map, in this project only"
+            onClick={() => ref && void pickBackground(ref)}
+          >
             <Icon name="image" size={12} />
             {proj.backgroundAt ? 'Change background' : 'Add background'}
           </Button>
@@ -538,18 +662,34 @@ function About({ proj, summary, fromPath }: { proj: Partial<Project>; summary: {
 // ---------- a connection (a service, a program, an MCP server) ----------
 function ConnectionPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: string }) {
   const teams = api.teams();
-  const it = availableIntegrations(d, api.programs()).find((x) => x.id === id) || ({ ...intInfo(id), live: false, missing: true } as AvailableIntegration);
+  const it =
+    availableIntegrations(d, api.programs()).find((x) => x.id === id) ||
+    ({ ...intInfo(id), live: false, missing: true } as AvailableIntegration);
   // (gone: a removed MCP server, say)
   useEffect(() => {
     if (!it?.label) api.choose(null);
   });
   if (!it?.label) return null;
   // A team's own access reaches every member, so count those agents too (same rule as stepLinks).
-  const viaTeam = new Set(teams.filter((w) => w.access && agentLinks({ toolGroups: w.access.toolGroups, mcpServers: w.access.mcpServers }).has(it.id)).flatMap((w) => w.members));
+  const viaTeam = new Set(
+    teams
+      .filter(
+        (w) => w.access && agentLinks({ toolGroups: w.access.toolGroups, mcpServers: w.access.mcpServers }).has(it.id),
+      )
+      .flatMap((w) => w.members),
+  );
   const agentsUsing = d.agents.filter((a) => agentLinks(a).has(it.id) || viaTeam.has(a.id));
   const teamsUsing = teams.filter((w) => api.teamLinks(w.id).has(it.id));
   const prog = it.program;
-  const status = it.missing ? 'not set up' : it.live ? (prog?.serviceUrl ? `running · ${prog.serviceUrl}` : prog && !prog.cli ? 'running' : 'ready') : 'installed, not running';
+  const status = it.missing
+    ? 'not set up'
+    : it.live
+      ? prog?.serviceUrl
+        ? `running · ${prog.serviceUrl}`
+        : prog && !prog.cli
+          ? 'running'
+          : 'ready'
+      : 'installed, not running';
   return (
     <>
       <PanelHead api={api}>
@@ -585,7 +725,15 @@ function ConnectionPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id
         </div>
         <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
           {prog && !prog.cli && (prog.exe || prog.shortcut) ? (
-            <Button size="small" onClick={() => void attempt(() => rpc.programs.launch({ program: prog.id }), (r) => r.message)}>
+            <Button
+              size="small"
+              onClick={() =>
+                void attempt(
+                  () => rpc.programs.launch({ program: prog.id }),
+                  (r) => r.message,
+                )
+              }
+            >
               Start
             </Button>
           ) : null}
@@ -623,8 +771,13 @@ const withMembers = (wf: TeamView, members: string[]): TeamView => ({
   steps: members.map((id) => ({ type: 'agent' as const, agentId: id })),
   lead: wf.lead && !members.includes(wf.lead) ? null : wf.lead,
 });
-const presetAgent = (a: Agent) => attempt(() => rpc.presets.saveAgent({ id: a.id }), `Saved ${a.name} as a preset (Agent library › Your presets)`);
-const presetTeam = (w: TeamView) => attempt(() => rpc.presets.saveTeam({ id: w.id }), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
+const presetAgent = (a: Agent) =>
+  attempt(() => rpc.presets.saveAgent({ id: a.id }), `Saved ${a.name} as a preset (Agent library › Your presets)`);
+const presetTeam = (w: TeamView) =>
+  attempt(
+    () => rpc.presets.saveTeam({ id: w.id }),
+    `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`,
+  );
 
 // (the tab you were on stays open when you pick another team)
 type TeamTab = 'members' | 'setup';
@@ -666,7 +819,9 @@ function TeamPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: stri
         )}
       </div>
       <div className={BODY}>
-        {wf.description ? <p className="st-team-goal mb-4 text-[13px] leading-[1.5] text-dim">{wf.description}</p> : null}
+        {wf.description ? (
+          <p className="st-team-goal mb-4 text-[13px] leading-[1.5] text-dim">{wf.description}</p>
+        ) : null}
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex flex-wrap gap-1.5">
             {members.map((a) => (
@@ -681,7 +836,13 @@ function TeamPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: stri
                 {wf.lead === a.id ? <span className={LEAD_STAR}>★</span> : null}
               </button>
             ))}
-            <button type="button" className={`${FACE} border-dashed text-dim`} title="Add someone" aria-label="Add someone" onClick={() => setTab('members')}>
+            <button
+              type="button"
+              className={`${FACE} border-dashed text-dim`}
+              title="Add someone"
+              aria-label="Add someone"
+              onClick={() => setTab('members')}
+            >
               <Icon name="user-plus" size={14} />
             </button>
           </div>
@@ -701,28 +862,50 @@ function TeamPanel({ api, d, id }: { api: StationPanelApi; d: AppState; id: stri
               value: 'members',
               label: (
                 <>
-                  Members<span className="ml-1.5 rounded-[8px] bg-panel-2 px-1.25 text-[10px] text-dim">{members.length}</span>
+                  Members
+                  <span className="ml-1.5 rounded-[8px] bg-panel-2 px-1.25 text-[10px] text-dim">{members.length}</span>
                 </>
               ),
             },
             { value: 'setup', label: 'Setup' },
           ]}
         >
-          {tab === 'setup' ? <TeamSetup api={api} d={d} wf={wf} color={c} /> : <TeamMembers api={api} d={d} wf={wf} members={members} ts={ts} mention={mention} />}
+          {tab === 'setup' ? (
+            <TeamSetup api={api} d={d} wf={wf} color={c} />
+          ) : (
+            <TeamMembers api={api} d={d} wf={wf} members={members} ts={ts} mention={mention} />
+          )}
         </Tabs>
       </div>
     </>
   );
 }
 
-function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelApi; d: AppState; wf: TeamView; members: Agent[]; ts: TeamState; mention: (a: Agent) => void }) {
+function TeamMembers({
+  api,
+  d,
+  wf,
+  members,
+  ts,
+  mention,
+}: {
+  api: StationPanelApi;
+  d: AppState;
+  wf: TeamView;
+  members: Agent[];
+  ts: TeamState;
+  mention: (a: Agent) => void;
+}) {
   const id = wf.id;
   const others = d.agents.filter((a) => !wf.members.includes(a.id));
   const [pick, setPick] = useState('');
   const addId = others.some((a) => a.id === pick) ? pick : others[0]?.id || '';
   return (
     <>
-      <p className="hint mb-3">Everyone sees the whole chat. Your messages go to the lead (★) first, or to whoever you @mention. Members hand work to each other with @Name.</p>
+      <p className="hint mb-3">
+        Everyone sees the whole chat. Your messages go to the lead (★) first, or to whoever you @mention. Members hand
+        work to each other with @Name.
+      </p>
       <div className="overflow-hidden rounded-[10px] border border-line bg-panel shadow-[inset_0_1px_0_var(--glass-spec)] [&>.st-member+_.st-member]:border-t [&>.st-member+_.st-member]:border-line">
         {members.map((a) => {
           const isLead = wf.lead === a.id;
@@ -742,11 +925,20 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
                 ) : null}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="st-member-name flex cursor-pointer items-center gap-1.5 text-[13px] font-semibold hover:text-accent" role="button" tabIndex={0} onClick={() => api.choose({ type: 'agent', id: a.id, wf: id })} onKeyDown={(e) => e.key === 'Enter' && api.choose({ type: 'agent', id: a.id, wf: id })}>
+                <div
+                  className="st-member-name flex cursor-pointer items-center gap-1.5 text-[13px] font-semibold hover:text-accent"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => api.choose({ type: 'agent', id: a.id, wf: id })}
+                  onKeyDown={(e) => e.key === 'Enter' && api.choose({ type: 'agent', id: a.id, wf: id })}
+                >
                   {a.name}
                   {isLead ? <span className="tc-lead">lead</span> : null}
                 </div>
-                <HoverScroll host=".st-member" className={`st-member-now mt-1 text-[12px] ${st === 'working' ? 'text-accent' : 'text-dim'}`}>
+                <HoverScroll
+                  host=".st-member"
+                  className={`st-member-now mt-1 text-[12px] ${st === 'working' ? 'text-accent' : 'text-dim'}`}
+                >
                   {st === 'working' ? (
                     <>
                       <Dot tone="busy" /> {now.text || 'Working…'}
@@ -764,7 +956,14 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-1">
                   <DomNode make={() => modelChip(a, { compact: true })} deps={[a]} />
                   <div className="flex gap-1">
-                    <IconButton variant="quiet" className={MEMBER_ACT} type="button" title={`Write to ${a.name} in the team chat`} aria-label={`Write to ${a.name} in the team chat`} onClick={() => mention(a)}>
+                    <IconButton
+                      variant="quiet"
+                      className={MEMBER_ACT}
+                      type="button"
+                      title={`Write to ${a.name} in the team chat`}
+                      aria-label={`Write to ${a.name} in the team chat`}
+                      onClick={() => mention(a)}
+                    >
                       @
                     </IconButton>
                     <IconButton
@@ -777,7 +976,21 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
                     >
                       ★
                     </IconButton>
-                    <IconButton variant="quiet" className={MEMBER_ACT} type="button" title="Take off this team (stays in the project)" aria-label={`Take ${a.name} off this team`} onClick={() => void api.saveTeam(withMembers(wf, wf.members.filter((x) => x !== a.id)))}>
+                    <IconButton
+                      variant="quiet"
+                      className={MEMBER_ACT}
+                      type="button"
+                      title="Take off this team (stays in the project)"
+                      aria-label={`Take ${a.name} off this team`}
+                      onClick={() =>
+                        void api.saveTeam(
+                          withMembers(
+                            wf,
+                            wf.members.filter((x) => x !== a.id),
+                          ),
+                        )
+                      }
+                    >
                       ✕
                     </IconButton>
                   </div>
@@ -786,7 +999,11 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
             </div>
           );
         })}
-        {!members.length ? <p className="empty px-3 py-4">No agents yet. Add one below, hire from the Agent library, or ask the Brain.</p> : null}
+        {!members.length ? (
+          <p className="empty px-3 py-4">
+            No agents yet. Add one below, hire from the Agent library, or ask the Brain.
+          </p>
+        ) : null}
       </div>
       <div className="label mt-6">Add someone</div>
       {others.length ? (
@@ -812,7 +1029,9 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
           Ask the Brain
         </Button>
       </div>
-      <p className="hint mt-4">Tip: drag an agent onto this team on the map to add it (hold Ctrl to also keep it on its other team).</p>
+      <p className="hint mt-4">
+        Tip: drag an agent onto this team on the map to add it (hold Ctrl to also keep it on its other team).
+      </p>
     </>
   );
 }
@@ -820,7 +1039,10 @@ function TeamMembers({ api, d, wf, members, ts, mention }: { api: StationPanelAp
 function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; wf: TeamView; color: string }) {
   const id = wf.id;
   // the access chips change at once; the save waits until you stop clicking
-  const [access, setAccess] = useState<TeamAccess>({ toolGroups: wf.access?.toolGroups || [], mcpServers: wf.access?.mcpServers || [] });
+  const [access, setAccess] = useState<TeamAccess>({
+    toolGroups: wf.access?.toolGroups || [],
+    mcpServers: wf.access?.mcpServers || [],
+  });
   const accessTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(wf);
   latest.current = wf;
@@ -833,18 +1055,28 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
   const sch = wf.schedule || { type: 'none' };
   const saveSchedule = (patch: Partial<NonNullable<TeamView['schedule']>>) => {
     const schedule = { ...sch, ...patch } as NonNullable<TeamView['schedule']>;
-    if (schedule.type === 'daily' && schedule.times?.length && !schedule.times.some((time) => time.trim())) schedule.type = 'none';
+    if (schedule.type === 'daily' && schedule.times?.length && !schedule.times.some((time) => time.trim()))
+      schedule.type = 'none';
     void api.saveTeam({ ...wf, schedule, enabled: schedule.type !== 'none' });
   };
   const cloneTeam = async (withAgents: boolean) => {
-    const c = await attempt(() => rpc.workflows.clone({ id, withAgents }), withAgents ? `Cloned ${wf.name} with copies of its agents` : `Cloned ${wf.name}`);
+    const c = await attempt(
+      () => rpc.workflows.clone({ id, withAgents }),
+      withAgents ? `Cloned ${wf.name} with copies of its agents` : `Cloned ${wf.name}`,
+    );
     if (!c) return;
     if (withAgents) refreshSoon(0);
     await api.reloadTeams();
     api.choose({ type: 'branch', id: c.id });
   };
   const remove = async () => {
-    if (!(await confirmBox(`Delete the team "${wf.name}" and its agents? Agents that are also on another team stay. The team chat is removed.`, { ok: 'Delete', danger: true }))) return;
+    if (
+      !(await confirmBox(
+        `Delete the team "${wf.name}" and its agents? Agents that are also on another team stay. The team chat is removed.`,
+        { ok: 'Delete', danger: true },
+      ))
+    )
+      return;
     await attempt(() => rpc.workflows.remove({ id }));
     api.choose(null);
     refreshSoon(0);
@@ -855,7 +1087,14 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
       <SetupBox icon="pen-line" title="Name and goal" hint="Every member reads the goal before it answers in the chat.">
         <div className="flex items-center gap-2.5">
           <div className="min-w-0 flex-1">
-            <input key={`n:${wf.name}`} aria-label="Team name" defaultValue={wf.name} ref={committed<HTMLInputElement>((el) => void api.saveTeam({ ...latest.current, name: el.value.trim() || latest.current.name }))} />
+            <input
+              key={`n:${wf.name}`}
+              aria-label="Team name"
+              defaultValue={wf.name}
+              ref={committed<HTMLInputElement>(
+                (el) => void api.saveTeam({ ...latest.current, name: el.value.trim() || latest.current.name }),
+              )}
+            />
           </div>
           <input
             key={`c:${color}`}
@@ -872,22 +1111,49 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
           aria-label="Team goal"
           defaultValue={wf.description || ''}
           placeholder="The team's goal, e.g. grow our X account with daily posts"
-          ref={committed<HTMLTextAreaElement>((el) => void api.saveTeam({ ...latest.current, description: el.value.trim() }))}
+          ref={committed<HTMLTextAreaElement>(
+            (el) => void api.saveTeam({ ...latest.current, description: el.value.trim() }),
+          )}
         />
       </SetupBox>
-      <SetupBox icon="puzzle" title="Team skills" hint="Every member gets these while it works for this team (on top of its own and the project's).">
+      <SetupBox
+        icon="puzzle"
+        title="Team skills"
+        hint="Every member gets these while it works for this team (on top of its own and the project's)."
+      >
         <DomNode
-          make={() => skillPicker(wf.skills || [], (v) => void api.saveTeam({ ...latest.current, skills: v }), { inherited: (d.project?.skills || []).map((slug) => ({ slug, from: 'project' })), empty: 'No team skills yet.' })}
+          make={() =>
+            skillPicker(wf.skills || [], (v) => void api.saveTeam({ ...latest.current, skills: v }), {
+              inherited: (d.project?.skills || []).map((slug) => ({ slug, from: 'project' })),
+              empty: 'No team skills yet.',
+            })
+          }
           deps={[id, (wf.skills || []).join('|'), (d.project?.skills || []).join('|')]}
         />
       </SetupBox>
-      <SetupBox icon="wrench" title="Extra access" hint="Members get these on top of their own tools while they work for this team.">
-        <ChipSet label="Extra tools" options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={access.toolGroups} onChange={(v) => saveAccess({ toolGroups: v })} />
+      <SetupBox
+        icon="wrench"
+        title="Extra access"
+        hint="Members get these on top of their own tools while they work for this team."
+      >
+        <ChipSet
+          label="Extra tools"
+          options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))}
+          value={access.toolGroups}
+          onChange={(v) => saveAccess({ toolGroups: v })}
+        />
         {(d.mcpServers || []).length ? (
           <div className="mt-3">
             <div className="label mb-2">MCP servers</div>
-            <ChipSet label="Extra MCP servers" options={mcpOptions(d.mcpServers, d.mcpInfo)} value={access.mcpServers} onChange={(v) => saveAccess({ mcpServers: v })} />
-            {copiesWarning(access.mcpServers, d.mcpInfo) ? <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(access.mcpServers, d.mcpInfo)}</p> : null}
+            <ChipSet
+              label="Extra MCP servers"
+              options={mcpOptions(d.mcpServers, d.mcpInfo)}
+              value={access.mcpServers}
+              onChange={(v) => saveAccess({ mcpServers: v })}
+            />
+            {copiesWarning(access.mcpServers, d.mcpInfo) ? (
+              <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(access.mcpServers, d.mcpInfo)}</p>
+            ) : null}
           </div>
         ) : null}
       </SetupBox>
@@ -899,20 +1165,33 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
         {sch.type === 'daily' ? (
           // the daily message teams had before routines: it still runs, so it shows here until it is turned off
           <div className={`${CONN} mt-2 cursor-default hover:bg-transparent`}>
-            <span className="grid size-7 flex-none place-items-center rounded-[7px] bg-panel-2 text-dim"><Icon name="clock" size={13} /></span>
+            <span className="grid size-7 flex-none place-items-center rounded-[7px] bg-panel-2 text-dim">
+              <Icon name="clock" size={13} />
+            </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate">{sch.input || 'Daily message'}</span>
               <span className="hint block">{`Every day at ${(sch.times?.length ? sch.times : ['09:00']).join(', ')} · set up before routines`}</span>
             </span>
-            <Button variant="ghost" size="tiny" onClick={() => saveSchedule({ type: 'none' })}>Turn off</Button>
+            <Button variant="ghost" size="tiny" onClick={() => saveSchedule({ type: 'none' })}>
+              Turn off
+            </Button>
           </div>
         ) : null}
-        <Button variant="ghost" size="small" className="mt-3" onClick={() => navigate(`#/routines/new?team=${encodeURIComponent(wf.id)}`)}>
+        <Button
+          variant="ghost"
+          size="small"
+          className="mt-3"
+          onClick={() => navigate(`#/routines/new?team=${encodeURIComponent(wf.id)}`)}
+        >
           <Icon name="plus" size={14} />
           New routine for this team
         </Button>
       </SetupBox>
-      <SetupBox icon="star" title="Symbol on the map" hint="Shown in the middle of the team's pod. An emoji, or a picture or 3D model of your own.">
+      <SetupBox
+        icon="star"
+        title="Symbol on the map"
+        hint="Shown in the middle of the team's pod. An emoji, or a picture or 3D model of your own."
+      >
         <SymbolPicker api={api} wf={wf} />
       </SetupBox>
       <SetupBox icon="move" title="On the map" hint="Drag the team to move it anywhere. Shift+drag spins it.">
@@ -922,7 +1201,11 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
             Spin 45°
           </Button>
           {wf.pos || wf.rot ? (
-            <Button variant="ghost" size="small" onClick={() => void api.saveTeam({ ...wf, pos: null, rot: null, angle: null })}>
+            <Button
+              variant="ghost"
+              size="small"
+              onClick={() => void api.saveTeam({ ...wf, pos: null, rot: null, angle: null })}
+            >
               <Icon name="rotate-ccw" size={14} />
               Put back next to the Brain
             </Button>
@@ -935,25 +1218,49 @@ function TeamSetup({ api, d, wf, color }: { api: StationPanelApi; d: AppState; w
       </SetupBox>
       <SetupBox icon="workflow" title="Team builder and copies">
         <div className="flex flex-wrap items-center gap-1.5">
-          <Button variant="ghost" size="small" onClick={() => openBranchBuilder({ wf, onSaved: () => void api.reloadTeams() })}>
+          <Button
+            variant="ghost"
+            size="small"
+            onClick={() => openBranchBuilder({ wf, onSaved: () => void api.reloadTeams() })}
+          >
             <Icon name="workflow" size={14} />
             Open the team builder
           </Button>
-          <Button variant="ghost" size="small" title="A new team with the same members and settings" onClick={() => void cloneTeam(false)}>
+          <Button
+            variant="ghost"
+            size="small"
+            title="A new team with the same members and settings"
+            onClick={() => void cloneTeam(false)}
+          >
             <Icon name="copy" size={14} />
             Clone team
           </Button>
-          <Button variant="ghost" size="small" title="A new team with copies of every member" onClick={() => void cloneTeam(true)}>
+          <Button
+            variant="ghost"
+            size="small"
+            title="A new team with copies of every member"
+            onClick={() => void cloneTeam(true)}
+          >
             <Icon name="copy" size={14} />
             Clone with its agents
           </Button>
-          <Button variant="ghost" size="small" title="Keep the team and its agents as a template for any project" onClick={() => void presetTeam(wf)}>
+          <Button
+            variant="ghost"
+            size="small"
+            title="Keep the team and its agents as a template for any project"
+            onClick={() => void presetTeam(wf)}
+          >
             <Icon name="bookmark-plus" size={14} />
             Save as preset
           </Button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
-          <DomNode as="span" className="dom-contents" make={() => historyButton('team', id, () => void api.reloadTeams())} deps={[id]} />
+          <DomNode
+            as="span"
+            className="dom-contents"
+            make={() => historyButton('team', id, () => void api.reloadTeams())}
+            deps={[id]}
+          />
           <Button variant="danger" size="small" className="ml-auto" onClick={() => void remove()}>
             <Icon name="trash-2" size={13} />
             Delete team
@@ -970,10 +1277,16 @@ function TeamRoutines({ wf }: { wf: TeamView }) {
   const [list, setList] = useState<RoutineListing[] | null>(null);
   useEffect(() => {
     let live = true;
-    const load = () => void rpc.routines.list().then((l) => live && setList(l), () => live && setList([]));
+    const load = () =>
+      void rpc.routines.list().then(
+        (l) => live && setList(l),
+        () => live && setList([]),
+      );
     load();
     // (a saved or deleted routine, a run (the card's last run), or a project switch)
-    const off = onEvent((ev) => (ev.type === 'routines' || ev.type === 'routine-run' || ev.type === 'project') && load());
+    const off = onEvent(
+      (ev) => (ev.type === 'routines' || ev.type === 'routine-run' || ev.type === 'project') && load(),
+    );
     return () => ((live = false), off());
   }, []);
   if (!list) return null;
@@ -983,11 +1296,22 @@ function TeamRoutines({ wf }: { wf: TeamView }) {
     <div className="flex flex-col gap-2">
       {mine.map((r) => {
         const last = r.lastRun;
-        const state = !r.enabled ? { text: 'Off', cls: 'text-faint' } : last?.status === 'running' ? { text: 'Running', cls: 'text-accent' } : last?.status === 'failed' ? { text: 'Failed', cls: 'text-red' } : last ? { text: `Ran ${ago(last.createdAt)}`, cls: 'text-dim' } : { text: 'Not run yet', cls: 'text-faint' };
+        const state = !r.enabled
+          ? { text: 'Off', cls: 'text-faint' }
+          : last?.status === 'running'
+            ? { text: 'Running', cls: 'text-accent' }
+            : last?.status === 'failed'
+              ? { text: 'Failed', cls: 'text-red' }
+              : last
+                ? { text: `Ran ${ago(last.createdAt)}`, cls: 'text-dim' }
+                : { text: 'Not run yet', cls: 'text-faint' };
         return (
           <button key={r.id} type="button" className={CONN} onClick={() => navigate(`#/routines/${r.id}`)}>
             <span className="grid size-7 flex-none place-items-center rounded-[7px] bg-panel-2 text-dim">
-              <Icon name={r.schedule?.type === 'daily' ? 'calendar' : r.schedule?.type === 'interval' ? 'repeat' : 'hand'} size={13} />
+              <Icon
+                name={r.schedule?.type === 'daily' ? 'calendar' : r.schedule?.type === 'interval' ? 'repeat' : 'hand'}
+                size={13}
+              />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate">{r.name}</span>
@@ -1001,7 +1325,17 @@ function TeamRoutines({ wf }: { wf: TeamView }) {
   );
 }
 
-function SetupBox({ icon, title, hint, children }: { icon: string; title: string; hint?: string; children: ReactNode }) {
+function SetupBox({
+  icon,
+  title,
+  hint,
+  children,
+}: {
+  icon: string;
+  title: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   return (
     <section className="py-4 first:pt-0">
       <div className="flex items-center gap-2.5 text-[13px] font-semibold text-ink">
@@ -1032,8 +1366,18 @@ function SymbolPicker({ api, wf }: { api: StationPanelApi; wf: TeamView }) {
         </EmojiPicker>
       </Suspense>
       <div className="mt-3 flex items-center gap-2">
-        <input aria-label="Your own emoji" placeholder="Type or paste an emoji" maxLength={16} className="h-9 min-w-0 flex-1 py-0" ref={committed<HTMLInputElement>((el) => el.value.trim() && void setEmoji(el.value.trim()))} />
-        <Button variant="ghost" className="flex-none" onClick={() => void pickTeamMark({ id: wf.id, name: wf.name }).then((ok) => void (ok && api.reloadTeams()))}>
+        <input
+          aria-label="Your own emoji"
+          placeholder="Type or paste an emoji"
+          maxLength={16}
+          className="h-9 min-w-0 flex-1 py-0"
+          ref={committed<HTMLInputElement>((el) => el.value.trim() && void setEmoji(el.value.trim()))}
+        />
+        <Button
+          variant="ghost"
+          className="flex-none"
+          onClick={() => void pickTeamMark({ id: wf.id, name: wf.name }).then((ok) => void (ok && api.reloadTeams()))}
+        >
           <Icon name="image" size={14} />
           Picture or 3D model…
         </Button>
@@ -1052,7 +1396,11 @@ function SymbolPicker({ api, wf }: { api: StationPanelApi; wf: TeamView }) {
 
 // ---------- an agent ----------
 // The agent's model, with its version, and how it signs in. Switch it with the chip.
-const AUTH_NAMES: Record<string, string> = { login: 'Claude login (subscription)', anthropic: 'Anthropic API key', openrouter: 'OpenRouter key' };
+const AUTH_NAMES: Record<string, string> = {
+  login: 'Claude login (subscription)',
+  anthropic: 'Anthropic API key',
+  openrouter: 'OpenRouter key',
+};
 function ModelSection({ a }: { a: Agent }) {
   // (the chip changes the agent in place: draw again)
   const [, redraw] = useState(0);
@@ -1068,7 +1416,12 @@ function ModelSection({ a }: { a: Agent }) {
     <Plate className="mt-4 flex flex-col gap-2 rounded-[10px] p-4">
       <div className="label">Model</div>
       <div className="flex items-center gap-3">
-        <DomNode as="span" className="dom-contents" make={() => (mi.brand && logo(mi.brand, 22)) || icon('cpu', 22)} deps={[mi.brand]} />
+        <DomNode
+          as="span"
+          className="dom-contents"
+          make={() => (mi.brand && logo(mi.brand, 22)) || icon('cpu', 22)}
+          deps={[mi.brand]}
+        />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center font-sans text-[17px] leading-[1.25] font-bold">
             {mi.name}
@@ -1079,12 +1432,23 @@ function ModelSection({ a }: { a: Agent }) {
       </div>
       <div className="grid grid-cols-[90px_1fr] items-center gap-2 [&_.model-chip]:[justify-self:start]">
         <span className="hint">Switch</span>
-        <DomNode as="span" className="dom-contents" make={() => modelChip(a, { onChange: () => redraw((n) => n + 1) })} deps={[a]} />
+        <DomNode
+          as="span"
+          className="dom-contents"
+          make={() => modelChip(a, { onChange: () => redraw((n) => n + 1) })}
+          deps={[a]}
+        />
       </div>
       {a.engine === 'claude-code' ? (
         <div className="grid grid-cols-[90px_1fr] items-center gap-2">
           <span className="hint">Sign in with</span>
-          <SelectControl className="py-1.5 text-[13px]" aria-label="Sign in with" value={a.claudeAuth || 'login'} onChange={(value) => void setAuth(value)} options={Object.entries(AUTH_NAMES).map(([value, label]) => ({ value, label }))} />
+          <SelectControl
+            className="py-1.5 text-[13px]"
+            aria-label="Sign in with"
+            value={a.claudeAuth || 'login'}
+            onChange={(value) => void setAuth(value)}
+            options={Object.entries(AUTH_NAMES).map(([value, label]) => ({ value, label }))}
+          />
         </div>
       ) : null}
       {a.lastModel ? (
@@ -1113,7 +1477,12 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
   const others = teams.filter((w) => !onTeams.includes(w));
   const addTo = others.some((w) => w.id === pick) ? pick : others[0]?.id || '';
   const removeFrom = async (w: TeamView) => {
-    await api.saveTeam(withMembers(w, w.members.filter((x) => x !== id)));
+    await api.saveTeam(
+      withMembers(
+        w,
+        w.members.filter((x) => x !== id),
+      ),
+    );
     toast(`Removed ${a.name} from ${w.name}`);
   };
   const addToTeam = async () => {
@@ -1141,7 +1510,9 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
           className={`st-agent-now flex items-center gap-2 rounded-box border bg-bg px-2.5 py-2 text-[12.5px] ${now.st === 'working' ? 'border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-line))] text-accent' : now.st === 'needs' ? 'border-[color-mix(in_srgb,var(--color-amber)_40%,var(--color-line))] text-amber' : 'border-line text-dim'}`}
         >
           <Dot tone={now.st === 'working' ? 'busy' : now.st === 'needs' ? 'warn' : 'on'} />
-          <span className="min-w-0 flex-1">{now.st === 'working' ? now.text : now.st === 'needs' ? 'Waiting for your OK (see below)' : 'Ready'}</span>
+          <span className="min-w-0 flex-1">
+            {now.st === 'working' ? now.text : now.st === 'needs' ? 'Waiting for your OK (see below)' : 'Ready'}
+          </span>
         </div>
         <ModelSection a={a} />
         <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
@@ -1164,7 +1535,12 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
             <Icon name="copy" size={13} />
             Clone
           </Button>
-          <Button variant="ghost" size="small" title="Keep it as a template for any project" onClick={() => void presetAgent(a)}>
+          <Button
+            variant="ghost"
+            size="small"
+            title="Keep it as a template for any project"
+            onClick={() => void presetAgent(a)}
+          >
             <Icon name="bookmark-plus" size={13} />
             Preset
           </Button>
@@ -1173,41 +1549,84 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
         <DomNode
           className="mt-3.5"
           make={() =>
-            skillPicker(a.skills || [], (v) => void attempt(() => rpc.agents.change({ id, skills: v })).then(() => refreshSoon(0)), {
-              inherited: [...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' })), ...onTeams.flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name })))],
-              empty: 'No skills yet.',
-            })
+            skillPicker(
+              a.skills || [],
+              (v) => void attempt(() => rpc.agents.change({ id, skills: v })).then(() => refreshSoon(0)),
+              {
+                inherited: [
+                  ...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' })),
+                  ...onTeams.flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name }))),
+                ],
+                empty: 'No skills yet.',
+              },
+            )
           }
-          deps={[id, (a.skills || []).join('|'), (d.project?.skills || []).join('|'), onTeams.map((w) => `${w.name}:${(w.skills || []).join(',')}`).join('|')]}
+          deps={[
+            id,
+            (a.skills || []).join('|'),
+            (d.project?.skills || []).join('|'),
+            onTeams.map((w) => `${w.name}:${(w.skills || []).join(',')}`).join('|'),
+          ]}
         />
         <div className="label mt-7">{`Teams (${onTeams.length})`}</div>
         <div className={CONNS}>
           {onTeams.map((w) => (
             <div key={w.id} className={`${CONN} ok`}>
               <Dot tone="color" style={badgeStyle(wfColor(w, teams.indexOf(w)))} />
-              <span className="grow min-w-0 flex-1 cursor-pointer" role="button" tabIndex={0} onClick={() => api.choose({ type: 'branch', id: w.id })} onKeyDown={(e) => e.key === 'Enter' && api.choose({ type: 'branch', id: w.id })}>
+              <span
+                className="grow min-w-0 flex-1 cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onClick={() => api.choose({ type: 'branch', id: w.id })}
+                onKeyDown={(e) => e.key === 'Enter' && api.choose({ type: 'branch', id: w.id })}
+              >
                 {w.name}
                 <span className="hint">{w.lead === id ? ' · ★ lead' : ' · member'}</span>
               </span>
-              <Button variant="ghost" size="tiny" title={`Open ${w.name}'s chat with @${a.name}`} onClick={() => openChat('team', w.id).mention?.(a.name)}>
+              <Button
+                variant="ghost"
+                size="tiny"
+                title={`Open ${w.name}'s chat with @${a.name}`}
+                onClick={() => openChat('team', w.id).mention?.(a.name)}
+              >
                 Chat
               </Button>
               {w.lead !== id ? (
-                <Button variant="ghost" size="tiny" title="Make lead of this team" aria-label={`Make ${a.name} lead of ${w.name}`} onClick={() => void api.saveTeam({ ...w, lead: id })}>
+                <Button
+                  variant="ghost"
+                  size="tiny"
+                  title="Make lead of this team"
+                  aria-label={`Make ${a.name} lead of ${w.name}`}
+                  onClick={() => void api.saveTeam({ ...w, lead: id })}
+                >
                   ★
                 </Button>
               ) : null}
-              <Button variant="ghost" size="tiny" title={`Take ${a.name} off this team`} onClick={() => void removeFrom(w)}>
+              <Button
+                variant="ghost"
+                size="tiny"
+                title={`Take ${a.name} off this team`}
+                onClick={() => void removeFrom(w)}
+              >
                 Remove
               </Button>
             </div>
           ))}
-          {!onTeams.length ? <p className="hint">On the Bench: not in any team yet. Add it to one below, or drag it onto a team on the map.</p> : null}
+          {!onTeams.length ? (
+            <p className="hint">
+              On the Bench: not in any team yet. Add it to one below, or drag it onto a team on the map.
+            </p>
+          ) : null}
         </div>
         {others.length ? (
           <div className="mt-3.5 flex items-center gap-2.5">
             <div className="min-w-0 flex-1">
-              <SelectControl aria-label="Team to add it to" value={addTo} onChange={setPick} options={others.map((w) => ({ value: w.id, label: w.name }))} />
+              <SelectControl
+                aria-label="Team to add it to"
+                value={addTo}
+                onChange={setPick}
+                options={others.map((w) => ({ value: w.id, label: w.name }))}
+              />
             </div>
             <Button size="small" onClick={() => void addToTeam()}>
               Add to team
@@ -1223,8 +1642,18 @@ function AgentPanel({ api, d, id, wfId }: { api: StationPanelApi; d: AppState; i
               {connectors.map((c) => {
                 const look = connectorLook(c.name);
                 return (
-                  <span key={c.id || c.name} className="st-badge" style={badgeStyle(c.status === 'connected' ? look.color : 'var(--color-faint)')} title={`${c.name}: ${c.status === 'connected' ? 'connected' : 'needs sign-in'}`}>
-                    <DomNode as="span" className="dom-contents" make={() => appLogo(c.name, 11) || document.createTextNode(look.glyph)} deps={[c.name]} />
+                  <span
+                    key={c.id || c.name}
+                    className="st-badge"
+                    style={badgeStyle(c.status === 'connected' ? look.color : 'var(--color-faint)')}
+                    title={`${c.name}: ${c.status === 'connected' ? 'connected' : 'needs sign-in'}`}
+                  >
+                    <DomNode
+                      as="span"
+                      className="dom-contents"
+                      make={() => appLogo(c.name, 11) || document.createTextNode(look.glyph)}
+                      deps={[c.name]}
+                    />
                   </span>
                 );
               })}

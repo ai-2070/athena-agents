@@ -23,7 +23,9 @@ const METHOD: Record<string, string> = { get: 'GET', post: 'POST', put: 'PUT', d
 describe('the routes left in server/index.ts', () => {
   it('are only the file and internal ones', () => {
     const source = fs.readFileSync(new URL('../../server/index.ts', import.meta.url), 'utf8');
-    const routes = [...source.matchAll(/^\s*(get|post|put|del|postFile)(?:<[^\n]*?>)?\('(\/[^']*)'/gm)].map((m) => `${METHOD[m[1]]} ${m[2]}`);
+    const routes = [...source.matchAll(/^\s*(get|post|put|del|postFile)(?:<[^\n]*?>)?\(\s*'(\/[^']*)'/gm)].map(
+      (m) => `${METHOD[m[1]]} ${m[2]}`,
+    );
     expect(routes.sort()).toEqual([...KEEP].sort());
   });
 });

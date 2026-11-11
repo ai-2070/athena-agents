@@ -4,7 +4,19 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { ENTRY, STYLES, WEB, changeKind, dashPlugin, entryCode, isViewFile, serverBack, startVite, stylesCode, viewMark } from '../../scripts/vite-dev.ts';
+import {
+  ENTRY,
+  STYLES,
+  WEB,
+  changeKind,
+  dashPlugin,
+  entryCode,
+  isViewFile,
+  serverBack,
+  startVite,
+  stylesCode,
+  viewMark,
+} from '../../scripts/vite-dev.ts';
 import type { DashPluginOptions } from '../../scripts/vite-dev.ts';
 import type { DevServer } from '../../scripts/vite-dev.ts';
 
@@ -34,19 +46,28 @@ describe('the dev entry and styles', () => {
 
 describe('what a change does', () => {
   // the hook, with just what it reads of its context; the stylesheet changes when restyle says so
-  const setup = ({ restyle = true, serverBack }: { restyle?: boolean; serverBack?: DashPluginOptions['serverBack'] } = {}) => {
+  const setup = ({
+    restyle = true,
+    serverBack,
+  }: { restyle?: boolean; serverBack?: DashPluginOptions['serverBack'] } = {}) => {
     const invalidated: object[] = [];
     const sent: unknown[] = [];
     const updates: string[] = [];
     const css = { css: async () => '', update: async (file: string) => (updates.push(file), restyle) };
-    const hook = dashPlugin({ css, serverBack }).hotUpdate as unknown as (this: object, o: { file: string; modules: object[] }) => Promise<object[] | undefined>;
+    const hook = dashPlugin({ css, serverBack }).hotUpdate as unknown as (
+      this: object,
+      o: { file: string; modules: object[] },
+    ) => Promise<object[] | undefined>;
     const run = async (file: string, styles: object | undefined, modules: object[] = []) => {
       const ctx = {
         environment: {
           name: 'client',
           logger: { info: () => {}, error: () => {} },
           hot: { send: (m: unknown) => sent.push(m) },
-          moduleGraph: { getModuleById: (id: string) => (id === STYLES ? styles : undefined), invalidateModule: (m: object) => invalidated.push(m) },
+          moduleGraph: {
+            getModuleById: (id: string) => (id === STYLES ? styles : undefined),
+            invalidateModule: (m: object) => invalidated.push(m),
+          },
         },
       };
       return hook.call(ctx, { file, modules });
@@ -161,8 +182,18 @@ describe('pages in web/views/', () => {
     expect(isViewFile(path.join(WEB, 'views', 'x.tsx'), 'export const render = () => {};')).toBe(true);
     expect(isViewFile(path.join(WEB, 'views', 'x.tsx'), 'export { render, title };')).toBe(true);
     // pieces the pages use, and files elsewhere
-    expect(isViewFile(path.join(WEB, 'views', 'stationpanel.tsx'), 'export function mountStationPanel() {}\nexport const title = 1;')).toBe(false);
-    for (const f of [path.join(WEB, 'views', 'station.ts'), path.join(WEB, 'app.ts'), path.join(WEB, 'ui', 'button.tsx')]) expect(isViewFile(f, PAGE), f).toBe(false);
+    expect(
+      isViewFile(
+        path.join(WEB, 'views', 'stationpanel.tsx'),
+        'export function mountStationPanel() {}\nexport const title = 1;',
+      ),
+    ).toBe(false);
+    for (const f of [
+      path.join(WEB, 'views', 'station.ts'),
+      path.join(WEB, 'app.ts'),
+      path.join(WEB, 'ui', 'button.tsx'),
+    ])
+      expect(isViewFile(f, PAGE), f).toBe(false);
   });
 
   it('agree with the files in web/views/ (each .tsx there that the router opens is a page)', () => {
@@ -178,7 +209,9 @@ describe('pages in web/views/', () => {
   });
 
   it('say so to the page and get one component export in development, and nothing else changes', () => {
-    const transform = dashPlugin().transform as unknown as { handler: (this: object, code: string, id: string) => { code: string } | undefined };
+    const transform = dashPlugin().transform as unknown as {
+      handler: (this: object, code: string, id: string) => { code: string } | undefined;
+    };
     const ctx = { environment: { name: 'client' } };
     const id = path.join(WEB, 'views', 'home.tsx');
     const out = transform.handler.call(ctx, PAGE, id);
@@ -187,7 +220,13 @@ describe('pages in web/views/', () => {
     expect(viewMark(`${id}?t=1`)).toBe(viewMark(id));
     expect(viewMark(id)).toMatch(/export function [A-Z]\w*\(\) \{ return null; \}/);
     expect(transform.handler.call(ctx, 'x', path.join(WEB, 'core.ts'))).toBeUndefined();
-    expect(transform.handler.call(ctx, 'export function mountStationPanel() {}', path.join(WEB, 'views', 'stationpanel.tsx'))).toBeUndefined();
+    expect(
+      transform.handler.call(
+        ctx,
+        'export function mountStationPanel() {}',
+        path.join(WEB, 'views', 'stationpanel.tsx'),
+      ),
+    ).toBeUndefined();
   });
 
   it("leave out exactly the router's hooks (View in web/app.ts)", () => {
@@ -196,7 +235,9 @@ describe('pages in web/views/', () => {
     const view = /export interface View \{([\s\S]*?)\n\}/.exec(app)?.[1] || '';
     const keys = [...view.matchAll(/^\s+(\w+)\??[(:]/gm)].map((m) => m[1]).sort();
     const hot = fs.readFileSync(path.join(WEB, 'dev', 'hot.ts'), 'utf8');
-    const listed = [...(/VIEW_EXPORTS = \[([^\]]*)\]/.exec(hot)?.[1] || '').matchAll(/'(\w+)'/g)].map((m) => m[1]).sort();
+    const listed = [...(/VIEW_EXPORTS = \[([^\]]*)\]/.exec(hot)?.[1] || '').matchAll(/'(\w+)'/g)]
+      .map((m) => m[1])
+      .sort();
     expect(keys.length).toBeGreaterThan(2);
     expect(listed).toEqual(keys);
   });
@@ -241,12 +282,31 @@ describe('the dev server', () => {
 
   it('serves the page code and shared/', async () => {
     expect((await get('/core.ts')).status).toBe(200);
-    expect((await get(`/@fs${path.join(ROOT, 'shared', 'types.ts').replace(/\\/g, '/').replace(/^(?=[A-Za-z]:)/, '/')}`)).status).toBe(200);
+    expect(
+      (
+        await get(
+          `/@fs${path
+            .join(ROOT, 'shared', 'types.ts')
+            .replace(/\\/g, '/')
+            .replace(/^(?=[A-Za-z]:)/, '/')}`,
+        )
+      ).status,
+    ).toBe(200);
   }, 60_000);
 
   it('refuses everything else in the repo', async () => {
-    const fsUrl = (...p: string[]) => `/@fs${path.join(ROOT, ...p).replace(/\\/g, '/').replace(/^(?=[A-Za-z]:)/, '/')}`;
-    for (const p of [fsUrl('package.json'), fsUrl('server', 'index.ts'), fsUrl('tests', 'server', 'setup.ts'), '/../package.json', '/%2e%2e/package.json']) {
+    const fsUrl = (...p: string[]) =>
+      `/@fs${path
+        .join(ROOT, ...p)
+        .replace(/\\/g, '/')
+        .replace(/^(?=[A-Za-z]:)/, '/')}`;
+    for (const p of [
+      fsUrl('package.json'),
+      fsUrl('server', 'index.ts'),
+      fsUrl('tests', 'server', 'setup.ts'),
+      '/../package.json',
+      '/%2e%2e/package.json',
+    ]) {
       const res = await get(p);
       expect([403, 404], p).toContain(res.status);
     }

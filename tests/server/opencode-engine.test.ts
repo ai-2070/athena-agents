@@ -37,7 +37,22 @@ interface Fake {
   /** the last server started dies, printing this to stderr */
   crash: (stderr: string) => void;
 }
-const fake: Fake = vi.hoisted(() => ({ calls: [], spawns: [], sessions: new Map(), models: [], onPrompt: () => {}, onSteer: () => {}, onReply: () => {}, inboxDelete: 204, closed: 0, killed: 0, crash: () => {} }) as unknown as Fake);
+const fake: Fake = vi.hoisted(
+  () =>
+    ({
+      calls: [],
+      spawns: [],
+      sessions: new Map(),
+      models: [],
+      onPrompt: () => {},
+      onSteer: () => {},
+      onReply: () => {},
+      inboxDelete: 204,
+      closed: 0,
+      killed: 0,
+      crash: () => {},
+    }) as unknown as Fake,
+);
 type Decision = { approved: boolean; always?: boolean; message?: string };
 type Asked = { title: string; detail?: string; data?: Record<string, unknown> };
 const approvals = vi.hoisted(() => ({
@@ -51,7 +66,8 @@ const approvals = vi.hoisted(() => ({
 function startFake(stdout: PassThrough): http.Server {
   const streams = new Set<http.ServerResponse>();
   const push: Push = (type, data = {}) => {
-    for (const res of streams) res.write(`id: 1\nevent: message\ndata: ${JSON.stringify({ id: 'evt', created: Date.now(), type, data })}\n\n`);
+    for (const res of streams)
+      res.write(`id: 1\nevent: message\ndata: ${JSON.stringify({ id: 'evt', created: Date.now(), type, data })}\n\n`);
   };
   const send = (res: http.ServerResponse, status: number, json?: unknown) => {
     res.writeHead(status, { 'content-type': 'application/json' });
@@ -81,7 +97,9 @@ function startFake(stdout: PassThrough): http.Server {
       }
       if ((m = /^\/api\/session\/([^/]+)$/.exec(route))) {
         const s = fake.sessions.get(decodeURIComponent(m[1]!));
-        return s ? send(res, 200, { data: { id: m[1], model: s.model } }) : send(res, 404, { _tag: 'SessionNotFoundError', message: `Session not found: ${m[1]}` });
+        return s
+          ? send(res, 200, { data: { id: m[1], model: s.model } })
+          : send(res, 404, { _tag: 'SessionNotFoundError', message: `Session not found: ${m[1]}` });
       }
       if ((m = /^\/api\/session\/([^/]+)\/prompt$/.exec(route))) {
         send(res, 200, { data: { id: body?.id, type: 'user' } });
@@ -100,12 +118,15 @@ function startFake(stdout: PassThrough): http.Server {
         fake.onReply(push, decodeURIComponent(m[1]!), decodeURIComponent(m[2]!));
         return;
       }
-      if (/^\/api\/session\/[^/]+\/inbox\/[^/]+$/.test(route) && req.method === 'DELETE') return send(res, fake.inboxDelete, fake.inboxDelete === 204 ? undefined : { message: 'gone' });
+      if (/^\/api\/session\/[^/]+\/inbox\/[^/]+$/.test(route) && req.method === 'DELETE')
+        return send(res, fake.inboxDelete, fake.inboxDelete === 204 ? undefined : { message: 'gone' });
       if (/^\/api\/session\/[^/]+\/model$/.test(route)) return send(res, 200, { data: {} });
       send(res, 404, { message: `no route ${route}` });
     });
   });
-  server.listen(0, '127.0.0.1', () => stdout.write(`${JSON.stringify({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` })}\n`));
+  server.listen(0, '127.0.0.1', () =>
+    stdout.write(`${JSON.stringify({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` })}\n`),
+  );
   return server;
 }
 
@@ -184,10 +205,37 @@ vi.mock('../../server/mcp.ts', async (orig) => {
   return {
     ...real,
     listServers: () => ({
-      github: { type: 'stdio', command: 'gh-mcp', args: ['serve'], env: { GITHUB_TOKEN: 'secret-1' }, url: '', headers: {}, description: '', enabled: true },
-      notes: { type: 'http', command: '', args: [], env: {}, url: 'https://notes.example/mcp', headers: { Authorization: 'Bearer secret-2' }, description: '', enabled: true },
+      github: {
+        type: 'stdio',
+        command: 'gh-mcp',
+        args: ['serve'],
+        env: { GITHUB_TOKEN: 'secret-1' },
+        url: '',
+        headers: {},
+        description: '',
+        enabled: true,
+      },
+      notes: {
+        type: 'http',
+        command: '',
+        args: [],
+        env: {},
+        url: 'https://notes.example/mcp',
+        headers: { Authorization: 'Bearer secret-2' },
+        description: '',
+        enabled: true,
+      },
       off: { type: 'stdio', command: 'x', args: [], env: {}, url: '', headers: {}, description: '', enabled: false },
-      dashboard_admin: { type: 'http', command: '', args: [], env: {}, url: 'https://admin.example/mcp', headers: {}, description: '', enabled: true },
+      dashboard_admin: {
+        type: 'http',
+        command: '',
+        args: [],
+        env: {},
+        url: 'https://admin.example/mcp',
+        headers: {},
+        description: '',
+        enabled: true,
+      },
     }),
   };
 });
@@ -225,19 +273,43 @@ const wait = async (until: () => boolean, ms = 3000) => {
 const plainTurn = (push: Push, sid: string) => {
   const s = { sessionID: sid };
   push('session.execution.started', s);
-  push('session.step.started', { ...s, assistantMessageID: 'msg_a', model: { providerID: 'openrouter', id: 'deepseek/flash' } });
+  push('session.step.started', {
+    ...s,
+    assistantMessageID: 'msg_a',
+    model: { providerID: 'openrouter', id: 'deepseek/flash' },
+  });
   push('session.text.started', { ...s, assistantMessageID: 'msg_a', ordinal: 0 });
   push('session.text.delta', { ...s, assistantMessageID: 'msg_a', ordinal: 0, delta: 'Let me ' });
   push('session.text.delta', { ...s, assistantMessageID: 'msg_a', ordinal: 0, delta: 'look.' });
   push('session.text.ended', { ...s, assistantMessageID: 'msg_a', ordinal: 0, text: 'Let me look.' });
   push('session.tool.input.started', { ...s, assistantMessageID: 'msg_a', id: 'call_1', name: 'shell' });
   push('session.tool.called', { ...s, assistantMessageID: 'msg_a', id: 'call_1', input: { command: 'npm test' } });
-  push('session.tool.success', { ...s, assistantMessageID: 'msg_a', id: 'call_1', content: [{ type: 'text', text: '3 passed' }, { type: 'file', uri: 'data:image/png;base64,AAAA', mime: 'image/png' }] });
-  push('session.step.ended', { ...s, assistantMessageID: 'msg_a', finish: 'tool-calls', cost: 0.002, tokens: { input: 9000, output: 40, reasoning: 10, cache: { read: 400, write: 0 } } });
+  push('session.tool.success', {
+    ...s,
+    assistantMessageID: 'msg_a',
+    id: 'call_1',
+    content: [
+      { type: 'text', text: '3 passed' },
+      { type: 'file', uri: 'data:image/png;base64,AAAA', mime: 'image/png' },
+    ],
+  });
+  push('session.step.ended', {
+    ...s,
+    assistantMessageID: 'msg_a',
+    finish: 'tool-calls',
+    cost: 0.002,
+    tokens: { input: 9000, output: 40, reasoning: 10, cache: { read: 400, write: 0 } },
+  });
   push('session.text.started', { ...s, assistantMessageID: 'msg_b', ordinal: 0 });
   push('session.text.delta', { ...s, assistantMessageID: 'msg_b', ordinal: 0, delta: 'All tests pass.' });
   push('session.text.ended', { ...s, assistantMessageID: 'msg_b', ordinal: 0, text: 'All tests pass.' });
-  push('session.step.ended', { ...s, assistantMessageID: 'msg_b', finish: 'stop', cost: 0.001, tokens: { input: 60, output: 12, reasoning: 0, cache: { read: 9400, write: 0 } } });
+  push('session.step.ended', {
+    ...s,
+    assistantMessageID: 'msg_b',
+    finish: 'stop',
+    cost: 0.001,
+    tokens: { input: 60, output: 12, reasoning: 0, cache: { read: 9400, write: 0 } },
+  });
   // (another session's events on the same server are not this chat's)
   push('session.text.delta', { sessionID: 'ses_other', assistantMessageID: 'x', ordinal: 0, delta: 'NOT MINE' });
   push('session.execution.succeeded', s);
@@ -247,7 +319,16 @@ beforeEach(() => {
   fake.calls = [];
   fake.spawns = [];
   fake.sessions.clear();
-  fake.models = [{ id: 'deepseek/flash', providerID: 'openrouter', name: 'DeepSeek Flash', enabled: true, variants: [{ id: 'low' }, { id: 'high' }, { id: 'max' }], limit: { context: 200000, output: 8000 } }];
+  fake.models = [
+    {
+      id: 'deepseek/flash',
+      providerID: 'openrouter',
+      name: 'DeepSeek Flash',
+      enabled: true,
+      variants: [{ id: 'low' }, { id: 'high' }, { id: 'max' }],
+      limit: { context: 200000, output: 8000 },
+    },
+  ];
   fake.onPrompt = () => {};
   fake.onSteer = () => {};
   fake.onReply = () => {};
@@ -267,7 +348,10 @@ describe('helpers', () => {
     expect(oc.parseVersion('1.19.5')).toBe('1.19.5');
   });
   it('a model id is provider/model, the provider being the part before the first slash', () => {
-    expect(oc.modelRef('openrouter/deepseek/deepseek-v4.1-flash')).toEqual({ providerID: 'openrouter', id: 'deepseek/deepseek-v4.1-flash' });
+    expect(oc.modelRef('openrouter/deepseek/deepseek-v4.1-flash')).toEqual({
+      providerID: 'openrouter',
+      id: 'deepseek/deepseek-v4.1-flash',
+    });
     expect(oc.modelRef('big-pickle')).toBeNull();
     expect(oc.modelRef('opencode/')).toBeNull();
   });
@@ -279,7 +363,10 @@ describe('helpers', () => {
     expect(oc.variantFor('', ['low'])).toBe('');
   });
   it('reads server-sent frames, and skips keep-alives', () => {
-    expect(oc.parseFrame('id: 1\nevent: message\ndata: {"type":"session.idle","data":{"sessionID":"ses_1"}}')).toEqual({ type: 'session.idle', data: { sessionID: 'ses_1' } });
+    expect(oc.parseFrame('id: 1\nevent: message\ndata: {"type":"session.idle","data":{"sessionID":"ses_1"}}')).toEqual({
+      type: 'session.idle',
+      data: { sessionID: 'ses_1' },
+    });
     expect(oc.parseFrame(': keep-alive')).toBeNull();
     expect(oc.parseFrame('data: not json')).toBeNull();
   });
@@ -303,39 +390,69 @@ describe('the run config', () => {
     expect(rules).toContainEqual({ action: 'external_directory', resource: '*', effect: 'ask' });
     expect(rules).toContainEqual({ action: 'read', resource: '*.env', effect: 'ask' });
     const uploads = safeUploadsRoot();
-    if (uploads) expect(rules).toContainEqual({ action: 'external_directory', resource: `${uploads.replace(/\\/g, '/')}/*`, effect: 'allow' });
+    if (uploads)
+      expect(rules).toContainEqual({
+        action: 'external_directory',
+        resource: `${uploads.replace(/\\/g, '/')}/*`,
+        effect: 'allow',
+      });
     // (the last rule that matches wins: the uploads come after the general ask)
-    expect(rules.findIndex((r) => r.action === 'external_directory' && r.effect === 'allow')).toBeGreaterThan(rules.findIndex((r) => r.action === 'external_directory' && r.effect === 'ask'));
+    expect(rules.findIndex((r) => r.action === 'external_directory' && r.effect === 'allow')).toBeGreaterThan(
+      rules.findIndex((r) => r.action === 'external_directory' && r.effect === 'ask'),
+    );
   });
   it('Ask first looks around freely and asks before anything else', () => {
     const rules = oc.permissionRules(coder({ autonomy: 'ask' }));
     expect(rules[0]).toEqual({ action: '*', resource: '*', effect: 'ask' });
-    for (const a of ['read', 'glob', 'grep', 'skill']) expect(rules).toContainEqual({ action: a, resource: '*', effect: 'allow' });
+    for (const a of ['read', 'glob', 'grep', 'skill'])
+      expect(rules).toContainEqual({ action: a, resource: '*', effect: 'allow' });
     expect(rules.some((r) => (r.action === 'shell' || r.action === 'edit') && r.effect === 'allow')).toBe(false);
     expect(rules.at(-2)).toEqual({ action: 'dashboard_*', resource: '*', effect: 'allow' });
   });
   it('the athena agent with the brief from a file, the bridge (its token stays out), and the agent’s own MCP servers', () => {
     const a = coder({ mcpServers: ['github', 'notes', 'off', 'missing'] });
-    const cfg = oc.opencodeConfig(a, { briefFile: 'C:\\data\\brief.md', runId: 'r9' }) as { agents: Record<string, { system: string; mode: string }>; default_agent: string; mcp: { servers: Record<string, Record<string, unknown>> } };
+    const cfg = oc.opencodeConfig(a, { briefFile: 'C:\\data\\brief.md', runId: 'r9' }) as {
+      agents: Record<string, { system: string; mode: string }>;
+      default_agent: string;
+      mcp: { servers: Record<string, Record<string, unknown>> };
+    };
     expect(cfg.default_agent).toBe('athena');
     expect(cfg.agents.athena).toMatchObject({ mode: 'primary', system: '{file:C:/data/brief.md}' });
     const s = cfg.mcp.servers;
     expect(Object.keys(s).sort()).toEqual(['dashboard', 'github', 'notes']);
-    expect(s.dashboard).toMatchObject({ type: 'local', codemode: false, environment: { DASH_AGENT: a.id, DASH_RUN: 'r9' } });
+    expect(s.dashboard).toMatchObject({
+      type: 'local',
+      codemode: false,
+      environment: { DASH_AGENT: a.id, DASH_RUN: 'r9' },
+    });
     expect(s.dashboard!.environment).not.toHaveProperty('DASH_TOKEN');
     // (started the way the dashboard starts it: on Windows a command without an .exe goes through cmd /c)
     const gh = resolveCommand('gh-mcp', ['serve']);
-    expect(s.github).toEqual({ type: 'local', command: [gh.command, ...gh.args], environment: { GITHUB_TOKEN: 'secret-1' } });
-    if (process.platform === 'win32') expect(s.github!.command).toEqual([process.env.ComSpec || 'cmd.exe', '/c', 'gh-mcp', 'serve']);
+    expect(s.github).toEqual({
+      type: 'local',
+      command: [gh.command, ...gh.args],
+      environment: { GITHUB_TOKEN: 'secret-1' },
+    });
+    if (process.platform === 'win32')
+      expect(s.github!.command).toEqual([process.env.ComSpec || 'cmd.exe', '/c', 'gh-mcp', 'serve']);
     else expect(s.github!.command).toEqual(['gh-mcp', 'serve']);
-    expect(s.notes).toEqual({ type: 'remote', url: 'https://notes.example/mcp', headers: { Authorization: 'Bearer secret-2' }, oauth: false });
+    expect(s.notes).toEqual({
+      type: 'remote',
+      url: 'https://notes.example/mcp',
+      headers: { Authorization: 'Bearer secret-2' },
+      oauth: false,
+    });
   });
   it('a server of yours named dashboard_… goes by another name, so the rule that allows the dashboard’s own tools misses it', () => {
     const a = coder({ autonomy: 'ask', mcpServers: ['dashboard_admin'] });
     const servers = oc.mcpServers(a);
     expect(Object.keys(servers).sort()).toEqual(['dashboard', 'mcp-dashboard_admin']);
     // (opencode names its tools <server>_<tool>: mcp-dashboard_admin_delete_user, not dashboard_*)
-    expect(Object.keys(servers).filter((k) => k !== 'dashboard').some((k) => /^dashboard_/i.test(`${k}_delete_user`))).toBe(false);
+    expect(
+      Object.keys(servers)
+        .filter((k) => k !== 'dashboard')
+        .some((k) => /^dashboard_/i.test(`${k}_delete_user`)),
+    ).toBe(false);
   });
 });
 
@@ -361,16 +478,38 @@ describe('a run', () => {
     expect(sid).toMatch(/^ses_/);
     const create = callsTo(/^\/api\/session$/)[0]!;
     // (medium is as near to low as to high: the lower one)
-    expect(create.body).toMatchObject({ id: sid, agent: 'athena', model: { providerID: 'openrouter', id: 'deepseek/flash', variant: 'low' } });
+    expect(create.body).toMatchObject({
+      id: sid,
+      agent: 'athena',
+      model: { providerID: 'openrouter', id: 'deepseek/flash', variant: 'low' },
+    });
     expect((create.body!.location as { directory: string }).directory).toBeTruthy();
     expect(callsTo(/\/prompt$/)[0]!.body).toMatchObject({ text: 'fix the test' });
     expect(callsTo(/\/prompt$/)[0]!.body!.id).toMatch(/^msg_/);
 
-    expect(events.filter((e) => e.kind === 'text').map((e) => (e as { text: string }).text).join('')).toBe('Let me look.\n\nAll tests pass.');
+    expect(
+      events
+        .filter((e) => e.kind === 'text')
+        .map((e) => (e as { text: string }).text)
+        .join(''),
+    ).toBe('Let me look.\n\nAll tests pass.');
     expect(events).toContainEqual({ kind: 'model', model: 'openrouter/deepseek/flash' });
     expect(events).toContainEqual({ kind: 'tool', id: 'call_1', name: 'shell', args: { command: 'npm test' } });
-    expect(events).toContainEqual({ kind: 'tool_result', id: 'call_1', text: '3 passed\n[file]', isError: false, images: ['data:image/png;base64,AAAA'] });
-    expect(r).toEqual({ text: 'Let me look.\n\nAll tests pass.', tokens: 9000 + 40 + 10 + 400 + 60 + 12 + 9400, cached: 9800, cost: 0.003, context: 60 + 9400 + 12, window: 200000 });
+    expect(events).toContainEqual({
+      kind: 'tool_result',
+      id: 'call_1',
+      text: '3 passed\n[file]',
+      isError: false,
+      images: ['data:image/png;base64,AAAA'],
+    });
+    expect(r).toEqual({
+      text: 'Let me look.\n\nAll tests pass.',
+      tokens: 9000 + 40 + 10 + 400 + 60 + 12 + 9400,
+      cached: 9800,
+      cost: 0.003,
+      context: 60 + 9400 + 12,
+      window: 200000,
+    });
     await wait(() => fake.closed === 1);
   });
 
@@ -380,7 +519,9 @@ describe('a run', () => {
     const chat = chatOf('ses_old');
     await oc.opencode.run(argsOf(coder({ model: 'openrouter/deepseek/flash' }), chat, []));
     expect(callsTo(/^\/api\/session$/)).toHaveLength(0);
-    expect(callsTo(/^\/api\/session\/[^/]+\/model$/)[0]!.body).toEqual({ model: { providerID: 'openrouter', id: 'deepseek/flash' } });
+    expect(callsTo(/^\/api\/session\/[^/]+\/model$/)[0]!.body).toEqual({
+      model: { providerID: 'openrouter', id: 'deepseek/flash' },
+    });
     expect(chat.sessionId).toBe('ses_old');
   });
 
@@ -388,7 +529,11 @@ describe('a run', () => {
     fake.onPrompt = plainTurn;
     const chat = chatOf();
     const r = await oc.opencode.run(argsOf(coder({ effort: 'high' }), chat, []));
-    expect(callsTo(/^\/api\/session$/)[0]!.body!.model).toEqual({ providerID: 'openrouter', id: 'deepseek/flash', variant: 'high' });
+    expect(callsTo(/^\/api\/session$/)[0]!.body!.model).toEqual({
+      providerID: 'openrouter',
+      id: 'deepseek/flash',
+      variant: 'high',
+    });
     expect(r.window).toBe(200000);
   });
 
@@ -402,7 +547,9 @@ describe('a run', () => {
     fake.sessions.set('ses_old', { model: { providerID: 'opencode', id: 'big-pickle' } });
     fake.onPrompt = plainTurn;
     await oc.opencode.run(argsOf(coder(), chatOf('ses_old'), []));
-    expect(callsTo(/^\/api\/session\/[^/]+\/model$/)[0]!.body).toEqual({ model: { providerID: 'openrouter', id: 'deepseek/flash' } });
+    expect(callsTo(/^\/api\/session\/[^/]+\/model$/)[0]!.body).toEqual({
+      model: { providerID: 'openrouter', id: 'deepseek/flash' },
+    });
   });
 
   it('a session leaves its variant when the agent’s effort is cleared, and stays put when nothing changed', async () => {
@@ -411,7 +558,9 @@ describe('a run', () => {
     await oc.opencode.run(argsOf(coder({ model: 'openrouter/deepseek/flash', effort: 'high' }), chatOf('ses_old'), []));
     expect(callsTo(/^\/api\/session\/[^/]+\/model$/)).toHaveLength(0);
     await oc.opencode.run(argsOf(coder({ model: 'openrouter/deepseek/flash' }), chatOf('ses_old'), []));
-    expect(callsTo(/^\/api\/session\/[^/]+\/model$/)[0]!.body).toEqual({ model: { providerID: 'openrouter', id: 'deepseek/flash' } });
+    expect(callsTo(/^\/api\/session\/[^/]+\/model$/)[0]!.body).toEqual({
+      model: { providerID: 'openrouter', id: 'deepseek/flash' },
+    });
   });
 
   it('a session opencode no longer has: the chat starts a new one with the chat so far', async () => {
@@ -426,13 +575,18 @@ describe('a run', () => {
   });
 
   it('a model id without a provider is refused in plain words', async () => {
-    await expect(oc.opencode.run(argsOf(coder({ model: 'big-pickle' }), chatOf(), []))).rejects.toThrow(/provider\/model/);
+    await expect(oc.opencode.run(argsOf(coder({ model: 'big-pickle' }), chatOf(), []))).rejects.toThrow(
+      /provider\/model/,
+    );
   });
 
   it('its failure is the run’s error', async () => {
     fake.onPrompt = (push, sid) => {
       push('session.execution.started', { sessionID: sid });
-      push('session.execution.failed', { sessionID: sid, error: { type: 'provider.free-limit', message: 'Free usage limit reached.' } });
+      push('session.execution.failed', {
+        sessionID: sid,
+        error: { type: 'provider.free-limit', message: 'Free usage limit reached.' },
+      });
     };
     await expect(oc.opencode.run(argsOf(coder(), chatOf(), []))).rejects.toThrow('Free usage limit reached.');
   });
@@ -441,7 +595,10 @@ describe('a run', () => {
     fake.onPrompt = (push, sid) => {
       push('session.execution.started', { sessionID: sid });
       push('session.text.delta', { sessionID: sid, assistantMessageID: 'm', ordinal: 0, delta: 'Half an answ' });
-      push('session.execution.failed', { sessionID: sid, error: { type: 'provider', message: 'The provider hung up.' } });
+      push('session.execution.failed', {
+        sessionID: sid,
+        error: { type: 'provider', message: 'The provider hung up.' },
+      });
     };
     const events: RunEvent[] = [];
     await expect(oc.opencode.run(argsOf(coder(), chatOf(), events))).rejects.toThrow('The provider hung up.');
@@ -463,7 +620,13 @@ describe('a run', () => {
 describe('its questions', () => {
   const asking = (push: Push, sid: string) => {
     push('session.execution.started', { sessionID: sid });
-    push('permission.asked', { id: 'per_1', sessionID: sid, action: 'shell', resources: ['rm -rf build'], save: ['rm *'] });
+    push('permission.asked', {
+      id: 'per_1',
+      sessionID: sid,
+      action: 'shell',
+      resources: ['rm -rf build'],
+      save: ['rm *'],
+    });
   };
   const answered = (push: Push, sid: string) => {
     push('session.text.delta', { sessionID: sid, assistantMessageID: 'm', ordinal: 0, delta: 'Done.' });
@@ -474,7 +637,11 @@ describe('its questions', () => {
     fake.onPrompt = asking;
     fake.onReply = answered;
     expect((await oc.opencode.run(argsOf(coder(), chatOf(), []))).text).toBe('Done.');
-    expect(approvals.requests[0]).toMatchObject({ title: 'Coder wants to run a command', detail: 'rm -rf build', data: { tool: 'opencode:shell' } });
+    expect(approvals.requests[0]).toMatchObject({
+      title: 'Coder wants to run a command',
+      detail: 'rm -rf build',
+      data: { tool: 'opencode:shell' },
+    });
     expect(callsTo(/permission\/per_1\/reply$/)[0]!.body).toEqual({ decision: 'once' });
   });
 
@@ -483,12 +650,16 @@ describe('its questions', () => {
     fake.onPrompt = asking;
     fake.onReply = answered;
     await oc.opencode.run(argsOf(coder(), chatOf(), []));
-    expect(callsTo(/permission\/per_1\/reply$/)[0]!.body).toEqual({ decision: 'reject', message: 'Not the build folder.' });
+    expect(callsTo(/permission\/per_1\/reply$/)[0]!.body).toEqual({
+      decision: 'reject',
+      message: 'Not the build folder.',
+    });
   });
 
   it('refusing one refuses every question still open: those leave Needs you', async () => {
     // the command is refused; the file change is never answered by you
-    approvals.decide = (r) => (/command/.test(r.title) ? { approved: false, message: 'No commands.' } : new Promise<Decision>(() => {}));
+    approvals.decide = (r) =>
+      /command/.test(r.title) ? { approved: false, message: 'No commands.' } : new Promise<Decision>(() => {});
     fake.onPrompt = (push, sid) => {
       push('session.execution.started', { sessionID: sid });
       push('permission.asked', { id: 'per_edit', sessionID: sid, action: 'edit', resources: ['hello.txt'] });
@@ -513,13 +684,18 @@ describe('its questions', () => {
       push('session.execution.started', { sessionID: sid });
       push('session.created', { sessionID: 'ses_helper', parentID: sid, title: 'Look around' });
       push('session.created', { sessionID: 'ses_helper2', parentID: 'ses_helper' });
-      push('permission.asked', { id: 'per_stranger', sessionID: 'ses_stranger', action: 'shell', resources: ['rm -rf /'] });
+      push('permission.asked', {
+        id: 'per_stranger',
+        sessionID: 'ses_stranger',
+        action: 'shell',
+        resources: ['rm -rf /'],
+      });
       push('permission.asked', { id: 'per_h', sessionID: 'ses_helper2', action: 'shell', resources: ['ls'] });
     };
     fake.onReply = (push) => answered(push, main);
     expect((await oc.opencode.run(argsOf(coder(), chatOf(), []))).text).toBe('Done.');
     expect(approvals.requests).toHaveLength(1);
-    expect(approvals.requests[0]).toMatchObject({ title: 'Coder\'s helper agent wants to run a command', detail: 'ls' });
+    expect(approvals.requests[0]).toMatchObject({ title: "Coder's helper agent wants to run a command", detail: 'ls' });
     expect(callsTo(/\/permission\//).map((c) => c.route)).toEqual(['/api/session/ses_helper2/permission/per_h/reply']);
   });
 
@@ -563,7 +739,10 @@ describe('its questions', () => {
     agents.save(a);
     const runOnce = () => oc.opencode.run(argsOf(agents.get(a.id)!, chatOf(), []));
     await runOnce();
-    expect(approvals.requests[0]!.data).toMatchObject({ tool: 'opencode:external_directory', alwaysMeans: 'Allow this folder for this agent from now on (not every folder)' });
+    expect(approvals.requests[0]!.data).toMatchObject({
+      tool: 'opencode:external_directory',
+      alwaysMeans: 'Allow this folder for this agent from now on (not every folder)',
+    });
     expect(agents.get(a.id)!.alwaysAllow).toEqual(['opencode:external_directory:C:/Users/me/Downloads/*']);
     // the same folder again: not asked
     await runOnce();
@@ -587,7 +766,12 @@ describe('Stop', () => {
     fake.onPrompt = (push, sid) => {
       push('session.execution.started', { sessionID: sid });
       push('session.tool.input.started', { sessionID: sid, assistantMessageID: 'm', id: 'call_1', name: 'shell' });
-      push('session.tool.called', { sessionID: sid, assistantMessageID: 'm', id: 'call_1', input: { command: 'sleep 99' } });
+      push('session.tool.called', {
+        sessionID: sid,
+        assistantMessageID: 'm',
+        id: 'call_1',
+        input: { command: 'sleep 99' },
+      });
     };
     const ac = new AbortController();
     const events: RunEvent[] = [];
@@ -633,7 +817,10 @@ describe('a message sent while it works', () => {
     expect(callsTo(/\/prompt$/)[1]!.body).toMatchObject({ text: 'end with BANANA', delivery: 'steer' });
     expect(events).toContainEqual({ kind: 'steer', id: 'st1', text: 'end with BANANA' });
     // (the chat starts a new block after the message it read: no extra gap)
-    expect(events.filter((e) => e.kind === 'text').map((e) => (e as { text: string }).text)).toEqual(['Working.', 'BANANA']);
+    expect(events.filter((e) => e.kind === 'text').map((e) => (e as { text: string }).text)).toEqual([
+      'Working.',
+      'BANANA',
+    ]);
     expect(r.text).toBe('Working.\n\nBANANA');
     expect(oc.steer.can(runId)).toBe(false);
     await expect(oc.steer.send(runId, { id: 'st2', text: 'late' })).rejects.toThrow(/no longer/);
@@ -655,7 +842,9 @@ describe('a message sent while it works', () => {
     await oc.steer.send(runId, { id: 'st1', text: 'one more thing' });
     expect((await pending).text).toBe('Done.');
     const steered = callsTo(/\/prompt$/)[1]!.body!.id as string;
-    expect(callsTo(/\/inbox\//).map((c) => [c.method, c.route])).toEqual([['DELETE', `/api/session/${sid}/inbox/${steered}`]]);
+    expect(callsTo(/\/inbox\//).map((c) => [c.method, c.route])).toEqual([
+      ['DELETE', `/api/session/${sid}/inbox/${steered}`],
+    ]);
     expect(events.some((e) => e.kind === 'steer')).toBe(false);
   });
 
@@ -675,7 +864,9 @@ describe('a message sent while it works', () => {
     ac.abort();
     await expect(pending).rejects.toThrow('Stopped.');
     const steered = callsTo(/\/prompt$/)[1]!.body!.id as string;
-    expect(callsTo(/\/inbox\//).map((c) => [c.method, c.route])).toEqual([['DELETE', `/api/session/${sid}/inbox/${steered}`]]);
+    expect(callsTo(/\/inbox\//).map((c) => [c.method, c.route])).toEqual([
+      ['DELETE', `/api/session/${sid}/inbox/${steered}`],
+    ]);
   });
 
   it('one it already took in as its turn ended: the turn it starts for it is followed to its end', async () => {
@@ -709,7 +900,9 @@ describe('a message sent while it works', () => {
 describe('models', () => {
   it('lists what its server says, as provider/model with the context size', async () => {
     const list = await oc.listModels();
-    expect(list).toEqual([{ id: 'openrouter/deepseek/flash', name: 'DeepSeek Flash', context: 200000, variants: ['low', 'high', 'max'] }]);
+    expect(list).toEqual([
+      { id: 'openrouter/deepseek/flash', name: 'DeepSeek Flash', context: 200000, variants: ['low', 'high', 'max'] },
+    ]);
     await wait(() => fake.closed === 1);
   });
 
@@ -731,13 +924,26 @@ describe('models', () => {
     await oc.listModels();
     fake.calls = [];
     fake.onPrompt = plainTurn;
-    const r = await oc.opencode.run(argsOf(coder({ model: 'openrouter/deepseek/flash', effort: 'high' }), chatOf(), []));
+    const r = await oc.opencode.run(
+      argsOf(coder({ model: 'openrouter/deepseek/flash', effort: 'high' }), chatOf(), []),
+    );
     expect(callsTo(/^\/api\/model$/)).toHaveLength(0);
     expect(r.window).toBe(200000);
     expect(callsTo(/^\/api\/session$/)[0]!.body!.model).toMatchObject({ variant: 'high' });
-    fake.models.push({ id: 'new-one', providerID: 'openrouter', name: 'New', enabled: true, variants: [{ id: 'max' }], limit: { context: 1000 } });
+    fake.models.push({
+      id: 'new-one',
+      providerID: 'openrouter',
+      name: 'New',
+      enabled: true,
+      variants: [{ id: 'max' }],
+      limit: { context: 1000 },
+    });
     await oc.opencode.run(argsOf(coder({ model: 'openrouter/new-one', effort: 'max' }), chatOf(), []));
     expect(callsTo(/^\/api\/model$/)).toHaveLength(1);
-    expect(callsTo(/^\/api\/session$/)[1]!.body!.model).toEqual({ providerID: 'openrouter', id: 'new-one', variant: 'max' });
+    expect(callsTo(/^\/api\/session$/)[1]!.body!.model).toEqual({
+      providerID: 'openrouter',
+      id: 'new-one',
+      variant: 'max',
+    });
   });
 });

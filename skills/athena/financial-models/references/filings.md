@@ -38,7 +38,7 @@ curl -s -A "AthenaAgents Jane Doe jane@example.com" -o tickers.json https://www.
   `filings.recent`: parallel arrays of `form`, `filingDate`, `reportDate`, `accessionNumber` and `primaryDocument`, one
   index per filing. Older filings are in the extra files listed under `filings.files`.
 - **A filing's document**: `https://www.sec.gov/Archives/edgar/data/<CIK without leading zeros>/<accession number
-  without dashes>/<primaryDocument>`. Fetch it with the same User-Agent, then read the HTML or hand it to the user.
+without dashes>/<primaryDocument>`. Fetch it with the same User-Agent, then read the HTML or hand it to the user.
 - **Bulk**: `companyfacts.zip` and `submissions.zip`, rebuilt nightly, when the task covers many companies.
 
 ## Reported figures (XBRL)

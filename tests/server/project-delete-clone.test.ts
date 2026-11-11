@@ -20,12 +20,23 @@ describe('verifyBackup()', () => {
   };
 
   it('refuses a backup that is missing, empty, the wrong size, unreadable or of another project', () => {
-    expect(() => verifyBackup({ file: path.join(os.tmpdir(), 'nope.dashbackup'), name: 'nope', size: 500, summary: {} as never }, { name: 'X' })).toThrow(/not written/);
+    expect(() =>
+      verifyBackup(
+        { file: path.join(os.tmpdir(), 'nope.dashbackup'), name: 'nope', size: 500, summary: {} as never },
+        { name: 'X' },
+      ),
+    ).toThrow(/not written/);
     const empty = write('empty.dashbackup', '');
-    expect(() => verifyBackup({ file: empty, name: 'e', size: 0, summary: {} as never }, { name: 'X' })).toThrow(/empty or incomplete/);
+    expect(() => verifyBackup({ file: empty, name: 'e', size: 0, summary: {} as never }, { name: 'X' })).toThrow(
+      /empty or incomplete/,
+    );
     const junk = write('junk.dashbackup', 'x'.repeat(400));
-    expect(() => verifyBackup({ file: junk, name: 'j', size: 400, summary: {} as never }, { name: 'X' })).toThrow(/could not be read back/);
-    expect(() => verifyBackup({ file: junk, name: 'j', size: 123, summary: {} as never }, { name: 'X' })).toThrow(/empty or incomplete/);
+    expect(() => verifyBackup({ file: junk, name: 'j', size: 400, summary: {} as never }, { name: 'X' })).toThrow(
+      /could not be read back/,
+    );
+    expect(() => verifyBackup({ file: junk, name: 'j', size: 123, summary: {} as never }, { name: 'X' })).toThrow(
+      /empty or incomplete/,
+    );
   });
 });
 
@@ -68,11 +79,23 @@ describe('deleting a project', () => {
 
 describe('cloning a project', () => {
   it('makes a new project with copies of its agents and teams, and leaves the original as it was', async () => {
-    const src = await createProject({ name: 'Clone: source', mode: 'new', folder: folder('clone-src'), description: 'The original.' });
+    const src = await createProject({
+      name: 'Clone: source',
+      mode: 'new',
+      folder: folder('clone-src'),
+      description: 'The original.',
+    });
     setActiveProject(src.id);
     const a = newAgent({ name: 'Writer' });
     const b = newAgent({ name: 'Editor' });
-    workflows.save({ name: 'Crew', members: [a.id, b.id], lead: a.id, steps: [], schedule: { type: 'daily', times: ['09:00'] }, enabled: true } as Partial<Team>);
+    workflows.save({
+      name: 'Crew',
+      members: [a.id, b.id],
+      lead: a.id,
+      steps: [],
+      schedule: { type: 'daily', times: ['09:00'] },
+      enabled: true,
+    } as Partial<Team>);
     const { project, restored } = await cloneProject(src.id);
     expect(project.name).toBe('Clone: source (copy)');
     expect(project.id).not.toBe(src.id);
@@ -81,7 +104,12 @@ describe('cloning a project', () => {
     expect(restored.teams).toBe(1);
     // the copy has its own agents and team, with the schedule paused
     setActiveProject(project.id);
-    expect(agents.list().map((x) => x.name).sort()).toEqual(['Editor', 'Writer']);
+    expect(
+      agents
+        .list()
+        .map((x) => x.name)
+        .sort(),
+    ).toEqual(['Editor', 'Writer']);
     expect(workflows.list()[0]).toMatchObject({ name: 'Crew', enabled: false });
     // the original still has its own
     setActiveProject(src.id);

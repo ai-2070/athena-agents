@@ -36,7 +36,7 @@ export function decodePng(bytes: Buffer): PngPixels {
   let palette: Buffer | null = null;
   let trns: Buffer | null = null;
   const idat: Buffer[] = [];
-  for (let pos = 8; pos + 8 <= bytes.length; ) {
+  for (let pos = 8; pos + 8 <= bytes.length;) {
     const len = bytes.readUInt32BE(pos);
     const kind = bytes.toString('latin1', pos + 4, pos + 8);
     const data = bytes.subarray(pos + 8, pos + 8 + len);
@@ -54,7 +54,8 @@ export function decodePng(bytes: Buffer): PngPixels {
     pos += 12 + len;
   }
   const channels = CHANNELS[type];
-  if (!channels || !width || !height || ![1, 2, 4, 8, 16].includes(depth) || (type === 3 && !palette)) throw new Error('a kind of PNG this can’t read');
+  if (!channels || !width || !height || ![1, 2, 4, 8, 16].includes(depth) || (type === 3 && !palette))
+    throw new Error('a kind of PNG this can’t read');
   if (interlace) throw new Error('an interlaced PNG: save it again without interlacing');
   if (width * height > 100_000_000) throw new Error('too big a picture');
   const raw = zlib.inflateSync(Buffer.concat(idat));
@@ -68,7 +69,12 @@ export function decodePng(bytes: Buffer): PngPixels {
   const max = 2 ** depth - 1;
   const to8 = (v: number): number => (depth === 16 ? v >> 8 : depth === 8 ? v : Math.round((v * 255) / max));
   // a sample matching tRNS's one colour is fully transparent (grey and RGB pictures)
-  const clear = trns && type === 0 && trns.length >= 2 ? [trns.readUInt16BE(0)] : trns && type === 2 && trns.length >= 6 ? [trns.readUInt16BE(0), trns.readUInt16BE(2), trns.readUInt16BE(4)] : null;
+  const clear =
+    trns && type === 0 && trns.length >= 2
+      ? [trns.readUInt16BE(0)]
+      : trns && type === 2 && trns.length >= 6
+        ? [trns.readUInt16BE(0), trns.readUInt16BE(2), trns.readUInt16BE(4)]
+        : null;
   let prev = new Uint8Array(stride);
   let cur = new Uint8Array(stride);
   for (let y = 0; y < height; y++) {
@@ -152,11 +158,17 @@ function chunk(kind: string, data: Buffer): Buffer {
 export function encodeAlphaPng(width: number, height: number, alpha: Uint8Array): Buffer {
   const stride = width * 4 + 1;
   const raw = Buffer.alloc(stride * height); // every row filter 0, colour black
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) raw[y * stride + 1 + x * 4 + 3] = alpha[y * width + x];
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) raw[y * stride + 1 + x * 4 + 3] = alpha[y * width + x];
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8; // bit depth
   ihdr[9] = 6; // RGBA
-  return Buffer.concat([SIGNATURE, chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+  return Buffer.concat([
+    SIGNATURE,
+    chunk('IHDR', ihdr),
+    chunk('IDAT', zlib.deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 }

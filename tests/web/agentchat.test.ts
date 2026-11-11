@@ -15,8 +15,19 @@ afterEach(() => {
 
 describe('renderAgentChat()', () => {
   it('focus asked for right away lands in the message box once the chat is there', async () => {
-    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
-    vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(url === '/api/agents/a1/chats' ? [] : {}), { headers: { 'content-type': 'application/json' } }));
+    state.data = {
+      runs: [],
+      approvals: [],
+      agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }],
+      settings: {},
+    } as unknown as AppState;
+    vi.stubGlobal(
+      'fetch',
+      async (url: string) =>
+        new Response(JSON.stringify(url === '/api/agents/a1/chats' ? [] : {}), {
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
     const el = document.createElement('div');
     document.body.append(el);
     const tab = renderAgentChat(el, 'a1');
@@ -32,8 +43,22 @@ describe('renderAgentChat()', () => {
 
 describe('the agent chat box', () => {
   it('shows an @mention of another agent as a pill, not the agent it talks to', async () => {
-    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }, { id: 'a2', name: 'Writer', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
-    vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(url === '/api/agents/a1/chats' ? [] : {}), { headers: { 'content-type': 'application/json' } }));
+    state.data = {
+      runs: [],
+      approvals: [],
+      agents: [
+        { id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' },
+        { id: 'a2', name: 'Writer', engine: 'eve', model: 'm', provider: 'custom' },
+      ],
+      settings: {},
+    } as unknown as AppState;
+    vi.stubGlobal(
+      'fetch',
+      async (url: string) =>
+        new Response(JSON.stringify(url === '/api/agents/a1/chats' ? [] : {}), {
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
     const el = document.createElement('div');
     document.body.append(el);
     const tab = renderAgentChat(el, 'a1');
@@ -44,18 +69,30 @@ describe('the agent chat box', () => {
       box.dispatchEvent(new Event('input', { bubbles: true }));
     });
     const editor = el.querySelector<HTMLElement>('[role="textbox"][contenteditable="true"]')!;
-    expect([...editor.querySelectorAll('[data-mention]')].map((p) => p.getAttribute('data-mention'))).toEqual(['@Writer']);
+    expect([...editor.querySelectorAll('[data-mention]')].map((p) => p.getAttribute('data-mention'))).toEqual([
+      '@Writer',
+    ]);
     tab.destroy();
   });
 });
 
-describe('a chat of a project that isn\'t open (an Overview pane)', () => {
+describe("a chat of a project that isn't open (an Overview pane)", () => {
   it('finds its agent in that project, and its requests and files go there', async () => {
-    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
+    state.data = {
+      runs: [],
+      approvals: [],
+      agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }],
+      settings: {},
+    } as unknown as AppState;
     const urls: string[] = [];
     vi.stubGlobal('fetch', async (url: string) => {
       urls.push(url);
-      const body = url === '/api/p/p2/agents' ? [{ id: 'far', name: 'Far writer', engine: 'eve', model: 'm', provider: 'custom' }] : url.endsWith('/chats') ? [] : {};
+      const body =
+        url === '/api/p/p2/agents'
+          ? [{ id: 'far', name: 'Far writer', engine: 'eve', model: 'm', provider: 'custom' }]
+          : url.endsWith('/chats')
+            ? []
+            : {};
       return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
     });
     const el = document.createElement('div');
@@ -69,8 +106,11 @@ describe('a chat of a project that isn\'t open (an Overview pane)', () => {
     for (let i = 0; i < 50 && !urls.includes('/api/p/p2/agents/far/commands'); i++) await settle();
     expect(urls).toContain('/api/p/p2/agents/far/commands');
     // its MEMORY.md is read from that project
-    if (!document.getElementById('modal-root')) document.body.append(Object.assign(document.createElement('div'), { id: 'modal-root' }));
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('MEMORY.md'))!.click());
+    if (!document.getElementById('modal-root'))
+      document.body.append(Object.assign(document.createElement('div'), { id: 'modal-root' }));
+    await act(async () =>
+      [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('MEMORY.md'))!.click(),
+    );
     for (let i = 0; i < 20 && !urls.includes('/api/p/p2/memory/far'); i++) await settle();
     expect(urls).toContain('/api/p/p2/memory/far');
     expect(urls).not.toContain('/api/memory/far');
@@ -81,13 +121,36 @@ describe('a chat of a project that isn\'t open (an Overview pane)', () => {
   });
 
   it("doesn't take its twin's run in the open project for its own (a copied project has the same ids)", async () => {
-    const run = (projectId: string) => ({ id: 'r1', agentId: 'far', chatId: 'c1', projectId, startedAt: 1, agentName: 'Far writer', parentRunId: null });
+    const run = (projectId: string) => ({
+      id: 'r1',
+      agentId: 'far',
+      chatId: 'c1',
+      projectId,
+      startedAt: 1,
+      agentName: 'Far writer',
+      parentRunId: null,
+    });
     vi.stubGlobal('fetch', async (url: string) => {
-      const body = url === '/api/p/p2/agents' ? [{ id: 'far', name: 'Far writer', engine: 'eve', model: 'm', provider: 'custom' }] : url.endsWith('/chats') ? [{ id: 'c1', title: 'Mine' }] : url.endsWith('/chats/c1') ? { id: 'c1', title: 'Mine', items: [] } : url.endsWith('/commands') ? [] : {};
+      const body =
+        url === '/api/p/p2/agents'
+          ? [{ id: 'far', name: 'Far writer', engine: 'eve', model: 'm', provider: 'custom' }]
+          : url.endsWith('/chats')
+            ? [{ id: 'c1', title: 'Mine' }]
+            : url.endsWith('/chats/c1')
+              ? { id: 'c1', title: 'Mine', items: [] }
+              : url.endsWith('/commands')
+                ? []
+                : {};
       return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
     });
     const working = async (projectId: string) => {
-      state.data = { runs: [run(projectId)], approvals: [], agents: [], project: { id: 'p1' }, settings: {} } as unknown as AppState;
+      state.data = {
+        runs: [run(projectId)],
+        approvals: [],
+        agents: [],
+        project: { id: 'p1' },
+        settings: {},
+      } as unknown as AppState;
       const el = document.createElement('div');
       document.body.append(el);
       const tab = renderAgentChat(el, 'far', { projectId: 'p2' });
@@ -105,12 +168,18 @@ describe('a chat of a project that isn\'t open (an Overview pane)', () => {
 
 describe('the agent tab', () => {
   it('New chat clicked before the latest chat was found stays on the new chat', async () => {
-    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
+    state.data = {
+      runs: [],
+      approvals: [],
+      agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }],
+      settings: {},
+    } as unknown as AppState;
     let found!: () => void;
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
       // (the list of chats is slow to come)
-      if (url === '/api/agents/a1/chats' && init.method !== 'POST') return new Promise<Response>((r) => (found = () => r(json([{ id: 'c7', title: 'Mine' }]))));
+      if (url === '/api/agents/a1/chats' && init.method !== 'POST')
+        return new Promise<Response>((r) => (found = () => r(json([{ id: 'c7', title: 'Mine' }]))));
       if (url === '/api/agents/a1/chats') return json({ id: 'c8', title: 'New chat', items: [] });
       if (/\/chats\/c\d$/.test(url)) return json({ id: url.split('/').pop(), title: 'Chat', items: [] });
       return json(url.endsWith('/commands') ? [] : {});
@@ -120,7 +189,9 @@ describe('the agent tab', () => {
     const tab = renderAgentChat(el, 'a1');
     await settle();
     const full = () => el.querySelector<HTMLAnchorElement>('a[title="Open the full chat page"]')!.getAttribute('href');
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('New chat'))!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('New chat'))!.click(),
+    );
     await settle();
     expect(full()).toBe('#/agents/a1/c8');
     await act(async () => found());
@@ -129,15 +200,22 @@ describe('the agent tab', () => {
     act(() => tab.destroy());
   });
 
-
   it('opens its latest own chat (not a team session), and New chat starts a fresh one', async () => {
-    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }], settings: {} } as unknown as AppState;
+    state.data = {
+      runs: [],
+      approvals: [],
+      agents: [{ id: 'a1', name: 'Scout', engine: 'eve', model: 'm', provider: 'custom' }],
+      settings: {},
+    } as unknown as AppState;
     const posts: string[] = [];
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
       if (init.method === 'POST') posts.push(url);
       const body =
         url === '/api/agents/a1/chats' && init.method !== 'POST'
-          ? [{ id: 'team1', title: 'Team: Social', teamId: 't1' }, { id: 'c7', title: 'Mine' }]
+          ? [
+              { id: 'team1', title: 'Team: Social', teamId: 't1' },
+              { id: 'c7', title: 'Mine' },
+            ]
           : url === '/api/agents/a1/chats'
             ? { id: 'c8', title: 'New chat', items: [] }
             : /\/chats\/c\d$/.test(url)
@@ -154,7 +232,9 @@ describe('the agent tab', () => {
     await settle();
     const full = () => el.querySelector<HTMLAnchorElement>('a[title="Open the full chat page"]')!.getAttribute('href');
     expect(full()).toBe('#/agents/a1/c7');
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('New chat'))!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('New chat'))!.click(),
+    );
     await settle();
     expect(posts).toEqual(['/api/agents/a1/chats']);
     expect(full()).toBe('#/agents/a1/c8');

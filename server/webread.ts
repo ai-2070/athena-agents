@@ -24,10 +24,19 @@ export async function readPage(url: string, reader: string, signal?: AbortSignal
   const kept = pages.get(key);
   if (kept && Date.now() - kept.at < KEPT_MS) return kept.page;
   // (never the dashboard itself, not even through a redirect)
-  const { res, url: final } = await agentFetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) athena-agents/0.1.0' }, signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000) });
+  const { res, url: final } = await agentFetch(url, {
+    headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) athena-agents/0.1.0' },
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000),
+  });
   const type = res.headers.get('content-type') || '';
   const { text, cut } = await bodyText(res);
-  const page: Page = { status: res.status, url: final, type, cut, text: /html/i.test(type) ? htmlToMarkdown(text, final) : text };
+  const page: Page = {
+    status: res.status,
+    url: final,
+    type,
+    cut,
+    text: /html/i.test(type) ? htmlToMarkdown(text, final) : text,
+  };
   if (!isText(type) && type) page.text = `This is a ${type.split(';')[0]} file, not text: fetch_url reads text only.`;
   pages.delete(key);
   pages.set(key, { at: Date.now(), page });
@@ -42,13 +51,18 @@ export function pagePart(page: Page, offset = 0, max = PAGE_CHARS): string {
   const end = Math.min(page.text.length, start + most);
   const head = `HTTP ${page.status} ${page.url}`;
   const note = [
-    start > 0 || end < page.text.length ? `Characters ${start}-${end} of ${page.text.length}.${end < page.text.length ? ` Continue with offset ${end}.` : ''}` : '',
+    start > 0 || end < page.text.length
+      ? `Characters ${start}-${end} of ${page.text.length}.${end < page.text.length ? ` Continue with offset ${end}.` : ''}`
+      : '',
     page.cut ? `The page is larger than ${BODY_BYTES / 1024 / 1024} MB: only its start was read.` : '',
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
   return `${head}\n\n${page.text.slice(start, end)}${note ? `\n\n[${note}]` : ''}`;
 }
 
-const isText = (type: string): boolean => /^(text\/|application\/(json|xml|xhtml|rss|atom|javascript|ld\+json|[\w.+-]*\+(json|xml)))/i.test(type);
+const isText = (type: string): boolean =>
+  /^(text\/|application\/(json|xml|xhtml|rss|atom|javascript|ld\+json|[\w.+-]*\+(json|xml)))/i.test(type);
 
 async function bodyText(res: Response): Promise<{ text: string; cut: boolean }> {
   if (!res.body) return { text: '', cut: false };
@@ -78,7 +92,23 @@ async function bodyText(res: Response): Promise<{ text: string; cut: boolean }> 
   return { text: new TextDecoder().decode(all), cut };
 }
 
-const ENTITIES: Record<string, string> = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", mdash: '—', ndash: '–', hellip: '…', copy: '©', reg: '®', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“' };
+const ENTITIES: Record<string, string> = {
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  mdash: '—',
+  ndash: '–',
+  hellip: '…',
+  copy: '©',
+  reg: '®',
+  rsquo: '’',
+  lsquo: '‘',
+  rdquo: '”',
+  ldquo: '“',
+};
 function decode(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z0-9]+);/gi, (m, e: string) => {
     if (e[0] === '#') {
@@ -88,7 +118,10 @@ function decode(s: string): string {
     return ENTITIES[e.toLowerCase()] ?? m;
   });
 }
-const inline = (s: string): string => decode(s.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
+const inline = (s: string): string =>
+  decode(s.replace(/<[^>]+>/g, ''))
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /** Readable Markdown from a page: headings, lists, links and code kept; scripts, menus and footers left out. */
 export function htmlToMarkdown(html: string, base = ''): string {
@@ -96,10 +129,19 @@ export function htmlToMarkdown(html: string, base = ''): string {
   const code: string[] = [];
   let s = html
     .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(script|style|noscript|svg|head|nav|footer|aside|form|iframe|template|select|button)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(
+      /<(script|style|noscript|svg|head|nav|footer|aside|form|iframe|template|select|button)\b[\s\S]*?<\/\1>/gi,
+      '',
+    )
     // code blocks keep their own spacing: put aside until the end
-    .replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, (_, body: string) => `\n\n\u0000${code.push(decode(body.replace(/<[^>]+>/g, ''))) - 1}\u0000\n\n`)
-    .replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, n: string, t: string) => `\n\n${'#'.repeat(Number(n))} ${inline(t)}\n\n`)
+    .replace(
+      /<pre\b[^>]*>([\s\S]*?)<\/pre>/gi,
+      (_, body: string) => `\n\n\u0000${code.push(decode(body.replace(/<[^>]+>/g, ''))) - 1}\u0000\n\n`,
+    )
+    .replace(
+      /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi,
+      (_, n: string, t: string) => `\n\n${'#'.repeat(Number(n))} ${inline(t)}\n\n`,
+    )
     .replace(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href: string, t: string) => {
       const text = inline(t);
       if (!text) return '';

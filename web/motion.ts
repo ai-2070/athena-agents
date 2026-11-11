@@ -6,7 +6,10 @@ export const EASE = 'cubic-bezier(.2,.9,.25,1)';
 export const EASE_IN = 'cubic-bezier(.5,0,.75,0)';
 
 export function reducedMotion(): boolean {
-  return document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return (
+    document.documentElement.classList.contains('reduce-motion') ||
+    matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 }
 
 type Box = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>;
@@ -20,7 +23,11 @@ function mapping(from: Box, to: Box): string {
 }
 
 /** The element moved or resized from `from` to where it is now: animate it from the old box. */
-export function flipFrom(el: HTMLElement, from: Box, { duration = 380, fade = false }: { duration?: number; fade?: boolean } = {}): Animation | null {
+export function flipFrom(
+  el: HTMLElement,
+  from: Box,
+  { duration = 380, fade = false }: { duration?: number; fade?: boolean } = {},
+): Animation | null {
   if (reducedMotion()) return null;
   const to = el.getBoundingClientRect();
   if (!to.width || !to.height) return null;
@@ -52,7 +59,16 @@ export function flipTo(el: HTMLElement, target: Box, { duration = 300 }: { durat
 }
 
 /** Fade + slide something in (panels, pills). */
-export function slideIn(el: Element, { x = 0, y = 0, scale = 1, duration = 380, blur = 0 }: { x?: number; y?: number; scale?: number; duration?: number; blur?: number } = {}): Animation | null {
+export function slideIn(
+  el: Element,
+  {
+    x = 0,
+    y = 0,
+    scale = 1,
+    duration = 380,
+    blur = 0,
+  }: { x?: number; y?: number; scale?: number; duration?: number; blur?: number } = {},
+): Animation | null {
   if (reducedMotion()) return null;
   return el.animate(
     [
@@ -64,7 +80,10 @@ export function slideIn(el: Element, { x = 0, y = 0, scale = 1, duration = 380, 
 }
 
 /** Fade + slide something out; resolves when it's done (then hide it). */
-export function slideOut(el: Element, { x = 0, y = 0, scale = 1, duration = 220 }: { x?: number; y?: number; scale?: number; duration?: number } = {}): Promise<void> {
+export function slideOut(
+  el: Element,
+  { x = 0, y = 0, scale = 1, duration = 220 }: { x?: number; y?: number; scale?: number; duration?: number } = {},
+): Promise<void> {
   if (reducedMotion()) return Promise.resolve();
   const a = el.animate(
     [

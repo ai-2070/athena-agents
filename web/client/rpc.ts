@@ -16,7 +16,9 @@ const ORIGIN = 'http://dashboard.invalid';
 function serverWords(e: ORPCError<string, unknown>): string {
   const data: unknown = e.data;
   const body = data && typeof data === 'object' && 'body' in data ? data.body : undefined;
-  return body && typeof body === 'object' && 'error' in body && typeof body.error === 'string' && body.error ? body.error : e.message;
+  return body && typeof body === 'object' && 'error' in body && typeof body.error === 'string' && body.error
+    ? body.error
+    : e.message;
 }
 
 /** A refused call as api() throws it: an Error with the server's message and its `status`. */

@@ -8,11 +8,11 @@ page that `bun run start` runs. The page doesn't know it is in an app: it talks 
 
 The installed app carries three things:
 
-| What | Where it comes from | Installed as |
-|---|---|---|
-| The window (Rust) | `src-tauri/src/main.rs` | the app's executable |
-| The Bun runtime | Bun's GitHub release for the target, same version as the Bun that builds | a sidecar next to the executable (`bun` / `bun.exe`) |
-| The dashboard | `scripts/build-desktop.ts` (below) | `resources/app/` |
+| What              | Where it comes from                                                      | Installed as                                         |
+| ----------------- | ------------------------------------------------------------------------ | ---------------------------------------------------- |
+| The window (Rust) | `src-tauri/src/main.rs`                                                  | the app's executable                                 |
+| The Bun runtime   | Bun's GitHub release for the target, same version as the Bun that builds | a sidecar next to the executable (`bun` / `bun.exe`) |
+| The dashboard     | `scripts/build-desktop.ts` (below)                                       | `resources/app/`                                     |
 
 `scripts/build-desktop.ts` fills `src-tauri/app/` (git-ignored). Tauri runs it before every
 `tauri dev` and `tauri build`:
@@ -24,7 +24,7 @@ The installed app carries three things:
 - **The terminal's native module** (`@lydell/node-pty` and its package for the target OS and CPU). It is
   installed from `bun.lock` into `src-tauri/.cache/`, so cross-builds get the right one.
 - **The Bun runtime** for the target, checked against Bun's `SHASUMS256.txt` and cached in the same folder.
-  x64 uses Bun's *baseline* build, which runs on CPUs without AVX2. Offline, a build for this machine
+  x64 uses Bun's _baseline_ build, which runs on CPUs without AVX2. Offline, a build for this machine
   falls back to the Bun that is running.
 
 When it opens, the app:

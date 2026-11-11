@@ -6,7 +6,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { dataPath, ensureDir, run, which, writeJSON } from './util.ts';
 import { emit, log } from './store.ts';
-import { listSkills, getSkill, forgetSkill, skillDir, skillVersionsDir, skillFromText, uniqueSlug, isSkillSlug, skillExtraFiles, skillFilesHash, copySkillFiles } from './skills.ts';
+import {
+  listSkills,
+  getSkill,
+  forgetSkill,
+  skillDir,
+  skillVersionsDir,
+  skillFromText,
+  uniqueSlug,
+  isSkillSlug,
+  skillExtraFiles,
+  skillFilesHash,
+  copySkillFiles,
+} from './skills.ts';
 import type { SkillVersionItem } from './skills.ts';
 import { keepVersion, versionFilesDir } from './versions.ts';
 import type { SkillInstallResult, SkillOrigin } from '../shared/types.ts';
@@ -32,7 +44,11 @@ const fail = (msg: string, status = 400) => Object.assign(new Error(msg), { stat
 export function parseGitHubUrl(input: string): GitHubLink {
   let u: URL;
   try {
-    u = new URL(String(input || '').trim().replace(/^(?!https?:\/\/)(github\.com\/)/i, 'https://$1'));
+    u = new URL(
+      String(input || '')
+        .trim()
+        .replace(/^(?!https?:\/\/)(github\.com\/)/i, 'https://$1'),
+    );
   } catch {
     throw fail('That is not a link. Give a GitHub link, e.g. https://github.com/owner/repo/tree/main/skills/my-skill');
   }
@@ -41,10 +57,12 @@ export function parseGitHubUrl(input: string): GitHubLink {
   const host = u.hostname.toLowerCase();
   if (host === 'raw.githubusercontent.com') {
     const [owner, repo, ...rest] = parts;
-    if (!owner || !repo || rest.length < 2 || !NAME.test(owner) || !NAME.test(repo)) throw fail('That raw GitHub link has no owner, repo, branch and file.');
+    if (!owner || !repo || rest.length < 2 || !NAME.test(owner) || !NAME.test(repo))
+      throw fail('That raw GitHub link has no owner, repo, branch and file.');
     return { owner, repo, rest, kind: 'raw' };
   }
-  if (host !== 'github.com' && host !== 'www.github.com') throw fail('Skills can be installed from github.com links only.');
+  if (host !== 'github.com' && host !== 'www.github.com')
+    throw fail('Skills can be installed from github.com links only.');
   const [owner, rawRepo, kind, ...rest] = parts;
   const repo = (rawRepo || '').replace(/\.git$/, '');
   if (!owner || !repo || !NAME.test(owner) || !NAME.test(repo)) throw fail('That GitHub link has no owner and repo.');
@@ -68,10 +86,17 @@ async function token(): Promise<string | null> {
 }
 async function headers(): Promise<Record<string, string>> {
   const t = await token();
-  return { 'user-agent': 'athena-agents', accept: 'application/vnd.github+json', ...(t ? { authorization: `Bearer ${t}` } : {}) };
+  return {
+    'user-agent': 'athena-agents',
+    accept: 'application/vnd.github+json',
+    ...(t ? { authorization: `Bearer ${t}` } : {}),
+  };
 }
 async function api<T>(p: string): Promise<{ ok: boolean; status: number; json: T | null }> {
-  const r = await fetch(`https://api.github.com${p}`, { headers: await headers(), signal: AbortSignal.timeout(TIMEOUT) });
+  const r = await fetch(`https://api.github.com${p}`, {
+    headers: await headers(),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
   return { ok: r.ok, status: r.status, json: r.ok ? ((await r.json()) as T) : null };
 }
 
@@ -91,7 +116,13 @@ async function resolve(link: GitHubLink): Promise<{ ref: string; path: string; t
   const base = `/repos/${link.owner}/${link.repo}`;
   if (link.kind === 'repo') {
     const repo = await api<{ default_branch?: string }>(base);
-    if (!repo.ok) throw fail(repo.status === 404 ? `GitHub has no repo ${link.owner}/${link.repo} (or it's private: sign in with the GitHub CLI, gh auth login).` : `GitHub said ${repo.status}.`, 404);
+    if (!repo.ok)
+      throw fail(
+        repo.status === 404
+          ? `GitHub has no repo ${link.owner}/${link.repo} (or it's private: sign in with the GitHub CLI, gh auth login).`
+          : `GitHub said ${repo.status}.`,
+        404,
+      );
     const ref = repo.json?.default_branch || 'main';
     const tree = await api<Tree>(`${base}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
     if (!tree.ok || !tree.json) throw fail(`Couldn't read ${link.owner}/${link.repo} (GitHub said ${tree.status}).`);
@@ -101,23 +132,38 @@ async function resolve(link: GitHubLink): Promise<{ ref: string; path: string; t
   for (let n = 1; n <= link.rest.length - (link.kind === 'raw' ? 1 : 0); n++) {
     const ref = link.rest.slice(0, n).join('/');
     const tree = await api<Tree>(`${base}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
-    if (tree.status === 403 || tree.status === 429) throw fail('GitHub is limiting requests right now. Try again later, or sign in with the GitHub CLI (gh auth login).', 429);
+    if (tree.status === 403 || tree.status === 429)
+      throw fail(
+        'GitHub is limiting requests right now. Try again later, or sign in with the GitHub CLI (gh auth login).',
+        429,
+      );
     if (!tree.ok || !tree.json) continue;
     let p = link.rest.slice(n).join('/');
     // a file: its folder
-    if (link.kind === 'blob' || link.kind === 'raw' || tree.json.tree.some((e) => e.path === p && e.type === 'blob')) p = path.posix.dirname(p) === '.' ? '' : path.posix.dirname(p);
+    if (link.kind === 'blob' || link.kind === 'raw' || tree.json.tree.some((e) => e.path === p && e.type === 'blob'))
+      p = path.posix.dirname(p) === '.' ? '' : path.posix.dirname(p);
     return { ref, path: p.replace(/\/+$/, ''), tree: tree.json };
   }
-  throw fail(`Couldn't find that branch or folder in ${link.owner}/${link.repo} (or the repo is private: sign in with the GitHub CLI, gh auth login).`, 404);
+  throw fail(
+    `Couldn't find that branch or folder in ${link.owner}/${link.repo} (or the repo is private: sign in with the GitHub CLI, gh auth login).`,
+    404,
+  );
 }
 
 // A path inside a skill that's safe to write: no "..", no absolute paths, no hidden parts.
-const safeRel = (rel: string) => rel.length > 0 && rel.length < 300 && !rel.split('/').some((x) => !x || x === '.' || x === '..' || x.startsWith('.')) && !/[\\:\0]/.test(rel);
+const safeRel = (rel: string) =>
+  rel.length > 0 &&
+  rel.length < 300 &&
+  !rel.split('/').some((x) => !x || x === '.' || x === '..' || x.startsWith('.')) &&
+  !/[\\:\0]/.test(rel);
 
 async function download(link: GitHubLink, ref: string, file: string): Promise<Buffer> {
   const url = `https://raw.githubusercontent.com/${link.owner}/${link.repo}/${ref.split('/').map(encodeURIComponent).join('/')}/${file.split('/').map(encodeURIComponent).join('/')}`;
   const t = await token();
-  const r = await fetch(url, { headers: { 'user-agent': 'athena-agents', ...(t ? { authorization: `Bearer ${t}` } : {}) }, signal: AbortSignal.timeout(TIMEOUT) });
+  const r = await fetch(url, {
+    headers: { 'user-agent': 'athena-agents', ...(t ? { authorization: `Bearer ${t}` } : {}) },
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
   if (!r.ok) throw new Error(`couldn't download ${file} (${r.status})`);
   const buf = Buffer.from(await r.arrayBuffer());
   if (buf.length > MAX_FILE) throw new Error(`${file} is too big`);
@@ -129,25 +175,35 @@ async function download(link: GitHubLink, ref: string, file: string): Promise<Bu
 // linked folder instead, and give up if even that is cut short.
 async function wholeTree(link: GitHubLink, ref: string, at: string, tree: Tree): Promise<Tree> {
   if (!tree.truncated) return tree;
-  if (!at) throw fail("That repo is too big to read whole: link straight to the skill's folder (or a folder of skills).");
-  const sub = await api<Tree>(`/repos/${link.owner}/${link.repo}/git/trees/${encodeURIComponent(`${ref}:${at}`)}?recursive=1`);
-  if (!sub.ok || !sub.json) throw fail(`Couldn't read ${at} in ${link.owner}/${link.repo} (GitHub said ${sub.status}).`);
+  if (!at)
+    throw fail("That repo is too big to read whole: link straight to the skill's folder (or a folder of skills).");
+  const sub = await api<Tree>(
+    `/repos/${link.owner}/${link.repo}/git/trees/${encodeURIComponent(`${ref}:${at}`)}?recursive=1`,
+  );
+  if (!sub.ok || !sub.json)
+    throw fail(`Couldn't read ${at} in ${link.owner}/${link.repo} (GitHub said ${sub.status}).`);
   if (sub.json.truncated) throw fail(`${at} is too big to read whole: link to one skill's folder.`);
   return { tree: sub.json.tree.map((e) => ({ ...e, path: `${at}/${e.path}` })) };
 }
 
 /** Install (or update) every skill at or under a GitHub link.
  *  proceed: asked just before each skill is put in the library; false leaves it out (e.g. you switched projects). */
-export async function installFromGitHub(url: string, { proceed = () => true }: { proceed?: () => boolean } = {}): Promise<SkillInstallResult> {
+export async function installFromGitHub(
+  url: string,
+  { proceed = () => true }: { proceed?: () => boolean } = {},
+): Promise<SkillInstallResult> {
   const link = parseGitHubUrl(url);
   const resolved = await resolve(link);
   const { ref, path: at } = resolved;
   const tree = await wholeTree(link, ref, at, resolved.tree);
   const under = (p: string) => !at || p === at || p.startsWith(`${at}/`);
   const blobs = tree.tree.filter((e) => e.type === 'blob' && under(e.path));
-  const roots = blobs.filter((e) => path.posix.basename(e.path) === 'SKILL.md').map((e) => path.posix.dirname(e.path).replace(/^\.$/, ''));
+  const roots = blobs
+    .filter((e) => path.posix.basename(e.path) === 'SKILL.md')
+    .map((e) => path.posix.dirname(e.path).replace(/^\.$/, ''));
   if (!roots.length) throw fail(`No SKILL.md at or under that link in ${link.owner}/${link.repo}.`, 404);
-  if (roots.length > MAX_SKILLS) throw fail(`That link has ${roots.length} skills; link to a folder with at most ${MAX_SKILLS}, or to one skill.`);
+  if (roots.length > MAX_SKILLS)
+    throw fail(`That link has ${roots.length} skills; link to a folder with at most ${MAX_SKILLS}, or to one skill.`);
 
   const result: SkillInstallResult = { installed: [], skipped: [] };
   for (const root of roots) {
@@ -155,7 +211,9 @@ export async function installFromGitHub(url: string, { proceed = () => true }: {
     try {
       // the skill's files: everything in its folder that isn't part of a skill further down
       const inner = roots.filter((r) => r !== root && (!root || r.startsWith(`${root}/`)));
-      const mine = blobs.filter((e) => (!root || e.path.startsWith(`${root}/`)) && !inner.some((r) => e.path.startsWith(`${r}/`)));
+      const mine = blobs.filter(
+        (e) => (!root || e.path.startsWith(`${root}/`)) && !inner.some((r) => e.path.startsWith(`${r}/`)),
+      );
       const files: { rel: string; size: number; path: string }[] = [];
       let total = 0;
       for (const e of mine) {
@@ -178,10 +236,18 @@ export async function installFromGitHub(url: string, { proceed = () => true }: {
         }
         const md = skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), 'x');
         if (!md.body.trim() && !md.description) throw new Error('its SKILL.md is empty');
-        const origin: SkillOrigin = { url: `https://github.com/${link.owner}/${link.repo}/tree/${ref}${root ? `/${root}` : ''}`, repo: `${link.owner}/${link.repo}`, ref, path: root, installedAt: Date.now() };
+        const origin: SkillOrigin = {
+          url: `https://github.com/${link.owner}/${link.repo}/tree/${ref}${root ? `/${root}` : ''}`,
+          repo: `${link.owner}/${link.repo}`,
+          ref,
+          path: root,
+          installedAt: Date.now(),
+        };
         writeJSON(path.join(tmp, '.source.json'), origin);
         // the same skill from the same place: update it (old version kept); else a new one
-        const same = listSkills().find((s) => s.origin && s.origin.repo.toLowerCase() === origin.repo.toLowerCase() && s.origin.path === origin.path);
+        const same = listSkills().find(
+          (s) => s.origin && s.origin.repo.toLowerCase() === origin.repo.toLowerCase() && s.origin.path === origin.path,
+        );
         const slug = same ? same.slug : uniqueSlug(path.posix.basename(root) || md.name || link.repo);
         if (!isSkillSlug(slug)) throw new Error('no usable name');
         if (!proceed()) throw new Error('not installed: you switched projects while it downloaded');
@@ -190,8 +256,18 @@ export async function installFromGitHub(url: string, { proceed = () => true }: {
           // the old version is kept with its extra files, so an update that changed only those still
           // counts, and bringing it back brings back the files it had
           const dir = skillDir(slug);
-          const after: SkillVersionItem = { ...skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), slug), filesHash: skillFilesHash(tmp) };
-          const was: SkillVersionItem = { slug, name: before.name, description: before.description, body: before.body.trim(), files: skillExtraFiles(dir), filesHash: skillFilesHash(dir) };
+          const after: SkillVersionItem = {
+            ...skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), slug),
+            filesHash: skillFilesHash(tmp),
+          };
+          const was: SkillVersionItem = {
+            slug,
+            name: before.name,
+            description: before.description,
+            body: before.body.trim(),
+            files: skillExtraFiles(dir),
+            filesHash: skillFilesHash(dir),
+          };
           const v = keepVersion(skillVersionsDir(slug), was, after, { ignore: ['files'] });
           if (v && was.files?.length) copySkillFiles(dir, versionFilesDir(skillVersionsDir(slug), v.id));
         }
@@ -218,7 +294,8 @@ export function reposIn(text: string): Set<string> {
   // The whole host must be GitHub's: not the end of another one (notgithub.com, x.github.com), not the
   // start of one (github.com.example.com: the slash must follow), nor part of another site's path
   // (example.com/github.com/...).
-  const links = /(?<![\w.@/:%\\-])(?:https?:\/\/)?(?:(?:www\.)?github\.com|raw\.githubusercontent\.com)\/([\w.-]+)\/([\w.-]+)/gi;
+  const links =
+    /(?<![\w.@/:%\\-])(?:https?:\/\/)?(?:(?:www\.)?github\.com|raw\.githubusercontent\.com)\/([\w.-]+)\/([\w.-]+)/gi;
   for (const m of String(text || '').matchAll(links)) out.add(`${m[1]}/${m[2].replace(/\.git$/, '')}`.toLowerCase());
   return out;
 }

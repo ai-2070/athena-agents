@@ -26,11 +26,17 @@ export function ownershipPort(key: string): number {
 
 /** The port a key hashes to (what every dashboard uses). */
 export function hashedPort(key: string): number {
-  return OWNERSHIP_PORT_FIRST + (crypto.createHash('sha256').update(key).digest().readUInt32BE(0) % OWNERSHIP_PORT_COUNT);
+  return (
+    OWNERSHIP_PORT_FIRST + (crypto.createHash('sha256').update(key).digest().readUInt32BE(0) % OWNERSHIP_PORT_COUNT)
+  );
 }
 
 /** Tests only: { dir, first, count }, a test worker's block of ports and where it records which key has which. */
-export interface TestLockPorts { dir: string; first: number; count: number }
+export interface TestLockPorts {
+  dir: string;
+  first: number;
+  count: number;
+}
 
 function testPort(key: string): number | null {
   const raw = process.env.DASH_TEST_LOCK_PORTS;
@@ -38,7 +44,8 @@ function testPort(key: string): number | null {
   const set: unknown = JSON.parse(raw);
   if (!set || typeof set !== 'object') throw new Error('DASH_TEST_LOCK_PORTS is unreadable.');
   const { dir, first, count } = set as Partial<TestLockPorts>;
-  if (typeof dir !== 'string' || !Number.isInteger(first) || !Number.isInteger(count)) throw new Error('DASH_TEST_LOCK_PORTS is unreadable.');
+  if (typeof dir !== 'string' || !Number.isInteger(first) || !Number.isInteger(count))
+    throw new Error('DASH_TEST_LOCK_PORTS is unreadable.');
   fs.mkdirSync(dir, { recursive: true });
   for (let port = first!; port < first! + count!; port++) {
     const file = path.join(dir, String(port));

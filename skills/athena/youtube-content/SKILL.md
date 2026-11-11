@@ -31,12 +31,12 @@ doesn't cover what the user asked about instead of filling the gap from elsewher
 python <skill folder>/scripts/youtube_transcript.py get "<link>" -o yt-work/transcript.txt
 ```
 
-| Command | What it does |
-|---|---|
-| `id <link>` | The video id, its link, and the start time the link carries (`t=`); no network. A link with a time usually means "this moment" |
-| `list <link>` | Each transcript's `language_code`, `kind` (`manual`, made by a person, or `auto-generated`) and `translatable`; the `spoken_language`; the `translation_languages` YouTube offers |
-| `get <link>` | One transcript. Without `--language`: the spoken language (that of YouTube's automatic captions), a person's transcript in it first. `--language de,en` picks in that order, a person's before an auto-generated one. `--translate CODE` gets YouTube's machine translation, or the video's own transcript in that language if it has one |
-| `pasted <file>` | A transcript copied from YouTube's Show transcript panel into a file (UTF-8, UTF-16 or the Windows code page), in the same shapes as `get`. `--video <link>` adds the id and link; `--overwrite` lets `-o` replace the input |
+| Command         | What it does                                                                                                                                                                                                                                                                                                                              |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id <link>`     | The video id, its link, and the start time the link carries (`t=`); no network. A link with a time usually means "this moment"                                                                                                                                                                                                            |
+| `list <link>`   | Each transcript's `language_code`, `kind` (`manual`, made by a person, or `auto-generated`) and `translatable`; the `spoken_language`; the `translation_languages` YouTube offers                                                                                                                                                         |
+| `get <link>`    | One transcript. Without `--language`: the spoken language (that of YouTube's automatic captions), a person's transcript in it first. `--language de,en` picks in that order, a person's before an auto-generated one. `--translate CODE` gets YouTube's machine translation, or the video's own transcript in that language if it has one |
+| `pasted <file>` | A transcript copied from YouTube's Show transcript panel into a file (UTF-8, UTF-16 or the Windows code page), in the same shapes as `get`. `--video <link>` adds the id and link; `--overwrite` lets `-o` replace the input                                                                                                              |
 
 `get` and `pasted` take `--format timed` (the default: `[m:ss] text` lines), `text` (the lines without times) or
 `json` (segments with `start` and `duration` in seconds), and `-o FILE` to write the transcript there and print only
@@ -113,4 +113,4 @@ tools, run `pasted yt-work/copied.txt --video "<link>" -o yt-work/transcript.txt
 ## Files
 
 - `scripts/youtube_transcript.py`: `id`, `list`, `get` and `pasted`, as above; `youtube_transcript.py <command>
-  --help` explains each, with an example.
+--help` explains each, with an example.

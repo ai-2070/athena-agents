@@ -48,12 +48,19 @@ export class CrashGuard extends Component<GuardProps, GuardState> {
         </span>
       );
     return (
-      <div role="alert" className="crash-guard flex flex-wrap items-center gap-2 rounded-ctl border border-line bg-panel px-3 py-2 text-[13px] text-dim">
+      <div
+        role="alert"
+        className="crash-guard flex flex-wrap items-center gap-2 rounded-ctl border border-line bg-panel px-3 py-2 text-[13px] text-dim"
+      >
         <span className="min-w-0 flex-1 wrap-anywhere">
           <span className="text-red">Something went wrong here.</span> {messageOf(error.value)}
         </span>
-        <Button variant="ghost" size="small" onClick={this.retry}>Try again</Button>
-        <Button variant="plain" size="small" onClick={() => location.reload()}>Reload page</Button>
+        <Button variant="ghost" size="small" onClick={this.retry}>
+          Try again
+        </Button>
+        <Button variant="plain" size="small" onClick={() => location.reload()}>
+          Reload page
+        </Button>
       </div>
     );
   }
@@ -62,7 +69,10 @@ export class CrashGuard extends Component<GuardProps, GuardState> {
 /** createRoot from react-dom, with every render() wrapped in a CrashGuard. Use it for every React root.
  *  strict: the whole root in StrictMode (outside the guard, so the root itself is strict, as before the guard).
  *  inline: the root is inside a control (CrashGuard's inline). */
-export function createAppRoot(el: Element | DocumentFragment, { strict = false, inline = false, ...options }: RootOptions & { strict?: boolean; inline?: boolean } = {}): Root {
+export function createAppRoot(
+  el: Element | DocumentFragment,
+  { strict = false, inline = false, ...options }: RootOptions & { strict?: boolean; inline?: boolean } = {},
+): Root {
   const root = createRoot(el, options);
   const guard = (node: ReactNode) => <CrashGuard inline={inline}>{node}</CrashGuard>;
   return {

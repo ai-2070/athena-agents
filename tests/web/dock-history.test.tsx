@@ -18,14 +18,34 @@ const history = [
     steps: [{ id: 't1', name: 'Read', input: { file_path: 'PROJECT.md' }, state: 'done', output: '# Project' }],
     done: [
       { kind: 'skill', text: 'Made the skill "Finish the job"', skillId: 'finish-the-job' },
-      ...['Created', 'Updated', 'Removed'].map((verb) => ({ kind: 'task', taskId: 'task-internal-id', text: `${verb} task: Check the report [phase 2] [task-internal-id]` })),
+      ...['Created', 'Updated', 'Removed'].map((verb) => ({
+        kind: 'task',
+        taskId: 'task-internal-id',
+        text: `${verb} task: Check the report [phase 2] [task-internal-id]`,
+      })),
     ],
-    delegate: { kind: 'branch', id: 'w1', name: 'Review Team', message: 'Check the app.', sent: { messageId: 'brief', ts: 3 } },
+    delegate: {
+      kind: 'branch',
+      id: 'w1',
+      name: 'Review Team',
+      message: 'Check the app.',
+      sent: { messageId: 'brief', ts: 3 },
+    },
   },
   { role: 'user', text: 'and have Scout look too', ts: 10 },
-  { role: 'brain', text: 'Scout is on it.', ts: 11, delegate: { kind: 'agent', id: 'a1', name: 'Scout', message: 'Look.', sent: { chatId: 'c1', runId: 'r1' } } },
+  {
+    role: 'brain',
+    text: 'Scout is on it.',
+    ts: 11,
+    delegate: { kind: 'agent', id: 'a1', name: 'Scout', message: 'Look.', sent: { chatId: 'c1', runId: 'r1' } },
+  },
   { role: 'user', text: 'and the old team', ts: 20 },
-  { role: 'brain', text: 'Sent.', ts: 21, delegate: { kind: 'branch', id: 'gone', name: 'Old Team', message: 'Hi.', sent: { messageId: 'b2', ts: 22 } } },
+  {
+    role: 'brain',
+    text: 'Sent.',
+    ts: 21,
+    delegate: { kind: 'branch', id: 'gone', name: 'Old Team', message: 'Hi.', sent: { messageId: 'b2', ts: 22 } },
+  },
 ];
 const scoutChat = {
   id: 'c1',
@@ -47,10 +67,19 @@ beforeAll(() => {
     settings: { brain: { provider: 'claude', model: 'haiku' } },
   } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string) => {
-    const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { 'content-type': 'application/json' } });
+    const json = (v: unknown, status = 200) =>
+      new Response(JSON.stringify(v), { status, headers: { 'content-type': 'application/json' } });
     if (url === '/api/brain/history') return json(history);
     if (url === '/api/workflows') return json([{ id: 'w1', name: 'Review Team', members: ['a1'], steps: [] }]);
-    if (url === '/api/teams/w1/chat') return json({ messages: [{ id: 'brief', ts: 3, from: 'brain', text: 'Check the app.', mentions: [] }, { id: 'm2', ts: 5, from: 'a1', text: 'The team checked it: all good.', mentions: [] }], working: [], queued: [] });
+    if (url === '/api/teams/w1/chat')
+      return json({
+        messages: [
+          { id: 'brief', ts: 3, from: 'brain', text: 'Check the app.', mentions: [] },
+          { id: 'm2', ts: 5, from: 'a1', text: 'The team checked it: all good.', mentions: [] },
+        ],
+        working: [],
+        queued: [],
+      });
     if (url === '/api/teams/gone/chat') return json({ error: 'No such team' }, 404);
     if (url === '/api/runs') return json([]);
     // (no run going in Scout's chat: nothing to resume)
@@ -71,7 +100,8 @@ describe('a reopened Brain chat', () => {
     // the file it read, as a step, and the skill it made as an action (not "(…)" lines)
     expect([...list.querySelectorAll('.tool .tname')].map((n) => n.textContent)).toContain('Read');
     expect(text).toContain('Made the skill "Finish the job"');
-    for (const verb of ['Created', 'Updated', 'Removed']) expect(text).toContain(`${verb} task: Check the report [phase 2]`);
+    for (const verb of ['Created', 'Updated', 'Removed'])
+      expect(text).toContain(`${verb} task: Check the report [phase 2]`);
     expect(text).not.toContain('task-internal-id');
     expect(text).not.toContain('(Made the skill');
     // the team's reply to its brief (not the brief itself), and Scout's turn with its tool call

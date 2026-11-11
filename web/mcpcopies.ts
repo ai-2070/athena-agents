@@ -13,7 +13,11 @@ export function mcpOptions(servers: readonly string[], info: Info): { value: str
     .sort((a, b) => first.get(kind(a))! - first.get(kind(b))!)
     .map((s) => {
       const i = info?.[s];
-      const title = i?.useFor ? `Use for: ${i.useFor}` : i && i.copies > 1 ? `One of your ${i.copies} ${i.service} accounts` : undefined;
+      const title = i?.useFor
+        ? `Use for: ${i.useFor}`
+        : i && i.copies > 1
+          ? `One of your ${i.copies} ${i.service} accounts`
+          : undefined;
       return { value: s, label: i?.title || s, ...(title ? { title } : {}) };
     });
 }
@@ -23,7 +27,10 @@ export function copiesWarning(picked: readonly string[], info: Info): string {
   if (!info) return '';
   const byKind = new Map<string, string[]>();
   for (const s of new Set(picked)) if (info[s]) byKind.set(info[s].kind, [...(byKind.get(info[s].kind) || []), s]);
-  const bare = [...byKind.values()].filter((l) => l.length > 1).flat().filter((s) => !info[s].useFor);
+  const bare = [...byKind.values()]
+    .filter((l) => l.length > 1)
+    .flat()
+    .filter((s) => !info[s].useFor);
   if (!bare.length) return '';
   const names = bare.map((s) => info[s].title);
   return `${names.join(' and ')} ${bare.length > 1 ? 'have' : 'has'} no "use for" line, so it can't tell its ${info[bare[0]].service} accounts apart. Say what each is for on the MCP servers page.`;

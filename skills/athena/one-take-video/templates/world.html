@@ -1,635 +1,952 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<title>One-take film</title>
-<style>
-  html, body { margin: 0; height: 100%; background: #000; }
-  body { display: grid; place-items: center; overflow: hidden; font: 13px system-ui, sans-serif; color: #bbb; }
-  canvas { display: block; max-width: 100vw; max-height: 100vh; cursor: pointer; }
-  #clock { position: fixed; left: 10px; bottom: 8px; opacity: 0.7; pointer-events: none; }
-</style>
-</head>
-<body>
-<canvas id="screen"></canvas>
-<div id="clock"></div>
-<script>
-'use strict';
-// A one-take film: one world, one continuous camera move, drawn on a canvas. Open this file in a browser to watch it
-// with the voiceover (click to play or pause; Space too; arrow keys seek, Shift for 5 s; ?t=12.5 in the address shows
-// one moment). film.mjs renders it frame by frame. render(t) draws the frame at t seconds from nothing but t, so any
-// frame can be drawn in any order: no Math.random(), no Date, no state kept between frames.
-//
-// Edit sections 1 to 4. The rest is the machinery: the camera, the props, the dimming and the finishing passes.
-
-// ---------- 1. Format and voiceover ----------
-const FORMAT = { width: 1920, height: 1080, fps: 30 }; // the delivery format; width and height even
-const VOICE = 'voice.mp3';    // the voiceover beside this file, for the live preview (the render takes it with --audio)
-const DURATION = 12;          // seconds: exactly the voiceover's length (film.mjs voice says it)
-
-// ---------- 2. Look ----------
-const LOOK = {
-  ground: '#1b1e22',     // the world's surface
-  grid: 'rgba(255,255,255,0.035)',
-  paper: '#efeadf',      // prints' borders and documents
-  ink: '#1f1f22',        // type printed on paper
-  lines: 'rgba(31,31,34,0.14)', // the grey lines that read as body text
-  type: '#f2efe8',       // hero words on the world
-  accent: '#e8563a',     // circles, routes and stamps: the one colour that means "look here"
-  dim: 0.6,              // how far everything but the hero dims back (0 to 1)
-  handheld: 0.0028,      // drift of the handheld camera, as a fraction of the frame's height
-  handheldTurn: 0.12,    // and its sway, in degrees
-  shutter: 0.5,          // motion blur: the fraction of a frame the shutter is open (0.5 is film's 180°)
-  glow: 0.22,            // soft glow on the bright parts (0 = none)
-  vignette: 0.5,         // darkening at the corners (0 = none)
-  grain: 0.32,           // film grain (0 = none)
-};
-const FONTS = {
-  display: '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif',
-  sans: '"Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif',
-  stamp: '"Arial Black", "Segoe UI Black", "Helvetica Neue", Arial, sans-serif',
-};
-// Font files beside this page, loaded before the first frame: [family, file], e.g. ['Inter', 'fonts/Inter.woff2'].
-const FONT_FILES = [];
-
-// ---------- 3. The world ----------
-// Positions and sizes are in world units; the camera decides how big they look. Rotations are in degrees.
-// at: when a prop lands, a stamp hits or a word starts, in seconds: put it on the spoken word. 0 = there from the start.
-const PHOTOS = {
-  // id: 'photos/file.jpg'   (a print with photo: null draws a placeholder)
-};
-const WORLD = [
-  { id: 'photo', kind: 'print', photo: null, x: -760, y: -260, w: 560, h: 420, rot: -4, at: 0 },
-  { id: 'route', kind: 'route', on: 'town', points: [[-470, -330], [-190, -560], [90, -540]], at: 2.2, dur: 1.4 },
-  { id: 'town', kind: 'word', text: 'Harrow Creek', x: 560, y: -540, size: 130, at: 3.3, reveal: 'rise' },
-  { id: 'letter', kind: 'paper', x: 300, y: 420, w: 640, h: 820, rot: 3, at: 6.4, heading: 'Dear Ada,', lines: 11 },
-  { id: 'ring', kind: 'circle', on: 'letter', x: 238, y: 118, rx: 250, ry: 98, at: 7.5, dur: 0.7 },
-  { id: 'yes', kind: 'stamp', on: 'letter', text: 'YES', x: 330, y: 610, size: 140, rot: -11, at: 9.7 },
-];
-
-// ---------- 4. The beat table ----------
-// One row per line of narration: when the line starts, what is said, and the one hero on screen. The camera frames
-// the hero by itself (cam: { fill: how much of the frame's height it takes, dx, dy: nudges, rot }), or cam: { x, y,
-// view } frames a place (view: how many world units tall the frame is). move: seconds the camera takes to get there
-// (default 1.6), arriving just after the line starts. lift: 0 stops the pull-back on a long move.
-const BEATS = [
-  { t: 0.0, line: 'It started with a photograph.', hero: 'photo', cam: { fill: 0.62 } },
-  { t: 3.0, line: 'Taken in a town nobody had heard of.', hero: 'town', cam: { fill: 0.5 } },
-  { t: 6.0, line: 'Then came the letter.', hero: 'letter', cam: { fill: 0.74 } },
-  { t: 9.0, line: 'And the answer was yes.', hero: 'yes', cam: { fill: 0.45 } },
-];
-
-// ======================================================================================================================
-// The machinery. Change it when the film needs something it doesn't do.
-
-const query = new URLSearchParams(location.search);
-const CAPTURE = query.get('capture') === '1';
-const SCALE = Math.min(1, Math.max(0.05, Number(query.get('scale')) || 1));
-const canvas = document.getElementById('screen');
-canvas.width = 2 * Math.round((FORMAT.width * SCALE) / 2);
-canvas.height = 2 * Math.round((FORMAT.height * SCALE) / 2);
-const W = canvas.width, H = canvas.height, ASPECT = W / H;
-const out = canvas.getContext('2d');
-const layer = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
-const buf = layer(W, H), bx = buf.getContext('2d');
-const glowLayer = layer(Math.max(2, Math.round(W / 4)), Math.max(2, Math.round(H / 4))), gx = glowLayer.getContext('2d');
-
-const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
-const lerp = (a, b, u) => a + (b - a) * u;
-const rad = (d) => (d * Math.PI) / 180;
-const easeOut = (u) => 1 - Math.pow(1 - clamp(u), 3);
-const easeIn = (u) => Math.pow(clamp(u), 3);
-const easeInOut = (u) => { u = clamp(u); return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; };
-function seeded(seed) { // mulberry32: the same numbers every time for the same seed
-  let a = seed >>> 0;
-  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-}
-const hash = (s) => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
-
-const byId = Object.fromEntries(WORLD.map((o) => [o.id, o]));
-const images = {};
-
-// ---------- props ----------
-// How each kind of prop is drawn at time t (k: screen pixels per world unit, for shadows, which canvas draws in
-// screen pixels), its bounds for the camera, and the moments it moves fast (for motion blur).
-
-const DROP_FALL = 0.45, DROP_SETTLE = 0.4;
-/** A print or paper dropping onto the world: falls from above (bigger, shadow far below), lands at o.at, settles. */
-function dropState(o, t) {
-  if (!o.at) return { s: 1, lift: 0, alpha: 1, dx: 0, dy: 0, drot: 0 };
-  const u = t - (o.at - DROP_FALL);
-  if (u < 0) return null;
-  if (u < DROP_FALL) {
-    const f = easeIn(u / DROP_FALL);
-    return { s: lerp(1.22, 1, f), lift: 1 - f, alpha: clamp(u / 0.12), dx: 0, dy: 0, drot: lerp(4, 0, f) };
-  }
-  const v = easeOut((u - DROP_FALL) / DROP_SETTLE);
-  const slide = (1 - v) * 0.025;
-  return { s: 1, lift: 0, alpha: 1, dx: o.w * slide, dy: o.h * slide * 0.4, drot: (1 - v) * -1.2 };
-}
-
-function shadow(ctx, k, lift, strength = 1) {
-  ctx.shadowColor = `rgba(0,0,0,${0.45 * strength})`;
-  ctx.shadowBlur = (10 + 70 * lift) * k;
-  ctx.shadowOffsetX = (3 + 25 * lift) * k;
-  ctx.shadowOffsetY = (8 + 60 * lift) * k;
-}
-function noShadow(ctx) { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; }
-
-/** Draw an image to fill a box, cropped to its shape (like CSS object-fit: cover). */
-function cover(ctx, img, x, y, w, h) {
-  const r = Math.max(w / img.naturalWidth, h / img.naturalHeight);
-  const sw = w / r, sh = h / r;
-  ctx.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, x, y, w, h);
-}
-
-function placeholder(ctx, x, y, w, h, name) {
-  const g = ctx.createLinearGradient(x, y, x + w, y + h);
-  g.addColorStop(0, '#5d6670'); g.addColorStop(1, '#2f353c');
-  ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.font = `600 ${h * 0.09}px ${FONTS.sans}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(`photo: ${name}`, x + w / 2, y + h / 2);
-}
-
-const KINDS = {
-  print: {
-    bounds: (o) => ({ cx: o.x, cy: o.y, w: o.w, h: o.h, rot: o.rot || 0 }),
-    fast: (o) => (o.at ? [[o.at - DROP_FALL, o.at]] : []),
-    draw(ctx, o, t, k) {
-      const st = dropState(o, t); if (!st) return;
-      ctx.save();
-      ctx.translate(o.x + st.dx, o.y + st.dy); ctx.rotate(rad((o.rot || 0) + st.drot)); ctx.scale(st.s, st.s);
-      ctx.globalAlpha *= st.alpha;
-      const b = o.w * 0.04;
-      shadow(ctx, k * st.s, st.lift);
-      ctx.fillStyle = LOOK.paper; ctx.fillRect(-o.w / 2, -o.h / 2, o.w, o.h);
-      noShadow(ctx);
-      const img = o.photo && images[o.photo];
-      if (img) cover(ctx, img, -o.w / 2 + b, -o.h / 2 + b, o.w - 2 * b, o.h - 2 * b);
-      else placeholder(ctx, -o.w / 2 + b, -o.h / 2 + b, o.w - 2 * b, o.h - 2 * b, o.photo || o.id);
-      const gloss = ctx.createLinearGradient(0, -o.h / 2, 0, o.h / 2);
-      gloss.addColorStop(0, 'rgba(255,255,255,0.10)'); gloss.addColorStop(0.5, 'rgba(255,255,255,0)'); gloss.addColorStop(1, 'rgba(0,0,0,0.06)');
-      ctx.fillStyle = gloss; ctx.fillRect(-o.w / 2, -o.h / 2, o.w, o.h);
-      ctx.restore();
-    },
-  },
-  paper: {
-    bounds: (o) => ({ cx: o.x, cy: o.y, w: o.w, h: o.h, rot: o.rot || 0 }),
-    fast: (o) => (o.at ? [[o.at - DROP_FALL, o.at]] : []),
-    draw(ctx, o, t, k) {
-      const st = dropState(o, t); if (!st) return;
-      ctx.save();
-      ctx.translate(o.x + st.dx, o.y + st.dy); ctx.rotate(rad((o.rot || 0) + st.drot)); ctx.scale(st.s, st.s);
-      ctx.globalAlpha *= st.alpha;
-      shadow(ctx, k * st.s, st.lift, 0.85);
-      ctx.fillStyle = LOOK.paper; ctx.fillRect(-o.w / 2, -o.h / 2, o.w, o.h);
-      noShadow(ctx);
-      const m = o.w * 0.11; // margin
-      let y = -o.h / 2 + m;
-      if (o.heading) {
-        const size = o.headingSize || o.w * 0.13;
-        ctx.fillStyle = LOOK.ink; ctx.font = `600 ${size}px ${FONTS.display}`;
-        ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-        ctx.fillText(o.heading, -o.w / 2 + m, y, o.w - 2 * m);
-        y += size * 1.6;
+  <head>
+    <meta charset="utf-8" />
+    <title>One-take film</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #000;
       }
-      // body text as soft grey lines: they read as paper, and nobody tries to read them
-      const rnd = seeded(hash(o.id));
-      const lh = o.w * 0.06;
-      ctx.strokeStyle = LOOK.lines; ctx.lineWidth = lh * 0.42; ctx.lineCap = 'round';
-      for (let i = 0; i < (o.lines || 0) && y < o.h / 2 - m; i++, y += lh) {
-        const end = i % 5 === 4 ? lerp(0.25, 0.6, rnd()) : lerp(0.82, 1, rnd());
-        ctx.beginPath(); ctx.moveTo(-o.w / 2 + m, y + lh / 2); ctx.lineTo(-o.w / 2 + m + (o.w - 2 * m) * end, y + lh / 2); ctx.stroke();
-        if (i % 5 === 4) y += lh * 0.6; // a paragraph break
+      body {
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        font:
+          13px system-ui,
+          sans-serif;
+        color: #bbb;
       }
-      const shade = ctx.createLinearGradient(-o.w / 2, -o.h / 2, o.w / 2, o.h / 2);
-      shade.addColorStop(0, 'rgba(255,255,255,0.05)'); shade.addColorStop(1, 'rgba(0,0,0,0.07)');
-      ctx.fillStyle = shade; ctx.fillRect(-o.w / 2, -o.h / 2, o.w, o.h);
-      ctx.restore();
-    },
-  },
-  word: {
-    // measured once the fonts are in (see ready)
-    bounds: (o) => ({ cx: o.x, cy: o.y, w: o.width || o.size * o.text.length * 0.55, h: o.size * 1.2, rot: 0 }),
-    fast: () => [],
-    draw(ctx, o, t) {
-      if (o.at && t < o.at) return;
-      const font = `${o.weight || 600} ${o.size}px ${o.font || FONTS.display}`;
-      ctx.save();
-      ctx.font = font; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = o.color || LOOK.type;
-      const left = o.x - o.width / 2;
-      if (o.reveal === 'type') {
-        const cps = o.cps || 18; // characters a second
-        const n = o.at ? Math.min(o.text.length, Math.floor((t - o.at) * cps)) : o.text.length;
-        const shown = o.text.slice(0, n);
-        ctx.fillText(shown, left, o.y);
-        const typingEnd = o.at + o.text.length / cps;
-        if (o.at && t < typingEnd + 0.8 && Math.floor((t - o.at) * 4) % 2 === 0) { // the caret, while typing and just after
-          ctx.fillRect(left + ctx.measureText(shown).width + o.size * 0.06, o.y - o.size * 0.42, o.size * 0.07, o.size * 0.84);
+      canvas {
+        display: block;
+        max-width: 100vw;
+        max-height: 100vh;
+        cursor: pointer;
+      }
+      #clock {
+        position: fixed;
+        left: 10px;
+        bottom: 8px;
+        opacity: 0.7;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="screen"></canvas>
+    <div id="clock"></div>
+    <script>
+      'use strict';
+      // A one-take film: one world, one continuous camera move, drawn on a canvas. Open this file in a browser to watch it
+      // with the voiceover (click to play or pause; Space too; arrow keys seek, Shift for 5 s; ?t=12.5 in the address shows
+      // one moment). film.mjs renders it frame by frame. render(t) draws the frame at t seconds from nothing but t, so any
+      // frame can be drawn in any order: no Math.random(), no Date, no state kept between frames.
+      //
+      // Edit sections 1 to 4. The rest is the machinery: the camera, the props, the dimming and the finishing passes.
+
+      // ---------- 1. Format and voiceover ----------
+      const FORMAT = { width: 1920, height: 1080, fps: 30 }; // the delivery format; width and height even
+      const VOICE = 'voice.mp3'; // the voiceover beside this file, for the live preview (the render takes it with --audio)
+      const DURATION = 12; // seconds: exactly the voiceover's length (film.mjs voice says it)
+
+      // ---------- 2. Look ----------
+      const LOOK = {
+        ground: '#1b1e22', // the world's surface
+        grid: 'rgba(255,255,255,0.035)',
+        paper: '#efeadf', // prints' borders and documents
+        ink: '#1f1f22', // type printed on paper
+        lines: 'rgba(31,31,34,0.14)', // the grey lines that read as body text
+        type: '#f2efe8', // hero words on the world
+        accent: '#e8563a', // circles, routes and stamps: the one colour that means "look here"
+        dim: 0.6, // how far everything but the hero dims back (0 to 1)
+        handheld: 0.0028, // drift of the handheld camera, as a fraction of the frame's height
+        handheldTurn: 0.12, // and its sway, in degrees
+        shutter: 0.5, // motion blur: the fraction of a frame the shutter is open (0.5 is film's 180°)
+        glow: 0.22, // soft glow on the bright parts (0 = none)
+        vignette: 0.5, // darkening at the corners (0 = none)
+        grain: 0.32, // film grain (0 = none)
+      };
+      const FONTS = {
+        display: '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif',
+        sans: '"Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif',
+        stamp: '"Arial Black", "Segoe UI Black", "Helvetica Neue", Arial, sans-serif',
+      };
+      // Font files beside this page, loaded before the first frame: [family, file], e.g. ['Inter', 'fonts/Inter.woff2'].
+      const FONT_FILES = [];
+
+      // ---------- 3. The world ----------
+      // Positions and sizes are in world units; the camera decides how big they look. Rotations are in degrees.
+      // at: when a prop lands, a stamp hits or a word starts, in seconds: put it on the spoken word. 0 = there from the start.
+      const PHOTOS = {
+        // id: 'photos/file.jpg'   (a print with photo: null draws a placeholder)
+      };
+      const WORLD = [
+        { id: 'photo', kind: 'print', photo: null, x: -760, y: -260, w: 560, h: 420, rot: -4, at: 0 },
+        {
+          id: 'route',
+          kind: 'route',
+          on: 'town',
+          points: [
+            [-470, -330],
+            [-190, -560],
+            [90, -540],
+          ],
+          at: 2.2,
+          dur: 1.4,
+        },
+        { id: 'town', kind: 'word', text: 'Harrow Creek', x: 560, y: -540, size: 130, at: 3.3, reveal: 'rise' },
+        {
+          id: 'letter',
+          kind: 'paper',
+          x: 300,
+          y: 420,
+          w: 640,
+          h: 820,
+          rot: 3,
+          at: 6.4,
+          heading: 'Dear Ada,',
+          lines: 11,
+        },
+        { id: 'ring', kind: 'circle', on: 'letter', x: 238, y: 118, rx: 250, ry: 98, at: 7.5, dur: 0.7 },
+        { id: 'yes', kind: 'stamp', on: 'letter', text: 'YES', x: 330, y: 610, size: 140, rot: -11, at: 9.7 },
+      ];
+
+      // ---------- 4. The beat table ----------
+      // One row per line of narration: when the line starts, what is said, and the one hero on screen. The camera frames
+      // the hero by itself (cam: { fill: how much of the frame's height it takes, dx, dy: nudges, rot }), or cam: { x, y,
+      // view } frames a place (view: how many world units tall the frame is). move: seconds the camera takes to get there
+      // (default 1.6), arriving just after the line starts. lift: 0 stops the pull-back on a long move.
+      const BEATS = [
+        { t: 0.0, line: 'It started with a photograph.', hero: 'photo', cam: { fill: 0.62 } },
+        { t: 3.0, line: 'Taken in a town nobody had heard of.', hero: 'town', cam: { fill: 0.5 } },
+        { t: 6.0, line: 'Then came the letter.', hero: 'letter', cam: { fill: 0.74 } },
+        { t: 9.0, line: 'And the answer was yes.', hero: 'yes', cam: { fill: 0.45 } },
+      ];
+
+      // ======================================================================================================================
+      // The machinery. Change it when the film needs something it doesn't do.
+
+      const query = new URLSearchParams(location.search);
+      const CAPTURE = query.get('capture') === '1';
+      const SCALE = Math.min(1, Math.max(0.05, Number(query.get('scale')) || 1));
+      const canvas = document.getElementById('screen');
+      canvas.width = 2 * Math.round((FORMAT.width * SCALE) / 2);
+      canvas.height = 2 * Math.round((FORMAT.height * SCALE) / 2);
+      const W = canvas.width,
+        H = canvas.height,
+        ASPECT = W / H;
+      const out = canvas.getContext('2d');
+      const layer = (w, h) => {
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        return c;
+      };
+      const buf = layer(W, H),
+        bx = buf.getContext('2d');
+      const glowLayer = layer(Math.max(2, Math.round(W / 4)), Math.max(2, Math.round(H / 4))),
+        gx = glowLayer.getContext('2d');
+
+      const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+      const lerp = (a, b, u) => a + (b - a) * u;
+      const rad = (d) => (d * Math.PI) / 180;
+      const easeOut = (u) => 1 - Math.pow(1 - clamp(u), 3);
+      const easeIn = (u) => Math.pow(clamp(u), 3);
+      const easeInOut = (u) => {
+        u = clamp(u);
+        return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      };
+      function seeded(seed) {
+        // mulberry32: the same numbers every time for the same seed
+        let a = seed >>> 0;
+        return () => {
+          a = (a + 0x6d2b79f5) >>> 0;
+          let t = a;
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+      const hash = (s) => {
+        let h = 2166136261;
+        for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+        return h >>> 0;
+      };
+
+      const byId = Object.fromEntries(WORLD.map((o) => [o.id, o]));
+      const images = {};
+
+      // ---------- props ----------
+      // How each kind of prop is drawn at time t (k: screen pixels per world unit, for shadows, which canvas draws in
+      // screen pixels), its bounds for the camera, and the moments it moves fast (for motion blur).
+
+      const DROP_FALL = 0.45,
+        DROP_SETTLE = 0.4;
+      /** A print or paper dropping onto the world: falls from above (bigger, shadow far below), lands at o.at, settles. */
+      function dropState(o, t) {
+        if (!o.at) return { s: 1, lift: 0, alpha: 1, dx: 0, dy: 0, drot: 0 };
+        const u = t - (o.at - DROP_FALL);
+        if (u < 0) return null;
+        if (u < DROP_FALL) {
+          const f = easeIn(u / DROP_FALL);
+          return { s: lerp(1.22, 1, f), lift: 1 - f, alpha: clamp(u / 0.12), dx: 0, dy: 0, drot: lerp(4, 0, f) };
         }
-      } else {
-        // each word rises out of a mask, one after another
-        ctx.beginPath(); ctx.rect(left - o.size, o.y - o.size * 0.75, o.width + 2 * o.size, o.size * 1.5); ctx.clip();
-        let x = left;
-        o.parts.forEach((p, i) => {
-          const u = o.at ? easeOut((t - o.at - i * 0.09) / 0.8) : 1;
-          if (u > 0) {
-            ctx.globalAlpha = u;
-            ctx.fillText(p.text, x, o.y + (1 - u) * o.size * 0.9);
+        const v = easeOut((u - DROP_FALL) / DROP_SETTLE);
+        const slide = (1 - v) * 0.025;
+        return { s: 1, lift: 0, alpha: 1, dx: o.w * slide, dy: o.h * slide * 0.4, drot: (1 - v) * -1.2 };
+      }
+
+      function shadow(ctx, k, lift, strength = 1) {
+        ctx.shadowColor = `rgba(0,0,0,${0.45 * strength})`;
+        ctx.shadowBlur = (10 + 70 * lift) * k;
+        ctx.shadowOffsetX = (3 + 25 * lift) * k;
+        ctx.shadowOffsetY = (8 + 60 * lift) * k;
+      }
+      function noShadow(ctx) {
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+
+      /** Draw an image to fill a box, cropped to its shape (like CSS object-fit: cover). */
+      function cover(ctx, img, x, y, w, h) {
+        const r = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+        const sw = w / r,
+          sh = h / r;
+        ctx.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, x, y, w, h);
+      }
+
+      function placeholder(ctx, x, y, w, h, name) {
+        const g = ctx.createLinearGradient(x, y, x + w, y + h);
+        g.addColorStop(0, '#5d6670');
+        g.addColorStop(1, '#2f353c');
+        ctx.fillStyle = g;
+        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.font = `600 ${h * 0.09}px ${FONTS.sans}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`photo: ${name}`, x + w / 2, y + h / 2);
+      }
+
+      const KINDS = {
+        print: {
+          bounds: (o) => ({ cx: o.x, cy: o.y, w: o.w, h: o.h, rot: o.rot || 0 }),
+          fast: (o) => (o.at ? [[o.at - DROP_FALL, o.at]] : []),
+          draw(ctx, o, t, k) {
+            const st = dropState(o, t);
+            if (!st) return;
+            ctx.save();
+            ctx.translate(o.x + st.dx, o.y + st.dy);
+            ctx.rotate(rad((o.rot || 0) + st.drot));
+            ctx.scale(st.s, st.s);
+            ctx.globalAlpha *= st.alpha;
+            const b = o.w * 0.04;
+            shadow(ctx, k * st.s, st.lift);
+            ctx.fillStyle = LOOK.paper;
+            ctx.fillRect(-o.w / 2, -o.h / 2, o.w, o.h);
+            noShadow(ctx);
+            const img = o.photo && images[o.photo];
+            if (img) cover(ctx, img, -o.w / 2 + b, -o.h / 2 + b, o.w - 2 * b, o.h - 2 * b);
+            else placeholder(ctx, -o.w / 2 + b, -o.h / 2 + b, o.w - 2 * b, o.h - 2 * b, o.photo || o.id);
+            const gloss = ctx.createLinearGradient(0, -o.h / 2, 0, o.h / 2);
+            gloss.addColorStop(0, 'rgba(255,255,255,0.10)');
+            gloss.addColorStop(0.5, 'rgba(255,255,255,0)');
+            gloss.addColorStop(1, 'rgba(0,0,0,0.06)');
+            ctx.fillStyle = gloss;
+            ctx.fillRect(-o.w / 2, -o.h / 2, o.w, o.h);
+            ctx.restore();
+          },
+        },
+        paper: {
+          bounds: (o) => ({ cx: o.x, cy: o.y, w: o.w, h: o.h, rot: o.rot || 0 }),
+          fast: (o) => (o.at ? [[o.at - DROP_FALL, o.at]] : []),
+          draw(ctx, o, t, k) {
+            const st = dropState(o, t);
+            if (!st) return;
+            ctx.save();
+            ctx.translate(o.x + st.dx, o.y + st.dy);
+            ctx.rotate(rad((o.rot || 0) + st.drot));
+            ctx.scale(st.s, st.s);
+            ctx.globalAlpha *= st.alpha;
+            shadow(ctx, k * st.s, st.lift, 0.85);
+            ctx.fillStyle = LOOK.paper;
+            ctx.fillRect(-o.w / 2, -o.h / 2, o.w, o.h);
+            noShadow(ctx);
+            const m = o.w * 0.11; // margin
+            let y = -o.h / 2 + m;
+            if (o.heading) {
+              const size = o.headingSize || o.w * 0.13;
+              ctx.fillStyle = LOOK.ink;
+              ctx.font = `600 ${size}px ${FONTS.display}`;
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'top';
+              ctx.fillText(o.heading, -o.w / 2 + m, y, o.w - 2 * m);
+              y += size * 1.6;
+            }
+            // body text as soft grey lines: they read as paper, and nobody tries to read them
+            const rnd = seeded(hash(o.id));
+            const lh = o.w * 0.06;
+            ctx.strokeStyle = LOOK.lines;
+            ctx.lineWidth = lh * 0.42;
+            ctx.lineCap = 'round';
+            for (let i = 0; i < (o.lines || 0) && y < o.h / 2 - m; i++, y += lh) {
+              const end = i % 5 === 4 ? lerp(0.25, 0.6, rnd()) : lerp(0.82, 1, rnd());
+              ctx.beginPath();
+              ctx.moveTo(-o.w / 2 + m, y + lh / 2);
+              ctx.lineTo(-o.w / 2 + m + (o.w - 2 * m) * end, y + lh / 2);
+              ctx.stroke();
+              if (i % 5 === 4) y += lh * 0.6; // a paragraph break
+            }
+            const shade = ctx.createLinearGradient(-o.w / 2, -o.h / 2, o.w / 2, o.h / 2);
+            shade.addColorStop(0, 'rgba(255,255,255,0.05)');
+            shade.addColorStop(1, 'rgba(0,0,0,0.07)');
+            ctx.fillStyle = shade;
+            ctx.fillRect(-o.w / 2, -o.h / 2, o.w, o.h);
+            ctx.restore();
+          },
+        },
+        word: {
+          // measured once the fonts are in (see ready)
+          bounds: (o) => ({ cx: o.x, cy: o.y, w: o.width || o.size * o.text.length * 0.55, h: o.size * 1.2, rot: 0 }),
+          fast: () => [],
+          draw(ctx, o, t) {
+            if (o.at && t < o.at) return;
+            const font = `${o.weight || 600} ${o.size}px ${o.font || FONTS.display}`;
+            ctx.save();
+            ctx.font = font;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = o.color || LOOK.type;
+            const left = o.x - o.width / 2;
+            if (o.reveal === 'type') {
+              const cps = o.cps || 18; // characters a second
+              const n = o.at ? Math.min(o.text.length, Math.floor((t - o.at) * cps)) : o.text.length;
+              const shown = o.text.slice(0, n);
+              ctx.fillText(shown, left, o.y);
+              const typingEnd = o.at + o.text.length / cps;
+              if (o.at && t < typingEnd + 0.8 && Math.floor((t - o.at) * 4) % 2 === 0) {
+                // the caret, while typing and just after
+                ctx.fillRect(
+                  left + ctx.measureText(shown).width + o.size * 0.06,
+                  o.y - o.size * 0.42,
+                  o.size * 0.07,
+                  o.size * 0.84,
+                );
+              }
+            } else {
+              // each word rises out of a mask, one after another
+              ctx.beginPath();
+              ctx.rect(left - o.size, o.y - o.size * 0.75, o.width + 2 * o.size, o.size * 1.5);
+              ctx.clip();
+              let x = left;
+              o.parts.forEach((p, i) => {
+                const u = o.at ? easeOut((t - o.at - i * 0.09) / 0.8) : 1;
+                if (u > 0) {
+                  ctx.globalAlpha = u;
+                  ctx.fillText(p.text, x, o.y + (1 - u) * o.size * 0.9);
+                }
+                x += p.width;
+              });
+            }
+            ctx.restore();
+          },
+        },
+        circle: {
+          bounds: (o) => ({ cx: o.x, cy: o.y, w: 2 * o.rx, h: 2 * o.ry, rot: 0 }),
+          fast: () => [],
+          draw(ctx, o, t) {
+            const p = easeInOut((t - o.at) / (o.dur || 0.6));
+            if (p <= 0) return;
+            // a hand-drawn loop: a little more than once round, slightly wobbly, not quite closing on itself
+            const rnd = seeded(hash(o.id)),
+              ph = rnd() * 6.28,
+              ph2 = rnd() * 6.28,
+              start = -2.2 + rnd() * 0.6;
+            const turns = 1.12,
+              steps = 140;
+            ctx.save();
+            ctx.strokeStyle = o.color || LOOK.accent;
+            ctx.lineWidth = o.width || Math.max(o.rx, o.ry) * 0.045;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            for (let i = 0; i <= steps * p; i++) {
+              const u = i / steps,
+                a = start + u * turns * Math.PI * 2;
+              const r = 1 + 0.035 * Math.sin(3 * a + ph) + 0.02 * Math.sin(5 * a + ph2) + 0.05 * u;
+              const x = o.x + Math.cos(a) * o.rx * r,
+                y = o.y + Math.sin(a) * o.ry * r;
+              if (i === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+          },
+        },
+        stamp: {
+          bounds: (o) => ({
+            cx: o.x,
+            cy: o.y,
+            w: o.size * (o.text.length * 0.8 + 0.8),
+            h: o.size * 1.6,
+            rot: o.rot || 0,
+          }),
+          fast: (o) => [[o.at - 0.12, o.at]],
+          draw(ctx, o, t) {
+            const u = (t - (o.at - 0.12)) / 0.12; // slams down in 0.12 s and hits at o.at
+            if (u < 0) return;
+            const s = lerp(1.7, 1, easeIn(u));
+            ctx.save();
+            ctx.translate(o.x, o.y);
+            ctx.rotate(rad(o.rot || 0));
+            ctx.scale(s, s);
+            ctx.globalAlpha *= clamp(u * 1.5) * 0.9;
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.font = `900 ${o.size}px ${FONTS.stamp}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const w = ctx.measureText(o.text).width + o.size * 0.7,
+              h = o.size * 1.35;
+            ctx.strokeStyle = ctx.fillStyle = o.color || LOOK.accent;
+            ctx.lineWidth = o.size * 0.09;
+            ctx.strokeRect(-w / 2, -h / 2, w, h);
+            ctx.fillText(o.text, 0, o.size * 0.04);
+            ctx.restore();
+          },
+        },
+        route: {
+          bounds: (o) => {
+            const xs = o.points.map((p) => p[0]),
+              ys = o.points.map((p) => p[1]);
+            const x0 = Math.min(...xs),
+              x1 = Math.max(...xs),
+              y0 = Math.min(...ys),
+              y1 = Math.max(...ys);
+            return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0, rot: 0 };
+          },
+          fast: () => [],
+          draw(ctx, o, t) {
+            const p = easeInOut((t - o.at) / (o.dur || 1));
+            if (p <= 0) return;
+            const pts = o.points,
+              lens = [0];
+            for (let i = 1; i < pts.length; i++)
+              lens.push(lens[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+            const goal = p * lens[lens.length - 1];
+            ctx.save();
+            ctx.strokeStyle = ctx.fillStyle = o.color || LOOK.accent;
+            ctx.lineWidth = o.width || 9;
+            ctx.lineCap = 'round';
+            ctx.setLineDash([ctx.lineWidth * 2.2, ctx.lineWidth * 2]);
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], pts[0][1]);
+            let head = pts[0];
+            for (let i = 1; i < pts.length; i++) {
+              if (lens[i] <= goal) {
+                ctx.lineTo(pts[i][0], pts[i][1]);
+                head = pts[i];
+                continue;
+              }
+              const u = (goal - lens[i - 1]) / (lens[i] - lens[i - 1]);
+              head = [lerp(pts[i - 1][0], pts[i][0], u), lerp(pts[i - 1][1], pts[i][1], u)];
+              ctx.lineTo(head[0], head[1]);
+              break;
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.arc(head[0], head[1], ctx.lineWidth * 1.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          },
+        },
+      };
+
+      /** An object's box in the world, turned with it (for framing). */
+      function box(o) {
+        const b = KINDS[o.kind].bounds(o),
+          a = rad(b.rot),
+          c = Math.abs(Math.cos(a)),
+          s = Math.abs(Math.sin(a));
+        return { cx: b.cx, cy: b.cy, w: b.w * c + b.h * s, h: b.w * s + b.h * c };
+      }
+
+      // ---------- the beat in focus ----------
+      // The hero of the current line stays bright and everything else dims back; at each new line the old hero fades down
+      // as the new one comes up, starting just before the line.
+      function focus(t) {
+        let k = 0;
+        while (k + 1 < BEATS.length && BEATS[k + 1].t - 0.25 <= t) k++;
+        const u = k === 0 ? 1 : easeInOut((t - (BEATS[k].t - 0.25)) / 0.5);
+        const weights = {};
+        const add = (id, w) => {
+          if (id) weights[id] = Math.max(weights[id] || 0, w);
+        };
+        add(BEATS[k].hero, u);
+        if (k > 0) add(BEATS[k - 1].hero, 1 - u);
+        const dimOf = (b) => (b.hero ? (b.dim ?? LOOK.dim) : 0);
+        return { weights, dim: k > 0 ? lerp(dimOf(BEATS[k - 1]), dimOf(BEATS[k]), u) : dimOf(BEATS[0]) };
+      }
+      const weightOf = (o, w) => Math.max(w[o.id] || 0, (o.on && w[o.on]) || 0);
+
+      // ---------- camera ----------
+      // A pose is { x, y, lz, rot }: lz is the log of the view's height in world units, so a push-in feels even. The path
+      // is built once from the beats: on each beat the camera arrives on its framing, then drifts slowly towards the next
+      // one (it never stops dead), then eases into the move there, pulling back on a long move and diving in again.
+      const DRIFT = 0.035; // of the way to the next framing per second of hold, at most 10% in all
+      const CREEP = 0.012; // a slow push-in during every hold, in lz per second
+      let PATH = [];
+
+      function framing(b) {
+        const c = b.cam || {};
+        if (c.x !== undefined) return { x: c.x, y: c.y, lz: Math.log(c.view || 1000), rot: c.rot || 0 };
+        const o = byId[c.on || b.hero];
+        if (!o) return { x: 0, y: 0, lz: Math.log(1600), rot: c.rot || 0 };
+        const bx0 = box(o),
+          fill = c.fill || 0.6;
+        return {
+          x: bx0.cx + (c.dx || 0),
+          y: bx0.cy + (c.dy || 0),
+          lz: Math.log(Math.max(bx0.h / fill, bx0.w / fill / ASPECT)),
+          rot: c.rot || 0,
+        };
+      }
+      const P = (f) => (a, b) => ({ x: f(a.x, b.x), y: f(a.y, b.y), lz: f(a.lz, b.lz), rot: f(a.rot, b.rot) });
+      const sub = P((a, b) => a - b),
+        add = P((a, b) => a + b);
+      const mul = (p, s) => ({ x: p.x * s, y: p.y * s, lz: p.lz * s, rot: p.rot * s });
+
+      function buildPath() {
+        const C = BEATS.map(framing);
+        const arrive = [0],
+          leave = [];
+        for (let k = 1; k < BEATS.length; k++) {
+          const m = BEATS[k].move ?? 1.6;
+          let s = Math.max(0, BEATS[k].t - 0.6 * m),
+            a = BEATS[k].t + 0.4 * m;
+          if (s < arrive[k - 1]) {
+            const mid = Math.max(0, (arrive[k - 1] + s) / 2);
+            arrive[k - 1] = Math.min(arrive[k - 1], mid);
+            s = mid;
           }
-          x += p.width;
+          leave.push(s);
+          arrive.push(Math.min(a, DURATION));
+        }
+        leave.push(DURATION);
+        const segs = [];
+        let v = null;
+        const drifts = C.map((c, k) => {
+          const hold = Math.max(0, leave[k] - arrive[k]);
+          const next = k + 1 < C.length ? C[k + 1] : { ...c };
+          const d = mul(sub(next, c), Math.min(DRIFT * hold, 0.1));
+          d.lz -= CREEP * hold;
+          return { hold, d, v: hold > 0.05 ? mul(d, 1 / hold) : mul(sub(next, c), DRIFT) };
+        });
+        for (let k = 0; k < C.length; k++) {
+          const D = add(C[k], drifts[k].d);
+          v = drifts[k].v;
+          if (drifts[k].hold > 0) segs.push({ t0: arrive[k], t1: leave[k], p0: C[k], p1: D, v0: v, v1: v, lift: 0 });
+          if (k + 1 < C.length) {
+            const p1 = C[k + 1],
+              v1 = drifts[k + 1].v;
+            // a long move pulls back far enough to keep where it left and where it's going in view
+            const need = Math.max(Math.abs(p1.x - D.x) / (0.8 * ASPECT), Math.abs(p1.y - D.y) / 0.8);
+            const lift = (BEATS[k + 1].lift ?? 1) * Math.max(0, Math.log(need || 1) - Math.max(D.lz, p1.lz)) * 0.85;
+            segs.push({ t0: leave[k], t1: arrive[k + 1], p0: D, p1, v0: v, v1, lift });
+          }
+        }
+        PATH = segs.filter((s) => s.t1 > s.t0);
+        if (!PATH.length)
+          PATH = [
+            {
+              t0: 0,
+              t1: DURATION,
+              p0: C[0] || framing({}),
+              p1: C[0] || framing({}),
+              v0: mul(C[0] || framing({}), 0),
+              v1: mul(C[0] || framing({}), 0),
+              lift: 0,
+            },
+          ];
+      }
+
+      /** Cubic Hermite between two poses with the given velocities: continuous speed through every key. */
+      function hermite(s, t) {
+        const h = s.t1 - s.t0,
+          u = clamp((t - s.t0) / h);
+        const u2 = u * u,
+          u3 = u2 * u;
+        const a = 2 * u3 - 3 * u2 + 1,
+          b = u3 - 2 * u2 + u,
+          c = -2 * u3 + 3 * u2,
+          d = u3 - u2;
+        const f = (k) => a * s.p0[k] + b * h * s.v0[k] + c * s.p1[k] + d * h * s.v1[k];
+        const bump = Math.sin(Math.PI * u) ** 2;
+        return { x: f('x'), y: f('y'), lz: f('lz') + s.lift * bump, rot: f('rot') };
+      }
+
+      function pose(t) {
+        let s = PATH[0];
+        for (const seg of PATH) {
+          if (t >= seg.t0) s = seg;
+          else break;
+        }
+        return hermite(s, t);
+      }
+
+      const wave = (t, parts) => parts.reduce((sum, [a, f, ph]) => sum + a * Math.sin(2 * Math.PI * f * t + ph), 0);
+      /** The camera at t, with handheld drift and the shake of each stamp, as a transform to screen pixels. */
+      function camera(t) {
+        const p = pose(t);
+        let sx =
+          H *
+          LOOK.handheld *
+          wave(t, [
+            [0.6, 0.23, 1.3],
+            [0.3, 0.57, 4.1],
+            [0.1, 1.31, 2.2],
+          ]);
+        let sy =
+          H *
+          LOOK.handheld *
+          wave(t, [
+            [0.6, 0.19, 0.4],
+            [0.3, 0.71, 5.0],
+            [0.1, 1.13, 3.3],
+          ]);
+        const turn =
+          LOOK.handheldTurn *
+          wave(t, [
+            [0.7, 0.17, 2.6],
+            [0.3, 0.43, 0.9],
+          ]);
+        for (const o of WORLD) {
+          if (o.kind !== 'stamp' || t < o.at || t > o.at + 0.5) continue;
+          const e = Math.exp(-(t - o.at) * 9) * H * 0.006;
+          sx += e * Math.sin((t - o.at) * 2 * Math.PI * 13);
+          sy += e * Math.sin((t - o.at) * 2 * Math.PI * 17 + 1);
+        }
+        return { x: p.x, y: p.y, k: H / Math.exp(p.lz), rot: p.rot + turn, sx, sy };
+      }
+
+      function toScreen(ctx, cam) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.translate(W / 2 + cam.sx, H / 2 + cam.sy);
+        ctx.rotate(rad(cam.rot));
+        ctx.scale(cam.k, cam.k);
+        ctx.translate(-cam.x, -cam.y);
+      }
+
+      // ---------- the world ----------
+      let groundTile = null;
+      function makeGround() {
+        // soft, large blotches of tone, so the surface isn't flat colour; drawn once
+        const size = 512,
+          c = layer(size, size),
+          x = c.getContext('2d'),
+          rnd = seeded(7);
+        x.fillStyle = LOOK.ground;
+        x.fillRect(0, 0, size, size);
+        for (let i = 0; i < 260; i++) {
+          const r = 20 + rnd() * 90,
+            px = rnd() * size,
+            py = rnd() * size,
+            light = rnd() < 0.5;
+          const g = x.createRadialGradient(px, py, 0, px, py, r);
+          g.addColorStop(0, light ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.05)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          for (const [ox, oy] of [
+            [0, 0],
+            [size, 0],
+            [-size, 0],
+            [0, size],
+            [0, -size],
+          ]) {
+            x.fillStyle = g;
+            x.save();
+            x.translate(ox, oy);
+            x.fillRect(px - r, py - r, 2 * r, 2 * r);
+            x.restore();
+          }
+        }
+        groundTile = c;
+      }
+
+      function drawGround(ctx, cam) {
+        // the visible part of the world, plus a margin for the handheld sway
+        const reach = (Math.hypot(W, H) / 2 + H * 0.05) / cam.k;
+        const x0 = cam.x - reach,
+          y0 = cam.y - reach,
+          x1 = cam.x + reach,
+          y1 = cam.y + reach;
+        const pat = ctx.createPattern(groundTile, 'repeat');
+        pat.setTransform(new DOMMatrix().scale(3));
+        ctx.fillStyle = pat;
+        ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+        ctx.strokeStyle = LOOK.grid;
+        ctx.lineWidth = 2;
+        const step = 200;
+        ctx.beginPath();
+        for (let x = Math.floor(x0 / step) * step; x <= x1; x += step) {
+          ctx.moveTo(x, y0);
+          ctx.lineTo(x, y1);
+        }
+        for (let y = Math.floor(y0 / step) * step; y <= y1; y += step) {
+          ctx.moveTo(x0, y);
+          ctx.lineTo(x1, y);
+        }
+        ctx.stroke();
+      }
+
+      function drawWorld(ctx, t) {
+        const cam = camera(t);
+        toScreen(ctx, cam);
+        drawGround(ctx, cam);
+        const { weights, dim } = focus(t);
+        for (const o of WORLD) KINDS[o.kind].draw(ctx, o, t, cam.k);
+        if (dim > 0) {
+          ctx.save();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.fillStyle = `rgba(8,9,11,${dim})`;
+          ctx.fillRect(0, 0, W, H);
+          ctx.restore();
+          // the hero, and what sits on it, drawn again on top at full strength
+          for (const o of WORLD) {
+            const w = weightOf(o, weights);
+            if (w <= 0) continue;
+            ctx.save();
+            ctx.globalAlpha = w;
+            KINDS[o.kind].draw(ctx, o, t, cam.k);
+            ctx.restore();
+          }
+        }
+      }
+
+      // ---------- motion blur and finishing ----------
+      /** How many sub-frames to blend at t: more when the camera or a prop moves fast. */
+      function samples(t) {
+        const dt = 1 / FORMAT.fps,
+          a = camera(t),
+          b = camera(t + dt);
+        const moved =
+          Math.hypot((b.x - a.x) * a.k, (b.y - a.y) * a.k) +
+          Math.abs(Math.log(b.k / a.k)) * H * 0.9 +
+          Math.abs(rad(b.rot - a.rot)) * H;
+        let n = Math.ceil((moved * LOOK.shutter) / 3);
+        for (const o of WORLD) for (const [s, e] of KINDS[o.kind].fast(o)) if (t >= s && t <= e) n = Math.max(n, 6);
+        return clamp(n, 1, 12);
+      }
+
+      const GRAIN_TILES = 8;
+      let grainTiles = [];
+      function makeGrain() {
+        grainTiles = [];
+        for (let i = 0; i < GRAIN_TILES; i++) {
+          const c = layer(256, 256),
+            x = c.getContext('2d'),
+            d = x.createImageData(256, 256),
+            rnd = seeded(1000 + i);
+          for (let p = 0; p < d.data.length; p += 4) {
+            const v = 128 + (rnd() + rnd() - 1) * 70;
+            d.data[p] = d.data[p + 1] = d.data[p + 2] = v;
+            d.data[p + 3] = 255;
+          }
+          x.putImageData(d, 0, 0);
+          grainTiles.push(c);
+        }
+      }
+
+      function finish(t) {
+        out.setTransform(1, 0, 0, 1, 0, 0);
+        if (LOOK.glow > 0) {
+          gx.filter = `contrast(1.9) brightness(0.8) blur(${Math.max(1, glowLayer.height * 0.012)}px)`;
+          gx.clearRect(0, 0, glowLayer.width, glowLayer.height);
+          gx.drawImage(canvas, 0, 0, glowLayer.width, glowLayer.height);
+          gx.filter = 'none';
+          out.save();
+          out.globalCompositeOperation = 'screen';
+          out.globalAlpha = LOOK.glow;
+          out.drawImage(glowLayer, 0, 0, W, H);
+          out.restore();
+        }
+        if (LOOK.vignette > 0) {
+          const r = Math.hypot(W, H) / 2,
+            g = out.createRadialGradient(W / 2, H / 2, r * 0.45, W / 2, H / 2, r);
+          g.addColorStop(0, 'rgba(0,0,0,0)');
+          g.addColorStop(1, `rgba(0,0,0,${LOOK.vignette})`);
+          out.fillStyle = g;
+          out.fillRect(0, 0, W, H);
+        }
+        if (LOOK.grain > 0) {
+          const f = Math.round(t * FORMAT.fps),
+            rnd = seeded(f + 1);
+          const pat = out.createPattern(grainTiles[f % GRAIN_TILES], 'repeat');
+          const s = Math.max(1, H / 1080);
+          pat.setTransform(new DOMMatrix().translate(rnd() * 256, rnd() * 256).scale(s));
+          out.save();
+          out.globalCompositeOperation = 'overlay';
+          out.globalAlpha = LOOK.grain;
+          out.fillStyle = pat;
+          out.fillRect(0, 0, W, H);
+          out.restore();
+        }
+      }
+
+      /** The frame at t seconds. */
+      function render(t) {
+        t = clamp(Number(t) || 0, 0, DURATION);
+        const n = samples(t);
+        out.setTransform(1, 0, 0, 1, 0, 0);
+        if (n === 1) {
+          drawWorld(out, t);
+        } else {
+          // blend sub-frames across the open shutter, centred on t
+          for (let i = 0; i < n; i++) {
+            const ts = clamp(t + ((i / (n - 1) - 0.5) * LOOK.shutter) / FORMAT.fps, 0, DURATION);
+            bx.setTransform(1, 0, 0, 1, 0, 0);
+            bx.clearRect(0, 0, W, H);
+            drawWorld(bx, ts);
+            out.setTransform(1, 0, 0, 1, 0, 0);
+            out.globalAlpha = 1 / (i + 1);
+            out.drawImage(buf, 0, 0);
+          }
+          out.globalAlpha = 1;
+        }
+        finish(t);
+      }
+
+      // ---------- getting ready ----------
+      const ready = (async () => {
+        for (const [family, file] of FONT_FILES) {
+          try {
+            const face = new FontFace(family, `url(${encodeURI(file)})`);
+            await face.load();
+            document.fonts.add(face);
+          } catch {
+            console.warn(`the font file ${file} didn't load`);
+          }
+        }
+        await document.fonts.ready;
+        await Promise.all(
+          Object.entries(PHOTOS).map(async ([id, src]) => {
+            const img = new Image();
+            img.src = src;
+            try {
+              await img.decode();
+              images[id] = img;
+            } catch {
+              console.warn(`the photo "${id}" didn't load: ${src}`);
+            }
+          }),
+        );
+        // measure the words, so the camera can frame them
+        const m = layer(8, 8).getContext('2d');
+        for (const o of WORLD) {
+          if (!KINDS[o.kind]) {
+            console.error(`"${o.id}" is a ${o.kind}, which isn't a kind of prop`);
+            o.kind = 'route';
+            o.points = [[0, 0]];
+            continue;
+          }
+          if (o.kind !== 'word') continue;
+          m.font = `${o.weight || 600} ${o.size}px ${o.font || FONTS.display}`;
+          o.width = m.measureText(o.text).width;
+          o.parts = o.text.split(/(?<= )/).map((text) => ({ text, width: m.measureText(text).width }));
+        }
+        for (const o of WORLD) {
+          if (o.photo && !PHOTOS[o.photo]) console.warn(`"${o.id}" uses the photo "${o.photo}", which isn't in PHOTOS`);
+          if (o.on && !byId[o.on]) console.warn(`"${o.id}" sits on "${o.on}", which isn't in the world`);
+        }
+        BEATS.forEach((b, i) => {
+          if (b.hero && !byId[b.hero]) console.warn(`beat ${i + 1}: its hero "${b.hero}" isn't in the world`);
+          if (i && b.t <= BEATS[i - 1].t) console.warn(`beat ${i + 1} starts before the one above it`);
+          if (b.t >= DURATION) console.warn(`beat ${i + 1} starts after the end (${DURATION} s)`);
+        });
+        makeGround();
+        makeGrain();
+        buildPath();
+      })();
+
+      window.film = {
+        canvas,
+        fps: FORMAT.fps,
+        duration: DURATION,
+        ready,
+        render,
+        beats: BEATS.map((b, i) => ({ t: b.t, label: `${i + 1} ${b.hero || ''}`.trim() })),
+      };
+
+      // ---------- live preview (not used by film.mjs) ----------
+      if (!CAPTURE) {
+        const clock = document.getElementById('clock');
+        const voice = new Audio(VOICE);
+        let hasVoice = false,
+          playing = false,
+          started = 0,
+          from = Number(query.get('t')) || 0;
+        voice.addEventListener(
+          'canplaythrough',
+          () => {
+            hasVoice = true;
+          },
+          { once: true },
+        );
+        voice.addEventListener('error', () => {
+          hasVoice = false;
+        });
+        const now = () =>
+          !playing ? from : hasVoice ? voice.currentTime : from + (performance.now() - started) / 1000;
+        const seek = (t) => {
+          from = clamp(t, 0, DURATION);
+          if (hasVoice) voice.currentTime = from;
+          started = performance.now();
+        };
+        const toggle = () => {
+          if (playing) {
+            from = now();
+            playing = false;
+            voice.pause();
+            return;
+          }
+          if (from >= DURATION - 0.01) from = 0;
+          playing = true;
+          started = performance.now();
+          if (hasVoice) {
+            voice.currentTime = from;
+            voice.play().catch(() => {
+              hasVoice = false;
+            });
+          }
+        };
+        canvas.addEventListener('click', toggle);
+        addEventListener('keydown', (e) => {
+          if (e.key === ' ') {
+            e.preventDefault();
+            toggle();
+          } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft')
+            seek(now() + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 5 : 1));
+          else if (e.key === 'Home') seek(0);
+        });
+        ready.then(() => {
+          const tick = () => {
+            let t = now();
+            if (playing && t >= DURATION) {
+              playing = false;
+              from = DURATION;
+              voice.pause();
+              t = DURATION;
+            }
+            render(t);
+            clock.textContent = `${t.toFixed(2)} s${playing ? '' : '  (click to play)'}`;
+            requestAnimationFrame(tick);
+          };
+          tick();
         });
       }
-      ctx.restore();
-    },
-  },
-  circle: {
-    bounds: (o) => ({ cx: o.x, cy: o.y, w: 2 * o.rx, h: 2 * o.ry, rot: 0 }),
-    fast: () => [],
-    draw(ctx, o, t) {
-      const p = easeInOut((t - o.at) / (o.dur || 0.6));
-      if (p <= 0) return;
-      // a hand-drawn loop: a little more than once round, slightly wobbly, not quite closing on itself
-      const rnd = seeded(hash(o.id)), ph = rnd() * 6.28, ph2 = rnd() * 6.28, start = -2.2 + rnd() * 0.6;
-      const turns = 1.12, steps = 140;
-      ctx.save();
-      ctx.strokeStyle = o.color || LOOK.accent; ctx.lineWidth = o.width || Math.max(o.rx, o.ry) * 0.045;
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.beginPath();
-      for (let i = 0; i <= steps * p; i++) {
-        const u = i / steps, a = start + u * turns * Math.PI * 2;
-        const r = 1 + 0.035 * Math.sin(3 * a + ph) + 0.02 * Math.sin(5 * a + ph2) + 0.05 * u;
-        const x = o.x + Math.cos(a) * o.rx * r, y = o.y + Math.sin(a) * o.ry * r;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      ctx.restore();
-    },
-  },
-  stamp: {
-    bounds: (o) => ({ cx: o.x, cy: o.y, w: o.size * (o.text.length * 0.8 + 0.8), h: o.size * 1.6, rot: o.rot || 0 }),
-    fast: (o) => [[o.at - 0.12, o.at]],
-    draw(ctx, o, t) {
-      const u = (t - (o.at - 0.12)) / 0.12; // slams down in 0.12 s and hits at o.at
-      if (u < 0) return;
-      const s = lerp(1.7, 1, easeIn(u));
-      ctx.save();
-      ctx.translate(o.x, o.y); ctx.rotate(rad(o.rot || 0)); ctx.scale(s, s);
-      ctx.globalAlpha *= clamp(u * 1.5) * 0.9;
-      ctx.globalCompositeOperation = 'multiply';
-      ctx.font = `900 ${o.size}px ${FONTS.stamp}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const w = ctx.measureText(o.text).width + o.size * 0.7, h = o.size * 1.35;
-      ctx.strokeStyle = ctx.fillStyle = o.color || LOOK.accent;
-      ctx.lineWidth = o.size * 0.09;
-      ctx.strokeRect(-w / 2, -h / 2, w, h);
-      ctx.fillText(o.text, 0, o.size * 0.04);
-      ctx.restore();
-    },
-  },
-  route: {
-    bounds: (o) => {
-      const xs = o.points.map((p) => p[0]), ys = o.points.map((p) => p[1]);
-      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-      return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0, rot: 0 };
-    },
-    fast: () => [],
-    draw(ctx, o, t) {
-      const p = easeInOut((t - o.at) / (o.dur || 1));
-      if (p <= 0) return;
-      const pts = o.points, lens = [0];
-      for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-      const goal = p * lens[lens.length - 1];
-      ctx.save();
-      ctx.strokeStyle = ctx.fillStyle = o.color || LOOK.accent; ctx.lineWidth = o.width || 9;
-      ctx.lineCap = 'round'; ctx.setLineDash([ctx.lineWidth * 2.2, ctx.lineWidth * 2]);
-      ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-      let head = pts[0];
-      for (let i = 1; i < pts.length; i++) {
-        if (lens[i] <= goal) { ctx.lineTo(pts[i][0], pts[i][1]); head = pts[i]; continue; }
-        const u = (goal - lens[i - 1]) / (lens[i] - lens[i - 1]);
-        head = [lerp(pts[i - 1][0], pts[i][0], u), lerp(pts[i - 1][1], pts[i][1], u)];
-        ctx.lineTo(head[0], head[1]);
-        break;
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.beginPath(); ctx.arc(head[0], head[1], ctx.lineWidth * 1.6, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-    },
-  },
-};
-
-/** An object's box in the world, turned with it (for framing). */
-function box(o) {
-  const b = KINDS[o.kind].bounds(o), a = rad(b.rot), c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a));
-  return { cx: b.cx, cy: b.cy, w: b.w * c + b.h * s, h: b.w * s + b.h * c };
-}
-
-// ---------- the beat in focus ----------
-// The hero of the current line stays bright and everything else dims back; at each new line the old hero fades down
-// as the new one comes up, starting just before the line.
-function focus(t) {
-  let k = 0;
-  while (k + 1 < BEATS.length && BEATS[k + 1].t - 0.25 <= t) k++;
-  const u = k === 0 ? 1 : easeInOut((t - (BEATS[k].t - 0.25)) / 0.5);
-  const weights = {};
-  const add = (id, w) => { if (id) weights[id] = Math.max(weights[id] || 0, w); };
-  add(BEATS[k].hero, u);
-  if (k > 0) add(BEATS[k - 1].hero, 1 - u);
-  const dimOf = (b) => (b.hero ? (b.dim ?? LOOK.dim) : 0);
-  return { weights, dim: k > 0 ? lerp(dimOf(BEATS[k - 1]), dimOf(BEATS[k]), u) : dimOf(BEATS[0]) };
-}
-const weightOf = (o, w) => Math.max(w[o.id] || 0, (o.on && w[o.on]) || 0);
-
-// ---------- camera ----------
-// A pose is { x, y, lz, rot }: lz is the log of the view's height in world units, so a push-in feels even. The path
-// is built once from the beats: on each beat the camera arrives on its framing, then drifts slowly towards the next
-// one (it never stops dead), then eases into the move there, pulling back on a long move and diving in again.
-const DRIFT = 0.035;    // of the way to the next framing per second of hold, at most 10% in all
-const CREEP = 0.012;    // a slow push-in during every hold, in lz per second
-let PATH = [];
-
-function framing(b) {
-  const c = b.cam || {};
-  if (c.x !== undefined) return { x: c.x, y: c.y, lz: Math.log(c.view || 1000), rot: c.rot || 0 };
-  const o = byId[c.on || b.hero];
-  if (!o) return { x: 0, y: 0, lz: Math.log(1600), rot: c.rot || 0 };
-  const bx0 = box(o), fill = c.fill || 0.6;
-  return { x: bx0.cx + (c.dx || 0), y: bx0.cy + (c.dy || 0), lz: Math.log(Math.max(bx0.h / fill, bx0.w / fill / ASPECT)), rot: c.rot || 0 };
-}
-const P = (f) => (a, b) => ({ x: f(a.x, b.x), y: f(a.y, b.y), lz: f(a.lz, b.lz), rot: f(a.rot, b.rot) });
-const sub = P((a, b) => a - b), add = P((a, b) => a + b);
-const mul = (p, s) => ({ x: p.x * s, y: p.y * s, lz: p.lz * s, rot: p.rot * s });
-
-function buildPath() {
-  const C = BEATS.map(framing);
-  const arrive = [0], leave = [];
-  for (let k = 1; k < BEATS.length; k++) {
-    const m = BEATS[k].move ?? 1.6;
-    let s = Math.max(0, BEATS[k].t - 0.6 * m), a = BEATS[k].t + 0.4 * m;
-    if (s < arrive[k - 1]) { const mid = Math.max(0, (arrive[k - 1] + s) / 2); arrive[k - 1] = Math.min(arrive[k - 1], mid); s = mid; }
-    leave.push(s); arrive.push(Math.min(a, DURATION));
-  }
-  leave.push(DURATION);
-  const segs = [];
-  let v = null;
-  const drifts = C.map((c, k) => {
-    const hold = Math.max(0, leave[k] - arrive[k]);
-    const next = k + 1 < C.length ? C[k + 1] : { ...c };
-    const d = mul(sub(next, c), Math.min(DRIFT * hold, 0.1));
-    d.lz -= CREEP * hold;
-    return { hold, d, v: hold > 0.05 ? mul(d, 1 / hold) : mul(sub(next, c), DRIFT) };
-  });
-  for (let k = 0; k < C.length; k++) {
-    const D = add(C[k], drifts[k].d);
-    v = drifts[k].v;
-    if (drifts[k].hold > 0) segs.push({ t0: arrive[k], t1: leave[k], p0: C[k], p1: D, v0: v, v1: v, lift: 0 });
-    if (k + 1 < C.length) {
-      const p1 = C[k + 1], v1 = drifts[k + 1].v;
-      // a long move pulls back far enough to keep where it left and where it's going in view
-      const need = Math.max(Math.abs(p1.x - D.x) / (0.8 * ASPECT), Math.abs(p1.y - D.y) / 0.8);
-      const lift = (BEATS[k + 1].lift ?? 1) * Math.max(0, Math.log(need || 1) - Math.max(D.lz, p1.lz)) * 0.85;
-      segs.push({ t0: leave[k], t1: arrive[k + 1], p0: D, p1, v0: v, v1, lift });
-    }
-  }
-  PATH = segs.filter((s) => s.t1 > s.t0);
-  if (!PATH.length) PATH = [{ t0: 0, t1: DURATION, p0: C[0] || framing({}), p1: C[0] || framing({}), v0: mul(C[0] || framing({}), 0), v1: mul(C[0] || framing({}), 0), lift: 0 }];
-}
-
-/** Cubic Hermite between two poses with the given velocities: continuous speed through every key. */
-function hermite(s, t) {
-  const h = s.t1 - s.t0, u = clamp((t - s.t0) / h);
-  const u2 = u * u, u3 = u2 * u;
-  const a = 2 * u3 - 3 * u2 + 1, b = u3 - 2 * u2 + u, c = -2 * u3 + 3 * u2, d = u3 - u2;
-  const f = (k) => a * s.p0[k] + b * h * s.v0[k] + c * s.p1[k] + d * h * s.v1[k];
-  const bump = Math.sin(Math.PI * u) ** 2;
-  return { x: f('x'), y: f('y'), lz: f('lz') + s.lift * bump, rot: f('rot') };
-}
-
-function pose(t) {
-  let s = PATH[0];
-  for (const seg of PATH) { if (t >= seg.t0) s = seg; else break; }
-  return hermite(s, t);
-}
-
-const wave = (t, parts) => parts.reduce((sum, [a, f, ph]) => sum + a * Math.sin(2 * Math.PI * f * t + ph), 0);
-/** The camera at t, with handheld drift and the shake of each stamp, as a transform to screen pixels. */
-function camera(t) {
-  const p = pose(t);
-  let sx = H * LOOK.handheld * wave(t, [[0.6, 0.23, 1.3], [0.3, 0.57, 4.1], [0.1, 1.31, 2.2]]);
-  let sy = H * LOOK.handheld * wave(t, [[0.6, 0.19, 0.4], [0.3, 0.71, 5.0], [0.1, 1.13, 3.3]]);
-  const turn = LOOK.handheldTurn * wave(t, [[0.7, 0.17, 2.6], [0.3, 0.43, 0.9]]);
-  for (const o of WORLD) {
-    if (o.kind !== 'stamp' || t < o.at || t > o.at + 0.5) continue;
-    const e = Math.exp(-(t - o.at) * 9) * H * 0.006;
-    sx += e * Math.sin((t - o.at) * 2 * Math.PI * 13);
-    sy += e * Math.sin((t - o.at) * 2 * Math.PI * 17 + 1);
-  }
-  return { x: p.x, y: p.y, k: H / Math.exp(p.lz), rot: p.rot + turn, sx, sy };
-}
-
-function toScreen(ctx, cam) {
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.translate(W / 2 + cam.sx, H / 2 + cam.sy);
-  ctx.rotate(rad(cam.rot));
-  ctx.scale(cam.k, cam.k);
-  ctx.translate(-cam.x, -cam.y);
-}
-
-// ---------- the world ----------
-let groundTile = null;
-function makeGround() {
-  // soft, large blotches of tone, so the surface isn't flat colour; drawn once
-  const size = 512, c = layer(size, size), x = c.getContext('2d'), rnd = seeded(7);
-  x.fillStyle = LOOK.ground; x.fillRect(0, 0, size, size);
-  for (let i = 0; i < 260; i++) {
-    const r = 20 + rnd() * 90, px = rnd() * size, py = rnd() * size, light = rnd() < 0.5;
-    const g = x.createRadialGradient(px, py, 0, px, py, r);
-    g.addColorStop(0, light ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.05)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-    for (const [ox, oy] of [[0, 0], [size, 0], [-size, 0], [0, size], [0, -size]]) { x.fillStyle = g; x.save(); x.translate(ox, oy); x.fillRect(px - r, py - r, 2 * r, 2 * r); x.restore(); }
-  }
-  groundTile = c;
-}
-
-function drawGround(ctx, cam) {
-  // the visible part of the world, plus a margin for the handheld sway
-  const reach = (Math.hypot(W, H) / 2 + H * 0.05) / cam.k;
-  const x0 = cam.x - reach, y0 = cam.y - reach, x1 = cam.x + reach, y1 = cam.y + reach;
-  const pat = ctx.createPattern(groundTile, 'repeat');
-  pat.setTransform(new DOMMatrix().scale(3));
-  ctx.fillStyle = pat; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-  ctx.strokeStyle = LOOK.grid; ctx.lineWidth = 2;
-  const step = 200;
-  ctx.beginPath();
-  for (let x = Math.floor(x0 / step) * step; x <= x1; x += step) { ctx.moveTo(x, y0); ctx.lineTo(x, y1); }
-  for (let y = Math.floor(y0 / step) * step; y <= y1; y += step) { ctx.moveTo(x0, y); ctx.lineTo(x1, y); }
-  ctx.stroke();
-}
-
-function drawWorld(ctx, t) {
-  const cam = camera(t);
-  toScreen(ctx, cam);
-  drawGround(ctx, cam);
-  const { weights, dim } = focus(t);
-  for (const o of WORLD) KINDS[o.kind].draw(ctx, o, t, cam.k);
-  if (dim > 0) {
-    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = `rgba(8,9,11,${dim})`; ctx.fillRect(0, 0, W, H);
-    ctx.restore();
-    // the hero, and what sits on it, drawn again on top at full strength
-    for (const o of WORLD) {
-      const w = weightOf(o, weights);
-      if (w <= 0) continue;
-      ctx.save(); ctx.globalAlpha = w; KINDS[o.kind].draw(ctx, o, t, cam.k); ctx.restore();
-    }
-  }
-}
-
-// ---------- motion blur and finishing ----------
-/** How many sub-frames to blend at t: more when the camera or a prop moves fast. */
-function samples(t) {
-  const dt = 1 / FORMAT.fps, a = camera(t), b = camera(t + dt);
-  const moved = Math.hypot((b.x - a.x) * a.k, (b.y - a.y) * a.k) + Math.abs(Math.log(b.k / a.k)) * H * 0.9 + Math.abs(rad(b.rot - a.rot)) * H;
-  let n = Math.ceil((moved * LOOK.shutter) / 3);
-  for (const o of WORLD) for (const [s, e] of KINDS[o.kind].fast(o)) if (t >= s && t <= e) n = Math.max(n, 6);
-  return clamp(n, 1, 12);
-}
-
-const GRAIN_TILES = 8;
-let grainTiles = [];
-function makeGrain() {
-  grainTiles = [];
-  for (let i = 0; i < GRAIN_TILES; i++) {
-    const c = layer(256, 256), x = c.getContext('2d'), d = x.createImageData(256, 256), rnd = seeded(1000 + i);
-    for (let p = 0; p < d.data.length; p += 4) {
-      const v = 128 + (rnd() + rnd() - 1) * 70;
-      d.data[p] = d.data[p + 1] = d.data[p + 2] = v; d.data[p + 3] = 255;
-    }
-    x.putImageData(d, 0, 0);
-    grainTiles.push(c);
-  }
-}
-
-function finish(t) {
-  out.setTransform(1, 0, 0, 1, 0, 0);
-  if (LOOK.glow > 0) {
-    gx.filter = `contrast(1.9) brightness(0.8) blur(${Math.max(1, glowLayer.height * 0.012)}px)`;
-    gx.clearRect(0, 0, glowLayer.width, glowLayer.height);
-    gx.drawImage(canvas, 0, 0, glowLayer.width, glowLayer.height);
-    gx.filter = 'none';
-    out.save(); out.globalCompositeOperation = 'screen'; out.globalAlpha = LOOK.glow;
-    out.drawImage(glowLayer, 0, 0, W, H); out.restore();
-  }
-  if (LOOK.vignette > 0) {
-    const r = Math.hypot(W, H) / 2, g = out.createRadialGradient(W / 2, H / 2, r * 0.45, W / 2, H / 2, r);
-    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${LOOK.vignette})`);
-    out.fillStyle = g; out.fillRect(0, 0, W, H);
-  }
-  if (LOOK.grain > 0) {
-    const f = Math.round(t * FORMAT.fps), rnd = seeded(f + 1);
-    const pat = out.createPattern(grainTiles[f % GRAIN_TILES], 'repeat');
-    const s = Math.max(1, H / 1080);
-    pat.setTransform(new DOMMatrix().translate(rnd() * 256, rnd() * 256).scale(s));
-    out.save(); out.globalCompositeOperation = 'overlay'; out.globalAlpha = LOOK.grain;
-    out.fillStyle = pat; out.fillRect(0, 0, W, H); out.restore();
-  }
-}
-
-/** The frame at t seconds. */
-function render(t) {
-  t = clamp(Number(t) || 0, 0, DURATION);
-  const n = samples(t);
-  out.setTransform(1, 0, 0, 1, 0, 0);
-  if (n === 1) {
-    drawWorld(out, t);
-  } else {
-    // blend sub-frames across the open shutter, centred on t
-    for (let i = 0; i < n; i++) {
-      const ts = clamp(t + (i / (n - 1) - 0.5) * LOOK.shutter / FORMAT.fps, 0, DURATION);
-      bx.setTransform(1, 0, 0, 1, 0, 0); bx.clearRect(0, 0, W, H);
-      drawWorld(bx, ts);
-      out.setTransform(1, 0, 0, 1, 0, 0);
-      out.globalAlpha = 1 / (i + 1);
-      out.drawImage(buf, 0, 0);
-    }
-    out.globalAlpha = 1;
-  }
-  finish(t);
-}
-
-// ---------- getting ready ----------
-const ready = (async () => {
-  for (const [family, file] of FONT_FILES) {
-    try { const face = new FontFace(family, `url(${encodeURI(file)})`); await face.load(); document.fonts.add(face); }
-    catch { console.warn(`the font file ${file} didn't load`); }
-  }
-  await document.fonts.ready;
-  await Promise.all(Object.entries(PHOTOS).map(async ([id, src]) => {
-    const img = new Image();
-    img.src = src;
-    try { await img.decode(); images[id] = img; } catch { console.warn(`the photo "${id}" didn't load: ${src}`); }
-  }));
-  // measure the words, so the camera can frame them
-  const m = layer(8, 8).getContext('2d');
-  for (const o of WORLD) {
-    if (!KINDS[o.kind]) { console.error(`"${o.id}" is a ${o.kind}, which isn't a kind of prop`); o.kind = 'route'; o.points = [[0, 0]]; continue; }
-    if (o.kind !== 'word') continue;
-    m.font = `${o.weight || 600} ${o.size}px ${o.font || FONTS.display}`;
-    o.width = m.measureText(o.text).width;
-    o.parts = o.text.split(/(?<= )/).map((text) => ({ text, width: m.measureText(text).width }));
-  }
-  for (const o of WORLD) {
-    if (o.photo && !PHOTOS[o.photo]) console.warn(`"${o.id}" uses the photo "${o.photo}", which isn't in PHOTOS`);
-    if (o.on && !byId[o.on]) console.warn(`"${o.id}" sits on "${o.on}", which isn't in the world`);
-  }
-  BEATS.forEach((b, i) => {
-    if (b.hero && !byId[b.hero]) console.warn(`beat ${i + 1}: its hero "${b.hero}" isn't in the world`);
-    if (i && b.t <= BEATS[i - 1].t) console.warn(`beat ${i + 1} starts before the one above it`);
-    if (b.t >= DURATION) console.warn(`beat ${i + 1} starts after the end (${DURATION} s)`);
-  });
-  makeGround();
-  makeGrain();
-  buildPath();
-})();
-
-window.film = {
-  canvas, fps: FORMAT.fps, duration: DURATION, ready, render,
-  beats: BEATS.map((b, i) => ({ t: b.t, label: `${i + 1} ${b.hero || ''}`.trim() })),
-};
-
-// ---------- live preview (not used by film.mjs) ----------
-if (!CAPTURE) {
-  const clock = document.getElementById('clock');
-  const voice = new Audio(VOICE);
-  let hasVoice = false, playing = false, started = 0, from = Number(query.get('t')) || 0;
-  voice.addEventListener('canplaythrough', () => { hasVoice = true; }, { once: true });
-  voice.addEventListener('error', () => { hasVoice = false; });
-  const now = () => (!playing ? from : hasVoice ? voice.currentTime : from + (performance.now() - started) / 1000);
-  const seek = (t) => { from = clamp(t, 0, DURATION); if (hasVoice) voice.currentTime = from; started = performance.now(); };
-  const toggle = () => {
-    if (playing) { from = now(); playing = false; voice.pause(); return; }
-    if (from >= DURATION - 0.01) from = 0;
-    playing = true; started = performance.now();
-    if (hasVoice) { voice.currentTime = from; voice.play().catch(() => { hasVoice = false; }); }
-  };
-  canvas.addEventListener('click', toggle);
-  addEventListener('keydown', (e) => {
-    if (e.key === ' ') { e.preventDefault(); toggle(); }
-    else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') seek(now() + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 5 : 1));
-    else if (e.key === 'Home') seek(0);
-  });
-  ready.then(() => {
-    const tick = () => {
-      let t = now();
-      if (playing && t >= DURATION) { playing = false; from = DURATION; voice.pause(); t = DURATION; }
-      render(t);
-      clock.textContent = `${t.toFixed(2)} s${playing ? '' : '  (click to play)'}`;
-      requestAnimationFrame(tick);
-    };
-    tick();
-  });
-}
-</script>
-</body>
+    </script>
+  </body>
 </html>

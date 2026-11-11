@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { activeProject, agents, chats } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 import { beginRun, bindSession, setRunStatus } from '../../server/eve/state.ts';
-import { executeOperation, prepareOperation, readOperation, reconcileOperations, saveOperation } from '../../server/eve/operations.ts';
+import {
+  executeOperation,
+  prepareOperation,
+  readOperation,
+  reconcileOperations,
+  saveOperation,
+} from '../../server/eve/operations.ts';
 
 function fixture(id: string) {
   const agent = agents.save(newAgent({ engine: 'eve', name: id }));
@@ -10,7 +16,16 @@ function fixture(id: string) {
   const binding = bindSession(agent, chat, activeProject(), 'proof');
   beginRun(id, binding.id);
   setRunStatus(id, 'running');
-  const input = { runId: id, bindingId: binding.id, sessionId: 'session', callId: 'call', name: 'send', args: { text: 'once', to: 'peer' }, origin: 'builtin:send', risk: 'high' } as const;
+  const input = {
+    runId: id,
+    bindingId: binding.id,
+    sessionId: 'session',
+    callId: 'call',
+    name: 'send',
+    args: { text: 'once', to: 'peer' },
+    origin: 'builtin:send',
+    risk: 'high',
+  } as const;
   return { input, operation: prepareOperation(input) };
 }
 
@@ -18,7 +33,12 @@ describe('saved Eve tool outcomes', () => {
   it('joins duplicate deliveries and reuses the saved result without repeating an effect', async () => {
     const { operation, input } = fixture('outcome-once');
     let release = () => {};
-    const execute = vi.fn(async () => { await new Promise<void>((resolve) => { release = resolve; }); return { text: 'sent', images: ['data:image/png;base64,aW1hZ2U='] }; });
+    const execute = vi.fn(async () => {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return { text: 'sent', images: ['data:image/png;base64,aW1hZ2U='] };
+    });
     const first = executeOperation(operation.id, execute);
     const second = executeOperation(operation.id, execute);
     await Promise.resolve();
@@ -27,7 +47,11 @@ describe('saved Eve tool outcomes', () => {
     expect(readOperation(operation.id)?.status).toBe('running');
     release();
     expect(await first).toEqual(await second);
-    expect(await executeOperation(operation.id, execute)).toEqual({ text: 'sent', images: ['data:image/png;base64,aW1hZ2U='], modelImages: ['data:image/png;base64,aW1hZ2U='] });
+    expect(await executeOperation(operation.id, execute)).toEqual({
+      text: 'sent',
+      images: ['data:image/png;base64,aW1hZ2U='],
+      modelImages: ['data:image/png;base64,aW1hZ2U='],
+    });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(prepareOperation({ ...input, args: { to: 'peer', text: 'once' } }).id).toBe(operation.id);
     expect(() => prepareOperation({ ...input, args: { text: 'different', to: 'peer' } })).toThrow('changed');
@@ -47,7 +71,10 @@ describe('saved Eve tool outcomes', () => {
   it('never blindly retries an effect whose executor lost its response', async () => {
     const { operation } = fixture('outcome-unknown');
     let effects = 0;
-    const execute = vi.fn(async () => { effects++; throw new Error('connection lost after sending'); });
+    const execute = vi.fn(async () => {
+      effects++;
+      throw new Error('connection lost after sending');
+    });
     await executeOperation(operation.id, execute);
     await executeOperation(operation.id, execute);
     expect(effects).toBe(1);

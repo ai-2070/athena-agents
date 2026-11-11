@@ -62,7 +62,7 @@ workspace, written to stand alone: no "as discussed", terms explained, dated. A 
 **Option A: <short name>.** <What it is, in a sentence.>
 Costs: … Risks: … Needs: …
 
-**Option B: …**  **Option C: …**  (the same shape)
+**Option B: …** **Option C: …** (the same shape)
 
 **Recommendation: B.** <Why, in terms of what matters to them.> <What would make A or C the better pick.>
 

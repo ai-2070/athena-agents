@@ -12,7 +12,10 @@ const mentionRe = (name: string) => new RegExp(`${LEAD}@${esc(name)}(?!${WORD})`
 /** Any of the names as an @mention, by the rules findMentions uses: group 1 is what comes before the @, group 2 the
  *  name as written. Longer names are tried first, so "@Trend Scout" isn't read as "@Trend". */
 export function mentionPattern(names: readonly string[]): RegExp {
-  const alts = names.filter((n) => n.trim()).sort((a, b) => b.length - a.length).map(esc);
+  const alts = names
+    .filter((n) => n.trim())
+    .sort((a, b) => b.length - a.length)
+    .map(esc);
   return alts.length ? new RegExp(`${LEAD}@(${alts.join('|')})(?!${WORD})`, 'giu') : /(?!)/gu;
 }
 const wordOrAt = new RegExp(`${WORD}|@`, 'u');
@@ -47,7 +50,11 @@ export function findMentions(text: string, candidates: readonly RoutineMention[]
 
 /** Rewrites @OldName to @NewName for mentions whose agent, team or skill was renamed since.
  *  rename maps "kind:id" to the current name. */
-export function renameMentions(text: string, stored: readonly RoutineMention[], rename: ReadonlyMap<string, string>): string {
+export function renameMentions(
+  text: string,
+  stored: readonly RoutineMention[],
+  rename: ReadonlyMap<string, string>,
+): string {
   let out = String(text || '');
   const changed = stored.filter((m) => {
     const now = rename.get(`${m.kind}:${m.id}`);
@@ -118,7 +125,9 @@ export function cleanSchedule(raw: unknown): Schedule {
     });
     out.times = times.length ? [...new Set(times)].sort() : ['09:00'];
     const days = (Array.isArray(r.days) ? r.days : [])
-      .map((d) => (typeof d === 'number' ? d : DAY_NAMES.findIndex((n) => String(d).toLowerCase().startsWith(n.toLowerCase()))))
+      .map((d) =>
+        typeof d === 'number' ? d : DAY_NAMES.findIndex((n) => String(d).toLowerCase().startsWith(n.toLowerCase())),
+      )
       .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
     // count each day once: seven "Mon"s are Mondays, not every day
     const unique = [...new Set(days)].sort((a, b) => a - b);

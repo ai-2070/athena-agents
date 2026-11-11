@@ -22,16 +22,42 @@ class FakeSocket {
   }
 }
 // a change the server tells open tabs about
-const serverEvent = (ev: object) => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
+const serverEvent = (ev: object) =>
+  act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
 
 const now = Date.now();
 let n = 0;
-const tag = (id: string, name: string, emoji?: string, tasks = 0): BoardTagUse => ({ id, name, ...(emoji ? { emoji } : {}), createdBy: 'you', createdAt: now, tasks });
+const tag = (id: string, name: string, emoji?: string, tasks = 0): BoardTagUse => ({
+  id,
+  name,
+  ...(emoji ? { emoji } : {}),
+  createdBy: 'you',
+  createdAt: now,
+  tasks,
+});
 let tags: Record<string, BoardTagUse[]>;
-const pick = (projectId: string, ...ids: string[]): BoardTag[] => ids.map((id) => tags[projectId].find((t) => t.id === id)!);
+const pick = (projectId: string, ...ids: string[]): BoardTag[] =>
+  ids.map((id) => tags[projectId].find((t) => t.id === id)!);
 const card = (over: Partial<BoardTask>): BoardTask => ({
-  id: 't', number: ++n, projectId: 'p1', projectName: 'Bakery', title: 'Task', description: '', status: 'todo', priority: 'normal', assignee: '', rank: n,
-  createdBy: 'you', createdAt: now, updatedAt: now, assigneeName: 'Unassigned', creatorName: 'You', commentCount: 0, fileCount: 0, tagList: [], ...over,
+  id: 't',
+  number: ++n,
+  projectId: 'p1',
+  projectName: 'Bakery',
+  title: 'Task',
+  description: '',
+  status: 'todo',
+  priority: 'normal',
+  assignee: '',
+  rank: n,
+  createdBy: 'you',
+  createdAt: now,
+  updatedAt: now,
+  assigneeName: 'Unassigned',
+  creatorName: 'You',
+  commentCount: 0,
+  fileCount: 0,
+  tagList: [],
+  ...over,
 });
 let board: BoardTask[];
 let requests: { method: string; url: string; body: unknown }[];
@@ -47,7 +73,12 @@ beforeEach(() => {
   requests = [];
   hold = null;
   tags = {
-    p1: [tag('g1', 'Bug', '🐛', 2), tag('g2', 'Design', '🎨', 1), tag('g3', 'Mobile', undefined, 1), tag('g4', 'Docs', '📝', 1)],
+    p1: [
+      tag('g1', 'Bug', '🐛', 2),
+      tag('g2', 'Design', '🎨', 1),
+      tag('g3', 'Mobile', undefined, 1),
+      tag('g4', 'Docs', '📝', 1),
+    ],
     p2: [tag('h1', 'bug', undefined, 1)],
   };
   board = [
@@ -55,7 +86,14 @@ beforeEach(() => {
     card({ id: 'b', title: 'New icons', tags: ['g2'], tagList: pick('p1', 'g2') }),
     card({ id: 'c', title: 'Plain task' }),
     card({ id: 'm', title: 'Many tags', tags: ['g1', 'g2', 'g3', 'g4'], tagList: pick('p1', 'g1', 'g2', 'g3', 'g4') }),
-    card({ id: 'f', title: 'Podcast bug', projectId: 'p2', projectName: 'Podcast', tags: ['h1'], tagList: pick('p2', 'h1') }),
+    card({
+      id: 'f',
+      title: 'Podcast bug',
+      projectId: 'p2',
+      projectName: 'Podcast',
+      tags: ['h1'],
+      tagList: pick('p2', 'h1'),
+    }),
   ];
   state.data = { project: { id: 'p1', name: 'Bakery' }, agents: [], runs: [], approvals: [] } as unknown as AppState;
   vi.stubGlobal('WebSocket', FakeSocket);
@@ -68,7 +106,14 @@ beforeEach(() => {
     if (url.startsWith('/api/task-board?')) {
       const project = new URLSearchParams(url.split('?')[1]).get('project')!;
       const shown = project === 'all' ? ['p1', 'p2'] : [project];
-      return json({ projects: [{ id: 'p1', name: 'Bakery', open: 4 }, { id: 'p2', name: 'Podcast', open: 1 }], tasks: board.filter((t) => shown.includes(t.projectId)), tags: Object.fromEntries(shown.map((p) => [p, tags[p]])) });
+      return json({
+        projects: [
+          { id: 'p1', name: 'Bakery', open: 4 },
+          { id: 'p2', name: 'Podcast', open: 1 },
+        ],
+        tasks: board.filter((t) => shown.includes(t.projectId)),
+        tags: Object.fromEntries(shown.map((p) => [p, tags[p]])),
+      });
     }
     if (url.startsWith('/api/task-board-people/')) return json({ agents: [], teams: [] });
     const tagList = /^\/api\/task-board-tags\/([^/]+)$/.exec(url);
@@ -76,14 +121,24 @@ beforeEach(() => {
     if (tagList && method === 'POST') {
       const same = tags[tagList[1]].find((t) => t.name.toLowerCase() === String(body.name).toLowerCase());
       if (same) return json({ tag: { ...same, made: false } });
-      const made = tag('new1', String(body.name).replace(/^🍰\s*/, ''), String(body.name).startsWith('🍰') ? '🍰' : body.emoji);
+      const made = tag(
+        'new1',
+        String(body.name).replace(/^🍰\s*/, ''),
+        String(body.name).startsWith('🍰') ? '🍰' : body.emoji,
+      );
       tags[tagList[1]] = [...tags[tagList[1]], made];
       return json({ tag: { ...made, made: true } });
     }
     const oneTag = /^\/api\/task-board-tags\/([^/]+)\/([^/]+)$/.exec(url);
     if (oneTag && method === 'PUT') {
-      if (body.name && tags[oneTag[1]].some((t) => t.id !== oneTag[2] && t.name.toLowerCase() === String(body.name).toLowerCase())) {
-        return new Response(JSON.stringify({ error: `There's a tag called "${body.name}" already.` }), { status: 409, headers: { 'content-type': 'application/json' } });
+      if (
+        body.name &&
+        tags[oneTag[1]].some((t) => t.id !== oneTag[2] && t.name.toLowerCase() === String(body.name).toLowerCase())
+      ) {
+        return new Response(JSON.stringify({ error: `There's a tag called "${body.name}" already.` }), {
+          status: 409,
+          headers: { 'content-type': 'application/json' },
+        });
       }
       tags[oneTag[1]] = tags[oneTag[1]].map((t) => (t.id === oneTag[2] ? { ...t, ...body } : t));
       return json({ tag: tags[oneTag[1]].find((t) => t.id === oneTag[2]) });
@@ -98,10 +153,15 @@ beforeEach(() => {
       if (method === 'PUT') {
         if (hold) await hold;
         if (typeof body.expectedUpdatedAt === 'number' && body.expectedUpdatedAt !== board[i].updatedAt) {
-          return new Response(JSON.stringify({ error: 'This task changed meanwhile. Reload it before saving.' }), { status: 409, headers: { 'content-type': 'application/json' } });
+          return new Response(JSON.stringify({ error: 'This task changed meanwhile. Reload it before saving.' }), {
+            status: 409,
+            headers: { 'content-type': 'application/json' },
+          });
         }
         let ids: string[] = body.tags ?? board[i].tags ?? [];
-        ids = [...ids, ...(body.addTags ?? []).filter((x: string) => !ids.includes(x))].filter((x) => !(body.removeTags ?? []).includes(x));
+        ids = [...ids, ...(body.addTags ?? []).filter((x: string) => !ids.includes(x))].filter(
+          (x) => !(body.removeTags ?? []).includes(x),
+        );
         board[i] = { ...board[i], tags: ids, tagList: pick(one[1], ...ids), updatedAt: board[i].updatedAt + 1 };
       }
       return json({ task: board[i] });
@@ -119,13 +179,15 @@ const open = async (params: string[] = []) => {
   await act(async () => tasks.render(el, params));
   await settle();
 };
-const cards = () => [...el.querySelectorAll('[data-task-id]')].map((c) => c.getAttribute('data-task-id')!.split('/')[1]);
+const cards = () =>
+  [...el.querySelectorAll('[data-task-id]')].map((c) => c.getAttribute('data-task-id')!.split('/')[1]);
 const click = async (b: Element | null | undefined) => {
   expect(b).toBeTruthy();
   await act(async () => (b as HTMLElement).click());
   await settle();
 };
-const row = (text: string) => [...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')].find((b) => b.textContent?.includes(text));
+const row = (text: string) =>
+  [...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')].find((b) => b.textContent?.includes(text));
 const type = async (input: HTMLInputElement, text: string) =>
   act(async () => {
     Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')!.set!.call(input, text);
@@ -133,7 +195,7 @@ const type = async (input: HTMLInputElement, text: string) =>
   });
 
 describe('tags on the board', () => {
-  it('shows a card\'s tags, up to three and then how many more', async () => {
+  it("shows a card's tags, up to three and then how many more", async () => {
     await open();
     const login = el.querySelector('[data-task-id="p1/a"]')!;
     expect([...login.querySelectorAll('.tag')].map((t) => t.textContent)).toEqual(['🐛Bug', 'Mobile']);
@@ -198,26 +260,41 @@ describe('tags on the board', () => {
     expect([...document.querySelectorAll('button')].some((b) => b.textContent?.includes('Manage tags'))).toBe(false);
     await click(row('Bug'));
     expect(cards()).toEqual(['a', 'm', 'f']);
-    expect(tagOptions({ p1: [tag('x', 'Bug', '🐛', 1)], p2: [tag('y', 'bug', undefined, 2)] })).toEqual([{ key: 'bug', name: 'Bug', emoji: '🐛', tasks: 3 }]);
+    expect(tagOptions({ p1: [tag('x', 'Bug', '🐛', 1)], p2: [tag('y', 'bug', undefined, 2)] })).toEqual([
+      { key: 'bug', name: 'Bug', emoji: '🐛', tasks: 3 },
+    ]);
   });
 });
 
-describe('tags on a task\'s page', () => {
+describe("tags on a task's page", () => {
   it('puts tags on and takes them off, and makes a new one with its emoji', async () => {
     await open(['p1', 'b']);
     const picker = () => el.querySelector<HTMLButtonElement>('button[aria-label^="Tags:"]')!;
     expect(picker().getAttribute('aria-label')).toBe('Tags: 🎨 Design');
     await click(picker());
     await click(row('Bug'));
-    expect(requests.at(-1)).toEqual({ method: 'PUT', url: '/api/task-board/p1/b', body: { addTags: ['g1'], expectedUpdatedAt: now } });
+    expect(requests.at(-1)).toEqual({
+      method: 'PUT',
+      url: '/api/task-board/p1/b',
+      body: { addTags: ['g1'], expectedUpdatedAt: now },
+    });
     expect(picker().getAttribute('aria-label')).toBe('Tags: 🎨 Design, 🐛 Bug');
     await click(row('Design'));
-    expect(requests.at(-1)).toEqual({ method: 'PUT', url: '/api/task-board/p1/b', body: { removeTags: ['g2'], expectedUpdatedAt: now + 1 } });
+    expect(requests.at(-1)).toEqual({
+      method: 'PUT',
+      url: '/api/task-board/p1/b',
+      body: { removeTags: ['g2'], expectedUpdatedAt: now + 1 },
+    });
 
     await type(document.querySelector<HTMLInputElement>('input[aria-label="Find or make a tag"]')!, '🍰 Cake');
-    const make = [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Make “🍰 Cake”');
+    const make = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent === 'Make “🍰 Cake”',
+    );
     await click(make);
-    expect(requests.find((r) => r.method === 'POST')).toMatchObject({ url: '/api/task-board-tags/p1', body: { name: '🍰 Cake' } });
+    expect(requests.find((r) => r.method === 'POST')).toMatchObject({
+      url: '/api/task-board-tags/p1',
+      body: { name: '🍰 Cake' },
+    });
     expect(requests.at(-1)).toMatchObject({ method: 'PUT', body: { addTags: ['new1'] } });
     expect(board.find((t) => t.id === 'b')!.tags).toEqual(['g1', 'new1']);
     // a name that is there already is picked, not made again (Enter)
@@ -252,7 +329,7 @@ describe('tags on a task\'s page', () => {
     expect(document.querySelector('#toasts')!.textContent).not.toContain('changed meanwhile');
   });
 
-  it('loads the project\'s tags when the menu opens, and not on every change to the board while it is closed', async () => {
+  it("loads the project's tags when the menu opens, and not on every change to the board while it is closed", async () => {
     await open(['p1', 'b']);
     const tagLoads = () => requests.filter((r) => r.method === 'GET' && r.url === '/api/task-board-tags/p1').length;
     // the task's own tags show without them
@@ -282,7 +359,12 @@ describe('Manage tags', () => {
 
   it('makes, renames, takes the emoji off and deletes tags, asking first and saying how many tasks it comes off', async () => {
     await mount();
-    expect([...box.querySelectorAll('li')].map((li) => li.querySelector('input')!.value)).toEqual(['Bug', 'Design', 'Mobile', 'Docs']);
+    expect([...box.querySelectorAll('li')].map((li) => li.querySelector('input')!.value)).toEqual([
+      'Bug',
+      'Design',
+      'Mobile',
+      'Docs',
+    ]);
     expect(box.querySelector('li')!.textContent).toContain('2 tasks');
 
     await type(box.querySelector<HTMLInputElement>('input[aria-label="New tag"]')!, 'Ovens');
@@ -293,19 +375,29 @@ describe('Manage tags', () => {
     await type(name, 'Phones');
     await act(async () => name.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
     await settle();
-    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board-tags/p1/g3', body: { name: 'Phones' } });
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({
+      url: '/api/task-board-tags/p1/g3',
+      body: { name: 'Phones' },
+    });
 
     await click(box.querySelector('button[aria-label="Take the emoji off Design"]'));
-    expect(requests.filter((r) => r.method === 'PUT').at(-1)).toMatchObject({ url: '/api/task-board-tags/p1/g2', body: { emoji: '' } });
+    expect(requests.filter((r) => r.method === 'PUT').at(-1)).toMatchObject({
+      url: '/api/task-board-tags/p1/g2',
+      body: { emoji: '' },
+    });
 
     await click(box.querySelector('button[aria-label="Delete the tag Bug"]'));
     expect(document.querySelector('.modal')!.textContent).toContain('It comes off 2 tasks.');
-    await click([...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent === 'Delete'));
+    await click(
+      [...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent === 'Delete'),
+    );
     expect(requests.find((r) => r.method === 'DELETE')).toMatchObject({ url: '/api/task-board-tags/p1/g1' });
-    expect([...box.querySelectorAll('li input[aria-label^="Name of"]')].map((i) => (i as HTMLInputElement).value)).not.toContain('Bug');
+    expect(
+      [...box.querySelectorAll('li input[aria-label^="Name of"]')].map((i) => (i as HTMLInputElement).value),
+    ).not.toContain('Bug');
   });
 
-  it('puts a refused name back, and says so when a new tag\'s name is taken, keeping what was typed', async () => {
+  it("puts a refused name back, and says so when a new tag's name is taken, keeping what was typed", async () => {
     await mount();
     const name = box.querySelector<HTMLInputElement>('input[aria-label="Name of Mobile"]')!;
     await type(name, 'Design');
@@ -317,7 +409,7 @@ describe('Manage tags', () => {
     const add = box.querySelector<HTMLInputElement>('input[aria-label="New tag"]')!;
     await type(add, 'bug');
     await click([...box.querySelectorAll('button')].find((b) => b.textContent === 'Add tag'));
-    expect(document.querySelector('#toasts')!.textContent).toContain('There\'s a tag called “🐛 Bug” already.');
+    expect(document.querySelector('#toasts')!.textContent).toContain("There's a tag called “🐛 Bug” already.");
     expect(add.value).toBe('bug');
   });
 });

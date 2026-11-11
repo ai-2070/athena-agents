@@ -342,6 +342,7 @@ Take the bold off. When the labels add nothing, the list can become a sentence o
 reader scans for it: a warning, a term defined once.
 
 > Before:
+>
 > - **Speed:** Pages load faster thanks to caching.
 > - **Reliability:** Uploads retry when the connection drops.
 >

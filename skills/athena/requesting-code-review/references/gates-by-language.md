@@ -33,15 +33,15 @@ means `uv run <command>`.
 
 ## The usual commands
 
-| | Tests | Lint | Types | Format check |
-|---|---|---|---|---|
-| JavaScript, TypeScript | `npm test`, `npx vitest run`, `npx jest --ci` | `npx eslint .` | `npx tsc --noEmit` | `npx prettier --check .` |
-| Python | `python -m pytest -q` | `ruff check .` | `python -m mypy .` or `pyright` | `ruff format --check .` or `black --check .` |
-| Go | `go test ./...` | `go vet ./...`, `golangci-lint run` | part of the build | `gofmt -l .` |
-| Rust | `cargo test` | `cargo clippy --all-targets` | `cargo check` | `cargo fmt --check` |
-| .NET | `dotnet test` | warnings from `dotnet build` | `dotnet build` | `dotnet format --verify-no-changes` |
-| Java, Maven | `mvn -B test` | `mvn -B verify` runs the checks `pom.xml` sets up | `mvn -B compile` | the formatter plugin's check goal, if set up |
-| Java, Gradle | `gradle test` | `gradle check` runs tests and the set-up linters | `gradle compileJava` | the formatter plugin's check task, if set up |
+|                        | Tests                                         | Lint                                              | Types                           | Format check                                 |
+| ---------------------- | --------------------------------------------- | ------------------------------------------------- | ------------------------------- | -------------------------------------------- |
+| JavaScript, TypeScript | `npm test`, `npx vitest run`, `npx jest --ci` | `npx eslint .`                                    | `npx tsc --noEmit`              | `npx prettier --check .`                     |
+| Python                 | `python -m pytest -q`                         | `ruff check .`                                    | `python -m mypy .` or `pyright` | `ruff format --check .` or `black --check .` |
+| Go                     | `go test ./...`                               | `go vet ./...`, `golangci-lint run`               | part of the build               | `gofmt -l .`                                 |
+| Rust                   | `cargo test`                                  | `cargo clippy --all-targets`                      | `cargo check`                   | `cargo fmt --check`                          |
+| .NET                   | `dotnet test`                                 | warnings from `dotnet build`                      | `dotnet build`                  | `dotnet format --verify-no-changes`          |
+| Java, Maven            | `mvn -B test`                                 | `mvn -B verify` runs the checks `pom.xml` sets up | `mvn -B compile`                | the formatter plugin's check goal, if set up |
+| Java, Gradle           | `gradle test`                                 | `gradle check` runs tests and the set-up linters  | `gradle compileJava`            | the formatter plugin's check task, if set up |
 
 - **Windows PowerShell 5.1**: `npm` and `npx` can stop with "running scripts is disabled on this system", because
   they're `.ps1` shims; `npm.cmd` and `npx.cmd` run the same programs. Use `py -m pytest` when `python` isn't found.
@@ -73,7 +73,7 @@ The copy from `git archive` has the code but none of the installed packages.
   project is installed in editable mode, imports can still come from the repo: from the copy,
   `python -c "import <package>; print(<package>.__file__)"` should print a path inside it.
 - **JavaScript**: the copy needs its own packages, installed from the lock file (`npm ci`, `pnpm install
-  --frozen-lockfile`, `yarn install --immutable`, `bun install --frozen-lockfile`). That downloads them; ask first.
+--frozen-lockfile`, `yarn install --immutable`, `bun install --frozen-lockfile`). That downloads them; ask first.
 - **Go**: `go test` takes modules from the shared cache, so the copy usually runs without downloading.
 - **Rust, .NET, Java**: packages come from the shared caches (`~/.cargo`, `~/.nuget/packages`, `~/.m2`, `~/.gradle`),
   but the copy builds from scratch, as slowly as a clean build.

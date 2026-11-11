@@ -12,10 +12,19 @@ const oneVersion = oneItem.extend({ vid: z.string() });
 
 export const versions = {
   /** What was deleted, newest first, to bring back. */
-  deleted: oc.route({ method: 'GET', path: '/versions/{kind}' }).input(z.object({ kind })).output(type<DeletedItem[]>()),
-  undelete: oc.route({ method: 'POST', path: '/versions/{kind}/{id}/undelete' }).input(oneItem).output(type<{ name: string }>()),
+  deleted: oc
+    .route({ method: 'GET', path: '/versions/{kind}' })
+    .input(z.object({ kind }))
+    .output(type<DeletedItem[]>()),
+  undelete: oc
+    .route({ method: 'POST', path: '/versions/{kind}/{id}/undelete' })
+    .input(oneItem)
+    .output(type<{ name: string }>()),
   history: oc.route({ method: 'GET', path: '/versions/{kind}/{id}' }).input(oneItem).output(type<VersionHistory>()),
   get: oc.route({ method: 'GET', path: '/versions/{kind}/{id}/{vid}' }).input(oneVersion).output(type<VersionDetail>()),
   /** Brings it back as that version was (what it is now is kept as a version first). */
-  restore: oc.route({ method: 'POST', path: '/versions/{kind}/{id}/{vid}/restore' }).input(oneVersion).output(type<{ name: string }>()),
+  restore: oc
+    .route({ method: 'POST', path: '/versions/{kind}/{id}/{vid}/restore' })
+    .input(oneVersion)
+    .output(type<{ name: string }>()),
 };

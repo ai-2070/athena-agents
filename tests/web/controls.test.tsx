@@ -19,10 +19,26 @@ function Demo() {
   const [seg, setSeg] = useState('x');
   return (
     <>
-      <Tabs label="Demo" tabs={[{ value: 'a', label: 'Alpha' }, { value: 'b', label: 'Beta' }]} value={tab} onChange={setTab}>
+      <Tabs
+        label="Demo"
+        tabs={[
+          { value: 'a', label: 'Alpha' },
+          { value: 'b', label: 'Beta' },
+        ]}
+        value={tab}
+        onChange={setTab}
+      >
         <p id="body">{tab}</p>
       </Tabs>
-      <Segmented label="Pick" options={[{ value: 'x', label: 'X' }, { value: 'y', label: 'Y' }]} value={seg} onChange={setSeg} />
+      <Segmented
+        label="Pick"
+        options={[
+          { value: 'x', label: 'X' },
+          { value: 'y', label: 'Y' },
+        ]}
+        value={seg}
+        onChange={setSeg}
+      />
     </>
   );
 }
@@ -46,7 +62,14 @@ describe('tabs and the segmented switch', () => {
     const seen: string[] = [];
     function Box() {
       const [q, setQ] = useState('');
-      return <SearchBox label="Search things" placeholder="Search things" value={q} onChange={(v) => (seen.push(v), setQ(v))} />;
+      return (
+        <SearchBox
+          label="Search things"
+          placeholder="Search things"
+          value={q}
+          onChange={(v) => (seen.push(v), setQ(v))}
+        />
+      );
     }
     await act(async () => root.render(<Box />));
     expect(document.querySelector('.search-box svg')).not.toBeNull();
@@ -72,7 +95,12 @@ describe('settings sections and rows', () => {
           <FieldRow label="Max steps" hint="Tool rounds.">
             <input defaultValue="5" />
           </FieldRow>
-          <SwitchRow checked={false} onChange={(on) => seen.push(on)} title="Follow up" description="Checks the work." />
+          <SwitchRow
+            checked={false}
+            onChange={(on) => seen.push(on)}
+            title="Follow up"
+            description="Checks the work."
+          />
           <Row title="Autonomy">
             <button type="button">Auto</button>
           </Row>

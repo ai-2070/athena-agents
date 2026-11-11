@@ -168,7 +168,14 @@ export interface GatewayInbound {
   triggered: boolean;
   mediaGroupId?: string;
   text: string;
-  media: { kind: 'image' | 'file' | 'audio' | 'video'; fileId: string; name?: string; mimeType?: string; size?: number; sha256?: string }[];
+  media: {
+    kind: 'image' | 'file' | 'audio' | 'video';
+    fileId: string;
+    name?: string;
+    mimeType?: string;
+    size?: number;
+    sha256?: string;
+  }[];
 }
 
 export interface GatewayConversationBinding {
@@ -194,7 +201,17 @@ export interface GatewayInboxEvent {
   dismissed?: { at: number; revision: string };
   deliveryFinished?: { at: number; revision: string };
   workKept?: { at: number; revision: string; throughSequence: number; serial: number };
-  deliveryReviews?: ({ at: number; revision: string; action: 'confirmed'; target: GatewayDeliveryTarget; remoteId: string; previousRemoteId?: string } | { at: number; revision: string; action: 'finish-local' })[];
+  deliveryReviews?: (
+    | {
+        at: number;
+        revision: string;
+        action: 'confirmed';
+        target: GatewayDeliveryTarget;
+        remoteId: string;
+        previousRemoteId?: string;
+      }
+    | { at: number; revision: string; action: 'finish-local' }
+  )[];
   status: 'queued' | 'waiting-files' | 'running' | 'done' | 'needs-review';
   operationId?: string;
   reason?: string;
@@ -222,12 +239,27 @@ export interface GatewayWorkReview {
   needsPrepare: boolean;
   keptAt?: number;
   heldRequests: number;
-  source: { platform: GatewayPlatform; actor: string; conversationId: string; threadId: string; messageId: string; projectId: string; target: GatewayTarget };
+  source: {
+    platform: GatewayPlatform;
+    actor: string;
+    conversationId: string;
+    threadId: string;
+    messageId: string;
+    projectId: string;
+    target: GatewayTarget;
+  };
   operationId?: string;
-  native?: { state: GatewayDispatch['state']; conversation: GatewayLocalConversation; runId?: string; messageId?: string; briefId?: string };
+  native?: {
+    state: GatewayDispatch['state'];
+    conversation: GatewayLocalConversation;
+    runId?: string;
+    messageId?: string;
+    briefId?: string;
+  };
 }
 
-export type GatewayDeliveryTarget = { kind: 'text' | 'file'; index: number } | { kind: 'notice'; notice: 'working' | 'approval' };
+export type GatewayDeliveryTarget =
+  { kind: 'text' | 'file'; index: number } | { kind: 'notice'; notice: 'working' | 'approval' };
 
 export interface GatewayDeliveryReview {
   revision: string;
@@ -235,8 +267,24 @@ export interface GatewayDeliveryReview {
   canFinish: boolean;
   needsPrepare: boolean;
   closedAt?: number;
-  source: { platform: GatewayPlatform; actor: string; conversationId: string; threadId: string; messageId: string; projectId: string; target: GatewayTarget };
-  items: { target: GatewayDeliveryTarget; label: string; text?: string; status: GatewayOutgoingFile['status']; remoteId?: string; canConfirm: boolean; confirmedAt?: number }[];
+  source: {
+    platform: GatewayPlatform;
+    actor: string;
+    conversationId: string;
+    threadId: string;
+    messageId: string;
+    projectId: string;
+    target: GatewayTarget;
+  };
+  items: {
+    target: GatewayDeliveryTarget;
+    label: string;
+    text?: string;
+    status: GatewayOutgoingFile['status'];
+    remoteId?: string;
+    canConfirm: boolean;
+    confirmedAt?: number;
+  }[];
 }
 
 export interface GatewayRetiredFinishReview {
@@ -255,7 +303,15 @@ export interface GatewayRetiredFinishReview {
 
 export interface GatewayTelegramSetupState {
   version: 1;
-  check?: { at: number; configRevision: string; revision: string; fingerprint: string; webhook: boolean; host?: string; pendingUpdates: number };
+  check?: {
+    at: number;
+    configRevision: string;
+    revision: string;
+    fingerprint: string;
+    webhook: boolean;
+    host?: string;
+    pendingUpdates: number;
+  };
   switches: { at: number; revision: string; state: 'started' | 'confirmed' | 'uncertain'; checkedAt?: number }[];
 }
 
@@ -279,13 +335,31 @@ export interface GatewayWhatsAppIntakeState {
   cursor: number;
   startedAt?: number;
   senderReviews?: { at: number; throughSequence: number; phone: string; identityKey: string; revision: string }[];
-  receipt?: GatewayWhatsAppReceipt & { confirmed: boolean; accepted: number; ignored: number; unmatchedSenders: number };
+  receipt?: GatewayWhatsAppReceipt & {
+    confirmed: boolean;
+    accepted: number;
+    ignored: number;
+    unmatchedSenders: number;
+  };
   identities?: GatewayWhatsAppIdentities;
   connection?: GatewayWhatsAppRelayConnection;
   recovery?: { at: number; reason: 'gap' | 'cursor' | 'epoch' | 'installation' | 'envelope' };
   gapReview?: { at: number; from: number; through: number; remoteCursor: number };
-  reviewedGaps?: { at: number; gapAt: number; from: number; through: number; revision: string; receipt?: NonNullable<GatewayWhatsAppIntakeState['receipt']> }[];
-  restorations?: { at: number; heldAt: number; reason: 'cursor' | 'epoch' | 'installation' | 'envelope'; revision: string; remoteCursor: number }[];
+  reviewedGaps?: {
+    at: number;
+    gapAt: number;
+    from: number;
+    through: number;
+    revision: string;
+    receipt?: NonNullable<GatewayWhatsAppIntakeState['receipt']>;
+  }[];
+  restorations?: {
+    at: number;
+    heldAt: number;
+    reason: 'cursor' | 'epoch' | 'installation' | 'envelope';
+    revision: string;
+    remoteCursor: number;
+  }[];
 }
 
 export interface GatewayWhatsAppRecovery {
@@ -305,8 +379,22 @@ export interface GatewayWhatsAppRelayConnection {
 
 /** Private setup receipt, stored with gateway secrets so the returned pull key saves atomically. */
 export type GatewayWhatsAppPairing =
-  | { phase: 'requesting'; attemptId: string; origin: string; businessAccountId: string; phoneNumberId: string; replacement?: { epoch: string; revision: string } }
-  | { phase: 'received'; attemptId: string; connection: GatewayWhatsAppRelayConnection; cursor: number; gap: boolean; replacement?: { epoch: string; revision: string } };
+  | {
+      phase: 'requesting';
+      attemptId: string;
+      origin: string;
+      businessAccountId: string;
+      phoneNumberId: string;
+      replacement?: { epoch: string; revision: string };
+    }
+  | {
+      phase: 'received';
+      attemptId: string;
+      connection: GatewayWhatsAppRelayConnection;
+      cursor: number;
+      gap: boolean;
+      replacement?: { epoch: string; revision: string };
+    };
 
 export interface GatewayWhatsAppSetup {
   paired: boolean;
@@ -324,7 +412,14 @@ export interface GatewayWhatsAppSenders {
   retired: number;
   waiting: number;
   unallowed: number;
-  senders: { phone: string; status: 'needs-proof' | 'verified' | 'needs-review' | 'reviewed'; changedAt?: number; revision: string | null; requests: number; reason: string }[];
+  senders: {
+    phone: string;
+    status: 'needs-proof' | 'verified' | 'needs-review' | 'reviewed';
+    changedAt?: number;
+    revision: string | null;
+    requests: number;
+    reason: string;
+  }[];
 }
 
 export interface GatewayWhatsAppCheck {
@@ -425,7 +520,14 @@ export interface GatewayOutboxProgress {
 
 export type GatewayOutboxReviewRecord =
   | { action: 'confirmed'; at: number; revision: string; index: number; attempt: number; remoteId: string }
-  | { action: 'retry'; at: number; revision: string; index: number; attempt: number; from: 'pending' | 'failed' | 'uncertain' };
+  | {
+      action: 'retry';
+      at: number;
+      revision: string;
+      index: number;
+      attempt: number;
+      from: 'pending' | 'failed' | 'uncertain';
+    };
 
 export interface GatewayOutboxDeliveryReview {
   revision: string;
@@ -440,10 +542,19 @@ export interface GatewayOutboxDeliveryReview {
   canFinish: boolean;
   closedAt?: number;
   reviewHeld: boolean;
-  parts: { text: string; status: GatewayReplyPart['status']; attempts: number; remoteId?: string; canConfirm: boolean; confirmedAt?: number }[];
+  parts: {
+    text: string;
+    status: GatewayReplyPart['status'];
+    attempts: number;
+    remoteId?: string;
+    canConfirm: boolean;
+    confirmedAt?: number;
+  }[];
 }
 
-export interface GatewayOutboxPostPreview extends GatewayOutboxPreview { draftRevision: string }
+export interface GatewayOutboxPostPreview extends GatewayOutboxPreview {
+  draftRevision: string;
+}
 
 /** Private receipt. Fingerprints bind approval to current access, credentials and saved input. */
 export interface GatewayOutboxDelivery extends GatewayOutboxApproval {
@@ -465,7 +576,9 @@ export interface GatewayOutboxJournal {
 }
 
 export type GatewayDeliveryFailureReason = 'whatsapp-window' | 'whatsapp-file-type';
-export type GatewayDeliveryOutcome = { remoteId: string } | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number; reason?: GatewayDeliveryFailureReason };
+export type GatewayDeliveryOutcome =
+  | { remoteId: string }
+  | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number; reason?: GatewayDeliveryFailureReason };
 
 export interface GatewayIncomingFile {
   index: number;
@@ -534,9 +647,7 @@ export interface PrivateConversation {
 }
 
 export type GatewayLocalConversation = { conversationId: string; projectId: string; sender: string } & (
-  | { kind: 'brain' }
-  | { kind: 'agent'; agentId: string; chatId: string }
-  | { kind: 'team'; teamId: string }
+  { kind: 'brain' } | { kind: 'agent'; agentId: string; chatId: string } | { kind: 'team'; teamId: string }
 );
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
@@ -694,7 +805,13 @@ export interface TeamState {
 
 /** A team's chat as its page shows it: the thread, who works now, each agent's own session for the team
  *  (agentId → chatId), your /goal while the Brain follows it, and the other teams it can ask (#Team Name). */
-export type TeamChat = TeamState & { team: Team; messages: TeamMessage[]; sessions: Record<string, string>; goal: BrainBrief | null; others: TeamRef[] };
+export type TeamChat = TeamState & {
+  team: Team;
+  messages: TeamMessage[];
+  sessions: Record<string, string>;
+  goal: BrainBrief | null;
+  others: TeamRef[];
+};
 
 /** A /loop going in a chat: the message sent again every so often (every, in ms) or after each answer. */
 export interface LoopInfo {
@@ -1022,7 +1139,12 @@ export interface Project {
   sidebar?: SidebarPanel;
 }
 /** A project as the server sends it: when its logo, 3D model and background last changed (null: it has none). */
-export type ProjectWithMedia = Project & { logoAt: number | null; modelAt: number | null; modelExt: string | null; backgroundAt: number | null };
+export type ProjectWithMedia = Project & {
+  logoAt: number | null;
+  modelAt: number | null;
+  modelExt: string | null;
+  backgroundAt: number | null;
+};
 /** What a project folder saved by the dashboard holds (its .dashboard/project.json), at a glance. */
 export interface ProjectPeek {
   name: string;
@@ -1032,7 +1154,12 @@ export interface ProjectPeek {
   savedAt: number;
 }
 /** A project on the start screen. */
-export type ProjectOverviewItem = Project & { agents: number; teams: number; hasProjectMd: boolean; saved: ProjectPeek | null };
+export type ProjectOverviewItem = Project & {
+  agents: number;
+  teams: number;
+  hasProjectMd: boolean;
+  saved: ProjectPeek | null;
+};
 /** A folder in the projects folder that isn't a project yet. */
 export interface FoundFolder {
   name: string;
@@ -1136,17 +1263,46 @@ export interface BackupRestoreResult {
 
 // ---------- chats ----------
 export type ChatItem = (
-  | { type: 'user'; text: string; from?: string | null; attachments?: string[]; ts?: number; teamMessageId?: string; runId?: string }
+  | {
+      type: 'user';
+      text: string;
+      from?: string | null;
+      attachments?: string[];
+      ts?: number;
+      teamMessageId?: string;
+      runId?: string;
+    }
   | { type: 'assistant'; text: string; ts?: number }
   /** A message sent while the agent worked that it took into the turn going on (it didn't stop):
    *  part of that turn, so the turn still starts at its user message. */
-  | { type: 'steer'; steerId: string; text: string; from?: string | null; attachments?: string[]; ts?: number; runId?: string; teamMessageId?: string }
-  | { type: 'tool'; id: string; name: string; args?: unknown; result?: string | null; status: 'running' | 'done' | 'error'; isError?: boolean; images?: string[]; ts?: number; resultSourceId?: string }
+  | {
+      type: 'steer';
+      steerId: string;
+      text: string;
+      from?: string | null;
+      attachments?: string[];
+      ts?: number;
+      runId?: string;
+      teamMessageId?: string;
+    }
+  | {
+      type: 'tool';
+      id: string;
+      name: string;
+      args?: unknown;
+      result?: string | null;
+      status: 'running' | 'done' | 'error';
+      isError?: boolean;
+      images?: string[];
+      ts?: number;
+      resultSourceId?: string;
+    }
   /** stopped: the run was stopped before it finished (steer: to take a new message), not a failure */
   | { type: 'error'; text: string; ts?: number; runId?: string; stopped?: 'stop' | 'steer' }
   /** reset: "Clear memory" (the agent starts fresh after it) */
   | { type: 'meta'; text: string; ts?: number; reset?: boolean; billing?: RunBilling }
-  | CompactionItem) & { sourceId?: string };
+  | CompactionItem
+) & { sourceId?: string };
 
 /** Full messages imported from the team's shared transcript before a member answers. */
 export interface TeamContextMessage {
@@ -1294,7 +1450,15 @@ export type RunEvent =
   | { kind: 'tool_result'; id: string; text?: string; isError?: boolean; images?: string[] }
   | { kind: 'status'; text: string }
   | { kind: 'model'; model: string }
-  | { kind: 'usage'; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; costUsd?: number; summary?: boolean }
+  | {
+      kind: 'usage';
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      cacheWriteTokens: number;
+      costUsd?: number;
+      summary?: boolean;
+    }
   | { kind: 'done'; text: string; cost?: number; seconds?: number; billing?: RunBilling }
   /** the engine compacted its own memory (Claude Code): marked in the chat, never sent on as a run event */
   | { kind: 'compacted'; trigger?: string; tokensBefore?: number }
@@ -1439,7 +1603,15 @@ export interface OutboxPost {
   url?: string;
   to?: string;
   /** Reddit: a post or a comment; a post may carry a flair (a template id from the subreddit and/or its text). */
-  reddit?: { kind: 'post' | 'comment'; subreddit?: string; title?: string; link?: string; parent?: string; flairId?: string; flairText?: string };
+  reddit?: {
+    kind: 'post' | 'comment';
+    subreddit?: string;
+    title?: string;
+    link?: string;
+    parent?: string;
+    flairId?: string;
+    flairText?: string;
+  };
   createdAt?: number;
   updatedAt?: number;
   [k: string]: unknown;
@@ -1496,7 +1668,14 @@ export type StationQuality = 'smooth' | 'balanced' | 'saver';
 export type SidebarPanel = 'status' | 'limits';
 
 export interface Settings {
-  defaults: { engine: EngineId; claudeModel: string; openrouterModel: string; veniceModel: string; hermesProfile: string; autonomy: Autonomy };
+  defaults: {
+    engine: EngineId;
+    claudeModel: string;
+    openrouterModel: string;
+    veniceModel: string;
+    hermesProfile: string;
+    autonomy: Autonomy;
+  };
   providers: { lmstudio: { baseUrl: string }; ollama: { baseUrl: string }; custom: { baseUrl: string; label: string } };
   comfyui: { url: string; workflowDirs: string[] };
   paths: Record<string, string>;
@@ -1526,7 +1705,15 @@ export interface Settings {
   defaultWorld: string;
 }
 
-export type SecretKey = 'openrouterKey' | 'veniceKey' | 'anthropicKey' | 'customKey' | 'xClientSecret' | 'telegramBotToken' | 'discordWebhook' | 'redditClientSecret';
+export type SecretKey =
+  | 'openrouterKey'
+  | 'veniceKey'
+  | 'anthropicKey'
+  | 'customKey'
+  | 'xClientSecret'
+  | 'telegramBotToken'
+  | 'discordWebhook'
+  | 'redditClientSecret';
 export type SecretStatus = Record<SecretKey, { set: boolean; hint?: string }>;
 
 /** A saved Venice key can be valid while access is blocked or its credits have run out. */
@@ -1617,7 +1804,8 @@ export interface EveModelSelection {
   price?: ApiModelInfo['price'];
 }
 
-export type EveMessagePart = { type: 'text'; text: string } | { type: 'file'; data: string; mediaType: string; filename: string };
+export type EveMessagePart =
+  { type: 'text'; text: string } | { type: 'file'; data: string; mediaType: string; filename: string };
 export interface EveAdmissionRecord {
   id: string;
   bindingId: string;
@@ -1655,7 +1843,12 @@ export interface EveRunRecord {
   answer?: string;
   error?: string;
   endedAt?: number;
-  pendingTerminal?: { line: number; status: 'completed' | 'failed' | 'stopped' | 'interrupted'; parts: string[]; error?: string };
+  pendingTerminal?: {
+    line: number;
+    status: 'completed' | 'failed' | 'stopped' | 'interrupted';
+    parts: string[];
+    error?: string;
+  };
   /** Messages sent into this run's turn while it worked (saved before they are sent). */
   steers?: EveSteer[];
   /** Other deliveries its turn took in (the steers', recorded even before a steer learns its delivery) */
@@ -1875,7 +2068,10 @@ export interface PresetListing {
 }
 
 /** What a preset keeps of an agent: everything but what belongs to one copy of it. */
-export type AgentTemplate = Omit<Agent, 'id' | 'createdAt' | 'updatedAt' | 'lastModel' | 'lastModelAt' | 'pinned' | 'workspace' | '_teamSkills'>;
+export type AgentTemplate = Omit<
+  Agent,
+  'id' | 'createdAt' | 'updatedAt' | 'lastModel' | 'lastModelAt' | 'pinned' | 'workspace' | '_teamSkills'
+>;
 /** What a preset keeps of a team (its members are kept as agents beside it). */
 export type TeamTemplate = Partial<Pick<Team, 'name' | 'description' | 'color' | 'access' | 'skills' | 'schedule'>>;
 export interface AgentPreset {
@@ -2003,7 +2199,32 @@ export interface MemoryInfo {
 }
 
 // ---------- the Brain ----------
-export type BrainDone = { kind: 'team' | 'hired' | 'file' | 'routine' | 'skill' | 'model' | 'mcp' | 'stop' | 'memory' | 'world' | 'task' | 'board' | 'error' | 'note'; text: string; teamId?: string; agentId?: string; routineId?: string; skillId?: string; taskId?: string; file?: string; /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string; /** a task on the Tasks board it added or changed */ boardTask?: { projectId: string; id: string } };
+export type BrainDone = {
+  kind:
+    | 'team'
+    | 'hired'
+    | 'file'
+    | 'routine'
+    | 'skill'
+    | 'model'
+    | 'mcp'
+    | 'stop'
+    | 'memory'
+    | 'world'
+    | 'task'
+    | 'board'
+    | 'error'
+    | 'note';
+  text: string;
+  teamId?: string;
+  agentId?: string;
+  routineId?: string;
+  skillId?: string;
+  taskId?: string;
+  file?: string;
+  /** whose MEMORY.md it changed (an agent id, or "brain") */ memory?: string;
+  /** a task on the Tasks board it added or changed */ boardTask?: { projectId: string; id: string };
+};
 /** A tool the Brain used while it answered (it reads the project's files). */
 export interface BrainStep {
   id: string;
@@ -2077,7 +2298,8 @@ export interface TaskUpdateInput {
 export type TaskBatchInput<T> = { tasks: T[] };
 export type TaskCreateArgs = TaskCreateInput | TaskBatchInput<TaskCreateInput>;
 export type TaskUpdateArgs = TaskUpdateInput | TaskBatchInput<TaskUpdateInput>;
-export type TaskBatchItem = { index: number; success: true; taskId: string; status: TaskStatus; updatedAt: number }
+export type TaskBatchItem =
+  | { index: number; success: true; taskId: string; status: TaskStatus; updatedAt: number }
   | { index: number; success: false; error: string; code: number };
 export interface TaskBatchResult {
   results: TaskBatchItem[];
@@ -2631,10 +2853,14 @@ export interface BrainModel {
   fallback: boolean;
 }
 
-export type BrainRoute = { kind: 'none'; reason: string } | { kind: 'agent' | 'branch'; id: string; name: string; reason: string };
+export type BrainRoute =
+  { kind: 'none'; reason: string } | { kind: 'agent' | 'branch'; id: string; name: string; reason: string };
 
 /** A new agent the Brain designed (not saved yet). */
-export type AgentDraft = Pick<Agent, 'name' | 'emoji' | 'specialty' | 'systemPrompt' | 'toolGroups' | 'mcpServers' | 'engine'>;
+export type AgentDraft = Pick<
+  Agent,
+  'name' | 'emoji' | 'specialty' | 'systemPrompt' | 'toolGroups' | 'mcpServers' | 'engine'
+>;
 
 export type BranchMember = { agentId: string; newAgent?: undefined } | { newAgent: AgentDraft; agentId?: undefined };
 
@@ -2668,7 +2894,9 @@ export interface BackupListing {
 export type FileKind = 'image' | 'video' | 'audio' | 'model' | 'file' | 'folder';
 
 /** What a chat needs to preview a mentioned path. ok: false when it isn't there or isn't allowed. */
-export type FileInfo = { path: string; ok: false } | { path: string; ok: true; kind: FileKind; name: string; size: number; modified: number };
+export type FileInfo =
+  | { path: string; ok: false }
+  | { path: string; ok: true; kind: FileKind; name: string; size: number; modified: number };
 
 /** Where things sit on the Station map that aren't teams (data/projects/<id>/layout.json). */
 export interface StationLayout {
@@ -2833,7 +3061,19 @@ export interface WorldLight extends WorldPlaced {
   flicker?: number;
 }
 
-export type WorldEffectKind = 'petals' | 'leaves' | 'snow' | 'rain' | 'fireflies' | 'embers' | 'sparks' | 'smoke' | 'steam' | 'mist' | 'dust' | 'birds';
+export type WorldEffectKind =
+  | 'petals'
+  | 'leaves'
+  | 'snow'
+  | 'rain'
+  | 'fireflies'
+  | 'embers'
+  | 'sparks'
+  | 'smoke'
+  | 'steam'
+  | 'mist'
+  | 'dust'
+  | 'birds';
 
 /** Particles in an area. */
 export interface WorldEffect extends WorldPlaced {

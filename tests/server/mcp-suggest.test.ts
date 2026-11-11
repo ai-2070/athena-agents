@@ -8,12 +8,13 @@ import type { McpServers } from '../../server/mcp.ts';
 const prog = (id: string, name: string, installed = true, exe: string | null = null) => ({ id, name, installed, exe });
 
 describe('MCP suggestions', () => {
-  it("point at ready-made servers and at programs the Programs page knows", async () => {
+  it('point at ready-made servers and at programs the Programs page knows', async () => {
     const presets = new Set(PRESETS.map((p) => p.name));
     for (const name of [...Object.keys(PRESET_PROGRAMS), ...BASIC_PRESETS]) expect(presets, name).toContain(name);
     const ids = new Set((await discoverPrograms(true)).map((p) => p.id));
     // (optional programs only show when installed, so check the ones every PC lists)
-    for (const id of ['blender', 'maya', 'houdini', 'gimp', 'obs', 'chrome', 'unity', 'unreal', 'godot', 'freecad']) expect(ids, id).toContain(id);
+    for (const id of ['blender', 'maya', 'houdini', 'gimp', 'obs', 'chrome', 'unity', 'unreal', 'godot', 'freecad'])
+      expect(ids, id).toContain(id);
   });
 
   it("suggest a program's own server when it is installed, then the basics", () => {
@@ -28,15 +29,41 @@ describe('MCP suggestions', () => {
   it('leave out what is already added, under its own name or another', () => {
     const blender = PRESETS.find((p) => p.name === 'blender')!;
     const servers: McpServers = {
-      fetch: { type: 'stdio', command: 'uvx', args: ['mcp-server-fetch'], env: {}, url: '', headers: {}, description: '', enabled: true },
-      'my-blender': { type: 'stdio', command: blender.type === 'stdio' ? blender.command : '', args: blender.type === 'stdio' ? blender.args : [], env: {}, url: '', headers: {}, description: '', enabled: true },
+      fetch: {
+        type: 'stdio',
+        command: 'uvx',
+        args: ['mcp-server-fetch'],
+        env: {},
+        url: '',
+        headers: {},
+        description: '',
+        enabled: true,
+      },
+      'my-blender': {
+        type: 'stdio',
+        command: blender.type === 'stdio' ? blender.command : '',
+        args: blender.type === 'stdio' ? blender.args : [],
+        env: {},
+        url: '',
+        headers: {},
+        description: '',
+        enabled: true,
+      },
     };
     expect(suggestPresets([prog('blender', 'Blender')], servers).map((x) => x.name)).toEqual(['context7']);
   });
 
   it("skip Audacity 4, which its server can't drive", () => {
-    expect(suggestPresets([prog('audacity', 'Audacity', true, 'C:\\Program Files\\Audacity 4\\bin\\Audacity4.exe')], {}).map((x) => x.name)).not.toContain('audacity');
-    expect(suggestPresets([prog('audacity', 'Audacity', true, 'C:\\Program Files\\Audacity\\Audacity.exe')], {}).map((x) => x.name)).toContain('audacity');
+    expect(
+      suggestPresets([prog('audacity', 'Audacity', true, 'C:\\Program Files\\Audacity 4\\bin\\Audacity4.exe')], {}).map(
+        (x) => x.name,
+      ),
+    ).not.toContain('audacity');
+    expect(
+      suggestPresets([prog('audacity', 'Audacity', true, 'C:\\Program Files\\Audacity\\Audacity.exe')], {}).map(
+        (x) => x.name,
+      ),
+    ).toContain('audacity');
   });
 
   it('never add anything by themselves', () => {

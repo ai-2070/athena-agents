@@ -53,7 +53,13 @@ function num(opts, name, { min = -Infinity, max = Infinity, above, int = false, 
   const raw = opts[name];
   if (raw === undefined) return undefined;
   const n = Number(raw);
-  const ok = raw.trim() !== '' && Number.isFinite(n) && n >= min && n <= max && (above === undefined || n > above) && (!int || Number.isInteger(n));
+  const ok =
+    raw.trim() !== '' &&
+    Number.isFinite(n) &&
+    n >= min &&
+    n <= max &&
+    (above === undefined || n > above) &&
+    (!int || Number.isInteger(n));
   if (!ok) fail(`--${name} must be ${what} (got "${raw}")`);
   return n;
 }
@@ -68,7 +74,8 @@ function inputFile(p, what, exts) {
     fail(`there is no ${what} ${abs}`);
   }
   if (!st.isFile()) fail(`${abs} is not a file`);
-  if (exts && !exts.includes(path.extname(abs).toLowerCase())) fail(`the ${what} must end in ${exts.join(' or ')}: ${abs}`);
+  if (exts && !exts.includes(path.extname(abs).toLowerCase()))
+    fail(`the ${what} must end in ${exts.join(' or ')}: ${abs}`);
   return abs;
 }
 
@@ -93,7 +100,11 @@ const running = new Set();
 function killTree(child) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
   if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, timeout: 10_000, stdio: 'ignore' });
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+      windowsHide: true,
+      timeout: 10_000,
+      stdio: 'ignore',
+    });
   } else {
     try {
       process.kill(-child.pid, 'SIGKILL');
@@ -122,18 +133,44 @@ function start(cmd, args, stdio) {
 
 /** Run a program to the end and return its output; it's stopped after timeoutMs. */
 function runSync(cmd, args, timeoutMs) {
-  const r = spawnSync(cmd, args, { encoding: 'utf8', timeout: timeoutMs, killSignal: 'SIGKILL', windowsHide: true, maxBuffer: 256 * 1024 * 1024 });
-  if (r.error && r.error.code === 'ENOENT') fail(`${cmd} isn't installed (it's part of FFmpeg, and must be on the PATH)`);
+  const r = spawnSync(cmd, args, {
+    encoding: 'utf8',
+    timeout: timeoutMs,
+    killSignal: 'SIGKILL',
+    windowsHide: true,
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  if (r.error && r.error.code === 'ENOENT')
+    fail(`${cmd} isn't installed (it's part of FFmpeg, and must be on the PATH)`);
   if (r.error && r.error.code === 'ETIMEDOUT') fail(`${cmd} took longer than ${Math.round(timeoutMs / 1000)} seconds`);
   if (r.error) fail(`couldn't run ${cmd}: ${r.error.message}`);
   return r;
 }
 
-const lastLine = (text) => String(text || '').trim().split(/\r?\n/).filter(Boolean).pop() || '';
+const lastLine = (text) =>
+  String(text || '')
+    .trim()
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .pop() || '';
 
 /** An audio file's length in seconds, and whether it has sound at all. */
 function audioLength(file) {
-  const r = runSync('ffprobe', ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_type:format=duration', '-of', 'json', file], 60_000);
+  const r = runSync(
+    'ffprobe',
+    [
+      '-v',
+      'error',
+      '-select_streams',
+      'a:0',
+      '-show_entries',
+      'stream=codec_type:format=duration',
+      '-of',
+      'json',
+      file,
+    ],
+    60_000,
+  );
   if (r.status !== 0) fail(`ffprobe couldn't read ${file}: ${lastLine(r.stderr) || 'not a sound file'}`);
   let info;
   try {
@@ -152,13 +189,22 @@ const round3 = (x) => Math.round(x * 1000) / 1000;
 // ---------- voice ----------
 
 function voice(args) {
-  const { values: opts, positionals } = parseArgs({ args, allowPositionals: true, options: { noise: { type: 'string' }, 'min-pause': { type: 'string' } } });
+  const { values: opts, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: { noise: { type: 'string' }, 'min-pause': { type: 'string' } },
+  });
   if (positionals.length > 1) fail(`voice takes one audio file (got ${positionals.length})`);
   const file = inputFile(positionals[0], 'audio file');
   const noise = num(opts, 'noise', { min: -90, max: -1, what: 'a level in dB between -90 and -1' }) ?? -35;
-  const minPause = num(opts, 'min-pause', { above: 0, max: 10, what: 'a number of seconds above 0 and at most 10' }) ?? 0.3;
+  const minPause =
+    num(opts, 'min-pause', { above: 0, max: 10, what: 'a number of seconds above 0 and at most 10' }) ?? 0.3;
   const duration = audioLength(file);
-  const r = runSync('ffmpeg', ['-hide_banner', '-nostats', '-i', file, '-af', `silencedetect=noise=${noise}dB:d=${minPause}`, '-f', 'null', '-'], 600_000);
+  const r = runSync(
+    'ffmpeg',
+    ['-hide_banner', '-nostats', '-i', file, '-af', `silencedetect=noise=${noise}dB:d=${minPause}`, '-f', 'null', '-'],
+    600_000,
+  );
   if (r.status !== 0) fail(`ffmpeg couldn't read ${file}: ${lastLine(r.stderr)}`);
   const pauses = [];
   let open = null;
@@ -180,17 +226,38 @@ function voice(args) {
   }
   if (duration - at > 0.05) phrases.push({ start: at, end: duration });
   const r3 = (list) => list.map((p) => ({ start: round3(p.start), end: round3(p.end) }));
-  return { code: 0, result: { file, duration: round3(duration), pauses: r3(pauses), phrases: r3(phrases), noise, minPause } };
+  return {
+    code: 0,
+    result: { file, duration: round3(duration), pauses: r3(pauses), phrases: r3(phrases), noise, minPause },
+  };
 }
 
 // ---------- the page, in a browser ----------
 
 const TYPES = {
-  '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif', '.woff': 'font/woff',
-  '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf', '.mp3': 'audio/mpeg', '.wav': 'audio/wav',
-  '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.mp4': 'video/mp4', '.webm': 'video/webm',
+  '.html': 'text/html; charset=utf-8',
+  '.htm': 'text/html; charset=utf-8',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.avif': 'image/avif',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.m4a': 'audio/mp4',
+  '.ogg': 'audio/ogg',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
 };
 
 /** Serve the page's folder on this computer only, so the page can use its photos without tainting the canvas. */
@@ -224,9 +291,15 @@ function serve(root) {
       res.writeHead(404).end();
       return;
     }
-    res.writeHead(200, { 'content-type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', 'cache-control': 'no-store' });
+    res.writeHead(200, {
+      'content-type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
+      'cache-control': 'no-store',
+    });
     if (req.method === 'HEAD') res.end();
-    else fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
+    else
+      fs.createReadStream(file)
+        .on('error', () => res.destroy())
+        .pipe(res);
   });
   return new Promise((resolve, reject) => {
     server.on('error', reject);
@@ -243,20 +316,35 @@ function findBrowser(given) {
   }
   const places = [];
   if (process.platform === 'win32') {
-    for (const base of [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA].filter(Boolean)) {
+    for (const base of [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA].filter(
+      Boolean,
+    )) {
       places.push(path.join(base, 'Google', 'Chrome', 'Application', 'chrome.exe'));
     }
     for (const base of [process.env['PROGRAMFILES(X86)'], process.env.PROGRAMFILES].filter(Boolean)) {
       places.push(path.join(base, 'Microsoft', 'Edge', 'Application', 'msedge.exe'));
     }
-    if (process.env.LOCALAPPDATA) places.push(path.join(process.env.LOCALAPPDATA, 'Chromium', 'Application', 'chrome.exe'));
+    if (process.env.LOCALAPPDATA)
+      places.push(path.join(process.env.LOCALAPPDATA, 'Chromium', 'Application', 'chrome.exe'));
   } else if (process.platform === 'darwin') {
     for (const base of ['/Applications', path.join(os.homedir(), 'Applications')]) {
-      places.push(`${base}/Google Chrome.app/Contents/MacOS/Google Chrome`, `${base}/Microsoft Edge.app/Contents/MacOS/Microsoft Edge`, `${base}/Chromium.app/Contents/MacOS/Chromium`);
+      places.push(
+        `${base}/Google Chrome.app/Contents/MacOS/Google Chrome`,
+        `${base}/Microsoft Edge.app/Contents/MacOS/Microsoft Edge`,
+        `${base}/Chromium.app/Contents/MacOS/Chromium`,
+      );
     }
   } else {
     for (const dir of (process.env.PATH || '').split(path.delimiter).filter(Boolean)) {
-      for (const name of ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'microsoft-edge', 'microsoft-edge-stable']) places.push(path.join(dir, name));
+      for (const name of [
+        'google-chrome',
+        'google-chrome-stable',
+        'chromium',
+        'chromium-browser',
+        'microsoft-edge',
+        'microsoft-edge-stable',
+      ])
+        places.push(path.join(dir, name));
     }
   }
   const found = places.find((p) => {
@@ -368,7 +456,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** Where a page error happened, as a file in the page's folder and a line: the first place in the page's own files. */
 function where(details, origin) {
   const frames = (details.stackTrace && details.stackTrace.callFrames) || [];
-  const mine = frames.find((f) => f.url && f.url.startsWith(origin)) || (details.url && details.url.startsWith(origin) ? details : null);
+  const mine =
+    frames.find((f) => f.url && f.url.startsWith(origin)) ||
+    (details.url && details.url.startsWith(origin) ? details : null);
   if (!mine) return '';
   const file = decodeURIComponent(mine.url.slice(origin.length + 1).split('?')[0]);
   return ` (${file}${mine.lineNumber !== undefined ? `:${mine.lineNumber + 1}` : ''})`;
@@ -386,8 +476,19 @@ async function launch(page, { browser }) {
   const server = await serve(path.dirname(page));
   const origin = `http://127.0.0.1:${server.address().port}`;
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'film-browser-'));
-  const args = ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
-    '--disable-extensions', '--disable-background-networking', '--mute-audio', '--hide-scrollbars', '--force-color-profile=srgb', 'about:blank'];
+  const args = [
+    '--headless=new',
+    '--remote-debugging-port=0',
+    `--user-data-dir=${profile}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-extensions',
+    '--disable-background-networking',
+    '--mute-audio',
+    '--hide-scrollbars',
+    '--force-color-profile=srgb',
+    'about:blank',
+  ];
   const child = start(exe, args, ['ignore', 'ignore', 'pipe']);
   let err = '';
   child.stderr.on('data', (d) => {
@@ -412,7 +513,8 @@ async function launch(page, { browser }) {
     let lines = null;
     for (let i = 0; i < 300 && !lines; i++) {
       if (child.failed) fail(`couldn't start the browser (${exe}): ${child.failed.message}`);
-      if (child.exitCode !== null) fail(`the browser (${exe}) stopped at once: ${lastLine(err) || `exit code ${child.exitCode}`}`);
+      if (child.exitCode !== null)
+        fail(`the browser (${exe}) stopped at once: ${lastLine(err) || `exit code ${child.exitCode}`}`);
       try {
         const text = fs.readFileSync(portFile, 'utf8').split(/\r?\n/);
         if (text[0] && text[1]) lines = text;
@@ -433,16 +535,26 @@ async function launch(page, { browser }) {
     };
     devtools.listeners.add((method, params, sid) => {
       if (sid !== sessionId) return;
-      if (method === 'Runtime.exceptionThrown') note(session.errors, `${errorText(params.exceptionDetails)}${where(params.exceptionDetails, origin)}`);
+      if (method === 'Runtime.exceptionThrown')
+        note(session.errors, `${errorText(params.exceptionDetails)}${where(params.exceptionDetails, origin)}`);
       else if (method === 'Runtime.consoleAPICalled' && (params.type === 'error' || params.type === 'warning')) {
         const text = params.args.map((a) => (a.value !== undefined ? String(a.value) : a.description || '')).join(' ');
         note(session.warnings, `${params.type}: ${text}`);
-      } else if (method === 'Log.entryAdded' && (params.entry.source === 'network' || params.entry.source === 'security')) {
-        const url = params.entry.url && params.entry.url.startsWith(origin) ? decodeURIComponent(params.entry.url.slice(origin.length + 1).split('?')[0]) : params.entry.url;
+      } else if (
+        method === 'Log.entryAdded' &&
+        (params.entry.source === 'network' || params.entry.source === 'security')
+      ) {
+        const url =
+          params.entry.url && params.entry.url.startsWith(origin)
+            ? decodeURIComponent(params.entry.url.slice(origin.length + 1).split('?')[0])
+            : params.entry.url;
         note(session.warnings, `${params.entry.text}${url ? `: ${url}` : ''}`);
-      } else if (method === 'Inspector.targetCrashed') devtools.shut('the page crashed in the browser (out of memory?)');
+      } else if (method === 'Inspector.targetCrashed')
+        devtools.shut('the page crashed in the browser (out of memory?)');
     });
-    await Promise.all(['Runtime.enable', 'Log.enable', 'Page.enable', 'Inspector.enable'].map((m) => devtools.send(m, {}, sessionId)));
+    await Promise.all(
+      ['Runtime.enable', 'Log.enable', 'Page.enable', 'Inspector.enable'].map((m) => devtools.send(m, {}, sessionId)),
+    );
     return session;
   } catch (e) {
     await session.close();
@@ -460,7 +572,9 @@ async function load(session, scale) {
   const nav = await devtools.send('Page.navigate', { url }, sessionId);
   if (nav.errorText) fail(`the browser couldn't open the page: ${nav.errorText}`);
   await loaded;
-  const info = await evaluate(session, `(async () => {
+  const info = await evaluate(
+    session,
+    `(async () => {
     await new Promise((r) => setTimeout(r, 0)); // errors from the page's own scripts get reported first
     const f = window.film;
     if (!f || typeof f !== 'object') throw new Error('the page sets no window.film');
@@ -469,23 +583,36 @@ async function load(session, scale) {
     await f.ready;
     return { width: f.canvas.width, height: f.canvas.height, fps: Number(f.fps), duration: Number(f.duration),
       beats: Array.isArray(f.beats) ? f.beats.map((b) => ({ t: Number(b.t), label: String(b.label ?? '') })) : [] };
-  })()`, 120_000, 'getting ready').catch((e) => {
+  })()`,
+    120_000,
+    'getting ready',
+  ).catch((e) => {
     // a script that threw is the cause, whatever the check above then found
     if (session.errors.length) fail(`the page threw an error: ${session.errors[0]}`);
     throw e;
   });
   if (session.errors.length) fail(`the page threw an error: ${session.errors[0]}`);
-  if (!(info.width >= 16 && info.height >= 16)) fail(`the page's canvas is ${info.width}x${info.height}: too small to film`);
-  if (!(info.fps > 0 && info.fps <= 240)) fail(`window.film.fps must be a number of frames per second above 0 (got ${info.fps})`);
+  if (!(info.width >= 16 && info.height >= 16))
+    fail(`the page's canvas is ${info.width}x${info.height}: too small to film`);
+  if (!(info.fps > 0 && info.fps <= 240))
+    fail(`window.film.fps must be a number of frames per second above 0 (got ${info.fps})`);
   if (!(info.duration > 0)) fail(`window.film.duration must be a number of seconds above 0 (got ${info.duration})`);
-  info.beats = info.beats.filter((b) => Number.isFinite(b.t) && b.t >= 0 && b.t < info.duration).sort((a, b) => a.t - b.t);
+  info.beats = info.beats
+    .filter((b) => Number.isFinite(b.t) && b.t >= 0 && b.t < info.duration)
+    .sort((a, b) => a.t - b.t);
   session.info = info;
   return info;
 }
 
 async function evaluate(session, expression, timeoutMs, doing) {
-  const r = await session.devtools.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, session.sessionId, timeoutMs);
-  if (r.exceptionDetails) fail(`the page failed ${doing}: ${errorText(r.exceptionDetails)}${where(r.exceptionDetails, session.origin)}`);
+  const r = await session.devtools.send(
+    'Runtime.evaluate',
+    { expression, awaitPromise: true, returnByValue: true },
+    session.sessionId,
+    timeoutMs,
+  );
+  if (r.exceptionDetails)
+    fail(`the page failed ${doing}: ${errorText(r.exceptionDetails)}${where(r.exceptionDetails, session.origin)}`);
   return r.result.value;
 }
 
@@ -500,32 +627,53 @@ const fmt = (t) => (Math.round(t * 100) / 100).toFixed(2);
 // ---------- sheet ----------
 
 async function sheet(args) {
-  const { values: opts, positionals } = parseArgs({ args, allowPositionals: true, options: {
-    out: { type: 'string', short: 'o' }, at: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' }, every: { type: 'string' },
-    cols: { type: 'string' }, tile: { type: 'string' }, browser: { type: 'string' },
-  } });
+  const { values: opts, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: {
+      out: { type: 'string', short: 'o' },
+      at: { type: 'string' },
+      from: { type: 'string' },
+      to: { type: 'string' },
+      every: { type: 'string' },
+      cols: { type: 'string' },
+      tile: { type: 'string' },
+      browser: { type: 'string' },
+    },
+  });
   if (positionals.length > 1) fail(`sheet takes one page (got ${positionals.length})`);
   const page = inputFile(positionals[0], 'page', ['.html', '.htm']);
   const out = outputFile(opts.out, ['.png']);
   const cols = num(opts, 'cols', { min: 1, max: 12, int: true, what: 'a whole number from 1 to 12' }) ?? 4;
-  const tile = num(opts, 'tile', { min: 120, max: 1920, int: true, what: 'a whole number of pixels from 120 to 1920' }) ?? 640;
+  const tile =
+    num(opts, 'tile', { min: 120, max: 1920, int: true, what: 'a whole number of pixels from 120 to 1920' }) ?? 640;
   const from = num(opts, 'from', { min: 0, what: 'a number of seconds, 0 or more' });
   const to = num(opts, 'to', { min: 0, what: 'a number of seconds, 0 or more' });
   const every = num(opts, 'every', { above: 0, what: 'a number of seconds above 0' });
   let at = null;
   if (opts.at !== undefined) {
-    at = opts.at.split(',').map((x) => x.trim()).filter(Boolean).map((x) => {
-      const n = Number(x);
-      if (!Number.isFinite(n) || n < 0) fail(`--at takes times in seconds, 0 or more, separated by commas (got "${x}")`);
-      return n;
-    });
+    at = opts.at
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .map((x) => {
+        const n = Number(x);
+        if (!Number.isFinite(n) || n < 0)
+          fail(`--at takes times in seconds, 0 or more, separated by commas (got "${x}")`);
+        return n;
+      });
     if (!at.length) fail('--at needs at least one time');
-    if (from !== undefined || to !== undefined || every !== undefined) fail('give either --at or --from/--to/--every, not both');
+    if (from !== undefined || to !== undefined || every !== undefined)
+      fail('give either --at or --from/--to/--every, not both');
   }
   const range = from !== undefined || to !== undefined || every !== undefined;
-  if (range && (from === undefined || to === undefined || every === undefined)) fail('--from, --to and --every go together');
+  if (range && (from === undefined || to === undefined || every === undefined))
+    fail('--from, --to and --every go together');
   if (range && to <= from) fail(`--to (${to}) must be after --from (${from})`);
-  if (range && Math.floor((to - from) / every + 1e-9) + 1 > 100) fail(`that's ${Math.floor((to - from) / every + 1e-9) + 1} stills; at most 100 in one sheet: narrow --from/--to or raise --every`);
+  if (range && Math.floor((to - from) / every + 1e-9) + 1 > 100)
+    fail(
+      `that's ${Math.floor((to - from) / every + 1e-9) + 1} stills; at most 100 in one sheet: narrow --from/--to or raise --every`,
+    );
   if (at && at.length > 100) fail(`that's ${at.length} stills; at most 100 in one sheet`);
   const session = await launch(page, { browser: opts.browser });
   try {
@@ -539,13 +687,18 @@ async function sheet(args) {
       shots = [];
       for (let i = 0; from + i * every <= to + 1e-9; i++) shots.push({ t: round3(from + i * every), label: '' });
     } else if (beats.length) {
-      shots = beats.map((b, i) => ({ t: round3((b.t + (i + 1 < beats.length ? beats[i + 1].t : duration)) / 2), label: b.label }));
+      shots = beats.map((b, i) => ({
+        t: round3((b.t + (i + 1 < beats.length ? beats[i + 1].t : duration)) / 2),
+        label: b.label,
+      }));
       if (shots.length > 100) shots = shots.slice(0, 100);
     } else fail('the page lists no beats (window.film.beats): give --at or --from/--to/--every');
     const late = shots.filter((s) => s.t > duration);
     if (late.length) fail(`the page lasts ${fmt(duration)} s; ${fmt(late[0].t)} s is past its end`);
     const labels = shots.map((s) => `${fmt(s.t)} s${s.label ? `  ${s.label}` : ''}`);
-    const data = await evaluate(session, `((times, labels, cols, tileW) => {
+    const data = await evaluate(
+      session,
+      `((times, labels, cols, tileW) => {
       const f = window.film, W = f.canvas.width, H = f.canvas.height;
       const tileH = Math.round(tileW * H / W), band = Math.max(20, Math.round(tileW * 0.055)), gap = Math.max(6, Math.round(tileW * 0.02));
       const n = times.length, c = Math.min(cols, n), rows = Math.ceil(n / c);
@@ -567,7 +720,10 @@ async function sheet(args) {
         x.fillText(labels[i], cx + 2, cy + tileH + band / 2, tileW - 4);
       });
       return sheet.toDataURL('image/png');
-    })(${JSON.stringify(shots.map((s) => s.t))}, ${JSON.stringify(labels)}, ${cols}, ${tile})`, 600_000, 'drawing the stills');
+    })(${JSON.stringify(shots.map((s) => s.t))}, ${JSON.stringify(labels)}, ${cols}, ${tile})`,
+      600_000,
+      'drawing the stills',
+    );
     const buf = pngData(data, 'for the sheet');
     const tmp = tempBeside(out);
     try {
@@ -578,7 +734,10 @@ async function sheet(args) {
       fail(`couldn't write ${out}: ${e.message}`);
     }
     const warnings = [...session.warnings, ...session.errors];
-    return { code: warnings.length ? 1 : 0, result: { sheet: out, stills: labels, page: { width: full.width, height: full.height, duration }, warnings } };
+    return {
+      code: warnings.length ? 1 : 0,
+      result: { sheet: out, stills: labels, page: { width: full.width, height: full.height, duration }, warnings },
+    };
   } finally {
     await session.close();
   }
@@ -587,10 +746,20 @@ async function sheet(args) {
 // ---------- render ----------
 
 async function render(args) {
-  const { values: opts, positionals } = parseArgs({ args, allowPositionals: true, options: {
-    out: { type: 'string', short: 'o' }, audio: { type: 'string' }, scale: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' },
-    crf: { type: 'string' }, browser: { type: 'string' }, timeout: { type: 'string' },
-  } });
+  const { values: opts, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: {
+      out: { type: 'string', short: 'o' },
+      audio: { type: 'string' },
+      scale: { type: 'string' },
+      from: { type: 'string' },
+      to: { type: 'string' },
+      crf: { type: 'string' },
+      browser: { type: 'string' },
+      timeout: { type: 'string' },
+    },
+  });
   if (positionals.length > 1) fail(`render takes one page (got ${positionals.length})`);
   const page = inputFile(positionals[0], 'page', ['.html', '.htm']);
   const out = outputFile(opts.out, ['.mp4']);
@@ -621,17 +790,51 @@ async function render(args) {
     if (to <= from) fail(`--to (${to}) must be after --from (${from})`);
     if (to > duration + 0.5 / fps) fail(`the page lasts ${fmt(duration)} s; --to ${to} is past its end`);
     if (audio && !part && Math.abs(voiceLength - duration) > 1 / fps) {
-      fail(`the page lasts ${round3(duration)} s but the voiceover lasts ${round3(voiceLength)} s: set the page's duration to the voiceover's`);
+      fail(
+        `the page lasts ${round3(duration)} s but the voiceover lasts ${round3(voiceLength)} s: set the page's duration to the voiceover's`,
+      );
     }
     const frames = Math.max(1, Math.round((to - from) * fps));
     const length = frames / fps;
     const tmp = tempBeside(out);
-    const ff = ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'image2pipe', '-c:v', 'png', '-framerate', String(fps), '-i', 'pipe:0'];
+    const ff = [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'image2pipe',
+      '-c:v',
+      'png',
+      '-framerate',
+      String(fps),
+      '-i',
+      'pipe:0',
+    ];
     if (audio) ff.push(...(from > 0 ? ['-ss', String(from)] : []), '-i', audio);
-    ff.push('-map', '0:v:0', ...(audio ? ['-map', '1:a:0'] : []),
-      '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p',
-      '-c:v', 'libx264', '-preset', 'slow', '-crf', String(crf), '-r', String(fps),
-      '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv');
+    ff.push(
+      '-map',
+      '0:v:0',
+      ...(audio ? ['-map', '1:a:0'] : []),
+      '-vf',
+      'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'slow',
+      '-crf',
+      String(crf),
+      '-r',
+      String(fps),
+      '-colorspace',
+      'bt709',
+      '-color_primaries',
+      'bt709',
+      '-color_trc',
+      'bt709',
+      '-color_range',
+      'tv',
+    );
     // the sound is cut or padded with silence to the picture's exact length
     if (audio) ff.push('-af', 'apad', '-c:a', 'aac', '-b:a', '256k');
     ff.push('-t', String(length), '-movflags', '+faststart', '-f', 'mp4', tmp);
@@ -648,7 +851,12 @@ async function render(args) {
     try {
       for (let i = 0; i < frames; i++) {
         const t = from + i / fps;
-        const data = await evaluate(session, `(window.film.render(${t}), window.film.canvas.toDataURL('image/png'))`, 120_000, `drawing ${fmt(t)} s`);
+        const data = await evaluate(
+          session,
+          `(window.film.render(${t}), window.film.canvas.toDataURL('image/png'))`,
+          120_000,
+          `drawing ${fmt(t)} s`,
+        );
         const buf = pngData(data, `at ${fmt(t)} s`);
         if (!ffmpeg.stdin.write(buf)) {
           const r = await Promise.race([new Promise((r2) => ffmpeg.stdin.once('drain', () => r2(null))), ended]);
@@ -657,7 +865,8 @@ async function render(args) {
       }
       ffmpeg.stdin.end();
       const r = await ended;
-      if (r.error && r.error.code === 'ENOENT') fail("ffmpeg isn't installed (it's part of FFmpeg, and must be on the PATH)");
+      if (r.error && r.error.code === 'ENOENT')
+        fail("ffmpeg isn't installed (it's part of FFmpeg, and must be on the PATH)");
       if (timedOut) fail(`the render took longer than ${minutes} minutes (--timeout)`);
       if (r.code !== 0) fail(`ffmpeg couldn't make the video: ${lastLine(ffErr) || `exit code ${r.code}`}`);
       try {
@@ -673,10 +882,22 @@ async function render(args) {
       throw e;
     }
     const warnings = [...session.warnings, ...session.errors];
-    return { code: warnings.length ? 1 : 0, result: {
-      video: out, width, height, fps, frames, duration: round3(length), from: round3(from), audio,
-      ...(audio ? { voiceover: round3(voiceLength) } : {}), seconds: Math.round((Date.now() - begun) / 1000), warnings,
-    } };
+    return {
+      code: warnings.length ? 1 : 0,
+      result: {
+        video: out,
+        width,
+        height,
+        fps,
+        frames,
+        duration: round3(length),
+        from: round3(from),
+        audio,
+        ...(audio ? { voiceover: round3(voiceLength) } : {}),
+        seconds: Math.round((Date.now() - begun) / 1000),
+        warnings,
+      },
+    };
   } finally {
     clearTimeout(timer);
     await session?.close();
@@ -691,7 +912,8 @@ async function main(argv) {
     process.stdout.write(HELP);
     return 0;
   }
-  if (major < 22 || typeof WebSocket !== 'function') fail(`this needs Node.js 22 or newer (this is ${process.versions.node})`);
+  if (major < 22 || typeof WebSocket !== 'function')
+    fail(`this needs Node.js 22 or newer (this is ${process.versions.node})`);
   const [cmd, ...rest] = argv;
   if (rest.includes('--help') || rest.includes('-h')) {
     process.stdout.write(HELP);
@@ -724,7 +946,8 @@ main(process.argv.slice(2)).then(
     cleanup();
     let message;
     if (e instanceof Fail) message = e.message;
-    else if (e && /ambiguous/.test(e.message || '')) message = `${e.message.split('.')[0]}: write a value that starts with a dash with =, like --noise=-40`;
+    else if (e && /ambiguous/.test(e.message || ''))
+      message = `${e.message.split('.')[0]}: write a value that starts with a dash with =, like --noise=-40`;
     else if (e && String(e.code || '').startsWith('ERR_PARSE_ARGS')) message = e.message.split('.')[0];
     else message = `unexpected error: ${e && e.message ? e.message : String(e)}`;
     process.stderr.write(`error: ${message.split('\n')[0]}\n`);

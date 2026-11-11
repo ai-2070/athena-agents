@@ -29,6 +29,7 @@ decision, gives every number its comparison, keeps the bad news in view, and say
     nothing the body doesn't say, written after the body is final.
 
   If the organisation has its own format (a board paper template, the one-pager a director always asks for), use it.
+
 - **Answer first, then the reasons, then the ask.** The first two sentences must work alone: many readers stop there,
   or see only the subject line and the preview on a phone. They carry the conclusion or recommendation and what is
   needed from the reader. Then the few reasons, then the risks and what is uncertain, then the ask. Background goes

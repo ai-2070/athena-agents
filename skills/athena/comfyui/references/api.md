@@ -9,24 +9,24 @@ sign-in. Every route below also answers with an `/api` prefix (`/api/prompt`), w
 
 ## Routes
 
-| Route | What it does |
-|---|---|
-| `GET /system_stats` | ComfyUI and Python versions, OS (`system.os`), each device's `vram_total` and `vram_free` in bytes |
-| `GET /object_info`, `GET /object_info/<class>` | Every node type's inputs and outputs. A dropdown is `[[choices], {...}]` or `["COMBO", {"options": [...]}]`; upload inputs carry `image_upload`, `video_upload` or `audio_upload` |
-| `GET /models`, `GET /models/<folder>` | The models folders, and the files in one. An unknown folder gives 404, and that includes the old names `unet` and `clip` on a current server |
-| `GET /embeddings` | Embedding names, without file extensions |
-| `POST /upload/image` | Multipart form: `image` (the file), `type` (`input`), `subfolder`, `overwrite` (`true`). Answers `{"name", "subfolder", "type"}`; the name is the one to use |
-| `POST /upload/mask` | As above plus `original_ref` (JSON: `filename`, `subfolder`, `type`): saves a copy of that image with the uploaded mask's alpha as its alpha |
-| `POST /prompt` | Queues a workflow (below) |
-| `GET /history/<prompt_id>`, `GET /history?max_items=1` | One job's result, or the newest job's |
-| `GET /api/jobs/<prompt_id>` | One job in a simpler shape, with `status` one of `pending`, `in_progress`, `completed`, `failed`, `cancelled` |
-| `POST /api/jobs/<prompt_id>/cancel` | Cancels that one job, waiting or running (ComfyUI 0.26 and newer). Answers `{"cancelled": true}`, or `false` when it had already finished or the id is unknown |
-| `GET /view?filename=&subfolder=&type=` | A file's bytes; `type` is `output`, `input` or `temp` |
-| `GET /queue` | `queue_running` and `queue_pending`, each job a list whose second item is its prompt id |
-| `POST /queue` | `{"delete": ["<prompt_id>"]}` takes waiting jobs off; `{"clear": true}` empties the queue |
-| `POST /interrupt` | `{"prompt_id": "<id>"}` stops that job if it's the one running. With no body it stops whatever is running, which may be someone else's |
-| `POST /free` | `{"unload_models": true, "free_memory": true}` unloads models from GPU memory |
-| `GET /ws?clientId=<id>` | WebSocket of progress events (`execution_start`, `executing`, `progress`, `executed`, `execution_success`, `execution_error`, `execution_interrupted`); a job's events go to the socket whose `clientId` it was submitted with |
+| Route                                                  | What it does                                                                                                                                                                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /system_stats`                                    | ComfyUI and Python versions, OS (`system.os`), each device's `vram_total` and `vram_free` in bytes                                                                                                                             |
+| `GET /object_info`, `GET /object_info/<class>`         | Every node type's inputs and outputs. A dropdown is `[[choices], {...}]` or `["COMBO", {"options": [...]}]`; upload inputs carry `image_upload`, `video_upload` or `audio_upload`                                              |
+| `GET /models`, `GET /models/<folder>`                  | The models folders, and the files in one. An unknown folder gives 404, and that includes the old names `unet` and `clip` on a current server                                                                                   |
+| `GET /embeddings`                                      | Embedding names, without file extensions                                                                                                                                                                                       |
+| `POST /upload/image`                                   | Multipart form: `image` (the file), `type` (`input`), `subfolder`, `overwrite` (`true`). Answers `{"name", "subfolder", "type"}`; the name is the one to use                                                                   |
+| `POST /upload/mask`                                    | As above plus `original_ref` (JSON: `filename`, `subfolder`, `type`): saves a copy of that image with the uploaded mask's alpha as its alpha                                                                                   |
+| `POST /prompt`                                         | Queues a workflow (below)                                                                                                                                                                                                      |
+| `GET /history/<prompt_id>`, `GET /history?max_items=1` | One job's result, or the newest job's                                                                                                                                                                                          |
+| `GET /api/jobs/<prompt_id>`                            | One job in a simpler shape, with `status` one of `pending`, `in_progress`, `completed`, `failed`, `cancelled`                                                                                                                  |
+| `POST /api/jobs/<prompt_id>/cancel`                    | Cancels that one job, waiting or running (ComfyUI 0.26 and newer). Answers `{"cancelled": true}`, or `false` when it had already finished or the id is unknown                                                                 |
+| `GET /view?filename=&subfolder=&type=`                 | A file's bytes; `type` is `output`, `input` or `temp`                                                                                                                                                                          |
+| `GET /queue`                                           | `queue_running` and `queue_pending`, each job a list whose second item is its prompt id                                                                                                                                        |
+| `POST /queue`                                          | `{"delete": ["<prompt_id>"]}` takes waiting jobs off; `{"clear": true}` empties the queue                                                                                                                                      |
+| `POST /interrupt`                                      | `{"prompt_id": "<id>"}` stops that job if it's the one running. With no body it stops whatever is running, which may be someone else's                                                                                         |
+| `POST /free`                                           | `{"unload_models": true, "free_memory": true}` unloads models from GPU memory                                                                                                                                                  |
+| `GET /ws?clientId=<id>`                                | WebSocket of progress events (`execution_start`, `executing`, `progress`, `executed`, `execution_success`, `execution_error`, `execution_interrupted`); a job's events go to the socket whose `clientId` it was submitted with |
 
 The run tool uploads input pictures and masks itself; for other uploads and for the dependency check there are
 scripts (`scripts/comfy_upload.py`, `scripts/comfy_check.py`). Use those rather than hand-made multipart requests.
@@ -36,7 +36,10 @@ scripts (`scripts/comfy_upload.py`, `scripts/comfy_check.py`). Use those rather 
 The body goes in a file, because PowerShell 5.1 strips quotes inside arguments. `body.json`:
 
 ```json
-{"prompt": {"3": {"class_type": "KSampler", "inputs": {"seed": 815, "...": "..."}}, "...": "..."}, "client_id": "athena-1"}
+{
+  "prompt": { "3": { "class_type": "KSampler", "inputs": { "seed": 815, "...": "..." } }, "...": "..." },
+  "client_id": "athena-1"
+}
 ```
 
 `prompt` is the whole workflow in API format. Then, in PowerShell (the quotes around `@body.json` matter there, since
@@ -65,11 +68,20 @@ carry your own `prompt_id`, a lowercase UUID, which makes the job easy to find l
 Poll `GET /history/<prompt_id>` every few seconds; it stays `{}` until the job finishes. A finished entry:
 
 ```json
-{"<prompt_id>": {
-  "prompt": ["..."],
-  "outputs": {"9": {"images": [{"filename": "lighthouse_00001_.png", "subfolder": "", "type": "output"}]}},
-  "status": {"status_str": "success", "completed": true, "messages": [["execution_start", {}], ["execution_success", {}]]}
-}}
+{
+  "<prompt_id>": {
+    "prompt": ["..."],
+    "outputs": { "9": { "images": [{ "filename": "lighthouse_00001_.png", "subfolder": "", "type": "output" }] } },
+    "status": {
+      "status_str": "success",
+      "completed": true,
+      "messages": [
+        ["execution_start", {}],
+        ["execution_success", {}]
+      ]
+    }
+  }
+}
 ```
 
 Outputs are listed by the node that made them: under `images` (ComfyUI's own video nodes too, marked `animated`),

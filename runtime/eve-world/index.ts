@@ -7,7 +7,10 @@ export default async function createWorld() {
   // Keep this import at runtime: Eve's compiler otherwise inlines package-relative files.
   const specifier = ['@workflow', 'world-local'].join('/');
   const module: typeof import('@workflow/world-local') = await import(specifier);
-  const world = module.createWorld({ dataDir: path.join(process.cwd(), '.eve', '.workflow-data'), recoverActiveRuns: false });
+  const world = module.createWorld({
+    dataDir: path.join(process.cwd(), '.eve', '.workflow-data'),
+    recoverActiveRuns: false,
+  });
   return secureWorld(world);
 }
 
@@ -17,14 +20,16 @@ export function secureWorld(world: LocalWorld): LocalWorld {
   const header = 'x-athena-eve-delivery';
   const secured: typeof world = {
     ...world,
-    queue: (name, message, options) => world.queue(name, message, { ...options, headers: { ...options?.headers, [header]: token } }),
+    queue: (name, message, options) =>
+      world.queue(name, message, { ...options, headers: { ...options?.headers, [header]: token } }),
     createQueueHandler: (prefix, handler) => {
       const consume = world.createQueueHandler(prefix, handler);
       return (request) => {
         const supplied = Buffer.from(request.headers.get(header) || '');
         const expected = Buffer.from(token);
         return supplied.length === expected.length && timingSafeEqual(supplied, expected)
-          ? consume(request) : Promise.resolve(new Response(null, { status: 401 }));
+          ? consume(request)
+          : Promise.resolve(new Response(null, { status: 401 }));
       };
     },
     start: async () => {

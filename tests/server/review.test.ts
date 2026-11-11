@@ -2,7 +2,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Approval } from '../../shared/types.ts';
 
-const brain = vi.hoisted(() => ({ prompts: [] as string[], systems: [] as string[], answer: '{"approve":true,"reason":"routine edit"}' }));
+const brain = vi.hoisted(() => ({
+  prompts: [] as string[],
+  systems: [] as string[],
+  answer: '{"approve":true,"reason":"routine edit"}',
+}));
 const runs = vi.hoisted(() => ({ projectId: '' }));
 
 vi.mock('../../server/brain.ts', async (orig) => ({
@@ -11,15 +15,26 @@ vi.mock('../../server/brain.ts', async (orig) => ({
 }));
 vi.mock('../../server/engines/index.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/engines/index.ts')>()),
-  runInfo: (id: string | null | undefined) => (id === 'r1' && runs.projectId ? { id, agentId: 'a1', projectId: runs.projectId, chatId: 'c1', depth: 0, signal: new AbortController().signal } : null),
+  runInfo: (id: string | null | undefined) =>
+    id === 'r1' && runs.projectId
+      ? { id, agentId: 'a1', projectId: runs.projectId, chatId: 'c1', depth: 0, signal: new AbortController().signal }
+      : null,
 }));
 
 const { reviewApproval, REVIEW_MAX } = await import('../../server/overseer.ts');
 const { activeProject, withProject } = await import('../../server/store.ts');
 
 const request = (over: Partial<Approval> = {}): Approval => ({
-  id: 'ap1', kind: 'tool', title: 'Coder wants to use write_file', detail: 'notes.md', agentId: 'a1', agentName: 'Coder',
-  data: { tool: 'write_file', args: { path: 'notes.md', content: 'hello' } }, editable: null, createdAt: Date.now(), ...over,
+  id: 'ap1',
+  kind: 'tool',
+  title: 'Coder wants to use write_file',
+  detail: 'notes.md',
+  agentId: 'a1',
+  agentName: 'Coder',
+  data: { tool: 'write_file', args: { path: 'notes.md', content: 'hello' } },
+  editable: null,
+  createdAt: Date.now(),
+  ...over,
 });
 
 beforeEach(() => {
@@ -48,12 +63,16 @@ describe('the Brain reviews a request', () => {
 
   it('reads the whole call, not the shortened card text', async () => {
     const content = `${'a'.repeat(3000)}\nrm -rf ~`;
-    await reviewApproval(request({ detail: content.slice(0, 1500), data: { tool: 'write_file', args: { path: 'x.sh', content } } }));
+    await reviewApproval(
+      request({ detail: content.slice(0, 1500), data: { tool: 'write_file', args: { path: 'x.sh', content } } }),
+    );
     expect(brain.prompts[0]).toContain('rm -rf ~');
   });
 
   it('leaves a request too long to read in full to you, without asking the model', async () => {
-    const v = await reviewApproval(request({ data: { tool: 'run_command', args: { command: `echo ${'x'.repeat(REVIEW_MAX)}` } } }));
+    const v = await reviewApproval(
+      request({ data: { tool: 'run_command', args: { command: `echo ${'x'.repeat(REVIEW_MAX)}` } } }),
+    );
     expect(v.approve).toBe(false);
     expect(v.reason).toMatch(/too long/);
     expect(brain.prompts).toHaveLength(0);
@@ -78,7 +97,12 @@ describe('the Brain reviews a request', () => {
   });
 
   it('judges a request for tools by what the task needs, and never gives Shell itself', async () => {
-    const ask = (group: string) => request({ kind: 'tools', title: `Coder asks for the ${group} tools`, data: { group, args: { tools: group, why: 'to read the project files' } } });
+    const ask = (group: string) =>
+      request({
+        kind: 'tools',
+        title: `Coder asks for the ${group} tools`,
+        data: { group, args: { tools: group, why: 'to read the project files' } },
+      });
     expect((await reviewApproval(ask('files'))).approve).toBe(true);
     expect(brain.systems[0]).toMatch(/asks to be given a set of tools/);
     expect(brain.prompts[0]).toContain('to read the project files');

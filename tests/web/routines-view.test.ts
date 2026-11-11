@@ -5,8 +5,15 @@ import type { AppState } from '../../shared/types.ts';
 
 // fetch answers only when we say so
 const pending: { path: string; answer: (body: unknown) => void }[] = [];
-vi.stubGlobal('fetch', (url: string) =>
-  new Promise((resolve) => pending.push({ path: String(url), answer: (body) => resolve(new Response(JSON.stringify(body), { status: 200 })) })),
+vi.stubGlobal(
+  'fetch',
+  (url: string) =>
+    new Promise((resolve) =>
+      pending.push({
+        path: String(url),
+        answer: (body) => resolve(new Response(JSON.stringify(body), { status: 200 })),
+      }),
+    ),
 );
 const answerAll = async (by: (path: string) => unknown) => {
   for (let i = 0; i < 5; i++) {

@@ -4,5 +4,7 @@ import { z } from 'zod';
 
 export const message = {
   text: z.string({ error: 'Type a message first.' }).optional(),
-  attachments: z.array(z.string({ error: 'Each attachment is a file of the project.' }), { error: 'attachments must be a list.' }).optional(),
+  attachments: z
+    .array(z.string({ error: 'Each attachment is a file of the project.' }), { error: 'attachments must be a list.' })
+    .optional(),
 };

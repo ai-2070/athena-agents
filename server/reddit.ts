@@ -80,10 +80,17 @@ const SCOPES = 'identity submit read history mysubreddits';
 const load = () => readJSON<AccountsFile>(ACCOUNTS_FILE, { x: {} });
 const save = (a: AccountsFile) => writeJSON(ACCOUNTS_FILE, a);
 
-const userAgent = (username = '') => `windows:athena-agents:0.1.0 (by /u/${username || getSettings().reddit?.username || 'athena-agents'})`;
+const userAgent = (username = '') =>
+  `windows:athena-agents:0.1.0 (by /u/${username || getSettings().reddit?.username || 'athena-agents'})`;
 
 export function redditAccounts(): RedditAccount[] {
-  return Object.values(load().reddit || {}).map(({ id, username, autopost, connectedAt, icon }) => ({ id, username, autopost: !!autopost, connectedAt, icon }));
+  return Object.values(load().reddit || {}).map(({ id, username, autopost, connectedAt, icon }) => ({
+    id,
+    username,
+    autopost: !!autopost,
+    connectedAt,
+    icon,
+  }));
 }
 
 export const redditAppConfigured = () => !!(getSettings().reddit?.clientId && getSecrets().redditClientSecret);
@@ -95,7 +102,14 @@ export function redditAuthStart(baseUrl: string): string {
   const state = crypto.randomBytes(16).toString('hex');
   const redirectUri = `${baseUrl}/oauth/reddit/callback`;
   pending.set(state, { redirectUri, at: Date.now() });
-  const q = new URLSearchParams({ client_id: clientId, response_type: 'code', state, redirect_uri: redirectUri, duration: 'permanent', scope: SCOPES });
+  const q = new URLSearchParams({
+    client_id: clientId,
+    response_type: 'code',
+    state,
+    redirect_uri: redirectUri,
+    duration: 'permanent',
+    scope: SCOPES,
+  });
   return `https://www.reddit.com/api/v1/authorize?${q}`;
 }
 
@@ -116,7 +130,9 @@ export async function redditAuthCallback({ code, state, error }: OAuthQuery): Pr
     body: new URLSearchParams({ grant_type: 'authorization_code', code: String(code), redirect_uri: p.redirectUri }),
   });
   if (tok.error) throw new Error(`Reddit said: ${tok.error}`);
-  const me = await fetchJSON<RedditMe>('https://oauth.reddit.com/api/v1/me', { headers: { authorization: `Bearer ${tok.access_token}`, 'user-agent': userAgent() } });
+  const me = await fetchJSON<RedditMe>('https://oauth.reddit.com/api/v1/me', {
+    headers: { authorization: `Bearer ${tok.access_token}`, 'user-agent': userAgent() },
+  });
   const a = load();
   a.reddit ||= {};
   a.reddit[me.id] = {
@@ -144,13 +160,20 @@ async function token(accountId: string): Promise<string> {
   const job = (async () => {
     const tok = await fetchJSON<RedditToken>('https://www.reddit.com/api/v1/access_token', {
       method: 'POST',
-      headers: { authorization: basic(), 'content-type': 'application/x-www-form-urlencoded', 'user-agent': userAgent(acc.username) },
+      headers: {
+        authorization: basic(),
+        'content-type': 'application/x-www-form-urlencoded',
+        'user-agent': userAgent(acc.username),
+      },
       body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: acc.refreshToken }),
     }).catch((e: FetchError) => {
       throw new Error(`Couldn't refresh u/${acc.username}'s sign-in (${e.message}). Reconnect it in Connections.`);
     });
     const a = load();
-    Object.assign(a.reddit![accountId], { accessToken: tok.access_token, expiresAt: Date.now() + (tok.expires_in || 3600) * 1000 });
+    Object.assign(a.reddit![accountId], {
+      accessToken: tok.access_token,
+      expiresAt: Date.now() + (tok.expires_in || 3600) * 1000,
+    });
     save(a);
     return tok.access_token;
   })();
@@ -166,18 +189,29 @@ export function resolveRedditAccount(handle?: string): StoredRedditAccount {
   const list = Object.values(load().reddit || {});
   if (!list.length) throw new Error('No Reddit account is connected yet. Connect one in Settings > Connections.');
   if (!handle) return list[0];
-  const h = String(handle).replace(/^\/?u\//, '').toLowerCase();
+  const h = String(handle)
+    .replace(/^\/?u\//, '')
+    .toLowerCase();
   const acc = list.find((x) => x.username.toLowerCase() === h || x.id === handle);
   if (!acc) throw new Error(`u/${h} is not connected. Connected: ${list.map((x) => 'u/' + x.username).join(', ')}`);
   return acc;
 }
 
-async function api<T>(accountId: string, method: string, path: string, form?: Record<string, string | undefined>): Promise<T> {
+async function api<T>(
+  accountId: string,
+  method: string,
+  path: string,
+  form?: Record<string, string | undefined>,
+): Promise<T> {
   const acc = load().reddit![accountId];
   const t = await token(accountId);
   return fetchJSON<T>(`https://oauth.reddit.com${path}`, {
     method,
-    headers: { authorization: `Bearer ${t}`, 'user-agent': userAgent(acc.username), ...(form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}) },
+    headers: {
+      authorization: `Bearer ${t}`,
+      'user-agent': userAgent(acc.username),
+      ...(form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}),
+    },
     body: form ? new URLSearchParams(form as Record<string, string>) : undefined, // a missing value is sent as "undefined", as before
   });
 }
@@ -190,19 +224,37 @@ async function read<T>(path: string): Promise<T> {
   return fetchJSON<T>(`https://www.reddit.com${p}.json${q ? `?${q}` : ''}`, { headers: { 'user-agent': userAgent() } });
 }
 
-const brief = (p: RedditPost): RedditBrief => ({ id: p.name, title: p.title, subreddit: p.subreddit, author: p.author, score: p.score, comments: p.num_comments, url: `https://www.reddit.com${p.permalink}`, text: String(p.selftext || '').slice(0, 600), created: new Date(p.created_utc * 1000).toISOString() });
+const brief = (p: RedditPost): RedditBrief => ({
+  id: p.name,
+  title: p.title,
+  subreddit: p.subreddit,
+  author: p.author,
+  score: p.score,
+  comments: p.num_comments,
+  url: `https://www.reddit.com${p.permalink}`,
+  text: String(p.selftext || '').slice(0, 600),
+  created: new Date(p.created_utc * 1000).toISOString(),
+});
 
 export async function readSubreddit(subreddit: string, sort = 'hot', limit = 10): Promise<RedditBrief[]> {
   const sr = String(subreddit || '').replace(/^\/?r\//, '');
   if (!/^\w{2,21}$/.test(sr)) throw new Error('Which subreddit? e.g. "LocalLLaMA"');
   const s = ['hot', 'new', 'top', 'rising'].includes(sort) ? sort : 'hot';
-  const j = await read<Listing<RedditPost>>(`/r/${sr}/${s}?limit=${Math.min(25, Math.max(1, limit))}${s === 'top' ? '&t=week' : ''}`);
+  const j = await read<Listing<RedditPost>>(
+    `/r/${sr}/${s}?limit=${Math.min(25, Math.max(1, limit))}${s === 'top' ? '&t=week' : ''}`,
+  );
   return (j.data?.children || []).map((c) => brief(c.data));
 }
 
 export async function searchReddit(query: string, subreddit = '', limit = 10): Promise<RedditBrief[]> {
   const sr = String(subreddit || '').replace(/^\/?r\//, '');
-  const q = new URLSearchParams({ q: query, limit: String(Math.min(25, limit)), sort: 'relevance', t: 'month', ...(sr ? { restrict_sr: '1' } : {}) });
+  const q = new URLSearchParams({
+    q: query,
+    limit: String(Math.min(25, limit)),
+    sort: 'relevance',
+    t: 'month',
+    ...(sr ? { restrict_sr: '1' } : {}),
+  });
   const j = await read<Listing<RedditPost>>(`${sr ? `/r/${sr}` : ''}/search?${q}`);
   return (j.data?.children || []).map((c) => brief(c.data));
 }
@@ -215,11 +267,21 @@ export function postId(post: unknown): string {
   return id;
 }
 
-export async function postComments(post: string, limit = 15): Promise<{ post: RedditBrief | null; comments: RedditCommentBrief[] }> {
+export async function postComments(
+  post: string,
+  limit = 15,
+): Promise<{ post: RedditBrief | null; comments: RedditCommentBrief[] }> {
   const id = postId(post);
   const j = await read<[Listing<RedditPost>, Listing<RedditComment>]>(`/comments/${id}?limit=${limit}&depth=2`);
   const top = j?.[0]?.data?.children?.[0]?.data;
-  const comments = (j?.[1]?.data?.children || []).filter((c) => c.kind === 't1').map((c) => ({ id: c.data.name, author: c.data.author, score: c.data.score, text: String(c.data.body || '').slice(0, 500) }));
+  const comments = (j?.[1]?.data?.children || [])
+    .filter((c) => c.kind === 't1')
+    .map((c) => ({
+      id: c.data.name,
+      author: c.data.author,
+      score: c.data.score,
+      text: String(c.data.body || '').slice(0, 500),
+    }));
   return { post: top ? brief(top) : null, comments };
 }
 
@@ -230,7 +292,16 @@ interface RedditRule {
   violation_reason?: string;
 }
 interface RedditAbout {
-  data?: { display_name?: string; title?: string; public_description?: string; description?: string; submit_text?: string; subscribers?: number; over18?: boolean; submission_type?: string };
+  data?: {
+    display_name?: string;
+    title?: string;
+    public_description?: string;
+    description?: string;
+    submit_text?: string;
+    subscribers?: number;
+    over18?: boolean;
+    submission_type?: string;
+  };
 }
 
 /** A subreddit's rules and its sidebar, as the reddit_rules tool returns them. */
@@ -252,9 +323,14 @@ const RULE_KINDS: Record<string, string> = { all: 'posts and comments', link: 'p
 
 /** A subreddit's rules (/about/rules) and its sidebar and description (/about). Read-only. */
 export async function subredditRules(subreddit: string): Promise<SubredditRules> {
-  const sr = String(subreddit || '').replace(/^\/?r\//, '').replace(/\/$/, '');
+  const sr = String(subreddit || '')
+    .replace(/^\/?r\//, '')
+    .replace(/\/$/, '');
   if (!/^\w{2,21}$/.test(sr)) throw new Error('Which subreddit? e.g. "LocalLLaMA"');
-  const [rules, about] = await Promise.all([read<{ rules?: RedditRule[] }>(`/r/${sr}/about/rules`), read<RedditAbout>(`/r/${sr}/about`)]);
+  const [rules, about] = await Promise.all([
+    read<{ rules?: RedditRule[] }>(`/r/${sr}/about/rules`),
+    read<RedditAbout>(`/r/${sr}/about`),
+  ]);
   const d = about.data || {};
   return {
     subreddit: d.display_name || sr,
@@ -263,23 +339,41 @@ export async function subredditRules(subreddit: string): Promise<SubredditRules>
     nsfw: !!d.over18,
     allows: d.submission_type || 'any',
     summary: d.public_description || '',
-    rules: (rules.rules || []).map((r) => ({ name: r.short_name || '', text: String(r.description || '').slice(0, 1500), appliesTo: RULE_KINDS[r.kind || 'all'] || 'posts and comments' })),
+    rules: (rules.rules || []).map((r) => ({
+      name: r.short_name || '',
+      text: String(r.description || '').slice(0, 1500),
+      appliesTo: RULE_KINDS[r.kind || 'all'] || 'posts and comments',
+    })),
     submitText: String(d.submit_text || '').slice(0, 3000),
     sidebar: String(d.description || '').slice(0, 6000),
   };
 }
 
 // Publishing (only from the Outbox, after you approve).
-export async function publish(item: Pick<OutboxItem, 'accountId' | 'parts' | 'reddit'>): Promise<{ id: string | undefined; url: string | null | undefined }> {
+export async function publish(
+  item: Pick<OutboxItem, 'accountId' | 'parts' | 'reddit'>,
+): Promise<{ id: string | undefined; url: string | null | undefined }> {
   const r: Partial<NonNullable<OutboxPost['reddit']>> = item.reddit || {};
   if (r.kind === 'comment') {
-    const res = await api<RedditSubmitAnswer>(String(item.accountId), 'POST', '/api/comment', { thing_id: r.parent, text: item.parts.join('\n\n'), api_type: 'json' });
+    const res = await api<RedditSubmitAnswer>(String(item.accountId), 'POST', '/api/comment', {
+      thing_id: r.parent,
+      text: item.parts.join('\n\n'),
+      api_type: 'json',
+    });
     const errs = res.json?.errors || [];
     if (errs.length) throw new Error(errs.map((e) => e.join(' ')).join('; '));
     const c = res.json?.data?.things?.[0]?.data;
     return { id: c?.name, url: c?.permalink ? `https://www.reddit.com${c.permalink}` : null };
   }
-  const form = { sr: r.subreddit, title: r.title, api_type: 'json', kind: r.link ? 'link' : 'self', ...(r.link ? { url: r.link } : { text: item.parts.join('\n\n') }), ...(r.flairId ? { flair_id: r.flairId } : {}), ...(r.flairText ? { flair_text: r.flairText } : {}) };
+  const form = {
+    sr: r.subreddit,
+    title: r.title,
+    api_type: 'json',
+    kind: r.link ? 'link' : 'self',
+    ...(r.link ? { url: r.link } : { text: item.parts.join('\n\n') }),
+    ...(r.flairId ? { flair_id: r.flairId } : {}),
+    ...(r.flairText ? { flair_text: r.flairText } : {}),
+  };
   const res = await api<RedditSubmitAnswer>(String(item.accountId), 'POST', '/api/submit', form);
   const errs = res.json?.errors || [];
   if (errs.length) throw new Error(errs.map((e) => e.join(' ')).join('; '));

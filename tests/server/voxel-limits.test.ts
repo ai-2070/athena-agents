@@ -42,8 +42,31 @@ const ascii = (s: string) => [...s].map((c) => c.charCodeAt(0));
 
 describe('builds that would hold up the server stop with an error', () => {
   it('an outline with far-out points (finding 12)', () => {
-    expect(() => run([{ extrude: { points: [[1e20, 0], [1e20, 1], [1e20, 2]] }, use: 'stone' }])).toThrow(/more than 2048 voxels from the spot/);
-    expect(() => run([{ path: [[0, 0], [1e20, 0]], use: 'stone' }])).toThrow(/more than 2048 voxels/);
+    expect(() =>
+      run([
+        {
+          extrude: {
+            points: [
+              [1e20, 0],
+              [1e20, 1],
+              [1e20, 2],
+            ],
+          },
+          use: 'stone',
+        },
+      ]),
+    ).toThrow(/more than 2048 voxels from the spot/);
+    expect(() =>
+      run([
+        {
+          path: [
+            [0, 0],
+            [1e20, 0],
+          ],
+          use: 'stone',
+        },
+      ]),
+    ).toThrow(/more than 2048 voxels/);
   }, 10_000);
 
   it('a huge shape that changes nothing still has a work limit (finding 12)', () => {
@@ -51,9 +74,23 @@ describe('builds that would hold up the server stop with an error', () => {
     const was = LIMITS.work;
     LIMITS.work = 1_000_000;
     try {
-      expect(() => run([{ revolve: [[250, -250], [250, 250]], erase: true }])).toThrow(/too much to work out/);
-      expect(() => run([{ box: [512, 512, 512], at: [-256, -256, -256], erase: true }])).toThrow(/too much to work out/);
-      expect(() => run([{ cylinder: 250, height: 500, at: [0, -250, 0], erase: true }])).toThrow(/too much to work out/);
+      expect(() =>
+        run([
+          {
+            revolve: [
+              [250, -250],
+              [250, 250],
+            ],
+            erase: true,
+          },
+        ]),
+      ).toThrow(/too much to work out/);
+      expect(() => run([{ box: [512, 512, 512], at: [-256, -256, -256], erase: true }])).toThrow(
+        /too much to work out/,
+      );
+      expect(() => run([{ cylinder: 250, height: 500, at: [0, -250, 0], erase: true }])).toThrow(
+        /too much to work out/,
+      );
     } finally {
       LIMITS.work = was;
     }
@@ -61,22 +98,86 @@ describe('builds that would hold up the server stop with an error', () => {
   }, 10_000);
 
   it('outlines still fill like before, now worked out a row at a time', () => {
-    expect(run([{ extrude: { points: [[0, 0], [4, 0], [4, 3], [0, 3]], height: 2 }, use: 'stone' }]).total).toBe(24);
+    expect(
+      run([
+        {
+          extrude: {
+            points: [
+              [0, 0],
+              [4, 0],
+              [4, 3],
+              [0, 3],
+            ],
+            height: 2,
+          },
+          use: 'stone',
+        },
+      ]).total,
+    ).toBe(24);
     // a triangle: half-ish of its box, even-odd at the voxels' middles
-    expect(run([{ extrude: { points: [[0, 0], [8, 0], [0, 8]], height: 1 }, use: 'stone' }]).total).toBe(28);
+    expect(
+      run([
+        {
+          extrude: {
+            points: [
+              [0, 0],
+              [8, 0],
+              [0, 8],
+            ],
+            height: 1,
+          },
+          use: 'stone',
+        },
+      ]).total,
+    ).toBe(28);
   });
 
   it('"wall" beside "height" makes hollow walls, in voxels and in map units (finding 55)', () => {
-    const square = [[0, 0], [5, 0], [5, 5], [0, 5]];
+    const square = [
+      [0, 0],
+      [5, 0],
+      [5, 5],
+      [0, 5],
+    ];
     expect(run([{ extrude: { points: square }, height: 1, wall: 1, use: 'stone' }]).total).toBe(16);
-    const map = runBuild({ grids: [], palette: [], voxelSize: 0.25, units: 'map', newId, steps: [{ use: 'stone' }, { extrude: { points: [[0, 0], [1.25, 0], [1.25, 1.25], [0, 1.25]] }, height: 0.25, wall: 0.25 }] });
+    const map = runBuild({
+      grids: [],
+      palette: [],
+      voxelSize: 0.25,
+      units: 'map',
+      newId,
+      steps: [
+        { use: 'stone' },
+        {
+          extrude: {
+            points: [
+              [0, 0],
+              [1.25, 0],
+              [1.25, 1.25],
+              [0, 1.25],
+            ],
+          },
+          height: 0.25,
+          wall: 0.25,
+        },
+      ],
+    });
     expect(map.added).toBe(16);
   });
 });
 
 describe('.vox files that would hold up the server', () => {
   it('a 32-byte file with a negative children size is damaged, not an endless loop (finding 13)', () => {
-    const bytes = new Uint8Array([...ascii('VOX '), ...int32(150), ...ascii('MAIN'), ...int32(0), ...int32(12), ...ascii('JUNK'), ...int32(0), ...int32(-12)]);
+    const bytes = new Uint8Array([
+      ...ascii('VOX '),
+      ...int32(150),
+      ...ascii('MAIN'),
+      ...int32(0),
+      ...int32(12),
+      ...ascii('JUNK'),
+      ...int32(0),
+      ...int32(-12),
+    ]);
     expect(bytes.length).toBe(32);
     expect(() => parseVox(bytes)).toThrow(/damaged/);
   }, 5_000);
@@ -108,10 +209,24 @@ describe('prefab graphs', () => {
     build({ by: A, prefab: 'Leaf', steps: [{ box: [1, 1, 1], use: 'stone' }] });
     build({ by: A, prefab: 'Hedge', steps: [{ place: 'Leaf', grid: { rows: 40, cols: 50, gap: [1, 1] } }] });
     // 9 hedges of 2,000 leaves: 18,009 copies drawn
-    build({ by: A, prefab: 'Maze', steps: Array.from({ length: 9 }, (_, i) => ({ place: 'Hedge', at: [i * 60, 0, 0] })) });
-    expect(() => build({ by: A, prefab: 'Maze', steps: [{ place: 'Hedge', at: [600, 0, 0] }] })).toThrow(/the prefab "Maze" draw 20,010 copies/);
-    expect(() => build({ by: A, prefab: 'Hedge', steps: [{ place: 'Leaf', grid: { rows: 10, cols: 30, gap: [1, 1] }, at: [0, 0, 50] }] })).toThrow(/the prefab "Maze" draw/);
-    expect(() => build({ by: A, object: 'Garden', steps: [{ place: 'Maze' }, { place: 'Maze', at: [0, 0, 100] }] })).toThrow(/"Garden" draw 36,020 copies/);
+    build({
+      by: A,
+      prefab: 'Maze',
+      steps: Array.from({ length: 9 }, (_, i) => ({ place: 'Hedge', at: [i * 60, 0, 0] })),
+    });
+    expect(() => build({ by: A, prefab: 'Maze', steps: [{ place: 'Hedge', at: [600, 0, 0] }] })).toThrow(
+      /the prefab "Maze" draw 20,010 copies/,
+    );
+    expect(() =>
+      build({
+        by: A,
+        prefab: 'Hedge',
+        steps: [{ place: 'Leaf', grid: { rows: 10, cols: 30, gap: [1, 1] }, at: [0, 0, 50] }],
+      }),
+    ).toThrow(/the prefab "Maze" draw/);
+    expect(() =>
+      build({ by: A, object: 'Garden', steps: [{ place: 'Maze' }, { place: 'Maze', at: [0, 0, 100] }] }),
+    ).toThrow(/"Garden" draw 36,020 copies/);
     expect(build({ by: A, object: 'Garden', steps: [{ place: 'Maze' }] }).created).toBe(true);
   }, 20_000);
 
@@ -128,21 +243,37 @@ describe('prefab graphs', () => {
   it('a stamp checks the copies it brings like placing them (finding 49)', () => {
     fresh();
     build({ by: A, prefab: 'Q', steps: [{ box: [1, 1, 1], use: 'stone' }] });
-    build({ by: A, prefab: 'P', steps: [{ box: [1, 1, 1], use: 'wood' }, { place: 'Q', at: [2, 0, 0] }] });
-    expect(() => build({ by: A, prefab: 'Q', steps: [{ stamp: 'P', at: [0, 2, 0] }] })).toThrow(/can't be placed inside itself/);
+    build({
+      by: A,
+      prefab: 'P',
+      steps: [
+        { box: [1, 1, 1], use: 'wood' },
+        { place: 'Q', at: [2, 0, 0] },
+      ],
+    });
+    expect(() => build({ by: A, prefab: 'Q', steps: [{ stamp: 'P', at: [0, 2, 0] }] })).toThrow(
+      /can't be placed inside itself/,
+    );
     expect(readPrefab(world().id, world().prefabs.find((p) => p.name === 'Q')!.id)!.instances).toBeUndefined();
   });
 
   it('a stamp carries its swap into the copies it brings, after their own (finding 100)', () => {
     fresh();
     build({ by: A, prefab: 'Lf', steps: [{ box: [1, 1, 1], use: 'red lacquer' }] });
-    build({ by: A, prefab: 'Cc', steps: [{ place: 'Lf' }, { place: 'Lf', at: [2, 0, 0], swap: { stone: 'red lacquer' } }] });
+    build({
+      by: A,
+      prefab: 'Cc',
+      steps: [{ place: 'Lf' }, { place: 'Lf', at: [2, 0, 0], swap: { stone: 'red lacquer' } }],
+    });
     const r = build({ by: A, object: 'Stamped', steps: [{ stamp: 'Cc', swap: { 'red lacquer': 'neon blue' } }] });
     const placed = readObject(world().id, r.object.id)!.instances!;
-    expect(placed.map((i) => i.swap)).toEqual([{ 'red lacquer': 'neon blue' }, { stone: 'neon blue', 'red lacquer': 'neon blue' }]);
+    expect(placed.map((i) => i.swap)).toEqual([
+      { 'red lacquer': 'neon blue' },
+      { stone: 'neon blue', 'red lacquer': 'neon blue' },
+    ]);
   });
 
-  it('a .glb carries a parent copy\'s swap into the copies inside it (finding 52)', () => {
+  it("a .glb carries a parent copy's swap into the copies inside it (finding 52)", () => {
     fresh();
     build({ by: A, prefab: 'Lf', steps: [{ box: [1, 1, 1], use: 'red lacquer' }] });
     build({ by: A, prefab: 'Cc', steps: [{ place: 'Lf' }] });
@@ -150,7 +281,9 @@ describe('prefab graphs', () => {
     build({ by: A, object: 'Blue', steps: [{ place: 'Cc', swap: { 'red lacquer': 'neon blue' } }] });
     const glb = toGlb(world(), { kind: 'world' });
     const v = new DataView(glb.buffer, glb.byteOffset);
-    const json = JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + v.getUint32(12, true)))) as { meshes: { name: string }[] };
+    const json = JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + v.getUint32(12, true)))) as {
+      meshes: { name: string }[];
+    };
     // the leaf drawn red in one and blue in the other: two meshes
     expect(json.meshes.filter((m) => m.name === 'Lf')).toHaveLength(2);
   });
@@ -217,7 +350,11 @@ describe('undo', () => {
     changeObject({ by: A, object: 'Oak', name: 'Birch' });
     build({ by: B, object: 'Oak', steps: [{ box: [1, 1, 1], use: 'wood' }] });
     expect(() => undo(A)).toThrow(/give back the name "Oak"/);
-    expect(world().objects.map((o) => o.name).sort()).toEqual(['Birch', 'Oak']);
+    expect(
+      world()
+        .objects.map((o) => o.name)
+        .sort(),
+    ).toEqual(['Birch', 'Oak']);
   });
 });
 
@@ -242,7 +379,9 @@ describe('saving part of an object as a prefab', () => {
     build({ by: A, prefab: 'A', steps: [{ place: 'C' }] });
     build({ by: A, prefab: 'B', steps: [{ place: 'A' }] });
     build({ by: A, object: 'Tower', steps: [{ place: 'B' }] });
-    expect(() => savePrefabFrom({ by: A, name: 'Wrapper', from: 'Tower', replace: true })).toThrow(/nest at most 4 deep/);
+    expect(() => savePrefabFrom({ by: A, name: 'Wrapper', from: 'Tower', replace: true })).toThrow(
+      /nest at most 4 deep/,
+    );
     expect(world().prefabs.some((p) => p.name === 'Wrapper')).toBe(false);
     // one level less is fine
     build({ by: A, object: 'Hall', steps: [{ place: 'A' }] });
@@ -251,10 +390,24 @@ describe('saving part of an object as a prefab', () => {
 });
 
 describe('the prefab library', () => {
-  it('keeps a prefab\'s pivot and animations (finding 86)', () => {
+  it("keeps a prefab's pivot and animations (finding 86)", () => {
     fresh();
     build({ by: A, prefab: 'Bell', pivot: 'top', steps: [{ box: [1, 2, 1], use: 'iron' }] });
-    setAnimation({ by: A, prefab: 'Bell', action: 'set', clip: 'ring', fields: { duration: 1, tracks: { self: [{ t: 0, turn: [0, 0, 0] }, { t: 1, turn: [20, 0, 0] }] } } });
+    setAnimation({
+      by: A,
+      prefab: 'Bell',
+      action: 'set',
+      clip: 'ring',
+      fields: {
+        duration: 1,
+        tracks: {
+          self: [
+            { t: 0, turn: [0, 0, 0] },
+            { t: 1, turn: [20, 0, 0] },
+          ],
+        },
+      },
+    });
     publishPrefab({ by: A, prefab: 'Bell' });
     fresh();
     const r = importPrefab({ by: A, name: 'Bell' });
@@ -271,7 +424,10 @@ describe('.vox import', () => {
     const dir = dataPath('vox-tests');
     ensureDir(dir);
     const file = `${dir}/${name}.vox`;
-    fs.writeFileSync(file, gridToVox({ id: 'g', voxelSize: 0.25, vol }, [{ name: 'stone', color: '#7d7a74', kind: 'solid' }]));
+    fs.writeFileSync(
+      file,
+      gridToVox({ id: 'g', voxelSize: 0.25, vol }, [{ name: 'stone', color: '#7d7a74', kind: 'solid' }]),
+    );
     return file;
   };
 
@@ -284,9 +440,29 @@ describe('.vox import', () => {
 
   it('refuses a model the build tools could not edit (finding 101)', () => {
     fresh();
-    expect(() => importVox({ by: A, file: voxFile('tall', [[0, 0, 0], [0, 256, 0]]), as: 'object', name: 'Tall', voxelSize: 0.25 })).toThrow(/reaches past 256 voxels/);
+    expect(() =>
+      importVox({
+        by: A,
+        file: voxFile('tall', [
+          [0, 0, 0],
+          [0, 256, 0],
+        ]),
+        as: 'object',
+        name: 'Tall',
+        voxelSize: 0.25,
+      }),
+    ).toThrow(/reaches past 256 voxels/);
     expect(world().objects).toHaveLength(0);
-    importVox({ by: A, file: voxFile('short', [[0, 0, 0], [0, 255, 0]]), as: 'object', name: 'Short', voxelSize: 0.25 });
+    importVox({
+      by: A,
+      file: voxFile('short', [
+        [0, 0, 0],
+        [0, 255, 0],
+      ]),
+      as: 'object',
+      name: 'Short',
+      voxelSize: 0.25,
+    });
     expect(build({ by: A, object: 'Short', steps: [{ clear: true }] }).outcome.removed).toBe(2);
   });
 });

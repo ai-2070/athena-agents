@@ -17,18 +17,18 @@ Status: plan, nothing built yet. Written 2026-10-27, decisions from the first re
 
 Looking at the four images, the look comes from a few things, and most of them are cheap:
 
-| What you see | How we get it |
-|---|---|
-| Every cube a slightly different shade (grass, brick, wood grain, snow) | **Per-voxel color jitter** from a seeded hash, plus palette "ramps" (3-5 shades per material). Done at build time on the server, so LLMs never pick 50,000 colors by hand. |
-| Soft dark creases where cubes meet | **Per-vertex ambient occlusion** baked into the mesh (the classic voxel AO), plus screen-space AO in post. |
-| Warm lanterns, neon signs, lit windows, headlights | **Emissive materials** that glow (bloom) and, in clusters, **become real point lights** (capped budget). |
-| Long sun shadows, golden or blue hour | One **sun with soft shadows**, **hemisphere sky light**, **tone mapping** and a **time-of-day preset**. |
-| Miniature, toy-like feel | **Tilt-shift** depth of field in post, plus the orthographic camera the Station already uses. |
-| Petals, snow, waterfall foam, red smoke, birds | **Particle effects** made of tiny cubes (they match the style), and a few simple flocks. |
-| Water, glass, ice | **Transparent / animated materials** per palette entry (water scrolls and shimmers). |
-| Snow on every ledge | A **`snow_cover` op** that puts snow on top faces of an area. Same idea for moss and vines (`overgrow`). |
-| Big, believable structures | **Shape tools** that do the voxel-by-voxel work (revolve a profile into a column or dome, extrude a floor plan into walls, sweep a path into a road or river, noise terrain, rough organic blobs), driven by the agent's design. |
-| Hundreds of people, palms, lamps, taxis, boats | **Prefabs the agents make themselves**, then **placed many times** (along a street, in a grid, scattered on the ground), turned, mirrored and recoloured per copy. Drawn as instances, so a crowd costs almost nothing. |
+| What you see                                                           | How we get it                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every cube a slightly different shade (grass, brick, wood grain, snow) | **Per-voxel color jitter** from a seeded hash, plus palette "ramps" (3-5 shades per material). Done at build time on the server, so LLMs never pick 50,000 colors by hand.                                                       |
+| Soft dark creases where cubes meet                                     | **Per-vertex ambient occlusion** baked into the mesh (the classic voxel AO), plus screen-space AO in post.                                                                                                                       |
+| Warm lanterns, neon signs, lit windows, headlights                     | **Emissive materials** that glow (bloom) and, in clusters, **become real point lights** (capped budget).                                                                                                                         |
+| Long sun shadows, golden or blue hour                                  | One **sun with soft shadows**, **hemisphere sky light**, **tone mapping** and a **time-of-day preset**.                                                                                                                          |
+| Miniature, toy-like feel                                               | **Tilt-shift** depth of field in post, plus the orthographic camera the Station already uses.                                                                                                                                    |
+| Petals, snow, waterfall foam, red smoke, birds                         | **Particle effects** made of tiny cubes (they match the style), and a few simple flocks.                                                                                                                                         |
+| Water, glass, ice                                                      | **Transparent / animated materials** per palette entry (water scrolls and shimmers).                                                                                                                                             |
+| Snow on every ledge                                                    | A **`snow_cover` op** that puts snow on top faces of an area. Same idea for moss and vines (`overgrow`).                                                                                                                         |
+| Big, believable structures                                             | **Shape tools** that do the voxel-by-voxel work (revolve a profile into a column or dome, extrude a floor plan into walls, sweep a path into a road or river, noise terrain, rough organic blobs), driven by the agent's design. |
+| Hundreds of people, palms, lamps, taxis, boats                         | **Prefabs the agents make themselves**, then **placed many times** (along a street, in a grid, scattered on the ground), turned, mirrored and recoloured per copy. Drawn as instances, so a crowd costs almost nothing.          |
 
 The design below follows from that: a declarative **op language** runs on the server, with no built-in content:
 everything on screen is something an agent built (§4b). A renderer upgrade (lighting, AO, bloom, tilt-shift,
@@ -42,7 +42,7 @@ particles) runs in the page.
    (`data/worlds/<worldId>/`), and each project points at one. A project whose own world is still unbuilt
    shows a built world from another project, and the user can pick which world each project uses (§3a).
    The world a project uses is auto-saved into `<project>/.dashboard` like the layout is, and is part of backups.
-2. **Objects, each with its own voxel grid.** An object is a group of *volumes*; each volume has its own
+2. **Objects, each with its own voxel grid.** An object is a group of _volumes_; each volume has its own
    voxel size. That is what makes voxel size "dynamic and settable during building": a build can say
    `{"voxel_size": 0.5}` for the island's ground, then `{"voxel_size": 0.125}` for the lanterns on it, and
    both end up in one object. Terrain can be coarse, characters fine.
@@ -57,7 +57,7 @@ particles) runs in the page.
    in their own plot by default. Changing someone else's build asks first (see Risk).
 7. **Look and lights are data too.** Lights, effects and the environment (sky, fog, sun, time of day,
    weather) are stored in the world and changed with tools, so an agent can say "make it dusk and snowing".
-8. **WORLD.md gives the world a meaning.** It says what the world *is*: theme, meaning, look, feel, places,
+8. **WORLD.md gives the world a meaning.** It says what the world _is_: theme, meaning, look, feel, places,
    characters, rules. Builders read it first and update it as they build (§3b). It travels with the world,
    not with the project.
 9. **Agents build, people steer.** There is no building by hand. The user shapes the world by talking to the
@@ -74,15 +74,15 @@ Sketch, not final names:
 export interface VoxelWorld {
   format: 1;
   id: string;
-  name: string;                 // "Hanami garden"; the user can rename it
+  name: string; // "Hanami garden"; the user can rename it
   /** the project it was first made for (its "home"); other projects may share or copy it */
   homeProject: string;
   /** false until the first object, skin, light or effect: an unbuilt world can be replaced by a carried-over one */
   built: boolean;
   /** voxel size new objects start with, in map units (a desk is 2.6 wide). Settable any time. */
-  voxelSize: number;            // default 0.25, range 0.05..4
-  palette: VoxelMaterial[];     // index 0 = empty; up to 255
-  objects: VoxelObjectMeta[];   // voxel data lives in objects/<id>.json
+  voxelSize: number; // default 0.25, range 0.05..4
+  palette: VoxelMaterial[]; // index 0 = empty; up to 255
+  objects: VoxelObjectMeta[]; // voxel data lives in objects/<id>.json
   lights: WorldLight[];
   effects: WorldEffect[];
   environment: WorldEnvironment;
@@ -91,13 +91,13 @@ export interface VoxelWorld {
 }
 
 export interface VoxelMaterial {
-  name: string;                 // "grass", "red lacquer", "neon pink"
-  color: string;                // #rrggbb base
-  ramp?: string[];              // extra shades picked by jitter
-  jitter?: number;              // 0..0.3 brightness variation per voxel
+  name: string; // "grass", "red lacquer", "neon pink"
+  color: string; // #rrggbb base
+  ramp?: string[]; // extra shades picked by jitter
+  jitter?: number; // 0..0.3 brightness variation per voxel
   kind: 'solid' | 'glass' | 'water' | 'emissive' | 'metal' | 'leaf' | 'snow';
-  emissive?: number;            // 0..8 (emissive kind): how bright it glows
-  opacity?: number;             // glass / water
+  emissive?: number; // 0..8 (emissive kind): how bright it glows
+  opacity?: number; // glass / water
   roughness?: number;
 }
 
@@ -105,35 +105,65 @@ export interface VoxelObjectMeta {
   id: string;
   name: string;
   by: { kind: 'brain' | 'agent' | 'user'; id?: string; name: string };
-  anchor: Anchor;               // { to: 'world' } | { to: 'brain' } | { to: 'team', id } | { to: 'agent', id }
-  position: Vec3; rotationY: number; scale: number;
+  anchor: Anchor; // { to: 'world' } | { to: 'brain' } | { to: 'team', id } | { to: 'agent', id }
+  position: Vec3;
+  rotationY: number;
+  scale: number;
   /** where it last stood in the world: used when its anchor (a team or agent) isn't in the project showing it */
   lastWorldPos?: Vec3;
   volumes: { id: string; voxelSize: number; offset: Vec3; size: Vec3; count: number }[];
   hidden?: boolean;
   /** a skin or prop built from a recipe is rebuilt when its parameters change (a platform's radius) */
   recipe?: { generator: string; params: Record<string, unknown> };
-  createdAt: number; updatedAt: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 /** Voxel data: sparse 16³ chunks, palette indices, run-length encoded, base64 (objects/<id>.json). */
-export interface VoxelVolumeData { voxelSize: number; chunks: Record<string /* "cx,cy,cz" */, string> }
+export interface VoxelVolumeData {
+  voxelSize: number;
+  chunks: Record<string /* "cx,cy,cz" */, string>;
+}
 
 export interface WorldLight {
-  id: string; kind: 'point' | 'spot' | 'area' | 'sun';
-  color: string; intensity: number; range?: number;
-  anchor: Anchor; position: Vec3; target?: Vec3; angle?: number;
-  flicker?: number;             // 0..1, for lanterns and neon
-  shadows?: boolean;            // only a few may cast shadows
+  id: string;
+  kind: 'point' | 'spot' | 'area' | 'sun';
+  color: string;
+  intensity: number;
+  range?: number;
+  anchor: Anchor;
+  position: Vec3;
+  target?: Vec3;
+  angle?: number;
+  flicker?: number; // 0..1, for lanterns and neon
+  shadows?: boolean; // only a few may cast shadows
   by: VoxelObjectMeta['by'];
 }
 
 export interface WorldEffect {
   id: string;
-  kind: 'petals' | 'leaves' | 'snow' | 'rain' | 'fireflies' | 'embers' | 'sparks' | 'smoke'
-      | 'steam' | 'mist' | 'foam' | 'birds' | 'clouds' | 'god_rays';
-  anchor: Anchor; area: { min: Vec3; max: Vec3 } | { at: Vec3; radius: number };
-  rate: number; color?: string | string[]; size?: number; wind?: Vec3; by: VoxelObjectMeta['by'];
+  kind:
+    | 'petals'
+    | 'leaves'
+    | 'snow'
+    | 'rain'
+    | 'fireflies'
+    | 'embers'
+    | 'sparks'
+    | 'smoke'
+    | 'steam'
+    | 'mist'
+    | 'foam'
+    | 'birds'
+    | 'clouds'
+    | 'god_rays';
+  anchor: Anchor;
+  area: { min: Vec3; max: Vec3 } | { at: Vec3; radius: number };
+  rate: number;
+  color?: string | string[];
+  size?: number;
+  wind?: Vec3;
+  by: VoxelObjectMeta['by'];
 }
 
 export interface WorldEnvironment {
@@ -142,7 +172,10 @@ export interface WorldEnvironment {
   fog: { color: string; density: number };
   sun: { color: string; intensity: number; azimuth: number; elevation: number };
   ambient: { sky: string; ground: string; intensity: number };
-  bloom: number; tiltShift: number; ao: number; exposure: number;
+  bloom: number;
+  tiltShift: number;
+  ao: number;
+  exposure: number;
   weather?: 'none' | 'snow' | 'rain' | 'petals';
 }
 
@@ -155,6 +188,7 @@ Units: the Station's own units. Today a desk is 2.6 × 1.3, an agent is about 1.
 the detail level in the snowy street images.
 
 Limits (checked on the server, numbers to tune in the spike):
+
 - 256 voxels per side per volume, 16 volumes per object, 300 objects per world.
 - 250,000 voxels changed per tool call, 4,000,000 voxels per world.
 - 32 lights stored (the renderer picks the 8-12 nearest to show as real lights), 24 effects.
@@ -178,6 +212,7 @@ export interface ProjectWorldLink {
 ```
 
 What a project shows, first match wins:
+
 1. **The world the user picked** for it (`chosen`), own or shared.
 2. **Its own world**, if it is built (has at least one object, skin, light or effect).
 3. **Carry-over**: its own world is missing or unbuilt, so it shows the world the user marked as the
@@ -191,6 +226,7 @@ into the copy. The other project's world doesn't change, which keeps "one world 
 projects really build in one world, the user picks it with **Share**.
 
 **Picking a world** (the World menu on the Station, and the project's settings on the Projects page):
+
 - Lists every world: name, picture (from the last render), which projects use it, how many objects, last built.
 - For a world, **Share it** (both projects build in the same world) or **Start from a copy** (a new world of
   this project's own, starting as a copy).
@@ -232,32 +268,42 @@ project and MEMORY.md for an agent, but for the world, and every builder may edi
 # <World name>
 
 ## Theme and meaning
+
 What this world is and why it looks this way. What it stands for in this project
 (e.g. "the garden grows as the research does: each finished report becomes a new tree").
 
 ## Look
+
 Era and style, palette (by the material names used in the world), materials, voxel sizes
 (terrain 0.5, buildings 0.25, characters 0.1), the light and time of day, the weather.
 
 ## Feel
+
 Mood, pace, sounds you'd imagine, what should never appear.
 
 ## Places
+
 ### <Place name>
+
 Where it is (near the Brain, the Writers' platform…), what it is for, who built it, what it means.
 
 ## Characters
+
 ### <Agent name>
+
 How they look (hair, clothes, accessory, colors), how they carry themselves, their role in the world.
 
 ## Story so far
+
 Short dated lines: what was built, by whom, and why.
 
 ## Rules
+
 House rules for builders: scale, what goes where, keep-out zones, what to ask the user about first.
 ```
 
 **Who reads it**
+
 - Every agent with the `world` tools gets it in its instructions (cut to ~8,000 characters, like MEMORY.md is,
   with a note to read the rest with `world_md_read`).
 - The Brain's snapshot gets it in its WORLD section.
@@ -265,6 +311,7 @@ House rules for builders: scale, what goes where, keep-out zones, what to ask th
   dressing a character, update its section and add one line to "Story so far".
 
 **Who edits it**
+
 - **Agents**: `world_md_read`, `world_md_section` (replace or append one section by its heading; the usual
   edit, so two agents changing different sections don't overwrite each other) and `world_md_write` (the whole
   file; refused unless the agent has read the current version in this run, the same rule the Brain has for
@@ -276,6 +323,7 @@ House rules for builders: scale, what goes where, keep-out zones, what to ask th
   version), using the same version keeping as MEMORY.md (`server/versions.ts`).
 
 **Kept in step with the world**
+
 - A character's section and the agent's `character` skin describe the same person. `world_skin` answers with
   a reminder to update the section if it changed, and the `character` recipe can take its colors and features
   from the section's words when no params are given.
@@ -291,6 +339,7 @@ One list of ops, run in order. The same ops are used by the agents' tool, the Br
 recipes. Every op is plain JSON; positions are in voxels of the current volume unless `"units": "map"`.
 
 **State ops**
+
 - `{"voxel_size": 0.125}`: the next ops go into a volume of this size (new, or the existing one with that size).
   This is the "change voxel size while building" switch.
 - `{"material": "lantern", "color": "#ffcf7a", "kind": "emissive", "emissive": 3}`: add or change a palette entry.
@@ -299,19 +348,21 @@ recipes. Every op is plain JSON; positions are in voxels of the current volume u
 - `{"at": [x, y, z]}`: moves the cursor; `{"mirror": "x"}` mirrors following ops (symmetry for buildings and faces).
 
 **Shapes**
+
 - `box` (filled, hollow, or frame), `sphere`/`ellipsoid`, `cylinder`, `cone`, `pyramid`, `torus`,
   `line` (with thickness), `stairs`, `arch`, `plane`.
 - `set`: a short list of single voxels.
 - `layers`: ASCII slices, one string grid per y-level with a character → material map. This is how a model
   draws small detailed things (a face, a sign, a lantern) without coordinates:
   ```json
-  {"layers": [["..##..", ".#oo#.", "..##.."]], "key": {"#": "dark wood", "o": "lantern"}}
+  { "layers": [["..##..", ".#oo#.", "..##.."]], "key": { "#": "dark wood", "o": "lantern" } }
   ```
 - `text`: 3D pixel letters ("DINER", the team's name) in a 5×7 font.
 - `heightmap`: terrain from a small grid or from noise parameters.
 - `erase` (any shape), `replace` (material A → B inside a shape), `paint` (recolor surfaces with noise).
 
 **Finishing passes** (what gives the references their texture)
+
 - `jitter`: re-roll color variation in an area.
 - `weather`: wear and dirt, darker at the bottom, lighter at top edges.
 - `snow_cover`: snow on every top face (depth, coverage).
@@ -324,6 +375,7 @@ cap every world at the same vocabulary and make worlds look alike. The power mov
 and into prefabs the agents make for themselves (§4b).
 
 **Shape tools** (general, no content in them)
+
 - `revolve`: a profile (radius by height) turned around an axis: columns with capitals, domes, minarets,
   vases, tree trunks, lamp posts.
 - `extrude`: a 2D outline (points, or rows of characters) raised to a height: floor plans into walls,
@@ -333,6 +385,7 @@ and into prefabs the agents make for themselves (§4b).
 - `heightmap` / `terrain`: from rows, or from noise (hills, dunes, cliffs).
 
 **Region tools** (on what is already built)
+
 - `copy` a box to another spot, turned 90/180/270 and mirrored; `move` a box; `turn` a box in place; `flip`.
 - `stamp` a prefab into the object's own voxels (turned in 90° steps), for things that are part of a building.
 
@@ -345,6 +398,7 @@ people, palm trees, lamps, taxis, boats, market stalls, benches. Agents make eac
 prefab, and then place it many times.
 
 **Prefabs**
+
 - A prefab is a small voxel model with a name, a short description, tags, its own voxel size(s), its pivot
   (default: bottom centre, so it stands on what it is placed on) and its size. It can hold other prefabs
   placed inside it (a street block with its lamps and benches), up to 4 levels deep.
@@ -358,6 +412,7 @@ prefab, and then place it many times.
 - Changing a prefab changes every copy of it (the page re-meshes it once).
 
 **Placing** (steps in `world_build`, on the object being built)
+
 - `{"place": "Palm tree", "at": [x, y, z], "turn": 30}`: one copy. `turn` is any angle around the vertical;
   `tilt`/`roll` in 90° steps; `scale`; `mirror`; `swap` (variants).
 - `{"place": ["Person A", "Person B"], "scatter": {"area": [w, d], "count": 60}, "turn": "random", "swap": [{…}, {…}]}`:
@@ -375,6 +430,7 @@ prefab, and then place it many times.
 Copies don't count towards the world's voxel limit (their prefab does, once).
 
 **What it does to the rest of the plan**
+
 - §9 Skins: the characters, desks, platforms and the Brain's shell are prefabs the agents build (a
   "character" is a prefab with parts for head, body, arms, legs). Until an agent builds one, the classic
   meshes stay.
@@ -389,20 +445,21 @@ Copies don't count towards the world's voxel limit (their prefab does, once).
 
 New files:
 
-| File | What it does |
-|---|---|
-| `server/voxel/store.ts` | Load and save worlds through `store.ts` helpers (`dataPath('worlds', id, …)`, `readJSON`/`writeJSON`). One write queue per world so two agents (or two projects sharing it) building at once don't clobber each other. Emits `world` events with the world id. |
-| `server/voxel/link.ts` | Which world a project shows (§3a): the user's pick, its own built world, or the carry-over; copy on first build; share, copy, new, rename and delete. |
-| `server/voxel/worldmd.ts` | WORLD.md: read, write, replace or append a section by heading, the template, the size limit, kept versions (`versions.ts`), the "read before rewrite" check. |
-| `server/voxel/grid.ts` | Sparse chunked volumes, RLE + base64 encoding, bounds, counts. Pure, no Node or DOM types (could live in `shared/` so the page decodes with the same code). |
-| `server/voxel/ops.ts` | Checks and runs an op list against an object. Caps, clamping, repeatable randomness. Returns a diff (changed chunks) and a one-paragraph summary. |
-| `server/voxel/generators/*.ts` | The generators above. |
-| `server/voxel/history.ts` | Every build call keeps the chunks it replaced: undo per object and per builder, last 50 builds. |
-| `server/voxel/describe.ts` | Text views for models: object list with bounds, a top-down map of the area (ASCII heights and materials), the plots and keep-out zones (desks, paths). |
-| `server/voxel/vox.ts` | (later) MagicaVoxel `.vox` import and export. |
+| File                           | What it does                                                                                                                                                                                                                                                   |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server/voxel/store.ts`        | Load and save worlds through `store.ts` helpers (`dataPath('worlds', id, …)`, `readJSON`/`writeJSON`). One write queue per world so two agents (or two projects sharing it) building at once don't clobber each other. Emits `world` events with the world id. |
+| `server/voxel/link.ts`         | Which world a project shows (§3a): the user's pick, its own built world, or the carry-over; copy on first build; share, copy, new, rename and delete.                                                                                                          |
+| `server/voxel/worldmd.ts`      | WORLD.md: read, write, replace or append a section by heading, the template, the size limit, kept versions (`versions.ts`), the "read before rewrite" check.                                                                                                   |
+| `server/voxel/grid.ts`         | Sparse chunked volumes, RLE + base64 encoding, bounds, counts. Pure, no Node or DOM types (could live in `shared/` so the page decodes with the same code).                                                                                                    |
+| `server/voxel/ops.ts`          | Checks and runs an op list against an object. Caps, clamping, repeatable randomness. Returns a diff (changed chunks) and a one-paragraph summary.                                                                                                              |
+| `server/voxel/generators/*.ts` | The generators above.                                                                                                                                                                                                                                          |
+| `server/voxel/history.ts`      | Every build call keeps the chunks it replaced: undo per object and per builder, last 50 builds.                                                                                                                                                                |
+| `server/voxel/describe.ts`     | Text views for models: object list with bounds, a top-down map of the area (ASCII heights and materials), the plots and keep-out zones (desks, paths).                                                                                                         |
+| `server/voxel/vox.ts`          | (later) MagicaVoxel `.vox` import and export.                                                                                                                                                                                                                  |
 
 **API** (`server/index.ts`, all under the existing security checks; these act on the world the open project
 shows, and the world routes of §3a pick and manage worlds):
+
 - `GET /api/world`: world meta (no voxel data), with its id, name and whether it is carried over.
 - `GET /api/world/md`, `PUT /api/world/md`, `GET /api/world/md/versions`: WORLD.md and its history.
 - `GET /api/world/objects/:id`: an object's voxel data.
@@ -425,20 +482,20 @@ on screen, as AGENTS.md asks.
 
 Added to `TOOL_GROUPS` in `server/tools.ts`:
 
-| Tool | Risk | What it does |
-|---|---|---|
-| `world_info` | none | The world in words: environment, voxel size, objects (who built what, where, size), lights, effects, the caller's plot and the keep-out zones. Optional `area` gives a top-down ASCII map of it. |
-| `world_build` | low; **high** when it changes or erases an object someone else built | Runs an op list on an object (made if new): `object`, `anchor`, `position`, `voxel_size`, `ops`. Answers with what changed and the new bounds. |
-| `world_object` | low; high for delete | Move, turn, scale, rename, hide, duplicate, re-anchor, delete an object. |
-| `world_light` | low | Add, change or remove a light. |
-| `world_effect` | low | Add, change or remove an effect. |
-| `world_environment` | low | Time of day, sky, fog, sun, weather, bloom, tilt-shift, default voxel size. |
-| `world_skin` | low (own skin, own team's platform); high for others and the Brain | Dress the Brain, a team platform or an agent: a recipe (`character`, `platform`, `orb` with params) or ops. |
-| `world_look` | none | A picture of the world from a named view (`overview`, `brain`, `team:<id>`, `agent:<id>`, or a camera). Returned as an image so the model can see what it built and fix it. |
-| `world_undo` | low | Undo the caller's last build (or the last N). |
-| `world_md_read` | none | The whole WORLD.md as it is now (its instructions have it as it was when the chat started). |
-| `world_md_section` | low | Replace or append one section of WORLD.md by its heading (`## Places` › `### Lantern bridge`). The usual way to edit it. |
-| `world_md_write` | low | Replace the whole WORLD.md. Refused unless the agent read the current version in this run. The earlier version is kept. |
+| Tool                | Risk                                                                 | What it does                                                                                                                                                                                     |
+| ------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `world_info`        | none                                                                 | The world in words: environment, voxel size, objects (who built what, where, size), lights, effects, the caller's plot and the keep-out zones. Optional `area` gives a top-down ASCII map of it. |
+| `world_build`       | low; **high** when it changes or erases an object someone else built | Runs an op list on an object (made if new): `object`, `anchor`, `position`, `voxel_size`, `ops`. Answers with what changed and the new bounds.                                                   |
+| `world_object`      | low; high for delete                                                 | Move, turn, scale, rename, hide, duplicate, re-anchor, delete an object.                                                                                                                         |
+| `world_light`       | low                                                                  | Add, change or remove a light.                                                                                                                                                                   |
+| `world_effect`      | low                                                                  | Add, change or remove an effect.                                                                                                                                                                 |
+| `world_environment` | low                                                                  | Time of day, sky, fog, sun, weather, bloom, tilt-shift, default voxel size.                                                                                                                      |
+| `world_skin`        | low (own skin, own team's platform); high for others and the Brain   | Dress the Brain, a team platform or an agent: a recipe (`character`, `platform`, `orb` with params) or ops.                                                                                      |
+| `world_look`        | none                                                                 | A picture of the world from a named view (`overview`, `brain`, `team:<id>`, `agent:<id>`, or a camera). Returned as an image so the model can see what it built and fix it.                      |
+| `world_undo`        | low                                                                  | Undo the caller's last build (or the last N).                                                                                                                                                    |
+| `world_md_read`     | none                                                                 | The whole WORLD.md as it is now (its instructions have it as it was when the chat started).                                                                                                      |
+| `world_md_section`  | low                                                                  | Replace or append one section of WORLD.md by its heading (`## Places` › `### Lantern bridge`). The usual way to edit it.                                                                         |
+| `world_md_write`    | low                                                                  | Replace the whole WORLD.md. Refused unless the agent read the current version in this run. The earlier version is kept.                                                                          |
 
 Risk follows AGENTS.md: building only touches the dashboard's own world and can be undone, so `low`;
 anything that deletes, or changes another builder's work, is `high`. The risk function looks up the target
@@ -491,18 +548,18 @@ platform as a small matching island, and every agent as a character that suits t
 
 New folder `web/voxel/` so `station.ts` (3,361 lines) only gains hooks:
 
-| File | What it does |
-|---|---|
-| `web/voxel/mesher.ts` | Chunk → geometry. Hidden faces culled, quads merged only when color and AO match, per-vertex AO, colors from the palette. Separate geometry per material kind (opaque, transparent, water, emissive, leaf). Pure, tested in happy-dom. |
-| `web/voxel/mesh.worker.ts` | Runs the mesher off the main thread. Needs a second entry in `scripts/build-web.ts` (it has one entry today) and in `scripts/build-desktop.ts`. |
-| `web/voxel/world.ts` | Keeps world objects in the scene: loads them, applies `world` events, anchors (follows a team's pod group), hides, picks (`userData.pick = {type: 'world', id}`). |
-| `web/voxel/materials.ts` | Standard material with vertex colors; water (scrolling normals, shimmer, see-through); glass; emissive (not tone-mapped, feeds bloom); leaf (gentle wind sway in the vertex shader). |
-| `web/voxel/lights.ts` | World lights → three.js lights within a budget (nearest to the camera's target wins), flicker. Emissive voxels grouped into clusters, and the brightest clusters each get a cheap point light, so lanterns and signs light up what is around them. |
-| `web/voxel/effects.ts` | Particles as instanced tiny cubes (petals, leaves, snow, embers, sparks, foam) or soft sprites (smoke, steam, mist); birds as a small flock; drifting voxel clouds; god rays as additive cones. One pool, a cap on particles per quality level. |
-| `web/voxel/post.ts` | Post-processing with `three/examples/jsm/postprocessing`: render → AO (GTAO) → bloom → tilt-shift (Bokeh) → output (tone mapping, a light color grade, vignette). |
-| `web/voxel/environment.ts` | Sky gradient, fog, sun position and color, hemisphere light, presets and smooth blends between them (dusk fades in). |
-| `web/voxel/skins.ts` | Builds the voxel Brain, platforms and agents, keeping what the map needs (see below). |
-| `web/voxel/rig.ts` | Animates characters part by part: typing (working), raising a hand and the status orb (needs you), breathing and looking around (idle), a small walk when dragged to another team. |
+| File                       | What it does                                                                                                                                                                                                                                       |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `web/voxel/mesher.ts`      | Chunk → geometry. Hidden faces culled, quads merged only when color and AO match, per-vertex AO, colors from the palette. Separate geometry per material kind (opaque, transparent, water, emissive, leaf). Pure, tested in happy-dom.             |
+| `web/voxel/mesh.worker.ts` | Runs the mesher off the main thread. Needs a second entry in `scripts/build-web.ts` (it has one entry today) and in `scripts/build-desktop.ts`.                                                                                                    |
+| `web/voxel/world.ts`       | Keeps world objects in the scene: loads them, applies `world` events, anchors (follows a team's pod group), hides, picks (`userData.pick = {type: 'world', id}`).                                                                                  |
+| `web/voxel/materials.ts`   | Standard material with vertex colors; water (scrolling normals, shimmer, see-through); glass; emissive (not tone-mapped, feeds bloom); leaf (gentle wind sway in the vertex shader).                                                               |
+| `web/voxel/lights.ts`      | World lights → three.js lights within a budget (nearest to the camera's target wins), flicker. Emissive voxels grouped into clusters, and the brightest clusters each get a cheap point light, so lanterns and signs light up what is around them. |
+| `web/voxel/effects.ts`     | Particles as instanced tiny cubes (petals, leaves, snow, embers, sparks, foam) or soft sprites (smoke, steam, mist); birds as a small flock; drifting voxel clouds; god rays as additive cones. One pool, a cap on particles per quality level.    |
+| `web/voxel/post.ts`        | Post-processing with `three/examples/jsm/postprocessing`: render → AO (GTAO) → bloom → tilt-shift (Bokeh) → output (tone mapping, a light color grade, vignette).                                                                                  |
+| `web/voxel/environment.ts` | Sky gradient, fog, sun position and color, hemisphere light, presets and smooth blends between them (dusk fades in).                                                                                                                               |
+| `web/voxel/skins.ts`       | Builds the voxel Brain, platforms and agents, keeping what the map needs (see below).                                                                                                                                                              |
+| `web/voxel/rig.ts`         | Animates characters part by part: typing (working), raising a hand and the status orb (needs you), breathing and looking around (idle), a small walk when dragged to another team.                                                                 |
 
 **Renderer changes in `station.ts`** (behind the "Look" setting so the classic Station stays as it is):
 ACES tone mapping and sRGB output, soft shadows from the sun (the shadow camera is fitted to the world's
@@ -570,7 +627,7 @@ from Hanami", "Share this world", "Start from a copy".
 
 Each phase ends with `bun run check` and `bun run build` green and something visible on the map.
 
-**Phase 0: look spike (small, de-risks the rest).** *Done 2026-10-27.*
+**Phase 0: look spike (small, de-risks the rest).** _Done 2026-10-27._
 Renderer upgrade behind the Look setting: tone mapping, sun shadows, hemisphere light, sky, fog, composer with
 AO, bloom and tilt-shift. A hard-coded test island from a handful of boxes and per-voxel jitter. Measure fps
 at 250k, 1M and 2M voxels on a Windows laptop and in the desktop app. Decide the limits in §3 from this.
@@ -585,15 +642,16 @@ or open `#/station?voxelbench=90`.
 
 Measured on an Apple M1 Max (Chrome, Metal), 1542×1000, frame cap off, fps:
 
-| Voxels (faces) | Low 1× | Medium 1× | High 1× | Medium 2× | High 2× |
-|---|---|---|---|---|---|
-| 0.29M (56k) | 536 | 340 | 137 | 165 | 44 → 177* |
-| 0.94M (157k) | 473 | 292 | 122 | 146 → 177* | 39 → 131* |
-| 3.4M (512k) | 375 | 196 | 88 | 113 → 123* | 31 → 103* |
+| Voxels (faces) | Low 1× | Medium 1× | High 1× | Medium 2×  | High 2×   |
+| -------------- | ------ | --------- | ------- | ---------- | --------- |
+| 0.29M (56k)    | 536    | 340       | 137     | 165        | 44 → 177* |
+| 0.94M (157k)   | 473    | 292       | 122     | 146 → 177* | 39 → 131* |
+| 3.4M (512k)    | 375    | 196       | 88      | 113 → 123* | 31 → 103* |
 
 \* after capping the passes at 1.5× pixel density and dropping MSAA on sharp screens.
 
 What it says:
+
 - **Voxel count is not the limit**: 3.4M voxels still draw at 375 fps on Low. The finishing passes, paid per
   pixel, are. So the passes run at a capped resolution (labels are HTML and stay sharp).
 - **Meshing on the main thread is too slow for big builds**: ~0.2 ms per 1,000 voxels (0.7 s for 3.4M), so
@@ -614,7 +672,8 @@ the map with anchors. Tools `world_info`, `world_build`, `world_object`, `world_
 action. Starter generators: `tree`, `rock`, `island`, `cloud`, `lantern`, `bridge`, `torii`. The Voxel
 building skill and the World Builder starter.
 
-*Phase 1 done 2026-10-27.* Built as planned, with these notes:
+_Phase 1 done 2026-10-27._ Built as planned, with these notes:
+
 - Worlds live in `data/worlds/<id>/` with a project link (`Project.world`); carry-over, copy on first build,
   share / copy / new / back to carry-over, and the default world work on the server (`server/voxel/link.ts`).
   The picker in the page is still Phase 4: for now the API (`/api/worlds`, `/api/project-world`,
@@ -629,7 +688,7 @@ building skill and the World Builder starter.
 - Live test: agents' tool calls (through the same route as the MCP bridge) built an island, a grove, a
   gate, lanterns, a bridge and a watchtower; the open Station showed each build within a second.
 
-**Phase 1b: prefabs and placing (replaces the generators).** *Done 2026-10-27.*
+**Phase 1b: prefabs and placing (replaces the generators).** _Done 2026-10-27._
 Take the generators out (code, tests, the skill and the Brain's prompt). Add the shape tools (`revolve`,
 `extrude`, `path`, `blob`, noise terrain), the region tools (`copy`, `move`, `turn`, `flip`, `stamp`),
 prefabs (build into one, save from a box, variants, nested, publish and import), and placing (one, scatter,
@@ -638,6 +697,7 @@ skill and the Brain's prompt teach making prefabs and composing scenes. Test wit
 style of the references: a street with a building, lamps, trees, people and taxis, all made by tool calls.
 
 Built as planned. Notes:
+
 - The "Voxel world" tool group stays something you turn on per agent (the World Builder starter has it).
 - `world_prefab` lists, saves (from a box of an object, optionally putting a copy back in its place), renames,
   deletes (only when no copy is placed), publishes to and imports from the prefab library
@@ -655,7 +715,8 @@ environment presets with blending, effects (petals, snow, rain, fireflies, ember
 clouds), `snow_cover`, `overgrow`, `weather`. Tools `world_light`, `world_effect`, `world_environment` and
 their Brain actions. Quality levels.
 
-*Phase 2 done 2026-10-27.* Notes:
+_Phase 2 done 2026-10-27._ Notes:
+
 - Glowing voxels light their surroundings: the page finds glow spots in objects and in every placed copy, adds
   the builders' lights, and gives a fixed pool of lights (4 / 8 / 8 points by quality, plus spots) to the
   strongest ones near the view. Lamps make pools of light on the street; headlights shine.
@@ -675,7 +736,8 @@ their Brain actions. Quality levels.
 `character` with its rig and animations, `desk`, `orb`, `platform`; default skins; `world_skin` and the
 Brain's `skin` action; the desk monitor on voxel desks; platforms rebuilt when members change.
 
-*Phase 3 done 2026-10-27.* Changed from the plan above: no built-in character, orb or platform recipes.
+_Phase 3 done 2026-10-27._ Changed from the plan above: no built-in character, orb or platform recipes.
+
 - An agent's form ("character") is any prefab a builder makes: a person, an animal, a tree, a lamp, a crystal.
   It may be one piece (moved whole by the "self" track) or made of named parts (copies placed with "name"),
   each turning around its prefab's pivot ("pivot": "top" for an arm that hangs from a shoulder).
@@ -698,7 +760,8 @@ editor and history, objects, look) and right-click menu, the world picker on the
 `facade`, `car`, `wheel`, `waterfall`, `river`), prefabs (save an object and reuse it across worlds, global
 like presets).
 
-*Phase 4 done 2026-10-27.* Notes:
+_Phase 4 done 2026-10-27._ Notes:
+
 - `world_look`: the server asks open Station pages ('world-look' event); a page in the voxel look showing that
   world renders an offscreen picture (overview, the Brain, a team, an agent, an object, or a prefab alone, any
   angle and zoom) and posts it back; the agent gets the image (Claude Code and Codex see it through the MCP
@@ -715,7 +778,8 @@ like presets).
 MagicaVoxel `.vox` import (from allowed folders) and export (and glTF export as an Artifact), a "screenshot
 the world" button that saves a picture to Artifacts. (No building by hand: agents only.)
 
-*Phase 5 done 2026-10-27* (without building by hand, as decided):
+_Phase 5 done 2026-10-27_ (without building by hand, as decided):
+
 - `world_import`: a MagicaVoxel .vox file (every model, placed by its scene graph; z-up turned y-up) as a prefab
   or an object; its colours become materials ("<name> 12"), glowing and glass ones too.
 - `world_export` and the World panel: an object, a prefab or the whole world as .glb (glTF 2.0: the same mesher,
@@ -733,6 +797,7 @@ this), and AGENTS.md's layout table gets `server/voxel/` and `web/voxel/`.
 ## 12. Tests
 
 Server (`tests/server/`):
+
 - Grid: RLE round trip, chunk bounds, counts, negative coordinates.
 - Ops: each shape and generator gives the expected voxels for a seed (small snapshots); the same seed gives
   the same result; `voxel_size` mid-list makes a second volume; caps refuse oversize builds with a clear message.
@@ -752,6 +817,7 @@ Server (`tests/server/`):
 - Brain: `build`, `skin` and `world_env` actions parse and run, and are capped.
 
 Web (`tests/web/`, happy-dom, no WebGL):
+
 - Mesher: hidden faces culled, AO values at corners, quads merged only when they match, material split.
 - Palette jitter is repeatable; skins keep `userData.pick`; the world event updates only the named objects.
 - `describeTool` text for the world tools.
@@ -760,18 +826,18 @@ Web (`tests/web/`, happy-dom, no WebGL):
 
 ## 13. Risks and how we handle them
 
-| Risk | Handling |
-|---|---|
-| Too slow on older laptops (shadows + AO + bloom + 1M voxels) | Phase 0 measures first; quality levels; auto step-down; chunked meshing in a worker. |
-| Models produce ugly or random builds | Generators do the heavy lifting; the skill teaches style; `world_look` lets them check and fix. |
-| Runaway builds (huge files, an agent filling the map) | Per-call and per-world caps, plots, undo per builder, Stop works like any other tool. |
-| Agents overwrite each other's work | Plots, ownership, high risk (asks first) for changes to others' objects. |
-| Skins break map behavior | Skins keep the pick data and hooks; Classic look stays available; tests check the pick data. |
-| `station.ts` grows further | New code lives in `web/voxel/`; `station.ts` only calls it. |
-| Two agents editing WORLD.md at once | Section edits by heading are the normal path; a whole rewrite needs a fresh read; every version is kept. |
-| WORLD.md and the world drift apart | `world_info` lists objects with no place and places with no objects; the skill asks for an update after each build. |
-| A project's agents change another project's world by surprise | Carry-over makes a copy on first build; only a world the user chose to **Share** takes builds from two projects. |
-| Desktop bundle | The worker is a second build entry; check `scripts/build-desktop.ts` copies it; smoke test in CI. |
+| Risk                                                          | Handling                                                                                                            |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Too slow on older laptops (shadows + AO + bloom + 1M voxels)  | Phase 0 measures first; quality levels; auto step-down; chunked meshing in a worker.                                |
+| Models produce ugly or random builds                          | Generators do the heavy lifting; the skill teaches style; `world_look` lets them check and fix.                     |
+| Runaway builds (huge files, an agent filling the map)         | Per-call and per-world caps, plots, undo per builder, Stop works like any other tool.                               |
+| Agents overwrite each other's work                            | Plots, ownership, high risk (asks first) for changes to others' objects.                                            |
+| Skins break map behavior                                      | Skins keep the pick data and hooks; Classic look stays available; tests check the pick data.                        |
+| `station.ts` grows further                                    | New code lives in `web/voxel/`; `station.ts` only calls it.                                                         |
+| Two agents editing WORLD.md at once                           | Section edits by heading are the normal path; a whole rewrite needs a fresh read; every version is kept.            |
+| WORLD.md and the world drift apart                            | `world_info` lists objects with no place and places with no objects; the skill asks for an update after each build. |
+| A project's agents change another project's world by surprise | Carry-over makes a copy on first build; only a world the user chose to **Share** takes builds from two projects.    |
+| Desktop bundle                                                | The worker is a second build entry; check `scripts/build-desktop.ts` copies it; smoke test in CI.                   |
 
 ---
 
@@ -790,5 +856,6 @@ Made on 2026-10-27:
    and editable by agents, the Brain and the user (§3b).
 
 Still open (the plan picks the first option; easy to change):
+
 - On a carried-over world, the first build **copies** the world for this project (suggested), or builds into
   the original so both projects change?

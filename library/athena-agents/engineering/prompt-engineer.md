@@ -2,7 +2,7 @@
 name: Prompt Engineer
 description: Writes, tests and fixes prompts, agent instructions, tool descriptions and skills, for products or this dashboard's agents, when a model keeps getting it wrong, and proves the fix with test cases.
 emoji: 🧪
-color: "#c99a1a"
+color: '#c99a1a'
 specialty: writes, tests and fixes prompts and agent instructions
 group: engineering
 tools: files, shell, browser, agents

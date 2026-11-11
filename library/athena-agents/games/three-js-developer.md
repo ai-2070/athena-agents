@@ -55,7 +55,7 @@ an editor, physics and networking more than a renderer.
   As of r187 its manual page still calls it experimental.
 - An existing WebGL project stays on WebGLRenderer unless something it needs (compute, TSL, an effect that only exists
   for WebGPU) is worth the port. A new project can start on WebGPURenderer if you test both backends (`forceWebGL:
-  true` gives you the fallback) and check which one actually ran (`renderer.backend.isWebGPUBackend`) before you
+true` gives you the fallback) and check which one actually ran (`renderer.backend.isWebGPUBackend`) before you
   report any result.
 
 ### When it looks wrong, suspect colour and light first
@@ -92,7 +92,7 @@ an editor, physics and networking more than a renderer.
   in a static scene set `shadowMap.autoUpdate = false` and flag `needsUpdate` when something moves, or bake the
   shadow. `transmission` glass adds a pass of its own.
 - The first time a material is drawn, its shader compiles and the frame hitches. Call `renderer.compileAsync(scene,
-  camera)` before revealing a model, and `initTexture()` to upload big textures early.
+camera)` before revealing a model, and `initTexture()` to upload big textures early.
 - A viewer that redraws every frame while nobody touches it drains batteries. Render on controls' `change` events, on
   resize, on load, and while something animates or the controls are still easing out (`controls.update()` returns
   `true` while the camera moves). A continuous loop is for games, animation and XR.
@@ -124,6 +124,7 @@ an editor, physics and networking more than a renderer.
 
   gltfpack does similar work (`-cc` for Meshopt compression, `-tc` for KTX2, `-kn` and `-km` to keep named nodes and
   materials); only its native build compresses textures.
+
 - Show something at once (a poster image, a low-detail model) and, where the 3D isn't the first thing on the page,
   load three itself with a dynamic `import()` when the canvas comes into view.
 - Clone skinned or animated models with `SkeletonUtils.clone()`; `object.clone()` leaves the bones pointing at the
@@ -166,7 +167,7 @@ an editor, physics and networking more than a renderer.
 ### WebXR
 
 - Sessions need a secure context: HTTPS, or `localhost`. To test on a Quest or Android phone over USB, `adb reverse
-  tcp:5173 tcp:5173` (your dev server's port) makes the device's `localhost` reach your PC, and `chrome://inspect` on
+tcp:5173 tcp:5173` (your dev server's port) makes the device's `localhost` reach your PC, and `chrome://inspect` on
   the PC shows its console. An emulator (Meta's IWER) helps with logic; comfort and speed need the real headset.
 - Set `renderer.xr.enabled = true` and drive everything from `renderer.setAnimationLoop()`: during a session, frames
   come from the headset, not `window.requestAnimationFrame()`. Enter with `VRButton`, `ARButton` or `XRButton`

@@ -50,7 +50,16 @@ export function rememberedHeight(key: string, width: number): number | undefined
   return known && Math.abs(known.width - width) < SAME_WIDTH ? known.size : undefined;
 }
 
-export function Windowed<T extends { id: string }>({ items, scroller, atEnd, gap, estimate, memoKey, render, reveal }: WindowedProps<T>) {
+export function Windowed<T extends { id: string }>({
+  items,
+  scroller,
+  atEnd,
+  gap,
+  estimate,
+  memoKey,
+  render,
+  reveal,
+}: WindowedProps<T>) {
   // (read once, when the list first draws)
   const startAtEnd = useRef(atEnd);
   // the list's width, kept by a ResizeObserver: a guess runs for every message not drawn yet, and
@@ -121,11 +130,34 @@ export function Windowed<T extends { id: string }>({ items, scroller, atEnd, gap
   );
 }
 
-function Row({ id, index, start, seen, measure, children }: { id: string; index: number; start: number; seen: Set<string>; measure: (el: Element | null) => void; children: ReactNode }) {
+function Row({
+  id,
+  index,
+  start,
+  seen,
+  measure,
+  children,
+}: {
+  id: string;
+  index: number;
+  start: number;
+  seen: Set<string>;
+  measure: (el: Element | null) => void;
+  children: ReactNode;
+}) {
   const [again] = useState(() => seen.has(id));
   useEffect(() => void seen.add(id), [seen, id]);
   return (
-    <div ref={measure} data-index={index} className={again ? 'msg-row again absolute top-0 left-0 flex w-full flex-col gap-5 in-[.ac-list]:gap-4' : 'msg-row absolute top-0 left-0 flex w-full flex-col gap-5 in-[.ac-list]:gap-4'} style={{ transform: `translateY(${start}px)` }}>
+    <div
+      ref={measure}
+      data-index={index}
+      className={
+        again
+          ? 'msg-row again absolute top-0 left-0 flex w-full flex-col gap-5 in-[.ac-list]:gap-4'
+          : 'msg-row absolute top-0 left-0 flex w-full flex-col gap-5 in-[.ac-list]:gap-4'
+      }
+      style={{ transform: `translateY(${start}px)` }}
+    >
       {children}
     </div>
   );

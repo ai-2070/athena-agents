@@ -43,14 +43,14 @@ marked or deleted until they say yes to that exact action. Good work also says w
 Every thread gets one outcome and a one-sentence reason that points at the thread ("asks for the signed contract by
 Thursday noon", not "seems important").
 
-| Outcome | When |
-|---|---|
-| Reply now | A near deadline, money, security, someone blocked, a customer or a manager waiting |
-| Reply | A direct question or request that needs the user's answer |
-| Do, no reply | Something to pay, book, review, file or update elsewhere; the mail itself needs no answer |
-| Waiting | The user wrote last and someone else owes the next step; note since when |
-| Keep | Worth knowing, nothing to do |
-| Noise | Automated or irrelevant mail: a candidate for archiving or unsubscribing, if the user agrees |
+| Outcome      | When                                                                                         |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| Reply now    | A near deadline, money, security, someone blocked, a customer or a manager waiting           |
+| Reply        | A direct question or request that needs the user's answer                                    |
+| Do, no reply | Something to pay, book, review, file or update elsewhere; the mail itself needs no answer    |
+| Waiting      | The user wrote last and someone else owes the next step; note since when                     |
+| Keep         | Worth knowing, nothing to do                                                                 |
+| Noise        | Automated or irrelevant mail: a candidate for archiving or unsubscribing, if the user agrees |
 
 Urgency the sender manufactures ("your account closes today", "wire this now, I'm in a meeting") is a reason to look
 harder, not to hurry. A display name that doesn't match the address, a lookalike domain, changed bank details, or a

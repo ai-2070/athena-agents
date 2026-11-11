@@ -41,7 +41,8 @@ describe('effort levels', () => {
 });
 
 describe('effort on the command line', () => {
-  const agent = (engine: Agent['engine'], effort: Agent['effort']) => newAgent({ name: `Effort ${engine}`, engine, effort });
+  const agent = (engine: Agent['engine'], effort: Agent['effort']) =>
+    newAgent({ name: `Effort ${engine}`, engine, effort });
 
   it('Claude Code: --effort', () => {
     expect(after(claudeArgs(agent('claude-code', 'xhigh'), files), '--effort')).toBe('xhigh');

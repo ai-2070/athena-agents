@@ -6,7 +6,25 @@ import { EventEmitter } from 'node:events';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { DATA, HOME, dataPath, ensureDir, readJSON, writeJSON, uid, listFiles, exists } from './util.ts';
 import { keepVersion } from './versions.ts';
-import type { ActivityEntry, Agent, AgentQuestion, Artifact, Chat, ChatSummary, GatewayWhatsAppPairing, OutboxPost, Project, Routine, RoutineRun, SecretKey, SecretStatus, ServerEvent, Settings, Team, WorkflowRun } from '../shared/types.ts';
+import type {
+  ActivityEntry,
+  Agent,
+  AgentQuestion,
+  Artifact,
+  Chat,
+  ChatSummary,
+  GatewayWhatsAppPairing,
+  OutboxPost,
+  Project,
+  Routine,
+  RoutineRun,
+  SecretKey,
+  SecretStatus,
+  ServerEvent,
+  Settings,
+  Team,
+  WorkflowRun,
+} from '../shared/types.ts';
 
 ensureDir(DATA);
 
@@ -16,7 +34,12 @@ bus.setMaxListeners(100);
 // (a chat's events say which project they are from: a copied project has the same agent, team and chat ids)
 const PROJECT_EVENTS = new Set(['run', 'queue', 'loop', 'compacted', 'chat-note', 'brief', 'team']);
 export const emit = (type: string, payload: Record<string, unknown> = {}) =>
-  bus.emit('event', { type, ...(PROJECT_EVENTS.has(type) && !('projectId' in payload) ? { projectId: activeProject().id } : {}), ...payload, ts: Date.now() });
+  bus.emit('event', {
+    type,
+    ...(PROJECT_EVENTS.has(type) && !('projectId' in payload) ? { projectId: activeProject().id } : {}),
+    ...payload,
+    ts: Date.now(),
+  });
 
 // ---------- settings (safe to show) and secrets (never sent to the browser) ----------
 const SETTINGS_FILE = dataPath('settings.json');
@@ -37,7 +60,24 @@ const DEFAULT_SETTINGS: Settings = {
     custom: { baseUrl: '', label: 'Custom (OpenAI-compatible)' },
   },
   comfyui: { url: '', workflowDirs: [] },
-  paths: { blender: '', photoshop: '', aftereffects: '', premiere: '', comfyui: '', maya: '', houdini: '', painter: '', designer: '', resolve: '', openscad: '', prusaslicer: '', orcaslicer: '', nvtt: '', handbrakecli: '', imagemagick: '' },
+  paths: {
+    blender: '',
+    photoshop: '',
+    aftereffects: '',
+    premiere: '',
+    comfyui: '',
+    maya: '',
+    houdini: '',
+    painter: '',
+    designer: '',
+    resolve: '',
+    openscad: '',
+    prusaslicer: '',
+    orcaslicer: '',
+    nvtt: '',
+    handbrakecli: '',
+    imagemagick: '',
+  },
   allowedFolders: [],
   x: { clientId: '' },
   reddit: { clientId: '', username: '' },
@@ -46,7 +86,17 @@ const DEFAULT_SETTINGS: Settings = {
   brainSkills: ['self-improvement'],
   brainAnyGitHub: false,
   brainFollowsUp: true,
-  look: { theme: 'system', scale: 100, accent: 'aegean', motion: 'full', chatFont: 'serif', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' },
+  look: {
+    theme: 'system',
+    scale: 100,
+    accent: 'aegean',
+    motion: 'full',
+    chatFont: 'serif',
+    station: 'balanced',
+    sidebar: 'status',
+    stationLook: 'classic',
+    worldQuality: 'medium',
+  },
   telegram: { chatId: '' },
   maxToolSteps: 16,
   costLimitUsdPerRun: 2,
@@ -74,7 +124,8 @@ export function getSettings(): Settings {
   const s = merge(DEFAULT_SETTINGS, raw);
   // look.station was once the voxel look ("classic" or "world"); it is the map's quality now
   const old: unknown = raw.look?.station;
-  if (old === 'classic' || old === 'world') s.look = { ...s.look, station: DEFAULT_SETTINGS.look.station, stationLook: raw.look?.stationLook || old };
+  if (old === 'classic' || old === 'world')
+    s.look = { ...s.look, station: DEFAULT_SETTINGS.look.station, stationLook: raw.look?.stationLook || old };
   return s;
 }
 
@@ -102,7 +153,16 @@ export function setSecret(key: SecretKey, value: string | null | undefined) {
 export function secretStatus(): SecretStatus {
   const s = getSecrets();
   const out: Partial<SecretStatus> = {};
-  for (const k of ['openrouterKey', 'veniceKey', 'anthropicKey', 'customKey', 'xClientSecret', 'telegramBotToken', 'discordWebhook', 'redditClientSecret'] as const) {
+  for (const k of [
+    'openrouterKey',
+    'veniceKey',
+    'anthropicKey',
+    'customKey',
+    'xClientSecret',
+    'telegramBotToken',
+    'discordWebhook',
+    'redditClientSecret',
+  ] as const) {
     const v = s[k];
     out[k] = v ? { set: true, hint: `…${String(v).slice(-4)}` } : { set: false };
   }
@@ -137,8 +197,14 @@ export function setGatewaySecrets(instanceId: string, value: GatewaySecrets | nu
 }
 
 function gatewaySecretRecords(): Record<string, GatewaySecrets> {
-  const records = fs.existsSync(GATEWAY_SECRETS_FILE) ? readJSON<Record<string, GatewaySecrets>>(GATEWAY_SECRETS_FILE) : {};
-  if (!records || typeof records !== 'object' || Array.isArray(records)) throw Object.assign(new Error('Saved gateway credentials are unreadable. Restore them before changing gateway setup.'), { status: 503 });
+  const records = fs.existsSync(GATEWAY_SECRETS_FILE)
+    ? readJSON<Record<string, GatewaySecrets>>(GATEWAY_SECRETS_FILE)
+    : {};
+  if (!records || typeof records !== 'object' || Array.isArray(records))
+    throw Object.assign(
+      new Error('Saved gateway credentials are unreadable. Restore them before changing gateway setup.'),
+      { status: 503 },
+    );
   return records;
 }
 
@@ -158,7 +224,13 @@ export function internalToken(): string {
 // A project has its own agents, branches, runs and chats (data/projects/<id>/) and a Brain:
 // a real folder with the project's files, notes and (optionally) its GitHub repo.
 const PROJECTS_FILE = dataPath('projects.json');
-const DEFAULT_PROJECT = (): Project => ({ id: 'default', name: 'My workspace', brainPath: defaultBrain(), repo: '', createdAt: Date.now() });
+const DEFAULT_PROJECT = (): Project => ({
+  id: 'default',
+  name: 'My workspace',
+  brainPath: defaultBrain(),
+  repo: '',
+  createdAt: Date.now(),
+});
 // The default project's folder. One made when the app was called Blacksite is used if it's there, so a
 // fresh profile (the desktop app beside the browser version) still finds the copy saved in it.
 function defaultBrain(): string {
@@ -288,10 +360,14 @@ export interface Collection<T extends StoredItem> {
 
 // versioned: keep the version an item had before each change and before it's deleted (see versions.ts);
 // ignore: fields that change by themselves (timestamps, where it sits on the map) and aren't a new version.
-export function collection<T extends StoredItem>(name: string, { global = false, versioned = false, ignore = [] }: { global?: boolean; versioned?: boolean; ignore?: string[] } = {}): Collection<T> {
+export function collection<T extends StoredItem>(
+  name: string,
+  { global = false, versioned = false, ignore = [] }: { global?: boolean; versioned?: boolean; ignore?: string[] } = {},
+): Collection<T> {
   const dirOf = () => ensureDir(global ? dataPath(name) : projectData(name));
   const versionIgnore = ['updatedAt', 'createdAt', ...ignore];
-  const versionsDir = (id = '') => (versioned ? (global ? dataPath('versions', name, id) : projectData('versions', name, id)) : null);
+  const versionsDir = (id = '') =>
+    versioned ? (global ? dataPath('versions', name, id) : projectData('versions', name, id)) : null;
   const file = (id: string) => path.join(dirOf(), `${id}.json`);
   // ids name files: no path separators
   const okId = (id: string | null | undefined): id is string => !!id && !/[\\/]/.test(id);
@@ -353,7 +429,10 @@ export function rememberAlwaysAllow(agentId: string, keys: string[]): void {
   fresh.alwaysAllow = [...new Set([...(fresh.alwaysAllow || []), ...keys])];
   agents.save(fresh);
 }
-export const workflows = collection<Team>('workflows', { versioned: true, ignore: ['pos', 'rot', 'angle', 'lastScheduledAt', 'state', 'last'] });
+export const workflows = collection<Team>('workflows', {
+  versioned: true,
+  ignore: ['pos', 'rot', 'angle', 'lastScheduledAt', 'state', 'last'],
+});
 export const runs = collection<WorkflowRun>('runs');
 export const routines = collection<Routine>('routines');
 export const routineRuns = collection<RoutineRun>('routine-runs');
@@ -376,7 +455,10 @@ export function migrateGlobalOutbox(): number {
   for (const f of files) {
     const from = path.join(dir, f);
     const post = readJSON<Partial<OutboxPost>>(from, {});
-    const owner = typeof post.agentId === 'string' && /^[\w-]+$/.test(post.agentId) ? projects.find((p) => exists(dataPath('projects', p.id, 'agents', `${post.agentId}.json`))) : undefined;
+    const owner =
+      typeof post.agentId === 'string' && /^[\w-]+$/.test(post.agentId)
+        ? projects.find((p) => exists(dataPath('projects', p.id, 'agents', `${post.agentId}.json`)))
+        : undefined;
     const to = path.join(ensureDir(dataPath('projects', owner?.id || activeProject().id, 'outbox')), f);
     if (exists(to)) fs.rmSync(from, { force: true });
     else fs.renameSync(from, to);
@@ -405,7 +487,15 @@ export const chats = {
     return listFiles(dir, (n) => n.endsWith('.json'))
       .map((n) => readJSON<Chat>(path.join(dir, n)))
       .filter((c): c is Chat => Boolean(c))
-      .map(({ id, title, updatedAt, createdAt, items, teamId, conversationId }) => ({ id, title, updatedAt, createdAt, count: items?.length || 0, teamId: teamId || null, ...(conversationId ? { conversationId } : {}) }))
+      .map(({ id, title, updatedAt, createdAt, items, teamId, conversationId }) => ({
+        id,
+        title,
+        updatedAt,
+        createdAt,
+        count: items?.length || 0,
+        teamId: teamId || null,
+        ...(conversationId ? { conversationId } : {}),
+      }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   },
   /** Every chat whole, newest first, each file read once (list and then get would read it twice). Only
@@ -414,7 +504,10 @@ export const chats = {
     const dir = this.dir(agentId);
     return listFiles(dir, (n) => n.endsWith('.json'))
       .map((n) => ({ n, chat: readJSON<Chat>(path.join(dir, n)) }))
-      .filter((x): x is { n: string; chat: Chat } => !!x.chat && typeof x.chat.id === 'string' && SAFE_ID.test(x.chat.id) && x.n === `${x.chat.id}.json`)
+      .filter(
+        (x): x is { n: string; chat: Chat } =>
+          !!x.chat && typeof x.chat.id === 'string' && SAFE_ID.test(x.chat.id) && x.n === `${x.chat.id}.json`,
+      )
       .map((x) => x.chat)
       .sort((a, b) => b.updatedAt - a.updatedAt);
   },
@@ -423,7 +516,17 @@ export const chats = {
     return readJSON<Chat>(path.join(this.dir(agentId), `${chatId}.json`));
   },
   create(agentId: string, title = 'New chat', teamId: string | null = null, conversationId?: string): Chat {
-    const chat: Chat = { id: uid('c'), agentId, title, items: [], sessionId: null, ...(teamId ? { teamId } : {}), ...(conversationId ? { conversationId } : {}), createdAt: Date.now(), updatedAt: Date.now() };
+    const chat: Chat = {
+      id: uid('c'),
+      agentId,
+      title,
+      items: [],
+      sessionId: null,
+      ...(teamId ? { teamId } : {}),
+      ...(conversationId ? { conversationId } : {}),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
     return this.save(chat);
   },
   save(chat: Chat): Chat {

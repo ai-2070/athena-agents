@@ -15,13 +15,21 @@ const chunks = (it: UIStream): ReadableStream<UIMessageChunk> => eventIteratorTo
 /** One agent's chats: a send posts only the new message (the server keeps the history); a resume picks up the run
  *  going in the chat. accepted: the server took a request (it answered with a stream). at: '/p/<project>' for an
  *  agent of a project that isn't open (projectAt). */
-export function chatTransport(agentId: string, chatId: () => string | null, accepted?: () => void, at = ''): ChatTransport<ChatMessage> {
+export function chatTransport(
+  agentId: string,
+  chatId: () => string | null,
+  accepted?: () => void,
+  at = '',
+): ChatTransport<ChatMessage> {
   const one = () => ({ id: agentId, chatId: chatId() || 'none' });
   return {
     async sendMessages({ messages, body, abortSignal }) {
       // (steer: sent while it works, it stops the run going now and goes next)
       const steer = !!body && 'steer' in body && body.steer === true;
-      const it = await rpcAt(at).agents.chats.stream({ ...one(), ...readUser(messages[messages.length - 1]), ...(steer ? { steer: true } : {}) }, { signal: abortSignal });
+      const it = await rpcAt(at).agents.chats.stream(
+        { ...one(), ...readUser(messages[messages.length - 1]), ...(steer ? { steer: true } : {}) },
+        { signal: abortSignal },
+      );
       accepted?.();
       return chunks(it);
     },

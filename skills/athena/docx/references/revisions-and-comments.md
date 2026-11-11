@@ -30,17 +30,17 @@ the scripts look in all of them.
 
 Accepting keeps what the change says; rejecting puts back what was there before.
 
-| `kind` in the list | Stored as | Accept | Reject |
-|---|---|---|---|
-| `insert` | `w:ins` around runs | the mark goes, the text stays | the text goes |
-| `delete` | `w:del` around runs, text in `w:delText` | the text goes | the text comes back as `w:t` |
-| `move_from`, `move_to` | `w:moveFrom` / `w:moveTo`, between range marks that share a `w:name` | text leaves the old place, stays in the new | the other way round |
-| `paragraph_insert`, `paragraph_delete` | `w:ins` / `w:del` in the paragraph mark's properties (`w:pPr/w:rPr`) | see below | see below |
-| `row_insert`, `row_delete` | `w:ins` / `w:del` in `w:trPr` | inserted row stays, deleted row goes | the other way round |
-| `format` | `w:rPrChange` in a run's properties, holding the old ones | the record goes, the new look stays | the old look comes back |
-| `paragraph_format` | `w:pPrChange`, holding the old paragraph settings | as `format` | as `format` |
-| `layout_format` | `w:sectPrChange`, `w:tblPrChange`, `w:trPrChange`, `w:tcPrChange`, `w:tblGridChange`, `w:tblPrExChange`, `w:numberingChange` | the record goes | left for Word |
-| `cell` | `w:cellIns`, `w:cellDel`, `w:cellMerge` | left for Word | left for Word |
+| `kind` in the list                     | Stored as                                                                                                                    | Accept                                      | Reject                       |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ---------------------------- |
+| `insert`                               | `w:ins` around runs                                                                                                          | the mark goes, the text stays               | the text goes                |
+| `delete`                               | `w:del` around runs, text in `w:delText`                                                                                     | the text goes                               | the text comes back as `w:t` |
+| `move_from`, `move_to`                 | `w:moveFrom` / `w:moveTo`, between range marks that share a `w:name`                                                         | text leaves the old place, stays in the new | the other way round          |
+| `paragraph_insert`, `paragraph_delete` | `w:ins` / `w:del` in the paragraph mark's properties (`w:pPr/w:rPr`)                                                         | see below                                   | see below                    |
+| `row_insert`, `row_delete`             | `w:ins` / `w:del` in `w:trPr`                                                                                                | inserted row stays, deleted row goes        | the other way round          |
+| `format`                               | `w:rPrChange` in a run's properties, holding the old ones                                                                    | the record goes, the new look stays         | the old look comes back      |
+| `paragraph_format`                     | `w:pPrChange`, holding the old paragraph settings                                                                            | as `format`                                 | as `format`                  |
+| `layout_format`                        | `w:sectPrChange`, `w:tblPrChange`, `w:trPrChange`, `w:tcPrChange`, `w:tblGridChange`, `w:tblPrExChange`, `w:numberingChange` | the record goes                             | left for Word                |
+| `cell`                                 | `w:cellIns`, `w:cellDel`, `w:cellMerge`                                                                                      | left for Word                               | left for Word                |
 
 **Paragraph marks.** A paragraph's mark (the ¶ Word shows) holds its settings. When a whole paragraph is typed or
 deleted with Track Changes on, Word marks the paragraph's mark too. Accepting an inserted mark, or rejecting a deleted

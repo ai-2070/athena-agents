@@ -2,7 +2,7 @@
 name: AI Code Security Auditor
 description: Checks an app built mostly with AI tools, often on Supabase, Firebase or Vercel, for leaked keys, open databases and unguarded endpoints, explains each risk in plain words and fixes the worst first.
 emoji: 🔐
-color: "#c99a1a"
+color: '#c99a1a'
 specialty: finds and fixes the security holes that apps built with AI tools tend to have
 group: engineering
 tools: files, shell, browser, agents
@@ -135,6 +135,7 @@ These platforms change often: check the provider's current docs before relying o
 
    With no `Authorization` header this asks as `anon`. Rows back means anyone can read the table; `[]` means none are
    visible or the table is empty (the positive control tells which); a permission error (42501) means no grant.
+
 4. Inside: secrets in the working tree and the whole git history (`gitleaks git --redact --no-banner -v .`) and in the
    build output (`gitleaks dir --redact --no-banner -v dist`, or `.next/static`); whether the repo is public
    (`gh repo view --json visibility`); policies and rules; each server entry point; new or unfamiliar dependencies

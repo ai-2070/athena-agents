@@ -55,10 +55,19 @@ export function fitCamera(box: THREE.Box3, azimuth = 45, elevation = 35, zoom = 
         }
   }
   // centred on screen: the middle of what the box covers there
-  const target = center.clone().addScaledVector(right, (minX + maxX) / 2).addScaledVector(up, (minY + maxY) / 2);
+  const target = center
+    .clone()
+    .addScaledVector(right, (minX + maxX) / 2)
+    .addScaledVector(up, (minY + maxY) / 2);
   const z = Math.max(0.05, zoom || 1);
   const halfHeight = Math.max(1, Math.max((maxY - minY) / 2, (maxX - minX) / 2 / aspect) * 1.12) / z;
-  return { target, position: target.clone().addScaledVector(back, SNAP_DISTANCE), up, halfHeight, halfWidth: halfHeight * aspect };
+  return {
+    target,
+    position: target.clone().addScaledVector(back, SNAP_DISTANCE),
+    up,
+    halfHeight,
+    halfWidth: halfHeight * aspect,
+  };
 }
 
 /** An orthographic camera from a fit. */
@@ -90,7 +99,14 @@ export function pixelsToJpeg(pixels: Uint8Array, w: number, h: number, quality =
  * Renders the scene from `camera` into offscreen targets (glow, then tone mapping and colour as on screen) and
  * reads it back. The renderer's own target and the view on screen are left as they were.
  */
-export function renderSnapshot(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, w: number, h: number, bloom: number): string {
+export function renderSnapshot(
+  renderer: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  w: number,
+  h: number,
+  bloom: number,
+): string {
   const before = renderer.getRenderTarget();
   const hdr = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4 });
   const out = new THREE.WebGLRenderTarget(w, h);

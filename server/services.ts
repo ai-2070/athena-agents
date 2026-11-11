@@ -20,25 +20,56 @@ const GROUP_SERVICES: Service[] = [
   { label: 'Adobe', words: /\b(adobe|photoshop|after effects|premiere)\b/i, group: 'adobe' },
   { label: 'FFmpeg', words: /\bffmpeg\b/i, group: 'media' },
   // Maya is also a name, so only "in Maya", "Autodesk Maya" and the like
-  { label: 'Maya', words: /\b((in|with|using|open|into|from) maya|autodesk maya|maya (scene|python|rig|file)s?|mayapy)\b/i, group: 'maya' },
+  {
+    label: 'Maya',
+    words: /\b((in|with|using|open|into|from) maya|autodesk maya|maya (scene|python|rig|file)s?|mayapy)\b/i,
+    group: 'maya',
+  },
   { label: 'Houdini', words: /\b(houdini|hython)\b/i, group: 'houdini' },
-  { label: 'Substance 3D', words: /\bsubstance (3d|painter|designer|sampler)\b|\.sbsar\b|\bsbsar\b/i, group: 'substance' },
-  { label: 'CAD and 3D printing', words: /\b(openscad|prusaslicer|g-?code|slic(e|ing) (the |a |this )?(model|stl))\b/i, group: 'cad' },
+  {
+    label: 'Substance 3D',
+    words: /\bsubstance (3d|painter|designer|sampler)\b|\.sbsar\b|\bsbsar\b/i,
+    group: 'substance',
+  },
+  {
+    label: 'CAD and 3D printing',
+    words: /\b(openscad|prusaslicer|g-?code|slic(e|ing) (the |a |this )?(model|stl))\b/i,
+    group: 'cad',
+  },
   { label: 'NVIDIA', words: /\b(nvidia-smi|nvtt|dds textures?)\b/i, group: 'nvidia' },
   { label: 'Free asset libraries', words: /\b(poly ?haven|ambient ?cg|hdris?)\b/i, group: 'assets' },
-  { label: 'social posts', words: /\b(tweets?|tweet(ed|ing)|post(ed|ing)? (it )?(on|to) x|x (post|thread|dm)s?|reddit|subreddits?|telegram|discord)\b/i, group: 'social' },
+  {
+    label: 'social posts',
+    words:
+      /\b(tweets?|tweet(ed|ing)|post(ed|ing)? (it )?(on|to) x|x (post|thread|dm)s?|reddit|subreddits?|telegram|discord)\b/i,
+    group: 'social',
+  },
   { label: 'Orca', words: /\borca\b/i, group: 'orca' },
 ];
 
 // MCP server names too common as words to mean the server ("fetch the data", "from memory")
-const GENERIC_SERVERS = new Set(['memory', 'fetch', 'filesystem', 'files', 'sequential-thinking', 'git', 'time', 'search', 'browser', 'dashboard']);
+const GENERIC_SERVERS = new Set([
+  'memory',
+  'fetch',
+  'filesystem',
+  'files',
+  'sequential-thinking',
+  'git',
+  'time',
+  'search',
+  'browser',
+  'dashboard',
+]);
 
 /** An MCP server's name as words in a message: "chrome-devtools" also matches "chrome devtools". */
-const serverWords = (name: string): RegExp => new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[-_]/g, '[-_ ]?')}\\b`, 'i');
+const serverWords = (name: string): RegExp =>
+  new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[-_]/g, '[-_ ]?')}\\b`, 'i');
 
 /** The services a message names, given the MCP servers the team's members have. */
 export function servicesIn(text: string, servers: readonly string[]): Service[] {
-  const mcp = [...new Set(servers)].filter((s) => s && !GENERIC_SERVERS.has(s.toLowerCase())).map((s): Service => ({ label: s, words: serverWords(s), server: s }));
+  const mcp = [...new Set(servers)]
+    .filter((s) => s && !GENERIC_SERVERS.has(s.toLowerCase()))
+    .map((s): Service => ({ label: s, words: serverWords(s), server: s }));
   return [...GROUP_SERVICES, ...mcp].filter((s) => s.words.test(text));
 }
 
@@ -48,13 +79,17 @@ export function servicesOf(a: Agent): string[] {
   return [...groups, ...(a.mcpServers || []).filter((s) => !GENERIC_SERVERS.has(s.toLowerCase()))];
 }
 
-const has = (a: Agent, s: Service): boolean => (s.group ? (a.toolGroups || []).includes(s.group) : (a.mcpServers || []).includes(s.server!));
+const has = (a: Agent, s: Service): boolean =>
+  s.group ? (a.toolGroups || []).includes(s.group) : (a.mcpServers || []).includes(s.server!);
 
 /** The one member who can reach what the message asks for, when only one can: every service the
  *  message names that only one member has points at that same member. Null when nothing it names is
  *  anyone's alone, or when it would take two members (the lead or the best fit sorts that out). */
 export function soleHolder(text: string, members: readonly Agent[]): { id: string; service: string } | null {
-  const named = servicesIn(text, members.flatMap((a) => a.mcpServers || []));
+  const named = servicesIn(
+    text,
+    members.flatMap((a) => a.mcpServers || []),
+  );
   let pick: { id: string; service: string } | null = null;
   for (const s of named) {
     const holders = members.filter((a) => has(a, s));

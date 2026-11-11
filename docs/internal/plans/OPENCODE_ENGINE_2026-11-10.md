@@ -1,7 +1,7 @@
 # Run agents on opencode
 
-*Plan, 10 November 2026; progress 11 November. Targets opencode 2.x (2.2.7 is current and is installed on the dev PC
-at `~/.bun/bin/opencode.exe`). opencode 1.x is not supported.*
+_Plan, 10 November 2026; progress 11 November. Targets opencode 2.x (2.2.7 is current and is installed on the dev PC
+at `~/.bun/bin/opencode.exe`). opencode 1.x is not supported._
 
 ## Progress
 
@@ -88,7 +88,7 @@ What matters here (from its docs, its OpenAPI file and its source, checked 10 No
     - `GET /api/event?types=…`: server-sent events, live only (no replay; a slow reader is dropped). Each is
       `{ id, created, type, location, data }`. The ones we read: `session.text.delta`,
       `session.tool.called|success|failed`, `session.step.ended` (`cost`, `tokens: { input, output,
-      reasoning, cache: { read, write } }`), `session.execution.started|succeeded|failed|interrupted`,
+reasoning, cache: { read, write } }`), `session.execution.started|succeeded|failed|interrupted`,
       `session.status`, `session.idle`, `session.compaction.started|ended|failed`, `permission.asked`.
 - **The shared background service is a trap.** Plain `opencode …` commands find or start one shared service
   that does **not** see the caller's environment (config, keys). We always run our own server
@@ -99,7 +99,7 @@ What matters here (from its docs, its OpenAPI file and its source, checked 10 No
   last match wins, no match means ask), `mcp.servers` (`{ type: 'local', command: [...], environment }` or
   `{ type: 'remote', url, headers }`), `agents` (`{ mode, description, model, system, permissions, steps }`),
   `providers`, `instructions`, `skills`, `compaction`. Permission actions: `read, edit, glob, grep, shell,
-  subagent, skill, webfetch, websearch, external_directory, question, execute`, and MCP tools as
+subagent, skill, webfetch, websearch, external_directory, question, execute`, and MCP tools as
   `<server>_<tool>`.
 - **Logins live in its SQLite database** (`~/.local/share/opencode/opencode.db`, also on Windows), with its
   sessions. `opencode auth login` needs a terminal. A saved login beats an API key in the environment.
@@ -196,11 +196,11 @@ One JSON file, layered on top of the user's own opencode config:
 
 Rules are in order, last match wins:
 
-| Autonomy | Rules |
-|---|---|
-| Full | allow `*`; deny `question` |
-| Auto | allow `*`; ask `external_directory`; ask `read` of `.env*`; allow `external_directory` for the uploads folder and the agent's knowledge roots; deny `question` |
-| Ask first | allow `read`, `glob`, `grep`, `skill`; ask `edit`, `shell`, `execute`, `webfetch`, `websearch`, `subagent`, `external_directory`; deny `question` |
+| Autonomy  | Rules                                                                                                                                                          |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full      | allow `*`; deny `question`                                                                                                                                     |
+| Auto      | allow `*`; ask `external_directory`; ask `read` of `.env*`; allow `external_directory` for the uploads folder and the agent's knowledge roots; deny `question` |
+| Ask first | allow `read`, `glob`, `grep`, `skill`; ask `edit`, `shell`, `execute`, `webfetch`, `websearch`, `subagent`, `external_directory`; deny `question`              |
 
 All three allow `dashboard_*`: the dashboard asks for its own tools itself. Ask first leaves the agent's other
 MCP servers on ask, as Claude Code's `--allowedTools` does. `question` (opencode asking the user mid-turn) is
@@ -247,8 +247,8 @@ no run id, kept while the terminal is open); `default_agent` picks athena (the T
 - Settings › General gets an opencode card next to pi's: "npm install -g @opencode/cli", then "Its free models
   work right away. To use your own accounts, run opencode auth login in a terminal." A 1.x install shows
   "needs an update".
-- The engine list: *opencode — The opencode agent on this PC: coding, shell and files on its free models or any
-  provider you signed in to, plus the dashboard tools. Asks before risky steps unless the agent runs on Full.*
+- The engine list: _opencode — The opencode agent on this PC: coding, shell and files on its free models or any
+  provider you signed in to, plus the dashboard tools. Asks before risky steps unless the agent runs on Full._
 
 ## Everything else that names engines
 
@@ -268,10 +268,10 @@ From where `omp` and `openclaw` appear today:
 
 ## Files
 
-| File | What |
-|---|---|
-| `server/engines/opencode.ts` (new) | status, the run's config, the server's start and end, the event reader, permissions, steering, models, terminal args |
-| `tests/server/opencode-engine.test.ts` (new) | below, with its fake `opencode serve --stdio` (a small HTTP server speaking the routes and events we use) |
+| File                                         | What                                                                                                                 |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `server/engines/opencode.ts` (new)           | status, the run's config, the server's start and end, the event reader, permissions, steering, models, terminal args |
+| `tests/server/opencode-engine.test.ts` (new) | below, with its fake `opencode serve --stdio` (a small HTTP server speaking the routes and events we use)            |
 
 No new dependency: the routes we need are few, and `@opencode/client` would tie us to its release pace. If the
 API keeps moving (its API page still calls it experimental), we revisit.
@@ -314,7 +314,7 @@ Each step is its own commit, and the whole is one PR.
 - Attachments go as paths in the text (as for pi); sending pictures as `files` (file URIs) would let a vision
   model see them directly.
 - Whether code mode suits the agent's other MCP servers better (they keep opencode's default).
-- A `.opencode/` folder in the workspace with its own *agent* named `athena` would meet ours; not handled.
+- A `.opencode/` folder in the workspace with its own _agent_ named `athena` would meet ours; not handled.
 - `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS` is left unset: an opencode agent sees `~/.claude/skills` as Claude Code
   agents do.
 

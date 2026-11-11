@@ -10,7 +10,16 @@ import { addBrief, listBriefs, updateBrief } from '../../server/briefs.ts';
 import { history } from '../../server/overseer.ts';
 import { getThread, isTeamBusy } from '../../server/teams.ts';
 import { addBoardTask, changeBoardTask, editBoardTask, restoredBoard, savedBoardTask } from '../../server/taskboard.ts';
-import { afterUserChange, boardWork, canPickUp, checkWork, startWork, stopWork, workerReply, BOARD_SENDER } from '../../server/boardwork.ts';
+import {
+  afterUserChange,
+  boardWork,
+  canPickUp,
+  checkWork,
+  startWork,
+  stopWork,
+  workerReply,
+  BOARD_SENDER,
+} from '../../server/boardwork.ts';
 import { safeUploadsRoot } from '../../server/uploads.ts';
 import { agentBoardTags } from '../../server/boardtagtools.ts';
 import { createProject } from '../../server/projects.ts';
@@ -32,31 +41,63 @@ const calls = vi.hoisted(() => ({
 // Stop marks the chat's runs stopped, as the real one does once the run ends.
 async function stopFake() {
   const { readExecution, updateExecution: update } = await import('../../server/execution.ts');
-  return { stopChat: (chatId: string) => {
-    calls.stopped.push(chatId);
-    for (const r of readExecution().runs) if (r.chatId === chatId && r.status === 'running') update(r.id, { status: 'stopped' });
-  } };
+  return {
+    stopChat: (chatId: string) => {
+      calls.stopped.push(chatId);
+      for (const r of readExecution().runs)
+        if (r.chatId === chatId && r.status === 'running') update(r.id, { status: 'stopped' });
+    },
+  };
 }
 vi.mock('../../server/brain.ts', async (original) => ({
-  ...await original<typeof import('../../server/brain.ts')>(),
+  ...(await original<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock' }),
   think: async (system: string, user: string) => (calls.asked.push(user), calls.think(system, user)),
 }));
-vi.mock('../../server/approvals.ts', async (original) => ({ ...await original<typeof import('../../server/approvals.ts')>(), listApprovals: () => calls.approvals }));
+vi.mock('../../server/approvals.ts', async (original) => ({
+  ...(await original<typeof import('../../server/approvals.ts')>()),
+  listApprovals: () => calls.approvals,
+}));
 vi.mock('../../server/engines/index.ts', async (original) => ({
-  ...await original<typeof import('../../server/engines/index.ts')>(),
-  ...await stopFake(),
+  ...(await original<typeof import('../../server/engines/index.ts')>()),
+  ...(await stopFake()),
   runInfo: (id: string) => calls.scopes.get(id) ?? null,
   askAgent: async () => 'Member final answer.',
-  queueMessage: (_agent: Agent, chat: Chat, text: string) => { calls.queued.push({ chatId: chat.id, text }); return { runId: 'queued' }; },
+  queueMessage: (_agent: Agent, chat: Chat, text: string) => {
+    calls.queued.push({ chatId: chat.id, text });
+    return { runId: 'queued' };
+  },
   startRun: (agent: Agent, chat: Chat, text: string, options: RunOptions) => {
     calls.runs.push({ agentId: agent.id, chatId: chat.id, text, options });
     const id = options.reservedRunId || `brief-run-${calls.runs.length}`;
-    admitExecution({ id, projectId: activeProject().id, agentId: agent.id, chatId: chat.id, engine: agent.engine, ownerChatId: chat.id, ownerAgentId: agent.id, parentRunId: null, depth: 0, text, from: options.from || null, attachments: options.attachments || [], startedAt: Date.now(), status: 'running' });
+    admitExecution({
+      id,
+      projectId: activeProject().id,
+      agentId: agent.id,
+      chatId: chat.id,
+      engine: agent.engine,
+      ownerChatId: chat.id,
+      ownerAgentId: agent.id,
+      parentRunId: null,
+      depth: 0,
+      text,
+      from: options.from || null,
+      attachments: options.attachments || [],
+      startedAt: Date.now(),
+      status: 'running',
+    });
     return { runId: id, promise: Promise.resolve(''), signal: new AbortController().signal };
   },
 }));
-afterEach(() => { calls.runs = []; calls.approvals = []; calls.scopes.clear(); calls.stopped = []; calls.queued = []; calls.think = () => 'Brain answer.'; calls.asked = []; });
+afterEach(() => {
+  calls.runs = [];
+  calls.approvals = [];
+  calls.scopes.clear();
+  calls.stopped = [];
+  calls.queued = [];
+  calls.think = () => 'Brain answer.';
+  calls.asked = [];
+});
 
 const project = () => activeProject().id;
 const task = (id: string) => savedBoardTask(project(), id)!;
@@ -67,14 +108,28 @@ async function move(id: string, input: Parameters<typeof changeBoardTask>[2]) {
 }
 /** A run of the task's worker, as runInfo sees it while it goes. */
 function scope(agent: Agent, chatId: string, conversationId: string, id = 'tool-run') {
-  calls.scopes.set(id, { id, agentId: agent.id, projectId: project(), chatId, conversationId, depth: 0, signal: new AbortController().signal, project: activeProject(), agent });
+  calls.scopes.set(id, {
+    id,
+    agentId: agent.id,
+    projectId: project(),
+    chatId,
+    conversationId,
+    depth: 0,
+    signal: new AbortController().signal,
+    project: activeProject(),
+    agent,
+  });
   return id;
 }
 
 describe('an agent picks up its task', () => {
-  it('starts once in the task\'s own chat when you move it to In progress, and not from To do or the Brain\'s moves', async () => {
+  it("starts once in the task's own chat when you move it to In progress, and not from To do or the Brain's moves", async () => {
     const agent = newAgent({ name: 'Board writer' });
-    const t = addBoardTask(project(), { title: 'Write the launch post', description: 'Two paragraphs.', assignee: `agent:${agent.id}` });
+    const t = addBoardTask(project(), {
+      title: 'Write the launch post',
+      description: 'Two paragraphs.',
+      assignee: `agent:${agent.id}`,
+    });
     await move(t.id, { status: 'todo', rank: 5 });
     changeBoardTask(project(), t.id, { status: 'in_progress' }); // the Brain's board_update path
     expect(calls.runs).toHaveLength(0);
@@ -86,8 +141,18 @@ describe('an agent picks up its task', () => {
     expect(run.text).toContain('Task #');
     expect(run.text).toContain('Write the launch post');
     expect(run.text).toContain('Two paragraphs.');
-    expect(run.options).toMatchObject({ from: BOARD_SENDER, userInitiated: true, reservedRunId: card.work!.operationId });
-    expect(card.work).toMatchObject({ state: 'working', runId: run.options.reservedRunId, chatId: run.chatId, conversationId: `board-${t.id}`, target: { kind: 'agent', id: agent.id } });
+    expect(run.options).toMatchObject({
+      from: BOARD_SENDER,
+      userInitiated: true,
+      reservedRunId: card.work!.operationId,
+    });
+    expect(card.work).toMatchObject({
+      state: 'working',
+      runId: run.options.reservedRunId,
+      chatId: run.chatId,
+      conversationId: `board-${t.id}`,
+      target: { kind: 'agent', id: agent.id },
+    });
     expect(chats.get(agent.id, run.chatId)?.conversationId).toBe(`board-${t.id}`);
     expect(card.workerName).toBe('Board writer');
 
@@ -96,9 +161,13 @@ describe('an agent picks up its task', () => {
     expect(calls.runs).toHaveLength(1);
   });
 
-  it('settles to In review with the answer as the worker\'s comment', async () => {
+  it("settles to In review with the answer as the worker's comment", async () => {
     const agent = newAgent({ name: 'Board finisher' });
-    const t = addBoardTask(project(), { title: 'Sum the numbers', assignee: `agent:${agent.id}`, status: 'in_progress' });
+    const t = addBoardTask(project(), {
+      title: 'Sum the numbers',
+      assignee: `agent:${agent.id}`,
+      status: 'in_progress',
+    });
     const started = await startWork(project(), t.id);
     await boardWork.wake();
     expect(task(t.id).work!.state).toBe('working');
@@ -110,15 +179,27 @@ describe('an agent picks up its task', () => {
     expect(done.comments?.at(-1)).toMatchObject({ by: `agent:${agent.id}`, text: 'The total is 42.' });
   });
 
-  it('follows the completion check: open waits, blocked moves the card with the reason and the Brain\'s note', async () => {
+  it("follows the completion check: open waits, blocked moves the card with the reason and the Brain's note", async () => {
     const agent = newAgent({ name: 'Board blocked' });
     const t = addBoardTask(project(), { title: 'Deploy', assignee: `agent:${agent.id}`, status: 'in_progress' });
     const started = await startWork(project(), t.id);
     updateExecution(started.work!.runId!, { status: 'completed', answer: 'I need the server password.' });
-    const brief = addBrief({ kind: 'agent', targetId: agent.id, name: agent.name, chatId: started.work!.chatId, messageId: started.work!.runId, text: 'Deploy', ts: Date.now() });
+    const brief = addBrief({
+      kind: 'agent',
+      targetId: agent.id,
+      name: agent.name,
+      chatId: started.work!.chatId,
+      messageId: started.work!.runId,
+      text: 'Deploy',
+      ts: Date.now(),
+    });
     await boardWork.wake();
     expect(task(t.id).work!.state).toBe('working');
-    updateBrief(brief.id, { status: 'blocked', summary: 'It needs the server password.', userAction: 'Add the password to the agent\'s keys.' });
+    updateBrief(brief.id, {
+      status: 'blocked',
+      summary: 'It needs the server password.',
+      userAction: "Add the password to the agent's keys.",
+    });
     await boardWork.wake();
     const blocked = task(t.id);
     expect(blocked).toMatchObject({ status: 'blocked', blockedReason: 'It needs the server password.' });
@@ -132,7 +213,19 @@ describe('an agent picks up its task', () => {
     const t = addBoardTask(project(), { title: 'Send it', assignee: `agent:${agent.id}`, status: 'in_progress' });
     const started = await startWork(project(), t.id);
     const runId = scope(agent, started.work!.chatId!, `board-${t.id}`, started.work!.runId!);
-    calls.approvals = [{ id: 'a1', title: 'Send', detail: '', kind: 'tool', agentId: agent.id, agentName: agent.name, data: { runId }, editable: null, createdAt: Date.now() }];
+    calls.approvals = [
+      {
+        id: 'a1',
+        title: 'Send',
+        detail: '',
+        kind: 'tool',
+        agentId: agent.id,
+        agentName: agent.name,
+        data: { runId },
+        editable: null,
+        createdAt: Date.now(),
+      },
+    ];
     await boardWork.wake();
     expect(task(t.id).work!.state).toBe('waiting');
   });
@@ -169,7 +262,9 @@ describe('an agent picks up its task', () => {
     const t = addBoardTask(project(), { title: 'Crashed', assignee: `agent:${agent.id}`, status: 'in_progress' });
     const started = await startWork(project(), t.id);
     // the dashboard stopped between saving the work and starting it
-    editBoardTask(project(), t.id, (x) => { x.work = { ...x.work!, state: 'starting' }; });
+    editBoardTask(project(), t.id, (x) => {
+      x.work = { ...x.work!, state: 'starting' };
+    });
     await boardWork.wake();
     expect(task(t.id).work).toMatchObject({ state: 'needs-review' });
     expect(calls.runs).toHaveLength(1);
@@ -183,7 +278,7 @@ describe('an agent picks up its task', () => {
 });
 
 describe('a team picks up its task', () => {
-  it('posts the task in a private thread of its own and settles from the members\' answer', async () => {
+  it("posts the task in a private thread of its own and settles from the members' answer", async () => {
     const agent = newAgent({ name: 'Board team member' });
     const team = workflows.save({ name: 'Board team', members: [agent.id], lead: agent.id, steps: [] });
     const t = addBoardTask(project(), { title: 'Research rivals', assignee: `team:${team.id}` });
@@ -196,7 +291,9 @@ describe('a team picks up its task', () => {
     expect(teamId).not.toBe(team.id);
     expect(card.work).toMatchObject({ target: { kind: 'team', id: team.id }, messageId: card.work!.operationId });
     const thread = getThread(teamId);
-    expect(thread.messages.find((m) => m.id === card.work!.messageId)).toMatchObject({ text: expect.stringContaining('Research rivals') });
+    expect(thread.messages.find((m) => m.id === card.work!.messageId)).toMatchObject({
+      text: expect.stringContaining('Research rivals'),
+    });
     // the team's main chat doesn't get it
     expect(getThread(team.id).messages.some((m) => m.id === card.work!.messageId)).toBe(false);
     await expect.poll(() => isTeamBusy(teamId)).toBe(false);
@@ -210,11 +307,15 @@ describe('a team picks up its task', () => {
 describe('the Brain picks up its task', () => {
   const actions = (list: unknown[]) => `\n\`\`\`actions\n${JSON.stringify(list)}\n\`\`\``;
 
-  it('answers it in the task\'s own conversation and settles to In review with its answer', async () => {
+  it("answers it in the task's own conversation and settles to In review with its answer", async () => {
     expect(canPickUp('brain')).toBe(true);
     expect(canPickUp('you')).toBe(false);
     calls.think = () => 'I checked the settings: everything is in place.';
-    const t = addBoardTask(project(), { title: 'Check the settings', description: 'Make sure the keys are set.', assignee: 'brain' });
+    const t = addBoardTask(project(), {
+      title: 'Check the settings',
+      description: 'Make sure the keys are set.',
+      assignee: 'brain',
+    });
     await move(t.id, { status: 'todo', rank: 3 });
     changeBoardTask(project(), t.id, { status: 'in_progress' }); // the Brain's own board_update path
     expect(calls.asked).toHaveLength(0);
@@ -230,16 +331,24 @@ describe('the Brain picks up its task', () => {
     expect(prompt).toContain('Make sure the keys are set.');
     expect(prompt).toContain('given to you, the Brain');
     expect(prompt).toContain(`USER (${BOARD_SENDER})`);
-    expect(history(project(), `board-${t.id}`).at(-1)).toMatchObject({ role: 'brain', text: 'I checked the settings: everything is in place.', operationId: card.work!.operationId });
+    expect(history(project(), `board-${t.id}`).at(-1)).toMatchObject({
+      role: 'brain',
+      text: 'I checked the settings: everything is in place.',
+      operationId: card.work!.operationId,
+    });
     const done = task(t.id);
     expect(done.work).toMatchObject({ state: 'review' });
-    expect(done.comments?.at(-1)).toMatchObject({ by: 'brain', text: 'I checked the settings: everything is in place.' });
+    expect(done.comments?.at(-1)).toMatchObject({
+      by: 'brain',
+      text: 'I checked the settings: everything is in place.',
+    });
     expect(done.comments).toHaveLength(1);
   });
 
-  it('hands it to an agent in the task\'s chat, and the board follows that agent\'s work', async () => {
+  it("hands it to an agent in the task's chat, and the board follows that agent's work", async () => {
     const agent = newAgent({ name: 'Brain helper' });
-    calls.think = () => `I gave this to the Brain helper.${actions([{ do: 'delegate', to: 'agent', id: agent.id, message: `Write the summary for task #1 on the Tasks board.` }])}`;
+    calls.think = () =>
+      `I gave this to the Brain helper.${actions([{ do: 'delegate', to: 'agent', id: agent.id, message: `Write the summary for task #1 on the Tasks board.` }])}`;
     const t = addBoardTask(project(), { title: 'Write the summary', assignee: 'brain' });
     await move(t.id, { status: 'in_progress' });
     await expect.poll(() => task(t.id).work!.runId).toBeTruthy();
@@ -255,7 +364,9 @@ describe('the Brain picks up its task', () => {
     const runId = scope(agent, w.chatId!, `board-${t.id}`);
     expect(await workerReply(runId, agent.id, { text: 'Here is a first draft.' })).toContain('Commented');
     const stranger = newAgent({ name: 'Brain stranger' });
-    await expect(workerReply(scope(stranger, w.chatId!, `board-${t.id}`, 'stranger-run'), stranger.id, { text: 'Hi' })).rejects.toThrow('isn\'t working on a Tasks board task');
+    await expect(
+      workerReply(scope(stranger, w.chatId!, `board-${t.id}`, 'stranger-run'), stranger.id, { text: 'Hi' }),
+    ).rejects.toThrow("isn't working on a Tasks board task");
 
     // your comment while it works reaches that agent
     const { passToWorker } = await import('../../server/boardwork.ts');
@@ -277,7 +388,10 @@ describe('the Brain picks up its task', () => {
 
   it('changes nothing when you stop it while it thinks', async () => {
     let answer: (text: string) => void = () => {};
-    calls.think = () => new Promise<string>((resolve) => { answer = resolve; });
+    calls.think = () =>
+      new Promise<string>((resolve) => {
+        answer = resolve;
+      });
     const t = addBoardTask(project(), { title: 'Think it over', assignee: 'brain', status: 'in_progress' });
     await startWork(project(), t.id);
     await expect.poll(() => calls.asked.length).toBe(1);
@@ -291,7 +405,7 @@ describe('the Brain picks up its task', () => {
   });
 
   it('may change only its own task there, and an action that fails puts the work in Needs review', async () => {
-    const other = addBoardTask(project(), { title: 'Someone else\'s task' });
+    const other = addBoardTask(project(), { title: "Someone else's task" });
     calls.think = () => `Moved it.${actions([{ do: 'board_update', task: `#${other.number}`, status: 'done' }])}`;
     const t = addBoardTask(project(), { title: 'Tidy the board', assignee: 'brain', status: 'in_progress' });
     await startWork(project(), t.id);
@@ -302,17 +416,21 @@ describe('the Brain picks up its task', () => {
   });
 });
 
-describe('the worker\'s tools', () => {
-  it('comment and move only the worker\'s own task, never to Done, with files from its workspace copied in', async () => {
+describe("the worker's tools", () => {
+  it("comment and move only the worker's own task, never to Done, with files from its workspace copied in", async () => {
     const agent = newAgent({ name: 'Board tool user' });
     const t = addBoardTask(project(), { title: 'Make a chart', assignee: `agent:${agent.id}`, status: 'in_progress' });
     const started = await startWork(project(), t.id);
     const runId = scope(agent, started.work!.chatId!, `board-${t.id}`);
     await expect(workerReply(runId, agent.id, { text: 'Done', status: 'done' })).rejects.toThrow('Only the user');
     await expect(workerReply(runId, agent.id, { status: 'blocked' })).rejects.toThrow('why');
-    await expect(workerReply(runId, 'someone-else', { text: 'Hi' })).rejects.toThrow('isn\'t working on a Tasks board task');
+    await expect(workerReply(runId, 'someone-else', { text: 'Hi' })).rejects.toThrow(
+      "isn't working on a Tasks board task",
+    );
     const elsewhere = scope(agent, 'some-chat', 'board-other', 'other-run');
-    await expect(workerReply(elsewhere, agent.id, { text: 'Hi' })).rejects.toThrow('isn\'t working on a Tasks board task');
+    await expect(workerReply(elsewhere, agent.id, { text: 'Hi' })).rejects.toThrow(
+      "isn't working on a Tasks board task",
+    );
 
     const brain = activeProject().brainPath;
     const chart = path.join(brain, 'chart.png');
@@ -326,7 +444,9 @@ describe('the worker\'s tools', () => {
     fs.symlinkSync(chart, link);
     await expect(workerReply(runId, agent.id, { text: 'x', files: [link] })).rejects.toThrow('cannot be attached');
 
-    expect(await workerReply(runId, agent.id, { text: 'Here is the chart.', files: [chart], status: 'in_review' })).toContain('In review');
+    expect(
+      await workerReply(runId, agent.id, { text: 'Here is the chart.', files: [chart], status: 'in_review' }),
+    ).toContain('In review');
     const after = task(t.id);
     expect(after.status).toBe('in_review');
     const comment = after.comments!.at(-1)!;
@@ -380,12 +500,35 @@ describe('files you attach', () => {
 
 describe('saved copies of the board', () => {
   it('keep files inside the uploads folder and leave work behind', () => {
-    const board = restoredBoard({ tasks: [{
-      id: 't1', title: 'Copied', status: 'in_progress',
-      files: [{ path: 'batch/a.txt', name: 'a.txt', size: 3, by: 'you', at: 1 }, { path: '../escape.txt', name: 'x', size: 1 }, { path: '/etc/passwd', name: 'p', size: 1 }],
-      work: { operationId: 'r1', conversationId: 'board-t1', target: { kind: 'agent', id: 'a' }, startedAt: 1, state: 'working' },
-      comments: [{ id: 'c1', text: '', by: 'agent:a', files: [{ path: 'batch/b.png', name: 'b.png', size: 2, by: 'agent:a', at: 2 }] }],
-    }] });
+    const board = restoredBoard({
+      tasks: [
+        {
+          id: 't1',
+          title: 'Copied',
+          status: 'in_progress',
+          files: [
+            { path: 'batch/a.txt', name: 'a.txt', size: 3, by: 'you', at: 1 },
+            { path: '../escape.txt', name: 'x', size: 1 },
+            { path: '/etc/passwd', name: 'p', size: 1 },
+          ],
+          work: {
+            operationId: 'r1',
+            conversationId: 'board-t1',
+            target: { kind: 'agent', id: 'a' },
+            startedAt: 1,
+            state: 'working',
+          },
+          comments: [
+            {
+              id: 'c1',
+              text: '',
+              by: 'agent:a',
+              files: [{ path: 'batch/b.png', name: 'b.png', size: 2, by: 'agent:a', at: 2 }],
+            },
+          ],
+        },
+      ],
+    });
     const [t] = board.tasks;
     expect(t.files).toEqual([{ path: 'batch/a.txt', name: 'a.txt', size: 3, by: 'you', at: 1 }]);
     expect(t.work).toBeUndefined();
@@ -396,29 +539,50 @@ describe('saved copies of the board', () => {
 describe('board tags for agents', () => {
   const names = (projectId: string, id: string) => boardTask(projectId, id).tagList.map((x) => x.name);
 
-  it('lets any agent tag any task of its run\'s project, make, rename and delete tags, signed as the agent', async () => {
+  it("lets any agent tag any task of its run's project, make, rename and delete tags, signed as the agent", async () => {
     const agent = newAgent({ name: 'Board tagger' });
     const runId = scope(agent, 'tagger-chat', '');
     const t = addBoardTask(project(), { title: 'Tag me' });
     expect(agentBoardTags(runId, agent.id, { action: 'create', name: '🐛 Bug' })).toBe('Made tag 🐛 Bug.');
-    expect(agentBoardTags(runId, agent.id, { action: 'create', name: 'bug' })).toBe('Tag 🐛 Bug is there already (on 0 tasks).');
-    expect(agentBoardTags(runId, agent.id, { action: 'tag', task: `#${t.number}`, add: ['Bug', '🎨 Design'] })).toBe(`Tagged #${t.number} Tag me: 🐛 Bug, 🎨 Design.`);
-    expect(boardTags(project()).find((x) => x.name === 'Design')).toMatchObject({ createdBy: `agent:${agent.id}`, tasks: 1 });
+    expect(agentBoardTags(runId, agent.id, { action: 'create', name: 'bug' })).toBe(
+      'Tag 🐛 Bug is there already (on 0 tasks).',
+    );
+    expect(agentBoardTags(runId, agent.id, { action: 'tag', task: `#${t.number}`, add: ['Bug', '🎨 Design'] })).toBe(
+      `Tagged #${t.number} Tag me: 🐛 Bug, 🎨 Design.`,
+    );
+    expect(boardTags(project()).find((x) => x.name === 'Design')).toMatchObject({
+      createdBy: `agent:${agent.id}`,
+      tasks: 1,
+    });
     // re-tag in one call
     agentBoardTags(runId, agent.id, { action: 'tag', task: 'Tag me', remove: ['design'], add: ['Docs'] });
     expect(names(project(), t.id)).toEqual(['Bug', 'Docs']);
     expect(agentBoardTags(runId, agent.id, { action: 'list' })).toContain('🐛 Bug (1)');
-    expect(agentBoardTags(runId, agent.id, { action: 'edit', name: 'Docs', rename: '📝 Writing' })).toBe('Tag Docs is now 📝 Writing (on 1 task).');
-    expect(agentBoardTags(runId, agent.id, { action: 'delete', name: 'writing' })).toBe('Deleted tag 📝 Writing; it came off 1 task.');
-    expect(agentBoardTags(runId, agent.id, { action: 'tag', task: `#${t.number}`, tags: [] })).toBe(`#${t.number} Tag me has no tags now.`);
-    expect(() => agentBoardTags(runId, agent.id, { action: 'edit', name: 'Nope', rename: 'x' })).toThrow('No tag "Nope" on the board.');
+    expect(agentBoardTags(runId, agent.id, { action: 'edit', name: 'Docs', rename: '📝 Writing' })).toBe(
+      'Tag Docs is now 📝 Writing (on 1 task).',
+    );
+    expect(agentBoardTags(runId, agent.id, { action: 'delete', name: 'writing' })).toBe(
+      'Deleted tag 📝 Writing; it came off 1 task.',
+    );
+    expect(agentBoardTags(runId, agent.id, { action: 'tag', task: `#${t.number}`, tags: [] })).toBe(
+      `#${t.number} Tag me has no tags now.`,
+    );
+    expect(() => agentBoardTags(runId, agent.id, { action: 'edit', name: 'Nope', rename: 'x' })).toThrow(
+      'No tag "Nope" on the board.',
+    );
     expect(() => agentBoardTags(runId, agent.id, { action: 'edit', name: 'Bug' })).toThrow('Give rename or emoji.');
-    expect(() => agentBoardTags(runId, agent.id, { action: 'tag', task: '#999', add: ['Bug'] })).toThrow('no task "#999"');
-    expect(() => agentBoardTags(runId, agent.id, { action: 'tag', task: `#${t.number}` })).toThrow('Give tags, add or remove.');
-    expect(() => agentBoardTags(runId, agent.id, { action: 'shout' })).toThrow('action must be list, find, tag, create, edit or delete.');
+    expect(() => agentBoardTags(runId, agent.id, { action: 'tag', task: '#999', add: ['Bug'] })).toThrow(
+      'no task "#999"',
+    );
+    expect(() => agentBoardTags(runId, agent.id, { action: 'tag', task: `#${t.number}` })).toThrow(
+      'Give tags, add or remove.',
+    );
+    expect(() => agentBoardTags(runId, agent.id, { action: 'shout' })).toThrow(
+      'action must be list, find, tag, create, edit or delete.',
+    );
   });
 
-  it('works in its run\'s own project, not the open one, and not in a gateway conversation or another agent\'s run', async () => {
+  it("works in its run's own project, not the open one, and not in a gateway conversation or another agent's run", async () => {
     const open = activeProject();
     const agent = newAgent({ name: 'Board elsewhere tagger' });
     const runId = scope(agent, 'elsewhere-chat', '');
@@ -434,9 +598,13 @@ describe('board tags for agents', () => {
     setActiveProject(open.id);
 
     const gateway = scope(agent, 'gateway-chat', 'a'.repeat(64), 'gateway-run');
-    expect(() => agentBoardTags(gateway, agent.id, { action: 'list' })).toThrow('isn\'t available in this conversation');
-    expect(() => agentBoardTags(gateway, agent.id, { action: 'find', tags: ['x'] })).toThrow('isn\'t available in this conversation');
-    expect(() => agentBoardTags(runId, 'someone-else', { action: 'list' })).toThrow('That run is not available to you.');
+    expect(() => agentBoardTags(gateway, agent.id, { action: 'list' })).toThrow("isn't available in this conversation");
+    expect(() => agentBoardTags(gateway, agent.id, { action: 'find', tags: ['x'] })).toThrow(
+      "isn't available in this conversation",
+    );
+    expect(() => agentBoardTags(runId, 'someone-else', { action: 'list' })).toThrow(
+      'That run is not available to you.',
+    );
     // a task's own conversation is a normal chat for this
     const own = scope(agent, 'own-chat', 'board-some-task', 'own-run');
     expect(agentBoardTags(own, agent.id, { action: 'list' })).toMatch(/^TAGS: /);
@@ -447,13 +615,22 @@ describe('board tags for agents', () => {
     const runId = scope(agent, 'finder-chat', '');
     addBoardTag(project(), { name: '🧪 Finder test' });
     addBoardTask(project(), { title: 'Found one', tags: ['finder test'] });
-    expect(agentBoardTags(runId, agent.id, { action: 'find', tags: ['Finder test'] })).toMatch(/^#\d+ \[To do\] Found one \| unassigned \| tags: 🧪 Finder test$/);
-    expect(agentBoardTags(runId, agent.id, { action: 'find', tags: ['finder test', 'no such tag'], match: 'all' })).toMatch(/^No tasks match\.\nNo tag called: no such tag\. TAGS: /);
+    expect(agentBoardTags(runId, agent.id, { action: 'find', tags: ['Finder test'] })).toMatch(
+      /^#\d+ \[To do\] Found one \| unassigned \| tags: 🧪 Finder test$/,
+    );
+    expect(
+      agentBoardTags(runId, agent.id, { action: 'find', tags: ['finder test', 'no such tag'], match: 'all' }),
+    ).toMatch(/^No tasks match\.\nNo tag called: no such tag\. TAGS: /);
   });
 
-  it('lets a worker tag its own task as it replies, and reads the board\'s tags with board_task', async () => {
+  it("lets a worker tag its own task as it replies, and reads the board's tags with board_task", async () => {
     const agent = newAgent({ name: 'Board reply tagger' });
-    const t = addBoardTask(project(), { title: 'Reply and tag', assignee: `agent:${agent.id}`, status: 'in_progress', tags: ['Ops'] });
+    const t = addBoardTask(project(), {
+      title: 'Reply and tag',
+      assignee: `agent:${agent.id}`,
+      status: 'in_progress',
+      tags: ['Ops'],
+    });
     const started = await startWork(project(), t.id);
     expect(calls.runs.at(-1)!.text).toContain('Tags: Ops');
     // a task whose tag ids point at no tag (a hand-edited board) gets no empty Tags line
@@ -462,9 +639,15 @@ describe('board tags for agents', () => {
     await startWork(project(), bare.id);
     expect(calls.runs.at(-1)!.text).not.toContain('Tags:');
     const runId = scope(agent, started.work!.chatId!, `board-${t.id}`);
-    expect(await workerReply(runId, agent.id, { addTags: ['✅ Checked'], removeTags: ['ops'] })).toBe('Its tags: ✅ Checked.');
-    expect(await workerReply(runId, agent.id, { text: 'Done.', status: 'in_review', removeTags: ['checked'] })).toBe(`Commented on #${t.number}. Moved #${t.number} to In review. It has no tags now.`);
-    await expect(workerReply(runId, agent.id, { addTags: [7] })).rejects.toThrow('addTags must be a list of tag names.');
+    expect(await workerReply(runId, agent.id, { addTags: ['✅ Checked'], removeTags: ['ops'] })).toBe(
+      'Its tags: ✅ Checked.',
+    );
+    expect(await workerReply(runId, agent.id, { text: 'Done.', status: 'in_review', removeTags: ['checked'] })).toBe(
+      `Commented on #${t.number}. Moved #${t.number} to In review. It has no tags now.`,
+    );
+    await expect(workerReply(runId, agent.id, { addTags: [7] })).rejects.toThrow(
+      'addTags must be a list of tag names.',
+    );
     // nothing of the refused reply was saved
     expect(task(t.id).comments).toHaveLength(1);
   });

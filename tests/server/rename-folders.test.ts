@@ -14,9 +14,15 @@ describe('folders from before the rename', () => {
     const blacksite = path.join(home, 'Blacksite Backups');
     const myDashboard = path.join(home, 'My Dashboard Backups');
     fs.mkdirSync(blacksite, { recursive: true });
-    fs.writeFileSync(path.join(blacksite, 'Launch.dashbackup'), 'MY-DASHBOARD-BACKUP 1\n{"app":"my-dashboard","name":"Launch"}\n');
+    fs.writeFileSync(
+      path.join(blacksite, 'Launch.dashbackup'),
+      'MY-DASHBOARD-BACKUP 1\n{"app":"my-dashboard","name":"Launch"}\n',
+    );
     fs.mkdirSync(myDashboard, { recursive: true });
-    fs.writeFileSync(path.join(myDashboard, 'Older.dashbackup'), 'MY-DASHBOARD-BACKUP 1\n{"app":"my-dashboard","name":"Older"}\n');
+    fs.writeFileSync(
+      path.join(myDashboard, 'Older.dashbackup'),
+      'MY-DASHBOARD-BACKUP 1\n{"app":"my-dashboard","name":"Older"}\n',
+    );
 
     expect(backupsRoot()).toBe(path.join(home, 'Athena Agents Backups'));
     expect(fs.existsSync(blacksite)).toBe(false);
@@ -32,7 +38,10 @@ describe('folders from before the rename', () => {
   it('puts new projects in Documents/Athena Agents and still finds project folders in the old ones', () => {
     expect(projectsRoot()).toBe(path.join(home, 'Documents', 'Athena Agents'));
     expect(listProjects()[0]?.brainPath).toBe(path.join(home, 'Documents', 'Athena Agents', 'My workspace'));
-    const old = [path.join(home, 'Documents', 'Blacksite', 'Old work'), path.join(home, 'Documents', 'My Dashboard', 'Older work')];
+    const old = [
+      path.join(home, 'Documents', 'Blacksite', 'Old work'),
+      path.join(home, 'Documents', 'My Dashboard', 'Older work'),
+    ];
     for (const dir of old) {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, 'PROJECT.md'), `# ${path.basename(dir)}\n`);

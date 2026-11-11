@@ -129,6 +129,7 @@ one pick, the reason, the runner-up and what would change the answer.
    ```
 
    GitHub allows 60 requests an hour without signing in, so check a few repositories, not a whole dependency tree.
+
 4. Keep notes in the project as you go (say `evaluations/[topic]/notes.md`): each source with its link and the date
    you read it, each test step and its result, timings and screenshots. The user can check your work, and the review
    at renewal time starts from it.

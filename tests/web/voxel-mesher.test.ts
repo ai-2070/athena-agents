@@ -20,7 +20,8 @@ const G = 4;
 /** The faces of a mesh part as "normal@position of first corner" strings. */
 function normalsOf(p: MeshPart): string[] {
   const out: string[] = [];
-  for (let f = 0; f < p.faces; f++) out.push([p.normals[f * 12], p.normals[f * 12 + 1], p.normals[f * 12 + 2]].map((n) => Math.sign(n)).join(','));
+  for (let f = 0; f < p.faces; f++)
+    out.push([p.normals[f * 12], p.normals[f * 12 + 1], p.normals[f * 12 + 2]].map((n) => Math.sign(n)).join(','));
   return out;
 }
 
@@ -43,10 +44,16 @@ describe('meshRegion', () => {
   });
 
   it('faces between two solid voxels are hidden', () => {
-    expect(mesh([[2, 2, 2, S], [3, 2, 2, S]]).opaque!.faces).toBe(10);
+    expect(
+      mesh([
+        [2, 2, 2, S],
+        [3, 2, 2, S],
+      ]).opaque!.faces,
+    ).toBe(10);
     // a 3×3×3 block shows only its outside
     const block: [number, number, number, number][] = [];
-    for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) for (let z = 0; z < 3; z++) block.push([x + 1, y + 1, z + 1, S]);
+    for (let x = 0; x < 3; x++)
+      for (let y = 0; y < 3; y++) for (let z = 0; z < 3; z++) block.push([x + 1, y + 1, z + 1, S]);
     expect(mesh(block).opaque!.faces).toBe(54);
   });
 
@@ -64,7 +71,11 @@ describe('meshRegion', () => {
 
   it('darkens corners in a crease (ambient occlusion)', () => {
     // a floor voxel with a wall voxel on top of its neighbour: the floor's top face is darker on that side
-    const r = mesh([[2, 1, 2, S], [3, 1, 2, S], [3, 2, 2, S]]);
+    const r = mesh([
+      [2, 1, 2, S],
+      [3, 1, 2, S],
+      [3, 2, 2, S],
+    ]);
     const p = r.opaque!;
     const tops: number[] = [];
     for (let f = 0; f < p.faces; f++) {
@@ -79,20 +90,37 @@ describe('meshRegion', () => {
   });
 
   it('splits solid, glowing and water voxels, and shows solid faces behind water', () => {
-    const r = mesh([[2, 2, 2, S], [3, 2, 2, W], [5, 5, 5, L]]);
+    const r = mesh([
+      [2, 2, 2, S],
+      [3, 2, 2, W],
+      [5, 5, 5, L],
+    ]);
     expect(r.emissive!.faces).toBe(6);
     expect(r.water!.faces).toBe(5);
     expect(r.opaque!.faces).toBe(6);
   });
 
   it('water next to water has no face between, water next to glass does', () => {
-    expect(mesh([[2, 2, 2, W], [3, 2, 2, W]]).water!.faces).toBe(10);
-    const r = mesh([[2, 2, 2, W], [3, 2, 2, G]]);
+    expect(
+      mesh([
+        [2, 2, 2, W],
+        [3, 2, 2, W],
+      ]).water!.faces,
+    ).toBe(10);
+    const r = mesh([
+      [2, 2, 2, W],
+      [3, 2, 2, G],
+    ]);
     expect(r.water!.faces + r.transparent!.faces).toBe(12);
   });
 
   it('leaves and metal get their own parts; glowing voxels carry how bright they glow, and light spots', () => {
-    const pal: VoxelMaterial[] = [...PALETTE, { name: 'leaves', color: '#3f7f34', kind: 'leaf' }, { name: 'iron', color: '#4a4d52', kind: 'metal' }, { name: 'neon', color: '#ff0000', kind: 'emissive', emissive: 8 }];
+    const pal: VoxelMaterial[] = [
+      ...PALETTE,
+      { name: 'leaves', color: '#3f7f34', kind: 'leaf' },
+      { name: 'iron', color: '#4a4d52', kind: 'metal' },
+      { name: 'neon', color: '#ff0000', kind: 'emissive', emissive: 8 },
+    ];
     const v = newVolume();
     setVoxel(v, 0, 0, 0, 5);
     setVoxel(v, 2, 0, 0, 6);
@@ -132,7 +160,16 @@ describe('voxel look presets and the test island', () => {
   it('every time of day is complete and copies are independent', () => {
     for (const [name, env] of Object.entries(ENV_PRESETS)) {
       expect(env.preset).toBe(name);
-      for (const c of [env.sky.top, env.sky.horizon, env.sky.bottom, env.fog.color, env.sun.color, env.ambient.sky, env.ambient.ground]) expect(c).toMatch(/^#[0-9a-f]{6}$/i);
+      for (const c of [
+        env.sky.top,
+        env.sky.horizon,
+        env.sky.bottom,
+        env.fog.color,
+        env.sun.color,
+        env.ambient.sky,
+        env.ambient.ground,
+      ])
+        expect(c).toMatch(/^#[0-9a-f]{6}$/i);
     }
     const a = envPreset('golden');
     a.sun.intensity = 99;
@@ -141,7 +178,8 @@ describe('voxel look presets and the test island', () => {
   });
 
   it('the sun is up for every preset', () => {
-    for (const env of Object.values(ENV_PRESETS)) expect(sunDirection(env.sun.azimuth, env.sun.elevation)[1]).toBeGreaterThan(0);
+    for (const env of Object.values(ENV_PRESETS))
+      expect(sunDirection(env.sun.azimuth, env.sun.elevation)[1]).toBeGreaterThan(0);
   });
 
   it('the test island is repeatable and meshes into every class', () => {
@@ -162,8 +200,17 @@ describe('meshObject', () => {
     setVoxel(a, 0, 0, 0, 1);
     const b = newVolume(0.1);
     setVoxel(b, 40, 0, 0, 3);
-    const enc = (v: ReturnType<typeof newVolume>) => Object.fromEntries([...v.chunks].map(([k, c]) => [k, encodeChunk(c)]));
-    const parts = meshObject({ volumes: [{ id: 'a', voxelSize: 0.25, chunks: enc(a) }, { id: 'b', voxelSize: 0.1, chunks: enc(b) }] }, PALETTE);
+    const enc = (v: ReturnType<typeof newVolume>) =>
+      Object.fromEntries([...v.chunks].map(([k, c]) => [k, encodeChunk(c)]));
+    const parts = meshObject(
+      {
+        volumes: [
+          { id: 'a', voxelSize: 0.25, chunks: enc(a) },
+          { id: 'b', voxelSize: 0.1, chunks: enc(b) },
+        ],
+      },
+      PALETTE,
+    );
     expect(parts.map((p) => [p.cls, p.voxelSize, p.min, p.faces])).toEqual([
       ['opaque', 0.25, [0, 0, 0], 6],
       ['emissive', 0.1, [32, 0, 0], 6],

@@ -15,7 +15,8 @@ export interface OthersWork {
 }
 
 // (key order doesn't count: a material written back the same is no change)
-const sameMaterial = (a: VoxelMaterial, b: VoxelMaterial) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
+const sameMaterial = (a: VoxelMaterial, b: VoxelMaterial) =>
+  JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
 
 /** Existing palette materials these build steps would define differently (steps inside steps count too). */
 export function redefinedInSteps(palette: VoxelMaterial[], steps: unknown): string[] {
@@ -48,7 +49,10 @@ export function redefinedInScript(palette: VoxelMaterial[], code: unknown): stri
   const text = String(code ?? '');
   const out = new Set<string>();
   // (material("stone") with nothing after the name changes nothing)
-  for (const re of [/\bmaterial\s*\(\s*(['"`])((?:(?!\1)[^\\])*)\1\s*(\)?)/g, /['"]?\bmaterial['"]?\s*:\s*(['"`])((?:(?!\1)[^\\])*)\1()/g])
+  for (const re of [
+    /\bmaterial\s*\(\s*(['"`])((?:(?!\1)[^\\])*)\1\s*(\)?)/g,
+    /['"]?\bmaterial['"]?\s*:\s*(['"`])((?:(?!\1)[^\\])*)\1()/g,
+  ])
     for (const m of text.matchAll(re)) {
       if (m[3]) continue;
       const name = m[2].trim().toLowerCase();
@@ -76,7 +80,8 @@ function usedIn(data: VoxelObjectData | null, byValue: Map<number, string>): Set
         if (name) hit.add(name);
       }
     }
-  for (const i of data.instances || []) for (const to of Object.values(i.swap || {})) if (names.has(String(to))) hit.add(String(to));
+  for (const i of data.instances || [])
+    for (const to of Object.values(i.swap || {})) if (names.has(String(to))) hit.add(String(to));
   return hit;
 }
 
@@ -94,8 +99,11 @@ export function materialUsers(w: VoxelWorld, by: WorldBuilder, materials: string
   const note = (hit: Set<string>, work: OthersWork) => {
     for (const name of hit) out.set(name, [...(out.get(name) || []), work]);
   };
-  for (const o of w.objects) if (!ownsObject(by, o)) note(usedIn(readObject(w.id, o.id), byValue), { by: o.by, where: `"${o.name}"` });
-  for (const p of w.prefabs) if (!ownsObject(by, p)) note(usedIn(readPrefab(w.id, p.id), byValue), { by: p.by, where: `the prefab "${p.name}"` });
+  for (const o of w.objects)
+    if (!ownsObject(by, o)) note(usedIn(readObject(w.id, o.id), byValue), { by: o.by, where: `"${o.name}"` });
+  for (const p of w.prefabs)
+    if (!ownsObject(by, p))
+      note(usedIn(readPrefab(w.id, p.id), byValue), { by: p.by, where: `the prefab "${p.name}"` });
   return out;
 }
 
@@ -103,11 +111,19 @@ export function materialUsers(w: VoxelWorld, by: WorldBuilder, materials: string
 export function copiesByOthers(w: VoxelWorld, by: WorldBuilder, prefabId: string): OthersWork[] {
   if (by.kind !== 'agent') return [];
   const memo = new Map<string, { holds: boolean; depth: number }>();
-  const holders = new Set([prefabId, ...w.prefabs.filter((p) => p.id !== prefabId && p.instances && nesting(w, p.id, prefabId, memo).holds).map((p) => p.id)]);
+  const holders = new Set([
+    prefabId,
+    ...w.prefabs
+      .filter((p) => p.id !== prefabId && p.instances && nesting(w, p.id, prefabId, memo).holds)
+      .map((p) => p.id),
+  ]);
   const has = (data: VoxelObjectData | null) => (data?.instances || []).some((i) => holders.has(i.prefab));
   const out: OthersWork[] = [];
-  for (const o of w.objects) if (o.instances && !ownsObject(by, o) && has(readObject(w.id, o.id))) out.push({ by: o.by, where: `"${o.name}"` });
-  for (const p of w.prefabs) if (p.id !== prefabId && p.instances && !ownsObject(by, p) && has(readPrefab(w.id, p.id))) out.push({ by: p.by, where: `the prefab "${p.name}"` });
+  for (const o of w.objects)
+    if (o.instances && !ownsObject(by, o) && has(readObject(w.id, o.id))) out.push({ by: o.by, where: `"${o.name}"` });
+  for (const p of w.prefabs)
+    if (p.id !== prefabId && p.instances && !ownsObject(by, p) && has(readPrefab(w.id, p.id)))
+      out.push({ by: p.by, where: `the prefab "${p.name}"` });
   return out;
 }
 

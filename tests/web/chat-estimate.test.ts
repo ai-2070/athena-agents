@@ -5,7 +5,8 @@ import { charsPerLine, estimateHeight, messageSig, wrappedLines } from '../../we
 import { rememberHeight, rememberedHeight } from '../../web/chat/window.tsx';
 import type { ChatMessage } from '../../web/chat/messages.ts';
 
-const msg = (role: 'user' | 'assistant', parts: ChatMessage['parts']): ChatMessage => ({ id: 'm', role, parts }) as ChatMessage;
+const msg = (role: 'user' | 'assistant', parts: ChatMessage['parts']): ChatMessage =>
+  ({ id: 'm', role, parts }) as ChatMessage;
 const text = (t: string) => ({ type: 'text' as const, text: t });
 
 describe('wrappedLines()', () => {
@@ -35,7 +36,17 @@ describe('estimateHeight()', () => {
 
   it('adds room for tool calls and attached files, and is smaller in the compact window', () => {
     const plain = msg('assistant', [text('Done.')]);
-    const withTool = msg('assistant', [text('Done.'), { type: 'dynamic-tool', toolName: 'read_file', toolCallId: 't', state: 'output-available', input: {}, output: {} } as ChatMessage['parts'][number]]);
+    const withTool = msg('assistant', [
+      text('Done.'),
+      {
+        type: 'dynamic-tool',
+        toolName: 'read_file',
+        toolCallId: 't',
+        state: 'output-available',
+        input: {},
+        output: {},
+      } as ChatMessage['parts'][number],
+    ]);
     const withFile = msg('user', [text('Look'), { type: 'file', mediaType: 'image/png', url: '/api/file?path=a.png' }]);
     expect(estimateHeight(withTool, 900) - estimateHeight(plain, 900)).toBe(44);
     expect(estimateHeight(withFile, 900)).toBeGreaterThan(250);

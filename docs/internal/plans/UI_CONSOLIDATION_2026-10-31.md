@@ -36,15 +36,15 @@ Ranked by value. Items 2–5 are one small, safe pass; item 1 is the real work.
 Roughly half the app never moved to React and still builds elements with `h()` from `web/core.ts`,
 re-implementing by hand the mount/update lifecycle every React page gets for free:
 
-| File | Lines | `h()` calls |
-|---|---|---|
-| `web/projects.ts` | 520 | 38 |
-| `web/models.ts` | 493 | 35 |
-| `web/builder.ts` | 283 | 30 |
-| `web/skilldialogs.ts` | — | 21 |
-| `web/history.ts` | — | 21 |
-| `web/navlimits.ts` | 280 | 17 |
-| `web/attach.ts` | 515 | 17 |
+| File                  | Lines | `h()` calls |
+| --------------------- | ----- | ----------- |
+| `web/projects.ts`     | 520   | 38          |
+| `web/models.ts`       | 493   | 35          |
+| `web/builder.ts`      | 283   | 30          |
+| `web/skilldialogs.ts` | —     | 21          |
+| `web/history.ts`      | —     | 21          |
+| `web/navlimits.ts`    | 280   | 17          |
+| `web/attach.ts`       | 515   | 17          |
 
 Smaller: `filepreview.ts` (13), `memory.ts` (7), `schedule.ts` (6), `backup.ts` (4).
 
@@ -97,11 +97,10 @@ working unchanged.
 ### 5. The memory meter wears a pill's name without its look — medium
 
 The first version of this note called `.pill.mem` dead CSS. It is not: `web/views/chat.tsx:179` builds
-the chat header's memory meter as `className={\`pill mem … ${… ? 'warn' : ''}\`}` by hand. Because it
-never goes through `pillClass()`, it is missing every pill utility — the padding, the border, the
-rounded ends, the background and the `--tone` the border and text colour read — so the meter renders as
-bare text with no pill around it. It is also the one thing in the codebase that reads a marker class:
-`web/styles/components.css:70` styles `.pill.mem`.
+the chat header's memory meter as `className={\`pill mem … ${… ? 'warn' : ''}\`}`by hand. Because it
+never goes through`pillClass()`, it is missing every pill utility — the padding, the border, the
+rounded ends, the background and the `--tone`the border and text colour read — so the meter renders as
+bare text with no pill around it. It is also the one thing in the codebase that reads a marker class:`web/styles/components.css:70`styles`.pill.mem`.
 
 - `web/views/chat.tsx:179` — the hand-written pill
 - `web/styles/components.css:70` — `.pill.mem { font: 12px …; font-variant-numeric: tabular-nums; cursor: default; }`
@@ -125,7 +124,7 @@ assertions across ten files still look elements up by them:
 "the same way the dock and the Station keep their markers", and ten test files use them. Moving those
 assertions to role/attribute queries would be churn for no gain, and dropping markers that only tests
 read would break the very lookups they exist for. The one thing that was wrong here was that a marker
-was *styled* (`.pill.mem`); that is fixed above. The only code that reads a marker is still
+was _styled_ (`.pill.mem`); that is fixed above. The only code that reads a marker is still
 `web/builder.ts:41` (`classList.contains('pill')`), which its own module owns.
 
 ---
@@ -204,7 +203,7 @@ Left failing, both server-side and unrelated to this work: `brain-chat.test.ts` 
 Three alignment faults, found by looking at the running page and measured in it rather than by eye.
 
 - **Station panel, a team's head** — `web/views/stationpanel.tsx`. `PanelHead` centres its close button on
-  whatever the caller passes as the heading, and the team was the only caller that passed a *third* line
+  whatever the caller passes as the heading, and the team was the only caller that passed a _third_ line
   (the status). Measured: the close button sat at y-centre 122 for a team against 111 for the Brain and a
   project. The status now sits under the head, indented to the name, so the button is back at 111.
 - **Chat window title bar** — `web/chatwin.tsx`. The strip was `min-h-[52px] pt-3` with the tab list
@@ -225,12 +224,12 @@ Three alignment faults, found by looking at the running page and measured in it 
   layout, where the title is above the panel and does not stick.
 - **A message cut off at the bottom of a chat** — `web/chat/ChatView.tsx`. Reported as clipped text; it was
   a scroll position, not an unreachable line (the report confirmed scrolling revealed it). The list only
-  returned to the newest message when its *content* changed (a MutationObserver and a `load` listener) or
+  returned to the newest message when its _content_ changed (a MutationObserver and a `load` listener) or
   when ChatView re-rendered. Making the window shorter — resizing it, or maximizing — changes the list's own
   height with no mutation to see, so the view stayed where it was: reproduced at 953×595, shrinking the
   viewport took the list from 358px to 204px and left the last row 166px below its bottom edge. A
   `ResizeObserver` on the list now keeps to the newest message the same way. After: `scrollHeight −
-  scrollTop − clientHeight` is 0 through a shrink (358 → 209) and a grow (→ 509), and the same holds in a
+scrollTop − clientHeight` is 0 through a shrink (358 → 209) and a grow (→ 509), and the same holds in a
   chat window when it is maximized (list 148 → 385). No unit test: happy-dom's `ResizeObserver` never
   fires (measured — it was also why the big-Markdown test was failing), so such a test would exercise a
   stub rather than the behaviour.
@@ -243,7 +242,7 @@ Three alignment faults, found by looking at the running page and measured in it 
 - **The wordmark too** — `public/index.html`. "Athena" `font-semibold` → `font-[700]`, "Agents" `font-medium`
   → `font-semibold`; measured 700 / 600. Note for anyone else reaching for this: the app's `@theme` sets
   **`--font-weight-bold: 600`** (`web/styles/app.css:62`), so in this codebase `font-bold` and
-  `font-semibold` are the *same* weight — the first attempt with `font-bold` changed nothing. Use an
+  `font-semibold` are the _same_ weight — the first attempt with `font-bold` changed nothing. Use an
   explicit `font-[700]`, or raise that token deliberately (it would move every `font-bold` in the app).
 - **The Station's clock** — `web/views/station.ts:3791` (and the day period at ~3958). It carried
   `[font-family:Archivo,sans-serif]`, a leftover from before the redesign: Archivo is still copied into
@@ -263,7 +262,7 @@ Three alignment faults, found by looking at the running page and measured in it 
   box still ends 24px from the bottom. The narrow layout is untouched — it is `h-auto` there, where a `1fr`
   row resolves to the content either way.
 - **The MEMORY.md button, nearly invisible** — `web/memory.tsx` and its three callers. It was the last place
-  that handed a *pre-built* `buttonClass(...)` string to a `dom*` factory, so `domButton` added its own
+  that handed a _pre-built_ `buttonClass(...)` string to a `dom*` factory, so `domButton` added its own
   defaults on top: the element carried **two** full class sets, and the stylesheet's order decided the
   colour — `text-on-accent` (`#0b0d1e`) won over `text-ink` while `bg-ghost` won over `bg-accent`, giving
   dark navy on a dark plate. Measured before: `color: rgb(11, 13, 30)`, class list containing both
@@ -302,6 +301,6 @@ Three alignment faults, found by looking at the running page and measured in it 
   text in any of them, every avatar an `<svg>` or `<img>`. `tests/web/programicons.test.ts` guards the
   Claude Code mark, the line-icon and PNG paths, and the never-nothing fallback.
   The same confusion was in the Station: its usage strip's "**Claude Code usage**" row (SESSION/WEEK, straight
-  from `/headbar`) wore the *Claude* starburst — an X-shaped mark, read as the wrong icon — as did the engines
-  row and the Claude Code integration. All three now ask for `claude code`; rows that mean the Claude *model*
+  from `/headbar`) wore the _Claude_ starburst — an X-shaped mark, read as the wrong icon — as did the engines
+  row and the Claude Code integration. All three now ask for `claude code`; rows that mean the Claude _model_
   (model picker, engine tiles by provider) keep the starburst.

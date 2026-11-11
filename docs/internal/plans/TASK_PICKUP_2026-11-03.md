@@ -10,6 +10,7 @@ marks, Brain scoping and backups are done, with tests (`tests/server/boardwork.t
 `api.test.ts`, `tests/web/tasks-board.test.tsx`).
 
 Where it differs from the plan below:
+
 - **Gateway files are untouched.** `LZL0/gateways` still gets new commits every few hours, so nothing was taken out of
   it yet. `server/boardwork.ts` has its own completion reader, written like `gateways/execution.ts`.
   `server/boardfiles.ts` has its own copy of the gateway file checks. Moving both into shared modules
@@ -51,18 +52,18 @@ comment.
 
 ## What Gateways gives us
 
-| Gateways piece | Where (PR #112) | What the board uses it for |
-|---|---|---|
-| **Private conversations**: a conversation id gets its own agent chat (`privateAgentChat`) or its own copy of a team (`privateTeamId`). The copy uses the team's own turns, queue and recovery, but keeps a separate thread. | `server/private-conversations.ts`, `chats.create(..., conversationId)`, `RunInfo.conversationId` | **Each task is a conversation**, `board-<taskId>`. An agent works on it in a chat of its own. A team works on it in a private thread, not in its main chat, so two tasks given to one team don't mix. Starting again later continues the same conversation, so the worker sees earlier attempts. |
-| **Scoped Brain and tools**: the Brain's snapshot, briefs, approvals, conversation search and task lists only show what belongs to that conversation. Cross-team relays are off in private threads. | `overseer.ts snapshot({conversationId})`, `conversations.ts`, `tasks.ts`, `teams.ts` | A worker on task #4 can't read or be steered by task #7's conversation. |
-| **Ids fixed before work starts**: `startRun(..., { reservedRunId, from, userInitiated })` and `postUserMessage(..., { messageId, sender })` take an id chosen in advance. | `server/engines/index.ts`, `server/teams.ts` | The task saves the id first and then starts. After a restart the board checks that id instead of starting the work twice. |
-| **The normal completion brief**: `userInitiated: true` on a run with a `from`, or a user message with a `sender` on a team, opens the automatic brief, with checks, follow-ups, and Needs you when blocked. For a private conversation, `report()` writes the Brain's verdict into that chat or thread, not the Brain chat. | `server/irc.ts` (`report`, `onUserWork` with `messageId`) | No new brief kind and no changes to `settle`/`needsUser`. The board reads each brief's outcome. |
-| **Completion checks**: `agentCompletion`, `teamCompletion`, `briefFor`, `checkBrief`. They also wait for delegates and background work, and recognise a changed brief. | `server/gateways/execution.ts` | Knowing when an agent's or a team's work on a task is finished, delivered or blocked, and with what answer. |
-| **Approval waiting**: `approvalPending()` finds an approval for a run in this conversation. | `server/gateways/execution.ts` | The card's **Needs you**. |
-| **The dispatcher**: wakes on `run`/`team`/`brief`/`approvals` events plus a 1-second timer, runs at most 4 at once, and never waits on a model call. | `server/gateways/dispatch.ts` | The same loop drives board work: start, follow, settle. |
-| **File hand-in checks**: only the run's own workspace and the project's uploads are allowed. Credentials, `.git`, `.dashboard`, data folders, other projects, links and hard links are refused. The file is read once and its size and hash saved, and the check also confirms the run that made it. | `server/gateways/deliverables.ts`, `server/gateways/outgoing.ts` (`checkedPath`, `readGatewayDocument`) | Checking the files a worker attaches to its comment. |
-| **One safe file writer**: `receiveSource()` writes from any stream with a size limit, into a fresh batch. | `server/uploads.ts` | Copying files into a task's project (files you attach in "All projects", and files a worker hands in). |
-| **Brain as a target**: `ask(text, { conversationId, operationId, from, attachments })` keeps a private Brain history per conversation. | `server/overseer.ts` | Tasks assigned to **The Brain** can be picked up too (open question 3). |
+| Gateways piece                                                                                                                                                                                                                                                                                                              | Where (PR #112)                                                                                         | What the board uses it for                                                                                                                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Private conversations**: a conversation id gets its own agent chat (`privateAgentChat`) or its own copy of a team (`privateTeamId`). The copy uses the team's own turns, queue and recovery, but keeps a separate thread.                                                                                                 | `server/private-conversations.ts`, `chats.create(..., conversationId)`, `RunInfo.conversationId`        | **Each task is a conversation**, `board-<taskId>`. An agent works on it in a chat of its own. A team works on it in a private thread, not in its main chat, so two tasks given to one team don't mix. Starting again later continues the same conversation, so the worker sees earlier attempts. |
+| **Scoped Brain and tools**: the Brain's snapshot, briefs, approvals, conversation search and task lists only show what belongs to that conversation. Cross-team relays are off in private threads.                                                                                                                          | `overseer.ts snapshot({conversationId})`, `conversations.ts`, `tasks.ts`, `teams.ts`                    | A worker on task #4 can't read or be steered by task #7's conversation.                                                                                                                                                                                                                          |
+| **Ids fixed before work starts**: `startRun(..., { reservedRunId, from, userInitiated })` and `postUserMessage(..., { messageId, sender })` take an id chosen in advance.                                                                                                                                                   | `server/engines/index.ts`, `server/teams.ts`                                                            | The task saves the id first and then starts. After a restart the board checks that id instead of starting the work twice.                                                                                                                                                                        |
+| **The normal completion brief**: `userInitiated: true` on a run with a `from`, or a user message with a `sender` on a team, opens the automatic brief, with checks, follow-ups, and Needs you when blocked. For a private conversation, `report()` writes the Brain's verdict into that chat or thread, not the Brain chat. | `server/irc.ts` (`report`, `onUserWork` with `messageId`)                                               | No new brief kind and no changes to `settle`/`needsUser`. The board reads each brief's outcome.                                                                                                                                                                                                  |
+| **Completion checks**: `agentCompletion`, `teamCompletion`, `briefFor`, `checkBrief`. They also wait for delegates and background work, and recognise a changed brief.                                                                                                                                                      | `server/gateways/execution.ts`                                                                          | Knowing when an agent's or a team's work on a task is finished, delivered or blocked, and with what answer.                                                                                                                                                                                      |
+| **Approval waiting**: `approvalPending()` finds an approval for a run in this conversation.                                                                                                                                                                                                                                 | `server/gateways/execution.ts`                                                                          | The card's **Needs you**.                                                                                                                                                                                                                                                                        |
+| **The dispatcher**: wakes on `run`/`team`/`brief`/`approvals` events plus a 1-second timer, runs at most 4 at once, and never waits on a model call.                                                                                                                                                                        | `server/gateways/dispatch.ts`                                                                           | The same loop drives board work: start, follow, settle.                                                                                                                                                                                                                                          |
+| **File hand-in checks**: only the run's own workspace and the project's uploads are allowed. Credentials, `.git`, `.dashboard`, data folders, other projects, links and hard links are refused. The file is read once and its size and hash saved, and the check also confirms the run that made it.                        | `server/gateways/deliverables.ts`, `server/gateways/outgoing.ts` (`checkedPath`, `readGatewayDocument`) | Checking the files a worker attaches to its comment.                                                                                                                                                                                                                                             |
+| **One safe file writer**: `receiveSource()` writes from any stream with a size limit, into a fresh batch.                                                                                                                                                                                                                   | `server/uploads.ts`                                                                                     | Copying files into a task's project (files you attach in "All projects", and files a worker hands in).                                                                                                                                                                                           |
+| **Brain as a target**: `ask(text, { conversationId, operationId, from, attachments })` keeps a private Brain history per conversation.                                                                                                                                                                                      | `server/overseer.ts`                                                                                    | Tasks assigned to **The Brain** can be picked up too (open question 3).                                                                                                                                                                                                                          |
 
 ## What changes from the first draft
 
@@ -105,7 +106,7 @@ comment.
    - your own move to In progress (drag, keys, card menu, the task page's Status);
    - giving a task that is already In progress to an agent or team;
    - **Start** on the task page, or **Start again** after it was stopped, blocked or reviewed.
-   The Brain's and the workers' own moves never start it.
+     The Brain's and the workers' own moves never start it.
 2. **To do does not start it**: new tasks land in To do, so starting there would start every task you add and assign.
    (Open question 1.)
 3. **One piece of work per task at a time.** While it runs, the card shows who is working, and the task page shows a
@@ -156,7 +157,7 @@ cloned or restored project points at its own copy.
 
 - **`server/assignments.ts`** gets `submit`, `completion`, `reconcile` and `approvalPending` from
   `server/gateways/execution.ts`. They're written against `{ operationId, local, runId?, messageId?, briefId?,
-  briefRevision?, startedAt }` instead of a gateway inbox event. `gatewayExecution` becomes a thin adapter over them,
+briefRevision?, startedAt }` instead of a gateway inbox event. `gatewayExecution` becomes a thin adapter over them,
   and its tests stay as they are. `GatewayLocalConversation` becomes `LocalConversation`.
 - **`server/deliverables.ts`** gets the file checks from `server/gateways/outgoing.ts` (`checkedPath` and the bounded
   read). It checks a path against a run, a project and a conversation, and confirms the run that made the file.
@@ -167,11 +168,11 @@ cloned or restored project points at its own copy.
 - **Hook:** the board's `PUT` route calls `requestWork()` when decision 1 applies. So do `POST .../start` and the
   reassignment. The Brain's `board_update` uses `changeBoardTask` directly, so it never starts work.
 - **Save first:** inside `withProject(task's project)`, the board writes `work = { operationId: uid(), conversationId,
-  state: 'starting', startedAt }` and only then starts the work.
+state: 'starting', startedAt }` and only then starts the work.
 - **Agent:** `privateAgentChat('board-<taskId>', agentId)`, then `startRun(agent, chat, text, { reservedRunId:
-  operationId, from: 'Tasks board (you)', userInitiated: true, attachments })`.
+operationId, from: 'Tasks board (you)', userInitiated: true, attachments })`.
 - **Team:** `postUserMessage(privateTeamId('board-<taskId>', teamId), text, { messageId: operationId, sender:
-  'Tasks board (you)', route: pickMember, attachments })`. The team's lead or `pickMember` takes it, members hand work
+'Tasks board (you)', route: pickMember, attachments })`. The team's lead or `pickMember` takes it, members hand work
   on by @mention, and the lead posts the result, all as in any team chat.
 - **Brain** (if open question 3 is yes): `ask(text, { conversationId, operationId, from: 'Tasks board (you)', attachments })`.
 - **What the worker is told** is one message:
@@ -215,11 +216,11 @@ ordinary chats. Each tool finds its task from the run: `runInfo(ctx.runId).conve
 `board-<taskId>`, in the run's own project. That works the same for an agent's chat and for every member of a private
 team thread.
 
-| Tool | What it does | Risk |
-|---|---|---|
-| `board_task` | Reads its task: title, description, comments, file names. | none |
-| `board_comment { text, files?: string[] }` | Comments as `agent:<id>`. Each file passes `deliverables.ts`: the run's own workspace or project uploads, no credentials or data folders, no links or hard links, regular files only, at most 20 files and 500 MB each, and the run that made it confirmed. Files are copied into the task's project with `receiveSource()` under `uploads/tasks/<taskId>/`, with their size and hash. | none |
-| `board_status { status: 'in_review' \| 'blocked', reason? }` | Moves its own task. Blocked needs a reason. Done is refused. | none |
+| Tool                                                         | What it does                                                                                                                                                                                                                                                                                                                                                                           | Risk |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| `board_task`                                                 | Reads its task: title, description, comments, file names.                                                                                                                                                                                                                                                                                                                              | none |
+| `board_comment { text, files?: string[] }`                   | Comments as `agent:<id>`. Each file passes `deliverables.ts`: the run's own workspace or project uploads, no credentials or data folders, no links or hard links, regular files only, at most 20 files and 500 MB each, and the run that made it confirmed. Files are copied into the task's project with `receiveSource()` under `uploads/tasks/<taskId>/`, with their size and hash. | none |
+| `board_status { status: 'in_review' \| 'blocked', reason? }` | Moves its own task. Blocked needs a reason. Done is refused.                                                                                                                                                                                                                                                                                                                           | none |
 
 The risk is `none` because nothing leaves this dashboard. It's the same reasoning the task tools use, and the files
 pass the strictest file checks we have.
@@ -247,11 +248,11 @@ paths in it that pass the same checks are attached.
   - agent: `stopChat(chatId, projectId)`;
   - team: stopping the private team's turns and work (`stopTeamWork` / steer-stop);
   - Brain: the Brain's stop for that conversation.
-  The brief becomes `stopped`, `state: 'stopped'`, and the comment says "Stopped by you".
+    The brief becomes `stopped`, `state: 'stopped'`, and the comment says "Stopped by you".
 - **Your comment while it works** (decision 6):
   - agent: `queueMessage(agent, chat, text, files, { from: 'Tasks board (you)' })`;
   - team: `queueUserMessage(privateTeamId, text, { attachments, sender })`.
-  The brief takes in the change, as steering already does.
+    The brief takes in the change, as steering already does.
 
 ### On the page
 
@@ -275,6 +276,7 @@ hands work out with `delegate`. The Brain also doesn't see private task conversa
 scoping), which is right: the task's comments are where it reads them.
 
 In private conversations:
+
 - **Snapshot:** the board is hidden, as SAVED TASKS is. In a `board-<taskId>` conversation, the TASK BOARD line holds
   only that task.
 - **Actions:** `applyActions` gets `conversationId`. Board actions in a `board-<taskId>` conversation act only on that

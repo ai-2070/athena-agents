@@ -13,7 +13,10 @@ export const CSS_ENTRY = path.resolve(import.meta.dirname, '..', 'web', 'styles'
 const SAFARI_16_4 = (16 << 16) | (4 << 8);
 
 async function start() {
-  const compiler = await compile(fs.readFileSync(CSS_ENTRY, 'utf8'), { base: path.dirname(CSS_ENTRY), onDependency: () => {} });
+  const compiler = await compile(fs.readFileSync(CSS_ENTRY, 'utf8'), {
+    base: path.dirname(CSS_ENTRY),
+    onDependency: () => {},
+  });
   const sources = compiler.sources.map((s) => ({ base: s.base, pattern: s.pattern, negated: s.negated }));
   const scanner = new Scanner({ sources });
   return { compiler, scanner, raw: compiler.build(scanner.scan()) };
@@ -24,7 +27,13 @@ function finish(css: string, minify: boolean): string {
   // light-dark(a, b) becomes var(--lightningcss-light, a) var(--lightningcss-dark, b), with the two set
   // wherever color-scheme is (base.css: on :root, by system and by data-theme). lightDark() in
   // web/theme.ts writes the same for colours set from code.
-  return transform({ filename: CSS_ENTRY, code: Buffer.from(optimized), minify, targets: { safari: SAFARI_16_4, ios_saf: SAFARI_16_4 }, include: Features.LightDark }).code.toString();
+  return transform({
+    filename: CSS_ENTRY,
+    code: Buffer.from(optimized),
+    minify,
+    targets: { safari: SAFARI_16_4, ios_saf: SAFARI_16_4 },
+    include: Features.LightDark,
+  }).code.toString();
 }
 
 export async function buildCss({ minify = true }: { minify?: boolean } = {}): Promise<string> {
@@ -44,10 +53,12 @@ export interface CssBuilder {
 export function incrementalCss({ minify = false }: { minify?: boolean } = {}): CssBuilder {
   let state: Promise<Awaited<ReturnType<typeof start>> & { out: string }> | null = null;
   const full = () =>
-    (state = start().then((s) => ({ ...s, out: finish(s.raw, minify) })).catch((e: unknown) => {
-      state = null;
-      throw e;
-    }));
+    (state = start()
+      .then((s) => ({ ...s, out: finish(s.raw, minify) }))
+      .catch((e: unknown) => {
+        state = null;
+        throw e;
+      }));
   return {
     css: async () => (await (state ?? full())).out,
     async update(file) {

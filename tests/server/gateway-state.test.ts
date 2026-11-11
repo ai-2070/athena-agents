@@ -22,11 +22,21 @@ afterEach(async () => {
 
 function message(id: string): Message {
   return new Message({
-    id, threadId: 'telegram:thread', text: `Message ${id}`, raw: {},
+    id,
+    threadId: 'telegram:thread',
+    text: `Message ${id}`,
+    raw: {},
     formatted: { type: 'root', children: [] },
     author: { userId: '123', userName: 'test', fullName: 'Test', isBot: false, isMe: false },
     metadata: { dateSent: new Date(), edited: false },
-    attachments: [{ type: 'file', name: 'test.txt', fetchMetadata: { fileId: 'private-file' }, fetchData: async () => Buffer.from('test') }],
+    attachments: [
+      {
+        type: 'file',
+        name: 'test.txt',
+        fetchMetadata: { fileId: 'private-file' },
+        fetchData: async () => Buffer.from('test'),
+      },
+    ],
   });
 }
 
@@ -40,7 +50,11 @@ describe('durable gateway SDK state', () => {
     await state.appendToList('list', 'first');
     await state.appendToList('list', 'second', { maxLength: 2 });
     await state.appendToList('list', 'third', { maxLength: 2 });
-    await state.enqueue('thread', { enqueuedAt: Date.now(), expiresAt: Date.now() + 60000, message: message('one') }, 5);
+    await state.enqueue(
+      'thread',
+      { enqueuedAt: Date.now(), expiresAt: Date.now() + 60000, message: message('one') },
+      5,
+    );
     expect(await other.get('cursor')).toBeNull();
     expect(await other.isSubscribed('thread')).toBe(false);
     expect(await other.queueDepth('thread')).toBe(0);
@@ -65,7 +79,11 @@ describe('durable gateway SDK state', () => {
     await state.appendToList('list', 1, { ttlMs: 40 });
     const stale = await state.acquireLock('thread', 40);
     expect(stale).not.toBeNull();
-    await state.enqueue('thread', { enqueuedAt: Date.now(), expiresAt: Date.now() + 40, message: message('expires') }, 5);
+    await state.enqueue(
+      'thread',
+      { enqueuedAt: Date.now(), expiresAt: Date.now() + 40, message: message('expires') },
+      5,
+    );
     await new Promise((resolve) => setTimeout(resolve, 80));
     expect(await state.get('cache')).toBeNull();
     expect(await state.getList('list')).toEqual([]);
@@ -122,7 +140,11 @@ describe('durable gateway SDK state', () => {
     fs.unlinkSync(file);
     await state.connect();
     expect(() => new GatewayStateAdapter('../outside')).toThrow('Invalid gateway');
-    fs.symlinkSync(gatewayStateDirectory('invalid'), gatewayStateDirectory('alias'), process.platform === 'win32' ? 'junction' : 'dir');
+    fs.symlinkSync(
+      gatewayStateDirectory('invalid'),
+      gatewayStateDirectory('alias'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
     await expect(connect('alias')).rejects.toThrow('ownership port');
     const outside = path.resolve(dataPath(), '..', 'outside-data');
     fs.mkdirSync(outside, { recursive: true });
@@ -135,12 +157,20 @@ describe('durable gateway SDK state', () => {
 const state = new GatewayStateAdapter('crashed'); await state.connect();
 await state.subscribe('thread'); await state.set('cursor', {offset: 77});
 await state.acquireLock('thread', 40); console.log('committed'); setInterval(()=>{},1000);`;
-    const child = spawn('bun', ['--eval', code], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn('bun', ['--eval', code], {
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
     try {
       const ready = await Promise.race([
         once(child.stdout!, 'data').then((chunks: unknown[]) => String(chunks[0])),
-        once(child, 'exit').then(() => { throw new Error('Gateway fixture exited early.'); }),
-        new Promise<never>((_resolve, reject) => { setTimeout(() => reject(new Error('Gateway fixture timed out.')), 10000).unref(); }),
+        once(child, 'exit').then(() => {
+          throw new Error('Gateway fixture exited early.');
+        }),
+        new Promise<never>((_resolve, reject) => {
+          setTimeout(() => reject(new Error('Gateway fixture timed out.')), 10000).unref();
+        }),
       ]);
       expect(ready).toContain('committed');
       const competing = new GatewayStateAdapter('crashed');

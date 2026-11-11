@@ -6,7 +6,8 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 // (the open ones: a closed one stays a moment while it animates away)
 const dialogs = () => [...document.querySelectorAll<HTMLElement>('#modal-root .modal[data-open]')];
 const allDialogs = () => [...document.querySelectorAll<HTMLElement>('#modal-root .modal')];
-const escape = (on: Element) => on.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+const escape = (on: Element) =>
+  on.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div>';
@@ -78,7 +79,6 @@ describe('modal() exit animation', () => {
     expect(allDialogs()).toHaveLength(0);
   });
 
-
   it('stays on screen while it animates away, tells the caller at once, then is gone (unless exit is false)', async () => {
     const onClose = vi.fn();
     const m = modal({ title: 'Picture', body: 'x', onClose });
@@ -102,10 +102,14 @@ describe('modal() exit animation', () => {
 describe('confirmBox() and promptBox()', () => {
   it('confirmBox gives true for its button and false for Cancel', async () => {
     const yes = confirmBox('Go?', { ok: 'Go' });
-    [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Go')!.click();
+    [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')]
+      .find((b) => b.textContent === 'Go')!
+      .click();
     expect(await yes).toBe(true);
     const no = confirmBox('Go?');
-    [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Cancel')!.click();
+    [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')]
+      .find((b) => b.textContent === 'Cancel')!
+      .click();
     expect(await no).toBe(false);
     expect(dialogs()).toHaveLength(0);
   });

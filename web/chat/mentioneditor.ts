@@ -37,11 +37,14 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
     if (node instanceof HTMLElement && node.dataset.mention) return node.dataset.mention;
     if (node.nodeType === Node.TEXT_NODE) return real(node.textContent || '');
     if (node instanceof HTMLBRElement) return '\n';
-    return [...node.childNodes].map((child, i) => `${i && child instanceof HTMLDivElement ? '\n' : ''}${plain(child)}`).join('');
+    return [...node.childNodes]
+      .map((child, i) => `${i && child instanceof HTMLDivElement ? '\n' : ''}${plain(child)}`)
+      .join('');
   };
   const remember = () => {
     const selection = window.getSelection();
-    if (!selection?.rangeCount || !editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode)) return;
+    if (!selection?.rangeCount || !editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode))
+      return;
     const selected = selection.getRangeAt(0);
     const before = selected.cloneRange();
     before.selectNodeContents(editor);
@@ -53,7 +56,10 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
   const edges = (): boolean => {
     let added = false;
     for (const pill of editor.querySelectorAll<HTMLElement>('[data-mention]')) {
-      for (const [side, put] of [[pill.previousSibling, (n: Text) => pill.before(n)], [pill.nextSibling, (n: Text) => pill.after(n)]] as const) {
+      for (const [side, put] of [
+        [pill.previousSibling, (n: Text) => pill.before(n)],
+        [pill.nextSibling, (n: Text) => pill.after(n)],
+      ] as const) {
         if (side?.nodeType === Node.TEXT_NODE && side.textContent) continue;
         if (side?.nodeType === Node.TEXT_NODE) side.textContent = EDGE;
         else put(document.createTextNode(EDGE));
@@ -76,12 +82,18 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
   };
   const draw = () => {
     const text = input.value;
-    const known = tags().map((t) => (typeof t === 'string' ? { tag: t } : t)).sort((a, b) => b.tag.length - a.tag.length);
+    const known = tags()
+      .map((t) => (typeof t === 'string' ? { tag: t } : t))
+      .sort((a, b) => b.tag.length - a.tag.length);
     editor.replaceChildren();
     let start = 0;
     for (let i = 0; i < text.length; i++) {
       if (i && !/\s/.test(text[i - 1])) continue;
-      const found = known.find(({ tag: t }) => text.slice(i, i + t.length).toLowerCase() === t.toLowerCase() && (!text[i + t.length] || /[\s.,!?;:]/.test(text[i + t.length])));
+      const found = known.find(
+        ({ tag: t }) =>
+          text.slice(i, i + t.length).toLowerCase() === t.toLowerCase() &&
+          (!text[i + t.length] || /[\s.,!?;:]/.test(text[i + t.length])),
+      );
       if (!found) continue;
       const tag = found.tag;
       editor.append(document.createTextNode(text.slice(start, i)));
@@ -89,7 +101,8 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
       chip.contentEditable = 'false';
       chip.setAttribute('contenteditable', 'false');
       chip.dataset.mention = text.slice(i, i + tag.length);
-      chip.className = 'inline-flex items-center gap-1 rounded-ctl bg-accent/10 px-1.5 text-accent font-medium align-baseline';
+      chip.className =
+        'inline-flex items-center gap-1 rounded-ctl bg-accent/10 px-1.5 text-accent font-medium align-baseline';
       if (found.icon) chip.append(icon(found.icon, 11));
       chip.append(document.createTextNode(chip.dataset.mention));
       const remove = document.createElement('button');
@@ -98,7 +111,11 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
       remove.setAttribute('aria-label', `Remove ${chip.dataset.mention}`);
       remove.append(icon('x', 11));
       remove.addEventListener('mousedown', (e) => e.preventDefault());
-      remove.addEventListener('click', () => { chip.remove(); changed(); editor.focus(); });
+      remove.addEventListener('click', () => {
+        chip.remove();
+        changed();
+        editor.focus();
+      });
       chip.append(remove);
       editor.append(chip);
       i += tag.length - 1;
@@ -124,7 +141,8 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
       for (const child of editor.childNodes) {
         const length = plain(child).length;
         if (child.nodeType === Node.TEXT_NODE && remaining <= length) return [child, within(child, remaining)];
-        if (child instanceof HTMLElement && child.dataset.mention && remaining < length) return [editor, [...editor.childNodes].indexOf(child)];
+        if (child instanceof HTMLElement && child.dataset.mention && remaining < length)
+          return [editor, [...editor.childNodes].indexOf(child)];
         remaining -= length;
       }
       return [editor, editor.childNodes.length];
@@ -137,10 +155,33 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
     selection?.addRange(next);
   };
   // (setting the text puts the caret at its end, as a textarea does)
-  Object.defineProperty(input, 'value', { configurable: true, get: () => value.get!.call(input) as string, set: (text: string) => { value.set!.call(input, text); sel = { start: text.length, end: text.length }; draw(); } });
-  Object.defineProperty(input, 'selectionStart', { configurable: true, get: () => sel.start, set: (v: number) => { sel = { start: v, end: Math.max(v, sel.end) }; } });
-  Object.defineProperty(input, 'selectionEnd', { configurable: true, get: () => sel.end, set: (v: number) => { sel = { start: Math.min(sel.start, v), end: v }; } });
-  input.focus = () => { editor.focus(); place(sel.start, sel.end); };
+  Object.defineProperty(input, 'value', {
+    configurable: true,
+    get: () => value.get!.call(input) as string,
+    set: (text: string) => {
+      value.set!.call(input, text);
+      sel = { start: text.length, end: text.length };
+      draw();
+    },
+  });
+  Object.defineProperty(input, 'selectionStart', {
+    configurable: true,
+    get: () => sel.start,
+    set: (v: number) => {
+      sel = { start: v, end: Math.max(v, sel.end) };
+    },
+  });
+  Object.defineProperty(input, 'selectionEnd', {
+    configurable: true,
+    get: () => sel.end,
+    set: (v: number) => {
+      sel = { start: Math.min(sel.start, v), end: v };
+    },
+  });
+  input.focus = () => {
+    editor.focus();
+    place(sel.start, sel.end);
+  };
   input.setSelectionRange = (start, end) => {
     sel = { start: start ?? 0, end: end ?? start ?? 0 };
     place(sel.start, sel.end);
@@ -171,8 +212,9 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
       const data = node.textContent || '';
       if (real(back ? data.slice(0, offset) : data.slice(offset))) return null;
       next = back ? node.previousSibling : node.nextSibling;
-    } else next = back ? node.childNodes[offset - 1] ?? null : node.childNodes[offset] ?? null;
-    while (next && next.nodeType === Node.TEXT_NODE && !real(next.textContent || '')) next = back ? next.previousSibling : next.nextSibling;
+    } else next = back ? (node.childNodes[offset - 1] ?? null) : (node.childNodes[offset] ?? null);
+    while (next && next.nodeType === Node.TEXT_NODE && !real(next.textContent || ''))
+      next = back ? next.previousSibling : next.nextSibling;
     return isPill(next) ? next : null;
   };
   // Backspace or Delete that would empty the text beside a pill: the browser would drop that text node and the caret
@@ -219,34 +261,70 @@ export function attachMentionEditor(input: HTMLTextAreaElement, tags: () => Ment
   editor.addEventListener('keydown', (event) => {
     if (event.target instanceof HTMLButtonElement) return;
     // Backspace after a pill, or Delete before one, takes the whole pill
-    const pill = (event.key === 'Backspace' || event.key === 'Delete') && !event.isComposing ? pillBeside(event.key === 'Backspace') : null;
+    const pill =
+      (event.key === 'Backspace' || event.key === 'Delete') && !event.isComposing
+        ? pillBeside(event.key === 'Backspace')
+        : null;
     if (pill) {
       event.preventDefault();
       event.stopPropagation();
       return removePill(pill);
     }
-    if ((event.key === 'Backspace' || event.key === 'Delete') && !event.isComposing && !event.altKey && !event.ctrlKey && !event.metaKey && emptyBeside(event.key === 'Backspace')) {
+    if (
+      (event.key === 'Backspace' || event.key === 'Delete') &&
+      !event.isComposing &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      emptyBeside(event.key === 'Backspace')
+    ) {
       event.preventDefault();
       event.stopPropagation();
       return;
     }
     remember();
-    const forwarded = new KeyboardEvent('keydown', { key: event.key, code: event.code, shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, isComposing: event.isComposing, bubbles: true, cancelable: true });
+    const forwarded = new KeyboardEvent('keydown', {
+      key: event.key,
+      code: event.code,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      isComposing: event.isComposing,
+      bubbles: true,
+      cancelable: true,
+    });
     input.dispatchEvent(forwarded);
     if (forwarded.defaultPrevented) event.preventDefault();
-    else if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) skipEdge(event.key === 'ArrowLeft');
+    else if (
+      (event.key === 'ArrowLeft' || event.key === 'ArrowRight') &&
+      !event.shiftKey &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey
+    )
+      skipEdge(event.key === 'ArrowLeft');
     // a new line as text, not the <div> the browser would add (a box that sends on Enter has taken it already)
-    else if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); insertText('\n'); }
+    else if (event.key === 'Enter' && !event.isComposing) {
+      event.preventDefault();
+      insertText('\n');
+    }
     event.stopPropagation();
   });
   editor.addEventListener('paste', (event) => {
     remember();
-    const forwarded = new ClipboardEvent('paste', { clipboardData: event.clipboardData, bubbles: true, cancelable: true });
+    const forwarded = new ClipboardEvent('paste', {
+      clipboardData: event.clipboardData,
+      bubbles: true,
+      cancelable: true,
+    });
     input.dispatchEvent(forwarded);
     event.preventDefault();
     if (!forwarded.defaultPrevented) insertText(event.clipboardData?.getData('text/plain') || '');
   });
-  const attributes = new MutationObserver(() => { editor.dataset.placeholder = input.placeholder; });
+  const attributes = new MutationObserver(() => {
+    editor.dataset.placeholder = input.placeholder;
+  });
   attributes.observe(input, { attributes: true, attributeFilter: ['placeholder'] });
   const syncFromInput = () => {
     if (syncing) return;

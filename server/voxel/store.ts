@@ -39,8 +39,14 @@ function clean(w: Partial<VoxelWorld>, id: string): VoxelWorld {
     prefabs: Array.isArray(w.prefabs) ? w.prefabs : [],
     lights: Array.isArray(w.lights) ? w.lights : [],
     effects: Array.isArray(w.effects) ? w.effects : [],
-    skins: w.skins && typeof w.skins === 'object' ? { ...w.skins, teams: w.skins.teams || {}, agents: w.skins.agents || {} } : { teams: {}, agents: {} },
-    environment: w.environment && typeof w.environment === 'object' ? { ...envPreset(w.environment.preset || 'station'), ...w.environment } : envPreset('station'),
+    skins:
+      w.skins && typeof w.skins === 'object'
+        ? { ...w.skins, teams: w.skins.teams || {}, agents: w.skins.agents || {} }
+        : { teams: {}, agents: {} },
+    environment:
+      w.environment && typeof w.environment === 'object'
+        ? { ...envPreset(w.environment.preset || 'station'), ...w.environment }
+        : envPreset('station'),
     createdAt: w.createdAt || now,
     updatedAt: w.updatedAt || now,
   };
@@ -124,7 +130,8 @@ export function copyWorld(fromId: string, homeProject: string, name?: string): V
     if (data) writePrefab(to.id, n.slice(0, -5), data);
   }
   try {
-    if (fs.lstatSync(worldDir(fromId, 'WORLD.md')).isFile()) fs.copyFileSync(worldDir(fromId, 'WORLD.md'), worldDir(to.id, 'WORLD.md'));
+    if (fs.lstatSync(worldDir(fromId, 'WORLD.md')).isFile())
+      fs.copyFileSync(worldDir(fromId, 'WORLD.md'), worldDir(to.id, 'WORLD.md'));
   } catch {
     /* it has none yet */
   }
@@ -139,7 +146,8 @@ export function deleteWorld(id: string): void {
 }
 
 /** Voxels in a world (from its objects' and prefabs' meta; placed copies don't count again). */
-export const worldVoxels = (w: VoxelWorld): number => [...w.objects, ...w.prefabs].reduce((n, o) => n + o.volumes.reduce((m, v) => m + v.count, 0), 0);
+export const worldVoxels = (w: VoxelWorld): number =>
+  [...w.objects, ...w.prefabs].reduce((n, o) => n + o.volumes.reduce((m, v) => m + v.count, 0), 0);
 
 function isLink(p: string): boolean {
   try {

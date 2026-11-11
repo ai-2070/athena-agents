@@ -9,7 +9,13 @@ import { valueNoise } from './noise.ts';
 import { BuildError, LIMITS } from './ops.ts';
 import type { BuildApi } from './ops.ts';
 
-export const SCRIPT_LIMITS = { ms: 20_000, memoryBytes: 256 * 1024 * 1024, stackBytes: 1024 * 1024, codeChars: 40_000, logChars: 4000 };
+export const SCRIPT_LIMITS = {
+  ms: 20_000,
+  memoryBytes: 256 * 1024 * 1024,
+  stackBytes: 1024 * 1024,
+  codeChars: 40_000,
+  logChars: 4000,
+};
 
 let loading: Promise<QuickJSWASMModule> | null = null;
 /** The sandbox, loaded the first time a script runs. */
@@ -70,8 +76,14 @@ export interface ScriptResult {
 
 /** Runs a script against a build. Throws a BuildError saying where it went wrong (line and what). */
 export function runScript(qjs: QuickJSWASMModule, code: string, api: BuildApi, seed = 1): ScriptResult {
-  if (typeof code !== 'string' || !code.trim()) throw new BuildError('Give the script as "code": JavaScript that builds with box(), sphere(), path(), place(), set()…');
-  if (code.length > SCRIPT_LIMITS.codeChars) throw new BuildError(`A script is at most ${SCRIPT_LIMITS.codeChars.toLocaleString('en-US')} characters; split the build`);
+  if (typeof code !== 'string' || !code.trim())
+    throw new BuildError(
+      'Give the script as "code": JavaScript that builds with box(), sphere(), path(), place(), set()…',
+    );
+  if (code.length > SCRIPT_LIMITS.codeChars)
+    throw new BuildError(
+      `A script is at most ${SCRIPT_LIMITS.codeChars.toLocaleString('en-US')} characters; split the build`,
+    );
   const rt = qjs.newRuntime();
   rt.setMemoryLimit(SCRIPT_LIMITS.memoryBytes);
   rt.setMaxStackSize(SCRIPT_LIMITS.stackBytes);
@@ -122,12 +134,14 @@ export function runScript(qjs: QuickJSWASMModule, code: string, api: BuildApi, s
     unwrap(vm, vm.evalCode('__flushSets();', 'end.js'), code);
     // a step that failed fails the build, even when the script caught it and went on (it may be half done)
     const f = failed as BuildError | null;
-    if (f) throw new BuildError(`A step failed: ${f.message} (the script caught it, but nothing was built: fix the step)`);
+    if (f)
+      throw new BuildError(`A step failed: ${f.message} (the script caught it, but nothing was built: fix the step)`);
   } finally {
     vm.dispose();
     rt.dispose();
   }
-  if (logged > SCRIPT_LIMITS.logChars) log.push(`… (${(logged - SCRIPT_LIMITS.logChars).toLocaleString('en-US')} more characters of log)`);
+  if (logged > SCRIPT_LIMITS.logChars)
+    log.push(`… (${(logged - SCRIPT_LIMITS.logChars).toLocaleString('en-US')} more characters of log)`);
   return { log };
 }
 
@@ -140,8 +154,12 @@ function unwrap(vm: QuickJSContext, r: ReturnType<QuickJSContext['evalCode']>, c
   const err = vm.dump(r.error) as { name?: string; message?: string; stack?: string } | string;
   r.error.dispose();
   const e = typeof err === 'object' && err ? err : { message: String(err) };
-  if (e.message === 'interrupted') throw new BuildError(`The script ran longer than ${SCRIPT_LIMITS.ms / 1000} seconds and was stopped. Nothing was built.`);
-  if (/out of memory/i.test(e.message || '')) throw new BuildError('The script used too much memory and was stopped. Nothing was built.');
+  if (e.message === 'interrupted')
+    throw new BuildError(
+      `The script ran longer than ${SCRIPT_LIMITS.ms / 1000} seconds and was stopped. Nothing was built.`,
+    );
+  if (/out of memory/i.test(e.message || ''))
+    throw new BuildError('The script used too much memory and was stopped. Nothing was built.');
   // where in the agent's own code (the first frame in script.js)
   const m = /script\.js:(\d+)(?::(\d+))?/.exec(e.stack || '');
   const lineNo = m ? Number(m[1]) : 0;

@@ -2,13 +2,13 @@
 
 1 November 2026. Implemented in six phases on `LZL0/venice`.
 
-| Phase | Commit |
-| --- | --- |
-| Provider setup and separate model defaults | `1c01b31` |
-| Inference-key validation and separate balances | `b2a5134` |
-| Model prices, limits and capabilities | `c32fa89` |
-| Agent execution and cost tracking | `9c54740` |
-| Brain selection and provider controls across the app | `e7c3ded` |
+| Phase                                                                    | Commit                     |
+| ------------------------------------------------------------------------ | -------------------------- |
+| Provider setup and separate model defaults                               | `1c01b31`                  |
+| Inference-key validation and separate balances                           | `b2a5134`                  |
+| Model prices, limits and capabilities                                    | `c32fa89`                  |
+| Agent execution and cost tracking                                        | `9c54740`                  |
+| Brain selection and provider controls across the app                     | `e7c3ded`                  |
 | Documentation, default-picker regression coverage and final verification | This final delivery change |
 
 The implementation follows the scope below. Automated verification runs against isolated test data,
@@ -47,16 +47,16 @@ key, choose a Venice model, use it in teams, and see its balance and run costs a
 
 ## Existing code that needs attention
 
-| Area | Current coupling | Planned change |
-| --- | --- | --- |
-| `shared/types.ts`, `server/store.ts` | Provider, Brain, secret, status and usage unions name OpenRouter; defaults contain one hosted API model | Add Venice and its own default, with additive settings merging |
-| `server/engines/openai.ts` | Provider registry is reusable; missing-key text and model fallback name OpenRouter | Register Venice; make setup errors and defaults provider-aware |
-| `server/engines/openai.ts` model listing | Reads OpenRouter's top-level metadata and assumes other providers support tools | Normalize Venice metadata explicitly |
-| `server/models.ts`, `server/overseer.ts` | Provider readiness, defaults, model lookup, switching and prompt instructions enumerate providers | Add Venice throughout model management |
-| `server/brain.ts` | Brain selection and its own HTTP completion path are OpenRouter-specific | Share provider request helpers and support Venice in both completion modes |
-| `web/models.tsx` | The `openai` tab means OpenRouter; Brain conversion maps every API choice to OpenRouter | Give Venice a distinct picker tab and preserve provider identity |
-| `web/agentstats.ts` | Most API agents are counted and labeled as OpenRouter | Count and label Venice independently |
-| `server/status.ts`, `server/index.ts` | Hosted balance retrieval uses OpenRouter's endpoints | Add Venice balance retrieval through its inference-key-compatible endpoint |
+| Area                                     | Current coupling                                                                                        | Planned change                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `shared/types.ts`, `server/store.ts`     | Provider, Brain, secret, status and usage unions name OpenRouter; defaults contain one hosted API model | Add Venice and its own default, with additive settings merging             |
+| `server/engines/openai.ts`               | Provider registry is reusable; missing-key text and model fallback name OpenRouter                      | Register Venice; make setup errors and defaults provider-aware             |
+| `server/engines/openai.ts` model listing | Reads OpenRouter's top-level metadata and assumes other providers support tools                         | Normalize Venice metadata explicitly                                       |
+| `server/models.ts`, `server/overseer.ts` | Provider readiness, defaults, model lookup, switching and prompt instructions enumerate providers       | Add Venice throughout model management                                     |
+| `server/brain.ts`                        | Brain selection and its own HTTP completion path are OpenRouter-specific                                | Share provider request helpers and support Venice in both completion modes |
+| `web/models.tsx`                         | The `openai` tab means OpenRouter; Brain conversion maps every API choice to OpenRouter                 | Give Venice a distinct picker tab and preserve provider identity           |
+| `web/agentstats.ts`                      | Most API agents are counted and labeled as OpenRouter                                                   | Count and label Venice independently                                       |
+| `server/status.ts`, `server/index.ts`    | Hosted balance retrieval uses OpenRouter's endpoints                                                    | Add Venice balance retrieval through its inference-key-compatible endpoint |
 
 ## 1. Provider types, secrets and defaults
 
@@ -103,15 +103,15 @@ Request `/models?type=text`. Add a Venice response normalizer with narrowed opti
 the existing OpenRouter and local-server mappings intact. The [model endpoint](https://docs.venice.ai/api-reference/endpoint/models/list)
 places metadata under `model_spec`:
 
-| Venice field | Athena use |
-| --- | --- |
-| `id`, `model_spec.name` | Model identifier and display name |
-| `model_spec.availableContextTokens` | Picker context and compaction window |
-| `model_spec.capabilities.supportsFunctionCalling` | Tool-use availability |
-| `model_spec.capabilities.supportsVision`, `supportsMultipleImages` | Image attachment behavior |
-| `model_spec.capabilities.supportsReasoningEffort`, `reasoningEffortOptions` | Effort control and request validation |
-| `model_spec.pricing.input.usd`, `output.usd` | Catalog prices for input and output |
-| `model_spec.offline` | Mark unavailable models and exclude them from new default choices |
+| Venice field                                                                | Athena use                                                        |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `id`, `model_spec.name`                                                     | Model identifier and display name                                 |
+| `model_spec.availableContextTokens`                                         | Picker context and compaction window                              |
+| `model_spec.capabilities.supportsFunctionCalling`                           | Tool-use availability                                             |
+| `model_spec.capabilities.supportsVision`, `supportsMultipleImages`          | Image attachment behavior                                         |
+| `model_spec.capabilities.supportsReasoningEffort`, `reasoningEffortOptions` | Effort control and request validation                             |
+| `model_spec.pricing.input.usd`, `output.usd`                                | Catalog prices for input and output                               |
+| `model_spec.offline`                                                        | Mark unavailable models and exclude them from new default choices |
 
 Venice text prices are already quoted per million tokens; do not apply OpenRouter's per-token
 multiplier. See [pricing](https://docs.venice.ai/overview/pricing).
@@ -206,15 +206,15 @@ balance units and budget behavior. Keep private-inference claims within what thi
 Add tests with each implementation step. Mock Venice HTTP responses or use a local fixture server;
 automated tests must use the existing isolated data setup and require no real key or paid calls.
 
-| Coverage | Existing files to extend or nearby new tests |
-| --- | --- |
-| Additive settings, secret masking/removal, API allowlist and backup exclusions | `tests/server/store.test.ts`, `api.test.ts`, `backup.test.ts`, `projectsync.test.ts` |
-| Public catalog versus authenticated key test; invalid/expired/restricted key; balance cache invalidation | New provider tests beside `tests/server/openai-engine.test.ts`; API and status tests |
-| Metadata normalization, missing fields, offline/non-text models, zero prices and price units | New provider model tests; `tests/server/brain-models.test.ts` |
-| Provider-specific defaults, old agent compatibility, Venice-only setup, Brain search/switching and team actions | `tests/server/brain-models.test.ts`, `groupB-overseer.test.ts`, library tests |
-| SSE fragments, tool round trips, Stop, string/object errors, overflow, effort options, image limits, terminal usage/cost and budget stops | `tests/server/openai-engine.test.ts`, `effort.test.ts`, `compaction.test.ts`, `promptcache.test.ts` |
-| Brain streamed/non-streamed requests, provider selection/fallback, system prompt options and cut-off responses | `tests/server/brain-stream.test.ts`, `brain-chat.test.ts` and a focused Brain-provider test |
-| Key controls, picker tabs, favorites, Brain conversion, effort edits, defaults, labels and Station counts | `tests/web/models.test.ts`, `agent-effort.test.ts`, `agents-page.test.tsx`, `settings-general.test.tsx`, `agentstats.test.ts` |
+| Coverage                                                                                                                                  | Existing files to extend or nearby new tests                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Additive settings, secret masking/removal, API allowlist and backup exclusions                                                            | `tests/server/store.test.ts`, `api.test.ts`, `backup.test.ts`, `projectsync.test.ts`                                          |
+| Public catalog versus authenticated key test; invalid/expired/restricted key; balance cache invalidation                                  | New provider tests beside `tests/server/openai-engine.test.ts`; API and status tests                                          |
+| Metadata normalization, missing fields, offline/non-text models, zero prices and price units                                              | New provider model tests; `tests/server/brain-models.test.ts`                                                                 |
+| Provider-specific defaults, old agent compatibility, Venice-only setup, Brain search/switching and team actions                           | `tests/server/brain-models.test.ts`, `groupB-overseer.test.ts`, library tests                                                 |
+| SSE fragments, tool round trips, Stop, string/object errors, overflow, effort options, image limits, terminal usage/cost and budget stops | `tests/server/openai-engine.test.ts`, `effort.test.ts`, `compaction.test.ts`, `promptcache.test.ts`                           |
+| Brain streamed/non-streamed requests, provider selection/fallback, system prompt options and cut-off responses                            | `tests/server/brain-stream.test.ts`, `brain-chat.test.ts` and a focused Brain-provider test                                   |
+| Key controls, picker tabs, favorites, Brain conversion, effort edits, defaults, labels and Station counts                                 | `tests/web/models.test.ts`, `agent-effort.test.ts`, `agents-page.test.tsx`, `settings-general.test.tsx`, `agentstats.test.ts` |
 
 Update typed test fixtures that construct complete `Settings`, `SecretStatus` or `EngineStatus` objects.
 Assert OpenRouter request headers, caching and model defaults remain unchanged. Assert Venice keys are

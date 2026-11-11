@@ -30,7 +30,8 @@ const show = () =>
       </div>,
     ),
   );
-const hover = (type: 'mouseenter' | 'mouseleave') => act(() => void document.querySelector('.card')!.dispatchEvent(new MouseEvent(type)));
+const hover = (type: 'mouseenter' | 'mouseleave') =>
+  act(() => void document.querySelector('.card')!.dispatchEvent(new MouseEvent(type)));
 
 describe('HoverScroll', () => {
   it('scrolls a cut-off line by exactly how much is hidden while the card is hovered, then eases back', () => {

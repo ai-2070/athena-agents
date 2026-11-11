@@ -51,8 +51,15 @@ export class TurnChunks {
     this.emit({ type: 'tool-input-available', toolCallId: id, toolName: name, input: args ?? {}, dynamic: true });
   }
   result(id: string, text: string | null | undefined, images: readonly string[] = [], isError = false): void {
-    if (isError) this.emit({ type: 'tool-output-error', toolCallId: id, errorText: String(text || 'Failed'), dynamic: true });
-    else this.emit({ type: 'tool-output-available', toolCallId: id, output: { text: String(text ?? ''), images: [...images] } satisfies ToolOutput, dynamic: true });
+    if (isError)
+      this.emit({ type: 'tool-output-error', toolCallId: id, errorText: String(text || 'Failed'), dynamic: true });
+    else
+      this.emit({
+        type: 'tool-output-available',
+        toolCallId: id,
+        output: { text: String(text ?? ''), images: [...images] } satisfies ToolOutput,
+        dynamic: true,
+      });
   }
   status(text: string): void {
     this.emit({ type: 'data-status', data: { text }, transient: true } as UIMessageChunk);
@@ -64,14 +71,26 @@ export class TurnChunks {
     else if (e.kind === 'tool_result') this.result(e.id, e.text, e.images, e.isError);
     else if (e.kind === 'status') this.status(e.text);
     // a message that joined the turn: shown where it came in
-    else if (e.kind === 'steer') this.data('steer', { steerId: e.id, text: e.text, ...(e.from ? { from: e.from } : {}), ...(e.attachments?.length ? { attachments: e.attachments } : {}) });
+    else if (e.kind === 'steer')
+      this.data('steer', {
+        steerId: e.id,
+        text: e.text,
+        ...(e.from ? { from: e.from } : {}),
+        ...(e.attachments?.length ? { attachments: e.attachments } : {}),
+      });
   }
   /** The turn so far, from the saved items (everything after the last message to the agent). */
   replay(items: readonly ChatItem[]): void {
     const from = items.findLastIndex((i) => i.type === 'user') + 1;
     for (const it of items.slice(from)) {
       if (it.type === 'assistant') this.text(it.text);
-      else if (it.type === 'steer') this.data('steer', { steerId: it.steerId, text: it.text, ...(it.from ? { from: it.from } : {}), ...(it.attachments?.length ? { attachments: it.attachments } : {}) });
+      else if (it.type === 'steer')
+        this.data('steer', {
+          steerId: it.steerId,
+          text: it.text,
+          ...(it.from ? { from: it.from } : {}),
+          ...(it.attachments?.length ? { attachments: it.attachments } : {}),
+        });
       else if (it.type === 'tool') {
         this.tool(it.id, it.name, it.args);
         if (it.result != null && it.status !== 'running') this.result(it.id, it.result, it.images, it.isError);
@@ -108,7 +127,14 @@ const STOPPED = new Set(['Stopped.', 'Stopped to take your new message.']);
 
 /** The run as UI message chunks, until it ends. Listening starts at once (call it in the same moment the run
  *  starts or is read); a reader that goes away (cancels) stops it listening, not the run. */
-export function streamRun({ chatId, runId, turn = () => [], waiting = 'Waiting…', ownSteer, live }: StreamRunOptions): ReadableStream<UIMessageChunk> {
+export function streamRun({
+  chatId,
+  runId,
+  turn = () => [],
+  waiting = 'Waiting…',
+  ownSteer,
+  live,
+}: StreamRunOptions): ReadableStream<UIMessageChunk> {
   let over = false;
   let stop = () => {};
   return new ReadableStream<UIMessageChunk>({
@@ -156,7 +182,11 @@ export function streamRun({ chatId, runId, turn = () => [], waiting = 'Waiting�
 
 // ---------- the Brain's answer ----------
 /** What the Brain does while it answers (server/overseer.ts BrainPart). */
-export type BrainStreamPart = { kind: 'text'; text: string } | { kind: 'tool'; id: string; name: string; args?: unknown } | { kind: 'tool_result'; id: string; text: string; isError?: boolean } | { kind: 'restart' };
+export type BrainStreamPart =
+  | { kind: 'text'; text: string }
+  | { kind: 'tool'; id: string; name: string; args?: unknown }
+  | { kind: 'tool_result'; id: string; text: string; isError?: boolean }
+  | { kind: 'restart' };
 
 /** The part of the Brain's answer to read: everything before its actions block (```actions), and
  *  never the start of that fence while it is still being written. */
@@ -173,7 +203,9 @@ export function readable(text: string, final = false): string {
 /** The Brain's answer as UI message chunks: its text as it is written (without the actions), the files it
  *  reads, and at the end the whole answer (data-answer: what it did, whom it handed the work to). It goes on
  *  answering if the reader goes away. */
-export function streamBrain(answer: (onPart: (p: BrainStreamPart) => void) => Promise<unknown>): ReadableStream<UIMessageChunk> {
+export function streamBrain(
+  answer: (onPart: (p: BrainStreamPart) => void) => Promise<unknown>,
+): ReadableStream<UIMessageChunk> {
   let gone = false;
   return new ReadableStream<UIMessageChunk>({
     start(out) {

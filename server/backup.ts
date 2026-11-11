@@ -9,11 +9,31 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { HOME, IS_WIN, dataPath, ensureDir, exists, insideRoots, isPlainDir, readJSON, readPlain, realTarget, slugify, writeJSON } from './util.ts';
+import {
+  HOME,
+  IS_WIN,
+  dataPath,
+  ensureDir,
+  exists,
+  insideRoots,
+  isPlainDir,
+  readJSON,
+  readPlain,
+  realTarget,
+  slugify,
+  writeJSON,
+} from './util.ts';
 import { listProjects, emit, log } from './store.ts';
 import { createProject, projectsRoot, removeProject, setBackground, setLogo, updateProject } from './projects.ts';
 import { forgetSkill, isSkillSlug, skillsLibrary, skillDir, skillVersionsDir, skillVersionItem } from './skills.ts';
-import { checkVersion, listVersions, pruneVersions, versionFilesDir, cleanAgentVersion, cleanTeamVersion } from './versions.ts';
+import {
+  checkVersion,
+  listVersions,
+  pruneVersions,
+  versionFilesDir,
+  cleanAgentVersion,
+  cleanTeamVersion,
+} from './versions.ts';
 import type { Version } from './versions.ts';
 import { cleanMemoryVersion, isMemoryOwner, putMemory } from './memory.ts';
 import type { Preset } from './presets.ts';
@@ -26,7 +46,18 @@ import { restoredTasks } from './tasks.ts';
 import { restoredBoard } from './taskboard.ts';
 import { taskFilePath } from './boardfiles.ts';
 import { PAST_NAME, packPast, unpackPast } from './pastchats.ts';
-import type { Agent, BackupListing, BackupRestoreResult, BackupResult, BackupSummary, Chat, Project, Routine, Team, VoxelWorld } from '../shared/types.ts';
+import type {
+  Agent,
+  BackupListing,
+  BackupRestoreResult,
+  BackupResult,
+  BackupSummary,
+  Chat,
+  Project,
+  Routine,
+  Team,
+  VoxelWorld,
+} from '../shared/types.ts';
 
 export type { BackupListing } from '../shared/types.ts';
 
@@ -43,7 +74,18 @@ export const BACKUP_MAX = UNPACKED_MAX;
 
 // How much of each kind is packed at most (the same limits as the auto-save into the project folder).
 // A file that doesn't fit any more is left out and counted (BackupSummary.omitted). Keep docs/guide.md in step.
-const CAP = { knowledge: 50 * 1024 * 1024, chats: 200 * 1024 * 1024, pastChats: 200 * 1024 * 1024, brain: 20 * 1024 * 1024, memory: 20 * 1024 * 1024, skills: 50 * 1024 * 1024, versions: 50 * 1024 * 1024, world: 300 * 1024 * 1024, library: 100 * 1024 * 1024, marks: 100 * 1024 * 1024 };
+const CAP = {
+  knowledge: 50 * 1024 * 1024,
+  chats: 200 * 1024 * 1024,
+  pastChats: 200 * 1024 * 1024,
+  brain: 20 * 1024 * 1024,
+  memory: 20 * 1024 * 1024,
+  skills: 50 * 1024 * 1024,
+  versions: 50 * 1024 * 1024,
+  world: 300 * 1024 * 1024,
+  library: 100 * 1024 * 1024,
+  marks: 100 * 1024 * 1024,
+};
 // A kept version in a backup: <kind>/<item id>/<version id>.json, and a skill version's files under
 // skills/<slug>/files-<version id>/. Agents and teams are the project's; skills are the library's
 // (deleted ones too, so Recently deleted comes back).
@@ -95,7 +137,15 @@ export interface BackupData {
   kind: 'workspace-backup';
   format: number;
   createdAt: number;
-  project: { name: string; description: string; repo: string; skills: string[]; brainPath: string; backgroundOpacity?: number; mapDotsOpacity?: number };
+  project: {
+    name: string;
+    description: string;
+    repo: string;
+    skills: string[];
+    brainPath: string;
+    backgroundOpacity?: number;
+    mapDotsOpacity?: number;
+  };
   agents: Agent[];
   teams: Team[];
   routines: Routine[];
@@ -146,7 +196,10 @@ const jsonFiles = (dir: string): string[] => {
     return [];
   }
 };
-const readAll = <T>(dir: string): T[] => jsonFiles(dir).map((n) => readJSON<T>(path.join(dir, n))).filter((x): x is T => Boolean(x));
+const readAll = <T>(dir: string): T[] =>
+  jsonFiles(dir)
+    .map((n) => readJSON<T>(path.join(dir, n)))
+    .filter((x): x is T => Boolean(x));
 
 /** Every plain file under dir (links are skipped), until budget bytes are used. */
 /** What is left of a kind's size limit, and how many files didn't fit. */
@@ -157,7 +210,12 @@ interface Budget {
 const budget = (left: number): Budget => ({ left, omitted: 0 });
 
 /** `keep`: which files and folders (paths from `dir`) go in; the rest isn't read or counted. */
-function packTree(dir: string, budget: Budget, prefix = '', keep?: (rel: string, isDir: boolean) => boolean): PackedFile[] {
+function packTree(
+  dir: string,
+  budget: Budget,
+  prefix = '',
+  keep?: (rel: string, isDir: boolean) => boolean,
+): PackedFile[] {
   const out: PackedFile[] = [];
   // a linked folder is left out like a linked file (below the top, readdir's entries already say so)
   if (!isPlainDir(dir)) return out;
@@ -245,7 +303,9 @@ function summarize(b: BackupData): BackupSummary {
     memories: b.memory.length,
     versions: b.versions.filter((f) => VERSION_FILE.test(f.path)).length,
     omitted: b.omitted,
-    agentList: b.agents.slice(0, 12).map((a) => ({ name: String(a.name || '').slice(0, 80), emoji: String(a.emoji || '🤖').slice(0, 8) })),
+    agentList: b.agents
+      .slice(0, 12)
+      .map((a) => ({ name: String(a.name || '').slice(0, 80), emoji: String(a.emoji || '🤖').slice(0, 8) })),
   };
 }
 
@@ -321,7 +381,12 @@ export function packProject(p: Project): BackupData {
   const world = w
     ? {
         name: w.name,
-        files: [...packTree(worldDir(w.id), worldBudget, '', (r, dir) => !dir && top(r)), ...packTree(worldDir(w.id), worldBudget, '', (r, dir) => (dir ? WORLD_DIR.test(r) : WORLD_FILE.test(r) && !top(r)))],
+        files: [
+          ...packTree(worldDir(w.id), worldBudget, '', (r, dir) => !dir && top(r)),
+          ...packTree(worldDir(w.id), worldBudget, '', (r, dir) =>
+            dir ? WORLD_DIR.test(r) : WORLD_FILE.test(r) && !top(r),
+          ),
+        ],
       }
     : null;
   // the prefab library: shared by every project, so every backup carries it (like the presets), up to its cap
@@ -343,7 +408,15 @@ export function packProject(p: Project): BackupData {
     kind: 'workspace-backup',
     format: FORMAT,
     createdAt: Date.now(),
-    project: { name: p.name, description: p.description || '', repo: p.repo || '', skills: p.skills || [], brainPath: p.brainPath, backgroundOpacity: p.backgroundOpacity, mapDotsOpacity: p.mapDotsOpacity },
+    project: {
+      name: p.name,
+      description: p.description || '',
+      repo: p.repo || '',
+      skills: p.skills || [],
+      brainPath: p.brainPath,
+      backgroundOpacity: p.backgroundOpacity,
+      mapDotsOpacity: p.mapDotsOpacity,
+    },
     agents: readAll<Agent>(projectDir(id, 'agents')),
     teams: readAll<Team>(projectDir(id, 'workflows')),
     routines: readAll<Routine>(projectDir(id, 'routines')),
@@ -351,7 +424,9 @@ export function packProject(p: Project): BackupData {
     brainChat: readPlain<unknown>(projectDir(id, 'brain-chat.json'), { messages: [] }),
     tasks: readPlain<unknown>(projectDir(id, 'tasks.json'), { tasks: [] }),
     board: readPlain<unknown>(projectDir(id, 'board.json'), { tasks: [] }),
-    teamChats: jsonFiles(projectDir(id, 'teamchats')).map((name) => ({ name, data: readJSON<unknown>(projectDir(id, 'teamchats', name)) })).filter((x) => x.data != null),
+    teamChats: jsonFiles(projectDir(id, 'teamchats'))
+      .map((name) => ({ name, data: readJSON<unknown>(projectDir(id, 'teamchats', name)) }))
+      .filter((x) => x.data != null),
     pastChats,
     chats,
     knowledge,
@@ -366,12 +441,25 @@ export function packProject(p: Project): BackupData {
     prefabLibrary,
     teamMarks,
     taskFiles: [],
-    omitted: brainBudget.omitted + skillBudget.omitted + chatBudget.omitted + pastBudget.omitted + knowledgeBudget.omitted + memoryBudget.omitted + versionBudget.omitted + worldBudget.omitted + libraryOmitted + marksBudget.omitted,
+    omitted:
+      brainBudget.omitted +
+      skillBudget.omitted +
+      chatBudget.omitted +
+      pastBudget.omitted +
+      knowledgeBudget.omitted +
+      memoryBudget.omitted +
+      versionBudget.omitted +
+      worldBudget.omitted +
+      libraryOmitted +
+      marksBudget.omitted,
   };
   // The files on board tasks and their comments (their copies in the uploads folder), the board's order first. No
   // limit of their own: as many as the backup can still hold (it unpacks to at most UNPACKED_MAX, files as base64).
   const room = budget(Math.max(0, Math.floor(((UNPACKED_MAX - JSON.stringify(data).length - 1024 * 1024) * 3) / 4)));
-  const listed = restoredBoard(data.board).tasks.flatMap((t) => [...(t.files || []), ...(t.comments || []).flatMap((c) => c.files || [])]);
+  const listed = restoredBoard(data.board).tasks.flatMap((t) => [
+    ...(t.files || []),
+    ...(t.comments || []).flatMap((c) => c.files || []),
+  ]);
   for (const rel of new Set(listed.map((f) => f.path))) {
     const file = taskFilePath(p, rel);
     if (!file) continue;
@@ -415,7 +503,10 @@ export function createBackup(id: string): BackupResult {
   fs.writeFileSync(tmp, bytes);
   fs.renameSync(tmp, file);
   const summary = summarize(b);
-  log('project', `Backed up "${p.name}" (${summary.agents} agents, ${summary.teams} teams, ${summary.skills} skills) to ${file}`);
+  log(
+    'project',
+    `Backed up "${p.name}" (${summary.agents} agents, ${summary.teams} teams, ${summary.skills} skills) to ${file}`,
+  );
   return { file, name, size: bytes.length, summary };
 }
 
@@ -465,7 +556,10 @@ export function backupAndDeleteProject(id: string): { backup: BackupResult; setA
   verifyBackup(made, p);
   removeProject(id);
   const setAside = setAsideProjectData(id);
-  log('project', `Deleted the project "${p.name}" (backup ${made.file}${setAside ? `, its data set aside in ${setAside}` : ''})`);
+  log(
+    'project',
+    `Deleted the project "${p.name}" (backup ${made.file}${setAside ? `, its data set aside in ${setAside}` : ''})`,
+  );
   return { backup: made, setAside };
 }
 
@@ -485,7 +579,10 @@ export async function oneAtATime<T>(busy: string, fn: () => Promise<T>): Promise
 }
 
 /** A copy of a project (its agents, teams, routines, notes, skills and chats; schedules start paused) as a new project. */
-export async function cloneProject(id: string, name?: string): Promise<{ project: Project; restored: BackupRestoreResult }> {
+export async function cloneProject(
+  id: string,
+  name?: string,
+): Promise<{ project: Project; restored: BackupRestoreResult }> {
   const p = listProjects().find((x) => x.id === id);
   if (!p) throw new Error('No such project.');
   const bytes = encodeBackup(packProject(p));
@@ -498,7 +595,8 @@ function splitHead(buf: Buffer): { summary: BackupSummary | null; body: number }
   if (end1 < 0 || end1 > 100) return null;
   const m = new RegExp(`^${MAGIC} (\\d+)$`).exec(buf.toString('utf8', 0, end1).trim());
   if (!m) return null;
-  if (Number(m[1]) > FORMAT) throw new Error('This backup was made by a newer version of the dashboard. Update it first.');
+  if (Number(m[1]) > FORMAT)
+    throw new Error('This backup was made by a newer version of the dashboard. Update it first.');
   const end2 = buf.indexOf(0x0a, end1 + 1);
   if (end2 < 0) return null;
   let summary: BackupSummary | null = null;
@@ -527,7 +625,11 @@ export function decodeBackup(buf: Buffer): BackupData {
   try {
     json = zlib.gunzipSync(buf.subarray(head.body), { maxOutputLength: UNPACKED_MAX }).toString('utf8');
   } catch (e) {
-    throw new Error(/maxOutputLength|buffer|size/i.test(String((e as Error).message)) ? 'That backup is too big to open.' : 'That backup is damaged (it could not be unpacked).');
+    throw new Error(
+      /maxOutputLength|buffer|size/i.test(String((e as Error).message))
+        ? 'That backup is too big to open.'
+        : 'That backup is damaged (it could not be unpacked).',
+    );
   }
   let b: Partial<BackupData>;
   try {
@@ -535,39 +637,82 @@ export function decodeBackup(buf: Buffer): BackupData {
   } catch {
     throw new Error('That backup is damaged (it is not valid JSON inside).');
   }
-  if (!b || b.app !== 'my-dashboard' || b.kind !== 'workspace-backup' || typeof b.project !== 'object' || !b.project) throw new Error("That file isn't a dashboard backup.");
+  if (!b || b.app !== 'my-dashboard' || b.kind !== 'workspace-backup' || typeof b.project !== 'object' || !b.project)
+    throw new Error("That file isn't a dashboard backup.");
   const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
-  const files = (v: unknown): PackedFile[] => arr<PackedFile>(v).filter((f) => f && typeof f.path === 'string' && typeof f.data === 'string');
+  const files = (v: unknown): PackedFile[] =>
+    arr<PackedFile>(v).filter((f) => f && typeof f.path === 'string' && typeof f.data === 'string');
   const pr = b.project as Partial<BackupData['project']>;
   return {
     app: 'my-dashboard',
     kind: 'workspace-backup',
     format: Number(b.format) || FORMAT,
     createdAt: Number(b.createdAt) || 0,
-    project: { name: String(pr.name || ''), description: String(pr.description || ''), repo: String(pr.repo || ''), skills: arr<unknown>(pr.skills).map(String), brainPath: String(pr.brainPath || ''), ...savedOpacity(pr) },
-    agents: arr<Agent>(b.agents).filter((a) => a && typeof a === 'object' && typeof a.id === 'string' && ID_RE.test(a.id)),
+    project: {
+      name: String(pr.name || ''),
+      description: String(pr.description || ''),
+      repo: String(pr.repo || ''),
+      skills: arr<unknown>(pr.skills).map(String),
+      brainPath: String(pr.brainPath || ''),
+      ...savedOpacity(pr),
+    },
+    agents: arr<Agent>(b.agents).filter(
+      (a) => a && typeof a === 'object' && typeof a.id === 'string' && ID_RE.test(a.id),
+    ),
     teams: arr<Team>(b.teams).filter((t) => t && typeof t === 'object' && typeof t.id === 'string' && ID_RE.test(t.id)),
-    routines: arr<Routine>(b.routines).filter((r) => r && typeof r === 'object' && typeof r.id === 'string' && ID_RE.test(r.id)),
+    routines: arr<Routine>(b.routines).filter(
+      (r) => r && typeof r === 'object' && typeof r.id === 'string' && ID_RE.test(r.id),
+    ),
     layout: b.layout && typeof b.layout === 'object' ? b.layout : {},
     brainChat: b.brainChat && typeof b.brainChat === 'object' ? b.brainChat : { messages: [] },
     tasks: restoredTasks(b.tasks),
     board: restoredBoard(b.board),
-    teamChats: arr<BackupData['teamChats'][number]>(b.teamChats).filter((c) => c && typeof c.name === 'string' && /^[\w.-]+\.json$/.test(c.name) && c.data != null),
-    pastChats: arr<{ name: string; data: unknown }>(b.pastChats).filter((c) => c && typeof c.name === 'string' && PAST_NAME.test(c.name) && c.data != null),
-    chats: arr<BackupData['chats'][number]>(b.chats).filter((c) => c && typeof c.agentId === 'string' && CHAT_ID_RE.test(c.agentId) && c.chat && typeof c.chat.id === 'string' && CHAT_ID_RE.test(c.chat.id) && Array.isArray(c.chat.items)),
+    teamChats: arr<BackupData['teamChats'][number]>(b.teamChats).filter(
+      (c) => c && typeof c.name === 'string' && /^[\w.-]+\.json$/.test(c.name) && c.data != null,
+    ),
+    pastChats: arr<{ name: string; data: unknown }>(b.pastChats).filter(
+      (c) => c && typeof c.name === 'string' && PAST_NAME.test(c.name) && c.data != null,
+    ),
+    chats: arr<BackupData['chats'][number]>(b.chats).filter(
+      (c) =>
+        c &&
+        typeof c.agentId === 'string' &&
+        CHAT_ID_RE.test(c.agentId) &&
+        c.chat &&
+        typeof c.chat.id === 'string' &&
+        CHAT_ID_RE.test(c.chat.id) &&
+        Array.isArray(c.chat.items),
+    ),
     knowledge: files(b.knowledge),
     memory: files(b.memory).filter((f) => isMemoryOwner(MEMORY_PATH.exec(f.path)?.[1])),
     brain: files(b.brain),
-    logo: b.logo && typeof b.logo.path === 'string' && LOGO_RE.test(b.logo.path) && typeof b.logo.data === 'string' ? b.logo : null,
-    background: b.background && typeof b.background.path === 'string' && BACKGROUND_RE.test(b.background.path) && typeof b.background.data === 'string' ? b.background : null,
+    logo:
+      b.logo && typeof b.logo.path === 'string' && LOGO_RE.test(b.logo.path) && typeof b.logo.data === 'string'
+        ? b.logo
+        : null,
+    background:
+      b.background &&
+      typeof b.background.path === 'string' &&
+      BACKGROUND_RE.test(b.background.path) &&
+      typeof b.background.data === 'string'
+        ? b.background
+        : null,
     skills: arr<BackupData['skills'][number]>(b.skills)
       .filter((s) => s && isSkillSlug(s.slug))
       .map((s) => ({ slug: s.slug, files: files(s.files) }))
       .filter((s) => s.files.some((f) => f.path === 'SKILL.md')),
     versions: files(b.versions),
-    presets: arr<Preset>(b.presets).filter((p) => p && typeof p === 'object' && PRESET_RE.test(String(p.id)) && (p.kind === 'agent' || p.kind === 'team')),
+    presets: arr<Preset>(b.presets).filter(
+      (p) => p && typeof p === 'object' && PRESET_RE.test(String(p.id)) && (p.kind === 'agent' || p.kind === 'team'),
+    ),
     prefabLibrary: arr<LibraryPrefab>(b.prefabLibrary).filter((e) => e && typeof e === 'object'),
-    world: b.world && typeof b.world === 'object' && Array.isArray(b.world.files) ? { name: String(b.world.name || 'World').slice(0, 80), files: files(b.world.files).filter((f) => WORLD_FILE.test(f.path)) } : null,
+    world:
+      b.world && typeof b.world === 'object' && Array.isArray(b.world.files)
+        ? {
+            name: String(b.world.name || 'World').slice(0, 80),
+            files: files(b.world.files).filter((f) => WORLD_FILE.test(f.path)),
+          }
+        : null,
     teamMarks: files(b.teamMarks).filter((f) => MARK_RE.test(f.path)),
     taskFiles: files(b.taskFiles),
     omitted: Number(b.omitted) || 0,
@@ -617,7 +762,15 @@ export function readBackupFile(name: string): Buffer {
 // ---------- restoring ----------
 /** root joined with a "/" path from a backup, or null when it would leave root (.., absolute, a link). */
 function safeJoin(root: string, rel: string): string | null {
-  if (!rel || rel.length > 500 || rel.includes('\0') || /^[a-zA-Z]:/.test(rel) || rel.startsWith('/') || rel.startsWith('\\')) return null;
+  if (
+    !rel ||
+    rel.length > 500 ||
+    rel.includes('\0') ||
+    /^[a-zA-Z]:/.test(rel) ||
+    rel.startsWith('/') ||
+    rel.startsWith('\\')
+  )
+    return null;
   const parts = rel.split(/[\\/]/);
   if (parts.some((x) => !x || x === '.' || x === '..')) return null;
   const out = path.join(root, ...parts);
@@ -655,7 +808,8 @@ export function rebase(p: string, from: string, to: string): string | null {
   const b = norm(from);
   const fold = /^[a-z]:\//i.test(b) ? (s: string) => s.toLowerCase() : (s: string) => s;
   if (fold(a) === fold(b)) return to;
-  if (a.length > b.length && fold(a.slice(0, b.length)) === fold(b) && a[b.length] === '/') return path.join(to, ...a.slice(b.length + 1).split('/'));
+  if (a.length > b.length && fold(a.slice(0, b.length)) === fold(b) && a[b.length] === '/')
+    return path.join(to, ...a.slice(b.length + 1).split('/'));
   return null;
 }
 
@@ -702,7 +856,12 @@ function sameFolder(a: string, b: string): boolean {
   return !!ra && !!rb && fold(ra) === fold(rb);
 }
 
-function restoreSkills(list: BackupData['skills']): { added: number; same: number; renamed: { from: string; to: string }[]; map: Map<string, string> } {
+function restoreSkills(list: BackupData['skills']): {
+  added: number;
+  same: number;
+  renamed: { from: string; to: string }[];
+  map: Map<string, string>;
+} {
   const lib = skillsLibrary();
   const map = new Map<string, string>();
   const renamed: { from: string; to: string }[] = [];
@@ -736,15 +895,21 @@ export interface RestoreOptions {
 }
 
 /** Make a new project from a backup. Its folder is new, or one you have (nothing in it is overwritten). */
-export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Promise<{ project: Project; restored: BackupRestoreResult }> {
+export async function restoreBackup(
+  buf: Buffer,
+  opts: RestoreOptions = {},
+): Promise<{ project: Project; restored: BackupRestoreResult }> {
   // read and check all of it before anything is created
   const b = decodeBackup(buf);
   const name = String(opts.name || '').trim() || b.project.name || 'Restored project';
   const owner = (dir: string) => listProjects().find((p) => sameFolder(p.brainPath, dir));
-  let folder = String(opts.folder || '').trim().replace(/^"|"$/g, '');
+  let folder = String(opts.folder || '')
+    .trim()
+    .replace(/^"|"$/g, '');
   if (folder) {
     const taken = owner(folder);
-    if (taken) throw new Error(`That folder belongs to the project "${taken.name}". Pick another folder for the restored copy.`);
+    if (taken)
+      throw new Error(`That folder belongs to the project "${taken.name}". Pick another folder for the restored copy.`);
   } else {
     // a new folder in the projects folder that no project uses yet (the original may still be on this PC)
     const base = path.join(projectsRoot(), slugify(name));
@@ -753,7 +918,12 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   }
   // a BRAIN.md already there is yours: only the one the new project starts with is replaced by the saved one
   const hadBrainMd = exists(path.join(folder, 'BRAIN.md')) || isLink(path.join(folder, 'BRAIN.md'));
-  const created = await createProject({ name, mode: 'new', folder, description: String(opts.description || '').trim() || b.project.description });
+  const created = await createProject({
+    name,
+    mode: 'new',
+    folder,
+    description: String(opts.description || '').trim() || b.project.description,
+  });
   const id = created.id;
   const oldBrain = b.project.brainPath;
   const newBrain = created.brainPath;
@@ -766,7 +936,8 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   }).length;
 
   const skills = restoreSkills(b.skills);
-  const swap = (list: unknown): string[] => (Array.isArray(list) ? list.map((s) => skills.map.get(String(s)) || String(s)) : []);
+  const swap = (list: unknown): string[] =>
+    Array.isArray(list) ? list.map((s) => skills.map.get(String(s)) || String(s)) : [];
   const known = (list: string[]) => list.filter((s) => isSkillSlug(s) && exists(path.join(skillsLibrary(), s)));
 
   let paused = 0;
@@ -788,18 +959,26 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
       agent.workspace = moved ?? (path.isAbsolute(agent.workspace) && exists(agent.workspace) ? agent.workspace : '');
     }
     if (agent.knowledge && Array.isArray(agent.knowledge.folders)) {
-      agent.knowledge = { ...agent.knowledge, folders: agent.knowledge.folders.map((f) => rebase(String(f), oldBrain, newBrain) ?? String(f)).filter((f) => path.isAbsolute(f) && exists(f)) };
+      agent.knowledge = {
+        ...agent.knowledge,
+        folders: agent.knowledge.folders
+          .map((f) => rebase(String(f), oldBrain, newBrain) ?? String(f))
+          .filter((f) => path.isAbsolute(f) && exists(f)),
+      };
     }
     return agent;
   };
   for (const a of b.agents) writeJSON(projectDir(id, 'agents', `${a.id}.json`), fixAgent(a));
-  for (const t of b.teams) writeJSON(projectDir(id, 'workflows', `${t.id}.json`), pause({ ...t, skills: swap(t.skills) }));
+  for (const t of b.teams)
+    writeJSON(projectDir(id, 'workflows', `${t.id}.json`), pause({ ...t, skills: swap(t.skills) }));
   const versions = restoreVersions(b, id, skills.map, {
     agent: (a) => fixAgent(a),
     team: (t) => pause({ ...t, skills: swap(t.skills) }, false),
   });
   for (const r of b.routines) {
-    const mentions = (Array.isArray(r.mentions) ? r.mentions : []).map((m) => (m && m.kind === 'skill' ? { ...m, id: skills.map.get(m.id) || m.id } : m));
+    const mentions = (Array.isArray(r.mentions) ? r.mentions : []).map((m) =>
+      m && m.kind === 'skill' ? { ...m, id: skills.map.get(m.id) || m.id } : m,
+    );
     writeJSON(projectDir(id, 'routines', `${r.id}.json`), pause({ ...r, mentions }));
   }
   writeJSON(projectDir(id, 'layout.json'), b.layout);
@@ -824,22 +1003,34 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   }
   // the teams' pictures and models, beside their teams
   const teamIds = new Set(b.teams.map((t) => t.id));
-  for (const f of b.teamMarks || []) if (teamIds.has(MARK_RE.exec(f.path)![1])) writePacked(ensureDir(projectDir(id, 'team-marks')), f);
+  for (const f of b.teamMarks || [])
+    if (teamIds.has(MARK_RE.exec(f.path)![1])) writePacked(ensureDir(projectDir(id, 'team-marks')), f);
   const kRoot = ensureDir(projectDir(id, 'knowledge'));
   const knowledgeFiles = b.knowledge.filter((f) => writePacked(kRoot, f)).length;
   // MEMORY.md files go back under the agent (or the Brain) they were saved for
-  const memories = b.memory.filter((f) => putMemory(id, MEMORY_PATH.exec(f.path)![1], Buffer.from(f.data, 'base64').toString('utf8'))).length;
+  const memories = b.memory.filter((f) =>
+    putMemory(id, MEMORY_PATH.exec(f.path)![1], Buffer.from(f.data, 'base64').toString('utf8')),
+  ).length;
   // the voxel world: always a new world of this project's own (a clone mustn't build in the original's)
   if (b.world?.files.some((f) => f.path === 'world.json')) {
     const fresh = newWorld(id, b.world.name);
     for (const f of b.world.files) if (f.path !== 'world.json') writePacked(worldDir(fresh.id), f);
     let saved: Partial<VoxelWorld> = {};
     try {
-      saved = JSON.parse(Buffer.from(b.world.files.find((f) => f.path === 'world.json')!.data, 'base64').toString('utf8')) as Partial<VoxelWorld>;
+      saved = JSON.parse(
+        Buffer.from(b.world.files.find((f) => f.path === 'world.json')!.data, 'base64').toString('utf8'),
+      ) as Partial<VoxelWorld>;
     } catch {
       /* the voxels came back; the world starts plain */
     }
-    writeJSON(worldDir(fresh.id, 'world.json'), { ...fresh, ...saved, format: 1, id: fresh.id, homeProject: id, name: fresh.name });
+    writeJSON(worldDir(fresh.id, 'world.json'), {
+      ...fresh,
+      ...saved,
+      format: 1,
+      id: fresh.id,
+      homeProject: id,
+      name: fresh.name,
+    });
     setLink(id, { id: fresh.id, mode: 'own' });
   }
 
@@ -898,7 +1089,10 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
   project = updateProject(id, savedOpacity(b.project));
   emit('project', { id });
   emit('skills');
-  log('project', `Restored "${project.name}" from a backup: ${b.agents.length} agents, ${b.teams.length} teams, ${b.routines.length} routines, ${chats} chats, ${skills.added} new skills`);
+  log(
+    'project',
+    `Restored "${project.name}" from a backup: ${b.agents.length} agents, ${b.teams.length} teams, ${b.routines.length} routines, ${chats} chats, ${skills.added} new skills`,
+  );
   return {
     project,
     restored: {
@@ -925,7 +1119,12 @@ export async function restoreBackup(buf: Buffer, opts: RestoreOptions = {}): Pro
 // <id>-restored, merged with the history here when it's the same skill, and left out when a skill here
 // with that id isn't the backup's (two histories never mix). Each version is checked field by field and
 // put back under the item and id it was saved as; the newest 50 of each are kept.
-function restoreVersions(b: BackupData, id: string, skillMap: Map<string, string>, fix: { agent: (a: Agent) => Agent; team: (t: Team) => Team }): number {
+function restoreVersions(
+  b: BackupData,
+  id: string,
+  skillMap: Map<string, string>,
+  fix: { agent: (a: Agent) => Agent; team: (t: Team) => Team },
+): number {
   interface Group {
     kind: 'agents' | 'teams' | 'memory' | 'skills';
     itemId: string;
@@ -938,7 +1137,14 @@ function restoreVersions(b: BackupData, id: string, skillMap: Map<string, string
     if (parts.length < 3) continue;
     const [kind, itemId, name, ...rest] = parts;
     if (kind !== 'agents' && kind !== 'teams' && kind !== 'memory' && kind !== 'skills') continue;
-    if (kind === 'skills' ? !isSkillSlug(itemId) : kind === 'memory' ? !isMemoryOwner(itemId) : !ID_RE.test(itemId) || itemId.startsWith('.')) continue;
+    if (
+      kind === 'skills'
+        ? !isSkillSlug(itemId)
+        : kind === 'memory'
+          ? !isMemoryOwner(itemId)
+          : !ID_RE.test(itemId) || itemId.startsWith('.')
+    )
+      continue;
     const key = `${kind}/${itemId}`;
     const g = groups.get(key) || { kind, itemId, versions: new Map(), files: new Map() };
     groups.set(key, g);

@@ -13,12 +13,25 @@ import type { EveSteer } from '../../shared/types.ts';
 export function canSteer(runId: string): boolean {
   const run = readRun(runId);
   const binding = run && readBinding(run.bindingId);
-  return !!run && !!binding && run.status === 'running' && !run.pendingTerminal && !!run.deliveryId && !!binding.sessionId && !binding.retired && !binding.retiring && !binding.runtimeEnded;
+  return (
+    !!run &&
+    !!binding &&
+    run.status === 'running' &&
+    !run.pendingTerminal &&
+    !!run.deliveryId &&
+    !!binding.sessionId &&
+    !binding.retired &&
+    !binding.retiring &&
+    !binding.runtimeEnded
+  );
 }
 
 /** Sends the message into the run's turn. Throws when Eve didn't take it: the caller sends it the
  *  ordinary way (stopping the run, which ends the session, so one Eve took after all never runs twice). */
-export async function sendSteer(runId: string, steer: Pick<EveSteer, 'id' | 'text' | 'attachments' | 'from' | 'teamMessageId'>): Promise<EveSteer> {
+export async function sendSteer(
+  runId: string,
+  steer: Pick<EveSteer, 'id' | 'text' | 'attachments' | 'from' | 'teamMessageId'>,
+): Promise<EveSteer> {
   if (!canSteer(runId)) throw new Error('This turn can no longer take a message.');
   // (read before anything is saved: a missing file sends nothing)
   const message = await eveMessage(steer.text, steer.attachments);
@@ -30,17 +43,21 @@ export async function sendSteer(runId: string, steer: Pick<EveSteer, 'id' | 'tex
   recordSteer(runId, { ...steer, deliveryId: null, at: Date.now() });
   try {
     const host = await eveRuntime.ready();
-    const response = await eveClient(host, binding.id).fetch(`/eve/v1/session/${encodeURIComponent(binding.sessionId)}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message, idempotencyKey: `athena:steer:${steer.id}`, turnPolicy: 'steer' }),
-      signal: AbortSignal.timeout(15000),
-    });
+    const response = await eveClient(host, binding.id).fetch(
+      `/eve/v1/session/${encodeURIComponent(binding.sessionId)}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message, idempotencyKey: `athena:steer:${steer.id}`, turnPolicy: 'steer' }),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
     if (!response.ok) throw new Error('Eve did not take the message.');
     const receipt: unknown = await response.json();
     const sessionId = receipt && typeof receipt === 'object' && 'sessionId' in receipt ? receipt.sessionId : null;
     const deliveryId = receipt && typeof receipt === 'object' && 'deliveryId' in receipt ? receipt.deliveryId : null;
-    if (sessionId !== binding.sessionId || typeof deliveryId !== 'string' || !deliveryId) throw new Error('Eve returned an invalid receipt for the message.');
+    if (sessionId !== binding.sessionId || typeof deliveryId !== 'string' || !deliveryId)
+      throw new Error('Eve returned an invalid receipt for the message.');
     return updateSteer(runId, steer.id, { deliveryId })!;
   } catch (error) {
     updateSteer(runId, steer.id, { dropped: true });
@@ -52,7 +69,12 @@ export async function sendSteer(runId: string, steer: Pick<EveSteer, 'id' | 'tex
  *  The turn Eve would start with them never runs: its session ends (the next turn starts a new one with the
  *  saved conversation), and they come back to be sent the ordinary way. Waits for any still being sent. */
 export async function missedSteers(runId: string): Promise<EveSteer[]> {
-  for (let waited = 0; waited < 20000 && readRun(runId)?.steers?.some((steer) => !steer.deliveryId && !steer.dropped); waited += 50) await new Promise((resolve) => setTimeout(resolve, 50));
+  for (
+    let waited = 0;
+    waited < 20000 && readRun(runId)?.steers?.some((steer) => !steer.deliveryId && !steer.dropped);
+    waited += 50
+  )
+    await new Promise((resolve) => setTimeout(resolve, 50));
   const late = lateSteers(runId);
   const run = readRun(runId);
   if (!late.length || !run) return [];

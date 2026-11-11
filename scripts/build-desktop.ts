@@ -42,7 +42,11 @@ async function bundleServer(): Promise<void> {
   const result = await Bun.build({
     // the MCP bridge is its own entry: agents' CLIs start it as a separate process. So is the PDF reader, with
     // pdf.js inside it: it runs in a thread of its own (server/documents.ts)
-    entrypoints: [path.join(root, 'server', 'index.ts'), path.join(root, 'server', 'mcp-bridge.ts'), path.join(root, 'server', 'pdfworker.ts')],
+    entrypoints: [
+      path.join(root, 'server', 'index.ts'),
+      path.join(root, 'server', 'mcp-bridge.ts'),
+      path.join(root, 'server', 'pdfworker.ts'),
+    ],
     outdir: path.join(stage, 'server'),
     target: 'bun',
     format: 'esm',
@@ -77,7 +81,10 @@ function copyStatic(): void {
   fs.mkdirSync(path.dirname(path.join(stage, css)), { recursive: true });
   fs.copyFileSync(path.join(root, css), path.join(stage, css));
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { name: string; version: string };
-  fs.writeFileSync(path.join(stage, 'package.json'), JSON.stringify({ name: pkg.name, version: pkg.version, private: true, type: 'module' }, null, 2) + '\n');
+  fs.writeFileSync(
+    path.join(stage, 'package.json'),
+    JSON.stringify({ name: pkg.name, version: pkg.version, private: true, type: 'module' }, null, 2) + '\n',
+  );
 }
 
 // node-pty is native, so it comes from an install for the target's OS and CPU, checked against bun.lock.
@@ -94,7 +101,19 @@ function copyTerminalModule(t: DesktopTarget): void {
     fs.copyFileSync(path.join(root, 'bun.lock'), path.join(dir, 'bun.lock'));
     copyDir(path.join(root, 'patches'), path.join(dir, 'patches'));
     copyDir(path.join(root, 'runtime', 'eve-world'), path.join(dir, 'runtime', 'eve-world'));
-    sh([process.execPath, 'install', '--frozen-lockfile', '--production', '--ignore-scripts', '--linker=hoisted', `--os=${t.os}`, `--cpu=${t.cpu}`], dir);
+    sh(
+      [
+        process.execPath,
+        'install',
+        '--frozen-lockfile',
+        '--production',
+        '--ignore-scripts',
+        '--linker=hoisted',
+        `--os=${t.os}`,
+        `--cpu=${t.cpu}`,
+      ],
+      dir,
+    );
   }
   for (const p of [path.join('node_modules', '@lydell', 'node-pty'), platformPkg]) {
     if (!fs.existsSync(path.join(dir, p))) throw new Error(`Missing ${p} after install`);
@@ -143,12 +162,18 @@ async function bunRuntime(t: DesktopTarget, host: string): Promise<void> {
     const base = `https://github.com/oven-sh/bun/releases/download/bun-v${Bun.version}`;
     try {
       step(`downloading Bun ${Bun.version} (${t.bunAsset})`);
-      const [zip, sums] = await Promise.all([download(`${base}/${t.bunAsset}.zip`), download(`${base}/SHASUMS256.txt`)]);
+      const [zip, sums] = await Promise.all([
+        download(`${base}/${t.bunAsset}.zip`),
+        download(`${base}/SHASUMS256.txt`),
+      ]);
       const want = shasumFor(sums.toString('utf8'), `${t.bunAsset}.zip`);
       const got = crypto.createHash('sha256').update(zip).digest('hex');
       if (!want || want !== got) throw new Error(`Checksum mismatch for ${t.bunAsset}.zip`);
       fs.mkdirSync(cache, { recursive: true });
-      fs.writeFileSync(cached + '.part', unzipOne(zip, (n) => n === `${t.bunAsset}/bun${t.exe}`));
+      fs.writeFileSync(
+        cached + '.part',
+        unzipOne(zip, (n) => n === `${t.bunAsset}/bun${t.exe}`),
+      );
       fs.renameSync(cached + '.part', cached);
     } catch (e) {
       // offline: building for this machine can still use the Bun that is running now

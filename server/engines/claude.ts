@@ -83,7 +83,14 @@ export function parseAuthStatus(out: string): boolean | null {
 // "Authentication precedence"): an API key or bearer token, another endpoint, or an Anthropic profile. Cloud
 // providers (CLAUDE_CODE_USE_BEDROCK...) are a company's own set-up and stay. CLAUDE_CODE_OAUTH_TOKEN stays too:
 // it is a subscription token from `claude setup-token`, sometimes the only sign-in on the PC.
-export const LOGIN_OVERRIDES = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_PROFILE', 'ANTHROPIC_FEDERATION_RULE_ID', 'ANTHROPIC_ORGANIZATION_ID'];
+export const LOGIN_OVERRIDES = [
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_PROFILE',
+  'ANTHROPIC_FEDERATION_RULE_ID',
+  'ANTHROPIC_ORGANIZATION_ID',
+];
 
 /** The environment without the variables that would win over your Claude login. Windows names are
  *  case-insensitive, so any spelling goes. */
@@ -106,7 +113,11 @@ export function status(): EngineStatus['claude-code'] {
   if (exe && Date.now() - authCache.at > 60_000) {
     authCache.at = Date.now();
     // asked without an API key in the environment, which `auth status` would count as signed in
-    const unset = Object.fromEntries(Object.keys(process.env).filter((k) => LOGIN_OVERRIDES.includes(k.toUpperCase())).map((k) => [k, undefined]));
+    const unset = Object.fromEntries(
+      Object.keys(process.env)
+        .filter((k) => LOGIN_OVERRIDES.includes(k.toUpperCase()))
+        .map((k) => [k, undefined]),
+    );
     runCmd('claude', ['auth', 'status', '--json'], { timeout: 20000, env: unset }).then((r) => {
       const was = authCache.value;
       authCache.value = parseAuthStatus(r.stdout);
@@ -142,7 +153,11 @@ export function prepareFiles(agent: Agent, systemPrompt: string, runId = ''): Cl
   const mcpFile = path.join(dir, `${tag}-mcp.json`);
   fs.writeFileSync(promptFile, systemPrompt);
   fs.writeFileSync(mcpFile, JSON.stringify(claudeMcpConfig(agent.id, agent.mcpServers || [], runId), null, 2));
-  return { promptFile, mcpFile, cleanup: () => runId && [promptFile, mcpFile].forEach((f) => fs.rm(f, { force: true }, () => {})) };
+  return {
+    promptFile,
+    mcpFile,
+    cleanup: () => runId && [promptFile, mcpFile].forEach((f) => fs.rm(f, { force: true }, () => {})),
+  };
 }
 
 export function claudeEnv(agent: Agent): NodeJS.ProcessEnv {
@@ -153,7 +168,8 @@ export function claudeEnv(agent: Agent): NodeJS.ProcessEnv {
   const env = withoutLoginOverrides({ ...process.env, MCP_TOOL_TIMEOUT: process.env.MCP_TOOL_TIMEOUT || '3600000' });
   const s = getSecrets();
   if (agent.claudeAuth === 'anthropic') {
-    if (!s.anthropicKey) throw new Error('Add an Anthropic API key in Settings, or switch this agent to your Claude login.');
+    if (!s.anthropicKey)
+      throw new Error('Add an Anthropic API key in Settings, or switch this agent to your Claude login.');
     env.ANTHROPIC_API_KEY = s.anthropicKey;
   } else if (agent.claudeAuth === 'openrouter') {
     if (!s.openrouterKey) throw new Error('Add your OpenRouter key in Settings first.');
@@ -164,10 +180,23 @@ export function claudeEnv(agent: Agent): NodeJS.ProcessEnv {
   return env;
 }
 
-export function claudeArgs(agent: Agent, { promptFile, mcpFile, interactive = false }: { promptFile: string; mcpFile: string; interactive?: boolean }): string[] {
+export function claudeArgs(
+  agent: Agent,
+  { promptFile, mcpFile, interactive = false }: { promptFile: string; mcpFile: string; interactive?: boolean },
+): string[] {
   const args: string[] = [];
   // (messages go in as JSON lines, and each is echoed as Claude reads it: what steering needs)
-  if (!interactive) args.push('-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--replay-user-messages');
+  if (!interactive)
+    args.push(
+      '-p',
+      '--input-format',
+      'stream-json',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--include-partial-messages',
+      '--replay-user-messages',
+    );
   if (agent.model) args.push('--model', agent.model);
   const effort = effortFor('claude-code', agent.effort);
   if (effort) args.push('--effort', effort);
@@ -182,8 +211,13 @@ export function claudeArgs(agent: Agent, { promptFile, mcpFile, interactive = fa
     if (!interactive) args.push('--permission-prompt-tool', PERMISSION_TOOL);
   }
   // Dashboard runs use shared MCP tasks and ask_user; harness-local records would be invisible to the team.
-  if (!interactive) args.push('--disallowedTools', 'AskUserQuestion', 'TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList', 'TodoWrite');
-  args.push('--allowedTools', 'mcp__dashboard', ...(mode !== 'ask' ? (agent.mcpServers || []).map((s) => `mcp__${s}`) : []));
+  if (!interactive)
+    args.push('--disallowedTools', 'AskUserQuestion', 'TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList', 'TodoWrite');
+  args.push(
+    '--allowedTools',
+    'mcp__dashboard',
+    ...(mode !== 'ask' ? (agent.mcpServers || []).map((s) => `mcp__${s}`) : []),
+  );
   const dirs = knowledgeRoots(agent);
   if (dirs.length) args.push('--add-dir', ...dirs);
   return args;
@@ -193,11 +227,22 @@ export function claudeArgs(agent: Agent, { promptFile, mcpFile, interactive = fa
 // A resumed session doesn't keep --add-dir, so a file attached earlier in the chat counts too.
 export function uploadsDirArgs(agent: Agent, chat: Pick<Chat, 'items'>, attachments: string[] = []): string[] {
   const uploads = safeUploadsRoot();
-  const hadFiles = attachments.length > 0 || chat.items.some((i) => (i.type === 'user' || i.type === 'steer') && !!i.attachments?.length);
+  const hadFiles =
+    attachments.length > 0 ||
+    chat.items.some((i) => (i.type === 'user' || i.type === 'steer') && !!i.attachments?.length);
   return uploads && hadFiles && !isInside(workspaceOf(agent), uploads) ? ['--add-dir', uploads] : [];
 }
 
-export async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId, attachments }: EngineRunArgs): Promise<EngineResult> {
+export async function run({
+  agent,
+  chat,
+  text,
+  signal,
+  onEvent,
+  systemPrompt,
+  runId,
+  attachments,
+}: EngineRunArgs): Promise<EngineResult> {
   if (!which('claude')) throw new Error('Claude Code is not installed (the `claude` command was not found).');
   const files = prepareFiles(agent, systemPrompt, runId);
   try {
@@ -215,12 +260,29 @@ const inputs = openInputs('Claude Code');
 export const READ_WAIT = { ms: 10_000 };
 
 /** What an echoed message says (a string, or text blocks). */
-const echoedText = (content: unknown): string => (typeof content === 'string' ? content : Array.isArray(content) ? content.map((b: { text?: unknown }) => (typeof b?.text === 'string' ? b.text : '')).join('\n') : '');
+const echoedText = (content: unknown): string =>
+  typeof content === 'string'
+    ? content
+    : Array.isArray(content)
+      ? content.map((b: { text?: unknown }) => (typeof b?.text === 'string' ? b.text : '')).join('\n')
+      : '';
 
 /** A message sent while it works goes into the turn: Claude reads it at its next step. */
 export const steer = inputs.steer;
 
-async function runClaude({ agent, chat, text, signal, onEvent, files, attachments = [], runId }: Pick<EngineRunArgs, 'agent' | 'chat' | 'text' | 'signal' | 'onEvent' | 'runId'> & { files: ClaudeFiles; attachments?: string[] }): Promise<EngineResult> {
+async function runClaude({
+  agent,
+  chat,
+  text,
+  signal,
+  onEvent,
+  files,
+  attachments = [],
+  runId,
+}: Pick<EngineRunArgs, 'agent' | 'chat' | 'text' | 'signal' | 'onEvent' | 'runId'> & {
+  files: ClaudeFiles;
+  attachments?: string[];
+}): Promise<EngineResult> {
   const dirs = uploadsDirArgs(agent, chat, attachments);
   // a message with files sent later needs the uploads folder open to Claude from the start (it is, or it is
   // in the workspace already)
@@ -228,7 +290,11 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
   const seesUploads = dirs.length > 0 || !uploads || isInside(workspaceOf(agent), uploads);
   const args = [...claudeArgs(agent, files), ...dirs];
   if (chat.sessionId) args.push('--resume', chat.sessionId);
-  const child = spawnCommand('claude', args, { cwd: workspaceOf(agent), env: claudeEnv(agent), stdio: ['pipe', 'pipe', 'pipe'] });
+  const child = spawnCommand('claude', args, {
+    cwd: workspaceOf(agent),
+    env: claudeEnv(agent),
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
   const onAbort = () => killTree(child);
   signal.addEventListener('abort', onAbort);
 
@@ -239,7 +305,8 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
   // one result per turn: a message it read after answering made one more (the run's answer is all of theirs)
   let cachedTotal = 0;
   const answers: string[] = [];
-  const write = (uuid: string, content: string) => child.stdin!.write(`${JSON.stringify({ type: 'user', uuid, message: { role: 'user', content } })}\n`);
+  const write = (uuid: string, content: string) =>
+    child.stdin!.write(`${JSON.stringify({ type: 'user', uuid, message: { role: 'user', content } })}\n`);
   // (the message it was started with: its echo is no message sent while it works)
   const first = crypto.randomUUID();
   // messages sent while it works go in by the uuid they are echoed with; done once it answered and nothing
@@ -273,7 +340,8 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
       // messages that waited together: the others count as read too.)
       if (msg.uuid === first) return;
       const said = echoedText(msg.message?.content);
-      for (const [uuid, m] of [...input.unread]) if (uuid === msg.uuid || (!!m.text && said.includes(m.text))) input.read(uuid);
+      for (const [uuid, m] of [...input.unread])
+        if (uuid === msg.uuid || (!!m.text && said.includes(m.text))) input.read(uuid);
       return;
     }
     if (msg.type === 'stream_event') {
@@ -286,17 +354,31 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
     } else if (msg.type === 'assistant') {
       const m: NonNullable<ClaudeStreamMsg['message']> = msg.message || {};
       const u = m.usage;
-      if (u) context = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.output_tokens || 0) || context;
+      if (u)
+        context =
+          (u.input_tokens || 0) +
+            (u.cache_creation_input_tokens || 0) +
+            (u.cache_read_input_tokens || 0) +
+            (u.output_tokens || 0) || context;
       for (const block of m.content || []) {
         if (block.type === 'text' && !streamed.has(m.id)) onEvent({ kind: 'text', text: block.text });
-        if (block.type === 'tool_use') onEvent({ kind: 'tool', id: block.id, name: prettyTool(block.name), args: block.input });
+        if (block.type === 'tool_use')
+          onEvent({ kind: 'tool', id: block.id, name: prettyTool(block.name), args: block.input });
       }
     } else if (msg.type === 'user') {
       for (const block of msg.message?.content || []) {
         if (block.type !== 'tool_result') continue;
         // (a picture it read, a screenshot: shown under the tool call)
-        const { text: content, images } = Array.isArray(block.content) ? splitContent(block.content) : { text: String(block.content ?? ''), images: [] };
-        onEvent({ kind: 'tool_result', id: block.tool_use_id, text: content, isError: !!block.is_error, ...(images.length ? { images } : {}) });
+        const { text: content, images } = Array.isArray(block.content)
+          ? splitContent(block.content)
+          : { text: String(block.content ?? ''), images: [] };
+        onEvent({
+          kind: 'tool_result',
+          id: block.tool_use_id,
+          text: content,
+          isError: !!block.is_error,
+          ...(images.length ? { images } : {}),
+        });
       }
     } else if (msg.type === 'result') {
       result = msg;
@@ -307,12 +389,22 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
       else input.closeIn(READ_WAIT.ms);
     } else if (msg.type === 'system' && msg.subtype === 'compact_boundary') {
       context = 0;
-      onEvent({ kind: 'compacted', trigger: msg.compact_metadata?.trigger, tokensBefore: msg.compact_metadata?.pre_tokens });
+      onEvent({
+        kind: 'compacted',
+        trigger: msg.compact_metadata?.trigger,
+        tokensBefore: msg.compact_metadata?.pre_tokens,
+      });
     } else if (msg.type === 'system' && msg.subtype === 'init') {
       if (msg.model) onEvent({ kind: 'model', model: msg.model });
       const mine = new Set(['dashboard', ...(agent.mcpServers || [])]);
-      const failed = (msg.mcp_servers || []).filter((s) => mine.has(s.name) && s.status && s.status !== 'connected' && s.status !== 'pending');
-      if (failed.length) onEvent({ kind: 'status', text: `MCP not connected: ${failed.map((s) => `${s.name} (${s.status})`).join(', ')}` });
+      const failed = (msg.mcp_servers || []).filter(
+        (s) => mine.has(s.name) && s.status && s.status !== 'connected' && s.status !== 'pending',
+      );
+      if (failed.length)
+        onEvent({
+          kind: 'status',
+          text: `MCP not connected: ${failed.map((s) => `${s.name} (${s.status})`).join(', ')}`,
+        });
     }
   };
 
@@ -369,7 +461,13 @@ async function runClaude({ agent, chat, text, signal, onEvent, files, attachment
   const window = Math.max(0, ...Object.values(result.modelUsage || {}).map((m) => Number(m?.contextWindow) || 0));
   // (each turn's tokens are its own; the cost is the whole process's so far)
   const cached = cachedTotal;
-  return { text: answers.join('\n\n') || result.result || '', cost: agent.claudeAuth && agent.claudeAuth !== 'login' ? result.total_cost_usd || 0 : 0, ...(cached ? { cached } : {}), ...(context ? { context } : {}), ...(window ? { window } : {}) };
+  return {
+    text: answers.join('\n\n') || result.result || '',
+    cost: agent.claudeAuth && agent.claudeAuth !== 'login' ? result.total_cost_usd || 0 : 0,
+    ...(cached ? { cached } : {}),
+    ...(context ? { context } : {}),
+    ...(window ? { window } : {}),
+  };
 }
 
 function prettyTool(name: string): string {

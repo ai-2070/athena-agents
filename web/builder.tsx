@@ -32,13 +32,41 @@ export interface BranchBuilderOptions {
 }
 
 // a member's ★ (lead) and ✕ buttons
-const STEP_BTN = 'size-7 rounded-ctl p-0 border cursor-pointer text-[12px] hover:enabled:text-ink hover:enabled:bg-panel-2 disabled:opacity-30 disabled:cursor-default';
+const STEP_BTN =
+  'size-7 rounded-ctl p-0 border cursor-pointer text-[12px] hover:enabled:text-ink hover:enabled:bg-panel-2 disabled:opacity-30 disabled:cursor-default';
 
-const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
+const PALETTE = [
+  '#3d58c0',
+  '#b0508a',
+  '#c07a34',
+  '#3a8a7a',
+  '#7350c8',
+  '#b8a03a',
+  '#4f7fa8',
+  '#5a9a3a',
+  '#a84a5a',
+  '#2f8fa0',
+];
 
 /** One boxed part of the dialog: an icon and a title (and a count or the like at the end), then its content. */
-function BuilderSection({ title, ico, hint, end, children }: { title: string; ico: string; hint?: ReactNode; end?: ReactNode; children: ReactNode }) {
-  return <FormSection icon={ico} title={title} hint={hint} end={end}>{children}</FormSection>;
+function BuilderSection({
+  title,
+  ico,
+  hint,
+  end,
+  children,
+}: {
+  title: string;
+  ico: string;
+  hint?: ReactNode;
+  end?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <FormSection icon={ico} title={title} hint={hint} end={end}>
+      {children}
+    </FormSection>
+  );
 }
 
 // what the wizard is working on, mutated in place (the object Save reads)
@@ -68,7 +96,17 @@ interface BuilderProps {
   onSaved?: (wf: Team) => unknown;
 }
 
-function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, close, onSaved }: BuilderProps): ReactNode {
+function BranchBuilder({
+  wf,
+  draft: b,
+  hired,
+  tray,
+  agents,
+  mcpNames,
+  flags,
+  close,
+  onSaved,
+}: BuilderProps): ReactNode {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const name = useRef<HTMLInputElement | null>(null);
   const desc = useRef<HTMLTextAreaElement | null>(null);
@@ -89,7 +127,8 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
     return () => clearTimeout(t);
   }, []);
 
-  const byId = () => new Map<string, Agent>([...hired, ...(state.data?.agents || []).map((a): [string, Agent] => [a.id, a])]);
+  const byId = () =>
+    new Map<string, Agent>([...hired, ...(state.data?.agents || []).map((a): [string, Agent] => [a.id, a])]);
   const allFiles = async (): Promise<string[] | null> => {
     const fresh = await tray.ready();
     return fresh ? [...new Set([...b.files, ...fresh])] : null;
@@ -125,7 +164,9 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
     b.access = { toolGroups: design.access.toolGroups, mcpServers: design.access.mcpServers };
     flushSync(redraw);
     const fresh = design.members.filter((m) => m.newAgent).length;
-    toast(`Picked ${design.members.length} agents${fresh ? `, ${fresh} of them new` : ''}. Change anything, then save.`);
+    toast(
+      `Picked ${design.members.length} agents${fresh ? `, ${fresh} of them new` : ''}. Change anything, then save.`,
+    );
   };
 
   const save = async () => {
@@ -148,10 +189,25 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
     const { stepList, ...rest } = (wf || {}) as Team & { stepList?: TeamStep[] };
     const own = stepList ?? rest.steps ?? [];
     const lead = b.lead?.agentId || null;
-    const body = { name: b.name.trim(), description: b.description.trim(), members: ids, steps: teamSteps({ steps: own, members: ids }), lead, access: b.access, files: teamFiles };
+    const body = {
+      name: b.name.trim(),
+      description: b.description.trim(),
+      members: ids,
+      steps: teamSteps({ steps: own, members: ids }),
+      lead,
+      access: b.access,
+      files: teamFiles,
+    };
     const saved = wf
       ? await attempt(() => rpc.workflows.change({ ...rest, ...body, id: wf.id }))
-      : await attempt(() => rpc.workflows.create({ ...body, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], schedule: { type: 'none' }, enabled: false }));
+      : await attempt(() =>
+          rpc.workflows.create({
+            ...body,
+            color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
+            schedule: { type: 'none' },
+            enabled: false,
+          }),
+        );
     if (!saved) {
       // already closed: nothing will save these now
       if (flags.closed) tray.discard();
@@ -179,27 +235,51 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
 
   const membersById = byId();
   const query = (searching.current?.value || '').toLowerCase();
-  const left = agents.filter((a) => !b.members.some((m) => m.agentId === a.id) && (!query || `${a.name} ${a.specialty || ''}`.toLowerCase().includes(query)));
+  const left = agents.filter(
+    (a) =>
+      !b.members.some((m) => m.agentId === a.id) &&
+      (!query || `${a.name} ${a.specialty || ''}`.toLowerCase().includes(query)),
+  );
 
   return (
     <>
       <div className="modal-body">
         <div className="flex flex-col gap-6">
-          <BuilderSection title="Basics" ico="users" hint="A team is a group chat of agents. You write to it, the lead (or the best fit) takes it, and they hand work on with @mentions.">
+          <BuilderSection
+            title="Basics"
+            ico="users"
+            hint="A team is a group chat of agents. You write to it, the lead (or the best fit) takes it, and they hand work on with @mentions."
+          >
             <Field label="Name">
-              <input ref={name} defaultValue={b.name} placeholder="e.g. Social, Video studio, Launch crew" onInput={(e) => (b.name = e.currentTarget.value)} />
+              <input
+                ref={name}
+                defaultValue={b.name}
+                placeholder="e.g. Social, Video studio, Launch crew"
+                onInput={(e) => (b.name = e.currentTarget.value)}
+              />
             </Field>
             <Field label="Goal">
-              <textarea ref={desc} rows={3} defaultValue={b.description} placeholder="What the team is for, e.g. plan and write two posts a week for our bakery, with photos" onInput={(e) => (b.description = e.currentTarget.value)} />
+              <textarea
+                ref={desc}
+                rows={3}
+                defaultValue={b.description}
+                placeholder="What the team is for, e.g. plan and write two posts a week for our bakery, with photos"
+                onInput={(e) => (b.description = e.currentTarget.value)}
+              />
             </Field>
             {/* the Brain's offer, set apart: it fills in the members (and new agents) from the goal and the files */}
             <div className="flex flex-wrap items-center gap-3 rounded-box border border-accent/25 bg-accent/6 px-4 py-3">
-              <span aria-hidden="true" className="grid size-8 flex-none place-items-center rounded-[9px] bg-accent/12 text-accent">
+              <span
+                aria-hidden="true"
+                className="grid size-8 flex-none place-items-center rounded-[9px] bg-accent/12 text-accent"
+              >
                 <Icon name="sparkles" size={15} />
               </span>
               <span className="min-w-0 flex-1 basis-52">
                 <span className="block text-[13.5px] font-medium text-ink">Let the Brain pick the agents</span>
-                <span className="block text-[12.5px] leading-normal text-dim">{status || 'It reads the goal and any files, then suggests members, new ones too.'}</span>
+                <span className="block text-[12.5px] leading-normal text-dim">
+                  {status || 'It reads the goal and any files, then suggests members, new ones too.'}
+                </span>
               </span>
               <Button size="small" disabled={asking} onClick={() => void autoBuild()}>
                 <Icon name="sparkles" size={14} />
@@ -207,32 +287,39 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
               </Button>
             </div>
           </BuilderSection>
-          <BuilderSection title="Files" ico="paperclip" hint="Optional. Auto-build reads them, and every member is told where they are.">
-            <FileDrop picker={<DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[]} />} hint="Briefs, brand guides, assets. Or drop or paste them anywhere in this window.">
-            <div className={b.files.length ? 'att-tray' : 'att-tray hidden'}>
-              {b.files.map((p) => (
-                <span key={p} className="att-chip sent" title={p}>
-                  <span className="att-ico">
-                    <Icon name={isFolderPath(p) ? 'folder' : 'file'} size={13} />
+          <BuilderSection
+            title="Files"
+            ico="paperclip"
+            hint="Optional. Auto-build reads them, and every member is told where they are."
+          >
+            <FileDrop
+              picker={<DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[]} />}
+              hint="Briefs, brand guides, assets. Or drop or paste them anywhere in this window."
+            >
+              <div className={b.files.length ? 'att-tray' : 'att-tray hidden'}>
+                {b.files.map((p) => (
+                  <span key={p} className="att-chip sent" title={p}>
+                    <span className="att-ico">
+                      <Icon name={isFolderPath(p) ? 'folder' : 'file'} size={13} />
+                    </span>
+                    <span className="att-name">{`${baseName(p)}${isFolderPath(p) ? '/' : ''}`}</span>
+                    <button
+                      type="button"
+                      className="att-x"
+                      title="Take off the team (the file stays in uploads/)"
+                      onClick={() =>
+                        flushSync(() => {
+                          b.files = b.files.filter((x) => x !== p);
+                          redraw();
+                        })
+                      }
+                    >
+                      <Icon name="x" size={12} />
+                    </button>
                   </span>
-                  <span className="att-name">{`${baseName(p)}${isFolderPath(p) ? '/' : ''}`}</span>
-                  <button
-                    type="button"
-                    className="att-x"
-                    title="Take off the team (the file stays in uploads/)"
-                    onClick={() =>
-                      flushSync(() => {
-                        b.files = b.files.filter((x) => x !== p);
-                        redraw();
-                      })
-                    }
-                  >
-                    <Icon name="x" size={12} />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <DomNode className="dom-contents" make={() => tray.el} deps={[]} />
+                ))}
+              </div>
+              <DomNode className="dom-contents" make={() => tray.el} deps={[]} />
             </FileDrop>
           </BuilderSection>
           <BuilderSection title="Members" ico="bot" end={<Pill>{b.members.length}</Pill>}>
@@ -242,7 +329,10 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
                   const a = m.agentId ? membersById.get(m.agentId) : null;
                   const isLead = b.lead === m;
                   return (
-                    <div key={j} className="flex items-center gap-3 p-3 border border-line bg-bg rounded-box [&_.avatar]:size-8.5 [&_.avatar]:text-[17px]">
+                    <div
+                      key={j}
+                      className="flex items-center gap-3 p-3 border border-line bg-bg rounded-box [&_.avatar]:size-8.5 [&_.avatar]:text-[17px]"
+                    >
                       {a ? <Avatar agent={a} /> : <Avatar agent={{ emoji: m.newAgent?.emoji || '🤖' }} />}
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -287,7 +377,9 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
                 {b.members.length ? null : (
                   <div className="flex flex-col items-center gap-1.5 rounded-box border border-dashed border-line-2 px-6 py-7 text-center">
                     <Icon name="bot" size={20} className="text-faint" />
-                    <p className="m-0 text-[13px] text-dim">No agents yet. Add them below, or let Auto-build pick them.</p>
+                    <p className="m-0 text-[13px] text-dim">
+                      No agents yet. Add them below, or let Auto-build pick them.
+                    </p>
                   </div>
                 )}
               </div>
@@ -295,8 +387,15 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
               <div className="flex flex-col gap-2.5">
                 {agents.length ? (
                   <label className="relative">
-                    <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint"><Icon name="search" size={14} /></span>
-                    <input ref={searchRef} className="pl-8.5!" placeholder="Search your agents…" aria-label="Search your agents" />
+                    <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint">
+                      <Icon name="search" size={14} />
+                    </span>
+                    <input
+                      ref={searchRef}
+                      className="pl-8.5!"
+                      placeholder="Search your agents…"
+                      aria-label="Search your agents"
+                    />
                   </label>
                 ) : null}
                 <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
@@ -317,7 +416,11 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
                         <Avatar agent={a} />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[13px] leading-tight font-medium">{a.name}</span>
-                          {a.specialty ? <span className="mt-0.5 block truncate text-[11.5px] leading-tight text-faint">{a.specialty}</span> : null}
+                          {a.specialty ? (
+                            <span className="mt-0.5 block truncate text-[11.5px] leading-tight text-faint">
+                              {a.specialty}
+                            </span>
+                          ) : null}
                         </span>
                         <span className="flex flex-none items-center gap-1.5 text-[12.5px] font-medium text-dim">
                           <Icon name="plus" size={12} />
@@ -326,18 +429,32 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
                       </button>
                     ))
                   ) : (
-                    <p className="hint">{agents.length ? (query ? 'No agent matches.' : 'Everyone is already on the team.') : 'You have no agents yet: Auto-build can create them.'}</p>
+                    <p className="hint">
+                      {agents.length
+                        ? query
+                          ? 'No agent matches.'
+                          : 'Everyone is already on the team.'
+                        : 'You have no agents yet: Auto-build can create them.'}
+                    </p>
                   )}
                 </div>
               </div>
             </div>
           </BuilderSection>
-          <BuilderSection title="Access" ico="wrench" hint="While working for this team, every member gets these on top of its own tools.">
+          <BuilderSection
+            title="Access"
+            ico="wrench"
+            hint="While working for this team, every member gets these on top of its own tools."
+          >
             <div className="label">Programs &amp; tools</div>
             <div className="mt-3">
               <ChipSet
                 label="Programs & tools"
-                options={(state.data?.toolGroups || []).map((g) => ({ value: g.id, label: g.label, title: g.description }))}
+                options={(state.data?.toolGroups || []).map((g) => ({
+                  value: g.id,
+                  label: g.label,
+                  title: g.description,
+                }))}
                 value={b.access.toolGroups}
                 onChange={(v) =>
                   flushSync(() => {
@@ -380,7 +497,13 @@ function BranchBuilder({ wf, draft: b, hired, tray, agents, mcpNames, flags, clo
   );
 }
 
-export async function openBranchBuilder({ wf = null, prefill = null, describe = '', files = [], onSaved }: BranchBuilderOptions = {}): Promise<ModalHandle> {
+export async function openBranchBuilder({
+  wf = null,
+  prefill = null,
+  describe = '',
+  files = [],
+  onSaved,
+}: BranchBuilderOptions = {}): Promise<ModalHandle> {
   const d = state.data!;
   const mcp = await rpc.mcp.list().catch(() => ({ servers: {} as Record<string, unknown> }));
   // members: { agentId } for existing agents, { newAgent } for ones the Brain suggests hiring
@@ -392,9 +515,17 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
     description: wf?.description || prefill?.description || describe || '',
     members: fromTeam.length ? fromTeam : structuredClone(prefill?.members || []),
     lead: null,
-    access: { toolGroups: [...(wf?.access?.toolGroups || prefill?.access?.toolGroups || [])], mcpServers: [...(wf?.access?.mcpServers || prefill?.access?.mcpServers || [])] },
+    access: {
+      toolGroups: [...(wf?.access?.toolGroups || prefill?.access?.toolGroups || [])],
+      mcpServers: [...(wf?.access?.mcpServers || prefill?.access?.mcpServers || [])],
+    },
   };
-  b.lead = (wf?.lead ? b.members.find((m) => m.agentId === wf.lead) : fromTeam.length ? null : b.members[prefill?.leadIndex ?? -1]) || null;
+  b.lead =
+    (wf?.lead
+      ? b.members.find((m) => m.agentId === wf.lead)
+      : fromTeam.length
+        ? null
+        : b.members[prefill?.leadIndex ?? -1]) || null;
   // agents hired by an earlier save attempt, until the state catches up
   const hired = new Map<string, Agent>();
   const flags: BuilderFlags = { saving: false, savedOk: false, closed: false };
@@ -402,7 +533,17 @@ export async function openBranchBuilder({ wf = null, prefill = null, describe = 
   const m = openModal(
     wf ? `Edit ${wf.name}` : 'New team',
     (close) => (
-      <BranchBuilder wf={wf} draft={b} hired={hired} tray={tray} agents={d.agents} mcpNames={Object.keys(mcp.servers)} flags={flags} close={close} onSaved={onSaved} />
+      <BranchBuilder
+        wf={wf}
+        draft={b}
+        hired={hired}
+        tray={tray}
+        agents={d.agents}
+        mcpNames={Object.keys(mcp.servers)}
+        flags={flags}
+        close={close}
+        onSaved={onSaved}
+      />
     ),
     // closed without saving: the files dropped here go too
     // (a save already under way finishes, with its files; one still waiting for uploads stops)

@@ -28,10 +28,10 @@ eases and never stops dead, and every visual hit landing on its spoken word.
 Before drawing anything, write the beat table and show it to the user, with one sentence on the world and the path
 the camera takes through it:
 
-| Time | Narration | The one hero on screen | Text on screen |
-|---|---|---|---|
-| 0.00 | "It started with a photograph." | The print of the farmhouse | none |
-| 3.00 | "Taken in a town nobody had heard of." | The words *Harrow Creek* | Harrow Creek (rises in) |
+| Time | Narration                              | The one hero on screen     | Text on screen          |
+| ---- | -------------------------------------- | -------------------------- | ----------------------- |
+| 0.00 | "It started with a photograph."        | The print of the farmhouse | none                    |
+| 3.00 | "Taken in a town nobody had heard of." | The words _Harrow Creek_   | Harrow Creek (rises in) |
 
 Times come from the voiceover (next section). Ask about whatever is unclear: who is in which photo, how a name is
 spelled, what a document should say, which moment matters most. Wait for their OK: a change costs a minute now and a
@@ -51,6 +51,7 @@ neighbours in the story are neighbours in the world, and a jump in time or place
 travels and dives in again. Nothing cuts, and nothing changes like a slide: every transition is the camera moving.
 
 **Readability decides everything else.**
+
 - One idea per line of narration, and one hero for it: a photo, a word or a document. Everything else dims back
   (`LOOK.dim`), and the camera frames the hero by itself.
 - Every phrase appears on screen once. If the narrator says it, show it on a real document or type it on screen,
@@ -96,17 +97,17 @@ the camera leaves; if it can't, the line has too much on screen.
    - the same at phone size: add `--tile 390 --cols 6`;
    - every camera move and every hit, as a frame sequence: `--from 2 --to 4.4 --every 0.1`, and `--every 0.0333`
      (one frame at 30 fps) around a hit.
-   Fix what's cluttered, hard to read, overlapping or clipped at the frame's edge, a frame with nothing in it, a move
-   whose spacing jumps from one still to the next, and a hold where two stills in a row are the same (the camera
-   stopped). Stop when a full pass finds nothing.
+     Fix what's cluttered, hard to read, overlapping or clipped at the frame's edge, a frame with nothing in it, a move
+     whose spacing jumps from one still to the next, and a hold where two stills in a row are the same (the camera
+     stopped). Stop when a full pass finds nothing.
 5. **Draft**: `node <this skill's folder>/scripts/film.mjs render film.html -o work/draft.mp4 --audio <voiceover>
-   --scale 0.5`. Show the user the draft. They can also open `film.html` in a browser, with the voiceover beside
+--scale 0.5`. Show the user the draft. They can also open `film.html` in a browser, with the voiceover beside
    it, to watch it live; click to play.
 6. **Final render**, at full size into the user's folder: `render film.html -o <name>.mp4 --audio <voiceover>`.
    Renders take minutes (a 1080p frame took about a quarter of a second with heavy motion blur in testing, and 4K
    has four times the pixels), so raise the shell's time limit for that call.
 7. **Check the file**: `ffprobe -v error -show_entries stream=codec_type,width,height,r_frame_rate:format=duration
-   <name>.mp4` shows the format asked for, a video and an audio stream, and the voiceover's length.
+<name>.mp4` shows the format asked for, a video and an audio stream, and the voiceover's length.
 
 ## Done means
 
@@ -133,9 +134,9 @@ the camera leaves; if it can't, the line has too much on screen.
   dimming, motion blur, glow, vignette and grain, and the live preview.
 - `scripts/film.mjs`: the tool. `voice <audio> [--noise=<dB>] [--min-pause <s>]` prints the voiceover's length,
   pauses and phrases. `sheet <page.html> -o <sheet.png> [--at <t,t,...> | --from <s> --to <s> --every <s>] [--cols
-  <n>] [--tile <px>] [--browser <path>]` draws labelled stills (one per beat by default; at most 100).
+<n>] [--tile <px>] [--browser <path>]` draws labelled stills (one per beat by default; at most 100).
   `render <page.html> -o <video.mp4> [--audio <voiceover>] [--scale <s>] [--from <s>] [--to <s>] [--crf <n>]
-  [--browser <path>] [--timeout <minutes>]` renders an H.264 MP4, and refuses a full render whose page doesn't last
+[--browser <path>] [--timeout <minutes>]` renders an H.264 MP4, and refuses a full render whose page doesn't last
   as long as the voiceover. JSON on stdout; exit 0 done, 1 done with warnings, 2 couldn't (one line on stderr).
   `--help` has every default.
 - `references/camera.md`: how the camera's path is built, the settings in `LOOK`, motion blur and finishing, and

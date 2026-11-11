@@ -15,10 +15,18 @@ import * as providers from '../../server/apiproviders.ts';
 import type { ApiModelInfo } from '../../shared/types.ts';
 
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=';
-const usage = { prompt_tokens: 1000, completion_tokens: 100, total_tokens: 1100, prompt_tokens_details: { cached_tokens: 200 } };
+const usage = {
+  prompt_tokens: 1000,
+  completion_tokens: 100,
+  total_tokens: 1100,
+  prompt_tokens_details: { cached_tokens: 200 },
+};
 const text = { content: 'Venice answer' };
-const tool = { tool_calls: [{ index: 0, id: 'task-call', type: 'function', function: { name: 'TaskList', arguments: '{}' } }] };
-const completion = (delta: unknown = text, cost: unknown = { usd: 0.002, diem: 0 }) => `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: delta === tool ? 'tool_calls' : 'stop' }], usage, cost })}\n\ndata: [DONE]\n\n`;
+const tool = {
+  tool_calls: [{ index: 0, id: 'task-call', type: 'function', function: { name: 'TaskList', arguments: '{}' } }],
+};
+const completion = (delta: unknown = text, cost: unknown = { usd: 0.002, diem: 0 }) =>
+  `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: delta === tool ? 'tool_calls' : 'stop' }], usage, cost })}\n\ndata: [DONE]\n\n`;
 let server: http.Server;
 let baseUrl = '';
 let info: ApiModelInfo;
@@ -41,15 +49,33 @@ beforeAll(async () => {
   if (!address || typeof address === 'string') throw new Error('No test port.');
   baseUrl = `http://127.0.0.1:${address.port}/v1`;
   setSecret('veniceKey', 'venice-native-fixture');
-  vi.spyOn(providers, 'resolveApiProvider').mockImplementation((id) => ({ ...resolveProvider(id), ...(id === 'venice' ? { base: baseUrl } : {}) }));
+  vi.spyOn(providers, 'resolveApiProvider').mockImplementation((id) => ({
+    ...resolveProvider(id),
+    ...(id === 'venice' ? { base: baseUrl } : {}),
+  }));
   vi.spyOn(providers, 'apiModelInfo').mockImplementation(async () => info);
 });
 
 beforeEach(() => {
-  info = { id: 'mock', name: 'Venice mock', context: 64000, tools: true, vision: true, multipleImages: false, reasoningEfforts: ['low', 'high'], price: { in: 1, out: 2, cached: 0.1 } };
+  info = {
+    id: 'mock',
+    name: 'Venice mock',
+    context: 64000,
+    tools: true,
+    vision: true,
+    multipleImages: false,
+    reasoningEfforts: ['low', 'high'],
+    price: { in: 1, out: 2, cached: 0.1 },
+  };
   requested = [];
   replies = [completion()];
-  saveSettings({ contextWindowTokens: 64000, brainFollowsUp: false, brainApproves: false, maxToolSteps: 4, costLimitUsdPerRun: 0 });
+  saveSettings({
+    contextWindowTokens: 64000,
+    brainFollowsUp: false,
+    brainApproves: false,
+    maxToolSteps: 4,
+    costLimitUsdPerRun: 0,
+  });
 });
 
 afterAll(async () => {
@@ -62,7 +88,19 @@ afterAll(async () => {
 });
 
 const go = (attachments: string[] = []) => {
-  const agent = agents.save(newAgent({ name: 'Native Venice', engine: 'eve', provider: 'venice', model: 'mock', effort: 'max', autonomy: 'full', toolGroups: [], mcpServers: [], richAnswers: false }));
+  const agent = agents.save(
+    newAgent({
+      name: 'Native Venice',
+      engine: 'eve',
+      provider: 'venice',
+      model: 'mock',
+      effort: 'max',
+      autonomy: 'full',
+      toolGroups: [],
+      mcpServers: [],
+      richAnswers: false,
+    }),
+  );
   const chat = chats.create(agent.id);
   return { agent, chat, ...startRun(agent, chat, 'Answer using Venice.', { attachments }) };
 };
@@ -76,12 +114,32 @@ describe('Venice through the native Eve runtime', () => {
     expect(requested[0]!.headers.authorization).toBe('Bearer venice-native-fixture');
     expect(requested[0]!.headers['http-referer']).toBeUndefined();
     expect(requested[0]!.headers['x-title']).toBeUndefined();
-    expect(requested[0]!.body).toMatchObject({ model: 'mock', reasoning_effort: 'high', stream_options: { include_usage: true }, venice_parameters: { include_venice_system_prompt: false, strip_thinking_response: true, enable_web_search: 'off', enable_web_scraping: false, enable_x_search: false } });
+    expect(requested[0]!.body).toMatchObject({
+      model: 'mock',
+      reasoning_effort: 'high',
+      stream_options: { include_usage: true },
+      venice_parameters: {
+        include_venice_system_prompt: false,
+        strip_thinking_response: true,
+        enable_web_search: 'off',
+        enable_web_scraping: false,
+        enable_x_search: false,
+      },
+    });
     expect(requested[0]!.body).not.toHaveProperty('session_id');
     expect(requested[0]!.body).not.toHaveProperty('cache_control');
-    expect(requested[1]!.body.messages).toContainEqual(expect.objectContaining({ role: 'tool', tool_call_id: 'task-call' }));
-    expect(eveUsage(run.runId)).toMatchObject({ cost: 0.03, tokens: 2200, cached: 400, billing: { source: 'reported', chargedUsd: 0.03 } });
-    expect(chats.get(run.agent.id, run.chat.id)!.items.filter((item) => item.type === 'meta' && item.billing)).toHaveLength(1);
+    expect(requested[1]!.body.messages).toContainEqual(
+      expect.objectContaining({ role: 'tool', tool_call_id: 'task-call' }),
+    );
+    expect(eveUsage(run.runId)).toMatchObject({
+      cost: 0.03,
+      tokens: 2200,
+      cached: 400,
+      billing: { source: 'reported', chargedUsd: 0.03 },
+    });
+    expect(
+      chats.get(run.agent.id, run.chat.id)!.items.filter((item) => item.type === 'meta' && item.billing),
+    ).toHaveLength(1);
   });
 
   it('stops before another provider call when known spending reaches the limit', async () => {
@@ -98,14 +156,23 @@ describe('Venice through the native Eve runtime', () => {
     replies = [completion(text, { usd: 0, diem: 0.05 })];
     const estimated = go();
     await estimated.promise;
-    expect(eveUsage(estimated.runId)).toMatchObject({ cost: 0.00102, billing: { source: 'estimated', chargedUsd: 0, chargedDiem: 0.05 } });
+    expect(eveUsage(estimated.runId)).toMatchObject({
+      cost: 0.00102,
+      billing: { source: 'estimated', chargedUsd: 0, chargedDiem: 0.05 },
+    });
     expect(JSON.stringify(chats.get(estimated.agent.id, estimated.chat.id)!.items)).toContain('USD equivalent');
     info = { ...info, price: null };
     replies = [completion(text, { usd: 0, diem: 0.5 })];
     const unknown = go();
     await unknown.promise;
     expect(eveUsage(unknown.runId)).not.toHaveProperty('cost');
-    expect(chats.get(unknown.agent.id, unknown.chat.id)!.items).toContainEqual(expect.objectContaining({ type: 'meta', text: expect.stringContaining('Cost unavailable'), billing: { source: 'unavailable', chargedUsd: 0, chargedDiem: 0.5 } }));
+    expect(chats.get(unknown.agent.id, unknown.chat.id)!.items).toContainEqual(
+      expect.objectContaining({
+        type: 'meta',
+        text: expect.stringContaining('Cost unavailable'),
+        billing: { source: 'unavailable', chargedUsd: 0, chargedDiem: 0.5 },
+      }),
+    );
   });
 
   it('applies advertised tool, effort and image capabilities', async () => {

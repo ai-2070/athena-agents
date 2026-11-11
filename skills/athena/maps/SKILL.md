@@ -29,14 +29,14 @@ phone, and credits OpenStreetMap.
 
 ## Pick the command
 
-| The question | Command |
-|---|---|
-| "Where is…", "coordinates of…", an address or a list of them | `geocode "Musée d'Orsay, Paris"` |
-| "What's here?", coordinates with no name | `reverse 48.8600,2.3266` |
-| "A pharmacy, cafe or ATM near…" | `nearby 48.8584,2.2945 --category pharmacy` or `nearby "Gare de Lyon, Paris" --category cafe` |
-| "How long to walk, drive or cycle", "directions from X to Y" | `route "Eiffel Tower, Paris" "Louvre, Paris" --mode foot --steps` |
-| "What time is it in…", a time in another zone | `timezone "Lima, Peru"`, `timezone --zone Asia/Tokyo --when 2026-12-01T09:00` |
-| Which kinds of place `nearby` knows | `categories` |
+| The question                                                 | Command                                                                                       |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| "Where is…", "coordinates of…", an address or a list of them | `geocode "Musée d'Orsay, Paris"`                                                              |
+| "What's here?", coordinates with no name                     | `reverse 48.8600,2.3266`                                                                      |
+| "A pharmacy, cafe or ATM near…"                              | `nearby 48.8584,2.2945 --category pharmacy` or `nearby "Gare de Lyon, Paris" --category cafe` |
+| "How long to walk, drive or cycle", "directions from X to Y" | `route "Eiffel Tower, Paris" "Louvre, Paris" --mode foot --steps`                             |
+| "What time is it in…", a time in another zone                | `timezone "Lima, Peru"`, `timezone --zone Asia/Tokyo --when 2026-12-01T09:00`                 |
+| Which kinds of place `nearby` knows                          | `categories`                                                                                  |
 
 A point is `LAT,LON`, latitude first, as on a map pin (`-33.8688,151.2093` works too); anything else is a place name,
 looked up first. `nearby` also takes `--tag KEY=VALUE`, `--with KEY=VALUE` to narrow, `--name`, `--radius` (metres,

@@ -28,11 +28,16 @@ describe('delegated Eve work at shutdown', () => {
     let answering = false;
     model = http.createServer(async (request, response) => {
       if (request.url?.endsWith('/models')) return response.end(JSON.stringify({ data: [] }));
-      for await (const _part of request) { /* drain the model request */ }
+      for await (const _part of request) {
+        /* drain the model request */
+      }
       requests++;
       response.writeHead(200, { 'content-type': 'text/event-stream' });
       response.flushHeaders();
-      if (answering) response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Recovered handoff answer' }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+      if (answering)
+        response.end(
+          `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Recovered handoff answer' }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+        );
     });
     model.listen(0, '127.0.0.1');
     await once(model, 'listening');
@@ -61,8 +66,12 @@ describe('delegated Eve work at shutdown', () => {
     child = spawn('bun', ['--eval', script], { env: process.env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
-    child.stdout!.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-    child.stderr!.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+    child.stdout!.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr!.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
     const exited = once(child, 'exit');
     await expect.poll(() => requests).toBe(1);
     child.stdin!.end('shutdown');
@@ -83,7 +92,9 @@ describe('delegated Eve work at shutdown', () => {
     expect(done).toBeDefined();
     eveCoordinator.start();
     expect(await done).toBe('Recovered handoff answer');
-    expect(await awaitHandoff(handle.id, handle.askerId)).toEqual({ text: 'Shutdown helper says:\nRecovered handoff answer' });
+    expect(await awaitHandoff(handle.id, handle.askerId)).toEqual({
+      text: 'Shutdown helper says:\nRecovered handoff answer',
+    });
     expect(readRun(handle.runId)!.deliveryId).toBe(deliveryId);
     expect(chats.get(saved.to, saved.chatId)!.items.filter((item) => item.type === 'user')).toHaveLength(1);
     expect(requests).toBe(2);

@@ -13,7 +13,11 @@ if (!agentId || !text) {
 }
 const base = `http://localhost:${port}/api`;
 const call = async <T = unknown>(path: string, body?: unknown): Promise<T> => {
-  const r = await fetch(base + path, { method: body ? 'POST' : 'GET', headers: { 'x-dash': '1', 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const r = await fetch(base + path, {
+    method: body ? 'POST' : 'GET',
+    headers: { 'x-dash': '1', 'content-type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
   const j = (await r.json()) as T & { error?: string };
   if (!r.ok) throw new Error(j.error);
   return j;
@@ -35,10 +39,15 @@ ws.on('message', async (raw) => {
   const e = ev.event;
   if (e.kind === 'text') process.stdout.write(e.text);
   else if (e.kind === 'tool') console.log(`\n[tool] ${e.name} ${JSON.stringify(e.args).slice(0, 300)}`);
-  else if (e.kind === 'tool_result') console.log(`[result${e.isError ? ' ERROR' : ''}] ${String(e.text).slice(0, 600)}${e.images?.length ? ` (+${e.images.length} images)` : ''}`);
+  else if (e.kind === 'tool_result')
+    console.log(
+      `[result${e.isError ? ' ERROR' : ''}] ${String(e.text).slice(0, 600)}${e.images?.length ? ` (+${e.images.length} images)` : ''}`,
+    );
   else if (e.kind === 'status') console.log(`[status] ${e.text}`);
   else if (e.kind === 'done' || e.kind === 'error') {
-    console.log(`\n[${e.kind}] after ${Math.round((Date.now() - started) / 1000)}s ${e.kind === 'error' ? e.text : ''}`);
+    console.log(
+      `\n[${e.kind}] after ${Math.round((Date.now() - started) / 1000)}s ${e.kind === 'error' ? e.text : ''}`,
+    );
     ws.close();
     process.exit(e.kind === 'done' ? 0 : 1);
   }

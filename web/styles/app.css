@@ -12,7 +12,6 @@
 @import './base.css' layer(base);
 @import './components.css' layer(components);
 
-
 /* static: every token is written out, since look.ts and inline styles use them too.
    These are the light values; base.css swaps them when the system is dark. */
 @theme static {
@@ -70,7 +69,8 @@
   /* what buttons, chips, pills and badges lift off the page with: a lit top edge, a shaded bottom, two casts */
   --shadow-raised:
     inset 0 1px 0 var(--glass-spec), inset 0 -1px 0 light-dark(rgb(20 22 40 / 0.04), rgb(0 0 0 / 0.18)),
-    0 1px 2px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.3)), 0 3px 6px -3px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.35));
+    0 1px 2px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.3)),
+    0 3px 6px -3px light-dark(rgb(20 22 40 / 0.12), rgb(0 0 0 / 0.35));
   --shadow-lift: 0 8px 24px -8px rgb(20 22 40 / 0.14), 0 1px 3px rgb(20 22 40 / 0.06);
   --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
   --spacing-nav: 248px;
@@ -98,25 +98,137 @@
 }
 
 /* keyframes, for animate-* above or animate-[name_0.2s_ease-out] */
-@keyframes pulse { 50% { opacity: 0.3; } }
-@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes fade-out { to { opacity: 0; } }
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
 /* a gap opening where a dragged card will land (the Tasks board) */
-@keyframes open-slot { from { height: 0; opacity: 0; } }
-@keyframes pop-out { to { opacity: 0; transform: scale(0.96); } }
+@keyframes open-slot {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+}
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
 /* a menu opening: it fades in and settles from a touch smaller */
-@keyframes menu-pop { from { opacity: 0; transform: scale(0.97) translateY(var(--menu-dy, -3px)); } to { opacity: 1; transform: none; } }
-@keyframes pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
-@keyframes in-up { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
-@keyframes in-right { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
-@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes slide { from { transform: translateY(8px); opacity: 0; } }
+@keyframes menu-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(var(--menu-dy, -3px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes in-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes in-right {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slide {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
 /* a light band sliding over text that is clipped to its gradient (text-transparent bg-clip-text) */
-@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-@keyframes cw-pop { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
-@keyframes flash-find { 0%, 35% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 45%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
-@keyframes nav-wide-in { from { width: 58px; opacity: 0.85; } to { width: var(--spacing-nav); opacity: 1; } }
-@keyframes st-face-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-accent) 10%, transparent); } }
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@keyframes cw-pop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes flash-find {
+  0%,
+  35% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+@keyframes nav-wide-in {
+  from {
+    width: 58px;
+    opacity: 0.85;
+  }
+  to {
+    width: var(--spacing-nav);
+    opacity: 1;
+  }
+}
+@keyframes st-face-pulse {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-accent) 10%, transparent);
+  }
+}
 
 /* JS hides things with the hidden class (classList.toggle('hidden')): it must win over any display utility */
 @utility hidden {

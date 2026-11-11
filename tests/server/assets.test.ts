@@ -68,7 +68,13 @@ describe('unzip', () => {
     expect(safeEntryName('a\\b.txt')).toBe('a/b.txt');
     const base = fs.mkdtempSync(path.join(os.homedir(), 'unzip-'));
     const dir = path.join(base, 'asset');
-    const written = extractZip(makeZip([{ name: '../outside.txt', data: 'x' }, { name: 'ok/inside.txt', data: 'y' }]), dir);
+    const written = extractZip(
+      makeZip([
+        { name: '../outside.txt', data: 'x' },
+        { name: 'ok/inside.txt', data: 'y' },
+      ]),
+      dir,
+    );
     expect(written).toEqual(['ok/inside.txt']);
     expect(fs.existsSync(path.join(base, 'outside.txt'))).toBe(false);
     expect(fs.readFileSync(path.join(dir, 'ok', 'inside.txt'), 'utf8')).toBe('y');
@@ -83,7 +89,13 @@ describe('unzip', () => {
     fs.mkdirSync(dir);
     fs.writeFileSync(path.join(outside, 'color.jpg'), 'outside sentinel');
     fs.symlinkSync(outside, path.join(dir, 'maps'), 'junction');
-    const written = extractZip(makeZip([{ name: 'maps/color.jpg', data: 'outside changed by zip' }, { name: 'ok.jpg', data: 'fine' }]), dir);
+    const written = extractZip(
+      makeZip([
+        { name: 'maps/color.jpg', data: 'outside changed by zip' },
+        { name: 'ok.jpg', data: 'fine' },
+      ]),
+      dir,
+    );
     expect(written).toEqual(['ok.jpg']);
     expect(fs.readFileSync(path.join(outside, 'color.jpg'), 'utf8')).toBe('outside sentinel');
   });
@@ -97,30 +109,65 @@ const f = (url: string, include?: Record<string, { url: string }>) => ({ url, si
 
 describe('Poly Haven files', () => {
   const texture: PhFiles = {
-    Diffuse: { '1k': { jpg: f('https://dl.polyhaven.org/t/wood_diff_1k.jpg'), png: f('https://dl.polyhaven.org/t/wood_diff_1k.png') } },
+    Diffuse: {
+      '1k': {
+        jpg: f('https://dl.polyhaven.org/t/wood_diff_1k.jpg'),
+        png: f('https://dl.polyhaven.org/t/wood_diff_1k.png'),
+      },
+    },
     nor_gl: { '1k': { jpg: f('https://dl.polyhaven.org/t/wood_nor_gl_1k.jpg') } },
-    blend: { '1k': { blend: f('https://dl.polyhaven.org/t/wood_1k.blend', { 'textures/wood_diff_1k.jpg': { url: 'https://dl.polyhaven.org/t/wood_diff_1k.jpg' } }) } },
+    blend: {
+      '1k': {
+        blend: f('https://dl.polyhaven.org/t/wood_1k.blend', {
+          'textures/wood_diff_1k.jpg': { url: 'https://dl.polyhaven.org/t/wood_diff_1k.jpg' },
+        }),
+      },
+    },
   };
 
   it('give every texture map, or a ready .blend with its maps', () => {
     expect(pickPolyhavenFiles(texture, '1k').map((x) => x.rel)).toEqual(['wood_diff_1k.jpg', 'wood_nor_gl_1k.jpg']);
     expect(pickPolyhavenFiles(texture, '1K', 'png').map((x) => x.rel)).toEqual(['wood_diff_1k.png']);
-    expect(pickPolyhavenFiles(texture, '1k', 'blend').map((x) => x.rel)).toEqual(['wood_1k.blend', 'textures/wood_diff_1k.jpg']);
+    expect(pickPolyhavenFiles(texture, '1k', 'blend').map((x) => x.rel)).toEqual([
+      'wood_1k.blend',
+      'textures/wood_diff_1k.jpg',
+    ]);
     expect(pickPolyhavenFiles(texture, '8k')).toEqual([]);
   });
 
   it('give an HDRI as .hdr unless asked for .exr, and a model as glTF with its textures', () => {
-    const hdri: PhFiles = { hdri: { '2k': { hdr: f('https://dl.polyhaven.org/h/sky_2k.hdr'), exr: f('https://dl.polyhaven.org/h/sky_2k.exr') } } };
+    const hdri: PhFiles = {
+      hdri: {
+        '2k': { hdr: f('https://dl.polyhaven.org/h/sky_2k.hdr'), exr: f('https://dl.polyhaven.org/h/sky_2k.exr') },
+      },
+    };
     expect(pickPolyhavenFiles(hdri, '2k').map((x) => x.rel)).toEqual(['sky_2k.hdr']);
     expect(pickPolyhavenFiles(hdri, '2k', 'exr').map((x) => x.rel)).toEqual(['sky_2k.exr']);
-    const model: PhFiles = { gltf: { '1k': { gltf: f('https://dl.polyhaven.org/m/chair_1k.gltf', { 'textures/chair_diff_1k.jpg': { url: 'https://dl.polyhaven.org/m/chair_diff_1k.jpg' } }) } } };
+    const model: PhFiles = {
+      gltf: {
+        '1k': {
+          gltf: f('https://dl.polyhaven.org/m/chair_1k.gltf', {
+            'textures/chair_diff_1k.jpg': { url: 'https://dl.polyhaven.org/m/chair_diff_1k.jpg' },
+          }),
+        },
+      },
+    };
     expect(pickPolyhavenFiles(model, '1k').map((x) => x.rel)).toEqual(['chair_1k.gltf', 'textures/chair_diff_1k.jpg']);
   });
 });
 
 describe('ambientCG downloads', () => {
-  const dl = (attribute: string) => ({ attribute, downloadLink: `https://ambientcg.com/get?file=X_${attribute}.zip`, fileName: `X_${attribute}.zip` });
-  const asset = { assetId: 'X', downloadFolders: { default: { downloadFiletypeCategories: { zip: { downloads: [dl('1K-JPG'), dl('2K-JPG'), dl('2K-PNG')] } } } } };
+  const dl = (attribute: string) => ({
+    attribute,
+    downloadLink: `https://ambientcg.com/get?file=X_${attribute}.zip`,
+    fileName: `X_${attribute}.zip`,
+  });
+  const asset = {
+    assetId: 'X',
+    downloadFolders: {
+      default: { downloadFiletypeCategories: { zip: { downloads: [dl('1K-JPG'), dl('2K-JPG'), dl('2K-PNG')] } } },
+    },
+  };
 
   it('pick the size and format asked for', () => {
     expect(pickAmbientcgDownload(asset, '2K', 'PNG')?.attribute).toBe('2K-PNG');
@@ -144,7 +191,14 @@ describe('asset tools', () => {
     fs.mkdirSync(workspace);
     fs.mkdirSync(outside);
     fs.symlinkSync(outside, path.join(workspace, 'wood'), 'junction');
-    const agent: ToolAgent = { id: 'asset-agent', name: 'Assets', toolGroups: ['assets'], autonomy: 'auto', workspace, knowledge: { folders: [] } };
+    const agent: ToolAgent = {
+      id: 'asset-agent',
+      name: 'Assets',
+      toolGroups: ['assets'],
+      autonomy: 'auto',
+      workspace,
+      knowledge: { folders: [] },
+    };
     const r = await callTool(agent, 'asset_download', { source: 'polyhaven', id: 'wood', folder: '.' });
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(/outside the folders/);

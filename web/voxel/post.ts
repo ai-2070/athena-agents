@@ -90,11 +90,21 @@ export interface Post {
   dispose(): void;
 }
 
-export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, quality: WorldQuality, w: number, h: number): Post {
+export function createPost(
+  renderer: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  quality: WorldQuality,
+  w: number,
+  h: number,
+): Post {
   // The passes cost by the pixel, so on sharp screens they run at a capped resolution (the labels are
   // HTML and stay sharp), and edges are smoothed only where pixels are big enough to need it.
   const ratio = () => Math.min(renderer.getPixelRatio(), PIXEL_CAP[quality]);
-  const target = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: quality === 'high' && renderer.getPixelRatio() < 1.5 ? 4 : 0 });
+  const target = new THREE.WebGLRenderTarget(w, h, {
+    type: THREE.HalfFloatType,
+    samples: quality === 'high' && renderer.getPixelRatio() < 1.5 ? 4 : 0,
+  });
   const composer = new EffectComposer(renderer, target);
   composer.setPixelRatio(ratio());
   composer.setSize(w, h);

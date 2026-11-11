@@ -21,7 +21,7 @@ One `key: value` per line (the dashboard's reader doesn't take YAML lists), so l
 name: Code Reviewer
 description: Reviews a change, AI-written or not, for bugs, security holes and code that will be hard to keep, says what to fix first and can fix it.
 emoji: 👁️
-color: "#6b7bff"
+color: '#6b7bff'
 specialty: reviews code changes and says what to fix first
 group: engineering
 tools: files, shell, browser, agents
@@ -29,17 +29,17 @@ skills: github, witness-discipline, independent-review
 ---
 ```
 
-| Key | What it's for |
-|---|---|
-| `name`, `emoji` | The card and the hired agent. Familiar job titles |
-| `description` | One sentence of about 30 words: what it does and when you'd pick it. The card and the preview show it |
-| `color` | Hex in quotes, mid-tone, readable on white and on near-black |
-| `specialty` | A lower-case phrase with no full stop. It finishes "You are Code Reviewer, …", the line the dashboard puts first in every agent's instructions, and it's what the Brain reads when it picks teammates |
-| `group` | An id from `groups.json`, the same as the folder the file is in |
-| `tools` | The tool groups it starts with (`TOOL_GROUPS` in `server/tools.ts`). Every agent has `shell` and `agents`, so any agent can run a command (the user approves each one unless autonomy is Full) and ask a teammate. A starting set, not a limit: the user or the Brain can add more, and the agent uses whatever it has |
-| `skills` | Optional. Skill slugs it starts with, from the bundled skills (`skills/`) or the dashboard's own |
-| `engine` | Optional. Only when the agent needs one engine (the Mail Assistant uses `claude-code` for the Gmail connector) |
-| `starter` | `true` on the 8 agents the Home page's "add the starter team" hires |
+| Key             | What it's for                                                                                                                                                                                                                                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`, `emoji` | The card and the hired agent. Familiar job titles                                                                                                                                                                                                                                                                      |
+| `description`   | One sentence of about 30 words: what it does and when you'd pick it. The card and the preview show it                                                                                                                                                                                                                  |
+| `color`         | Hex in quotes, mid-tone, readable on white and on near-black                                                                                                                                                                                                                                                           |
+| `specialty`     | A lower-case phrase with no full stop. It finishes "You are Code Reviewer, …", the line the dashboard puts first in every agent's instructions, and it's what the Brain reads when it picks teammates                                                                                                                  |
+| `group`         | An id from `groups.json`, the same as the folder the file is in                                                                                                                                                                                                                                                        |
+| `tools`         | The tool groups it starts with (`TOOL_GROUPS` in `server/tools.ts`). Every agent has `shell` and `agents`, so any agent can run a command (the user approves each one unless autonomy is Full) and ask a teammate. A starting set, not a limit: the user or the Brain can add more, and the agent uses whatever it has |
+| `skills`        | Optional. Skill slugs it starts with, from the bundled skills (`skills/`) or the dashboard's own                                                                                                                                                                                                                       |
+| `engine`        | Optional. Only when the agent needs one engine (the Mail Assistant uses `claude-code` for the Gmail connector)                                                                                                                                                                                                         |
+| `starter`       | `true` on the 8 agents the Home page's "add the starter team" hires                                                                                                                                                                                                                                                    |
 
 ## Body
 
@@ -109,7 +109,7 @@ Models and their tools keep getting better, so the files are written to age well
 8. **Fresh text.** The old Agency files are a list of topics at most. Nothing is copied from them.
 9. **Commands that work unattended.** A command the agent is told to run must work when its output is read by a
    program and nothing can be typed in: no pagers, prompts or colour-only output (`git diff --color=always
-   --color-moved`, not `--color-moved` alone).
+--color-moved`, not `--color-moved` alone).
 
 ## Where the old agents went
 
@@ -118,136 +118,136 @@ in code before). The other 149 were left out and can be added back.
 
 ### Engineering
 
-| Agent | Took over |
-|---|---|
-| Software Architect (`software-architect`) | `engineering-software-architect`, `specialized-master-plan-architect` |
-| Backend Architect (`backend-architect`) | `engineering-backend-architect`, `engineering-api-platform-engineer` |
-| Frontend Developer (`frontend-developer`) | `engineering-frontend-developer` |
-| Senior Developer (`senior-developer`) | `engineering-senior-developer`, `engineering-rapid-prototyper` |
-| Mobile App Builder (`mobile-app-builder`) | `engineering-mobile-app-builder`, `engineering-mobile-release-engineer` |
-| Code Reviewer (`code-reviewer`) | `engineering-code-reviewer` |
-| Minimal Change Engineer (`minimal-change-engineer`) | `engineering-minimal-change-engineer` |
-| Codebase Guide (`codebase-guide`) | `engineering-codebase-onboarding-engineer`, `specialized-codebase-archaeologist` |
-| DevOps Automator (`devops-automator`) | `engineering-devops-automator`, `engineering-git-workflow-master`, `engineering-platform-engineer` |
-| Site Reliability Engineer (`site-reliability-engineer`) | `engineering-sre`, `engineering-incident-response-commander`, `support-infrastructure-maintainer` |
-| Database Optimizer (`database-optimizer`) | `engineering-database-optimizer`, `engineering-database-reliability-engineer` |
-| Data Engineer (`data-engineer`) | `engineering-data-engineer` |
-| AI Engineer (`ai-engineer`) | `engineering-ai-engineer`, `engineering-rag-pipeline-engineer` |
-| Prompt Engineer (`prompt-engineer`) | `engineering-prompt-engineer` |
-| MCP Builder (`mcp-builder`) | `specialized-mcp-builder` |
-| Technical Writer (`technical-writer`) | `engineering-technical-writer` |
-| Reality Checker (`reality-checker`) | `testing-reality-checker`, `testing-evidence-collector` |
-| API Tester (`api-tester`) | `testing-api-tester` |
-| Test Automation Engineer (`test-automation-engineer`) | `testing-test-automation-engineer`, `testing-test-results-analyzer` |
-| Accessibility Auditor (`accessibility-auditor`) | `testing-accessibility-auditor`, `engineering-section-508-specialist` |
-| Performance Benchmarker (`performance-benchmarker`) | `testing-performance-benchmarker` |
-| Application Security Engineer (`application-security-engineer`) | `security-appsec-engineer`, `security-senior-secops` |
-| AI Code Security Auditor (`ai-code-security-auditor`) | `security-ai-generated-code-auditor` |
-| Security Architect (`security-architect`) | `security-architect`, `security-cloud-security-architect` |
-| Penetration Tester (`penetration-tester`) | `security-penetration-tester` |
-| Secrets Hygiene Engineer (`secrets-hygiene-engineer`) | `security-secrets-credential-engineer` |
+| Agent                                                           | Took over                                                                                          |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Software Architect (`software-architect`)                       | `engineering-software-architect`, `specialized-master-plan-architect`                              |
+| Backend Architect (`backend-architect`)                         | `engineering-backend-architect`, `engineering-api-platform-engineer`                               |
+| Frontend Developer (`frontend-developer`)                       | `engineering-frontend-developer`                                                                   |
+| Senior Developer (`senior-developer`)                           | `engineering-senior-developer`, `engineering-rapid-prototyper`                                     |
+| Mobile App Builder (`mobile-app-builder`)                       | `engineering-mobile-app-builder`, `engineering-mobile-release-engineer`                            |
+| Code Reviewer (`code-reviewer`)                                 | `engineering-code-reviewer`                                                                        |
+| Minimal Change Engineer (`minimal-change-engineer`)             | `engineering-minimal-change-engineer`                                                              |
+| Codebase Guide (`codebase-guide`)                               | `engineering-codebase-onboarding-engineer`, `specialized-codebase-archaeologist`                   |
+| DevOps Automator (`devops-automator`)                           | `engineering-devops-automator`, `engineering-git-workflow-master`, `engineering-platform-engineer` |
+| Site Reliability Engineer (`site-reliability-engineer`)         | `engineering-sre`, `engineering-incident-response-commander`, `support-infrastructure-maintainer`  |
+| Database Optimizer (`database-optimizer`)                       | `engineering-database-optimizer`, `engineering-database-reliability-engineer`                      |
+| Data Engineer (`data-engineer`)                                 | `engineering-data-engineer`                                                                        |
+| AI Engineer (`ai-engineer`)                                     | `engineering-ai-engineer`, `engineering-rag-pipeline-engineer`                                     |
+| Prompt Engineer (`prompt-engineer`)                             | `engineering-prompt-engineer`                                                                      |
+| MCP Builder (`mcp-builder`)                                     | `specialized-mcp-builder`                                                                          |
+| Technical Writer (`technical-writer`)                           | `engineering-technical-writer`                                                                     |
+| Reality Checker (`reality-checker`)                             | `testing-reality-checker`, `testing-evidence-collector`                                            |
+| API Tester (`api-tester`)                                       | `testing-api-tester`                                                                               |
+| Test Automation Engineer (`test-automation-engineer`)           | `testing-test-automation-engineer`, `testing-test-results-analyzer`                                |
+| Accessibility Auditor (`accessibility-auditor`)                 | `testing-accessibility-auditor`, `engineering-section-508-specialist`                              |
+| Performance Benchmarker (`performance-benchmarker`)             | `testing-performance-benchmarker`                                                                  |
+| Application Security Engineer (`application-security-engineer`) | `security-appsec-engineer`, `security-senior-secops`                                               |
+| AI Code Security Auditor (`ai-code-security-auditor`)           | `security-ai-generated-code-auditor`                                                               |
+| Security Architect (`security-architect`)                       | `security-architect`, `security-cloud-security-architect`                                          |
+| Penetration Tester (`penetration-tester`)                       | `security-penetration-tester`                                                                      |
+| Secrets Hygiene Engineer (`secrets-hygiene-engineer`)           | `security-secrets-credential-engineer`                                                             |
 
 ### Design
 
-| Agent | Took over |
-|---|---|
-| UI Designer (`ui-designer`) | `design-ui-designer` |
-| UX Architect (`ux-architect`) | `design-ux-architect` |
-| UX Researcher (`ux-researcher`) | `design-ux-researcher`, `design-persona-walkthrough` |
-| Brand Guardian (`brand-guardian`) | `design-brand-guardian`, `design-visual-storyteller` |
-| UI Finish Reviewer (`ui-finish-reviewer`) | `design-ui-finish-gate-reviewer` |
+| Agent                                     | Took over                                            |
+| ----------------------------------------- | ---------------------------------------------------- |
+| UI Designer (`ui-designer`)               | `design-ui-designer`                                 |
+| UX Architect (`ux-architect`)             | `design-ux-architect`                                |
+| UX Researcher (`ux-researcher`)           | `design-ux-researcher`, `design-persona-walkthrough` |
+| Brand Guardian (`brand-guardian`)         | `design-brand-guardian`, `design-visual-storyteller` |
+| UI Finish Reviewer (`ui-finish-reviewer`) | `design-ui-finish-gate-reviewer`                     |
 
 ### Images, video and 3D
 
-| Agent | Took over |
-|---|---|
-| ★ Image Maker (`image-maker`) | Athena starter, `design-image-prompt-engineer`, `design-inclusive-visuals-specialist` |
-| ★ 3D Artist (`3d-artist`) | Athena starter |
-| ★ Video Editor (`video-editor`) | Athena starter, `marketing-short-video-editing-coach` |
+| Agent                           | Took over                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| ★ Image Maker (`image-maker`)   | Athena starter, `design-image-prompt-engineer`, `design-inclusive-visuals-specialist` |
+| ★ 3D Artist (`3d-artist`)       | Athena starter                                                                        |
+| ★ Video Editor (`video-editor`) | Athena starter, `marketing-short-video-editing-coach`                                 |
 
 ### Games and the voxel world
 
-| Agent | Took over |
-|---|---|
-| ★ World Builder (`world-builder`) | Athena starter |
-| Game Designer (`game-designer`) | `game-designer`, `economy-designer` |
-| Narrative Designer (`narrative-designer`) | `narrative-designer` |
-| Technical Artist (`technical-artist`) | `technical-artist` |
-| Blender Add-on Engineer (`blender-add-on-engineer`) | `blender-addon-engineer` |
-| Unity Developer (`unity-developer`) | `unity-architect`, `unity-editor-tool-developer`, `unity-multiplayer-engineer`, `unity-shader-graph-artist` |
-| Unreal Developer (`unreal-developer`) | `unreal-systems-engineer`, `unreal-multiplayer-architect`, `unreal-technical-artist`, `unreal-world-builder` |
-| Godot Developer (`godot-developer`) | `godot-gameplay-scripter`, `godot-multiplayer-engineer`, `godot-shader-developer` |
-| Three.js Developer (`three-js-developer`) | `xr-immersive-developer` |
+| Agent                                               | Took over                                                                                                    |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| ★ World Builder (`world-builder`)                   | Athena starter                                                                                               |
+| Game Designer (`game-designer`)                     | `game-designer`, `economy-designer`                                                                          |
+| Narrative Designer (`narrative-designer`)           | `narrative-designer`                                                                                         |
+| Technical Artist (`technical-artist`)               | `technical-artist`                                                                                           |
+| Blender Add-on Engineer (`blender-add-on-engineer`) | `blender-addon-engineer`                                                                                     |
+| Unity Developer (`unity-developer`)                 | `unity-architect`, `unity-editor-tool-developer`, `unity-multiplayer-engineer`, `unity-shader-graph-artist`  |
+| Unreal Developer (`unreal-developer`)               | `unreal-systems-engineer`, `unreal-multiplayer-architect`, `unreal-technical-artist`, `unreal-world-builder` |
+| Godot Developer (`godot-developer`)                 | `godot-gameplay-scripter`, `godot-multiplayer-engineer`, `godot-shader-developer`                            |
+| Three.js Developer (`three-js-developer`)           | `xr-immersive-developer`                                                                                     |
 
 ### Marketing and social
 
-| Agent | Took over |
-|---|---|
-| ★ X Writer (`x-writer`) | Athena starter, `marketing-twitter-engager`, `marketing-x-twitter-intelligence-analyst` |
-| Content Creator (`content-creator`) | `marketing-content-creator` |
-| SEO Specialist (`seo-specialist`) | `marketing-seo-specialist` |
-| AI Search Optimizer (`ai-search-optimizer`) | `marketing-ai-citation-strategist`, `marketing-aeo-foundations`, `marketing-agentic-search-optimizer` |
-| Social Media Strategist (`social-media-strategist`) | `marketing-social-media-strategist`, `marketing-instagram-curator` |
-| LinkedIn Writer (`linkedin-writer`) | `marketing-linkedin-content-creator` |
-| TikTok Strategist (`tiktok-strategist`) | `marketing-tiktok-strategist`, `marketing-carousel-growth-engine` |
-| Reddit Community Builder (`reddit-community-builder`) | `marketing-reddit-community-builder` |
-| YouTube Strategist (`youtube-strategist`) | `marketing-video-optimization-specialist` |
-| Email Marketer (`email-marketer`) | `marketing-email-strategist` |
-| Growth Hacker (`growth-hacker`) | `marketing-growth-hacker` |
-| PR Manager (`pr-manager`) | `marketing-pr-communications-manager` |
-| Book Co-Author (`book-co-author`) | `marketing-book-co-author` |
-| Search Ads Strategist (`search-ads-strategist`) | `paid-media-ppc-strategist`, `paid-media-search-query-analyst`, `paid-media-auditor`, `paid-media-tracking-specialist` |
-| Paid Social Strategist (`paid-social-strategist`) | `paid-media-paid-social-strategist`, `paid-media-creative-strategist` |
+| Agent                                                 | Took over                                                                                                              |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| ★ X Writer (`x-writer`)                               | Athena starter, `marketing-twitter-engager`, `marketing-x-twitter-intelligence-analyst`                                |
+| Content Creator (`content-creator`)                   | `marketing-content-creator`                                                                                            |
+| SEO Specialist (`seo-specialist`)                     | `marketing-seo-specialist`                                                                                             |
+| AI Search Optimizer (`ai-search-optimizer`)           | `marketing-ai-citation-strategist`, `marketing-aeo-foundations`, `marketing-agentic-search-optimizer`                  |
+| Social Media Strategist (`social-media-strategist`)   | `marketing-social-media-strategist`, `marketing-instagram-curator`                                                     |
+| LinkedIn Writer (`linkedin-writer`)                   | `marketing-linkedin-content-creator`                                                                                   |
+| TikTok Strategist (`tiktok-strategist`)               | `marketing-tiktok-strategist`, `marketing-carousel-growth-engine`                                                      |
+| Reddit Community Builder (`reddit-community-builder`) | `marketing-reddit-community-builder`                                                                                   |
+| YouTube Strategist (`youtube-strategist`)             | `marketing-video-optimization-specialist`                                                                              |
+| Email Marketer (`email-marketer`)                     | `marketing-email-strategist`                                                                                           |
+| Growth Hacker (`growth-hacker`)                       | `marketing-growth-hacker`                                                                                              |
+| PR Manager (`pr-manager`)                             | `marketing-pr-communications-manager`                                                                                  |
+| Book Co-Author (`book-co-author`)                     | `marketing-book-co-author`                                                                                             |
+| Search Ads Strategist (`search-ads-strategist`)       | `paid-media-ppc-strategist`, `paid-media-search-query-analyst`, `paid-media-auditor`, `paid-media-tracking-specialist` |
+| Paid Social Strategist (`paid-social-strategist`)     | `paid-media-paid-social-strategist`, `paid-media-creative-strategist`                                                  |
 
 ### Sales and support
 
-| Agent | Took over |
-|---|---|
-| Outbound Strategist (`outbound-strategist`) | `sales-outbound-strategist`, `sales-outreach` |
-| Deal Strategist (`deal-strategist`) | `sales-deal-strategist`, `sales-discovery-coach` |
-| Proposal Writer (`proposal-writer`) | `sales-proposal-strategist` |
-| Offer Strategist (`offer-strategist`) | `sales-offer-lead-gen-strategist` |
-| Support Responder (`support-responder`) | `support-support-responder`, `customer-service`, `customer-success-manager` |
+| Agent                                       | Took over                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------- |
+| Outbound Strategist (`outbound-strategist`) | `sales-outbound-strategist`, `sales-outreach`                               |
+| Deal Strategist (`deal-strategist`)         | `sales-deal-strategist`, `sales-discovery-coach`                            |
+| Proposal Writer (`proposal-writer`)         | `sales-proposal-strategist`                                                 |
+| Offer Strategist (`offer-strategist`)       | `sales-offer-lead-gen-strategist`                                           |
+| Support Responder (`support-responder`)     | `support-support-responder`, `customer-service`, `customer-success-manager` |
 
 ### Product and projects
 
-| Agent | Took over |
-|---|---|
-| Product Manager (`product-manager`) | `product-manager`, `product-sprint-prioritizer` |
-| Feedback Synthesizer (`feedback-synthesizer`) | `product-feedback-synthesizer` |
-| Trend Researcher (`trend-researcher`) | `product-trend-researcher` |
-| Project Manager (`project-manager`) | `project-manager-senior`, `project-management-project-shepherd`, `project-management-studio-producer` |
-| Meeting Notes Taker (`meeting-notes-taker`) | `project-management-meeting-notes-specialist` |
+| Agent                                         | Took over                                                                                             |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Product Manager (`product-manager`)           | `product-manager`, `product-sprint-prioritizer`                                                       |
+| Feedback Synthesizer (`feedback-synthesizer`) | `product-feedback-synthesizer`                                                                        |
+| Trend Researcher (`trend-researcher`)         | `product-trend-researcher`                                                                            |
+| Project Manager (`project-manager`)           | `project-manager-senior`, `project-management-project-shepherd`, `project-management-studio-producer` |
+| Meeting Notes Taker (`meeting-notes-taker`)   | `project-management-meeting-notes-specialist`                                                         |
 
 ### Research and analysis
 
-| Agent | Took over |
-|---|---|
-| ★ Researcher (`researcher`) | Athena starter, `research-synthesist` |
-| Data Analyst (`data-analyst`) | `support-analytics-reporter`, `engineering-data-visualization-engineer` |
-| Statistician (`statistician`) | `academic-statistician` |
-| Executive Summary Writer (`executive-summary-writer`) | `support-executive-summary-generator` |
-| Business Strategist (`business-strategist`) | `business-strategist` |
-| Tool Evaluator (`tool-evaluator`) | `testing-tool-evaluator` |
+| Agent                                                 | Took over                                                               |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- |
+| ★ Researcher (`researcher`)                           | Athena starter, `research-synthesist`                                   |
+| Data Analyst (`data-analyst`)                         | `support-analytics-reporter`, `engineering-data-visualization-engineer` |
+| Statistician (`statistician`)                         | `academic-statistician`                                                 |
+| Executive Summary Writer (`executive-summary-writer`) | `support-executive-summary-generator`                                   |
+| Business Strategist (`business-strategist`)           | `business-strategist`                                                   |
+| Tool Evaluator (`tool-evaluator`)                     | `testing-tool-evaluator`                                                |
 
 ### Business and finance
 
-| Agent | Took over |
-|---|---|
-| ★ Coordinator (`coordinator`) | Athena starter, `agents-orchestrator` |
-| ★ Mail Assistant (`mail-assistant`) | Athena starter |
-| Chief of Staff (`chief-of-staff`) | `specialized-chief-of-staff` |
-| Operations Manager (`operations-manager`) | `operations-manager`, `testing-workflow-optimizer` |
-| Legal Document Reviewer (`legal-document-reviewer`) | `legal-document-review`, `support-legal-compliance-checker` |
-| Grant Writer (`grant-writer`) | `grant-writer` |
-| Resume Tailor (`resume-tailor`) | `resume-tailor` |
-| Translator (`translator`) | `language-translator` |
-| Document Maker (`document-maker`) | `specialized-document-generator` |
-| Notes Steward (`notes-steward`) | `zk-steward` |
-| Financial Analyst (`financial-analyst`) | `finance-financial-analyst`, `finance-fpa-analyst`, `support-finance-tracker` |
-| Bookkeeper (`bookkeeper`) | `finance-bookkeeper-controller` |
-| Investment Researcher (`investment-researcher`) | `finance-investment-researcher` |
-| Pricing Analyst (`pricing-analyst`) | `specialized-pricing-analyst` |
+| Agent                                               | Took over                                                                     |
+| --------------------------------------------------- | ----------------------------------------------------------------------------- |
+| ★ Coordinator (`coordinator`)                       | Athena starter, `agents-orchestrator`                                         |
+| ★ Mail Assistant (`mail-assistant`)                 | Athena starter                                                                |
+| Chief of Staff (`chief-of-staff`)                   | `specialized-chief-of-staff`                                                  |
+| Operations Manager (`operations-manager`)           | `operations-manager`, `testing-workflow-optimizer`                            |
+| Legal Document Reviewer (`legal-document-reviewer`) | `legal-document-review`, `support-legal-compliance-checker`                   |
+| Grant Writer (`grant-writer`)                       | `grant-writer`                                                                |
+| Resume Tailor (`resume-tailor`)                     | `resume-tailor`                                                               |
+| Translator (`translator`)                           | `language-translator`                                                         |
+| Document Maker (`document-maker`)                   | `specialized-document-generator`                                              |
+| Notes Steward (`notes-steward`)                     | `zk-steward`                                                                  |
+| Financial Analyst (`financial-analyst`)             | `finance-financial-analyst`, `finance-fpa-analyst`, `support-finance-tracker` |
+| Bookkeeper (`bookkeeper`)                           | `finance-bookkeeper-controller`                                               |
+| Investment Researcher (`investment-researcher`)     | `finance-investment-researcher`                                               |
+| Pricing Analyst (`pricing-analyst`)                 | `specialized-pricing-analyst`                                                 |
 
 ### Left out (149)
 

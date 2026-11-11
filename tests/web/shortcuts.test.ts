@@ -1,10 +1,21 @@
 // The keyboard away from the page's own controls: the Brain chat (Ctrl+K / ⌘K anywhere, Space on the
 // Station), the chat windows, and what Esc does once nothing has taken it.
 import { afterEach, describe, expect, it } from 'vitest';
-import { backdropEscape, brainKeyLabel, brainKeyTitle, brainShortcut, chatWindowKeys, chatWindowShortcut } from '../../web/shortcuts.ts';
+import {
+  backdropEscape,
+  brainKeyLabel,
+  brainKeyTitle,
+  brainShortcut,
+  chatWindowKeys,
+  chatWindowShortcut,
+} from '../../web/shortcuts.ts';
 
 /** Presses a key on el (the page itself by default) and says what it does to the Brain chat. */
-function press(init: KeyboardEventInit, ctx: { open?: boolean; onStation?: boolean } = {}, el: Element = document.body) {
+function press(
+  init: KeyboardEventInit,
+  ctx: { open?: boolean; onStation?: boolean } = {},
+  el: Element = document.body,
+) {
   let out: ReturnType<typeof brainShortcut> = null;
   const listen = (e: Event) => (out = brainShortcut(e as KeyboardEvent, { open: false, onStation: true, ...ctx }));
   document.addEventListener('keydown', listen);
@@ -41,7 +52,15 @@ describe('brainShortcut()', () => {
   });
 
   it('Space while typing, or on a button or link, keeps its usual job', () => {
-    for (const html of ['<input>', '<textarea></textarea>', '<select></select>', '<button>Go</button>', '<a href="#x">x</a>', '<div contenteditable="true">x</div>', '<div role="button">x</div>']) {
+    for (const html of [
+      '<input>',
+      '<textarea></textarea>',
+      '<select></select>',
+      '<button>Go</button>',
+      '<a href="#x">x</a>',
+      '<div contenteditable="true">x</div>',
+      '<div role="button">x</div>',
+    ]) {
       document.body.innerHTML = html;
       expect(press({ key: ' ' }, {}, document.body.firstElementChild!), html).toBeNull();
     }
@@ -159,7 +178,21 @@ describe('chatWindowShortcut()', () => {
   });
 
   it('the tooltips and the Layout menu show the keys', () => {
-    expect(chatWindowKeys(true)).toEqual({ minimize: '⌘↓', restore: '⌘↑', left: '⌃⌥←', right: '⌃⌥→', separate: '⌃⌥↑', combine: '⌃⌥↓' });
-    expect(chatWindowKeys(false)).toEqual({ minimize: 'Ctrl+↓', restore: 'Ctrl+↑', left: 'Ctrl+Alt+←', right: 'Ctrl+Alt+→', separate: 'Ctrl+Alt+↑', combine: 'Ctrl+Alt+↓' });
+    expect(chatWindowKeys(true)).toEqual({
+      minimize: '⌘↓',
+      restore: '⌘↑',
+      left: '⌃⌥←',
+      right: '⌃⌥→',
+      separate: '⌃⌥↑',
+      combine: '⌃⌥↓',
+    });
+    expect(chatWindowKeys(false)).toEqual({
+      minimize: 'Ctrl+↓',
+      restore: 'Ctrl+↑',
+      left: 'Ctrl+Alt+←',
+      right: 'Ctrl+Alt+→',
+      separate: 'Ctrl+Alt+↑',
+      combine: 'Ctrl+Alt+↓',
+    });
   });
 });

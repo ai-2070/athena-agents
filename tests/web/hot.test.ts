@@ -2,7 +2,14 @@
 // out of its check (they keep their first version until the next reload), and a page that breaks right after an
 // update reloads.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BROKE_WITHIN_MS, VIEW_EXPORTS, ignoredExports, installHotRules, markView, watchUpdates } from '../../web/dev/hot.ts';
+import {
+  BROKE_WITHIN_MS,
+  VIEW_EXPORTS,
+  ignoredExports,
+  installHotRules,
+  markView,
+  watchUpdates,
+} from '../../web/dev/hot.ts';
 import type { HotEvents } from '../../web/dev/hot.ts';
 
 describe('ignoredExports', () => {
@@ -16,7 +23,12 @@ describe('ignoredExports', () => {
   });
 
   it('checks every other file in full, wherever it is', () => {
-    for (const id of ['/Users/me/athena/web/app.ts', '/Users/me/athena/web/views/station.ts', '/Users/me/athena/web/views/stationpanel.tsx', '/Users/me/athena/web/ui/button.tsx'])
+    for (const id of [
+      '/Users/me/athena/web/app.ts',
+      '/Users/me/athena/web/views/station.ts',
+      '/Users/me/athena/web/views/stationpanel.tsx',
+      '/Users/me/athena/web/ui/button.tsx',
+    ])
       expect(ignoredExports(id), id).toEqual([]);
   });
 
@@ -82,7 +94,9 @@ describe('watchUpdates: a page that breaks right after a hot update reloads', ()
   it("leaves harmless errors alone: the browser's ResizeObserver note, a request called off", () => {
     const { fire, reload } = setup();
     fire('vite:afterUpdate');
-    window.dispatchEvent(new ErrorEvent('error', { message: 'ResizeObserver loop completed with undelivered notifications.' }));
+    window.dispatchEvent(
+      new ErrorEvent('error', { message: 'ResizeObserver loop completed with undelivered notifications.' }),
+    );
     const aborted = new Event('unhandledrejection') as Event & { reason?: unknown };
     aborted.reason = new DOMException('The operation was aborted.', 'AbortError');
     window.dispatchEvent(aborted);

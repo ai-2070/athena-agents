@@ -18,7 +18,21 @@ const b64 = (v: unknown) => Buffer.from(typeof v === 'string' ? v : JSON.stringi
 // A backup file with a hand-made payload
 function craft(payload: Record<string, unknown>): Buffer {
   const head = `MY-DASHBOARD-BACKUP 1\n${JSON.stringify({ app: 'my-dashboard', name: 'Crafted' })}\n`;
-  return Buffer.concat([Buffer.from(head), zlib.gzipSync(JSON.stringify({ app: 'my-dashboard', kind: 'workspace-backup', format: 1, createdAt: 1, project: { name: 'Crafted' }, agents: [], teams: [], ...payload }))]);
+  return Buffer.concat([
+    Buffer.from(head),
+    zlib.gzipSync(
+      JSON.stringify({
+        app: 'my-dashboard',
+        kind: 'workspace-backup',
+        format: 1,
+        createdAt: 1,
+        project: { name: 'Crafted' },
+        agents: [],
+        teams: [],
+        ...payload,
+      }),
+    ),
+  ]);
 }
 // forget a skill on this PC (as on another PC that never had it)
 const forget = (slug: string) => {
@@ -38,7 +52,15 @@ describe('backups with earlier versions', () => {
     agents.save({ ...agents.get(a.id)!, systemPrompt: 'Agent v2.' });
     const dropped = newAgent({ name: 'Dropped agent' });
     agents.remove(dropped.id);
-    const t = workflows.save({ name: 'Versioned crew', description: 'Goal v1', members: [a.id], lead: null, steps: [], schedule: { type: 'daily', times: ['09:00'] }, enabled: true } as Partial<Team>);
+    const t = workflows.save({
+      name: 'Versioned crew',
+      description: 'Goal v1',
+      members: [a.id],
+      lead: null,
+      steps: [],
+      schedule: { type: 'daily', times: ['09:00'] },
+      enabled: true,
+    } as Partial<Team>);
     withActor('brain', () => workflows.save({ ...workflows.get(t.id)!, description: 'Goal v2' }));
 
     const file = backup.createBackup(p.id);
@@ -68,7 +90,15 @@ describe('backups with earlier versions', () => {
 
   it("restoring a team's old version from a backup starts it paused", async () => {
     const p = await createProject({ name: 'Paused history', mode: 'new', folder: folder('paused-history') });
-    const t = workflows.save({ name: 'Scheduled', description: 'g1', members: [], lead: null, steps: [], schedule: { type: 'daily', times: ['07:00'] }, enabled: true } as Partial<Team>);
+    const t = workflows.save({
+      name: 'Scheduled',
+      description: 'g1',
+      members: [],
+      lead: null,
+      steps: [],
+      schedule: { type: 'daily', times: ['07:00'] },
+      enabled: true,
+    } as Partial<Team>);
     workflows.save({ ...workflows.get(t.id)!, description: 'g2' });
     const file = backup.createBackup(p.id);
     const { project } = await backup.restoreBackup(fs.readFileSync(file.file), { name: 'Paused again' });
@@ -77,7 +107,7 @@ describe('backups with earlier versions', () => {
     expect(old.item).toMatchObject({ description: 'g1', enabled: false });
   });
 
-  it("a skill added as <id>-restored takes its history along; yours keeps its own", async () => {
+  it('a skill added as <id>-restored takes its history along; yours keeps its own', async () => {
     const p = await createProject({ name: 'Renamed history', mode: 'new', folder: folder('renamed-history') });
     const sk = skills.saveSkill({ name: 'Clashing', description: 'Use c.', body: 'Theirs v1.' })!;
     skills.saveSkill({ slug: sk.slug, name: 'Clashing', description: 'Use c.', body: 'Theirs v2.' });
@@ -115,7 +145,17 @@ describe('backups with earlier versions', () => {
   it("leaves out a deleted skill's history when a different skill here has its id", async () => {
     const vid = 'v-old';
     const buf = craft({
-      versions: [{ path: `skills/taken-here/${vid}.json`, data: b64({ at: 5, by: 'you', deleted: true, item: { name: 'Taken', description: 'Old.', body: 'Old body.' } }) }],
+      versions: [
+        {
+          path: `skills/taken-here/${vid}.json`,
+          data: b64({
+            at: 5,
+            by: 'you',
+            deleted: true,
+            item: { name: 'Taken', description: 'Old.', body: 'Old body.' },
+          }),
+        },
+      ],
     });
     skills.saveSkill({ name: 'Taken here', description: 'Mine.', body: 'Mine.' });
     await backup.restoreBackup(buf, { name: 'Crafted taken' });
@@ -133,7 +173,15 @@ describe('backups with earlier versions', () => {
         { path: 'agents/../escape/v-1.json', data: b64(good) },
         { path: 'routines/r-1/v-1.json', data: b64(good) },
         { path: 'skills/Bad Name/v-1.json', data: b64({ at: 1, item: { name: 'x', description: 'x', body: 'x' } }) },
-        { path: 'skills/crafted-skill/v-s.json', data: b64({ at: 2, by: 'you', deleted: true, item: { name: 'Crafted skill', description: 'Old.', body: 'Body.' } }) },
+        {
+          path: 'skills/crafted-skill/v-s.json',
+          data: b64({
+            at: 2,
+            by: 'you',
+            deleted: true,
+            item: { name: 'Crafted skill', description: 'Old.', body: 'Body.' },
+          }),
+        },
         { path: 'skills/crafted-skill/files-v-s/../../../escape.md', data: b64('nope') },
         { path: 'skills/crafted-skill/files-v-s/ok.md', data: b64('ok file') },
       ],
@@ -142,21 +190,39 @@ describe('backups with earlier versions', () => {
     setActiveProject(project.id);
     expect(restored.versions).toBe(2);
     const kept = listVersions(agents.versionsDir('agent-x')!);
-    expect(kept).toEqual([{ id: 'v-good', at: 7, by: 'you', note: 'n', item: expect.objectContaining({ id: 'agent-x', name: 'Crafted agent v1' }) }]);
+    expect(kept).toEqual([
+      {
+        id: 'v-good',
+        at: 7,
+        by: 'you',
+        note: 'n',
+        item: expect.objectContaining({ id: 'agent-x', name: 'Crafted agent v1' }),
+      },
+    ]);
     expect(fs.existsSync(path.join(path.dirname(agents.versionsDir('x')!), 'escape'))).toBe(false);
     undelete('skill', 'crafted-skill');
     expect(skills.skillExtraFiles(skills.skillDir('crafted-skill'))).toEqual(['ok.md']);
   });
 
   it('restores a backup made before versions were in backups', async () => {
-    const { restored } = await backup.restoreBackup(craft({ agents: [{ id: 'agent-old', name: 'Old' }] }), { name: 'Older backup' });
+    const { restored } = await backup.restoreBackup(craft({ agents: [{ id: 'agent-old', name: 'Old' }] }), {
+      name: 'Older backup',
+    });
     expect(restored.versions).toBe(0);
   });
 
   it('turns away versions dated in the future, and a future one here never swallows later edits', async () => {
     const future = Date.now() + 10 * 365 * 24 * 3600 * 1000;
     const { project, restored } = await backup.restoreBackup(
-      craft({ agents: [{ id: 'agent-f', name: 'F' }], versions: [{ path: 'agents/agent-f/v-future.json', data: b64({ at: future, by: 'you', item: { name: 'From the future' } }) }] }),
+      craft({
+        agents: [{ id: 'agent-f', name: 'F' }],
+        versions: [
+          {
+            path: 'agents/agent-f/v-future.json',
+            data: b64({ at: future, by: 'you', item: { name: 'From the future' } }),
+          },
+        ],
+      }),
       { name: 'Future versions' },
     );
     expect(restored.versions).toBe(0);
@@ -164,7 +230,10 @@ describe('backups with earlier versions', () => {
     // and if one got here some other way, ordinary edits still each keep a version, dated now
     const dir = agents.versionsDir('agent-f')!;
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, 'v-planted.json'), JSON.stringify({ id: 'v-planted', at: future, by: 'you', item: { id: 'agent-f', name: 'Planted' } }));
+    fs.writeFileSync(
+      path.join(dir, 'v-planted.json'),
+      JSON.stringify({ id: 'v-planted', at: future, by: 'you', item: { id: 'agent-f', name: 'Planted' } }),
+    );
     agents.save({ ...agents.get('agent-f')!, specialty: 'one' });
     agents.save({ ...agents.get('agent-f')!, specialty: 'two' });
     const mine = listVersions(dir).filter((v) => v.id !== 'v-planted');
@@ -178,9 +247,36 @@ describe('backups with earlier versions', () => {
       agents: [{ id: 'agent-o', name: 'Odd' }],
       teams: [{ id: 'team-o', name: 'Odd team', members: [], lead: null, steps: [] }],
       versions: [
-        { path: 'agents/agent-o/v-a.json', data: b64({ at: 3, by: 'you', item: { name: 'Odd v1', systemPrompt: { evil: true }, skills: 'nope', toolGroups: ['web', 3], knowledge: { folders: 'x' }, temperature: 'hot' } }) },
+        {
+          path: 'agents/agent-o/v-a.json',
+          data: b64({
+            at: 3,
+            by: 'you',
+            item: {
+              name: 'Odd v1',
+              systemPrompt: { evil: true },
+              skills: 'nope',
+              toolGroups: ['web', 3],
+              knowledge: { folders: 'x' },
+              temperature: 'hot',
+            },
+          }),
+        },
         { path: 'agents/agent-o/v-noname.json', data: b64({ at: 4, by: 'you', item: { systemPrompt: 'no name' } }) },
-        { path: 'teams/team-o/v-t.json', data: b64({ at: 3, by: 'you', item: { name: 'Odd team v1', steps: 'nope', members: [1, 2], schedule: { type: 'daily', days: 'mon', input: { x: 1 } }, access: { toolGroups: 'web' } } }) },
+        {
+          path: 'teams/team-o/v-t.json',
+          data: b64({
+            at: 3,
+            by: 'you',
+            item: {
+              name: 'Odd team v1',
+              steps: 'nope',
+              members: [1, 2],
+              schedule: { type: 'daily', days: 'mon', input: { x: 1 } },
+              access: { toolGroups: 'web' },
+            },
+          }),
+        },
       ],
     });
     const { project, restored } = await backup.restoreBackup(buf, { name: 'Odd versions' });
@@ -190,8 +286,13 @@ describe('backups with earlier versions', () => {
     expect(av).toEqual({ id: 'agent-o', name: 'Odd v1', skills: [] });
     expect(versionOf('agent', 'agent-o', historyOf('agent', 'agent-o').versions[0].id).text).toContain('Odd v1');
     const tv = listVersions<Record<string, unknown>>(workflows.versionsDir('team-o')!)[0].item;
-    expect(tv).toEqual({ id: 'team-o', name: 'Odd team v1', schedule: { type: 'daily' }, access: { toolGroups: [], mcpServers: [] }, skills: [] });
+    expect(tv).toEqual({
+      id: 'team-o',
+      name: 'Odd team v1',
+      schedule: { type: 'daily' },
+      access: { toolGroups: [], mcpServers: [] },
+      skills: [],
+    });
     expect(versionOf('team', 'team-o', historyOf('team', 'team-o').versions[0].id).text).toContain('Odd team v1');
   });
 });
-

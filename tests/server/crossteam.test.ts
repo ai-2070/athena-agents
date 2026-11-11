@@ -20,21 +20,32 @@ beforeAll(async () => {
     const system = j.messages[0].content;
     const last = j.messages.at(-1)!.content;
     let reply = 'Okay.';
-    if (system.includes('You are Producer')) reply = /#Design answered/.test(last) ? 'Got the logo from Design. All done.' : 'We need a logo. #Design please make one for the launch.';
+    if (system.includes('You are Producer'))
+      reply = /#Design answered/.test(last)
+        ? 'Got the logo from Design. All done.'
+        : 'We need a logo. #Design please make one for the launch.';
     // (it names the team that asked: that is its answer, not a new question to them)
     else if (system.includes('You are Designer')) reply = 'Logo done for #Studio: logo.png';
     else if (system.includes('You are Painter')) reply = 'Banner painted: banner.png';
     else if (system.includes('You are Slowpoke')) await new Promise((r) => setTimeout(r, 1500));
-    else if (system.includes('You are Norther')) reply = /#East answered/.test(last) ? 'North done.' : 'Need numbers. #East please help.';
-    else if (system.includes('You are Easter')) reply = /#South answered/.test(last) ? 'Numbers for #North: 42.' : '#South please count.';
+    else if (system.includes('You are Norther'))
+      reply = /#East answered/.test(last) ? 'North done.' : 'Need numbers. #East please help.';
+    else if (system.includes('You are Easter'))
+      reply = /#South answered/.test(last) ? 'Numbers for #North: 42.' : '#South please count.';
     else if (system.includes('You are Souther')) reply = '#North can you check this first?';
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: reply } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
@@ -47,7 +58,8 @@ async function settle(teamIds: string[], check: () => boolean, ms = 8000) {
   const quiet = () => teamIds.every((id) => !teamState(id).working.length && !teamState(id).queued.length);
   for (let t = 0; t < ms && !(quiet() && check()); t += 50) await new Promise((r) => setTimeout(r, 50));
 }
-const lines = (msgs: TeamMessage[], names: Record<string, string>) => msgs.map((m) => `${names[m.from] || m.from}: ${m.text.trim()}`);
+const lines = (msgs: TeamMessage[], names: Record<string, string>) =>
+  msgs.map((m) => `${names[m.from] || m.from}: ${m.text.trim()}`);
 
 describe('parseTeamRefs()', () => {
   const teams = [
@@ -85,7 +97,12 @@ describe('one team asks another', () => {
     const done = () => getThread(studio.id).messages.length >= 4;
     await settle([studio.id, design.id], done);
 
-    const names = { [producer.id]: 'Producer', [designer.id]: 'Designer', [teamFrom(design.id)]: '#Design', [teamFrom(studio.id)]: '#Studio' };
+    const names = {
+      [producer.id]: 'Producer',
+      [designer.id]: 'Designer',
+      [teamFrom(design.id)]: '#Design',
+      [teamFrom(studio.id)]: '#Studio',
+    };
     const here = getThread(studio.id).messages;
     expect(lines(here, names)).toEqual([
       'user: Plan the launch',
@@ -94,13 +111,22 @@ describe('one team asks another', () => {
       'Producer: Got the logo from Design. All done.',
     ]);
     // the answer says who wrote it there and which question it answers
-    expect(here[2].relay).toMatchObject({ teamId: design.id, teamName: 'Design', by: designer.id, byName: 'Designer', answers: here[1].id });
+    expect(here[2].relay).toMatchObject({
+      teamId: design.id,
+      teamName: 'Design',
+      by: designer.id,
+      byName: 'Designer',
+      answers: here[1].id,
+    });
     expect(here[2].replyTo).toBe(here[1].id);
 
     // the other team's chat: the question (from the team, by the agent that asked), then its answer.
     // Naming #Studio in the answer didn't send Studio a new question.
     const there = getThread(design.id).messages;
-    expect(lines(there, names)).toEqual(['#Studio: We need a logo. #Design please make one for the launch.', 'Designer: Logo done for #Studio: logo.png']);
+    expect(lines(there, names)).toEqual([
+      '#Studio: We need a logo. #Design please make one for the launch.',
+      'Designer: Logo done for #Studio: logo.png',
+    ]);
     expect(there[0].relay).toMatchObject({ teamId: studio.id, by: producer.id, byName: 'Producer' });
     expect(there[0].relay?.answers).toBeUndefined();
   });
@@ -115,8 +141,14 @@ describe('one team asks another', () => {
     await settle([lobby.id, banners.id], () => getThread(lobby.id).messages.length >= 2);
 
     const names = { [painter.id]: 'Painter', [teamFrom(banners.id)]: '#Banner Desk', [teamFrom(lobby.id)]: '#Lobby' };
-    expect(lines(getThread(lobby.id).messages, names)).toEqual(['user: #Banner Desk paint a banner for the launch', '#Banner Desk: Banner painted: banner.png']);
-    expect(lines(getThread(banners.id).messages, names)).toEqual(['#Lobby: #Banner Desk paint a banner for the launch', 'Painter: Banner painted: banner.png']);
+    expect(lines(getThread(lobby.id).messages, names)).toEqual([
+      'user: #Banner Desk paint a banner for the launch',
+      '#Banner Desk: Banner painted: banner.png',
+    ]);
+    expect(lines(getThread(banners.id).messages, names)).toEqual([
+      '#Lobby: #Banner Desk paint a banner for the launch',
+      'Painter: Banner painted: banner.png',
+    ]);
     expect(getThread(banners.id).messages[0].relay).toMatchObject({ by: 'user', byName: 'the user' });
   });
 
@@ -131,15 +163,32 @@ describe('one team asks another', () => {
     await postUserMessage(north.id, 'Get the numbers');
     await settle([north.id, east.id, south.id], () => getThread(north.id).messages.length >= 4);
 
-    const names = { [n.id]: 'Norther', [e.id]: 'Easter', [so.id]: 'Souther', [teamFrom(north.id)]: '#North', [teamFrom(east.id)]: '#East', [teamFrom(south.id)]: '#South' };
+    const names = {
+      [n.id]: 'Norther',
+      [e.id]: 'Easter',
+      [so.id]: 'Souther',
+      [teamFrom(north.id)]: '#North',
+      [teamFrom(east.id)]: '#East',
+      [teamFrom(south.id)]: '#South',
+    };
     // South waits on nobody: its reply is its answer, and the question to North is not sent
     expect(lines(getThread(south.id).messages, names)).toEqual([
       '#East: #South please count.',
       'Souther: #North can you check this first?',
       "system: Not sent to #North: it is waiting on this team's answer. Answer here instead.",
     ]);
-    expect(lines(getThread(east.id).messages, names)).toEqual(['#North: Need numbers. #East please help.', 'Easter: #South please count.', '#South: #North can you check this first?', 'Easter: Numbers for #North: 42.']);
-    expect(lines(getThread(north.id).messages, names)).toEqual(['user: Get the numbers', 'Norther: Need numbers. #East please help.', '#East: Numbers for #North: 42.', 'Norther: North done.']);
+    expect(lines(getThread(east.id).messages, names)).toEqual([
+      '#North: Need numbers. #East please help.',
+      'Easter: #South please count.',
+      '#South: #North can you check this first?',
+      'Easter: Numbers for #North: 42.',
+    ]);
+    expect(lines(getThread(north.id).messages, names)).toEqual([
+      'user: Get the numbers',
+      'Norther: Need numbers. #East please help.',
+      '#East: Numbers for #North: 42.',
+      'Norther: North done.',
+    ]);
   });
 
   it('a team stopped before it answered: the asking team hears so', async () => {

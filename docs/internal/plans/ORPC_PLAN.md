@@ -1,7 +1,7 @@
 # Typed API routes with oRPC
 
-*Plan, 2026-11-05. Done on `LZL0/orpc`: every JSON route is on oRPC. "Status" below has each area, in the order it
-moved, and "Where it ended" what is left.*
+_Plan, 2026-11-05. Done on `LZL0/orpc`: every JSON route is on oRPC. "Status" below has each area, in the order it
+moved, and "Where it ended" what is left._
 
 Goal: every JSON route says what it takes and what it gives back, in one place both sides read. The server
 checks what comes in before a handler sees it, and the page gets typed calls (`rpc.taskBoard.addTag({ … })`)
@@ -32,13 +32,13 @@ hold, so the next area can start. Where the build differs from the plan below:
 
 Measured:
 
-| | Before | After |
-|---|---|---|
-| `app.js` | 1,393,697 bytes (406,704 gzipped) | 1,422,468 (416,963): +28.8 KB, +10.3 KB gzipped |
-| Chunks `app.js` loads at start | 15 | 15 (no zod) |
-| `GET /api/task-board`, 30 tasks (median) | 0.15 ms | 0.18 ms |
-| `GET /api/about`, a route that didn't move | 0.05 ms | 0.05 ms |
-| `server/index.ts` | 1,750 lines | 1,716 |
+|                                            | Before                            | After                                           |
+| ------------------------------------------ | --------------------------------- | ----------------------------------------------- |
+| `app.js`                                   | 1,393,697 bytes (406,704 gzipped) | 1,422,468 (416,963): +28.8 KB, +10.3 KB gzipped |
+| Chunks `app.js` loads at start             | 15                                | 15 (no zod)                                     |
+| `GET /api/task-board`, 30 tasks (median)   | 0.15 ms                           | 0.18 ms                                         |
+| `GET /api/about`, a route that didn't move | 0.05 ms                           | 0.05 ms                                         |
+| `server/index.ts`                          | 1,750 lines                       | 1,716                                           |
 
 The board's page and server tests passed unchanged, and so did the desktop smoke test. The built page, loaded in
 headless Chrome, showed all 30 cards and their tags. Typing the page's save helpers (`BoardChange` instead of
@@ -57,6 +57,7 @@ headless Chrome, showed all 30 cards and their tags. Typing the page's save help
   a backup takes a file and stays on the old router.
 
 What the move turned up:
+
 - **The Station panel's description save had no project id to name** as far as the types could tell (`proj.id` is
   optional there; it was checked, but outside the call). It names it now.
 - **Four calls didn't encode the project id in the address**; typed calls always do.
@@ -344,7 +345,7 @@ routes and Node's `http` server like ours. It showed:
 
 - **URLs can stay as they are.** oRPC's OpenAPI handler serves a procedure at a path we give it
   (`POST /task-board-tags/{projectId}`). The client sent exactly today's requests: `POST
-  /api/task-board-tags/p%201` with body `{"name":"Bug"}` (the path's fields are left out of the body),
+/api/task-board-tags/p%201` with body `{"name":"Bug"}` (the path's fields are left out of the body),
   `GET /api/task-board?project=all`, `DELETE /api/task-board-tags/p1/t1`. So the page's tests, which stub
   `fetch` and check URLs and bodies, should pass unchanged.
 - **The two routers sit side by side.** A request oRPC doesn't match comes back with `matched: false` and its
@@ -381,13 +382,16 @@ const inProject = z.object({ projectId: z.string().min(1) });
 const tag = z.object({ name: z.string().optional(), emoji: z.string().optional() });
 
 export const taskBoard = {
-  board: oc.route({ method: 'GET', path: '/task-board' })
+  board: oc
+    .route({ method: 'GET', path: '/task-board' })
     .input(z.object({ project: z.string().default('all') }))
     .output(type<TaskBoardData>()),
-  tags: oc.route({ method: 'GET', path: '/task-board-tags/{projectId}' })
+  tags: oc
+    .route({ method: 'GET', path: '/task-board-tags/{projectId}' })
     .input(inProject)
     .output(type<{ tags: BoardTagUse[] }>()),
-  addTag: oc.route({ method: 'POST', path: '/task-board-tags/{projectId}' })
+  addTag: oc
+    .route({ method: 'POST', path: '/task-board-tags/{projectId}' })
     .input(inProject.extend(tag.shape))
     .output(type<{ tag: BoardTag }>()),
   // …
@@ -433,6 +437,7 @@ export const contract = { taskBoard };
   ```
 
   `cache-control: no-store` is what every JSON answer has today. Scoped routes still pass `SCOPED` first.
+
 - **The 25 MB body limit stays**, with oRPC's `BodyLimitPlugin`. No `CORSPlugin`: we never allow cross-site
   requests, and the guards in front already refuse them.
 
@@ -441,16 +446,18 @@ export const contract = { taskBoard };
 - **`web/client/rpc.ts`**: the one client.
 
   ```ts
-  export const rpc: ContractRouterClient<typeof contract> = createORPCClient(new OpenAPILink(contract, {
-    url: () => apiUrl(''),       // follows the connection (a paired phone's proxy, later)
-    headers: requestHeaders,     // x-dash, x-dash-project
-    interceptors: [/* ORPCError → Error with the server's `error` and `status`, as api() throws */],
-  }));
+  export const rpc: ContractRouterClient<typeof contract> = createORPCClient(
+    new OpenAPILink(contract, {
+      url: () => apiUrl(''), // follows the connection (a paired phone's proxy, later)
+      headers: requestHeaders, // x-dash, x-dash-project
+      interceptors: [/* ORPCError → Error with the server's `error` and `status`, as api() throws */],
+    }),
+  );
   ```
 
   It is inside `web/client/`, so the boundary test still holds. A caller sees the same errors as before.
-- **Callers change as their area moves**: `GET<TaskBoardData>(\`/task-board?project=${…}\`)` becomes
-  `rpc.taskBoard.board({ project })`. No hand-written paths, no `encodeURIComponent`, no guessed types.
+
+- **Callers change as their area moves**: `GET<TaskBoardData>(\`/task-board?project=${…}\`)`becomes`rpc.taskBoard.board({ project })`. No hand-written paths, no `encodeURIComponent`, no guessed types.
 - **Bundle**: importing the contract puts its zod schemas in `app.js`. If that shows in the pilot's size
   check, the build writes `minifyContractRouter(contract)` (paths and methods only, no schemas) to JSON, and the
   page's link uses that. The prototype used both.
@@ -458,6 +465,7 @@ export const contract = { taskBoard };
 ### What stays on the old router
 
 Routes that aren't "JSON in, JSON out" stay as they are; nothing forces them over:
+
 - file answers (`sendFileSafely`, PDFs, `task-board-file`), and the 9 handlers that write `res` themselves
 - uploads (`/api/uploads/…`, `postFile` backups) and the ComfyUI proxy
 - OAuth and the WebSockets (the AI SDK chat streams moved later, as event iterators: see "The chat streams")
@@ -472,16 +480,16 @@ The board is recent, has good tests on both sides, and its 19 routes cover the c
 params, POST/PUT/DELETE, async handlers (`startWork`), uploads passed by reference (`files`), and one file answer.
 It moves 18 routes; `GET /api/task-board-file/…` (a file) stays.
 
-| Procedure | Route |
-|---|---|
-| `taskBoard.board` | `GET /task-board?project=` |
-| `taskBoard.people` | `GET /task-board-people/{projectId}` |
-| `taskBoard.tags`, `addTag`, `changeTag`, `removeTag` | `/task-board-tags/{projectId}[/{tagId}]` |
-| `taskBoard.add`, `get`, `change`, `remove` | `/task-board/{projectId}[/{id}]` |
-| `taskBoard.start`, `stop`, `check` | `POST /task-board/{projectId}/{id}/start\|stop\|check` |
-| `taskBoard.addComment`, `changeComment`, `removeComment` | `/task-board/{projectId}/{id}/comments[/{cid}]` |
-| `taskBoard.rerank` | `PUT /task-board-ranks` |
-| `taskBoard.draft` | `POST /task-board-draft` |
+| Procedure                                                | Route                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------ |
+| `taskBoard.board`                                        | `GET /task-board?project=`                             |
+| `taskBoard.people`                                       | `GET /task-board-people/{projectId}`                   |
+| `taskBoard.tags`, `addTag`, `changeTag`, `removeTag`     | `/task-board-tags/{projectId}[/{tagId}]`               |
+| `taskBoard.add`, `get`, `change`, `remove`               | `/task-board/{projectId}[/{id}]`                       |
+| `taskBoard.start`, `stop`, `check`                       | `POST /task-board/{projectId}/{id}/start\|stop\|check` |
+| `taskBoard.addComment`, `changeComment`, `removeComment` | `/task-board/{projectId}/{id}/comments[/{cid}]`        |
+| `taskBoard.rerank`                                       | `PUT /task-board-ranks`                                |
+| `taskBoard.draft`                                        | `POST /task-board-draft`                               |
 
 Callers: `web/views/tasks.tsx`, `web/taskboard.tsx`, `web/tasktags.tsx`, `web/views/overview.tsx`.
 
@@ -510,6 +518,7 @@ Callers: `web/views/tasks.tsx`, `web/taskboard.tsx`, `web/tasktags.tsx`, `web/vi
 ### Decision after the pilot
 
 Carry on only if all of these hold:
+
 - the board's page and server tests passed unchanged, and the desktop smoke test passes
 - `app.js` grows by less than about 40 KB minified (with the minified contract if needed)
 - the area reads better: `server/index.ts` shorter, handlers without hand-written `unknown` checks, callers

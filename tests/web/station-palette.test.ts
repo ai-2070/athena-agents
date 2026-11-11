@@ -1,14 +1,24 @@
 // The Station's colours: worked out from the page's tokens for light or dark, and again when the page switches or the accent changes.
 import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { INK, alpha, brandTone, mix, mutedTone, pal, refreshPalette, watchPalette } from '../../web/views/stationpalette.ts';
+import {
+  INK,
+  alpha,
+  brandTone,
+  mix,
+  mutedTone,
+  pal,
+  refreshPalette,
+  watchPalette,
+} from '../../web/views/stationpalette.ts';
 
 const root = document.documentElement;
 const settle = () => new Promise((r) => setTimeout(r, 30));
 // (the page's tokens come from the stylesheet, which a test page doesn't have: the dark ones are set here)
 const dark = () => {
   root.dataset.theme = 'dark';
-  for (const [name, value] of Object.entries({ ink: '#eceef1', floor: '#08090a', bg: '#0e0f11', accent: '#7f8cf3' })) root.style.setProperty(`--color-${name}`, value);
+  for (const [name, value] of Object.entries({ ink: '#eceef1', floor: '#08090a', bg: '#0e0f11', accent: '#7f8cf3' }))
+    root.style.setProperty(`--color-${name}`, value);
   refreshPalette();
 };
 beforeEach(() => {
@@ -52,7 +62,7 @@ describe('the map in light and dark', () => {
     expect(light).toBeGreaterThan(pal.ambientK + pal.sunK);
   });
 
-  it('follows the page: its floor is the map\'s background and the accent is the working colour', () => {
+  it("follows the page: its floor is the map's background and the accent is the working colour", () => {
     root.style.setProperty('--color-floor', '#f1f2f4');
     root.style.setProperty('--color-accent', '#c0502f');
     refreshPalette();
@@ -70,7 +80,7 @@ describe('the map in light and dark', () => {
 });
 
 describe('brand colours on the map', () => {
-  it('turns a black-and-white brand into the page\'s text colour', () => {
+  it("turns a black-and-white brand into the page's text colour", () => {
     expect(brandTone(INK)).toBe(pal.ink);
     dark();
     expect(brandTone(INK)).toBe(pal.ink);

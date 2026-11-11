@@ -45,12 +45,12 @@ counts. Routing and concurrent assignments need clearer disclosure. The last thr
 limitations; bounded previews do not guarantee full context, and disclosure does not prevent duplicate work.
 Nothing here copies Grok Bot's three-round cap: long-running teams must still be able to finish their work.
 
-| # | Item | Verdict | Size | Order |
-|---|---|---|---|---|
-| 1 | Cross-project state | Already fixed in code; verify and lock it with a test | ~1 h | First |
-| 2 | The thread digest silently omits messages and clips their text | Make both limits visible; keep bounded previews | ~1 day incl. tests | Second |
-| 3 | The routing fallback picks the first member, blindly | Skip busy members when possible; explain the actual choice | ~2 h incl. tests | Third |
-| 4 | Members cannot see concurrent assignments | Disclose the whole assigned batch before any turn starts | ~½ day incl. tests | Fourth |
+| #   | Item                                                           | Verdict                                                    | Size               | Order  |
+| --- | -------------------------------------------------------------- | ---------------------------------------------------------- | ------------------ | ------ |
+| 1   | Cross-project state                                            | Already fixed in code; verify and lock it with a test      | ~1 h               | First  |
+| 2   | The thread digest silently omits messages and clips their text | Make both limits visible; keep bounded previews            | ~1 day incl. tests | Second |
+| 3   | The routing fallback picks the first member, blindly           | Skip busy members when possible; explain the actual choice | ~2 h incl. tests   | Third  |
+| 4   | Members cannot see concurrent assignments                      | Disclose the whole assigned batch before any turn starts   | ~½ day incl. tests | Fourth |
 
 Sequencing note: 1 is a check, not a runtime change. 2 is the only one with context loss behind it, so if only one
 item gets done, do 2. 3 and 4 are independent of each other and of 2.
@@ -63,12 +63,12 @@ in project B could list project A's handles.
 
 **What the code says now.** Already addressed:
 
-| Guard | Where |
-|---|---|
-| `const rt = new Map<string, Runtime>()` keyed `<project id>/<team id>` | [`server/teams.ts:161`](../../../server/teams.ts#L161) |
-| `runtime(teamId, pid = activeProject().id)` | [`server/teams.ts:162`](../../../server/teams.ts#L162) |
-| `teamRunId = team:<project>/<team>` | [`server/teams.ts:168`](../../../server/teams.ts#L168) |
-| Handoffs carry `projectId` and are matched on it plus `from` | [`server/handoffs.ts:42`](../../../server/handoffs.ts#L42), [`:72-74`](../../../server/handoffs.ts#L72-L74) |
+| Guard                                                                  | Where                                                                                                       |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `const rt = new Map<string, Runtime>()` keyed `<project id>/<team id>` | [`server/teams.ts:161`](../../../server/teams.ts#L161)                                                      |
+| `runtime(teamId, pid = activeProject().id)`                            | [`server/teams.ts:162`](../../../server/teams.ts#L162)                                                      |
+| `teamRunId = team:<project>/<team>`                                    | [`server/teams.ts:168`](../../../server/teams.ts#L168)                                                      |
+| Handoffs carry `projectId` and are matched on it plus `from`           | [`server/handoffs.ts:42`](../../../server/handoffs.ts#L42), [`:72-74`](../../../server/handoffs.ts#L72-L74) |
 
 **Change.** None to the runtime code. Three things to do:
 
@@ -99,7 +99,7 @@ loop stops as soon as the next line would push the digest past the cap:
 let digest = '';
 for (const m of fresh.slice().reverse()) {
   const line = said(m);
-  if (digest.length + line.length > CONTEXT_CHARS) break;   // CONTEXT_CHARS = 9000
+  if (digest.length + line.length > CONTEXT_CHARS) break; // CONTEXT_CHARS = 9000
   digest = `${line}\n\n${digest}`;
 }
 ```
@@ -110,7 +110,7 @@ for (const m of fresh.slice().reverse()) {
 The cap itself is reasonable. The defect is the line after it:
 
 ```ts
-c.seen[agent.id] = c.messages.length;   // server/teams.ts:647
+c.seen[agent.id] = c.messages.length; // server/teams.ts:647
 ```
 
 The read mark jumps to the end regardless of what fit. Older unread messages omitted from the digest are
@@ -237,7 +237,7 @@ asymmetry is the whole gap.
 **Review finding.** `enqueue()` calls `pump()` immediately. `runTurn()` builds its prompt synchronously
 before reaching `await askAgent()`. For a message routed to A and B, A's prompt therefore exists before B
 has even been enqueued. Reading only `r.running` tells B about A, but leaves A blind. Also, that set can
-contain a member working on an unrelated message, so it cannot establish who is working on *this* request.
+contain a member working on an unrelated message, so it cannot establish who is working on _this_ request.
 
 **Change.** Disclosure, not enforcement:
 

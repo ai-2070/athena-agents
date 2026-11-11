@@ -23,7 +23,12 @@ const teamFields = {
   members: names('members'),
   lead: z.string({ error: 'lead must name an agent.' }).nullable().optional(),
   /** the tool groups and MCP servers its members get here (a list left out is none) */
-  access: z.object({ toolGroups: z.array(z.string()).default([]), mcpServers: z.array(z.string()).default([]) }, { error: 'access must list its tool groups and MCP servers.' }).optional(),
+  access: z
+    .object(
+      { toolGroups: z.array(z.string()).default([]), mcpServers: z.array(z.string()).default([]) },
+      { error: 'access must list its tool groups and MCP servers.' },
+    )
+    .optional(),
   skills: names('skills'),
   /** reference files: only uploads of this project are kept */
   files: names('files'),
@@ -31,7 +36,16 @@ const teamFields = {
   steps: z.array(z.looseObject({ type: z.string() }), { error: 'Each step needs a type.' }).optional(),
   schedule: schedule.optional(),
   enabled: z.boolean({ error: 'enabled must be true or false.' }).optional(),
-  pos: z.object({ x: z.number({ error: 'A place on the map is x and z.' }), z: z.number({ error: 'A place on the map is x and z.' }) }, { error: 'A place on the map is x and z.' }).nullable().optional(),
+  pos: z
+    .object(
+      {
+        x: z.number({ error: 'A place on the map is x and z.' }),
+        z: z.number({ error: 'A place on the map is x and z.' }),
+      },
+      { error: 'A place on the map is x and z.' },
+    )
+    .nullable()
+    .optional(),
   rot: spot,
   angle: spot,
 };
@@ -48,25 +62,37 @@ export const workflows = {
   get: oc.route({ method: 'GET', path: '/workflows/{id}' }).input(oneTeam).output(type<Team>()),
   change: oc.route({ method: 'PUT', path: '/workflows/{id}' }).input(oneTeam.extend(teamFields)).output(type<Team>()),
   /** Deletes it; its agents go with it, except those still on another team (deletedAgents). */
-  remove: oc.route({ method: 'DELETE', path: '/workflows/{id}' }).input(oneTeam).output(type<{ ok: true; deletedAgents?: string[] }>()),
+  remove: oc
+    .route({ method: 'DELETE', path: '/workflows/{id}' })
+    .input(oneTeam)
+    .output(type<{ ok: true; deletedAgents?: string[] }>()),
   /** "Run": a step list runs its steps (the run); a team gets the input in its chat (the message). */
-  run: oc.route({ method: 'POST', path: '/workflows/{id}/run' })
+  run: oc
+    .route({ method: 'POST', path: '/workflows/{id}/run' })
     .input(oneTeam.extend({ input: words('input') }))
     .output(type<WorkflowRun | TeamMessage>()),
   /** A copy in this project; withAgents: its members are copied too (otherwise the copy shares them). */
-  clone: oc.route({ method: 'POST', path: '/workflows/{id}/clone' })
+  clone: oc
+    .route({ method: 'POST', path: '/workflows/{id}/clone' })
     .input(oneTeam.extend({ withAgents: z.boolean({ error: 'withAgents must be true or false.' }).optional() }))
     .output(type<Team>()),
   /** A picture (PNG, JPG, WebP, GIF) or 3D model in the middle of its pod instead of its emoji. data: a data: URL. */
-  setMark: oc.route({ method: 'POST', path: '/workflows/{id}/mark' })
-    .input(oneTeam.extend({ name: z.string({ error: 'Pick a picture or a 3D model.' }), data: z.string({ error: "Couldn't read that file." }) }))
+  setMark: oc
+    .route({ method: 'POST', path: '/workflows/{id}/mark' })
+    .input(
+      oneTeam.extend({
+        name: z.string({ error: 'Pick a picture or a 3D model.' }),
+        data: z.string({ error: "Couldn't read that file." }),
+      }),
+    )
     .output(type<Team>()),
   /** Back to the emoji. */
   removeMark: oc.route({ method: 'DELETE', path: '/workflows/{id}/mark' }).input(oneTeam).output(type<Team>()),
   /** The starter teams, and one made from them (its steps matched to your agents by name). */
   templates: {
     list: oc.route({ method: 'GET', path: '/workflow-templates' }).output(type<WorkflowTemplateInfo[]>()),
-    create: oc.route({ method: 'POST', path: '/workflow-templates' })
+    create: oc
+      .route({ method: 'POST', path: '/workflow-templates' })
       .input(z.object({ name: z.string({ error: 'Pick a starter team.' }) }))
       .output(type<Team>()),
   },
@@ -74,7 +100,8 @@ export const workflows = {
   active: oc.route({ method: 'GET', path: '/workflow-active' }).output(type<RunSummary[]>()),
   runs: {
     /** The latest 50 runs, newest first; workflowId: only that team's. */
-    list: oc.route({ method: 'GET', path: '/workflow-runs' })
+    list: oc
+      .route({ method: 'GET', path: '/workflow-runs' })
       .input(z.object({ workflowId: z.string().optional() }))
       .output(type<WorkflowRun[]>()),
     stop: oc.route({ method: 'POST', path: '/workflow-runs/{id}/stop' }).input(oneTeam).output(type<{ ok: boolean }>()),

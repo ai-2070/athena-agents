@@ -1,5 +1,6 @@
 /** JSON from a provider is an untrusted boundary. */
-export const objectOf = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+export const objectOf = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
 export function numberOf(value: unknown): number | null {
   if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return null;
@@ -28,6 +29,7 @@ export function providerReason(value: unknown): string {
   } catch {
     /* plain text */
   }
-  const from = typeof metadata.provider_name === 'string' && metadata.provider_name ? `${metadata.provider_name}: ` : '';
+  const from =
+    typeof metadata.provider_name === 'string' && metadata.provider_name ? `${metadata.provider_name}: ` : '';
   return `${from}${reason.trim()}`.slice(0, 600);
 }

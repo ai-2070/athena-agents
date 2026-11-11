@@ -6,8 +6,29 @@
 import { BUILD_ORDER, DIORAMA } from './voxel/diorama.ts';
 import fs from 'node:fs';
 import path from 'node:path';
-import { dataPath, ensureDir, exists, slugify, readJSON, writeJSON, HOME, ROOT, yamlScalar, yamlString } from './util.ts';
-import { activeProject, agents, workflows, listProjects, getSettings, saveSettings, withProject, log, emit } from './store.ts';
+import {
+  dataPath,
+  ensureDir,
+  exists,
+  slugify,
+  readJSON,
+  writeJSON,
+  HOME,
+  ROOT,
+  yamlScalar,
+  yamlString,
+} from './util.ts';
+import {
+  activeProject,
+  agents,
+  workflows,
+  listProjects,
+  getSettings,
+  saveSettings,
+  withProject,
+  log,
+  emit,
+} from './store.ts';
 import { updateProject } from './projects.ts';
 import { orcaInstalled } from './programs.ts';
 import crypto from 'node:crypto';
@@ -108,7 +129,17 @@ function readDir(dir: string, source: Skill['source'], dirs?: Map<string, Stamp>
   const { meta, body } = parse(fs.readFileSync(file, 'utf8'));
   const slug = path.basename(dir);
   const origin = readJSON<SkillOrigin | null>(path.join(dir, '.source.json'), null);
-  return { slug, name: meta.name || slug, description: meta.description || '', body, source, dir, files: filesIn(dir, dirs), updatedAt: fs.statSync(file).mtimeMs, ...(origin?.repo ? { origin } : {}) };
+  return {
+    slug,
+    name: meta.name || slug,
+    description: meta.description || '',
+    body,
+    source,
+    dir,
+    files: filesIn(dir, dirs),
+    updatedAt: fs.statSync(file).mtimeMs,
+    ...(origin?.repo ? { origin } : {}),
+  };
 }
 
 // ---------- skills read once and kept ----------
@@ -125,7 +156,10 @@ const NO_STAMP: Stamp = { stamp: '-', mtime: 0 };
 function stampOf(p: string, follow: boolean): Stamp {
   try {
     const st = follow ? fs.statSync(p) : fs.lstatSync(p);
-    return { stamp: `${st.isFile() ? 'f' : st.isDirectory() ? 'd' : 'o'}:${st.mtimeMs}:${st.size}:${st.ino}`, mtime: st.mtimeMs };
+    return {
+      stamp: `${st.isFile() ? 'f' : st.isDirectory() ? 'd' : 'o'}:${st.mtimeMs}:${st.size}:${st.ino}`,
+      mtime: st.mtimeMs,
+    };
   } catch {
     return NO_STAMP;
   }
@@ -135,7 +169,10 @@ function stampOf(p: string, follow: boolean): Stamp {
 const SETTLED_MS = 2000;
 const keptSkills = new Map<string, { stamp: string; dirs: string[]; skill: SkillInDir }>();
 const keyOf = (dir: string, source: Skill['source']) => `${source}:${dir}`;
-const headOf = (dir: string, source: Skill['source']): Stamp[] => [stampOf(path.join(dir, 'SKILL.md'), source !== 'library'), stampOf(path.join(dir, '.source.json'), true)];
+const headOf = (dir: string, source: Skill['source']): Stamp[] => [
+  stampOf(path.join(dir, 'SKILL.md'), source !== 'library'),
+  stampOf(path.join(dir, '.source.json'), true),
+];
 const joined = (stamps: Iterable<Stamp>): string => [...stamps].map((s) => s.stamp).join('|');
 // (a copy, so a caller changing it can't change what is kept)
 const copied = (s: SkillInDir): SkillInDir => ({ ...s, files: [...s.files] });
@@ -143,7 +180,8 @@ const copied = (s: SkillInDir): SkillInDir => ({ ...s, files: [...s.files] });
 function readSkill(dir: string, source: Skill['source']): SkillInDir | null {
   const key = keyOf(dir, source);
   const was = keptSkills.get(key);
-  if (was && joined([...headOf(dir, source), ...was.dirs.map((d) => stampOf(d, false))]) === was.stamp) return copied(was.skill);
+  if (was && joined([...headOf(dir, source), ...was.dirs.map((d) => stampOf(d, false))]) === was.stamp)
+    return copied(was.skill);
   keptSkills.delete(key);
   // stamped before reading, so a change while it is read shows next time
   const at = Date.now();
@@ -151,7 +189,8 @@ function readSkill(dir: string, source: Skill['source']): SkillInDir | null {
   const dirs = new Map<string, Stamp>();
   const s = readDir(dir, source, dirs);
   const stamps = [...head, ...dirs.values()];
-  if (s && at - stamps.reduce((n, x) => Math.max(n, x.mtime), 0) > SETTLED_MS) keptSkills.set(key, { stamp: joined(stamps), dirs: [...dirs.keys()], skill: copied(s) });
+  if (s && at - stamps.reduce((n, x) => Math.max(n, x.mtime), 0) > SETTLED_MS)
+    keptSkills.set(key, { stamp: joined(stamps), dirs: [...dirs.keys()], skill: copied(s) });
   return s;
 }
 
@@ -165,7 +204,12 @@ export function forgetSkill(slug?: string): void {
 /** A SKILL.md's text as a skill's version (name, description, instructions). */
 export function skillFromText(text: string, slug: string): SkillVersionItem {
   const { meta, body } = parse(text);
-  return { slug, name: (meta.name || slug).slice(0, 80), description: (meta.description || '').slice(0, 1000), body: body.trim().slice(0, SKILL_BODY_MAX) };
+  return {
+    slug,
+    name: (meta.name || slug).slice(0, 80),
+    description: (meta.description || '').slice(0, 1000),
+    body: body.trim().slice(0, SKILL_BODY_MAX),
+  };
 }
 
 // Every skill in the library (with what it's used by is worked out on the page).
@@ -176,7 +220,14 @@ export function listSkills(): SkillSummary[] {
   for (const e of fs.readdirSync(lib, { withFileTypes: true })) {
     if (!e.isDirectory() || !SAFE.test(e.name)) continue;
     const s = readSkill(path.join(lib, e.name), 'library');
-    if (s) out.push({ ...s, body: undefined, dir: undefined, preview: s.body.slice(0, 280), ...(mine.has(s.slug) ? { mine: true as const } : {}) });
+    if (s)
+      out.push({
+        ...s,
+        body: undefined,
+        dir: undefined,
+        preview: s.body.slice(0, 280),
+        ...(mine.has(s.slug) ? { mine: true as const } : {}),
+      });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -196,7 +247,13 @@ export function claudeSkills(): ClaudeSkill[] {
     .filter((e) => e.isDirectory())
     .map((e) => readSkill(path.join(CLAUDE_DIR, e.name), 'claude'))
     .filter((s): s is SkillInDir => Boolean(s))
-    .map(({ slug, name, description, files }) => ({ slug, name, description, files: files.length, inLibrary: have.has(slugify(slug)) }));
+    .map(({ slug, name, description, files }) => ({
+      slug,
+      name,
+      description,
+      files: files.length,
+      inLibrary: have.has(slugify(slug)),
+    }));
 }
 
 export const SKILL_BODY_MAX = 60000;
@@ -213,33 +270,63 @@ export interface SkillVersionItem {
   filesHash?: string;
 }
 /** A skill version read from elsewhere (a project folder, a backup), checked, as the skill `slug`'s. */
-export const skillVersionItem = (slug: string) => (item: Record<string, unknown>): SkillVersionItem | null => {
-  if (typeof item.name !== 'string' || typeof item.description !== 'string' || typeof item.body !== 'string') return null;
-  const files = Array.isArray(item.files) ? item.files.filter((f): f is string => typeof f === 'string' && f.length < 300 && !f.split('/').includes('..')).slice(0, 1000) : undefined;
-  return {
-    slug,
-    name: item.name.slice(0, 80),
-    description: item.description.slice(0, 1000),
-    body: item.body.slice(0, SKILL_BODY_MAX),
-    ...(files ? { files } : {}),
-    ...(typeof item.filesHash === 'string' && /^[0-9a-f]{40}$/.test(item.filesHash) ? { filesHash: item.filesHash } : {}),
+export const skillVersionItem =
+  (slug: string) =>
+  (item: Record<string, unknown>): SkillVersionItem | null => {
+    if (typeof item.name !== 'string' || typeof item.description !== 'string' || typeof item.body !== 'string')
+      return null;
+    const files = Array.isArray(item.files)
+      ? item.files
+          .filter((f): f is string => typeof f === 'string' && f.length < 300 && !f.split('/').includes('..'))
+          .slice(0, 1000)
+      : undefined;
+    return {
+      slug,
+      name: item.name.slice(0, 80),
+      description: item.description.slice(0, 1000),
+      body: item.body.slice(0, SKILL_BODY_MAX),
+      ...(files ? { files } : {}),
+      ...(typeof item.filesHash === 'string' && /^[0-9a-f]{40}$/.test(item.filesHash)
+        ? { filesHash: item.filesHash }
+        : {}),
+    };
   };
-};
 
 // Versions of every skill: data/versions/skills/<slug>/ (outside the skill, so they outlive it)
 export const skillVersionsDir = (slug = ''): string => dataPath('versions', 'skills', slug);
-const versionItem = (s: Skill | SkillDetail): SkillVersionItem => ({ slug: s.slug, name: s.name, description: s.description, body: s.body.trim() });
+const versionItem = (s: Skill | SkillDetail): SkillVersionItem => ({
+  slug: s.slug,
+  name: s.name,
+  description: s.description,
+  body: s.body.trim(),
+});
 
-export function saveSkill({ slug, name, description, body }: { slug?: string; name?: string; description?: string; body?: string }): SkillDetail | null {
-  name = String(name || '').trim().slice(0, 80);
-  description = String(description || '').trim().slice(0, 1000);
+export function saveSkill({
+  slug,
+  name,
+  description,
+  body,
+}: {
+  slug?: string;
+  name?: string;
+  description?: string;
+  body?: string;
+}): SkillDetail | null {
+  name = String(name || '')
+    .trim()
+    .slice(0, 80);
+  description = String(description || '')
+    .trim()
+    .slice(0, 1000);
   if (!name) throw new Error('Give the skill a name.');
-  if (!description) throw new Error('Say in one or two sentences when the skill should be used: agents decide from this.');
+  if (!description)
+    throw new Error('Say in one or two sentences when the skill should be used: agents decide from this.');
   const id = slug && SAFE.test(slug) && exists(path.join(LIB(), slug)) ? slug : uniqueSlug(name);
   const dir = ensureDir(path.join(LIB(), id));
   const before = getSkill(id);
   const text = String(body || '').slice(0, SKILL_BODY_MAX);
-  if (before) keepVersion(skillVersionsDir(id), versionItem(before), { slug: id, name, description, body: text.trim() });
+  if (before)
+    keepVersion(skillVersionsDir(id), versionItem(before), { slug: id, name, description, body: text.trim() });
   writeSkillMd(dir, compose({ name, description, body: text }));
   forgetSkill(id);
   emit('skills', { slug: id });
@@ -260,52 +347,106 @@ export interface SkillFileWrite {
 /** Save a skill with the files that come with it (and remove some), as one change: when its files change, the
  *  version kept in History holds them too, so it can be brought back as it was. Without slug it's a new skill,
  *  refused when its name is taken. */
-export function saveSkillWithFiles(input: { slug?: string; name: string; description: string; body: string }, files: SkillFileWrite[] = [], remove: string[] = [], by = 'an agent'): SkillDetail {
+export function saveSkillWithFiles(
+  input: { slug?: string; name: string; description: string; body: string },
+  files: SkillFileWrite[] = [],
+  remove: string[] = [],
+  by = 'an agent',
+): SkillDetail {
   if (files.length > SKILL_FILES_MAX) throw new Error(`At most ${SKILL_FILES_MAX} files at once.`);
   for (const f of [...files.map((x) => x.path), ...remove]) {
-    if (!SKILL_FILE.test(f) || f.split('/').includes('..')) throw new Error(`"${f}" can't be one of a skill's files: use references/…, scripts/… or templates/…, with plain names.`);
+    if (!SKILL_FILE.test(f) || f.split('/').includes('..'))
+      throw new Error(
+        `"${f}" can't be one of a skill's files: use references/…, scripts/… or templates/…, with plain names.`,
+      );
   }
-  for (const f of files) if (Buffer.byteLength(f.text, 'utf8') > SKILL_FILE_MAX) throw new Error(`"${f.path}" is too big (at most ${SKILL_FILE_MAX / 1000} KB a file): split it.`);
+  for (const f of files)
+    if (Buffer.byteLength(f.text, 'utf8') > SKILL_FILE_MAX)
+      throw new Error(`"${f.path}" is too big (at most ${SKILL_FILE_MAX / 1000} KB a file): split it.`);
   const before = input.slug ? getSkill(input.slug) : null;
   if (input.slug && !before) throw new Error(`There is no skill "${input.slug}".`);
-  if (!before && exists(path.join(LIB(), slugify(input.name).slice(0, 50) || 'skill'))) throw new Error(`A skill called "${slugify(input.name)}" exists already: update it (pass its id) rather than make a second one.`);
-  return withActor('agent', () => {
-    if (before && (files.length || remove.length)) {
-      const dir = path.join(LIB(), before.slug);
-      const vdir = skillVersionsDir(before.slug);
-      const extra = skillExtraFiles(dir);
-      const v = keepVersion(vdir, { ...versionItem(before), files: extra, filesHash: skillFilesHash(dir) }, null);
-      if (v && extra.length) copySkillFiles(dir, versionFilesDir(vdir, v.id));
-    }
-    // (when a version was kept just above, this keeps no second one: one change, one version)
-    const saved = saveSkill({ slug: before?.slug, name: input.name, description: input.description, body: input.body })!;
-    const dir = path.join(LIB(), saved.slug);
-    for (const f of files) {
-      const to = path.join(dir, ...f.path.split('/'));
-      fs.mkdirSync(path.dirname(to), { recursive: true });
-      const tmp = `${to}.tmp-${process.pid}`;
-      fs.writeFileSync(tmp, f.text);
-      fs.renameSync(tmp, to);
-    }
-    for (const f of remove) fs.rmSync(path.join(dir, ...f.split('/')), { force: true });
-    emit('skills', { slug: saved.slug });
-    return getSkill(saved.slug)!;
-  }, { note: `Before ${by} changed it` });
+  if (!before && exists(path.join(LIB(), slugify(input.name).slice(0, 50) || 'skill')))
+    throw new Error(
+      `A skill called "${slugify(input.name)}" exists already: update it (pass its id) rather than make a second one.`,
+    );
+  return withActor(
+    'agent',
+    () => {
+      if (before && (files.length || remove.length)) {
+        const dir = path.join(LIB(), before.slug);
+        const vdir = skillVersionsDir(before.slug);
+        const extra = skillExtraFiles(dir);
+        const v = keepVersion(vdir, { ...versionItem(before), files: extra, filesHash: skillFilesHash(dir) }, null);
+        if (v && extra.length) copySkillFiles(dir, versionFilesDir(vdir, v.id));
+      }
+      // (when a version was kept just above, this keeps no second one: one change, one version)
+      const saved = saveSkill({
+        slug: before?.slug,
+        name: input.name,
+        description: input.description,
+        body: input.body,
+      })!;
+      const dir = path.join(LIB(), saved.slug);
+      for (const f of files) {
+        const to = path.join(dir, ...f.path.split('/'));
+        fs.mkdirSync(path.dirname(to), { recursive: true });
+        const tmp = `${to}.tmp-${process.pid}`;
+        fs.writeFileSync(tmp, f.text);
+        fs.renameSync(tmp, to);
+      }
+      for (const f of remove) fs.rmSync(path.join(dir, ...f.split('/')), { force: true });
+      emit('skills', { slug: saved.slug });
+      return getSkill(saved.slug)!;
+    },
+    { note: `Before ${by} changed it` },
+  );
 }
 
 // words nearly every description has ("Use when…"): matching them finds everything
-const COMMON = new Set(['the', 'and', 'for', 'with', 'use', 'used', 'using', 'when', 'how', 'what', 'that', 'this', 'from', 'into', 'your', 'you', 'its', 'are', 'can', 'not', 'any', 'all', 'skill', 'skills']);
+const COMMON = new Set([
+  'the',
+  'and',
+  'for',
+  'with',
+  'use',
+  'used',
+  'using',
+  'when',
+  'how',
+  'what',
+  'that',
+  'this',
+  'from',
+  'into',
+  'your',
+  'you',
+  'its',
+  'are',
+  'can',
+  'not',
+  'any',
+  'all',
+  'skill',
+  'skills',
+]);
 
 /** Skills in the library that match these words (in the id, name or description), best first; none for words too
  *  short or too common to search by. */
 export function searchLibrary(words: string, max = 20): SkillSummary[] {
-  const terms = words.toLowerCase().split(/[\W_]+/).filter((w) => w.length > 2 && !COMMON.has(w));
+  const terms = words
+    .toLowerCase()
+    .split(/[\W_]+/)
+    .filter((w) => w.length > 2 && !COMMON.has(w));
   if (!terms.length) return [];
   const scored = listSkills().map((s) => {
     const hay = `${s.slug} ${s.name} ${s.description}`.toLowerCase();
     return { s, n: terms.filter((t) => hay.includes(t)).length };
   });
-  return scored.filter((x) => x.n > 0).sort((a, b) => b.n - a.n || a.s.slug.localeCompare(b.s.slug)).slice(0, max).map((x) => x.s);
+  return scored
+    .filter((x) => x.n > 0)
+    .sort((a, b) => b.n - a.n || a.s.slug.localeCompare(b.s.slug))
+    .slice(0, max)
+    .map((x) => x.s);
 }
 
 export function uniqueSlug(name: string): string {
@@ -351,7 +492,10 @@ export function skillFilesHash(dir: string): string {
   const h = crypto.createHash('sha1');
   for (const rel of skillExtraFiles(dir)) {
     if (rel === '.source.json') continue;
-    h.update(rel).update('\0').update(fs.readFileSync(path.join(dir, ...rel.split('/')))).update('\0');
+    h.update(rel)
+      .update('\0')
+      .update(fs.readFileSync(path.join(dir, ...rel.split('/'))))
+      .update('\0');
   }
   return h.digest('hex');
 }
@@ -363,7 +507,10 @@ export function deleteSkill(slug: string) {
   const s = getSkill(slug);
   if (s) {
     const extra = skillExtraFiles(dir);
-    const v = keepVersion(skillVersionsDir(slug), versionItem(s), null, { deleted: true, extra: { files: extra, filesHash: skillFilesHash(dir) } });
+    const v = keepVersion(skillVersionsDir(slug), versionItem(s), null, {
+      deleted: true,
+      extra: { files: extra, filesHash: skillFilesHash(dir) },
+    });
     if (v && extra.length) copySkillFiles(dir, versionFilesDir(skillVersionsDir(slug), v.id));
   }
   fs.rmSync(dir, { recursive: true, force: true });
@@ -382,7 +529,10 @@ export function restoreSkill(item: SkillVersionItem, versionId: string): SkillDe
   const withFiles = Boolean(kept && exists(kept)) || Array.isArray(item.files);
   const now = getSkill(item.slug);
   if (now) {
-    const current: SkillVersionItem = { ...versionItem(now), ...(withFiles ? { files: skillExtraFiles(dir), filesHash: skillFilesHash(dir) } : {}) };
+    const current: SkillVersionItem = {
+      ...versionItem(now),
+      ...(withFiles ? { files: skillExtraFiles(dir), filesHash: skillFilesHash(dir) } : {}),
+    };
     // (pruned only after the copy below: the version being restored may be the oldest one, which keeping
     // one more would delete, files and all)
     const v = keepVersion(vdir, current, item, { prune: false });
@@ -405,8 +555,10 @@ export function deleteSkillEverywhere(slug: string) {
   deleteSkill(slug);
   for (const p of listProjects()) {
     withProject(p, () => {
-      for (const a of agents.list()) if ((a.skills || []).includes(slug)) agents.save({ ...a, skills: a.skills.filter((x) => x !== slug) });
-      for (const w of workflows.list()) if ((w.skills || []).includes(slug)) workflows.save({ ...w, skills: w.skills!.filter((x) => x !== slug) });
+      for (const a of agents.list())
+        if ((a.skills || []).includes(slug)) agents.save({ ...a, skills: a.skills.filter((x) => x !== slug) });
+      for (const w of workflows.list())
+        if ((w.skills || []).includes(slug)) workflows.save({ ...w, skills: w.skills!.filter((x) => x !== slug) });
     });
     if ((p.skills || []).includes(slug)) updateProject(p.id, { skills: p.skills!.filter((x) => x !== slug) });
   }
@@ -416,8 +568,12 @@ export function deleteSkillEverywhere(slug: string) {
 
 // ---------- the Brain's own skills ----------
 // Skills given to the Brain are part of its instructions in every turn (Settings: brainSkills).
-export const brainSkillSlugs = (): string[] => (Array.isArray(getSettings().brainSkills) ? getSettings().brainSkills : []);
-export const brainSkills = (): SkillDetail[] => brainSkillSlugs().map(getSkill).filter((s): s is SkillDetail => s !== null);
+export const brainSkillSlugs = (): string[] =>
+  Array.isArray(getSettings().brainSkills) ? getSettings().brainSkills : [];
+export const brainSkills = (): SkillDetail[] =>
+  brainSkillSlugs()
+    .map(getSkill)
+    .filter((s): s is SkillDetail => s !== null);
 export function setBrainSkills(slugs: unknown): string[] {
   const list = [...new Set((Array.isArray(slugs) ? slugs : []).map(String).filter((x) => SAFE.test(x)))].slice(0, 30);
   saveSettings({ brainSkills: list });
@@ -430,11 +586,12 @@ export function setBrainSkills(slugs: unknown): string[] {
 export const SELF_IMPROVEMENT = 'self-improvement';
 /** The claude-motion commit the toolkit is fetched at: the one skills/claude-motion was copied from (its README). */
 export const CLAUDE_MOTION_COMMIT = 'e627941543d9988b155dc610bb9cc0115a5e365e';
-const BUILTIN:{ slug: string; name: string; description: string; body: string }[] = [
+const BUILTIN: { slug: string; name: string; description: string; body: string }[] = [
   {
     slug: SELF_IMPROVEMENT,
     name: 'Self-improvement',
-    description: 'Use after any substantial piece of work, and whenever the user explains how they want something done: record what worked as a skill, keep skills accurate, and spot work that should become a routine.',
+    description:
+      'Use after any substantial piece of work, and whenever the user explains how they want something done: record what worked as a skill, keep skills accurate, and spot work that should become a routine.',
     body: `# Self-improvement
 
 You get better at this project over time by writing down what works. Skills are the project's memory of *how* things are done: step-by-step workflows, checklists, house rules and pitfalls. Agents read a skill before work that matches it, so a good skill makes the next run faster and better.
@@ -475,7 +632,8 @@ Say in one line what you recorded or changed and why, e.g. "Saved how Ana render
   {
     slug: 'voxel-building',
     name: 'Voxel building',
-    description: 'Use before building anything in the voxel world (world_build, world_prefab, or the Brain\'s build action): how to build big pieces and small prefabs, place copies to fill a scene, scale, palette and light, and how to keep WORLD.md in step.',
+    description:
+      "Use before building anything in the voxel world (world_build, world_prefab, or the Brain's build action): how to build big pieces and small prefabs, place copies to fill a scene, scale, palette and light, and how to keep WORLD.md in step.",
     body: `# Voxel building
 
 The Station can be a voxel world that the agents build around themselves. Nothing comes ready-made: every tree, person, lamp and building is something a builder made. Good worlds look hand-made, busy and lived in, and belong together. This is how.
@@ -550,7 +708,8 @@ A busy scene (a street in front of a stock exchange, the Nile with temples and b
   {
     slug: 'orca-agents',
     name: 'Start agents in Orca',
-    description: 'Use when the user wants Claude Code, Codex, pi, oh-my-pi or OpenClaw started in Orca, or in its own worktree or tab while Orca is installed: checks that Orca is installed, then starts the agent there with a task brief.',
+    description:
+      'Use when the user wants Claude Code, Codex, pi, oh-my-pi or OpenClaw started in Orca, or in its own worktree or tab while Orca is installed: checks that Orca is installed, then starts the agent there with a task brief.',
     body: `# Start coding agents in Orca
 
 [Orca](https://github.com/stablyai/orca) runs coding agents side by side, each in its own tab and git worktree, where the user can watch them and step in. When Orca is installed, start agents there instead of in a hidden shell.
@@ -607,7 +766,8 @@ Read \`result.launch\`: \`outcome.handle\` is the agent's handle, \`outcome.kind
   {
     slug: 'claude-motion',
     name: 'Make videos with claude-motion',
-    description: 'Use when the user wants a motion graphic, an animated explainer or promo, a short video for social media, sound for a video, or a simulation or 3D piece rendered to video: sets up the claude-motion toolkit, then follows its motion-design, review-loop, sound-design and web-sims skills.',
+    description:
+      'Use when the user wants a motion graphic, an animated explainer or promo, a short video for social media, sound for a video, or a simulation or 3D piece rendered to video: sets up the claude-motion toolkit, then follows its motion-design, review-loop, sound-design and web-sims skills.',
     body: `# Make videos with claude-motion
 
 [claude-motion](https://github.com/whaleyxbt/claude-motion) is a motion design toolkit on [Remotion](https://remotion.dev) (React to video): taste rules with numbers, a loop for checking your own frames, a sound engine in plain Python with no samples, and a second pipeline that renders web simulations frame by frame to 60 fps video.
@@ -658,7 +818,8 @@ The last review-loop pass found nothing, the loudness check of the finished file
   {
     slug: 'taste-skill',
     name: 'Build websites with taste-skill',
-    description: 'Use when building, designing, redesigning, restyling, polishing or reviewing a website or landing page in any stack, or when a page looks generic, templated or AI-made: downloads the taste-skill kit into the project the first time, then follows its own skill.',
+    description:
+      'Use when building, designing, redesigning, restyling, polishing or reviewing a website or landing page in any stack, or when a page looks generic, templated or AI-made: downloads the taste-skill kit into the project the first time, then follows its own skill.',
     body: `# Build websites with taste-skill
 
 [taste-skill](https://github.com/Leonxlnx/taste-skill) (MIT) is a frontend design kit: a skill, \`design-taste-frontend\`, with strict house rules and checkers that hold a page to them in a real browser, and about 37 MB of assets it builds pages from (real photographs, full-colour icons, UI fragments, layouts, objects, scenes and effects). It's too big to come with the dashboard, so this skill downloads it into the project the first time and hands over to it.
@@ -723,7 +884,9 @@ function bundleSkillDirs(base: string): string[] {
   } catch {
     return [];
   }
-  return list.filter((e) => e.isDirectory() && SAFE.test(e.name) && exists(path.join(base, e.name, 'SKILL.md'))).map((e) => e.name);
+  return list
+    .filter((e) => e.isDirectory() && SAFE.test(e.name) && exists(path.join(base, e.name, 'SKILL.md')))
+    .map((e) => e.name);
 }
 /** The folder in this repo that holds the bundled skill folders. */
 export const bundledSkillsRoot = (): string => path.join(ROOT, 'skills');
@@ -743,7 +906,9 @@ export function bundledSkills(): BundledSkill[] {
     const base = path.join(bundledSkillsRoot(), b.dir);
     for (const slug of bundleSkillDirs(base)) {
       const at = b.under ? `${b.under}/${slug}` : slug;
-      const origin = b.noLink ? undefined : { url: `https://github.com/${b.repo}/tree/${b.ref}/${at}`, repo: b.repo, ref: b.ref, path: at };
+      const origin = b.noLink
+        ? undefined
+        : { url: `https://github.com/${b.repo}/tree/${b.ref}/${at}`, repo: b.repo, ref: b.ref, path: at };
       out.push({ slug, dir: path.join(base, slug), repo: b.repo, ...(origin ? { origin } : {}) });
     }
   }
@@ -767,7 +932,8 @@ function readMarker(): BuiltinMarker {
   const m = readJSON<Partial<BuiltinMarker>>(markerFile(), {});
   const ids = (x: unknown): string[] => (Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string') : []);
   const copies: Record<string, string> = {};
-  if (m.copies && typeof m.copies === 'object') for (const [k, v] of Object.entries(m.copies)) if (typeof v === 'string') copies[k] = v;
+  if (m.copies && typeof m.copies === 'object')
+    for (const [k, v] of Object.entries(m.copies)) if (typeof v === 'string') copies[k] = v;
   return { added: ids(m.added), copies, kept: ids(m.kept) };
 }
 /** The user's own skills that have the id of one the dashboard comes with (which was left out for them). */
@@ -803,7 +969,10 @@ function bringUpToDate(m: BuiltinMarker, slug: string, sum: string, make: (dir: 
     return tmp;
   };
   const failed = (what: string, e: unknown): boolean => {
-    log('skill', `Couldn't ${what} the skill "${slug}" that comes with the dashboard: ${e instanceof Error ? e.message : String(e)}`);
+    log(
+      'skill',
+      `Couldn't ${what} the skill "${slug}" that comes with the dashboard: ${e instanceof Error ? e.message : String(e)}`,
+    );
     return false;
   };
   if (!m.added.includes(slug)) {
@@ -850,8 +1019,13 @@ function bringUpToDate(m: BuiltinMarker, slug: string, sum: string, make: (dir: 
       const vdir = skillVersionsDir(slug);
       const files = skillExtraFiles(dir);
       const was: SkillVersionItem = { ...versionItem(before), files, filesHash: skillFilesHash(dir) };
-      const after: SkillVersionItem = { ...skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), slug), filesHash: skillFilesHash(tmp) };
-      const v = withActor('you', () => keepVersion(vdir, was, after, { ignore: ['files'] }), { note: 'Before the dashboard updated it' });
+      const after: SkillVersionItem = {
+        ...skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), slug),
+        filesHash: skillFilesHash(tmp),
+      };
+      const v = withActor('you', () => keepVersion(vdir, was, after, { ignore: ['files'] }), {
+        note: 'Before the dashboard updated it',
+      });
       if (v && files.length) copySkillFiles(dir, versionFilesDir(vdir, v.id));
     }
     fs.renameSync(dir, old);
@@ -877,7 +1051,10 @@ export function ensureBuiltinSkills() {
   let changed = false;
   for (const b of BUILTIN) {
     const text = compose(b);
-    changed = bringUpToDate(m, b.slug, sumOf([['SKILL.md', text]]), (dir) => fs.writeFileSync(path.join(dir, 'SKILL.md'), text)) || changed;
+    changed =
+      bringUpToDate(m, b.slug, sumOf([['SKILL.md', text]]), (dir) =>
+        fs.writeFileSync(path.join(dir, 'SKILL.md'), text),
+      ) || changed;
   }
   for (const b of bundledSkills()) {
     const dir = path.join(LIB(), b.slug);
@@ -892,7 +1069,8 @@ export function ensureBuiltinSkills() {
       bringUpToDate(m, b.slug, sum, (tmp) => {
         fs.copyFileSync(path.join(b.dir, 'SKILL.md'), path.join(tmp, 'SKILL.md'));
         copySkillFiles(b.dir, tmp);
-        if (b.origin) writeJSON(path.join(tmp, '.source.json'), { ...b.origin, installedAt: Date.now() } satisfies SkillOrigin);
+        if (b.origin)
+          writeJSON(path.join(tmp, '.source.json'), { ...b.origin, installedAt: Date.now() } satisfies SkillOrigin);
       }) || changed;
   }
   if (changed) writeJSON(markerFile(), m);
@@ -905,7 +1083,8 @@ export function importClaudeSkill(name: string): SkillDetail | null {
   if (!exists(path.join(src, 'SKILL.md'))) throw new Error('That skill was not found in ~/.claude/skills.');
   // copied file by file, leaving links out (a linked SKILL.md or file could point anywhere on the PC),
   // into a fresh folder first so a failed copy leaves no half skill
-  if (!plainFile(path.join(src, 'SKILL.md'))) throw new Error("That skill's SKILL.md is a link, not a plain file, so it can't be imported.");
+  if (!plainFile(path.join(src, 'SKILL.md')))
+    throw new Error("That skill's SKILL.md is a link, not a plain file, so it can't be imported.");
   const id = uniqueSlug(path.basename(src));
   const tmp = ensureDir(dataPath('tmp', `claude-skill-${id}-${Date.now()}`));
   try {
@@ -937,7 +1116,8 @@ function fileInSkill(root: string, rel: unknown): string {
   } catch {
     throw new Error(`The skill has no file "${rel}".`);
   }
-  if (!abs.toLowerCase().startsWith(root.toLowerCase() + path.sep)) throw new Error('That file is not part of the skill.');
+  if (!abs.toLowerCase().startsWith(root.toLowerCase() + path.sep))
+    throw new Error('That file is not part of the skill.');
   return abs;
 }
 
@@ -951,9 +1131,12 @@ export function readSkillFile(slug: string, rel: unknown, from = 1): string {
   const start = Math.min(Math.max(1, Math.floor(from) || 1), lines.length);
   let end = start - 1;
   let size = 0;
-  while (end < lines.length && (end === start - 1 || size + lines[end].length + 1 <= FILE_SHOWN)) size += lines[end++].length + 1;
+  while (end < lines.length && (end === start - 1 || size + lines[end].length + 1 <= FILE_SHOWN))
+    size += lines[end++].length + 1;
   const shown = lines.slice(start - 1, end).join('\n');
-  return end < lines.length || start > 1 ? `${shown}\n\n[Lines ${start}-${end} of ${lines.length}.${end < lines.length ? ` Go on with from=${end + 1}, or search with find.` : ''}]` : shown;
+  return end < lines.length || start > 1
+    ? `${shown}\n\n[Lines ${start}-${end} of ${lines.length}.${end < lines.length ? ` Go on with from=${end + 1}, or search with find.` : ''}]`
+    : shown;
 }
 
 const MATCHES_SHOWN = 120;
@@ -989,7 +1172,9 @@ export function searchSkill(slug: string, find: string, rel?: unknown): string {
 
 // Find a skill by slug or name (agents may use either).
 export function findSkill(key: unknown): SkillDetail | null {
-  const k = String(key || '').trim().toLowerCase();
+  const k = String(key || '')
+    .trim()
+    .toLowerCase();
   // by slug first (one folder), else by its display name or the name written as a slug (the whole
   // library), then load the full skill, body included
   const bySlug = getSkill(k);
@@ -1008,7 +1193,11 @@ export function skillsFor(agent: { skills?: string[] }, extra: string[] | null |
     if (seen.has(slug)) continue;
     seen.add(slug);
     const s = getSkill(slug);
-    if (s) out.push({ ...s, via: (agent.skills || []).includes(slug) ? 'agent' : (extra || []).includes(slug) ? 'team' : 'project' });
+    if (s)
+      out.push({
+        ...s,
+        via: (agent.skills || []).includes(slug) ? 'agent' : (extra || []).includes(slug) ? 'team' : 'project',
+      });
   }
   return out;
 }

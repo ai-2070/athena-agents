@@ -106,14 +106,37 @@ export class BuildFx {
   built(from: THREE.Vector3 | null, to: THREE.Vector3, color: THREE.ColorRepresentation, now: number): void {
     if (from) {
       const path = new THREE.CatmullRomCurve3(Array.from({ length: 9 }, (_, i) => arcPoint(from, to, i / 8)));
-      const mesh = new THREE.Mesh(new THREE.TubeGeometry(path, 40, 0.09, 6, false), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-      const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const mesh = new THREE.Mesh(
+        new THREE.TubeGeometry(path, 40, 0.09, 6, false),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          toneMapped: false,
+        }),
+      );
+      const spark = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: glow(),
+          color,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
+      );
       spark.scale.setScalar(2.2);
       this.group.add(mesh, spark);
       this.arcs.push({ mesh, spark, from: from.clone(), to: to.clone(), start: now, life: this.reduced ? 0.5 : ARC_S });
     }
     if (this.reduced) return;
-    const mesh = new THREE.InstancedMesh(this.cube, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, toneMapped: false }), PUFF_N);
+    const mesh = new THREE.InstancedMesh(
+      this.cube,
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, toneMapped: false }),
+      PUFF_N,
+    );
     mesh.frustumCulled = false;
     const vel = new Float32Array(PUFF_N * 3);
     for (let i = 0; i < PUFF_N; i++) {
@@ -157,7 +180,11 @@ export class BuildFx {
       const size = 0.22 * (1 - s / PUFF_S);
       this.s.setScalar(Math.max(0.001, size));
       for (let j = 0; j < PUFF_N; j++) {
-        this.v.set(p.at.x + p.vel[j * 3] * s, p.at.y + p.vel[j * 3 + 1] * s - 4.9 * s * s, p.at.z + p.vel[j * 3 + 2] * s);
+        this.v.set(
+          p.at.x + p.vel[j * 3] * s,
+          p.at.y + p.vel[j * 3 + 1] * s - 4.9 * s * s,
+          p.at.z + p.vel[j * 3 + 2] * s,
+        );
         this.q.setFromEuler(this.e.set(s * 6 + j, s * 4 + j * 0.7, 0));
         p.mesh.setMatrixAt(j, this.m.compose(this.v, this.q, this.s));
       }

@@ -24,7 +24,13 @@ afterAll(() => vi.restoreAllMocks());
 
 const upload = async (rel: string, text: string) => {
   const { batch } = newBatch();
-  return (await receive(Object.assign(Readable.from([Buffer.from(text)]), { headers: {} }) as unknown as http.IncomingMessage, batch, rel)).path;
+  return (
+    await receive(
+      Object.assign(Readable.from([Buffer.from(text)]), { headers: {} }) as unknown as http.IncomingMessage,
+      batch,
+      rel,
+    )
+  ).path;
 };
 
 describe('the Brain and attached files', () => {

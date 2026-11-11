@@ -14,11 +14,22 @@ export function SkillMark({ slug, size = 'lg' }: { slug: string; size?: keyof ty
   const m = skillMark(slug);
   if ('img' in m) {
     // the app's own icon fills the tile; a light mark (ComfyUI's yellow) sits on its dark square
-    return <img className={`skill-ico ${m.craft ? 'craft-icon ' : ''}flex-none ${TILE[size]}`} style={m.tile ? { background: m.tile, padding: size === 'sm' ? 3 : 5 } : undefined} src={m.img} alt="" draggable={false} />;
+    return (
+      <img
+        className={`skill-ico ${m.craft ? 'craft-icon ' : ''}flex-none ${TILE[size]}`}
+        style={m.tile ? { background: m.tile, padding: size === 'sm' ? 3 : 5 } : undefined}
+        src={m.img}
+        alt=""
+        draggable={false}
+      />
+    );
   }
   const plain = ownColours(m);
   return (
-    <span aria-hidden="true" className={`skill-ico flex-none ${TILE[size]}${plain ? ' border border-line bg-panel-2 text-ink' : ''}`}>
+    <span
+      aria-hidden="true"
+      className={`skill-ico flex-none ${TILE[size]}${plain ? ' border border-line bg-panel-2 text-ink' : ''}`}
+    >
       <DomNode as="span" className="flex" make={() => skillIcon(slug, GLYPH[size])} deps={[slug, size, theme]} />
     </span>
   );

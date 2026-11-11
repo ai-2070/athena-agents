@@ -2,7 +2,18 @@
 // character (any prefab, with or without named parts), and which classic models a skin hides.
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { Animator, blendPoses, cleanKeys, clipTime, ease, fadeWeight, prepareClip, restPose, sampleClip, samplePart } from '../../web/voxel/animate.ts';
+import {
+  Animator,
+  blendPoses,
+  cleanKeys,
+  clipTime,
+  ease,
+  fadeWeight,
+  prepareClip,
+  restPose,
+  sampleClip,
+  samplePart,
+} from '../../web/voxel/animate.ts';
 import type { Pose } from '../../web/voxel/animate.ts';
 import { applyPose, buildRig, partNames, partTree } from '../../web/voxel/rig.ts';
 import type { RigLookup } from '../../web/voxel/rig.ts';
@@ -67,7 +78,17 @@ describe('easing and sampling', () => {
 
 describe('Animator', () => {
   const clips: Record<string, AnimationClip> = {
-    idle: { duration: 2, loop: true, tracks: { self: [{ t: 0, move: [0, 0, 0] }, { t: 0.5, move: [0, 1, 0], ease: 'linear' }, { t: 1, move: [0, 0, 0], ease: 'linear' }] } },
+    idle: {
+      duration: 2,
+      loop: true,
+      tracks: {
+        self: [
+          { t: 0, move: [0, 0, 0] },
+          { t: 0.5, move: [0, 1, 0], ease: 'linear' },
+          { t: 1, move: [0, 0, 0], ease: 'linear' },
+        ],
+      },
+    },
     working: { duration: 1, loop: true, tracks: { arm: [{ t: 0, turn: [-60, 0, 0] }] } },
     cheer: { duration: 1, loop: false, tracks: { arm: [{ t: 0, turn: [0, 0, 160] }] } },
   };
@@ -97,7 +118,15 @@ describe('Animator', () => {
 // prefabs for part trees: a figure with a body, a head and two arms (one a mirrored copy)
 const P = (p: Vec3, prefab: string, extra: Partial<PrefabInstance> = {}): PrefabInstance => ({ prefab, p, ...extra });
 const prefabs: Record<string, { instances?: PrefabInstance[]; pivot: Vec3 }> = {
-  figure: { pivot: [0, 0, 0], instances: [P([0, 0.6, 0], 'body', { name: 'Body' }), P([0, 1.2, 0], 'head', { name: 'head' }), P([-0.3, 1.2, 0], 'arm', { name: 'left arm' }), P([0.3, 1.2, 0], 'arm', { name: 'right arm', mirror: true })] },
+  figure: {
+    pivot: [0, 0, 0],
+    instances: [
+      P([0, 0.6, 0], 'body', { name: 'Body' }),
+      P([0, 1.2, 0], 'head', { name: 'head' }),
+      P([-0.3, 1.2, 0], 'arm', { name: 'left arm' }),
+      P([0.3, 1.2, 0], 'arm', { name: 'right arm', mirror: true }),
+    ],
+  },
   body: { pivot: [0, 0, 0] },
   head: { pivot: [0, 0, 0] },
   arm: { pivot: [0.05, 0.5, 0], instances: [P([0, 0, 0], 'hand', { name: 'hand' })] },
@@ -105,7 +134,8 @@ const prefabs: Record<string, { instances?: PrefabInstance[]; pivot: Vec3 }> = {
   loop: { pivot: [0, 0, 0], instances: [P([0, 1, 0], 'loop', { name: 'again' })] },
   crystal: { pivot: [0, 0, 0] },
 };
-const lookup: RigLookup = (id) => (prefabs[id] ? { data: { volumes: [], instances: prefabs[id].instances }, pivot: prefabs[id].pivot } : null);
+const lookup: RigLookup = (id) =>
+  prefabs[id] ? { data: { volumes: [], instances: prefabs[id].instances }, pivot: prefabs[id].pivot } : null;
 
 describe('part trees', () => {
   it('names (any case), nesting, mirrored parts carry their mirror down', () => {
@@ -150,8 +180,12 @@ describe('part trees', () => {
 
 describe('what a skin hides', () => {
   const has = (id: string) => id !== 'gone';
-  it('an agent: its character takes the person\'s place, its desk the furniture\'s; hidden takes it all', () => {
-    expect(agentPlan({ character: 'c', desk: 'd' }, has)).toMatchObject({ hideAll: false, hide: ['person', 'furniture'], label: true });
+  it("an agent: its character takes the person's place, its desk the furniture's; hidden takes it all", () => {
+    expect(agentPlan({ character: 'c', desk: 'd' }, has)).toMatchObject({
+      hideAll: false,
+      hide: ['person', 'furniture'],
+      label: true,
+    });
     expect(agentPlan({ character: 'gone' }, has).hide).toEqual([]);
     expect(agentPlan({ hidden: true, label: false }, has)).toMatchObject({ hideAll: true, models: [], label: false });
     expect(agentPlan(undefined, has)).toMatchObject({ hideAll: false, hide: [], models: [] });
@@ -163,7 +197,7 @@ describe('what a skin hides', () => {
     expect(brainPlan({ globe: false }, has).hide).toEqual(['globe']);
     expect(brainPlan({ hidden: true }, has).hideAll).toBe(true);
   });
-  it('the clip of a state: the skin\'s choice, else one named like the state, else none', () => {
+  it("the clip of a state: the skin's choice, else one named like the state, else none", () => {
     const clips = new Set(['idle', 'wave']);
     const hasClip = (c: string) => clips.has(c);
     expect(stateClip({ states: { needs: 'wave' } }, 'needs', hasClip)).toBe('wave');
@@ -174,7 +208,20 @@ describe('what a skin hides', () => {
 
 describe('dressing again when a skin changes', () => {
   // a Brain shell made of a frame that holds a nested part, on a fake map
-  const meta = (id: string, voxelsAt: number) => ({ id, name: id, description: '', tags: [], by: { kind: 'brain', name: 'the Brain' }, volumes: [], pivot: [0, 0, 0], size: [1, 1, 1], createdAt: 1, updatedAt: 1, voxelsAt }) as VoxelPrefabMeta;
+  const meta = (id: string, voxelsAt: number) =>
+    ({
+      id,
+      name: id,
+      description: '',
+      tags: [],
+      by: { kind: 'brain', name: 'the Brain' },
+      volumes: [],
+      pivot: [0, 0, 0],
+      size: [1, 1, 1],
+      createdAt: 1,
+      updatedAt: 1,
+      voxelsAt,
+    }) as VoxelPrefabMeta;
   const setup = () => {
     const world = {
       palette: [{ name: 'stone', color: '#888888', kind: 'solid' }],
@@ -184,15 +231,30 @@ describe('dressing again when a skin changes', () => {
     const meshed: string[] = [];
     const parts: Record<string, PrefabInstance[]> = { shell: [P([0, 1, 0], 'part')], part: [] };
     const brain = { anchor: new THREE.Group(), base: [new THREE.Group()], globe: [], pick: null };
-    const view = { addObject: () => {}, removeObject: () => {}, material: () => new THREE.MeshBasicMaterial() } as unknown as WorldView;
-    const host: SkinHost = { version: () => 1, brain: () => brain, team: () => null, agents: () => [], setLabel: () => {} };
+    const view = {
+      addObject: () => {},
+      removeObject: () => {},
+      material: () => new THREE.MeshBasicMaterial(),
+    } as unknown as WorldView;
+    const host: SkinHost = {
+      version: () => 1,
+      brain: () => brain,
+      team: () => null,
+      agents: () => [],
+      setLabel: () => {},
+    };
     const layer = new SkinLayer(view, host, {
       world: () => world,
       loadPrefabs: async () => {},
       lookup: (id) => (parts[id] ? { data: { volumes: [], instances: parts[id] }, pivot: [0, 0, 0] } : null),
       mesh: async (id) => {
         meshed.push(id);
-        return { key: id, parts: [{ geo: new THREE.BoxGeometry(id === 'part' ? 8 : 1, 1, 1), cls: 'opaque', local: new THREE.Matrix4() }] };
+        return {
+          key: id,
+          parts: [
+            { geo: new THREE.BoxGeometry(id === 'part' ? 8 : 1, 1, 1), cls: 'opaque', local: new THREE.Matrix4() },
+          ],
+        };
       },
       release: () => {},
     });

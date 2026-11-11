@@ -30,7 +30,9 @@ export const workflowsRouter = os.router({
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((t) => ({ ...t, state: teams.teamState(t.id), last: teams.getThread(t.id, 1).messages[0] || null })),
   ),
-  create: os.create.handler(({ input }) => workflows.save({ name: 'New workflow', steps: [], schedule: { type: 'none' }, enabled: false, ...cleaned(input) })),
+  create: os.create.handler(({ input }) =>
+    workflows.save({ name: 'New workflow', steps: [], schedule: { type: 'none' }, enabled: false, ...cleaned(input) }),
+  ),
   get: os.get.handler(({ input }) => teams.getTeam(input.id) || gone()),
   change: os.change.handler(({ input: { id, ...body } }) => workflows.save({ ...saved(id), ...cleaned(body), id })),
   remove: os.remove.handler(({ input }) => {
@@ -51,7 +53,9 @@ export const workflowsRouter = os.router({
     return { ok: true as const, deletedAgents };
   }),
   run: os.run.handler(({ input }) =>
-    teams.isStepList(saved(input.id)) ? wfs.startWorkflow(input.id, input.input || '') : teams.postUserMessage(input.id, input.input || 'Go ahead.', { route: pickMember }),
+    teams.isStepList(saved(input.id))
+      ? wfs.startWorkflow(input.id, input.input || '')
+      : teams.postUserMessage(input.id, input.input || 'Go ahead.', { route: pickMember }),
   ),
   clone: os.clone.handler(({ input }) => {
     saved(input.id);
@@ -67,13 +71,20 @@ export const workflowsRouter = os.router({
     return teamMarks.removeMarkFile(input.id);
   }),
   templates: {
-    list: os.templates.list.handler(() => wfs.TEMPLATES.map(({ name, description, needs }) => ({ name, description, needs }))),
+    list: os.templates.list.handler(() =>
+      wfs.TEMPLATES.map(({ name, description, needs }) => ({ name, description, needs })),
+    ),
     create: os.templates.create.handler(({ input }) => {
       if (!wfs.TEMPLATES.some((t) => t.name === input.name)) return refuse('Pick one of the starter teams.', 404);
       return wfs.createFromTemplate(input.name);
     }),
   },
-  active: os.active.handler(() => runs.list().filter((r) => r.status === 'running').map(wfs.runSummary)),
+  active: os.active.handler(() =>
+    runs
+      .list()
+      .filter((r) => r.status === 'running')
+      .map(wfs.runSummary),
+  ),
   runs: {
     list: os.runs.list.handler(({ input }) =>
       runs

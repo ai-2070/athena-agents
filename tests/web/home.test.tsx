@@ -28,19 +28,46 @@ const base = {
 };
 
 beforeEach(() => {
-  document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><div id="drawer" class="hidden"></div><section id="view"></section>';
+  document.body.innerHTML =
+    '<div id="modal-root"></div><div id="toasts"></div><div id="drawer" class="hidden"></div><section id="view"></section>';
   el = document.getElementById('view')!;
   requests = [];
-  state.data = { ...base, agents: [{ id: 'a1', name: 'Writer', emoji: '✍️', specialty: 'Posts' }, { id: 'a2', name: 'Coder', emoji: '💻' }] } as unknown as AppState;
+  state.data = {
+    ...base,
+    agents: [
+      { id: 'a1', name: 'Writer', emoji: '✍️', specialty: 'Posts' },
+      { id: 'a2', name: 'Coder', emoji: '💻' },
+    ],
+  } as unknown as AppState;
   vi.stubGlobal('WebSocket', FakeSocket);
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
     requests.push({ method, url, body: init.body ? JSON.parse(String(init.body)) : null });
     const json = (v: unknown) => new Response(JSON.stringify(v));
     if (url === '/api/activity') return json([{ ts: Date.now(), kind: 'run', text: 'Writer finished' }]);
-    if (url === '/api/programs') return json([{ id: 'comfyui', name: 'ComfyUI', icon: '🧩', installed: true, running: true, serviceUrl: 'http://127.0.0.1:8188', version: null }]);
+    if (url === '/api/programs')
+      return json([
+        {
+          id: 'comfyui',
+          name: 'ComfyUI',
+          icon: '🧩',
+          installed: true,
+          running: true,
+          serviceUrl: 'http://127.0.0.1:8188',
+          version: null,
+        },
+      ]);
     if (url === '/api/agents/a2/chats' && method === 'POST') return json({ id: 'c9' });
-    if (url === '/api/library') return json({ agents: [{ slug: 'coordinator', starter: true }, { slug: 'code-reviewer', starter: false }, { slug: 'researcher', starter: true }], hermes: [], claude: [] });
+    if (url === '/api/library')
+      return json({
+        agents: [
+          { slug: 'coordinator', starter: true },
+          { slug: 'code-reviewer', starter: false },
+          { slug: 'researcher', starter: true },
+        ],
+        hermes: [],
+        claude: [],
+      });
     return json({ ok: true });
   });
   connectEvents();
@@ -59,7 +86,11 @@ describe('the Overview page', () => {
   it('stats are links or a button to where each number lives', async () => {
     await open();
     const stats = [...el.querySelectorAll<HTMLElement>('.stats .stat')];
-    expect(stats.map((s) => `${s.tagName}:${s.querySelector('.label')!.textContent}=${s.querySelector('.num')!.textContent}`)).toEqual(['A:Agents=2', 'DIV:Working now=1', 'BUTTON:Needs you=2', 'A:X accounts=0']);
+    expect(
+      stats.map(
+        (s) => `${s.tagName}:${s.querySelector('.label')!.textContent}=${s.querySelector('.num')!.textContent}`,
+      ),
+    ).toEqual(['A:Agents=2', 'DIV:Working now=1', 'BUTTON:Needs you=2', 'A:X accounts=0']);
     await act(async () => stats[2].click());
     expect(document.getElementById('drawer')!.classList.contains('hidden')).toBe(false);
   });
@@ -68,13 +99,19 @@ describe('the Overview page', () => {
     await open();
     await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Agent"]')!.click());
     await settle();
-    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent?.includes('Coder'))!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+        .find((option) => option.textContent?.includes('Coder'))!
+        .click(),
+    );
     const box = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Task"]')!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(box, 'Fix the build');
       box.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true })));
+    await act(async () =>
+      box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true })),
+    );
     await settle();
     expect(requests.find((r) => r.url === '/api/agents/a2/chats/c9/messages')!.body).toEqual({ text: 'Fix the build' });
     expect(location.hash).toBe('#/agents/a2/c9');
@@ -83,23 +120,46 @@ describe('the Overview page', () => {
   it('shows programs and activity, adding new activity as it happens', async () => {
     await open();
     expect(el.textContent).toContain('running · http://127.0.0.1:8188');
-    await act(async () => FakeSocket.last.onmessage!({ data: JSON.stringify({ type: 'activity', ts: 0, entry: { ts: Date.now(), kind: 'error', text: 'Coder failed' } }) }));
-    expect([...el.querySelectorAll('.home-activity')].map((a) => a.textContent)).toEqual(['Coder failed', 'Writer finished']);
+    await act(async () =>
+      FakeSocket.last.onmessage!({
+        data: JSON.stringify({
+          type: 'activity',
+          ts: 0,
+          entry: { ts: Date.now(), kind: 'error', text: 'Coder failed' },
+        }),
+      }),
+    );
+    expect([...el.querySelectorAll('.home-activity')].map((a) => a.textContent)).toEqual([
+      'Coder failed',
+      'Writer finished',
+    ]);
   });
 
   it('with no agents, shows the steps to get started', async () => {
     state.data = { ...base, runs: [], agents: [] } as unknown as AppState;
     await open();
-    expect([...el.querySelectorAll('.home-steps li .btn.ghost')].map((a) => a.textContent)).toEqual(['Settings', 'Open library', 'Connections', 'MCP servers']);
+    expect([...el.querySelectorAll('.home-steps li .btn.ghost')].map((a) => a.textContent)).toEqual([
+      'Settings',
+      'Open library',
+      'Connections',
+      'MCP servers',
+    ]);
     expect(el.querySelector('.home-steps [aria-label="done"]')).not.toBeNull();
   });
 
   it('"Add Athena team" hires the library agents marked as the starter team', async () => {
     state.data = { ...base, runs: [], agents: [] } as unknown as AppState;
     await open();
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.home-steps button')].find((b) => b.textContent === 'Add Athena team')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLButtonElement>('.home-steps button')]
+        .find((b) => b.textContent === 'Add Athena team')!
+        .click(),
+    );
     await settle();
-    expect(requests.filter((r) => r.url === '/api/library/hire').map((r) => r.body)).toEqual([{ source: 'library', slug: 'coordinator' }, { source: 'library', slug: 'researcher' }]);
+    expect(requests.filter((r) => r.url === '/api/library/hire').map((r) => r.body)).toEqual([
+      { source: 'library', slug: 'coordinator' },
+      { source: 'library', slug: 'researcher' },
+    ]);
     expect(location.hash).toBe('#/agents');
   });
 });

@@ -88,7 +88,19 @@ describe('freshElement()', () => {
 });
 
 describe('approvalCard', () => {
-  const card = (a: Partial<Approval>) => approvalCard({ id: 'ap1', kind: 'tool', title: 'T', detail: '', agentId: 'a1', agentName: 'Mira', data: {}, editable: null, createdAt: 0, ...a });
+  const card = (a: Partial<Approval>) =>
+    approvalCard({
+      id: 'ap1',
+      kind: 'tool',
+      title: 'T',
+      detail: '',
+      agentId: 'a1',
+      agentName: 'Mira',
+      data: {},
+      editable: null,
+      createdAt: 0,
+      ...a,
+    });
   const buttons = (el: HTMLElement) => [...el.querySelectorAll('button')].map((b) => b.textContent);
   it('a tool call: Allow, Always allow, Deny', () => {
     expect(buttons(card({}))).toEqual(['Allow', 'Always allow', 'Deny']);

@@ -15,7 +15,8 @@ import type { Project, UploadedFile } from '../shared/types.ts';
 const MAX_ATTACHMENTS = 50;
 const MAX_DEPTH = 16;
 export const IMAGE_EXT = /\.(png|jpe?g|webp|gif)$/i;
-const TEXT_EXT = /\.(md|markdown|txt|json|jsonl|ya?ml|csv|tsv|html?|xml|svg|js|mjs|cjs|ts|tsx|jsx|py|rb|rs|go|java|kt|swift|c|cc|cpp|h|hpp|cs|php|lua|css|scss|less|sql|sh|bash|zsh|ps1|bat|toml|ini|cfg|conf|env|log|srt|vtt|rtf|tex|gitignore|dockerfile)$/i;
+const TEXT_EXT =
+  /\.(md|markdown|txt|json|jsonl|ya?ml|csv|tsv|html?|xml|svg|js|mjs|cjs|ts|tsx|jsx|py|rb|rs|go|java|kt|swift|c|cc|cpp|h|hpp|cs|php|lua|css|scss|less|sql|sh|bash|zsh|ps1|bat|toml|ini|cfg|conf|env|log|srt|vtt|rtf|tex|gitignore|dockerfile)$/i;
 // Windows can't have these as file names
 const RESERVED = /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i;
 
@@ -40,7 +41,8 @@ export function safeUploadsRoot(p?: Project): string | null {
 }
 const checkedRoot = (): string => {
   const root = safeUploadsRoot();
-  if (!root) throw new UploadError(400, "The project's uploads folder is a link out of its Brain folder, so it isn't used.");
+  if (!root)
+    throw new UploadError(400, "The project's uploads folder is a link out of its Brain folder, so it isn't used.");
   return root;
 };
 
@@ -55,12 +57,17 @@ export function newBatch(): { batch: string; dir: string } {
   for (;;) {
     batch = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}_${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}-${crypto.randomBytes(6).toString('hex')}`;
     dir = path.join(root, batch);
-    try { fs.mkdirSync(dir); break; }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
+    try {
+      fs.mkdirSync(dir);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
   }
   // a Git project: keep dropped files out of commits (an agent's `git add -A` would take them all)
   const ignore = path.join(root, '.gitignore');
-  if (exists(path.join(ensureBrain(), '.git')) && !exists(ignore)) fs.writeFileSync(ignore, '# Files attached in the dashboard. Move a file out of uploads/ to commit it.\n*\n');
+  if (exists(path.join(ensureBrain(), '.git')) && !exists(ignore))
+    fs.writeFileSync(ignore, '# Files attached in the dashboard. Move a file out of uploads/ to commit it.\n*\n');
   return { batch, dir };
 }
 
@@ -105,16 +112,33 @@ export async function receive(req: http.IncomingMessage, batch: string, rel: str
 }
 
 /** Browser requests and private platform streams use the same bounded, safe upload path. */
-export async function receiveSource(source: AsyncIterable<Uint8Array>, batch: string, rel: string, { declaredBytes = 0, maxBytes = Infinity, signal, reserved }: { declaredBytes?: number; maxBytes?: number; signal?: AbortSignal; reserved?: (target: string, temporary: string) => void } = {}): Promise<UploadedFile> {
+export async function receiveSource(
+  source: AsyncIterable<Uint8Array>,
+  batch: string,
+  rel: string,
+  {
+    declaredBytes = 0,
+    maxBytes = Infinity,
+    signal,
+    reserved,
+  }: {
+    declaredBytes?: number;
+    maxBytes?: number;
+    signal?: AbortSignal;
+    reserved?: (target: string, temporary: string) => void;
+  } = {},
+): Promise<UploadedFile> {
   // No size limit of its own; a caller with one (a gateway's file limits) passes it.
-  if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1)) throw new UploadError(400, 'Bad upload limit.');
+  if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1))
+    throw new UploadError(400, 'Bad upload limit.');
   const limitError = () => new UploadError(413, `${path.basename(rel)} is over ${maxBytes / 1024 / 1024} MB.`);
   if (declaredBytes > maxBytes) throw limitError();
   signal?.throwIfAborted();
   if (!/^[\w-]{1,64}$/.test(batch)) throw new UploadError(400, 'Bad upload batch.');
   const root = checkedRoot();
   const dir = path.join(root, batch);
-  if (!exists(dir) || !fs.lstatSync(dir).isDirectory() || !inside(root, dir)) throw new UploadError(400, 'That upload batch is gone. Attach the files again.');
+  if (!exists(dir) || !fs.lstatSync(dir).isDirectory() || !inside(root, dir))
+    throw new UploadError(400, 'That upload batch is gone. Attach the files again.');
   const parts = safeParts(rel);
   if (!parts.length) throw new UploadError(400, 'The file needs a name.');
   if (parts.length > MAX_DEPTH) throw new UploadError(400, 'That folder is nested too deep.');
@@ -135,7 +159,8 @@ export async function receiveSource(source: AsyncIterable<Uint8Array>, batch: st
   try {
     descriptor = fs.openSync(tmp, 'wx');
     reserved?.(target, tmp);
-    const stream = fs.createWriteStream(tmp, { fd: descriptor, autoClose: true }); descriptor = undefined;
+    const stream = fs.createWriteStream(tmp, { fd: descriptor, autoClose: true });
+    descriptor = undefined;
     await pipeline(source, count, stream, { signal });
     if (!inside(root, target) || !inside(root, tmp)) throw new UploadError(400, 'Bad upload path.');
     fs.renameSync(tmp, target);
@@ -147,7 +172,13 @@ export async function receiveSource(source: AsyncIterable<Uint8Array>, batch: st
   }
   const folder = parts.length > 1;
   // a folder ends with a separator, so it can be told from a file anywhere it is shown
-  return { path: target, top: folder ? path.join(dir, parts[0]) + path.sep : target, kind: folder ? 'folder' : 'file', name: path.basename(target), size };
+  return {
+    path: target,
+    top: folder ? path.join(dir, parts[0]) + path.sep : target,
+    kind: folder ? 'folder' : 'file',
+    name: path.basename(target),
+    size,
+  };
 }
 
 /** Only a gateway's recorded batch is passed here, while its exclusive worker owns the inbox. */
@@ -206,7 +237,8 @@ export function removeUpload(p: string): boolean {
 }
 
 // ---------- telling agents about them ----------
-const kb = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+const kb = (n: number) =>
+  n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 
 interface FolderFile {
   rel: string;
@@ -250,7 +282,8 @@ const isDir = (p: string) => {
   }
 };
 
-const kindOf = (name: string) => (IMAGE_EXT.test(name) ? 'image' : TEXT_EXT.test(name) ? 'text' : isDocumentName(name) ? 'document' : 'file');
+const kindOf = (name: string) =>
+  IMAGE_EXT.test(name) ? 'image' : TEXT_EXT.test(name) ? 'text' : isDocumentName(name) ? 'document' : 'file';
 
 /** The images among the attachments (top-level files only): what vision models get to see. */
 export const attachedImages = (paths: string[]): string[] => paths.filter((p) => IMAGE_EXT.test(p) && !isDir(p));
@@ -279,7 +312,9 @@ function listAttachments(paths: string[]): Listed {
     if (isDir(p)) {
       const files = folderFiles(p);
       const total = files.reduce((n, f) => n + f.size, 0);
-      lines.push(`- ${p.replace(/[\\/]+$/, '')}${path.sep} (folder, ${files.length}${files.length >= 2000 ? '+' : ''} file${files.length === 1 ? '' : 's'}, ${kb(total)})`);
+      lines.push(
+        `- ${p.replace(/[\\/]+$/, '')}${path.sep} (folder, ${files.length}${files.length >= 2000 ? '+' : ''} file${files.length === 1 ? '' : 's'}, ${kb(total)})`,
+      );
       for (const f of files.slice(0, 40)) lines.push(`    - ${f.rel} (${kb(f.size)})`);
       if (files.length > 40) lines.push(`    - …and ${files.length - 40} more`);
       for (const f of files) {
@@ -294,7 +329,9 @@ function listAttachments(paths: string[]): Listed {
         continue;
       }
       const k = kindOf(p);
-      lines.push(`- ${p} (${k === 'file' || k === 'document' ? path.extname(p).slice(1).toUpperCase() || 'file' : k}, ${kb(size)})`);
+      lines.push(
+        `- ${p} (${k === 'file' || k === 'document' ? path.extname(p).slice(1).toUpperCase() || 'file' : k}, ${kb(size)})`,
+      );
       if (k === 'text' || k === 'document') readable.push({ label: path.basename(p), abs: p, size, kind: k });
     }
   }
@@ -323,7 +360,11 @@ export interface AttachmentOptions {
 
 // The text of the attached documents that fit in inline characters (after the text files before them): what it is,
 // then its text, or why it can't be read. By path.
-async function readDocuments(readable: Readable[], inline: number, signal?: AbortSignal): Promise<Map<string, DocumentBody>> {
+async function readDocuments(
+  readable: Readable[],
+  inline: number,
+  signal?: AbortSignal,
+): Promise<Map<string, DocumentBody>> {
   const out = new Map<string, DocumentBody>();
   const until = Date.now() + DOCUMENTS_TIME_MS;
   let left = inline;
@@ -340,7 +381,10 @@ async function readDocuments(readable: Readable[], inline: number, signal?: Abor
       const read = await readDocumentFile(r.abs, { signal, timeoutMs: until - Date.now() });
       if (!read) continue;
       const notes = read.notes.map((n) => `[${n}]`).join('\n');
-      entry = { body: `(${documentAbout(read)})${notes ? `\n${notes}` : ''}\n${read.text.trim() || '(no text in it)'}`, complete: documentHasText(read) };
+      entry = {
+        body: `(${documentAbout(read)})${notes ? `\n${notes}` : ''}\n${read.text.trim() || '(no text in it)'}`,
+        complete: documentHasText(read),
+      };
     } catch (e) {
       signal?.throwIfAborted();
       if (!(e instanceof DocumentError)) continue;
@@ -358,7 +402,11 @@ interface Rendered {
   whole: Set<string>;
 }
 
-function renderAttachments({ lines, readable }: Listed, { inline = 0, heading = 'Attached files', rest }: AttachmentOptions, documents?: ReadonlyMap<string, DocumentBody>): Rendered {
+function renderAttachments(
+  { lines, readable }: Listed,
+  { inline = 0, heading = 'Attached files', rest }: AttachmentOptions,
+  documents?: ReadonlyMap<string, DocumentBody>,
+): Rendered {
   const whole = new Set<string>();
   if (!lines.length) return { text: '', whole };
   let out = `[${heading}: saved in the project's Brain folder. Open them with your file tools when you need them.]\n${lines.join('\n')}`;
@@ -394,7 +442,8 @@ function renderAttachments({ lines, readable }: Listed, { inline = 0, heading = 
     if (doc && part.length === body.length && doc.complete) whole.add(t.abs);
     else if (doc && doc.complete) more = true;
   }
-  if (more && rest && documents) out += `\n\n[A document's text that is cut short or not shown here: read it with ${rest} (its path is in the list above).]`;
+  if (more && rest && documents)
+    out += `\n\n[A document's text that is cut short or not shown here: read it with ${rest} (its path is in the list above).]`;
   return { text: out, whole };
 }
 
@@ -406,7 +455,10 @@ export function describeAttachments(paths: string[] | undefined, opts: Attachmen
 }
 
 /** The same block, with the text of attached PDF, Word, Excel and PowerPoint files going along too (within inline). */
-export async function describeAttachmentsRead(paths: string[] | undefined, opts: AttachmentOptions = {}): Promise<string> {
+export async function describeAttachmentsRead(
+  paths: string[] | undefined,
+  opts: AttachmentOptions = {},
+): Promise<string> {
   return (await readAttachments(paths, opts)).text;
 }
 
@@ -424,14 +476,23 @@ export function withAttachments(text: string, paths: string[] | undefined, opts:
 }
 
 /** The same, with the attached documents' text going along (describeAttachmentsRead). */
-export async function withAttachmentsRead(text: string, paths: string[] | undefined, opts: AttachmentOptions = {}): Promise<string> {
+export async function withAttachmentsRead(
+  text: string,
+  paths: string[] | undefined,
+  opts: AttachmentOptions = {},
+): Promise<string> {
   return joinNote(text, await describeAttachmentsRead(paths, opts));
 }
 
 /** The message and which documents went along whole (readAttachments). */
-export async function withAttachmentsReadWhole(text: string, paths: string[] | undefined, opts: AttachmentOptions = {}): Promise<Rendered> {
+export async function withAttachmentsReadWhole(
+  text: string,
+  paths: string[] | undefined,
+  opts: AttachmentOptions = {},
+): Promise<Rendered> {
   const read = await readAttachments(paths, opts);
   return { text: joinNote(text, read.text), whole: read.whole };
 }
 
-const joinNote = (text: string, note: string) => (!note ? text : text.trim() ? `${text}\n\n${note}` : `Have a look at what I attached.\n\n${note}`);
+const joinNote = (text: string, note: string) =>
+  !note ? text : text.trim() ? `${text}\n\n${note}` : `Have a look at what I attached.\n\n${note}`;

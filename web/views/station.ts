@@ -5,7 +5,20 @@
 import { engineConfigured } from '../engineavailability.ts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { h, mount, state, attempt, navigate, onState, onEventConnection, ago, toast, promptBox, confirmBox, refreshSoon } from '../core.ts';
+import {
+  h,
+  mount,
+  state,
+  attempt,
+  navigate,
+  onState,
+  onEventConnection,
+  ago,
+  toast,
+  promptBox,
+  confirmBox,
+  refreshSoon,
+} from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { domButton, domButtonLink, domDot } from '../ui/dom.ts';
 import { openTerminal } from './agents.tsx';
@@ -30,7 +43,19 @@ import { appIconImage } from '../appicons.ts';
 import { engineKey } from '../agentstats.ts';
 import { openProjectMenu } from '../projects.tsx';
 import { teamSteps } from '../../shared/teams.ts';
-import { routineCounts, wfColor, appLogo, mark, intInfo, availableIntegrations, agentLinks, toolIntegration, stepLinks, connectorLook, setClaudeConnectors } from './stationdata.ts';
+import {
+  routineCounts,
+  wfColor,
+  appLogo,
+  mark,
+  intInfo,
+  availableIntegrations,
+  agentLinks,
+  toolIntegration,
+  stepLinks,
+  connectorLook,
+  setClaudeConnectors,
+} from './stationdata.ts';
 import type { AvailableIntegration, Headbar, MapPick, Program, TeamView } from './stationdata.ts';
 import { mountStationPanel } from './stationpanel.tsx';
 import type { StationPanelApi } from './stationpanel.tsx';
@@ -39,7 +64,25 @@ import type { MenuEntry, StationMenu } from './stationmenu.tsx';
 import type { WorldView } from '../voxel/view.ts';
 import type { WorldLayer } from '../voxel/worldlayer.ts';
 import type { AgentTarget, SkinHost } from '../voxel/skins.ts';
-import type { ActivityEntry, Agent, AppState, Project, Routine, StationLayout, RunEvent, Schedule, ServerEvent, Team, TeamListing, TeamMessage, TeamState, TeamStep, UsageMeter, WorldAnchor, WorldQuality } from '../../shared/types.ts';
+import type {
+  ActivityEntry,
+  Agent,
+  AppState,
+  Project,
+  Routine,
+  StationLayout,
+  RunEvent,
+  Schedule,
+  ServerEvent,
+  Team,
+  TeamListing,
+  TeamMessage,
+  TeamState,
+  TeamStep,
+  UsageMeter,
+  WorldAnchor,
+  WorldQuality,
+} from '../../shared/types.ts';
 
 // ---------- types ----------
 /** A workflow run (GET /api/workflow-runs, /api/workflow-active and the 'workflow-run' event). */
@@ -416,7 +459,13 @@ interface StationState {
   /** the classic map's floor dots: their opacity is the project's (Settings › Appearance › Station look) */
   mapDots: THREE.PointsMaterial;
   /** the project's background picture (tex once loaded), and the background it took over (the voxel look's sky) */
-  backdrop?: { url: string; tex: THREE.Texture | null; prev: THREE.Scene['background']; baked?: THREE.CanvasTexture; bakedFor?: { w: number; h: number; k: number; floor: string } } | null;
+  backdrop?: {
+    url: string;
+    tex: THREE.Texture | null;
+    prev: THREE.Scene['background'];
+    baked?: THREE.CanvasTexture;
+    bakedFor?: { w: number; h: number; k: number; floor: string };
+  } | null;
   /** the voxel look (web/voxel), while it is on */
   view?: WorldView | null;
   /** the project's voxel world on the map, while the voxel look is on */
@@ -464,7 +513,8 @@ interface ActivityServerEvent extends ServerEvent {
   entry?: ActivityEntry;
 }
 type StationEvent = TeamServerEvent | WorkflowRunServerEvent | AgentRunServerEvent | ActivityServerEvent;
-const isEvent = <T extends StationEvent['type']>(ev: ServerEvent, type: T): ev is Extract<StationEvent, { type: T }> => ev.type === type;
+const isEvent = <T extends StationEvent['type']>(ev: ServerEvent, type: T): ev is Extract<StationEvent, { type: T }> =>
+  ev.type === type;
 
 /** Globals the Station shares with the chat windows and the UI checks. */
 type StationWindow = Window & {
@@ -489,7 +539,11 @@ export const title = () => 'Station';
 let S: StationState | null = null;
 
 // ---------- textures ----------
-function canvasTex(w: number, hgt: number, draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void): CanvasTex {
+function canvasTex(
+  w: number,
+  hgt: number,
+  draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void,
+): CanvasTex {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = hgt;
@@ -549,61 +603,156 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
       return String(u || '').slice(0, 40);
     }
   };
-  const base = (p: unknown) => String(p || '').split(/[\\/]/).pop();
-  const A = (app: string, action: string, detail: unknown = '', brand: string | null = null, color = ''): ToolDesc => ({ app, action, detail: String(detail || '').replace(/\s+/g, ' ').slice(0, 60), brand, color });
+  const base = (p: unknown) =>
+    String(p || '')
+      .split(/[\\/]/)
+      .pop();
+  const A = (app: string, action: string, detail: unknown = '', brand: string | null = null, color = ''): ToolDesc => ({
+    app,
+    action,
+    detail: String(detail || '')
+      .replace(/\s+/g, ' ')
+      .slice(0, 60),
+    brand,
+    color,
+  });
   if (n === 'world_build') return A('World', 'building', args.object, null, '#f3b6cf');
-  if (n === 'world_object') return A('World', args.delete === true ? 'removing' : 'arranging', args.object, null, '#f3b6cf');
+  if (n === 'world_object')
+    return A('World', args.delete === true ? 'removing' : 'arranging', args.object, null, '#f3b6cf');
   if (n === 'world_undo') return A('World', 'undoing a change', '', null, '#f3b6cf');
   if (n === 'world_info') return A('World', 'looking around', args.map || '', null, '#f3b6cf');
-  if (n.startsWith('world_md_')) return A('World', n === 'world_md_read' ? 'reading WORLD.md' : 'writing WORLD.md', args.section || '', null, '#f3b6cf');
-  if (n === 'blender_run_python') return A('Blender', 'running a script', base(args.blend_file) || (args.code || '').split('\n').find((l) => l.trim() && !l.startsWith('import')) || '', 'blender', '#f5792a');
+  if (n.startsWith('world_md_'))
+    return A(
+      'World',
+      n === 'world_md_read' ? 'reading WORLD.md' : 'writing WORLD.md',
+      args.section || '',
+      null,
+      '#f3b6cf',
+    );
+  if (n === 'blender_run_python')
+    return A(
+      'Blender',
+      'running a script',
+      base(args.blend_file) || (args.code || '').split('\n').find((l) => l.trim() && !l.startsWith('import')) || '',
+      'blender',
+      '#f5792a',
+    );
   if (n === 'blender_open') return A('Blender', 'opening', base(args.file), 'blender', '#f5792a');
-  if (n.startsWith('comfyui_')) return A('ComfyUI', n === 'comfyui_run' ? `rendering ${args.workflow || ''}` : n.replace('comfyui_', '').replace(/_/g, ' '), args.prompt || '', null, '#f2ff59');
+  if (n.startsWith('comfyui_'))
+    return A(
+      'ComfyUI',
+      n === 'comfyui_run' ? `rendering ${args.workflow || ''}` : n.replace('comfyui_', '').replace(/_/g, ' '),
+      args.prompt || '',
+      null,
+      '#f2ff59',
+    );
   if (n === 'imagemagick') return A('ImageMagick', 'editing images', base((args.args || []).at(-1)), null, '#5fe3a0');
   if (n === 'handbrake_encode') return A('HandBrake', 'encoding', base(args.input), null, '#5fe3a0');
   if (n === 'ffmpeg') return A('FFmpeg', 'processing video', base((args.args || []).at(-1)), 'ffmpeg', '#5fe3a0');
   if (n === 'ffprobe') return A('FFmpeg', 'inspecting', base(args.file), 'ffmpeg', '#5fe3a0');
   if (n === 'photoshop_run_script') return A('Photoshop', 'running a script', '', 'photoshop', '#31a8ff');
   if (n === 'aftereffects_run_script') return A('After Effects', 'running a script', '', 'aftereffects', '#d291ff');
-  if (n === 'maya_run_python') return A('Maya', 'running a script', base(args.scene) || (args.code || '').split('\n').find((l) => l.trim() && !l.startsWith('import')) || '', 'maya', '#37a5cc');
+  if (n === 'maya_run_python')
+    return A(
+      'Maya',
+      'running a script',
+      base(args.scene) || (args.code || '').split('\n').find((l) => l.trim() && !l.startsWith('import')) || '',
+      'maya',
+      '#37a5cc',
+    );
   if (n === 'maya_open') return A('Maya', 'opening', base(args.file), 'maya', '#37a5cc');
-  if (n === 'houdini_run_python') return A('Houdini', 'running a script', base(args.hip) || (args.code || '').split('\n').find((l) => l.trim() && !l.startsWith('import')) || '', 'houdini', '#ff4713');
+  if (n === 'houdini_run_python')
+    return A(
+      'Houdini',
+      'running a script',
+      base(args.hip) || (args.code || '').split('\n').find((l) => l.trim() && !l.startsWith('import')) || '',
+      'houdini',
+      '#ff4713',
+    );
   if (n === 'houdini_open') return A('Houdini', 'opening', base(args.file), 'houdini', '#ff4713');
   if (n === 'substance_render') return A('Substance 3D', 'rendering textures', base(args.input), null, '#ff6b4a');
   if (n === 'substance_open') return A('Substance 3D', `opening ${args.app || ''}`, base(args.file), null, '#ff6b4a');
   if (n === 'openscad_render') return A('OpenSCAD', 'building a model', base(args.output), 'openscad', '#f9d72f');
   if (n === 'slice_model') return A('PrusaSlicer', 'slicing', base(args.input), null, '#fa6831');
   if (n === 'nvidia_gpu_status') return A('NVIDIA', 'checking the GPU', '', 'nvidia', '#76b900');
-  if (n === 'nvidia_texture_export') return A('NVIDIA', 'compressing a texture', base(args.output), 'nvidia', '#76b900');
-  if (n === 'asset_search') return A(args.source === 'ambientcg' ? 'ambientCG' : 'Poly Haven', 'searching', args.query || args.kind || '', null, '#9fd8ff');
-  if (n === 'asset_download') return A(args.source === 'ambientcg' ? 'ambientCG' : 'Poly Haven', 'downloading', args.id || '', null, '#9fd8ff');
+  if (n === 'nvidia_texture_export')
+    return A('NVIDIA', 'compressing a texture', base(args.output), 'nvidia', '#76b900');
+  if (n === 'asset_search')
+    return A(
+      args.source === 'ambientcg' ? 'ambientCG' : 'Poly Haven',
+      'searching',
+      args.query || args.kind || '',
+      null,
+      '#9fd8ff',
+    );
+  if (n === 'asset_download')
+    return A(args.source === 'ambientcg' ? 'ambientCG' : 'Poly Haven', 'downloading', args.id || '', null, '#9fd8ff');
   if (n === 'premiere_open') return A('Premiere Pro', 'opening', base(args.file), 'premiere', '#9a9aff');
   if (n === 'fetch_url' || n === 'WebFetch') return A('Browser', 'reading', host(args.url), 'chrome', '#a9d3e2');
   if (n === 'open_url') return A('Browser', 'opening', host(args.url), 'chrome', '#a9d3e2');
   if (n === 'WebSearch') return A('Web search', 'searching', args.query || '', 'chrome', '#a9d3e2');
   if (n === 'x_draft_post') return A('X', 'drafting a post', args.text || (args.thread || [])[0] || '', 'x', INK);
-  if (n === 'x_draft_dm') return A('X', `drafting a DM to @${String(args.to || '').replace(/^@/, '')}`, args.text || '', 'x', INK);
-  if (n === 'x_recent_posts' || n === 'x_mentions') return A('X', 'reading', n === 'x_mentions' ? 'mentions' : 'recent posts', 'x', INK);
+  if (n === 'x_draft_dm')
+    return A('X', `drafting a DM to @${String(args.to || '').replace(/^@/, '')}`, args.text || '', 'x', INK);
+  if (n === 'x_recent_posts' || n === 'x_mentions')
+    return A('X', 'reading', n === 'x_mentions' ? 'mentions' : 'recent posts', 'x', INK);
   if (n === 'telegram_send') return A('Telegram', 'sending a message', args.text || '', 'telegram', '#4fb3f6');
-  if (n === 'reddit_draft_post') return A('Reddit', `drafting a post for r/${String(args.subreddit || '').replace(/^\/?r\//, '')}`, args.title || '', 'reddit', '#ff4500');
+  if (n === 'reddit_draft_post')
+    return A(
+      'Reddit',
+      `drafting a post for r/${String(args.subreddit || '').replace(/^\/?r\//, '')}`,
+      args.title || '',
+      'reddit',
+      '#ff4500',
+    );
   if (n === 'reddit_draft_comment') return A('Reddit', 'drafting a comment', args.text || '', 'reddit', '#ff4500');
-  if (n === 'reddit_read' || n === 'reddit_search' || n === 'reddit_comments') return A('Reddit', n === 'reddit_search' ? 'searching' : 'reading', args.subreddit ? `r/${args.subreddit}` : args.query || args.post || '', 'reddit', '#ff4500');
-  if (n === 'reddit_rules') return A('Reddit', 'reading the rules', args.subreddit ? `r/${String(args.subreddit).replace(/^\/?r\//, '')}` : '', 'reddit', '#ff4500');
+  if (n === 'reddit_read' || n === 'reddit_search' || n === 'reddit_comments')
+    return A(
+      'Reddit',
+      n === 'reddit_search' ? 'searching' : 'reading',
+      args.subreddit ? `r/${args.subreddit}` : args.query || args.post || '',
+      'reddit',
+      '#ff4500',
+    );
+  if (n === 'reddit_rules')
+    return A(
+      'Reddit',
+      'reading the rules',
+      args.subreddit ? `r/${String(args.subreddit).replace(/^\/?r\//, '')}` : '',
+      'reddit',
+      '#ff4500',
+    );
   if (n === 'discord_send') return A('Discord', 'posting', args.text || '', 'discord', '#7d86ff');
   if (n === 'Bash' || n === 'run_command') return A('Terminal', 'running', args.command || '', null, '');
   if (n === 'view_image') return A('Files', 'looking at', base(args.path), null, '#a9d3e2');
-  if (['Read', 'read_file', 'knowledge_read'].includes(n)) return A('Files', 'reading', base(args.file_path || args.path || args.file), null, '#a9d3e2');
-  if (['Write', 'Edit', 'write_file', 'NotebookEdit'].includes(n)) return A('Files', 'writing', base(args.file_path || args.path), null, '#a9d3e2');
-  if (['Glob', 'Grep', 'list_files', 'knowledge_search'].includes(n)) return A('Files', 'searching', args.pattern || args.query || args.path || '', null, '#a9d3e2');
+  if (['Read', 'read_file', 'knowledge_read'].includes(n))
+    return A('Files', 'reading', base(args.file_path || args.path || args.file), null, '#a9d3e2');
+  if (['Write', 'Edit', 'write_file', 'NotebookEdit'].includes(n))
+    return A('Files', 'writing', base(args.file_path || args.path), null, '#a9d3e2');
+  if (['Glob', 'Grep', 'list_files', 'knowledge_search'].includes(n))
+    return A('Files', 'searching', args.pattern || args.query || args.path || '', null, '#a9d3e2');
   if (n === 'ask_agent') return A('Team', `asking ${args.agent || 'a teammate'}`, args.message || '', null, '');
   if (n === 'await_agent') return A('Team', args.handle ? 'waiting for a teammate' : 'checking handoffs', '', null, '');
   if (n === 'hermes_ask') return A('Hermes', `asking ${args.profile || 'Hermes'}`, args.message || '', null, '#d8c25a');
-  if (n === 'launch_program') return A(String(args.program || 'Program'), 'starting', base(args.file), String(args.program || '').toLowerCase(), '');
+  if (n === 'launch_program')
+    return A(
+      String(args.program || 'Program'),
+      'starting',
+      base(args.file),
+      String(args.program || '').toLowerCase(),
+      '',
+    );
   if (n === 'orca') return A('Orca', (args.args || []).join(' '), '', null, '#7ab8ff');
   const m = /^mcp__(.+?)__(.+)$/.exec(n) || /^(.+?)__(.+)$/.exec(n);
   if (m) {
     const server = m[1].replace(/^claude_ai_/, '').replace(/_/g, ' ');
-    return A(server.replace(/\b\w/g, (c) => c.toUpperCase()), m[2].replace(/[_-]/g, ' ').slice(0, 40), args.url ? host(args.url) : args.query || args.q || '', server.toLowerCase(), '#a9d3e2');
+    return A(
+      server.replace(/\b\w/g, (c) => c.toUpperCase()),
+      m[2].replace(/[_-]/g, ' ').slice(0, 40),
+      args.url ? host(args.url) : args.query || args.q || '',
+      server.toLowerCase(),
+      '#a9d3e2',
+    );
   }
   return A(n.replace(/_/g, ' '), 'working', '', null, '');
 }
@@ -682,7 +831,11 @@ function drawScreen(desk: Desk, tick = 0): void {
     const ap = (state.data?.approvals || []).find((x) => x.agentId === a.id);
     // (no approval: it asked you a question, in the Outbox)
     const asks = ap ? null : (state.data?.questions || []).find((x) => x.agentId === a.id);
-    ctx.fillText(fitText(ctx, asks ? asks.question : (ap?.title || 'needs your OK').replace(`${a.name} wants to `, ''), W - 190), 170, 168);
+    ctx.fillText(
+      fitText(ctx, asks ? asks.question : (ap?.title || 'needs your OK').replace(`${a.name} wants to `, ''), W - 190),
+      170,
+      168,
+    );
     ctx.fillStyle = sc.needsDim;
     ctx.font = `22px ${SCREEN_SANS}`;
     ctx.fillText(asks ? 'Answer it in the Outbox' : 'Open Needs you to answer', 170, 214);
@@ -731,7 +884,11 @@ function drawScreen(desk: Desk, tick = 0): void {
     // words
     ctx.fillStyle = sc.workTitle;
     ctx.font = `600 40px ${SCREEN_SANS}`;
-    ctx.fillText(fitText(ctx, isTool ? act.app : act?.kind === 'writing' ? 'Writing reply' : 'Thinking', W - 190), 170, 104);
+    ctx.fillText(
+      fitText(ctx, isTool ? act.app : act?.kind === 'writing' ? 'Writing reply' : 'Thinking', W - 190),
+      170,
+      104,
+    );
     ctx.fillStyle = color;
     ctx.font = `500 28px ${SCREEN_SANS}`;
     const dots = '.'.repeat(1 + (Math.floor(tick * 2) % 3));
@@ -757,7 +914,11 @@ function drawScreen(desk: Desk, tick = 0): void {
     ctx.fillStyle = sc.workDim;
     ctx.font = `600 22px ${SCREEN_SANS}`;
     ctx.textAlign = 'right';
-    ctx.fillText(secs >= 60 ? `${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, '0')}` : `${secs}s`, W - 22, 268);
+    ctx.fillText(
+      secs >= 60 ? `${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, '0')}` : `${secs}s`,
+      W - 22,
+      268,
+    );
     ctx.textAlign = 'left';
     ctx.fillStyle = sc.workDim;
     ctx.font = `600 18px ${SCREEN_SANS}`;
@@ -775,10 +936,14 @@ export async function render(el: HTMLElement): Promise<void> {
   const root = h('div.st-root', { class: 'group/root relative h-screen overflow-hidden bg-floor select-none' });
   const host = h('div', { class: 'absolute inset-0 block [&_canvas]:absolute [&_canvas]:inset-0 [&_canvas]:block' });
   // the labels are moved every frame by script (transform): their classes only change with their state
-  const labels = h('div', { class: 'group/labels absolute inset-0 pointer-events-none overflow-hidden *:absolute *:left-0 *:top-0 *:pointer-events-auto *:will-change-transform' });
+  const labels = h('div', {
+    class:
+      'group/labels absolute inset-0 pointer-events-none overflow-hidden *:absolute *:left-0 *:top-0 *:pointer-events-auto *:will-change-transform',
+  });
   const hud = h('div', { class: 'absolute inset-0 pointer-events-none' });
   const panel = h('aside.st-panel.hidden', {
-    class: 'absolute top-18 right-4 bottom-4 w-100 max-w-[calc(100%-32px)] z-5 flex flex-col select-text max-md:top-auto max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:h-[60vh] max-md:rounded-b-none max-md:w-auto max-md:max-w-none',
+    class:
+      'absolute top-18 right-4 bottom-4 w-100 max-w-[calc(100%-32px)] z-5 flex flex-col select-text max-md:top-auto max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:h-[60vh] max-md:rounded-b-none max-md:w-auto max-md:max-w-none',
   });
   const wires = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   wires.setAttribute('class', 'st-wires absolute inset-0 w-full h-full pointer-events-none overflow-visible');
@@ -806,7 +971,13 @@ export async function render(el: HTMLElement): Promise<void> {
   rim.position.set(-40, 20, -30);
   scene.add(rim);
   const classic: THREE.Object3D[] = [ambient, sun, rim];
-  const mapDots = new THREE.PointsMaterial({ color: pal.dots, size: 2, sizeAttenuation: false, transparent: true, depthWrite: false });
+  const mapDots = new THREE.PointsMaterial({
+    color: pal.dots,
+    size: 2,
+    sizeAttenuation: false,
+    transparent: true,
+    depthWrite: false,
+  });
   {
     const pts: number[] = [];
     for (let x = -150; x <= 150; x += 3) for (let z = -150; z <= 150; z += 3) pts.push(x, -0.01, z);
@@ -863,7 +1034,8 @@ export async function render(el: HTMLElement): Promise<void> {
   setupControls();
   // moving around the map gets the full frame rate; a still map fewer (see the loop)
   const moved = () => S && (S.lastInput = performance.now());
-  for (const ev of ['pointermove', 'pointerdown', 'wheel', 'keydown', 'dragover']) root.addEventListener(ev, moved, { passive: true });
+  for (const ev of ['pointermove', 'pointerdown', 'wheel', 'keydown', 'dragover'])
+    root.addEventListener(ev, moved, { passive: true });
   S.ro = new ResizeObserver(resize);
   S.ro.observe(root);
   resize();
@@ -914,7 +1086,8 @@ export async function render(el: HTMLElement): Promise<void> {
   loop();
   // read-only: where teams and desks are on screen (used by the automated UI checks)
   (window as StationWindow).__voxelBench = voxelBench;
-  (window as StationWindow).__voxelEnv = (preset) => void import('../../shared/worldenv.ts').then(({ envPreset }) => S?.view?.setEnvironment(envPreset(preset)));
+  (window as StationWindow).__voxelEnv = (preset) =>
+    void import('../../shared/worldenv.ts').then(({ envPreset }) => S?.view?.setEnvironment(envPreset(preset)));
   // #/station?voxelbench=90 shows the test island straight away
   const bench = Number(new URLSearchParams(location.hash.split('?')[1] || '').get('voxelbench'));
   if (bench > 0) void voxelBench({ radius: bench });
@@ -925,7 +1098,11 @@ export async function render(el: HTMLElement): Promise<void> {
       const r = S!.renderer.domElement.getBoundingClientRect();
       return { x: Math.round(r.left + ((p.x + 1) / 2) * r.width), y: Math.round(r.top + ((1 - p.y) / 2) * r.height) };
     };
-    return [...S.branches.values()].map((b) => ({ name: b.wf.name, ...at(b.group), desks: b.nodes.map((n) => ({ name: n.desk.agent.name, ...at(n.desk.group) })) }));
+    return [...S.branches.values()].map((b) => ({
+      name: b.wf.name,
+      ...at(b.group),
+      desks: b.nodes.map((n) => ({ name: n.desk.agent.name, ...at(n.desk.group) })),
+    }));
   };
   // read-only: what the last frame drew (draw calls, triangles, textures) and what moves every frame (performance checks)
   (window as StationWindow).__stationStats = () => {
@@ -934,22 +1111,53 @@ export async function render(el: HTMLElement): Promise<void> {
     // what is drawn, by kind of object and where it sits (the parent's name or kind)
     const drawn: Record<string, number> = {};
     S.scene.traverseVisible((o) => {
-      if (!(o instanceof THREE.Mesh || o instanceof THREE.Sprite || o instanceof THREE.Line || o instanceof THREE.Points)) return;
+      if (!(
+        o instanceof THREE.Mesh ||
+        o instanceof THREE.Sprite ||
+        o instanceof THREE.Line ||
+        o instanceof THREE.Points
+      ))
+        return;
       const key = `${o.type}:${(o.material as THREE.Material).type}`;
       drawn[key] = (drawn[key] || 0) + 1;
     });
-    return { drawn, frames: S.frames || 0, calls: r.calls, triangles: r.triangles, points: r.points, lines: r.lines, geometries: m.geometries, textures: m.textures, pixelRatio: S.renderer.getPixelRatio(), size: [S.w, S.h], desks: S.desks.length, labels: S.labelEls.length, wires: S.wireBatch?.n ?? 0, particles: S.particles.length, objects: S.scene.children.length };
+    return {
+      drawn,
+      frames: S.frames || 0,
+      calls: r.calls,
+      triangles: r.triangles,
+      points: r.points,
+      lines: r.lines,
+      geometries: m.geometries,
+      textures: m.textures,
+      pixelRatio: S.renderer.getPixelRatio(),
+      size: [S.w, S.h],
+      desks: S.desks.length,
+      labels: S.labelEls.length,
+      wires: S.wireBatch?.n ?? 0,
+      particles: S.particles.length,
+      objects: S.scene.children.length,
+    };
   };
 }
 
 // A team's members, as the desk list the map draws.
 function teamView(w: TeamListing): TeamView {
-  const members = Array.isArray(w.members) ? w.members : [...new Set((w.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId!))];
+  const members = Array.isArray(w.members)
+    ? w.members
+    : [...new Set((w.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId!))];
   return { ...w, members, steps: members.map((id) => ({ type: 'agent', agentId: id })), stepList: w.steps || [] };
 }
 
 async function loadData(): Promise<void> {
-  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([rpc.programs.list({}).catch((): Program[] => []), rpc.workflows.list().catch((): TeamListing[] => []), rpc.workflows.runs.list({}).catch((): WorkflowRun[] => []), rpc.workflows.active().catch((): WorkflowRun[] => []), rpc.layout.get().catch((): StationLayout => ({})), rpc.routines.list().catch((): Routine[] => [])]);
+  const [progs, wfs, runs, active, layout, routineList] = await Promise.all([
+    rpc.programs.list({}).catch((): Program[] => []),
+    rpc.workflows.list().catch((): TeamListing[] => []),
+    rpc.workflows.runs.list({}).catch((): WorkflowRun[] => []),
+    rpc.workflows.active().catch((): WorkflowRun[] => []),
+    rpc.layout.get().catch((): StationLayout => ({})),
+    rpc.routines.list().catch((): Routine[] => []),
+  ]);
   if (!S) return;
   S.layout = layout || {};
   S.progs = progs;
@@ -969,7 +1177,9 @@ async function loadData(): Promise<void> {
 function shareTeams(): void {
   assertMounted(S);
   (window as StationWindow).__teams = S.workflows;
-  (window as StationWindow).__teamWorking = Object.fromEntries(Object.entries(S.teamState || {}).map(([k, v]) => [k, v.working || []]));
+  (window as StationWindow).__teamWorking = Object.fromEntries(
+    Object.entries(S.teamState || {}).map(([k, v]) => [k, v.working || []]),
+  );
   refreshChatTabs();
 }
 
@@ -1026,7 +1236,11 @@ function updateCamera(): void {
   const v = c.view / c.zoom;
   Object.assign(S.camera, { left: (-v * aspect) / 2, right: (v * aspect) / 2, top: v / 2, bottom: -v / 2 });
   const D = 300;
-  S.camera.position.set(c.target.x + Math.sin(c.az) * Math.cos(c.el) * D, c.target.y + Math.sin(c.el) * D, c.target.z + Math.cos(c.az) * Math.cos(c.el) * D);
+  S.camera.position.set(
+    c.target.x + Math.sin(c.az) * Math.cos(c.el) * D,
+    c.target.y + Math.sin(c.el) * D,
+    c.target.z + Math.cos(c.az) * Math.cos(c.el) * D,
+  );
   S.camera.lookAt(c.target);
   S.camera.updateProjectionMatrix();
   for (const d of S.desks) d.group.rotation.y = c.az + (d.branchAngle || 0);
@@ -1036,9 +1250,23 @@ function signature(): string {
   assertMounted(S);
   const d = state.data;
   if (!d) return '';
-  const ints = availableIntegrations(d, S.progs).map((i) => `${i.id}${i.live ? '+' : ''}`).join(',');
+  const ints = availableIntegrations(d, S.progs)
+    .map((i) => `${i.id}${i.live ? '+' : ''}`)
+    .join(',');
   return JSON.stringify([
-    S.workflows.map((w) => [w.id, w.name, w.color, w.angle, w.pos, w.rot, w.access, w.lead, w.members, w.mark, w.markFile?.at]),
+    S.workflows.map((w) => [
+      w.id,
+      w.name,
+      w.color,
+      w.angle,
+      w.pos,
+      w.rot,
+      w.access,
+      w.lead,
+      w.members,
+      w.mark,
+      w.markFile?.at,
+    ]),
     d.agents.map((a) => [a.id, a.name, a.emoji, a.color, a.model, a.engine, [...agentLinks(a)].join('|')]),
     ints,
   ]);
@@ -1060,9 +1288,21 @@ async function applyStationLook(): Promise<void> {
   S.view = null;
   syncShadows();
   if (!want) return;
-  const [{ createWorldView }, { createWorldLayer }] = await Promise.all([import('../voxel/view.ts'), import('../voxel/worldlayer.ts')]);
+  const [{ createWorldView }, { createWorldLayer }] = await Promise.all([
+    import('../voxel/view.ts'),
+    import('../voxel/worldlayer.ts'),
+  ]);
   if (!S || S.lookShown !== want) return;
-  S.view = createWorldView({ renderer: S.renderer, scene: S.scene, camera: S.camera, quality: want, classic: S.classic, w: S.w, h: S.h, onSlow: S.lookForced ? undefined : () => void stepLookDown(want) });
+  S.view = createWorldView({
+    renderer: S.renderer,
+    scene: S.scene,
+    camera: S.camera,
+    quality: want,
+    classic: S.classic,
+    w: S.w,
+    h: S.h,
+    onSlow: S.lookForced ? undefined : () => void stepLookDown(want),
+  });
   if (S.world) S.view.adopt(S.world, S.radius || 40);
   S.worldLayer = createWorldLayer(S.view, anchorAt, skinHost);
   syncShadows();
@@ -1074,7 +1314,9 @@ async function stepLookDown(from: WorldQuality): Promise<void> {
   const next = lowerQuality(from);
   if (!S || !next || S.lookShown !== from) return;
   S.lookCap = next;
-  toast(`The Station was slow here, so the voxel world now draws at ${next === 'low' ? 'Low' : 'Medium'} quality. You can change it in Settings › Appearance.`);
+  toast(
+    `The Station was slow here, so the voxel world now draws at ${next === 'low' ? 'Low' : 'Medium'} quality. You can change it in Settings › Appearance.`,
+  );
   await applyStationLook();
 }
 
@@ -1086,7 +1328,12 @@ const skinHost: SkinHost = {
   brain() {
     if (!S?.brain) return null;
     const b = S.brain;
-    return { anchor: b.group, base: partsTagged(b.group, 'base'), globe: [b.cloud, b.ico, b.halo, b.beam, b.star], pick: { type: 'brain' } };
+    return {
+      anchor: b.group,
+      base: partsTagged(b.group, 'base'),
+      globe: [b.cloud, b.ico, b.halo, b.beam, b.star],
+      pick: { type: 'brain' },
+    };
   },
   team(id) {
     const b = S?.branches.get(id);
@@ -1097,23 +1344,33 @@ const skinHost: SkinHost = {
       anchor: b.group,
       floor: partsTagged(b.group, 'floor'),
       hub: [...(hub ? partsTagged(hub, 'hub-base') : []), ...(b.hub ? [b.hub.holo, b.hub.holo2, b.hub.hubGlow] : [])],
-      extras: [...kids.filter((o) => o.userData.part === 'seat' || o.userData.part === 'spoke'), ...(b.link ? [b.link] : [])],
+      extras: [
+        ...kids.filter((o) => o.userData.part === 'seat' || o.userData.part === 'spoke'),
+        ...(b.link ? [b.link] : []),
+      ],
       pick: { type: 'branch', id },
     };
   },
   agents() {
-    return (S?.desks || []).map(
-      (d): AgentTarget => ({
-        agentId: d.agent.id,
-        key: `${d.agent.id}@${d.wfId || 'bench'}`,
-        anchor: d.group,
-        person: d.person,
-        // the desk itself; the live screen, the status orb and the rings stay
-        furniture: d.group.children.filter((o) => o !== d.person && o !== d.screenGlow && o !== d.orb && o !== d.orbGlow && o !== d.ring && o !== d.focusRing && ((o as THREE.Mesh).material as MappedMaterial | undefined)?.map !== d.screen.tex),
-        status: () => d.status,
-        pick: d.group.userData.pick,
-      }),
-    );
+    return (S?.desks || []).map((d): AgentTarget => ({
+      agentId: d.agent.id,
+      key: `${d.agent.id}@${d.wfId || 'bench'}`,
+      anchor: d.group,
+      person: d.person,
+      // the desk itself; the live screen, the status orb and the rings stay
+      furniture: d.group.children.filter(
+        (o) =>
+          o !== d.person &&
+          o !== d.screenGlow &&
+          o !== d.orb &&
+          o !== d.orbGlow &&
+          o !== d.ring &&
+          o !== d.focusRing &&
+          ((o as THREE.Mesh).material as MappedMaterial | undefined)?.map !== d.screen.tex,
+      ),
+      status: () => d.status,
+      pick: d.group.userData.pick,
+    }));
   },
   setLabel(kind, id, hidden) {
     if (!S) return;
@@ -1159,7 +1416,10 @@ async function voxelBench(opts: VoxelBenchOptions | null = {}): Promise<unknown>
   const quality = opts.quality || S.lookShown || 'medium';
   S.lookForced = quality;
   await applyStationLook();
-  const [{ benchIsland, BENCH_PALETTE }, { envPreset }] = await Promise.all([import('../voxel/bench.ts'), import('../../shared/worldenv.ts')]);
+  const [{ benchIsland, BENCH_PALETTE }, { envPreset }] = await Promise.all([
+    import('../voxel/bench.ts'),
+    import('../../shared/worldenv.ts'),
+  ]);
   if (!S?.view) return null;
   const t0 = performance.now();
   const vol = benchIsland(opts.radius ?? 90, opts.voxelSize ?? 0.25);
@@ -1168,7 +1428,14 @@ async function voxelBench(opts: VoxelBenchOptions | null = {}): Promise<unknown>
   const stats = S.view.addVolume('bench', vol, BENCH_PALETTE, new THREE.Vector3(), opts.region ?? 32);
   S.view.adopt(S.world || S.scene, Math.max(S.radius || 40, (opts.radius ?? 90) * (opts.voxelSize ?? 0.25) + 4));
   const speed = await S.view.measure(opts.seconds ?? 5);
-  const out = { quality, ...stats, generateMs: genMs, ...speed, pixelRatio: S.renderer.getPixelRatio(), size: `${S.w}x${S.h}` };
+  const out = {
+    quality,
+    ...stats,
+    generateMs: genMs,
+    ...speed,
+    pixelRatio: S.renderer.getPixelRatio(),
+    size: `${S.w}x${S.h}`,
+  };
   console.info('voxel bench', out);
   return out;
 }
@@ -1186,7 +1453,10 @@ function syncShadows(): void {
 
 /** A soft shadow lying on the ground (white map only: a dark one has the glow instead). Never picked. */
 function groundShadow(w: number, d: number, opacity: number): THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ map: glow(), color: pal.shadow, transparent: true, opacity, depthWrite: false }));
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, d),
+    new THREE.MeshBasicMaterial({ map: glow(), color: pal.shadow, transparent: true, opacity, depthWrite: false }),
+  );
   m.userData.shadow = true;
   m.visible = shadowsOn();
   m.rotation.x = -Math.PI / 2;
@@ -1201,10 +1471,16 @@ const GLOBE_POINTS = 2200;
 function buildBrain(): void {
   assertMounted(S);
   const g = new THREE.Group();
-  const ped = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 4.4, 0.8, 6), new THREE.MeshStandardMaterial({ roughness: 0.8 }));
+  const ped = new THREE.Mesh(
+    new THREE.CylinderGeometry(3.6, 4.4, 0.8, 6),
+    new THREE.MeshStandardMaterial({ roughness: 0.8 }),
+  );
   ped.position.y = 0.4;
   g.add(ped);
-  const pedEdges = new THREE.LineSegments(new THREE.EdgesGeometry(ped.geometry), new THREE.LineBasicMaterial({ transparent: true }));
+  const pedEdges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(ped.geometry),
+    new THREE.LineBasicMaterial({ transparent: true }),
+  );
   pedEdges.position.copy(ped.position);
   ped.userData.part = pedEdges.userData.part = 'base';
   g.add(pedEdges);
@@ -1224,21 +1500,34 @@ function buildBrain(): void {
   const pg = new THREE.BufferGeometry();
   pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
-  const cloud = new THREE.Points(pg, new THREE.PointsMaterial({ size: 0.11, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false }));
+  const cloud = new THREE.Points(
+    pg,
+    new THREE.PointsMaterial({ size: 0.11, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false }),
+  );
   cloud.userData.along = along;
   cloud.position.y = 3.2;
   g.add(cloud);
-  const ico = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(3.1, 1)), new THREE.LineBasicMaterial({ transparent: true }));
+  const ico = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(3.1, 1)),
+    new THREE.LineBasicMaterial({ transparent: true }),
+  );
   ico.position.y = 3.2;
   g.add(ico);
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), transparent: true, opacity: 0.7, depthWrite: false }));
+  const halo = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: glow(), transparent: true, opacity: 0.7, depthWrite: false }),
+  );
   halo.scale.set(11, 11, 1);
   halo.position.y = 3.2;
   g.add(halo);
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.7, 16, 24, 1, true), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.7, 16, 24, 1, true),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }),
+  );
   beam.position.y = 12;
   g.add(beam);
-  const star = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), transparent: true, opacity: 0.9, depthWrite: false }));
+  const star = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: glow(), transparent: true, opacity: 0.9, depthWrite: false }),
+  );
   star.scale.set(6, 6, 1);
   star.position.y = 7.4;
   g.add(star);
@@ -1247,7 +1536,22 @@ function buildBrain(): void {
   g.add(light);
   g.traverse((o) => (o.userData.pick = { type: 'brain' }));
   S.scene.add(g);
-  S.brain = { group: g, base: ped, shadow, baseEdge: pedEdges, cloud, ico, halo, beam, star, light, logo: null, logoKey: '', model: null, modelLight: null };
+  S.brain = {
+    group: g,
+    base: ped,
+    shadow,
+    baseEdge: pedEdges,
+    cloud,
+    ico,
+    halo,
+    beam,
+    star,
+    light,
+    logo: null,
+    logoKey: '',
+    model: null,
+    modelLight: null,
+  };
   styleBrain();
   setBrainLogo();
 }
@@ -1276,7 +1580,10 @@ function styleBrain(): void {
   b.cloud.material.needsUpdate = true;
   b.ico.material.color.copy(pal.globeA);
   b.ico.material.opacity = pal.dark ? 0.2 : 0.35;
-  for (const [sp, c] of [[b.halo, pal.halo], [b.star, pal.star]] as const) {
+  for (const [sp, c] of [
+    [b.halo, pal.halo],
+    [b.star, pal.star],
+  ] as const) {
     sp.material.color.copy(c);
     sp.material.blending = pal.blend;
     sp.material.needsUpdate = true;
@@ -1371,7 +1678,11 @@ function fitBackdrop(): void {
 
 // The classic map's picture is cropped to fill the screen and faded into the map's floor colour as far as the project wants
 // (so on a white map it goes pale, on a dark one dim), and drawn once for each size and strength.
-function bakedBackdrop(b: NonNullable<StationState['backdrop']>, img: CanvasImageSource & { width: number; height: number }, k: number): THREE.CanvasTexture | null {
+function bakedBackdrop(
+  b: NonNullable<StationState['backdrop']>,
+  img: CanvasImageSource & { width: number; height: number },
+  k: number,
+): THREE.CanvasTexture | null {
   if (!S) return null;
   const scale = Math.min(1, 1600 / Math.max(S.w, S.h));
   const cw = Math.max(1, Math.round(S.w * scale));
@@ -1425,7 +1736,8 @@ function applyBackdrop(): void {
 function dropBackdrop(): void {
   const b = S?.backdrop;
   if (!S || !b) return;
-  if ((b.tex && S.scene.background === b.tex) || (b.baked && S.scene.background === b.baked)) S.scene.background = b.prev;
+  if ((b.tex && S.scene.background === b.tex) || (b.baked && S.scene.background === b.baked))
+    S.scene.background = b.prev;
   S.scene.backgroundIntensity = 1;
   b.tex?.dispose();
   b.baked?.dispose();
@@ -1520,7 +1832,9 @@ function showBrainLogo(url: string): void {
     const img = tex.image as { width: number; height: number };
     const aspect = img.width && img.height ? img.width / img.height : 1;
     const side = 3.1;
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.96 }));
+    const sp = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.96 }),
+    );
     sp.scale.set(aspect >= 1 ? side : side * aspect, aspect >= 1 ? side / aspect : side, 1);
     sp.position.y = 3.2;
     sp.renderOrder = 5;
@@ -1541,7 +1855,15 @@ function rebuild(): void {
     S.scene.remove(S.world);
     S.world.traverse((o: Disposable) => {
       o.geometry?.dispose?.();
-      if (o.material) ([] as MappedMaterial[]).concat(o.material).forEach((m) => (m.map && m.map !== glowTex && ![...glyphCache.values()].includes(m.map) && m.map.dispose?.(), m.dispose?.()));
+      if (o.material)
+        ([] as MappedMaterial[])
+          .concat(o.material)
+          .forEach(
+            (m) => (
+              m.map && m.map !== glowTex && ![...glyphCache.values()].includes(m.map) && m.map.dispose?.(),
+              m.dispose?.()
+            ),
+          );
     });
   }
   for (const l of S.labelEls) l.el.remove();
@@ -1581,7 +1903,24 @@ function rebuild(): void {
     id: 'brain',
     obj: S.brain.group,
     offset: new THREE.Vector3(0, 9.5, 0),
-    el: h('div.st-brain-label', { class: BRAIN_LABEL, onclick: () => choose({ type: 'brain' }), title: 'Click for the project Brain · drop files here (or paste them on the Station) to give them to it', ondragenter: brainDragOver, ondragover: brainDragOver, ondrop: brainDrop }, icon('brain', 14), 'The Brain', h('span', { class: 'text-dim font-normal' }, `${d.project?.name || ''} · ${wfs.length} team${wfs.length === 1 ? '' : 's'} · ${d.agents.length} agent${d.agents.length === 1 ? '' : 's'}`)),
+    el: h(
+      'div.st-brain-label',
+      {
+        class: BRAIN_LABEL,
+        onclick: () => choose({ type: 'brain' }),
+        title: 'Click for the project Brain · drop files here (or paste them on the Station) to give them to it',
+        ondragenter: brainDragOver,
+        ondragover: brainDragOver,
+        ondrop: brainDrop,
+      },
+      icon('brain', 14),
+      'The Brain',
+      h(
+        'span',
+        { class: 'text-dim font-normal' },
+        `${d.project?.name || ''} · ${wfs.length} team${wfs.length === 1 ? '' : 's'} · ${d.agents.length} agent${d.agents.length === 1 ? '' : 's'}`,
+      ),
+    ),
   });
   // A branch added or removed: make sure the whole station still fits.
   const shape = `${wfs.length}:${bench.length}`;
@@ -1654,9 +1993,9 @@ const CHIP =
 const CHIP_DOT =
   'size-1.5 rounded-full bg-faint group-data-[status=working]/chip:bg-accent group-data-[status=running]/chip:bg-accent group-data-[status=needs]/chip:bg-amber group-data-[status=needs-you]/chip:bg-amber group-data-[status=needs]/chip:animate-[pulse_0.8s_infinite] group-data-[status=needs-you]/chip:animate-[pulse_0.8s_infinite]';
 // the model shows only when zoomed in
-const CHIP_MODEL = "[display:none] ml-0.5 text-faint font-normal group-data-[zoom=near]/labels:inline group-data-[zoom=near]/labels:before:content-['·_']";
-const CARD =
-  'glass py-4 px-4.5 cursor-pointer rounded-box transition-[opacity,border-color] duration-200 ease-[ease]';
+const CHIP_MODEL =
+  "[display:none] ml-0.5 text-faint font-normal group-data-[zoom=near]/labels:inline group-data-[zoom=near]/labels:before:content-['·_']";
+const CARD = 'glass py-4 px-4.5 cursor-pointer rounded-box transition-[opacity,border-color] duration-200 ease-[ease]';
 const BRANCH = `group/card w-58 ${CARD} hover:border-(--c) [&.sel]:border-(--c) [&.live]:border-accent-dim [&.needs]:border-amber group-[.focus]/labels:[&:not(.hot)]:opacity-18 group-[.focus]/labels:[&.hot]:border-accent`;
 const BENCH = `[--c:var(--color-faint)] w-52 ${CARD} group-[.focus]/labels:opacity-18`;
 const BRANCH_NAME = 'flex items-center gap-2 text-[13px] leading-[1.3] font-semibold text-ink';
@@ -1683,28 +2022,65 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
   const floor = new THREE.Group();
   const slab = new THREE.Mesh(
     new THREE.CylinderGeometry(R, R + 0.25, 0.5, 64),
-    pal.dark ? new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.42), roughness: 0.55, metalness: 0.15, emissive: color, emissiveIntensity: 0.1 }) : new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.podSide).lerp(tint, 0.42), roughness: 0.85 }),
+    pal.dark
+      ? new THREE.MeshStandardMaterial({
+          color: color.clone().multiplyScalar(0.42),
+          roughness: 0.55,
+          metalness: 0.15,
+          emissive: color,
+          emissiveIntensity: 0.1,
+        })
+      : new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.podSide).lerp(tint, 0.42), roughness: 0.85 }),
   );
   slab.position.y = 0.25;
   floor.add(slab);
   const top = new THREE.Mesh(
     new THREE.CircleGeometry(R - 0.15, 64),
-    pal.dark ? new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.62), roughness: 0.75, emissive: color, emissiveIntensity: 0.07 }) : new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.podTop).lerp(tint, 0.2), roughness: 0.9 }),
+    pal.dark
+      ? new THREE.MeshStandardMaterial({
+          color: color.clone().multiplyScalar(0.62),
+          roughness: 0.75,
+          emissive: color,
+          emissiveIntensity: 0.07,
+        })
+      : new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.podTop).lerp(tint, 0.2), roughness: 0.9 }),
   );
   top.rotation.x = -Math.PI / 2;
   top.position.y = 0.51;
   floor.add(top);
-  const rim = new THREE.LineSegments(new THREE.EdgesGeometry(slab.geometry, 30), new THREE.LineBasicMaterial({ color: light, transparent: true, opacity: pal.dark ? 0.7 : 0.55 }));
+  const rim = new THREE.LineSegments(
+    new THREE.EdgesGeometry(slab.geometry, 30),
+    new THREE.LineBasicMaterial({ color: light, transparent: true, opacity: pal.dark ? 0.7 : 0.55 }),
+  );
   rim.position.copy(slab.position);
   floor.add(rim);
   // an inner ring where the conversation runs
-  const track = new THREE.Mesh(new THREE.RingGeometry(R * 0.42, R * 0.42 + 0.08, 64), new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: pal.dark ? 0.35 : 0.5, side: THREE.DoubleSide, blending: pal.blend, depthWrite: false }));
+  const track = new THREE.Mesh(
+    new THREE.RingGeometry(R * 0.42, R * 0.42 + 0.08, 64),
+    new THREE.MeshBasicMaterial({
+      color: light,
+      transparent: true,
+      opacity: pal.dark ? 0.35 : 0.5,
+      side: THREE.DoubleSide,
+      blending: pal.blend,
+      depthWrite: false,
+    }),
+  );
   track.rotation.x = -Math.PI / 2;
   track.position.y = 0.53;
   floor.add(track);
   // under it: a glow in the team's colour at night, a soft shadow on white
   if (pal.dark) {
-    const under = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color, transparent: true, opacity: 0.14, blending: pal.blend, depthWrite: false }));
+    const under = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: glow(),
+        color,
+        transparent: true,
+        opacity: 0.14,
+        blending: pal.blend,
+        depthWrite: false,
+      }),
+    );
     under.scale.set(R * 3, R * 2.2, 1);
     under.position.y = -0.2;
     floor.add(under);
@@ -1717,12 +2093,29 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
   const hub = new THREE.Group();
   const base = new THREE.Mesh(
     new THREE.CylinderGeometry(0.95, 1.2, 0.55, 6),
-    pal.dark ? new THREE.MeshStandardMaterial({ color: pal.base, roughness: 0.5, metalness: 0.3, emissive: color, emissiveIntensity: 0.35 }) : new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.base).lerp(tint, 0.18), roughness: 0.6 }),
+    pal.dark
+      ? new THREE.MeshStandardMaterial({
+          color: pal.base,
+          roughness: 0.5,
+          metalness: 0.3,
+          emissive: color,
+          emissiveIntensity: 0.35,
+        })
+      : new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.base).lerp(tint, 0.18), roughness: 0.6 }),
   );
   base.position.y = 0.8;
   base.userData.part = 'hub-base';
   hub.add(base);
-  const holo = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.05, 8, 48), new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: 0.8, blending: pal.blend, depthWrite: false }));
+  const holo = new THREE.Mesh(
+    new THREE.TorusGeometry(0.9, 0.05, 8, 48),
+    new THREE.MeshBasicMaterial({
+      color: light,
+      transparent: true,
+      opacity: 0.8,
+      blending: pal.blend,
+      depthWrite: false,
+    }),
+  );
   holo.rotation.x = Math.PI / 2;
   holo.position.y = 2.1;
   hub.add(holo);
@@ -1730,12 +2123,27 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
   holo2.position.y = 2.1;
   hub.add(holo2);
   // the team's symbol: its emoji (💬 unless it chose another), or its own picture or 3D model once that has loaded
-  const mark = new THREE.Sprite(new THREE.SpriteMaterial({ map: glyphTex(wf.mark || DEFAULT_TEAM_MARK, '#' + tint.getHexString()), transparent: true, depthWrite: false }));
+  const mark = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: glyphTex(wf.mark || DEFAULT_TEAM_MARK, '#' + tint.getHexString()),
+      transparent: true,
+      depthWrite: false,
+    }),
+  );
   mark.scale.set(1.3, 1.3, 1);
   mark.position.y = 2.1;
   hub.add(mark);
   if (wf.markFile) loadTeamMark(wf, hub, mark);
-  const hubGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: pal.dark ? color : tint, transparent: true, opacity: 0.45, blending: pal.blend, depthWrite: false }));
+  const hubGlow = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: glow(),
+      color: pal.dark ? color : tint,
+      transparent: true,
+      opacity: 0.45,
+      blending: pal.blend,
+      depthWrite: false,
+    }),
+  );
   hubGlow.scale.set(4.5, 4.5, 1);
   hubGlow.position.y = 1.8;
   hub.add(hubGlow);
@@ -1747,7 +2155,14 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
   // where the Brain is, seen from the pod (the lead's desk is on that side: spot.desks are in that order)
   const toBrain = pod.worldToLocal(new THREE.Vector3(0, 0, 0)).setY(0);
   // (quiet teams are in their own colour or muted grey; while a team works its lines turn the accent on white)
-  const rails: Rail[] = [{ material: track.material, base: pal.dark ? 0.35 : 0.5, rest: light.clone(), live: pal.dark ? light.clone() : pal.working.clone() }];
+  const rails: Rail[] = [
+    {
+      material: track.material,
+      base: pal.dark ? 0.35 : 0.5,
+      rest: light.clone(),
+      live: pal.dark ? light.clone() : pal.working.clone(),
+    },
+  ];
   const branchNodes: PodNode[] = [];
   const branchLinks = new Set<string>();
   spot.desks.forEach(({ agentId, local }, k) => {
@@ -1765,7 +2180,17 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
     S!.desks.push(desk);
     // the lead's seat gets a gold ring
     if (isLead) {
-      const seat = new THREE.Mesh(new THREE.RingGeometry(1.75, 1.95, 48), new THREE.MeshBasicMaterial({ color: pal.lead, transparent: true, opacity: 0.75, side: THREE.DoubleSide, blending: pal.blend, depthWrite: false }));
+      const seat = new THREE.Mesh(
+        new THREE.RingGeometry(1.75, 1.95, 48),
+        new THREE.MeshBasicMaterial({
+          color: pal.lead,
+          transparent: true,
+          opacity: 0.75,
+          side: THREE.DoubleSide,
+          blending: pal.blend,
+          depthWrite: false,
+        }),
+      );
       seat.rotation.x = -Math.PI / 2;
       seat.position.copy(pos).setY(0.56);
       seat.userData.part = 'seat';
@@ -1774,12 +2199,32 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
     // spoke from the desk to the hub
     const spoke = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([pos.clone().setY(0.6), HUB.clone().setY(0.6)]),
-      new THREE.LineBasicMaterial({ color: pal.dark ? light : pal.wire, transparent: true, opacity: pal.dark ? 0.3 : 0.55, blending: pal.blend, depthWrite: false }),
+      new THREE.LineBasicMaterial({
+        color: pal.dark ? light : pal.wire,
+        transparent: true,
+        opacity: pal.dark ? 0.3 : 0.55,
+        blending: pal.blend,
+        depthWrite: false,
+      }),
     );
     spoke.userData.part = 'spoke';
     pod.add(spoke);
-    rails.push({ material: spoke.material, base: pal.dark ? 0.3 : 0.55, rest: spoke.material.color.clone(), live: pal.dark ? light.clone() : pal.working.clone() });
-    const node: PodNode = { kind: 'agent', pos, obj: desk.group, wfId: wf.id, index: k, links, desk, agentId: agent.id };
+    rails.push({
+      material: spoke.material,
+      base: pal.dark ? 0.3 : 0.55,
+      rest: spoke.material.color.clone(),
+      live: pal.dark ? light.clone() : pal.working.clone(),
+    });
+    const node: PodNode = {
+      kind: 'agent',
+      pos,
+      obj: desk.group,
+      wfId: wf.id,
+      index: k,
+      links,
+      desk,
+      agentId: agent.id,
+    };
     S!.nodes.push(node);
     branchNodes.push(node);
     addLabel({
@@ -1788,14 +2233,42 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
       wf: wf.id,
       obj: desk.group,
       offset: new THREE.Vector3(0, 3.3, 0),
-      el: h('div', { class: CHIP, onclick: () => choose({ type: 'agent', id: agent.id, wf: wf.id }), title: `${agent.name} · ${agent.model || agent.engine}${isLead ? ' · team lead' : ''}` }, h('span', { class: CHIP_DOT }), isLead ? h('span', { class: 'text-amber', title: 'Team lead' }, '★') : null, h('span', { class: 'max-w-42.5 truncate inline-block align-bottom' }, agent.name), h('span', { class: CHIP_MODEL }, shortModel(agent))),
+      el: h(
+        'div',
+        {
+          class: CHIP,
+          onclick: () => choose({ type: 'agent', id: agent.id, wf: wf.id }),
+          title: `${agent.name} · ${agent.model || agent.engine}${isLead ? ' · team lead' : ''}`,
+        },
+        h('span', { class: CHIP_DOT }),
+        isLead ? h('span', { class: 'text-amber', title: 'Team lead' }, '★') : null,
+        h('span', { class: 'max-w-42.5 truncate inline-block align-bottom' }, agent.name),
+        h('span', { class: CHIP_MODEL }, shortModel(agent)),
+      ),
     });
   });
   // the conversation gently circles the hub
-  for (let k = 0; k < 3; k++) spawn({ parent: pod, path: (t: number) => new THREE.Vector3(Math.cos(t * Math.PI * 2) * R * 0.42, 0.62, Math.sin(t * Math.PI * 2) * R * 0.42), t: k / 3, speed: 0.06, color: light, size: 0.45, loop: true, opacity: pal.dark ? 0.55 : 0.9 });
+  for (let k = 0; k < 3; k++)
+    spawn({
+      parent: pod,
+      path: (t: number) =>
+        new THREE.Vector3(Math.cos(t * Math.PI * 2) * R * 0.42, 0.62, Math.sin(t * Math.PI * 2) * R * 0.42),
+      t: k / 3,
+      speed: 0.06,
+      color: light,
+      size: 0.45,
+      loop: true,
+      opacity: pal.dark ? 0.55 : 0.9,
+    });
 
   // the team card, on the far side from the Brain
-  const away = toBrain.lengthSq() > 0.01 ? toBrain.clone().normalize().multiplyScalar(-(R + 2.6)) : new THREE.Vector3(R + 2.6, 0, 0);
+  const away =
+    toBrain.lengthSq() > 0.01
+      ? toBrain
+          .clone()
+          .normalize()
+          .multiplyScalar(-(R + 2.6))
+      : new THREE.Vector3(R + 2.6, 0, 0);
   const anchor = new THREE.Object3D();
   anchor.position.copy(away);
   pod.add(anchor);
@@ -1803,20 +2276,64 @@ function buildBranch(wf: TeamView, i: number, spot: TeamSpot, agentsById: Map<st
   const fitBox = new THREE.Mesh(new THREE.BoxGeometry(14, 0.1, 8), new THREE.MeshBasicMaterial({ visible: false }));
   fitBox.position.copy(away).addScaledVector(away.clone().normalize(), 7);
   pod.add(fitBox);
-  const card = h('div', { class: BRANCH, style: { '--c': wfColor(wf, i) }, onclick: () => choose({ type: 'branch', id: wf.id }) });
+  const card = h('div', {
+    class: BRANCH,
+    style: { '--c': wfColor(wf, i) },
+    onclick: () => choose({ type: 'branch', id: wf.id }),
+  });
   // pinned by its edge, so it grows away from the pod instead of over it
   addLabel({ kind: 'branch', id: wf.id, obj: anchor, from: pod, offset: new THREE.Vector3(0, 0.5, 0), el: card });
 
   // the link to the Brain (redrawn when the team moves)
-  const link = new THREE.Line(new THREE.BufferGeometry().setFromPoints(new Array(33).fill(0).map(() => new THREE.Vector3())), new THREE.LineBasicMaterial({ color: pal.dark ? light : pal.wire, transparent: true, opacity: pal.dark ? 0.45 : 0.6, blending: pal.blend, depthWrite: false }));
+  const link = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(new Array(33).fill(0).map(() => new THREE.Vector3())),
+    new THREE.LineBasicMaterial({
+      color: pal.dark ? light : pal.wire,
+      transparent: true,
+      opacity: pal.dark ? 0.45 : 0.6,
+      blending: pal.blend,
+      depthWrite: false,
+    }),
+  );
   S.world!.add(link);
-  rails.push({ material: link.material, base: pal.dark ? 0.45 : 0.6, rest: link.material.color.clone(), live: pal.dark ? light.clone() : pal.working.clone() });
-  const b: Branch = { wf, index: i, color, group: pod, center: new THREE.Vector3(), radius: R, nodes: branchNodes, links: branchLinks, card, agentCount: members.length, rails, link, hub: { holo, holo2, hubGlow }, spin, flash: 0, home };
+  rails.push({
+    material: link.material,
+    base: pal.dark ? 0.45 : 0.6,
+    rest: link.material.color.clone(),
+    live: pal.dark ? light.clone() : pal.working.clone(),
+  });
+  const b: Branch = {
+    wf,
+    index: i,
+    color,
+    group: pod,
+    center: new THREE.Vector3(),
+    radius: R,
+    nodes: branchNodes,
+    links: branchLinks,
+    card,
+    agentCount: members.length,
+    rails,
+    link,
+    hub: { holo, holo2, hubGlow },
+    spin,
+    flash: 0,
+    home,
+  };
   b.along = (t: number) => linkPoint(b, t);
   S.branches.set(wf.id, b);
   updateLink(b);
   // a slow stream of light from the Brain to the team
-  for (let k = 0; k < 2; k++) spawn({ path: (t: number) => linkPoint(b, t), t: k / 2, speed: 0.07 + Math.random() * 0.03, color: pal.dark ? light : pal.working, size: 0.5, loop: true, opacity: pal.dark ? 0.45 : 0.9 });
+  for (let k = 0; k < 2; k++)
+    spawn({
+      path: (t: number) => linkPoint(b, t),
+      t: k / 2,
+      speed: 0.07 + Math.random() * 0.03,
+      color: pal.dark ? light : pal.working,
+      size: 0.5,
+      loop: true,
+      opacity: pal.dark ? 0.45 : 0.9,
+    });
   drawBranchCard(wf.id);
   return pod.position.length() + R + 16; // room for the team card too
 }
@@ -1832,9 +2349,16 @@ function linkPoint(b: Branch, t: number): THREE.Vector3 {
   const end = t < 0.85 ? edge : p2;
   const tt = t < 0.85 ? t / 0.85 : (t - 0.85) / 0.15;
   const from = t < 0.85 ? p0 : edge;
-  const ctrl = from.clone().lerp(end, 0.5).setY(Math.max(from.y, end.y) + (t < 0.85 ? Math.min(6, len * 0.12) : 0.5));
+  const ctrl = from
+    .clone()
+    .lerp(end, 0.5)
+    .setY(Math.max(from.y, end.y) + (t < 0.85 ? Math.min(6, len * 0.12) : 0.5));
   const u = 1 - tt;
-  return from.clone().multiplyScalar(u * u).addScaledVector(ctrl, 2 * u * tt).addScaledVector(end, tt * tt);
+  return from
+    .clone()
+    .multiplyScalar(u * u)
+    .addScaledVector(ctrl, 2 * u * tt)
+    .addScaledVector(end, tt * tt);
 }
 function updateLink(b: Branch): void {
   const pos = b.link.geometry.attributes.position;
@@ -1855,7 +2379,8 @@ function pulseHandoff(teamId: string, fromId: string, toId: string, count = 6): 
   if (!A || !B) return;
   const hub = new THREE.Vector3(0, 1.9, 0);
   const path = polyline([A.pos.clone().setY(1.9), hub, B.pos.clone().setY(1.9)]);
-  for (let k = 0; k < count; k++) spawn({ parent: b.group, path, t: -k * 0.07, speed: 0.8, color: pal.pulse, size: 0.8, loop: false });
+  for (let k = 0; k < count; k++)
+    spawn({ parent: b.group, path, t: -k * 0.07, speed: 0.8, color: pal.pulse, size: 0.8, loop: false });
   b.flash = 1;
 }
 // The hub hands a message to one teammate (they start working on it).
@@ -1864,7 +2389,8 @@ function pulseToDesk(teamId: string, agentId: string, count = 4): void {
   const N = b?.nodes.find((n) => n.agentId === agentId);
   if (!N) return;
   const path = polyline([new THREE.Vector3(0, 1.9, 0), N.pos.clone().setY(1.9)]);
-  for (let k = 0; k < count; k++) spawn({ parent: b!.group, path, t: -k * 0.08, speed: 0.9, color: pal.pulse, size: 0.7, loop: false });
+  for (let k = 0; k < count; k++)
+    spawn({ parent: b!.group, path, t: -k * 0.08, speed: 0.9, color: pal.pulse, size: 0.7, loop: false });
   b!.flash = Math.max(b!.flash, 0.6);
 }
 
@@ -1873,7 +2399,10 @@ function buildBench(agents: Agent[]): void {
   const dir = new THREE.Vector3(Math.cos(Math.PI / 4), 0, Math.sin(Math.PI / 4));
   const rows = Math.ceil(agents.length / 4);
   // its saved spot, or in front of the Brain
-  const spot = benchSpot(agents.map((a) => a.id), S.layout?.bench)!;
+  const spot = benchSpot(
+    agents.map((a) => a.id),
+    S.layout?.bench,
+  )!;
   const center = new THREE.Vector3(spot.center[0], 0, spot.center[1]);
   const bench = new THREE.Group();
   bench.position.copy(center);
@@ -1881,7 +2410,10 @@ function buildBench(agents: Agent[]): void {
   const [w, dd] = spot.size;
   const slabG = new THREE.Group();
   slabG.rotation.y = -Math.PI / 4;
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(dd, 0.4, w), new THREE.MeshStandardMaterial({ color: pal.benchTop, roughness: 0.85 }));
+  const slab = new THREE.Mesh(
+    new THREE.BoxGeometry(dd, 0.4, w),
+    new THREE.MeshStandardMaterial({ color: pal.benchTop, roughness: 0.85 }),
+  );
   slab.position.y = 0.2;
   slabG.add(slab);
   if (!pal.dark) {
@@ -1889,7 +2421,10 @@ function buildBench(agents: Agent[]): void {
     shadow.position.y = 0.02;
     slabG.add(shadow);
   }
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(slab.geometry), new THREE.LineBasicMaterial({ color: pal.benchEdge, transparent: true, opacity: 0.8 }));
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(slab.geometry),
+    new THREE.LineBasicMaterial({ color: pal.benchEdge, transparent: true, opacity: 0.8 }),
+  );
   edges.position.copy(slab.position);
   slabG.add(edges);
   slabG.traverse((o) => (o.userData.pick = { type: 'bench' }));
@@ -1900,8 +2435,32 @@ function buildBench(agents: Agent[]): void {
     desk.group.traverse((o) => (o.userData.pick = { type: 'agent', id: ag.id }));
     bench.add(desk.group);
     S!.desks.push(desk);
-    S!.benchNodes.push({ kind: 'agent', obj: desk.group, links: agentLinks(ag), desk, agentId: ag.id, wfId: null, index: -1 });
-    addLabel({ kind: 'agent', id: ag.id, obj: desk.group, offset: new THREE.Vector3(0, 3.2, 0), el: h('div', { class: CHIP, onclick: () => choose({ type: 'agent', id: ag.id }), title: `${ag.name} · ${ag.model || ag.engine}` }, h('span', { class: CHIP_DOT }), ag.name, h('span', { class: CHIP_MODEL }, shortModel(ag))) });
+    S!.benchNodes.push({
+      kind: 'agent',
+      obj: desk.group,
+      links: agentLinks(ag),
+      desk,
+      agentId: ag.id,
+      wfId: null,
+      index: -1,
+    });
+    addLabel({
+      kind: 'agent',
+      id: ag.id,
+      obj: desk.group,
+      offset: new THREE.Vector3(0, 3.2, 0),
+      el: h(
+        'div',
+        {
+          class: CHIP,
+          onclick: () => choose({ type: 'agent', id: ag.id }),
+          title: `${ag.name} · ${ag.model || ag.engine}`,
+        },
+        h('span', { class: CHIP_DOT }),
+        ag.name,
+        h('span', { class: CHIP_MODEL }, shortModel(ag)),
+      ),
+    });
   });
   const anchor = new THREE.Object3D();
   anchor.position.copy(dir).multiplyScalar(rows * 1.6 + 3.2);
@@ -1913,14 +2472,22 @@ function buildBench(agents: Agent[]): void {
     id: 'bench',
     obj: anchor,
     offset: new THREE.Vector3(0, 0, 0),
-    el: h('div', { class: BENCH, onclick: () => choose({ type: 'bench' }), title: 'Drag the Bench platform to move it' }, h('div', { class: BRANCH_NAME }, icon('move', 12), 'Bench'), h('div.hint', { class: 'mt-1.5' }, `${agents.length} agent${agents.length === 1 ? '' : 's'} not on a team yet`)),
+    el: h(
+      'div',
+      { class: BENCH, onclick: () => choose({ type: 'bench' }), title: 'Drag the Bench platform to move it' },
+      h('div', { class: BRANCH_NAME }, icon('move', 12), 'Bench'),
+      h('div.hint', { class: 'mt-1.5' }, `${agents.length} agent${agents.length === 1 ? '' : 's'} not on a team yet`),
+    ),
   });
 }
 
 // "sonnet" → "Sonnet", "anthropic/claude-sonnet-5.5" → "sonnet-5.5", Hermes → its profile.
 function shortModel(a: Pick<Agent, 'engine' | 'model' | 'hermesProfile'>): string {
   if (a.engine === 'hermes') return a.model || a.hermesProfile || 'hermes';
-  const m = String(a.model || '').split('/').pop()!.replace(/^claude-/, '');
+  const m = String(a.model || '')
+    .split('/')
+    .pop()!
+    .replace(/^claude-/, '');
   return m || a.engine;
 }
 
@@ -1935,7 +2502,8 @@ function polyline(points: THREE.Vector3[]): (t: number) => THREE.Vector3 {
   return (t) => {
     let d = Math.max(0, Math.min(1, t)) * total;
     for (let i = 0; i < lens.length; i++) {
-      if (d <= lens[i] || i === lens.length - 1) return points[i].clone().lerp(points[i + 1], lens[i] ? Math.min(1, d / lens[i]) : 0);
+      if (d <= lens[i] || i === lens.length - 1)
+        return points[i].clone().lerp(points[i + 1], lens[i] ? Math.min(1, d / lens[i]) : 0);
       d -= lens[i];
     }
     return points[0].clone();
@@ -1943,7 +2511,13 @@ function polyline(points: THREE.Vector3[]): (t: number) => THREE.Vector3 {
 }
 
 // A box (or any shape) moved into place and painted one colour, to merge with others into one mesh.
-function painted(geo: THREE.BufferGeometry, x: number, y: number, z: number, hex: THREE.ColorRepresentation): THREE.BufferGeometry {
+function painted(
+  geo: THREE.BufferGeometry,
+  x: number,
+  y: number,
+  z: number,
+  hex: THREE.ColorRepresentation,
+): THREE.BufferGeometry {
   geo.translate(x, y, z);
   const c = new THREE.Color(hex);
   const n = geo.attributes.position.count;
@@ -1973,7 +2547,11 @@ function deskFurniture(): { geo: THREE.BufferGeometry; mat: THREE.MeshStandardMa
 }
 
 // Shapes every desk shares (one copy on the graphics card, and the same shape is what lets them be batched).
-const SHAPES = { body: new THREE.CylinderGeometry(0.22, 0.3, 0.65, 12), head: new THREE.SphereGeometry(0.21, 16, 12), orb: new THREE.SphereGeometry(0.13, 12, 10) };
+const SHAPES = {
+  body: new THREE.CylinderGeometry(0.22, 0.3, 0.65, 12),
+  head: new THREE.SphereGeometry(0.21, 16, 12),
+  orb: new THREE.SphereGeometry(0.13, 12, 10),
+};
 
 // ---------- desk parts, batched ----------
 // Every desk has the same furniture, body, head and status light: each kind is drawn for all desks in one go
@@ -2054,16 +2632,31 @@ function makeDesk(agent: Agent, colorHex: string, stepNo: string | number): Desk
   g.add(furn);
   batchMesh('furniture', furn, () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62 }));
   const screen = canvasTex(512, 320, () => {});
-  const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.58, 0.98), new THREE.MeshBasicMaterial({ map: screen.tex, toneMapped: false }));
+  const scr = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.58, 0.98),
+    new THREE.MeshBasicMaterial({ map: screen.tex, toneMapped: false }),
+  );
   scr.position.set(0, 1.68, -0.33);
   g.add(scr);
-  const screenGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: pal.idle, transparent: true, opacity: 0.12, blending: pal.blend, depthWrite: false }));
+  const screenGlow = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: glow(),
+      color: pal.idle,
+      transparent: true,
+      opacity: 0.12,
+      blending: pal.blend,
+      depthWrite: false,
+    }),
+  );
   screenGlow.scale.set(3.2, 2.4, 1);
   screenGlow.position.set(0, 1.7, -0.2);
   g.add(screenGlow);
   // the person: body in the agent's colour, and head
   const person = new THREE.Group();
-  const body = new THREE.Mesh(SHAPES.body, new THREE.MeshStandardMaterial({ color: color.clone().lerp(new THREE.Color(0xffffff), 0.15), roughness: 0.6 }));
+  const body = new THREE.Mesh(
+    SHAPES.body,
+    new THREE.MeshStandardMaterial({ color: color.clone().lerp(new THREE.Color(0xffffff), 0.15), roughness: 0.6 }),
+  );
   body.position.y = 0.98;
   const head = new THREE.Mesh(SHAPES.head, new THREE.MeshStandardMaterial({ color: pal.head, roughness: 0.5 }));
   head.position.y = 1.5;
@@ -2076,21 +2669,57 @@ function makeDesk(agent: Agent, colorHex: string, stepNo: string | number): Desk
   batchMesh('orb', orb, () => new THREE.MeshBasicMaterial());
   orb.position.set(0.95, 2.45, -0.38);
   g.add(orb);
-  const orbGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: pal.working, transparent: true, opacity: 0, blending: pal.blend, depthWrite: false }));
+  const orbGlow = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: glow(),
+      color: pal.working,
+      transparent: true,
+      opacity: 0,
+      blending: pal.blend,
+      depthWrite: false,
+    }),
+  );
   orbGlow.scale.set(1.4, 1.4, 1);
   orbGlow.position.copy(orb.position);
   orbGlow.visible = false;
   g.add(orbGlow);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.07, 8, 48), new THREE.MeshBasicMaterial({ color: pal.working, transparent: true, opacity: 0 }));
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(1.9, 0.07, 8, 48),
+    new THREE.MeshBasicMaterial({ color: pal.working, transparent: true, opacity: 0 }),
+  );
   ring.rotation.x = Math.PI / 2;
   ring.position.y = 0.08;
   ring.visible = false;
   g.add(ring);
-  const focusRing = new THREE.Mesh(new THREE.RingGeometry(1.55, 2.25, 48), new THREE.MeshBasicMaterial({ color: pal.working, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: pal.blend, depthWrite: false }));
+  const focusRing = new THREE.Mesh(
+    new THREE.RingGeometry(1.55, 2.25, 48),
+    new THREE.MeshBasicMaterial({
+      color: pal.working,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      blending: pal.blend,
+      depthWrite: false,
+    }),
+  );
   focusRing.rotation.x = -Math.PI / 2;
   focusRing.position.y = 0.06;
   g.add(focusRing);
-  const desk: Desk = { group: g, agent, color: colorHex, stepNo: stepNo || '-', screen, screenGlow, person, orb, orbGlow, ring, focusRing, status: 'idle', activity: '' };
+  const desk: Desk = {
+    group: g,
+    agent,
+    color: colorHex,
+    stepNo: stepNo || '-',
+    screen,
+    screenGlow,
+    person,
+    orb,
+    orbGlow,
+    ring,
+    focusRing,
+    status: 'idle',
+    activity: '',
+  };
   drawScreen(desk);
   return desk;
 }
@@ -2135,7 +2764,14 @@ function glowBatch(size: number): GlowBatch {
   const tint = new THREE.InstancedBufferAttribute(new Float32Array(size * 4), 4);
   tint.setUsage(THREE.DynamicDrawUsage);
   geo.setAttribute('tint', tint);
-  const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: glow() } }, vertexShader: GLOW_VERTEX, fragmentShader: GLOW_FRAGMENT, transparent: true, depthWrite: false, blending: pal.blend });
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { map: { value: glow() } },
+    vertexShader: GLOW_VERTEX,
+    fragmentShader: GLOW_FRAGMENT,
+    transparent: true,
+    depthWrite: false,
+    blending: pal.blend,
+  });
   const mesh = new THREE.InstancedMesh(geo, mat, size);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.frustumCulled = false;
@@ -2154,7 +2790,8 @@ function batchGlow(sp: THREE.Sprite): void {
   S.glows.sprites.push(sp);
 }
 
-const isGlow = (o: THREE.Object3D): o is THREE.Sprite => o instanceof THREE.Sprite && !!glowTex && o.material.map === glowTex;
+const isGlow = (o: THREE.Object3D): o is THREE.Sprite =>
+  o instanceof THREE.Sprite && !!glowTex && o.material.map === glowTex;
 
 function drawGlows(): void {
   assertMounted(S);
@@ -2216,7 +2853,16 @@ function renderStation(): void {
 
 function spawn(p: ParticleSpec): void {
   assertMounted(S);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: p.color, transparent: true, opacity: p.opacity ?? 1, blending: pal.blend, depthWrite: false }));
+  const sp = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: glow(),
+      color: p.color,
+      transparent: true,
+      opacity: p.opacity ?? 1,
+      blending: pal.blend,
+      depthWrite: false,
+    }),
+  );
   sp.scale.set(p.size, p.size, 1);
   sp.visible = false;
   (p.parent || S.world!).add(sp);
@@ -2229,7 +2875,15 @@ function spawn(p: ParticleSpec): void {
 function pulseAlong(wfId: string, from = 0, to = 1, count = 5): void {
   const b = S?.branches.get(wfId);
   if (!b) return;
-  for (let i = 0; i < count; i++) spawn({ path: (t: number) => linkPoint(b, from + (to - from) * t), t: -i * 0.08, speed: 0.7, color: pal.pulse, size: 0.9, loop: false });
+  for (let i = 0; i < count; i++)
+    spawn({
+      path: (t: number) => linkPoint(b, from + (to - from) * t),
+      t: -i * 0.08,
+      speed: 0.7,
+      color: pal.pulse,
+      size: 0.9,
+      loop: false,
+    });
   b.flash = Math.max(b.flash || 0, 0.5);
 }
 
@@ -2237,7 +2891,13 @@ function pulseIntegration(intId: string, node: MapNode | null): void {
   if (!S) return;
   const tile = S.tileEls?.get(intId);
   if (tile && !REDUCED_MOTION() && typeof tile.animate === 'function') {
-    tile.animate([{ boxShadow: '0 0 0 0 color-mix(in srgb, var(--c) 50%, transparent)' }, { boxShadow: '0 0 0 6px color-mix(in srgb, var(--c) 0%, transparent)' }], { duration: 900, easing: 'ease-out' });
+    tile.animate(
+      [
+        { boxShadow: '0 0 0 0 color-mix(in srgb, var(--c) 50%, transparent)' },
+        { boxShadow: '0 0 0 6px color-mix(in srgb, var(--c) 0%, transparent)' },
+      ],
+      { duration: 900, easing: 'ease-out' },
+    );
   }
   // light both the desk's own wire and its team's combined wire (whichever is showing runs the light)
   for (const l of [...(S.links2d || []), ...(S.links2dAll || [])]) {
@@ -2248,13 +2908,14 @@ function pulseIntegration(intId: string, node: MapNode | null): void {
   }
 }
 
-
 // ---------- statuses ----------
 function updateStatuses(): void {
   const d = state.data;
   if (!d || !S) return;
   for (const desk of S.desks) {
-    const needs = d.approvals.some((a) => a.agentId === desk.agent.id) || (d.questions || []).some((q) => q.agentId === desk.agent.id);
+    const needs =
+      d.approvals.some((a) => a.agentId === desk.agent.id) ||
+      (d.questions || []).some((q) => q.agentId === desk.agent.id);
     const working = d.runs.some((r) => r.agentId === desk.agent.id);
     const st = needs ? 'needs' : working ? 'working' : 'idle';
     if (st !== desk.status) {
@@ -2272,19 +2933,29 @@ function updateStatuses(): void {
   // the step a running workflow is on gets a ring
   for (const node of S.nodes) {
     const ts = S.teamState?.[node.wfId];
-    const st = (ts?.working?.includes(node.agentId!) ? 'running' : ts?.queued?.includes(node.agentId!) ? 'needs-you' : null) as RunStatus | null;
+    const st = (
+      ts?.working?.includes(node.agentId!) ? 'running' : ts?.queued?.includes(node.agentId!) ? 'needs-you' : null
+    ) as RunStatus | null;
     node.runStatus = st || null;
     const ring = node.kind === 'agent' ? node.desk.ring : node.ring;
-    ring.material.color.copy(st === 'needs-you' ? pal.waiting : st === 'failed' ? pal.failed : st === 'done' ? pal.done : pal.working);
-    ring.material.opacity = st === 'running' || st === 'needs-you' ? 0.9 : st === 'done' ? 0.35 : st === 'failed' ? 0.7 : 0;
+    ring.material.color.copy(
+      st === 'needs-you' ? pal.waiting : st === 'failed' ? pal.failed : st === 'done' ? pal.done : pal.working,
+    );
+    ring.material.opacity =
+      st === 'running' || st === 'needs-you' ? 0.9 : st === 'done' ? 0.35 : st === 'failed' ? 0.7 : 0;
     ring.visible = ring.material.opacity > 0;
   }
   for (const l of S.labelEls) {
     if (l.kind === 'agent') {
-      l.el.dataset.status = d.approvals.some((a) => a.agentId === l.id) ? 'needs' : d.runs.some((r) => r.agentId === l.id) ? 'working' : 'idle';
+      l.el.dataset.status = d.approvals.some((a) => a.agentId === l.id)
+        ? 'needs'
+        : d.runs.some((r) => r.agentId === l.id)
+          ? 'working'
+          : 'idle';
       if (l.wf) {
         const node = S.nodes.find((n) => n.kind === 'agent' && n.wfId === l.wf && n.agentId === l.id);
-        if (node?.runStatus === 'running' || node?.runStatus === 'needs-you') l.el.dataset.status = node.runStatus === 'needs-you' ? 'needs' : 'working';
+        if (node?.runStatus === 'running' || node?.runStatus === 'needs-you')
+          l.el.dataset.status = node.runStatus === 'needs-you' ? 'needs' : 'working';
       }
     }
     if (l.kind === 'step') {
@@ -2308,7 +2979,14 @@ function drawBranchCard(wfId: string): void {
   const wf = S.workflows.find((team) => team.id === wfId) || b.wf;
   const ts = S.teamState?.[wfId] || { working: [], queued: [] };
   const last = S.teamLast?.[wfId];
-  const nameOf = (id: string) => (id === 'user' ? 'You' : id === 'system' ? '' : id === 'brain' ? 'Brain' : state.data?.agents.find((a) => a.id === id)?.name || '');
+  const nameOf = (id: string) =>
+    id === 'user'
+      ? 'You'
+      : id === 'system'
+        ? ''
+        : id === 'brain'
+          ? 'Brain'
+          : state.data?.agents.find((a) => a.id === id)?.name || '';
   const lead = wf.lead ? nameOf(wf.lead) : '';
   const routines = S.teamRoutines?.[wfId] || 0;
   b.card.classList.toggle('live', ts.working.length > 0);
@@ -2319,21 +2997,68 @@ function drawBranchCard(wfId: string): void {
     h(
       'div',
       { class: 'flex items-baseline gap-1.5 mt-3 mb-0.5' },
-      h('b', { class: 'font-sans text-[28px] leading-none font-semibold tabular-nums tracking-tight text-ink' }, String(wf.members.length)),
-      h('span', { class: 'text-[12px] leading-[normal] font-medium text-dim' }, wf.members.length === 1 ? 'agent' : 'agents'),
+      h(
+        'b',
+        { class: 'font-sans text-[28px] leading-none font-semibold tabular-nums tracking-tight text-ink' },
+        String(wf.members.length),
+      ),
+      h(
+        'span',
+        { class: 'text-[12px] leading-[normal] font-medium text-dim' },
+        wf.members.length === 1 ? 'agent' : 'agents',
+      ),
       lead ? h('span', { class: 'ml-auto text-[12px] leading-[normal] text-dim' }, `★ ${lead}`) : null,
     ),
-    wf.description ? h('div', { class: 'text-[12.5px] leading-[1.45] text-dim mt-1.5 mb-1 line-clamp-2 group-data-[zoom=far]/labels:hidden' }, wf.description) : null,
+    wf.description
+      ? h(
+          'div',
+          {
+            class: 'text-[12.5px] leading-[1.45] text-dim mt-1.5 mb-1 line-clamp-2 group-data-[zoom=far]/labels:hidden',
+          },
+          wf.description,
+        )
+      : null,
     b.links.size ? h('div', { class: 'flex gap-1.5 flex-wrap my-2.5' }, [...b.links].slice(0, 7).map(badge)) : null,
-    last ? h('div', { class: 'text-[12px] text-dim leading-[1.45] mt-1.5 mb-0.5 line-clamp-2' }, h('b', { class: 'text-ink font-semibold' }, nameOf(last.from) || 'Team'), ' ', String(last.text).replace(/\s+/g, ' ').slice(0, 90), h('span.hint', ` · ${ago(last.ts)}`)) : null,
+    last
+      ? h(
+          'div',
+          { class: 'text-[12px] text-dim leading-[1.45] mt-1.5 mb-0.5 line-clamp-2' },
+          h('b', { class: 'text-ink font-semibold' }, nameOf(last.from) || 'Team'),
+          ' ',
+          String(last.text).replace(/\s+/g, ' ').slice(0, 90),
+          h('span.hint', ` · ${ago(last.ts)}`),
+        )
+      : null,
     h(
       'div',
       { class: 'mt-3 flex items-center gap-3 text-[12px] leading-[normal] font-medium text-faint' },
       ts.working.length
-        ? h('span', { class: 'min-w-0 truncate text-accent group-[.needs]/card:text-amber' }, `● ${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} next` : ''}`)
-        : h('span', { class: 'min-w-0 truncate' }, wf.enabled && wf.schedule && wf.schedule.type !== 'none' ? `⏱ ${scheduleText(wf.schedule)}` : last ? 'Quiet' : 'Say hi to the team'),
+        ? h(
+            'span',
+            { class: 'min-w-0 truncate text-accent group-[.needs]/card:text-amber' },
+            `● ${ts.working.map(nameOf).join(', ')} working${ts.queued.length ? ` · ${ts.queued.length} next` : ''}`,
+          )
+        : h(
+            'span',
+            { class: 'min-w-0 truncate' },
+            wf.enabled && wf.schedule && wf.schedule.type !== 'none'
+              ? `⏱ ${scheduleText(wf.schedule)}`
+              : last
+                ? 'Quiet'
+                : 'Say hi to the team',
+          ),
       // the routines that mention the team (Setup lists them)
-      routines ? h('span', { class: 'st-routines ml-auto inline-flex flex-none items-center gap-1 text-dim', title: `${routines} routine${routines === 1 ? '' : 's'} mention this team` }, icon('repeat', 12), `${routines} routine${routines === 1 ? '' : 's'}`) : null,
+      routines
+        ? h(
+            'span',
+            {
+              class: 'st-routines ml-auto inline-flex flex-none items-center gap-1 text-dim',
+              title: `${routines} routine${routines === 1 ? '' : 's'} mention this team`,
+            },
+            icon('repeat', 12),
+            `${routines} routine${routines === 1 ? '' : 's'}`,
+          )
+        : null,
     ),
   );
 }
@@ -2365,7 +3090,12 @@ function hoverFor(p: MapPick | null): Hover | null {
     return { links: b.links, nodes: new Set(S.nodes.filter((n) => n.wfId === p.id)) };
   }
   if (p.type === 'agent') {
-    const nodes = (p.wf ? S.nodes : S.benchNodes || []).filter((n): n is AgentNode => n.kind === 'agent' && n.agentId === p.id && (!p.wf || ((n as PodNode).wfId === p.wf && (p.step == null || n.index === p.step))));
+    const nodes = (p.wf ? S.nodes : S.benchNodes || []).filter(
+      (n): n is AgentNode =>
+        n.kind === 'agent' &&
+        n.agentId === p.id &&
+        (!p.wf || ((n as PodNode).wfId === p.wf && (p.step == null || n.index === p.step))),
+    );
     if (!nodes.length) return null;
     const links = new Set<string>();
     for (const n of nodes) n.links.forEach((l) => links.add(l));
@@ -2387,7 +3117,9 @@ const ENGINE_TILES = ['claude', 'codex', 'hermes', 'openrouter', 'venice', 'lmst
 function hoverForEngine(uses: (a: Agent) => boolean, brain: boolean, color: string): Hover | null {
   if (!S) return null;
   const ids = new Set((state.data?.agents || []).filter(uses).map((a) => a.id));
-  const nodes = [...S.nodes, ...(S.benchNodes || [])].filter((n): n is AgentNode => n.kind === 'agent' && ids.has(n.agentId));
+  const nodes = [...S.nodes, ...(S.benchNodes || [])].filter(
+    (n): n is AgentNode => n.kind === 'agent' && ids.has(n.agentId),
+  );
   const links = new Set<string>();
   for (const n of nodes) for (const l of n.links) if (ENGINE_TILES.includes(l)) links.add(l);
   return { links, nodes: new Set(nodes), agents: ids, only: true, brain, color };
@@ -2403,7 +3135,11 @@ function applyHover(): void {
   const teamsLit = new Set<string>();
   if (lit) for (const w of S.workflows) if ((w.members || []).some((id) => lit.has(id))) teamsLit.add(w.id);
   for (const l of S.labelEls) {
-    const on = !!lit && ((l.kind === 'agent' && lit.has(l.id)) || (l.kind === 'branch' && teamsLit.has(l.id)) || (l.kind === 'brain' && !!f?.brain));
+    const on =
+      !!lit &&
+      ((l.kind === 'agent' && lit.has(l.id)) ||
+        (l.kind === 'branch' && teamsLit.has(l.id)) ||
+        (l.kind === 'brain' && !!f?.brain));
     l.el.classList.toggle('hot', on);
   }
   const c = new THREE.Color(f?.color ? brandTone(f.color) : pal.accent);
@@ -2422,7 +3158,11 @@ function placeLabels(): void {
     const x = (v3.x + 1) * 0.5 * S.w;
     const y = (1 - v3.y) * 0.5 * S.h;
     const off = x < -200 || x > S.w + 200 || y < -200 || y > S.h + 200;
-    const hide = !!S.labelHidden?.has(`${l.kind}:${l.id}`) || off || ((l.kind === 'agent' || l.kind === 'step') && z < 0.6) || (l.kind === 'int' && z < 0.5);
+    const hide =
+      !!S.labelHidden?.has(`${l.kind}:${l.id}`) ||
+      off ||
+      ((l.kind === 'agent' || l.kind === 'step') && z < 0.6) ||
+      (l.kind === 'int' && z < 0.5);
     const shown = (l.shown ||= { display: '', transform: '', origin: '' });
     const display = hide ? 'none' : '';
     if (shown.display !== display) l.el.style.display = shown.display = display;
@@ -2447,7 +3187,8 @@ function placeLabels(): void {
       if (!shown.placed && S.w > 0 && S.h > 0) {
         shown.placed = true;
         l.el.style.visibility = '';
-        if (!reducedMotion() && typeof l.el.animate === 'function') l.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
+        if (!reducedMotion() && typeof l.el.animate === 'function')
+          l.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
       }
     }
   }
@@ -2582,13 +3323,17 @@ function loop(): void {
     c.line.material.opacity = c.base + c.flash * 0.6;
   }
   for (const [id, br] of S.branches) {
-    const live = S.active.has(id) || br.nodes.some((n) => n.kind === 'agent' && n.desk.status !== 'idle') || (S.teamState?.[id]?.working || []).length > 0;
+    const live =
+      S.active.has(id) ||
+      br.nodes.some((n) => n.kind === 'agent' && n.desk.status !== 'idle') ||
+      (S.teamState?.[id]?.working || []).length > 0;
     if (br.flash > 0) br.flash = Math.max(0, br.flash - dt * 0.9);
     if (live !== !!br.lit) {
       br.lit = live;
       for (const r of br.rails) if (r.rest && r.live) r.material.color.copy(live ? r.live : r.rest);
     }
-    for (const r of br.rails) r.material.opacity = live ? Math.min(1, r.base + 0.35 + 0.2 * Math.sin(t * 6)) : r.base + br.flash * 0.4;
+    for (const r of br.rails)
+      r.material.opacity = live ? Math.min(1, r.base + 0.35 + 0.2 * Math.sin(t * 6)) : r.base + br.flash * 0.4;
     if (br.hub) {
       br.hub.holo.rotation.z += dt * (live ? 1.6 : 0.35);
       br.hub.holo2.rotation.x += dt * (live ? 2.2 : 0.5);
@@ -2623,7 +3368,8 @@ function loop(): void {
 const SVGNS = 'http://www.w3.org/2000/svg';
 /** The length of one dash and its gap on a wire (the wire's dash pattern is "3 4"). */
 const DASH_PERIOD = 7;
-const REDUCED_MOTION = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const REDUCED_MOTION = (): boolean =>
+  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // The dashed wires are drawn on the map's own canvas, in screen pixels, after the map. They used to be SVG
 // paths, and the flowing dashes made the browser paint every dash of every wire again each frame: with a few
@@ -2682,7 +3428,8 @@ void main() {
 
 function wireBatch(cap: number): WireBatch {
   const geo = new THREE.BufferGeometry();
-  const attr = (k: number) => new THREE.BufferAttribute(new Float32Array(cap * WIRE_CORNERS * k), k).setUsage(THREE.DynamicDrawUsage);
+  const attr = (k: number) =>
+    new THREE.BufferAttribute(new Float32Array(cap * WIRE_CORNERS * k), k).setUsage(THREE.DynamicDrawUsage);
   const a0 = attr(4);
   const a1 = attr(4);
   const a2 = attr(2);
@@ -2699,7 +3446,16 @@ function wireBatch(cap: number): WireBatch {
     }
   geo.setIndex(new THREE.BufferAttribute(idx, 1));
   geo.setDrawRange(0, 0);
-  const mat = new THREE.ShaderMaterial({ uniforms: { size: { value: new THREE.Vector2(1, 1) }, reveal: { value: 1 } }, vertexShader: WIRE_VERTEX, fragmentShader: WIRE_FRAGMENT, transparent: true, depthTest: false, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }); // (screen y runs down, so the triangles face away)
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { size: { value: new THREE.Vector2(1, 1) }, reveal: { value: 1 } },
+    vertexShader: WIRE_VERTEX,
+    fragmentShader: WIRE_FRAGMENT,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  }); // (screen y runs down, so the triangles face away)
   const mesh = new THREE.Mesh(geo, mat);
   mesh.frustumCulled = false;
   mesh.renderOrder = 1000; // over the map, like the SVG was
@@ -2723,7 +3479,10 @@ function addWire(b: WireBatch, c: number[], color: string, opacity: number, widt
   for (let k = 0; k <= WIRE_STEPS; k++) {
     const t = k / WIRE_STEPS;
     const u = 1 - t;
-    pts.push(u * u * u * c[0] + 3 * u * u * t * c[2] + 3 * u * t * t * c[4] + t * t * t * c[6], u * u * u * c[1] + 3 * u * u * t * c[3] + 3 * u * t * t * c[5] + t * t * t * c[7]);
+    pts.push(
+      u * u * u * c[0] + 3 * u * u * t * c[2] + 3 * u * t * t * c[4] + t * t * t * c[6],
+      u * u * u * c[1] + 3 * u * u * t * c[3] + 3 * u * t * t * c[5] + t * t * t * c[7],
+    );
   }
   let dist = 0;
   for (let k = 0; k <= WIRE_STEPS; k++) {
@@ -2742,7 +3501,12 @@ function addWire(b: WireBatch, c: number[], color: string, opacity: number, widt
       const v = w * WIRE_CORNERS + k * 2 + (side > 0 ? 0 : 1);
       p0.set([x - dy * pad * side, y + dx * pad * side, dist, flow], v * 4);
       // colour and width are sent again only when they change
-      if (p1[v * 4] !== wireColor.r || p1[v * 4 + 1] !== wireColor.g || p1[v * 4 + 2] !== wireColor.b || p1[v * 4 + 3] !== opacity) {
+      if (
+        p1[v * 4] !== wireColor.r ||
+        p1[v * 4 + 1] !== wireColor.g ||
+        p1[v * 4 + 2] !== wireColor.b ||
+        p1[v * 4 + 3] !== opacity
+      ) {
         p1.set([wireColor.r, wireColor.g, wireColor.b, opacity], v * 4);
         b.dirty1 = true;
       }
@@ -2829,7 +3593,11 @@ function drawWires(dt: number): void {
     const weight = l.members ? Math.min(1.6, (l.members.length - 1) * 0.3) : 0;
     const live = (focus && !mine ? 0.03 : tile!.classList.contains('off') ? 0.12 : mine ? 0.7 : 0.32) * pal.wireK;
     // (on white every wire in its brand colour would be a rainbow: the ones nobody is looking at are muted)
-    const color = info?.color ? (pal.dark || mine || l.flash > 0.05 ? brandTone(info.color) : mutedTone(info.color)) : pal.wire;
+    const color = info?.color
+      ? pal.dark || mine || l.flash > 0.05
+        ? brandTone(info.color)
+        : mutedTone(info.color)
+      : pal.wire;
     const opacity = Math.min(1, live + l.flash * 0.6);
     const width = (mine ? 1.5 : 1) + weight + l.flash * 1.2;
     // the dashes flow down from the program to the agents; faster on the wires you are looking at or that just carried a call,
@@ -2899,8 +3667,20 @@ function setupControls(): void {
   };
   const pick = (e: MouseEvent): MapPick | null => {
     setMouse(e);
-    const hits = ray.intersectObjects(S!.scene.children, true).filter((x) => x.object.userData.pick && shownOnMap(x.object) && !(x.object instanceof THREE.Points) && !(x.object instanceof THREE.Line) && !x.object.userData.dragging);
-    return ((hits.find((x) => (x.object.userData.pick as MapPick).type === 'agent') || hits[0])?.object.userData.pick as MapPick | undefined) || null;
+    const hits = ray
+      .intersectObjects(S!.scene.children, true)
+      .filter(
+        (x) =>
+          x.object.userData.pick &&
+          shownOnMap(x.object) &&
+          !(x.object instanceof THREE.Points) &&
+          !(x.object instanceof THREE.Line) &&
+          !x.object.userData.dragging,
+      );
+    return (
+      ((hits.find((x) => (x.object.userData.pick as MapPick).type === 'agent') || hits[0])?.object.userData.pick as
+        MapPick | undefined) || null
+    );
   };
   const ground = (e: MouseEvent) => {
     setMouse(e);
@@ -2924,7 +3704,16 @@ function setupControls(): void {
   elc.addEventListener('pointerleave', () => S && (S.hover = null));
   elc.addEventListener('pointerdown', (e) => {
     closeMenu();
-    drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, button: e.button, shift: e.shiftKey, pick: pick(e), mode: null };
+    drag = {
+      x: e.clientX,
+      y: e.clientY,
+      sx: e.clientX,
+      sy: e.clientY,
+      button: e.button,
+      shift: e.shiftKey,
+      pick: pick(e),
+      mode: null,
+    };
     S!.cam.goal = null;
     elc.setPointerCapture(e.pointerId);
   });
@@ -2933,7 +3722,11 @@ function setupControls(): void {
     if (!drag) {
       const p = pick(e);
       S.hover = hoverFor(p);
-      elc.style.cursor = p ? (p.type === 'agent' || p.type === 'bench' || (p.type === 'branch' && p.step == null) ? 'grab' : 'pointer') : 'default';
+      elc.style.cursor = p
+        ? p.type === 'agent' || p.type === 'bench' || (p.type === 'branch' && p.step == null)
+          ? 'grab'
+          : 'pointer'
+        : 'default';
       elc.title = p?.type === 'branch' ? 'Drag to move the team · Shift+drag to spin it · right-click for more' : '';
       return;
     }
@@ -2955,8 +3748,7 @@ function setupControls(): void {
         const g = ground(e);
         drag.mode = 'bench';
         drag.grab = g ? S.bench.position.clone().sub(g.setY(0)) : new THREE.Vector3();
-      }
-      else drag.mode = 'pan';
+      } else drag.mode = 'pan';
     }
     if (drag.mode === 'rotate') {
       S.cam.az -= dx * 0.005;
@@ -2994,7 +3786,8 @@ function setupControls(): void {
       else choose(d.pick);
     } else if (d.mode === 'branch' || d.mode === 'spin') saveBranchPlace(d.pick!.id!);
     else if (d.mode === 'agent') dropAgent();
-    else if (d.mode === 'bench' && S.bench) saveLayout({ bench: { x: +S.bench.position.x.toFixed(2), z: +S.bench.position.z.toFixed(2) } });
+    else if (d.mode === 'bench' && S.bench)
+      saveLayout({ bench: { x: +S.bench.position.x.toFixed(2), z: +S.bench.position.z.toFixed(2) } });
   });
   elc.addEventListener(
     'wheel',
@@ -3019,9 +3812,19 @@ function setupControls(): void {
       }
     }
     // Up / Down: the previous / next project (floor). Only here on the Station, and not while a dialog or menu is open.
-    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !e.isComposing) {
+    if (
+      (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      !e.shiftKey &&
+      !e.isComposing
+    ) {
       const t = e.target as Element;
-      if ((t === document.body || t.closest?.('.st-root')) && !document.querySelector('.modal-back, .model-menu, .proj-menu')) {
+      if (
+        (t === document.body || t.closest?.('.st-root')) &&
+        !document.querySelector('.modal-back, .model-menu, .proj-menu')
+      ) {
         e.preventDefault();
         stepFloor(e.key === 'ArrowDown' ? 1 : -1);
       }
@@ -3037,7 +3840,12 @@ function setupControls(): void {
   document.addEventListener('pointerdown', S.onDocDown, true);
   // files pasted on the Station (not into a box, and not taken by a chat): they go to the Brain
   S.onPaste = (e) => {
-    if (e.defaultPrevented || document.querySelector('.modal-back') || (e.target as Element).closest?.('input, textarea, select, [contenteditable]')) return;
+    if (
+      e.defaultPrevented ||
+      document.querySelector('.modal-back') ||
+      (e.target as Element).closest?.('input, textarea, select, [contenteditable]')
+    )
+      return;
     const files = filesFromPaste(e.clipboardData);
     if (!files) return;
     e.preventDefault();
@@ -3063,12 +3871,17 @@ function setFileDrag(mode: 'map' | 'brain' | null): void {
   }
   if (!S.dropHint) {
     S.dropHint = h('div', {
-      class: 'glass absolute left-1/2 bottom-21 [transform:translateX(-50%)] z-30 flex items-center gap-2.5 py-2.5 px-4 pointer-events-none rounded-full text-dim text-[13px] leading-[normal] font-medium animate-[fade_0.15s_ease-out] [&.on]:text-accent [&.on]:border-accent',
+      class:
+        'glass absolute left-1/2 bottom-21 [transform:translateX(-50%)] z-30 flex items-center gap-2.5 py-2.5 px-4 pointer-events-none rounded-full text-dim text-[13px] leading-[normal] font-medium animate-[fade_0.15s_ease-out] [&.on]:text-accent [&.on]:border-accent',
     });
     S.root.append(S.dropHint);
   }
   S.dropHint.classList.toggle('on', mode === 'brain');
-  mount(S.dropHint, icon(mode === 'brain' ? 'brain' : 'upload', 15), mode === 'brain' ? 'Let go to give these to the Brain' : 'Drop the files on the Brain');
+  mount(
+    S.dropHint,
+    icon(mode === 'brain' ? 'brain' : 'upload', 15),
+    mode === 'brain' ? 'Let go to give these to the Brain' : 'Drop the files on the Brain',
+  );
 }
 
 function mapDragOver(e: DragEvent, overBrain: boolean): void {
@@ -3141,16 +3954,21 @@ async function saveLayout(patch: StationLayout): Promise<void> {
   await attempt(() => rpc.layout.save(patch));
 }
 
-
 // ---------- moving agents ----------
 function startAgentDrag(p: MapPick, copy = false): boolean {
   assertMounted(S);
   const desk = S.desks.find((d) => d.agent.id === p.id && (p.wf ? d.wfId === p.wf && d.stepIndex === p.step : !d.wfId));
   if (!desk) return false;
-  const marker = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.09, 8, 48), new THREE.MeshBasicMaterial({ color: pal.working, transparent: true, opacity: 0 }));
+  const marker = new THREE.Mesh(
+    new THREE.TorusGeometry(2.1, 0.09, 8, 48),
+    new THREE.MeshBasicMaterial({ color: pal.working, transparent: true, opacity: 0 }),
+  );
   marker.rotation.x = Math.PI / 2;
   S.world!.add(marker);
-  const hint = h('div', { class: 'glass absolute left-0 top-0 z-20 pointer-events-none py-2 px-3 whitespace-nowrap rounded-ctl text-[12.5px] leading-[normal] font-medium text-ink' });
+  const hint = h('div', {
+    class:
+      'glass absolute left-0 top-0 z-20 pointer-events-none py-2 px-3 whitespace-nowrap rounded-ctl text-[12.5px] leading-[normal] font-medium text-ink',
+  });
   S.root.append(hint);
   desk.group.traverse((o) => (o.userData.dragging = true));
   S.agentDrag = { desk, home: desk.group.position.clone(), marker, hint, target: null, copy };
@@ -3172,7 +3990,8 @@ function moveAgentDrag(g: THREE.Vector3, e: MouseEvent): void {
       break;
     }
   }
-  if (!target && S.benchCenter && st.desk.wfId && g.distanceTo(S.benchCenter) < 7) target = { bench: true, at: S.benchCenter.clone(), radius: 2 };
+  if (!target && S.benchCenter && st.desk.wfId && g.distanceTo(S.benchCenter) < 7)
+    target = { bench: true, at: S.benchCenter.clone(), radius: 2 };
   st.target = target;
   if (target) {
     st.marker.position.copy(target.at).setY(0.6);
@@ -3215,7 +4034,10 @@ async function dropAgent(): Promise<void> {
   const from = st.desk.wfId ? structuredClone(S.workflows.find((w) => w.id === st.desk.wfId)) : null;
   if (t.bench) {
     if (!from) return;
-    setMembers(from, from.members.filter((x) => x !== agentId));
+    setMembers(
+      from,
+      from.members.filter((x) => x !== agentId),
+    );
     await saveWorkflow(from);
     toast(`${st.desk.agent.name} left ${from.name}`);
     return;
@@ -3224,7 +4046,10 @@ async function dropAgent(): Promise<void> {
   const to = structuredClone(S.workflows.find((w) => w.id === t.wfId));
   if (!to || to.members.includes(agentId)) return;
   if (from && !st.copy) {
-    setMembers(from, from.members.filter((x) => x !== agentId));
+    setMembers(
+      from,
+      from.members.filter((x) => x !== agentId),
+    );
     await attempt(() => rpc.workflows.change(teamBody(from)));
   }
   setMembers(to, [...to.members, agentId]);
@@ -3242,12 +4067,18 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
   closeMenu();
   const d = state.data!;
   const items: MenuEntry[] = [];
-  const item = (label: string, run: () => unknown, cls = '', ico: string | null = null) => items.push({ kind: 'item', label, run, danger: cls === 'danger', ...(ico ? { icon: ico } : {}) });
+  const item = (label: string, run: () => unknown, cls = '', ico: string | null = null) =>
+    items.push({ kind: 'item', label, run, danger: cls === 'danger', ...(ico ? { icon: ico } : {}) });
   const head = (text: string) => items.push({ kind: 'head', text });
   const sep = () => items.push({ kind: 'sep' });
   const addStep = async (w: TeamView, a: Agent) => {
     const copy = structuredClone(w);
-    copy.steps.push({ id: Math.random().toString(36).slice(2), type: 'agent', agentId: a.id, prompt: copy.steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}' });
+    copy.steps.push({
+      id: Math.random().toString(36).slice(2),
+      type: 'agent',
+      agentId: a.id,
+      prompt: copy.steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}',
+    });
     await saveWorkflow(copy);
     toast(`${a.name} → ${w.name}`);
   };
@@ -3280,7 +4111,8 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
     item(
       'Delete agent',
       async () => {
-        if (!(await confirmBox(`Delete ${a.name}? It is also taken off every team.`, { ok: 'Delete', danger: true }))) return;
+        if (!(await confirmBox(`Delete ${a.name}? It is also taken off every team.`, { ok: 'Delete', danger: true })))
+          return;
         await attempt(() => rpc.agents.remove({ id: a.id }), `Deleted ${a.name}`);
         choose(null);
         refreshSoon(0);
@@ -3310,15 +4142,32 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
     }
     item('Hire a new agent into it', () => navigate(`#/library?branch=${encodeURIComponent(w.id)}`), '', 'store');
     sep();
-    item('Spin 45°', async () => {
-      spinBranch(w.id, Math.PI / 4);
-      await saveBranchPlace(w.id);
-    }, '', 'rotate-cw');
-    if (w.pos || typeof w.angle === 'number' || w.rot) item('Put back next to the Brain', () => saveWorkflow({ ...w, angle: null, pos: null, rot: null }), '', 'rotate-ccw');
+    item(
+      'Spin 45°',
+      async () => {
+        spinBranch(w.id, Math.PI / 4);
+        await saveBranchPlace(w.id);
+      },
+      '',
+      'rotate-cw',
+    );
+    if (w.pos || typeof w.angle === 'number' || w.rot)
+      item(
+        'Put back next to the Brain',
+        () => saveWorkflow({ ...w, angle: null, pos: null, rot: null }),
+        '',
+        'rotate-ccw',
+      );
     item(
       'Delete team',
       async () => {
-        if (!(await confirmBox(`Delete the team "${w.name}" and its agents? Agents that are also on another team stay.`, { ok: 'Delete', danger: true }))) return;
+        if (
+          !(await confirmBox(`Delete the team "${w.name}" and its agents? Agents that are also on another team stay.`, {
+            ok: 'Delete',
+            danger: true,
+          }))
+        )
+          return;
         await attempt(() => rpc.workflows.remove({ id: w.id }));
         choose(null);
         refreshSoon(0);
@@ -3331,7 +4180,8 @@ function openMenu(e: MouseEvent, p: MapPick | null): void {
     head('Bench');
     item('New agent', newAgent, '', 'bot');
     item('Hire from the library', () => navigate('#/library'), '', 'library-big');
-    if (S.layout?.bench) item('Put the Bench back', () => saveLayout({ bench: null }).then(() => rebuild()), '', 'rotate-ccw');
+    if (S.layout?.bench)
+      item('Put the Bench back', () => saveLayout({ bench: null }).then(() => rebuild()), '', 'rotate-ccw');
   } else {
     head('Station');
     item('New team', newBranch, '', 'users');
@@ -3397,11 +4247,13 @@ function fitView(): void {
   let mx = 0;
   let my = 0;
   const v = new THREE.Vector3();
-  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
-    v.set(x, y, z).project(S.camera);
-    mx = Math.max(mx, Math.abs(v.x));
-    my = Math.max(my, Math.abs(v.y));
-  }
+  for (const x of [box.min.x, box.max.x])
+    for (const y of [box.min.y, box.max.y])
+      for (const z of [box.min.z, box.max.z]) {
+        v.set(x, y, z).project(S.camera);
+        mx = Math.max(mx, Math.abs(v.x));
+        my = Math.max(my, Math.abs(v.y));
+      }
   // room for the top bar, the feed and the cards around the edge
   S.cam.view = 100 * Math.max(mx, my * 1.2) * 1.3;
   S.cam.zoom = keep.zoom;
@@ -3467,29 +4319,48 @@ function setFloorBusy(on: boolean): void {
   floorBusyTimer = on ? setTimeout(() => (floorBusy = false), 8000) : null;
 }
 /** Lets the browser draw a frame (or a few) before going on, so heavy work lands while the map is hidden. */
-const frames = (n = 1): Promise<void> => new Promise((ok) => { const step = (k: number) => (k <= 0 ? ok() : requestAnimationFrame(() => step(k - 1))); step(n); });
+const frames = (n = 1): Promise<void> =>
+  new Promise((ok) => {
+    const step = (k: number) => (k <= 0 ? ok() : requestAnimationFrame(() => step(k - 1)));
+    step(n);
+  });
 const FLOOR_WAIT = 150;
 
 /** The project button (just the open project, or the picked floor while keys are moving), with the floors above and below it in faint type outside its box, each beside its arrow key. Names show at most 13 characters. */
 function projectWrapParts(): HTMLElement[] {
   const d = state.data!;
   const list = d.projects || [];
-  const open = Math.max(0, list.findIndex((p) => p.id === d.project?.id));
+  const open = Math.max(
+    0,
+    list.findIndex((p) => p.id === d.project?.id),
+  );
   if (floorPick && list[floorPick.idx]?.id === d.project?.id && !floorPick.timer) floorPick = null; // it opened
   const idx = floorPick ? floorPick.idx : open;
   const shown = (floorPick && list[idx]) || d.project;
   const { above, below } = neighbours(list, idx);
   const ghost = (p: { name: string } | null, where: string) =>
-    h(`span.st-project-ghost.${where}`, { class: 'flex-1 min-w-0 h-3.5 pl-0 truncate text-[11px] leading-[normal] font-medium text-faint opacity-70 transition-opacity duration-200 ease-[ease] pointer-events-none group-hover/proj:opacity-100', 'aria-hidden': 'true' }, p ? shortName(p.name) : '');
+    h(
+      `span.st-project-ghost.${where}`,
+      {
+        class:
+          'flex-1 min-w-0 h-3.5 pl-0 truncate text-[11px] leading-[normal] font-medium text-faint opacity-70 transition-opacity duration-200 ease-[ease] pointer-events-none group-hover/proj:opacity-100',
+        'aria-hidden': 'true',
+      },
+      p ? shortName(p.name) : '',
+    );
   // the arrow keys, drawn as small keys: they show what the keyboard does, and can be clicked too
   const key = (dir: 1 | -1, enabled: boolean) => {
-    const k = h(`button.st-floor-key.${dir < 0 ? 'up' : 'down'}`, {
-      class: `${enabled ? 'glass ' : ''}flex-none grid place-items-center w-4.5 h-4 p-0 border border-line-2 border-b-2 rounded-[4px] text-dim cursor-pointer transition-[opacity,color,border-color] duration-150 ease-[ease] hover:not-disabled:text-ink hover:not-disabled:border-accent-dim disabled:bg-transparent disabled:opacity-25 disabled:cursor-default`,
-      type: 'button',
-      title: dir < 0 ? 'The project above (Up arrow)' : 'The project below (Down arrow)',
-      'aria-label': dir < 0 ? 'Previous project' : 'Next project',
-      onclick: () => stepFloor(dir),
-    }, icon(dir < 0 ? 'arrow-up' : 'arrow-down', 10));
+    const k = h(
+      `button.st-floor-key.${dir < 0 ? 'up' : 'down'}`,
+      {
+        class: `${enabled ? 'glass ' : ''}flex-none grid place-items-center w-4.5 h-4 p-0 border border-line-2 border-b-2 rounded-[4px] text-dim cursor-pointer transition-[opacity,color,border-color] duration-150 ease-[ease] hover:not-disabled:text-ink hover:not-disabled:border-accent-dim disabled:bg-transparent disabled:opacity-25 disabled:cursor-default`,
+        type: 'button',
+        title: dir < 0 ? 'The project above (Up arrow)' : 'The project below (Down arrow)',
+        'aria-label': dir < 0 ? 'Previous project' : 'Next project',
+        onclick: () => stepFloor(dir),
+      },
+      icon(dir < 0 ? 'arrow-up' : 'arrow-down', 10),
+    );
     k.disabled = !enabled;
     return k;
   };
@@ -3497,7 +4368,8 @@ function projectWrapParts(): HTMLElement[] {
   const button = h(
     `button.st-project${floorPick ? '.pending' : ''}`,
     {
-      class: 'glass flex items-center gap-2.5 py-2 pr-3 pl-2.5 flex-none max-w-65 rounded-ctl text-ink cursor-pointer text-[14px] leading-[normal] font-semibold hover:border-accent-dim [&.pending]:border-accent-dim [&.pending_.st-project-name]:text-accent [&_.ico-svg]:text-dim',
+      class:
+        'glass flex items-center gap-2.5 py-2 pr-3 pl-2.5 flex-none max-w-65 rounded-ctl text-ink cursor-pointer text-[14px] leading-[normal] font-semibold hover:border-accent-dim [&.pending]:border-accent-dim [&.pending_.st-project-name]:text-accent [&_.ico-svg]:text-dim',
       title: `${name} · Switch or create a project (the Up and Down keys move between them)`,
       onclick: (e) => openProjectMenu(e.currentTarget),
     },
@@ -3507,15 +4379,24 @@ function projectWrapParts(): HTMLElement[] {
       'span',
       { class: 'inline-grid min-w-0 overflow-hidden *:[grid-area:1/1] *:min-w-0' },
       h('span.st-project-name', { class: 'truncate' }, shortName(name)),
-      ...list.map((p) => h('span', { class: 'invisible h-0 overflow-hidden whitespace-nowrap pointer-events-none', 'aria-hidden': 'true' }, shortName(p.name))),
+      ...list.map((p) =>
+        h(
+          'span',
+          { class: 'invisible h-0 overflow-hidden whitespace-nowrap pointer-events-none', 'aria-hidden': 'true' },
+          shortName(p.name),
+        ),
+      ),
     ),
     icon('chevron-down', 14),
   );
   // the key and the faint name take the button's width and never set it (width 0, then stretched to the button)
-  const row = (...kids: HTMLElement[]) => h('div', { class: 'flex items-center gap-2 w-0 min-w-full box-border' }, ...kids);
+  const row = (...kids: HTMLElement[]) =>
+    h('div', { class: 'flex items-center gap-2 w-0 min-w-full box-border' }, ...kids);
   // the arrow rows make the bar tall enough on their own; a lone button gets its padding back
   S?.hudTop?.classList.toggle('py-3.5', list.length <= 1);
-  return list.length > 1 ? [row(key(-1, !!above), ghost(above, 'above')), button, row(key(1, !!below), ghost(below, 'below'))] : [button];
+  return list.length > 1
+    ? [row(key(-1, !!above), ghost(above, 'above')), button, row(key(1, !!below), ghost(below, 'below'))]
+    : [button];
 }
 
 /** The project's logo, or the Station mark, at the start of the project button. */
@@ -3539,13 +4420,25 @@ function rollText(el: HTMLElement, text: string, dir: 1 | -1 | 0): void {
   const dy = 9 * dir;
   const slideIn = () => {
     el.textContent = text;
-    const inn = el.animate([{ transform: `translateY(${dy}px)`, opacity: 0 }, { transform: 'translateY(0)', opacity: rest }], { duration: 140, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+    const inn = el.animate(
+      [
+        { transform: `translateY(${dy}px)`, opacity: 0 },
+        { transform: 'translateY(0)', opacity: rest },
+      ],
+      { duration: 140, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+    );
     rolling.set(el, [inn]);
     void inn.finished.then(() => rolling.delete(el)).catch(() => undefined);
   };
   // pressed again before the last roll ended: no slide out (it would look like a stutter), just the new words sliding in
   if (running?.length) return slideIn();
-  const out = el.animate([{ transform: 'translateY(0)', opacity: rest }, { transform: `translateY(${-dy}px)`, opacity: 0 }], { duration: 70, easing: 'ease-in', fill: 'forwards' });
+  const out = el.animate(
+    [
+      { transform: 'translateY(0)', opacity: rest },
+      { transform: `translateY(${-dy}px)`, opacity: 0 },
+    ],
+    { duration: 70, easing: 'ease-in', fill: 'forwards' },
+  );
   rolling.set(el, [out]);
   void out.finished.then(() => (out.cancel(), slideIn())).catch(() => undefined);
 }
@@ -3556,7 +4449,10 @@ function paintFloorPick(dir: 1 | -1 | 0 = 0): void {
   if (!wrap) return;
   const d = state.data!;
   const list = d.projects || [];
-  const open = Math.max(0, list.findIndex((p) => p.id === d.project?.id));
+  const open = Math.max(
+    0,
+    list.findIndex((p) => p.id === d.project?.id),
+  );
   const idx = floorPick ? floorPick.idx : open;
   const shown = (floorPick && list[idx]) || d.project;
   const { above, below } = neighbours(list, idx);
@@ -3564,7 +4460,7 @@ function paintFloorPick(dir: 1 | -1 | 0 = 0): void {
   const aboveEl = wrap.querySelector<HTMLElement>('.st-project-ghost.above');
   const belowEl = wrap.querySelector<HTMLElement>('.st-project-ghost.below');
   const nameEl = wrap.querySelector<HTMLElement>('.st-project-name');
-  if (!button || !nameEl || (list.length > 1) !== !!aboveEl) return wrap.replaceChildren(...projectWrapParts());
+  if (!button || !nameEl || list.length > 1 !== !!aboveEl) return wrap.replaceChildren(...projectWrapParts());
   button.classList.toggle('pending', !!floorPick);
   if (aboveEl) rollText(aboveEl, shortName(above?.name || ''), dir);
   rollText(nameEl, shortName(shown?.name || 'Project'), dir);
@@ -3590,7 +4486,12 @@ function stepFloor(dir: 1 | -1): void {
   const d = state.data;
   const list = d?.projects || [];
   if (!S || !d || list.length < 2) return;
-  const from = floorPick ? floorPick.idx : Math.max(0, list.findIndex((p) => p.id === d.project?.id));
+  const from = floorPick
+    ? floorPick.idx
+    : Math.max(
+        0,
+        list.findIndex((p) => p.id === d.project?.id),
+      );
   const idx = stepIndex(list.length, from, dir);
   if (idx === from) return;
   if (floorPick?.timer) clearTimeout(floorPick.timer);
@@ -3611,7 +4512,14 @@ async function openFloor(): Promise<void> {
   }
   // the old floor starts leaving now; the new one comes in when the project has loaded
   setFloorBusy(true);
-  void floorSlide('out', floorDirection((d.projects || []).map((p) => p.id), d.project?.id, target.id) || 1);
+  void floorSlide(
+    'out',
+    floorDirection(
+      (d.projects || []).map((p) => p.id),
+      d.project?.id,
+      target.id,
+    ) || 1,
+  );
   const ok = await attempt(() => rpc.projects.activate({ id: target.id }), `Opened ${target.name}`);
   if (!ok) {
     // it did not open: bring the old floor back
@@ -3637,7 +4545,8 @@ function endFloorOut(): void {
  * the desks, so they wait until the desks have stopped sliding).
  */
 function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
-  if (!S || typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
+  if (!S || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches))
+    return Promise.resolve();
   if (phase === 'out' && floorOutDone) return floorOutDone; // already leaving (it started when the arrow keys came to rest)
   const els = [S.host, S.labels];
   const wires = S.root.querySelector<SVGSVGElement>('.st-wires');
@@ -3646,9 +4555,21 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
   const from = dir > 0 ? '7%' : '-7%';
   const frames: Keyframe[] =
     phase === 'out'
-      ? [{ opacity: 1, transform: 'translateY(0)', filter: 'blur(0px)' }, { opacity: 0, transform: `translateY(${gone})`, filter: 'blur(5px)' }]
-      : [{ opacity: 0, transform: `translateY(${from})`, filter: 'blur(5px)' }, { opacity: 1, transform: 'translateY(0)', filter: 'blur(0px)' }];
-  const anims = els.map((el) => el.animate(frames, { duration: phase === 'out' ? 120 : 240, easing: phase === 'out' ? 'ease-in' : 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: phase === 'out' ? 'forwards' : 'none' }));
+      ? [
+          { opacity: 1, transform: 'translateY(0)', filter: 'blur(0px)' },
+          { opacity: 0, transform: `translateY(${gone})`, filter: 'blur(5px)' },
+        ]
+      : [
+          { opacity: 0, transform: `translateY(${from})`, filter: 'blur(5px)' },
+          { opacity: 1, transform: 'translateY(0)', filter: 'blur(0px)' },
+        ];
+  const anims = els.map((el) =>
+    el.animate(frames, {
+      duration: phase === 'out' ? 120 : 240,
+      easing: phase === 'out' ? 'ease-in' : 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+      fill: phase === 'out' ? 'forwards' : 'none',
+    }),
+  );
   if (wires) {
     // (the lights running down the wires are still SVG)
     const up = 'inset(0 0 100% 0)';
@@ -3656,11 +4577,19 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
     anims.push(
       phase === 'out'
         ? wires.animate([{ clipPath: all }, { clipPath: up }], { duration: 120, easing: 'ease-in', fill: 'forwards' })
-        : wires.animate([{ clipPath: up }, { clipPath: all }], { duration: 380, delay: 150, easing: 'cubic-bezier(0.3, 0.7, 0.2, 1)', fill: 'backwards' }),
+        : wires.animate([{ clipPath: up }, { clipPath: all }], {
+            duration: 380,
+            delay: 150,
+            easing: 'cubic-bezier(0.3, 0.7, 0.2, 1)',
+            fill: 'backwards',
+          }),
     );
   }
   // the wires themselves (drawn on the map's canvas) the same way
-  S.wireReveal = phase === 'out' ? { from: 1, to: 0, at: performance.now(), ms: 120, delay: 0 } : { from: 0, to: 1, at: performance.now(), ms: 380, delay: 150 };
+  S.wireReveal =
+    phase === 'out'
+      ? { from: 1, to: 0, at: performance.now(), ms: 120, delay: 0 }
+      : { from: 0, to: 1, at: performance.now(), ms: 380, delay: 150 };
   const done = Promise.all(anims.map((a) => a.finished.catch(() => undefined))).then(() => undefined);
   if (phase === 'out') {
     floorOut = anims;
@@ -3671,8 +4600,10 @@ function floorSlide(phase: 'out' | 'in', dir: 1 | -1): Promise<void> {
 
 // ---------- HUD ----------
 // buttons that press in and lift on hover
-const TRANSITION = '[transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s]';
-const CONN_LABEL = 'inline-flex items-center gap-2 mr-1.5 whitespace-nowrap text-[12px] leading-[normal] font-medium text-dim';
+const TRANSITION =
+  '[transition:transform_0.18s_var(--ease-soft),background-color_0.18s,border-color_0.18s,color_0.18s,box-shadow_0.2s,opacity_0.2s]';
+const CONN_LABEL =
+  'inline-flex items-center gap-2 mr-1.5 whitespace-nowrap text-[12px] leading-[normal] font-medium text-dim';
 // a header tile; off and missing are marked by class, hot and the row's focus / soft by the script. Every active
 // tile uses the project picker’s glass surface so the header reads as one; the brand colour
 // (--c) is kept for the glyph, mixed toward the text colour so a pale brand still reads on white, and comes back
@@ -3680,7 +4611,8 @@ const CONN_LABEL = 'inline-flex items-center gap-2 mr-1.5 whitespace-nowrap text
 const INT_TILE = `grid place-items-center flex-none size-7 p-0 cursor-pointer rounded-ctl border border-line-2 text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[10px] leading-[normal] font-semibold shadow-card ${TRANSITION} [&_.logo-svg]:size-3.5 [&_.craft-icon]:size-5 active:[transform:scale(0.96)] hover:border-accent-dim [&.off]:bg-transparent [&.off]:text-faint [&.off]:border-line [&.off]:shadow-none [&.off_.logo-svg_path]:fill-faint [&.off_.craft-icon]:grayscale [&_.app-icon]:size-3.5 [&.off_.app-icon]:[filter:grayscale(1)_opacity(0.5)] [&.missing]:border-dashed group-[.focus]/conn:[&:not(.hot)]:opacity-25 group-[.focus]/conn:[&:not(.hot)]:grayscale group-[.focus.soft]/conn:[&:not(.hot)]:opacity-70 group-[.focus.soft]/conn:[&:not(.hot)]:[filter:none] group-[.focus]/conn:[&.hot]:border-(--c) group-[.focus]/conn:[&.hot]:bg-[color-mix(in_srgb,var(--c)_16%,var(--color-raise))]`;
 const ENGINE =
   'group/eng relative grid place-items-center size-7 p-0 border-0 bg-transparent rounded-ctl cursor-pointer text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[14px] leading-[normal] font-semibold [transition:background-color_0.15s,opacity_0.2s,filter_0.2s] hover:bg-ink/5 [&.off]:text-faint [&.off]:grayscale [&.off]:opacity-60 [&.off]:hover:opacity-90 [&.busy]:animate-[pulse_1.4s_ease-in-out_infinite] [&_.app-icon]:size-4 [&_.logo-svg]:size-3.5';
-const STAT = 'glass flex items-baseline gap-2 px-3 py-2 rounded-ctl text-[12.5px] leading-[normal] font-medium text-dim';
+const STAT =
+  'glass flex items-baseline gap-2 px-3 py-2 rounded-ctl text-[12.5px] leading-[normal] font-medium text-dim';
 const STAT_N = 'font-sans text-[15px] leading-[normal] font-semibold tabular-nums tracking-normal';
 const ZOOM_BTN = `glass grid place-items-center size-9.5 rounded-full text-dim cursor-pointer ${TRANSITION} hover:text-ink`;
 const FEED_ITEM = 'flex gap-3 py-1 whitespace-nowrap overflow-hidden text-ellipsis';
@@ -3690,7 +4622,11 @@ const sentence = (t: string): string => (t ? t.charAt(0).toUpperCase() + t.slice
 function badge(id: string): HTMLSpanElement | null {
   const it = intInfo(id);
   if (!it) return null;
-  return h('span.st-badge', { style: { '--c': it.color, color: 'color-mix(in srgb, var(--c) 72%, var(--color-ink))' }, title: it.label }, mark(id, 11));
+  return h(
+    'span.st-badge',
+    { style: { '--c': it.color, color: 'color-mix(in srgb, var(--c) 72%, var(--color-ink))' }, title: it.label },
+    mark(id, 11),
+  );
 }
 
 /** A tile in the header's CONNECTED TO row. */
@@ -3714,14 +4650,32 @@ function drawHud(): void {
   const needs = d.approvals.length + d.outboxPending + (d.questions?.length || 0);
   if (!S.hudBuilt) {
     S.hudBuilt = true;
-    S.hudTop = h('div', { class: 'absolute top-0 left-0 right-0 flex items-center gap-4 px-5 pointer-events-none *:pointer-events-auto' });
-    S.feedEl = h('div.st-live-feed', { class: 'absolute left-4 bottom-4 w-[min(380px,40vw)] max-md:w-[min(380px,calc(100%-96px))] max-md:bottom-20 p-4 text-[12.5px] leading-[1.45] font-normal pointer-events-auto' });
+    S.hudTop = h('div', {
+      class: 'absolute top-0 left-0 right-0 flex items-center gap-4 px-5 pointer-events-none *:pointer-events-auto',
+    });
+    S.feedEl = h('div.st-live-feed', {
+      class:
+        'absolute left-4 bottom-4 w-[min(380px,40vw)] max-md:w-[min(380px,calc(100%-96px))] max-md:bottom-20 p-4 text-[12.5px] leading-[1.45] font-normal pointer-events-auto',
+    });
     // moves left of the side panel while it is open, and glides back as the panel slides out (.closing)
     S.zoomEl = h(
       'div',
-      { class: 'absolute right-4 bottom-4 flex flex-col gap-2 pointer-events-auto [transition:right_0.32s_var(--ease-soft)] motion-reduce:transition-none group-has-[.st-panel:not(.hidden):not(.closing)]/root:right-105' },
+      {
+        class:
+          'absolute right-4 bottom-4 flex flex-col gap-2 pointer-events-auto [transition:right_0.32s_var(--ease-soft)] motion-reduce:transition-none group-has-[.st-panel:not(.hidden):not(.closing)]/root:right-105',
+      },
       // the World panel (voxel look only: shown or hidden on each drawHud)
-      h('button.st-world-btn', { class: `${ZOOM_BTN} mb-2`, hidden: true, title: 'World: WORLD.md, what is built, the look, which world', 'aria-label': 'World', onclick: () => choose(S?.selected?.type === 'world' ? null : { type: 'world' }) }, icon('globe', 17)),
+      h(
+        'button.st-world-btn',
+        {
+          class: `${ZOOM_BTN} mb-2`,
+          hidden: true,
+          title: 'World: WORLD.md, what is built, the look, which world',
+          'aria-label': 'World',
+          onclick: () => choose(S?.selected?.type === 'world' ? null : { type: 'world' }),
+        },
+        icon('globe', 17),
+      ),
       h('button', { class: ZOOM_BTN, title: 'Zoom in (+)', onclick: () => zoomAt(1.3) }, icon('zoom-in', 17)),
       h('button', { class: ZOOM_BTN, title: 'Zoom out (−)', onclick: () => zoomAt(0.77) }, icon('zoom-out', 17)),
       h('button', { class: ZOOM_BTN, title: 'Whole station (0)', onclick: () => resetView() }, icon('house', 17)),
@@ -3730,7 +4684,9 @@ function drawHud(): void {
     // (so do the zoom and home buttons)
     S.zoomEl.addEventListener('pointerdown', minimizeMaximizedChats);
     S.emptyEl = h('div', { class: 'absolute left-5 top-22 pointer-events-none' });
-    S.statsEl = h('div', { class: 'absolute top-16 right-5 pointer-events-auto group-has-[.st-panel:not(.hidden)]/root:hidden' });
+    S.statsEl = h('div', {
+      class: 'absolute top-16 right-5 pointer-events-auto group-has-[.st-panel:not(.hidden)]/root:hidden',
+    });
     S.hud.append(S.hudTop, S.statsEl, S.feedEl, S.zoomEl, S.emptyEl);
   }
   // the World button only in the voxel look (the panel closes when the look goes classic)
@@ -3743,18 +4699,61 @@ function drawHud(): void {
   for (const c of S.headbar?.connectors || []) {
     const look = connectorLook(c.name);
     const ok = c.status === 'connected';
-    tiles.push({ key: `cc:${c.name}`, int: `cc:${c.name}`, glyph: appLogo(c.name, 14) || look.glyph, color: look.color, on: ok, title: `${c.name} · Claude account connector · ${ok ? 'connected' : c.status === 'needs-auth' ? 'needs sign-in (run /mcp in Claude Code)' : c.detail}`, onclick: () => navigate('#/settings?tab=mcp') });
+    tiles.push({
+      key: `cc:${c.name}`,
+      int: `cc:${c.name}`,
+      glyph: appLogo(c.name, 14) || look.glyph,
+      color: look.color,
+      on: ok,
+      title: `${c.name} · Claude account connector · ${ok ? 'connected' : c.status === 'needs-auth' ? 'needs sign-in (run /mcp in Claude Code)' : c.detail}`,
+      onclick: () => navigate('#/settings?tab=mcp'),
+    });
   }
   // Model engines (Claude, Hermes, OpenRouter, LM Studio) have their own tiles on the right.
   const ENGINE_SIDE = new Set(['claude', 'hermes', 'openrouter', 'venice', 'lmstudio']);
-  for (const it of ints) if (!ENGINE_SIDE.has(it.id)) tiles.push({ key: it.id, int: it.id, glyph: mark(it.id), color: it.color, on: it.live, title: `${it.label} · ${it.live ? 'ready' : 'installed, not running'}`, onclick: () => choose({ type: 'int', id: it.id }) });
+  for (const it of ints)
+    if (!ENGINE_SIDE.has(it.id))
+      tiles.push({
+        key: it.id,
+        int: it.id,
+        glyph: mark(it.id),
+        color: it.color,
+        on: it.live,
+        title: `${it.label} · ${it.live ? 'ready' : 'installed, not running'}`,
+        onclick: () => choose({ type: 'int', id: it.id }),
+      });
   const missing = [
-    !d.accounts.x.length && { glyph: logo('x', 13) || '𝕏', title: 'X · not connected (Connections)', href: '#/settings?tab=connections' },
-    !d.accounts.telegram.configured && { glyph: logo('telegram', 13) || '✈', title: 'Telegram · not set up (Gateways)', href: '#/settings?tab=gateways' },
-    !(d.accounts.reddit || []).length && { glyph: logo('reddit', 13) || 'r/', title: 'Reddit · not connected (Settings > Connections)', href: '#/settings?tab=connections' },
-    !d.accounts.discord.configured && { glyph: logo('discord', 13) || 'D', title: 'Discord · not set up (Gateways)', href: '#/settings?tab=gateways' },
+    !d.accounts.x.length && {
+      glyph: logo('x', 13) || '𝕏',
+      title: 'X · not connected (Connections)',
+      href: '#/settings?tab=connections',
+    },
+    !d.accounts.telegram.configured && {
+      glyph: logo('telegram', 13) || '✈',
+      title: 'Telegram · not set up (Gateways)',
+      href: '#/settings?tab=gateways',
+    },
+    !(d.accounts.reddit || []).length && {
+      glyph: logo('reddit', 13) || 'r/',
+      title: 'Reddit · not connected (Settings > Connections)',
+      href: '#/settings?tab=connections',
+    },
+    !d.accounts.discord.configured && {
+      glyph: logo('discord', 13) || 'D',
+      title: 'Discord · not set up (Gateways)',
+      href: '#/settings?tab=gateways',
+    },
   ].filter(Boolean) as { glyph: SVGSVGElement | string; title: string; href: string }[];
-  for (const m of missing) tiles.push({ key: m.title, glyph: m.glyph, color: 'var(--color-faint)', on: false, missing: true, title: m.title, onclick: () => navigate(m.href) });
+  for (const m of missing)
+    tiles.push({
+      key: m.title,
+      glyph: m.glyph,
+      color: 'var(--color-faint)',
+      on: false,
+      missing: true,
+      title: m.title,
+      onclick: () => navigate(m.href),
+    });
   const seen = new Set<string>();
   // Only engines that have been set up; local servers can still be stopped.
   const brainP = d.settings?.brain?.provider || 'claude';
@@ -3762,47 +4761,163 @@ function drawHud(): void {
   // LM Studio: a tile once it is installed or an agent uses it; lit while its local server is up
   const lm = ints.find((i) => i.id === 'lmstudio');
   const onLmStudio = (a: Agent): boolean => a.engine === 'eve' && a.provider === 'lmstudio';
-  const lmStudio = lm || d.agents.some(onLmStudio)
-    ? [{ id: 'eve', uses: onLmStudio, brain: '', name: 'LM Studio', glyph: mark('lmstudio', 15), color: '#6a72ed', ready: !!lm?.live, why: lm ? 'its server is not running (LM Studio > Developer > Start server)' : 'not installed', find: 'LM Studio server' }]
-    : [];
+  const lmStudio =
+    lm || d.agents.some(onLmStudio)
+      ? [
+          {
+            id: 'eve',
+            uses: onLmStudio,
+            brain: '',
+            name: 'LM Studio',
+            glyph: mark('lmstudio', 15),
+            color: '#6a72ed',
+            ready: !!lm?.live,
+            why: lm ? 'its server is not running (LM Studio > Developer > Start server)' : 'not installed',
+            find: 'LM Studio server',
+          },
+        ]
+      : [];
   const installedPrograms = new Set(S.progs.filter((program) => program.installed).map((program) => program.id));
   const engines = [
-    { id: 'claude-code', brain: 'claude', name: 'Claude Code', glyph: appLogo('claude code', 15) || '✳', color: '#d97757', ready: d.engines['claude-code'].installed, why: d.engines['claude-code'].installed ? '' : 'not installed', find: 'Claude Code' },
-    { id: 'eve', uses: (a: Agent) => a.engine === 'eve' && !onLmStudio(a) && a.provider !== 'venice', brain: 'openrouter', name: 'OpenRouter', glyph: appLogo('openrouter', 15) || '◇', color: '#94a3b8', ready: d.secrets.openrouterKey.set, why: d.secrets.openrouterKey.set ? '' : 'no key yet', find: 'OpenRouter key' },
-    { id: 'eve', uses: (a: Agent) => a.engine === 'eve' && a.provider === 'venice', brain: 'venice', name: 'Venice', glyph: mark('venice', 15), color: INK, ready: !!d.secrets.veniceKey?.set, why: d.secrets.veniceKey?.set ? '' : 'no key yet', find: 'Venice key' },
+    {
+      id: 'claude-code',
+      brain: 'claude',
+      name: 'Claude Code',
+      glyph: appLogo('claude code', 15) || '✳',
+      color: '#d97757',
+      ready: d.engines['claude-code'].installed,
+      why: d.engines['claude-code'].installed ? '' : 'not installed',
+      find: 'Claude Code',
+    },
+    {
+      id: 'eve',
+      uses: (a: Agent) => a.engine === 'eve' && !onLmStudio(a) && a.provider !== 'venice',
+      brain: 'openrouter',
+      name: 'OpenRouter',
+      glyph: appLogo('openrouter', 15) || '◇',
+      color: '#94a3b8',
+      ready: d.secrets.openrouterKey.set,
+      why: d.secrets.openrouterKey.set ? '' : 'no key yet',
+      find: 'OpenRouter key',
+    },
+    {
+      id: 'eve',
+      uses: (a: Agent) => a.engine === 'eve' && a.provider === 'venice',
+      brain: 'venice',
+      name: 'Venice',
+      glyph: mark('venice', 15),
+      color: INK,
+      ready: !!d.secrets.veniceKey?.set,
+      why: d.secrets.veniceKey?.set ? '' : 'no key yet',
+      find: 'Venice key',
+    },
     ...lmStudio,
-    { id: 'hermes', brain: 'hermes', name: 'Hermes', glyph: mark('hermes', 15), color: '#d8c25a', ready: d.engines.hermes.installed, why: d.engines.hermes.installed ? '' : 'not installed', find: 'Hermes' },
-    { id: 'codex', brain: 'codex', name: 'OpenAI Codex', glyph: appLogo('openai', 14) || '◎', color: INK, ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn), why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in', find: 'OpenAI Codex' },
+    {
+      id: 'hermes',
+      brain: 'hermes',
+      name: 'Hermes',
+      glyph: mark('hermes', 15),
+      color: '#d8c25a',
+      ready: d.engines.hermes.installed,
+      why: d.engines.hermes.installed ? '' : 'not installed',
+      find: 'Hermes',
+    },
+    {
+      id: 'codex',
+      brain: 'codex',
+      name: 'OpenAI Codex',
+      glyph: appLogo('openai', 14) || '◎',
+      color: INK,
+      ready: !!(d.engines.codex?.installed && d.engines.codex.loggedIn),
+      why: !d.engines.codex?.installed ? 'not installed' : d.engines.codex.loggedIn ? '' : 'not signed in',
+      find: 'OpenAI Codex',
+    },
     // CLI engines use their own provider logins.
-    ...([
-      { id: 'pi', name: 'pi', glyph: mark('pi', 15), color: '#9fd3a8', find: 'pi coding agent' },
-      { id: 'omp', name: 'oh-my-pi', glyph: mark('omp', 15), color: '#c8a2f0', find: 'oh-my-pi' },
-      { id: 'openclaw', name: 'OpenClaw', glyph: mark('openclaw', 15), color: '#ff6f5e', find: 'OpenClaw' },
-      { id: 'opencode', name: 'opencode', glyph: mark('opencode', 15), color: '#8a8686', find: 'opencode' },
-    ] as const).map((e) => ({ ...e, brain: '', ready: !!d.engines[e.id]?.installed, why: d.engines[e.id]?.installed ? '' : 'not installed' })),
-  ].filter((engine) => engineConfigured(engine.name === 'LM Studio' ? 'lmstudio' : engine.brain || engine.id, d, installedPrograms)).map((e: { id: string; uses?: (a: Agent) => boolean; brain: string; name: string; glyph: SVGSVGElement | HTMLImageElement | string; color: string; ready: boolean; why: string; find: string }) => {
-    const uses = e.uses || ((a: Agent) => a.engine === e.id);
-    const users = d.agents.filter(uses);
-    const busy = users.some((a) => busyIds.has(a.id));
-    const who = [users.length ? `${users.length} agent${users.length === 1 ? '' : 's'}` : '', brainP === e.brain ? 'the Brain' : ''].filter(Boolean).join(' + ');
-    // ready and used by agents: a click shows them on the Agents page; otherwise it opens its setup
-    const toAgents = e.ready && users.length ? `#/agents?uses=${engineKey(users[0])}` : '';
-    return { ...e, uses, n: users.length + (brainP === e.brain ? 1 : 0), busy, toAgents, title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${toAgents ? ' (click to see its agents)' : e.ready ? '' : ' (click to set up)'}` };
+    ...(
+      [
+        { id: 'pi', name: 'pi', glyph: mark('pi', 15), color: '#9fd3a8', find: 'pi coding agent' },
+        { id: 'omp', name: 'oh-my-pi', glyph: mark('omp', 15), color: '#c8a2f0', find: 'oh-my-pi' },
+        { id: 'openclaw', name: 'OpenClaw', glyph: mark('openclaw', 15), color: '#ff6f5e', find: 'OpenClaw' },
+        { id: 'opencode', name: 'opencode', glyph: mark('opencode', 15), color: '#8a8686', find: 'opencode' },
+      ] as const
+    ).map((e) => ({
+      ...e,
+      brain: '',
+      ready: !!d.engines[e.id]?.installed,
+      why: d.engines[e.id]?.installed ? '' : 'not installed',
+    })),
+  ]
+    .filter((engine) =>
+      engineConfigured(engine.name === 'LM Studio' ? 'lmstudio' : engine.brain || engine.id, d, installedPrograms),
+    )
+    .map(
+      (e: {
+        id: string;
+        uses?: (a: Agent) => boolean;
+        brain: string;
+        name: string;
+        glyph: SVGSVGElement | HTMLImageElement | string;
+        color: string;
+        ready: boolean;
+        why: string;
+        find: string;
+      }) => {
+        const uses = e.uses || ((a: Agent) => a.engine === e.id);
+        const users = d.agents.filter(uses);
+        const busy = users.some((a) => busyIds.has(a.id));
+        const who = [
+          users.length ? `${users.length} agent${users.length === 1 ? '' : 's'}` : '',
+          brainP === e.brain ? 'the Brain' : '',
+        ]
+          .filter(Boolean)
+          .join(' + ');
+        // ready and used by agents: a click shows them on the Agents page; otherwise it opens its setup
+        const toAgents = e.ready && users.length ? `#/agents?uses=${engineKey(users[0])}` : '';
+        return {
+          ...e,
+          uses,
+          n: users.length + (brainP === e.brain ? 1 : 0),
+          busy,
+          toAgents,
+          title: `${e.name} · ${e.ready ? 'ready' : e.why}${who ? ` · used by ${who}` : ''}${toAgents ? ' (click to see its agents)' : e.ready ? '' : ' (click to set up)'}`,
+        };
+      },
+    );
+  S.clockEl ||= h('span.st-clock', {
+    class:
+      'w-[5.5em] flex-none whitespace-nowrap text-right text-[26px] leading-[normal] font-medium tabular-nums text-[color:light-dark(var(--color-black),var(--color-white))] max-md:hidden font-brand',
   });
-  S.clockEl ||= h('span.st-clock', { class: 'w-[5.5em] flex-none whitespace-nowrap text-right text-[26px] leading-[normal] font-medium tabular-nums text-[color:light-dark(var(--color-black),var(--color-white))] max-md:hidden font-brand' });
   S.tileEls = new Map();
   mount(
     S.hudTop,
-    h('div.st-project-wrap', { class: 'group/proj flex flex-col items-stretch gap-0.75 flex-none' }, ...projectWrapParts()),
+    h(
+      'div.st-project-wrap',
+      { class: 'group/proj flex flex-col items-stretch gap-0.75 flex-none' },
+      ...projectWrapParts(),
+    ),
     h(
       'div.st-connected',
-      { class: 'group/conn flex items-center gap-1.5 flex-1 min-w-0 px-3 py-1 max-md:hidden overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' },
+      {
+        class:
+          'group/conn flex items-center gap-1.5 flex-1 min-w-0 px-3 py-1 max-md:hidden overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+      },
       h('span', { class: CONN_LABEL }, domDot('on'), 'Connected to'),
       tiles
-        .filter((t) => !seen.has(t.title.split(' · ')[0].toLowerCase()) && seen.add(t.title.split(' · ')[0].toLowerCase()))
+        .filter(
+          (t) => !seen.has(t.title.split(' · ')[0].toLowerCase()) && seen.add(t.title.split(' · ')[0].toLowerCase()),
+        )
         .sort((a, b) => +b.on - +a.on || +!!a.missing - +!!b.missing)
         .map((t) => {
-          const el = h(`button${t.on ? '' : '.off'}${t.missing ? '.missing' : ''}`, { class: `${INT_TILE}${t.on ? ' glass' : ''}`, style: { '--c': t.color }, title: t.title, onclick: t.onclick }, t.glyph);
+          const el = h(
+            `button${t.on ? '' : '.off'}${t.missing ? '.missing' : ''}`,
+            {
+              class: `${INT_TILE}${t.on ? ' glass' : ''}`,
+              style: { '--c': t.color },
+              title: t.title,
+              onclick: t.onclick,
+            },
+            t.glyph,
+          );
           if (t.int) {
             S!.tileEls.set(t.int, el);
             const id = t.int;
@@ -3814,11 +4929,19 @@ function drawHud(): void {
     ),
     h(
       'div.st-engine-bar',
-      { class: 'flex items-center gap-3 flex-none px-3 py-1 max-md:min-w-0 max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden' },
+      {
+        class:
+          'flex items-center gap-3 flex-none px-3 py-1 max-md:min-w-0 max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden',
+      },
       h(
         'div',
         { class: 'flex items-center gap-1.5' },
-        h('span', { class: `${CONN_LABEL} max-[1501px]:hidden` }, domDot(engines.some((e) => e.busy) ? 'busy' : 'on'), 'AI engines'),
+        h(
+          'span',
+          { class: `${CONN_LABEL} max-[1501px]:hidden` },
+          domDot(engines.some((e) => e.busy) ? 'busy' : 'on'),
+          'AI engines',
+        ),
         engines.map((e) =>
           h(
             `button${e.ready ? '' : '.off'}${e.busy ? '.busy' : ''}`,
@@ -3831,11 +4954,22 @@ function drawHud(): void {
               onpointerleave: () => S && (S.hover = null),
             },
             e.glyph,
-            e.n ? h('span', { class: 'absolute -right-1.25 -bottom-1 min-w-3.5 h-3.5 px-1 rounded-full bg-raise border border-line-2 text-ink font-sans text-[9px] leading-3 font-semibold tabular-nums group-[.off]/eng:text-faint' }, String(e.n)) : null,
+            e.n
+              ? h(
+                  'span',
+                  {
+                    class:
+                      'absolute -right-1.25 -bottom-1 min-w-3.5 h-3.5 px-1 rounded-full bg-raise border border-line-2 text-ink font-sans text-[9px] leading-3 font-semibold tabular-nums group-[.off]/eng:text-faint',
+                  },
+                  String(e.n),
+                )
+              : null,
           ),
         ),
       ),
-      S.headbar?.usages?.length ? (S.usageEl ||= h('div', { class: 'flex items-center overflow-hidden max-[1201px]:hidden' })) : null,
+      S.headbar?.usages?.length
+        ? (S.usageEl ||= h('div', { class: 'flex items-center overflow-hidden max-[1201px]:hidden' }))
+        : null,
       S.clockEl,
     ),
   );
@@ -3848,18 +4982,48 @@ function drawHud(): void {
       'div',
       { class: 'ml-auto flex items-center gap-2' },
       // on small screens only the buttons stay
-      d.runs.length || S.active.size ? h('div', { class: `${STAT} max-md:hidden` }, h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)), 'working') : null,
-      needs ? domButton({ variant: 'ghost', size: 'small', class: 'glass border-amber', onclick: () => document.getElementById('drawer')!.classList.toggle('hidden') }, icon('bell', 13), h('b', { class: 'font-semibold tabular-nums text-amber' }, String(needs)), 'Needs you') : null,
+      d.runs.length || S.active.size
+        ? h(
+            'div',
+            { class: `${STAT} max-md:hidden` },
+            h('b', { class: `${STAT_N} text-accent` }, String(d.runs.length + S.active.size)),
+            'working',
+          )
+        : null,
+      needs
+        ? domButton(
+            {
+              variant: 'ghost',
+              size: 'small',
+              class: 'glass border-amber',
+              onclick: () => document.getElementById('drawer')!.classList.toggle('hidden'),
+            },
+            icon('bell', 13),
+            h('b', { class: 'font-semibold tabular-nums text-amber' }, String(needs)),
+            'Needs you',
+          )
+        : null,
       d.agents.length
         ? // quiet until pointed at: the page's text colour on nothing, the accent behind it on hover
-          domButton({ variant: 'plain', size: 'small', class: 'text-ink! hover:bg-accent! hover:text-on-accent! focus-visible:bg-accent! focus-visible:text-on-accent!', onclick: newBranch }, icon('users', 14), 'New team')
+          domButton(
+            {
+              variant: 'plain',
+              size: 'small',
+              class:
+                'text-ink! hover:bg-accent! hover:text-on-accent! focus-visible:bg-accent! focus-visible:text-on-accent!',
+              onclick: newBranch,
+            },
+            icon('users', 14),
+            'New team',
+          )
         : null,
     ),
   );
 }
 
 // What to do first, when there is nothing on the map yet.
-const EMPTY = 'glass pointer-events-auto w-84 max-w-[calc(100vw-32px)] p-5 rounded-box animate-[in-up_0.45s_var(--ease-soft)]';
+const EMPTY =
+  'glass pointer-events-auto w-84 max-w-[calc(100vw-32px)] p-5 rounded-box animate-[in-up_0.45s_var(--ease-soft)]';
 const EMPTY_TITLE = 'font-sans text-[16px] leading-[1.3] font-semibold mb-2';
 const EMPTY_P = 'text-dim text-[13.5px] leading-[1.55] mb-4';
 function drawEmpty(d: AppState): void {
@@ -3870,16 +5034,27 @@ function drawEmpty(d: AppState): void {
       'div',
       { class: EMPTY },
       h('div', { class: EMPTY_TITLE }, 'Your station is empty'),
-      h('p', { class: EMPTY_P }, 'Tell the Brain what you need, e.g. "make me a social media team", and it builds the team from the library. Or hire and create agents yourself.'),
+      h(
+        'p',
+        { class: EMPTY_P },
+        'Tell the Brain what you need, e.g. "make me a social media team", and it builds the team from the library. Or hire and create agents yourself.',
+      ),
       h(
         'div',
         { class: 'flex flex-wrap items-center gap-3' },
         domButton({ size: 'small', onclick: () => openDock('auto', 'Make me a team for ') }, 'Ask the Brain'),
         domButtonLink({ variant: 'ghost', size: 'small', href: '#/library' }, 'Agent library'),
-        domButton({ variant: 'ghost', size: 'small', onclick: async () => {
-          const a = await attempt(() => rpc.agents.create({ name: 'New agent' }));
-          if (a) navigate(`#/agents/${a.id}/edit`);
-        } }, 'Create your own'),
+        domButton(
+          {
+            variant: 'ghost',
+            size: 'small',
+            onclick: async () => {
+              const a = await attempt(() => rpc.agents.create({ name: 'New agent' }));
+              if (a) navigate(`#/agents/${a.id}/edit`);
+            },
+          },
+          'Create your own',
+        ),
       ),
     );
   else if (!S.workflows.length)
@@ -3887,8 +5062,17 @@ function drawEmpty(d: AppState): void {
       'div',
       { class: EMPTY },
       h('div', { class: EMPTY_TITLE }, `${d.agents.length} agent${d.agents.length === 1 ? '' : 's'} ready`),
-      h('p', { class: EMPTY_P }, 'Ask any of them something in the Brain chat, or group them into a team: a workflow where each one hands its result to the next.'),
-      h('div', { class: 'flex flex-wrap items-center gap-3' }, domButton({ size: 'small', onclick: newBranch }, '+ New team'), domButton({ variant: 'ghost', size: 'small', onclick: () => openDock() }, 'Open Brain chat')),
+      h(
+        'p',
+        { class: EMPTY_P },
+        'Ask any of them something in the Brain chat, or group them into a team: a workflow where each one hands its result to the next.',
+      ),
+      h(
+        'div',
+        { class: 'flex flex-wrap items-center gap-3' },
+        domButton({ size: 'small', onclick: newBranch }, '+ New team'),
+        domButton({ variant: 'ghost', size: 'small', onclick: () => openDock() }, 'Open Brain chat'),
+      ),
     );
   mount(S.emptyEl, card);
 }
@@ -3916,7 +5100,11 @@ function buildWires(): void {
   if (S.bench && S.benchNodes?.length) bundle(S.benchNodes, S.bench, 1.4);
 }
 
-const USAGE_LOOK: Record<string, { brand?: string; glyph: string; color: string }> = { claude: { brand: 'claude code', glyph: '✳', color: '#d97757' }, openrouter: { brand: 'openrouter', glyph: '◇', color: '#94a3b8' }, codex: { brand: 'openai', glyph: '◎', color: INK } };
+const USAGE_LOOK: Record<string, { brand?: string; glyph: string; color: string }> = {
+  claude: { brand: 'claude code', glyph: '✳', color: '#d97757' },
+  openrouter: { brand: 'openrouter', glyph: '◇', color: '#94a3b8' },
+  codex: { brand: 'openai', glyph: '◎', color: INK },
+};
 function drawUsage(animate: boolean): void {
   const list = S?.headbar?.usages || [];
   if (!S?.usageEl || !list.length) return;
@@ -3927,25 +5115,65 @@ function drawUsage(animate: boolean): void {
       'div',
       {
         class: 'flex items-center gap-2 text-[12px] leading-[normal] font-medium text-dim',
-        title: m.resetsAt ? `resets ${new Date(m.resetsAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}` : m.text || '',
+        title: m.resetsAt
+          ? `resets ${new Date(m.resetsAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`
+          : m.text || '',
       },
       h('span', sentence(m.label)),
-      m.percent != null ? h('div', { class: 'relative w-12 h-1 rounded-full overflow-hidden bg-line-2' }, h('i', { class: 'absolute left-0 top-0 bottom-0 rounded-full', style: { width: `${m.percent}%`, background: m.percent >= 80 ? 'var(--color-amber)' : 'var(--color-accent)' } })) : null,
-      h('b', { class: 'min-w-8 font-sans text-[12.5px] leading-[normal] font-semibold tabular-nums tracking-normal text-ink' }, m.percent != null ? `${m.percent}%` : m.text || '–'),
+      m.percent != null
+        ? h(
+            'div',
+            { class: 'relative w-12 h-1 rounded-full overflow-hidden bg-line-2' },
+            h('i', {
+              class: 'absolute left-0 top-0 bottom-0 rounded-full',
+              style: {
+                width: `${m.percent}%`,
+                background: m.percent >= 80 ? 'var(--color-amber)' : 'var(--color-accent)',
+              },
+            }),
+          )
+        : null,
+      h(
+        'b',
+        {
+          class: 'min-w-8 font-sans text-[12.5px] leading-[normal] font-semibold tabular-nums tracking-normal text-ink',
+        },
+        m.percent != null ? `${m.percent}%` : m.text || '–',
+      ),
     );
   mount(
     S.usageEl,
     h(
       'div',
       // slides in when it switches to the next provider
-      { class: animate ? 'flex items-center gap-4 animate-[rise-in_0.4s_var(--ease-soft)_both]' : 'flex items-center gap-4' },
-      h('span', { class: 'w-6 grid place-items-center text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[14px] leading-[normal] font-semibold', style: { '--c': look.color }, title: `${u.name} usage${list.length > 1 ? ' · switches every 6 s' : ''}` }, (look.brand && appLogo(look.brand, 14)) || look.glyph),
+      {
+        class: animate
+          ? 'flex items-center gap-4 animate-[rise-in_0.4s_var(--ease-soft)_both]'
+          : 'flex items-center gap-4',
+      },
+      h(
+        'span',
+        {
+          class:
+            'w-6 grid place-items-center text-[color-mix(in_srgb,var(--c)_72%,var(--color-ink))] font-sans text-[14px] leading-[normal] font-semibold',
+          style: { '--c': look.color },
+          title: `${u.name} usage${list.length > 1 ? ' · switches every 6 s' : ''}`,
+        },
+        (look.brand && appLogo(look.brand, 14)) || look.glyph,
+      ),
       u.meters.map(meter),
       list.length > 1
         ? h(
             'span',
             { class: 'flex flex-col gap-0.75' },
-            list.map((_, i) => h('i', { class: i === (S!.usageIdx || 0) % list.length ? 'size-1 rounded-full transition-[background] duration-300 ease-[ease] bg-accent' : 'size-1 rounded-full transition-[background] duration-300 ease-[ease] bg-line-2' })),
+            list.map((_, i) =>
+              h('i', {
+                class:
+                  i === (S!.usageIdx || 0) % list.length
+                    ? 'size-1 rounded-full transition-[background] duration-300 ease-[ease] bg-accent'
+                    : 'size-1 rounded-full transition-[background] duration-300 ease-[ease] bg-line-2',
+              }),
+            ),
           )
         : null,
     ),
@@ -3955,11 +5183,15 @@ function drawUsage(animate: boolean): void {
 const clockFormat = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 function tickClock(): void {
   if (!S?.clockEl) return;
-  S.clockEl.replaceChildren(...clockFormat.formatToParts(new Date()).map((part) =>
-    part.type === 'dayPeriod'
-      ? h('span', { class: 'text-[16px] font-medium' }, part.value)
-      : document.createTextNode(part.value),
-  ));
+  S.clockEl.replaceChildren(
+    ...clockFormat
+      .formatToParts(new Date())
+      .map((part) =>
+        part.type === 'dayPeriod'
+          ? h('span', { class: 'text-[16px] font-medium' }, part.value)
+          : document.createTextNode(part.value),
+      ),
+  );
 }
 
 async function loadHeadbar(): Promise<void> {
@@ -3983,8 +5215,23 @@ function drawFeed(): void {
   if (!S?.feedEl) return;
   mount(
     S.feedEl,
-    h('div', { class: 'flex items-center gap-2 mb-2 text-[12px] leading-[normal] font-medium text-dim', role: 'status' }, domDot(S.liveConnected ? 'on' : 'warn', { class: '[box-shadow:none]' }), S.liveConnected ? 'Live' : 'Reconnecting…'),
-    S.feed.map((f, i) => h('div', { style: { opacity: String(1 - i * 0.12) }, class: f.kind === 'error' ? `${FEED_ITEM} text-red` : `${FEED_ITEM} text-ink` }, h('span', { class: 'flex-none w-14 text-faint' }, ago(f.ts)), f.text)),
+    h(
+      'div',
+      { class: 'flex items-center gap-2 mb-2 text-[12px] leading-[normal] font-medium text-dim', role: 'status' },
+      domDot(S.liveConnected ? 'on' : 'warn', { class: '[box-shadow:none]' }),
+      S.liveConnected ? 'Live' : 'Reconnecting…',
+    ),
+    S.feed.map((f, i) =>
+      h(
+        'div',
+        {
+          style: { opacity: String(1 - i * 0.12) },
+          class: f.kind === 'error' ? `${FEED_ITEM} text-red` : `${FEED_ITEM} text-ink`,
+        },
+        h('span', { class: 'flex-none w-14 text-faint' }, ago(f.ts)),
+        f.text,
+      ),
+    ),
   );
 }
 
@@ -3997,7 +5244,10 @@ async function reloadRoutineCounts(): Promise<void> {
 
 async function reloadWorkflows(): Promise<void> {
   if (!S) return;
-  const [wfs, runs] = await Promise.all([rpc.workflows.list().catch(() => S!.workflows), rpc.workflows.runs.list({}).catch(() => S!.wfRuns)]);
+  const [wfs, runs] = await Promise.all([
+    rpc.workflows.list().catch(() => S!.workflows),
+    rpc.workflows.runs.list({}).catch(() => S!.wfRuns),
+  ]);
   if (!S) return;
   S.workflows = wfs.map(teamView);
   for (const w of wfs) {
@@ -4011,7 +5261,6 @@ async function reloadWorkflows(): Promise<void> {
   drawHud();
   if (S.selected?.type === 'branch') renderPanel();
 }
-
 
 // What gets saved: a step list keeps its own steps (approvals, posts...), with the members swapped in.
 function teamBody(wf: TeamView): Team {
@@ -4069,7 +5318,8 @@ function renderPanel(): void {
 function choose(p: MapPick | null): void {
   if (!S) return;
   S.selected = p;
-  for (const l of S.labelEls) l.el.classList.toggle('sel', !!p && l.kind === p.type && l.id === p.id && (!p.wf || !l.wf || l.wf === p.wf));
+  for (const l of S.labelEls)
+    l.el.classList.toggle('sel', !!p && l.kind === p.type && l.id === p.id && (!p.wf || !l.wf || l.wf === p.wf));
   if (!p) {
     // slide out, then hide (unless something was picked meanwhile)
     if (!S.panel.classList.contains('hidden') && !S.panelClosing) {
@@ -4086,7 +5336,9 @@ function choose(p: MapPick | null): void {
   if (p.type === 'branch') openChat('team', p.id, { focus: false });
   if (p.type === 'agent') openChat('agent', p.id, { focus: false });
   if (p.type === 'agent') {
-    const desk = S.desks.find((x) => x.agent.id === p.id && (!p.wf || x.wfId === p.wf)) || S.desks.find((x) => x.agent.id === p.id);
+    const desk =
+      S.desks.find((x) => x.agent.id === p.id && (!p.wf || x.wfId === p.wf)) ||
+      S.desks.find((x) => x.agent.id === p.id);
     if (desk) flyTo(desk.group.getWorldPosition(new THREE.Vector3()), 2.2);
   } else if (p.type === 'branch') {
     const b = S.branches.get(p.id);
@@ -4116,24 +5368,38 @@ async function cloneAgent(a: Agent): Promise<Agent | undefined> {
   return c;
 }
 async function cloneTeam(w: TeamView, withAgents: boolean): Promise<void> {
-  const c = await attempt(() => rpc.workflows.clone({ id: w.id, withAgents }), withAgents ? `Cloned ${w.name} with copies of its agents` : `Cloned ${w.name}`);
+  const c = await attempt(
+    () => rpc.workflows.clone({ id: w.id, withAgents }),
+    withAgents ? `Cloned ${w.name} with copies of its agents` : `Cloned ${w.name}`,
+  );
   if (!c) return;
   if (withAgents) refreshSoon(0);
   await reloadWorkflows();
   choose({ type: 'branch', id: c.id });
 }
-const presetAgent = (a: Agent) => attempt(() => rpc.presets.saveAgent({ id: a.id }), `Saved ${a.name} as a preset (Agent library › Your presets)`);
-const presetTeam = (w: TeamView) => attempt(() => rpc.presets.saveTeam({ id: w.id }), `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`);
+const presetAgent = (a: Agent) =>
+  attempt(() => rpc.presets.saveAgent({ id: a.id }), `Saved ${a.name} as a preset (Agent library › Your presets)`);
+const presetTeam = (w: TeamView) =>
+  attempt(
+    () => rpc.presets.saveTeam({ id: w.id }),
+    `Saved ${w.name} and its agents as a preset (Agent library › Your presets)`,
+  );
 
 // What an agent is doing right now, in words ("Blender · rendering the scene", "thinking…").
 function nowText(agentId: string, wfId?: string): { st: 'needs' | 'idle' | 'working'; text: string } {
   assertMounted(S);
   const d = state.data!;
-  const desk = S.desks.find((x) => x.agent.id === agentId && (!wfId || x.wfId === wfId)) || S.desks.find((x) => x.agent.id === agentId);
+  const desk =
+    S.desks.find((x) => x.agent.id === agentId && (!wfId || x.wfId === wfId)) ||
+    S.desks.find((x) => x.agent.id === agentId);
   const act = desk?.act;
   if (d.approvals.some((x) => x.agentId === agentId)) return { st: 'needs', text: 'Waiting for your OK' };
   if (!d.runs.some((r) => r.agentId === agentId)) return { st: 'idle', text: '' };
-  if (act?.kind === 'tool') return { st: 'working', text: [act.app, act.action].filter(Boolean).join(' · ') + (act.detail ? `: ${act.detail}` : '') };
+  if (act?.kind === 'tool')
+    return {
+      st: 'working',
+      text: [act.app, act.action].filter(Boolean).join(' · ') + (act.detail ? `: ${act.detail}` : ''),
+    };
   return { st: 'working', text: 'Thinking…' };
 }
 
@@ -4143,7 +5409,10 @@ function nowText(agentId: string, wfId?: string): { st: 'needs' | 'idle' | 'work
 export async function answerLook(ev: ServerEvent): Promise<void> {
   if (typeof ev.request !== 'string') return;
   const drew = S?.worldLayer ? await S.worldLayer.look(ev).catch(() => false) : false;
-  if (!drew) await rpc.world.snapshot({ request: ev.request, error: "this tab doesn't show that world in the voxel look" }).catch(() => null);
+  if (!drew)
+    await rpc.world
+      .snapshot({ request: ev.request, error: "this tab doesn't show that world in the voxel look" })
+      .catch(() => null);
 }
 
 export function onEvent(ev: ServerEvent): void | Promise<void> {
@@ -4154,10 +5423,12 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
   // the voxel world changed (a build, a move, WORLD.md, another project's world picked), or another project opened
   if (ev.type === 'world' || ev.type === 'project') S.worldLayer?.refresh(ev.type === 'world' ? ev : undefined);
   // a builder plays an animation on an agent's character
-  if (ev.type === 'world-anim' && typeof ev.agent === 'string' && typeof ev.clip === 'string') S.worldLayer?.play(ev.agent, ev.clip, typeof ev.times === 'number' ? ev.times : 1);
+  if (ev.type === 'world-anim' && typeof ev.agent === 'string' && typeof ev.clip === 'string')
+    S.worldLayer?.play(ev.agent, ev.clip, typeof ev.times === 'number' ? ev.times : 1);
   // a program was opened or closed: light its tile and the desks that use it
   if (ev.type === 'programs') {
-    rpc.programs.list({})
+    rpc.programs
+      .list({})
       .then((p) => {
         if (!S || !p) return;
         S.progs = p;
@@ -4186,7 +5457,11 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
         if (!m.mentions?.length) b.flash = Math.max(b.flash || 0, 0.5);
       }
       const tname = S.workflows.find((w) => w.id === ev.teamId)?.name || 'Team';
-      if (m.from !== 'system') feedPush(`${tname} · ${m.from === 'user' ? 'You' : nameOf(m.from)}${m.mentions?.length && m.from !== 'user' ? ` → ${m.mentions.map(nameOf).join(', ')}` : ''}: ${String(m.text).slice(0, 60)}`, 'workflow');
+      if (m.from !== 'system')
+        feedPush(
+          `${tname} · ${m.from === 'user' ? 'You' : nameOf(m.from)}${m.mentions?.length && m.from !== 'user' ? ` → ${m.mentions.map(nameOf).join(', ')}` : ''}: ${String(m.text).slice(0, 60)}`,
+          'workflow',
+        );
       drawBranchCard(ev.teamId);
     }
     return;
@@ -4197,7 +5472,12 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
     S.shape = null;
     // the old floor slides away, the new one comes in from the other side (down the list = it rises from below)
     const to = String(ev.id || '');
-    const dir = floorDirection((state.data?.projects || []).map((p) => p.id), floorId, to) || 1;
+    const dir =
+      floorDirection(
+        (state.data?.projects || []).map((p) => p.id),
+        floorId,
+        to,
+      ) || 1;
     floorId = to || floorId;
     setFloorBusy(true);
     Promise.all([loadData(), floorSlide('out', dir)])
@@ -4243,7 +5523,10 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
     } else {
       S.active.delete(r.workflowId);
       if (b) pulseAlong(r.workflowId, 1, 0, 8);
-      feedPush(`${wf?.name || 'Team'} ${r.status === 'done' ? 'finished ✓' : r.status}${r.error ? `: ${r.error}` : ''}`, r.status === 'failed' ? 'error' : 'workflow');
+      feedPush(
+        `${wf?.name || 'Team'} ${r.status === 'done' ? 'finished ✓' : r.status}${r.error ? `: ${r.error}` : ''}`,
+        r.status === 'failed' ? 'error' : 'workflow',
+      );
       rpc.workflows.runs.list({}).then((runs) => S && ((S.wfRuns = runs), updateStatuses()));
     }
     updateStatuses();
@@ -4258,7 +5541,8 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
     if (e.kind === 'start' && a) {
       for (const desk of desks) if (desk.wfId) pulseToDesk(desk.wfId, desk.agent.id);
       for (const desk of desks) desk.act = { kind: 'thinking', since: Date.now() };
-      if (!/^(workflow|team)/.test(e.from || '')) feedPush(`${a.emoji || ''} ${a.name}: ${String(e.text || '').slice(0, 70)}`);
+      if (!/^(workflow|team)/.test(e.from || ''))
+        feedPush(`${a.emoji || ''} ${a.name}: ${String(e.text || '').slice(0, 70)}`);
     } else if (e.kind === 'tool') {
       for (const desk of desks) {
         desk.activity = e.name;
@@ -4273,12 +5557,14 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       }
       if (a) feedPush(`${a.name} → ${e.name}`);
     } else if (e.kind === 'text') {
-      for (const desk of desks) if (desk.act?.kind !== 'tool') desk.act = { kind: 'writing', since: desk.act?.since || Date.now() };
+      for (const desk of desks)
+        if (desk.act?.kind !== 'tool') desk.act = { kind: 'writing', since: desk.act?.since || Date.now() };
     } else if (e.kind === 'tool_result') {
       for (const desk of desks) desk.act = { kind: 'thinking', since: Date.now() };
     } else if (e.kind === 'done' && a) feedPush(`${a.emoji || ''} ${a.name} finished (${e.seconds}s)`);
     else if (e.kind === 'error' && a) feedPush(`${a.name}: ${String(e.text).slice(0, 80)}`, 'error');
-  } else if (isEvent(ev, 'activity') && ev.entry && !['run', 'workflow'].includes(ev.entry.kind)) feedPush(ev.entry.text, ev.entry.kind);
+  } else if (isEvent(ev, 'activity') && ev.entry && !['run', 'workflow'].includes(ev.entry.kind))
+    feedPush(ev.entry.text, ev.entry.kind);
 }
 
 /** Shown on the map: it and everything it sits in are visible (a skin may have hidden the classic model). */

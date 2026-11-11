@@ -60,7 +60,7 @@ it('uses the official VS Code ribbon for the folder action', async () => {
   }
 });
 
-it("uses the white pi and Venice marks on a dark page and swaps marks already shown when the look changes", async () => {
+it('uses the white pi and Venice marks on a dark page and swaps marks already shown when the look changes', async () => {
   const root = document.documentElement;
   const shown = programIcon('pi', 'pi', 15) as HTMLImageElement;
   document.body.append(shown);
@@ -84,7 +84,10 @@ it("uses the white pi and Venice marks on a dark page and swaps marks already sh
 
 it('draws the OpenAI and Codex marks in black on a light page and white on a dark one, never purple', () => {
   const root = document.documentElement;
-  const fills = () => [appLogo('openai', 15), mark('codex', 15), programIcon('codex', 'codex', 15)].map((el) => (el as SVGSVGElement).querySelector('path')!.getAttribute('fill'));
+  const fills = () =>
+    [appLogo('openai', 15), mark('codex', 15), programIcon('codex', 'codex', 15)].map((el) =>
+      (el as SVGSVGElement).querySelector('path')!.getAttribute('fill'),
+    );
   try {
     root.dataset.theme = 'light';
     for (const fill of fills()) expect(fill?.toLowerCase()).not.toBe('#412991');

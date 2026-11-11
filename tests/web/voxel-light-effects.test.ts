@@ -6,7 +6,19 @@ import { ease, lerpAngle, lerpColor, lerpEnv } from '../../web/voxel/envblend.ts
 import { SlowWatch, lowerQuality } from '../../web/voxel/quality.ts';
 import { envPreset } from '../../shared/worldenv.ts';
 
-const cand = (x: number, strength: number, extra: Partial<LightCandidate> = {}): LightCandidate => ({ x, y: 1, z: 0, r: 1, g: 1, b: 1, strength, range: reachOf(strength), flicker: 0, seed: x, ...extra });
+const cand = (x: number, strength: number, extra: Partial<LightCandidate> = {}): LightCandidate => ({
+  x,
+  y: 1,
+  z: 0,
+  r: 1,
+  g: 1,
+  b: 1,
+  strength,
+  range: reachOf(strength),
+  flicker: 0,
+  seed: x,
+  ...extra,
+});
 
 describe('lights', () => {
   it('picks the strongest near where you look, and leaves far ones out', () => {
@@ -40,10 +52,13 @@ describe('lights', () => {
 
 describe('effects', () => {
   let a = 1;
-  const rnd = () => ((a = (Math.imul(a, 1664525) + 1013904223) >>> 0) / 4294967296);
+  const rnd = () => (a = (Math.imul(a, 1664525) + 1013904223) >>> 0) / 4294967296;
   const box = { w: 10, h: 6, d: 8 };
   const inside = (p: ReturnType<typeof makeParticles>) => {
-    let x = 0, low = Infinity, high = -Infinity, z = 0;
+    let x = 0,
+      low = Infinity,
+      high = -Infinity,
+      z = 0;
     for (let i = 0; i < p.n; i++) {
       x = Math.max(x, Math.abs(p.pos[i * 3]));
       low = Math.min(low, p.pos[i * 3 + 1]);
@@ -71,7 +86,8 @@ describe('effects', () => {
 
   it('rising and wandering particles stay in their box', () => {
     const p = makeParticles(100, box, rnd);
-    for (let s = 0; s < 300; s++) (stepRising(p, box, 0.05, { rise: 1, spread: 1, life: 2, wind: [1, 0, 0], gravity: 3 }, rnd), inside(p));
+    for (let s = 0; s < 300; s++)
+      (stepRising(p, box, 0.05, { rise: 1, spread: 1, life: 2, wind: [1, 0, 0], gravity: 3 }, rnd), inside(p));
     const q = makeParticles(100, box, rnd);
     for (let s = 0; s < 300; s++) (stepWander(q, box, 0.05, 1, rnd), inside(q));
   });

@@ -6,7 +6,10 @@ import { Menu } from '@base-ui/react/menu';
 import { Icon } from '../ui/react.tsx';
 
 /** One line of the menu: a heading, a divider, or something to do. */
-export type MenuEntry = { kind: 'head'; text: string } | { kind: 'sep' } | { kind: 'item'; label: string; icon?: string; danger?: boolean; run: () => unknown };
+export type MenuEntry =
+  | { kind: 'head'; text: string }
+  | { kind: 'sep' }
+  | { kind: 'item'; label: string; icon?: string; danger?: boolean; run: () => unknown };
 
 export interface StationMenu {
   /** Open at this point on the screen (clientX / clientY) with these lines. */
@@ -48,7 +51,14 @@ export function mountStationMenu(host: HTMLElement): StationMenu {
     return (
       <Menu.Root open={m.open} onOpenChange={(open) => !open && set({ open: false })} modal={false}>
         <Menu.Portal>
-          <Menu.Positioner className="z-96 outline-none" anchor={anchor} side="bottom" align="start" sideOffset={2} collisionPadding={8}>
+          <Menu.Positioner
+            className="z-96 outline-none"
+            anchor={anchor}
+            side="bottom"
+            align="start"
+            sideOffset={2}
+            collisionPadding={8}
+          >
             <Menu.Popup className="st-menu dd static" ref={(el: HTMLDivElement | null) => void (popup = el)}>
               {groups.map((g, i) => (
                 <Group key={i} entries={g} divider={i > 0} />

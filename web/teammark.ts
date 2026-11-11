@@ -7,7 +7,28 @@ import type { Team } from '../shared/types.ts';
 
 export const DEFAULT_TEAM_MARK = '💬';
 /** The emoji offered as one-click choices (any emoji can be typed in as well). */
-export const EMOJI_CHOICES = ['💬', '👥', '🎬', '🎧', '🎨', '🧠', '📣', '✍️', '🛠️', '🚀', '🧪', '📊', '🎮', '🧩', '🔍', '🤖', '📦', '🌍', '🔥', '⭐'];
+export const EMOJI_CHOICES = [
+  '💬',
+  '👥',
+  '🎬',
+  '🎧',
+  '🎨',
+  '🧠',
+  '📣',
+  '✍️',
+  '🛠️',
+  '🚀',
+  '🧪',
+  '📊',
+  '🎮',
+  '🧩',
+  '🔍',
+  '🤖',
+  '📦',
+  '🌍',
+  '🔥',
+  '⭐',
+];
 
 const MODEL_EXT = /\.(glb|gltf|obj|stl|ply|fbx)$/i;
 const IMAGE_EXT = /\.(png|jpe?g|webp|gif)$/i;
@@ -31,7 +52,10 @@ const readDataUrl = (file: File): Promise<string | null> =>
 /** Ask for a picture or a 3D model and make it the team's symbol. Resolves to true when it was saved. */
 export function pickTeamMark(t: Pick<Team, 'id' | 'name'>): Promise<boolean> {
   return new Promise((resolve) => {
-    const input = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif,.glb,.gltf,.obj,.stl,.ply,.fbx' });
+    const input = h('input', {
+      type: 'file',
+      accept: 'image/png,image/jpeg,image/webp,image/gif,.glb,.gltf,.obj,.stl,.ply,.fbx',
+    });
     input.addEventListener('change', async () => {
       const file = input.files?.[0];
       if (!file) return resolve(false);

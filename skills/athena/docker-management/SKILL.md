@@ -15,12 +15,12 @@ Dockerfile, read `references/dockerfile-review.md` first.
 Cleanup in Docker is quick, quiet and final. Before any of these, list what would go, tell the user what it holds as
 far as you can tell, and wait for a yes to that list:
 
-| What goes for good | Commands | See it first with |
-|---|---|---|
-| Named volumes: databases, uploads | `docker volume rm`, `docker volume prune -a`, `docker compose down -v` | `docker volume ls`, `docker volume ls --filter dangling=true` |
-| Anonymous volumes | `docker volume prune`, `docker system prune --volumes` | the same |
-| Files a container wrote outside any volume | `docker rm -f`, `docker compose down`, `docker container prune`, `docker system prune` | `docker ps -a`, `docker diff <container>` |
-| Images and build cache (they come back by download or rebuild) | `docker image prune -a`, `docker system prune -a`, `docker builder prune` | `docker system df -v` |
+| What goes for good                                             | Commands                                                                               | See it first with                                             |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Named volumes: databases, uploads                              | `docker volume rm`, `docker volume prune -a`, `docker compose down -v`                 | `docker volume ls`, `docker volume ls --filter dangling=true` |
+| Anonymous volumes                                              | `docker volume prune`, `docker system prune --volumes`                                 | the same                                                      |
+| Files a container wrote outside any volume                     | `docker rm -f`, `docker compose down`, `docker container prune`, `docker system prune` | `docker ps -a`, `docker diff <container>`                     |
+| Images and build cache (they come back by download or rebuild) | `docker image prune -a`, `docker system prune -a`, `docker builder prune`              | `docker system df -v`                                         |
 
 - Since Engine 23 a plain `volume prune` (and `system prune --volumes`) takes only anonymous volumes; `-a` adds every
   named volume no container uses, such as the database of a stack someone took down with `compose down`.
@@ -102,12 +102,12 @@ services:
   api:
     build: .
     ports:
-      - "127.0.0.1:3000:3000"        # reachable from this computer only
+      - '127.0.0.1:3000:3000' # reachable from this computer only
     environment:
       DATABASE_URL: postgres://app:${POSTGRES_PASSWORD:?put POSTGRES_PASSWORD in .env}@db:5432/app
     depends_on:
       db:
-        condition: service_healthy   # waits until Postgres answers, not only until it starts
+        condition: service_healthy # waits until Postgres answers, not only until it starts
   db:
     image: postgres:18-alpine
     environment:
@@ -115,9 +115,9 @@ services:
       POSTGRES_DB: app
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?put POSTGRES_PASSWORD in .env}
     volumes:
-      - pgdata:/var/lib/postgresql   # 18 and later; 17 and earlier mount /var/lib/postgresql/data
-    healthcheck:                     # over TCP: the setup server on first start listens only on a socket
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      - pgdata:/var/lib/postgresql # 18 and later; 17 and earlier mount /var/lib/postgresql/data
+    healthcheck: # over TCP: the setup server on first start listens only on a socket
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
       retries: 10
 volumes:

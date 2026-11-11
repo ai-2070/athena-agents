@@ -15,7 +15,15 @@ function setup(agent: Partial<ToolAgent> = {}) {
   fs.writeFileSync(path.join(workspace, 'contract.pdf'), pdf('Signed on 3 May', 'Terms follow'));
   fs.writeFileSync(path.join(workspace, 'brief.docx'), docx('<w:p><w:r><w:t>Ship by Friday</w:t></w:r></w:p>'));
   fs.writeFileSync(path.join(workspace, 'notes.txt'), 'plain notes');
-  const me: ToolAgent = { id: 'doc-agent', name: 'Reader', toolGroups: [], autonomy: 'auto', workspace, knowledge: { folders: [] }, ...agent };
+  const me: ToolAgent = {
+    id: 'doc-agent',
+    name: 'Reader',
+    toolGroups: [],
+    autonomy: 'auto',
+    workspace,
+    knowledge: { folders: [] },
+    ...agent,
+  };
   return { workspace, agent: me };
 }
 
@@ -75,11 +83,15 @@ describe('read_document', () => {
     fs.writeFileSync(path.join(folder, 'notes.pdf'), pdf('In the folder'));
     mine.items.push({ type: 'steer', steerId: 's1', text: 'and these', attachments: [folder + path.sep] });
     chats.save(mine);
-    expect((await callTool(agent, 'read_document', { path: path.join(folder, 'notes.pdf') })).text).toContain('In the folder');
+    expect((await callTool(agent, 'read_document', { path: path.join(folder, 'notes.pdf') })).text).toContain(
+      'In the folder',
+    );
     const own = await callTool(agent, 'read_document', { path: path.join(workspace, 'contract.pdf') });
     expect(own.isError).toBe(true);
     expect(own.text).toContain('outside the folders');
     // with the Files tools, its workspace too
-    expect((await callTool({ ...agent, toolGroups: ['files'] }, 'read_document', { path: 'contract.pdf' })).text).toContain('Signed on 3 May');
+    expect(
+      (await callTool({ ...agent, toolGroups: ['files'] }, 'read_document', { path: 'contract.pdf' })).text,
+    ).toContain('Signed on 3 May');
   });
 });

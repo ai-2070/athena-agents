@@ -20,14 +20,31 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAY
 // A backup file with a hand-made payload (for files a real backup would never contain)
 function craft(payload: Record<string, unknown>): Buffer {
   const head = `MY-DASHBOARD-BACKUP 1\n${JSON.stringify({ app: 'my-dashboard', name: 'Crafted' })}\n`;
-  return Buffer.concat([Buffer.from(head), zlib.gzipSync(JSON.stringify({ app: 'my-dashboard', kind: 'workspace-backup', format: 1, createdAt: 1, project: { name: 'Crafted' }, ...payload }))]);
+  return Buffer.concat([
+    Buffer.from(head),
+    zlib.gzipSync(
+      JSON.stringify({
+        app: 'my-dashboard',
+        kind: 'workspace-backup',
+        format: 1,
+        createdAt: 1,
+        project: { name: 'Crafted' },
+        ...payload,
+      }),
+    ),
+  ]);
 }
 
 describe('workspace backups', () => {
   it('writes one file in <home>/Athena Agents Backups with the project, its chats and knowledge, every skill and preset, and no keys', async () => {
     setSecret('anthropicKey', 'sk-ant-sentinel-not-in-backups-777');
     setSecret('veniceKey', 'venice-sentinel-not-in-backups-888');
-    const p = await createProject({ name: 'Backed Up', mode: 'new', folder: folder('backed-up'), description: 'Launch work' });
+    const p = await createProject({
+      name: 'Backed Up',
+      mode: 'new',
+      folder: folder('backed-up'),
+      description: 'Launch work',
+    });
     fs.writeFileSync(path.join(p.brainPath, 'PROJECT.md'), '# Backed Up\n\nThe plan.');
     fs.writeFileSync(path.join(p.brainPath, 'notes', 'idea.md'), 'An idea');
     setLogo(p.id, `data:image/png;base64,${PNG}`);
@@ -37,8 +54,25 @@ describe('workspace backups', () => {
     fs.writeFileSync(path.join(skillsLibrary(), skill.slug, 'examples.md'), 'Example one');
     const a = newAgent({ name: 'Writer', skills: [skill.slug], workspace: path.join(p.brainPath, 'drafts') });
     const b = newAgent({ name: 'Editor' });
-    workflows.save({ name: 'Crew', members: [a.id, b.id], lead: a.id, steps: [], skills: [skill.slug], schedule: { type: 'daily', times: ['09:00'] }, enabled: true } as Partial<Team>);
-    routines.save({ name: 'Daily', text: '@Writer writes. Use @Voice Guide', mentions: [{ kind: 'agent', id: a.id, name: 'Writer' }, { kind: 'skill', id: skill.slug, name: 'Voice Guide' }], schedule: { type: 'daily', times: ['08:00'] }, enabled: true });
+    workflows.save({
+      name: 'Crew',
+      members: [a.id, b.id],
+      lead: a.id,
+      steps: [],
+      skills: [skill.slug],
+      schedule: { type: 'daily', times: ['09:00'] },
+      enabled: true,
+    } as Partial<Team>);
+    routines.save({
+      name: 'Daily',
+      text: '@Writer writes. Use @Voice Guide',
+      mentions: [
+        { kind: 'agent', id: a.id, name: 'Writer' },
+        { kind: 'skill', id: skill.slug, name: 'Voice Guide' },
+      ],
+      schedule: { type: 'daily', times: ['08:00'] },
+      enabled: true,
+    });
     const c = chats.create(a.id, 'First draft');
     c.items.push({ type: 'user', text: 'Write the launch post' }, { type: 'assistant', text: 'Here it is' });
     chats.save(c);
@@ -48,7 +82,14 @@ describe('workspace backups', () => {
     const r = backup.createBackup(p.id);
     expect(path.dirname(r.file)).toBe(path.join(os.homedir(), 'Athena Agents Backups'));
     expect(r.name).toMatch(/^backed-up-\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.dashbackup$/);
-    expect(r.summary).toMatchObject({ name: 'Backed Up', agents: 2, teams: 1, routines: 1, chats: 1, knowledgeFiles: 1 });
+    expect(r.summary).toMatchObject({
+      name: 'Backed Up',
+      agents: 2,
+      teams: 1,
+      routines: 1,
+      chats: 1,
+      knowledgeFiles: 1,
+    });
     expect(r.summary.skills).toBeGreaterThanOrEqual(1);
     expect(r.summary.presets).toBeGreaterThanOrEqual(1);
 
@@ -61,9 +102,16 @@ describe('workspace backups', () => {
     expect(data.brain.map((f) => f.path).sort()).toEqual(['BRAIN.md', 'PROJECT.md', 'notes/idea.md']);
     expect(data.logo?.path).toBe('logo.png');
     expect(data.background?.path).toBe('background.png');
-    expect(data.skills.find((s) => s.slug === skill.slug)?.files.map((f) => f.path).sort()).toEqual(['SKILL.md', 'examples.md']);
+    expect(
+      data.skills
+        .find((s) => s.slug === skill.slug)
+        ?.files.map((f) => f.path)
+        .sort(),
+    ).toEqual(['SKILL.md', 'examples.md']);
     expect(data.presets.some((x) => x.name === 'Editor preset')).toBe(true);
-    expect(zlib.gunzipSync(bytes.subarray(bytes.indexOf(0x0a, bytes.indexOf(0x0a) + 1) + 1)).toString()).not.toContain('sentinel-not-in-backups');
+    expect(zlib.gunzipSync(bytes.subarray(bytes.indexOf(0x0a, bytes.indexOf(0x0a) + 1) + 1)).toString()).not.toContain(
+      'sentinel-not-in-backups',
+    );
 
     const listed = backup.listBackups().find((x) => x.name === r.name);
     expect(listed?.summary).toMatchObject({ name: 'Backed Up', agents: 2 });
@@ -79,7 +127,15 @@ describe('workspace backups', () => {
     expect(project.name).toBe('Backed Up');
     expect(project.description).toBe('Launch work');
     expect(project).toMatchObject({ backgroundOpacity: 30, mapDotsOpacity: 0 });
-    expect(restored).toMatchObject({ agents: 2, teams: 1, routines: 1, chats: 1, knowledgeFiles: 1, logo: true, background: true });
+    expect(restored).toMatchObject({
+      agents: 2,
+      teams: 1,
+      routines: 1,
+      chats: 1,
+      knowledgeFiles: 1,
+      logo: true,
+      background: true,
+    });
     expect(restored.skills.added).toBe(0); // same skills already in the library
     // it is open now, and has what the original had
     const list = agents.list();
@@ -87,7 +143,9 @@ describe('workspace backups', () => {
     expect(list).toHaveLength(2);
     expect(writer.workspace).toBe(path.join(project.brainPath, 'drafts'));
     expect(chats.list(writer.id)[0]).toMatchObject({ title: 'First draft', count: 2 });
-    expect(fs.readFileSync(dataPath('projects', project.id, 'knowledge', writer.id, 'brand.md'), 'utf8')).toBe('Brand is calm.');
+    expect(fs.readFileSync(dataPath('projects', project.id, 'knowledge', writer.id, 'brand.md'), 'utf8')).toBe(
+      'Brand is calm.',
+    );
     expect(fs.readFileSync(path.join(project.brainPath, 'PROJECT.md'), 'utf8')).toContain('The plan.');
     expect(fs.readFileSync(path.join(project.brainPath, 'notes', 'idea.md'), 'utf8')).toBe('An idea');
     expect(fs.existsSync(path.join(project.brainPath, '.dashboard', 'logo.png'))).toBe(true);
@@ -123,7 +181,9 @@ describe('workspace backups', () => {
   it("won't restore into a folder another project uses, and never overwrites files in a folder you have", async () => {
     const src = listProjects().find((p) => p.name === 'Backed Up')!;
     const bytes = fs.readFileSync(backup.createBackup(src.id).file);
-    await expect(backup.restoreBackup(bytes, { folder: src.brainPath })).rejects.toThrow(/belongs to the project "Backed Up"/);
+    await expect(backup.restoreBackup(bytes, { folder: src.brainPath })).rejects.toThrow(
+      /belongs to the project "Backed Up"/,
+    );
     const mine = folder('mine');
     fs.mkdirSync(path.join(mine, 'notes'), { recursive: true });
     fs.writeFileSync(path.join(mine, 'PROJECT.md'), 'My own brief');
@@ -150,11 +210,32 @@ describe('workspace backups', () => {
     const data = Buffer.from('pwned').toString('base64');
     const { project, restored } = await backup.restoreBackup(
       craft({
-        agents: [{ id: 'ok-agent', name: 'Ok' }, { id: '../evil', name: 'Evil' }],
+        agents: [
+          { id: 'ok-agent', name: 'Ok' },
+          { id: '../evil', name: 'Evil' },
+        ],
         chats: [{ agentId: '..', chat: { id: 'x', items: [] } }],
-        knowledge: [{ path: '../../../escaped.txt', data }, { path: '/etc/escaped.txt', data }, { path: 'C:/escaped.txt', data }, { path: 'ok-agent/fine.md', data }],
-        brain: [{ path: '../escaped.txt', data }, { path: 'notes/../../escaped.txt', data }, { path: 'secret.txt', data }],
-        skills: [{ slug: '../evil', files: [{ path: 'SKILL.md', data }] }, { slug: 'crafted-skill', files: [{ path: 'SKILL.md', data }, { path: '../../escaped.txt', data }] }],
+        knowledge: [
+          { path: '../../../escaped.txt', data },
+          { path: '/etc/escaped.txt', data },
+          { path: 'C:/escaped.txt', data },
+          { path: 'ok-agent/fine.md', data },
+        ],
+        brain: [
+          { path: '../escaped.txt', data },
+          { path: 'notes/../../escaped.txt', data },
+          { path: 'secret.txt', data },
+        ],
+        skills: [
+          { slug: '../evil', files: [{ path: 'SKILL.md', data }] },
+          {
+            slug: 'crafted-skill',
+            files: [
+              { path: 'SKILL.md', data },
+              { path: '../../escaped.txt', data },
+            ],
+          },
+        ],
         presets: [{ id: '../../x', kind: 'agent', name: 'Bad' }],
         logo: { path: 'logo.png', data }, // not a real image
       }),
@@ -194,8 +275,14 @@ describe('workspace backups', () => {
   it.skipIf(!linksWork)('never packs from a data folder that is itself a link', async () => {
     const elsewhere = path.join(os.homedir(), 'elsewhere-backup');
     fs.mkdirSync(path.join(elsewhere, 'some-agent'), { recursive: true });
-    fs.writeFileSync(path.join(elsewhere, 'stolen.json'), JSON.stringify({ id: 'stolen', name: 'Stolen', items: [], note: 'dir-link-sentinel-6060' }));
-    fs.writeFileSync(path.join(elsewhere, 'some-agent', 'c1.json'), JSON.stringify({ id: 'c1', items: [], note: 'dir-link-sentinel-6060' }));
+    fs.writeFileSync(
+      path.join(elsewhere, 'stolen.json'),
+      JSON.stringify({ id: 'stolen', name: 'Stolen', items: [], note: 'dir-link-sentinel-6060' }),
+    );
+    fs.writeFileSync(
+      path.join(elsewhere, 'some-agent', 'c1.json'),
+      JSON.stringify({ id: 'c1', items: [], note: 'dir-link-sentinel-6060' }),
+    );
     const p = await createProject({ name: 'Linked dirs', mode: 'new', folder: folder('linked-dirs') });
     const pd = (...x: string[]) => dataPath('projects', p.id, ...x);
     for (const sub of ['agents', 'workflows', 'routines', 'teamchats', 'knowledge', 'chats']) {
@@ -205,7 +292,9 @@ describe('workspace backups', () => {
     }
     const r = backup.createBackup(p.id);
     const bytes = fs.readFileSync(r.file);
-    expect(zlib.gunzipSync(bytes.subarray(bytes.indexOf(0x0a, bytes.indexOf(0x0a) + 1) + 1)).toString()).not.toContain('dir-link-sentinel');
+    expect(zlib.gunzipSync(bytes.subarray(bytes.indexOf(0x0a, bytes.indexOf(0x0a) + 1) + 1)).toString()).not.toContain(
+      'dir-link-sentinel',
+    );
     expect(r.summary).toMatchObject({ agents: 0, teams: 0, chats: 0, knowledgeFiles: 0 });
   });
 
@@ -215,7 +304,9 @@ describe('workspace backups', () => {
     newAgent({ name: 'User', skills: [s.slug] });
     const file = backup.createBackup(p.id).file;
     // the same files: the same skill
-    expect((await backup.restoreBackup(fs.readFileSync(file), { name: 'Exact 2' })).restored.skills.renamed).toEqual([]);
+    expect((await backup.restoreBackup(fs.readFileSync(file), { name: 'Exact 2' })).restored.skills.renamed).toEqual(
+      [],
+    );
     // one more file here: not the same skill any more, so the backup's copy is added next to it
     fs.writeFileSync(path.join(skillsLibrary(), s.slug, 'extra.md'), 'Only here');
     const { restored } = await backup.restoreBackup(fs.readFileSync(file), { name: 'Exact 3' });
@@ -229,7 +320,9 @@ describe('workspace backups', () => {
     fs.symlinkSync(src.brainPath, alias);
     const bytes = fs.readFileSync(backup.createBackup(src.id).file);
     await expect(backup.restoreBackup(bytes, { folder: alias })).rejects.toThrow(/belongs to the project "Backed Up"/);
-    await expect(backup.restoreBackup(bytes, { folder: path.join(alias, '.') })).rejects.toThrow(/belongs to the project/);
+    await expect(backup.restoreBackup(bytes, { folder: path.join(alias, '.') })).rejects.toThrow(
+      /belongs to the project/,
+    );
   });
 
   it('leaves out and counts the files over a size limit', async () => {
@@ -243,7 +336,9 @@ describe('workspace backups', () => {
   });
 
   it('moves paths inside the old project folder to the new one, across Windows and Unix', () => {
-    expect(backup.rebase('C:\\Users\\me\\proj\\drafts', 'C:\\Users\\me\\proj', '/home/me/new')).toBe(path.join('/home/me/new', 'drafts'));
+    expect(backup.rebase('C:\\Users\\me\\proj\\drafts', 'C:\\Users\\me\\proj', '/home/me/new')).toBe(
+      path.join('/home/me/new', 'drafts'),
+    );
     expect(backup.rebase('c:/users/ME/proj', 'C:\\Users\\me\\proj', '/x')).toBe('/x');
     expect(backup.rebase('/home/me/proj-other', '/home/me/proj', '/x')).toBeNull();
     expect(backup.rebase('/home/me/Proj/a', '/home/me/proj', '/x')).toBeNull();

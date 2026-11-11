@@ -14,7 +14,16 @@ import { Chips, SearchBox, Tabs } from '../ui/controls.tsx';
 import { Button, IconButton } from '../ui/button.tsx';
 import { Plate } from '../ui/surface.tsx';
 import { canTakePicture, takePicture } from '../voxel/picture.ts';
-import type { ServerEvent, ShownWorld, VoxelObjectMeta, VoxelPrefabMeta, WorldEnvironment, WorldListing, WorldMdInfo, WorldSkins } from '../../shared/types.ts';
+import type {
+  ServerEvent,
+  ShownWorld,
+  VoxelObjectMeta,
+  VoxelPrefabMeta,
+  WorldEnvironment,
+  WorldListing,
+  WorldMdInfo,
+  WorldSkins,
+} from '../../shared/types.ts';
 
 type WorldAnswer = ShownWorld & { fromProjectName?: string };
 type PrefabRow = VoxelPrefabMeta & { uses: { in: string[]; copies: number } | null };
@@ -55,7 +64,8 @@ const BY: Record<string, string> = { you: 'you', brain: 'the Brain', agent: 'an 
 function useWorld(): { shown: WorldAnswer | null; reload: () => void } {
   const [shown, setShown] = useState<WorldAnswer | null>(null);
   const reload = useCallback(() => {
-    void rpc.world.shown()
+    void rpc.world
+      .shown()
       .then(setShown)
       .catch(() => setShown({ world: null, how: 'none' }));
   }, []);
@@ -67,9 +77,17 @@ function useWorld(): { shown: WorldAnswer | null; reload: () => void } {
 const voxels = (o: { volumes: { count: number }[] }) => o.volumes.reduce((n, v) => n + v.count, 0);
 const fmt = (n: number) => n.toLocaleString('en-US');
 /** Files out of the world, into Artifacts: the whole world, or one object or prefab, as .glb or .vox. */
-async function exportIt(what: 'object' | 'prefab' | 'world', format: 'glb' | 'vox', name: string, id?: string): Promise<void> {
+async function exportIt(
+  what: 'object' | 'prefab' | 'world',
+  format: 'glb' | 'vox',
+  name: string,
+  id?: string,
+): Promise<void> {
   const r = await attempt(() => rpc.world.export({ what, id, format }));
-  if (r) toast(`Saved ${name} to Artifacts${r.paths.length > 1 ? ` (${r.paths.length} files, one per voxel size)` : ''}${r.note ? `. ${r.note}` : ''}`);
+  if (r)
+    toast(
+      `Saved ${name} to Artifacts${r.paths.length > 1 ? ` (${r.paths.length} files, one per voxel size)` : ''}${r.note ? `. ${r.note}` : ''}`,
+    );
 }
 
 /** A picture of what you see on the Station, into Artifacts. */
@@ -93,16 +111,32 @@ function ExportButtons({ what, id, name }: { what: 'object' | 'prefab'; id: stri
   const [open, setOpen] = useState(false);
   if (!open)
     return (
-      <IconButton variant="inset" className={ICON_BTN} title={`Export ${name}`} aria-label={`Export ${name}`} onClick={() => setOpen(true)}>
+      <IconButton
+        variant="inset"
+        className={ICON_BTN}
+        title={`Export ${name}`}
+        aria-label={`Export ${name}`}
+        onClick={() => setOpen(true)}
+      >
         <Icon name="download" size={13} />
       </IconButton>
     );
   return (
     <span className="flex flex-none items-center gap-1">
-      <Button variant="ghost" size="tiny" title="A 3D model for Blender, game engines and the web" onClick={() => (setOpen(false), void exportIt(what, 'glb', `"${name}"`, id))}>
+      <Button
+        variant="ghost"
+        size="tiny"
+        title="A 3D model for Blender, game engines and the web"
+        onClick={() => (setOpen(false), void exportIt(what, 'glb', `"${name}"`, id))}
+      >
         3D model
       </Button>
-      <Button variant="ghost" size="tiny" title="A MagicaVoxel file" onClick={() => (setOpen(false), void exportIt(what, 'vox', `"${name}"`, id))}>
+      <Button
+        variant="ghost"
+        size="tiny"
+        title="A MagicaVoxel file"
+        onClick={() => (setOpen(false), void exportIt(what, 'vox', `"${name}"`, id))}
+      >
         .vox
       </Button>
     </span>
@@ -110,10 +144,22 @@ function ExportButtons({ what, id, name }: { what: 'object' | 'prefab'; id: stri
 }
 
 const howText = (s: WorldAnswer): string =>
-  s.how === 'own' ? 'This project’s own world.' : s.how === 'shared' ? `Shared with ${s.fromProjectName || 'another project'}: changes show there too.` : s.how === 'carried' ? `Carried over from ${s.fromProjectName || 'another project'}: the first build here makes this project its own copy.` : 'No world yet: the first build starts one.';
+  s.how === 'own'
+    ? 'This project’s own world.'
+    : s.how === 'shared'
+      ? `Shared with ${s.fromProjectName || 'another project'}: changes show there too.`
+      : s.how === 'carried'
+        ? `Carried over from ${s.fromProjectName || 'another project'}: the first build here makes this project its own copy.`
+        : 'No world yet: the first build starts one.';
 
 /** The panel in the Station's side panel. teamName names a team by id (for who is off the map). */
-export function WorldPanel({ onClose, teamName }: { onClose: () => void; teamName?: (id: string) => string | undefined }) {
+export function WorldPanel({
+  onClose,
+  teamName,
+}: {
+  onClose: () => void;
+  teamName?: (id: string) => string | undefined;
+}) {
   const { shown, reload } = useWorld();
   const [tab, setTab] = useState<Tab>('md');
   const w = shown?.world || null;
@@ -128,7 +174,13 @@ export function WorldPanel({ onClose, teamName }: { onClose: () => void; teamNam
           <div className="hint truncate">{shown ? howText(shown) : 'Loading…'}</div>
         </div>
         {w && canTakePicture() ? (
-          <IconButton variant="inset" className="world-picture" onClick={() => void savePicture(w.name)} title="Save a picture of what you see to Artifacts" aria-label="Save a picture">
+          <IconButton
+            variant="inset"
+            className="world-picture"
+            onClick={() => void savePicture(w.name)}
+            title="Save a picture of what you see to Artifacts"
+            aria-label="Save a picture"
+          >
             <Icon name="image" size={15} />
           </IconButton>
         ) : null}
@@ -174,7 +226,8 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
   const [draftOf, setDraftOf] = useState('');
   const [versions, setVersions] = useState<MdVersion[] | null>(null);
   const load = useCallback(() => {
-    void rpc.world.md.get()
+    void rpc.world.md
+      .get()
       .then(setInfo)
       .catch(() => setInfo(null));
   }, []);
@@ -182,7 +235,13 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
   useEffect(() => setVersions(null), [shown.world?.id]);
   const otherWorld = editing !== null && !!info && info.worldId !== draftOf;
   useServerEvents((ev) => ev.type === 'world-md' && editing === null && load());
-  if (!shown.world) return <p className="hint">There is no world yet. Once something is built, its WORLD.md is here: what the world is, its look, places and characters.</p>;
+  if (!shown.world)
+    return (
+      <p className="hint">
+        There is no world yet. Once something is built, its WORLD.md is here: what the world is, its look, places and
+        characters.
+      </p>
+    );
   const save = async () => {
     if (editing === null) return;
     // never over another world's WORLD.md
@@ -198,13 +257,20 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
       setEditing(null);
     }
   };
-  const showVersions = async () => setVersions(versions ? null : await rpc.world.md.versions().catch((): MdVersion[] => []));
+  const showVersions = async () =>
+    setVersions(versions ? null : await rpc.world.md.versions().catch((): MdVersion[] => []));
   const view = async (v: MdVersion) => {
     const full = await attempt(() => rpc.world.md.version({ vid: v.id }));
     if (full) modal({ title: `WORLD.md from ${new Date(v.at).toLocaleString()}`, body: md(full.item.text) });
   };
   const restore = async (v: MdVersion) => {
-    if (!(await confirmBox(`Bring back the WORLD.md from ${new Date(v.at).toLocaleString()}? The one there now is kept in the history.`, { ok: 'Bring it back' }))) return;
+    if (
+      !(await confirmBox(
+        `Bring back the WORLD.md from ${new Date(v.at).toLocaleString()}? The one there now is kept in the history.`,
+        { ok: 'Bring it back' },
+      ))
+    )
+      return;
     const r = await attempt(() => rpc.world.md.restore({ vid: v.id }), 'Brought the earlier WORLD.md back');
     if (r) {
       setInfo(r);
@@ -213,7 +279,11 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
   };
   return (
     <div className="world-md flex flex-col gap-2.5">
-      <p className="hint">What this world is: its theme and meaning, look, feel, places and characters. Every builder reads it before building and keeps it up to date.{shown.how === 'carried' ? ' Saving a change makes this world the project’s own copy.' : ''}</p>
+      <p className="hint">
+        What this world is: its theme and meaning, look, feel, places and characters. Every builder reads it before
+        building and keeps it up to date.
+        {shown.how === 'carried' ? ' Saving a change makes this world the project’s own copy.' : ''}
+      </p>
       {editing === null ? (
         <>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -238,7 +308,10 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
               {versions.map((v) => (
                 <Plate key={v.id} className={ROW}>
                   <span className="min-w-0 flex-1">
-                    {new Date(v.at).toLocaleString()} <span className={ROW_META}>by {BY[v.by] || v.by} · {fmt(v.chars)} characters</span>
+                    {new Date(v.at).toLocaleString()}{' '}
+                    <span className={ROW_META}>
+                      by {BY[v.by] || v.by} · {fmt(v.chars)} characters
+                    </span>
                   </span>
                   <Button variant="ghost" size="tiny" onClick={() => void view(v)}>
                     View
@@ -250,11 +323,20 @@ function MdTab({ shown }: { shown: WorldAnswer }) {
               ))}
             </div>
           ) : null}
-          {info ? <DomNode className="md text-[13px]" make={() => md(info.text)} deps={[info.text]} /> : <p className="hint">Loading…</p>}
+          {info ? (
+            <DomNode className="md text-[13px]" make={() => md(info.text)} deps={[info.text]} />
+          ) : (
+            <p className="hint">Loading…</p>
+          )}
         </>
       ) : (
         <>
-          {otherWorld ? <p className="hint text-amber">The world shown changed while you were editing. This text was for the other world, so it can’t be saved here.</p> : null}
+          {otherWorld ? (
+            <p className="hint text-amber">
+              The world shown changed while you were editing. This text was for the other world, so it can’t be saved
+              here.
+            </p>
+          ) : null}
           <textarea
             className="code min-h-80 w-full resize-y leading-[1.55]"
             spellCheck={false}
@@ -292,20 +374,32 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
   const [changes, setChanges] = useState<Change[]>([]);
   const [library, setLibrary] = useState(false);
   const load = useCallback(() => {
-    void rpc.world.prefabs.list()
+    void rpc.world.prefabs
+      .list()
       .then(setPrefabs)
       .catch(() => setPrefabs([]));
-    void rpc.world.changes()
+    void rpc.world
+      .changes()
       .then(setChanges)
       .catch(() => setChanges([]));
   }, []);
   useEffect(load, [load, w?.updatedAt]);
-  if (!w) return <p className="hint">Nothing built yet. Ask the Brain for a world, or give an agent the Voxel world tools.</p>;
+  if (!w)
+    return (
+      <p className="hint">Nothing built yet. Ask the Brain for a world, or give an agent the Voxel world tools.</p>
+    );
   const groups = new Map<string, VoxelObjectMeta[]>();
   for (const o of w.objects) groups.set(o.by.name, [...(groups.get(o.by.name) || []), o]);
-  const hide = (o: VoxelObjectMeta) => attempt(() => rpc.world.changeObject({ oid: o.id, hidden: !o.hidden })).then(reload);
+  const hide = (o: VoxelObjectMeta) =>
+    attempt(() => rpc.world.changeObject({ oid: o.id, hidden: !o.hidden })).then(reload);
   const remove = async (o: VoxelObjectMeta) => {
-    if (!(await confirmBox(`Delete "${o.name}"? It can be brought back with "Undo the last change".`, { ok: 'Delete', danger: true }))) return;
+    if (
+      !(await confirmBox(`Delete "${o.name}"? It can be brought back with "Undo the last change".`, {
+        ok: 'Delete',
+        danger: true,
+      }))
+    )
+      return;
     await attempt(() => rpc.world.removeObject({ oid: o.id }), `Deleted "${o.name}"`);
     reload();
   };
@@ -328,7 +422,8 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
     <div className="world-built">
       <div className="flex items-center gap-2">
         <span className="hint flex-1">
-          {fmt(w.objects.length)} objects · {fmt(w.objects.reduce((n, o) => n + voxels(o), 0))} voxels · {fmt(w.objects.reduce((n, o) => n + (o.instances || 0), 0))} placed copies
+          {fmt(w.objects.length)} objects · {fmt(w.objects.reduce((n, o) => n + voxels(o), 0))} voxels ·{' '}
+          {fmt(w.objects.reduce((n, o) => n + (o.instances || 0), 0))} placed copies
         </span>
         <Button variant="ghost" size="small" onClick={() => void undo()} disabled={!changes.length}>
           <Icon name="rotate-ccw" size={13} /> Undo the last change
@@ -350,7 +445,13 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
                   {o.hidden ? 'Show' : 'Hide'}
                 </Button>
                 <ExportButtons what="object" id={o.id} name={o.name} />
-                <IconButton variant="inset" className={ICON_BTN} title={`Delete ${o.name}`} aria-label={`Delete ${o.name}`} onClick={() => void remove(o)}>
+                <IconButton
+                  variant="inset"
+                  className={ICON_BTN}
+                  title={`Delete ${o.name}`}
+                  aria-label={`Delete ${o.name}`}
+                  onClick={() => void remove(o)}
+                >
                   <Icon name="trash-2" size={13} />
                 </IconButton>
               </Plate>
@@ -360,12 +461,23 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
       ))}
       <div className="flex items-center">
         <div className={`${SECTION} flex-1`}>Prefabs</div>
-        <Button variant="ghost" size="tiny" className="mt-3" onClick={() => setLibrary(!library)} aria-pressed={library}>
+        <Button
+          variant="ghost"
+          size="tiny"
+          className="mt-3"
+          onClick={() => setLibrary(!library)}
+          aria-pressed={library}
+        >
           <Icon name="library-big" size={12} /> Library
         </Button>
       </div>
       {library ? <LibraryView onTaken={load} /> : null}
-      {prefabs.length ? null : <p className="hint">No prefabs yet. Builders make the small things there are many of (people, trees, lamps) once, then place copies.</p>}
+      {prefabs.length ? null : (
+        <p className="hint">
+          No prefabs yet. Builders make the small things there are many of (people, trees, lamps) once, then place
+          copies.
+        </p>
+      )}
       <div className="flex flex-col gap-1">
         {prefabs.map((p) => (
           <Plate key={p.id} className={ROW}>
@@ -374,15 +486,28 @@ function BuiltTab({ shown, reload }: { shown: WorldAnswer; reload: () => void })
                 {p.name} <span className={ROW_META}>by {p.by.name}</span>
               </span>
               <span className={`block truncate ${ROW_META}`}>
-                {p.description || 'no description'} · {p.size.join('×')} · {p.uses ? `${fmt(p.uses.copies)} copies in ${p.uses.in.join(', ')}` : 'not placed'}
+                {p.description || 'no description'} · {p.size.join('×')} ·{' '}
+                {p.uses ? `${fmt(p.uses.copies)} copies in ${p.uses.in.join(', ')}` : 'not placed'}
               </span>
             </span>
-            <IconButton variant="inset" className={ICON_BTN} title="Share to the library: every project can take it" aria-label={`Share ${p.name} to the library`} onClick={() => void publish(p)}>
+            <IconButton
+              variant="inset"
+              className={ICON_BTN}
+              title="Share to the library: every project can take it"
+              aria-label={`Share ${p.name} to the library`}
+              onClick={() => void publish(p)}
+            >
               <Icon name="upload" size={13} />
             </IconButton>
             <ExportButtons what="prefab" id={p.id} name={p.name} />
             {p.uses ? null : (
-              <IconButton variant="inset" className={ICON_BTN} title={`Delete ${p.name}`} aria-label={`Delete ${p.name}`} onClick={() => void removePrefab(p)}>
+              <IconButton
+                variant="inset"
+                className={ICON_BTN}
+                title={`Delete ${p.name}`}
+                aria-label={`Delete ${p.name}`}
+                onClick={() => void removePrefab(p)}
+              >
                 <Icon name="trash-2" size={13} />
               </IconButton>
             )}
@@ -411,7 +536,8 @@ function LibraryView({ onTaken }: { onTaken: () => void }) {
   const [rows, setRows] = useState<LibraryRow[] | null>(null);
   useEffect(() => {
     const t = setTimeout(() => {
-      void rpc.world.prefabs.library({ q: q.trim() })
+      void rpc.world.prefabs
+        .library({ q: q.trim() })
         .then(setRows)
         .catch(() => setRows([]));
     }, 200);
@@ -428,12 +554,21 @@ function LibraryView({ onTaken }: { onTaken: () => void }) {
     <div className="world-library mb-2 flex flex-col gap-1.5 rounded-box border border-line-2 p-2">
       <p className="hint">Prefabs shared from every project. Take one into this world to place copies of it.</p>
       <SearchBox placeholder="Search the library" label="Search the library" value={q} onChange={setQ} />
-      {!rows ? <p className="hint">Loading…</p> : rows.length ? null : <p className="hint">{q ? 'Nothing matches.' : 'The library is empty. Share a prefab to it with its upload button.'}</p>}
+      {!rows ? (
+        <p className="hint">Loading…</p>
+      ) : rows.length ? null : (
+        <p className="hint">
+          {q ? 'Nothing matches.' : 'The library is empty. Share a prefab to it with its upload button.'}
+        </p>
+      )}
       {(rows || []).map((r) => (
         <Plate key={r.id} className={ROW}>
           <span className="min-w-0 flex-1">
             <span className="block truncate">
-              {r.name} <span className={ROW_META}>by {r.by} · from {r.fromWorld}</span>
+              {r.name}{' '}
+              <span className={ROW_META}>
+                by {r.by} · from {r.fromWorld}
+              </span>
             </span>
             <span className={`block truncate ${ROW_META}`}>
               {r.description || 'no description'} · {r.size.join('×')} · {fmt(r.voxels)} voxels
@@ -467,17 +602,40 @@ const WEATHER = [
   { value: 'dust', label: 'Dust' },
 ] as const;
 
-function LookSlider({ label, value, max, step, onCommit }: { label: string; value: number; max: number; step: number; onCommit: (v: number) => void }) {
+function LookSlider({
+  label,
+  value,
+  max,
+  step,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  step: number;
+  onCommit: (v: number) => void;
+}) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
   return (
     <div className="mt-2.5 flex items-center gap-3">
       <span className="w-28 flex-none text-[12.5px] text-dim">{label}</span>
-      <Slider.Root className="flex-1" min={0} max={max} step={step} value={v} onValueChange={(n) => setV(Array.isArray(n) ? n[0] : n)} onValueCommitted={(n) => onCommit(Array.isArray(n) ? n[0] : n)}>
+      <Slider.Root
+        className="flex-1"
+        min={0}
+        max={max}
+        step={step}
+        value={v}
+        onValueChange={(n) => setV(Array.isArray(n) ? n[0] : n)}
+        onValueCommitted={(n) => onCommit(Array.isArray(n) ? n[0] : n)}
+      >
         <Slider.Control className="flex h-5 cursor-pointer touch-none items-center">
           <Slider.Track className="relative h-1 flex-1 rounded-[2px] bg-line-2">
             <Slider.Indicator className="rounded-[2px] bg-accent" />
-            <Slider.Thumb className="size-3.5 rounded-full bg-accent has-focus-visible:outline has-focus-visible:outline-offset-3 has-focus-visible:outline-accent" aria-label={label} />
+            <Slider.Thumb
+              className="size-3.5 rounded-full bg-accent has-focus-visible:outline has-focus-visible:outline-offset-3 has-focus-visible:outline-accent"
+              aria-label={label}
+            />
           </Slider.Track>
         </Slider.Control>
       </Slider.Root>
@@ -488,29 +646,63 @@ function LookSlider({ label, value, max, step, onCommit }: { label: string; valu
 
 function LookTab({ shown, teamName }: { shown: WorldAnswer; teamName?: (id: string) => string | undefined }) {
   const w = shown.world;
-  if (!w) return <p className="hint">There is no world yet: its look (time of day, weather, lights) shows here once something is built.</p>;
+  if (!w)
+    return (
+      <p className="hint">
+        There is no world yet: its look (time of day, weather, lights) shows here once something is built.
+      </p>
+    );
   const env: WorldEnvironment = w.environment;
   const setEnv = (fields: Record<string, unknown>) => attempt(() => rpc.world.environment(fields));
-  const removeLight = (id: string, name: string) => attempt(() => rpc.world.removeLight({ lid: id }), `Took the light "${name}" away`);
-  const removeEffect = (id: string, name: string) => attempt(() => rpc.world.removeEffect({ eid: id }), `Took "${name}" away`);
+  const removeLight = (id: string, name: string) =>
+    attempt(() => rpc.world.removeLight({ lid: id }), `Took the light "${name}" away`);
+  const removeEffect = (id: string, name: string) =>
+    attempt(() => rpc.world.removeEffect({ eid: id }), `Took "${name}" away`);
   return (
     <div className="world-look">
       <div className={SECTION}>Time of day</div>
       <Chips label="Time of day" options={PRESETS} value={env.preset} onChange={(preset) => void setEnv({ preset })} />
       <div className={SECTION}>Weather</div>
-      <Chips label="Weather" options={WEATHER} value={env.weather || 'none'} onChange={(weather) => void setEnv({ weather })} />
+      <Chips
+        label="Weather"
+        options={WEATHER}
+        value={env.weather || 'none'}
+        onChange={(weather) => void setEnv({ weather })}
+      />
       <LookSlider label="Glow" value={env.bloom} max={2} step={0.05} onCommit={(bloom) => void setEnv({ bloom })} />
-      <LookSlider label="Miniature blur" value={env.tiltShift} max={1} step={0.05} onCommit={(tiltShift) => void setEnv({ tiltShift })} />
+      <LookSlider
+        label="Miniature blur"
+        value={env.tiltShift}
+        max={1}
+        step={0.05}
+        onCommit={(tiltShift) => void setEnv({ tiltShift })}
+      />
       <div className={SECTION}>Lights</div>
-      {w.lights.length ? null : <p className="hint">None put up. Glowing things (lanterns, windows, signs) light their surroundings by themselves.</p>}
+      {w.lights.length ? null : (
+        <p className="hint">
+          None put up. Glowing things (lanterns, windows, signs) light their surroundings by themselves.
+        </p>
+      )}
       <div className="flex flex-col gap-1">
         {w.lights.map((l) => (
           <Plate key={l.id} className={ROW}>
-            <span className="size-3 flex-none rounded-full" style={{ background: l.color, boxShadow: `0 0 8px ${l.color}` }} />
+            <span
+              className="size-3 flex-none rounded-full"
+              style={{ background: l.color, boxShadow: `0 0 8px ${l.color}` }}
+            />
             <span className="min-w-0 flex-1 truncate">
-              {l.name} <span className={ROW_META}>{l.kind} · by {l.by.name}</span>
+              {l.name}{' '}
+              <span className={ROW_META}>
+                {l.kind} · by {l.by.name}
+              </span>
             </span>
-            <IconButton variant="inset" className={ICON_BTN} title={`Take ${l.name} away`} aria-label={`Take ${l.name} away`} onClick={() => void removeLight(l.id, l.name)}>
+            <IconButton
+              variant="inset"
+              className={ICON_BTN}
+              title={`Take ${l.name} away`}
+              aria-label={`Take ${l.name} away`}
+              onClick={() => void removeLight(l.id, l.name)}
+            >
               <Icon name="trash-2" size={13} />
             </IconButton>
           </Plate>
@@ -522,9 +714,18 @@ function LookTab({ shown, teamName }: { shown: WorldAnswer; teamName?: (id: stri
         {w.effects.map((e) => (
           <Plate key={e.id} className={ROW}>
             <span className="min-w-0 flex-1 truncate">
-              {e.name} <span className={ROW_META}>{e.kind} · by {e.by.name}</span>
+              {e.name}{' '}
+              <span className={ROW_META}>
+                {e.kind} · by {e.by.name}
+              </span>
             </span>
-            <IconButton variant="inset" className={ICON_BTN} title={`Take ${e.name} away`} aria-label={`Take ${e.name} away`} onClick={() => void removeEffect(e.id, e.name)}>
+            <IconButton
+              variant="inset"
+              className={ICON_BTN}
+              title={`Take ${e.name} away`}
+              aria-label={`Take ${e.name} away`}
+              onClick={() => void removeEffect(e.id, e.name)}
+            >
               <Icon name="trash-2" size={13} />
             </IconButton>
           </Plate>
@@ -538,27 +739,75 @@ function LookTab({ shown, teamName }: { shown: WorldAnswer; teamName?: (id: stri
 /** Who is dressed or off the map, with a way back. */
 function Dressed({ skins, teamName }: { skins: WorldSkins; teamName?: (id: string) => string | undefined }) {
   const agents = state.data?.agents || [];
-  const rows: { key: string; to: 'agent' | 'team' | 'brain'; id?: string; name: string; hidden: boolean; noLabel: boolean }[] = [];
-  if (skins.brain) rows.push({ key: 'brain', to: 'brain', name: 'The Brain', hidden: !!skins.brain.hidden, noLabel: skins.brain.label === false });
-  for (const [id, s] of Object.entries(skins.teams)) rows.push({ key: `t:${id}`, to: 'team', id, name: teamName?.(id) || 'A team of another project', hidden: !!s.hidden, noLabel: s.label === false });
-  for (const [id, s] of Object.entries(skins.agents)) rows.push({ key: `a:${id}`, to: 'agent', id, name: agents.find((a) => a.id === id)?.name || 'An agent of another project', hidden: !!s.hidden, noLabel: s.label === false });
-  const set = (r: (typeof rows)[number], fields: Record<string, unknown>, done: string) => attempt(() => rpc.world.skins({ to: r.to, id: r.id, fields }), done);
+  const rows: {
+    key: string;
+    to: 'agent' | 'team' | 'brain';
+    id?: string;
+    name: string;
+    hidden: boolean;
+    noLabel: boolean;
+  }[] = [];
+  if (skins.brain)
+    rows.push({
+      key: 'brain',
+      to: 'brain',
+      name: 'The Brain',
+      hidden: !!skins.brain.hidden,
+      noLabel: skins.brain.label === false,
+    });
+  for (const [id, s] of Object.entries(skins.teams))
+    rows.push({
+      key: `t:${id}`,
+      to: 'team',
+      id,
+      name: teamName?.(id) || 'A team of another project',
+      hidden: !!s.hidden,
+      noLabel: s.label === false,
+    });
+  for (const [id, s] of Object.entries(skins.agents))
+    rows.push({
+      key: `a:${id}`,
+      to: 'agent',
+      id,
+      name: agents.find((a) => a.id === id)?.name || 'An agent of another project',
+      hidden: !!s.hidden,
+      noLabel: s.label === false,
+    });
+  const set = (r: (typeof rows)[number], fields: Record<string, unknown>, done: string) =>
+    attempt(() => rpc.world.skins({ to: r.to, id: r.id, fields }), done);
   return (
     <>
       <div className={SECTION}>How the Brain, teams and agents look</div>
-      {rows.length ? null : <p className="hint">Everyone looks classic. Builders can give agents a form of their own (a person, an animal, a tree…) and dress team platforms and the Brain.</p>}
+      {rows.length ? null : (
+        <p className="hint">
+          Everyone looks classic. Builders can give agents a form of their own (a person, an animal, a tree…) and dress
+          team platforms and the Brain.
+        </p>
+      )}
       <div className="flex flex-col gap-1">
         {rows.map((r) => (
           <Plate key={r.key} className={ROW}>
             <span className="min-w-0 flex-1 truncate">
-              {r.name} <span className={ROW_META}>{r.hidden ? 'off the map' : 'dressed'}{r.noLabel ? ' · no name label' : ''}</span>
+              {r.name}{' '}
+              <span className={ROW_META}>
+                {r.hidden ? 'off the map' : 'dressed'}
+                {r.noLabel ? ' · no name label' : ''}
+              </span>
             </span>
             {r.hidden || r.noLabel ? (
-              <Button variant="ghost" size="tiny" onClick={() => void set(r, { hidden: false, label: true }, `${r.name} is back on the map`)}>
+              <Button
+                variant="ghost"
+                size="tiny"
+                onClick={() => void set(r, { hidden: false, label: true }, `${r.name} is back on the map`)}
+              >
                 Show on the map
               </Button>
             ) : null}
-            <Button variant="ghost" size="tiny" onClick={() => void set(r, { clear: true }, `${r.name} looks classic again`)}>
+            <Button
+              variant="ghost"
+              size="tiny"
+              onClick={() => void set(r, { clear: true }, `${r.name} looks classic again`)}
+            >
               Look classic again
             </Button>
           </Plate>
@@ -572,7 +821,8 @@ function Dressed({ skins, teamName }: { skins: WorldSkins; teamName?: (id: strin
 export function WorldPicker({ shown, reload }: { shown: WorldAnswer; reload: () => void }) {
   const [worlds, setWorlds] = useState<WorldListing[] | null>(null);
   const load = useCallback(() => {
-    void rpc.worlds.list()
+    void rpc.worlds
+      .list()
       .then(setWorlds)
       .catch(() => setWorlds([]));
   }, []);
@@ -584,19 +834,40 @@ export function WorldPicker({ shown, reload }: { shown: WorldAnswer; reload: () 
     load();
     refreshSoon(0);
   };
-  const choose = (mode: 'share' | 'copy' | 'new' | 'auto', worldId?: string, done?: string) => attempt(() => rpc.worlds.choose({ worldId, mode }), done).then(after);
+  const choose = (mode: 'share' | 'copy' | 'new' | 'auto', worldId?: string, done?: string) =>
+    attempt(() => rpc.worlds.choose({ worldId, mode }), done).then(after);
   const rename = async () => {
     if (!shown.world) return;
     const name = await promptBox('Name this world', { value: shown.world.name, label: 'Name' });
-    if (name?.trim()) await attempt(() => rpc.worlds.rename({ wid: shown.world!.id, name: name.trim() }), 'Renamed the world').then(after);
+    if (name?.trim())
+      await attempt(() => rpc.worlds.rename({ wid: shown.world!.id, name: name.trim() }), 'Renamed the world').then(
+        after,
+      );
   };
-  const setDefault = (id: string | null) => attempt(() => rpc.worlds.setDefault({ worldId: id }), id ? 'Projects without a world of their own now show this one' : 'Projects without a world of their own now show the most recently built one').then(after);
+  const setDefault = (id: string | null) =>
+    attempt(
+      () => rpc.worlds.setDefault({ worldId: id }),
+      id
+        ? 'Projects without a world of their own now show this one'
+        : 'Projects without a world of their own now show the most recently built one',
+    ).then(after);
   const remove = async (l: WorldListing) => {
-    if (!(await confirmBox(`Delete the world "${l.name}"? Its builds, prefabs and WORLD.md go for good: this can't be undone.`, { ok: 'Delete it', danger: true }))) return;
+    if (
+      !(await confirmBox(
+        `Delete the world "${l.name}"? Its builds, prefabs and WORLD.md go for good: this can't be undone.`,
+        { ok: 'Delete it', danger: true },
+      ))
+    )
+      return;
     await attempt(() => rpc.worlds.remove({ wid: l.id }), `Deleted "${l.name}"`).then(after);
   };
   const newWorld = async () => {
-    if (!(await confirmBox('Start a new empty world for this project? The world it shows now stays as it is.', { ok: 'New world' }))) return;
+    if (
+      !(await confirmBox('Start a new empty world for this project? The world it shows now stays as it is.', {
+        ok: 'New world',
+      }))
+    )
+      return;
     await choose('new', undefined, 'This project has a new empty world');
   };
   return (
@@ -612,11 +883,21 @@ export function WorldPicker({ shown, reload }: { shown: WorldAnswer; reload: () 
           <Icon name="plus" size={13} /> New empty world
         </Button>
         {shown.world?.built ? (
-          <Button variant="ghost" size="small" onClick={() => void exportIt('world', 'glb', `"${shown.world!.name}"`)} title="The whole world as a 3D model (.glb), saved to Artifacts">
+          <Button
+            variant="ghost"
+            size="small"
+            onClick={() => void exportIt('world', 'glb', `"${shown.world!.name}"`)}
+            title="The whole world as a 3D model (.glb), saved to Artifacts"
+          >
             <Icon name="download" size={13} /> Export the whole world
           </Button>
         ) : null}
-        <Button variant="ghost" size="small" onClick={() => void choose('auto', undefined, 'Back to its own world, or the carried-over one')} title="Forget the world picked for this project: its own world when it has one built, else the default or the most recently built world">
+        <Button
+          variant="ghost"
+          size="small"
+          onClick={() => void choose('auto', undefined, 'Back to its own world, or the carried-over one')}
+          title="Forget the world picked for this project: its own world when it has one built, else the default or the most recently built world"
+        >
           Back to carry-over
         </Button>
       </div>
@@ -626,28 +907,49 @@ export function WorldPicker({ shown, reload }: { shown: WorldAnswer; reload: () 
         {(worlds || []).map((l) => {
           const here = l.id === shown.world?.id;
           return (
-            <div key={l.id} className={`world-row flex flex-col gap-1.5 rounded-box border px-2.75 py-2 ${here ? 'border-accent-dim' : 'border-line'} bg-bg`}>
+            <div
+              key={l.id}
+              className={`world-row flex flex-col gap-1.5 rounded-box border px-2.75 py-2 ${here ? 'border-accent-dim' : 'border-line'} bg-bg`}
+            >
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold">{l.name}</span>
                 {l.isDefault ? <Pill>default</Pill> : null}
                 {here ? <Pill tone="ok">shown here</Pill> : null}
               </div>
               <span className={ROW_META}>
-                {l.built ? `${fmt(l.objects)} objects · ${fmt(l.voxels)} voxels` : 'nothing built'} · made for {projectName(l.homeProject)}
-                {l.usedBy.length ? ` · used by ${l.usedBy.map(projectName).join(', ')}` : ' · not used by any project'} · {ago(l.updatedAt)}
+                {l.built ? `${fmt(l.objects)} objects · ${fmt(l.voxels)} voxels` : 'nothing built'} · made for{' '}
+                {projectName(l.homeProject)}
+                {l.usedBy.length
+                  ? ` · used by ${l.usedBy.map(projectName).join(', ')}`
+                  : ' · not used by any project'}{' '}
+                · {ago(l.updatedAt)}
               </span>
               <div className="flex flex-wrap gap-1">
                 {here && shown.how !== 'carried' ? null : (
                   <>
-                    <Button size="tiny" onClick={() => void choose('share', l.id, `This project now builds in "${l.name}" too`)} title="Both projects build in the same world">
+                    <Button
+                      size="tiny"
+                      onClick={() => void choose('share', l.id, `This project now builds in "${l.name}" too`)}
+                      title="Both projects build in the same world"
+                    >
                       Share it
                     </Button>
-                    <Button variant="ghost" size="tiny" onClick={() => void choose('copy', l.id, `This project now has its own copy of "${l.name}"`)} title="A new world of this project's own, starting as a copy">
+                    <Button
+                      variant="ghost"
+                      size="tiny"
+                      onClick={() => void choose('copy', l.id, `This project now has its own copy of "${l.name}"`)}
+                      title="A new world of this project's own, starting as a copy"
+                    >
                       Start from a copy
                     </Button>
                   </>
                 )}
-                <Button variant="ghost" size="tiny" onClick={() => void setDefault(l.isDefault ? null : l.id)} title="The world projects with nothing built of their own show">
+                <Button
+                  variant="ghost"
+                  size="tiny"
+                  onClick={() => void setDefault(l.isDefault ? null : l.id)}
+                  title="The world projects with nothing built of their own show"
+                >
                   {l.isDefault ? 'No default' : 'Make it the default'}
                 </Button>
                 {l.usedBy.length ? null : (
@@ -674,5 +976,9 @@ export function openWorldPicker(): void {
   const body = document.createElement('div');
   body.className = 'min-w-[min(520px,85vw)]';
   const view = mountReact(body, <PickerWindow />);
-  modal({ title: `${state.data?.project?.name || 'This project'}: its voxel world`, body, onClose: () => view.unmount() });
+  modal({
+    title: `${state.data?.project?.name || 'This project'}: its voxel world`,
+    body,
+    onClose: () => view.unmount(),
+  });
 }

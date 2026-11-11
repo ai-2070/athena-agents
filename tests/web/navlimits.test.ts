@@ -13,22 +13,42 @@ let requests: { method: string; url: string; body: unknown }[];
 let limits: UsageLimits;
 let el: HTMLElement;
 const hoverCodex = () => el.querySelector('.codex-limits')!.dispatchEvent(new MouseEvent('mouseenter'));
-const draw = () => mount(el, panelSwitch(draw), sidebarPanel() === 'limits' ? navLimits(draw) : [document.createTextNode('status list')]);
+const draw = () =>
+  mount(
+    el,
+    panelSwitch(draw),
+    sidebarPanel() === 'limits' ? navLimits(draw) : [document.createTextNode('status list')],
+  );
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><div id="nav-status"></div>';
   el = document.getElementById('nav-status')!;
   localStorage.clear();
   resetLimitsCache();
-  state.data = { engines: { 'claude-code': { installed: true, loggedIn: true }, codex: { installed: true, loggedIn: true } }, settings: { look: { sidebar: 'limits' } } } as unknown as AppState;
+  state.data = {
+    engines: { 'claude-code': { installed: true, loggedIn: true }, codex: { installed: true, loggedIn: true } },
+    settings: { look: { sidebar: 'limits' } },
+  } as unknown as AppState;
   const now = Date.now();
   limits = {
-    claude: { ready: true, windows: [{ label: '5h', percent: 42, resetsAt: now + 2 * HOUR + 10 * 60_000 }, { label: 'Week', percent: 91, resetsAt: now + 4 * DAY }] },
+    claude: {
+      ready: true,
+      windows: [
+        { label: '5h', percent: 42, resetsAt: now + 2 * HOUR + 10 * 60_000 },
+        { label: 'Week', percent: 91, resetsAt: now + 4 * DAY },
+      ],
+    },
     codex: {
       ready: true,
       plan: 'prolite',
       windows: [{ label: 'Week', percent: 80, resetsAt: now + 6 * DAY }],
-      resets: { available: 2, credits: [{ id: 'soon', expiresAt: now + 2 * DAY + 13 * HOUR + 60_000, title: 'Full reset' }, { id: 'later', expiresAt: now + 20 * DAY, title: null }] },
+      resets: {
+        available: 2,
+        credits: [
+          { id: 'soon', expiresAt: now + 2 * DAY + 13 * HOUR + 60_000, title: 'Full reset' },
+          { id: 'later', expiresAt: now + 20 * DAY, title: null },
+        ],
+      },
     },
   };
   requests = [];
@@ -38,7 +58,14 @@ beforeEach(() => {
     const json = (v: unknown) => new Response(JSON.stringify(v));
     if (url === '/api/usage-limits') return json(limits);
     if (url === '/api/codex/reset') {
-      const after: UsageLimits = { ...limits, codex: { ...limits.codex, windows: [{ label: 'Week', percent: 0, resetsAt: Date.now() + 7 * DAY }], resets: { available: 1, credits: [limits.codex.resets!.credits[1]] } } };
+      const after: UsageLimits = {
+        ...limits,
+        codex: {
+          ...limits.codex,
+          windows: [{ label: 'Week', percent: 0, resetsAt: Date.now() + 7 * DAY }],
+          resets: { available: 1, credits: [limits.codex.resets!.credits[1]] },
+        },
+      };
       return json({ outcome: 'reset', limits: after });
     }
     return json({});
@@ -107,7 +134,9 @@ describe('sidebar usage limits', () => {
     hoverCodex();
     document.querySelector<HTMLButtonElement>('.codex-resets button')!.click();
     await tick();
-    const ok = [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Reset now')!;
+    const ok = [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find(
+      (b) => b.textContent === 'Reset now',
+    )!;
     expect(document.querySelector('.modal')!.textContent).toContain('You have 2.');
     ok.click();
     await tick(10);
@@ -123,7 +152,9 @@ describe('sidebar usage limits', () => {
     hoverCodex();
     document.querySelector<HTMLButtonElement>('.codex-resets button')!.click();
     await tick();
-    [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Cancel')!.click();
+    [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')]
+      .find((b) => b.textContent === 'Cancel')!
+      .click();
     await tick(10);
     expect(requests.some((r) => r.url === '/api/codex/reset')).toBe(false);
   });
@@ -146,19 +177,30 @@ describe('sidebar usage limits', () => {
   it('the switch goes back to the status list and saves the choice', async () => {
     draw();
     await tick(10);
-    const status = [...el.querySelectorAll<HTMLButtonElement>('.sidebar-panel-tab')].find((b) => b.textContent === 'Status')!;
+    const status = [...el.querySelectorAll<HTMLButtonElement>('.sidebar-panel-tab')].find(
+      (b) => b.textContent === 'Status',
+    )!;
     status.click();
     // the limits slide out first (a moment), then the status list comes in
     await tick(250);
     expect(el.textContent).toContain('status list');
     expect(el.querySelector('.limit-row')).toBeNull();
-    expect(requests.at(-1)).toMatchObject({ method: 'PUT', url: '/api/settings', body: { look: { sidebar: 'status' } } });
+    expect(requests.at(-1)).toMatchObject({
+      method: 'PUT',
+      url: '/api/settings',
+      body: { look: { sidebar: 'status' } },
+    });
   });
 
   it('each project remembers its own choice; one that never switched follows Settings > Appearance', async () => {
     const one = { id: 'p1', name: 'One', sidebar: 'limits' };
     const two = { id: 'p2', name: 'Two' };
-    state.data = { ...state.data, settings: { look: { sidebar: 'status' } }, project: one, projects: [one, two] } as unknown as AppState;
+    state.data = {
+      ...state.data,
+      settings: { look: { sidebar: 'status' } },
+      project: one,
+      projects: [one, two],
+    } as unknown as AppState;
     expect(sidebarPanel()).toBe('limits');
     draw();
     await tick(10);
@@ -186,7 +228,8 @@ describe('placing the resets card beside the sidebar', () => {
       document.documentElement.style.zoom = '1.1';
       const card = document.createElement('div');
       document.body.append(card);
-      card.getBoundingClientRect = () => ({ left: toRect(parseFloat(card.style.left)), top: toRect(parseFloat(card.style.top)) }) as DOMRect;
+      card.getBoundingClientRect = () =>
+        ({ left: toRect(parseFloat(card.style.left)), top: toRect(parseFloat(card.style.top)) }) as DOMRect;
       placeFixed(card, 245, 400);
       expect(card.getBoundingClientRect().left).toBeCloseTo(245);
       expect(card.getBoundingClientRect().top).toBeCloseTo(400);

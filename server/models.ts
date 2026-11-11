@@ -11,7 +11,19 @@ import { listModels as codexModels } from './engines/codex.ts';
 import { listModels as opencodeModels, status as opencodeStatus } from './engines/opencode.ts';
 import type { Agent, EngineId, ProviderId } from '../shared/types.ts';
 
-export type ModelProvider = 'claude' | 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom' | 'codex' | 'hermes' | 'pi' | 'omp' | 'openclaw' | 'opencode';
+export type ModelProvider =
+  | 'claude'
+  | 'openrouter'
+  | 'venice'
+  | 'lmstudio'
+  | 'ollama'
+  | 'custom'
+  | 'codex'
+  | 'hermes'
+  | 'pi'
+  | 'omp'
+  | 'openclaw'
+  | 'opencode';
 
 interface ProviderInfo {
   label: string;
@@ -55,7 +67,9 @@ const ALIASES: Record<string, ModelProvider> = {
 
 /** A provider as the Brain names it ('' or unknown: null). */
 export function modelProvider(name: unknown): ModelProvider | null {
-  const n = String(name ?? '').trim().toLowerCase();
+  const n = String(name ?? '')
+    .trim()
+    .toLowerCase();
   if (!n) return null;
   // own keys only: "constructor" or "toString" isn't a provider
   if (Object.hasOwn(MODEL_PROVIDERS, n)) return n as ModelProvider;
@@ -76,8 +90,14 @@ export function providerProblem(p: ModelProvider): string | null {
   if (p === 'claude') return which('claude') ? null : 'Claude Code is not installed on this PC';
   if (p === 'codex') return which('codex') ? null : 'OpenAI Codex is not installed on this PC';
   if (p === 'hermes') return which('hermes') ? null : 'Hermes is not installed on this PC';
-  if (p === 'pi' || p === 'omp' || p === 'openclaw') return which(p) ? null : `${MODEL_PROVIDERS[p].label} is not installed on this PC`;
-  if (p === 'opencode') return !which('opencode') ? 'opencode is not installed on this PC' : opencodeStatus().tooOld ? 'opencode on this PC is older than 2.0' : null;
+  if (p === 'pi' || p === 'omp' || p === 'openclaw')
+    return which(p) ? null : `${MODEL_PROVIDERS[p].label} is not installed on this PC`;
+  if (p === 'opencode')
+    return !which('opencode')
+      ? 'opencode is not installed on this PC'
+      : opencodeStatus().tooOld
+        ? 'opencode on this PC is older than 2.0'
+        : null;
   if (p === 'openrouter') return getSecrets().openrouterKey ? null : 'there is no OpenRouter key (Settings)';
   if (p === 'venice') return getSecrets().veniceKey ? null : 'there is no Venice key (Settings)';
   const base = getSettings().providers?.[p]?.baseUrl;
@@ -111,7 +131,9 @@ const CACHE_MS = 5 * 60_000;
 const cache = new Map<string, { at: number; list: FoundModel[] }>();
 const cacheKey = (p: ModelProvider) => {
   const srv = MODEL_PROVIDERS[p].provider;
-  return srv === 'lmstudio' || srv === 'ollama' || srv === 'custom' ? `${p}|${getSettings().providers?.[srv]?.baseUrl || ''}` : p;
+  return srv === 'lmstudio' || srv === 'ollama' || srv === 'custom'
+    ? `${p}|${getSettings().providers?.[srv]?.baseUrl || ''}`
+    : p;
 };
 export const clearModelCache = (): void => cache.clear();
 
@@ -122,7 +144,12 @@ export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.list;
   let list: FoundModel[] = [];
   if (p === 'claude') list = CLAUDE_MODELS.map((m) => ({ id: m.id, name: m.name }));
-  else if (p === 'codex') list = (await codexModels().catch(() => [])).map((m) => ({ id: m.id, name: m.name, ...(m.description ? { note: m.description } : {}) }));
+  else if (p === 'codex')
+    list = (await codexModels().catch(() => [])).map((m) => ({
+      id: m.id,
+      name: m.name,
+      ...(m.description ? { note: m.description } : {}),
+    }));
   else if (p === 'hermes') {
     const seen = new Set<string>();
     for (const pr of await listProfiles().catch(() => [])) {
@@ -130,14 +157,32 @@ export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
       seen.add(pr.model);
       list.push({ id: pr.model, name: pr.model, note: `the model of Hermes profile "${pr.name}"` });
     }
-  } else if (p === 'pi' || p === 'omp') list = (await piModels(p).catch(() => [])).map((m) => ({ id: m.id, name: m.name, ...(m.context ? { note: `${Math.round(m.context / 1000)}k context` } : {}) }));
+  } else if (p === 'pi' || p === 'omp')
+    list = (await piModels(p).catch(() => [])).map((m) => ({
+      id: m.id,
+      name: m.name,
+      ...(m.context ? { note: `${Math.round(m.context / 1000)}k context` } : {}),
+    }));
   else if (p === 'openclaw') list = (await openclawModels().catch(() => [])).map((m) => ({ id: m.id, name: m.name }));
-  else if (p === 'opencode') list = (await opencodeModels().catch(() => [])).map((m) => ({ id: m.id, name: m.name, ...(m.context ? { note: `${Math.round(m.context / 1000)}k context` } : {}) }));
+  else if (p === 'opencode')
+    list = (await opencodeModels().catch(() => [])).map((m) => ({
+      id: m.id,
+      name: m.name,
+      ...(m.context ? { note: `${Math.round(m.context / 1000)}k context` } : {}),
+    }));
   else if (p === 'venice' || !providerProblem(p)) {
     list = (await listModels(MODEL_PROVIDERS[p].provider!)).map((m) => ({
       id: m.id,
       name: m.name,
-      note: [m.price ? `$${m.price.in.toFixed(2)} in / $${m.price.out.toFixed(2)} out per M tokens` : '', m.context ? `${Math.round(m.context / 1000)}k context` : '', m.tools === false ? 'no tool use' : '', m.offline ? 'temporarily unavailable' : ''].filter(Boolean).join(', ') || undefined,
+      note:
+        [
+          m.price ? `$${m.price.in.toFixed(2)} in / $${m.price.out.toFixed(2)} out per M tokens` : '',
+          m.context ? `${Math.round(m.context / 1000)}k context` : '',
+          m.tools === false ? 'no tool use' : '',
+          m.offline ? 'temporarily unavailable' : '',
+        ]
+          .filter(Boolean)
+          .join(', ') || undefined,
       ...(m.offline ? { offline: true } : {}),
     }));
   }
@@ -148,7 +193,10 @@ export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
 
 /** Models whose id or name has every word of the query (no query: all of them). */
 export function matchModels(list: FoundModel[], query: string): FoundModel[] {
-  const words = String(query || '').toLowerCase().split(/[\s,]+/).filter(Boolean);
+  const words = String(query || '')
+    .toLowerCase()
+    .split(/[\s,]+/)
+    .filter(Boolean);
   if (!words.length) return list;
   return list.filter((m) => {
     const hay = `${m.id} ${m.name}`.toLowerCase();
@@ -158,7 +206,11 @@ export function matchModels(list: FoundModel[], query: string): FoundModel[] {
 
 /** Up to 5 models most like an id (a typo, or the right name at the wrong vendor): the most words in common first. */
 export function closeModels(list: FoundModel[], id: string): FoundModel[] {
-  const words = (t: string) => t.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const words = (t: string) =>
+    t
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
   const want = new Set(words(id));
   return list
     .map((m) => ({ m, n: words(m.id).filter((w) => want.has(w)).length }))
@@ -168,10 +220,15 @@ export function closeModels(list: FoundModel[], id: string): FoundModel[] {
     .map((x) => x.m);
 }
 
-const line = (m: FoundModel) => `- ${m.id}${m.name && m.name !== m.id ? ` | ${m.name}` : ''}${m.note ? ` | ${m.note}` : ''}`;
+const line = (m: FoundModel) =>
+  `- ${m.id}${m.name && m.name !== m.id ? ` | ${m.name}` : ''}${m.note ? ` | ${m.note}` : ''}`;
 
 /** The models matching a query, as text for the Brain. No provider: every provider that is set up. */
-export async function findModels(providerName: unknown, query: unknown, { limit = 40 }: { limit?: number } = {}): Promise<string> {
+export async function findModels(
+  providerName: unknown,
+  query: unknown,
+  { limit = 40 }: { limit?: number } = {},
+): Promise<string> {
   const q = String(query ?? '').trim();
   const asked = String(providerName ?? '').trim();
   const one = modelProvider(asked);
@@ -186,13 +243,27 @@ export async function findModels(providerName: unknown, query: unknown, { limit 
     const all = await availableModels(p);
     const hits = matchModels(all, q);
     const extra =
-      p === 'codex' ? '\n(Codex takes any model id your ChatGPT plan has; an empty model means Codex picks.)' : p === 'hermes' ? '\n(an empty model means the profile\'s own model)' : p === 'pi' || p === 'omp' || p === 'opencode' ? '\n(ids are provider/model; an empty model means its own default)' : p === 'openclaw' ? "\n(an empty model means the OpenClaw agent's own model)" : p === 'claude' ? '\n(the short names always point to the latest version)' : '';
+      p === 'codex'
+        ? '\n(Codex takes any model id your ChatGPT plan has; an empty model means Codex picks.)'
+        : p === 'hermes'
+          ? "\n(an empty model means the profile's own model)"
+          : p === 'pi' || p === 'omp' || p === 'opencode'
+            ? '\n(ids are provider/model; an empty model means its own default)'
+            : p === 'openclaw'
+              ? "\n(an empty model means the OpenClaw agent's own model)"
+              : p === 'claude'
+                ? '\n(the short names always point to the latest version)'
+                : '';
     if (!all.length) {
-      parts.push(`${label}: ${why ? `not usable: ${why}.` : OWN_DEFAULT.has(p) ? 'no list of models.' : "couldn't list its models (is it running?)."}${extra}`);
+      parts.push(
+        `${label}: ${why ? `not usable: ${why}.` : OWN_DEFAULT.has(p) ? 'no list of models.' : "couldn't list its models (is it running?)."}${extra}`,
+      );
       continue;
     }
     const shown = hits.slice(0, per);
-    parts.push(`${label}${why ? ` (not usable right now: ${why})` : ''}: ${hits.length} of ${all.length} models match${q ? ` "${q}"` : ''}${hits.length > shown.length ? `, the first ${shown.length} shown (search with more words to narrow it)` : ''}\n${shown.map(line).join('\n') || '(none)'}${extra}`);
+    parts.push(
+      `${label}${why ? ` (not usable right now: ${why})` : ''}: ${hits.length} of ${all.length} models match${q ? ` "${q}"` : ''}${hits.length > shown.length ? `, the first ${shown.length} shown (search with more words to narrow it)` : ''}\n${shown.map(line).join('\n') || '(none)'}${extra}`,
+    );
   }
   return parts.join('\n\n');
 }

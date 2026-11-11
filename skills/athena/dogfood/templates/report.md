@@ -13,16 +13,16 @@
 [Two or three sentences in plain words: how the app held up, and the one issue that matters most.]
 
 | Severity | Issues |
-|---|---|
-| Critical | [n] |
-| High | [n] |
-| Medium | [n] |
-| Low | [n] |
-| Total | [n] |
+| -------- | ------ |
+| Critical | [n]    |
+| High     | [n]    |
+| Medium   | [n]    |
+| Low      | [n]    |
+| Total    | [n]    |
 
-| # | Issue | Severity | Category | Where |
-|---|---|---|---|---|
-| 1 | [short title] | [severity] | [category] | [page or URL] |
+| #   | Issue         | Severity   | Category   | Where         |
+| --- | ------------- | ---------- | ---------- | ------------- |
+| 1   | [short title] | [severity] | [category] | [page or URL] |
 
 ## Issues
 

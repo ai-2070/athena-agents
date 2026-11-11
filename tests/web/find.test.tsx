@@ -11,7 +11,8 @@ import { countIn, textRanges, useFind } from '../../web/ui/find.tsx';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
 
 const rest = (ms = 250) => new Promise((r) => setTimeout(r, ms));
-const key = (k: string, init: KeyboardEventInit = {}, on: EventTarget = document) => on.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...init }));
+const key = (k: string, init: KeyboardEventInit = {}, on: EventTarget = document) =>
+  on.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...init }));
 const box = () => document.querySelector<HTMLInputElement>('[role="search"] input');
 const count = () => document.querySelector('[role="search"] [aria-live]')!.textContent;
 const type = async (text: string) => {
@@ -103,7 +104,17 @@ describe('Ctrl+F in a huge Markdown file', () => {
     });
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
       const height = isBody(this) ? VIEW : this.hasAttribute('data-index') ? PIECE : 0;
-      return { width: isBody(this) ? 800 : 0, height, top: 0, left: 0, right: 0, bottom: height, x: 0, y: 0, toJSON: () => ({}) };
+      return {
+        width: isBody(this) ? 800 : 0,
+        height,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: height,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      };
     });
     vi.spyOn(Element.prototype, 'scrollTop', 'get').mockImplementation(function (this: Element) {
       return tops.get(this) ?? 0;
@@ -165,7 +176,9 @@ function Lists({ a, b }: { a: string; b?: string }) {
 }
 let root: Root | null = null;
 const draw = async (a: string, b?: string) => {
-  const host = document.getElementById('app') ?? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'app' }));
+  const host =
+    document.getElementById('app') ??
+    document.body.appendChild(Object.assign(document.createElement('div'), { id: 'app' }));
   root ??= createRoot(host);
   root.render(<Lists a={a} b={b} />);
   await rest(50);
@@ -236,7 +249,15 @@ describe('the search box on a list', () => {
   it('lights up the matches, the current one brighter, and clears them on close', async () => {
     const lit = new Map<string, { ranges: Range[] }>();
     vi.stubGlobal('CSS', { highlights: lit });
-    vi.stubGlobal('Highlight', class { ranges: Range[]; constructor(...r: Range[]) { this.ranges = r; } });
+    vi.stubGlobal(
+      'Highlight',
+      class {
+        ranges: Range[];
+        constructor(...r: Range[]) {
+          this.ranges = r;
+        }
+      },
+    );
     try {
       await draw('<p>cat and cat and cat</p>');
       key('f', { ctrlKey: true });
@@ -276,7 +297,14 @@ describe('searchText()', () => {
     const parts = [
       { type: 'text', text: 'Plan the week' },
       { type: 'reasoning', text: 'thinking about Monday' },
-      { type: 'dynamic-tool', toolName: 'read_file', toolCallId: 't', state: 'output-available', input: {}, output: {} },
+      {
+        type: 'dynamic-tool',
+        toolName: 'read_file',
+        toolCallId: 't',
+        state: 'output-available',
+        input: {},
+        output: {},
+      },
       { type: 'step-start' },
     ] as Parameters<typeof searchText>[0]['parts'];
     const text = searchText({ parts });

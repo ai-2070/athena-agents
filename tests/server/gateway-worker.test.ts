@@ -25,97 +25,189 @@ afterEach(async () => {
 describe('gateway intake lifecycle', () => {
   it('groups a saved album through its worker once and wakes the normal dispatcher', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
-    let saved: GatewayInbox | undefined; let submissions = 0; let attachments = 0;
+    let saved: GatewayInbox | undefined;
+    let submissions = 0;
+    let attachments = 0;
     const worker = new GatewayWorker(instance.id, {
       execution: {
-        async submit(_event, _signal, proceed, input) { expect(proceed()).toBe(true); submissions++; attachments = input?.attachments.length ?? 0; return {}; },
-        poll() { return { state: 'pending' }; },
+        async submit(_event, _signal, proceed, input) {
+          expect(proceed()).toBe(true);
+          submissions++;
+          attachments = input?.attachments.length ?? 0;
+          return {};
+        },
+        poll() {
+          return { state: 'pending' };
+        },
       },
       transport: (state, inbox) => {
         saved = inbox;
         return {
-          start: async () => { for (const id of ['1', '2']) inbox.accept({ ...gatewayInput(id), accountId: instance.accountId, mediaGroupId: 'album', media: [{ kind: 'file', fileId: id }] }); },
-          stop: () => state.disconnect(), alive: () => true, reply: async () => 'confirmed',
+          start: async () => {
+            for (const id of ['1', '2'])
+              inbox.accept({
+                ...gatewayInput(id),
+                accountId: instance.accountId,
+                mediaGroupId: 'album',
+                media: [{ kind: 'file', fileId: id }],
+              });
+          },
+          stop: () => state.disconnect(),
+          alive: () => true,
+          reply: async () => 'confirmed',
           download: async () => ({ source: Readable.from([Buffer.from('hello')]), declaredBytes: 5 }),
         };
       },
-    }); workers.push(worker); await worker.start();
-    const ids = saved!.list().map((event) => event.id); expect(submissions).toBe(0);
+    });
+    workers.push(worker);
+    await worker.start();
+    const ids = saved!.list().map((event) => event.id);
+    expect(submissions).toBe(0);
     expect(worker.groupAlbum(ids[0], { eventIds: ids })).toEqual({ leaderId: ids[0] });
-    await expect.poll(() => submissions).toBe(1); expect(attachments).toBe(2);
+    await expect.poll(() => submissions).toBe(1);
+    expect(attachments).toBe(2);
     expect(() => worker.groupAlbum(ids[0], { eventIds: ids })).toThrow('Reload and check');
-    await worker.stop(); expect(() => worker.groupAlbum(ids[0], { eventIds: ids })).toThrow('Connect this gateway');
+    await worker.stop();
+    expect(() => worker.groupAlbum(ids[0], { eventIds: ids })).toThrow('Connect this gateway');
   });
 
   it('reconciles held work through its worker without resubmission or exposing provider errors', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
-    let saved: GatewayInbox | undefined; let recover = false; let submissions = 0; let sends = 0;
+    let saved: GatewayInbox | undefined;
+    let recover = false;
+    let submissions = 0;
+    let sends = 0;
     const worker = new GatewayWorker(instance.id, {
       execution: {
-        async submit() { submissions++; throw new Error('Response lost after saved completion'); },
-        poll() { return { state: 'needs-review' }; },
-        reconcile() { if (!recover) throw new Error('PRIVATE_PROVIDER_TOKEN'); return { state: 'completed', answer: 'Recovered completed work' }; },
+        async submit() {
+          submissions++;
+          throw new Error('Response lost after saved completion');
+        },
+        poll() {
+          return { state: 'needs-review' };
+        },
+        reconcile() {
+          if (!recover) throw new Error('PRIVATE_PROVIDER_TOKEN');
+          return { state: 'completed', answer: 'Recovered completed work' };
+        },
       },
       transport: (state, inbox) => {
-        saved = inbox; return { start: async () => { inbox.accept({ ...gatewayInput(), accountId: instance.accountId }); }, stop: () => state.disconnect(), alive: () => true, reply: async () => { sends++; return 'confirmed'; } };
+        saved = inbox;
+        return {
+          start: async () => {
+            inbox.accept({ ...gatewayInput(), accountId: instance.accountId });
+          },
+          stop: () => state.disconnect(),
+          alive: () => true,
+          reply: async () => {
+            sends++;
+            return 'confirmed';
+          },
+        };
       },
-    }); workers.push(worker); await worker.start();
-    await expect.poll(() => saved?.list()[0].status).toBe('needs-review'); const id = saved!.list()[0].id;
+    });
+    workers.push(worker);
+    await worker.start();
+    await expect.poll(() => saved?.list()[0].status).toBe('needs-review');
+    const id = saved!.list()[0].id;
     expect(() => worker.reconcile(id)).toThrow('Nothing was restarted or sent');
     expect(JSON.stringify(saved!.list())).not.toContain('PRIVATE_PROVIDER_TOKEN');
-    recover = true; expect(worker.reconcile(id).state).toBe('completed');
-    await expect.poll(() => sends).toBe(1); expect(submissions).toBe(1);
-    await worker.stop(); expect(() => worker.reconcile(id)).toThrow('Connect this gateway');
+    recover = true;
+    expect(worker.reconcile(id).state).toBe('completed');
+    await expect.poll(() => sends).toBe(1);
+    expect(submissions).toBe(1);
+    await worker.stop();
+    expect(() => worker.reconcile(id)).toThrow('Connect this gateway');
   });
 
   it('uses the worker file selection service and records interrupted uploads before releasing state', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
-    let saved: GatewayInbox | undefined; let complete = false; let sending = false;
+    let saved: GatewayInbox | undefined;
+    let complete = false;
+    let sending = false;
     const worker = new GatewayWorker(instance.id, {
-      execution: { async submit() { return {}; }, poll() { return complete ? { state: 'completed', answer: 'Final answer' } : { state: 'pending' }; } },
+      execution: {
+        async submit() {
+          return {};
+        },
+        poll() {
+          return complete ? { state: 'completed', answer: 'Final answer' } : { state: 'pending' };
+        },
+      },
       transport: (state, inbox) => {
         saved = inbox;
         return {
-          start: async () => { inbox.accept({ ...gatewayInput(), accountId: instance.accountId }); }, alive: () => true,
-          stop: async () => { expect(inbox.list()[0].outgoing?.[0].status).toBe('uncertain'); await state.disconnect(); },
+          start: async () => {
+            inbox.accept({ ...gatewayInput(), accountId: instance.accountId });
+          },
+          alive: () => true,
+          stop: async () => {
+            expect(inbox.list()[0].outgoing?.[0].status).toBe('uncertain');
+            await state.disconnect();
+          },
           reply: async () => 'text-confirmed',
           upload: async (_event, _file, signal) => {
             sending = true;
-            return new Promise<never>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+            return new Promise<never>((_resolve, reject) =>
+              signal.addEventListener('abort', () => reject(signal.reason), { once: true }),
+            );
           },
         };
       },
-    }); workers.push(worker); await worker.start();
+    });
+    workers.push(worker);
+    await worker.start();
     await expect.poll(() => saved?.list()[0].dispatch?.state).toBe('running');
-    const target = path.join(ensureBrain(), `worker-document-${account}.txt`); fs.writeFileSync(target, 'document');
-    await worker.selectDocuments(saved!.list()[0].id, { paths: [target] }); complete = true;
-    await expect.poll(() => sending).toBe(true); await worker.stop();
-    const state = new GatewayStateAdapter(instance.id); await state.connect();
-    expect(new GatewayInbox(state).list()[0].outgoing?.[0].status).toBe('uncertain'); await state.disconnect();
+    const target = path.join(ensureBrain(), `worker-document-${account}.txt`);
+    fs.writeFileSync(target, 'document');
+    await worker.selectDocuments(saved!.list()[0].id, { paths: [target] });
+    complete = true;
+    await expect.poll(() => sending).toBe(true);
+    await worker.stop();
+    const state = new GatewayStateAdapter(instance.id);
+    await state.connect();
+    expect(new GatewayInbox(state).list()[0].outgoing?.[0].status).toBe('uncertain');
+    await state.disconnect();
   });
 
   it('saves an interrupted status notice before transport shutdown releases ownership', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
-    let saved: GatewayInbox | undefined; let sending = false;
+    let saved: GatewayInbox | undefined;
+    let sending = false;
     const worker = new GatewayWorker(instance.id, {
-      execution: { async submit() { return {}; }, poll() { return { state: 'pending' }; } },
+      execution: {
+        async submit() {
+          return {};
+        },
+        poll() {
+          return { state: 'pending' };
+        },
+      },
       transport: (state, inbox) => {
         saved = inbox;
         return {
-          start: async () => { inbox.accept({ ...gatewayInput(), accountId: instance.accountId }); },
-          stop: () => state.disconnect(), alive: () => true,
+          start: async () => {
+            inbox.accept({ ...gatewayInput(), accountId: instance.accountId });
+          },
+          stop: () => state.disconnect(),
+          alive: () => true,
           reply: async (_event, _text, signal) => {
             sending = true;
-            return new Promise<never>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+            return new Promise<never>((_resolve, reject) =>
+              signal.addEventListener('abort', () => reject(signal.reason), { once: true }),
+            );
           },
         };
       },
-    }); workers.push(worker); await worker.start();
+    });
+    workers.push(worker);
+    await worker.start();
     await expect.poll(() => saved?.list()[0].dispatch?.state).toBe('running');
     saved!.queueNotice(saved!.list()[0].id, 'working');
     await expect.poll(() => sending).toBe(true);
     await worker.stop();
-    const state = new GatewayStateAdapter(instance.id); await state.connect();
+    const state = new GatewayStateAdapter(instance.id);
+    await state.connect();
     expect(new GatewayInbox(state).list()[0].notices?.working?.status).toBe('uncertain');
     await state.disconnect();
   });
@@ -126,22 +218,41 @@ describe('gateway intake lifecycle', () => {
     let submissions = 0;
     const sent: string[] = [];
     const worker = new GatewayWorker(instance.id, {
-      execution: { async submit() { submissions++; return {}; }, poll() { return { state: 'completed', answer: 'Worker final answer' }; } },
+      execution: {
+        async submit() {
+          submissions++;
+          return {};
+        },
+        poll() {
+          return { state: 'completed', answer: 'Worker final answer' };
+        },
+      },
       transport: (state, inbox) => {
         saved = inbox;
         return {
-          start: async () => { inbox.accept({ ...gatewayInput(), accountId: instance.accountId }); },
-          stop: async () => { expect(inbox.list()[0].reply?.parts[0].status).toBe('sent'); await state.disconnect(); },
+          start: async () => {
+            inbox.accept({ ...gatewayInput(), accountId: instance.accountId });
+          },
+          stop: async () => {
+            expect(inbox.list()[0].reply?.parts[0].status).toBe('sent');
+            await state.disconnect();
+          },
           alive: () => true,
-          reply: async (_event, text) => { sent.push(text); return 'confirmed-message'; },
+          reply: async (_event, text) => {
+            sent.push(text);
+            return 'confirmed-message';
+          },
         };
       },
-    }); workers.push(worker);
+    });
+    workers.push(worker);
     await worker.start();
     await expect.poll(() => saved?.list()[0].reply?.parts[0].status).toBe('sent');
-    expect(submissions).toBe(1); expect(sent).toEqual(['Worker final answer']);
+    expect(submissions).toBe(1);
+    expect(sent).toEqual(['Worker final answer']);
     await worker.stop();
-    const state = new GatewayStateAdapter(instance.id); await state.connect();
+    const state = new GatewayStateAdapter(instance.id);
+    await state.connect();
     expect(new GatewayInbox(state).list()[0].reply?.parts[0].remoteId).toBe('confirmed-message');
     await state.disconnect();
   });
@@ -150,21 +261,38 @@ describe('gateway intake lifecycle', () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined;
     let streaming = false;
-    const worker = new GatewayWorker(instance.id, { transport: (state, inbox) => {
-      saved = inbox;
-      return {
-        start: async () => {}, stop: () => state.disconnect(), alive: () => true,
-        download: async (_id, _limit, signal) => ({ source: (async function* () {
-          streaming = true; yield Buffer.from('first'); signal.throwIfAborted();
-          await new Promise<never>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
-        })() }),
-      };
-    } }); workers.push(worker);
+    const worker = new GatewayWorker(instance.id, {
+      transport: (state, inbox) => {
+        saved = inbox;
+        return {
+          start: async () => {},
+          stop: () => state.disconnect(),
+          alive: () => true,
+          download: async (_id, _limit, signal) => ({
+            source: (async function* () {
+              streaming = true;
+              yield Buffer.from('first');
+              signal.throwIfAborted();
+              await new Promise<never>((_resolve, reject) =>
+                signal.addEventListener('abort', () => reject(signal.reason), { once: true }),
+              );
+            })(),
+          }),
+        };
+      },
+    });
+    workers.push(worker);
     await worker.start();
-    saved!.accept({ ...gatewayInput(), accountId: instance.accountId, text: '', media: [{ kind: 'file', fileId: 'private-file' }] });
+    saved!.accept({
+      ...gatewayInput(),
+      accountId: instance.accountId,
+      text: '',
+      media: [{ kind: 'file', fileId: 'private-file' }],
+    });
     await expect.poll(() => streaming).toBe(true);
     await worker.stop();
-    const state = new GatewayStateAdapter(instance.id); await state.connect();
+    const state = new GatewayStateAdapter(instance.id);
+    await state.connect();
     expect(new GatewayInbox(state).list()[0].files![0].status).toBe('failed');
     await state.disconnect();
   });
@@ -172,20 +300,36 @@ describe('gateway intake lifecycle', () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let saved: GatewayInbox | undefined;
     let fail = true;
-    const worker = new GatewayWorker(instance.id, { transport: (_state, inbox) => {
-      saved = inbox;
-      return {
-        start: async () => { inbox.accept({ ...gatewayInput(), accountId: instance.accountId, text: '', media: [{ kind: 'file', fileId: 'private-file', name: 'plan.txt' }] }); },
-        stop: async () => {}, alive: () => true,
-        download: async () => { if (fail) throw new Error('expired'); return { source: Readable.from([Buffer.from('hello')]) }; },
-      };
-    } }); workers.push(worker);
+    const worker = new GatewayWorker(instance.id, {
+      transport: (_state, inbox) => {
+        saved = inbox;
+        return {
+          start: async () => {
+            inbox.accept({
+              ...gatewayInput(),
+              accountId: instance.accountId,
+              text: '',
+              media: [{ kind: 'file', fileId: 'private-file', name: 'plan.txt' }],
+            });
+          },
+          stop: async () => {},
+          alive: () => true,
+          download: async () => {
+            if (fail) throw new Error('expired');
+            return { source: Readable.from([Buffer.from('hello')]) };
+          },
+        };
+      },
+    });
+    workers.push(worker);
     await worker.start();
     expect(saved!.list()[0].files![0].status).toBe('failed');
-    fail = false; worker.retryFiles(saved!.list()[0].id);
+    fail = false;
+    worker.retryFiles(saved!.list()[0].id);
     await expect.poll(() => saved!.list()[0].status).toBe('queued');
     await worker.stop();
-    const state = new GatewayStateAdapter(instance.id); await state.connect();
+    const state = new GatewayStateAdapter(instance.id);
+    await state.connect();
     expect(new GatewayInbox(state).list()[0].files![0].file!.size).toBe(5);
     await state.disconnect();
   });
@@ -196,10 +340,16 @@ describe('gateway intake lifecycle', () => {
     const worker = new GatewayWorker(instance.id, {
       retryMs: 5,
       transport: () => ({
-        start: async () => { if (++starts < 2) throw new Error('https://api.example/botPRIVATE_TOKEN'); },
-        stop: async () => { stops++; }, alive: () => true,
+        start: async () => {
+          if (++starts < 2) throw new Error('https://api.example/botPRIVATE_TOKEN');
+        },
+        stop: async () => {
+          stops++;
+        },
+        alive: () => true,
       }),
-    }); workers.push(worker);
+    });
+    workers.push(worker);
     await worker.start();
     expect(worker.health().status).toBe('retrying');
     expect(JSON.stringify(worker.health())).not.toContain('PRIVATE_TOKEN');
@@ -210,38 +360,79 @@ describe('gateway intake lifecycle', () => {
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(starts).toBe(2);
     expect(worker.health().status).toBe('paused');
-    const state = new GatewayStateAdapter(instance.id); await state.connect(); await state.disconnect();
+    const state = new GatewayStateAdapter(instance.id);
+    await state.connect();
+    await state.disconnect();
   });
 
   it('requires explicit reconnect after a setup error and claims the same account only once', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let starts = 0;
-    const worker = new GatewayWorker(instance.id, { retryMs: 5, transport: () => ({ start: async () => { starts++; throw new GatewaySetupError('Existing webhook'); }, stop: async () => {}, alive: () => false }) });
-    workers.push(worker); await worker.start();
+    const worker = new GatewayWorker(instance.id, {
+      retryMs: 5,
+      transport: () => ({
+        start: async () => {
+          starts++;
+          throw new GatewaySetupError('Existing webhook');
+        },
+        stop: async () => {},
+        alive: () => false,
+      }),
+    });
+    workers.push(worker);
+    await worker.start();
     expect(worker.health().status).toBe('needs-setup');
-    await new Promise((resolve) => setTimeout(resolve, 30)); expect(starts).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(starts).toBe(1);
     await worker.stop();
-    const first = new GatewayWorker(instance.id, { transport: () => ({ start: async () => {}, stop: async () => {}, alive: () => true }) });
-    workers.push(first); await first.start();
+    const first = new GatewayWorker(instance.id, {
+      transport: () => ({ start: async () => {}, stop: async () => {}, alive: () => true }),
+    });
+    workers.push(first);
+    await first.start();
     // Simulate two dashboard processes racing to create records for the same account.
-    const duplicate = collection<GatewayInstance>('gateways', { global: true }).save({ ...instance, id: `${instance.id}-duplicate` });
+    const duplicate = collection<GatewayInstance>('gateways', { global: true }).save({
+      ...instance,
+      id: `${instance.id}-duplicate`,
+    });
     let duplicateStarts = 0;
-    const second = new GatewayWorker(duplicate.id, { retryMs: 60000, transport: () => ({ start: async () => { duplicateStarts++; }, stop: async () => {}, alive: () => true }) });
-    workers.push(second); await second.start();
-    expect(second.health().status).toBe('retrying'); expect(duplicateStarts).toBe(0);
+    const second = new GatewayWorker(duplicate.id, {
+      retryMs: 60000,
+      transport: () => ({
+        start: async () => {
+          duplicateStarts++;
+        },
+        stop: async () => {},
+        alive: () => true,
+      }),
+    });
+    workers.push(second);
+    await second.start();
+    expect(second.health().status).toBe('retrying');
+    expect(duplicateStarts).toBe(0);
   });
 
   it('recovers interrupted work before opening the transport', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
-    const state = new GatewayStateAdapter(instance.id); await state.connect();
+    const state = new GatewayStateAdapter(instance.id);
+    await state.connect();
     const inbox = new GatewayInbox(state);
-    inbox.accept({ ...gatewayInput(), accountId: instance.accountId }); inbox.claimNext();
+    inbox.accept({ ...gatewayInput(), accountId: instance.accountId });
+    inbox.claimNext();
     await state.disconnect();
-    const worker = new GatewayWorker(instance.id, { transport: (_state, recovered) => ({
-      start: async () => { expect(recovered.list()[0].status).toBe('needs-review'); expect(recovered.claimNext()).toBeNull(); },
-      stop: async () => {}, alive: () => true,
-    }) }); workers.push(worker);
-    await worker.start(); expect(worker.health().status).toBe('connected');
+    const worker = new GatewayWorker(instance.id, {
+      transport: (_state, recovered) => ({
+        start: async () => {
+          expect(recovered.list()[0].status).toBe('needs-review');
+          expect(recovered.claimNext()).toBeNull();
+        },
+        stop: async () => {},
+        alive: () => true,
+      }),
+    });
+    workers.push(worker);
+    await worker.start();
+    expect(worker.health().status).toBe('connected');
   });
 
   it('restarts only the changed instance and stops polling after pause, delete or target removal', async () => {
@@ -252,22 +443,40 @@ describe('gateway intake lifecycle', () => {
     const two = saveGatewayInstance(twoConfig);
     const starts = new Map<string, number>();
     const stops = new Map<string, number>();
-    const supervisor = new GatewaySupervisor((id, health) => new GatewayWorker(id, { health, transport: () => ({
-      start: async () => { starts.set(id, (starts.get(id) ?? 0) + 1); },
-      stop: async () => { stops.set(id, (stops.get(id) ?? 0) + 1); }, alive: () => true,
-    }) })); supervisors.push(supervisor);
+    const supervisor = new GatewaySupervisor(
+      (id, health) =>
+        new GatewayWorker(id, {
+          health,
+          transport: () => ({
+            start: async () => {
+              starts.set(id, (starts.get(id) ?? 0) + 1);
+            },
+            stop: async () => {
+              stops.set(id, (stops.get(id) ?? 0) + 1);
+            },
+            alive: () => true,
+          }),
+        }),
+    );
+    supervisors.push(supervisor);
     await supervisor.start();
-    await expect.poll(() => supervisor.health()).toEqual(expect.arrayContaining([
-      expect.objectContaining({ instanceId: one.id, status: 'connected' }),
-      expect.objectContaining({ instanceId: two.id, status: 'connected' }),
-    ]));
+    await expect
+      .poll(() => supervisor.health())
+      .toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ instanceId: one.id, status: 'connected' }),
+          expect.objectContaining({ instanceId: two.id, status: 'connected' }),
+        ]),
+      );
     saveGatewayInstance({ ...oneConfig, name: 'Renamed' }, one.id);
     await expect.poll(() => starts.get(one.id)).toBe(2);
     expect(starts.get(two.id)).toBe(1);
     saveGatewayInstance({ ...oneConfig, enabled: false }, one.id);
     await expect.poll(() => supervisor.health().find((value) => value.instanceId === one.id)?.status).toBe('paused');
     agents.remove(agent.id);
-    await expect.poll(() => supervisor.health().find((value) => value.instanceId === two.id)?.status).not.toBe('connected');
+    await expect
+      .poll(() => supervisor.health().find((value) => value.instanceId === two.id)?.status)
+      .not.toBe('connected');
     expect(stops.get(two.id)).toBe(1);
     removeGatewayInstance(one.id);
     await supervisor.reconnect(one.id);

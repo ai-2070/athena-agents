@@ -5,14 +5,14 @@ those in `scanned_pages` also carry a picture, so they're scans or photos. Every
 
 ## Picking an extractor
 
-| Tool | Good for | Keep in mind |
-|---|---|---|
-| pdfplumber (`pdf_tool.py text`, `tables`) | the text layer with sensible spacing, tables, word positions | text layer only; MIT licence |
-| pypdf (`text --engine pypdf`) | fast plain text from long files | text layer only; looser spacing; BSD licence |
-| PyMuPDF (`pip install pymupdf`, `import pymupdf`) | speed on very large files; Markdown output with `to_markdown()` | version 2 needs Python 3.11 or newer; AGPL-3.0 or a paid licence from Artifex, so tell the user before it goes into anything they ship |
-| OCRmyPDF | scanned PDFs: adds a searchable text layer under each page picture | a separate program; needs Tesseract |
-| Tesseract | OCR of single page images | a separate program |
-| marker (`pip install marker-pdf`) | hard layouts: Markdown or JSON with tables, equations, reading order, OCR | heavy: PyTorch, and in version 2 a local model server; licence and privacy notes below |
+| Tool                                              | Good for                                                                  | Keep in mind                                                                                                                           |
+| ------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| pdfplumber (`pdf_tool.py text`, `tables`)         | the text layer with sensible spacing, tables, word positions              | text layer only; MIT licence                                                                                                           |
+| pypdf (`text --engine pypdf`)                     | fast plain text from long files                                           | text layer only; looser spacing; BSD licence                                                                                           |
+| PyMuPDF (`pip install pymupdf`, `import pymupdf`) | speed on very large files; Markdown output with `to_markdown()`           | version 2 needs Python 3.11 or newer; AGPL-3.0 or a paid licence from Artifex, so tell the user before it goes into anything they ship |
+| OCRmyPDF                                          | scanned PDFs: adds a searchable text layer under each page picture        | a separate program; needs Tesseract                                                                                                    |
+| Tesseract                                         | OCR of single page images                                                 | a separate program                                                                                                                     |
+| marker (`pip install marker-pdf`)                 | hard layouts: Markdown or JSON with tables, equations, reading order, OCR | heavy: PyTorch, and in version 2 a local model server; licence and privacy notes below                                                 |
 
 Default to pdfplumber for anything with a text layer and OCRmyPDF for scans. Reach for the others only for a reason:
 PyMuPDF when speed on thousands of pages matters, marker when the layout defeats the rest and the user agrees to the
@@ -36,12 +36,12 @@ Tesseract (version 4.1.1 or newer), and either Ghostscript or pypdfium2 to handl
 newer, so it's installed as a tool of its own rather than into the skill's Python. Installing is the user's call; ask
 first.
 
-| System | Install |
-|---|---|
-| Windows | `winget install -e --id tesseract-ocr.tesseract`, then `uv tool install ocrmypdf` (uv itself: `winget install -e --id astral-sh.uv`; `pipx install ocrmypdf` also works) |
-| macOS | `brew install ocrmypdf` (brings Tesseract and Ghostscript) |
-| Debian, Ubuntu | `sudo apt install ocrmypdf` (the packaged version can lag; `pipx install ocrmypdf` gives the newest) |
-| Fedora | `sudo dnf install ocrmypdf tesseract-osd` |
+| System         | Install                                                                                                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Windows        | `winget install -e --id tesseract-ocr.tesseract`, then `uv tool install ocrmypdf` (uv itself: `winget install -e --id astral-sh.uv`; `pipx install ocrmypdf` also works) |
+| macOS          | `brew install ocrmypdf` (brings Tesseract and Ghostscript)                                                                                                               |
+| Debian, Ubuntu | `sudo apt install ocrmypdf` (the packaged version can lag; `pipx install ocrmypdf` gives the newest)                                                                     |
+| Fedora         | `sudo dnf install ocrmypdf tesseract-osd`                                                                                                                                |
 
 Open a new shell after installing and check with `tesseract --version` and `ocrmypdf --version`.
 

@@ -23,7 +23,13 @@ describe('think() on Codex with onPart', () => {
       ev('item.started', { id: 'c1', type: 'command_execution', command: 'ls notes' }),
       ev('item.updated', { id: 'c1', type: 'command_execution', command: 'ls notes' }),
       ev('item.updated', { id: 'c1', type: 'command_execution', command: 'ls notes' }),
-      ev('item.completed', { id: 'c1', type: 'command_execution', command: 'ls notes', aggregated_output: 'plan.md', exit_code: 0 }),
+      ev('item.completed', {
+        id: 'c1',
+        type: 'command_execution',
+        command: 'ls notes',
+        aggregated_output: 'plan.md',
+        exit_code: 0,
+      }),
       ev('item.completed', { id: 'm1', type: 'agent_message', text: 'Your notes have a plan.' }),
     );
     const { think } = await import('../../server/brain.ts');

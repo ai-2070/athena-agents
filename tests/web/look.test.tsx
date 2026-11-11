@@ -4,7 +4,15 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
-import { CHAT_FONTS, DEFAULT_LOOK, STATION_QUALITY, applyLook, chatFont, currentLook, stationLevel } from '../../web/look.ts';
+import {
+  CHAT_FONTS,
+  DEFAULT_LOOK,
+  STATION_QUALITY,
+  applyLook,
+  chatFont,
+  currentLook,
+  stationLevel,
+} from '../../web/look.ts';
 import { LookTab } from '../../web/views/look.tsx';
 import type { AppState } from '../../shared/types.ts';
 
@@ -98,7 +106,9 @@ describe('Settings > Appearance', () => {
     expect(choices.map((c) => c.firstElementChild!.textContent)).toEqual(CHAT_FONTS.map((f) => f.label));
     expect(choices.map((c) => c.getAttribute('aria-checked'))).toEqual(CHAT_FONTS.map((f) => String(f.id === 'sans')));
     const unquoted = (v: string) => v.replace(/["']/g, '');
-    expect(choices.map((c) => unquoted((c.firstElementChild as HTMLElement).style.fontFamily))).toEqual(CHAT_FONTS.map((f) => unquoted(f.stack)));
+    expect(choices.map((c) => unquoted((c.firstElementChild as HTMLElement).style.fontFamily))).toEqual(
+      CHAT_FONTS.map((f) => unquoted(f.stack)),
+    );
     expect(el.querySelector('.look-sample')!.className).toContain('font-chat');
 
     const roboto = choices[CHAT_FONTS.findIndex((f) => f.id === 'roboto')];
@@ -146,7 +156,10 @@ describe('Settings > Appearance', () => {
   });
 
   it("shows the open project's background picture, and removes it", async () => {
-    state.data = { settings: { look: { ...DEFAULT_LOOK } }, project: { id: 'p1', name: 'Launch', brainPath: '', repo: '', createdAt: 0, backgroundAt: 42 } } as unknown as AppState;
+    state.data = {
+      settings: { look: { ...DEFAULT_LOOK } },
+      project: { id: 'p1', name: 'Launch', brainPath: '', repo: '', createdAt: 0, backgroundAt: 42 },
+    } as unknown as AppState;
     await act(async () => root.render(<LookTab />));
     const img = el.querySelector<HTMLImageElement>('.look-background')!;
     expect(img.getAttribute('src')).toContain('/projects/p1/background');
@@ -155,11 +168,24 @@ describe('Settings > Appearance', () => {
     expect(buttons.some((b) => b.textContent?.includes('Change picture'))).toBe(true);
     await act(async () => buttons.find((b) => b.textContent === 'Remove')!.click());
     const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls;
-    expect(calls.some(([url, init]) => String(url).includes('/projects/p1/background') && init?.method === 'DELETE')).toBe(true);
+    expect(
+      calls.some(([url, init]) => String(url).includes('/projects/p1/background') && init?.method === 'DELETE'),
+    ).toBe(true);
   });
 
   it("slides the picture's and the map dots' opacity for the open project, and puts one back to the default", async () => {
-    state.data = { settings: { look: { ...DEFAULT_LOOK } }, project: { id: 'p1', name: 'Launch', brainPath: '', repo: '', createdAt: 0, backgroundAt: 42, mapDotsOpacity: 40 } } as unknown as AppState;
+    state.data = {
+      settings: { look: { ...DEFAULT_LOOK } },
+      project: {
+        id: 'p1',
+        name: 'Launch',
+        brainPath: '',
+        repo: '',
+        createdAt: 0,
+        backgroundAt: 42,
+        mapDotsOpacity: 40,
+      },
+    } as unknown as AppState;
     await act(async () => root.render(<LookTab />));
     const pct = () => [...el.querySelectorAll('.look-opacity')].map((b) => b.textContent);
     // the picture's default in the classic look, and the project's own dots
@@ -174,7 +200,10 @@ describe('Settings > Appearance', () => {
   });
 
   it('offers to add one when the project has none', async () => {
-    state.data = { settings: { look: { ...DEFAULT_LOOK } }, project: { id: 'p1', name: 'Launch', brainPath: '', repo: '', createdAt: 0, backgroundAt: null } } as unknown as AppState;
+    state.data = {
+      settings: { look: { ...DEFAULT_LOOK } },
+      project: { id: 'p1', name: 'Launch', brainPath: '', repo: '', createdAt: 0, backgroundAt: null },
+    } as unknown as AppState;
     await act(async () => root.render(<LookTab />));
     expect(el.querySelector('.look-background')).toBeNull();
     const buttons = [...el.querySelectorAll<HTMLButtonElement>('button')].map((b) => b.textContent || '');

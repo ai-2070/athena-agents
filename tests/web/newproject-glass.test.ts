@@ -7,7 +7,15 @@ import type { AppState } from '../../shared/types.ts';
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="toasts"></div><div id="modal-root"></div>';
-  state.data = { agents: [], toolGroups: [], engines: {}, secrets: {}, runs: [], approvals: [], projects: [] } as unknown as AppState;
+  state.data = {
+    agents: [],
+    toolGroups: [],
+    engines: {},
+    secrets: {},
+    runs: [],
+    approvals: [],
+    projects: [],
+  } as unknown as AppState;
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => new Response(JSON.stringify({ root: '/home/me/Athena Agents' }), { status: 200 })),
@@ -25,7 +33,9 @@ it('marks the New project dialog as glass, and no other dialog', async () => {
   other.close();
 
   await openNewProject();
-  const back = [...document.querySelectorAll<HTMLElement>('.modal-back')].find((el) => el.textContent?.includes('New project'));
+  const back = [...document.querySelectorAll<HTMLElement>('.modal-back')].find((el) =>
+    el.textContent?.includes('New project'),
+  );
   expect(back?.classList.contains('glass')).toBe(true);
   expect(back?.querySelector('.modal')).not.toBeNull();
 });

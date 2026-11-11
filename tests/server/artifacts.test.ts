@@ -6,7 +6,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Agent, Team } from '../../shared/types.ts';
 
 // "inside the folders" is decided by files.viewable; here, anything under a folder named allowed/ is
-vi.mock('../../server/files.ts', async (orig) => ({ ...(await orig<typeof import('../../server/files.ts')>()), viewable: (p: unknown) => (typeof p === 'string' && p.includes(`${path.sep}allowed${path.sep}`) ? p : null) }));
+vi.mock('../../server/files.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/files.ts')>()),
+  viewable: (p: unknown) => (typeof p === 'string' && p.includes(`${path.sep}allowed${path.sep}`) ? p : null),
+}));
 
 const { checkTarget, addArtifact } = await import('../../server/artifacts.ts');
 const { agents, workflows } = await import('../../server/store.ts');
@@ -41,8 +44,14 @@ describe('addArtifact', () => {
     const solo = agents.save({ name: 'Solo writer', engine: 'eve', toolGroups: [] } as Partial<Agent> as Agent);
     const stepper = agents.save({ name: 'Stepper', engine: 'eve', toolGroups: [] } as Partial<Agent> as Agent);
     // (no members field: its agents are in its steps)
-    const steps = workflows.save({ name: 'Step team', steps: [{ type: 'agent', agentId: stepper.id }] } as Partial<Team>);
+    const steps = workflows.save({
+      name: 'Step team',
+      steps: [{ type: 'agent', agentId: stepper.id }],
+    } as Partial<Team>);
     expect(addArtifact({ title: 'Notes', text: 'done', agentId: solo.id })).toMatchObject({ teamId: null });
-    expect(addArtifact({ title: 'Brief', text: 'done', agentId: stepper.id })).toMatchObject({ teamId: steps.id, teamName: 'Step team' });
+    expect(addArtifact({ title: 'Brief', text: 'done', agentId: stepper.id })).toMatchObject({
+      teamId: steps.id,
+      teamName: 'Step team',
+    });
   });
 });

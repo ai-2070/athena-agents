@@ -24,7 +24,9 @@ function v6Groups(ip: string): number[] | null {
   const rest = part(halves[1]);
   const fill = halves.length === 2 ? 8 - head.length - rest.length : 0;
   if (fill < 0) return null;
-  const groups = [...head, ...Array<string>(fill).fill('0'), ...rest].map((g) => (/^[0-9a-f]{1,4}$/.test(g) ? parseInt(g, 16) : NaN));
+  const groups = [...head, ...Array<string>(fill).fill('0'), ...rest].map((g) =>
+    /^[0-9a-f]{1,4}$/.test(g) ? parseInt(g, 16) : NaN,
+  );
   return groups.length === 8 && groups.every((g) => !Number.isNaN(g)) ? groups : null;
 }
 
@@ -52,7 +54,10 @@ export function isLocalAddress(ip: string): boolean {
 export async function isDashboardUrl(u: URL): Promise<boolean> {
   const port = Number(u.port || (u.protocol === 'https:' ? 443 : 80));
   if (port !== PORT) return false;
-  const host = u.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  const host = u.hostname
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '')
+    .toLowerCase();
   if (net.isIP(host)) return isLocalAddress(host);
   if (host === 'localhost' || host.endsWith('.localhost')) return true;
   try {
@@ -65,7 +70,10 @@ export async function isDashboardUrl(u: URL): Promise<boolean> {
 }
 
 /** GET a link for an agent, following redirects by hand so each one is checked. */
-export async function agentFetch(url: string, init: { headers?: Record<string, string>; signal?: AbortSignal } = {}): Promise<{ res: Response; url: string }> {
+export async function agentFetch(
+  url: string,
+  init: { headers?: Record<string, string>; signal?: AbortSignal } = {},
+): Promise<{ res: Response; url: string }> {
   let current = url;
   for (let hop = 0; ; hop++) {
     const u = new URL(current);

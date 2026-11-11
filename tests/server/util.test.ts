@@ -1,7 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { dataPath, DATA, parseFrontmatter, readJSON, renderTemplate, slugify, truncate, uid, writeJSON } from '../../server/util.ts';
+import {
+  dataPath,
+  DATA,
+  parseFrontmatter,
+  readJSON,
+  renderTemplate,
+  slugify,
+  truncate,
+  uid,
+  writeJSON,
+} from '../../server/util.ts';
 
 describe('util', () => {
   it('uses the throwaway data folder from DASH_DATA', () => {

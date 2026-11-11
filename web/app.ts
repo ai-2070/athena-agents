@@ -1,5 +1,20 @@
 // App shell: navigation, routing, the "Needs you" drawer and live notifications.
-import { h, mount, clear, freshElement, state, onState, onEvent, refreshState, refreshSoon, connectEvents, toast, navigate, approvalCard, ago } from './core.ts';
+import {
+  h,
+  mount,
+  clear,
+  freshElement,
+  state,
+  onState,
+  onEvent,
+  refreshState,
+  refreshSoon,
+  connectEvents,
+  toast,
+  navigate,
+  approvalCard,
+  ago,
+} from './core.ts';
 import { rpc } from './client/rpc.ts';
 import { backdropEscape } from './shortcuts.ts';
 import { domBadge, domButton, domDot } from './ui/dom.ts';
@@ -71,7 +86,13 @@ interface NavLink extends Route {
 // The menu stays short. Other pages still open from links (branch editor, terminals, home).
 const NAV: NavLink[] = [
   { path: 'station', label: 'Station', ico: 'orbit', view: station },
-  { path: 'outbox', label: 'Outbox', ico: 'send', view: outboxView, count: () => (state.data?.outboxPending || 0) + (state.data?.questions?.length || 0) },
+  {
+    path: 'outbox',
+    label: 'Outbox',
+    ico: 'send',
+    view: outboxView,
+    count: () => (state.data?.outboxPending || 0) + (state.data?.questions?.length || 0),
+  },
   { path: 'artifacts', label: 'Artifacts', ico: 'archive', view: artifactsView },
   { path: 'overview', label: 'Overview', ico: 'layout-grid', view: overviewView },
   { path: 'tasks', label: 'Tasks', ico: 'kanban', view: tasksView },
@@ -93,7 +114,8 @@ const HIDDEN: Route[] = [
 ];
 
 // The page's box: padded, or flush to the edges (view.flush). Every page fades or rises in.
-const VIEW_PADDED = 'mx-auto w-full max-w-[1400px] min-w-0 px-10 pt-9 pb-20 *:animate-rise-in max-md:px-4 max-md:pt-5 max-md:pb-14';
+const VIEW_PADDED =
+  'mx-auto w-full max-w-[1400px] min-w-0 px-10 pt-9 pb-20 *:animate-rise-in max-md:px-4 max-md:pt-5 max-md:pb-14';
 const VIEW_FLUSH = 'w-full min-w-0 *:animate-[fade_0.35s_ease-out]';
 
 // The sidebar's links. On the Station and the Overview (body.nav-slim) the bar folds to its icons: on a wide screen it is
@@ -113,9 +135,11 @@ const NAV_TXT =
 const NAV_COUNT =
   'ml-auto in-[.nav-slim]:[display:none] in-[.nav-slim.nav-wide]:inline-grid md:in-[.nav-slim]:inline md:in-[.nav-slim]:whitespace-nowrap md:in-[.nav-slim]:opacity-0 md:in-[.nav-slim]:[transition:opacity_0.2s_ease] md:in-[.nav-slim.nav-wide]:inline-grid md:in-[.nav-slim.nav-wide]:opacity-100 md:in-[.nav-slim.nav-wide]:[transition:opacity_0.3s_ease_0.15s]';
 // the status list's scrolling part: its top and bottom fade instead of cutting off
-const NAV_LIST = 'nav-list flex min-h-0 min-w-0 flex-1 flex-col gap-px overflow-x-hidden overflow-y-auto pb-2 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-16px),transparent_100%)]';
+const NAV_LIST =
+  'nav-list flex min-h-0 min-w-0 flex-1 flex-col gap-px overflow-x-hidden overflow-y-auto pb-2 [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-16px),transparent_100%)]';
 // a line of the status list at the bottom left
-const NS_LINE = 'group flex min-w-0 w-full items-center gap-2.5 rounded-ctl px-2 py-1 text-[12.5px] leading-5 text-dim no-underline [transition:background-color_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
+const NS_LINE =
+  'group flex min-w-0 w-full items-center gap-2.5 rounded-ctl px-2 py-1 text-[12.5px] leading-5 text-dim no-underline [transition:background-color_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
 
 let viewEl = document.getElementById('view')!;
 const titleEl = document.getElementById('page-title')!;
@@ -127,7 +151,17 @@ function renderNav() {
     document.getElementById('nav-links')!,
     NAV.map((n) => {
       const c = n.count?.();
-      return h('a', { class: `${NAV_LINK} ${route === n.path ? NAV_LINK_ON : NAV_LINK_OFF}`, href: `#/${n.path}`, onclick: () => document.body.classList.remove('nav-open') }, h('span', { class: `${NAV_ICO} ${route === n.path ? NAV_ICO_ON : NAV_ICO_OFF}` }, icon(n.ico, 18)), h('span', { class: NAV_TXT }, n.label), c ? domBadge({ class: NAV_COUNT }, String(c)) : null);
+      return h(
+        'a',
+        {
+          class: `${NAV_LINK} ${route === n.path ? NAV_LINK_ON : NAV_LINK_OFF}`,
+          href: `#/${n.path}`,
+          onclick: () => document.body.classList.remove('nav-open'),
+        },
+        h('span', { class: `${NAV_ICO} ${route === n.path ? NAV_ICO_ON : NAV_ICO_OFF}` }, icon(n.ico, 18)),
+        h('span', { class: NAV_TXT }, n.label),
+        c ? domBadge({ class: NAV_COUNT }, String(c)) : null,
+      );
     }),
   );
   const d = state.data;
@@ -143,7 +177,10 @@ function renderNav() {
   // the version is asked for once (no GitHub call here: the star count is only fetched in Settings > About)
   if (!aboutAsked) {
     aboutAsked = true;
-    void rpc.status.about({}).then((a) => ((about = a), renderNav()), () => {});
+    void rpc.status.about({}).then(
+      (a) => ((about = a), renderNav()),
+      () => {},
+    );
   }
   mount(document.getElementById('nav-about')!, navAbout());
 }
@@ -151,12 +188,37 @@ function renderNav() {
 let about: AboutInfo | null = null;
 let aboutAsked = false;
 // Bottom of the sidebar: the version (opens Settings > About) and a link to star Athena Agents on GitHub.
-const NAV_VER = 'flex min-w-0 items-baseline gap-1.5 -ml-2 rounded-ctl px-2 py-1 font-sans text-[12.5px] leading-[1.3] font-medium text-dim [transition:background_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink';
-const NAV_STAR = 'inline-flex h-7 flex-none items-center gap-1.5 rounded-ctl border border-line-2 bg-panel px-2.5 font-sans text-[12px] leading-none font-medium text-ink [transition:background-color_0.15s,border-color_0.15s] hover:bg-panel-2 [&_svg]:flex-none';
+const NAV_VER =
+  'flex min-w-0 items-baseline gap-1.5 -ml-2 rounded-ctl px-2 py-1 font-sans text-[12.5px] leading-[1.3] font-medium text-dim [transition:background_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink';
+const NAV_STAR =
+  'inline-flex h-7 flex-none items-center gap-1.5 rounded-ctl border border-line-2 bg-panel px-2.5 font-sans text-[12px] leading-none font-medium text-ink [transition:background-color_0.15s,border-color_0.15s] hover:bg-panel-2 [&_svg]:flex-none';
 function navAbout() {
   return [
-    h('a', { class: NAV_VER, href: '#/settings?tab=about', title: `About ${REPO.name}`, onclick: () => document.body.classList.remove('nav-open') }, h('span', 'About'), about ? h('span', { class: 'text-[11.5px] leading-[1.3] font-normal text-faint tabular-nums' }, `v${about.version}`) : null),
-    h('a', { class: NAV_STAR, href: REPO.url, target: '_blank', rel: 'noopener', title: `${REPO.slug} on GitHub: star it there` }, logo('github', 13, 'currentColor'), h('span', 'Star')),
+    h(
+      'a',
+      {
+        class: NAV_VER,
+        href: '#/settings?tab=about',
+        title: `About ${REPO.name}`,
+        onclick: () => document.body.classList.remove('nav-open'),
+      },
+      h('span', 'About'),
+      about
+        ? h('span', { class: 'text-[11.5px] leading-[1.3] font-normal text-faint tabular-nums' }, `v${about.version}`)
+        : null,
+    ),
+    h(
+      'a',
+      {
+        class: NAV_STAR,
+        href: REPO.url,
+        target: '_blank',
+        rel: 'noopener',
+        title: `${REPO.slug} on GitHub: star it there`,
+      },
+      logo('github', 13, 'currentColor'),
+      h('span', 'Star'),
+    ),
   ];
 }
 
@@ -166,41 +228,109 @@ function navStatus(d: AppState) {
   const S = (q: string) => `#/settings?${q}`;
   const ver = (v: string | null | undefined) => (v ? String(v).split(/\s/)[0] : '');
   const line = (dot: DotTone | '', label: string, value: string, href: string, title?: string) =>
-    h('a', { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') }, domDot(dot, { class: 'size-1.5 [box-shadow:none]' }), h('span', { class: 'min-w-0 flex-1 truncate text-ink' }, label), value ? h('span', { class: 'max-w-[48%] min-w-0 truncate text-right text-[11.5px] text-faint tabular-nums', title: value }, value) : null);
+    h(
+      'a',
+      { class: NS_LINE, href, title: title || label, onclick: () => document.body.classList.remove('nav-open') },
+      domDot(dot, { class: 'size-1.5 [box-shadow:none]' }),
+      h('span', { class: 'min-w-0 flex-1 truncate text-ink' }, label),
+      value
+        ? h(
+            'span',
+            { class: 'max-w-[48%] min-w-0 truncate text-right text-[11.5px] text-faint tabular-nums', title: value },
+            value,
+          )
+        : null,
+    );
   const cc: Partial<EngineStatus['claude-code']> = e['claude-code'] || {};
   const cx: Partial<EngineStatus['codex']> = e.codex || {};
   const b = d.settings?.brain || { provider: 'claude', model: 'haiku' };
   // (opencode's ids are provider/model: the model's own name is the last part; its empty model is its default)
-  const brainName = (b.provider === 'opencode' ? String(b.model || 'default').split('/').pop()! : String(b.model || 'haiku').replace(/^anthropic\/claude-/, '')).replace(/^./, (c) => c.toUpperCase());
+  const brainName = (
+    b.provider === 'opencode'
+      ? String(b.model || 'default')
+          .split('/')
+          .pop()!
+      : String(b.model || 'haiku').replace(/^anthropic\/claude-/, '')
+  ).replace(/^./, (c) => c.toUpperCase());
   const heading = 'mt-3 px-2 pb-1 text-[11px] leading-4 font-medium text-faint';
   const sv = d.projectSaved;
   const savedLine = sv ? (sv.error ? `not saved: ${sv.error}` : `auto-saved ${ago(sv.at)}`) : 'auto-save on';
-  const footer = 'flex min-w-0 w-full items-start gap-2.5 rounded-ctl px-2 py-1.5 text-[11.5px] leading-4 text-faint hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
+  const footer =
+    'flex min-w-0 w-full items-start gap-2.5 rounded-ctl px-2 py-1.5 text-[11.5px] leading-4 text-faint hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
   const gatewayLinks = gatewayStatusLinks(d.gateways || []);
   return [
     h('div', { class: heading }, 'Engines'),
-    line(cc.installed ? (cc.loggedIn ? 'on' : 'warn') : '', 'Claude Code', cc.installed ? (cc.loggedIn ? ver(cc.version) || 'ready' : 'not signed in') : 'not found', S('tab=general&find=Claude Code')),
-    line(cx.installed ? (cx.loggedIn ? 'on' : 'warn') : '', 'Codex', cx.installed ? (cx.loggedIn ? ver(cx.version) || 'ready' : 'sign in') : 'not installed', S('tab=general&find=OpenAI Codex')),
+    line(
+      cc.installed ? (cc.loggedIn ? 'on' : 'warn') : '',
+      'Claude Code',
+      cc.installed ? (cc.loggedIn ? ver(cc.version) || 'ready' : 'not signed in') : 'not found',
+      S('tab=general&find=Claude Code'),
+    ),
+    line(
+      cx.installed ? (cx.loggedIn ? 'on' : 'warn') : '',
+      'Codex',
+      cx.installed ? (cx.loggedIn ? ver(cx.version) || 'ready' : 'sign in') : 'not installed',
+      S('tab=general&find=OpenAI Codex'),
+    ),
     // the optional engines only show once they are installed (Settings still lists them with how to install)
     e.hermes?.installed ? line('on', 'Hermes', 'found', S('tab=general&find=Hermes')) : null,
-    e.pi?.installed ? line('on', 'pi coding agent', ver(e.pi.version) || 'found', S('tab=general&find=pi coding agent')) : null,
+    e.pi?.installed
+      ? line('on', 'pi coding agent', ver(e.pi.version) || 'found', S('tab=general&find=pi coding agent'))
+      : null,
     e.omp?.installed ? line('on', 'oh-my-pi', ver(e.omp.version) || 'found', S('tab=general&find=oh-my-pi')) : null,
-    e.openclaw?.installed ? line('on', 'OpenClaw', ver(e.openclaw.version) || 'found', S('tab=general&find=OpenClaw')) : null,
-    e.opencode?.installed ? line(e.opencode.tooOld ? 'warn' : 'on', 'opencode', e.opencode.tooOld ? 'needs an update' : ver(e.opencode.version) || 'found', S('tab=general&find=opencode')) : null,
+    e.openclaw?.installed
+      ? line('on', 'OpenClaw', ver(e.openclaw.version) || 'found', S('tab=general&find=OpenClaw'))
+      : null,
+    e.opencode?.installed
+      ? line(
+          e.opencode.tooOld ? 'warn' : 'on',
+          'opencode',
+          e.opencode.tooOld ? 'needs an update' : ver(e.opencode.version) || 'found',
+          S('tab=general&find=opencode'),
+        )
+      : null,
     h('div', { class: heading }, 'Models and connections'),
-    line('on', 'Brain', `${brainName}${b.provider === 'openrouter' ? ' · OR' : b.provider === 'venice' ? ' · Venice' : b.provider === 'opencode' ? ' · opencode' : ''}`, S("tab=general&find=The Brain's model"), "The Brain's model"),
-    line((d.mcpServers || []).length ? 'on' : '', 'MCP servers', String((d.mcpServers || []).length), S('tab=mcp&find=Your MCP servers')),
-    d.outboxPending || d.questions?.length ? line('busy', 'Outbox', `${d.outboxPending + (d.questions?.length || 0)} waiting`, '#/outbox') : null,
+    line(
+      'on',
+      'Brain',
+      `${brainName}${b.provider === 'openrouter' ? ' · OR' : b.provider === 'venice' ? ' · Venice' : b.provider === 'opencode' ? ' · opencode' : ''}`,
+      S("tab=general&find=The Brain's model"),
+      "The Brain's model",
+    ),
+    line(
+      (d.mcpServers || []).length ? 'on' : '',
+      'MCP servers',
+      String((d.mcpServers || []).length),
+      S('tab=mcp&find=Your MCP servers'),
+    ),
+    d.outboxPending || d.questions?.length
+      ? line('busy', 'Outbox', `${d.outboxPending + (d.questions?.length || 0)} waiting`, '#/outbox')
+      : null,
     // (gateways are out of Settings for now: only ones already set up show here)
     gatewayLinks.length ? h('div', { class: heading }, 'Chat gateways') : null,
     ...gatewayLinks.map((gateway) => line(gateway.dot, gateway.label, gateway.value, gateway.href, gateway.title)),
     gatewayLinks.length && (d.gateways || []).length > gatewayLinks.length
-      ? line('', 'All gateways', String(d.gateways.length), S('tab=gateways')) : null,
-    h('div', { class: 'mt-2 border-t border-line pt-2' },
-      h('a', { class: footer, href: S('tab=about&find=This PC'), title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}` },
-        icon('folder-open', 13), h('span', { class: 'flex min-w-0 flex-1 flex-col gap-0.5' },
+      ? line('', 'All gateways', String(d.gateways.length), S('tab=gateways'))
+      : null,
+    h(
+      'div',
+      { class: 'mt-2 border-t border-line pt-2' },
+      h(
+        'a',
+        {
+          class: footer,
+          href: S('tab=about&find=This PC'),
+          title: `Agents, teams and chats are saved into the project folder (.dashboard) after every change.\n${d.project?.brainPath || ''}`,
+        },
+        icon('folder-open', 13),
+        h(
+          'span',
+          { class: 'flex min-w-0 flex-1 flex-col gap-0.5' },
           h('span', { class: 'truncate text-dim' }, d.project?.name || 'Project'),
-          h('span', { class: 'truncate', title: savedLine }, savedLine)))),
+          h('span', { class: 'truncate', title: savedLine }, savedLine),
+        ),
+      ),
+    ),
   ];
 }
 
@@ -228,7 +358,8 @@ async function route() {
     await view.render(el, params, { setTitle: (t) => current === here && (titleEl.textContent = t) });
   } catch (e) {
     console.error(e);
-    if (current === here) mount(el, h('div.panel', h('p', { class: 'text-red' }, `Something went wrong: ${(e as Error).message}`)));
+    if (current === here)
+      mount(el, h('div.panel', h('p', { class: 'text-red' }, `Something went wrong: ${(e as Error).message}`)));
   }
 }
 
@@ -271,7 +402,11 @@ function renderApprovals() {
   }
   if (state.data?.outboxPending) {
     drawerBody.append(
-      h('div.approval', h('div.t', `${state.data.outboxPending} post${state.data.outboxPending > 1 ? 's' : ''} waiting in the Outbox`), domButton({ size: 'small', onclick: toOutbox }, 'Review posts')),
+      h(
+        'div.approval',
+        h('div.t', `${state.data.outboxPending} post${state.data.outboxPending > 1 ? 's' : ''} waiting in the Outbox`),
+        domButton({ size: 'small', onclick: toOutbox }, 'Review posts'),
+      ),
     );
   }
   for (const c of approvalCards.values()) drawerBody.append(c.el);
@@ -308,7 +443,12 @@ document.getElementById('nav-toggle')!.className = iconButtonClass('default', 'm
 document.getElementById('needs-count')!.className = badgeClass();
 needsBtn.onclick = () => drawer.classList.toggle('hidden');
 // project switcher in the top bar (pages other than the Station)
-const projBtn = domButton({ variant: 'ghost', size: 'small', class: 'gap-1.5 [&_.proj-logo]:mr-0.5', onclick: (e) => openProjectMenu(e.currentTarget) });
+const projBtn = domButton({
+  variant: 'ghost',
+  size: 'small',
+  class: 'gap-1.5 [&_.proj-logo]:mr-0.5',
+  onclick: (e) => openProjectMenu(e.currentTarget),
+});
 document.querySelector('.top-actions')!.prepend(projBtn);
 onState((d) => mount(projBtn, projectMark(d.project, 15), d.project?.name || 'Project', icon('chevron-down', 13)));
 document.getElementById('drawer-close')!.onclick = () => drawer.classList.add('hidden');
@@ -326,7 +466,24 @@ onState(() => {
 // the usage limits count down, and are read again now and then while they're shown
 setInterval(() => sidebarPanel() === 'limits' && !document.hidden && renderNav(), 20_000);
 
-const STATE_EVENTS = new Set(['agents', 'approvals', 'outbox', 'questions', 'runs', 'settings', 'accounts', 'terminals', 'mcp', 'project', 'project-logo', 'projects', 'engines', 'gateways', 'gateway-health', 'gateway-inbox']);
+const STATE_EVENTS = new Set([
+  'agents',
+  'approvals',
+  'outbox',
+  'questions',
+  'runs',
+  'settings',
+  'accounts',
+  'terminals',
+  'mcp',
+  'project',
+  'project-logo',
+  'projects',
+  'engines',
+  'gateways',
+  'gateway-health',
+  'gateway-inbox',
+]);
 onEvent((ev) => {
   if (STATE_EVENTS.has(ev.type)) refreshSoon();
   if (ev.type === 'toast') toast(ev.text as string);
@@ -410,7 +567,12 @@ window.addEventListener('keydown', (e) => {
   }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 }
 // the big sidebar closes when you click anywhere else
-document.addEventListener('pointerdown', (e) => {
-  if (document.body.classList.contains('nav-wide') && !(e.target as Element).closest('#nav')) document.body.classList.remove('nav-wide');
-}, true);
+document.addEventListener(
+  'pointerdown',
+  (e) => {
+    if (document.body.classList.contains('nav-wide') && !(e.target as Element).closest('#nav'))
+      document.body.classList.remove('nav-wide');
+  },
+  true,
+);
 route();

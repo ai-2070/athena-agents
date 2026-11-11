@@ -2,16 +2,7 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
-    "includes": [
-      "**/*.ts",
-      "**/*.tsx",
-      "**/*.js",
-      "**/*.mjs",
-      "**/*.cjs",
-      "!skills",
-      "!public",
-      "!src-tauri"
-    ]
+    "includes": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.mjs", "**/*.cjs", "!skills", "!public", "!src-tauri"]
   },
   "formatter": { "enabled": false },
   "assist": { "enabled": false },
@@ -58,9 +49,7 @@
   },
   "overrides": [
     {
-      "includes": [
-        "tests/**"
-      ],
+      "includes": ["tests/**"],
       "linter": {
         "rules": {
           "suspicious": {

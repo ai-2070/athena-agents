@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { activeProject, agents, bus, chats, emit, getSettings, listProjects, rememberAlwaysAllow, saveSettings, secretStatus, setActiveProject, setSecret, withProject, workflows } from '../../server/store.ts';
+import {
+  activeProject,
+  agents,
+  bus,
+  chats,
+  emit,
+  getSettings,
+  listProjects,
+  rememberAlwaysAllow,
+  saveSettings,
+  secretStatus,
+  setActiveProject,
+  setSecret,
+  withProject,
+  workflows,
+} from '../../server/store.ts';
 import { dataPath, readJSON, writeJSON } from '../../server/util.ts';
 import type { Agent } from '../../shared/types.ts';
 
@@ -16,13 +31,19 @@ describe('settings and secrets', () => {
     expect(after.defaults.engine).toBe('claude-code');
     expect(after.defaults.veniceModel).toBe('');
     saveSettings({ defaults: { veniceModel: 'venice-model' } });
-    expect(getSettings().defaults).toMatchObject({ veniceModel: 'venice-model', openrouterModel: s.defaults.openrouterModel });
+    expect(getSettings().defaults).toMatchObject({
+      veniceModel: 'venice-model',
+      openrouterModel: s.defaults.openrouterModel,
+    });
   });
 
   it('an older "station" holding the voxel look moves to stationLook; the map quality starts at Balanced', () => {
     // (a settings file from before: no stationLook yet)
     const file = dataPath('settings.json');
-    writeJSON(file, { ...readJSON<object>(file, {}), look: { scale: 100, accent: 'lime', motion: 'full', station: 'world' } });
+    writeJSON(file, {
+      ...readJSON<object>(file, {}),
+      look: { scale: 100, accent: 'lime', motion: 'full', station: 'world' },
+    });
     expect(getSettings().look).toMatchObject({ station: 'balanced', stationLook: 'world' });
     saveSettings({ look: { station: 'saver', stationLook: 'classic' } });
     expect(getSettings().look).toMatchObject({ station: 'saver', stationLook: 'classic' });
@@ -110,6 +131,10 @@ describe('events', () => {
     } finally {
       bus.off('event', listen);
     }
-    expect(seen.map((e) => [e.type, e.projectId])).toEqual([['run', 'elsewhere'], ['queue', 'given'], ['settings', undefined]]);
+    expect(seen.map((e) => [e.type, e.projectId])).toEqual([
+      ['run', 'elsewhere'],
+      ['queue', 'given'],
+      ['settings', undefined],
+    ]);
   });
 });

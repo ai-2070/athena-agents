@@ -19,7 +19,14 @@ function setup() {
   fs.writeFileSync(path.join(workspace, 'a.md'), '# Alpha\nfind-me here\n');
   fs.writeFileSync(path.join(workspace, 'notes', 'b.txt'), 'nothing\nFIND-ME too\n');
   fs.writeFileSync(path.join(workspace, 'notes', 'old', 'c.md'), 'old note\n');
-  const agent: ToolAgent = { id: 'parts-agent', name: 'Parts', toolGroups: ['files'], autonomy: 'full', workspace, knowledge: { folders: [] } };
+  const agent: ToolAgent = {
+    id: 'parts-agent',
+    name: 'Parts',
+    toolGroups: ['files'],
+    autonomy: 'full',
+    workspace,
+    knowledge: { folders: [] },
+  };
   return { workspace, outside, agent };
 }
 
@@ -31,7 +38,10 @@ describe('read_file', () => {
 
   it('reads a long file in parts and says where to continue', async () => {
     const { workspace, agent } = setup();
-    fs.writeFileSync(path.join(workspace, 'long.txt'), Array.from({ length: 5000 }, (_, i) => `line ${i + 1}`).join('\n'));
+    fs.writeFileSync(
+      path.join(workspace, 'long.txt'),
+      Array.from({ length: 5000 }, (_, i) => `line ${i + 1}`).join('\n'),
+    );
     const first = (await callTool(agent, 'read_file', { path: 'long.txt' })).text;
     expect(first).toMatch(/^line 1\n/);
     expect(first).toMatch(/\[Lines 1-2000 of 5000\. Continue with offset 2001\.\]$/);
@@ -60,9 +70,17 @@ describe('edit_file', () => {
   it('replaces exact text once, and changes nothing when an edit does not fit', async () => {
     const { workspace, agent } = setup();
     const file = path.join(workspace, 'a.md');
-    expect((await callTool(agent, 'edit_file', { path: 'a.md', edits: [{ old: 'find-me', new: 'found' }] })).text).toMatch(/1 replacement\./);
+    expect(
+      (await callTool(agent, 'edit_file', { path: 'a.md', edits: [{ old: 'find-me', new: 'found' }] })).text,
+    ).toMatch(/1 replacement\./);
     expect(fs.readFileSync(file, 'utf8')).toBe('# Alpha\nfound here\n');
-    const r = await callTool(agent, 'edit_file', { path: 'a.md', edits: [{ old: 'Alpha', new: 'Beta' }, { old: 'not there', new: 'x' }] });
+    const r = await callTool(agent, 'edit_file', {
+      path: 'a.md',
+      edits: [
+        { old: 'Alpha', new: 'Beta' },
+        { old: 'not there', new: 'x' },
+      ],
+    });
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(/edit 2/);
     expect(fs.readFileSync(file, 'utf8')).toBe('# Alpha\nfound here\n');
@@ -81,7 +99,10 @@ describe('edit_file', () => {
 
   it("can't reach outside the allowed folders, and asks first like write_file", async () => {
     const { outside, agent } = setup();
-    const r = await callTool(agent, 'edit_file', { path: path.join(outside, 'secret.md'), edits: [{ old: 'private', new: 'public' }] });
+    const r = await callTool(agent, 'edit_file', {
+      path: path.join(outside, 'secret.md'),
+      edits: [{ old: 'private', new: 'public' }],
+    });
     expect(r.isError).toBe(true);
     expect(fs.readFileSync(path.join(outside, 'secret.md'), 'utf8')).toBe('private-sentinel');
   });
@@ -94,7 +115,9 @@ describe('find_files and search_files', () => {
     expect(all).toContain('a.md');
     expect(all).toContain('notes/old/c.md');
     expect(all).not.toContain('b.txt');
-    expect((await callTool(agent, 'find_files', { pattern: 'notes/*.{txt,md}' })).text.split('\n').slice(1)).toEqual(['notes/b.txt']);
+    expect((await callTool(agent, 'find_files', { pattern: 'notes/*.{txt,md}' })).text.split('\n').slice(1)).toEqual([
+      'notes/b.txt',
+    ]);
     expect((await callTool(agent, 'find_files', { pattern: '*.pdf' })).text).toMatch(/No file/);
   });
 

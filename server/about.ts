@@ -13,7 +13,10 @@ async function stars(): Promise<number | null> {
   if (starCache && Date.now() - starCache.at < HOUR) return starCache.n;
   let n: number | null = null;
   try {
-    const r = await fetchJSON<{ stargazers_count?: unknown }>(`https://api.github.com/repos/${REPO.slug}`, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Athena-Agents' }, timeout: 5000 });
+    const r = await fetchJSON<{ stargazers_count?: unknown }>(`https://api.github.com/repos/${REPO.slug}`, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Athena-Agents' },
+      timeout: 5000,
+    });
     n = typeof r.stargazers_count === 'number' ? r.stargazers_count : null;
   } catch {
     // offline, rate-limited, or a private repo (404 without a login): no count, and don't ask again for an hour
@@ -23,7 +26,14 @@ async function stars(): Promise<number | null> {
 }
 
 export async function aboutInfo({ withStars = false }: { withStars?: boolean } = {}): Promise<AboutInfo> {
-  return { name: REPO.name, version: pkg.version || '0.0.0', repo: REPO.slug, url: REPO.url, license: pkg.license || '', stars: withStars ? await stars() : null };
+  return {
+    name: REPO.name,
+    version: pkg.version || '0.0.0',
+    repo: REPO.slug,
+    url: REPO.url,
+    license: pkg.license || '',
+    stars: withStars ? await stars() : null,
+  };
 }
 
 /** For tests: forget the cached star count. */

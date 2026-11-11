@@ -67,14 +67,20 @@ export function parseVox(buf: Uint8Array): VoxFile {
       const count = view.getInt32(c, true);
       if (count < 0 || c + 4 + count * 4 > buf.length) throw bad('That .vox file is damaged.');
       total += count;
-      if (total > VOX_MAX_VOXELS) throw bad(`That .vox file has more than ${VOX_MAX_VOXELS.toLocaleString('en-US')} voxels.`);
+      if (total > VOX_MAX_VOXELS)
+        throw bad(`That .vox file has more than ${VOX_MAX_VOXELS.toLocaleString('en-US')} voxels.`);
       out.models.push({ size: size || [256, 256, 256], xyzi: buf.slice(c + 4, c + 4 + count * 4) });
     } else if (id === 'RGBA') {
-      for (let i = 0; i < 256; i++) out.palette[i] = [buf[c + i * 4], buf[c + i * 4 + 1], buf[c + i * 4 + 2], buf[c + i * 4 + 3]];
+      for (let i = 0; i < 256; i++)
+        out.palette[i] = [buf[c + i * 4], buf[c + i * 4 + 1], buf[c + i * 4 + 2], buf[c + i * 4 + 3]];
     } else if (id === 'MATL') {
       const mid = view.getInt32(c, true);
       const [d] = dict(c + 4);
-      out.materials.set(mid, { type: d._type || '_diffuse', alpha: d._alpha ? Number(d._alpha) : undefined, emit: d._emit ? Number(d._emit) : undefined });
+      out.materials.set(mid, {
+        type: d._type || '_diffuse',
+        alpha: d._alpha ? Number(d._alpha) : undefined,
+        emit: d._emit ? Number(d._emit) : undefined,
+      });
     } else if (id === 'nTRN') {
       const nid = view.getInt32(c, true);
       const [, p] = dict(c + 4);
@@ -137,15 +143,24 @@ export function voxVoxels(f: VoxFile): [number, number, number, number][] {
   let visits = 0;
   const put = (m: VoxModel, t: [number, number, number], r: number[]) => {
     // a model placed many times counts each time: the limit is on what comes in, not what is stored
-    if (out.length + m.xyzi.length / 4 > VOX_MAX_VOXELS) throw bad(`That .vox file places more than ${VOX_MAX_VOXELS.toLocaleString('en-US')} voxels.`);
+    if (out.length + m.xyzi.length / 4 > VOX_MAX_VOXELS)
+      throw bad(`That .vox file places more than ${VOX_MAX_VOXELS.toLocaleString('en-US')} voxels.`);
     const half = m.size.map((s) => Math.floor(s / 2));
     for (let i = 0; i < m.xyzi.length; i += 4) {
       const v = [m.xyzi[i] - half[0], m.xyzi[i + 1] - half[1], m.xyzi[i + 2] - half[2]];
-      out.push([t[0] + r[0] * v[0] + r[1] * v[1] + r[2] * v[2], t[1] + r[3] * v[0] + r[4] * v[1] + r[5] * v[2], t[2] + r[6] * v[0] + r[7] * v[1] + r[8] * v[2], m.xyzi[i + 3]]);
+      out.push([
+        t[0] + r[0] * v[0] + r[1] * v[1] + r[2] * v[2],
+        t[1] + r[3] * v[0] + r[4] * v[1] + r[5] * v[2],
+        t[2] + r[6] * v[0] + r[7] * v[1] + r[8] * v[2],
+        m.xyzi[i + 3],
+      ]);
     }
   };
   const I = [1, 0, 0, 0, 1, 0, 0, 0, 1];
-  const mul = (a: number[], b: number[]) => [0, 1, 2].flatMap((row) => [0, 1, 2].map((col) => a[row * 3] * b[col] + a[row * 3 + 1] * b[3 + col] + a[row * 3 + 2] * b[6 + col]));
+  const mul = (a: number[], b: number[]) =>
+    [0, 1, 2].flatMap((row) =>
+      [0, 1, 2].map((col) => a[row * 3] * b[col] + a[row * 3 + 1] * b[3 + col] + a[row * 3 + 2] * b[6 + col]),
+    );
   if (!f.nodes.size) {
     // no scene graph: the models where the file left them (side by side when there are several)
     let x = 0;
@@ -162,7 +177,11 @@ export function voxVoxels(f: VoxFile): [number, number, number, number][] {
     if (n.kind === 'trn') {
       const nt = n.t || [0, 0, 0];
       const nr = n.r || I;
-      const pt: [number, number, number] = [t[0] + r[0] * nt[0] + r[1] * nt[1] + r[2] * nt[2], t[1] + r[3] * nt[0] + r[4] * nt[1] + r[5] * nt[2], t[2] + r[6] * nt[0] + r[7] * nt[1] + r[8] * nt[2]];
+      const pt: [number, number, number] = [
+        t[0] + r[0] * nt[0] + r[1] * nt[1] + r[2] * nt[2],
+        t[1] + r[3] * nt[0] + r[4] * nt[1] + r[5] * nt[2],
+        t[2] + r[6] * nt[0] + r[7] * nt[1] + r[8] * nt[2],
+      ];
       if (n.child !== undefined) walk(n.child, pt, mul(r, nr), depth + 1);
     } else if (n.kind === 'grp') for (const c of n.children || []) walk(c, t, r, depth + 1);
     else
@@ -176,16 +195,35 @@ export function voxVoxels(f: VoxFile): [number, number, number, number][] {
 }
 
 /** A .vox file as a grid at a voxel size, with the palette entries it needs (named "<name> 12"). */
-export function voxToGrid(f: VoxFile, name: string, voxelSize: number, newId: () => string): { grid: Grid; materials: VoxelMaterial[]; colorOf: Map<number, number>; count: number } {
+export function voxToGrid(
+  f: VoxFile,
+  name: string,
+  voxelSize: number,
+  newId: () => string,
+): { grid: Grid; materials: VoxelMaterial[]; colorOf: Map<number, number>; count: number } {
   const voxels = voxVoxels(f);
   const used = [...new Set(voxels.map((v) => v[3]))].sort((a, b) => a - b);
   if (used.length > 255) throw bad('That .vox file uses too many colours.');
   const materials: VoxelMaterial[] = used.map((ci) => {
     const [r, g, b] = f.palette[ci - 1] || [128, 128, 128];
     const m = f.materials.get(ci);
-    const kind: VoxelMaterialKind = m?.type === '_emit' ? 'emissive' : m?.type === '_glass' || m?.type === '_blend' ? 'glass' : m?.type === '_metal' ? 'metal' : 'solid';
+    const kind: VoxelMaterialKind =
+      m?.type === '_emit'
+        ? 'emissive'
+        : m?.type === '_glass' || m?.type === '_blend'
+          ? 'glass'
+          : m?.type === '_metal'
+            ? 'metal'
+            : 'solid';
     const hex = `#${[r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
-    return { name: `${name.toLowerCase().slice(0, 30)} ${ci}`, color: hex, jitter: 0.04, kind, ...(kind === 'emissive' ? { emissive: Math.max(1, Math.min(8, (m?.emit ?? 0.5) * 6)) } : {}), ...(kind === 'glass' ? { opacity: Math.max(0.1, Math.min(1, 1 - (m?.alpha ?? 0.5))) } : {}) };
+    return {
+      name: `${name.toLowerCase().slice(0, 30)} ${ci}`,
+      color: hex,
+      jitter: 0.04,
+      kind,
+      ...(kind === 'emissive' ? { emissive: Math.max(1, Math.min(8, (m?.emit ?? 0.5) * 6)) } : {}),
+      ...(kind === 'glass' ? { opacity: Math.max(0.1, Math.min(1, 1 - (m?.alpha ?? 0.5))) } : {}),
+    };
   });
   // values 1..n in the order of `materials`; the caller maps them to the world's palette
   const colorOf = new Map(used.map((ci, i) => [ci, i + 1]));
@@ -213,7 +251,14 @@ export function gridToVox(grid: Grid, palette: VoxelMaterial[]): Uint8Array {
   const all: number[] = [];
   for (const [k, c] of grid.vol.chunks) {
     const [cx, cy, cz] = k.split(',').map(Number);
-    for (let i = 0; i < c.length; i++) if (c[i]) all.push(cx * CHUNK + (i % CHUNK), -(cz * CHUNK + (Math.floor(i / CHUNK) % CHUNK)), cy * CHUNK + Math.floor(i / (CHUNK * CHUNK)), c[i]);
+    for (let i = 0; i < c.length; i++)
+      if (c[i])
+        all.push(
+          cx * CHUNK + (i % CHUNK),
+          -(cz * CHUNK + (Math.floor(i / CHUNK) % CHUNK)),
+          cy * CHUNK + Math.floor(i / (CHUNK * CHUNK)),
+          c[i],
+        );
   }
   const lo = [0, 1, 2].map((a) => all.reduce((m, _, i) => (i % 4 === a ? Math.min(m, all[i]) : m), Infinity));
   const blocks = new Map<string, number[]>();
@@ -233,8 +278,10 @@ export function gridToVox(grid: Grid, palette: VoxelMaterial[]): Uint8Array {
     const t = new TextEncoder().encode(s);
     return concat([int(t.length), t]);
   };
-  const dictOf = (d: Record<string, string>) => concat([int(Object.keys(d).length), ...Object.entries(d).flatMap(([k, v]) => [str(k), str(v)])]);
-  const chunk = (id: string, content: Uint8Array) => concat([new TextEncoder().encode(id), int(content.length), int(0), content]);
+  const dictOf = (d: Record<string, string>) =>
+    concat([int(Object.keys(d).length), ...Object.entries(d).flatMap(([k, v]) => [str(k), str(v)])]);
+  const chunk = (id: string, content: Uint8Array) =>
+    concat([new TextEncoder().encode(id), int(content.length), int(0), content]);
   const models: { size: number[]; at: number[] }[] = [];
   for (const [key, list] of blocks) {
     const base = key.split(',').map((n, a) => Number(n) * 256 + lo[a]);
@@ -245,14 +292,22 @@ export function gridToVox(grid: Grid, palette: VoxelMaterial[]): Uint8Array {
       xyzi[i + 2] = list[i + 2] - base[2];
       xyzi[i + 3] = list[i + 3];
     }
-    parts.push(chunk('SIZE', concat([int(256), int(256), int(256)])), chunk('XYZI', concat([int(list.length / 4), xyzi])));
+    parts.push(
+      chunk('SIZE', concat([int(256), int(256), int(256)])),
+      chunk('XYZI', concat([int(list.length / 4), xyzi])),
+    );
     models.push({ size: [256, 256, 256], at: base });
   }
   // the scene: a root transform, a group, then a transform and a shape per model
-  const nodes: Uint8Array[] = [chunk('nTRN', concat([int(0), dictOf({}), int(1), int(-1), int(-1), int(1), dictOf({})])), chunk('nGRP', concat([int(1), dictOf({}), int(models.length), ...models.map((_, i) => int(2 + i * 2))]))];
+  const nodes: Uint8Array[] = [
+    chunk('nTRN', concat([int(0), dictOf({}), int(1), int(-1), int(-1), int(1), dictOf({})])),
+    chunk('nGRP', concat([int(1), dictOf({}), int(models.length), ...models.map((_, i) => int(2 + i * 2))])),
+  ];
   models.forEach((m, i) => {
     const t = m.at.map((n, a) => n + m.size[a] / 2).join(' ');
-    nodes.push(chunk('nTRN', concat([int(2 + i * 2), dictOf({}), int(3 + i * 2), int(-1), int(0), int(1), dictOf({ _t: t })])));
+    nodes.push(
+      chunk('nTRN', concat([int(2 + i * 2), dictOf({}), int(3 + i * 2), int(-1), int(0), int(1), dictOf({ _t: t })])),
+    );
     nodes.push(chunk('nSHP', concat([int(3 + i * 2), dictOf({}), int(1), int(i), dictOf({})])));
   });
   const rgba = new Uint8Array(256 * 4);
@@ -260,11 +315,25 @@ export function gridToVox(grid: Grid, palette: VoxelMaterial[]): Uint8Array {
   palette.slice(0, 255).forEach((m, i) => {
     const [r, g, b] = hexRgb(m.color);
     rgba.set([r, g, b, 255], i * 4);
-    const d: Record<string, string> = m.kind === 'emissive' ? { _type: '_emit', _emit: String(Math.min(1, (m.emissive ?? 3) / 6)) } : m.kind === 'glass' || m.kind === 'water' ? { _type: '_glass', _alpha: String(1 - (m.opacity ?? 0.5)) } : m.kind === 'metal' ? { _type: '_metal' } : {};
+    const d: Record<string, string> =
+      m.kind === 'emissive'
+        ? { _type: '_emit', _emit: String(Math.min(1, (m.emissive ?? 3) / 6)) }
+        : m.kind === 'glass' || m.kind === 'water'
+          ? { _type: '_glass', _alpha: String(1 - (m.opacity ?? 0.5)) }
+          : m.kind === 'metal'
+            ? { _type: '_metal' }
+            : {};
     if (Object.keys(d).length) matl.push(chunk('MATL', concat([int(i + 1), dictOf(d)])));
   });
   const children = concat([...parts, ...nodes, chunk('RGBA', rgba), ...matl]);
-  return concat([new TextEncoder().encode('VOX '), int(150), new TextEncoder().encode('MAIN'), int(0), int(children.length), children]);
+  return concat([
+    new TextEncoder().encode('VOX '),
+    int(150),
+    new TextEncoder().encode('MAIN'),
+    int(0),
+    int(children.length),
+    children,
+  ]);
 }
 
 function concat(list: Uint8Array[]): Uint8Array {

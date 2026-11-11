@@ -21,17 +21,17 @@ and never turns the numbers into advice.
   refuses example addresses.
 - **For prices, the user's own key.** Signing up is the user's call. The free plans, as checked in November 2026:
 
-| Provider | Free plan | Good for |
-|---|---|---|
+| Provider                     | Free plan                                                                                                                                           | Good for                                                          |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | Twelve Data (twelvedata.com) | 8 requests a minute, 800 a day; US stocks and funds, currencies, crypto (other exchanges need a paid plan); for the user's own use, not for display | quotes during the trading day, history, currency and crypto pairs |
-| Tiingo (tiingo.com) | 50 requests an hour, 1,000 a day, 500 symbols a month; end-of-day prices, 30+ years of them; personal use only, not shared or shown to others | long daily history, with dividends and splits marked |
+| Tiingo (tiingo.com)          | 50 requests an hour, 1,000 a day, 500 symbols a month; end-of-day prices, 30+ years of them; personal use only, not shared or shown to others       | long daily history, with dividends and splits marked              |
 
-  The script reads `TWELVE_DATA_API_KEY` or `TIINGO_API_KEY`, or the first line of a `--key-file` (then `--provider`
-  says whose key it is). On Windows the user can run `setx TWELVE_DATA_API_KEY <key>` in their own terminal and restart
-  the dashboard; on any system they can save the key in a text file outside their projects and give you the path. Keep
-  keys out of command lines, replies and project files. Or the user adds "Market data (Twelve Data)" on the dashboard's
-  MCP page and signs in to Twelve Data in the browser; its tools then stand in for `quote` and `history`. Until then,
-  you can open a quote page in the user's browser for them to read, but don't read prices off finance websites.
+The script reads `TWELVE_DATA_API_KEY` or `TIINGO_API_KEY`, or the first line of a `--key-file` (then `--provider`
+says whose key it is). On Windows the user can run `setx TWELVE_DATA_API_KEY <key>` in their own terminal and restart
+the dashboard; on any system they can save the key in a text file outside their projects and give you the path. Keep
+keys out of command lines, replies and project files. Or the user adds "Market data (Twelve Data)" on the dashboard's
+MCP page and signs in to Twelve Data in the browser; its tools then stand in for `quote` and `history`. Until then,
+you can open a quote page in the user's browser for them to read, but don't read prices off finance websites.
 
 ## Commands
 

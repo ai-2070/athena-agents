@@ -15,19 +15,29 @@ export interface CliStatus {
 }
 
 const versions = new Map<string, { at: number; version: string | null }>();
-export function cliStatus(cmd: string, parse: (out: string) => string = (s) => s.trim().split('\n')[0] || ''): CliStatus {
+export function cliStatus(
+  cmd: string,
+  parse: (out: string) => string = (s) => s.trim().split('\n')[0] || '',
+): CliStatus {
   const exe = which(cmd);
   const hit = versions.get(cmd);
   if (exe && (!hit || Date.now() - hit.at > 60_000)) {
     versions.set(cmd, { at: Date.now(), version: hit?.version ?? null });
-    runCmd(cmd, ['--version'], { timeout: 20000 }).then((r) => versions.set(cmd, { at: Date.now(), version: r.code === 0 ? parse(r.stdout) || null : null }));
+    runCmd(cmd, ['--version'], { timeout: 20000 }).then((r) =>
+      versions.set(cmd, { at: Date.now(), version: r.code === 0 ? parse(r.stdout) || null : null }),
+    );
   }
   return { installed: !!exe, path: exe, version: exe ? (versions.get(cmd)?.version ?? null) : null };
 }
 
 /** Is version a older than b? (Plain numbers: 0.99.0, 1.5.0; anything else isn't older.) */
 export function olderThan(a: string | null, b: string): boolean {
-  const nums = (v: string) => v.replace(/^v/, '').split(/[.-]/).slice(0, 3).map((n) => Number.parseInt(n, 10));
+  const nums = (v: string) =>
+    v
+      .replace(/^v/, '')
+      .split(/[.-]/)
+      .slice(0, 3)
+      .map((n) => Number.parseInt(n, 10));
   const x = a ? nums(a) : [];
   if (x.length < 3 || x.some((n) => Number.isNaN(n))) return false;
   const y = nums(b);
@@ -44,7 +54,15 @@ export interface ChildEnd {
 /** Sends input on stdin, hands each line of stdout to onLine, and waits for the child to end.
  *  Stopping (signal) kills the child and its children. keepOpen: stdin stays open after the input (the
  *  caller writes more and ends it). */
-export function pipeLines(child: ChildProcess, { input, signal, onLine, keepOpen = false }: { input?: string; signal: AbortSignal; onLine: (line: string) => void; keepOpen?: boolean }): Promise<ChildEnd> {
+export function pipeLines(
+  child: ChildProcess,
+  {
+    input,
+    signal,
+    onLine,
+    keepOpen = false,
+  }: { input?: string; signal: AbortSignal; onLine: (line: string) => void; keepOpen?: boolean },
+): Promise<ChildEnd> {
   const onAbort = () => killTree(child);
   signal.addEventListener('abort', onAbort);
   let buf = '';
@@ -106,7 +124,14 @@ export class SessionGone extends Error {}
 
 /** The steer event that shows a message sent while it worked, where it was read. */
 export function steerEvent(m: TurnMessage): RunEvent {
-  return { kind: 'steer', id: m.id, text: m.text, ...(m.attachments?.length ? { attachments: m.attachments } : {}), ...(m.from ? { from: m.from } : {}), ...(m.teamMessageId ? { teamMessageId: m.teamMessageId } : {}) };
+  return {
+    kind: 'steer',
+    id: m.id,
+    text: m.text,
+    ...(m.attachments?.length ? { attachments: m.attachments } : {}),
+    ...(m.from ? { from: m.from } : {}),
+    ...(m.teamMessageId ? { teamMessageId: m.teamMessageId } : {}),
+  };
 }
 
 /** One run's open input: the messages sent into it that it hasn't read yet, and closing it. */
@@ -127,7 +152,13 @@ export interface OpenInput {
 
 /** Steering for a CLI whose input stays open while it works: a message sent then is written into it, and the
  *  engine says when it read it. who: for the error when a run no longer reads ("Claude Code"). */
-export function openInputs(who: string): { steer: TurnSteering; open(runId: string, io: { take: (m: TurnMessage) => string | false; end: () => void; onEvent: (ev: RunEvent) => void }): OpenInput } {
+export function openInputs(who: string): {
+  steer: TurnSteering;
+  open(
+    runId: string,
+    io: { take: (m: TurnMessage) => string | false; end: () => void; onEvent: (ev: RunEvent) => void },
+  ): OpenInput;
+} {
   // the runs whose CLI still reads its input
   const reading = new Map<string, (m: TurnMessage) => boolean>();
   const steer: TurnSteering = {

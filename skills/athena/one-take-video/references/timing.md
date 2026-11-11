@@ -22,6 +22,7 @@ It prints the length, every pause and every phrase (the speech between two pause
 
 Lay the phrases next to the script's lines, in order. When the counts match, each line starts at its phrase's start.
 When they don't:
+
 - **More phrases than lines**: a speaker took a breath inside a line. Merge the phrases that fall inside one line
   (the sentence's commas are where to expect it), or raise `--min-pause` (0.5) so short breaths stop counting. A
   soft-spoken voice whose quiet words count as pauses needs a lower `--noise` (`--noise=-45`).

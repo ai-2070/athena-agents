@@ -9,9 +9,41 @@ import type { Agent, AppState } from '../../shared/types.ts';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
 
-const base = { emoji: '🤖', color: '#fff', description: '', systemPrompt: 'Be brief.', model: 'sonnet', provider: 'openrouter', claudeAuth: 'login', hermesProfile: '', toolGroups: [], mcpServers: [], workspace: '', temperature: '', alwaysAllow: [], skills: [], source: { type: 'custom' }, pinned: false };
-const writer = { ...base, id: 'a1', name: 'Writer', specialty: 'Posts', engine: 'claude-code', autonomy: 'auto' } as unknown as Agent;
-const coder = { ...base, id: 'a2', name: 'Coder', specialty: 'Code', engine: 'eve', autonomy: 'full', pinned: true } as unknown as Agent;
+const base = {
+  emoji: '🤖',
+  color: '#fff',
+  description: '',
+  systemPrompt: 'Be brief.',
+  model: 'sonnet',
+  provider: 'openrouter',
+  claudeAuth: 'login',
+  hermesProfile: '',
+  toolGroups: [],
+  mcpServers: [],
+  workspace: '',
+  temperature: '',
+  alwaysAllow: [],
+  skills: [],
+  source: { type: 'custom' },
+  pinned: false,
+};
+const writer = {
+  ...base,
+  id: 'a1',
+  name: 'Writer',
+  specialty: 'Posts',
+  engine: 'claude-code',
+  autonomy: 'auto',
+} as unknown as Agent;
+const coder = {
+  ...base,
+  id: 'a2',
+  name: 'Coder',
+  specialty: 'Code',
+  engine: 'eve',
+  autonomy: 'full',
+  pinned: true,
+} as unknown as Agent;
 let folders: string[];
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
@@ -26,7 +58,10 @@ beforeEach(() => {
     runs: [],
     toolGroups: [{ id: 'files', label: 'Files', description: 'Read and write' }],
     engines: { 'claude-code': { installed: true } },
-    engineList: [{ id: 'claude-code', label: 'Claude Code' }, { id: 'eve', label: 'Eve' }],
+    engineList: [
+      { id: 'claude-code', label: 'Claude Code' },
+      { id: 'eve', label: 'Eve' },
+    ],
     secrets: { anthropicKey: { set: false }, openrouterKey: { set: true } },
     settings: { defaults: { claudeModel: 'sonnet', openrouterModel: 'x/y' } },
     project: { id: 'p1', skills: [] },
@@ -36,15 +71,24 @@ beforeEach(() => {
     const body = init.body ? JSON.parse(String(init.body)) : null;
     requests.push({ method, url, body });
     const json = (v: unknown) => new Response(JSON.stringify(v));
-    if (url === '/api/agents/a1' && method === 'GET') return json({ ...writer, knowledge: { folders }, knowledgeFiles: [], workspacePath: 'C:\\data\\a1', tools: [] });
+    if (url === '/api/agents/a1' && method === 'GET')
+      return json({ ...writer, knowledge: { folders }, knowledgeFiles: [], workspacePath: 'C:\\data\\a1', tools: [] });
     if (url === '/api/agents/a1/knowledge' && method === 'POST') {
       folders = [...folders, body.folder];
       return json({ ok: true });
     }
     if (url === '/api/mcp') return json({ servers: { github: {} } });
-    if (url.startsWith('/api/models')) return json([{ id: 'openai/gpt-example', name: 'GPT example', tools: true }, { id: 'anthropic/claude-example', name: 'Claude example', tools: true }]);
+    if (url.startsWith('/api/models'))
+      return json([
+        { id: 'openai/gpt-example', name: 'GPT example', tools: true },
+        { id: 'anthropic/claude-example', name: 'Claude example', tools: true },
+      ]);
     if (url.startsWith('/api/memory')) return json({ text: '', updatedAt: 0 });
-    return json(url.includes('/hermes') || url.includes('/workflows') || url.includes('/openclaw') || url.includes('/models') ? [] : { ok: true });
+    return json(
+      url.includes('/hermes') || url.includes('/workflows') || url.includes('/openclaw') || url.includes('/models')
+        ? []
+        : { ok: true },
+    );
   });
 });
 afterEach(() => {
@@ -56,14 +100,18 @@ const open = async (params: string[] = []) => {
   await act(async () => agents.render(el, params));
   await settle();
 };
-const btn = (root: ParentNode, text: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text)!;
+const btn = (root: ParentNode, text: string) =>
+  [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text)!;
 const type = (input: HTMLInputElement | HTMLTextAreaElement, text: string) =>
   act(async () => {
     const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     Object.getOwnPropertyDescriptor(proto, 'value')!.set!.call(input, text);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-const field = (label: string) => [...el.querySelectorAll('label.field')].find((f) => f.querySelector('span')?.textContent === label)!.querySelector<HTMLInputElement>('input, textarea, select')!;
+const field = (label: string) =>
+  [...el.querySelectorAll('label.field')]
+    .find((f) => f.querySelector('span')?.textContent === label)!
+    .querySelector<HTMLInputElement>('input, textarea, select')!;
 
 describe('engineLabel()', () => {
   it('names the engine and, for some, which provider or profile', () => {
@@ -77,7 +125,10 @@ describe('the agents list', () => {
     await open();
     const cards = [...el.querySelectorAll('.card')];
     expect(cards.map((c) => c.querySelector('.card-title')!.textContent)).toEqual(['Writer', 'Coder']);
-    expect([...cards[0].querySelectorAll('.card-foot a')].map((a) => a.getAttribute('href'))).toEqual(['#/agents/a1', '#/agents/a1/edit']);
+    expect([...cards[0].querySelectorAll('.card-foot a')].map((a) => a.getAttribute('href'))).toEqual([
+      '#/agents/a1',
+      '#/agents/a1/edit',
+    ]);
     expect(cards[1].querySelector('[aria-label="pinned"]')).not.toBeNull();
     expect(cards[1].querySelector('.card-foot button')).toBeNull(); // no terminal for API models
     await type(el.querySelector<HTMLInputElement>('input[aria-label="Search agents"]')!, 'code');
@@ -87,10 +138,26 @@ describe('the agents list', () => {
 });
 
 describe('the overview: kinds of agents and their models', () => {
-  const lib = (id: string, name: string, division: string, extra: Partial<Agent> = {}) => ({ ...base, id, name, specialty: '', engine: 'claude-code', autonomy: 'auto', source: { type: 'library', division }, ...extra }) as unknown as Agent;
+  const lib = (id: string, name: string, division: string, extra: Partial<Agent> = {}) =>
+    ({
+      ...base,
+      id,
+      name,
+      specialty: '',
+      engine: 'claude-code',
+      autonomy: 'auto',
+      source: { type: 'library', division },
+      ...extra,
+    }) as unknown as Agent;
   const cardNames = () => [...el.querySelectorAll('.card-title')].map((t) => t.textContent);
   beforeEach(() => {
-    state.data!.agents = [writer, coder, lib('a3', 'Seller', 'sales'), lib('a4', 'Seller 2', 'sales', { model: 'opus' }), lib('a5', 'Mapper', 'gis')];
+    state.data!.agents = [
+      writer,
+      coder,
+      lib('a3', 'Seller', 'sales'),
+      lib('a4', 'Seller 2', 'sales', { model: 'opus' }),
+      lib('a5', 'Mapper', 'gis'),
+    ];
   });
 
   it('counts the agents, by category and by model, and a click shows only those (again: all)', async () => {
@@ -107,7 +174,11 @@ describe('the overview: kinds of agents and their models', () => {
     expect(cardNames()).toHaveLength(5);
     // the models: Sonnet (the default too), Opus, and the Eve model without its provider part
     const models = [...el.querySelectorAll<HTMLButtonElement>('.agents-models button')];
-    expect(models.map((b) => b.getAttribute('aria-label'))).toEqual(['Sonnet on Claude Code: 3 of 5 agents', 'Opus on Claude Code: 1 of 5 agents', 'Sonnet on Eve: 1 of 5 agents']);
+    expect(models.map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Sonnet on Claude Code: 3 of 5 agents',
+      'Opus on Claude Code: 1 of 5 agents',
+      'Sonnet on Eve: 1 of 5 agents',
+    ]);
     await act(async () => models[1].click());
     expect(cardNames()).toEqual(['Seller 2']);
     await act(async () => models[1].click());
@@ -148,12 +219,18 @@ describe('the agent editor', () => {
     const checked = (label: string) => el.querySelector(`[aria-label="${label}"] [aria-checked="true"]`)?.textContent;
     expect(checked('Brain')).toBe('Claude Code');
     expect(checked('Autonomy')).toContain('Auto');
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('[aria-label="Autonomy"] button')].find((b) => b.textContent?.startsWith('Ask first'))!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLButtonElement>('[aria-label="Autonomy"] button')]
+        .find((b) => b.textContent?.startsWith('Ask first'))!
+        .click(),
+    );
     expect(checked('Autonomy')).toContain('Ask first');
     expect(el.textContent).toContain('Not saved yet');
     await act(async () => btn(el, 'Save').click());
     await settle();
-    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toMatchObject({ autonomy: 'ask' });
+    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toMatchObject({
+      autonomy: 'ask',
+    });
   });
 
   it('enables Save once something changes, and saves the agent', async () => {
@@ -164,7 +241,10 @@ describe('the agent editor', () => {
     expect(save.disabled).toBe(false);
     await act(async () => save.click());
     await settle();
-    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toMatchObject({ name: 'Writer Pro', systemPrompt: 'Be brief.' });
+    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toMatchObject({
+      name: 'Writer Pro',
+      systemPrompt: 'Be brief.',
+    });
     expect(btn(el, 'Save').disabled).toBe(true);
   });
 
@@ -188,12 +268,18 @@ describe('the agent editor', () => {
     const input = el.querySelector<HTMLInputElement>('input[aria-labelledby="agent-model-label"]')!;
     await type(input, 'gpt');
     await settle();
-    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.includes('openai/gpt-example'))!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+        .find((o) => o.textContent?.includes('openai/gpt-example'))!
+        .click(),
+    );
     expect(input.value).toBe('openai/gpt-example');
     await type(input, 'custom/model');
     await act(async () => btn(el, 'Save').click());
     await settle();
-    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toMatchObject({ model: 'custom/model' });
+    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toMatchObject({
+      model: 'custom/model',
+    });
   });
 
   it('opening another project loads the editor again from it (the old unsaved form is gone)', async () => {
@@ -222,7 +308,9 @@ describe('the agent editor', () => {
     await type(field('Specialty'), 'Long posts');
     await act(async () => btn(el, 'Save').click());
     await settle();
-    expect((requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body as Agent).knowledge).toEqual({ folders: ['C:\\brand'] });
+    expect((requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body as Agent).knowledge).toEqual({
+      folders: ['C:\\brand'],
+    });
   });
 
   it('warns before leaving with changes not saved', async () => {

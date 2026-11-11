@@ -24,11 +24,28 @@ function load(): Map<string, Live> {
   return live;
 }
 
-const blank = (name: string): Live => ({ name, calls: 0, errors: 0, denied: 0, clipped: 0, asked: 0, totalMs: 0, p50Ms: 0, p95Ms: 0, totalChars: 0, maxChars: 0, lastAt: 0, times: [] });
+const blank = (name: string): Live => ({
+  name,
+  calls: 0,
+  errors: 0,
+  denied: 0,
+  clipped: 0,
+  asked: 0,
+  totalMs: 0,
+  p50Ms: 0,
+  p95Ms: 0,
+  totalChars: 0,
+  maxChars: 0,
+  lastAt: 0,
+  times: [],
+});
 const at = (sorted: number[], q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0;
 
 /** One finished call. */
-export function recordToolCall(name: string, r: { ms: number; chars: number; isError?: boolean; denied?: boolean }): void {
+export function recordToolCall(
+  name: string,
+  r: { ms: number; chars: number; isError?: boolean; denied?: boolean },
+): void {
   const stats = load();
   const s = stats.get(name) || blank(name);
   s.calls++;

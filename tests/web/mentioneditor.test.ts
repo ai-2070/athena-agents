@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { attachMentionEditor } from '../../web/chat/mentioneditor.ts';
 
 let dispose: (() => void) | undefined;
-afterEach(() => { dispose?.(); dispose = undefined; document.body.replaceChildren(); });
+afterEach(() => {
+  dispose?.();
+  dispose = undefined;
+  document.body.replaceChildren();
+});
 const open = (text: string) => {
   const input = document.createElement('textarea');
   input.value = text;
@@ -12,7 +16,7 @@ const open = (text: string) => {
 };
 
 describe('inline mention editor', () => {
-  it('never sets the hidden textarea\'s own selection (WebKit would move focus to it)', () => {
+  it("never sets the hidden textarea's own selection (WebKit would move focus to it)", () => {
     const native = vi.spyOn(HTMLTextAreaElement.prototype, 'setSelectionRange');
     const { input, editor } = open('Ask @Ana to help');
     editor.focus();
@@ -32,7 +36,13 @@ describe('inline mention editor', () => {
 
   it('keeps chips between the words they were inserted into', () => {
     const { input, editor } = open('Ask @Ana to help #Design today');
-    expect([...editor.childNodes].map((n) => n.textContent)).toEqual(['Ask ', '@Ana', ' to help ', '#Design', ' today']);
+    expect([...editor.childNodes].map((n) => n.textContent)).toEqual([
+      'Ask ',
+      '@Ana',
+      ' to help ',
+      '#Design',
+      ' today',
+    ]);
     expect(input.value).toBe('Ask @Ana to help #Design today');
     editor.querySelector<HTMLButtonElement>('[aria-label="Remove @Ana"]')!.click();
     expect(input.value).toBe('Ask  to help #Design today');
@@ -40,7 +50,8 @@ describe('inline mention editor', () => {
   });
 
   it('takes a whole pill away with Backspace after it or Delete before it, also at the end', () => {
-    const key = (editor: HTMLElement, k: string) => editor.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+    const key = (editor: HTMLElement, k: string) =>
+      editor.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
     const { input, editor } = open('Ask @Ana to help #Design');
     input.focus();
     // right after "@Ana"
@@ -114,7 +125,9 @@ describe('inline mention editor', () => {
 
   it('forwards send keys without inserting a newline', () => {
     const { input, editor } = open('@Ana hi');
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') e.preventDefault();
+    });
     const key = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
     editor.dispatchEvent(key);
     expect(key.defaultPrevented).toBe(true);
@@ -125,7 +138,11 @@ describe('inline mention editor', () => {
     const input = document.createElement('textarea');
     input.value = 'Ask @Ana and @Design with @Brand voice';
     document.body.append(input);
-    dispose = attachMentionEditor(input, () => ['@Ana', { tag: '@Design', icon: 'users' }, { tag: '@Brand voice', icon: 'puzzle' }]);
+    dispose = attachMentionEditor(input, () => [
+      '@Ana',
+      { tag: '@Design', icon: 'users' },
+      { tag: '@Brand voice', icon: 'puzzle' },
+    ]);
     const pill = (m: string) => document.querySelector(`[data-mention="${m}"]`)!;
     expect(pill('@Ana').firstElementChild?.tagName.toLowerCase()).toBe('button');
     expect(pill('@Design').firstElementChild?.tagName.toLowerCase()).toBe('svg');
@@ -148,7 +165,8 @@ describe('inline mention editor', () => {
     input.setRangeText(' @Ana', 2, 2, 'end');
     input.dispatchEvent(new Event('input', { bubbles: true }));
     expect(editor.querySelector('[data-mention="@Ana"]')).not.toBeNull();
-    dispose!(); dispose = undefined;
+    dispose!();
+    dispose = undefined;
     expect(input.hidden).toBe(false);
     input.value = 'A new draft';
     expect(input.value).toBe('A new draft');

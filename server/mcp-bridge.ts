@@ -30,7 +30,9 @@ const port = process.env.DASH_PORT || '4800';
 let token = process.env.DASH_TOKEN;
 if (!token) {
   try {
-    token = fs.readFileSync(path.join(process.env.DASH_DATA || path.join(here, '..', 'data'), '.internal-token'), 'utf8').trim();
+    token = fs
+      .readFileSync(path.join(process.env.DASH_DATA || path.join(here, '..', 'data'), '.internal-token'), 'utf8')
+      .trim();
   } catch {
     token = '';
   }
@@ -45,7 +47,15 @@ function call<T>(pathname: string, body?: unknown): Promise<T> {
     const data = body ? JSON.stringify(body) : null;
     const req = http.request(
       `${base}${pathname}`,
-      { method: body ? 'POST' : 'GET', headers: { 'x-dash-internal': token, 'content-type': 'application/json', host: `localhost:${port}`, ...(data ? { 'content-length': Buffer.byteLength(data) } : {}) } },
+      {
+        method: body ? 'POST' : 'GET',
+        headers: {
+          'x-dash-internal': token,
+          'content-type': 'application/json',
+          host: `localhost:${port}`,
+          ...(data ? { 'content-length': Buffer.byteLength(data) } : {}),
+        },
+      },
       (res) => {
         let text = '';
         res.setEncoding('utf8');
@@ -72,17 +82,26 @@ const server = new Server({ name: 'dashboard', version: '0.1.0' }, { capabilitie
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   try {
-    const { tools } = await call<{ tools: BridgeTool[] }>(`/tools?agent=${encodeURIComponent(agent)}&run=${encodeURIComponent(runId)}`);
+    const { tools } = await call<{ tools: BridgeTool[] }>(
+      `/tools?agent=${encodeURIComponent(agent)}&run=${encodeURIComponent(runId)}`,
+    );
     return { tools: tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.parameters })) };
   } catch (e) {
-    process.stderr.write(`dashboard bridge: could not list tools (${(e as Error).message}). Is the dashboard running on port ${port}?\n`);
+    process.stderr.write(
+      `dashboard bridge: could not list tools (${(e as Error).message}). Is the dashboard running on port ${port}?\n`,
+    );
     return { tools: [] };
   }
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try {
-    const r = await call<BridgeCallResult>('/tools/call', { agent, run: runId, name: req.params.name, args: req.params.arguments || {} });
+    const r = await call<BridgeCallResult>('/tools/call', {
+      agent,
+      run: runId,
+      name: req.params.name,
+      args: req.params.arguments || {},
+    });
     const content: CallToolResult['content'] = [{ type: 'text', text: r.text || '(no output)' }];
     for (const img of r.images || []) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(img);
@@ -92,7 +111,12 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (req.params.name === 'request_tool' && !r.isError) void server.sendToolListChanged().catch(() => {});
     return { content, isError: !!r.isError };
   } catch (e) {
-    return { content: [{ type: 'text', text: `Dashboard error: ${(e as Error).message}. Is the dashboard running on port ${port}?` }], isError: true };
+    return {
+      content: [
+        { type: 'text', text: `Dashboard error: ${(e as Error).message}. Is the dashboard running on port ${port}?` },
+      ],
+      isError: true,
+    };
   }
 });
 

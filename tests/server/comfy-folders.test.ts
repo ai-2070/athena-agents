@@ -36,7 +36,7 @@ describe("ComfyUI's folders", () => {
     expect(real(comfyOutputDirs())).toContain(fs.realpathSync.native(out));
   });
 
-  it("Comfy Desktop: each install in installations.json, an adopted old install, and the shared and own output folders", () => {
+  it('Comfy Desktop: each install in installations.json, an adopted old install, and the shared and own output folders', () => {
     const install = path.join(local, 'Comfy-Desktop', 'ComfyUI-Installs', 'Main');
     const wf = mk(install, 'ComfyUI', 'user', 'default', 'workflows');
     const adopted = path.join(base, 'Adopted');
@@ -46,7 +46,16 @@ describe("ComfyUI's folders", () => {
     const sharedDefault = mk(local, 'Comfy-Desktop', 'ComfyUI-Shared', 'output');
     write(path.join(roaming, 'Comfy Desktop', 'installations.json'), [
       { id: 'a', name: 'Main', installPath: install, sourceId: 'standalone' },
-      { id: 'b', name: 'Old one', installPath: path.join(base, 'gone'), adopted: true, adoptedBaseDir: adopted, useSharedOutput: false, outputDir: own, sourceId: 'desktop' },
+      {
+        id: 'b',
+        name: 'Old one',
+        installPath: path.join(base, 'gone'),
+        adopted: true,
+        adoptedBaseDir: adopted,
+        useSharedOutput: false,
+        outputDir: own,
+        sourceId: 'desktop',
+      },
       'not a record',
     ]);
     write(path.join(roaming, 'Comfy Desktop', 'settings.json'), { outputDir: sharedSetting });

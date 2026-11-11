@@ -49,7 +49,9 @@ function sphere(v: Volume, cx: number, cy: number, cz: number, r: number, value:
 }
 
 function box(v: Volume, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, value: number): void {
-  for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++) for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) setVoxel(v, x, y, z, value);
+  for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++)
+    for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++)
+      for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) setVoxel(v, x, y, z, value);
 }
 
 function cherryTree(v: Volume, x: number, z: number, h: number, seed: number): void {
@@ -113,7 +115,16 @@ export function benchIsland(radius = 90, voxelSize = 0.25): Volume {
       const top = pond ? -3 : -1;
       for (let y = bottom; y <= top; y++) {
         const fromTop = top - y;
-        const mat = fromTop === 0 ? (pond ? M.sand : M.grass) : fromTop < 3 + Math.round(noise2(x, z, 6, seed + 2) * 3) ? M.dirt : y < bottom + 3 || hash3(x, y, z, seed) < 0.12 ? M['dark stone'] : M.stone;
+        const mat =
+          fromTop === 0
+            ? pond
+              ? M.sand
+              : M.grass
+            : fromTop < 3 + Math.round(noise2(x, z, 6, seed + 2) * 3)
+              ? M.dirt
+              : y < bottom + 3 || hash3(x, y, z, seed) < 0.12
+                ? M['dark stone']
+                : M.stone;
         setVoxel(v, x, y, z, mat);
       }
       if (pond) box(v, x, -2, z, x, -1, z, M.water);
@@ -125,7 +136,13 @@ export function benchIsland(radius = 90, voxelSize = 0.25): Volume {
   for (let i = 0; i < trees; i++) {
     const a = (i / trees) * Math.PI * 2 + 0.4;
     const d = R * (0.55 + 0.25 * hash3(i, 0, 0, seed));
-    cherryTree(v, Math.round(Math.cos(a) * d), Math.round(Math.sin(a) * d), Math.round(R / 5 + hash3(i, 1, 0, seed) * R / 8), seed + i);
+    cherryTree(
+      v,
+      Math.round(Math.cos(a) * d),
+      Math.round(Math.sin(a) * d),
+      Math.round(R / 5 + (hash3(i, 1, 0, seed) * R) / 8),
+      seed + i,
+    );
   }
   for (let i = 0; i < trees * 2; i++) {
     const a = ((i + 0.5) / (trees * 2)) * Math.PI * 2;
@@ -134,7 +151,16 @@ export function benchIsland(radius = 90, voxelSize = 0.25): Volume {
   for (let i = 0; i < trees * 2; i++) {
     const a = hash3(i, 5, 0, seed) * Math.PI * 2;
     const d = R * (0.3 + 0.6 * hash3(i, 6, 0, seed));
-    sphere(v, Math.round(Math.cos(a) * d), 0, Math.round(Math.sin(a) * d), 2 + Math.round(hash3(i, 7, 0, seed) * 3), M.stone, 0, seed + 9);
+    sphere(
+      v,
+      Math.round(Math.cos(a) * d),
+      0,
+      Math.round(Math.sin(a) * d),
+      2 + Math.round(hash3(i, 7, 0, seed) * 3),
+      M.stone,
+      0,
+      seed + 9,
+    );
   }
   gate(v, Math.round(-R * 0.62), Math.round(R * 0.5), Math.max(1, Math.round(R / 45)));
   return v;

@@ -6,7 +6,8 @@ import { icon } from './icons.ts';
 import { apiUrl } from './client/connection.ts';
 import type { Project } from '../shared/types.ts';
 
-type ProjectRef = Pick<Project, 'id'> & Partial<Pick<Project, 'logoAt' | 'modelAt' | 'modelExt' | 'backgroundAt' | 'repo' | 'name'>>;
+type ProjectRef = Pick<Project, 'id'> &
+  Partial<Pick<Project, 'logoAt' | 'modelAt' | 'modelExt' | 'backgroundAt' | 'repo' | 'name'>>;
 
 /** The logo's URL (changes when the logo does, so the new one shows at once), or null. */
 export function logoUrl(p: ProjectRef | null | undefined): string | null {
@@ -14,10 +15,22 @@ export function logoUrl(p: ProjectRef | null | undefined): string | null {
 }
 
 /** The logo, or the project's folder / GitHub icon when it has none. */
-export function projectMark(p: ProjectRef | null | undefined, size = 16, fallback: string | null = null): HTMLElement | SVGSVGElement {
+export function projectMark(
+  p: ProjectRef | null | undefined,
+  size = 16,
+  fallback: string | null = null,
+): HTMLElement | SVGSVGElement {
   const url = logoUrl(p);
   // (proj-logo: the places that show it can round it differently, [&_.proj-logo]:…)
-  if (url) return h('img.proj-logo', { class: 'inline-block flex-none rounded-[5px] object-contain align-middle', src: url, alt: '', width: size, height: size, style: { width: `${size}px`, height: `${size}px` } });
+  if (url)
+    return h('img.proj-logo', {
+      class: 'inline-block flex-none rounded-[5px] object-contain align-middle',
+      src: url,
+      alt: '',
+      width: size,
+      height: size,
+      style: { width: `${size}px`, height: `${size}px` },
+    });
   return icon(fallback || (p?.repo ? 'git-branch' : 'folder'), size);
 }
 
@@ -54,7 +67,10 @@ export function pickModel(p: Pick<Project, 'id' | 'name'>): Promise<boolean> {
         toast("Couldn't read that file.", 'error');
         return resolve(false);
       }
-      const r = await attempt(() => rpc.projects.setModel({ id: p.id, name: file.name, data }), `New 3D model for ${p.name}`);
+      const r = await attempt(
+        () => rpc.projects.setModel({ id: p.id, name: file.name, data }),
+        `New 3D model for ${p.name}`,
+      );
       refreshSoon(0);
       resolve(!!r);
     });
@@ -128,7 +144,9 @@ export async function removeLogo(p: Pick<Project, 'id' | 'name'>): Promise<boole
 
 /** The background picture behind the Station's map: its URL, or null. */
 export function backgroundUrl(p: ProjectRef | null | undefined): string | null {
-  return p?.id && p.backgroundAt ? apiUrl(`/projects/${encodeURIComponent(p.id)}/background`, { v: p.backgroundAt }) : null;
+  return p?.id && p.backgroundAt
+    ? apiUrl(`/projects/${encodeURIComponent(p.id)}/background`, { v: p.backgroundAt })
+    : null;
 }
 
 // A screen is rarely wider than this; bigger photos only cost memory on the graphics card.
@@ -171,7 +189,10 @@ export function pickBackground(p: Pick<Project, 'id' | 'name'>): Promise<boolean
         return resolve(false);
       }
       if (file.type === 'image/gif' && file.size > BACKGROUND_MAX) {
-        toast(`That GIF is ${(file.size / 1048576).toFixed(0)} MB; the most is ${BACKGROUND_MAX / 1048576} MB.`, 'error');
+        toast(
+          `That GIF is ${(file.size / 1048576).toFixed(0)} MB; the most is ${BACKGROUND_MAX / 1048576} MB.`,
+          'error',
+        );
         return resolve(false);
       }
       let data: string;

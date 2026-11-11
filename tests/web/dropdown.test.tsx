@@ -3,7 +3,17 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Dropdown, DropdownContent, DropdownGroup, DropdownItem, DropdownLabel, DropdownRadioGroup, DropdownRadioItem, DropdownSeparator, DropdownTrigger } from '../../web/ui/dropdown.tsx';
+import {
+  Dropdown,
+  DropdownContent,
+  DropdownGroup,
+  DropdownItem,
+  DropdownLabel,
+  DropdownRadioGroup,
+  DropdownRadioItem,
+  DropdownSeparator,
+  DropdownTrigger,
+} from '../../web/ui/dropdown.tsx';
 import { SelectControl } from '../../web/ui/select.tsx';
 import { attachTray, PICKER_LABELLED } from '../../web/attach.tsx';
 
@@ -88,18 +98,45 @@ describe('the dropdown', () => {
 describe('the select control', () => {
   it('offers the empty option and returns its value when selected', async () => {
     const picked: string[] = [];
-    await act(async () => root.render(<SelectControl aria-label="Service" value="work" onChange={(value) => picked.push(value)} options={[{ value: '', label: 'Its own service' }, { value: 'work', label: 'Work' }]} />));
+    await act(async () =>
+      root.render(
+        <SelectControl
+          aria-label="Service"
+          value="work"
+          onChange={(value) => picked.push(value)}
+          options={[
+            { value: '', label: 'Its own service' },
+            { value: 'work', label: 'Work' },
+          ]}
+        />,
+      ),
+    );
     await click(document.querySelector('button[aria-label="Service"]')!);
     expect(rows('option').map((row) => row.textContent?.trim())).toEqual(['Its own service', 'Work']);
     await click(rows('option')[0]);
     expect(picked).toEqual(['']);
   });
 
-  it('shows an option\'s logo before its label, in the list and on the closed field', async () => {
-    await act(async () => root.render(<SelectControl aria-label="Provider" value="b" onChange={() => {}} options={[{ value: 'a', label: 'Alpha', mark: <i className="logo-a" /> }, { value: 'b', label: 'Beta', mark: <i className="logo-b" /> }]} />));
+  it("shows an option's logo before its label, in the list and on the closed field", async () => {
+    await act(async () =>
+      root.render(
+        <SelectControl
+          aria-label="Provider"
+          value="b"
+          onChange={() => {}}
+          options={[
+            { value: 'a', label: 'Alpha', mark: <i className="logo-a" /> },
+            { value: 'b', label: 'Beta', mark: <i className="logo-b" /> },
+          ]}
+        />,
+      ),
+    );
     expect(document.querySelector('button[aria-label="Provider"] .logo-b')).not.toBeNull();
     await click(document.querySelector('button[aria-label="Provider"]')!);
-    expect(rows('option').map((row) => [row.querySelector('i')?.className, row.textContent?.trim()])).toEqual([['logo-a', 'Alpha'], ['logo-b', 'Beta']]);
+    expect(rows('option').map((row) => [row.querySelector('i')?.className, row.textContent?.trim()])).toEqual([
+      ['logo-a', 'Alpha'],
+      ['logo-b', 'Beta'],
+    ]);
   });
 });
 

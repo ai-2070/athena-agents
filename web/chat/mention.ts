@@ -13,7 +13,13 @@ export interface AgentMentions {
 /** The agents to offer for an "@…" just before the caret (not the one you are talking to), best fit
  *  first: names that start with it, then a word in the name that does, then any name containing it.
  *  null when the caret isn't in an "@…" or nobody fits. */
-export function agentMentions(text: string, caret: number, agents: readonly MentionAgent[], selfId: string, max = 8): AgentMentions | null {
+export function agentMentions(
+  text: string,
+  caret: number,
+  agents: readonly MentionAgent[],
+  selfId: string,
+  max = 8,
+): AgentMentions | null {
   const q = mentionQuery(text, caret);
   if (!q) return null;
   const query = q.query.toLowerCase();
@@ -36,7 +42,12 @@ export function agentMentions(text: string, caret: number, agents: readonly Ment
 /** The text with "@name " in place of the "@…" being typed (start is the "@"), and where the caret goes.
  *  With the caret partway through, what follows it is taken too while it still spells the name, then
  *  the rest of that word; punctuation and later words stay. */
-export function insertMention(text: string, start: number, caret: number, name: string): { text: string; caret: number } {
+export function insertMention(
+  text: string,
+  start: number,
+  caret: number,
+  name: string,
+): { text: string; caret: number } {
   const typed = text.slice(start + 1, caret).toLowerCase();
   const want = name.toLowerCase();
   let rest = text.slice(caret);

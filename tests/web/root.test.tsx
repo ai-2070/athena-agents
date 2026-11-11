@@ -29,7 +29,8 @@ afterEach(() => {
 });
 
 const alert = () => document.querySelector<HTMLElement>('#host [role="alert"]');
-const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('#host button')].find((b) => b.textContent === text)!;
+const button = (text: string) =>
+  [...document.querySelectorAll<HTMLButtonElement>('#host button')].find((b) => b.textContent === text)!;
 
 describe('createAppRoot', () => {
   it('shows what went wrong in place of a piece that crashes, instead of a blank space', () => {

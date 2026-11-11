@@ -19,17 +19,32 @@ const configSchema = z.object({
   costLimitUsd: z.number().nonnegative(),
   costBaseline: z.number().nonnegative(),
   spentUsd: z.number().nonnegative().optional(),
-  capabilities: z.object({ tools: z.boolean().optional(), vision: z.boolean().optional(), multipleImages: z.boolean().optional() }).optional(),
-  price: z.object({ in: z.number().nonnegative(), out: z.number().nonnegative(), cached: z.number().nonnegative().optional() }).nullable().optional(),
+  capabilities: z
+    .object({ tools: z.boolean().optional(), vision: z.boolean().optional(), multipleImages: z.boolean().optional() })
+    .optional(),
+  price: z
+    .object({
+      in: z.number().nonnegative(),
+      out: z.number().nonnegative(),
+      cached: z.number().nonnegative().optional(),
+    })
+    .nullable()
+    .optional(),
   tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: z.record(z.string(), z.json()) })),
 });
 
-export async function bridgeCall(binding: string, operation: string, body: unknown, signal?: AbortSignal): Promise<unknown> {
+export async function bridgeCall(
+  binding: string,
+  operation: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<unknown> {
   const origin = process.env.ATHENA_EVE_BRIDGE_URL;
   const secret = process.env.ATHENA_EVE_BRIDGE_TOKEN;
   if (!origin || !secret) throw new Error('The Athena tool bridge is not configured.');
   const url = new URL(operation, origin);
-  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.origin !== new URL(origin).origin) throw new Error('The Athena tool bridge must be local.');
+  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.origin !== new URL(origin).origin)
+    throw new Error('The Athena tool bridge must be local.');
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${secret}` },
@@ -49,5 +64,7 @@ export function bindingOf(ctx: DynamicModelContext): string {
 
 export async function configuration(ctx: DynamicModelContext): Promise<EveRuntimeConfiguration> {
   const nativeCost = usage(ctx.view).byKind.model?.costUsd || 0;
-  return configSchema.parse(await bridgeCall(bindingOf(ctx), '/configuration', { sessionId: ctx.session.id, nativeCost }));
+  return configSchema.parse(
+    await bridgeCall(bindingOf(ctx), '/configuration', { sessionId: ctx.session.id, nativeCost }),
+  );
 }

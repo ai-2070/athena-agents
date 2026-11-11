@@ -6,7 +6,8 @@ import { appLogo } from './views/stationdata.ts';
 
 /** Program id → the name its logo is filed under, when the id on its own would find the wrong one. */
 const BRAND: Record<string, string> = {
-  nvtt: 'nvidia', 'claude-code': 'claude code',
+  nvtt: 'nvidia',
+  'claude-code': 'claude code',
   claude: 'claude code', // the program is Claude Code, not the Claude model it runs on
 };
 
@@ -90,8 +91,9 @@ const LINE: Record<string, string> = {
 
 /** A program's icon: its brand logo (by id, then by name), else its line icon, else a box. */
 export const programIcon = (id: string, name: string, size = 20): SVGSVGElement | HTMLImageElement | null =>
-  brandImage(id, size) ?? (BRAND[id]
+  brandImage(id, size) ??
+  (BRAND[id]
     ? appLogo(BRAND[id], size)
     : LINE[id]
       ? icon(LINE[id], size)
-      : appLogo(id, size) ?? appLogo(name, size) ?? icon('box', size));
+      : (appLogo(id, size) ?? appLogo(name, size) ?? icon('box', size)));

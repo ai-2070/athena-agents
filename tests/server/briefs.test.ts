@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { addBrief, listBriefs, openBrief, updateBrief } from '../../server/briefs.ts';
 
-const brief = (n: number) => addBrief({ kind: 'agent', targetId: `agent-${n}`, name: `Agent ${n}`, text: `job ${n}`, ts: n });
+const brief = (n: number) =>
+  addBrief({ kind: 'agent', targetId: `agent-${n}`, name: `Agent ${n}`, text: `job ${n}`, ts: n });
 
 describe('briefs', () => {
   it('a new brief to the same agent replaces the open one', () => {

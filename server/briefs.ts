@@ -52,45 +52,95 @@ export function updateBrief(id: string, patch: Partial<BrainBrief>, pid = active
 }
 
 /** The open goal in an agent's chat, or a team's: yours, or work the agent, lead or Brain recognized. */
-export const openGoal = (kind: BrainBrief['kind'], targetId: string, chatId: string | null = null, pid = activeProject().id): BrainBrief | null =>
-  listBriefs(pid).findLast((x) => x.status === 'open' && showsGoal(x) && x.kind === kind && x.targetId === targetId && (kind === 'team' || x.chatId === chatId)) || null;
+export const openGoal = (
+  kind: BrainBrief['kind'],
+  targetId: string,
+  chatId: string | null = null,
+  pid = activeProject().id,
+): BrainBrief | null =>
+  listBriefs(pid).findLast(
+    (x) =>
+      x.status === 'open' &&
+      showsGoal(x) &&
+      x.kind === kind &&
+      x.targetId === targetId &&
+      (kind === 'team' || x.chatId === chatId),
+  ) || null;
 
 /** The open brief to a team or an agent (the newest). */
 export const openBrief = (kind: BrainBrief['kind'], targetId: string, pid = activeProject().id): BrainBrief | null =>
   listBriefs(pid).findLast((x) => x.status === 'open' && x.kind === kind && x.targetId === targetId) || null;
 
 /** Ordinary messages become work to finish. A steer adds to the open assignment. */
-export function trackWork(kind: BrainBrief['kind'], targetId: string, name: string, text: string, ref: { chatId?: string; messageId?: string; ts?: number } = {}): BrainBrief {
-  const previous = listBriefs().findLast((b) => ['open', 'blocked', 'stuck'].includes(b.status) && b.kind === kind && b.targetId === targetId && (kind === 'team' || b.chatId === ref.chatId));
-  for (const q of questions.list()) if (previous && q.status === 'waiting' && q.briefId === previous.id) questions.save({ ...q, status: 'closed', note: 'You sent a new message about this work.' });
-  if (previous) return updateBrief(previous.id, {
-    status: 'open',
-    text: `${previous.text}\n\nUser update:\n${text}`,
-    revision: (previous.revision || 0) + 1,
-    stalled: 0,
-    failures: 0,
-    userAction: undefined,
-  })!;
-  return addBrief({ kind, targetId, name, text, goal: text, automatic: true, origin: 'chat', ts: ref.ts ?? Date.now(), ...ref });
+export function trackWork(
+  kind: BrainBrief['kind'],
+  targetId: string,
+  name: string,
+  text: string,
+  ref: { chatId?: string; messageId?: string; ts?: number } = {},
+): BrainBrief {
+  const previous = listBriefs().findLast(
+    (b) =>
+      ['open', 'blocked', 'stuck'].includes(b.status) &&
+      b.kind === kind &&
+      b.targetId === targetId &&
+      (kind === 'team' || b.chatId === ref.chatId),
+  );
+  for (const q of questions.list())
+    if (previous && q.status === 'waiting' && q.briefId === previous.id)
+      questions.save({ ...q, status: 'closed', note: 'You sent a new message about this work.' });
+  if (previous)
+    return updateBrief(previous.id, {
+      status: 'open',
+      text: `${previous.text}\n\nUser update:\n${text}`,
+      revision: (previous.revision || 0) + 1,
+      stalled: 0,
+      failures: 0,
+      userAction: undefined,
+    })!;
+  return addBrief({
+    kind,
+    targetId,
+    name,
+    text,
+    goal: text,
+    automatic: true,
+    origin: 'chat',
+    ts: ref.ts ?? Date.now(),
+    ...ref,
+  });
 }
 
 /** Clear/delete cancels completion checks, including a verdict already in flight. */
 export function clearWork(kind: BrainBrief['kind'], targetId: string, chatId?: string): void {
-  for (const b of listBriefs()) if (b.kind === kind && b.targetId === targetId && (kind === 'team' || b.chatId === chatId) && ['open', 'blocked', 'stuck'].includes(b.status)) {
-    updateBrief(b.id, { status: 'cleared' });
-    for (const q of questions.list()) if (q.briefId === b.id && q.status === 'waiting') questions.save({ ...q, status: 'closed', note: 'This work was cleared.' });
-  }
+  for (const b of listBriefs())
+    if (
+      b.kind === kind &&
+      b.targetId === targetId &&
+      (kind === 'team' || b.chatId === chatId) &&
+      ['open', 'blocked', 'stuck'].includes(b.status)
+    ) {
+      updateBrief(b.id, { status: 'cleared' });
+      for (const q of questions.list())
+        if (q.briefId === b.id && q.status === 'waiting')
+          questions.save({ ...q, status: 'closed', note: 'This work was cleared.' });
+    }
 }
 
 export function stopChatWork(chatId: string, pid = activeProject().id): void {
-  for (const b of listBriefs(pid)) if (b.kind === 'agent' && b.chatId === chatId && ['open', 'blocked', 'stuck'].includes(b.status)) stopBrief(b, pid);
+  for (const b of listBriefs(pid))
+    if (b.kind === 'agent' && b.chatId === chatId && ['open', 'blocked', 'stuck'].includes(b.status)) stopBrief(b, pid);
 }
 
 export function stopTeamWork(teamId: string): void {
-  for (const b of listBriefs()) if (b.kind === 'team' && b.targetId === teamId && ['open', 'blocked', 'stuck'].includes(b.status)) stopBrief(b);
+  for (const b of listBriefs())
+    if (b.kind === 'team' && b.targetId === teamId && ['open', 'blocked', 'stuck'].includes(b.status)) stopBrief(b);
 }
 
 function stopBrief(b: BrainBrief, pid = activeProject().id): void {
   updateBrief(b.id, { status: 'stopped' }, pid);
-  if (pid === activeProject().id) for (const q of questions.list()) if (q.briefId === b.id && q.status === 'waiting') questions.save({ ...q, status: 'closed', note: 'You stopped this work.' });
+  if (pid === activeProject().id)
+    for (const q of questions.list())
+      if (q.briefId === b.id && q.status === 'waiting')
+        questions.save({ ...q, status: 'closed', note: 'You stopped this work.' });
 }

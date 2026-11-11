@@ -17,7 +17,8 @@ class FakeSocket {
     FakeSocket.last = this;
   }
 }
-const serverEvent = (ev: object) => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
+const serverEvent = (ev: object) =>
+  act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
 
 // a Brain answer that stays on its way until the test ends it (or the page stops reading it)
 let answering: ReadableStreamDefaultController<Uint8Array> | null = null;
@@ -25,7 +26,8 @@ const calls: { url: string; body: Record<string, unknown> }[] = [];
 beforeAll(() => {
   document.body.append(Object.assign(document.createElement('div'), { id: 'toasts' }));
   // (no animations in happy-dom)
-  Element.prototype.animate ??= () => ({ finished: Promise.resolve(), cancel() {}, onfinish: null, effect: null } as unknown as Animation);
+  Element.prototype.animate ??= () =>
+    ({ finished: Promise.resolve(), cancel() {}, onfinish: null, effect: null }) as unknown as Animation;
   Element.prototype.getAnimations ??= () => [];
   state.data = {
     runs: [],
@@ -42,14 +44,17 @@ beforeAll(() => {
         new ReadableStream<Uint8Array>({
           start: (c) => {
             answering = c;
-            init.signal?.addEventListener('abort', () => c.error(new DOMException('The operation was aborted.', 'AbortError')));
+            init.signal?.addEventListener('abort', () =>
+              c.error(new DOMException('The operation was aborted.', 'AbortError')),
+            );
           },
         }),
         { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } },
       );
     if (url === '/api/brain/history') return json([]);
     if (url === '/api/workflows') return json([{ id: 't1', name: 'Thumbs', members: ['a1'], lead: 'a1', steps: [] }]);
-    if (url === '/api/task-board-people/p1') return json({ agents: [{ id: 'a1', name: 'Scout', emoji: '🔭' }], teams: [{ id: 't1', name: 'Thumbs' }] });
+    if (url === '/api/task-board-people/p1')
+      return json({ agents: [{ id: 'a1', name: 'Scout', emoji: '🔭' }], teams: [{ id: 't1', name: 'Thumbs' }] });
     return json({});
   });
   vi.stubGlobal('WebSocket', FakeSocket);
@@ -63,7 +68,8 @@ const launcher = () => document.querySelector<HTMLButtonElement>('.bottom-bar .d
 const input = () => document.querySelector<HTMLTextAreaElement>('textarea.dock-input')!;
 // the box you type in: the pill editor that takes the textarea's place (it shows @mentions as pills)
 const typing = () => document.querySelector<HTMLElement>('.dock-input[contenteditable="true"]')!;
-const enter = () => act(async () => void input().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+const enter = () =>
+  act(async () => void input().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
 
 describe('the Brain chat', () => {
   it('opens from its button in the bottom bar, and Ctrl+K closes it', async () => {
@@ -72,7 +78,9 @@ describe('the Brain chat', () => {
     await act(async () => launcher().click());
     expect(panel().classList.contains('hidden')).toBe(false);
     expect(launcher().classList.contains('hidden')).toBe(true);
-    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
+    await act(
+      async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })),
+    );
     await settle();
     expect(launcher().classList.contains('hidden')).toBe(false);
     expect(panel().classList.contains('hidden')).toBe(true);
@@ -82,18 +90,24 @@ describe('the Brain chat', () => {
     await act(async () => launcher().click());
     await settle();
     const offered = [...panel().querySelectorAll<HTMLButtonElement>('.dock-suggest')];
-    expect(offered.map((b) => b.textContent)).toEqual(['What is everyone working on?', 'Make me a social media team', 'Write PROJECT.md for this project']);
+    expect(offered.map((b) => b.textContent)).toEqual([
+      'What is everyone working on?',
+      'Make me a social media team',
+      'Write PROJECT.md for this project',
+    ]);
     await act(async () => offered[1].click());
     expect(input().value).toBe('Make me a social media team');
     expect(document.activeElement).toBe(typing());
     // (leave the box as it was)
     input().value = '';
     await act(async () => void input().dispatchEvent(new Event('input', { bubbles: true })));
-    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
+    await act(
+      async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })),
+    );
     await settle();
   });
 
-  it('offers the project\'s agents and teams for @, picks one with Enter rather than sending, and shows it as a pill', async () => {
+  it("offers the project's agents and teams for @, picks one with Enter rather than sending, and shows it as a pill", async () => {
     await act(async () => launcher().click());
     await settle();
     const sent = calls.filter((c) => c.url === '/api/brain/stream').length;
@@ -109,7 +123,9 @@ describe('the Brain chat', () => {
     // (leave the box as it was)
     input().value = '';
     await act(async () => void input().dispatchEvent(new Event('input', { bubbles: true })));
-    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
+    await act(
+      async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })),
+    );
     await settle();
   });
 
@@ -117,15 +133,25 @@ describe('the Brain chat', () => {
     await act(async () => launcher().click());
     await settle();
     input().focus();
-    await act(async () => void input().dispatchEvent(new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true, cancelable: true })));
+    await act(
+      async () =>
+        void input().dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true, cancelable: true }),
+        ),
+    );
     await settle();
     const found = panel().querySelector<HTMLInputElement>('[role="search"] input');
     expect(found).not.toBeNull();
-    await act(async () => void found!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
+    await act(
+      async () =>
+        void found!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })),
+    );
     await settle();
     expect(panel().querySelector('[role="search"]')).toBeNull();
     expect(panel().classList.contains('hidden')).toBe(false);
-    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
+    await act(
+      async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })),
+    );
     await settle();
   });
 
@@ -141,12 +167,22 @@ describe('the Brain chat', () => {
     };
     const pick = async (label: string) => {
       await open();
-      await act(async () => choices().find((c) => c.textContent!.trim().endsWith(label))!.click());
+      await act(async () =>
+        choices()
+          .find((c) => c.textContent!.trim().endsWith(label))!
+          .click(),
+      );
       await settle();
     };
     await open();
     // (an agent's row starts with its badge)
-    expect(choices().map((c) => c.textContent!.trim())).toEqual(['The Brain', 'New agent from this', 'New team from this', '🔭Scout', 'Thumbs']);
+    expect(choices().map((c) => c.textContent!.trim())).toEqual([
+      'The Brain',
+      'New agent from this',
+      'New team from this',
+      '🔭Scout',
+      'Thumbs',
+    ]);
     expect(choices().map((c) => c.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false', 'false']);
     await act(async () => choices()[0].click());
     await settle();
@@ -168,7 +204,10 @@ describe('the Brain chat', () => {
     await settle();
     const popup = document.querySelector('.st-menu')!;
     expect(popup).not.toBeNull();
-    await act(async () => void popup.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
+    await act(
+      async () =>
+        void popup.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })),
+    );
     await settle();
     expect(document.querySelector('.st-menu')).toBeNull();
     expect(panel().classList.contains('hidden')).toBe(false);
@@ -209,18 +248,42 @@ describe('the Brain chat', () => {
     // the server cuts off the answer it is writing (and keeps its question); the new message is asked now
     expect(calls.find((c) => c.url === '/api/brain/steer')!.body).toEqual({});
     expect(asked().map((c) => c.body.text)).toEqual(['plan the week', 'actually, just Monday']);
-    expect(document.querySelector('.dock-list')!.textContent).toContain("Stopped the Brain's answer to take your new message.");
+    expect(document.querySelector('.dock-list')!.textContent).toContain(
+      "Stopped the Brain's answer to take your new message.",
+    );
     expect(button('Stop')).not.toBeNull();
   });
 
   it('an answer cut off too late to stop still shows, with what it did', async () => {
     const before = document.querySelectorAll('.dock-msg').length;
-    await serverEvent({ type: 'brain-late', projectId: 'p1', goal: false, answer: { answer: 'Made the launch team.', done: [{ kind: 'team', text: 'Created the team "Launch"' }], delegate: null, model: { provider: 'claude', model: 'haiku' }, project: 'P' } });
+    await serverEvent({
+      type: 'brain-late',
+      projectId: 'p1',
+      goal: false,
+      answer: {
+        answer: 'Made the launch team.',
+        done: [{ kind: 'team', text: 'Created the team "Launch"' }],
+        delegate: null,
+        model: { provider: 'claude', model: 'haiku' },
+        project: 'P',
+      },
+    });
     await settle();
     expect(document.querySelector('.dock-list')!.textContent).toContain('Made the launch team.');
     expect(document.querySelectorAll('.dock-msg').length).toBeGreaterThan(before);
     // (another project's: not here)
-    await serverEvent({ type: 'brain-late', projectId: 'p2', goal: false, answer: { answer: 'Not for this project.', done: [], delegate: null, model: { provider: 'claude', model: 'haiku' }, project: 'Q' } });
+    await serverEvent({
+      type: 'brain-late',
+      projectId: 'p2',
+      goal: false,
+      answer: {
+        answer: 'Not for this project.',
+        done: [],
+        delegate: null,
+        model: { provider: 'claude', model: 'haiku' },
+        project: 'Q',
+      },
+    });
     await settle();
     expect(document.querySelector('.dock-list')!.textContent).not.toContain('Not for this project.');
   });
@@ -245,7 +308,10 @@ describe('the Brain chat', () => {
     expect(texts()).toEqual(['first', 'second, changed']);
     expect(document.activeElement).toBe(typing());
     const last = document.querySelectorAll<HTMLButtonElement>('.dock-held .queued-text')[1];
-    await act(async () => void last.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true })));
+    await act(
+      async () =>
+        void last.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true })),
+    );
     await settle();
     expect(texts()).toEqual(['second, changed', 'first']);
   });
@@ -254,17 +320,36 @@ describe('the Brain chat', () => {
 describe('a reopened Brain chat', () => {
   it('shows what the Brain did as actions, not as lines of its answer', () => {
     const done = [{ kind: 'skill' as const, text: 'Made the skill "Finish the job"', skillId: 'finish-the-job' }];
-    expect(savedAnswer({ role: 'brain', text: 'I made it.', ts: 1, done })).toEqual({ answer: 'I made it.', done, delegate: undefined });
-    const steps = [{ id: 't1', name: 'Read', input: { file_path: 'README.md' }, state: 'done' as const, output: 'hello' }];
-    expect(savedAnswer({ role: 'brain', text: 'It says hello.', ts: 2, steps })).toMatchObject({ answer: 'It says hello.', done: [], steps });
+    expect(savedAnswer({ role: 'brain', text: 'I made it.', ts: 1, done })).toEqual({
+      answer: 'I made it.',
+      done,
+      delegate: undefined,
+    });
+    const steps = [
+      { id: 't1', name: 'Read', input: { file_path: 'README.md' }, state: 'done' as const, output: 'hello' },
+    ];
+    expect(savedAnswer({ role: 'brain', text: 'It says hello.', ts: 2, steps })).toMatchObject({
+      answer: 'It says hello.',
+      done: [],
+      steps,
+    });
   });
 
   it('splits the "(…)" lines off answers saved before actions were kept apart', () => {
-    const r = savedAnswer({ role: 'brain', text: 'I made it.\n(Made the skill "Finish the job")\n(Updated "Code Review Team": access)\n(handed to Web Team: Build it.)', ts: 1 });
+    const r = savedAnswer({
+      role: 'brain',
+      text: 'I made it.\n(Made the skill "Finish the job")\n(Updated "Code Review Team": access)\n(handed to Web Team: Build it.)',
+      ts: 1,
+    });
     expect(r.answer).toBe('I made it.');
-    expect(r.done.map((d) => d.text)).toEqual(['Made the skill "Finish the job"', 'Updated "Code Review Team": access']);
+    expect(r.done.map((d) => d.text)).toEqual([
+      'Made the skill "Finish the job"',
+      'Updated "Code Review Team": access',
+    ]);
     expect(r.delegate?.name).toBe('Web Team');
     // a whole answer in brackets stays the answer
-    expect(savedAnswer({ role: 'brain', text: '(stopped before answering: the user sent a new message)', ts: 1 })).toMatchObject({ answer: '(stopped before answering: the user sent a new message)', done: [] });
+    expect(
+      savedAnswer({ role: 'brain', text: '(stopped before answering: the user sent a new message)', ts: 1 }),
+    ).toMatchObject({ answer: '(stopped before answering: the user sent a new message)', done: [] });
   });
 });

@@ -3,7 +3,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { addKnowledgeFile, clearKnowledgeCache, knowledgeCache, knowledgeContext, knowledgeFiles, knowledgeRoots, readKnowledge, removeKnowledgeFile, searchKnowledge } from '../../server/knowledge.ts';
+import {
+  addKnowledgeFile,
+  clearKnowledgeCache,
+  knowledgeCache,
+  knowledgeContext,
+  knowledgeFiles,
+  knowledgeRoots,
+  readKnowledge,
+  removeKnowledgeFile,
+  searchKnowledge,
+} from '../../server/knowledge.ts';
 import { projectData } from '../../server/store.ts';
 import { toolsForAgent } from '../../server/tools.ts';
 
@@ -74,7 +84,10 @@ describe('knowledge search', () => {
   });
 
   it('gives at most the limit, counts a word up to 20 times, and skips one-letter words', () => {
-    const folder = linked('kb-limit-', { 'many.md': Array.from({ length: 200 }, () => 'gamma').join('\n'), 'dense.md': 'delta '.repeat(25) });
+    const folder = linked('kb-limit-', {
+      'many.md': Array.from({ length: 200 }, () => 'gamma').join('\n'),
+      'dense.md': 'delta '.repeat(25),
+    });
     const agent = { id: 'kb-limit', knowledge: { folders: [folder] } };
     expect(searchKnowledge(agent, 'gamma')).toHaveLength(6);
     expect(searchKnowledge(agent, 'gamma', 2)).toHaveLength(2);
@@ -83,14 +96,20 @@ describe('knowledge search', () => {
     expect(searchKnowledge(agent, '')).toEqual([]);
   });
 
-  it('keeps passages that score the same in file order: the agent\'s own files first', () => {
+  it("keeps passages that score the same in file order: the agent's own files first", () => {
     const agent = { id: 'kb-ties', knowledge: { folders: [linked('kb-ties-', { 'theirs.md': 'epsilon here' })] } };
     addKnowledgeFile(agent.id, 'mine.md', 'epsilon here');
-    expect(searchKnowledge(agent, 'epsilon').map((h) => h.file)).toEqual(['mine.md', path.join(path.basename(agent.knowledge.folders[0]), 'theirs.md')]);
+    expect(searchKnowledge(agent, 'epsilon').map((h) => h.file)).toEqual([
+      'mine.md',
+      path.join(path.basename(agent.knowledge.folders[0]), 'theirs.md'),
+    ]);
   });
 
   it('cuts a passage to 1600 characters', () => {
-    const agent = { id: 'kb-long', knowledge: { folders: [linked('kb-long-', { 'long.md': `zeta ${'x'.repeat(5000)}` })] } };
+    const agent = {
+      id: 'kb-long',
+      knowledge: { folders: [linked('kb-long-', { 'long.md': `zeta ${'x'.repeat(5000)}` })] },
+    };
     const [hit] = searchKnowledge(agent, 'zeta');
     expect(hit.text).toHaveLength(1600);
   });
@@ -152,7 +171,9 @@ describe('knowledge kept between calls', () => {
     expect(labels(agent)).toEqual([path.join(base, 'first.md')]);
     // another folder linked: a new list at once
     const other = folderWith('kb-window-other-', { 'other.md': 'other' });
-    expect(labels({ ...agent, knowledge: { folders: [folder, other] } })).toEqual([path.join(base, 'first.md'), path.join(path.basename(other), 'other.md')].sort());
+    expect(labels({ ...agent, knowledge: { folders: [folder, other] } })).toEqual(
+      [path.join(base, 'first.md'), path.join(path.basename(other), 'other.md')].sort(),
+    );
     // changed outside the dashboard: shown once the list's time is up
     fs.writeFileSync(path.join(folder, 'second.md'), 'second');
     expect(labels(agent)).toEqual([path.join(base, 'first.md')]);
@@ -170,12 +191,16 @@ describe('knowledge kept between calls', () => {
     expect(searchKnowledge(agent, 'anything')).toEqual([]);
     expect(() => readKnowledge(agent, 'x.md')).toThrow(/No knowledge file/);
     expect(knowledgeRoots(agent)).toEqual([]);
-    expect(toolsForAgent({ id: agent.id, name: 'Nobody', toolGroups: [] }).map((t) => t.name)).not.toContain('knowledge_search');
+    expect(toolsForAgent({ id: agent.id, name: 'Nobody', toolGroups: [] }).map((t) => t.name)).not.toContain(
+      'knowledge_search',
+    );
     expect(fs.existsSync(dir)).toBe(false);
     // the folder is made when a file is added, and then it is one the agent may read
     addKnowledgeFile(agent.id, 'note.md', 'hello');
     expect(knowledgeRoots(agent)).toEqual([dir]);
-    expect(toolsForAgent({ id: agent.id, name: 'Nobody', toolGroups: [] }).map((t) => t.name)).toContain('knowledge_search');
+    expect(toolsForAgent({ id: agent.id, name: 'Nobody', toolGroups: [] }).map((t) => t.name)).toContain(
+      'knowledge_search',
+    );
   });
 
   it('searches again reading only the files that changed, with the same results', () => {
@@ -191,7 +216,10 @@ describe('knowledge kept between calls', () => {
     // edited outside the dashboard: read again at once, even while the list is kept
     fs.writeFileSync(path.join(folder, 'one.md'), 'omega omega omega in one, longer');
     expect(reads(() => (again = searchKnowledge(agent, 'omega')))).toEqual(['one.md']);
-    expect(again[0]).toMatchObject({ file: path.join(path.basename(folder), 'one.md'), text: 'omega omega omega in one, longer' });
+    expect(again[0]).toMatchObject({
+      file: path.join(path.basename(folder), 'one.md'),
+      text: 'omega omega omega in one, longer',
+    });
     expect(knowledgeContext(agent)).toContain('omega omega omega in one, longer');
   });
 

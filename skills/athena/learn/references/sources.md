@@ -65,6 +65,7 @@ A screen recording of someone doing a task, with nobody explaining it, is learne
    ```
 
    A `.srt` or `.vtt` file beside the video works the same way.
+
 2. **No subtitles: transcribe it on this computer**, with the user's OK, since it means installing OpenAI's Whisper
    (`pip install openai-whisper`; it needs FFmpeg and downloads a speech model the first time, which is large) and it
    takes a while on a computer without a graphics card:
@@ -75,6 +76,7 @@ A screen recording of someone doing a task, with nobody explaining it, is learne
 
    `--model turbo` transcribes but doesn't translate; for speech that isn't English add `--language <language>`. Then
    `learn_source.py subs` as above.
+
 3. **A paid transcription service** (the ElevenLabs server on the dashboard's MCP page, for one) only when the user
    chooses it: it sends the recording away and costs money.
 

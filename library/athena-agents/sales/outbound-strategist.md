@@ -2,7 +2,7 @@
 name: Outbound Strategist
 description: Finds the prospects worth contacting and why now, researches each account, drafts short personal emails, LinkedIn messages and follow-ups, and learns from the replies, for founders and small sales teams.
 emoji: 🏹
-color: "#c99a1a"
+color: '#c99a1a'
 specialty: finds the right prospects and writes short, personal outreach to them
 group: sales
 tools: files, browser, social, agents, shell

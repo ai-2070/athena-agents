@@ -40,11 +40,14 @@ export const mcpRouter = m.router({
     const made = refusing(() => mcp.addPreset(preset.name, { label: input.label, useFor: input.useFor }));
     // (only label and "use for" change: the copies' connections stay open, and an unchanged one isn't saved)
     const servers = mcp.listServers();
-    for (const [name, notes] of Object.entries(input.others || {})) if (name !== made.name && servers[name]) mcp.describeCopy(name, { label: notes.label, useFor: notes.useFor });
+    for (const [name, notes] of Object.entries(input.others || {}))
+      if (name !== made.name && servers[name]) mcp.describeCopy(name, { label: notes.label, useFor: notes.useFor });
     return made;
   }),
   import: m.import.handler(({ input }) => {
-    const it = mcp.importableServers().find((x) => x.name === input.name && x.source === input.source) || refuse('That server is no longer in its Claude config.', 404);
+    const it =
+      mcp.importableServers().find((x) => x.name === input.name && x.source === input.source) ||
+      refuse('That server is no longer in its Claude config.', 404);
     return refusing(() => mcp.saveServer(it.name, it));
   }),
 });
@@ -53,18 +56,41 @@ export const enginesRouter = e.router({
   hermesProfiles: e.hermesProfiles.handler(() => listProfiles()),
   hermesBridge: e.hermesBridge.handler(async () => {
     const cfg = mcp.bridgeServerConfig('');
-    const r = await run('hermes', ['mcp', 'add', 'dashboard', '--command', cfg.command, '--env', `DASH_PORT=${PORT}`, `DASH_TOKEN=${internalToken()}`, '--args', ...cfg.args], { timeout: 120000, input: 'y\n' });
+    const r = await run(
+      'hermes',
+      [
+        'mcp',
+        'add',
+        'dashboard',
+        '--command',
+        cfg.command,
+        '--env',
+        `DASH_PORT=${PORT}`,
+        `DASH_TOKEN=${internalToken()}`,
+        '--args',
+        ...cfg.args,
+      ],
+      { timeout: 120000, input: 'y\n' },
+    );
     if (r.code !== 0) return refuse((r.stderr || r.stdout).trim().slice(-800) || 'hermes mcp add failed', 500);
     log('mcp', 'Gave Hermes the dashboard tools (hermes mcp add dashboard)');
     return { message: (r.stdout || 'Added.').trim().slice(-800) };
   }),
   // pi and oh-my-pi: the bridge goes in their own mcp.json (neither takes MCP servers per run)
   piBridge: e.piBridge.handler(({ input }) => {
-    const flavors: piEngine.PiFlavor[] = input.flavor ? [input.flavor] : (['pi', 'omp'] as const).filter((f) => which(f));
+    const flavors: piEngine.PiFlavor[] = input.flavor
+      ? [input.flavor]
+      : (['pi', 'omp'] as const).filter((f) => which(f));
     if (!flavors.length) return refuse('Neither pi nor oh-my-pi is installed on this PC.');
     const files = flavors.map((f) => refusing(() => piEngine.addBridge(f), 500));
-    log('mcp', `Gave ${flavors.map((f) => (f === 'pi' ? 'pi' : 'oh-my-pi')).join(' and ')} the dashboard tools (${files.join(', ')})`);
-    return { message: `Added to ${files.join(' and ')}. New ${flavors.includes('pi') ? 'pi' : 'oh-my-pi'} sessions have the dashboard tools.`, files };
+    log(
+      'mcp',
+      `Gave ${flavors.map((f) => (f === 'pi' ? 'pi' : 'oh-my-pi')).join(' and ')} the dashboard tools (${files.join(', ')})`,
+    );
+    return {
+      message: `Added to ${files.join(' and ')}. New ${flavors.includes('pi') ? 'pi' : 'oh-my-pi'} sessions have the dashboard tools.`,
+      files,
+    };
   }),
   openclawAgents: e.openclawAgents.handler(() => openclawEngine.listAgents().catch(() => [])),
   codexInstall: e.codexInstall.handler(async () => {

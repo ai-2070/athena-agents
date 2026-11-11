@@ -14,7 +14,9 @@ describe('usage lines in the chat', () => {
       { type: 'meta', text: 'Memory cleared: the agent starts fresh from here.', reset: true },
       { type: 'meta', text: 'Goal reached.' },
     ];
-    const shown = toUIMessages(items).flatMap((m) => m.parts).flatMap((p) => (p.type === 'data-meta' ? [(p.data as { text: string }).text] : []));
+    const shown = toUIMessages(items)
+      .flatMap((m) => m.parts)
+      .flatMap((p) => (p.type === 'data-meta' ? [(p.data as { text: string }).text] : []));
     expect(shown).toEqual(['Memory cleared: the agent starts fresh from here.', 'Goal reached.']);
     expect(isUsageLine({ type: 'meta', text: 'Cost unavailable' })).toBe(true);
   });

@@ -5,7 +5,16 @@ import { createProject } from '../../server/projects.ts';
 import { addBrief, listBriefs } from '../../server/briefs.ts';
 import { admitExecution, readExecution, saveHandoff, updateExecution } from '../../server/execution.ts';
 import { memoryStart } from '../../shared/context.ts';
-import { activeRuns, finishNativeRun, isChatBusy, nativeRunPromise, onRunEnd, recoverExecution, runInfo, stopRun } from '../../server/engines/index.ts';
+import {
+  activeRuns,
+  finishNativeRun,
+  isChatBusy,
+  nativeRunPromise,
+  onRunEnd,
+  recoverExecution,
+  runInfo,
+  stopRun,
+} from '../../server/engines/index.ts';
 import { EveCoordinator } from '../../server/eve/coordinator.ts';
 import { attachSession, beginRun, bindSession, readRun, setRunStatus } from '../../server/eve/state.ts';
 import { observeEveEvent } from '../../server/eve/recovery.ts';
@@ -21,7 +30,10 @@ const coordinators: EveCoordinator[] = [];
 afterEach(async () => {
   onRunEnd(null);
   for (const coordinator of coordinators.splice(0)) await coordinator.close();
-  for (const run of activeRuns()) { stopRun(run.id); finishNativeRun(run.id); }
+  for (const run of activeRuns()) {
+    stopRun(run.id);
+    finishNativeRun(run.id);
+  }
 });
 
 function fixture() {
@@ -33,7 +45,22 @@ function fixture() {
   const id = `follow-${agent.id}`;
   beginRun(id, binding.id);
   setRunStatus(id, 'running', 'delivery');
-  const receipt: ExecutionRun = { id, projectId: project.id, agentId: agent.id, chatId: chat.id, engine: agent.engine, parentRunId: null, ownerChatId: chat.id, ownerAgentId: agent.id, depth: 0, text: 'Original user request', from: null, attachments: [], startedAt: Date.now(), status: 'running' };
+  const receipt: ExecutionRun = {
+    id,
+    projectId: project.id,
+    agentId: agent.id,
+    chatId: chat.id,
+    engine: agent.engine,
+    parentRunId: null,
+    ownerChatId: chat.id,
+    ownerAgentId: agent.id,
+    depth: 0,
+    text: 'Original user request',
+    from: null,
+    attachments: [],
+    startedAt: Date.now(),
+    status: 'running',
+  };
   admitExecution(receipt);
   const events: SessionStreamEvent[] = [];
   let wake = () => {};
@@ -42,13 +69,21 @@ function fixture() {
   let broken = false;
   let breakNext = false;
   const add = (event: Omit<SessionStreamEvent, 'meta'>) => {
-    events.push({ ...event, meta: { position: { line: events.length, index: 0 }, at: new Date().toISOString() } } as SessionStreamEvent);
+    events.push({
+      ...event,
+      meta: { position: { line: events.length, index: 0 }, at: new Date().toISOString() },
+    } as SessionStreamEvent);
     wake();
   };
   add({ type: 'delivery.admitted', data: { deliveryId: 'delivery' } });
   add({ type: 'delivery.consumed', data: { deliveryId: 'delivery', turnId: 'turn', parts: [] } });
   const coordinator = new EveCoordinator({
-    ready: async () => ({ url: 'http://127.0.0.1:1', token: 'fixture', exited: new Promise<void>(() => {}), close: async () => {} }),
+    ready: async () => ({
+      url: 'http://127.0.0.1:1',
+      token: 'fixture',
+      exited: new Promise<void>(() => {}),
+      close: async () => {},
+    }),
     connect: () => {
       connections++;
       return {
@@ -60,9 +95,15 @@ function fixture() {
               next = event.meta.position.line + 1;
               yield event;
             }
-            if (breakNext && !broken) { broken = true; throw new Error('Transport dropped'); }
+            if (breakNext && !broken) {
+              broken = true;
+              throw new Error('Transport dropped');
+            }
             await new Promise<void>((resolve) => {
-              const done = () => { signal.removeEventListener('abort', done); resolve(); };
+              const done = () => {
+                signal.removeEventListener('abort', done);
+                resolve();
+              };
               wake = done;
               if (signal.aborted) done();
               else signal.addEventListener('abort', done, { once: true });
@@ -70,17 +111,39 @@ function fixture() {
           }
         },
         decisions: async () => {},
-        stop: async () => { stops++; },
+        stop: async () => {
+          stops++;
+        },
       };
     },
     retryMs: 1,
   });
   coordinators.push(coordinator);
   const finish = (text: string) => {
-    add({ type: 'content.completed', data: { partId: 'reply', runId: 'model', kind: 'text', phase: 'reply', value: text } });
+    add({
+      type: 'content.completed',
+      data: { partId: 'reply', runId: 'model', kind: 'text', phase: 'reply', value: text },
+    });
     add({ type: 'turn.settled', data: { turnId: 'turn', outcome: 'completed', reply: ['reply'] } });
   };
-  return { project, agent, chat, binding, id, receipt, events, add, finish, coordinator, breakStream: () => { breakNext = true; wake(); }, connections: () => connections, stops: () => stops };
+  return {
+    project,
+    agent,
+    chat,
+    binding,
+    id,
+    receipt,
+    events,
+    add,
+    finish,
+    coordinator,
+    breakStream: () => {
+      breakNext = true;
+      wake();
+    },
+    connections: () => connections,
+    stops: () => stops,
+  };
 }
 
 describe('native run lifecycle', () => {
@@ -102,7 +165,17 @@ describe('native run lifecycle', () => {
     const f = fixture();
     const ends: string[] = [];
     onRunEnd((event) => ends.push(event.answer));
-    saveHandoff({ id: 'recovered-handle', projectId: f.project.id, from: 'asker', to: f.agent.id, toName: f.agent.name, chatId: f.chat.id, runId: f.id, task: f.receipt.text, startedAt: Date.now() });
+    saveHandoff({
+      id: 'recovered-handle',
+      projectId: f.project.id,
+      from: 'asker',
+      to: f.agent.id,
+      toName: f.agent.name,
+      chatId: f.chat.id,
+      runId: f.id,
+      task: f.receipt.text,
+      startedAt: Date.now(),
+    });
     f.coordinator.restore();
     recoverExecution();
     expect(isChatBusy(f.chat.id)).toBe(true);
@@ -120,13 +193,15 @@ describe('native run lifecycle', () => {
     expect(readRun(f.id)).toMatchObject({ status: 'completed', answer: 'Recovered answer' });
     expect(readExecution().runs.find((run) => run.id === f.id)).toMatchObject({ status: 'completed', settled: true });
     expect(isChatBusy(f.chat.id)).toBe(false);
-    expect(await awaitHandoff('recovered-handle', 'asker')).toEqual({ text: `${f.agent.name} says:\nRecovered answer` });
+    expect(await awaitHandoff('recovered-handle', 'asker')).toEqual({
+      text: `${f.agent.name} says:\nRecovered answer`,
+    });
     f.coordinator.restore();
     expect(ends).toHaveLength(1);
     expect(chats.get(f.agent.id, f.chat.id)!.items.filter((item) => item.type === 'user')).toHaveLength(1);
   });
 
-  it('says a dropped connection is its own project\'s, with another project open', async () => {
+  it("says a dropped connection is its own project's, with another project open", async () => {
     const f = fixture();
     const seen: ServerEvent[] = [];
     const listen = (e: ServerEvent) => void (e.type === 'run' && seen.push(e));
@@ -138,8 +213,12 @@ describe('native run lifecycle', () => {
       await expect.poll(f.connections).toBe(1);
       setActiveProject(other.id);
       f.breakStream();
-      await expect.poll(() => seen.find((e) => (e as { event?: { text?: string } }).event?.text === 'Reconnecting to Eve…')).toBeTruthy();
-      expect(seen.find((e) => (e as { event?: { text?: string } }).event?.text === 'Reconnecting to Eve…')).toMatchObject({ projectId: f.project.id, chatId: f.chat.id });
+      await expect
+        .poll(() => seen.find((e) => (e as { event?: { text?: string } }).event?.text === 'Reconnecting to Eve…'))
+        .toBeTruthy();
+      expect(
+        seen.find((e) => (e as { event?: { text?: string } }).event?.text === 'Reconnecting to Eve…'),
+      ).toMatchObject({ projectId: f.project.id, chatId: f.chat.id });
     } finally {
       bus.off('event', listen);
       setActiveProject(f.project.id);
@@ -182,18 +261,29 @@ describe('native run lifecycle', () => {
 
   it('pauses an already claimed completion callback instead of repeating uncertain follow-up effects', () => {
     const f = fixture();
-    const brief = addBrief({ kind: 'agent', targetId: f.agent.id, chatId: f.chat.id, name: f.agent.name, text: f.receipt.text, ts: Date.now() });
+    const brief = addBrief({
+      kind: 'agent',
+      targetId: f.agent.id,
+      chatId: f.chat.id,
+      name: f.agent.name,
+      text: f.receipt.text,
+      ts: Date.now(),
+    });
     f.finish('Saved result');
     for (const event of f.events) observeEveEvent(f.id, event);
     updateExecution(f.id, { status: 'completed', answer: 'Saved result', completionClaimed: true });
     let ended = false;
-    onRunEnd(() => { ended = true; });
+    onRunEnd(() => {
+      ended = true;
+    });
     f.coordinator.restore();
     recoverExecution();
     expect(ended).toBe(false);
     expect(isChatBusy(f.chat.id)).toBe(false);
     expect(listBriefs().find((item) => item.id === brief.id)?.status).toBe('stopped');
-    expect(chats.get(f.agent.id, f.chat.id)!.items.some((item) => item.type === 'error' && item.text.includes('paused'))).toBe(true);
+    expect(
+      chats.get(f.agent.id, f.chat.id)!.items.some((item) => item.type === 'error' && item.text.includes('paused')),
+    ).toBe(true);
   });
 
   it('pauses an unreadable native reply without publishing an empty successful answer', async () => {
@@ -210,8 +300,23 @@ describe('native run lifecycle', () => {
 
   it('interrupts a deleted owner instead of reconnecting forever or writing its saved chat', async () => {
     const f = fixture();
-    const operation = prepareOperation({ runId: f.id, bindingId: f.binding.id, sessionId: 'session', callId: 'question', name: 'ask_user', args: { question: 'Choose' }, origin: 'builtin:ask_user', risk: 'none' });
-    const question = addQuestion({ question: 'Choose', agentId: f.agent.id, chatId: f.chat.id, runId: f.id, operationId: operation.id });
+    const operation = prepareOperation({
+      runId: f.id,
+      bindingId: f.binding.id,
+      sessionId: 'session',
+      callId: 'question',
+      name: 'ask_user',
+      args: { question: 'Choose' },
+      origin: 'builtin:ask_user',
+      risk: 'none',
+    });
+    const question = addQuestion({
+      question: 'Choose',
+      agentId: f.agent.id,
+      chatId: f.chat.id,
+      runId: f.id,
+      operationId: operation.id,
+    });
     saveOperation({ ...operation, questionId: question.id, status: 'waiting' });
     f.coordinator.restore();
     const before = chats.get(f.agent.id, f.chat.id)!.items;
@@ -230,12 +335,24 @@ describe('native transcript replay', () => {
   it('keeps complete originals and images once across the chat-save/cursor gap and project switches', async () => {
     const f = fixture();
     const full = 'original result '.repeat(4000);
-    f.add({ type: 'call.requested', data: { callId: 'tool', owner: { runId: 'model' }, capability: { kind: 'tool', name: 'read_file' }, input: {} } });
-    f.add({ type: 'call.settled', data: { callId: 'tool', outcome: 'completed', output: { text: full, images: ['data:image/png;base64,aW1hZ2U='] } } });
+    f.add({
+      type: 'call.requested',
+      data: { callId: 'tool', owner: { runId: 'model' }, capability: { kind: 'tool', name: 'read_file' }, input: {} },
+    });
+    f.add({
+      type: 'call.settled',
+      data: {
+        callId: 'tool',
+        outcome: 'completed',
+        output: { text: full, images: ['data:image/png;base64,aW1hZ2U='] },
+      },
+    });
     f.finish('Full reply');
     for (const event of f.events) observeEveEvent(f.id, event);
     const published: ServerEvent[] = [];
-    const hear = (event: ServerEvent) => { if (event.type === 'run' && event.runId === f.id) published.push(event); };
+    const hear = (event: ServerEvent) => {
+      if (event.type === 'run' && event.runId === f.id) published.push(event);
+    };
     bus.on('event', hear);
     try {
       projectTranscript(f.id);
@@ -252,6 +369,8 @@ describe('native transcript replay', () => {
       });
       expect(withProject(f.project, () => chats.get(f.agent.id, f.chat.id)!.items)).toEqual(first.items);
       expect(published).toHaveLength(3);
-    } finally { bus.off('event', hear); }
+    } finally {
+      bus.off('event', hear);
+    }
   });
 });

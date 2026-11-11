@@ -36,7 +36,11 @@ describe('md() on agent output', () => {
   });
 
   it('keeps a short file name or code word on one line, but lets longer text wrap', () => {
-    const el = md('See [mention-text.tsx](https://x/a) and `frame-ancestors`, [intercepts Tab](https://x/b), `' + 'a'.repeat(50) + '`\n\n```\nsome-code\n```');
+    const el = md(
+      'See [mention-text.tsx](https://x/a) and `frame-ancestors`, [intercepts Tab](https://x/b), `' +
+        'a'.repeat(50) +
+        '`\n\n```\nsome-code\n```',
+    );
     const [file, phrase] = [...el.querySelectorAll('a')];
     const [word, long, block] = [...el.querySelectorAll('code')];
     expect(file.classList.contains('whitespace-nowrap')).toBe(true);

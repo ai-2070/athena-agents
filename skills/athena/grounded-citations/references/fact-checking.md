@@ -10,16 +10,16 @@ The saved file is what quotations are checked against, so it has to be the sourc
 shortened or summarised. Save it as you read the source, name it after the source's number (`pages/3.txt`), and put
 its path at the end of the source's line in the list (or pass it to `add --text-file`).
 
-| The source | How to save its text |
-|---|---|
+| The source                                       | How to save its text                                                                                                                                                                                                                               |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A web page, with the dashboard's page-fetch tool | It returns the page's readable text after a first line with the status and final address. Write that text into `pages/<n>.txt` with your file tools exactly as it came. It stops at a length limit: for a long page, fetch again with a larger one |
-| A web page, with a shell | `curl.exe -fsSL --max-time 60 -A AthenaAgents -o research-work/pages/3.html 'https://…'` in PowerShell (`curl` on macOS and Linux). The script reads the text out of the HTML itself, leaving out scripts, styles and the page's head |
-| A page that builds its text with scripts | The saved HTML comes back nearly empty. A browser that runs scripts (the Playwright MCP server, added on the dashboard's MCP page) shows the text; save what it shows |
-| A PDF (a report, a filing, a paper) | Save the PDF, then its text with the `pdf` skill: `pdf_tool.py text report.pdf --out research-work/pages/4.txt`, which marks each page (`--- page 12 ---`) so you can give page numbers. Scanned pages need OCR first (the same skill) |
-| A paper | `arxiv` finds it and its details; quote from its full text, saved as for a PDF, not from the abstract alone |
-| A video | Its transcript (`youtube-content`) is the text; give the time of the passage in the sentence |
-| A Reddit thread | Save what the social tool returned for the thread |
-| The user's own document | Its text (`docx` for Word, `pdf` for PDF); for a spreadsheet, cite the sheet and cells and give the figure, since there are no sentences to quote |
+| A web page, with a shell                         | `curl.exe -fsSL --max-time 60 -A AthenaAgents -o research-work/pages/3.html 'https://…'` in PowerShell (`curl` on macOS and Linux). The script reads the text out of the HTML itself, leaving out scripts, styles and the page's head              |
+| A page that builds its text with scripts         | The saved HTML comes back nearly empty. A browser that runs scripts (the Playwright MCP server, added on the dashboard's MCP page) shows the text; save what it shows                                                                              |
+| A PDF (a report, a filing, a paper)              | Save the PDF, then its text with the `pdf` skill: `pdf_tool.py text report.pdf --out research-work/pages/4.txt`, which marks each page (`--- page 12 ---`) so you can give page numbers. Scanned pages need OCR first (the same skill)             |
+| A paper                                          | `arxiv` finds it and its details; quote from its full text, saved as for a PDF, not from the abstract alone                                                                                                                                        |
+| A video                                          | Its transcript (`youtube-content`) is the text; give the time of the passage in the sentence                                                                                                                                                       |
+| A Reddit thread                                  | Save what the social tool returned for the thread                                                                                                                                                                                                  |
+| The user's own document                          | Its text (`docx` for Word, `pdf` for PDF); for a spreadsheet, cite the sheet and cells and give the figure, since there are no sentences to quote                                                                                                  |
 
 Then search the saved file for the passage you mean to quote. If it isn't there, the save went wrong or the page
 differs from what you saw: don't quote it until it is.
@@ -77,17 +77,17 @@ edited copy, and report on it:
 
 ## Reading check's problems
 
-| Problem | What to do |
-|---|---|
-| `unknown_id` | The text cites a number the list doesn't have. Cite a listed source, or add the source if you read it |
-| `marker` | `[1, 2]` or `[1-3]`: write `[1][2]` |
-| `no_sources_block`, `block` | The Sources block is missing or doesn't match the list: run `render` again |
-| `quote_not_found` | Fix the quotation from the saved text. If the passage isn't in the file, save the page again or drop the quotation |
-| `unchecked_quote`, `no_saved_text` | Save the source's text and add its path to the list |
-| `no_quote` | Quote the words the claim rests on. A source cited for nothing quotable may not be needed |
-| `uncited_quote` | Add the source's number, or take the quote marks off words that aren't a quotation |
-| `saved_text` | The saved file isn't text (a PDF, a Word file): save its text instead |
-| `list` | A line in the list needs fixing: `sources.py list` names it |
+| Problem                            | What to do                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `unknown_id`                       | The text cites a number the list doesn't have. Cite a listed source, or add the source if you read it              |
+| `marker`                           | `[1, 2]` or `[1-3]`: write `[1][2]`                                                                                |
+| `no_sources_block`, `block`        | The Sources block is missing or doesn't match the list: run `render` again                                         |
+| `quote_not_found`                  | Fix the quotation from the saved text. If the passage isn't in the file, save the page again or drop the quotation |
+| `unchecked_quote`, `no_saved_text` | Save the source's text and add its path to the list                                                                |
+| `no_quote`                         | Quote the words the claim rests on. A source cited for nothing quotable may not be needed                          |
+| `uncited_quote`                    | Add the source's number, or take the quote marks off words that aren't a quotation                                 |
+| `saved_text`                       | The saved file isn't text (a PDF, a Word file): save its text instead                                              |
+| `list`                             | A line in the list needs fixing: `sources.py list` names it                                                        |
 
 Notes (`crowded`, and outside evidence mode `unchecked_quote` and `uncited_quote`) aren't failures, but each is worth
 a look.

@@ -10,6 +10,7 @@ step lists (`WorkTask`) is a different thing and stays as it is.
 ## Status (2026-11-05)
 
 Built on `LZL0/task-tags`, one commit per phase. Where it differs from the plan below:
+
 - Agents have one tool, `board_tags`, with a `find` action, instead of `board_tags` plus `board_find` (section 4).
 - The tag picker makes a tag from what you type ("🐛 Bug" gives it the emoji). The full emoji picker is in **Manage
   tags…**, not in the picker's menu, because a popover inside a popover is fragile.
@@ -59,13 +60,13 @@ TaskBoardData.tags: Record<string, BoardTag[]>;  // per project shown, for the f
 
 New functions, all inside `withProject` and each emitting `board` like today:
 
-| Function | Does |
-|---|---|
-| `boardTags(projectId)` | the project's tags, with how many tasks have each |
-| `addBoardTag(projectId, { name, emoji }, by)` | makes a tag; if one with that name exists, returns it unchanged |
-| `changeBoardTag(projectId, tagId, { name?, emoji? })` | rename, or set or clear the emoji (`emoji: ''` clears it) |
-| `removeBoardTag(projectId, tagId)` | deletes it and takes it off every task |
-| `tagRefs(f, refs, by, create)` | turns names or ids into ids; with `create`, unknown names become new tags |
+| Function                                              | Does                                                                      |
+| ----------------------------------------------------- | ------------------------------------------------------------------------- |
+| `boardTags(projectId)`                                | the project's tags, with how many tasks have each                         |
+| `addBoardTag(projectId, { name, emoji }, by)`         | makes a tag; if one with that name exists, returns it unchanged           |
+| `changeBoardTag(projectId, tagId, { name?, emoji? })` | rename, or set or clear the emoji (`emoji: ''` clears it)                 |
+| `removeBoardTag(projectId, tagId)`                    | deletes it and takes it off every task                                    |
+| `tagRefs(f, refs, by, create)`                        | turns names or ids into ids; with `create`, unknown names become new tags |
 
 - `BoardInput` gets `tags` (the whole list), `addTags` and `removeTags`. Each takes ids or names.
   `addBoardTask` and `changeBoardTask` use them. Changing tags bumps `updatedAt`, so the 409 "changed meanwhile"
@@ -128,8 +129,8 @@ The project is always the run's own (`run.project` / `withProject`), never the o
     `findBoardTask`.
   - `edit` (`tag`, `rename`, `emoji`): risk `low`, because it changes how every task with that tag reads.
   - `delete` (`tag`): risk `high` (it deletes; AGENTS.md rule).
-  It uses `RiskOf` (risk by args), the way other tools whose risk varies do. Each change is signed `agent:<id>`
-  (`createdBy` on new tags), and open boards update through the `board` event.
+    It uses `RiskOf` (risk by args), the way other tools whose risk varies do. Each change is signed `agent:<id>`
+    (`createdBy` on new tags), and open boards update through the `board` event.
 - **Not in gateway conversations** (`when: !isGatewayConversation`): there the agent answers an outside sender, and
   the Brain's board is out of reach in those chats too (`boardScope`). A task's own conversation counts as a normal
   chat for this.
@@ -192,6 +193,7 @@ Filter (board header, next to Priority):
 ## 7. Tests
 
 `tests/server/taskboard.test.ts`
+
 - make, rename, set or clear the emoji, delete; a duplicate name (case, leading emoji) returns the same tag
 - emoji validation: 🐛 and 👩‍💻 and 🇫🇷 pass; "ab", two emoji and plain text fail; the "🐛 Bug" split rule
 - 32-character limit counted in graphemes; the 50 and 10 caps
@@ -202,6 +204,7 @@ Filter (board header, next to Priority):
 - `boardLines` / `boardTagLine` text
 
 `tests/server/boardwork.test.ts`
+
 - `board_tags` from an ordinary chat: list, create, tag any task by #number (add, remove, replace), edit, delete;
   risk is `none`, `low` or `high` by action; refused in a gateway conversation; uses the run's project when another
   is open
@@ -209,12 +212,14 @@ Filter (board header, next to Priority):
 - `board_find`: any and all match, untagged, status, limit; reads the run's own project even when another is open
 
 Brain actions (where `board_add` / `board_update` are tested today)
+
 - `board_find` look-up returns matches and the Brain answers again; `board_tag` make, rename and delete; `board_update` with `addTags` / `removeTags`; a private conversation can tag
   its own task but can't rename or delete tags
 
 `tests/server/api.test.ts`: the four tag routes, `x-dash` required; `/api/task-board` lists the projects' tags.
 
 `tests/web/tasks-board.test.tsx`
+
 - cards show tags and "+n"; the Tags filter (any-of, No tags, Clear, All projects by name); clicking a tag filters
 - task page: add, create with emoji, remove; Manage tags rename and delete
 

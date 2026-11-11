@@ -42,7 +42,10 @@ export default async function setup(project: TestProject) {
       project.provide('lockSlot', slot);
       return () => new Promise<void>((resolve) => guard.close(() => resolve()));
     }
-    if (Date.now() > until) throw new Error(`${RUN_SLOTS} other test runs have been going on this computer for ten minutes; try again when one ends.`);
+    if (Date.now() > until)
+      throw new Error(
+        `${RUN_SLOTS} other test runs have been going on this computer for ten minutes; try again when one ends.`,
+      );
     if (!waited) console.log(`${RUN_SLOTS} other test runs are going on this computer; waiting for one to end.`);
     waited = true;
     await new Promise((resolve) => setTimeout(resolve, 2000));

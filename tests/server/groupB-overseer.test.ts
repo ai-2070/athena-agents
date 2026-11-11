@@ -19,7 +19,10 @@ vi.mock('../../server/brain.ts', async (orig) => ({
 describe('ask()', () => {
   it('does not apply its actions to the project you switched to', async () => {
     const home = activeProject();
-    saveProjects([...listProjects(), { ...home, id: 'other-2', name: 'Other', brainPath: path.join(path.dirname(home.brainPath), 'other-2') }]);
+    saveProjects([
+      ...listProjects(),
+      { ...home, id: 'other-2', name: 'Other', brainPath: path.join(path.dirname(home.brainPath), 'other-2') },
+    ]);
     try {
       const r = await ask('Set things up');
       expect(r.done).toEqual([expect.objectContaining({ kind: 'error' })]);

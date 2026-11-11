@@ -14,7 +14,8 @@ function uiStream() {
   let ctl!: ReadableStreamDefaultController<Uint8Array>;
   const body = new ReadableStream<Uint8Array>({ start: (c) => void (ctl = c) });
   return {
-    response: () => new Response(body, { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } }),
+    response: () =>
+      new Response(body, { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } }),
     push: (c: UIMessageChunk) => ctl.enqueue(enc.encode(`data: ${JSON.stringify(c)}\n\n`)),
     end: () => (ctl.enqueue(enc.encode('event: done\n\n')), ctl.close()),
   };
@@ -25,7 +26,13 @@ const settle = () => act(() => new Promise((r) => setTimeout(r, 40)));
 
 beforeAll(() => {
   document.body.append(Object.assign(document.createElement('div'), { id: 'toasts' }));
-  state.data = { runs: [], approvals: [], agents: [], project: { id: 'p1', name: 'P' }, settings: { brain: { provider: 'claude', model: 'haiku' } } } as unknown as AppState;
+  state.data = {
+    runs: [],
+    approvals: [],
+    agents: [],
+    project: { id: 'p1', name: 'P' },
+    settings: { brain: { provider: 'claude', model: 'haiku' } },
+  } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url === '/api/brain/stream') {
@@ -62,8 +69,19 @@ describe('the Brain chat', () => {
     const b = brain!;
     await act(async () => {
       b.push({ type: 'start', messageId: 'brain-1' });
-      b.push({ type: 'tool-input-available', toolCallId: 'r', toolName: 'Read', input: { file_path: 'BRAIN.md' }, dynamic: true });
-      b.push({ type: 'tool-output-available', toolCallId: 'r', output: { text: '# Brain notes', images: [] }, dynamic: true });
+      b.push({
+        type: 'tool-input-available',
+        toolCallId: 'r',
+        toolName: 'Read',
+        input: { file_path: 'BRAIN.md' },
+        dynamic: true,
+      });
+      b.push({
+        type: 'tool-output-available',
+        toolCallId: 'r',
+        output: { text: '# Brain notes', images: [] },
+        dynamic: true,
+      });
       b.push({ type: 'text-start', id: 't' });
       b.push({ type: 'text-delta', id: 't', delta: 'I am building ' });
     });
@@ -77,7 +95,16 @@ describe('the Brain chat', () => {
     await act(async () => {
       b.push({ type: 'text-delta', id: 't', delta: 'the team.' });
       b.push({ type: 'text-end', id: 't' });
-      b.push({ type: 'data-answer', data: { answer: 'I built the team.', done: [{ kind: 'team', text: 'Made the team "Thumbs"', teamId: 'w1' }], delegate: null, model: {}, project: 'P' } } as UIMessageChunk);
+      b.push({
+        type: 'data-answer',
+        data: {
+          answer: 'I built the team.',
+          done: [{ kind: 'team', text: 'Made the team "Thumbs"', teamId: 'w1' }],
+          delegate: null,
+          model: {},
+          project: 'P',
+        },
+      } as UIMessageChunk);
       b.push({ type: 'finish' });
       b.end();
     });
@@ -104,7 +131,14 @@ describe('brainProgress()', () => {
       parts: [
         { type: 'text', text: 'Let me open the skill.' },
         { type: 'data-restart', data: {} },
-        { type: 'dynamic-tool', toolName: 'Read', toolCallId: 'r', state: 'output-error', input: {}, errorText: 'not found' },
+        {
+          type: 'dynamic-tool',
+          toolName: 'Read',
+          toolCallId: 'r',
+          state: 'output-error',
+          input: {},
+          errorText: 'not found',
+        },
         { type: 'text', text: 'Here is the plan.' },
       ],
     } as never);

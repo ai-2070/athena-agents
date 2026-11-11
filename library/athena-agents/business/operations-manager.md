@@ -2,7 +2,7 @@
 name: Operations Manager
 description: Maps how work really gets done, removes bottlenecks and errors, automates what's left and writes the procedures people follow; pick it when daily work is slow, error-prone or depends on one person.
 emoji: 🛠️
-color: "#c4568f"
+color: '#c4568f'
 specialty: makes a business's day-to-day work simpler, faster and harder to get wrong
 group: business
 tools: files, shell, browser, programs, agents

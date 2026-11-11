@@ -54,10 +54,14 @@ describe('the Settings page', () => {
 
   it('leaves the hidden Gateways tab out of the row, but its link still opens it', async () => {
     await open('#/settings?tab=look');
-    const tabs = () => [...el.querySelectorAll('[role="tablist"][aria-label="Settings"] [role="tab"]')].map((t) => t.textContent);
+    const tabs = () =>
+      [...el.querySelectorAll('[role="tablist"][aria-label="Settings"] [role="tab"]')].map((t) => t.textContent);
     expect(tabs()).not.toContain('Gateways');
     act(() => settings.unmount());
-    const replies: Record<string, unknown> = { '/api/gateways': { instances: [], health: [] }, '/api/projects': { projects: [] } };
+    const replies: Record<string, unknown> = {
+      '/api/gateways': { instances: [], health: [] },
+      '/api/projects': { projects: [] },
+    };
     vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(replies[url] ?? {})));
     await open('#/settings?tab=gateways');
     expect(tabs()).toContain('Gateways');
@@ -86,7 +90,15 @@ describe('the Settings page', () => {
     const replies: Record<string, unknown> = {
       '/api/outbox': [],
       '/api/accounts': { x: [], reddit: [], xAppConfigured: false, redditAppConfigured: false },
-      '/api/settings': { settings: { x: {}, reddit: {}, telegram: { chatId: '' } }, secrets: { xClientSecret: { set: false }, redditClientSecret: { set: false }, telegramBotToken: { set: false }, discordWebhook: { set: false } } },
+      '/api/settings': {
+        settings: { x: {}, reddit: {}, telegram: { chatId: '' } },
+        secrets: {
+          xClientSecret: { set: false },
+          redditClientSecret: { set: false },
+          telegramBotToken: { set: false },
+          discordWebhook: { set: false },
+        },
+      },
     };
     vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(replies[url] ?? {})));
     await open('#/settings?tab=connections&sub=accounts');
@@ -99,7 +111,9 @@ describe('the Settings page', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
     await settle();
-    const hit = [...document.querySelectorAll<HTMLElement>('.settings-search-hit')].find((h) => h.textContent!.includes('Outbox (posts waiting for you)'))!;
+    const hit = [...document.querySelectorAll<HTMLElement>('.settings-search-hit')].find((h) =>
+      h.textContent!.includes('Outbox (posts waiting for you)'),
+    )!;
     await act(async () => hit.click());
     await settle();
     expect(sub().some((t) => t?.startsWith('Outbox'))).toBe(true);
@@ -130,7 +144,13 @@ describe('ViewHost', () => {
   it('shows the error when the page fails to draw', async () => {
     const host = document.createElement('div');
     let page!: { unmount: () => void };
-    await act(async () => void (page = mountReact(host, <ViewHost view={{ render: async () => Promise.reject(new Error('no data')) }} />)));
+    await act(
+      async () =>
+        void (page = mountReact(
+          host,
+          <ViewHost view={{ render: async () => Promise.reject(new Error('no data')) }} />,
+        )),
+    );
     await settle();
     expect(host.textContent).toBe('Something went wrong: no data');
     await act(async () => page.unmount());
@@ -169,7 +189,9 @@ describe('the Appearance tab', () => {
     location.hash = '#/settings?tab=look';
     await act(async () => settings.render(el));
     await settle();
-    const swatch = [...el.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((r) => r.textContent === 'Terracotta')!;
+    const swatch = [...el.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find(
+      (r) => r.textContent === 'Terracotta',
+    )!;
     await act(async () => swatch.click());
     // (off to another page at once, before the save was due)
     act(() => settings.unmount());
@@ -188,7 +210,8 @@ describe('the Appearance tab', () => {
     location.hash = '#/settings?tab=look';
     await act(async () => settings.render(el));
     await settle();
-    const button = (text: string) => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text);
+    const button = (text: string) =>
+      [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text);
     expect(button('High')).toBeUndefined();
     await act(async () => button('Voxel world')!.click());
     await act(async () => button('High')!.click());
@@ -202,7 +225,9 @@ describe('the Appearance tab', () => {
     await settle();
     const slider = el.querySelector<HTMLInputElement>('input[type="range"][aria-label="UI scale"]')!;
     expect(slider.getAttribute('aria-valuetext')).toBe('100%');
-    const big = [...el.querySelectorAll<HTMLButtonElement>('.look-presets button')].find((b) => b.textContent === '125%')!;
+    const big = [...el.querySelectorAll<HTMLButtonElement>('.look-presets button')].find(
+      (b) => b.textContent === '125%',
+    )!;
     await act(async () => big.click());
     expect(big.getAttribute('aria-pressed')).toBe('true');
     expect(el.querySelector('.look-pct')!.textContent).toBe('125%');

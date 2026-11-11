@@ -8,11 +8,11 @@ Give agents, teams and the Brain the task tools available in Claude Code, and gi
 
 The implementation follows Anthropic's public [TaskCreate, TaskGet, TaskList and TaskUpdate schemas](https://code.claude.com/docs/en/agent-sdk/python#taskcreate) and [agent-team task coordination](https://code.claude.com/docs/en/agent-teams), reviewed on 1 November 2026. It is our implementation of the documented behavior. No proprietary Claude Code implementation is copied.
 
-| Tool | Saved behavior |
-|---|---|
-| `TaskCreate` | Create a pending task with subject, full description, optional activeForm and metadata. |
-| `TaskGet` | Read full details, owner, metadata and both dependency directions. |
-| `TaskList` | Read summaries, owners and unfinished blockers, with pagination and filters. |
+| Tool         | Saved behavior                                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TaskCreate` | Create a pending task with subject, full description, optional activeForm and metadata.                                                                 |
+| `TaskGet`    | Read full details, owner, metadata and both dependency directions.                                                                                      |
+| `TaskList`   | Read summaries, owners and unfinished blockers, with pagination and filters.                                                                            |
 | `TaskUpdate` | Change details, claim work, set pending/in_progress/completed/deleted, merge metadata, and add dependency links. A null metadata value removes its key. |
 
 Athena extensions are project/list scope, an owner at creation, dependency removal, search/status/pagination, optimistic edit versions, bulk creation/updates and assignment links for completion checks. Owners are empty, `brain`, `agent:<id>` or `team:<id>`. These names refer to saved Athena agents and teams, not Claude Code teammates.
@@ -22,11 +22,21 @@ Athena extensions are project/list scope, an owner at creation, dependency remov
 TaskCreate and TaskUpdate accept either the original single-task fields or `{ "tasks": [...] }`, with a non-empty array and **no per-call task-count cap**, as requested by the user. Mixing the two forms, a missing/empty array or a non-array fails before any mutation. Single-task inputs and responses remain compatible.
 
 ```json
-{"tasks":[{"subject":"Write the report","description":"Include the findings and sources."},{"subject":"Review the report","description":"Verify every claim."}]}
+{
+  "tasks": [
+    { "subject": "Write the report", "description": "Include the findings and sources." },
+    { "subject": "Review the report", "description": "Verify every claim." }
+  ]
+}
 ```
 
 ```json
-{"tasks":[{"taskId":"<first id>","status":"completed"},{"taskId":"<second id>","addBlockedBy":["<first id>"],"status":"in_progress"}]}
+{
+  "tasks": [
+    { "taskId": "<first id>", "status": "completed" },
+    { "taskId": "<second id>", "addBlockedBy": ["<first id>"], "status": "in_progress" }
+  ]
+}
 ```
 
 The shared batch runner applies each item in array order using the existing create/update validation, permissions, ownership, dependency and version checks. Every item is its own saved change: failures leave that item unchanged and do not roll back successful siblings or prevent later items. Nested batches are rejected per item. This is partial-success behavior, not a transaction over the whole array; retry only failed entries to avoid duplicate creates.

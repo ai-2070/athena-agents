@@ -1,6 +1,6 @@
 # One app for desktop, web and Android
 
-*Plan, 2026-10-26. Nothing here is built yet.*
+_Plan, 2026-10-26. Nothing here is built yet._
 
 ## Goal
 
@@ -36,11 +36,11 @@ when it can and through a relay when it can't, and moves to a direct path later 
 
 The three parts can be done in this order. Each one is useful on its own.
 
-| Part | What | Why here |
-|---|---|---|
-| A | One client for everything the page asks the server | Small. The Net part and the Base UI pages both build on it |
-| B | Pages on React with Base UI | Phone-sized layouts. The longest part; goes page by page |
-| C | Net: pairing, relay, the Android app | Needs A. Its first step (a proof of concept) can start while B goes on |
+| Part | What                                               | Why here                                                               |
+| ---- | -------------------------------------------------- | ---------------------------------------------------------------------- |
+| A    | One client for everything the page asks the server | Small. The Net part and the Base UI pages both build on it             |
+| B    | Pages on React with Base UI                        | Phone-sized layouts. The longest part; goes page by page               |
+| C    | Net: pairing, relay, the Android app               | Needs A. Its first step (a proof of concept) can start while B goes on |
 
 We talked about doing B first. A first is cheaper: B rewrites every page, and if A is done
 those pages call the new client from day one instead of being touched twice. A takes days; B

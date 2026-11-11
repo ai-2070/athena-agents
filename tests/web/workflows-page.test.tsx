@@ -10,10 +10,18 @@ import type { AppState } from '../../shared/types.ts';
 const settle = (ms = 30) => act(() => new Promise((r) => setTimeout(r, ms)));
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
-const wf = { id: 'w1', name: 'Daily post', description: '', members: [], schedule: { type: 'none' }, enabled: false, steps: [
-  { id: 's1', type: 'agent', agentId: 'a1', prompt: '{{input}}', label: 'Research' },
-  { id: 's2', type: 'approval', label: 'Check' },
-] };
+const wf = {
+  id: 'w1',
+  name: 'Daily post',
+  description: '',
+  members: [],
+  schedule: { type: 'none' },
+  enabled: false,
+  steps: [
+    { id: 's1', type: 'agent', agentId: 'a1', prompt: '{{input}}', label: 'Research' },
+    { id: 's2', type: 'approval', label: 'Check' },
+  ],
+};
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><section id="view"></section>';
@@ -25,7 +33,10 @@ beforeEach(() => {
     requests.push({ method, url, body: init.body ? JSON.parse(String(init.body)) : null });
     const json = (v: unknown) => new Response(JSON.stringify(v));
     if (url === '/api/workflows/w1' && method === 'GET') return json(wf);
-    if (url === '/api/tools') return json({ tools: [{ name: 'comfy_run', group: 'programs', risk: 'low', description: 'Runs a ComfyUI workflow' }] });
+    if (url === '/api/tools')
+      return json({
+        tools: [{ name: 'comfy_run', group: 'programs', risk: 'low', description: 'Runs a ComfyUI workflow' }],
+      });
     if (url.startsWith('/api/workflow-runs')) return json([]);
     return json({ ok: true });
   });
@@ -39,7 +50,9 @@ const open = async () => {
   await act(async () => workflows.render(el, ['w1']));
   await settle(200);
 };
-const btn = (label: string) => el.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`) || [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === label)!;
+const btn = (label: string) =>
+  el.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`) ||
+  [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === label)!;
 const labels = () => [...el.querySelectorAll<HTMLInputElement>('.wf-label')].map((i) => i.value);
 
 describe('moveStep()', () => {
@@ -69,9 +82,16 @@ describe('the workflow editor', () => {
     await open();
     await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Step 2: what it does"]')!.click());
     await settle();
-    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent?.trim() === 'Use a tool')!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+        .find((option) => option.textContent?.trim() === 'Use a tool')!
+        .click(),
+    );
     const step = el.querySelectorAll('.step')[1];
-    expect([...step.querySelectorAll('label.field > span:first-child')].map((s) => s.textContent)).toEqual(['Tool', 'Arguments (JSON)']);
+    expect([...step.querySelectorAll('label.field > span:first-child')].map((s) => s.textContent)).toEqual([
+      'Tool',
+      'Arguments (JSON)',
+    ]);
   });
 
   it('Run now saves your changes first', async () => {
@@ -79,16 +99,28 @@ describe('the workflow editor', () => {
     await act(async () => btn('Remove step 2').click());
     await act(async () => btn('Run now').click());
     await settle();
-    expect(requests.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.url}`)).toEqual(['PUT /api/workflows/w1', 'POST /api/workflows/w1/run']);
+    expect(requests.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.url}`)).toEqual([
+      'PUT /api/workflows/w1',
+      'POST /api/workflows/w1/run',
+    ]);
   });
 
   it('makes the Telegram notification option an Outbox draft with explicit recipient choice and approval', async () => {
-    await open(); await act(async () => btn('+ Notify me').click());
-    const label = [...el.querySelectorAll('label.switch-row')].find((row) => row.textContent?.includes('Also draft a Telegram message in Outbox'))!;
-    expect(label).toBeTruthy(); expect(el.textContent).toContain('Choose the gateway recipient and approve the draft in Outbox before it sends.');
-    await act(async () => label.querySelector<HTMLElement>('.toggle-text')!.click()); expect(label.querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('true');
-    await act(async () => btn('Save').click()); await settle();
-    const saved = requests.find((request) => request.method === 'PUT')!.body as { steps: { type: string; telegram?: boolean }[] }; expect(saved.steps.at(-1)).toMatchObject({ type: 'notify', telegram: true });
+    await open();
+    await act(async () => btn('+ Notify me').click());
+    const label = [...el.querySelectorAll('label.switch-row')].find((row) =>
+      row.textContent?.includes('Also draft a Telegram message in Outbox'),
+    )!;
+    expect(label).toBeTruthy();
+    expect(el.textContent).toContain('Choose the gateway recipient and approve the draft in Outbox before it sends.');
+    await act(async () => label.querySelector<HTMLElement>('.toggle-text')!.click());
+    expect(label.querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('true');
+    await act(async () => btn('Save').click());
+    await settle();
+    const saved = requests.find((request) => request.method === 'PUT')!.body as {
+      steps: { type: string; telegram?: boolean }[];
+    };
+    expect(saved.steps.at(-1)).toMatchObject({ type: 'notify', telegram: true });
     expect(requests.some((request) => request.url.includes('/approve'))).toBe(false);
   });
 });

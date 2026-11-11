@@ -1,5 +1,7 @@
 /* Element styles on top of Tailwind's reset (preflight). Imported into the base layer by app.css. */
-:root { color-scheme: light dark; }
+:root {
+  color-scheme: light dark;
+}
 
 /* The system is dark: the same tokens, near-black. (The accent picked in Settings > Appearance is set by look.ts,
    which follows the system too.) <html data-theme="dark"> or "light" forces one, for checking both. */
@@ -64,9 +66,14 @@
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3);
   --shadow-lift: 0 10px 28px -8px rgb(0 0 0 / 0.55), 0 1px 3px rgb(0 0 0 / 0.4);
 }
-:root[data-theme='light'] { color-scheme: light; }
+:root[data-theme='light'] {
+  color-scheme: light;
+}
 
-html, body { height: 100%; }
+html,
+body {
+  height: 100%;
+}
 body {
   background: var(--color-bg);
   color: var(--color-ink);
@@ -86,66 +93,212 @@ body:not(.station-mode) {
 body:not(.station-mode) #main {
   background-image: linear-gradient(155deg, light-dark(transparent, rgb(255 255 255 / 0.045)), transparent 42%);
 }
-a { color: var(--color-accent); text-decoration: none; }
-a:hover { color: var(--color-accent-hover); }
-::selection { background: color-mix(in srgb, var(--color-accent) 28%, transparent); }
-:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent); outline-offset: 2px; }
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--color-accent-hover);
+}
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+}
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+  outline-offset: 2px;
+}
 
 /* thin, quiet scrollbars */
-* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--color-ink) 20%, transparent) transparent; }
-*::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--color-ink) 20%, transparent); border: 2px solid transparent; border-radius: 999px; background-clip: padding-box; }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-ink) 20%, transparent) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-ink) 20%, transparent);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
 
 /* headings are semibold (their size and margins come from where they're used) */
-h1, h2, h3, h4, h5, h6, optgroup { font-weight: 600; letter-spacing: -0.006em; }
-b, strong { font-weight: 600; }
-p { margin: 0 0 12px; }
-code, pre, kbd { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0; }
-:not(pre) > code { background: var(--color-panel-2); border: 1px solid var(--color-line); border-radius: 5px; padding: 1px 6px; }
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+optgroup {
+  font-weight: 600;
+  letter-spacing: -0.006em;
+}
+b,
+strong {
+  font-weight: 600;
+}
+p {
+  margin: 0 0 12px;
+}
+code,
+pre,
+kbd {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  letter-spacing: 0;
+}
+:not(pre) > code {
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-line);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
 pre {
-  background: var(--color-panel); border: 1px solid var(--color-line); border-radius: var(--radius-box);
-  padding: 14px 16px; margin: 10px 0; overflow: auto; max-height: 420px; white-space: pre-wrap; word-break: break-word;
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-box);
+  padding: 14px 16px;
+  margin: 10px 0;
+  overflow: auto;
+  max-height: 420px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* text boxes look the same everywhere */
-input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='button'], [type='submit'], [type='reset'], [type='image'], [type='hidden']), select, textarea {
+input:not(
+  [type='checkbox'],
+  [type='radio'],
+  [type='range'],
+  [type='file'],
+  [type='button'],
+  [type='submit'],
+  [type='reset'],
+  [type='image'],
+  [type='hidden']
+),
+select,
+textarea {
   width: 100%;
-  background: var(--color-bg); border: 1px solid var(--color-line-2); color: var(--color-ink);
-  padding: 9px 12px; outline: none;
+  background: var(--color-bg);
+  border: 1px solid var(--color-line-2);
+  color: var(--color-ink);
+  padding: 9px 12px;
+  outline: none;
   box-shadow: var(--shadow-card);
   /* one size and line height, so a monospace box (.code) is as tall as a plain one beside it */
-  font-size: 14px; line-height: 20px;
-  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+  font-size: 14px;
+  line-height: 20px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background-color 0.15s;
 }
 /* a colour swatch: a text box with the colour filling it, as tall as the field beside it */
-input[type='color'] { height: 40px; width: 48px; flex: none; padding: 4px; cursor: pointer; }
-input, select, textarea { border-radius: var(--radius-ctl); }
-input:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var(--color-ink) 22%, var(--color-line-2)); }
-input:focus, select:focus, textarea:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent); }
+input[type='color'] {
+  height: 40px;
+  width: 48px;
+  flex: none;
+  padding: 4px;
+  cursor: pointer;
+}
+input,
+select,
+textarea {
+  border-radius: var(--radius-ctl);
+}
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: color-mix(in srgb, var(--color-ink) 22%, var(--color-line-2));
+}
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
 /* Text fields use their focus shadow instead of a second focus-visible outline. */
-textarea:focus-visible, select:focus-visible { outline: none; }
-input:disabled, select:disabled, textarea:disabled { background: var(--color-panel-2); color: var(--color-faint); cursor: not-allowed; }
-input[type='search']::-webkit-search-cancel-button { display: none; appearance: none; }
-textarea { resize: vertical; min-height: 96px; line-height: 1.55; }
-textarea.code, input.code { font-family: var(--font-mono); font-size: 12.5px; }
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--color-panel-2);
+  color: var(--color-faint);
+  cursor: not-allowed;
+}
+input[type='search']::-webkit-search-cancel-button {
+  display: none;
+  appearance: none;
+}
+textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.55;
+}
+textarea.code,
+input.code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
 /* the Settings pages and the skill editor: every box in mono, like the .code ones */
-.mono-fields :is(input, select, textarea) { font-family: var(--font-mono); font-size: 12.5px; }
+.mono-fields :is(input, select, textarea) {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
 select {
-  appearance: none; padding-right: 32px;
-  background-image: linear-gradient(45deg, transparent 50%, var(--color-dim) 50%), linear-gradient(135deg, var(--color-dim) 50%, transparent 50%);
-  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
+  appearance: none;
+  padding-right: 32px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-dim) 50%),
+    linear-gradient(135deg, var(--color-dim) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
 }
 /* as the browser had them before the reset: controls don't take the letter spacing around them,
    checkboxes keep their small margin */
-button, input, select, optgroup, textarea { letter-spacing: normal; }
-input[type='checkbox'], input[type='radio'] { margin: 3px 3px 3px 4px; accent-color: var(--color-accent); }
-::placeholder { color: var(--color-faint); opacity: 0.85; }
+button,
+input,
+select,
+optgroup,
+textarea {
+  letter-spacing: normal;
+}
+input[type='checkbox'],
+input[type='radio'] {
+  margin: 3px 3px 3px 4px;
+  accent-color: var(--color-accent);
+}
+::placeholder {
+  color: var(--color-faint);
+  opacity: 0.85;
+}
 
 /* Settings > Appearance > Animations: Reduced, or the system setting */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
-html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
-  animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important;
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
 }

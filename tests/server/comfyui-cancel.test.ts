@@ -13,7 +13,8 @@ beforeAll(async () => {
     let body = '';
     for await (const c of req) body += c;
     calls.push({ url: `${req.method} ${req.url}`, body });
-    if (req.method === 'GET' && req.url === '/queue') return res.end(JSON.stringify({ queue_running: [[1, running, {}, {}, []]], queue_pending: [] }));
+    if (req.method === 'GET' && req.url === '/queue')
+      return res.end(JSON.stringify({ queue_running: [[1, running, {}, {}, []]], queue_pending: [] }));
     res.end('{}');
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));

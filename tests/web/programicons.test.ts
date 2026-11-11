@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { programIcon } from '../../web/programicons.ts';
 import { icon, logo } from '../../web/icons.ts';
 
-const path = (el: Element | null): string | null => (el && el.tagName.toLowerCase() === 'svg' ? el.querySelector('path')?.getAttribute('d') ?? null : null);
+const path = (el: Element | null): string | null =>
+  el && el.tagName.toLowerCase() === 'svg' ? (el.querySelector('path')?.getAttribute('d') ?? null) : null;
 
 describe('programIcon', () => {
-  it('draws the Claude Code mark for the Claude Code program, not the Claude model\'s', () => {
+  it("draws the Claude Code mark for the Claude Code program, not the Claude model's", () => {
     expect(path(programIcon('claude', 'Claude Code'))).toBe(path(logo('claude code')));
     expect(path(programIcon('claude', 'Claude Code'))).not.toBe(path(logo('claude')));
   });
@@ -18,7 +19,23 @@ describe('programIcon', () => {
   });
 
   it('uses local upstream artwork for the agents and programs with custom marks', () => {
-    for (const id of ['hermes', 'pi', 'omp', 'openclaw', 'opencode', 'venice', 'painter', 'designer', 'handbrakecli', 'imagemagick', 'prusaslicer', 'orcaslicer', 'vscode', 'orca', 'ffmpeg']) {
+    for (const id of [
+      'hermes',
+      'pi',
+      'omp',
+      'openclaw',
+      'opencode',
+      'venice',
+      'painter',
+      'designer',
+      'handbrakecli',
+      'imagemagick',
+      'prusaslicer',
+      'orcaslicer',
+      'vscode',
+      'orca',
+      'ffmpeg',
+    ]) {
       const image = programIcon(id, id, 24)!;
       expect(image.tagName.toLowerCase()).toBe('img');
       expect(image.getAttribute('src')).toMatch(new RegExp(`/brand/engines/${id}\\.(svg|png)$`));

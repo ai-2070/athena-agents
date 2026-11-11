@@ -10,8 +10,14 @@ export default eveChannel({
     if (!runId) return { auth: eve.caller };
     const binding = eve.caller?.attributes?.binding;
     if (typeof binding !== 'string' || !binding) throw new Error('This input has no Athena binding.');
-    const result = await bridgeCall(binding, '/admission', { runId, sessionId: eve.sessionId, messageHash: createHash('sha256').update(canonical(message)).digest('hex') });
-    const input = z.object({ history: z.array(z.object({ id: z.string(), role: z.enum(['user', 'assistant']), text: z.string() })) }).parse(result);
+    const result = await bridgeCall(binding, '/admission', {
+      runId,
+      sessionId: eve.sessionId,
+      messageHash: createHash('sha256').update(canonical(message)).digest('hex'),
+    });
+    const input = z
+      .object({ history: z.array(z.object({ id: z.string(), role: z.enum(['user', 'assistant']), text: z.string() })) })
+      .parse(result);
     return { auth: eve.caller, history: input.history };
   },
   auth: async (request) => {

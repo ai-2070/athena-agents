@@ -5,7 +5,10 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 // "inside the folders" is decided by files.viewable; here, anything under a folder named allowed/ is
-vi.mock('../../server/files.ts', async (orig) => ({ ...(await orig<typeof import('../../server/files.ts')>()), viewable: (p: unknown) => (typeof p === 'string' && p.includes(`${path.sep}allowed${path.sep}`) ? p : null) }));
+vi.mock('../../server/files.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/files.ts')>()),
+  viewable: (p: unknown) => (typeof p === 'string' && p.includes(`${path.sep}allowed${path.sep}`) ? p : null),
+}));
 
 const { checkImages } = await import('../../server/social.ts');
 
@@ -35,7 +38,12 @@ describe('checkImages', () => {
   });
 
   it('refuses more than 4', () => {
-    expect(() => checkImages('x', [1, 2, 3, 4, 5].map((i) => file(`n${i}.png`)))).toThrow(/at most 4/);
+    expect(() =>
+      checkImages(
+        'x',
+        [1, 2, 3, 4, 5].map((i) => file(`n${i}.png`)),
+      ),
+    ).toThrow(/at most 4/);
   });
 
   it('refuses files outside the folders, non-images and GIFs', () => {

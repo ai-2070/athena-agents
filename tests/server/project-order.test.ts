@@ -12,7 +12,11 @@ describe('reorderProjects()', () => {
     expect(before.slice(-3)).toEqual([a.id, b.id, c.id]);
     const next = reorderProjects([c.id, a.id, b.id]);
     expect(next.slice(0, 3).map((p) => p.id)).toEqual([c.id, a.id, b.id]);
-    expect(listProjects().slice(0, 3).map((p) => p.id)).toEqual([c.id, a.id, b.id]);
+    expect(
+      listProjects()
+        .slice(0, 3)
+        .map((p) => p.id),
+    ).toEqual([c.id, a.id, b.id]);
   });
 
   it('keeps projects it was not told about (after the others) and ignores ids that are not projects', async () => {

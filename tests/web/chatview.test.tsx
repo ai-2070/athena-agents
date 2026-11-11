@@ -31,7 +31,8 @@ function uiStream() {
   let ctl!: ReadableStreamDefaultController<Uint8Array>;
   const body = new ReadableStream<Uint8Array>({ start: (c) => void (ctl = c) });
   return {
-    response: () => new Response(body, { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } }),
+    response: () =>
+      new Response(body, { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } }),
     push: (c: UIMessageChunk) => ctl.enqueue(enc.encode(`data: ${JSON.stringify(c)}\n\n`)),
     end: () => {
       ctl.enqueue(enc.encode('event: done\n\n'));
@@ -53,7 +54,14 @@ const SAVED: ChatItem[] = [
   { type: 'assistant', text: 'old answer' },
   { type: 'compaction', id: 'k1', text: 'COMPACTED HISTORY TEXT', mode: 'engine', trigger: 'auto', upto: 2 },
   { type: 'user', text: 'make a render' },
-  { type: 'tool', id: 't1', name: 'blender_run_python', args: { code: 'bpy.ops.render()' }, result: 'rendered', status: 'done' },
+  {
+    type: 'tool',
+    id: 't1',
+    name: 'blender_run_python',
+    args: { code: 'bpy.ops.render()' },
+    result: 'rendered',
+    status: 'done',
+  },
   { type: 'assistant', text: 'Saved it to **/w/render.png**' },
 ];
 let chat: Chat;
@@ -63,14 +71,23 @@ let resumeStream: ReturnType<typeof uiStream> | null;
 let unqueuedOnStop: QueuedMessage[];
 
 const settle = () => act(() => new Promise((r) => setTimeout(r, 40)));
-const wsEvent = (ev: Record<string, unknown>) => act(() => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
+const wsEvent = (ev: Record<string, unknown>) =>
+  act(() => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
 
 beforeAll(() => {
   vi.stubGlobal('WebSocket', FakeSocket);
   connectEvents();
 });
 beforeEach(() => {
-  chat = { id: 'c1', agentId: 'a1', title: 'Renders', items: structuredClone(SAVED), sessionId: null, createdAt: 0, updatedAt: 0 };
+  chat = {
+    id: 'c1',
+    agentId: 'a1',
+    title: 'Renders',
+    items: structuredClone(SAVED),
+    sessionId: null,
+    createdAt: 0,
+    updatedAt: 0,
+  };
   requests = [];
   sendStream = null;
   resumeStream = null;
@@ -89,7 +106,8 @@ beforeEach(() => {
       init.signal?.addEventListener('abort', () => s.abort());
       return s.response();
     }
-    if (url === '/api/agents/a1/chats/c1/stream' && method === 'GET') return resumeStream ? resumeStream.response() : new Response(null, { status: 204 });
+    if (url === '/api/agents/a1/chats/c1/stream' && method === 'GET')
+      return resumeStream ? resumeStream.response() : new Response(null, { status: 204 });
     if (url === '/api/agents/a1/chats/c1/compact') return json({ compacted: true, item: {} });
     if (url === '/api/agents/a1/chats/c1/stop') return json({ ok: true, unqueued: unqueuedOnStop });
     if (url === '/api/agents/a1/commands') return json([{ name: 'review', about: 'Review the changes' }]);
@@ -98,7 +116,17 @@ beforeEach(() => {
       if (body.text === 'boom') return new Response(JSON.stringify({ error: 'Could not save it.' }), { status: 500 });
       return json({ queued: body.text === 'gone' ? null : { id: url.split('/').pop(), text: body.text, ts: 0 } });
     }
-    if (url === '/api/files/info') return json((body.paths as string[]).map((p) => ({ path: p, ok: p === '/w/render.png', kind: 'image', name: 'render.png', size: 10, modified: 0 })));
+    if (url === '/api/files/info')
+      return json(
+        (body.paths as string[]).map((p) => ({
+          path: p,
+          ok: p === '/w/render.png',
+          kind: 'image',
+          name: 'render.png',
+          size: 10,
+          modified: 0,
+        })),
+      );
     return json({});
   });
 });
@@ -145,7 +173,10 @@ describe('the agent chat (AI SDK)', () => {
     const el = await open();
     await type(el, 'and a video');
     await settle();
-    expect(requests.find((r) => r.method === 'POST' && r.url.endsWith('/stream'))!.body).toEqual({ text: 'and a video', attachments: [] });
+    expect(requests.find((r) => r.method === 'POST' && r.url.endsWith('/stream'))!.body).toEqual({
+      text: 'and a video',
+      attachments: [],
+    });
     expect(el.textContent).toContain('and a video');
     const s = sendStream!;
     await act(async () => {
@@ -155,7 +186,13 @@ describe('the agent chat (AI SDK)', () => {
       s.push({ type: 'text-delta', id: 't1', delta: 'ing…' });
       s.push({ type: 'data-status', data: { text: 'Using ffmpeg…' }, transient: true } as UIMessageChunk);
       s.push({ type: 'text-end', id: 't1' });
-      s.push({ type: 'tool-input-available', toolCallId: 'v1', toolName: 'ffmpeg', input: { args: ['-i', 'a.png'] }, dynamic: true });
+      s.push({
+        type: 'tool-input-available',
+        toolCallId: 'v1',
+        toolName: 'ffmpeg',
+        input: { args: ['-i', 'a.png'] },
+        dynamic: true,
+      });
     });
     await settle();
     expect(el.textContent).toContain('Rendering…');
@@ -164,7 +201,14 @@ describe('the agent chat (AI SDK)', () => {
     expect(el.querySelector('.status-line')!.textContent).toContain('Using ffmpeg…');
     expect(el.querySelector('button[aria-label="Stop"]')).not.toBeNull();
     // the tool's result, opened: input and result
-    await act(async () => s.push({ type: 'tool-output-available', toolCallId: 'v1', output: { text: 'clip.mp4 written', images: [] }, dynamic: true }));
+    await act(async () =>
+      s.push({
+        type: 'tool-output-available',
+        toolCallId: 'v1',
+        output: { text: 'clip.mp4 written', images: [] },
+        dynamic: true,
+      }),
+    );
     await settle();
     const card = [...el.querySelectorAll('details.tool')].find((d) => d.textContent!.includes('ffmpeg'))!;
     expect(card.textContent).toContain('clip.mp4 written');
@@ -183,8 +227,11 @@ describe('the agent chat (AI SDK)', () => {
   it('a message the server refuses: its reason as a toast, and the text back in the box', async () => {
     const el = await open();
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
-      if (url.endsWith('/stream') && init.method === 'POST') return new Response(JSON.stringify({ error: 'This chat is already working on something.' }), { status: 409 });
-      return new Response(JSON.stringify(url === '/api/agents/a1/chats/c1' ? chat : []), { headers: { 'content-type': 'application/json' } });
+      if (url.endsWith('/stream') && init.method === 'POST')
+        return new Response(JSON.stringify({ error: 'This chat is already working on something.' }), { status: 409 });
+      return new Response(JSON.stringify(url === '/api/agents/a1/chats/c1' ? chat : []), {
+        headers: { 'content-type': 'application/json' },
+      });
     });
     await type(el, 'are you there?');
     await settle();
@@ -197,7 +244,9 @@ describe('the agent chat (AI SDK)', () => {
     const el = await open();
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
       if (url.endsWith('/stream') && init.method === 'POST') throw new TypeError('Failed to fetch');
-      return new Response(JSON.stringify(url === '/api/agents/a1/chats/c1' ? chat : []), { headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify(url === '/api/agents/a1/chats/c1' ? chat : []), {
+        headers: { 'content-type': 'application/json' },
+      });
     });
     await type(el, 'are you there?');
     await settle();
@@ -224,14 +273,22 @@ describe('the agent chat (AI SDK)', () => {
     const box = el.querySelector('textarea')!;
     const long = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`).join('\n');
     box.value = '';
-    const data = { types: ['text/plain'], items: [], files: [], getData: (t: string) => (t === 'text/plain' ? `/queue ${long}` : '') } as unknown as DataTransfer;
+    const data = {
+      types: ['text/plain'],
+      items: [],
+      files: [],
+      getData: (t: string) => (t === 'text/plain' ? `/queue ${long}` : ''),
+    } as unknown as DataTransfer;
     const e = new Event('paste', { bubbles: true, cancelable: true });
     Object.defineProperty(e, 'clipboardData', { value: data });
     await act(async () => void box.dispatchEvent(e));
     expect(box.value).toMatch(/^\[Pasted text #1/);
     await act(async () => void box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     await settle();
-    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/queue')!.body).toEqual({ text: long, attachments: [] });
+    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/queue')!.body).toEqual({
+      text: long,
+      attachments: [],
+    });
     expect(requests.filter((r) => r.url.endsWith('/stream') && r.method === 'POST')).toHaveLength(1);
   });
 
@@ -258,12 +315,24 @@ describe('the agent chat (AI SDK)', () => {
     const el = await open();
     chat.items.push({ type: 'user', text: 'from the team', from: 'team Ops' });
     resumeStream = uiStream();
-    await wsEvent({ type: 'run', runId: 'r-team', agentId: 'a1', chatId: 'c1', event: { kind: 'start', text: 'from the team' } });
+    await wsEvent({
+      type: 'run',
+      runId: 'r-team',
+      agentId: 'a1',
+      chatId: 'c1',
+      event: { kind: 'start', text: 'from the team' },
+    });
     await settle();
     expect(requests.some((r) => r.method === 'GET' && r.url.endsWith('/stream'))).toBe(true);
     await act(async () => {
       resumeStream!.push({ type: 'start', messageId: 'run-r-team' });
-      resumeStream!.push({ type: 'tool-input-available', toolCallId: 'x1', toolName: 'read_file', input: { path: 'a.txt' }, dynamic: true });
+      resumeStream!.push({
+        type: 'tool-input-available',
+        toolCallId: 'x1',
+        toolName: 'read_file',
+        input: { path: 'a.txt' },
+        dynamic: true,
+      });
       resumeStream!.push({ type: 'text-start', id: 'a' });
       resumeStream!.push({ type: 'text-delta', id: 'a', delta: 'Reading it now' });
     });
@@ -279,13 +348,23 @@ describe('the agent chat (AI SDK)', () => {
     await settle();
     await type(el, '/queue then write the tests');
     await settle();
-    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/queue')!.body).toEqual({ text: 'then write the tests', attachments: [] });
+    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/queue')!.body).toEqual({
+      text: 'then write the tests',
+      attachments: [],
+    });
     expect(requests.filter((r) => r.url.endsWith('/stream') && r.method === 'POST')).toHaveLength(1);
     expect(el.querySelector('textarea')!.value).toBe('');
-    await wsEvent({ type: 'queue', agentId: 'a1', chatId: 'c1', queued: [{ id: 'q1', text: 'then write the tests', ts: 0 }] });
+    await wsEvent({
+      type: 'queue',
+      agentId: 'a1',
+      chatId: 'c1',
+      queued: [{ id: 'q1', text: 'then write the tests', ts: 0 }],
+    });
     expect(el.querySelector('.queued-msg')!.textContent).toContain('then write the tests');
     expect(el.querySelector('.queued-head')!.textContent).toBe('Sends when Renderer is done');
-    await act(async () => (el.querySelector(`.queued-msg button[aria-label="Don't send this"]`) as HTMLButtonElement).click());
+    await act(async () =>
+      (el.querySelector(`.queued-msg button[aria-label="Don't send this"]`) as HTMLButtonElement).click(),
+    );
     await settle();
     expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/agents/a1/chats/c1/queue/q1')).toBe(true);
     expect(el.querySelector('.queued-msg')).toBeNull();
@@ -297,9 +376,19 @@ describe('the agent chat (AI SDK)', () => {
     await settle();
     await wsEvent({ type: 'queue', agentId: 'a1', chatId: 'c1', queued: [{ id: 'q1', text: 'next one', ts: 0 }] });
     // the server ends this run and starts the queued one before this view's stream has closed
-    await wsEvent({ type: 'run', runId: 'r2', agentId: 'a1', chatId: 'c1', event: { kind: 'start', text: 'next one' } });
+    await wsEvent({
+      type: 'run',
+      runId: 'r2',
+      agentId: 'a1',
+      chatId: 'c1',
+      event: { kind: 'start', text: 'next one' },
+    });
     await wsEvent({ type: 'queue', agentId: 'a1', chatId: 'c1', queued: [] });
-    chat.items.push({ type: 'user', text: 'go' }, { type: 'assistant', text: 'Went.' }, { type: 'user', text: 'next one' });
+    chat.items.push(
+      { type: 'user', text: 'go' },
+      { type: 'assistant', text: 'Went.' },
+      { type: 'user', text: 'next one' },
+    );
     resumeStream = uiStream();
     const s = sendStream!;
     await act(async () => {
@@ -323,7 +412,10 @@ describe('the agent chat (AI SDK)', () => {
     const el = await open();
     await type(el, '/queue hello there');
     await settle();
-    expect(requests.find((r) => r.method === 'POST' && r.url.endsWith('/stream'))!.body).toEqual({ text: 'hello there', attachments: [] });
+    expect(requests.find((r) => r.method === 'POST' && r.url.endsWith('/stream'))!.body).toEqual({
+      text: 'hello there',
+      attachments: [],
+    });
     expect(requests.some((r) => r.url.endsWith('/queue'))).toBe(false);
   });
 
@@ -343,7 +435,8 @@ describe('the agent chat (AI SDK)', () => {
     const send = el.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!;
     expect(send.disabled).toBe(false);
     await act(async () => send.click());
-    for (let i = 0; i < 20 && requests.filter((r) => r.method === 'POST' && r.url.endsWith('/stream')).length < 2; i++) await settle();
+    for (let i = 0; i < 20 && requests.filter((r) => r.method === 'POST' && r.url.endsWith('/stream')).length < 2; i++)
+      await settle();
     const posts = requests.filter((r) => r.method === 'POST' && r.url.endsWith('/stream'));
     expect(posts.map((r) => r.body)).toEqual([
       { text: 'make it red', attachments: [] },
@@ -358,7 +451,15 @@ describe('the agent chat (AI SDK)', () => {
     const el = await open();
     await type(el, 'go');
     await settle();
-    await wsEvent({ type: 'queue', agentId: 'a1', chatId: 'c1', queued: [{ id: 'q1', text: 'first', ts: 0 }, { id: 'q2', text: 'second', ts: 0 }] });
+    await wsEvent({
+      type: 'queue',
+      agentId: 'a1',
+      chatId: 'c1',
+      queued: [
+        { id: 'q1', text: 'first', ts: 0 },
+        { id: 'q2', text: 'second', ts: 0 },
+      ],
+    });
     await settle();
     const box = el.querySelector('textarea')!;
     box.value = '';
@@ -368,7 +469,10 @@ describe('the agent chat (AI SDK)', () => {
     edit.value = 'second, shorter';
     await act(async () => edit.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     await settle();
-    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/agents/a1/chats/c1/queue/q2', body: { text: 'second, shorter' } });
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({
+      url: '/api/agents/a1/chats/c1/queue/q2',
+      body: { text: 'second, shorter' },
+    });
     expect([...el.querySelectorAll('.queued-text')].map((n) => n.textContent)).toEqual(['first', 'second, shorter']);
     // dragged onto the top half of the first: it goes first
     const row = (id: string) => el.querySelector(`[data-qid="${id}"]`)!;
@@ -379,14 +483,32 @@ describe('the agent chat (AI SDK)', () => {
       ['drop', row('q1')],
       ['dragend', row('q2')],
     ] as const;
-    for (const [kind, target] of steps) await act(async () => void target.dispatchEvent(new DragEvent(kind, { bubbles: true, cancelable: true, dataTransfer: dt })));
+    for (const [kind, target] of steps)
+      await act(
+        async () =>
+          void target.dispatchEvent(new DragEvent(kind, { bubbles: true, cancelable: true, dataTransfer: dt })),
+      );
     await settle();
     expect([...el.querySelectorAll('.queued-text')].map((n) => n.textContent)).toEqual(['second, shorter', 'first']);
     expect(requests.find((r) => r.url.endsWith('/queue/order'))!.body).toEqual({ ids: ['q2', 'q1'] });
   });
 
   it('while it works for a team or another agent, a message is not sent to change its course', async () => {
-    state.data = { runs: [{ id: 'r1', agentId: 'a1', chatId: 'c1', startedAt: 0, agentName: 'Renderer', parentRunId: 'team:t1', depth: 1 }], approvals: [], agents: [] } as unknown as AppState;
+    state.data = {
+      runs: [
+        {
+          id: 'r1',
+          agentId: 'a1',
+          chatId: 'c1',
+          startedAt: 0,
+          agentName: 'Renderer',
+          parentRunId: 'team:t1',
+          depth: 1,
+        },
+      ],
+      approvals: [],
+      agents: [],
+    } as unknown as AppState;
     const el = await open();
     await act(async () => {
       for (const fn of state.listeners) fn(state.data!);
@@ -427,7 +549,10 @@ describe('the agent chat (AI SDK)', () => {
     const el = await open();
     await type(el, 'go');
     await settle();
-    unqueuedOnStop = [{ id: 'q1', text: 'later one', ts: 0 }, { id: 'q2', text: 'later two', ts: 0 }];
+    unqueuedOnStop = [
+      { id: 'q1', text: 'later one', ts: 0 },
+      { id: 'q2', text: 'later two', ts: 0 },
+    ];
     await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Stop"]')!.click());
     await settle();
     expect(el.querySelector('textarea')!.value).toBe('later one\n\nlater two');
@@ -458,17 +583,45 @@ describe('the agent chat (AI SDK)', () => {
     expect(requests.some((r) => r.method === 'POST' && r.url === '/api/agents/a1/chats/c1/resume')).toBe(true);
     await type(el, '/loop 15m check CI');
     await settle();
-    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/loop')!.body).toEqual({ text: '15m check CI', attachments: [] });
-    await wsEvent({ type: 'loop', agentId: 'a1', chatId: 'c1', loop: { text: 'check CI', every: 900_000, times: 10, done: 1, next: null } });
+    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/loop')!.body).toEqual({
+      text: '15m check CI',
+      attachments: [],
+    });
+    await wsEvent({
+      type: 'loop',
+      agentId: 'a1',
+      chatId: 'c1',
+      loop: { text: 'check CI', every: 900_000, times: 10, done: 1, next: null },
+    });
     expect(el.querySelector('.cmd-chip.loop')!.textContent).toContain('every 15m · 1 of 10 sent');
     await type(el, '/goal the build is green');
     await settle();
-    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/goal')!.body).toEqual({ text: 'the build is green' });
+    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/goal')!.body).toEqual({
+      text: 'the build is green',
+    });
     // /learn goes to the server too, with the tray's files as sources (none here)
     await type(el, '/learn https://example.com/docs focus on auth');
     await settle();
-    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/learn')!.body).toEqual({ text: 'https://example.com/docs focus on auth', attachments: [] });
-    await wsEvent({ type: 'brief', projectId: 'p', brief: { id: 'b1', kind: 'agent', targetId: 'a1', chatId: 'c1', name: 'Renderer', text: 'the build is green', goal: 'the build is green', ts: 0, followUps: 1, status: 'open' } });
+    expect(requests.find((r) => r.url === '/api/agents/a1/chats/c1/learn')!.body).toEqual({
+      text: 'https://example.com/docs focus on auth',
+      attachments: [],
+    });
+    await wsEvent({
+      type: 'brief',
+      projectId: 'p',
+      brief: {
+        id: 'b1',
+        kind: 'agent',
+        targetId: 'a1',
+        chatId: 'c1',
+        name: 'Renderer',
+        text: 'the build is green',
+        goal: 'the build is green',
+        ts: 0,
+        followUps: 1,
+        status: 'open',
+      },
+    });
     expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('Goal: the build is green');
     expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('1 follow-up');
     // × on the loop ends it (and leaves what you are typing alone)
@@ -476,16 +629,50 @@ describe('the agent chat (AI SDK)', () => {
     await act(async () => (el.querySelector('.cmd-chip.loop button') as HTMLButtonElement).click());
     await settle();
     expect(el.querySelector('textarea')!.value).toBe('half a thought');
-    expect(requests.filter((r) => r.url === '/api/agents/a1/chats/c1/loop').at(-1)!.body).toEqual({ text: 'off', attachments: [] });
+    expect(requests.filter((r) => r.url === '/api/agents/a1/chats/c1/loop').at(-1)!.body).toEqual({
+      text: 'off',
+      attachments: [],
+    });
     // the goal reached: its chip goes
-    await wsEvent({ type: 'brief', projectId: 'p', brief: { id: 'b1', kind: 'agent', targetId: 'a1', chatId: 'c1', name: 'Renderer', text: 'x', goal: 'x', ts: 0, followUps: 1, status: 'done' } });
+    await wsEvent({
+      type: 'brief',
+      projectId: 'p',
+      brief: {
+        id: 'b1',
+        kind: 'agent',
+        targetId: 'a1',
+        chatId: 'c1',
+        name: 'Renderer',
+        text: 'x',
+        goal: 'x',
+        ts: 0,
+        followUps: 1,
+        status: 'done',
+      },
+    });
     expect(el.querySelector('.cmd-chip.goal')).toBeNull();
     // an ordinary message nobody has called work yet (it may be a simple question): no chip
-    const plain = { id: 'b2', kind: 'agent', targetId: 'a1', chatId: 'c1', name: 'Renderer', text: 'go', goal: 'go', automatic: true, ts: 0, followUps: 0, status: 'open' };
+    const plain = {
+      id: 'b2',
+      kind: 'agent',
+      targetId: 'a1',
+      chatId: 'c1',
+      name: 'Renderer',
+      text: 'go',
+      goal: 'go',
+      automatic: true,
+      ts: 0,
+      followUps: 0,
+      status: 'open',
+    };
     await wsEvent({ type: 'brief', projectId: 'p', brief: plain });
     expect(el.querySelector('.cmd-chip.goal')).toBeNull();
     // the agent set it with set_goal: the chip shows what done looks like
-    await wsEvent({ type: 'brief', projectId: 'p', brief: { ...plain, recognized: true, doneWhen: 'the render is saved' } });
+    await wsEvent({
+      type: 'brief',
+      projectId: 'p',
+      brief: { ...plain, recognized: true, doneWhen: 'the render is saved' },
+    });
     expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('Goal: the render is saved');
     // none of them was sent to the agent as a message
     expect(requests.filter((r) => r.method === 'POST' && r.url.endsWith('/stream'))).toHaveLength(1);
@@ -518,7 +705,8 @@ describe('@ to pick another agent', () => {
       box.dispatchEvent(new Event('input', { bubbles: true }));
     });
   };
-  const key = (box: HTMLTextAreaElement, k: string) => act(async () => void box.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })));
+  const key = (box: HTMLTextAreaElement, k: string) =>
+    act(async () => void box.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })));
 
   it('typing @ shows the other agents; arrows and Enter pick one, and nothing is sent', async () => {
     state.data = {
@@ -567,7 +755,14 @@ describe('@ to pick another agent', () => {
   });
 
   it('Escape closes it; an agent without Delegate says it needs it', async () => {
-    state.data = { runs: [], approvals: [], agents: [{ id: 'a1', name: 'Renderer', toolGroups: [] }, { id: 'a2', name: 'Trend Scout' }] } as unknown as AppState;
+    state.data = {
+      runs: [],
+      approvals: [],
+      agents: [
+        { id: 'a1', name: 'Renderer', toolGroups: [] },
+        { id: 'a2', name: 'Trend Scout' },
+      ],
+    } as unknown as AppState;
     const el = await open('compact');
     const box = el.querySelector('textarea')!;
     await typeAt(box, '@tr');
@@ -582,7 +777,10 @@ describe('Rich answers', () => {
   it('an answer in OpenUI Lang shows as live components, not as code', async () => {
     chat.items = [
       { type: 'user', text: 'compare them' },
-      { type: 'assistant', text: 'root = Card([title, body])\ntitle = CardHeader("Plan A wins")\nbody = TextContent("Cheaper and faster to ship.")' },
+      {
+        type: 'assistant',
+        text: 'root = Card([title, body])\ntitle = CardHeader("Plan A wins")\nbody = TextContent("Cheaper and faster to ship.")',
+      },
     ];
     const el = await open();
     // (while it loads, the code itself shows as a fallback: wait for the components)
@@ -598,12 +796,14 @@ describe('Rich answers', () => {
       { type: 'user', text: 'compare them' },
       { type: 'assistant', text: 'root = Card([title])\ntitle = CardHeader("Plan A wins")' },
     ];
-    const theme = () => [...document.head.querySelectorAll('style[data-openui-theme]')].map((s) => s.textContent || '').join('\n');
+    const theme = () =>
+      [...document.head.querySelectorAll('style[data-openui-theme]')].map((s) => s.textContent || '').join('\n');
     const tint = (css: string) => /--openui-highlight:\s*([^;]+);/.exec(css)?.[1];
     document.documentElement.dataset.theme = 'light';
     try {
       const el = await open();
-      for (let i = 0; i < 200 && !el.querySelector('.oc-rich')?.textContent?.includes('Plan A wins'); i++) await settle();
+      for (let i = 0; i < 200 && !el.querySelector('.oc-rich')?.textContent?.includes('Plan A wins'); i++)
+        await settle();
       const light = theme();
       // (the page's own colours, so they change by themselves with the page; the text on a primary button is the on-accent colour)
       expect(light).toContain('--openui-text-neutral-primary: var(--color-ink)');
@@ -638,7 +838,8 @@ describe('a long chat', () => {
   const ROW = 100;
   const tops = new WeakMap<Element, number>();
   const isList = (el: Element) => el.classList.contains('messages') || el.classList.contains('ac-list');
-  const contentHeight = (el: Element) => parseFloat((el.querySelector('.msg-window') as HTMLElement | null)?.style.height || '0');
+  const contentHeight = (el: Element) =>
+    parseFloat((el.querySelector('.msg-window') as HTMLElement | null)?.style.height || '0');
   const maxTop = (el: Element) => Math.max(0, contentHeight(el) - LIST);
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
@@ -665,7 +866,10 @@ describe('a long chat', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  const many = (n: number): ChatItem[] => Array.from({ length: n }, (_, i): ChatItem => (i % 2 ? { type: 'assistant', text: `answer ${i}` } : { type: 'user', text: `question ${i}` }));
+  const many = (n: number): ChatItem[] =>
+    Array.from({ length: n }, (_, i): ChatItem =>
+      i % 2 ? { type: 'assistant', text: `answer ${i}` } : { type: 'user', text: `question ${i}` },
+    );
   const drawn = (el: HTMLElement) => [...el.querySelectorAll('.msg-row')].map((r) => r.textContent?.trim());
   // (and wait for the scrolling to settle: the list notes where it stopped a moment after)
   const rest = () => act(() => new Promise((r) => setTimeout(r, 200)));
@@ -697,7 +901,12 @@ describe('a long chat', () => {
     const el = await open();
     await rest();
     expect(drawn(el)).not.toContain('question 0');
-    await act(async () => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, cancelable: true })));
+    await act(
+      async () =>
+        void document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, cancelable: true }),
+        ),
+    );
     const box = el.querySelector<HTMLInputElement>('[role="search"] input')!;
     expect(box).not.toBeNull();
     await act(async () => {
@@ -711,7 +920,11 @@ describe('a long chat', () => {
   });
 
   it('a tool call you opened is still open when you scroll back to it', async () => {
-    chat.items = [{ type: 'user', text: 'go' }, { type: 'tool', id: 'tk', name: 'look_around', args: {}, result: 'ok', status: 'done' }, ...many(200)];
+    chat.items = [
+      { type: 'user', text: 'go' },
+      { type: 'tool', id: 'tk', name: 'look_around', args: {}, result: 'ok', status: 'done' },
+      ...many(200),
+    ];
     const el = await open();
     await rest();
     const list = el.querySelector<HTMLElement>('.messages')!;

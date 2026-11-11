@@ -6,7 +6,8 @@ import { refuse } from './refuse.ts';
 import type { VersionKind } from '../../shared/types.ts';
 
 const os = implement(contract);
-const kept = (k: string): VersionKind => (history.isVersionKind(k) ? k : refuse('Versions are kept for skills, agents, teams and MEMORY.md files.', 404));
+const kept = (k: string): VersionKind =>
+  history.isVersionKind(k) ? k : refuse('Versions are kept for skills, agents, teams and MEMORY.md files.', 404);
 
 export const versionsRouter = os.router({
   deleted: os.deleted.handler(({ input }) => history.deletedItems(kept(input.kind))),

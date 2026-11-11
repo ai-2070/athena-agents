@@ -2,7 +2,7 @@
 name: Growth Hacker
 description: Finds where a product loses people on the way from first visit to paying and staying, then tests fixes to onboarding, referrals, pricing pages and channels; pick it when growth has stalled.
 emoji: 📈
-color: "#8a63d2"
+color: '#8a63d2'
 specialty: finds and tests ways for a product or business to get and keep more customers
 group: marketing
 tools: files, browser, shell, agents

@@ -19,7 +19,10 @@ export interface PageContext {
 
 /** A page module's render() and unmount() for a page drawn by React:
  *  export const { render, unmount } = reactPage((params) => <MyPage params={params} />); */
-export function reactPage(page: (params: string[], view: PageContext) => ReactNode): { render: (el: HTMLElement, params?: string[], view?: PageContext) => void; unmount: () => void } {
+export function reactPage(page: (params: string[], view: PageContext) => ReactNode): {
+  render: (el: HTMLElement, params?: string[], view?: PageContext) => void;
+  unmount: () => void;
+} {
   let mounted: { unmount: () => void } | null = null;
   return {
     render(el, params = [], view = { setTitle: () => {} }) {
@@ -42,7 +45,17 @@ export function useServerEvents(fn: (ev: ServerEvent) => void): void {
 
 /** A plain-DOM piece (a file preview, markdown, the 3D viewer) inside a React page. make() runs again
  *  only when deps change, so the piece keeps its own state between redraws. */
-export function DomNode({ make, deps, className, as = 'div' }: { make: () => Node | null; deps: DependencyList; className?: string; as?: 'div' | 'span' }) {
+export function DomNode({
+  make,
+  deps,
+  className,
+  as = 'div',
+}: {
+  make: () => Node | null;
+  deps: DependencyList;
+  className?: string;
+  as?: 'div' | 'span';
+}) {
   const node = useMemo(make, deps);
   const ref = useCallback((el: HTMLElement | null) => void (el && el.replaceChildren(...(node ? [node] : []))), [node]);
   return as === 'span' ? <span ref={ref} className={className} /> : <div ref={ref} className={className} />;
@@ -57,7 +70,15 @@ export interface PlainView {
 
 /** Runs a plain-DOM page inside a React page (a Settings tab), with live events, until React moves on.
  *  Each mount gets a fresh element, so a slow render from a page you left lands out of sight. */
-export function ViewHost({ view, params = [], hostRef }: { view: PlainView; params?: string[]; hostRef?: (el: HTMLDivElement | null) => void }) {
+export function ViewHost({
+  view,
+  params = [],
+  hostRef,
+}: {
+  view: PlainView;
+  params?: string[];
+  hostRef?: (el: HTMLDivElement | null) => void;
+}) {
   const box = useRef<HTMLDivElement | null>(null);
   const key = params.join('/');
   useEffect(() => {
@@ -65,7 +86,14 @@ export function ViewHost({ view, params = [], hostRef }: { view: PlainView; para
     box.current!.append(el);
     let live = true;
     Promise.resolve(view.render(el, key ? key.split('/') : [])).catch((e: unknown) => {
-      if (live) mount(el, h('div.panel', h('p', { class: 'text-red' }, `Something went wrong: ${e instanceof Error ? e.message : String(e)}`)));
+      if (live)
+        mount(
+          el,
+          h(
+            'div.panel',
+            h('p', { class: 'text-red' }, `Something went wrong: ${e instanceof Error ? e.message : String(e)}`),
+          ),
+        );
     });
     return () => {
       live = false;
@@ -93,7 +121,10 @@ export function ProjectScoped({ children }: { children: ReactNode }) {
 /** An agent's round badge: its emoji on its colour (the plain-DOM avatar()). */
 export function Avatar({ agent, lg = false }: { agent: { color?: string; emoji?: string }; lg?: boolean }) {
   return (
-    <div className={`avatar${lg ? ' lg' : ''}`} style={{ '--agent-color': agent.color || 'var(--color-accent)' } as CSSProperties}>
+    <div
+      className={`avatar${lg ? ' lg' : ''}`}
+      style={{ '--agent-color': agent.color || 'var(--color-accent)' } as CSSProperties}
+    >
       {agent.emoji || '🤖'}
     </div>
   );
@@ -101,7 +132,15 @@ export function Avatar({ agent, lg = false }: { agent: { color?: string; emoji?:
 
 /** One line of text that, when it is cut off, slowly scrolls to its end while the pointer is over it (or over
  *  the element `host` finds up the tree, such as the card it is in) and eases back after. */
-export function HoverScroll({ children, className = '', host }: { children: ReactNode; className?: string; host?: string }) {
+export function HoverScroll({
+  children,
+  className = '',
+  host,
+}: {
+  children: ReactNode;
+  className?: string;
+  host?: string;
+}) {
   const outer = useRef<HTMLSpanElement>(null);
   const inner = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -129,7 +168,10 @@ export function HoverScroll({ children, className = '', host }: { children: Reac
   }, [host]);
   // (the right edge fades out instead of an ellipsis, which a moving line can't keep)
   return (
-    <span ref={outer} className={`block overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%_-_14px),transparent)] ${className}`}>
+    <span
+      ref={outer}
+      className={`block overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%_-_14px),transparent)] ${className}`}
+    >
       <span ref={inner} className="inline-flex items-center gap-1 will-change-transform">
         {children}
       </span>

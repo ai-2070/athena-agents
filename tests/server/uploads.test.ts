@@ -4,11 +4,27 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import type http from 'node:http';
 import { describe, expect, it } from 'vitest';
-import { cleanAttachments, cleanName, describeAttachments, describeAttachmentsRead, readAttachments, newBatch, receive, receiveSource, cleanOwnedBatch, removeUpload, safeParts, uploadsRoot, withAttachments, attachmentNames } from '../../server/uploads.ts';
+import {
+  cleanAttachments,
+  cleanName,
+  describeAttachments,
+  describeAttachmentsRead,
+  readAttachments,
+  newBatch,
+  receive,
+  receiveSource,
+  cleanOwnedBatch,
+  removeUpload,
+  safeParts,
+  uploadsRoot,
+  withAttachments,
+  attachmentNames,
+} from '../../server/uploads.ts';
 import { compound, docx, pdf, xlsx } from './fixtures/documents.ts';
 
 // a request body as receive() reads it
-const body = (data: string | Buffer, headers: Record<string, string> = {}) => Object.assign(Readable.from([Buffer.from(data)]), { headers }) as unknown as http.IncomingMessage;
+const body = (data: string | Buffer, headers: Record<string, string> = {}) =>
+  Object.assign(Readable.from([Buffer.from(data)]), { headers }) as unknown as http.IncomingMessage;
 
 describe('safe names', () => {
   it('drops .. and empty parts, so a path never climbs out of its batch', () => {
@@ -29,10 +45,15 @@ describe('safe names', () => {
 describe('receiving files', () => {
   it('shares streaming limits and removes temporary files after overflow or cancellation', async () => {
     const { batch, dir } = newBatch();
-    await expect(receiveSource(Readable.from([Buffer.from('too long')]), batch, 'large.txt', { maxBytes: 4 })).rejects.toThrow('over');
+    await expect(
+      receiveSource(Readable.from([Buffer.from('too long')]), batch, 'large.txt', { maxBytes: 4 }),
+    ).rejects.toThrow('over');
     expect(fs.readdirSync(dir)).toEqual([]);
-    const abort = new AbortController(); abort.abort();
-    await expect(receiveSource(Readable.from([Buffer.from('x')]), batch, 'aborted.txt', { signal: abort.signal })).rejects.toThrow();
+    const abort = new AbortController();
+    abort.abort();
+    await expect(
+      receiveSource(Readable.from([Buffer.from('x')]), batch, 'aborted.txt', { signal: abort.signal }),
+    ).rejects.toThrow();
     expect(fs.readdirSync(dir)).toEqual([]);
   });
 
@@ -41,20 +62,29 @@ describe('receiving files', () => {
     const retained = await receiveSource(Readable.from([Buffer.from('keep')]), owner.batch, 'keep.txt');
     const orphan = await receiveSource(Readable.from([Buffer.from('orphan')]), owner.batch, 'orphan.txt');
     cleanOwnedBatch(owner.batch, [retained.path]);
-    expect(fs.existsSync(retained.path)).toBe(true); expect(fs.existsSync(orphan.path)).toBe(false);
+    expect(fs.existsSync(retained.path)).toBe(true);
+    expect(fs.existsSync(orphan.path)).toBe(false);
     const other = newBatch();
     const victim = await receiveSource(Readable.from([Buffer.from('safe')]), other.batch, 'victim.txt');
     fs.rmSync(owner.dir, { recursive: true });
     fs.symlinkSync(other.dir, owner.dir, process.platform === 'win32' ? 'junction' : 'dir');
     expect(() => cleanOwnedBatch(owner.batch, [])).toThrow('Bad upload path');
-    await expect(receiveSource(Readable.from([Buffer.from('no')]), owner.batch, 'new.txt')).rejects.toThrow('batch is gone');
+    await expect(receiveSource(Readable.from([Buffer.from('no')]), owner.batch, 'new.txt')).rejects.toThrow(
+      'batch is gone',
+    );
     expect(fs.readFileSync(victim.path, 'utf8')).toBe('safe');
   });
   it('saves a file into its batch, and a folder file under its folder', async () => {
     const { batch, dir } = newBatch();
     expect(dir.startsWith(uploadsRoot() + path.sep)).toBe(true);
     const a = await receive(body('hello'), batch, 'notes.md');
-    expect(a).toMatchObject({ kind: 'file', name: 'notes.md', size: 5, path: path.join(dir, 'notes.md'), top: path.join(dir, 'notes.md') });
+    expect(a).toMatchObject({
+      kind: 'file',
+      name: 'notes.md',
+      size: 5,
+      path: path.join(dir, 'notes.md'),
+      top: path.join(dir, 'notes.md'),
+    });
     const b = await receive(body('x'), batch, 'docs/sub/b.txt');
     expect(b.kind).toBe('folder');
     expect(b.top).toBe(path.join(dir, 'docs') + path.sep);
@@ -73,11 +103,13 @@ describe('receiving files', () => {
     await expect(receive(body('x'), '../x', 'a.md')).rejects.toThrow(/Bad upload batch/);
   });
 
-  it('takes a file of any size, and keeps a limit a caller passes (a gateway\'s)', async () => {
+  it("takes a file of any size, and keeps a limit a caller passes (a gateway's)", async () => {
     const { batch } = newBatch();
     const big = await receive(body('x', { 'content-length': String(600 * 1024 * 1024) }), batch, 'big.bin');
     expect(fs.readFileSync(big.path, 'utf8')).toBe('x');
-    await expect(receiveSource(body('x'), batch, 'capped.bin', { declaredBytes: 2 * 1024 * 1024, maxBytes: 1024 * 1024 })).rejects.toThrow(/over 1 MB/);
+    await expect(
+      receiveSource(body('x'), batch, 'capped.bin', { declaredBytes: 2 * 1024 * 1024, maxBytes: 1024 * 1024 }),
+    ).rejects.toThrow(/over 1 MB/);
   });
 });
 
@@ -88,7 +120,15 @@ describe('which attachments count', () => {
     await receive(body('y'), batch, 'pack/two.md');
     const outside = path.join(path.dirname(uploadsRoot()), 'PROJECT.md');
     fs.writeFileSync(outside, '# hi');
-    const list = cleanAttachments([f.path, path.join(dir, 'pack'), outside, path.join(dir, 'missing.md'), 42, null, `${uploadsRoot()}${path.sep}..${path.sep}PROJECT.md`]);
+    const list = cleanAttachments([
+      f.path,
+      path.join(dir, 'pack'),
+      outside,
+      path.join(dir, 'missing.md'),
+      42,
+      null,
+      `${uploadsRoot()}${path.sep}..${path.sep}PROJECT.md`,
+    ]);
     expect(list).toEqual([f.path, path.join(dir, 'pack') + path.sep]);
     expect(cleanAttachments('nope')).toEqual([]);
   });
@@ -122,7 +162,11 @@ describe('telling the agent', () => {
   it("can include the text of attached documents, or say why one can't be read", async () => {
     const { batch } = newBatch();
     const contract = await receive(body(Buffer.from(pdf('Signed on 3 May'))), batch, 'contract.pdf');
-    const brief = await receive(body(Buffer.from(docx('<w:p><w:r><w:t>Ship by Friday</w:t></w:r></w:p>'))), batch, 'docs/brief.docx');
+    const brief = await receive(
+      body(Buffer.from(docx('<w:p><w:r><w:t>Ship by Friday</w:t></w:r></w:p>'))),
+      batch,
+      'docs/brief.docx',
+    );
     const old = await receive(body(Buffer.from(compound())), batch, 'old.xls');
     const paths = [contract.path, brief.top, old.path];
     const note = await describeAttachmentsRead(paths, { inline: 5000 });
@@ -140,7 +184,10 @@ describe('telling the agent', () => {
   it("keeps documents' text within inline, after the text files before them", async () => {
     const { batch } = newBatch();
     const notes = await receive(body('n'.repeat(900)), batch, 'notes.md');
-    const rows = Array.from({ length: 200 }, (_, i) => `<row r="${i + 1}"><c r="A${i + 1}"><v>${1000 + i}</v></c></row>`).join('');
+    const rows = Array.from(
+      { length: 200 },
+      (_, i) => `<row r="${i + 1}"><c r="A${i + 1}"><v>${1000 + i}</v></c></row>`,
+    ).join('');
     const sheet = await receive(body(Buffer.from(xlsx({ Totals: rows }))), batch, 'totals.xlsx');
     const note = await describeAttachmentsRead([notes.path, sheet.path], { inline: 1500 });
     expect(note).toContain('--- totals.xlsx (start) ---\n(Excel workbook, sheet: Totals)');
@@ -148,10 +195,18 @@ describe('telling the agent', () => {
     expect(inlined.length).toBeLessThan(1500 + 200);
   });
 
-  it("says which documents went along whole, and where to read the rest of the others", async () => {
+  it('says which documents went along whole, and where to read the rest of the others', async () => {
     const { batch } = newBatch();
-    const short = await receive(body(Buffer.from(docx('<w:p><w:r><w:t>Ship by Friday</w:t></w:r></w:p>'))), batch, 'short.docx');
-    const long = await receive(body(Buffer.from(docx(`<w:p><w:r><w:t>${'word '.repeat(800)}</w:t></w:r></w:p>`))), batch, 'long.docx');
+    const short = await receive(
+      body(Buffer.from(docx('<w:p><w:r><w:t>Ship by Friday</w:t></w:r></w:p>'))),
+      batch,
+      'short.docx',
+    );
+    const long = await receive(
+      body(Buffer.from(docx(`<w:p><w:r><w:t>${'word '.repeat(800)}</w:t></w:r></w:p>`))),
+      batch,
+      'long.docx',
+    );
     const scan = await receive(body(Buffer.from(pdf(''))), batch, 'scan.pdf');
     const read = await readAttachments([short.path, scan.path, long.path], { inline: 2000, rest: 'read_document' });
     expect([...read.whole]).toEqual([short.path]);
@@ -167,7 +222,9 @@ describe('telling the agent', () => {
     const contract = await receive(body(Buffer.from(pdf('Signed on 3 May, again'))), batch, 'contract-2.pdf');
     const stop = new AbortController();
     stop.abort(new Error('Stopped.'));
-    await expect(describeAttachmentsRead([contract.path], { inline: 5000, signal: stop.signal })).rejects.toThrow('Stopped.');
+    await expect(describeAttachmentsRead([contract.path], { inline: 5000, signal: stop.signal })).rejects.toThrow(
+      'Stopped.',
+    );
   });
 
   it('adds the list to the message, and says to look when there is no text', async () => {

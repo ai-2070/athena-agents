@@ -33,38 +33,73 @@ function withShader<T extends THREE.Material>(m: T, key: string, edit: (s: Shade
 }
 
 export function createVoxelMaterials(u: VoxelUniforms): Record<RenderClass, THREE.Material> {
-  const opaque = withShader(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0 }), 'opaque', () => {});
+  const opaque = withShader(
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0 }),
+    'opaque',
+    () => {},
+  );
 
   // glow: brighter than white (so the glow pass picks it up), by the material's emissive level
   const emissive = withShader(new THREE.MeshBasicMaterial({ vertexColors: true }), 'emissive', (s) => {
-    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nattribute float glow;').replace(SRGB, `${SRGB}\n#ifdef USE_COLOR\n  vColor.rgb *= 0.6 + glow * 3.6;\n#endif`);
+    s.vertexShader = s.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float glow;')
+      .replace(SRGB, `${SRGB}\n#ifdef USE_COLOR\n  vColor.rgb *= 0.6 + glow * 3.6;\n#endif`);
   });
 
-  const glass = withShader(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.38, depthWrite: false }), 'glass', () => {});
+  const glass = withShader(
+    new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.05,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.38,
+      depthWrite: false,
+    }),
+    'glass',
+    () => {},
+  );
 
   // water: see-through, with moving ripples that catch the light
-  const water = withShader(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.15, transparent: true, opacity: 0.72, depthWrite: false }), 'water', (s) => {
-    s.uniforms.uTime = u.time;
-    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vWaterXZ;').replace('#include <begin_vertex>', `#include <begin_vertex>\n${WORLD_POS}\n  vWaterXZ = voxWorld.xz;`);
-    s.fragmentShader = s.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying vec2 vWaterXZ;')
-      .replace(
-        '#include <normal_fragment_maps>',
-        `#include <normal_fragment_maps>
+  const water = withShader(
+    new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.08,
+      metalness: 0.15,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+    }),
+    'water',
+    (s) => {
+      s.uniforms.uTime = u.time;
+      s.vertexShader = s.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vWaterXZ;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>\n${WORLD_POS}\n  vWaterXZ = voxWorld.xz;`);
+      s.fragmentShader = s.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying vec2 vWaterXZ;')
+        .replace(
+          '#include <normal_fragment_maps>',
+          `#include <normal_fragment_maps>
   float wa = sin(vWaterXZ.x * 2.1 + uTime * 1.3) + sin(vWaterXZ.y * 2.7 - uTime * 1.1);
   float wb = sin((vWaterXZ.x + vWaterXZ.y) * 3.3 + uTime * 1.9);
   normal = normalize(normal + vec3(wa, 0.0, wb) * 0.09);
   diffuseColor.rgb *= 0.92 + 0.12 * wb;`,
-      );
-  });
+        );
+    },
+  );
 
   // leaves: a small sway that differs from leaf to leaf and copy to copy, stronger with wind
-  const leaf = withShader(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 }), 'leaf', (s) => {
-    s.uniforms.uTime = u.time;
-    s.uniforms.uWind = u.wind;
-    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform vec3 uWind;').replace(
-      '#include <begin_vertex>',
-      `#include <begin_vertex>
+  const leaf = withShader(
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 }),
+    'leaf',
+    (s) => {
+      s.uniforms.uTime = u.time;
+      s.uniforms.uWind = u.wind;
+      s.vertexShader = s.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform vec3 uWind;')
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
   vec3 leafAt = position;
   #ifdef USE_INSTANCING
     leafAt += instanceMatrix[3].xyz * 4.0;
@@ -73,10 +108,15 @@ export function createVoxelMaterials(u: VoxelUniforms): Record<RenderClass, THRE
   float sway = sin(uTime * 2.3 + leafAt.x * 0.9 + leafAt.z * 0.7 + leafAt.y * 0.4) * 0.14 * gust;
   transformed.x += sway + uWind.x * 0.05;
   transformed.z += sway * 0.6 + uWind.z * 0.05;`,
-    );
-  });
+        );
+    },
+  );
 
-  const metal = withShader(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.65 }), 'metal', () => {});
+  const metal = withShader(
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.65 }),
+    'metal',
+    () => {},
+  );
 
   return { opaque, emissive, transparent: glass, water, leaf, metal };
 }

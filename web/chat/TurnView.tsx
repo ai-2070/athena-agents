@@ -47,7 +47,9 @@ export function TurnView({ agentId, chatId, at = '', live, from, to, empty, onEn
       }
       // a finished turn, or the live one once it ended (or had ended before it could be picked up):
       // as saved. Only the agent's side: the message to it is what the team or the Brain already shows.
-      const chat = await rpcAt(at).agents.chats.get({ id: agentId, chatId }).catch(() => null);
+      const chat = await rpcAt(at)
+        .agents.chats.get({ id: agentId, chatId })
+        .catch(() => null);
       if (!alive) return;
       // (a chat that is gone, or not one: nothing to show)
       if (chat && Array.isArray(chat.items)) {
@@ -69,7 +71,16 @@ export function TurnView({ agentId, chatId, at = '', live, from, to, empty, onEn
     <Handoffs.Provider value={handoffs}>
       <div className="flex min-w-0 flex-col gap-2">
         {messages.map((m) => (
-          <MessageView key={m.id} m={m} variant="mini" busy={streaming} streaming={streaming && m.id === lastId} dim={false} onSend={(t) => onSend?.(t)} owner={owner} />
+          <MessageView
+            key={m.id}
+            m={m}
+            variant="mini"
+            busy={streaming}
+            streaming={streaming && m.id === lastId}
+            dim={false}
+            onSend={(t) => onSend?.(t)}
+            owner={owner}
+          />
         ))}
       </div>
     </Handoffs.Provider>

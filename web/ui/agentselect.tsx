@@ -6,7 +6,15 @@ import type { Agent } from '../../shared/types.ts';
 
 // An agent to pick, drawn like the rest of the panel: its badge, its name, one even gap between them. (A
 // plain <select> can only show the emoji as small text.)
-export function AgentSelect({ agents, value, onChange }: { agents: Agent[]; value: string; onChange: (id: string) => void }) {
+export function AgentSelect({
+  agents,
+  value,
+  onChange,
+}: {
+  agents: Agent[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
   const row = 'flex min-w-0 items-center gap-2.5 [&_.avatar]:size-6.5 [&_.avatar]:text-[14px]';
   const picked = agents.find((a) => a.id === value);
   return (
@@ -22,7 +30,15 @@ export function AgentSelect({ agents, value, onChange }: { agents: Agent[]; valu
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Positioner positionMethod="fixed" className="z-96 outline-none" alignItemWithTrigger={false} side="bottom" align="start" sideOffset={4} collisionPadding={8}>
+        <Select.Positioner
+          positionMethod="fixed"
+          className="z-96 outline-none"
+          alignItemWithTrigger={false}
+          side="bottom"
+          align="start"
+          sideOffset={4}
+          collisionPadding={8}
+        >
           <Select.Popup className="st-menu dd static max-h-72 min-w-(--anchor-width) max-w-none">
             <Select.List>
               {agents.map((a) => (

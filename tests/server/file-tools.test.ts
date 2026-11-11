@@ -20,7 +20,14 @@ function setup() {
   fs.mkdirSync(outside);
   fs.writeFileSync(path.join(outside, 'secret.txt'), 'private-sentinel');
   fs.writeFileSync(path.join(workspace, 'notes.txt'), 'hello');
-  const agent: ToolAgent = { id: 'files-agent', name: 'Files', toolGroups: ['files'], autonomy: 'auto', workspace, knowledge: { folders: [] } };
+  const agent: ToolAgent = {
+    id: 'files-agent',
+    name: 'Files',
+    toolGroups: ['files'],
+    autonomy: 'auto',
+    workspace,
+    knowledge: { folders: [] },
+  };
   return { base, workspace, outside, agent };
 }
 
@@ -47,7 +54,10 @@ describe('file tools', () => {
     const read = await callTool(agent, 'read_file', { path: 'escape/secret.txt' });
     expect(read.isError).toBe(true);
     expect(read.text).not.toContain('private-sentinel');
-    const write = await callTool(agent, 'write_file', { path: 'escape/secret.txt', content: 'modified-without-approval' });
+    const write = await callTool(agent, 'write_file', {
+      path: 'escape/secret.txt',
+      content: 'modified-without-approval',
+    });
     expect(write.isError).toBe(true);
     const created = await callTool(agent, 'write_file', { path: 'escape/new.txt', content: 'x' });
     expect(created.isError).toBe(true);
@@ -79,7 +89,10 @@ describe('file tools', () => {
 });
 
 // a 1×1 PNG
-const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
 
 describe('view_image', () => {
   it('gives a picture in the workspace back as an image, typed by its bytes', async () => {
@@ -114,7 +127,14 @@ describe('view_image', () => {
   it('asks no approval, like read_file', async () => {
     const { workspace } = setup();
     fs.writeFileSync(path.join(workspace, 'a.png'), PNG);
-    const asking: ToolAgent = { id: 'files-asking', name: 'Files', toolGroups: ['files'], autonomy: 'ask', workspace, knowledge: { folders: [] } };
+    const asking: ToolAgent = {
+      id: 'files-asking',
+      name: 'Files',
+      toolGroups: ['files'],
+      autonomy: 'ask',
+      workspace,
+      knowledge: { folders: [] },
+    };
     expect((await callTool(asking, 'view_image', { path: 'a.png' })).images).toHaveLength(1);
     expect(listApprovals()).toEqual([]);
   });
@@ -123,7 +143,9 @@ describe('view_image', () => {
 describe('realTarget() / insideRoots()', () => {
   it('place a new file under its nearest real folder', () => {
     const { workspace } = setup();
-    expect(realTarget(path.join(workspace, 'a', 'b.txt'))).toBe(path.join(fs.realpathSync.native(workspace), 'a', 'b.txt'));
+    expect(realTarget(path.join(workspace, 'a', 'b.txt'))).toBe(
+      path.join(fs.realpathSync.native(workspace), 'a', 'b.txt'),
+    );
     expect(insideRoots(path.join(workspace, 'a', 'b.txt'), [workspace])).not.toBeNull();
   });
 

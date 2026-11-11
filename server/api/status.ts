@@ -34,7 +34,7 @@ export function appState(): AppState {
   const servers = mcp.listServers();
   return {
     gateways: gatewaySupervisor.summary(),
-    agents: store.agents.list().sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || a.name.localeCompare(b.name)),
+    agents: store.agents.list().sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.name.localeCompare(b.name)),
     // the MCP servers' names and each one's label, service and "use for" (mcp.json read once)
     mcpServers: Object.keys(servers),
     mcpInfo: mcp.serverInfo(servers),
@@ -42,7 +42,12 @@ export function appState(): AppState {
     projectSaved: projectSync.saveStatus(),
     projects: store.listProjects().map(projects.withLogo),
     approvals: listApprovals(),
-    outboxPending: social.listPosts().filter((p) => p.status === 'pending' || ((p.platform === 'telegram' || p.platform === 'discord') && p.status === 'failed')).length,
+    outboxPending: social
+      .listPosts()
+      .filter(
+        (p) =>
+          p.status === 'pending' || ((p.platform === 'telegram' || p.platform === 'discord') && p.status === 'failed'),
+      ).length,
     questions: questions.waitingQuestions(),
     runs: engines.activeRuns(),
     engines: engines.engineStatus(),
@@ -64,18 +69,51 @@ async function headbar(): Promise<HeadbarInfo> {
   const eng = engines.engineStatus();
   // Codex: asked live, like the sidebar (its session logs can be old or missing; they're only the fallback)
   const ox = await codexEngine.checkedStatus();
-  const [claude, connectors, or, cxLimits, venice] = await Promise.all([usage.claudeUsage(), usage.claudeConnectors().catch(() => []), usage.openrouterUsage(store.getSecrets().openrouterKey), ox?.installed && ox.loggedIn ? codexLimits.codexLimits() : null, usage.veniceUsage()]);
-  const usages = ([
-    // Claude Code is always shown when you're signed in; "–" until Anthropic sends numbers
-    eng['claude-code'].installed && (claude || eng['claude-code'].loggedIn) && { id: 'claude', name: 'Claude Code', meters: [{ label: 'SESSION', ...(claude?.session || {}) }, { label: 'WEEK', ...(claude?.week || {}) }] },
-    or && { id: 'openrouter', name: 'OpenRouter', meters: [or.percent != null ? { label: 'CREDITS', percent: or.percent, text: or.left != null ? `$${or.left.toFixed(2)} left` : null } : null, or.today != null ? { label: 'TODAY', text: `$${or.today.toFixed(2)}` } : null].filter(Boolean) },
-    cxLimits && { id: 'codex', name: 'OpenAI Codex', meters: codexLimits.headbarMeters(cxLimits) },
-    venice && !venice.expired && venice.accessPermitted && { id: 'venice', name: 'Venice', meters: [
-      venice.balances.usd != null ? { label: 'USD', text: `$${venice.balances.usd.toFixed(2)} left` } : null,
-      venice.balances.diem != null ? { label: 'DIEM', text: `${venice.balances.diem.toFixed(2)} left` } : null,
-      venice.balances.bundled != null ? { label: 'Bundled credits', text: `${venice.balances.bundled.toFixed(2)} left` } : null,
-    ].filter(Boolean) },
-  ] as (ProviderUsage | false | null | undefined)[]).filter((x): x is ProviderUsage => Boolean(x && x.meters.length));
+  const [claude, connectors, or, cxLimits, venice] = await Promise.all([
+    usage.claudeUsage(),
+    usage.claudeConnectors().catch(() => []),
+    usage.openrouterUsage(store.getSecrets().openrouterKey),
+    ox?.installed && ox.loggedIn ? codexLimits.codexLimits() : null,
+    usage.veniceUsage(),
+  ]);
+  const usages = (
+    [
+      // Claude Code is always shown when you're signed in; "–" until Anthropic sends numbers
+      eng['claude-code'].installed &&
+        (claude || eng['claude-code'].loggedIn) && {
+          id: 'claude',
+          name: 'Claude Code',
+          meters: [
+            { label: 'SESSION', ...(claude?.session || {}) },
+            { label: 'WEEK', ...(claude?.week || {}) },
+          ],
+        },
+      or && {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        meters: [
+          or.percent != null
+            ? { label: 'CREDITS', percent: or.percent, text: or.left != null ? `$${or.left.toFixed(2)} left` : null }
+            : null,
+          or.today != null ? { label: 'TODAY', text: `$${or.today.toFixed(2)}` } : null,
+        ].filter(Boolean),
+      },
+      cxLimits && { id: 'codex', name: 'OpenAI Codex', meters: codexLimits.headbarMeters(cxLimits) },
+      venice &&
+        !venice.expired &&
+        venice.accessPermitted && {
+          id: 'venice',
+          name: 'Venice',
+          meters: [
+            venice.balances.usd != null ? { label: 'USD', text: `$${venice.balances.usd.toFixed(2)} left` } : null,
+            venice.balances.diem != null ? { label: 'DIEM', text: `${venice.balances.diem.toFixed(2)} left` } : null,
+            venice.balances.bundled != null
+              ? { label: 'Bundled credits', text: `${venice.balances.bundled.toFixed(2)} left` }
+              : null,
+          ].filter(Boolean),
+        },
+    ] as (ProviderUsage | false | null | undefined)[]
+  ).filter((x): x is ProviderUsage => Boolean(x && x.meters.length));
   return { usage: claude, usages, connectors };
 }
 
@@ -85,13 +123,27 @@ export async function usageLimits(cx: codexLimits.CodexLimits | null = null): Pr
   const cc = eng['claude-code'];
   // (waits for the login check, so a fresh start doesn't say "not signed in" first)
   const ox = await codexEngine.checkedStatus();
-  const why = (e: { installed: boolean; loggedIn: boolean }) => (!e.installed ? 'not installed' : !e.loggedIn ? 'not signed in' : undefined);
-  const [claude, codex] = await Promise.all([cc.installed ? usage.claudeUsage() : null, cx || (ox?.installed && ox.loggedIn ? codexLimits.codexLimits() : null)]);
-  const claudeWindows = [claude?.session && { label: '5h', ...claude.session }, claude?.week && { label: 'Week', ...claude.week }].filter((w) => !!w);
+  const why = (e: { installed: boolean; loggedIn: boolean }) =>
+    !e.installed ? 'not installed' : !e.loggedIn ? 'not signed in' : undefined;
+  const [claude, codex] = await Promise.all([
+    cc.installed ? usage.claudeUsage() : null,
+    cx || (ox?.installed && ox.loggedIn ? codexLimits.codexLimits() : null),
+  ]);
+  const claudeWindows = [
+    claude?.session && { label: '5h', ...claude.session },
+    claude?.week && { label: 'Week', ...claude.week },
+  ].filter((w) => !!w);
   return {
     // signed in through an API key or not at all, Claude Code has no plan limits to show
     claude: { ready: cc.installed && (cc.loggedIn || !!claude), why: why(cc), windows: claudeWindows },
-    codex: { ready: !!(ox?.installed && ox.loggedIn), why: ox ? why(ox) : 'not installed', plan: codex?.plan ?? null, windows: codex?.windows || [], blocked: codex?.blocked, resets: codex?.resets ?? null },
+    codex: {
+      ready: !!(ox?.installed && ox.loggedIn),
+      why: ox ? why(ox) : 'not installed',
+      plan: codex?.plan ?? null,
+      windows: codex?.windows || [],
+      blocked: codex?.blocked,
+      resets: codex?.resets ?? null,
+    },
   };
 }
 

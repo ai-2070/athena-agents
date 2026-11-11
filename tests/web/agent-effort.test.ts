@@ -5,7 +5,31 @@ import { state } from '../../web/core.ts';
 import { render, unmount } from '../../web/views/agents.tsx';
 import type { Agent, AppState } from '../../shared/types.ts';
 
-const agent = { id: 'a1', name: 'Thinker', emoji: '🤖', color: '#fff', specialty: '', description: '', systemPrompt: '', engine: 'claude-code', model: 'opus', provider: 'openrouter', claudeAuth: 'login', hermesProfile: '', autonomy: 'auto', toolGroups: [], mcpServers: [], knowledge: { folders: [] }, workspace: '', temperature: '', effort: 'max', alwaysAllow: [], skills: [], source: { type: 'custom' }, pinned: false } as Agent;
+const agent = {
+  id: 'a1',
+  name: 'Thinker',
+  emoji: '🤖',
+  color: '#fff',
+  specialty: '',
+  description: '',
+  systemPrompt: '',
+  engine: 'claude-code',
+  model: 'opus',
+  provider: 'openrouter',
+  claudeAuth: 'login',
+  hermesProfile: '',
+  autonomy: 'auto',
+  toolGroups: [],
+  mcpServers: [],
+  knowledge: { folders: [] },
+  workspace: '',
+  temperature: '',
+  effort: 'max',
+  alwaysAllow: [],
+  skills: [],
+  source: { type: 'custom' },
+  pinned: false,
+} as Agent;
 let saved: Partial<Agent> | null = null;
 
 beforeEach(() => {
@@ -18,7 +42,12 @@ beforeEach(() => {
     runs: [],
     approvals: [],
     terminals: [],
-    engines: { 'claude-code': { installed: true }, codex: { installed: true, loggedIn: true }, hermes: { installed: true }, eve: {} },
+    engines: {
+      'claude-code': { installed: true },
+      codex: { installed: true, loggedIn: true },
+      hermes: { installed: true },
+      eve: {},
+    },
     engineList: [
       { id: 'claude-code', label: 'Claude Code' },
       { id: 'eve', label: 'API model' },
@@ -32,9 +61,15 @@ beforeEach(() => {
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
       const path = String(url).replace(/^\/api/, '');
-      if (path === '/models?engine=eve&provider=venice') return Response.json([{ id: 'venice-chat', reasoningEfforts: ['low', 'high'] }]);
+      if (path === '/models?engine=eve&provider=venice')
+        return Response.json([{ id: 'venice-chat', reasoningEfforts: ['low', 'high'] }]);
       if (init.method === 'PUT' && path === '/agents/a1') saved = JSON.parse(String(init.body));
-      const body = path === '/agents/a1' ? { ...agent, knowledgeFiles: [], workspacePath: '/tmp', tools: [] } : path === '/mcp' ? { servers: {} } : [];
+      const body =
+        path === '/agents/a1'
+          ? { ...agent, knowledgeFiles: [], workspacePath: '/tmp', tools: [] }
+          : path === '/mcp'
+            ? { servers: {} }
+            : [];
       return new Response(JSON.stringify(saved && init.method === 'PUT' ? saved : body), { status: 200 });
     }),
   );
@@ -62,14 +97,28 @@ describe('agent editor: effort', () => {
     await settle();
     // each provider shows its logo (Custom a plug icon)
     const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
-    expect(options.map((o) => o.textContent?.replace(/ \(.*\)$/, ''))).toEqual(['OpenRouter', 'Venice', 'LM Studio', 'Ollama', 'Custom OpenAI-compatible']);
+    expect(options.map((o) => o.textContent?.replace(/ \(.*\)$/, ''))).toEqual([
+      'OpenRouter',
+      'Venice',
+      'LM Studio',
+      'Ollama',
+      'Custom OpenAI-compatible',
+    ]);
     expect(options.every((o) => o.querySelector('svg, img'))).toBe(true);
-    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((b) => b.textContent?.startsWith('Venice'))!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+        .find((b) => b.textContent?.startsWith('Venice'))!
+        .click(),
+    );
     await settle();
     await act(async () => effortSelect().click());
     await settle();
     const popup = [...document.querySelectorAll('[role="listbox"]')].at(-1)!;
-    expect([...popup.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim())).toEqual(["Model's default", 'Low', 'High']);
+    expect([...popup.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim())).toEqual([
+      "Model's default",
+      'Low',
+      'High',
+    ]);
     await act(async () => effortSelect().click());
     await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Save')!.click());
     expect(saved).toMatchObject({ engine: 'eve', provider: 'venice', model: 'venice-chat' });
@@ -82,7 +131,14 @@ describe('agent editor: effort', () => {
     expect(effortSelect().textContent).toContain('Max');
     await act(async () => effortSelect().click());
     await settle();
-    expect([...document.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim())).toEqual(["Model's default", 'Low', 'Medium', 'High', 'Extra high', 'Max']);
+    expect([...document.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim())).toEqual([
+      "Model's default",
+      'Low',
+      'Medium',
+      'High',
+      'Extra high',
+      'Max',
+    ]);
     await act(async () => effortSelect().click());
     // Codex has no "max"
     await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Codex')!.click());

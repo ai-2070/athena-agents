@@ -7,9 +7,19 @@ import { cleanMark, markFile, removeMarkFile, setMarkFile, DEFAULT_MARK } from '
 import type { Team } from '../../shared/types.ts';
 
 // a real 1×1 PNG
-const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 const GLB = `data:application/octet-stream;base64,${Buffer.concat([Buffer.from('glTF'), Buffer.alloc(40)]).toString('base64')}`;
-const team = (name: string): Team => workflows.save({ name, description: '', members: [], lead: null, steps: [], schedule: { type: 'none' }, enabled: false } as unknown as Team);
+const team = (name: string): Team =>
+  workflows.save({
+    name,
+    description: '',
+    members: [],
+    lead: null,
+    steps: [],
+    schedule: { type: 'none' },
+    enabled: false,
+  } as unknown as Team);
 const files = () => fs.readdirSync(path.join(projectData('team-marks')));
 
 describe('cleanMark()', () => {
@@ -40,13 +50,17 @@ describe('a team picture or 3D model', () => {
     expect(workflows.get(t.id)?.markFile?.kind).toBe('model');
   });
 
-  it("checks the name and what is really in the file", () => {
+  it('checks the name and what is really in the file', () => {
     const t = team('Mark two');
     expect(() => setMarkFile(t.id, 'x.exe', PNG)).toThrow(/Pick a picture/);
     expect(() => setMarkFile(t.id, 'x.svg', 'data:image/svg+xml;base64,PHN2Zy8+')).toThrow(/Pick a picture/);
     // a "picture" that is really a script, and a "model" that is really text
-    expect(() => setMarkFile(t.id, 'x.png', `data:image/png;base64,${Buffer.from('<svg onload="x"/>').toString('base64')}`)).toThrow(/isn't a real \.png/);
-    expect(() => setMarkFile(t.id, 'x.glb', `data:;base64,${Buffer.from('plain words').toString('base64')}`)).toThrow(/isn't a real \.glb/);
+    expect(() =>
+      setMarkFile(t.id, 'x.png', `data:image/png;base64,${Buffer.from('<svg onload="x"/>').toString('base64')}`),
+    ).toThrow(/isn't a real \.png/);
+    expect(() => setMarkFile(t.id, 'x.glb', `data:;base64,${Buffer.from('plain words').toString('base64')}`)).toThrow(
+      /isn't a real \.glb/,
+    );
     expect(() => setMarkFile(t.id, 'x.png', 'not a data url')).toThrow(/read that file/);
     expect(() => setMarkFile('nope', 'x.png', PNG)).toThrow(/No such team/);
     expect(workflows.get(t.id)?.markFile ?? null).toBeNull();
@@ -70,7 +84,9 @@ describe('a team picture or 3D model', () => {
   });
 
   it('never reaches a file outside the team-marks folder', () => {
-    expect(() => markFile({ id: '../secrets', markFile: { kind: 'image', ext: 'png', at: 1 } })).toThrow(/No such team/);
+    expect(() => markFile({ id: '../secrets', markFile: { kind: 'image', ext: 'png', at: 1 } })).toThrow(
+      /No such team/,
+    );
     expect(markFile({ id: 'x', markFile: { kind: 'image', ext: 'exe', at: 1 } })).toBeNull();
   });
 });

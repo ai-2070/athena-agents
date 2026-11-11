@@ -29,27 +29,49 @@ export function TagMark({ tag, onPick }: { tag: Pick<BoardTag, 'name' | 'emoji'>
   );
   if (!onPick) return mark;
   return (
-    <button type="button" className="tag-filter flex min-w-0 cursor-pointer rounded-full" aria-label={`Show tasks tagged ${tagLabel(tag)}`} onClick={(e) => (e.stopPropagation(), onPick())}>
+    <button
+      type="button"
+      className="tag-filter flex min-w-0 cursor-pointer rounded-full"
+      aria-label={`Show tasks tagged ${tagLabel(tag)}`}
+      onClick={(e) => (e.stopPropagation(), onPick())}
+    >
       {mark}
     </button>
   );
 }
 
 /** Up to `max` tags, then "+2". */
-export function TagMarks({ tags, max = 3, onPick }: { tags: readonly BoardTag[]; max?: number; onPick?: (t: BoardTag) => void }) {
+export function TagMarks({
+  tags,
+  max = 3,
+  onPick,
+}: {
+  tags: readonly BoardTag[];
+  max?: number;
+  onPick?: (t: BoardTag) => void;
+}) {
   if (!tags.length) return null;
   const more = tags.length - max;
   return (
     <span className="flex min-w-0 flex-wrap items-center gap-1">
-      {tags.slice(0, max).map((t) => <TagMark key={t.id} tag={t} onPick={onPick ? () => onPick(t) : undefined} />)}
-      {more > 0 ? <span className="text-[11.5px] text-faint tabular-nums" title={tags.slice(max).map(tagLabel).join(', ')}>+{more}</span> : null}
+      {tags.slice(0, max).map((t) => (
+        <TagMark key={t.id} tag={t} onPick={onPick ? () => onPick(t) : undefined} />
+      ))}
+      {more > 0 ? (
+        <span className="text-[11.5px] text-faint tabular-nums" title={tags.slice(max).map(tagLabel).join(', ')}>
+          +{more}
+        </span>
+      ) : null}
     </span>
   );
 }
 
 /** A project's tags. While live they load, and load again when its board changes; otherwise the last ones stay
  *  (a closed tag menu doesn't ask for them on every comment or move). */
-export function useBoardTags(projectId: string, live = true): { tags: BoardTagUse[] | null; reload: () => Promise<void> } {
+export function useBoardTags(
+  projectId: string,
+  live = true,
+): { tags: BoardTagUse[] | null; reload: () => Promise<void> } {
   const [tags, setTags] = useState<BoardTagUse[] | null>(null);
   const reload = useCallback(async () => {
     if (!projectId) return;
@@ -69,7 +91,11 @@ export function useBoardTags(projectId: string, live = true): { tags: BoardTagUs
 }
 
 /** Makes a tag ("🐛 Bug" is the emoji and the name), or finds the one with that name (made: false). */
-async function makeTag(projectId: string, name: string, emoji?: string): Promise<(BoardTagUse & { made: boolean }) | null> {
+async function makeTag(
+  projectId: string,
+  name: string,
+  emoji?: string,
+): Promise<(BoardTagUse & { made: boolean }) | null> {
   try {
     return (await rpc.taskBoard.tags.add({ projectId, name, ...(emoji ? { emoji } : {}) })).tag;
   } catch (e) {
@@ -79,7 +105,17 @@ async function makeTag(projectId: string, name: string, emoji?: string): Promise
 }
 
 /** The search box and the list of a tag menu. Enter picks the first match, or makes the tag that was typed. */
-function TagSearch({ query, onQuery, onEnter, placeholder }: { query: string; onQuery: (q: string) => void; onEnter: () => void; placeholder: string }) {
+function TagSearch({
+  query,
+  onQuery,
+  onEnter,
+  placeholder,
+}: {
+  query: string;
+  onQuery: (q: string) => void;
+  onEnter: () => void;
+  placeholder: string;
+}) {
   return (
     <input
       autoFocus
@@ -95,25 +131,53 @@ function TagSearch({ query, onQuery, onEnter, placeholder }: { query: string; on
     />
   );
 }
-function TagRow({ on, onClick, children, count }: { on: boolean; onClick: () => void; children: ReactNode; count?: number }) {
+function TagRow({
+  on,
+  onClick,
+  children,
+  count,
+}: {
+  on: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  count?: number;
+}) {
   return (
     <button type="button" role="menuitemcheckbox" aria-checked={on} onClick={onClick} className="st-menu-item w-full">
       <span className="flex min-w-0 flex-1 items-center gap-2 truncate">{children}</span>
       {count !== undefined ? <span className="text-[11.5px] text-faint tabular-nums">{count}</span> : null}
-      <span className={`flex w-3.5 text-accent ${on ? '' : 'invisible'}`}><Icon name="check" size={14} /></span>
+      <span className={`flex w-3.5 text-accent ${on ? '' : 'invisible'}`}>
+        <Icon name="check" size={14} />
+      </span>
     </button>
   );
 }
 const tagText = (t: Pick<BoardTag, 'name' | 'emoji'>) => (
   <>
-    <span className="w-4 flex-none text-center" aria-hidden="true">{t.emoji || <Icon name="tag" size={13} className="text-faint" />}</span>
+    <span className="w-4 flex-none text-center" aria-hidden="true">
+      {t.emoji || <Icon name="tag" size={13} className="text-faint" />}
+    </span>
     <span className="min-w-0 truncate">{t.name}</span>
   </>
 );
 
 /** Puts tags on a task (ids, in order): as a pill (the new task window) or a row (the task page). known: the tags
  *  the task has, to show them before the project's tags are loaded (they load when the menu opens). */
-export function TagPicker({ projectId, value, known = [], onChange, look = 'pill', disabled }: { projectId: string; value: readonly string[]; known?: readonly BoardTag[]; onChange: (ids: string[]) => unknown; look?: 'pill' | 'row'; disabled?: boolean }) {
+export function TagPicker({
+  projectId,
+  value,
+  known = [],
+  onChange,
+  look = 'pill',
+  disabled,
+}: {
+  projectId: string;
+  value: readonly string[];
+  known?: readonly BoardTag[];
+  onChange: (ids: string[]) => unknown;
+  look?: 'pill' | 'row';
+  disabled?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const { tags, reload } = useBoardTags(projectId, open);
   const [query, setQuery] = useState('');
@@ -136,10 +200,16 @@ export function TagPicker({ projectId, value, known = [], onChange, look = 'pill
   const typed = splitTag(query);
   return (
     <Popover.Root open={open} onOpenChange={(o) => (setOpen(o), o || setQuery(''))}>
-      <Popover.Trigger className={look === 'pill' ? PILL : ROW} aria-label={`Tags: ${picked.length ? picked.map(tagLabel).join(', ') : 'none'}`} disabled={disabled || !projectId}>
+      <Popover.Trigger
+        className={look === 'pill' ? PILL : ROW}
+        aria-label={`Tags: ${picked.length ? picked.map(tagLabel).join(', ') : 'none'}`}
+        disabled={disabled || !projectId}
+      >
         {look === 'row' ? <span className="w-24 flex-none text-dim">Tags</span> : null}
         {picked.length ? (
-          <span className="flex min-w-0 flex-1 flex-wrap gap-1"><TagMarks tags={picked} max={look === 'row' ? 10 : 2} /></span>
+          <span className="flex min-w-0 flex-1 flex-wrap gap-1">
+            <TagMarks tags={picked} max={look === 'row' ? 10 : 2} />
+          </span>
         ) : (
           <>
             <Icon name="tag" size={14} className="text-faint" />
@@ -148,21 +218,45 @@ export function TagPicker({ projectId, value, known = [], onChange, look = 'pill
         )}
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Positioner positionMethod="fixed" className="z-96 outline-none" side="bottom" align="start" sideOffset={6} collisionPadding={8}>
+        <Popover.Positioner
+          positionMethod="fixed"
+          className="z-96 outline-none"
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          collisionPadding={8}
+        >
           <Popover.Popup aria-label="Tags" className="st-menu dd static w-64 max-w-none p-1.5">
-            <TagSearch query={query} onQuery={setQuery} placeholder="Find or make a tag" onEnter={() => (exact ? (toggle(exact.id), setQuery('')) : key ? void create() : undefined)} />
+            <TagSearch
+              query={query}
+              onQuery={setQuery}
+              placeholder="Find or make a tag"
+              onEnter={() => (exact ? (toggle(exact.id), setQuery('')) : key ? void create() : undefined)}
+            />
             <div role="menu" aria-label="Tags to choose" className="mt-1.5 flex max-h-64 flex-col overflow-y-auto">
-              {shown.map((t) => <TagRow key={t.id} on={value.includes(t.id)} count={t.tasks} onClick={() => toggle(t.id)}>{tagText(t)}</TagRow>)}
+              {shown.map((t) => (
+                <TagRow key={t.id} on={value.includes(t.id)} count={t.tasks} onClick={() => toggle(t.id)}>
+                  {tagText(t)}
+                </TagRow>
+              ))}
               {key && !exact ? (
                 <button type="button" onClick={() => void create()} className="st-menu-item w-full">
                   <Icon name="plus" size={14} />
                   <span className="min-w-0 flex-1 truncate">Make “{tagLabel(typed)}”</span>
                 </button>
               ) : null}
-              {!shown.length && !key ? <p className="m-0 px-2 py-2 text-[12.5px] text-dim">No tags yet. Type a name to make one; start it with an emoji to give it one.</p> : null}
+              {!shown.length && !key ? (
+                <p className="m-0 px-2 py-2 text-[12.5px] text-dim">
+                  No tags yet. Type a name to make one; start it with an emoji to give it one.
+                </p>
+              ) : null}
             </div>
             <div className="st-menu-sep" />
-            <button type="button" className="st-menu-item w-full" onClick={() => (setOpen(false), openTagManager(projectId))}>
+            <button
+              type="button"
+              className="st-menu-item w-full"
+              onClick={() => (setOpen(false), openTagManager(projectId))}
+            >
               <Icon name="pencil" size={14} />
               Manage tags…
             </button>
@@ -187,7 +281,12 @@ export function tagOptions(byProject: Record<string, readonly BoardTagUse[]> | u
     for (const t of list) {
       const key = tagKey(t.name);
       const had = out.get(key);
-      out.set(key, had ? { ...had, emoji: had.emoji || t.emoji, tasks: had.tasks + t.tasks } : { key, name: t.name, ...(t.emoji ? { emoji: t.emoji } : {}), tasks: t.tasks });
+      out.set(
+        key,
+        had
+          ? { ...had, emoji: had.emoji || t.emoji, tasks: had.tasks + t.tasks }
+          : { key, name: t.name, ...(t.emoji ? { emoji: t.emoji } : {}), tasks: t.tasks },
+      );
     }
   }
   return [...out.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
@@ -206,14 +305,33 @@ export function knownTagFilter(value: TagFilterValue, options: readonly TagOptio
   return keys.length === value.keys.length ? value : { ...value, keys };
 }
 /** The board's Tags filter: tags to show (any or all of them), and tasks with no tag. */
-export function TagFilter({ options, value, onChange, projectId }: { options: readonly TagOption[]; value: TagFilterValue; onChange: (v: TagFilterValue) => void; projectId?: string }) {
+export function TagFilter({
+  options,
+  value,
+  onChange,
+  projectId,
+}: {
+  options: readonly TagOption[];
+  value: TagFilterValue;
+  onChange: (v: TagFilterValue) => void;
+  projectId?: string;
+}) {
   const [query, setQuery] = useState('');
   const key = tagKey(query);
   const shown = useMemo(() => (key ? options.filter((t) => t.key.includes(key)) : options), [options, key]);
   const picked = value.keys.flatMap((k) => options.filter((t) => t.key === k));
-  const toggle = (k: string) => onChange({ ...value, keys: value.keys.includes(k) ? value.keys.filter((x) => x !== k) : [...value.keys, k] });
+  const toggle = (k: string) =>
+    onChange({ ...value, keys: value.keys.includes(k) ? value.keys.filter((x) => x !== k) : [...value.keys, k] });
   const count = value.keys.length + (value.untagged ? 1 : 0);
-  const label = !count ? 'Tags' : count > 1 ? `${count} tags` : value.untagged ? 'No tags' : picked[0] ? tagLabel(picked[0]) : '1 tag';
+  const label = !count
+    ? 'Tags'
+    : count > 1
+      ? `${count} tags`
+      : value.untagged
+        ? 'No tags'
+        : picked[0]
+          ? tagLabel(picked[0])
+          : '1 tag';
   return (
     <Popover.Root onOpenChange={(o) => o || setQuery('')}>
       <Popover.Trigger className={PILL} aria-label={`Tags shown: ${count ? label : 'any'}`}>
@@ -221,21 +339,51 @@ export function TagFilter({ options, value, onChange, projectId }: { options: re
         <span className="min-w-0 truncate">{label}</span>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Positioner positionMethod="fixed" className="z-96 outline-none" side="bottom" align="start" sideOffset={6} collisionPadding={8}>
+        <Popover.Positioner
+          positionMethod="fixed"
+          className="z-96 outline-none"
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          collisionPadding={8}
+        >
           <Popover.Popup aria-label="Tags shown" className="st-menu dd static w-64 max-w-none p-1.5">
-            {options.length > 6 ? <TagSearch query={query} onQuery={setQuery} placeholder="Find a tag" onEnter={() => shown[0] && toggle(shown[0].key)} /> : null}
+            {options.length > 6 ? (
+              <TagSearch
+                query={query}
+                onQuery={setQuery}
+                placeholder="Find a tag"
+                onEnter={() => shown[0] && toggle(shown[0].key)}
+              />
+            ) : null}
             {value.keys.length > 1 ? (
               <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-1 text-[12.5px] text-dim">
                 Tasks with
-                <Segmented label="Tasks with" value={value.match} onChange={(match) => onChange({ ...value, match })} options={[{ value: 'any', label: 'Any' }, { value: 'all', label: 'All' }]} />
+                <Segmented
+                  label="Tasks with"
+                  value={value.match}
+                  onChange={(match) => onChange({ ...value, match })}
+                  options={[
+                    { value: 'any', label: 'Any' },
+                    { value: 'all', label: 'All' },
+                  ]}
+                />
               </div>
             ) : null}
             <div role="menu" aria-label="Tags to show" className="mt-1 flex max-h-72 flex-col overflow-y-auto">
-              {shown.map((t) => <TagRow key={t.key} on={value.keys.includes(t.key)} count={t.tasks} onClick={() => toggle(t.key)}>{tagText(t)}</TagRow>)}
-              {!options.length ? <p className="m-0 px-2 py-2 text-[12.5px] text-dim">No tags yet. Add them on a task.</p> : null}
+              {shown.map((t) => (
+                <TagRow key={t.key} on={value.keys.includes(t.key)} count={t.tasks} onClick={() => toggle(t.key)}>
+                  {tagText(t)}
+                </TagRow>
+              ))}
+              {!options.length ? (
+                <p className="m-0 px-2 py-2 text-[12.5px] text-dim">No tags yet. Add them on a task.</p>
+              ) : null}
               {!key ? (
                 <TagRow on={value.untagged} onClick={() => onChange({ ...value, untagged: !value.untagged })}>
-                  <span className="w-4 flex-none text-center text-faint" aria-hidden="true"><Icon name="minus" size={13} /></span>
+                  <span className="w-4 flex-none text-center text-faint" aria-hidden="true">
+                    <Icon name="minus" size={13} />
+                  </span>
                   No tags
                 </TagRow>
               ) : null}
@@ -270,10 +418,16 @@ export function openTagManager(projectId: string): void {
 }
 
 function EmojiButton({ value, onChange, label }: { value: string; onChange: (emoji: string) => void; label: string }) {
-  const face = value ? <span className="text-[17px]">{value}</span> : <Icon name="smiley" size={16} className="text-faint" />;
+  const face = value ? (
+    <span className="text-[17px]">{value}</span>
+  ) : (
+    <Icon name="smiley" size={16} className="text-faint" />
+  );
   return (
     <Suspense fallback={<span className="flex size-8 items-center justify-center">{face}</span>}>
-      <EmojiPicker value={value} onChange={onChange} label={label} className="size-8! rounded-ctl p-0!">{face}</EmojiPicker>
+      <EmojiPicker value={value} onChange={onChange} label={label} className="size-8! rounded-ctl p-0!">
+        {face}
+      </EmojiPicker>
     </Suspense>
   );
 }
@@ -304,7 +458,10 @@ export function TagManager({ projectId }: { projectId: string }) {
     return ok;
   };
   const remove = async (t: BoardTagUse) => {
-    const ok = await confirmBox(`Delete the tag “${tagLabel(t)}”?${t.tasks ? ` It comes off ${t.tasks} task${t.tasks === 1 ? '' : 's'}.` : ''}`, { ok: 'Delete', danger: true });
+    const ok = await confirmBox(
+      `Delete the tag “${tagLabel(t)}”?${t.tasks ? ` It comes off ${t.tasks} task${t.tasks === 1 ? '' : 's'}.` : ''}`,
+      { ok: 'Delete', danger: true },
+    );
     if (!ok) return;
     try {
       await rpc.taskBoard.tags.remove({ projectId, tagId: t.id });
@@ -317,14 +474,30 @@ export function TagManager({ projectId }: { projectId: string }) {
     <div className="modal-body flex flex-col gap-3">
       <form className="flex items-center gap-2" onSubmit={(e) => (e.preventDefault(), void add())}>
         <EmojiButton value={emoji} onChange={setEmoji} label="Choose the new tag's emoji" />
-        <input aria-label="New tag" placeholder="New tag, e.g. Bug" value={name} maxLength={80} onChange={(e) => setName(e.currentTarget.value)} className="min-w-0 flex-1" />
-        <Button type="submit" size="small" disabled={!name.trim()}>Add tag</Button>
+        <input
+          aria-label="New tag"
+          placeholder="New tag, e.g. Bug"
+          value={name}
+          maxLength={80}
+          onChange={(e) => setName(e.currentTarget.value)}
+          className="min-w-0 flex-1"
+        />
+        <Button type="submit" size="small" disabled={!name.trim()}>
+          Add tag
+        </Button>
       </form>
       {tags === null ? null : tags.length ? (
         <ul aria-label="The project's tags" className="m-0 flex list-none flex-col p-0">
           {tags.map((t) => (
-            <li key={`${t.id}:${t.name}:${t.emoji || ''}`} className="flex items-center gap-2 border-t border-line py-1.5 first:border-t-0">
-              <EmojiButton value={t.emoji || ''} onChange={(e) => void change(t, { emoji: e })} label={`Choose an emoji for ${t.name}`} />
+            <li
+              key={`${t.id}:${t.name}:${t.emoji || ''}`}
+              className="flex items-center gap-2 border-t border-line py-1.5 first:border-t-0"
+            >
+              <EmojiButton
+                value={t.emoji || ''}
+                onChange={(e) => void change(t, { emoji: e })}
+                label={`Choose an emoji for ${t.name}`}
+              />
               <input
                 aria-label={`Name of ${t.name}`}
                 defaultValue={t.name}
@@ -335,14 +508,22 @@ export function TagManager({ projectId }: { projectId: string }) {
                   const input = e.currentTarget;
                   const next = input.value.trim();
                   // (a refused name goes back to the tag's own: the row isn't drawn again, as nothing changed)
-                  if (next && next !== t.name) void change(t, { name: next }).then((ok) => ok || (input.value = t.name));
+                  if (next && next !== t.name)
+                    void change(t, { name: next }).then((ok) => ok || (input.value = t.name));
                   else input.value = t.name;
                 }}
               />
-              <span className="flex-none text-[12px] text-faint tabular-nums">{t.tasks} task{t.tasks === 1 ? '' : 's'}</span>
+              <span className="flex-none text-[12px] text-faint tabular-nums">
+                {t.tasks} task{t.tasks === 1 ? '' : 's'}
+              </span>
               {/* (its place stays when there is no emoji, so the rows line up) */}
               {t.emoji ? (
-                <IconButton variant="plain" aria-label={`Take the emoji off ${t.name}`} title="Take the emoji off" onClick={() => void change(t, { emoji: '' })}>
+                <IconButton
+                  variant="plain"
+                  aria-label={`Take the emoji off ${t.name}`}
+                  title="Take the emoji off"
+                  onClick={() => void change(t, { emoji: '' })}
+                >
                   <Icon name="x" size={14} />
                 </IconButton>
               ) : (
@@ -350,7 +531,12 @@ export function TagManager({ projectId }: { projectId: string }) {
                   <Icon name="x" size={14} />
                 </IconButton>
               )}
-              <IconButton variant="plain" aria-label={`Delete the tag ${t.name}`} title="Delete the tag" onClick={() => void remove(t)}>
+              <IconButton
+                variant="plain"
+                aria-label={`Delete the tag ${t.name}`}
+                title="Delete the tag"
+                onClick={() => void remove(t)}
+              >
                 <Icon name="trash-2" size={14} />
               </IconButton>
             </li>

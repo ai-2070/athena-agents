@@ -9,18 +9,32 @@ vi.mock('../../server/store.ts', async (orig) => ({
   log: () => ({}),
   emit: () => {},
 }));
-vi.mock('../../server/artifacts.ts', () => ({ teamOf: (agentId: string) => (agentId === 'solo' ? { id: 't9', name: 'Solo team' } : null) }));
+vi.mock('../../server/artifacts.ts', () => ({
+  teamOf: (agentId: string) => (agentId === 'solo' ? { id: 't9', name: 'Solo team' } : null),
+}));
 
 const { returnPost } = await import('../../server/social.ts');
 
 const draft = (over: Partial<OutboxItem> = {}): OutboxItem => {
-  const it: OutboxItem = { id: 'p1', platform: 'x', accountLabel: '@me', parts: ['First line\nsecond line', 'Part two'], images: ['C:\\proj\\hero.png'], status: 'pending', agentId: 'a1', agentName: 'Social Writer', teamId: 't1', teamName: 'Social', ...over };
+  const it: OutboxItem = {
+    id: 'p1',
+    platform: 'x',
+    accountLabel: '@me',
+    parts: ['First line\nsecond line', 'Part two'],
+    images: ['C:\\proj\\hero.png'],
+    status: 'pending',
+    agentId: 'a1',
+    agentName: 'Social Writer',
+    teamId: 't1',
+    teamName: 'Social',
+    ...over,
+  };
   items.set(it.id, it);
   return it;
 };
 
 describe('returnPost', () => {
-  it('posts your note to the draft\'s team, addressed to its author, and marks the draft sent back', async () => {
+  it("posts your note to the draft's team, addressed to its author, and marks the draft sent back", async () => {
     draft();
     const send = vi.fn(async () => undefined);
     const r = await returnPost('p1', 'Make it shorter', send);
@@ -55,7 +69,11 @@ describe('returnPost', () => {
 
   it('leaves the draft waiting if the team chat refuses the message', async () => {
     const it = draft();
-    await expect(returnPost('p1', 'Shorter', async () => { throw new Error('This team has no agents yet.'); })).rejects.toThrow(/no agents/);
+    await expect(
+      returnPost('p1', 'Shorter', async () => {
+        throw new Error('This team has no agents yet.');
+      }),
+    ).rejects.toThrow(/no agents/);
     expect(items.get('p1')?.status).toBe('pending');
     expect(it.status).toBe('pending');
   });

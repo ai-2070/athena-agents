@@ -7,9 +7,31 @@ import { h, navigate, promptBox, toast } from './core.ts';
 import { rpc } from './client/rpc.ts';
 import { domButton } from './ui/dom.ts';
 import { iconButtonClass } from './ui/classes.ts';
-import { Dropdown, DropdownContent, DropdownGroup, DropdownItem, DropdownLabel, DropdownRadioGroup, DropdownRadioItem, DropdownSeparator, DropdownTrigger } from './ui/dropdown.tsx';
+import {
+  Dropdown,
+  DropdownContent,
+  DropdownGroup,
+  DropdownItem,
+  DropdownLabel,
+  DropdownRadioGroup,
+  DropdownRadioItem,
+  DropdownSeparator,
+  DropdownTrigger,
+} from './ui/dropdown.tsx';
 import { Icon } from './ui/react.tsx';
-import { PriorityIcon, STATUSES, WORK_STATES, WhoMark, assigneeChoices, isWorking, priorityOf, statusOf, taskHref, taskKey, usePeople } from './taskboard.tsx';
+import {
+  PriorityIcon,
+  STATUSES,
+  WORK_STATES,
+  WhoMark,
+  assigneeChoices,
+  isWorking,
+  priorityOf,
+  statusOf,
+  taskHref,
+  taskKey,
+  usePeople,
+} from './taskboard.tsx';
 import { TagMarks } from './tasktags.tsx';
 import { cardCopy } from './taskmotion.ts';
 import type { BoardStatus, BoardTag, BoardTask } from '../shared/types.ts';
@@ -21,7 +43,8 @@ export function rankBetween(above: number | undefined, below: number | undefined
   if (below === undefined) return above + 1024;
   return (above + below) / 2;
 }
-export const byRank = (a: BoardTask, b: BoardTask) => a.rank - b.rank || b.createdAt - a.createdAt || a.id.localeCompare(b.id);
+export const byRank = (a: BoardTask, b: BoardTask) =>
+  a.rank - b.rank || b.createdAt - a.createdAt || a.id.localeCompare(b.id);
 export const same = (a: BoardTask, b: BoardTask) => a.id === b.id && a.projectId === b.projectId;
 
 export interface Placement {
@@ -51,9 +74,26 @@ export const errorText = (e: unknown) => (e instanceof Error ? e.message : Strin
 export const cardKey = (t: BoardTask) => `${t.projectId}/${t.id}`;
 
 /** Asks why a task is blocked (null: the move is called off). */
-export const askWhyBlocked = (t: BoardTask) => promptBox(`Why is ${taskKey(t.number)} blocked?`, { placeholder: 'e.g. Waiting for the printer\'s quote', ok: 'Move to Blocked' });
+export const askWhyBlocked = (t: BoardTask) =>
+  promptBox(`Why is ${taskKey(t.number)} blocked?`, {
+    placeholder: "e.g. Waiting for the printer's quote",
+    ok: 'Move to Blocked',
+  });
 
-export function Card({ task: t, showProject, first, last, dragging, onDragStart, onDragEnd, onColumn, onStep, onRemove, onAssign, onTag }: {
+export function Card({
+  task: t,
+  showProject,
+  first,
+  last,
+  dragging,
+  onDragStart,
+  onDragEnd,
+  onColumn,
+  onStep,
+  onRemove,
+  onAssign,
+  onTag,
+}: {
   task: BoardTask;
   showProject: boolean;
   first: boolean;
@@ -95,19 +135,37 @@ export function Card({ task: t, showProject, first, last, dragging, onDragStart,
         if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter') return (e.preventDefault(), open());
         if (e.key === '[' && column > 0) return (e.preventDefault(), onColumn(STATUSES[column - 1].value));
-        if (e.key === ']' && column < STATUSES.length - 1) return (e.preventDefault(), onColumn(STATUSES[column + 1].value));
+        if (e.key === ']' && column < STATUSES.length - 1)
+          return (e.preventDefault(), onColumn(STATUSES[column + 1].value));
         if (e.altKey && e.key === 'ArrowUp') return (e.preventDefault(), onStep(-1));
         if (e.altKey && e.key === 'ArrowDown') return (e.preventDefault(), onStep(1));
       }}
     >
       <div className="flex items-start gap-2">
-        <a href={taskHref(t)} tabIndex={-1} draggable={false} className="line-clamp-3 min-w-0 flex-1 leading-snug font-medium break-words text-ink no-underline hover:text-ink">{t.title}</a>
+        <a
+          href={taskHref(t)}
+          tabIndex={-1}
+          draggable={false}
+          className="line-clamp-3 min-w-0 flex-1 leading-snug font-medium break-words text-ink no-underline hover:text-ink"
+        >
+          {t.title}
+        </a>
         {/* (shows when you point at the card) */}
         <span className="-mt-0.5 -mr-1.5 flex-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 has-data-popup-open:opacity-100">
-          <CardMenu task={t} first={first} last={last} onColumn={onColumn} onStep={onStep} onOpen={open} onRemove={onRemove} />
+          <CardMenu
+            task={t}
+            first={first}
+            last={last}
+            onColumn={onColumn}
+            onStep={onStep}
+            onOpen={open}
+            onRemove={onRemove}
+          />
         </span>
       </div>
-      {t.status === 'blocked' && t.blockedReason ? <p className="m-0 line-clamp-2 text-[12px] leading-snug text-red">{t.blockedReason}</p> : null}
+      {t.status === 'blocked' && t.blockedReason ? (
+        <p className="m-0 line-clamp-2 text-[12px] leading-snug text-red">{t.blockedReason}</p>
+      ) : null}
       {t.tagList.length ? <TagMarks tags={t.tagList} onPick={onTag} /> : null}
       <div className="flex min-w-0 items-center gap-2 text-[11.5px] text-faint">
         <span className="font-medium tabular-nums">{taskKey(t.number)}</span>
@@ -118,18 +176,28 @@ export function Card({ task: t, showProject, first, last, dragging, onDragStart,
           </span>
         ) : null}
         {t.commentCount ? (
-          <span className="inline-flex items-center gap-1 tabular-nums" title={`${t.commentCount} comment${t.commentCount === 1 ? '' : 's'}`}>
+          <span
+            className="inline-flex items-center gap-1 tabular-nums"
+            title={`${t.commentCount} comment${t.commentCount === 1 ? '' : 's'}`}
+          >
             <Icon name="message-square" size={12} />
             {t.commentCount}
           </span>
         ) : null}
         {t.fileCount ? (
-          <span className="inline-flex items-center gap-1 tabular-nums" title={`${t.fileCount} file${t.fileCount === 1 ? '' : 's'}`}>
+          <span
+            className="inline-flex items-center gap-1 tabular-nums"
+            title={`${t.fileCount} file${t.fileCount === 1 ? '' : 's'}`}
+          >
             <Icon name="paperclip" size={12} />
             {t.fileCount}
           </span>
         ) : null}
-        {showProject ? <span className="min-w-0 truncate" title={`Project: ${t.projectName}`}>{t.projectName}</span> : null}
+        {showProject ? (
+          <span className="min-w-0 truncate" title={`Project: ${t.projectName}`}>
+            {t.projectName}
+          </span>
+        ) : null}
         <span className="ml-auto flex flex-none items-center gap-2">
           <WorkMark task={t} />
           <AssignMenu task={t} onAssign={onAssign} />
@@ -150,12 +218,19 @@ function WorkMark({ task: t }: { task: BoardTask }) {
   const who = t.workerName || 'Someone';
   if (w.state === 'starting' || w.state === 'working')
     return (
-      <span className="work-mark inline-flex flex-none items-center" title={`${who} is working on it`} aria-label={`${who} is working on it`}>
+      <span
+        className="work-mark inline-flex flex-none items-center"
+        title={`${who} is working on it`}
+        aria-label={`${who} is working on it`}
+      >
         <span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
       </span>
     );
   return (
-    <span className={`work-mark inline-flex flex-none items-center gap-1 font-medium ${s.tone}`} title={w.state === 'waiting' ? `${who} needs your OK for a step` : w.note || s.label}>
+    <span
+      className={`work-mark inline-flex flex-none items-center gap-1 font-medium ${s.tone}`}
+      title={w.state === 'waiting' ? `${who} needs your OK for a step` : w.note || s.label}
+    >
       <Icon name={s.icon} size={12} />
       {w.state === 'waiting' ? 'Needs you' : 'Check'}
     </span>
@@ -165,7 +240,19 @@ function WorkMark({ task: t }: { task: BoardTask }) {
 /** "Writer started on #4", with Stop, when a change you made started someone's work. */
 export function startedNote(before: BoardTask, after: BoardTask): void {
   if (!after.work || !isWorking(after) || before.work?.operationId === after.work.operationId) return;
-  const stop = domButton({ variant: 'ghost', size: 'tiny', class: 'ml-2', onclick: () => void rpc.taskBoard.stop(ref(after)).then(() => toast(`Stopped the work on ${taskKey(after.number)}`), (e: unknown) => toast(errorText(e), 'error')) }, 'Stop');
+  const stop = domButton(
+    {
+      variant: 'ghost',
+      size: 'tiny',
+      class: 'ml-2',
+      onclick: () =>
+        void rpc.taskBoard.stop(ref(after)).then(
+          () => toast(`Stopped the work on ${taskKey(after.number)}`),
+          (e: unknown) => toast(errorText(e), 'error'),
+        ),
+    },
+    'Stop',
+  );
   toast(h('span', {}, `${after.workerName || 'Someone'} started on ${taskKey(after.number)}`, stop), 'info', 8000);
 }
 
@@ -176,20 +263,33 @@ function AssignMenu({ task: t, onAssign }: { task: BoardTask; onAssign: (who: As
   const pick = (v: string) => {
     const agent = people?.agents.find((a) => `agent:${a.id}` === v);
     const team = people?.teams.find((x) => `team:${x.id}` === v);
-    const name = v === '' ? 'Unassigned' : v === 'you' ? 'You' : v === 'brain' ? 'The Brain' : agent?.name || team?.name || v;
+    const name =
+      v === '' ? 'Unassigned' : v === 'you' ? 'You' : v === 'brain' ? 'The Brain' : agent?.name || team?.name || v;
     onAssign({ assignee: v, assigneeName: name, assigneeEmoji: agent?.emoji, assigneeColor: agent?.color });
   };
   const label = t.assignee ? `Assigned to ${t.assigneeName}` : 'Unassigned';
   return (
     <Dropdown open={open} onOpenChange={setOpen}>
-      <DropdownTrigger className="flex flex-none cursor-pointer items-center rounded-[8px] border-0 bg-transparent p-0 outline-offset-2 [transition:opacity_0.15s] hover:opacity-80" aria-label={`${label}. Assign to…`} title={label}>
-        {t.assignee ? <WhoMark who={t.assignee} emoji={t.assigneeEmoji} color={t.assigneeColor} size={20} /> : <span className="grid size-5 place-items-center rounded-[7px] border border-dashed border-line-2 text-faint"><Icon name="user" size={10} /></span>}
+      <DropdownTrigger
+        className="flex flex-none cursor-pointer items-center rounded-[8px] border-0 bg-transparent p-0 outline-offset-2 [transition:opacity_0.15s] hover:opacity-80"
+        aria-label={`${label}. Assign to…`}
+        title={label}
+      >
+        {t.assignee ? (
+          <WhoMark who={t.assignee} emoji={t.assigneeEmoji} color={t.assigneeColor} size={20} />
+        ) : (
+          <span className="grid size-5 place-items-center rounded-[7px] border border-dashed border-line-2 text-faint">
+            <Icon name="user" size={10} />
+          </span>
+        )}
       </DropdownTrigger>
       <DropdownContent align="end" className="min-w-48">
         <DropdownRadioGroup value={t.assignee} onValueChange={(v) => pick(String(v))}>
           <DropdownLabel>Assign to</DropdownLabel>
           {assigneeChoices(people).map((c) => (
-            <DropdownRadioItem key={c.value} value={c.value} icon={c.mark}>{c.label}</DropdownRadioItem>
+            <DropdownRadioItem key={c.value} value={c.value} icon={c.mark}>
+              {c.label}
+            </DropdownRadioItem>
           ))}
         </DropdownRadioGroup>
         {!people ? <div className="px-2.5 py-1.5 text-[12px] text-faint">Loading agents and teams…</div> : null}
@@ -198,25 +298,51 @@ function AssignMenu({ task: t, onAssign }: { task: BoardTask; onAssign: (who: As
   );
 }
 
-function CardMenu({ task, first, last, onColumn, onStep, onOpen, onRemove }: { task: BoardTask; first: boolean; last: boolean; onColumn: (s: BoardStatus) => void; onStep: (dir: -1 | 1) => void; onOpen: () => void; onRemove: () => void }) {
+function CardMenu({
+  task,
+  first,
+  last,
+  onColumn,
+  onStep,
+  onOpen,
+  onRemove,
+}: {
+  task: BoardTask;
+  first: boolean;
+  last: boolean;
+  onColumn: (s: BoardStatus) => void;
+  onStep: (dir: -1 | 1) => void;
+  onOpen: () => void;
+  onRemove: () => void;
+}) {
   return (
     <Dropdown>
       <DropdownTrigger className={iconButtonClass('plain', 'size-6!')} aria-label={`Actions for ${task.title}`}>
         <Icon name="ellipsis" size={14} />
       </DropdownTrigger>
       <DropdownContent align="end" className="min-w-48">
-        <DropdownItem icon="file-text" onClick={onOpen}>Open</DropdownItem>
-        <DropdownItem icon="arrow-up" disabled={first} onClick={() => onStep(-1)}>Move up</DropdownItem>
-        <DropdownItem icon="arrow-down" disabled={last} onClick={() => onStep(1)}>Move down</DropdownItem>
+        <DropdownItem icon="file-text" onClick={onOpen}>
+          Open
+        </DropdownItem>
+        <DropdownItem icon="arrow-up" disabled={first} onClick={() => onStep(-1)}>
+          Move up
+        </DropdownItem>
+        <DropdownItem icon="arrow-down" disabled={last} onClick={() => onStep(1)}>
+          Move down
+        </DropdownItem>
         <DropdownSeparator />
         <DropdownGroup>
           <DropdownLabel>Move to</DropdownLabel>
           {STATUSES.filter((s) => s.value !== task.status).map((s) => (
-            <DropdownItem key={s.value} icon={s.icon} onClick={() => onColumn(s.value)}>{s.label}</DropdownItem>
+            <DropdownItem key={s.value} icon={s.icon} onClick={() => onColumn(s.value)}>
+              {s.label}
+            </DropdownItem>
           ))}
         </DropdownGroup>
         <DropdownSeparator />
-        <DropdownItem icon="trash-2" danger onClick={onRemove}>Remove</DropdownItem>
+        <DropdownItem icon="trash-2" danger onClick={onRemove}>
+          Remove
+        </DropdownItem>
       </DropdownContent>
     </Dropdown>
   );
@@ -236,5 +362,13 @@ export function DropGhost({ task, height }: { task: BoardTask; height: number })
     host.replaceChildren(cardCopy(card));
     return () => host.replaceChildren();
   }, [task]);
-  return <li ref={slot} aria-hidden="true" inert style={{ '--slot': `${height}px` } as CSSProperties} className="pointer-events-none h-(--slot) flex-none overflow-hidden rounded-[10px] opacity-35 animate-[open-slot_0.16s_var(--ease-soft)_both]" />;
+  return (
+    <li
+      ref={slot}
+      aria-hidden="true"
+      inert
+      style={{ '--slot': `${height}px` } as CSSProperties}
+      className="pointer-events-none h-(--slot) flex-none overflow-hidden rounded-[10px] opacity-35 animate-[open-slot_0.16s_var(--ease-soft)_both]"
+    />
+  );
 }

@@ -2,7 +2,7 @@
 name: Content Creator
 description: Plans and writes blog posts, newsletters, guides, case studies, scripts and social posts in your brand's voice, turning one good idea into several pieces on a schedule you can keep.
 emoji: ✍️
-color: "#d6803b"
+color: '#d6803b'
 specialty: plans and writes content across formats, from blog posts to scripts, in the brand's own voice
 group: marketing
 tools: files, browser, media, social, agents, shell
@@ -138,9 +138,9 @@ Also: [a LinkedIn post and an X post from it, the share image, a newsletter sect
 
 A plan is a short table the user can keep in a spreadsheet, with the hours a week it needs said above it:
 
-| Week | Piece and its one point | For | Format, where | Ask | Status |
-|---|---|---|---|---|---|
-| [1] | [Kitchen refits: why we quote per job, not per hour] | [homeowners comparing quotes] | [guide, blog; LinkedIn post] | [request a quote] | [idea] |
+| Week | Piece and its one point                              | For                           | Format, where                | Ask               | Status |
+| ---- | ---------------------------------------------------- | ----------------------------- | ---------------------------- | ----------------- | ------ |
+| [1]  | [Kitchen refits: why we quote per job, not per hour] | [homeowners comparing quotes] | [guide, blog; LinkedIn post] | [request a quote] | [idea] |
 
 An edit is the revised text, or comments on a copy, with the three or four biggest changes and why at the top.
 

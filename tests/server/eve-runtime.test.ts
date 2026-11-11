@@ -7,7 +7,9 @@ import type { EveHost } from '../../server/eve/host.ts';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 
@@ -19,22 +21,53 @@ function fixture() {
   const runtime = new EveRuntime({
     bridge: async () => {
       events.push('bridge');
-      return { url: 'http://127.0.0.1:1', token: 'private-fixture-token', close: async () => { events.push('close bridge'); } };
+      return {
+        url: 'http://127.0.0.1:1',
+        token: 'private-fixture-token',
+        close: async () => {
+          events.push('close bridge');
+        },
+      };
     },
     host: async (_bridge, signal) => {
       events.push('launch');
       const ended = deferred<void>();
-      const host = { url: `http://127.0.0.1:${1000 + workers.length}`, token: 'private-worker-token', exited: ended.promise, exit: () => ended.resolve(), close: async () => { events.push('close host'); ended.resolve(); } };
+      const host = {
+        url: `http://127.0.0.1:${1000 + workers.length}`,
+        token: 'private-worker-token',
+        exited: ended.promise,
+        exit: () => ended.resolve(),
+        close: async () => {
+          events.push('close host');
+          ended.resolve();
+        },
+      };
       signal.addEventListener('abort', host.exit, { once: true });
       workers.push(host);
       return host;
     },
-    prepare: () => { events.push('prepare'); },
-    recover: async () => { events.push('recover'); await gate; events.push('recovered'); },
+    prepare: () => {
+      events.push('prepare');
+    },
+    recover: async () => {
+      events.push('recover');
+      await gate;
+      events.push('recovered');
+    },
     hasWork: () => work,
     retryMs: 10,
   });
-  return { runtime, events, workers, setWork: (value: boolean) => { work = value; }, setGate: (value: Promise<unknown>) => { gate = value; } };
+  return {
+    runtime,
+    events,
+    workers,
+    setWork: (value: boolean) => {
+      work = value;
+    },
+    setGate: (value: Promise<unknown>) => {
+      gate = value;
+    },
+  };
 }
 
 describe('Eve worker supervision', () => {
@@ -90,7 +123,11 @@ describe('Eve worker supervision', () => {
     const f = fixture();
     // Reject only once recovery is listening, avoiding a test-side unhandled rejection.
     const gate = deferred<void>();
-    f.setGate(gate.promise.then(() => { throw new Error('sensitive provider diagnostic'); }));
+    f.setGate(
+      gate.promise.then(() => {
+        throw new Error('sensitive provider diagnostic');
+      }),
+    );
     const ready = f.runtime.ready();
     await expect.poll(() => f.events.includes('recover')).toBe(true);
     gate.resolve();
@@ -117,13 +154,30 @@ describe('Eve worker supervision', () => {
   it('cancels a launch in progress before closing the private bridge', async () => {
     const events: string[] = [];
     const runtime = new EveRuntime({
-      bridge: async () => ({ url: 'http://127.0.0.1:1', token: 'fixture', close: async () => { events.push('close bridge'); } }),
+      bridge: async () => ({
+        url: 'http://127.0.0.1:1',
+        token: 'fixture',
+        close: async () => {
+          events.push('close bridge');
+        },
+      }),
       host: async (_bridge, signal) => {
         events.push('launch');
-        await new Promise<void>((_resolve, reject) => signal.addEventListener('abort', () => { events.push('abort'); reject(new Error('Cancelled')); }, { once: true }));
+        await new Promise<void>((_resolve, reject) =>
+          signal.addEventListener(
+            'abort',
+            () => {
+              events.push('abort');
+              reject(new Error('Cancelled'));
+            },
+            { once: true },
+          ),
+        );
         throw new Error('Unreachable');
       },
-      prepare: () => {}, recover: async () => {}, hasWork: () => false,
+      prepare: () => {},
+      recover: async () => {},
+      hasWork: () => false,
     });
     const ready = runtime.ready();
     await expect.poll(() => events).toEqual(['launch']);
@@ -147,6 +201,9 @@ describe('Eve runtime files', () => {
     ensureDir(path.join(eve, 'server'));
     fs.writeFileSync(path.join(eve, 'server', 'index.mjs'), 'bundled server');
     ensureDir(path.join(root, 'runtime', 'eve-sandbox-cache'));
-    expect(eveRuntimeFiles(root)).toEqual({ entry: path.join(eve, 'launch.mjs'), templates: path.join(root, 'runtime', 'eve-sandbox-cache') });
+    expect(eveRuntimeFiles(root)).toEqual({
+      entry: path.join(eve, 'launch.mjs'),
+      templates: path.join(root, 'runtime', 'eve-sandbox-cache'),
+    });
   });
 });

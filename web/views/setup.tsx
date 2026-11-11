@@ -45,10 +45,21 @@ const TABS: Tab[] = [
 
 // What can be found. find = text on the page to jump to; words = extra search words.
 const INDEX: IndexEntry[] = [
-  { tab: 'gateways', find: 'Chat gateways', label: 'Telegram, Slack, Discord and WhatsApp chat gateways', words: 'telegram bot two way slack discord whatsapp instances sender guard phone numbers brain agent team token inbox delivery uncertain retry files recovery servers relay pairing code meta access app secret setup' },
+  {
+    tab: 'gateways',
+    find: 'Chat gateways',
+    label: 'Telegram, Slack, Discord and WhatsApp chat gateways',
+    words:
+      'telegram bot two way slack discord whatsapp instances sender guard phone numbers brain agent team token inbox delivery uncertain retry files recovery servers relay pairing code meta access app secret setup',
+  },
   { tab: 'general', find: 'API keys', label: 'AI keys', words: 'openrouter venice key api anthropic token' },
   { tab: 'general', find: 'Venice key', label: 'Venice key', words: 'venice api key balance diem models' },
-  { tab: 'general', find: 'OpenRouter key', label: 'OpenRouter key', words: 'api key models gpt gemini llama deepseek' },
+  {
+    tab: 'general',
+    find: 'OpenRouter key',
+    label: 'OpenRouter key',
+    words: 'api key models gpt gemini llama deepseek',
+  },
   { tab: 'general', find: 'Claude Code', label: 'Claude Code', words: 'claude cli login version installed' },
   { tab: 'general', find: 'OpenAI Codex', label: 'OpenAI Codex', words: 'codex chatgpt gpt install sign in login' },
   { tab: 'general', find: 'Hermes', label: 'Hermes', words: 'hermes agent' },
@@ -56,34 +67,135 @@ const INDEX: IndexEntry[] = [
   { tab: 'general', find: 'oh-my-pi', label: 'oh-my-pi', words: 'omp oh my pi install' },
   { tab: 'general', find: 'OpenClaw', label: 'OpenClaw', words: 'openclaw claw gateway agents install' },
   { tab: 'general', find: 'opencode', label: 'opencode', words: 'opencode open code sst anomaly install auth login' },
-  { tab: 'general', find: "The Brain's model", label: "The Brain's model", words: 'brain auto router haiku sonnet opus model new team new agent auto-build' },
-  { tab: 'general', find: 'The Brain approves', label: 'The Brain approves (auto-approval)', words: 'auto approve approval permissions brain allow needs you agents teams' },
-  { tab: 'general', find: 'Defaults for new agents', label: 'Defaults for new agents', words: 'default engine model autonomy brain' },
-  { tab: 'general', find: 'Autonomy', label: 'Autonomy (ask, auto, full)', words: 'permissions approval ask first auto full' },
+  {
+    tab: 'general',
+    find: "The Brain's model",
+    label: "The Brain's model",
+    words: 'brain auto router haiku sonnet opus model new team new agent auto-build',
+  },
+  {
+    tab: 'general',
+    find: 'The Brain approves',
+    label: 'The Brain approves (auto-approval)',
+    words: 'auto approve approval permissions brain allow needs you agents teams',
+  },
+  {
+    tab: 'general',
+    find: 'Defaults for new agents',
+    label: 'Defaults for new agents',
+    words: 'default engine model autonomy brain',
+  },
+  {
+    tab: 'general',
+    find: 'Autonomy',
+    label: 'Autonomy (ask, auto, full)',
+    words: 'permissions approval ask first auto full',
+  },
   { tab: 'general', find: 'Limits', label: 'Limits', words: 'max tool steps cost limit usd budget' },
-  { tab: 'general', find: 'Cost limit per message', label: 'Cost limit per message', words: 'usd money budget openrouter' },
-  { tab: 'general', find: 'Local and custom models', label: 'Local and custom models', words: 'lm studio ollama custom openai-compatible url local' },
+  {
+    tab: 'general',
+    find: 'Cost limit per message',
+    label: 'Cost limit per message',
+    words: 'usd money budget openrouter',
+  },
+  {
+    tab: 'general',
+    find: 'Local and custom models',
+    label: 'Local and custom models',
+    words: 'lm studio ollama custom openai-compatible url local',
+  },
   { tab: 'general', find: 'LM Studio server', label: 'LM Studio', words: 'local model server' },
   { tab: 'general', find: 'Ollama server', label: 'Ollama', words: 'local model server' },
   { tab: 'general', find: 'ComfyUI address', label: 'ComfyUI address', words: 'comfy images workflows 8188 port' },
   { tab: 'general', find: 'Allowed folders', label: 'Allowed folders', words: 'files folders read write paths access' },
-  { tab: 'about', find: 'This PC', label: 'This PC (address, data folder)', words: 'about address port data folder login localhost' },
-  { tab: 'about', find: 'Version', label: 'Version and GitHub', words: 'about version github repo repository star stars license licence update release help issue bug' },
-  { tab: 'connections', sub: 'accounts', find: 'X accounts', label: 'X (Twitter) accounts', words: 'x twitter connect account auto-post dm' },
-  { tab: 'connections', sub: 'accounts', find: 'Your X app', label: 'X app setup', words: 'x twitter client id secret callback oauth developer' },
-  { tab: 'connections', sub: 'accounts', find: 'Reddit accounts', label: 'Reddit accounts', words: 'reddit connect account auto-post subreddit' },
-  { tab: 'connections', sub: 'accounts', find: 'Your Reddit app', label: 'Reddit app setup', words: 'reddit client id secret username redirect oauth' },
-  { tab: 'gateways', find: 'Chat gateways', label: 'Telegram messages and approved sends', words: 'telegram bot token chat id notifications outbox recipient approval instances' },
-  { tab: 'gateways', find: 'Chat gateways', label: 'Discord messages and approved sends', words: 'discord bot channel old webhook outbox recipient approval instances' },
-  { tab: 'connections', sub: 'accounts', find: 'Everything else', label: 'Other services', words: 'gmail calendar drive notion slack linkedin youtube connectors' },
-  { tab: 'connections', sub: 'outbox', find: 'Waiting for you', label: 'Outbox (posts waiting for you)', words: 'outbox approve posts drafts tweets dm pending queue' },
+  {
+    tab: 'about',
+    find: 'This PC',
+    label: 'This PC (address, data folder)',
+    words: 'about address port data folder login localhost',
+  },
+  {
+    tab: 'about',
+    find: 'Version',
+    label: 'Version and GitHub',
+    words: 'about version github repo repository star stars license licence update release help issue bug',
+  },
+  {
+    tab: 'connections',
+    sub: 'accounts',
+    find: 'X accounts',
+    label: 'X (Twitter) accounts',
+    words: 'x twitter connect account auto-post dm',
+  },
+  {
+    tab: 'connections',
+    sub: 'accounts',
+    find: 'Your X app',
+    label: 'X app setup',
+    words: 'x twitter client id secret callback oauth developer',
+  },
+  {
+    tab: 'connections',
+    sub: 'accounts',
+    find: 'Reddit accounts',
+    label: 'Reddit accounts',
+    words: 'reddit connect account auto-post subreddit',
+  },
+  {
+    tab: 'connections',
+    sub: 'accounts',
+    find: 'Your Reddit app',
+    label: 'Reddit app setup',
+    words: 'reddit client id secret username redirect oauth',
+  },
+  {
+    tab: 'gateways',
+    find: 'Chat gateways',
+    label: 'Telegram messages and approved sends',
+    words: 'telegram bot token chat id notifications outbox recipient approval instances',
+  },
+  {
+    tab: 'gateways',
+    find: 'Chat gateways',
+    label: 'Discord messages and approved sends',
+    words: 'discord bot channel old webhook outbox recipient approval instances',
+  },
+  {
+    tab: 'connections',
+    sub: 'accounts',
+    find: 'Everything else',
+    label: 'Other services',
+    words: 'gmail calendar drive notion slack linkedin youtube connectors',
+  },
+  {
+    tab: 'connections',
+    sub: 'outbox',
+    find: 'Waiting for you',
+    label: 'Outbox (posts waiting for you)',
+    words: 'outbox approve posts drafts tweets dm pending queue',
+  },
   { tab: 'connections', sub: 'outbox', find: 'New post', label: 'Write a new post', words: 'tweet post compose draft' },
   { tab: 'mcp', find: 'Your MCP servers', label: 'Your MCP servers', words: 'mcp servers tools add command url' },
   { tab: 'mcp', find: 'Presets', label: 'MCP presets', words: 'mcp presets install playwright github filesystem' },
-  { tab: 'mcp', find: 'Found in your Claude configs', label: 'MCP servers from Claude configs', words: 'import claude desktop config mcp' },
+  {
+    tab: 'mcp',
+    find: 'Found in your Claude configs',
+    label: 'MCP servers from Claude configs',
+    words: 'import claude desktop config mcp',
+  },
   { tab: 'mcp', find: 'Built-in tools', label: 'Built-in tools', words: 'tools risk approval dashboard' },
-  { tab: 'mcp', find: 'Share the dashboard tools', label: 'Share the dashboard tools', words: 'bridge external claude desktop mcp' },
-  { tab: 'look', find: 'Colour scheme', label: 'Colour scheme (light or dark)', words: 'look theme dark light night system appearance colour scheme mode' },
+  {
+    tab: 'mcp',
+    find: 'Share the dashboard tools',
+    label: 'Share the dashboard tools',
+    words: 'bridge external claude desktop mcp',
+  },
+  {
+    tab: 'look',
+    find: 'Colour scheme',
+    label: 'Colour scheme (light or dark)',
+    words: 'look theme dark light night system appearance colour scheme mode',
+  },
   { tab: 'look', find: 'UI scale', label: 'UI scale', words: 'look zoom size bigger smaller text font scale display' },
   { tab: 'look', find: 'Accent colour', label: 'Accent colour', words: 'look color colour theme highlight lime' },
   { tab: 'look', find: 'Animations', label: 'Animations', words: 'look motion reduce animation effects' },
@@ -97,13 +209,19 @@ const INDEX: IndexEntry[] = [
 // kept while you move around the app, as before
 let lastTab: TabId = 'general';
 
-const norm = (s: string | null | undefined): string => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+const norm = (s: string | null | undefined): string =>
+  String(s || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 
 // Find the element whose text best matches `text`, scroll to it and flash it. Tabs load async, so retry a bit.
 export function focusText(root: ParentNode, text: string | null, tries = 14): void {
   const want = norm(text);
   if (!want) return;
-  const cands = [...root.querySelectorAll<HTMLElement>('h2, h3, .label, .title, .card-title, label, li, b, span')].filter((e) => {
+  const cands = [
+    ...root.querySelectorAll<HTMLElement>('h2, h3, .label, .title, .card-title, label, li, b, span'),
+  ].filter((e) => {
     const t = norm(e.textContent);
     return t && t.length < 160 && t.includes(want);
   });
@@ -128,11 +246,12 @@ export function searchSettings(query: string): IndexEntry[] {
   const qv = norm(query);
   if (!qv) return [];
   const words = qv.split(' ');
-  return INDEX.filter((it) => !TABS.find((t) => t.id === it.tab)?.hidden).map((it) => {
-    const hay = norm(`${it.label} ${it.find} ${it.words}`);
-    if (!words.every((w) => hay.includes(w))) return null;
-    return { it, score: norm(it.label).startsWith(qv) ? 0 : norm(it.label).includes(qv) ? 1 : 2 };
-  })
+  return INDEX.filter((it) => !TABS.find((t) => t.id === it.tab)?.hidden)
+    .map((it) => {
+      const hay = norm(`${it.label} ${it.find} ${it.words}`);
+      if (!words.every((w) => hay.includes(w))) return null;
+      return { it, score: norm(it.label).startsWith(qv) ? 0 : norm(it.label).includes(qv) ? 1 : 2 };
+    })
     .filter((x): x is { it: IndexEntry; score: number } => !!x)
     .sort((a, b) => a.score - b.score)
     .slice(0, 9)
@@ -144,7 +263,8 @@ const tabLabel = (id: TabId) => TABS.find((t) => t.id === id)?.label || id;
 type Hit = IndexEntry | { here: string };
 
 // settings-search-hit: tests look for it. on: the highlighted one
-const HIT = 'settings-search-hit flex w-full cursor-pointer items-center gap-2.5 rounded-[8px] border-0 bg-none px-3 py-2.5 text-left text-[13.5px] text-ink hover:bg-panel-2 [&.on]:bg-panel-2';
+const HIT =
+  'settings-search-hit flex w-full cursor-pointer items-center gap-2.5 rounded-[8px] border-0 bg-none px-3 py-2.5 text-left text-[13.5px] text-ink hover:bg-panel-2 [&.on]:bg-panel-2';
 
 function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
   const [text, setText] = useState('');
@@ -180,11 +300,24 @@ function SettingsSearch({ onChoose }: { onChoose: (hit: Hit) => void }) {
         ref={anchor}
       >
         <Icon name="search" size={15} />
-        <Autocomplete.Input ref={input} className="min-w-0 flex-1 rounded-ctl border-0 bg-transparent px-0 py-2 text-[13.5px] text-ink shadow-none focus-visible:outline-none" type="search" placeholder="Search settings…" aria-label="Search settings" />
+        <Autocomplete.Input
+          ref={input}
+          className="min-w-0 flex-1 rounded-ctl border-0 bg-transparent px-0 py-2 text-[13.5px] text-ink shadow-none focus-visible:outline-none"
+          type="search"
+          placeholder="Search settings…"
+          aria-label="Search settings"
+        />
       </div>
       <Autocomplete.Portal>
         {/* placed by its positioner, so no position of its own */}
-        <Autocomplete.Positioner positionMethod="fixed" anchor={anchor} align="end" sideOffset={6} collisionPadding={8} className="z-60 outline-none">
+        <Autocomplete.Positioner
+          positionMethod="fixed"
+          anchor={anchor}
+          align="end"
+          sideOffset={6}
+          collisionPadding={8}
+          className="z-60 outline-none"
+        >
           <Autocomplete.Popup className="glass st-menu w-[max(var(--anchor-width),320px)] max-w-(--available-width) outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
             <Autocomplete.List>
               {(hit: Hit) => (
@@ -224,7 +357,9 @@ function TabBody({ tab, hostRef }: { tab: Tab; hostRef: (el: HTMLDivElement | nu
 function SettingsPage() {
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
   const asked = q.get('tab');
-  const [tab, setTab] = useState<TabId>(() => (TABS.some((t) => t.id === asked) ? (lastTab = asked as TabId) : lastTab));
+  const [tab, setTab] = useState<TabId>(() =>
+    TABS.some((t) => t.id === asked) ? (lastTab = asked as TabId) : lastTab,
+  );
   const panel = useRef<HTMLDivElement | null>(null);
   // text to find once the tab is drawn (from a link, or a search that switched tabs)
   const pendingFind = useRef<string | null>(q.get('find'));
@@ -266,7 +401,11 @@ function SettingsPage() {
       rowClassName="mb-9 flex flex-wrap items-end gap-4 border-b border-line max-[761px]:flex-col max-[761px]:flex-nowrap max-[761px]:items-stretch max-[761px]:gap-2 [&>.tabs]:-mb-px [&>.tabs]:min-w-0 [&>.tabs]:flex-1 [&>.tabs]:border-b-0"
       aside={<SettingsSearch onChoose={choose} />}
     >
-      <TabBody key={`${tab}:${drawn}`} tab={TABS.find((t) => t.id === tab)!} hostRef={(el) => void (panel.current = el)} />
+      <TabBody
+        key={`${tab}:${drawn}`}
+        tab={TABS.find((t) => t.id === tab)!}
+        hostRef={(el) => void (panel.current = el)}
+      />
     </Tabs>
   );
 }

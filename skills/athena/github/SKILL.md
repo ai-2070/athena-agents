@@ -69,13 +69,13 @@ secrets.
 
 ### State comes from a fresh read
 
-| Before you say | Read it with |
-|---|---|
-| Checks passed | `gh pr checks 123`: exit 0 all passed, 1 a failure (or no checks at all), 8 still running |
-| Merged | `gh pr view 123 --json state,mergedAt,mergeCommit` |
-| Released | `gh release view v1.4.0 --json isDraft,publishedAt,url` |
-| Closed, and why | `gh issue view 123 --json state,stateReason` |
-| The PR has my latest commit | `gh pr view 123 --json headRefOid`, compared with `git rev-parse HEAD` |
+| Before you say              | Read it with                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------------- |
+| Checks passed               | `gh pr checks 123`: exit 0 all passed, 1 a failure (or no checks at all), 8 still running |
+| Merged                      | `gh pr view 123 --json state,mergedAt,mergeCommit`                                        |
+| Released                    | `gh release view v1.4.0 --json isDraft,publishedAt,url`                                   |
+| Closed, and why             | `gh issue view 123 --json state,stateReason`                                              |
+| The PR has my latest commit | `gh pr view 123 --json headRefOid`, compared with `git rev-parse HEAD`                    |
 
 Read again after every push: the checks start over, and a pass from before belongs to the old commit.
 

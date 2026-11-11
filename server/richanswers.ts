@@ -19,10 +19,15 @@ export function openuiPrompt(): Promise<string> {
 }
 
 /** Whether this run answers with Rich answers: the agent has them on, and you are its only reader. */
-export const richFor = (agent: Pick<Agent, 'richAnswers'>, chat: Pick<Chat, 'teamId'>, depth: number): boolean => !!agent.richAnswers && depth === 0 && !chat.teamId;
+export const richFor = (agent: Pick<Agent, 'richAnswers'>, chat: Pick<Chat, 'teamId'>, depth: number): boolean =>
+  !!agent.richAnswers && depth === 0 && !chat.teamId;
 
 /** What goes at the end of the agent's instructions for this run ('' when it answers in markdown). */
-export async function richSection(agent: Pick<Agent, 'richAnswers'>, chat: Pick<Chat, 'teamId'>, depth: number): Promise<string> {
+export async function richSection(
+  agent: Pick<Agent, 'richAnswers'>,
+  chat: Pick<Chat, 'teamId'>,
+  depth: number,
+): Promise<string> {
   if (!richFor(agent, chat, depth)) return '';
   const prompt = await openuiPrompt().catch((e: Error) => {
     // (it answers in markdown this time; say why)

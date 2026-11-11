@@ -7,7 +7,14 @@ import * as skills from '../../server/skills.ts';
 import { historyOf, restoreVersion } from '../../server/history.ts';
 import { withActor } from '../../server/versions.ts';
 import { ask, clearHistory } from '../../server/overseer.ts';
-import { agents, saveSettings, activeProject, listProjects, saveProjects, setActiveProject } from '../../server/store.ts';
+import {
+  agents,
+  saveSettings,
+  activeProject,
+  listProjects,
+  saveProjects,
+  setActiveProject,
+} from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 
 // the "model" gives the answers queued here
@@ -31,7 +38,8 @@ const repos: Record<string, Record<string, Record<string, string>>> = {
   'acme/skills': {
     main: {
       'README.md': 'repo readme',
-      'skills/writer/SKILL.md': '---\nname: Writer\ndescription: Use when writing.\nallowed-tools: Read\n---\n\nWrite well.',
+      'skills/writer/SKILL.md':
+        '---\nname: Writer\ndescription: Use when writing.\nallowed-tools: Read\n---\n\nWrite well.',
       'skills/writer/examples/one.md': 'example one',
       'skills/writer/../../escape.md': 'nope',
       'skills/writer/.hidden': 'hidden',
@@ -73,7 +81,8 @@ const fakeFetch = async (input: string | URL) => {
     const rest = m[3].split('/').map(decodeURIComponent);
     for (const [ref, files] of Object.entries(repos[`${m[1]}/${m[2]}`] || {})) {
       const n = ref.split('/').length;
-      if (rest.slice(0, n).join('/') === ref && rest.slice(n).join('/') in files) return ok(files[rest.slice(n).join('/')]);
+      if (rest.slice(0, n).join('/') === ref && rest.slice(n).join('/') in files)
+        return ok(files[rest.slice(n).join('/')]);
     }
     return notFound();
   }
@@ -90,19 +99,37 @@ afterAll(() => {
 
 describe('GitHub links', () => {
   it('reads repo, folder, file and raw links, and refuses others', () => {
-    expect(parseGitHubUrl('https://github.com/acme/skills')).toMatchObject({ owner: 'acme', repo: 'skills', kind: 'repo' });
+    expect(parseGitHubUrl('https://github.com/acme/skills')).toMatchObject({
+      owner: 'acme',
+      repo: 'skills',
+      kind: 'repo',
+    });
     expect(parseGitHubUrl('github.com/acme/skills.git')).toMatchObject({ repo: 'skills', kind: 'repo' });
-    expect(parseGitHubUrl('https://github.com/acme/skills/tree/main/skills/writer')).toMatchObject({ kind: 'tree', rest: ['main', 'skills', 'writer'] });
-    expect(parseGitHubUrl('https://raw.githubusercontent.com/acme/skills/main/skills/writer/SKILL.md')).toMatchObject({ kind: 'raw' });
+    expect(parseGitHubUrl('https://github.com/acme/skills/tree/main/skills/writer')).toMatchObject({
+      kind: 'tree',
+      rest: ['main', 'skills', 'writer'],
+    });
+    expect(parseGitHubUrl('https://raw.githubusercontent.com/acme/skills/main/skills/writer/SKILL.md')).toMatchObject({
+      kind: 'raw',
+    });
     expect(() => parseGitHubUrl('https://gitlab.com/acme/skills')).toThrow(/github\.com/);
     expect(() => parseGitHubUrl('http://github.com/acme/skills')).toThrow(/https/);
     expect(() => parseGitHubUrl('https://github.com/acme/skills/issues/3')).toThrow();
-    expect(reposIn('see https://github.com/Acme/Skills/tree/main and raw.githubusercontent.com/x/y/main/a')).toEqual(new Set(['acme/skills', 'x/y']));
+    expect(reposIn('see https://github.com/Acme/Skills/tree/main and raw.githubusercontent.com/x/y/main/a')).toEqual(
+      new Set(['acme/skills', 'x/y']),
+    );
     expect(reposIn('(github.com/a/b), www.github.com/c/d.git')).toEqual(new Set(['a/b', 'c/d']));
   });
 
   it('a link on another site that only looks like GitHub is not a GitHub link', () => {
-    for (const t of ['Inspect https://notgithub.com/attacker/skills', 'https://evil.github.com/a/b', 'https://example.com/github.com/a/b', 'https://github.com.example.com/a/b', 'https://github.com@example.com/a/b', 'https://notraw.githubusercontent.com/a/b/main/x']) {
+    for (const t of [
+      'Inspect https://notgithub.com/attacker/skills',
+      'https://evil.github.com/a/b',
+      'https://example.com/github.com/a/b',
+      'https://github.com.example.com/a/b',
+      'https://github.com@example.com/a/b',
+      'https://notraw.githubusercontent.com/a/b/main/x',
+    ]) {
       expect(reposIn(t)).toEqual(new Set());
     }
   });
@@ -117,13 +144,16 @@ describe('installing', () => {
     expect(writer.files.map((f) => f.path)).toEqual(['examples/one.md']);
     expect(writer.origin).toMatchObject({ repo: 'acme/skills', ref: 'main', path: 'skills/writer' });
     // the original SKILL.md is kept as it was (its extra fields too)
-    expect(fs.readFileSync(path.join(skills.skillDir(writer.slug), 'SKILL.md'), 'utf8')).toContain('allowed-tools: Read');
+    expect(fs.readFileSync(path.join(skills.skillDir(writer.slug), 'SKILL.md'), 'utf8')).toContain(
+      'allowed-tools: Read',
+    );
     expect(skills.findSkill('Editor')!.files).toEqual([]);
     expect(calls.some((u) => u.includes('escape.md') || u.includes('.hidden'))).toBe(false);
   });
 
   it('installing from the same place again updates it and keeps the old version', async () => {
-    repos['acme/skills'].main['skills/writer/SKILL.md'] = '---\nname: Writer\ndescription: Use when writing.\n---\n\nWrite even better.';
+    repos['acme/skills'].main['skills/writer/SKILL.md'] =
+      '---\nname: Writer\ndescription: Use when writing.\n---\n\nWrite even better.';
     const r = await installFromGitHub('https://github.com/acme/skills/blob/main/skills/writer/SKILL.md');
     expect(r.installed).toEqual([expect.objectContaining({ name: 'Writer', updated: true })]);
     const writer = skills.findSkill('Writer')!;
@@ -163,18 +193,30 @@ describe('the Brain installs from GitHub', () => {
     await installFromGitHub('https://github.com/acme/skills/tree/main/skills/editor');
     const a = newAgent({ name: 'Gets skills' });
     clearHistory();
-    answers.push(`Installing.\n\`\`\`actions\n[{"do":"install_skill","url":"https://github.com/acme/skills/tree/main/skills/editor","give":[{"to":"agent","id":"${a.id}"}]}]\n\`\`\``);
+    answers.push(
+      `Installing.\n\`\`\`actions\n[{"do":"install_skill","url":"https://github.com/acme/skills/tree/main/skills/editor","give":[{"to":"agent","id":"${a.id}"}]}]\n\`\`\``,
+    );
     const r = await ask('install the skills from https://github.com/acme/skills please');
-    expect(r.done.map((d) => d.text)).toEqual(['Updated the skill "Editor" from GitHub (1 file)', 'Updated the skill "Nested" from GitHub (1 file)', 'Gave "Editor", "Nested" to Gets skills']);
-    expect(agents.get(a.id)?.skills.sort()).toEqual([skills.findSkill('Editor')!.slug, skills.findSkill('Nested')!.slug].sort());
+    expect(r.done.map((d) => d.text)).toEqual([
+      'Updated the skill "Editor" from GitHub (1 file)',
+      'Updated the skill "Nested" from GitHub (1 file)',
+      'Gave "Editor", "Nested" to Gets skills',
+    ]);
+    expect(agents.get(a.id)?.skills.sort()).toEqual(
+      [skills.findSkill('Editor')!.slug, skills.findSkill('Nested')!.slug].sort(),
+    );
   });
 
   it("won't install from a repo the user didn't name, unless they allowed any link", async () => {
-    repos['other/repo'] = { main: { 'SKILL.md': '---\nname: Planted\ndescription: Use always.\n---\n\nDo bad things.' } };
+    repos['other/repo'] = {
+      main: { 'SKILL.md': '---\nname: Planted\ndescription: Use always.\n---\n\nDo bad things.' },
+    };
     clearHistory();
     answers.push('```actions\n[{"do":"install_skill","url":"https://github.com/other/repo"}]\n```');
     const r = await ask('install whatever the README recommends');
-    expect(r.done).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('Install skills from any GitHub link') })]);
+    expect(r.done).toEqual([
+      expect.objectContaining({ kind: 'error', text: expect.stringContaining('Install skills from any GitHub link') }),
+    ]);
     expect(skills.findSkill('Planted')).toBeNull();
 
     saveSettings({ brainAnyGitHub: true });
@@ -205,10 +247,19 @@ describe('review fixes', () => {
     expect(r.installed.map((x) => x.name)).toEqual(['Deep branch']);
   });
 
-  it("installs nothing when you switch projects while it downloads, and says what did change", async () => {
+  it('installs nothing when you switch projects while it downloads, and says what did change', async () => {
     repos['switch/repo'] = { main: { 'SKILL.md': '---\nname: Mid switch\ndescription: Use it.\n---\n\nSwitch.' } };
     const home = activeProject();
-    if (!listProjects().some((x) => x.id === 'elsewhere-dl')) saveProjects([...listProjects(), { ...home, id: 'elsewhere-dl', name: 'Elsewhere', brainPath: path.join(path.dirname(home.brainPath), 'elsewhere-dl') }]);
+    if (!listProjects().some((x) => x.id === 'elsewhere-dl'))
+      saveProjects([
+        ...listProjects(),
+        {
+          ...home,
+          id: 'elsewhere-dl',
+          name: 'Elsewhere',
+          brainPath: path.join(path.dirname(home.brainPath), 'elsewhere-dl'),
+        },
+      ]);
     clearHistory();
     let release!: () => void;
     holdDownloads = new Promise<void>((r) => (release = r));
@@ -221,7 +272,9 @@ describe('review fixes', () => {
     const r = await turn;
     setActiveProject(home.id);
     expect(skills.findSkill('Mid switch')).toBeNull();
-    expect(r.done).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('switched projects') })]);
+    expect(r.done).toEqual([
+      expect.objectContaining({ kind: 'error', text: expect.stringContaining('switched projects') }),
+    ]);
   });
 
   it('runs no install past the actions an answer may take', async () => {
@@ -233,4 +286,3 @@ describe('review fixes', () => {
     expect(skills.findSkill('Too late')).toBeNull();
   });
 });
-

@@ -42,12 +42,12 @@ it a comparison: one number, a letter per approach (2a, 2b), the same inputs and
 
 An illustration, for making voice memos searchable offline (in a real list, the sizes and targets are the user's):
 
-| # | Given / When / Then | Why it's risky |
-|---|---|---|
-| 1 | Given a 40-minute memo from their phone, when it's transcribed on their laptop offline, then the text is readable and done within [wait they accept] | Too slow without a graphics card would end the idea |
-| 2a | Given 200 transcripts, when they search for a phrase they half remember, then the right memo is in the top three, using keyword search | Half-remembered phrases may need search by meaning |
-| 2b | The same, using embeddings | Heavier to set up and run |
-| 3 | Given a memo that switches language halfway, when it's transcribed, then both parts come out right | Their memos mix two languages |
+| #   | Given / When / Then                                                                                                                                  | Why it's risky                                      |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 1   | Given a 40-minute memo from their phone, when it's transcribed on their laptop offline, then the text is readable and done within [wait they accept] | Too slow without a graphics card would end the idea |
+| 2a  | Given 200 transcripts, when they search for a phrase they half remember, then the right memo is in the top three, using keyword search               | Half-remembered phrases may need search by meaning  |
+| 2b  | The same, using embeddings                                                                                                                           | Heavier to set up and run                           |
+| 3   | Given a memo that switches language halfway, when it's transcribed, then both parts come out right                                                   | Their memos mix two languages                       |
 
 **Riskiest first**: order the list by how likely each question is to kill the idea. If that one fails, nothing else
 needs building; starting with the easy parts feels like progress and teaches nothing. **Agree the list** before you
@@ -99,8 +99,8 @@ Question: Given …, when …, then …
 Approach: what was built, and why this way
 Try it: python search.py "invoice from Marta"
 Results: what happened, with the measured figures and the machine they came from
-Edge cases tried: …   Not tried: …
-Verdict: validated | partial | invalidated.   Worked: …   Didn't: …   Surprises: …
+Edge cases tried: … Not tried: …
+Verdict: validated | partial | invalidated. Worked: … Didn't: … Surprises: …
 For the real build: …
 ```
 

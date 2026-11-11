@@ -31,17 +31,17 @@ rule:
 fix: logger.info($$$ARGS)
 ```
 
-| Key | What it holds |
-|---|---|
-| `id`, `language`, `rule` | Required. `language` takes a name or alias from `cli.md` (`typescript`, `TypeScript` and `ts` all work) |
-| `severity` | `hint`, `info`, `warning`, `error` or `off` |
-| `message`, `note` | One line shown with each match (may use `$NAME`); longer Markdown guidance (may not) |
-| `constraints` | Extra conditions on single captures |
-| `utils` | Named sub-rules for `matches` |
-| `transform` | New captures computed from captured text, for `fix` |
-| `fix` | The rewrite, as a string or with `template`, `expandStart`, `expandEnd` |
-| `files`, `ignores` | Globs for the paths it applies to, matched against paths as ast-grep walks them from where you run it, so run from the project root |
-| `labels`, `url`, `metadata`, `rewriters` | Editor highlights, a docs link, data for other tools, rules for the `rewrite` transform |
+| Key                                      | What it holds                                                                                                                       |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `id`, `language`, `rule`                 | Required. `language` takes a name or alias from `cli.md` (`typescript`, `TypeScript` and `ts` all work)                             |
+| `severity`                               | `hint`, `info`, `warning`, `error` or `off`                                                                                         |
+| `message`, `note`                        | One line shown with each match (may use `$NAME`); longer Markdown guidance (may not)                                                |
+| `constraints`                            | Extra conditions on single captures                                                                                                 |
+| `utils`                                  | Named sub-rules for `matches`                                                                                                       |
+| `transform`                              | New captures computed from captured text, for `fix`                                                                                 |
+| `fix`                                    | The rewrite, as a string or with `template`, `expandStart`, `expandEnd`                                                             |
+| `files`, `ignores`                       | Globs for the paths it applies to, matched against paths as ast-grep walks them from where you run it, so run from the project root |
+| `labels`, `url`, `metadata`, `rewriters` | Editor highlights, a docs link, data for other tools, rules for the `rewrite` transform                                             |
 
 Since 0.51.1 a misspelt key (`fixx:`) stops the run with the line number; older versions ignored it silently.
 
@@ -79,12 +79,12 @@ names and text, so `foo(a, b)` also finds `bar(c, d)`. Change it only with a rea
 
 ## Relations
 
-| Key | The node must… |
-|---|---|
-| `inside` | have an ancestor matching the sub-rule |
-| `has` | have a descendant matching it |
-| `follows` | come after a sibling matching it |
-| `precedes` | come before a sibling matching it |
+| Key        | The node must…                         |
+| ---------- | -------------------------------------- |
+| `inside`   | have an ancestor matching the sub-rule |
+| `has`      | have a descendant matching it          |
+| `follows`  | come after a sibling matching it       |
+| `precedes` | come before a sibling matching it      |
 
 - **`stopBy`** sets how far they look. The default, `neighbor`, checks only the direct parent, child or next sibling,
   which is why `inside: { kind: for_statement }` usually finds nothing. `stopBy: end` looks all the way up, down or
@@ -184,10 +184,10 @@ fix: logger.debug($$$ARGS)
 
   ```yaml
   transform:
-    NEW: replace($M, replace='Equals$', by='Equal')     # regex replace in the text of one capture
-    INNER: substring($S, startChar=1, endChar=-1)       # slice by characters; negative counts from the end
-    CAMEL: convert($F, toCase=camelCase)                # change case
-    SNAKE:                                              # the long form of the same kind of step
+    NEW: replace($M, replace='Equals$', by='Equal') # regex replace in the text of one capture
+    INNER: substring($S, startChar=1, endChar=-1) # slice by characters; negative counts from the end
+    CAMEL: convert($F, toCase=camelCase) # change case
+    SNAKE: # the long form of the same kind of step
       convert: { source: $F, toCase: snakeCase, separatedBy: [underscore] }
   ```
 

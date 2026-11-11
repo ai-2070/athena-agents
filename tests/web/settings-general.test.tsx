@@ -18,12 +18,21 @@ const settings = {
   maxToolSteps: 20,
   costLimitUsdPerRun: 1,
   contextWindowTokens: 0,
-  providers: { lmstudio: { baseUrl: 'http://127.0.0.1:1234/v1' }, ollama: { baseUrl: 'http://127.0.0.1:11434/v1' }, custom: { baseUrl: '' } },
+  providers: {
+    lmstudio: { baseUrl: 'http://127.0.0.1:1234/v1' },
+    ollama: { baseUrl: 'http://127.0.0.1:11434/v1' },
+    custom: { baseUrl: '' },
+  },
   comfyui: { url: '', workflowDirs: [] },
   paths: {},
   allowedFolders: [],
 };
-const secrets = { openrouterKey: { set: false }, veniceKey: { set: false }, anthropicKey: { set: false }, customKey: { set: false } };
+const secrets = {
+  openrouterKey: { set: false },
+  veniceKey: { set: false },
+  anthropicKey: { set: false },
+  customKey: { set: false },
+};
 let veniceAccount: VeniceAccountInfo;
 let requests: { method: string; url: string; body: unknown }[];
 let refuse: string | null;
@@ -39,7 +48,11 @@ beforeEach(() => {
   state.data = {
     port: 4800,
     dataDir: 'C:\\data',
-    engines: { 'claude-code': { installed: true, version: '2.1' }, codex: { installed: true, loggedIn: true }, hermes: { installed: false } },
+    engines: {
+      'claude-code': { installed: true, version: '2.1' },
+      codex: { installed: true, loggedIn: true },
+      hermes: { installed: false },
+    },
     engineList: [
       { id: 'claude-code', label: 'Claude Code' },
       { id: 'codex', label: 'Codex' },
@@ -49,8 +62,10 @@ beforeEach(() => {
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
     requests.push({ method, url, body: init.body ? JSON.parse(String(init.body)) : null });
-    if (refuse && url.endsWith(refuse) && method !== 'GET') return new Response(JSON.stringify({ error: 'nope' }), { status: 500 });
-    if (url === '/api/settings') return new Response(JSON.stringify(method === 'GET' ? { settings, secrets } : { ok: true }));
+    if (refuse && url.endsWith(refuse) && method !== 'GET')
+      return new Response(JSON.stringify({ error: 'nope' }), { status: 500 });
+    if (url === '/api/settings')
+      return new Response(JSON.stringify(method === 'GET' ? { settings, secrets } : { ok: true }));
     if (url === '/api/state') return new Response(JSON.stringify(state.data));
     if (url === '/api/settings/test-venice') return Response.json(veniceAccount);
     return new Response('{}');
@@ -71,8 +86,12 @@ const type = (input: HTMLInputElement | HTMLTextAreaElement, text: string) =>
     Object.getOwnPropertyDescriptor(proto, 'value')!.set!.call(input, text);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-const fieldInput = (label: string) => [...el.querySelectorAll('label.field')].find((f) => f.querySelector('span')?.textContent === label)!.querySelector<HTMLInputElement>('input, textarea')!;
-const button = (text: string) => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
+const fieldInput = (label: string) =>
+  [...el.querySelectorAll('label.field')]
+    .find((f) => f.querySelector('span')?.textContent === label)!
+    .querySelector<HTMLInputElement>('input, textarea')!;
+const button = (text: string) =>
+  [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
 const switchFor = (text: string) => [...el.querySelectorAll('label.switch-row')].find((l) => l.textContent === text)!;
 
 describe('setPath()', () => {
@@ -89,8 +108,10 @@ describe('General & keys', () => {
   it('saves, tests and removes a Venice key without putting it into settings', async () => {
     secrets.veniceKey.set = true;
     await open();
-    const row = () => [...el.querySelectorAll('.ai-key')].find((r) => r.querySelector('label')?.textContent === 'Venice key')!;
-    const action = (name: string) => [...row().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === name)!;
+    const row = () =>
+      [...el.querySelectorAll('.ai-key')].find((r) => r.querySelector('label')?.textContent === 'Venice key')!;
+    const action = (name: string) =>
+      [...row().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === name)!;
     expect(row().querySelector('input')?.type).toBe('password');
     await type(row().querySelector('input')!, ' venice-secret ');
     await act(async () => action('Save').click());
@@ -111,7 +132,9 @@ describe('General & keys', () => {
     secrets.veniceKey.set = true;
     veniceAccount.expired = true;
     await open();
-    const row = [...el.querySelectorAll('.ai-key')].find((r) => r.querySelector('label')?.textContent === 'Venice key')!;
+    const row = [...el.querySelectorAll('.ai-key')].find(
+      (r) => r.querySelector('label')?.textContent === 'Venice key',
+    )!;
     const test = () => [...row.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Test')!;
     await act(async () => test().click());
     expect(row.textContent).toContain('key has expired');
@@ -124,18 +147,26 @@ describe('General & keys', () => {
     await open();
     await type(fieldInput('Venice model'), 'my-venice-model');
     await act(async () => button('Save settings').click());
-    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/settings')?.body).toEqual({ defaults: { veniceModel: 'my-venice-model' } });
+    expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/settings')?.body).toEqual({
+      defaults: { veniceModel: 'my-venice-model' },
+    });
   });
 
   it('Save settings sends only what you changed', async () => {
     await open();
     await type(fieldInput('Max tool steps per message'), '7');
     await type(fieldInput('Extra ComfyUI workflow folders'), 'C:\\flows\n\n D:\\more ');
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Codex')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Codex')!.click(),
+    );
     await act(async () => button('Save settings').click());
     await settle();
     const put = requests.find((r) => r.method === 'PUT' && r.url === '/api/settings')!;
-    expect(put.body).toEqual({ maxToolSteps: 7, comfyui: { workflowDirs: ['C:\\flows', 'D:\\more'] }, defaults: { engine: 'codex' } });
+    expect(put.body).toEqual({
+      maxToolSteps: 7,
+      comfyui: { workflowDirs: ['C:\\flows', 'D:\\more'] },
+      defaults: { engine: 'codex' },
+    });
   });
 
   it('a Brain switch saves at once, and shows the real setting again when saving fails', async () => {
@@ -158,7 +189,8 @@ describe('General & keys', () => {
   it('saves a key, then clears the box; Save waits until a key is typed', async () => {
     await open();
     // the key's row: found by its label, with its own Save button
-    const row = () => [...el.querySelectorAll('.ai-key')].find((r) => r.querySelector('label')?.textContent === 'OpenRouter key')!;
+    const row = () =>
+      [...el.querySelectorAll('.ai-key')].find((r) => r.querySelector('label')?.textContent === 'OpenRouter key')!;
     const key = () => row().querySelector<HTMLInputElement>('input')!;
     const save = () => [...row().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Save')!;
     expect(row().querySelector('label')!.htmlFor).toBe(key().id);
@@ -183,8 +215,16 @@ describe('General & keys', () => {
     expect(labels.indexOf('Blender path')).toBe(labels.indexOf('ComfyUI path') + 1);
     const brain = el.querySelector('[aria-label="Brain"].seg')!;
     for (const button of brain.querySelectorAll('button')) expect(button.querySelector('svg, img')).not.toBeNull();
-    for (const label of ['LM Studio server', 'Ollama server', 'Blender path', 'Extra ComfyUI workflow folders', 'Venice model']) {
-      const field = [...el.querySelectorAll('label.field')].find((f) => f.querySelector('span')?.textContent === label)!;
+    for (const label of [
+      'LM Studio server',
+      'Ollama server',
+      'Blender path',
+      'Extra ComfyUI workflow folders',
+      'Venice model',
+    ]) {
+      const field = [...el.querySelectorAll('label.field')].find(
+        (f) => f.querySelector('span')?.textContent === label,
+      )!;
       expect(field.querySelector('svg, img')).not.toBeNull();
       expect(field.querySelector('input, textarea')).not.toBeNull();
     }
@@ -192,13 +232,36 @@ describe('General & keys', () => {
 
   it('shows each engine with its logo and status, and copies an install command', async () => {
     const copied: string[] = [];
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t: string) => void copied.push(t) } });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (t: string) => void copied.push(t) },
+    });
     await open();
     const names = [...el.querySelectorAll('.ai-row .ai-name')].map((n) => n.textContent);
-    expect(names).toEqual(expect.arrayContaining(['Claude Code', 'OpenAI Codex', 'Hermes', 'pi coding agent', 'oh-my-pi', 'OpenClaw', 'opencode', 'OpenRouter key', 'Anthropic API key']));
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'Claude Code',
+        'OpenAI Codex',
+        'Hermes',
+        'pi coding agent',
+        'oh-my-pi',
+        'OpenClaw',
+        'opencode',
+        'OpenRouter key',
+        'Anthropic API key',
+      ]),
+    );
     // every engine and key row has a mark (a logo or its glyph)
-    for (const r of el.querySelectorAll('.ai-list .ai-row')) expect(r.querySelector('.ai-mark')!.childNodes.length).toBeGreaterThan(0);
-    for (const [name, engine] of [['Venice key', 'venice'], ['Hermes', 'hermes'], ['pi coding agent', 'pi'], ['oh-my-pi', 'omp'], ['OpenClaw', 'openclaw'], ['opencode', 'opencode']]) {
+    for (const r of el.querySelectorAll('.ai-list .ai-row'))
+      expect(r.querySelector('.ai-mark')!.childNodes.length).toBeGreaterThan(0);
+    for (const [name, engine] of [
+      ['Venice key', 'venice'],
+      ['Hermes', 'hermes'],
+      ['pi coding agent', 'pi'],
+      ['oh-my-pi', 'omp'],
+      ['OpenClaw', 'openclaw'],
+      ['opencode', 'opencode'],
+    ]) {
       const row = [...el.querySelectorAll('.ai-row')].find((r) => r.querySelector('.ai-name')?.textContent === name)!;
       const image = row.querySelector<HTMLImageElement>('.ai-mark img')!;
       expect(image.getAttribute('src')).toBe(`/brand/engines/${engine}.svg`);

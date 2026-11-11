@@ -23,7 +23,8 @@ export interface EveCoordinatorDependencies {
 }
 
 const activeStatus = (status: string) => ['queued', 'running', 'waiting'].includes(status);
-const projectionFailure = 'Eve returned a saved event Athena could not read. This run is paused. Check its results before continuing.';
+const projectionFailure =
+  'Eve returned a saved event Athena could not read. This run is paused. Check its results before continuing.';
 
 /** Follows saved turns and delivers consent. It never submits a model message or starts a turn. */
 export class EveCoordinator {
@@ -33,28 +34,39 @@ export class EveCoordinator {
   private readonly jobs = new Map<string, { abort: AbortController; promise: Promise<void>; wake: () => void }>();
   private started = false;
 
-  constructor(dependencies: EveCoordinatorDependencies) { this.dependencies = dependencies; }
+  constructor(dependencies: EveCoordinatorDependencies) {
+    this.dependencies = dependencies;
+  }
 
   restore(): void {
     for (const receipt of readExecution().runs) {
       const native = readRun(receipt.id);
       if (!native || receipt.settled) continue;
-      try { projectTranscript(receipt.id); }
-      catch (error) {
+      try {
+        projectTranscript(receipt.id);
+      } catch (error) {
         if (error instanceof EveProjectionError) settleRun(receipt.id, 'interrupted', '', projectionFailure);
         else continue; // A deleted owner has no conversation to restore.
       }
       if (receipt.completionClaimed || ['interrupted', 'stopped'].includes(readRun(receipt.id)!.status)) continue;
       try {
-        if (restoreNativeRun(receipt.id, async () => {
-          // Stop is persisted synchronously, before any network acknowledgement.
-          await stopEveRun(receipt.id);
-          this.jobs.get(receipt.id)?.abort.abort();
-          const host = await this.dependencies.ready();
-          await this.dependencies.connect(host, receipt.id).stop();
-        })) this.restored.add(receipt.id);
+        if (
+          restoreNativeRun(receipt.id, async () => {
+            // Stop is persisted synchronously, before any network acknowledgement.
+            await stopEveRun(receipt.id);
+            this.jobs.get(receipt.id)?.abort.abort();
+            const host = await this.dependencies.ready();
+            await this.dependencies.connect(host, receipt.id).stop();
+          })
+        )
+          this.restored.add(receipt.id);
       } catch {
-        settleRun(receipt.id, 'interrupted', '', 'The saved run no longer matches its conversation. Check its results before continuing.');
+        settleRun(
+          receipt.id,
+          'interrupted',
+          '',
+          'The saved run no longer matches its conversation. Check its results before continuing.',
+        );
         void stopEveRun(receipt.id);
       }
     }
@@ -74,7 +86,9 @@ export class EveCoordinator {
     const signal = AbortSignal.any([abort.signal, this.abort.signal]);
     const job = { abort, promise: Promise.resolve(), wake: () => {} };
     this.jobs.set(runId, job);
-    job.promise = this.watch(runId, signal, (wake) => { job.wake = wake; }).finally(() => this.jobs.delete(runId));
+    job.promise = this.watch(runId, signal, (wake) => {
+      job.wake = wake;
+    }).finally(() => this.jobs.delete(runId));
     // A caller may follow via nativeRunPromise; background transport errors never escape.
     void job.promise.catch(() => {});
     return job.promise;
@@ -95,17 +109,22 @@ export class EveCoordinator {
         const saved = readRun(runId);
         if (!saved) return;
         if (activeStatus(saved.status)) {
-          try { sessionContext(saved.bindingId); }
-          catch {
+          try {
+            sessionContext(saved.bindingId);
+          } catch {
             settleRun(runId, 'interrupted', '', 'The run owner or conversation is no longer available.');
             await stopEveRun(runId);
             finishNativeRun(runId);
-            await this.dependencies.ready().then((host) => this.dependencies.connect(host, runId).stop()).catch(() => {});
+            await this.dependencies
+              .ready()
+              .then((host) => this.dependencies.connect(host, runId).stop())
+              .catch(() => {});
             return;
           }
         }
-        try { projectTranscript(runId); }
-        catch (error) {
+        try {
+          projectTranscript(runId);
+        } catch (error) {
           if (error instanceof EveProjectionError) throw error;
           finishNativeRun(runId);
           return;
@@ -124,12 +143,20 @@ export class EveCoordinator {
         connection = this.dependencies.connect(host, runId);
         reconcileSnapshot(runId, await connection.snapshot(reading));
         projectTranscript(runId);
-        if (!activeStatus(readRun(runId)!.status)) { finishNativeRun(runId); return; }
+        if (!activeStatus(readRun(runId)!.status)) {
+          finishNativeRun(runId);
+          return;
+        }
         let sending = false;
         const wake = () => {
           if (sending || reading.aborted) return;
           sending = true;
-          void connection!.decisions().catch(() => local.abort()).finally(() => { sending = false; });
+          void connection!
+            .decisions()
+            .catch(() => local.abort())
+            .finally(() => {
+              sending = false;
+            });
         };
         setWake(wake);
         timer = setInterval(wake, 1000);
@@ -139,7 +166,10 @@ export class EveCoordinator {
         for await (const event of connection.stream(cursor?.line || 0, reading)) {
           observeEveEvent(runId, event);
           projectTranscript(runId);
-          if (!activeStatus(readRun(runId)!.status)) { finishNativeRun(runId); return; }
+          if (!activeStatus(readRun(runId)!.status)) {
+            finishNativeRun(runId);
+            return;
+          }
           if (event.type === 'interaction.opened') wake();
           attempts = 0;
         }
@@ -153,7 +183,14 @@ export class EveCoordinator {
         }
         // A disconnected stream is still the same run, never a replacement model request.
         const binding = readBinding(readRun(runId)?.bindingId || '');
-        if (!signal.aborted) emit('run', { runId, agentId: binding?.agentId, chatId: binding?.chatId, projectId: binding?.projectId, event: { kind: 'status', text: 'Reconnecting to Eve…' } });
+        if (!signal.aborted)
+          emit('run', {
+            runId,
+            agentId: binding?.agentId,
+            chatId: binding?.chatId,
+            projectId: binding?.projectId,
+            event: { kind: 'status', text: 'Reconnecting to Eve…' },
+          });
       } finally {
         local.abort();
         clearInterval(timer);
@@ -166,10 +203,17 @@ export class EveCoordinator {
         return;
       }
       await new Promise<void>((resolve) => {
-        const timer = setTimeout(done, Math.min(5000, (this.dependencies.retryMs ?? 250) * 2 ** Math.min(attempts++, 4)));
+        const timer = setTimeout(
+          done,
+          Math.min(5000, (this.dependencies.retryMs ?? 250) * 2 ** Math.min(attempts++, 4)),
+        );
         const onAbort = () => done();
         const lifetime = this.abort.signal;
-        function done() { clearTimeout(timer); lifetime.removeEventListener('abort', onAbort); resolve(); }
+        function done() {
+          clearTimeout(timer);
+          lifetime.removeEventListener('abort', onAbort);
+          resolve();
+        }
         lifetime.addEventListener('abort', onAbort, { once: true });
       });
     }

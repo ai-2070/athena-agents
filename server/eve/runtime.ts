@@ -30,16 +30,20 @@ export function eveRuntimeFiles(root = ROOT): { entry: string; templates: string
   const staged = path.join(root, 'runtime', 'eve');
   const desktop = exists(path.join(staged, 'server', 'index.mjs'));
   const entry = path.join(staged, ...(desktop ? [] : ['.output']), 'launch.mjs');
-  const templates = desktop ? path.join(root, 'runtime', 'eve-sandbox-cache') : path.join(staged, '.eve', 'sandbox-cache');
+  const templates = desktop
+    ? path.join(root, 'runtime', 'eve-sandbox-cache')
+    : path.join(staged, '.eve', 'sandbox-cache');
   if (!exists(entry) || !exists(templates)) throw new Error('The Eve runtime is missing. Run bun run eve:build first.');
   return { entry, templates };
 }
 
-const hasSavedWork = () => sessionBindings().some((binding) => binding.sessionId && !binding.runtimeEnded) || runSummaries().some((run) => {
-  if (!runEnded(run.status)) return true;
-  const binding = readBinding(run.bindingId);
-  return run.status === 'stopped' && !!binding?.sessionId && !binding.runtimeEnded;
-});
+const hasSavedWork = () =>
+  sessionBindings().some((binding) => binding.sessionId && !binding.runtimeEnded) ||
+  runSummaries().some((run) => {
+    if (!runEnded(run.status)) return true;
+    const binding = readBinding(run.bindingId);
+    return run.status === 'stopped' && !!binding?.sessionId && !binding.runtimeEnded;
+  });
 
 /** One private worker. Readiness includes recovery, so a new run cannot overtake saved work. */
 export class EveRuntime {
@@ -70,9 +74,11 @@ export class EveRuntime {
     this.retry = undefined;
     const starting = this.start();
     this.starting = starting;
-    void starting.finally(() => {
-      if (this.starting === starting) this.starting = undefined;
-    }).catch(() => {});
+    void starting
+      .finally(() => {
+        if (this.starting === starting) this.starting = undefined;
+      })
+      .catch(() => {});
     return starting;
   }
 
@@ -114,8 +120,11 @@ export class EveRuntime {
     if (this.daily || !this.dependencies.tidy) return;
     const tidy = () => {
       if (this.abort.signal.aborted || !this.release) return;
-      try { this.dependencies.tidy?.(); }
-      catch { log('error', 'Eve could not remove old saved receipts. It will try again tomorrow.'); }
+      try {
+        this.dependencies.tidy?.();
+      } catch {
+        log('error', 'Eve could not remove old saved receipts. It will try again tomorrow.');
+      }
     };
     this.daily = setInterval(tidy, DAY);
     this.daily.unref();
@@ -133,12 +142,12 @@ export class EveRuntime {
   }
 
   close(): Promise<void> {
-    return this.stopping ??= this.stop();
+    return (this.stopping ??= this.stop());
   }
 
   async retireBindings(): Promise<void> {
     if (this.abort.signal.aborted) return;
-    const host = this.host || await this.starting?.catch(() => undefined);
+    const host = this.host || (await this.starting?.catch(() => undefined));
     if (host) await retireEveBindings(host);
   }
 
@@ -150,10 +159,12 @@ export class EveRuntime {
     this.retry = undefined;
     clearInterval(this.daily);
     await this.starting?.catch(() => {});
-    try { await host?.close(); }
-    finally {
-      try { await this.bridge?.close(); }
-      finally {
+    try {
+      await host?.close();
+    } finally {
+      try {
+        await this.bridge?.close();
+      } finally {
         this.bridge = undefined;
         await this.release?.();
         this.release = undefined;
@@ -168,10 +179,19 @@ export const eveRuntime = new EveRuntime({
   host: (bridge, signal) => {
     const executable = process.versions.bun ? process.execPath : which('bun');
     if (!executable) throw new Error('Bun 1.4 or newer is required for Eve.');
-    return startEveHost({ ...eveRuntimeFiles(), executable, directory: privateDataPath('runtime', 'eve', 'worker'), bridgeUrl: bridge.url, bridgeToken: bridge.token, signal });
+    return startEveHost({
+      ...eveRuntimeFiles(),
+      executable,
+      directory: privateDataPath('runtime', 'eve', 'worker'),
+      bridgeUrl: bridge.url,
+      bridgeToken: bridge.token,
+      signal,
+    });
   },
   prepare: prepareEveRecovery,
   recover: recoverEveRuns,
   hasWork: hasSavedWork,
-  tidy: () => { removeOldEveReceipts(); },
+  tidy: () => {
+    removeOldEveReceipts();
+  },
 });

@@ -50,6 +50,7 @@ export function estimateHeight(m: ChatMessage, width: number, compact = false): 
  */
 export function messageSig(m: ChatMessage): string {
   let s = m.role === 'user' ? 'u' : 'a';
-  for (const p of m.parts) s += `.${p.type === 'text' || p.type === 'reasoning' ? (p.text || '').length : p.type.slice(0, 6)}`;
+  for (const p of m.parts)
+    s += `.${p.type === 'text' || p.type === 'reasoning' ? (p.text || '').length : p.type.slice(0, 6)}`;
   return s;
 }

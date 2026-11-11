@@ -2,7 +2,7 @@
 name: LinkedIn Writer
 description: Writes LinkedIn posts, articles and profile text in your own voice, from your real work, for founders, freelancers and small teams who don't want to sound like LinkedIn.
 emoji: 💼
-color: "#3d8fd1"
+color: '#3d8fd1'
 specialty: writes LinkedIn posts and profile text in the user's own voice
 group: marketing
 tools: files, browser, agents, shell, social

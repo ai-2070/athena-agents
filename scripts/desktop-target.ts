@@ -27,7 +27,10 @@ export const desktopTriples = (): string[] => Object.keys(TARGETS);
 export function desktopTarget(triple: string): DesktopTarget {
   const t = TARGETS[triple];
   if (!t) {
-    const hint = triple === 'universal-apple-darwin' ? ' Build aarch64-apple-darwin and x86_64-apple-darwin separately instead.' : '';
+    const hint =
+      triple === 'universal-apple-darwin'
+        ? ' Build aarch64-apple-darwin and x86_64-apple-darwin separately instead.'
+        : '';
     throw new Error(`The desktop app can't be built for ${triple}.${hint} Supported: ${desktopTriples().join(', ')}`);
   }
   return { triple, ...t };

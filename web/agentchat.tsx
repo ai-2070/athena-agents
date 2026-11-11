@@ -54,7 +54,8 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
     let live = true;
     chosen.current = false;
     // its own conversations, not the sessions it keeps for each team chat
-    void rpcAt(at).agents.chats.list({ id: agentId })
+    void rpcAt(at)
+      .agents.chats.list({ id: agentId })
       .catch((): ChatSummary[] => [])
       .then((chats) => {
         if (!live || chosen.current) return;
@@ -96,7 +97,13 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
   const listChats = async (): Promise<ChatListItem[]> =>
     (await rpcAt(at).agents.chats.list({ id: agentId }))
       .filter((c) => !isTeamSession(c) && !c.conversationId)
-      .map((c) => ({ id: c.id, title: c.title || 'Chat', updatedAt: c.updatedAt, count: c.count, open: c.id === chatId }));
+      .map((c) => ({
+        id: c.id,
+        title: c.title || 'Chat',
+        updatedAt: c.updatedAt,
+        count: c.count,
+        open: c.id === chatId,
+      }));
   const openOne = (id: string | null) => {
     chosen.current = true;
     setPick((p) => ({ id, n: (p?.n || 0) + 1 }));
@@ -109,7 +116,10 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
     return true;
   };
   const chats = { load: listChats, onOpen: (c: ChatListItem) => openOne(c.id), onRemove: removeOne };
-  const chip = useMemo(() => agent ? modelChip(agent, { compact: true, at }) : null, [agent?.id, agent?.model, agent?.engine, agent?.provider, at]);
+  const chip = useMemo(
+    () => (agent ? modelChip(agent, { compact: true, at }) : null),
+    [agent?.id, agent?.model, agent?.engine, agent?.provider, at],
+  );
   return (
     <div className="flex flex-col gap-3 h-full" ref={root}>
       <div className="flex items-center gap-2 pt-1">
@@ -118,9 +128,18 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
           <Icon name="plus" size={13} />
           New chat
         </Button>
-        <DomNode as="span" make={() => memoryButton(agentId, agent?.name, { size: 'tiny', projectId })} deps={[agentId, agent?.name, projectId]} />
+        <DomNode
+          as="span"
+          make={() => memoryButton(agentId, agent?.name, { size: 'tiny', projectId })}
+          deps={[agentId, agent?.name, projectId]}
+        />
         {projectId ? null : (
-          <ButtonLink size="tiny" variant="ghost" title="Open the full chat page" href={chatId ? `#/agents/${agentId}/${chatId}` : `#/agents/${agentId}`}>
+          <ButtonLink
+            size="tiny"
+            variant="ghost"
+            title="Open the full chat page"
+            href={chatId ? `#/agents/${agentId}/${chatId}` : `#/agents/${agentId}`}
+          >
             <Icon name="maximize-2" size={13} />
             Full page
           </ButtonLink>
@@ -150,7 +169,11 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
 
 /** Draws the agent's chat into a tab of the floating window. */
 /** projectId: the agent's project, when it isn't the open one (an Overview pane): its requests go there (projectAt). */
-export function renderAgentChat(container: HTMLElement, agentId: string, { projectId }: { projectId?: string } = {}): AgentChatApi {
+export function renderAgentChat(
+  container: HTMLElement,
+  agentId: string,
+  { projectId }: { projectId?: string } = {},
+): AgentChatApi {
   const ask: FocusAsk = { wanted: false, api: { current: null } };
   const root = createAppRoot(container);
   root.render(

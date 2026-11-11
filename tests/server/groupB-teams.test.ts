@@ -4,7 +4,15 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
-import { activeProject, chats, listProjects, saveProjects, saveSettings, setActiveProject, workflows } from '../../server/store.ts';
+import {
+  activeProject,
+  chats,
+  listProjects,
+  saveProjects,
+  saveSettings,
+  setActiveProject,
+  workflows,
+} from '../../server/store.ts';
 import { dataPath, readJSON } from '../../server/util.ts';
 import { clearThread, getThread, isStepList, postUserMessage, teamSteps, teamState } from '../../server/teams.ts';
 import type { Team, TeamMessage } from '../../shared/types.ts';
@@ -23,11 +31,17 @@ beforeAll(async () => {
     await gate;
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Late answer.' } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
 });
 afterAll(() => {
   release();
@@ -107,6 +121,8 @@ describe('old step lists', () => {
     ];
     expect(teamSteps({ steps, members: ['a', 'c'] }).map((s) => s.id || s.agentId)).toEqual(['1', 'c', '3', '4']);
     // a team's steps just mirror its members
-    expect(teamSteps({ steps: [{ type: 'agent', agentId: 'a' }], members: ['b'] })).toEqual([{ type: 'agent', agentId: 'b' }]);
+    expect(teamSteps({ steps: [{ type: 'agent', agentId: 'a' }], members: ['b'] })).toEqual([
+      { type: 'agent', agentId: 'b' },
+    ]);
   });
 });

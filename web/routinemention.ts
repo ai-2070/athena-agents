@@ -105,14 +105,26 @@ export function startMention(ta: HTMLTextAreaElement, kind: RoutineMentionKind):
   if (menu?.ta === ta) openMenu(ta, menu.start, '', kind, menu.onPick, menu.candidates);
 }
 
-function openMenu(ta: HTMLTextAreaElement, start: number, query: string, kind: RoutineMentionKind | null, onPick: () => void, candidates: () => Candidate[]) {
+function openMenu(
+  ta: HTMLTextAreaElement,
+  start: number,
+  query: string,
+  kind: RoutineMentionKind | null,
+  onPick: () => void,
+  candidates: () => Candidate[],
+) {
   const q = query.toLowerCase().trim();
   const all = candidates().filter((c) => !kind || c.kind === kind);
   // names that start with what you typed first, then names that contain it
-  const items = [...all.filter((c) => c.name.toLowerCase().startsWith(q)), ...all.filter((c) => q && !c.name.toLowerCase().startsWith(q) && `${c.name} ${c.sub}`.toLowerCase().includes(q))].slice(0, 30);
+  const items = [
+    ...all.filter((c) => c.name.toLowerCase().startsWith(q)),
+    ...all.filter((c) => q && !c.name.toLowerCase().startsWith(q) && `${c.name} ${c.sub}`.toLowerCase().includes(q)),
+  ].slice(0, 30);
   if (!items.length && q.includes(' ')) return closeMenu(); // typing on past a name: not a mention
   if (menu && menu.ta !== ta) closeMenu();
-  const groups = (['agent', 'team', 'skill'] as const).map((k) => ({ k, list: items.filter((c) => c.kind === k) })).filter((g) => g.list.length);
+  const groups = (['agent', 'team', 'skill'] as const)
+    .map((k) => ({ k, list: items.filter((c) => c.kind === k) }))
+    .filter((g) => g.list.length);
   // The order on screen is the order for the arrow keys.
   const ordered = groups.flatMap((g) => g.list);
   if (menu) {
@@ -124,11 +136,19 @@ function openMenu(ta: HTMLTextAreaElement, start: number, query: string, kind: R
     ta.setAttribute('aria-controls', id);
     menu = { el: null, popup: null, id, aria, ta, start, kind, items: ordered, active: 0, onPick, candidates };
     const state = menu;
-    state.popup = openMentionPopup(ta, id, () => caretRect(ta, state.start), (el) => {
-      if (menu !== state) return;
-      state.el = el;
-      paintMenu();
-    }, () => { if (menu === state) closeMenu(); });
+    state.popup = openMentionPopup(
+      ta,
+      id,
+      () => caretRect(ta, state.start),
+      (el) => {
+        if (menu !== state) return;
+        state.el = el;
+        paintMenu();
+      },
+      () => {
+        if (menu === state) closeMenu();
+      },
+    );
   }
   paintMenu();
   menu?.popup?.update();
@@ -137,7 +157,9 @@ function openMenu(ta: HTMLTextAreaElement, start: number, query: string, kind: R
 function paintMenu() {
   if (!menu?.el) return;
   const { el, kind, items } = menu;
-  const groups = (['agent', 'team', 'skill'] as const).map((k) => ({ k, list: items.filter((c) => c.kind === k) })).filter((g) => g.list.length);
+  const groups = (['agent', 'team', 'skill'] as const)
+    .map((k) => ({ k, list: items.filter((c) => c.kind === k) }))
+    .filter((g) => g.list.length);
   mount(
     el,
     h('div.st-menu-head', kind ? `Mention ${KIND_LABEL[kind].slice(0, -1).toLowerCase()}` : 'Mention'),
@@ -146,10 +168,33 @@ function paintMenu() {
       { class: 'max-h-[280px]' },
       groups.length
         ? groups.map((g) => [
-            groups.length > 1 || !kind ? h('div', { class: 'px-2.5 pt-2.5 pb-1 text-[12px] leading-[normal] font-medium text-faint' }, KIND_LABEL[g.k]) : null,
-            g.list.map((c) => h('button.st-menu-item.rt-menu-item', { class: '[&.active]:bg-panel-2 [&.active]:text-accent [&.active_.ico-svg]:text-accent', type: 'button', onclick: () => pick(c) }, c.lead, h('span', { class: 'min-w-0 flex-1' }, c.name, c.sub ? h('span.model-sub', c.sub.slice(0, 90)) : null))),
+            groups.length > 1 || !kind
+              ? h(
+                  'div',
+                  { class: 'px-2.5 pt-2.5 pb-1 text-[12px] leading-[normal] font-medium text-faint' },
+                  KIND_LABEL[g.k],
+                )
+              : null,
+            g.list.map((c) =>
+              h(
+                'button.st-menu-item.rt-menu-item',
+                {
+                  class: '[&.active]:bg-panel-2 [&.active]:text-accent [&.active_.ico-svg]:text-accent',
+                  type: 'button',
+                  onclick: () => pick(c),
+                },
+                c.lead,
+                h('span', { class: 'min-w-0 flex-1' }, c.name, c.sub ? h('span.model-sub', c.sub.slice(0, 90)) : null),
+              ),
+            ),
           ])
-        : h('div.hint', { style: { padding: '8px 10px' } }, kind ? `No ${KIND_LABEL[kind].toLowerCase()} match.` : 'Nothing matches. Agents, teams and skills show here.'),
+        : h(
+            'div.hint',
+            { style: { padding: '8px 10px' } },
+            kind
+              ? `No ${KIND_LABEL[kind].toLowerCase()} match.`
+              : 'Nothing matches. Agents, teams and skills show here.',
+          ),
     ),
   );
   paintActive();
@@ -186,11 +231,38 @@ function caretRect(input: HTMLTextAreaElement, pos: number): DOMRect {
   const z = uiZoom();
   // with mentions shown as pills the textarea is hidden and the editor after it is what you see
   const shown = input.nextElementSibling;
-  const ta = input.hidden && shown instanceof HTMLElement && shown.getAttribute('contenteditable') === 'true' ? shown : input;
+  const ta =
+    input.hidden && shown instanceof HTMLElement && shown.getAttribute('contenteditable') === 'true' ? shown : input;
   const cs = getComputedStyle(ta);
   const copy = document.createElement('div');
-  for (const p of ['boxSizing', 'width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderStyle', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'tabSize'] as const) copy.style[p] = cs[p];
-  Object.assign(copy.style, { position: 'absolute', visibility: 'hidden', top: '0', left: '-9999px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' });
+  for (const p of [
+    'boxSizing',
+    'width',
+    'paddingTop',
+    'paddingRight',
+    'paddingBottom',
+    'paddingLeft',
+    'borderTopWidth',
+    'borderRightWidth',
+    'borderBottomWidth',
+    'borderLeftWidth',
+    'borderStyle',
+    'fontFamily',
+    'fontSize',
+    'fontWeight',
+    'lineHeight',
+    'letterSpacing',
+    'tabSize',
+  ] as const)
+    copy.style[p] = cs[p];
+  Object.assign(copy.style, {
+    position: 'absolute',
+    visibility: 'hidden',
+    top: '0',
+    left: '-9999px',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'break-word',
+  });
   copy.textContent = input.value.slice(0, pos);
   const mark = document.createElement('span');
   mark.textContent = '@';

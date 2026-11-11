@@ -36,9 +36,12 @@ export function importVox(req: ImportRequest): string {
 }
 
 function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
-  const name = String(req.name || path.basename(req.file, path.extname(req.file))).trim().slice(0, 80);
+  const name = String(req.name || path.basename(req.file, path.extname(req.file)))
+    .trim()
+    .slice(0, 80);
   if (!name) throw bad('Name it.');
-  if (req.as === 'prefab' ? findPrefab(w, name) : findObject(w, name)) throw bad(`There's already ${req.as === 'prefab' ? 'a prefab' : 'an object'} called "${name}".`);
+  if (req.as === 'prefab' ? findPrefab(w, name) : findObject(w, name))
+    throw bad(`There's already ${req.as === 'prefab' ? 'a prefab' : 'an object'} called "${name}".`);
   const st = fs.statSync(req.file);
   if (!st.isFile() || st.size > 64 * 1024 * 1024) throw bad('That is not a .vox file this can read (up to 64 MB).');
   const size = req.voxelSize === undefined ? (req.as === 'prefab' ? 0.1 : w.voxelSize) : Number(req.voxelSize);
@@ -50,7 +53,8 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
   materials.forEach((m, i) => {
     let at = w.palette.findIndex((x) => x.name === m.name);
     if (at < 0) {
-      if (w.palette.length >= LIMITS.palette) throw bad(`The world's palette can't take ${materials.length} more colours.`);
+      if (w.palette.length >= LIMITS.palette)
+        throw bad(`The world's palette can't take ${materials.length} more colours.`);
       w.palette.push(cleanMaterial({ ...m, material: m.name }, stockMaterial(m.name)));
       at = w.palette.length - 1;
     }
@@ -58,29 +62,70 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
   });
   for (const c of grid.vol.chunks.values()) for (let i = 0; i < c.length; i++) if (c[i]) c[i] = map.get(c[i]) ?? c[i];
   const volumes = volumesMeta([grid]);
-  const span = volumes[0]?.min && volumes[0]?.max ? volumes[0].max.map((n, a) => n - volumes[0].min![a] + 1) : [0, 0, 0];
-  if (span.some((n) => n > LIMITS.reach * 2)) throw bad(`That model is ${span.join('×')} voxels; the most is ${LIMITS.reach * 2} a side. Bring it in at a bigger voxel size.`);
+  const span =
+    volumes[0]?.min && volumes[0]?.max ? volumes[0].max.map((n, a) => n - volumes[0].min![a] + 1) : [0, 0, 0];
+  if (span.some((n) => n > LIMITS.reach * 2))
+    throw bad(
+      `That model is ${span.join('×')} voxels; the most is ${LIMITS.reach * 2} a side. Bring it in at a bigger voxel size.`,
+    );
   // it stands on y = 0, centred on x and z: every voxel must be within the build tools' reach, or it can't be edited
   const R = LIMITS.reach;
   const v0 = volumes[0];
-  if (v0?.min && v0.max && (v0.min.some((n) => n < -R) || v0.max.some((n) => n >= R))) throw bad(`That model is ${span.join('×')} voxels and stands on its base, so it reaches past ${R} voxels from its middle (the most the build tools can edit). Bring it in at a bigger voxel size.`);
+  if (v0?.min && v0.max && (v0.min.some((n) => n < -R) || v0.max.some((n) => n >= R)))
+    throw bad(
+      `That model is ${span.join('×')} voxels and stands on its base, so it reaches past ${R} voxels from its middle (the most the build tools can edit). Bring it in at a bigger voxel size.`,
+    );
   if (worldVoxels(w) + count > WORLD_LIMITS.voxels) throw bad(`The world has no room for ${fmt(count)} more voxels.`);
   const now = Date.now();
   const colours = `${materials.length} colours${materials.length ? `, as the materials "${materials[0].name}"${materials.length > 1 ? ` to "${materials[materials.length - 1].name}"` : ''} (recolour them with {"material": …} steps)` : ''}`;
   if (req.as === 'prefab') {
-    if (count > WORLD_LIMITS.prefabVoxels || span.some((n) => n > WORLD_LIMITS.prefabSide)) throw bad(`A prefab is at most ${WORLD_LIMITS.prefabSide} voxels a side and ${fmt(WORLD_LIMITS.prefabVoxels)} voxels; bring this in as an object.`);
-    const p: VoxelPrefabMeta = { id: uid('p'), name, description: `from ${path.basename(req.file)}`, tags: ['imported'], by: req.by, volumes, pivot: [0, 0, 0], size: [0, 0, 0], createdAt: now, updatedAt: now, voxelsAt: now };
+    if (count > WORLD_LIMITS.prefabVoxels || span.some((n) => n > WORLD_LIMITS.prefabSide))
+      throw bad(
+        `A prefab is at most ${WORLD_LIMITS.prefabSide} voxels a side and ${fmt(WORLD_LIMITS.prefabVoxels)} voxels; bring this in as an object.`,
+      );
+    const p: VoxelPrefabMeta = {
+      id: uid('p'),
+      name,
+      description: `from ${path.basename(req.file)}`,
+      tags: ['imported'],
+      by: req.by,
+      volumes,
+      pivot: [0, 0, 0],
+      size: [0, 0, 0],
+      createdAt: now,
+      updatedAt: now,
+      voxelsAt: now,
+    };
     Object.assign(p, pivotOf(volumes));
     writePrefab(w.id, p.id, saveGrids([grid]));
     w.prefabs.push(p);
     // (a world with only a prefab is built too: it isn't replaced by another project's world)
     w.built = true;
-    remember(w.id, { by: req.by, kind: 'prefab', what: `brought in the prefab ${name} from a .vox file`, objectId: p.id, metaBefore: null });
+    remember(w.id, {
+      by: req.by,
+      kind: 'prefab',
+      what: `brought in the prefab ${name} from a .vox file`,
+      objectId: p.id,
+      metaBefore: null,
+    });
     saveWorld(w, { prefabs: [p.id], by: req.by.name });
     return `Brought "${path.basename(req.file)}" in as the prefab "${name}": ${fmt(count)} voxels at voxel size ${size}, ${p.size.join('×')} map units, ${colours}. Place copies with {"place": "${name}"}.`;
   }
-  if (w.objects.length >= WORLD_LIMITS.objects) throw bad(`This world has ${WORLD_LIMITS.objects} objects, the most it can hold.`);
-  const o: VoxelObjectMeta = { id: uid('o'), name, by: req.by, anchor: cleanAnchor(req.anchor), position: Array.isArray(req.position) && req.position.length === 3 ? (req.position.map(Number) as Vec3) : [0, 0, 0], rotation: 0, scale: 1, volumes, createdAt: now, updatedAt: now, voxelsAt: now };
+  if (w.objects.length >= WORLD_LIMITS.objects)
+    throw bad(`This world has ${WORLD_LIMITS.objects} objects, the most it can hold.`);
+  const o: VoxelObjectMeta = {
+    id: uid('o'),
+    name,
+    by: req.by,
+    anchor: cleanAnchor(req.anchor),
+    position: Array.isArray(req.position) && req.position.length === 3 ? (req.position.map(Number) as Vec3) : [0, 0, 0],
+    rotation: 0,
+    scale: 1,
+    volumes,
+    createdAt: now,
+    updatedAt: now,
+    voxelsAt: now,
+  };
   writeObject(w.id, o.id, saveGrids([grid]));
   w.objects.push(o);
   w.built = true;
@@ -93,20 +138,41 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
 export type ExportFormat = 'glb' | 'vox';
 
 /** Files for an object, a prefab or the whole world (.vox: one per voxel size; the whole world only as .glb). */
-export function exportFiles(w: VoxelWorld, what: 'object' | 'prefab' | 'world', ref: string | undefined, format: ExportFormat): { title: string; files: { name: string; bytes: Uint8Array }[]; note: string } {
+export function exportFiles(
+  w: VoxelWorld,
+  what: 'object' | 'prefab' | 'world',
+  ref: string | undefined,
+  format: ExportFormat,
+): { title: string; files: { name: string; bytes: Uint8Array }[]; note: string } {
   if (what === 'world') {
     if (format !== 'glb') throw bad('The whole world goes out as .glb (a .vox file holds one voxel size).');
-    return { title: `${w.name} (3D model)`, files: [{ name: `${slugify(w.name) || 'world'}.glb`, bytes: toGlb(w, { kind: 'world' }) }], note: 'Objects pinned to a team or an agent stand where they are from the middle of the map; the Station itself is not in it.' };
+    return {
+      title: `${w.name} (3D model)`,
+      files: [{ name: `${slugify(w.name) || 'world'}.glb`, bytes: toGlb(w, { kind: 'world' }) }],
+      note: 'Objects pinned to a team or an agent stand where they are from the middle of the map; the Station itself is not in it.',
+    };
   }
   const o = what === 'object' ? findObject(w, ref) : findPrefab(w, ref);
   if (!o) throw bad(`There's no ${what} "${ref || ''}".`, 404);
   const base = slugify(o.name) || what;
-  if (format === 'glb') return { title: `${o.name} (3D model)`, files: [{ name: `${base}.glb`, bytes: toGlb(w, { kind: what, id: o.id }) }], note: '' };
+  if (format === 'glb')
+    return {
+      title: `${o.name} (3D model)`,
+      files: [{ name: `${base}.glb`, bytes: toGlb(w, { kind: what, id: o.id }) }],
+      note: '',
+    };
   const data = what === 'object' ? readObject(w.id, o.id) : readPrefab(w.id, o.id);
   const grids = loadGrids(data).filter((g) => g.vol.chunks.size);
   if (!grids.length) throw bad(`"${o.name}" has no voxels.`);
-  const files = grids.map((g: Grid) => ({ name: grids.length > 1 ? `${base}-${g.voxelSize}.vox` : `${base}.vox`, bytes: gridToVox(g, w.palette) }));
-  return { title: `${o.name} (MagicaVoxel)`, files, note: `${grids.length > 1 ? 'One file per voxel size. ' : ''}${data?.instances?.length ? 'Placed copies are not in a .vox file; export as .glb to keep them.' : ''}`.trim() };
+  const files = grids.map((g: Grid) => ({
+    name: grids.length > 1 ? `${base}-${g.voxelSize}.vox` : `${base}.vox`,
+    bytes: gridToVox(g, w.palette),
+  }));
+  return {
+    title: `${o.name} (MagicaVoxel)`,
+    files,
+    note: `${grids.length > 1 ? 'One file per voxel size. ' : ''}${data?.instances?.length ? 'Placed copies are not in a .vox file; export as .glb to keep them.' : ''}`.trim(),
+  };
 }
 
 /** Writes export files into a folder, and gives back the paths. */
@@ -124,7 +190,10 @@ export function writePicture(dir: string, name: string, image: string): string {
   const m = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(image);
   if (!m) throw bad('That is not a picture.');
   ensureDir(dir);
-  const file = path.join(dir, `${slugify(name) || 'world'}-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.${m[1] === 'jpeg' ? 'jpg' : m[1]}`);
+  const file = path.join(
+    dir,
+    `${slugify(name) || 'world'}-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.${m[1] === 'jpeg' ? 'jpg' : m[1]}`,
+  );
   fs.writeFileSync(file, Buffer.from(m[2], 'base64'));
   return file;
 }

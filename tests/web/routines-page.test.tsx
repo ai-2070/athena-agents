@@ -10,8 +10,24 @@ const settle = (ms = 30) => act(() => new Promise((r) => setTimeout(r, ms)));
 
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
-const routine = { id: 'r1', name: 'Morning news', description: '', text: 'Find news.', schedule: { type: 'none' }, enabled: true, mentions: [] };
-const run = { id: 'run1', routineId: 'r1', status: 'done', trigger: 'manual', createdAt: Date.now(), skills: [], targets: [{ kind: 'agent', id: 'a1', name: 'Writer', status: 'done', chatId: 'c1', output: '**Three stories.**' }] };
+const routine = {
+  id: 'r1',
+  name: 'Morning news',
+  description: '',
+  text: 'Find news.',
+  schedule: { type: 'none' },
+  enabled: true,
+  mentions: [],
+};
+const run = {
+  id: 'run1',
+  routineId: 'r1',
+  status: 'done',
+  trigger: 'manual',
+  createdAt: Date.now(),
+  skills: [],
+  targets: [{ kind: 'agent', id: 'a1', name: 'Writer', status: 'done', chatId: 'c1', output: '**Three stories.**' }],
+};
 
 let runsData: unknown[];
 beforeEach(() => {
@@ -27,11 +43,19 @@ beforeEach(() => {
     const json = (v: unknown) => new Response(JSON.stringify(v));
     if (url === '/api/routines/r1' && method === 'GET') return json(routine);
     if (url === '/api/routines/r1' && method === 'PUT') return json({ ...routine, ...body, mentions: [] });
-    if (url === '/api/routines' && method === 'GET') return json([{ ...routine, schedule: { type: 'daily', times: ['09:00', '15:30'], days: [1, 3] }, enabled: true }, { ...routine, id: 'r3', name: 'By hand' }]);
+    if (url === '/api/routines' && method === 'GET')
+      return json([
+        { ...routine, schedule: { type: 'daily', times: ['09:00', '15:30'], days: [1, 3] }, enabled: true },
+        { ...routine, id: 'r3', name: 'By hand' },
+      ]);
     if (url === '/api/routines' && method === 'POST') return json({ ...routine, ...body, id: 'r2', mentions: [] });
     if (url.startsWith('/api/routine-runs')) return json(runsData);
     if (url.startsWith('/api/skills')) return json({ skills: [], claude: [] });
-    return json(url.includes('/workflows') ? [{ id: 't1', name: 'Content Team', members: ['a1'], description: '' }] : { ok: true });
+    return json(
+      url.includes('/workflows')
+        ? [{ id: 't1', name: 'Content Team', members: ['a1'], description: '' }]
+        : { ok: true },
+    );
   });
 });
 afterEach(() => {
@@ -44,7 +68,8 @@ const open = async () => {
   await act(async () => routines.render(el, ['r1']));
   await settle(200);
 };
-const btn = (text: string) => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
+const btn = (text: string) =>
+  [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
 // a run's open/close button
 const toggleOf = (entry: HTMLElement) => entry.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
 const typeInto = (ta: HTMLTextAreaElement, text: string) =>
@@ -62,18 +87,24 @@ describe('the routine editor', () => {
     await typeInto(ta, 'Ask @Wr');
     const menu = document.querySelector('.rt-menu')!;
     expect([...menu.querySelectorAll('.rt-menu-item')].map((b) => b.textContent)).toEqual(['✍️WriterPosts']);
-    await act(async () => ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
+    await act(async () =>
+      ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })),
+    );
     expect(ta.value).toBe('Ask @Writer ');
     // shown as a pill, like in a team chat's message box
     expect(ta.hidden).toBe(true);
-    expect(el.querySelector('[contenteditable="true"][aria-label="What to do"] [data-mention="@Writer"]')).not.toBeNull();
+    expect(
+      el.querySelector('[contenteditable="true"][aria-label="What to do"] [data-mention="@Writer"]'),
+    ).not.toBeNull();
     expect(el.querySelector('.rt-who')!.textContent).toContain('Writer');
     expect(btn('Save').disabled).toBe(false);
   });
 
   it('saves what you changed, and Run now saves first', async () => {
     await open();
-    const name = [...el.querySelectorAll('label.field')].find((f) => f.textContent?.startsWith('Name'))!.querySelector('input')!;
+    const name = [...el.querySelectorAll('label.field')]
+      .find((f) => f.textContent?.startsWith('Name'))!
+      .querySelector('input')!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(name, 'Evening news');
       name.dispatchEvent(new Event('input', { bubbles: true }));
@@ -82,7 +113,11 @@ describe('the routine editor', () => {
     await settle();
     const calls = requests.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.url}`);
     expect(calls).toEqual(['PUT /api/routines/r1', 'POST /api/routines/r1/run']);
-    expect(requests.find((r) => r.method === 'PUT')!.body).toMatchObject({ name: 'Evening news', text: 'Find news.', schedule: { type: 'none' } });
+    expect(requests.find((r) => r.method === 'PUT')!.body).toMatchObject({
+      name: 'Evening news',
+      text: 'Find news.',
+      schedule: { type: 'none' },
+    });
     expect(requests.find((r) => r.url === '/api/routines/r1/run')!.body).toEqual({ input: '' });
   });
 
@@ -102,7 +137,9 @@ describe('the routine editor', () => {
     expect(btn('Save').disabled).toBe(false);
     await act(async () => btn('Save').click());
     await settle();
-    expect(requests.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.url}`)).toEqual(['POST /api/routines']);
+    expect(requests.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.url}`)).toEqual([
+      'POST /api/routines',
+    ]);
     expect(requests.find((r) => r.method === 'POST')!.body).toMatchObject({ name: 'New routine', text: 'Find news.' });
     expect(location.hash).toBe('#/routines/r2');
   });
@@ -137,12 +174,17 @@ describe('the routine editor', () => {
     expect(el.querySelectorAll('[data-time-picker]')).toHaveLength(2);
     await act(async () => btn('Save').click());
     await settle();
-    expect(requests.filter((r) => r.method === 'PUT').at(-1)!.body).toMatchObject({ enabled: true, schedule: { type: 'daily', times: ['09:00', '10:00'] } });
+    expect(requests.filter((r) => r.method === 'PUT').at(-1)!.body).toMatchObject({
+      enabled: true,
+      schedule: { type: 'daily', times: ['09:00', '10:00'] },
+    });
   });
 
   it('can remove a daily time while keeping the other time', async () => {
     await open();
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Daily')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLButtonElement>('.seg button')].find((b) => b.textContent === 'Daily')!.click(),
+    );
     await act(async () => btn('Add time').click());
     await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Remove time 1"]')!.click());
     expect(el.querySelectorAll('[data-time-picker]')).toHaveLength(1);
@@ -150,21 +192,28 @@ describe('the routine editor', () => {
     expect(el.querySelector<HTMLButtonElement>('[aria-label="Remove time 1"]')!.disabled).toBe(true);
     await act(async () => btn('Save').click());
     await settle();
-    expect(requests.filter((r) => r.method === 'PUT').at(-1)!.body).toMatchObject({ schedule: { type: 'daily', times: ['10:00'] } });
+    expect(requests.filter((r) => r.method === 'PUT').at(-1)!.body).toMatchObject({
+      schedule: { type: 'daily', times: ['10:00'] },
+    });
   });
 
   it('on the list, every routine has an on/off switch that saves just that, and off blocks Run', async () => {
     await act(async () => routines.render(el, []));
     await settle(100);
-    const cards = [...el.querySelectorAll<HTMLElement>('.skill-name')].map((a) => a.parentElement!.parentElement!.parentElement!);
+    const cards = [...el.querySelectorAll<HTMLElement>('.skill-name')].map(
+      (a) => a.parentElement!.parentElement!.parentElement!,
+    );
     expect(cards.map((c) => c.querySelectorAll('[role="switch"]').length)).toEqual([1, 1]);
-    const runBtn = (c: HTMLElement) => [...c.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === 'Run')!;
+    const runBtn = (c: HTMLElement) =>
+      [...c.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === 'Run')!;
     expect(runBtn(cards[0]).disabled).toBe(false);
     expect(cards[0].textContent).toContain('Daily (Mon, Wed) at 9AM, 3:30PM');
     expect(cards[1].textContent).toContain('Run by hand');
     await act(async () => cards[0].querySelector<HTMLElement>('.toggle-text')!.click());
     await settle();
-    expect(requests.filter((r) => r.method === 'PUT').map((r) => [r.url, r.body])).toEqual([['/api/routines/r1', { enabled: false }]]);
+    expect(requests.filter((r) => r.method === 'PUT').map((r) => [r.url, r.body])).toEqual([
+      ['/api/routines/r1', { enabled: false }],
+    ]);
     expect(runBtn(cards[0]).disabled).toBe(true);
     expect(cards[0].textContent).toContain('Switched off');
     expect(cards[0].textContent).toContain('Daily (Mon, Wed) at 9AM, 3:30PM');
@@ -174,7 +223,9 @@ describe('the routine editor', () => {
     await open();
     const sw = el.querySelector<HTMLElement>('[role="switch"]')!;
     expect(sw.getAttribute('aria-checked')).toBe('true');
-    await act(async () => [...el.querySelectorAll<HTMLElement>('.toggle-text')].find((t) => t.textContent === 'Routine on')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLElement>('.toggle-text')].find((t) => t.textContent === 'Routine on')!.click(),
+    );
     await settle();
     expect(requests.filter((r) => r.method === 'PUT').at(-1)!.body).toEqual({ enabled: false });
     expect(btn('Run now').disabled).toBe(true);
@@ -197,7 +248,11 @@ describe('the routine editor', () => {
     expect(summary.textContent).toContain('Run by hand');
     expect(summary.textContent).toContain('took 1m 5s');
     expect(summary.querySelector('[aria-label="Writer"]')).not.toBeNull();
-    expect([routines.runTook(800), routines.runTook(42_000), routines.runTook(3_725_000)]).toEqual(['1s', '42s', '1h 2m']);
+    expect([routines.runTook(800), routines.runTook(42_000), routines.runTook(3_725_000)]).toEqual([
+      '1s',
+      '42s',
+      '1h 2m',
+    ]);
   });
 
   it('keeps run details usable while stopping a running entry', async () => {
@@ -209,7 +264,9 @@ describe('the routine editor', () => {
     const entries = () => [...el.querySelectorAll<HTMLElement>('[data-run]')];
     const opened = () => entries().map((entry) => toggleOf(entry).getAttribute('aria-expanded'));
     expect(opened()).toEqual(['true', 'false']);
-    const stop = [...entries()[0].parentElement!.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Stop')!;
+    const stop = [...entries()[0].parentElement!.querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent === 'Stop',
+    )!;
     await act(async () => stop.click());
     expect(requests.some((r) => r.method === 'POST' && r.url === '/api/routine-runs/running1/stop')).toBe(true);
     expect(opened()).toEqual(['true', 'false']);

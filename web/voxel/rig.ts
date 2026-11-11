@@ -34,7 +34,13 @@ export type RigLookup = (id: string) => { data: VoxelObjectData | null; pivot: V
 export function partTree(rootId: string, lookup: RigLookup, maxDepth = MAX_NESTING): PartNode | null {
   const root = lookup(rootId);
   if (!root) return null;
-  const node = (raw: PrefabInstance, parentMirror: boolean, parentSwaps: Map<string, string>, depth: number, path: Set<string>): PartNode | null => {
+  const node = (
+    raw: PrefabInstance,
+    parentMirror: boolean,
+    parentSwaps: Map<string, string>,
+    depth: number,
+    path: Set<string>,
+  ): PartNode | null => {
     const pf = lookup(raw.prefab);
     if (!pf || path.has(raw.prefab)) return null;
     const mirror = !!raw.mirror !== parentMirror;
@@ -115,7 +121,12 @@ export function buildRig(tree: PartNode, meshes: (n: PartNode) => THREE.Object3D
     for (const m of meshes(n)) inner.add(m);
     for (const c of n.children) inner.add(make(c, false));
     pivotGroup.add(inner);
-    const part: RigPart = { group: pivotGroup, restPos: pivotGroup.position.clone(), restQuat: pivotGroup.quaternion.clone(), restScale: n.scale };
+    const part: RigPart = {
+      group: pivotGroup,
+      restPos: pivotGroup.position.clone(),
+      restQuat: pivotGroup.quaternion.clone(),
+      restScale: n.scale,
+    };
     if (isRoot) add('self', part);
     if (n.name) add(n.name, part);
     return pivotGroup;

@@ -24,14 +24,19 @@ export function teamSteps(team: Pick<Team, 'steps' | 'members'>): TeamStep[] {
 const TEAM_FROM = 'team:';
 export const teamFrom = (teamId: string): string => `${TEAM_FROM}${teamId}`;
 /** The team a message came from, when another team wrote it. */
-export const fromTeam = (from: unknown): string | null => (typeof from === 'string' && from.startsWith(TEAM_FROM) ? from.slice(TEAM_FROM.length) || null : null);
+export const fromTeam = (from: unknown): string | null =>
+  typeof from === 'string' && from.startsWith(TEAM_FROM) ? from.slice(TEAM_FROM.length) || null : null;
 
 // (code is not a message to anyone: `#include` or a `#heading` in a snippet names no team)
 const outsideCode = (text: string) => text.replace(/```[\s\S]*?(```|$)/g, ' ').replace(/`[^`\n]*`/g, ' ');
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** The teams a message names as #Team Name (exact names, longest first, any case), minus `self`. */
-export function parseTeamRefs(text: unknown, teams: readonly Pick<Team, 'id' | 'name'>[], self: string | null = null): string[] {
+export function parseTeamRefs(
+  text: unknown,
+  teams: readonly Pick<Team, 'id' | 'name'>[],
+  self: string | null = null,
+): string[] {
   let rest = outsideCode(String(text || ''));
   const found: string[] = [];
   // longest names first, each match taken out, so "#Design Ops" doesn't also count as "#Design"

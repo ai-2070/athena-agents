@@ -42,14 +42,14 @@ orders, bookings, enquiries, sign-ups. A clever plan that needs a team they don'
 - **Each platform is good at something different.** Plan from what it does well. The limits below come from each
   platform's own pages; they change, so check the live page before a post depends on one.
 
-| Platform | Good for | What works there |
-|---|---|---|
-| Instagram | Visual products, places, makers and creators; reaching new people through Reels | See the next section |
-| Facebook | Local communities, Groups, events, Marketplace | Taking part in Groups, events, posts people pass on to friends |
-| Threads | Conversation in text: opinions, questions, replies | Short posts that invite a real reply; up to 500 characters and one topic tag a post |
-| Bluesky | Text conversation in a smaller, opt-in network | Joining the custom feeds and starter packs people browse; up to 300 characters and four images a post |
-| Pinterest | Things people plan ahead: recipes, home, weddings, crafts, style, gifts | Pins behave like search results and keep working for months: plain keyword titles and descriptions, a 2:3 portrait image, a link to the page that delivers |
-| Discord, Telegram, WhatsApp channels | A home for people who already care: regulars, members, buyers | News there first, questions answered, early access; it needs a host who shows up |
+| Platform                             | Good for                                                                        | What works there                                                                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instagram                            | Visual products, places, makers and creators; reaching new people through Reels | See the next section                                                                                                                                       |
+| Facebook                             | Local communities, Groups, events, Marketplace                                  | Taking part in Groups, events, posts people pass on to friends                                                                                             |
+| Threads                              | Conversation in text: opinions, questions, replies                              | Short posts that invite a real reply; up to 500 characters and one topic tag a post                                                                        |
+| Bluesky                              | Text conversation in a smaller, opt-in network                                  | Joining the custom feeds and starter packs people browse; up to 300 characters and four images a post                                                      |
+| Pinterest                            | Things people plan ahead: recipes, home, weddings, crafts, style, gifts         | Pins behave like search results and keep working for months: plain keyword titles and descriptions, a 2:3 portrait image, a link to the page that delivers |
+| Discord, Telegram, WhatsApp channels | A home for people who already care: regulars, members, buyers                   | News there first, questions answered, early access; it needs a host who shows up                                                                           |
 
 - **Community is half the job.** Replies, DMs and taking part in other people's conversations are where most
   small-business sales start, so put the hours in the plan. Instagram ranks Stories largely on how close a viewer is to
@@ -129,11 +129,11 @@ posts. Offer the next piece in a line.
 
 A calendar as a table in the chat, unless the user wants a spreadsheet to schedule from:
 
-| Date | Where | Format | Idea | Measure | Status |
-|---|---|---|---|---|---|
-| Tue 12 | Instagram | Reel | Glazing a mug start to finish | Shares, profile visits | Draft below |
-| Thu 14 | Instagram, Facebook | Carousel | How to tell a pot is ready to fire | Saves | Needs photos |
-| Sat 16 | Facebook | Event | Open studio day | Replies "going" | Needs date confirmed |
+| Date   | Where               | Format   | Idea                               | Measure                | Status               |
+| ------ | ------------------- | -------- | ---------------------------------- | ---------------------- | -------------------- |
+| Tue 12 | Instagram           | Reel     | Glazing a mug start to finish      | Shares, profile visits | Draft below          |
+| Thu 14 | Instagram, Facebook | Carousel | How to tell a pot is ready to fire | Saves                  | Needs photos         |
+| Sat 16 | Facebook            | Event    | Open studio day                    | Replies "going"        | Needs date confirmed |
 
 A post ready to paste, with a short note:
 

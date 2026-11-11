@@ -3,10 +3,27 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { addNote, backgroundFile, brainFolder, createProject, logoFile, modelFile, projectSummary, removeBackground, removeLogo, removeModel, setBackground, setBackgroundFromFile, setLogo, updateProject, withLogo } from '../../server/projects.ts';
+import {
+  addNote,
+  backgroundFile,
+  brainFolder,
+  createProject,
+  logoFile,
+  modelFile,
+  projectSummary,
+  removeBackground,
+  removeLogo,
+  removeModel,
+  setBackground,
+  setBackgroundFromFile,
+  setLogo,
+  updateProject,
+  withLogo,
+} from '../../server/projects.ts';
 
 // a real 1×1 PNG
-const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 const folder = (name: string) => path.join(os.homedir(), 'projects', name);
 
 describe('project logo', () => {
@@ -23,7 +40,9 @@ describe('project logo', () => {
     setLogo(p.id, PNG);
     const gif = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     setLogo(p.id, gif);
-    expect(fs.readdirSync(path.join(p.brainPath, '.dashboard')).filter((n) => n.startsWith('logo.'))).toEqual(['logo.gif']);
+    expect(fs.readdirSync(path.join(p.brainPath, '.dashboard')).filter((n) => n.startsWith('logo.'))).toEqual([
+      'logo.gif',
+    ]);
   });
 
   it('checks what the bytes really are, not what the browser says', async () => {
@@ -56,7 +75,9 @@ describe('project background', () => {
     expect(setBackground(p.id, PNG).backgroundAt).toBeTypeOf('number');
     expect(backgroundFile(p)).toBe(path.join(p.brainPath, '.dashboard', 'background.png'));
     setBackground(p.id, 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
-    expect(fs.readdirSync(path.join(p.brainPath, '.dashboard')).filter((n) => n.startsWith('background.'))).toEqual(['background.gif']);
+    expect(fs.readdirSync(path.join(p.brainPath, '.dashboard')).filter((n) => n.startsWith('background.'))).toEqual([
+      'background.gif',
+    ]);
     // the logo is its own file
     expect(logoFile(p)).toBeNull();
     expect(removeBackground(p.id).backgroundAt).toBeNull();
@@ -81,13 +102,21 @@ describe('project background', () => {
 
 describe('project summary', () => {
   it("uses the project's description first", async () => {
-    const p = await createProject({ name: 'Sum one', mode: 'new', folder: folder('sum-one'), description: 'A launch campaign for NET.' });
+    const p = await createProject({
+      name: 'Sum one',
+      mode: 'new',
+      folder: folder('sum-one'),
+      description: 'A launch campaign for NET.',
+    });
     expect(projectSummary(p)).toEqual({ text: 'A launch campaign for NET.', from: 'description' });
   });
 
   it('else the first real paragraph of PROJECT.md (skipping headings)', async () => {
     const p = await createProject({ name: 'Sum two', mode: 'new', folder: folder('sum-two') });
-    fs.writeFileSync(path.join(p.brainPath, 'PROJECT.md'), '# Sum two\n\n## What it is\n\nA game about\nbuilding cities.\n\n## Goals\n\nShip it.');
+    fs.writeFileSync(
+      path.join(p.brainPath, 'PROJECT.md'),
+      '# Sum two\n\n## What it is\n\nA game about\nbuilding cities.\n\n## Goals\n\nShip it.',
+    );
     expect(projectSummary(p)).toEqual({ text: 'A game about building cities.', from: 'PROJECT.md' });
   });
 

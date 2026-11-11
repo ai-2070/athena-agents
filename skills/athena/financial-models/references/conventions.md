@@ -26,11 +26,11 @@ number the user's house style treats as a convention.
 
 ## Colours
 
-| Cell | Font colour | Hex |
-|---|---|---|
-| Input: a typed historical, assumption or market figure | Blue | `0000FF` |
-| Formula | Black | `000000` |
-| Link: a formula that only fetches one cell or range from another sheet (`=Inputs!C5`, or a name defined there) | Green | `008000` |
+| Cell                                                                                                           | Font colour | Hex      |
+| -------------------------------------------------------------------------------------------------------------- | ----------- | -------- |
+| Input: a typed historical, assumption or market figure                                                         | Blue        | `0000FF` |
+| Formula                                                                                                        | Black       | `000000` |
+| Link: a formula that only fetches one cell or range from another sheet (`=Inputs!C5`, or a name defined there) | Green       | `008000` |
 
 Use one scheme throughout, the user's template's if it has its own (then pass its colours to `check_model.py` with
 `--input-color` and `--link-color`). Font colour says what a cell is; fills are optional and quiet (a pale grey behind

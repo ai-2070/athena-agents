@@ -24,9 +24,9 @@ description: Use when a bug, failing test or wrong output needs fixing and the c
 ---
 ```
 
-| Key | What it's for |
-|---|---|
-| `name` | Sentence case, plain words ("Systematic debugging", "PDF files"). The Skills page and the agent's list show it |
+| Key           | What it's for                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | Sentence case, plain words ("Systematic debugging", "PDF files"). The Skills page and the agent's list show it                                                                                                                                                                                                                                                                          |
 | `description` | **When to use it** first, then what it does; 60 to 300 characters. Every agent with the skill reads it on every message and decides from it alone whether to open the skill, so it names the situations ("a 401 from an API", "fill in this PDF form", "my model doesn't balance"), not just the topic. Scope it so it doesn't fire on every message ("long messages", "release notes") |
 
 The id is the folder name. Agents, teams, routines and the agent library (`library/athena-agents/`) name skills by id,
@@ -74,7 +74,7 @@ characters outside code blocks and tables.
      listen on `127.0.0.1` only unless the user asks otherwise, and are stopped when the work is done;
    - nothing interactive: no `-it`, no `logs -f`, no sign-in that opens a browser and waits;
    - installs that can't stop at a prompt: `winget install --id <id> --accept-source-agreements
-     --accept-package-agreements`; a line with `sudo` is for the user to run, not the agent;
+--accept-package-agreements`; a line with `sudo` is for the user to run, not the agent;
    - the shell's 300-second limit is a default the agent can raise for one call, not a hard limit.
 3. **No invented numbers.** A number appears only when it's a real standard, limit or convention, correct and current
    (WCAG's 4.5:1, arXiv's one request every 3 seconds). Taste is written as a default with its reason, not as a law.
@@ -191,59 +191,59 @@ so it needs no npm packages, and its tests run it with Node 22, the oldest versi
 From [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) at commit
 `80057598ae39567800b34ebd637f52cc83d11945`. 51 skills became 39: seven groups merged and one was cut.
 
-| Old id | Its folder in hermes-agent | Now |
-|---|---|---|
-| `3-statement-model` | `optional-skills/finance/3-statement-model` | `financial-models` |
-| `architecture-diagram` | `skills/creative/architecture-diagram` | `concept-diagrams` |
-| `arxiv` | `skills/research/arxiv` | same id |
-| `ast-grep` | `optional-skills/software-development/ast-grep` | same id |
-| `comfyui` | `optional-skills/creative/comfyui` | same id |
-| `comps-analysis` | `optional-skills/finance/comps-analysis` | `financial-models` |
-| `concept-diagrams` | `optional-skills/creative/concept-diagrams` | same id |
-| `dcf-model` | `optional-skills/finance/dcf-model` | `financial-models` |
-| `decision-questionnaire` | `optional-skills/productivity/decision-questionnaire` | `decisions` |
-| `design-md` | `skills/creative/design-md` | same id |
-| `docker-management` | `optional-skills/devops/docker-management` | same id |
-| `document-to-action-items` | `skills/productivity/document-to-action-items` | `action-items` |
-| `docx` | `skills/productivity/docx` | same id |
-| `dogfood` | `skills/software-development/dogfood` | same id |
-| `duckduckgo-search` | `optional-skills/research/duckduckgo-search` | cut: it scraped search engines against their terms; agents use their own search, the Brave Search MCP server or the browser |
-| `email-inbox-triage` | `skills/email/email-inbox-triage` | `email` |
-| `excalidraw` | `optional-skills/creative/excalidraw` | same id |
-| `excel-author` | `optional-skills/finance/excel-author` | `financial-models` |
-| `fastmcp` | `optional-skills/mcp/fastmcp` | same id |
-| `github` | `skills/software-development/github` | same id |
-| `grill-me` | `optional-skills/software-development/grill-me` | same id |
-| `grounded-citations` | `skills/research/grounded-citations` | same id |
-| `himalaya` | `skills/email/himalaya` | `email` |
-| `humanizer` | `skills/creative/humanizer` | same id |
-| `hyperframes` | `optional-skills/creative/hyperframes` | same id |
-| `jupyter-notebook` | `optional-skills/data-science/jupyter-notebook` | same id |
-| `lbo-model` | `optional-skills/finance/lbo-model` | `financial-models` |
-| `llm-wiki` | `skills/research/llm-wiki` | same id |
-| `manim-video` | `skills/creative/manim-video` | same id |
-| `maps` | `skills/productivity/maps` | same id |
-| `mcporter` | `optional-skills/mcp/mcporter` | `fastmcp` |
-| `meeting-action-items` | `skills/productivity/meeting-action-items` | `action-items` |
-| `merger-model` | `optional-skills/finance/merger-model` | `financial-models` |
-| `obsidian` | `skills/note-taking/obsidian` | same id |
-| `one-three-one-rule` | `optional-skills/communication/one-three-one-rule` | `decisions` |
-| `p5js` | `skills/creative/p5js` | same id |
-| `pdf` | `skills/productivity/pdf` | same id |
-| `pixel-art` | `optional-skills/creative/pixel-art` | same id |
-| `powerpoint` | `skills/productivity/powerpoint` | same id |
-| `reddit-reading` | `optional-skills/social-media/reddit-reading` | `rss-feeds` |
-| `requesting-code-review` | `skills/software-development/requesting-code-review` | same id |
-| `rest-graphql-debug` | `optional-skills/software-development/rest-graphql-debug` | same id |
-| `rss-feeds` | `optional-skills/research/rss-feeds` | same id |
-| `sketch` | `optional-skills/creative/sketch` | same id |
-| `spike` | `skills/software-development/spike` | same id |
-| `stocks` | `optional-skills/finance/stocks` | same id |
-| `systematic-debugging` | `skills/software-development/systematic-debugging` | same id |
-| `test-driven-development` | `skills/software-development/test-driven-development` | same id |
-| `weekly-review-planning` | `skills/productivity/weekly-review-planning` | same id |
-| `xlsx` | `skills/productivity/xlsx` | same id |
-| `youtube-content` | `skills/media/youtube-content` | same id |
+| Old id                     | Its folder in hermes-agent                                | Now                                                                                                                         |
+| -------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `3-statement-model`        | `optional-skills/finance/3-statement-model`               | `financial-models`                                                                                                          |
+| `architecture-diagram`     | `skills/creative/architecture-diagram`                    | `concept-diagrams`                                                                                                          |
+| `arxiv`                    | `skills/research/arxiv`                                   | same id                                                                                                                     |
+| `ast-grep`                 | `optional-skills/software-development/ast-grep`           | same id                                                                                                                     |
+| `comfyui`                  | `optional-skills/creative/comfyui`                        | same id                                                                                                                     |
+| `comps-analysis`           | `optional-skills/finance/comps-analysis`                  | `financial-models`                                                                                                          |
+| `concept-diagrams`         | `optional-skills/creative/concept-diagrams`               | same id                                                                                                                     |
+| `dcf-model`                | `optional-skills/finance/dcf-model`                       | `financial-models`                                                                                                          |
+| `decision-questionnaire`   | `optional-skills/productivity/decision-questionnaire`     | `decisions`                                                                                                                 |
+| `design-md`                | `skills/creative/design-md`                               | same id                                                                                                                     |
+| `docker-management`        | `optional-skills/devops/docker-management`                | same id                                                                                                                     |
+| `document-to-action-items` | `skills/productivity/document-to-action-items`            | `action-items`                                                                                                              |
+| `docx`                     | `skills/productivity/docx`                                | same id                                                                                                                     |
+| `dogfood`                  | `skills/software-development/dogfood`                     | same id                                                                                                                     |
+| `duckduckgo-search`        | `optional-skills/research/duckduckgo-search`              | cut: it scraped search engines against their terms; agents use their own search, the Brave Search MCP server or the browser |
+| `email-inbox-triage`       | `skills/email/email-inbox-triage`                         | `email`                                                                                                                     |
+| `excalidraw`               | `optional-skills/creative/excalidraw`                     | same id                                                                                                                     |
+| `excel-author`             | `optional-skills/finance/excel-author`                    | `financial-models`                                                                                                          |
+| `fastmcp`                  | `optional-skills/mcp/fastmcp`                             | same id                                                                                                                     |
+| `github`                   | `skills/software-development/github`                      | same id                                                                                                                     |
+| `grill-me`                 | `optional-skills/software-development/grill-me`           | same id                                                                                                                     |
+| `grounded-citations`       | `skills/research/grounded-citations`                      | same id                                                                                                                     |
+| `himalaya`                 | `skills/email/himalaya`                                   | `email`                                                                                                                     |
+| `humanizer`                | `skills/creative/humanizer`                               | same id                                                                                                                     |
+| `hyperframes`              | `optional-skills/creative/hyperframes`                    | same id                                                                                                                     |
+| `jupyter-notebook`         | `optional-skills/data-science/jupyter-notebook`           | same id                                                                                                                     |
+| `lbo-model`                | `optional-skills/finance/lbo-model`                       | `financial-models`                                                                                                          |
+| `llm-wiki`                 | `skills/research/llm-wiki`                                | same id                                                                                                                     |
+| `manim-video`              | `skills/creative/manim-video`                             | same id                                                                                                                     |
+| `maps`                     | `skills/productivity/maps`                                | same id                                                                                                                     |
+| `mcporter`                 | `optional-skills/mcp/mcporter`                            | `fastmcp`                                                                                                                   |
+| `meeting-action-items`     | `skills/productivity/meeting-action-items`                | `action-items`                                                                                                              |
+| `merger-model`             | `optional-skills/finance/merger-model`                    | `financial-models`                                                                                                          |
+| `obsidian`                 | `skills/note-taking/obsidian`                             | same id                                                                                                                     |
+| `one-three-one-rule`       | `optional-skills/communication/one-three-one-rule`        | `decisions`                                                                                                                 |
+| `p5js`                     | `skills/creative/p5js`                                    | same id                                                                                                                     |
+| `pdf`                      | `skills/productivity/pdf`                                 | same id                                                                                                                     |
+| `pixel-art`                | `optional-skills/creative/pixel-art`                      | same id                                                                                                                     |
+| `powerpoint`               | `skills/productivity/powerpoint`                          | same id                                                                                                                     |
+| `reddit-reading`           | `optional-skills/social-media/reddit-reading`             | `rss-feeds`                                                                                                                 |
+| `requesting-code-review`   | `skills/software-development/requesting-code-review`      | same id                                                                                                                     |
+| `rest-graphql-debug`       | `optional-skills/software-development/rest-graphql-debug` | same id                                                                                                                     |
+| `rss-feeds`                | `optional-skills/research/rss-feeds`                      | same id                                                                                                                     |
+| `sketch`                   | `optional-skills/creative/sketch`                         | same id                                                                                                                     |
+| `spike`                    | `skills/software-development/spike`                       | same id                                                                                                                     |
+| `stocks`                   | `optional-skills/finance/stocks`                          | same id                                                                                                                     |
+| `systematic-debugging`     | `skills/software-development/systematic-debugging`        | same id                                                                                                                     |
+| `test-driven-development`  | `skills/software-development/test-driven-development`     | same id                                                                                                                     |
+| `weekly-review-planning`   | `skills/productivity/weekly-review-planning`              | same id                                                                                                                     |
+| `xlsx`                     | `skills/productivity/xlsx`                                | same id                                                                                                                     |
+| `youtube-content`          | `skills/media/youtube-content`                            | same id                                                                                                                     |
 
 ## Credit
 

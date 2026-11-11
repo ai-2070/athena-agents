@@ -13,7 +13,10 @@ const root = path.resolve(import.meta.dirname, '..');
 const hot = !process.argv.includes('--no-hot');
 const serverArgs = process.argv.slice(2).filter((a) => a !== '--no-hot');
 // the server's port, read the way server/index.ts reads it
-const port = (serverArgs.includes('--port') && Number(serverArgs[serverArgs.indexOf('--port') + 1])) || Number(process.env.DASH_PORT) || 4800;
+const port =
+  (serverArgs.includes('--port') && Number(serverArgs[serverArgs.indexOf('--port') + 1])) ||
+  Number(process.env.DASH_PORT) ||
+  4800;
 // Fresh checkout: build the page once first, so the server doesn't start a second build of its own.
 if (!fs.existsSync(path.join(root, 'public', 'dist', 'app.js'))) {
   const first = Bun.spawn(['bun', 'scripts/build-web.ts'], { cwd: root, stdout: 'inherit', stderr: 'inherit' });
@@ -29,15 +32,20 @@ if (hot) {
     console.log(`  Hot reload: ${vite.origin}`);
   } catch (e) {
     // the page still works from the bundle; it just won't update by itself
-    console.error(`  Hot reload could not start (${e instanceof Error ? e.message : String(e)}). Reload the page to see changes.`);
+    console.error(
+      `  Hot reload could not start (${e instanceof Error ? e.message : String(e)}). Reload the page to see changes.`,
+    );
   }
 }
 // --vite on the command line, not in the environment: what the server starts doesn't inherit it (server/devpage.ts)
-const server = Bun.spawn(['bun', '--watch', 'server/index.ts', '--no-open', ...(vite ? ['--vite', vite.origin] : []), ...serverArgs], {
-  cwd: root,
-  stdout: 'inherit',
-  stderr: 'inherit',
-});
+const server = Bun.spawn(
+  ['bun', '--watch', 'server/index.ts', '--no-open', ...(vite ? ['--vite', vite.origin] : []), ...serverArgs],
+  {
+    cwd: root,
+    stdout: 'inherit',
+    stderr: 'inherit',
+  },
+);
 
 // If one of them ends on its own, stop the others and pass on its exit code. Once: Ctrl+C ends them too, and
 // their exit must not replace its code.

@@ -56,10 +56,10 @@ asks for `pageInfo { hasNextPage endCursor }` on the list.
 
 gh exits non-zero, prints GitHub's JSON error on stdout and a one-line summary on stderr.
 
-| Status | Usually |
-|---|---|
-| 401 | Not signed in, or the token expired (`references/auth.md`) |
-| 403 | A missing permission or scope (the message names it), or a rate limit |
-| 404 | A wrong path, or a private repo the account can't see: GitHub answers 404 rather than admit it exists |
-| 409 | A conflict: the branch moved, a merge conflict, an empty repo |
-| 422 | Understood but refused: a field of the wrong type, a name that doesn't exist, a review comment on a line outside the diff. The message says which field |
+| Status | Usually                                                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 401    | Not signed in, or the token expired (`references/auth.md`)                                                                                              |
+| 403    | A missing permission or scope (the message names it), or a rate limit                                                                                   |
+| 404    | A wrong path, or a private repo the account can't see: GitHub answers 404 rather than admit it exists                                                   |
+| 409    | A conflict: the branch moved, a merge conflict, an empty repo                                                                                           |
+| 422    | Understood but refused: a field of the wrong type, a name that doesn't exist, a review comment on a line outside the diff. The message says which field |

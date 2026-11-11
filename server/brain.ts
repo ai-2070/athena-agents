@@ -12,7 +12,18 @@ import { apiModelInfo, apiRequestOptions, resolveApiProvider } from './apiprovid
 import { apiErrorMessage } from './apiresponse.ts';
 import { ask as askOpencode, status as opencodeStatus } from './engines/opencode.ts';
 import type { FetchError } from './util.ts';
-import type { Agent, AgentDraft, BrainModel, BrainRoute, BrainSetting, BranchDesign, BranchMember, EngineId, SkillDraft, Team } from '../shared/types.ts';
+import type {
+  Agent,
+  AgentDraft,
+  BrainModel,
+  BrainRoute,
+  BrainSetting,
+  BranchDesign,
+  BranchMember,
+  EngineId,
+  SkillDraft,
+  Team,
+} from '../shared/types.ts';
 
 export type { AgentDraft, BrainModel, BrainRoute, BranchDesign, BranchMember, SkillDraft } from '../shared/types.ts';
 
@@ -76,40 +87,107 @@ const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
 export function brainModel(): BrainModel {
   const b: Partial<BrainSetting> = getSettings().brain || {};
   const key = !!getSecrets().openrouterKey;
-  const ok: Record<BrainSetting['provider'], boolean> = { claude: !!which('claude'), openrouter: key, venice: !!getSecrets().veniceKey, hermes: !!which('hermes'), codex: !!which('codex'), opencode: !!which('opencode') && !opencodeStatus().tooOld };
-  const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']] ? (b.provider as BrainSetting['provider']) : (['claude', 'openrouter', 'hermes', 'codex', 'venice', 'opencode'] as const).find((x) => ok[x]) || b.provider || 'claude';
-  const model = p === b.provider ? b.model ?? '' : '';
-  const dflt = { claude: 'haiku', openrouter: 'anthropic/claude-haiku-5.5', venice: getSettings().defaults.veniceModel, hermes: '', codex: '', opencode: '' }[p];
-  const engine = ({ claude: 'claude-code', openrouter: 'eve', venice: 'eve', hermes: 'hermes', codex: 'codex', opencode: 'opencode' } as const satisfies Record<BrainSetting['provider'], EngineId>)[p];
-  const effort = p === b.provider ? p === 'venice' && isEffort(b.effort) ? b.effort : effortFor(engine, b.effort, p) : '';
+  const ok: Record<BrainSetting['provider'], boolean> = {
+    claude: !!which('claude'),
+    openrouter: key,
+    venice: !!getSecrets().veniceKey,
+    hermes: !!which('hermes'),
+    codex: !!which('codex'),
+    opencode: !!which('opencode') && !opencodeStatus().tooOld,
+  };
+  const p: BrainSetting['provider'] = ok[b.provider as BrainSetting['provider']]
+    ? (b.provider as BrainSetting['provider'])
+    : (['claude', 'openrouter', 'hermes', 'codex', 'venice', 'opencode'] as const).find((x) => ok[x]) ||
+      b.provider ||
+      'claude';
+  const model = p === b.provider ? (b.model ?? '') : '';
+  const dflt = {
+    claude: 'haiku',
+    openrouter: 'anthropic/claude-haiku-5.5',
+    venice: getSettings().defaults.veniceModel,
+    hermes: '',
+    codex: '',
+    opencode: '',
+  }[p];
+  const engine = (
+    {
+      claude: 'claude-code',
+      openrouter: 'eve',
+      venice: 'eve',
+      hermes: 'hermes',
+      codex: 'codex',
+      opencode: 'opencode',
+    } as const satisfies Record<BrainSetting['provider'], EngineId>
+  )[p];
+  const effort =
+    p === b.provider ? (p === 'venice' && isEffort(b.effort) ? b.effort : effortFor(engine, b.effort, p)) : '';
   return { provider: p, model: model || dflt, effort, fallback: p !== (b.provider || 'claude') };
 }
 
 /** What the Brain's model does while it thinks, as it happens (ThinkOptions.onPart): its text as it is
  *  written, and the tools it uses (reading the project's files) with their results. */
-export type ThinkPart = { kind: 'text'; text: string } | { kind: 'tool'; id: string; name: string; args?: unknown } | { kind: 'tool_result'; id: string; text: string; isError?: boolean };
+export type ThinkPart =
+  | { kind: 'text'; text: string }
+  | { kind: 'tool'; id: string; name: string; args?: unknown }
+  | { kind: 'tool_result'; id: string; text: string; isError?: boolean };
 
 /** One line of `claude -p --output-format stream-json` (the fields used here). */
 interface ClaudeLine {
   type?: string;
   parent_tool_use_id?: string | null;
   event?: { type?: string; delta?: { type?: string; text?: string } };
-  message?: { content?: { type: string; id?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown; is_error?: boolean; text?: string }[] };
+  message?: {
+    content?: {
+      type: string;
+      id?: string;
+      name?: string;
+      input?: unknown;
+      tool_use_id?: string;
+      content?: unknown;
+      is_error?: boolean;
+      text?: string;
+    }[];
+  };
   is_error?: boolean;
   result?: string;
 }
 /** One line of `codex exec --json`, for its steps. */
 interface CodexStep {
   type?: string;
-  item?: { id?: string; type?: string; text?: string; command?: string; aggregated_output?: string | null; exit_code?: number | null; server?: string; tool?: string; arguments?: unknown; result?: unknown; error?: unknown };
+  item?: {
+    id?: string;
+    type?: string;
+    text?: string;
+    command?: string;
+    aggregated_output?: string | null;
+    exit_code?: number | null;
+    server?: string;
+    tool?: string;
+    arguments?: unknown;
+    result?: unknown;
+    error?: unknown;
+  };
 }
 
-const asText = (v: unknown): string => (typeof v === 'string' ? v : Array.isArray(v) ? v.map((c) => (c && typeof c === 'object' && 'text' in c ? String((c as { text: unknown }).text) : '')).join('\n') : v == null ? '' : JSON.stringify(v));
+const asText = (v: unknown): string =>
+  typeof v === 'string'
+    ? v
+    : Array.isArray(v)
+      ? v
+          .map((c) => (c && typeof c === 'object' && 'text' in c ? String((c as { text: unknown }).text) : ''))
+          .join('\n')
+      : v == null
+        ? ''
+        : JSON.stringify(v);
 
 // tools: read-only Claude Code tools (e.g. "Read,Glob,Grep") the Brain may use inside cwd.
 // Codex reads the folder in a read-only sandbox instead; opencode, with tools set, may read, glob and grep in cwd.
 // onPart: the answer as it is written and the tools it uses, while it thinks (the Brain chat streams them).
-export async function think(system: string, user: string, { tools = '', cwd, timeout = 90000, maxTokens = 2500, onPart }: ThinkOptions = {}): Promise<string> {
+export async function think(
+  system: string,
+  user: string,
+  { tools = '', cwd, timeout = 90000, maxTokens = 2500, onPart }: ThinkOptions = {},
+): Promise<string> {
   const bm = brainModel();
   const part = (p: ThinkPart) => {
     try {
@@ -120,14 +198,23 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
   };
   if (bm.provider === 'openrouter' || bm.provider === 'venice') {
     const provider = resolveApiProvider(bm.provider);
-    if (!bm.model) throw new Error(`Choose a ${provider.label} model for the Brain or set its default in Settings first.`);
+    if (!bm.model)
+      throw new Error(`Choose a ${provider.label} model for the Brain or set its default in Settings first.`);
     const info = await apiModelInfo(provider.id, bm.model);
     if (info?.offline) throw new Error(`${provider.label} model "${bm.model}" is temporarily unavailable.`);
     const effort = effortFor('eve', bm.effort, provider.id, info?.reasoningEfforts);
     const r = await fetch(`${provider.base}/chat/completions`, {
       method: 'POST',
       headers: provider.headers,
-      body: JSON.stringify({ model: bm.model, messages: [provider.id === 'openrouter' ? systemMessage(bm.model, system) : { role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, ...apiRequestOptions(provider.id, bm.model, effort, brainSession(system), !!onPart) }),
+      body: JSON.stringify({
+        model: bm.model,
+        messages: [
+          provider.id === 'openrouter' ? systemMessage(bm.model, system) : { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        max_tokens: maxTokens,
+        ...apiRequestOptions(provider.id, bm.model, effort, brainSession(system), !!onPart),
+      }),
       signal: AbortSignal.timeout(timeout),
     });
     if (!onPart || !r.ok || !r.body) {
@@ -138,7 +225,8 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
         throw error;
       }
       // stopped at max_tokens: half an answer (half a JSON object) is no answer
-      if (j.choices?.[0]?.finish_reason === 'length') throw new Error('The answer was cut off: it ran past the length limit.');
+      if (j.choices?.[0]?.finish_reason === 'length')
+        throw new Error('The answer was cut off: it ran past the length limit.');
       return j.choices?.[0]?.message?.content || '';
     }
     // streamed: the text as it comes
@@ -148,9 +236,13 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     const consume = (line: string) => {
       if (!line.startsWith('data:') || line.slice(5).trim() === '[DONE]') return;
       try {
-        const j = JSON.parse(line.slice(5)) as { error?: unknown; choices?: { delta?: { content?: string }; finish_reason?: string | null }[] };
+        const j = JSON.parse(line.slice(5)) as {
+          error?: unknown;
+          choices?: { delta?: { content?: string }; finish_reason?: string | null }[];
+        };
         if (j.error) throw new Error(apiErrorMessage(j, `${provider.label} failed.`));
-        if (j.choices?.[0]?.finish_reason === 'length') throw new Error('The answer was cut off: it ran past the length limit.');
+        if (j.choices?.[0]?.finish_reason === 'length')
+          throw new Error('The answer was cut off: it ran past the length limit.');
         const d = j.choices?.[0]?.delta?.content;
         if (d) {
           text += d;
@@ -175,7 +267,18 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     return text;
   }
   if (bm.provider === 'codex') {
-    const args = ['exec', '--json', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', ...(cwd ? ['-C', cwd] : []), ...(bm.model ? ['-m', bm.model] : []), ...(bm.effort ? ['-c', `model_reasoning_effort="${bm.effort}"`] : []), '-'];
+    const args = [
+      'exec',
+      '--json',
+      '--skip-git-repo-check',
+      '--ephemeral',
+      '-s',
+      'read-only',
+      ...(cwd ? ['-C', cwd] : []),
+      ...(bm.model ? ['-m', bm.model] : []),
+      ...(bm.effort ? ['-c', `model_reasoning_effort="${bm.effort}"`] : []),
+      '-',
+    ];
     let said = false;
     const onLine = onPart
       ? (line: string) => {
@@ -195,28 +298,51 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
             said = true;
           } else if (it.type === 'command_execution' && it.id) {
             if (started) part({ kind: 'tool', id: it.id, name: 'Bash', args: { command: it.command } });
-            else if (done) part({ kind: 'tool_result', id: it.id, text: String(it.aggregated_output ?? '').slice(0, 20000), isError: it.exit_code != null && it.exit_code !== 0 });
+            else if (done)
+              part({
+                kind: 'tool_result',
+                id: it.id,
+                text: String(it.aggregated_output ?? '').slice(0, 20000),
+                isError: it.exit_code != null && it.exit_code !== 0,
+              });
           } else if (it.type === 'mcp_tool_call' && it.id) {
             if (started) part({ kind: 'tool', id: it.id, name: `${it.server}__${it.tool}`, args: it.arguments ?? {} });
-            else if (done) part({ kind: 'tool_result', id: it.id, text: asText(it.result ?? it.error).slice(0, 20000), isError: !!it.error });
+            else if (done)
+              part({
+                kind: 'tool_result',
+                id: it.id,
+                text: asText(it.result ?? it.error).slice(0, 20000),
+                isError: !!it.error,
+              });
           }
         }
       : undefined;
-    const r = await run('codex', args, { input: `<instructions>\n${system}\n</instructions>\n\n${user}`, timeout, cwd, onLine });
+    const r = await run('codex', args, {
+      input: `<instructions>\n${system}\n</instructions>\n\n${user}`,
+      timeout,
+      cwd,
+      onLine,
+    });
     let answer = '';
     let err = '';
     for (const line of r.stdout.split('\n')) {
       if (!line.trim().startsWith('{')) continue;
       try {
         const ev = JSON.parse(line) as CodexLine;
-        if (ev.type === 'item.completed' && ev.item?.type === 'agent_message') answer += (answer ? '\n\n' : '') + (ev.item.text || '');
+        if (ev.type === 'item.completed' && ev.item?.type === 'agent_message')
+          answer += (answer ? '\n\n' : '') + (ev.item.text || '');
         else if (ev.type === 'turn.failed') err = ev.error?.message || 'Codex failed.';
         else if (ev.type === 'error' && !/Reconnecting/.test(ev.message || '')) err = ev.message || err;
       } catch {
         /* not JSON */
       }
     }
-    if (!answer) throw new Error(/login|auth|401/i.test(err + r.stderr) ? 'Codex is not signed in (Settings > General > OpenAI Codex > Sign in).' : `Codex didn't answer (${(err || r.stderr || '').trim().slice(-300)})`);
+    if (!answer)
+      throw new Error(
+        /login|auth|401/i.test(err + r.stderr)
+          ? 'Codex is not signed in (Settings > General > OpenAI Codex > Sign in).'
+          : `Codex didn't answer (${(err || r.stderr || '').trim().slice(-300)})`,
+      );
     return answer;
   }
   if (bm.provider === 'hermes') {
@@ -231,7 +357,19 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
           }
         }
       : undefined;
-    const r = await run('hermes', ['chat', '--query-file', '-', '--format', 'stream-json', ...(bm.model ? ['-m', bm.model] : []), ...(bm.effort ? ['--reasoning', bm.effort] : [])], { input: `${system}\n\n---\n\n${user}`, timeout, cwd, env: { PYTHONIOENCODING: 'utf-8' }, onLine });
+    const r = await run(
+      'hermes',
+      [
+        'chat',
+        '--query-file',
+        '-',
+        '--format',
+        'stream-json',
+        ...(bm.model ? ['-m', bm.model] : []),
+        ...(bm.effort ? ['--reasoning', bm.effort] : []),
+      ],
+      { input: `${system}\n\n---\n\n${user}`, timeout, cwd, env: { PYTHONIOENCODING: 'utf-8' }, onLine },
+    );
     let text = '';
     let result: HermesLine | null = null;
     for (const line of r.stdout.split('\n')) {
@@ -248,12 +386,16 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
     if (!out) throw new Error(`Hermes didn't answer (${(r.stderr || '').trim().slice(-300)})`);
     return out;
   }
-  if (bm.provider === 'opencode') return askOpencode({ system, user, model: bm.model, effort: bm.effort, cwd, read: !!tools, timeout, onPart: part });
-  if (!which('claude')) throw new Error('The Brain needs Claude Code, an OpenRouter or Venice key, Hermes, Codex or opencode.');
+  if (bm.provider === 'opencode')
+    return askOpencode({ system, user, model: bm.model, effort: bm.effort, cwd, read: !!tools, timeout, onPart: part });
+  if (!which('claude'))
+    throw new Error('The Brain needs Claude Code, an OpenRouter or Venice key, Hermes, Codex or opencode.');
   const promptFile = tmpFile('brain-system.md');
   fs.writeFileSync(promptFile, system);
   // streamed (onPart): stream-json, with the text as it is written and the files it reads
-  const format = onPart ? ['--output-format', 'stream-json', '--verbose', '--include-partial-messages'] : ['--output-format', 'json'];
+  const format = onPart
+    ? ['--output-format', 'stream-json', '--verbose', '--include-partial-messages']
+    : ['--output-format', 'json'];
   let final: ClaudeLine | null = null;
   const onLine = onPart
     ? (line: string) => {
@@ -265,21 +407,55 @@ export async function think(system: string, user: string, { tools = '', cwd, tim
           return;
         }
         if (m.parent_tool_use_id) return;
-        if (m.type === 'stream_event' && m.event?.type === 'content_block_delta' && m.event.delta?.type === 'text_delta' && m.event.delta.text) part({ kind: 'text', text: m.event.delta.text });
-        else if (m.type === 'assistant') for (const b of m.message?.content || []) b.type === 'tool_use' && b.id && part({ kind: 'tool', id: b.id, name: b.name || 'tool', args: b.input });
-        else if (m.type === 'user') for (const b of m.message?.content || []) b.type === 'tool_result' && b.tool_use_id && part({ kind: 'tool_result', id: b.tool_use_id, text: asText(b.content).slice(0, 20000), isError: !!b.is_error });
+        if (
+          m.type === 'stream_event' &&
+          m.event?.type === 'content_block_delta' &&
+          m.event.delta?.type === 'text_delta' &&
+          m.event.delta.text
+        )
+          part({ kind: 'text', text: m.event.delta.text });
+        else if (m.type === 'assistant')
+          for (const b of m.message?.content || [])
+            b.type === 'tool_use' && b.id && part({ kind: 'tool', id: b.id, name: b.name || 'tool', args: b.input });
+        else if (m.type === 'user')
+          for (const b of m.message?.content || [])
+            b.type === 'tool_result' &&
+              b.tool_use_id &&
+              part({
+                kind: 'tool_result',
+                id: b.tool_use_id,
+                text: asText(b.content).slice(0, 20000),
+                isError: !!b.is_error,
+              });
         else if (m.type === 'result') final = m;
       }
     : undefined;
   const r = await run(
     'claude',
-    ['-p', '--model', bm.model, ...(bm.effort ? ['--effort', bm.effort] : []), ...format, '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--tools', tools, ...(tools ? ['--allowedTools', ...tools.split(',')] : []), '--system-prompt-file', promptFile],
+    [
+      '-p',
+      '--model',
+      bm.model,
+      ...(bm.effort ? ['--effort', bm.effort] : []),
+      ...format,
+      '--no-session-persistence',
+      '--strict-mcp-config',
+      '--mcp-config',
+      '{"mcpServers":{}}',
+      '--tools',
+      tools,
+      ...(tools ? ['--allowedTools', ...tools.split(',')] : []),
+      '--system-prompt-file',
+      promptFile,
+    ],
     { input: user, timeout, cwd, onLine },
   );
   fs.rm(promptFile, { force: true }, () => {});
   let out: ClaudeResult;
   try {
-    out = onPart ? ((final as ClaudeLine | null) ?? (JSON.parse(r.stdout) as ClaudeResult)) : (JSON.parse(r.stdout) as ClaudeResult);
+    out = onPart
+      ? ((final as ClaudeLine | null) ?? (JSON.parse(r.stdout) as ClaudeResult))
+      : (JSON.parse(r.stdout) as ClaudeResult);
   } catch {
     throw new Error(`Claude Code didn't answer (${(r.stderr || r.stdout).trim().slice(-300)})`);
   }
@@ -293,10 +469,16 @@ export function parseJSON<T>(text: unknown): T {
   return JSON.parse(m[0]) as T;
 }
 
-const agentLine = (a: Agent) => `- id=${a.id} | ${a.name} | ${a.specialty || a.description || ''} | tools: ${(a.toolGroups || []).join(',')} | brain: ${a.engine}`;
-const teamMembers = (w: Team): string[] => (Array.isArray(w.members) ? w.members : [...new Set((w.steps || []).filter((s) => s.type === 'agent').map((s) => s.agentId as string))]);
+const agentLine = (a: Agent) =>
+  `- id=${a.id} | ${a.name} | ${a.specialty || a.description || ''} | tools: ${(a.toolGroups || []).join(',')} | brain: ${a.engine}`;
+const teamMembers = (w: Team): string[] =>
+  Array.isArray(w.members)
+    ? w.members
+    : [...new Set((w.steps || []).filter((s) => s.type === 'agent').map((s) => s.agentId as string))];
 const branchLine = (w: Team, byId: Map<string, Agent>) =>
-  `- id=${w.id} | ${w.name} | ${w.description || ''} | members: ${teamMembers(w).map((id) => `${byId.get(id)?.name || '?'}${w.lead === id ? ' (lead)' : ''}`).join(', ')}`;
+  `- id=${w.id} | ${w.name} | ${w.description || ''} | members: ${teamMembers(w)
+    .map((id) => `${byId.get(id)?.name || '?'}${w.lead === id ? ' (lead)' : ''}`)
+    .join(', ')}`;
 
 const TOOLS_TEXT = TOOL_GROUPS.map((g) => `${g.id}: ${g.description}`).join('\n');
 
@@ -312,8 +494,10 @@ If nothing fits at all, answer kind "none".
 Answer with JSON only: {"kind":"agent"|"branch"|"none","id":"<id>","reason":"<max 12 words>"}`;
   const user = `Agents:\n${all.map(agentLine).join('\n')}\n\nTeams (kind "branch"):\n${wfs.map((w) => branchLine(w, byId)).join('\n') || '(none)'}\n\nRequest:\n${text}`;
   const j = parseJSON<RouteAnswer>(await think(system, user));
-  if (j.kind === 'agent' && byId.has(j.id as string)) return { kind: 'agent', id: j.id as string, name: byId.get(j.id as string)!.name, reason: j.reason || '' };
-  if (j.kind === 'branch' && wfs.some((w) => w.id === j.id)) return { kind: 'branch', id: j.id as string, name: wfs.find((w) => w.id === j.id)!.name, reason: j.reason || '' };
+  if (j.kind === 'agent' && byId.has(j.id as string))
+    return { kind: 'agent', id: j.id as string, name: byId.get(j.id as string)!.name, reason: j.reason || '' };
+  if (j.kind === 'branch' && wfs.some((w) => w.id === j.id))
+    return { kind: 'branch', id: j.id as string, name: wfs.find((w) => w.id === j.id)!.name, reason: j.reason || '' };
   return { kind: 'none', reason: j.reason || 'No good match.' };
 }
 
@@ -333,21 +517,35 @@ function cleanAgent(j: AgentAnswer): AgentDraft {
 const AGENT_SCHEMA = `{"name":"short role name","emoji":"one emoji","specialty":"one line: what it is good at","instructions":"how it works: process, rules, what good output looks like (5-12 sentences, second person)","tools":["tool group ids"],"mcpServers":["names"]}`;
 
 // Files you attached: where they are, and the start of small text files and documents (the design model can't open files).
-const filesFor = async (attachments: string[] | undefined) => (attachments?.length ? `\n\n${await describeAttachmentsRead(attachments, { inline: 12000 })}` : '');
+const filesFor = async (attachments: string[] | undefined) =>
+  attachments?.length ? `\n\n${await describeAttachmentsRead(attachments, { inline: 12000 })}` : '';
 
-export async function designAgent(text: string, { attachments = [] }: { attachments?: string[] } = {}): Promise<AgentDraft> {
+export async function designAgent(
+  text: string,
+  { attachments = [] }: { attachments?: string[] } = {},
+): Promise<AgentDraft> {
   const system = `You design one AI agent for the user's personal dashboard from their description.
 Available tool groups (use only these ids, only what the job needs):
 ${TOOLS_TEXT}
 Available MCP servers: ${serversForPrompt() || '(none)'}
 Rules: posts and DMs always wait for the user's approval; never invent facts or numbers.
 Answer with JSON only: ${AGENT_SCHEMA}`;
-  return cleanAgent(parseJSON<AgentAnswer>(await think(system, `${text || 'Design the agent from the attached files: what they are about is what it should be good at.'}${await filesFor(attachments)}`)));
+  return cleanAgent(
+    parseJSON<AgentAnswer>(
+      await think(
+        system,
+        `${text || 'Design the agent from the attached files: what they are about is what it should be good at.'}${await filesFor(attachments)}`,
+      ),
+    ),
+  );
 }
 
 // ---------- New branch ----------
 // A team is a group chat of agents: pick members (existing first) and a lead who coordinates.
-export async function designBranch(text: string, { allowNew = true, attachments = [] }: { allowNew?: boolean; attachments?: string[] } = {}): Promise<BranchDesign> {
+export async function designBranch(
+  text: string,
+  { allowNew = true, attachments = [] }: { allowNew?: boolean; attachments?: string[] } = {},
+): Promise<BranchDesign> {
   const all = agents.list();
   const byId = new Map(all.map((a) => [a.id, a]));
   const system = `You put together a team for the user's personal dashboard. A team is a group chat of 2-6 AI agents who share one goal: the user writes in the chat, a lead coordinates, and agents hand work to each other by @mentioning a teammate.
@@ -362,15 +560,21 @@ Answer with JSON only:
   const j = parseJSON<BranchAnswer>(await think(system, user));
   const members: BranchMember[] = [];
   for (const m of j.members || j.steps || []) {
-    if (m.agentId && byId.has(m.agentId) && !members.some((x) => x.agentId === m.agentId)) members.push({ agentId: m.agentId });
+    if (m.agentId && byId.has(m.agentId) && !members.some((x) => x.agentId === m.agentId))
+      members.push({ agentId: m.agentId });
     else if (m.newAgent && allowNew) members.push({ newAgent: cleanAgent(m.newAgent) });
   }
   const leadKey = String(j.lead || '');
-  const leadIndex = members.findIndex((m) => m.agentId === leadKey || (m.newAgent && m.newAgent.name.toLowerCase() === leadKey.toLowerCase()));
+  const leadIndex = members.findIndex(
+    (m) => m.agentId === leadKey || (m.newAgent && m.newAgent.name.toLowerCase() === leadKey.toLowerCase()),
+  );
   return {
     name: String(j.name || 'New team').slice(0, 50),
     description: String(j.description || '').slice(0, 300),
-    access: { toolGroups: (j.access?.tools || []).filter((t) => GROUP_IDS.includes(t)), mcpServers: (j.access?.mcpServers || []).filter((m) => m in listServers()) },
+    access: {
+      toolGroups: (j.access?.tools || []).filter((t) => GROUP_IDS.includes(t)),
+      mcpServers: (j.access?.mcpServers || []).filter((m) => m in listServers()),
+    },
     members,
     leadIndex,
   };
@@ -380,7 +584,8 @@ Answer with JSON only:
 export async function pickMember(text: string, members: (Agent | null | undefined)[]): Promise<string | null> {
   const list = members.filter((a): a is Agent => Boolean(a));
   if (list.length <= 1) return list[0]?.id || null;
-  const system = 'Pick the ONE team member best suited to handle the message. Answer with JSON only: {"id":"<member id>"}';
+  const system =
+    'Pick the ONE team member best suited to handle the message. Answer with JSON only: {"id":"<member id>"}';
   const user = `Members:\n${list.map(agentLine).join('\n')}\n\nMessage:\n${text}`;
   const j = parseJSON<{ id?: string }>(await think(system, user));
   return list.some((a) => a.id === j.id) ? (j.id as string) : null;
@@ -423,7 +628,11 @@ export function skillAnswerBudget(current: SkillText | null): number {
 
 const words = (t: string) => new Set(t.toLowerCase().match(/[a-z0-9]{3,}/g) || []);
 /** The library for the prompt: the skills most like the request with what they're for, then every other one's name. */
-export function libraryForPrompt(others: { name: string; description: string }[], about: string, { detailed = 40, names = 400 } = {}): string {
+export function libraryForPrompt(
+  others: { name: string; description: string }[],
+  about: string,
+  { detailed = 40, names = 400 } = {},
+): string {
   if (!others.length) return '';
   const want = words(about);
   const scored = others.map((o, i) => {
@@ -433,14 +642,25 @@ export function libraryForPrompt(others: { name: string; description: string }[]
     return { o, n, i };
   });
   scored.sort((a, b) => b.n - a.n || a.i - b.i);
-  const top = scored.slice(0, detailed).map(({ o }) => `- ${o.name}: ${o.description.replace(/\s+/g, ' ').slice(0, 160)}`);
+  const top = scored
+    .slice(0, detailed)
+    .map(({ o }) => `- ${o.name}: ${o.description.replace(/\s+/g, ' ').slice(0, 160)}`);
   const rest = scored.slice(detailed).map(({ o }) => o.name.slice(0, 60));
   const more = rest.length > names ? ` …and ${rest.length - names} more` : '';
   return `${top.join('\n')}${rest.length ? `\nAlso in the library (names only): ${rest.slice(0, names).join(', ')}${more}` : ''}`;
 }
 
 // Write a new skill from a description, or change one as asked (the whole skill comes back, every field).
-export async function draftSkill(request: string, { current = null, files = [], others = [], attachments = [], ask = (s, u, o) => think(s, u, { timeout: 180_000, maxTokens: o.maxTokens }) }: DraftSkillOptions = {}): Promise<SkillDraft> {
+export async function draftSkill(
+  request: string,
+  {
+    current = null,
+    files = [],
+    others = [],
+    attachments = [],
+    ask = (s, u, o) => think(s, u, { timeout: 180_000, maxTokens: o.maxTokens }),
+  }: DraftSkillOptions = {},
+): Promise<SkillDraft> {
   const editing = !!current;
   const library = libraryForPrompt(
     others.filter((o) => o.name !== current?.name),
@@ -454,10 +674,17 @@ ${editing ? 'Change the CURRENT skill the way the user asks. Keep everything the
 Write the instructions for an AI agent, in the second person, concrete and specific, without filler. Don't invent facts about the user's business, products or numbers: where one is needed and not given, write a placeholder like [your product name].
 Never put secrets (API keys, passwords, tokens) in a skill: if the request includes one, leave it out and say so in "note".
 ${library ? `Skills already in the library, the most related first (don't write a copy of one; if the request is the same as one, say so in "note"):\n${library}\n` : ''}Answer with JSON only: {"name":"…","description":"…","body":"the instructions in markdown","note":"one sentence: what you wrote or changed"}`;
-  const cur = current ? `CURRENT skill:\nname: ${current.name}\ndescription: ${current.description}\n${files.length ? `extra files with it: ${files.slice(0, 40).join(', ')}\n` : ''}body:\n${current.body.trim() || '(empty)'}\n\n` : '';
-  const what = request.trim() || (editing ? 'Improve it using the attached files.' : 'Write a skill from the attached files: the way of working they show.');
+  const cur = current
+    ? `CURRENT skill:\nname: ${current.name}\ndescription: ${current.description}\n${files.length ? `extra files with it: ${files.slice(0, 40).join(', ')}\n` : ''}body:\n${current.body.trim() || '(empty)'}\n\n`
+    : '';
+  const what =
+    request.trim() ||
+    (editing
+      ? 'Improve it using the attached files.'
+      : 'Write a skill from the attached files: the way of working they show.');
   const user = `${cur}${editing ? 'What to change' : 'The skill to write'}:\n${what}${await filesFor(attachments)}`;
-  const CUT = "The Brain's answer was cut off before the end (the skill is long). Ask for a smaller change, or edit that part by hand.";
+  const CUT =
+    "The Brain's answer was cut off before the end (the skill is long). Ask for a smaller change, or edit that part by hand.";
   let raw: string;
   try {
     raw = await ask(system, user, { maxTokens: skillAnswerBudget(current) });
@@ -475,13 +702,15 @@ ${library ? `Skills already in the library, the most related first (don't write 
     throw new Error("The Brain's answer wasn't a skill. Try again, or say it differently.");
   }
   // a field left out (or emptied) while editing stays as it was
-  const pick = (v: unknown, was: string | undefined, max: number) => (str(v).trim() ? str(v).trim() : (was ?? '').trim()).slice(0, max);
+  const pick = (v: unknown, was: string | undefined, max: number) =>
+    (str(v).trim() ? str(v).trim() : (was ?? '').trim()).slice(0, max);
   const draft: SkillDraft = {
     name: pick(j.name, current?.name, SKILL_NAME_MAX),
     description: pick(j.description, current?.description, SKILL_DESC_MAX).replace(/\s+/g, ' '),
     body: pick(j.body, current?.body, SKILL_TEXT_MAX),
     note: str(j.note).trim().slice(0, 300),
   };
-  if (!draft.name || !draft.description || !draft.body) throw new Error("The Brain's answer was missing the skill's name, description or instructions. Try again.");
+  if (!draft.name || !draft.description || !draft.body)
+    throw new Error("The Brain's answer was missing the skill's name, description or instructions. Try again.");
   return draft;
 }

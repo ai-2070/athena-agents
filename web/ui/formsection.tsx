@@ -4,11 +4,30 @@ import type { ReactNode } from 'react';
 import { Icon } from './react.tsx';
 
 /** One part of the form: its icon and title (a line under it, something at the end), then its fields. */
-export function FormSection({ icon, title, hint, end, children, className = '' }: { icon: string; title: string; hint?: ReactNode; end?: ReactNode; children: ReactNode; className?: string }) {
+export function FormSection({
+  icon,
+  title,
+  hint,
+  end,
+  children,
+  className = '',
+}: {
+  icon: string;
+  title: string;
+  hint?: ReactNode;
+  end?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <section className={`flex flex-col gap-4 border-t border-line pt-6 first:border-t-0 first:pt-0 ${className}`.trim()}>
+    <section
+      className={`flex flex-col gap-4 border-t border-line pt-6 first:border-t-0 first:pt-0 ${className}`.trim()}
+    >
       <div className={`flex gap-3 ${hint ? 'items-start' : 'items-center'}`}>
-        <span aria-hidden="true" className="grid size-8 flex-none place-items-center rounded-[9px] border border-line bg-panel-2 text-dim">
+        <span
+          aria-hidden="true"
+          className="grid size-8 flex-none place-items-center rounded-[9px] border border-line bg-panel-2 text-dim"
+        >
           <Icon name={icon} size={15} />
         </span>
         <div className={`min-w-0 flex-1 ${hint ? 'pt-px' : ''}`}>

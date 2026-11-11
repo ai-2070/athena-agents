@@ -19,7 +19,14 @@ function parse(css: string): Rgb {
   probe.set(css);
   return [Math.round(probe.r * 255), Math.round(probe.g * 255), Math.round(probe.b * 255)];
 }
-const hex = ([r, g, b]: Rgb): string => `#${[r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')}`;
+const hex = ([r, g, b]: Rgb): string =>
+  `#${[r, g, b]
+    .map((v) =>
+      Math.max(0, Math.min(255, Math.round(v)))
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
 /** `a` with `t` (0 to 1) of `b` mixed in, as #rrggbb. Mixed in sRGB, like color-mix() in the stylesheet. */
 export function mix(a: string, b: string, t: number): string {
   const x = parse(a);
@@ -27,7 +34,10 @@ export function mix(a: string, b: string, t: number): string {
   return hex([x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t]);
 }
 /** A #rrggbb colour with an opacity, for a canvas gradient stop. */
-export const alpha = (c: string, a: number): string => `${c}${Math.round(Math.max(0, Math.min(1, a)) * 255).toString(16).padStart(2, '0')}`;
+export const alpha = (c: string, a: number): string =>
+  `${c}${Math.round(Math.max(0, Math.min(1, a)) * 255)
+    .toString(16)
+    .padStart(2, '0')}`;
 const num = (css: string): number => parseInt(hex(parse(css)).slice(1), 16);
 const luma = (css: string): number => {
   const [r, g, b] = parse(css);
@@ -122,7 +132,21 @@ export interface StationPalette {
   disc: string;
 }
 
-const FALLBACK = { ink: '#1a1a1f', dim: '#5b5b66', faint: '#747480', line: '#ebebef', 'line-2': '#dcdce3', bg: '#ffffff', floor: '#f3f3f6', raise: '#ffffff', accent: '#18688e', 'on-accent': '#ffffff', amber: '#b4690e', red: '#d3303f', ok: '#1c8a53' };
+const FALLBACK = {
+  ink: '#1a1a1f',
+  dim: '#5b5b66',
+  faint: '#747480',
+  line: '#ebebef',
+  'line-2': '#dcdce3',
+  bg: '#ffffff',
+  floor: '#f3f3f6',
+  raise: '#ffffff',
+  accent: '#18688e',
+  'on-accent': '#ffffff',
+  amber: '#b4690e',
+  red: '#d3303f',
+  ok: '#1c8a53',
+};
 const get = (name: keyof typeof FALLBACK): string => themeColor(name, FALLBACK[name]);
 
 export const pal: StationPalette = {
@@ -178,7 +202,24 @@ export const pal: StationPalette = {
   beam: new THREE.Color(),
   star: new THREE.Color(),
   lamp: new THREE.Color(),
-  screen: { idleBg: '', idleBar: '', idleTitle: '', idleDim: '', idleLine: '', needsBg: '', needsHi: '', needsLo: '', needsTitle: '', needsText: '', needsDim: '', workBg: '', workDisc: '', workTitle: '', workDim: '', workTrack: '' },
+  screen: {
+    idleBg: '',
+    idleBar: '',
+    idleTitle: '',
+    idleDim: '',
+    idleLine: '',
+    needsBg: '',
+    needsHi: '',
+    needsLo: '',
+    needsTitle: '',
+    needsText: '',
+    needsDim: '',
+    workBg: '',
+    workDisc: '',
+    workTitle: '',
+    workDim: '',
+    workTrack: '',
+  },
   disc: '',
 };
 
@@ -369,4 +410,3 @@ export function watchPalette(fn: () => void): () => void {
     if (frame) cancelAnimationFrame(frame);
   };
 }
-

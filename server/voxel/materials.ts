@@ -18,7 +18,13 @@ export const STOCK_MATERIALS: VoxelMaterial[] = [
   { name: 'leaves', color: '#3f7f34', ramp: ['#356e2b', '#4b8f3e', '#5a9c45'], jitter: 0.08, kind: 'leaf' },
   { name: 'pine needles', color: '#2f5a3a', ramp: ['#284d31', '#376745'], jitter: 0.08, kind: 'leaf' },
   { name: 'blossom', color: '#f3b6cf', ramp: ['#e89ab8', '#f7cde0', '#fde6f0', '#e47fa6'], jitter: 0.06, kind: 'leaf' },
-  { name: 'autumn leaves', color: '#c8622a', ramp: ['#b5521f', '#d97a35', '#e0a040', '#a8401c'], jitter: 0.07, kind: 'leaf' },
+  {
+    name: 'autumn leaves',
+    color: '#c8622a',
+    ramp: ['#b5521f', '#d97a35', '#e0a040', '#a8401c'],
+    jitter: 0.07,
+    kind: 'leaf',
+  },
   { name: 'bamboo', color: '#7fa64a', ramp: ['#6f9640', '#8db456'], jitter: 0.05, kind: 'solid' },
   { name: 'water', color: '#3d8fb0', ramp: ['#3482a2'], jitter: 0.04, kind: 'water', opacity: 0.65 },
   { name: 'glass', color: '#cfe6f2', jitter: 0.02, kind: 'glass', opacity: 0.35 },
@@ -39,4 +45,5 @@ export const STOCK_MATERIALS: VoxelMaterial[] = [
   { name: 'skin dark', color: '#7a4e34', jitter: 0.02, kind: 'solid' },
 ];
 
-export const stockMaterial = (name: string): VoxelMaterial | undefined => STOCK_MATERIALS.find((m) => m.name === name.trim().toLowerCase());
+export const stockMaterial = (name: string): VoxelMaterial | undefined =>
+  STOCK_MATERIALS.find((m) => m.name === name.trim().toLowerCase());

@@ -14,7 +14,17 @@ import { openModal } from './ui/overlays.tsx';
 import { mountProjectMenu } from './projectmenu.tsx';
 import { projectMark } from './projectlogo.ts';
 import { askBrain } from './dock.tsx';
-import { BACKUP_EXT, backupProject, backupAgo, fileSize, listBackups, readBackupSummary, restoreBackup, restoredText, summaryLine } from './backup.tsx';
+import {
+  BACKUP_EXT,
+  backupProject,
+  backupAgo,
+  fileSize,
+  listBackups,
+  readBackupSummary,
+  restoreBackup,
+  restoredText,
+  summaryLine,
+} from './backup.tsx';
 import type { BackupListing, BackupSummary } from './backup.tsx';
 import { attachTray, PICKER_LABELLED } from './attach.tsx';
 import type { AttachTray } from './attach.tsx';
@@ -28,7 +38,11 @@ export interface CreatedProject extends Project {
 /** The start screen, and whether to show it now. */
 type StartScreen = ProjectsOverview & { showLauncher: boolean };
 
-const slug = (s: string | null | undefined) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'project';
+const slug = (s: string | null | undefined) =>
+  String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'project';
 
 // A small menu under the project name: switch, create, or manage.
 // ---------- what you can do with a project: rename, clone, delete (in the project menu and on the All projects screen) ----------
@@ -45,9 +59,14 @@ export async function renameProject(p: ProjectRef): Promise<boolean> {
 
 /** A copy as a new project (agents, teams, routines, notes, skills and chats; schedules start paused), which is opened. */
 export async function cloneProject(p: ProjectRef): Promise<boolean> {
-  const name = (await promptBox('Clone project', { label: 'Name of the copy', value: `${p.name} (copy)`, ok: 'Clone' }))?.trim();
+  const name = (
+    await promptBox('Clone project', { label: 'Name of the copy', value: `${p.name} (copy)`, ok: 'Clone' })
+  )?.trim();
   if (!name) return false;
-  const made = await attempt(() => rpc.projects.clone({ id: p.id, name }), (r) => `Cloned as ${r.name}: ${r.restored?.agents ?? 0} agents, ${r.restored?.teams ?? 0} teams`);
+  const made = await attempt(
+    () => rpc.projects.clone({ id: p.id, name }),
+    (r) => `Cloned as ${r.name}: ${r.restored?.agents ?? 0} agents, ${r.restored?.teams ?? 0} teams`,
+  );
   if (!made) return false;
   await attempt(() => rpc.projects.activate({ id: made.id }));
   refreshSoon(0);
@@ -57,7 +76,10 @@ export async function cloneProject(p: ProjectRef): Promise<boolean> {
 /** Deletes a project after a backup that is made and checked first. Its folder and files on the PC are never touched. */
 export async function deleteProject(p: ProjectRef): Promise<boolean> {
   if (!(await askDeleteProject(p.name))) return false;
-  const r = await attempt(() => rpc.projects.delete({ id: p.id }), (x) => `Deleted ${p.name}. Backup: ${x.backup.name}`);
+  const r = await attempt(
+    () => rpc.projects.delete({ id: p.id }),
+    (x) => `Deleted ${p.name}. Backup: ${x.backup.name}`,
+  );
   refreshSoon(0);
   return !!r;
 }
@@ -72,7 +94,11 @@ function askDeleteProject(name: string): Promise<boolean> {
           <div className="modal-body">
             <div className="text-[14px] leading-[1.65] text-ink [&_p]:mb-3 [&_p:last-child]:mb-0">
               <p>{`Delete the project "${name}"?`}</p>
-              <p className="hint">First a backup is made in Athena Agents Backups and checked. Only if it is complete is the project removed: its agents, teams, chats and settings leave the dashboard (set aside on this PC, not erased). The project's own folder and files are not touched.</p>
+              <p className="hint">
+                First a backup is made in Athena Agents Backups and checked. Only if it is complete is the project
+                removed: its agents, teams, chats and settings leave the dashboard (set aside on this PC, not erased).
+                The project's own folder and files are not touched.
+              </p>
             </div>
           </div>
           <div className="modal-foot">
@@ -103,10 +129,20 @@ export function openProjectMenu(anchor: Element): void {
       { label: 'All projects…', icon: 'folder-open', separator: true, run: () => openLauncher({ force: true }) },
       { label: 'New project', icon: 'plus', run: () => openNewProject() },
       { label: 'Clone this project…', icon: 'copy', run: () => cloneProject(d.project) },
-      { label: 'Voxel world…', icon: 'globe', run: () => import('./views/worldpanel.tsx').then((m) => m.openWorldPicker()) },
+      {
+        label: 'Voxel world…',
+        icon: 'globe',
+        run: () => import('./views/worldpanel.tsx').then((m) => m.openWorldPicker()),
+      },
       { label: 'Back up this project', icon: 'archive', separator: true, run: () => backupProject(d.project) },
       { label: 'Restore a backup…', icon: 'upload', run: () => openNewProject({ mode: 'backup' }) },
-      { label: 'Delete this project…', icon: 'trash-2', danger: true, separator: true, run: () => deleteProject(d.project) },
+      {
+        label: 'Delete this project…',
+        icon: 'trash-2',
+        danger: true,
+        separator: true,
+        run: () => deleteProject(d.project),
+      },
     ],
   });
 }
@@ -132,7 +168,8 @@ const MODES: readonly { value: NewProjectMode; icon: string; label: string; sub:
 ];
 const MODE_TILE =
   'flex min-w-0 cursor-pointer flex-col items-start gap-2.5 rounded-box border border-line bg-panel/60 p-3 text-left [transition:border-color_0.15s,background-color_0.15s,box-shadow_0.15s] hover:border-line-2 hover:bg-panel-2 disabled:cursor-default disabled:opacity-60 aria-checked:border-accent aria-checked:bg-accent/8 aria-checked:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]';
-const MODE_ICON = 'grid size-8 place-items-center rounded-[9px] border border-line bg-panel-2 text-dim [[aria-checked=true]_&]:border-accent/40 [[aria-checked=true]_&]:bg-accent/12 [[aria-checked=true]_&]:text-accent';
+const MODE_ICON =
+  'grid size-8 place-items-center rounded-[9px] border border-line bg-panel-2 text-dim [[aria-checked=true]_&]:border-accent/40 [[aria-checked=true]_&]:bg-accent/12 [[aria-checked=true]_&]:text-accent';
 const NAME_PLACEHOLDER = 'e.g. Bakery website, Podcast launch, Trip to Japan';
 const ABOUT_PLACEHOLDER =
   'What you want to make and who it is for. e.g. "A simple website for my bakery: the menu, opening hours and a few photos, so people nearby can find us."';
@@ -176,7 +213,14 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
   const stopTrayDrop = useRef<(() => void) | null>(null);
 
   // a blank name falls back to the repo's name (GitHub only); otherwise the server asks for one
-  const repoName = () => (mode === 'github' && repo.trim().split('/').pop()?.replace(/\.git$/, '')) || '';
+  const repoName = () =>
+    (mode === 'github' &&
+      repo
+        .trim()
+        .split('/')
+        .pop()
+        ?.replace(/\.git$/, '')) ||
+    '';
 
   const pickBackup = (src: PickSrc, sum: BackupSummary | null, label: string) => {
     setPick({ src, summary: sum, label });
@@ -205,7 +249,9 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
     if (mode !== 'backup' || loadedBackups.current) return;
     loadedBackups.current = true;
     setBackups([]);
-    void listBackups().then((r) => setBackups(r.backups)).catch(() => {});
+    void listBackups()
+      .then((r) => setBackups(r.backups))
+      .catch(() => {});
   }, [mode]);
 
   // in every mode but "Backup" the tray takes dropped files anywhere on the window
@@ -264,7 +310,13 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
   const restore = async () => {
     if (!pick) return toast('Drop a backup file first.', 'error');
     setBusy('Restoring…');
-    const p = await attempt(() => restoreBackup(pick.src, { name: name.trim(), folder: touchedFolder.current ? folder.trim() : '', description: about.trim() }));
+    const p = await attempt(() =>
+      restoreBackup(pick.src, {
+        name: name.trim(),
+        folder: touchedFolder.current ? folder.trim() : '',
+        description: about.trim(),
+      }),
+    );
     setBusy(null);
     if (!p) return;
     close();
@@ -276,7 +328,17 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
   const create = async () => {
     if (mode === 'backup') return restore();
     setBusy(created ? 'Uploading files…' : mode === 'github' ? 'Cloning…' : 'Creating…');
-    const p = created || (await attempt(() => rpc.projects.create({ name: name.trim() || repoName(), mode, folder: folder.trim(), repo: repo.trim(), description: about.trim() })));
+    const p =
+      created ||
+      (await attempt(() =>
+        rpc.projects.create({
+          name: name.trim() || repoName(),
+          mode,
+          folder: folder.trim(),
+          repo: repo.trim(),
+          description: about.trim(),
+        }),
+      ));
     if (!p) {
       setBusy(null);
       return;
@@ -296,8 +358,13 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
       files = up;
     }
     close();
-    toast(p.restored ? `Loaded "${p.name}": ${p.restored.agents} agents and ${p.restored.teams} teams from the folder` : `Project "${p.name}" is open`);
-    if (files.length && !kickoff) toast(`Added ${files.length} file${files.length === 1 ? '' : 's'} to the project folder (uploads/)`);
+    toast(
+      p.restored
+        ? `Loaded "${p.name}": ${p.restored.agents} agents and ${p.restored.teams} teams from the folder`
+        : `Project "${p.name}" is open`,
+    );
+    if (files.length && !kickoff)
+      toast(`Added ${files.length} file${files.length === 1 ? '' : 's'} to the project folder (uploads/)`);
     await refreshSoon(0);
     onDone?.(p);
     // the Brain studies the new project, asks what it needs, then writes PROJECT.md and sets up teams
@@ -316,21 +383,50 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
   const restoreMode = mode === 'backup';
   const hintText = restoreMode
     ? 'Brings back its agents, teams, routines, chats, knowledge files and notes, and adds its skills and saved presets to your library (yours stay as they are).'
-    : (mode === 'new' ? 'Starts with a BRAIN.md and a notes folder.' : mode === 'existing' ? 'If the dashboard saved this folder before, its agents, teams and chats load back in.' : 'Agents work right inside the repo, so they see its code, README and CLAUDE.md.') +
+    : (mode === 'new'
+        ? 'Starts with a BRAIN.md and a notes folder.'
+        : mode === 'existing'
+          ? 'If the dashboard saved this folder before, its agents, teams and chats load back in.'
+          : 'Agents work right inside the repo, so they see its code, README and CLAUDE.md.') +
       ' Everything is auto-saved into the folder (.dashboard).';
-  const folderHint = mode === 'existing' ? 'The project Brain is this folder: agents read it and work in it.' : restoreMode ? 'Leave empty for a new folder. In a folder you already have, files there are never overwritten.' : 'A new folder for the project: its files, notes and what the agents make.';
-  const folderPlaceholder = restoreMode ? (info.root ? `A new folder in ${info.root}` : 'Folder path') : info.root ? `${info.root}${sep}…` : 'Folder path';
+  const folderHint =
+    mode === 'existing'
+      ? 'The project Brain is this folder: agents read it and work in it.'
+      : restoreMode
+        ? 'Leave empty for a new folder. In a folder you already have, files there are never overwritten.'
+        : 'A new folder for the project: its files, notes and what the agents make.';
+  const folderPlaceholder = restoreMode
+    ? info.root
+      ? `A new folder in ${info.root}`
+      : 'Folder path'
+    : info.root
+      ? `${info.root}${sep}…`
+      : 'Folder path';
   const label = busy ?? (restoreMode ? 'Restore project' : created ? 'Try the files again' : 'Create project');
 
   return (
     <>
       <div className="modal-body">
         <div ref={box} className="flex flex-col gap-6">
-          <FormSection icon="layers" title="Start from" hint="A project has its own agents, teams and chats, and a Brain: a folder with all its files and notes.">
+          <FormSection
+            icon="layers"
+            title="Start from"
+            hint="A project has its own agents, teams and chats, and a Brain: a folder with all its files and notes."
+          >
             <div role="radiogroup" aria-label="New project from" className="grid grid-cols-4 gap-2 max-sm:grid-cols-2">
               {MODES.map((m) => (
-                <button key={m.value} type="button" role="radio" aria-checked={mode === m.value} disabled={disabled && mode !== m.value} className={MODE_TILE} onClick={() => !created && setMode(m.value)}>
-                  <span className={MODE_ICON}><Icon name={m.icon} size={16} /></span>
+                <button
+                  key={m.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === m.value}
+                  disabled={disabled && mode !== m.value}
+                  className={MODE_TILE}
+                  onClick={() => !created && setMode(m.value)}
+                >
+                  <span className={MODE_ICON}>
+                    <Icon name={m.icon} size={16} />
+                  </span>
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate text-[13px] font-semibold text-ink">{m.label}</span>
                     <span className="truncate text-[11.5px] text-faint">{m.sub}</span>
@@ -352,7 +448,10 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
                 }}
               />
             </Field>
-            <Field label="What is this project?" hint="The Brain reads this, looks at the folder and asks you what it needs to know.">
+            <Field
+              label="What is this project?"
+              hint="The Brain reads this, looks at the folder and asks you what it needs to know."
+            >
               <textarea
                 rows={3}
                 placeholder={ABOUT_PLACEHOLDER}
@@ -365,79 +464,94 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
               />
             </Field>
           </FormSection>
-          <FormSection icon={restoreMode ? 'archive' : mode === 'github' ? 'github-logo' : 'folder'} title={restoreMode ? 'The backup' : mode === 'github' ? 'The repo' : 'The folder'} hint={hintText}>
+          <FormSection
+            icon={restoreMode ? 'archive' : mode === 'github' ? 'github-logo' : 'folder'}
+            title={restoreMode ? 'The backup' : mode === 'github' ? 'The repo' : 'The folder'}
+            hint={hintText}
+          >
             {restoreMode ? (
-                <>
-                  <div
-                    className={`${pick ? DROP_HAS : DROP_EMPTY} ${over ? 'over' : ''}`.trim()}
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Choose a backup file"
-                    onClick={() => chooser.current?.click()}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        chooser.current?.click();
-                      }
-                    }}
-                    onDragEnter={() => setOver(true)}
-                    onDragLeave={(e) => {
-                      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
-                    }}
-                    onDrop={() => setOver(false)}
-                  >
-                    {pick && pick.summary ? (
-                      <>
-                        <div className={DROP_ICO}>
-                          <Icon name="archive" size={22} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className={DROP_TITLE}>{pick.summary.name || 'Backup'}</div>
-                          <div className={DROP_META}>{summaryLine(pick.summary)}</div>
-                          {pick.summary.agentList.length ? (
-                            <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-1 text-[12px] text-ink">
-                              {pick.summary.agentList.map((a) => (
-                                <span key={a.name} title={a.name}>{`${a.emoji} ${a.name}`}</span>
-                              ))}
-                            </div>
-                          ) : null}
-                          <div className={DROP_META}>{`Backed up ${ago(pick.summary.createdAt)} · ${pick.label}`}</div>
-                        </div>
-                        <span className={buttonClass('ghost', 'tiny')}>Change</span>
-                      </>
-                    ) : (
-                      <>
-                        <div className={DROP_ICO}>
-                          <Icon name="upload" size={24} />
-                        </div>
-                        <div className={DROP_TITLE}>Drop a backup here</div>
-                        <div className="hint">{`or click to choose a ${BACKUP_EXT} file`}</div>
-                      </>
-                    )}
-                  </div>
-                  <input ref={chooser} type="file" accept={BACKUP_EXT} style={{ display: 'none' }} onChange={(e) => {
+              <>
+                <div
+                  className={`${pick ? DROP_HAS : DROP_EMPTY} ${over ? 'over' : ''}`.trim()}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Choose a backup file"
+                  onClick={() => chooser.current?.click()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      chooser.current?.click();
+                    }
+                  }}
+                  onDragEnter={() => setOver(true)}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
+                  }}
+                  onDrop={() => setOver(false)}
+                >
+                  {pick && pick.summary ? (
+                    <>
+                      <div className={DROP_ICO}>
+                        <Icon name="archive" size={22} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className={DROP_TITLE}>{pick.summary.name || 'Backup'}</div>
+                        <div className={DROP_META}>{summaryLine(pick.summary)}</div>
+                        {pick.summary.agentList.length ? (
+                          <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-1 text-[12px] text-ink">
+                            {pick.summary.agentList.map((a) => (
+                              <span key={a.name} title={a.name}>{`${a.emoji} ${a.name}`}</span>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className={DROP_META}>{`Backed up ${ago(pick.summary.createdAt)} · ${pick.label}`}</div>
+                      </div>
+                      <span className={buttonClass('ghost', 'tiny')}>Change</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className={DROP_ICO}>
+                        <Icon name="upload" size={24} />
+                      </div>
+                      <div className={DROP_TITLE}>Drop a backup here</div>
+                      <div className="hint">{`or click to choose a ${BACKUP_EXT} file`}</div>
+                    </>
+                  )}
+                </div>
+                <input
+                  ref={chooser}
+                  type="file"
+                  accept={BACKUP_EXT}
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
                     const f = e.currentTarget.files?.[0];
                     e.currentTarget.value = '';
                     if (f) void pickFile(f);
-                  }} />
-                  {!pick && backups?.length ? (
-                    <div className="flex flex-col gap-2">
-                      <div className="label">In your backups folder</div>
-                      <div className="flex max-h-[210px] flex-col gap-2 overflow-y-auto p-px">
-                        {backups.slice(0, 6).map((b) => (
-                          <button key={b.name} type="button" className={BACKUP_ITEM} onClick={() => pickBackup({ listed: b.name }, b.summary, `${b.name} · ${fileSize(b.size)}`)}>
-                            <Icon name="archive" size={15} />
-                            <span className="flex min-w-0 flex-1 flex-col">
-                              <span className="truncate text-[13.5px] font-semibold">{b.summary?.name || b.name}</span>
-                              {b.summary ? <span className={ITEM_META}>{summaryLine(b.summary)}</span> : null}
-                            </span>
-                            <span className={ITEM_META}>{backupAgo(b.summary, b.modifiedAt)}</span>
-                          </button>
-                        ))}
-                      </div>
+                  }}
+                />
+                {!pick && backups?.length ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="label">In your backups folder</div>
+                    <div className="flex max-h-[210px] flex-col gap-2 overflow-y-auto p-px">
+                      {backups.slice(0, 6).map((b) => (
+                        <button
+                          key={b.name}
+                          type="button"
+                          className={BACKUP_ITEM}
+                          onClick={() => pickBackup({ listed: b.name }, b.summary, `${b.name} · ${fileSize(b.size)}`)}
+                        >
+                          <Icon name="archive" size={15} />
+                          <span className="flex min-w-0 flex-1 flex-col">
+                            <span className="truncate text-[13.5px] font-semibold">{b.summary?.name || b.name}</span>
+                            {b.summary ? <span className={ITEM_META}>{summaryLine(b.summary)}</span> : null}
+                          </span>
+                          <span className={ITEM_META}>{backupAgo(b.summary, b.modifiedAt)}</span>
+                        </button>
+                      ))}
                     </div>
-                  ) : null}
-                </>
+                  </div>
+                ) : null}
+              </>
             ) : mode === 'github' ? (
               <Field label="GitHub repo" hint="Cloned with your GitHub login (gh) so private repos work too.">
                 <input
@@ -449,7 +563,10 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
                 />
               </Field>
             ) : null}
-            <Field label={mode === 'existing' ? 'Your folder' : restoreMode ? 'Restore into' : 'Brain folder'} hint={folderHint}>
+            <Field
+              label={mode === 'existing' ? 'Your folder' : restoreMode ? 'Restore into' : 'Brain folder'}
+              hint={folderHint}
+            >
               <input
                 className="code"
                 placeholder={folderPlaceholder}
@@ -463,14 +580,28 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
             </Field>
           </FormSection>
           {/* (hidden, not taken away, for a backup: the tray keeps its picker and what was added) */}
-          <FormSection icon="paperclip" title="Files" hint="Optional. They go into the project folder and the Brain reads them." className={restoreMode ? 'hidden' : ''}>
-              <FileDrop picker={<DomNode as="span" make={() => tray.picker} deps={[]} />} hint="Briefs, docs, assets. Or drop or paste them anywhere in this window.">
-                <DomNode className="dom-contents" make={() => tray.el} deps={[]} />
-              </FileDrop>
+          <FormSection
+            icon="paperclip"
+            title="Files"
+            hint="Optional. They go into the project folder and the Brain reads them."
+            className={restoreMode ? 'hidden' : ''}
+          >
+            <FileDrop
+              picker={<DomNode as="span" make={() => tray.picker} deps={[]} />}
+              hint="Briefs, docs, assets. Or drop or paste them anywhere in this window."
+            >
+              <DomNode className="dom-contents" make={() => tray.el} deps={[]} />
+            </FileDrop>
           </FormSection>
-          <Switch checked={kickoff} onChange={setKickoff} className={`flex-nowrap! items-start! gap-3.5! rounded-box border border-line bg-panel-2/40 px-4 py-3.5 [&_.switch]:mt-0.5 [&_.switch]:flex-none ${restoreMode ? 'hidden!' : ''}`}>
-              <span className="block text-[13.5px] font-medium text-ink">Let the Brain set it up</span>
-              <span className="mt-0.5 block text-[12.5px] leading-normal text-dim">It writes PROJECT.md and suggests the teams and agents to start with.</span>
+          <Switch
+            checked={kickoff}
+            onChange={setKickoff}
+            className={`flex-nowrap! items-start! gap-3.5! rounded-box border border-line bg-panel-2/40 px-4 py-3.5 [&_.switch]:mt-0.5 [&_.switch]:flex-none ${restoreMode ? 'hidden!' : ''}`}
+          >
+            <span className="block text-[13.5px] font-medium text-ink">Let the Brain set it up</span>
+            <span className="mt-0.5 block text-[12.5px] leading-normal text-dim">
+              It writes PROJECT.md and suggests the teams and agents to start with.
+            </span>
           </Switch>
         </div>
       </div>
@@ -486,17 +617,26 @@ function NewProjectWindow({ info, startMode, onDone, close, made, tray }: NewPro
   );
 }
 
-export async function openNewProject({ mode: startMode = 'new', onDone }: { mode?: NewProjectMode; onDone?: (p: CreatedProject) => unknown } = {}): Promise<void> {
+export async function openNewProject({
+  mode: startMode = 'new',
+  onDone,
+}: { mode?: NewProjectMode; onDone?: (p: CreatedProject) => unknown } = {}): Promise<void> {
   const info = await rpc.projects.list().catch(() => ({ root: '' }));
   const made: { current: CreatedProject | null } = { current: null };
   const tray = attachTray({ deferred: true, pickerButton: PICKER_LABELLED });
-  const dlg = openModal('New project', (close) => <NewProjectWindow info={info} startMode={startMode} onDone={onDone} close={close} made={made} tray={tray} />, {
-    medium: true,
-    // closed after the project was made but before its files went: it is still open in the dashboard
-    onClose: () => {
-      if (made.current) refreshSoon(0);
+  const dlg = openModal(
+    'New project',
+    (close) => (
+      <NewProjectWindow info={info} startMode={startMode} onDone={onDone} close={close} made={made} tray={tray} />
+    ),
+    {
+      medium: true,
+      // closed after the project was made but before its files went: it is still open in the dashboard
+      onClose: () => {
+        if (made.current) refreshSoon(0);
+      },
     },
-  });
+  );
   dlg.el.classList.add('glass');
 }
 
@@ -506,7 +646,8 @@ const L_LIST = 'flex flex-col divide-y divide-line overflow-hidden rounded-box b
 const L_ROW =
   'relative flex w-full cursor-pointer items-center gap-3.5 px-4 py-3 text-left text-ink [transition:background-color_0.15s] hover:bg-panel-2 focus-visible:bg-panel-2 focus-visible:outline-none';
 // the project open now: a short accent bar at its left edge
-const L_ROW_CUR = 'before:absolute before:inset-y-3 before:left-0 before:w-[3px] before:rounded-r-full before:bg-accent';
+const L_ROW_CUR =
+  'before:absolute before:inset-y-3 before:left-0 before:w-[3px] before:rounded-r-full before:bg-accent';
 const L_RISE = [
   'animate-[rise-in_0.25s_var(--ease-soft)_both]',
   'animate-[rise-in_0.25s_var(--ease-soft)_0.03s_both]',
@@ -515,10 +656,13 @@ const L_RISE = [
   'animate-[rise-in_0.25s_var(--ease-soft)_0.12s_both]',
 ];
 const L_ICO = 'grid size-10 flex-none place-items-center rounded-[10px] border border-line bg-panel-2 text-dim';
-const L_ICO_CUR = 'grid size-10 flex-none place-items-center rounded-[10px] border border-accent/30 bg-accent/10 text-accent';
-const L_ICO_LOGO = 'grid size-10 flex-none place-items-center overflow-hidden rounded-[10px] bg-ink/5 [&_.proj-logo]:rounded-[8px]';
+const L_ICO_CUR =
+  'grid size-10 flex-none place-items-center rounded-[10px] border border-accent/30 bg-accent/10 text-accent';
+const L_ICO_LOGO =
+  'grid size-10 flex-none place-items-center overflow-hidden rounded-[10px] bg-ink/5 [&_.proj-logo]:rounded-[8px]';
 const L_NAME = 'flex min-w-0 items-center gap-2 text-[14px] font-semibold';
-const L_META = 'mt-1 flex min-w-0 items-center gap-x-3 text-[12px] text-dim *:inline-flex *:flex-none *:items-center *:gap-1';
+const L_META =
+  'mt-1 flex min-w-0 items-center gap-x-3 text-[12px] text-dim *:inline-flex *:flex-none *:items-center *:gap-1';
 const L_PATH = 'min-w-0 flex-1! truncate font-mono text-[11px] text-faint';
 const L_HEAD = 'flex items-baseline justify-between gap-3 px-1 text-[12.5px] font-medium text-dim';
 
@@ -545,7 +689,11 @@ function LauncherWindow({ o, close }: { o: StartScreen; close: () => void }) {
     refreshSoon(0);
   };
   const addFound = async (f: StartScreen['found'][number]) => {
-    const p = await attempt(() => rpc.projects.create({ name: f.name, mode: 'existing', folder: f.folder }), (r) => (r.restored ? `Loaded ${f.name}: ${r.restored.agents} agents, ${r.restored.teams} teams` : `Added ${f.name}`));
+    const p = await attempt(
+      () => rpc.projects.create({ name: f.name, mode: 'existing', folder: f.folder }),
+      (r) =>
+        r.restored ? `Loaded ${f.name}: ${r.restored.agents} agents, ${r.restored.teams} teams` : `Added ${f.name}`,
+    );
     if (!p) return;
     close();
     refreshSoon(0);
@@ -591,10 +739,23 @@ function LauncherWindow({ o, close }: { o: StartScreen; close: () => void }) {
             </div>
             {p.description ? <div className="mt-0.5 truncate text-[12.5px] text-dim">{p.description}</div> : null}
             <div className={L_META}>
-              <span><Icon name="bot" size={12} />{plural(p.agents, 'agent')}</span>
-              <span><Icon name="users" size={12} />{plural(p.teams, 'team')}</span>
-              {p.openedAt || p.createdAt ? <span><Icon name="clock" size={12} />{ago(p.openedAt || p.createdAt)}</span> : null}
-              <span className={L_PATH} title={p.brainPath}>{p.brainPath}</span>
+              <span>
+                <Icon name="bot" size={12} />
+                {plural(p.agents, 'agent')}
+              </span>
+              <span>
+                <Icon name="users" size={12} />
+                {plural(p.teams, 'team')}
+              </span>
+              {p.openedAt || p.createdAt ? (
+                <span>
+                  <Icon name="clock" size={12} />
+                  {ago(p.openedAt || p.createdAt)}
+                </span>
+              ) : null}
+              <span className={L_PATH} title={p.brainPath}>
+                {p.brainPath}
+              </span>
             </div>
           </div>
           <Icon name="chevron-right" size={16} className="flex-none text-faint" />
@@ -612,46 +773,89 @@ function LauncherWindow({ o, close }: { o: StartScreen; close: () => void }) {
       <div className="modal-body">
         <div className="launcher flex min-w-[min(620px,86vw)] flex-col gap-5">
           <div className="flex flex-wrap items-center gap-3">
-            <p className="m-0 min-w-0 flex-1 basis-64 text-[13px] leading-normal text-dim">Pick a project to load it. Each one keeps its own agents, teams and chats, saved into its folder.</p>
+            <p className="m-0 min-w-0 flex-1 basis-64 text-[13px] leading-normal text-dim">
+              Pick a project to load it. Each one keeps its own agents, teams and chats, saved into its folder.
+            </p>
             {searchable ? (
               <label className="relative w-56 max-sm:w-full">
-                <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint"><Icon name="search" size={14} /></span>
-                <input className="pl-8.5!" aria-label="Find a project" placeholder="Find a project" value={query} onChange={(e) => setQuery(e.currentTarget.value)} />
+                <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint">
+                  <Icon name="search" size={14} />
+                </span>
+                <input
+                  className="pl-8.5!"
+                  aria-label="Find a project"
+                  placeholder="Find a project"
+                  value={query}
+                  onChange={(e) => setQuery(e.currentTarget.value)}
+                />
               </label>
             ) : null}
           </div>
           <div className="flex flex-col gap-2">
-            <div className={L_HEAD}><span>Your projects</span><span className="text-faint tabular-nums">{o.projects.length}</span></div>
-            {projects.length ? <div className={L_LIST}>{projects.map(row)}</div> : <p className="empty m-0 py-6!">No project matches.</p>}
+            <div className={L_HEAD}>
+              <span>Your projects</span>
+              <span className="text-faint tabular-nums">{o.projects.length}</span>
+            </div>
+            {projects.length ? (
+              <div className={L_LIST}>{projects.map(row)}</div>
+            ) : (
+              <p className="empty m-0 py-6!">No project matches.</p>
+            )}
           </div>
           {o.found.length ? (
             <div className="flex flex-col gap-2">
-              <div className={L_HEAD}><span>Found on this PC</span><span className="font-normal text-faint">folders with saved agents and teams</span></div>
+              <div className={L_HEAD}>
+                <span>Found on this PC</span>
+                <span className="font-normal text-faint">folders with saved agents and teams</span>
+              </div>
               {found.length ? (
                 <div className={L_LIST}>
                   {found.map((f, i) => (
-                    <button key={f.folder} className={`${L_ROW} ${L_RISE[i] ?? L_RISE[4]}`} type="button" onClick={() => void addFound(f)}>
+                    <button
+                      key={f.folder}
+                      className={`${L_ROW} ${L_RISE[i] ?? L_RISE[4]}`}
+                      type="button"
+                      onClick={() => void addFound(f)}
+                    >
                       <div className={`${L_ICO} border-dashed`}>
                         <Icon name="folder" size={18} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className={L_NAME}><span className="truncate">{f.name}</span></div>
+                        <div className={L_NAME}>
+                          <span className="truncate">{f.name}</span>
+                        </div>
                         <div className={L_META}>
                           {f.saved ? (
                             <>
-                              <span><Icon name="bot" size={12} />{plural(f.saved.agents, 'agent')}</span>
-                              <span><Icon name="users" size={12} />{plural(f.saved.teams, 'team')}</span>
-                              <span><Icon name="clock" size={12} />{`saved ${ago(f.saved.savedAt)}`}</span>
+                              <span>
+                                <Icon name="bot" size={12} />
+                                {plural(f.saved.agents, 'agent')}
+                              </span>
+                              <span>
+                                <Icon name="users" size={12} />
+                                {plural(f.saved.teams, 'team')}
+                              </span>
+                              <span>
+                                <Icon name="clock" size={12} />
+                                {`saved ${ago(f.saved.savedAt)}`}
+                              </span>
                             </>
                           ) : null}
-                          <span className={L_PATH} title={f.folder}>{f.folder}</span>
+                          <span className={L_PATH} title={f.folder}>
+                            {f.folder}
+                          </span>
                         </div>
                       </div>
-                      <span className={buttonClass('ghost', 'tiny', 'flex-none')}><Icon name="plus" size={12} />Add</span>
+                      <span className={buttonClass('ghost', 'tiny', 'flex-none')}>
+                        <Icon name="plus" size={12} />
+                        Add
+                      </span>
                     </button>
                   ))}
                 </div>
-              ) : <p className="empty m-0 py-6!">No folder matches.</p>}
+              ) : (
+                <p className="empty m-0 py-6!">No folder matches.</p>
+              )}
             </div>
           ) : null}
         </div>

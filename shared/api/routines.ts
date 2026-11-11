@@ -20,15 +20,25 @@ export const routines = {
   /** A new one: on, unscheduled unless it says, never without something to do. */
   create: oc.route({ method: 'POST', path: '/routines' }).input(z.object(routineFields)).output(type<Routine>()),
   get: oc.route({ method: 'GET', path: '/routines/{id}' }).input(oneRoutine).output(type<Routine>()),
-  change: oc.route({ method: 'PUT', path: '/routines/{id}' }).input(oneRoutine.extend(routineFields)).output(type<Routine>()),
+  change: oc
+    .route({ method: 'PUT', path: '/routines/{id}' })
+    .input(oneRoutine.extend(routineFields))
+    .output(type<Routine>()),
   remove: oc.route({ method: 'DELETE', path: '/routines/{id}' }).input(oneRoutine).output(type<{ ok: true }>()),
   /** Runs it now; input: words added for this run. */
-  run: oc.route({ method: 'POST', path: '/routines/{id}/run' })
+  run: oc
+    .route({ method: 'POST', path: '/routines/{id}/run' })
     .input(oneRoutine.extend({ input: z.string({ error: 'input must be text.' }).optional() }))
     .output(type<RoutineRun>()),
   runs: {
     /** The latest runs; routineId: only that routine's. */
-    list: oc.route({ method: 'GET', path: '/routine-runs' }).input(z.object({ routineId: z.string().optional() })).output(type<RoutineRun[]>()),
-    stop: oc.route({ method: 'POST', path: '/routine-runs/{id}/stop' }).input(oneRoutine).output(type<{ ok: boolean }>()),
+    list: oc
+      .route({ method: 'GET', path: '/routine-runs' })
+      .input(z.object({ routineId: z.string().optional() }))
+      .output(type<RoutineRun[]>()),
+    stop: oc
+      .route({ method: 'POST', path: '/routine-runs/{id}/stop' })
+      .input(oneRoutine)
+      .output(type<{ ok: boolean }>()),
   },
 };

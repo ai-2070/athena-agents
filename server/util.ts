@@ -12,7 +12,9 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 // tests point this at a throwaway folder
 export const DATA = process.env.DASH_DATA ? path.resolve(process.env.DASH_DATA) : path.join(ROOT, 'data');
 // The MCP bridge that agents' CLIs start. The desktop app ships the server bundled, as .js.
-export const BRIDGE_SCRIPT = ((js) => (fs.existsSync(js) ? js : path.join(ROOT, 'server', 'mcp-bridge.ts')))(path.join(ROOT, 'server', 'mcp-bridge.js'));
+export const BRIDGE_SCRIPT = ((js) => (fs.existsSync(js) ? js : path.join(ROOT, 'server', 'mcp-bridge.ts')))(
+  path.join(ROOT, 'server', 'mcp-bridge.js'),
+);
 export const HOME = os.homedir();
 export const IS_WIN = process.platform === 'win32';
 export let PORT = Number(process.env.DASH_PORT || 4800);
@@ -27,7 +29,13 @@ export function uid(prefix = ''): string {
 }
 
 export function slugify(s: unknown): string {
-  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'item';
+  return (
+    String(s || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'item'
+  );
 }
 
 export function ensureDir(dir: string): string {
@@ -152,7 +160,10 @@ export function insideRoots(p: string, roots: string[]): string | null {
 
 export function listDirs(dir: string): string[] {
   try {
-    return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
   } catch {
     return [];
   }
@@ -160,7 +171,10 @@ export function listDirs(dir: string): string[] {
 
 export function listFiles(dir: string, filter: (name: string) => boolean = () => true): string[] {
   try {
-    return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isFile() && filter(d.name)).map((d) => d.name);
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((d) => d.isFile() && filter(d.name))
+      .map((d) => d.name);
   } catch {
     return [];
   }
@@ -206,7 +220,11 @@ export function which(cmd: string): string | null {
     const exts = IS_WIN ? (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').map((e) => e.toLowerCase()) : [''];
     const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
     // Common user-level install spots that are not always on PATH.
-    dirs.push(path.join(HOME, '.local', 'bin'), path.join(HOME, 'AppData', 'Local', 'hermes', 'bin'), path.join(HOME, '.bun', 'bin'));
+    dirs.push(
+      path.join(HOME, '.local', 'bin'),
+      path.join(HOME, 'AppData', 'Local', 'hermes', 'bin'),
+      path.join(HOME, '.bun', 'bin'),
+    );
     outer: for (const d of dirs) {
       for (const ext of IS_WIN ? ['.exe', '.cmd', '.bat', ...exts] : ['']) {
         const p = path.join(d, cmd + ext);
@@ -235,7 +253,11 @@ export interface CommandShell {
  *  on macOS and Linux, where `powershell` usually doesn't exist. No profiles or prompts in any of them. */
 export function pickShell(win: boolean, find: (cmd: string) => string | null): CommandShell {
   const pwsh = find('pwsh');
-  const ps = (exe: string, name: string): CommandShell => ({ exe, name, args: (c) => ['-NoProfile', '-NonInteractive', '-Command', c] });
+  const ps = (exe: string, name: string): CommandShell => ({
+    exe,
+    name,
+    args: (c) => ['-NoProfile', '-NonInteractive', '-Command', c],
+  });
   if (pwsh) return ps(pwsh, 'PowerShell 7');
   if (win) return ps(find('powershell') || 'powershell', 'Windows PowerShell');
   const bash = find('bash');
@@ -280,7 +302,10 @@ export function spawnCommand(cmd: string, args: string[] = [], opts: SpawnOption
     // cmd.exe in between, so its arguments (Codex's quoted settings) go through as they are.
     const direct = bad !== undefined ? shimTarget(exe) : null;
     if (direct) return spawn(direct.command, [...direct.args, ...args], { windowsHide: true, ...opts });
-    if (bad !== undefined) throw new Error(`This argument has characters that can't be passed safely to ${path.basename(exe)}: ${String(bad).slice(0, 80)}`);
+    if (bad !== undefined)
+      throw new Error(
+        `This argument has characters that can't be passed safely to ${path.basename(exe)}: ${String(bad).slice(0, 80)}`,
+      );
     const quoted = [exe, ...args].map(winQuote).join(' ');
     return spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${quoted}"`], {
       ...opts,
@@ -317,7 +342,11 @@ export interface RunResult {
 }
 
 // Run a command and collect its output.
-export function run(cmd: string, args: string[] = [], { timeout = 60000, input, cwd, env, maxBytes = 2_000_000, signal, onLine }: RunOptions = {}): Promise<RunResult> {
+export function run(
+  cmd: string,
+  args: string[] = [],
+  { timeout = 60000, input, cwd, env, maxBytes = 2_000_000, signal, onLine }: RunOptions = {},
+): Promise<RunResult> {
   return new Promise<RunResult>((resolve) => {
     let out = '';
     let partial = '';
@@ -424,9 +453,14 @@ export function launchDetached(exe: string, args: string[] = [], opts: SpawnOpti
 // No cmd.exe here: URLs go to the URL handler, files and folders to Explorer.
 // Files that run code when opened (Adobe apps run the .jsx / .jsxbin scripts they are handed;
 // a macOS .app folder or a Linux .desktop file starts a program).
-const RUNNABLE = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|jsx|jsxbin|wsf|wsh|hta|msi|msp|scr|cpl|lnk|url|reg|jar|py|pyw|sh|command|scpt|applescript|appref-ms|application|gadget|inf|pif|scf|app|pkg|appimage|desktop)$/i;
+const RUNNABLE =
+  /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|jsx|jsxbin|wsf|wsh|hta|msi|msp|scr|cpl|lnk|url|reg|jar|py|pyw|sh|command|scpt|applescript|appref-ms|application|gadget|inf|pif|scf|app|pkg|appimage|desktop)$/i;
 // A name as Windows opens it: trailing spaces and dots don't count ("x.py. " opens x.py), nor a ::$DATA stream.
-export const asOpened = (p: unknown): string => String(p ?? '').trim().replace(/::\$data$/i, '').replace(/[\s.]+$/, '');
+export const asOpened = (p: unknown): string =>
+  String(p ?? '')
+    .trim()
+    .replace(/::\$data$/i, '')
+    .replace(/[\s.]+$/, '');
 /** Whether opening this file with its default program would run code. */
 export const runnable = (p: unknown): boolean => RUNNABLE.test(asOpened(p));
 
@@ -435,12 +469,17 @@ export function openWithShell(target: string) {
   if (/[\r\n]/.test(target)) throw new Error('Invalid path or link.');
   if (IS_WIN) {
     const isUrl = /^https?:\/\//i.test(target);
-    const [exe, args]: [string, string[]] = isUrl ? ['rundll32.exe', ['url.dll,FileProtocolHandler', target]] : ['explorer.exe', [path.resolve(target)]];
+    const [exe, args]: [string, string[]] = isUrl
+      ? ['rundll32.exe', ['url.dll,FileProtocolHandler', target]]
+      : ['explorer.exe', [path.resolve(target)]];
     const child = spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
     child.on('error', () => {});
     child.unref();
   } else {
-    const child = spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [target], { detached: true, stdio: 'ignore' });
+    const child = spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [target], {
+      detached: true,
+      stdio: 'ignore',
+    });
     child.on('error', () => {});
     child.unref();
   }
@@ -488,7 +527,8 @@ export async function fetchJSON<T = unknown>(url: string, opts: FetchJSONOptions
   }
   if (!res.ok) {
     const b = body as { error?: { message?: string }; detail?: string; title?: string };
-    const msg = typeof body === 'object' && body ? b.error?.message || b.detail || b.title || JSON.stringify(body) : text;
+    const msg =
+      typeof body === 'object' && body ? b.error?.message || b.detail || b.title || JSON.stringify(body) : text;
     const e: FetchError = new Error(`${res.status} ${String(msg).slice(0, 500)}`);
     e.status = res.status;
     e.body = body;
@@ -522,7 +562,9 @@ export function truncate(s: unknown, n = 20000): string {
 // Fill {{name}} placeholders from a values object (dot paths allowed).
 export function renderTemplate(tpl: unknown, values: Record<string, unknown>): string {
   return String(tpl ?? '').replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (m, key: string) => {
-    const v = key.split('.').reduce<unknown>((o, k) => (o == null ? undefined : (o as Record<string, unknown>)[k]), values);
+    const v = key
+      .split('.')
+      .reduce<unknown>((o, k) => (o == null ? undefined : (o as Record<string, unknown>)[k]), values);
     if (v == null) return m;
     return typeof v === 'string' ? v : JSON.stringify(v, null, 2);
   });
@@ -540,7 +582,26 @@ export async function readText(file: string, max = 400_000): Promise<string> {
 
 // YAML's double-quoted escapes (JSON's are a subset, so a value written with JSON.stringify reads back
 // exactly). An escape YAML doesn't know is kept as it is, backslash and all.
-const YAML_ESCAPES: Record<string, string> = { '0': '\0', a: '\x07', b: '\b', t: '\t', '\t': '\t', n: '\n', v: '\v', f: '\f', r: '\r', e: '\x1b', ' ': ' ', '"': '"', '/': '/', '\\': '\\', N: '\x85', _: '\xa0', L: String.fromCharCode(0x2028), P: String.fromCharCode(0x2029) };
+const YAML_ESCAPES: Record<string, string> = {
+  '0': '\0',
+  a: '\x07',
+  b: '\b',
+  t: '\t',
+  '\t': '\t',
+  n: '\n',
+  v: '\v',
+  f: '\f',
+  r: '\r',
+  e: '\x1b',
+  ' ': ' ',
+  '"': '"',
+  '/': '/',
+  '\\': '\\',
+  N: '\x85',
+  _: '\xa0',
+  L: String.fromCharCode(0x2028),
+  P: String.fromCharCode(0x2029),
+};
 /** One YAML scalar on one line, as its text: "double" and 'single' quotes are decoded, a plain one is trimmed. */
 export function yamlScalar(raw: string): string {
   const v = raw.trim();
@@ -560,7 +621,11 @@ export function yamlScalar(raw: string): string {
 const YAML_BREAKS = [0x85, 0x2028, 0x2029];
 /** A string as a YAML scalar on one line: plain when that reads back the same, else double-quoted. */
 export function yamlString(s: string): string {
-  return s === '' || /[:#"'\\\n\r\t]/.test(s) || /^[\s>|[\]{}&*!%@`,?-]/.test(s) || /\s$/.test(s) ? JSON.stringify(s).replace(/[^\x00-\x7e]/g, (c) => (YAML_BREAKS.includes(c.charCodeAt(0)) ? `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}` : c)) : s;
+  return s === '' || /[:#"'\\\n\r\t]/.test(s) || /^[\s>|[\]{}&*!%@`,?-]/.test(s) || /\s$/.test(s)
+    ? JSON.stringify(s).replace(/[^\x00-\x7e]/g, (c) =>
+        YAML_BREAKS.includes(c.charCodeAt(0)) ? `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}` : c,
+      )
+    : s;
 }
 
 export function parseFrontmatter(text: string): { meta: Record<string, string>; body: string } {
@@ -579,7 +644,10 @@ export async function settledWithin(promises: readonly (Promise<unknown> | undef
   if (ms <= 0) return false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await Promise.race([Promise.allSettled(promises).then(() => true), new Promise<boolean>((done) => (timer = setTimeout(() => done(false), ms)))]);
+    return await Promise.race([
+      Promise.allSettled(promises).then(() => true),
+      new Promise<boolean>((done) => (timer = setTimeout(() => done(false), ms))),
+    ]);
   } finally {
     clearTimeout(timer);
   }

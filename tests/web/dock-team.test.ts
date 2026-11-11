@@ -12,7 +12,14 @@ describe('mergeTeamMessages()', () => {
     // a live reply arrived first
     mergeTeamMessages(it, [msg('m3', 'agent-b', 130)]);
     // then the team chat as loaded: older, the brief, your own message, and the same live reply again
-    mergeTeamMessages(it, [msg('old', 'agent-a', 50), msg('brief', 'brain', 100), msg('m1', 'agent-a', 110), msg('you', 'user', 115), msg('m2', 'brain', 120), msg('m3', 'agent-b', 130)]);
+    mergeTeamMessages(it, [
+      msg('old', 'agent-a', 50),
+      msg('brief', 'brain', 100),
+      msg('m1', 'agent-a', 110),
+      msg('you', 'user', 115),
+      msg('m2', 'brain', 120),
+      msg('m3', 'agent-b', 130),
+    ]);
     expect(it.messages.map((m) => m.id)).toEqual(['m1', 'm2', 'm3']);
   });
 });

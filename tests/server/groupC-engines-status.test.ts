@@ -14,10 +14,16 @@ const overrides = (args: string[]) => args.flatMap((a, i) => (args[i - 1] === '-
 
 describe('codex args', () => {
   it('passes headers of HTTP MCP servers on as http_headers', () => {
-    saveServer('gh', { type: 'http', url: 'https://example.com/mcp', headers: { Authorization: 'Bearer abc', 'X-Api-Key': 'k"1' } });
+    saveServer('gh', {
+      type: 'http',
+      url: 'https://example.com/mcp',
+      headers: { Authorization: 'Bearer abc', 'X-Api-Key': 'k"1' },
+    });
     saveServer('plain', { type: 'http', url: 'https://example.com/other' });
     // (an older Codex: it can't take them from its environment)
-    const c = overrides(codexArgs(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['gh', 'plain'] }), { version: '0.120.0' }));
+    const c = overrides(
+      codexArgs(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['gh', 'plain'] }), { version: '0.120.0' }),
+    );
     expect(c).toContain('mcp_servers.gh.url="https://example.com/mcp"');
     expect(c).toContain('mcp_servers.gh.http_headers={Authorization="Bearer abc",X-Api-Key="k\\"1"}');
     // no empty table for a server without headers
@@ -25,7 +31,10 @@ describe('codex args', () => {
   });
 
   it("keeps the dashboard's token off the command line", () => {
-    const { args, env } = codexLaunch(newAgent({ name: 'Coder', engine: 'codex' }), { runId: 'r1', version: '0.120.0' });
+    const { args, env } = codexLaunch(newAgent({ name: 'Coder', engine: 'codex' }), {
+      runId: 'r1',
+      version: '0.120.0',
+    });
     const token = internalToken();
     expect(args.join(' ')).not.toContain(token);
     expect(Object.values(env)).not.toContain(token);
@@ -37,7 +46,9 @@ describe('codex args', () => {
   it("puts MCP servers' keys in Codex's environment, hidden from the commands it runs", () => {
     saveServer('gh', { type: 'http', url: 'https://example.com/mcp', headers: { Authorization: 'Bearer abc' } });
     saveServer('local', { type: 'stdio', command: 'node', args: ['server.js'], env: { SERVICE_KEY: 's3cret' } });
-    const { args, env } = codexLaunch(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['gh', 'local'] }), { version: '0.166.0' });
+    const { args, env } = codexLaunch(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['gh', 'local'] }), {
+      version: '0.166.0',
+    });
     expect(args.join(' ')).not.toMatch(/s3cret|Bearer abc/);
     const c = overrides(args);
     expect(c).toContain('mcp_servers.gh.env_http_headers={Authorization="ATHENA_MCP_SECRET_GH_0"}');
@@ -49,7 +60,9 @@ describe('codex args', () => {
   it('keeps a variable two servers want with different values on the command line for the second', () => {
     saveServer('one', { type: 'stdio', command: 'node', args: ['a.js'], env: { TOKEN_X: 'first' } });
     saveServer('two', { type: 'stdio', command: 'node', args: ['b.js'], env: { TOKEN_X: 'second' } });
-    const { args, env } = codexLaunch(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['one', 'two'] }), { version: '0.166.0' });
+    const { args, env } = codexLaunch(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['one', 'two'] }), {
+      version: '0.166.0',
+    });
     expect(env.TOKEN_X).toBe('first');
     expect(overrides(args)).toContain('mcp_servers.two.env={TOKEN_X="second"}');
   });
@@ -75,8 +88,16 @@ describe('turnActivity', () => {
       { type: 'user', text: 'new task', from: 'Brain' },
     ];
     expect(turnActivity(items)).toEqual({ task: 'new task', from: 'Brain', tool: null, saying: '' });
-    items.push({ type: 'tool', id: 't2', name: 'new_tool', args: { a: 1 }, status: 'running' }, { type: 'assistant', text: 'working on it' });
-    expect(turnActivity(items)).toEqual({ task: 'new task', from: 'Brain', tool: { name: 'new_tool', status: 'running', args: '{"a":1}' }, saying: 'working on it' });
+    items.push(
+      { type: 'tool', id: 't2', name: 'new_tool', args: { a: 1 }, status: 'running' },
+      { type: 'assistant', text: 'working on it' },
+    );
+    expect(turnActivity(items)).toEqual({
+      task: 'new task',
+      from: 'Brain',
+      tool: { name: 'new_tool', status: 'running', args: '{"a":1}' },
+      saying: 'working on it',
+    });
   });
 
   it('copes with a chat that has no user message', () => {
@@ -87,8 +108,14 @@ describe('turnActivity', () => {
 describe('codexWindow', () => {
   const now = Date.UTC(2026, 0, 1, 12);
   it('keeps a window that has not reset yet', () => {
-    expect(codexWindow({ used_percent: 41.6, resets_at: now / 1000 + 600 }, now - 1000, now)).toEqual({ percent: 42, resetsAt: now + 600_000 });
-    expect(codexWindow({ used_percent: 10, resets_in_seconds: 60 }, now - 30_000, now)).toEqual({ percent: 10, resetsAt: now + 30_000 });
+    expect(codexWindow({ used_percent: 41.6, resets_at: now / 1000 + 600 }, now - 1000, now)).toEqual({
+      percent: 42,
+      resetsAt: now + 600_000,
+    });
+    expect(codexWindow({ used_percent: 10, resets_in_seconds: 60 }, now - 30_000, now)).toEqual({
+      percent: 10,
+      resetsAt: now + 30_000,
+    });
     expect(codexWindow({ used_percent: 5 }, now, now)).toEqual({ percent: 5, resetsAt: null });
   });
 

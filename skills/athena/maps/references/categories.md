@@ -8,71 +8,71 @@ from taginfo.openstreetmap.org, checked in November 2026.
 `maps_tool.py categories` prints the same list as JSON, with a few spellings it also accepts (`gas_station`,
 `doctors`, `bookstore`, `pool`, `chemist`).
 
-| Category | Tags |
-|---|---|
-| `restaurant` | `amenity=restaurant` |
-| `fast_food` | `amenity=fast_food` |
-| `cafe` | `amenity=cafe` |
-| `bar` | `amenity=bar` |
-| `pub` | `amenity=pub` |
-| `bakery` | `shop=bakery` or `amenity=bakery` |
-| `ice_cream` | `amenity=ice_cream` or `shop=ice_cream` |
-| `supermarket` | `shop=supermarket` |
-| `convenience` | `shop=convenience` |
-| `marketplace` | `amenity=marketplace` |
-| `pharmacy` | `amenity=pharmacy` or `healthcare=pharmacy` |
-| `hospital` | `amenity=hospital` |
-| `clinic` | `amenity=clinic` |
-| `doctor` | `amenity=doctors` |
-| `dentist` | `amenity=dentist` |
-| `veterinary` | `amenity=veterinary` |
-| `atm` | `amenity=atm` |
-| `bank` | `amenity=bank` |
-| `bureau_de_change` | `amenity=bureau_de_change` |
-| `fuel` | `amenity=fuel` |
-| `charging_station` | `amenity=charging_station` |
-| `parking` | `amenity=parking` |
-| `bicycle_rental` | `amenity=bicycle_rental` |
-| `car_rental` | `amenity=car_rental` |
-| `taxi` | `amenity=taxi` |
-| `bus_stop` | `highway=bus_stop` |
-| `train_station` | `railway=station` |
-| `ferry_terminal` | `amenity=ferry_terminal` |
-| `airport` | `aeroway=aerodrome` |
-| `hotel` | `tourism=hotel` |
-| `hostel` | `tourism=hostel` |
-| `guest_house` | `tourism=guest_house` |
-| `camp_site` | `tourism=camp_site` |
-| `museum` | `tourism=museum` |
-| `attraction` | `tourism=attraction` |
-| `viewpoint` | `tourism=viewpoint` |
-| `zoo` | `tourism=zoo` |
-| `park` | `leisure=park` |
-| `playground` | `leisure=playground` |
-| `cinema` | `amenity=cinema` |
-| `theatre` | `amenity=theatre` |
-| `nightclub` | `amenity=nightclub` |
-| `gym` | `leisure=fitness_centre` |
-| `swimming` | `leisure=sports_centre` + `sport=swimming` or `leisure=swimming_pool` + `access=yes` or `leisure=swimming_pool` + `access=customers` |
-| `post_office` | `amenity=post_office` |
-| `post_box` | `amenity=post_box` |
-| `police` | `amenity=police` |
-| `fire_station` | `amenity=fire_station` |
-| `toilets` | `amenity=toilets` |
-| `drinking_water` | `amenity=drinking_water` |
-| `library` | `amenity=library` |
-| `laundry` | `shop=laundry` |
-| `hairdresser` | `shop=hairdresser` |
-| `bookshop` | `shop=books` |
-| `place_of_worship` | `amenity=place_of_worship` |
-| `church` | `amenity=place_of_worship` + `religion=christian` |
-| `mosque` | `amenity=place_of_worship` + `religion=muslim` |
-| `synagogue` | `amenity=place_of_worship` + `religion=jewish` |
-| `hindu_temple` | `amenity=place_of_worship` + `religion=hindu` |
-| `buddhist_temple` | `amenity=place_of_worship` + `religion=buddhist` |
-| `school` | `amenity=school` |
-| `university` | `amenity=university` |
-| `kindergarten` | `amenity=kindergarten` |
+| Category           | Tags                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `restaurant`       | `amenity=restaurant`                                                                                                                 |
+| `fast_food`        | `amenity=fast_food`                                                                                                                  |
+| `cafe`             | `amenity=cafe`                                                                                                                       |
+| `bar`              | `amenity=bar`                                                                                                                        |
+| `pub`              | `amenity=pub`                                                                                                                        |
+| `bakery`           | `shop=bakery` or `amenity=bakery`                                                                                                    |
+| `ice_cream`        | `amenity=ice_cream` or `shop=ice_cream`                                                                                              |
+| `supermarket`      | `shop=supermarket`                                                                                                                   |
+| `convenience`      | `shop=convenience`                                                                                                                   |
+| `marketplace`      | `amenity=marketplace`                                                                                                                |
+| `pharmacy`         | `amenity=pharmacy` or `healthcare=pharmacy`                                                                                          |
+| `hospital`         | `amenity=hospital`                                                                                                                   |
+| `clinic`           | `amenity=clinic`                                                                                                                     |
+| `doctor`           | `amenity=doctors`                                                                                                                    |
+| `dentist`          | `amenity=dentist`                                                                                                                    |
+| `veterinary`       | `amenity=veterinary`                                                                                                                 |
+| `atm`              | `amenity=atm`                                                                                                                        |
+| `bank`             | `amenity=bank`                                                                                                                       |
+| `bureau_de_change` | `amenity=bureau_de_change`                                                                                                           |
+| `fuel`             | `amenity=fuel`                                                                                                                       |
+| `charging_station` | `amenity=charging_station`                                                                                                           |
+| `parking`          | `amenity=parking`                                                                                                                    |
+| `bicycle_rental`   | `amenity=bicycle_rental`                                                                                                             |
+| `car_rental`       | `amenity=car_rental`                                                                                                                 |
+| `taxi`             | `amenity=taxi`                                                                                                                       |
+| `bus_stop`         | `highway=bus_stop`                                                                                                                   |
+| `train_station`    | `railway=station`                                                                                                                    |
+| `ferry_terminal`   | `amenity=ferry_terminal`                                                                                                             |
+| `airport`          | `aeroway=aerodrome`                                                                                                                  |
+| `hotel`            | `tourism=hotel`                                                                                                                      |
+| `hostel`           | `tourism=hostel`                                                                                                                     |
+| `guest_house`      | `tourism=guest_house`                                                                                                                |
+| `camp_site`        | `tourism=camp_site`                                                                                                                  |
+| `museum`           | `tourism=museum`                                                                                                                     |
+| `attraction`       | `tourism=attraction`                                                                                                                 |
+| `viewpoint`        | `tourism=viewpoint`                                                                                                                  |
+| `zoo`              | `tourism=zoo`                                                                                                                        |
+| `park`             | `leisure=park`                                                                                                                       |
+| `playground`       | `leisure=playground`                                                                                                                 |
+| `cinema`           | `amenity=cinema`                                                                                                                     |
+| `theatre`          | `amenity=theatre`                                                                                                                    |
+| `nightclub`        | `amenity=nightclub`                                                                                                                  |
+| `gym`              | `leisure=fitness_centre`                                                                                                             |
+| `swimming`         | `leisure=sports_centre` + `sport=swimming` or `leisure=swimming_pool` + `access=yes` or `leisure=swimming_pool` + `access=customers` |
+| `post_office`      | `amenity=post_office`                                                                                                                |
+| `post_box`         | `amenity=post_box`                                                                                                                   |
+| `police`           | `amenity=police`                                                                                                                     |
+| `fire_station`     | `amenity=fire_station`                                                                                                               |
+| `toilets`          | `amenity=toilets`                                                                                                                    |
+| `drinking_water`   | `amenity=drinking_water`                                                                                                             |
+| `library`          | `amenity=library`                                                                                                                    |
+| `laundry`          | `shop=laundry`                                                                                                                       |
+| `hairdresser`      | `shop=hairdresser`                                                                                                                   |
+| `bookshop`         | `shop=books`                                                                                                                         |
+| `place_of_worship` | `amenity=place_of_worship`                                                                                                           |
+| `church`           | `amenity=place_of_worship` + `religion=christian`                                                                                    |
+| `mosque`           | `amenity=place_of_worship` + `religion=muslim`                                                                                       |
+| `synagogue`        | `amenity=place_of_worship` + `religion=jewish`                                                                                       |
+| `hindu_temple`     | `amenity=place_of_worship` + `religion=hindu`                                                                                        |
+| `buddhist_temple`  | `amenity=place_of_worship` + `religion=buddhist`                                                                                     |
+| `school`           | `amenity=school`                                                                                                                     |
+| `university`       | `amenity=university`                                                                                                                 |
+| `kindergarten`     | `amenity=kindergarten`                                                                                                               |
 
 ## The odd ones
 
@@ -111,15 +111,15 @@ tag, which is more reliable where it's set.
 `--with key=value` keeps places that also have that tag; the value may be one of a list (`cuisine=italian` matches
 `italian;pizza`), any case. `--with key` keeps places that have the key at all. Repeat for more; all must match.
 
-| To find | Add |
-|---|---|
-| A kind of food | `--with cuisine=italian` (also `pizza`, `sushi`, `indian`, `chinese`, `burger`…) |
-| Vegan or vegetarian food | `--with diet:vegan=yes` (or `only`), `--with diet:vegetarian=yes` |
-| Step-free access | `--with wheelchair=yes` (`limited` means partly) |
-| Places that say when they open | `--with opening_hours` |
-| Free toilets, baby changing | `--with fee=no`, `--with changing_table=yes` |
+| To find                                      | Add                                                                                                            |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| A kind of food                               | `--with cuisine=italian` (also `pizza`, `sushi`, `indian`, `chinese`, `burger`…)                               |
+| Vegan or vegetarian food                     | `--with diet:vegan=yes` (or `only`), `--with diet:vegetarian=yes`                                              |
+| Step-free access                             | `--with wheelchair=yes` (`limited` means partly)                                                               |
+| Places that say when they open               | `--with opening_hours`                                                                                         |
+| Free toilets, baby changing                  | `--with fee=no`, `--with changing_table=yes`                                                                   |
 | Takeaway, drive-through, seats outside, wifi | `--with takeaway=yes`, `--with drive_through=yes`, `--with outdoor_seating=yes`, `--with internet_access=wlan` |
-| Prescriptions filled | `--with dispensing=yes` |
+| Prescriptions filled                         | `--with dispensing=yes`                                                                                        |
 
 A filter keeps only places where someone entered the tag, so it drops places that would qualify but aren't tagged.
 Say so when a filtered search comes back thin, and offer the unfiltered list.

@@ -1,7 +1,15 @@
 // The Brain chat: clearing it while an answer is on its way, and messages meant for another project.
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { activeProject, bus, listProjects, saveProjects, setActiveProject, withProject, workflows } from '../../server/store.ts';
+import {
+  activeProject,
+  bus,
+  listProjects,
+  saveProjects,
+  setActiveProject,
+  withProject,
+  workflows,
+} from '../../server/store.ts';
 import { ask, brainChatLine, clearHistory, history, steerAsks } from '../../server/overseer.ts';
 import type { ServerEvent } from '../../shared/types.ts';
 
@@ -60,7 +68,13 @@ describe('the Brain chat', () => {
     const saved = history(pid)[1];
     expect(saved.text).toBe('It says hello.');
     expect(saved.steps).toEqual([
-      { id: 't1', name: 'Read', input: { file_path: 'README.md' }, state: 'done', output: expect.stringMatching(/^x{2000}…$/) },
+      {
+        id: 't1',
+        name: 'Read',
+        input: { file_path: 'README.md' },
+        state: 'done',
+        output: expect.stringMatching(/^x{2000}…$/),
+      },
       // (no result came: not shown as still running)
       { id: 't2', name: 'Glob', input: { pattern: '*.md' }, state: 'error', output: '(no result)' },
     ]);
@@ -71,10 +85,16 @@ describe('the Brain chat', () => {
     const pid = activeProject().id;
     clearHistory(pid);
     const going = ask('get a review going');
-    await answerNext('On it.\n```actions\n[{"do":"create_team","name":"Review crew","members":[{"new":{"name":"Reviewer"}}]},{"do":"delegate","to":"team","id":"new","message":"Review the app."}]\n```');
+    await answerNext(
+      'On it.\n```actions\n[{"do":"create_team","name":"Review crew","members":[{"new":{"name":"Reviewer"}}]},{"do":"delegate","to":"team","id":"new","message":"Review the app."}]\n```',
+    );
     await going;
     const saved = history(pid)[1];
-    expect(saved.delegate).toMatchObject({ kind: 'branch', name: 'Review crew', sent: { messageId: expect.any(String), ts: expect.any(Number) } });
+    expect(saved.delegate).toMatchObject({
+      kind: 'branch',
+      name: 'Review crew',
+      sent: { messageId: expect.any(String), ts: expect.any(Number) },
+    });
     clearHistory(pid);
   });
 
@@ -89,7 +109,9 @@ describe('the Brain chat', () => {
     await until(() => pending.length > 0);
     clearHistory();
     expect(history(pid)).toEqual([]);
-    await answerNext('late-answer-sentinel\n```actions\n[{"do":"create_team","name":"Late team","members":[{"new":{"name":"Late"}}]}]\n```');
+    await answerNext(
+      'late-answer-sentinel\n```actions\n[{"do":"create_team","name":"Late team","members":[{"new":{"name":"Late"}}]}]\n```',
+    );
     const r = await late;
     expect(history(pid)).toEqual([]);
     expect(workflows.list().some((w) => w.name === 'Late team')).toBe(false);
@@ -103,12 +125,17 @@ describe('the Brain chat', () => {
     const cut = ask('make a design team');
     await until(() => pending.length > 0);
     steerAsks();
-    await answerNext('On it\n```actions\n[{"do":"create_team","name":"Cut team","members":[{"new":{"name":"Cut"}}]}]\n```');
+    await answerNext(
+      'On it\n```actions\n[{"do":"create_team","name":"Cut team","members":[{"new":{"name":"Cut"}}]}]\n```',
+    );
     const r = await cut;
     expect(workflows.list().some((w) => w.name === 'Cut team')).toBe(false);
     expect(r.done).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('stopped') })]);
     // (the next answer sees the question it cut off)
-    expect(history(pid).map((m) => m.text)).toEqual(['make a design team', '(stopped before answering: the user sent a new message)']);
+    expect(history(pid).map((m) => m.text)).toEqual([
+      'make a design team',
+      '(stopped before answering: the user sent a new message)',
+    ]);
   });
 
   it('a new message after the answer was too far along to stop: what it did stands, once, and the chat hears it', async () => {
@@ -120,7 +147,9 @@ describe('the Brain chat', () => {
     holdBriefs = true;
     try {
       const going = ask('build the launch team');
-      await answerNext('Done\n```actions\n[{"do":"create_team","name":"Launch crew","members":[{"new":{"name":"Launcher"}}]},{"do":"delegate","to":"team","id":"new","message":"Plan the launch."}]\n```');
+      await answerNext(
+        'Done\n```actions\n[{"do":"create_team","name":"Launch crew","members":[{"new":{"name":"Launcher"}}]},{"do":"delegate","to":"team","id":"new","message":"Plan the launch."}]\n```',
+      );
       // (handing the work on: past the point where it could be stopped)
       await until(() => briefs.length > 0);
       steerAsks();
@@ -135,8 +164,15 @@ describe('the Brain chat', () => {
       expect(saved.text).toBe('Done');
       expect(saved.done?.map((d) => d.kind)).toEqual(['hired', 'team']);
       expect(saved.delegate).toMatchObject({ kind: 'branch', name: 'Launch crew', message: 'Plan the launch.' });
-      expect(brainChatLine(saved)).toMatch(/^Done\n\(Created a new agent: .*Launcher\)\n\(Built the team "Launch crew".*\)\n\(handed to Launch crew: Plan the launch\.\)$/);
-      expect(late).toEqual([expect.objectContaining({ projectId: pid, answer: expect.objectContaining({ delegate: expect.objectContaining({ name: 'Launch crew' }) }) })]);
+      expect(brainChatLine(saved)).toMatch(
+        /^Done\n\(Created a new agent: .*Launcher\)\n\(Built the team "Launch crew".*\)\n\(handed to Launch crew: Plan the launch\.\)$/,
+      );
+      expect(late).toEqual([
+        expect.objectContaining({
+          projectId: pid,
+          answer: expect.objectContaining({ delegate: expect.objectContaining({ name: 'Launch crew' }) }),
+        }),
+      ]);
     } finally {
       holdBriefs = false;
       bus.off('event', hear);
@@ -169,9 +205,15 @@ describe('the Brain chat', () => {
 
   it('refuses a message typed in another project, before asking the model', async () => {
     const home = activeProject();
-    saveProjects([...listProjects(), { ...home, id: 'elsewhere', name: 'Elsewhere', brainPath: path.join(path.dirname(home.brainPath), 'elsewhere') }]);
+    saveProjects([
+      ...listProjects(),
+      { ...home, id: 'elsewhere', name: 'Elsewhere', brainPath: path.join(path.dirname(home.brainPath), 'elsewhere') },
+    ]);
     clearHistory();
-    await expect(ask('meant for elsewhere', { project: 'elsewhere' })).rejects.toMatchObject({ status: 409, message: expect.stringContaining('Elsewhere') });
+    await expect(ask('meant for elsewhere', { project: 'elsewhere' })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining('Elsewhere'),
+    });
     expect(pending).toEqual([]);
     expect(history(home.id)).toEqual([]);
     // the project it is open in is fine
@@ -182,33 +224,49 @@ describe('the Brain chat', () => {
 
   it('changes nothing when you switched away and back while it thought', async () => {
     const home = activeProject();
-    if (!listProjects().some((x) => x.id === 'away')) saveProjects([...listProjects(), { ...home, id: 'away', name: 'Away', brainPath: path.join(path.dirname(home.brainPath), 'away') }]);
+    if (!listProjects().some((x) => x.id === 'away'))
+      saveProjects([
+        ...listProjects(),
+        { ...home, id: 'away', name: 'Away', brainPath: path.join(path.dirname(home.brainPath), 'away') },
+      ]);
     const r = ask('build a team');
     await until(() => pending.length > 0);
     setActiveProject('away');
     setActiveProject(home.id);
-    await answerNext('On it.\n```actions\n[{"do":"create_team","name":"Round trip team","members":[{"new":{"name":"Rounder"}}]}]\n```');
+    await answerNext(
+      'On it.\n```actions\n[{"do":"create_team","name":"Round trip team","members":[{"new":{"name":"Rounder"}}]}]\n```',
+    );
     const out = await r;
-    expect(out.done).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('switched projects') })]);
+    expect(out.done).toEqual([
+      expect.objectContaining({ kind: 'error', text: expect.stringContaining('switched projects') }),
+    ]);
     expect(workflows.list().some((w) => w.name === 'Round trip team')).toBe(false);
     // re-opening the project you're already in is not a switch
     setActiveProject(home.id);
     const again = ask('build it now');
     await until(() => pending.length > 0);
     setActiveProject(home.id);
-    await answerNext('Done.\n```actions\n[{"do":"create_team","name":"Stayed team","members":[{"new":{"name":"Stayer"}}]}]\n```');
+    await answerNext(
+      'Done.\n```actions\n[{"do":"create_team","name":"Stayed team","members":[{"new":{"name":"Stayer"}}]}]\n```',
+    );
     expect((await again).done.map((d) => d.kind)).toEqual(['hired', 'team']);
   });
-  it('does what another project\'s Brain says, asked in its pane (that project named, another one open)', async () => {
+  it("does what another project's Brain says, asked in its pane (that project named, another one open)", async () => {
     const home = activeProject();
-    if (!listProjects().some((x) => x.id === 'pane')) saveProjects([...listProjects(), { ...home, id: 'pane', name: 'Pane', brainPath: path.join(path.dirname(home.brainPath), 'pane') }]);
+    if (!listProjects().some((x) => x.id === 'pane'))
+      saveProjects([
+        ...listProjects(),
+        { ...home, id: 'pane', name: 'Pane', brainPath: path.join(path.dirname(home.brainPath), 'pane') },
+      ]);
     const pane = listProjects().find((x) => x.id === 'pane')!;
     // (as the route /api/p/pane/brain/stream runs it)
     const r = withProject(pane, () => ask('build a team there', { project: 'pane' }));
     await until(() => pending.length > 0);
     // opening another project meanwhile doesn't matter: the request named its own
     setActiveProject(home.id);
-    await answerNext('On it.\n```actions\n[{"do":"create_team","name":"Pane team","members":[{"new":{"name":"Paner"}}]}]\n```');
+    await answerNext(
+      'On it.\n```actions\n[{"do":"create_team","name":"Pane team","members":[{"new":{"name":"Paner"}}]}]\n```',
+    );
     expect((await r).done.map((d) => d.kind)).toEqual(['hired', 'team']);
     expect(withProject(pane, () => workflows.list().some((w) => w.name === 'Pane team'))).toBe(true);
     expect(workflows.list().some((w) => w.name === 'Pane team')).toBe(false);

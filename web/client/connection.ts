@@ -46,7 +46,8 @@ export function serverUrl(path: string, query?: Query): string {
 
 /** The path prefix for a project that isn't open: '/p/<project>' ('' for none). The server runs a request sent there
  *  in that project (an Overview pane of another project's chat, terminal or Brain). */
-export const projectAt = (projectId?: string | null): string => (projectId ? `/p/${encodeURIComponent(projectId)}` : '');
+export const projectAt = (projectId?: string | null): string =>
+  projectId ? `/p/${encodeURIComponent(projectId)}` : '';
 
 /** An API address: apiUrl('/agents') is '/api/agents'. */
 export const apiUrl = (path: string, query?: Query): string => serverUrl(`/api${path}`, query);
@@ -57,8 +58,13 @@ let folders: { id: string; folder: string }[] = [];
 let openProjectId = '';
 const folderOf = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 /** The page's projects and which one is open (core.ts keeps this current). */
-export function setProjectFolders(list: readonly { id: string; brainPath?: string }[], open: string | null | undefined): void {
-  folders = list.flatMap((p) => (p.brainPath ? [{ id: p.id, folder: folderOf(p.brainPath) }] : [])).sort((a, b) => b.folder.length - a.folder.length);
+export function setProjectFolders(
+  list: readonly { id: string; brainPath?: string }[],
+  open: string | null | undefined,
+): void {
+  folders = list
+    .flatMap((p) => (p.brainPath ? [{ id: p.id, folder: folderOf(p.brainPath) }] : []))
+    .sort((a, b) => b.folder.length - a.folder.length);
   openProjectId = open || '';
 }
 /** '/p/<project>' for a file inside a project that isn't open (the longest folder that holds it), else ''.
@@ -74,7 +80,8 @@ export function filesAt(path: string, project?: string): string {
 /** A file the server hands out (attachments, images, artifacts), for src and href. project: as for filesAt. */
 export const fileUrl = (path: string, project?: string): string => apiUrl(`${filesAt(path, project)}/file`, { path });
 /** A PDF to read in a browser tab (fileUrl downloads it). */
-export const pdfViewUrl = (path: string, project?: string): string => apiUrl(`${filesAt(path, project)}/file`, { path, view: 1 });
+export const pdfViewUrl = (path: string, project?: string): string =>
+  apiUrl(`${filesAt(path, project)}/file`, { path, view: 1 });
 /** An address the server wrote into a tool result ('/api/file?path=…': a tool's image), for a chat of a project that
  *  may not be open: there it is that project's. */
 export function fileSrc(src: string, project?: string): string {

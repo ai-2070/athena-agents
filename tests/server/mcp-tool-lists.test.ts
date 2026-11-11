@@ -38,7 +38,13 @@ describe('MCP tool lists', () => {
   });
 
   it('a saved change to the server starts a new connection with a fresh list', async () => {
-    mcp.saveServer('lists', { type: 'stdio', command: process.execPath, args: [fixture], enabled: true, env: { CHANGED: '1' } });
+    mcp.saveServer('lists', {
+      type: 'stdio',
+      command: process.execPath,
+      args: [fixture],
+      enabled: true,
+      env: { CHANGED: '1' },
+    });
     expect((await mcp.listTools('lists')).map((t) => t.name)).toEqual(['asked', 'grow']);
     expect(await asked()).toBe(1);
   });

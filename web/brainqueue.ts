@@ -16,7 +16,9 @@ export interface BrainQueue<T, X = undefined> {
   reset(): void;
 }
 
-export function brainQueue<T, X = undefined>(post: (text: string, project: string | null, extra?: X) => Promise<T>): BrainQueue<T, X> {
+export function brainQueue<T, X = undefined>(
+  post: (text: string, project: string | null, extra?: X) => Promise<T>,
+): BrainQueue<T, X> {
   let turn: Promise<unknown> = Promise.resolve();
   let conversation = 0;
   return {
@@ -80,7 +82,15 @@ export interface HoldQueue<X> {
 
 /** idle: nothing in the chat is working. send: sends one, resolving once it is on its way (it may
  *  then keep the chat busy by itself). onChange: the waiting list changed. */
-export function holdQueue<X>({ idle, send, onChange }: { idle: () => boolean; send: (m: Held<X>) => Promise<unknown>; onChange: () => void }): HoldQueue<X> {
+export function holdQueue<X>({
+  idle,
+  send,
+  onChange,
+}: {
+  idle: () => boolean;
+  send: (m: Held<X>) => Promise<unknown>;
+  onChange: () => void;
+}): HoldQueue<X> {
   let items: Held<X>[] = [];
   let sending = false;
   let n = 0;
@@ -154,10 +164,21 @@ export interface ChatLoop<X> {
 }
 
 /** send: sends one, resolving once it is on its way. onEnd: the loop finished all its sends. */
-export function chatLoop<X>({ idle, send, onChange, onEnd }: { idle: () => boolean; send: (text: string, extra: X) => Promise<unknown>; onChange: () => void; onEnd: (l: LoopState) => void }): ChatLoop<X> {
+export function chatLoop<X>({
+  idle,
+  send,
+  onChange,
+  onEnd,
+}: {
+  idle: () => boolean;
+  send: (text: string, extra: X) => Promise<unknown>;
+  onChange: () => void;
+  onEnd: (l: LoopState) => void;
+}): ChatLoop<X> {
   type Going = LoopState & { extra: X; due: boolean; sending: boolean; timer: ReturnType<typeof setTimeout> | null };
   let l: Going | null = null;
-  const info = (): LoopState | null => (l ? { text: l.text, every: l.every, times: l.times, done: l.done, next: l.next } : null);
+  const info = (): LoopState | null =>
+    l ? { text: l.text, every: l.every, times: l.times, done: l.done, next: l.next } : null;
   const stop = () => {
     if (!l) return false;
     if (l.timer) clearTimeout(l.timer);

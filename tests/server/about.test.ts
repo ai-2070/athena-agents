@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { aboutInfo, resetAboutCache } from '../../server/about.ts';
 import { REPO } from '../../shared/about.ts';
 
-const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')) as { version: string; license: string };
+const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')) as {
+  version: string;
+  license: string;
+};
 const github = vi.fn();
 
 beforeEach(() => {
@@ -16,9 +19,16 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('about', () => {
-  it("gives the version and licence from package.json and the repo, without asking GitHub", async () => {
+  it('gives the version and licence from package.json and the repo, without asking GitHub', async () => {
     const a = await aboutInfo();
-    expect(a).toEqual({ name: 'Athena Agents', version: pkg.version, repo: REPO.slug, url: REPO.url, license: pkg.license, stars: null });
+    expect(a).toEqual({
+      name: 'Athena Agents',
+      version: pkg.version,
+      repo: REPO.slug,
+      url: REPO.url,
+      license: pkg.license,
+      stars: null,
+    });
     expect(github).not.toHaveBeenCalled();
   });
 

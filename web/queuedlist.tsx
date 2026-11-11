@@ -8,12 +8,18 @@ import type { QueuedMessage } from '../shared/types.ts';
 // (a drag inside the list: its own type, so the message box and the file drop zones ignore it)
 const DRAG_TYPE = 'application/x-queued-message';
 // a line where the dragged message will land
-const DROP_ABOVE = 'relative before:absolute before:-top-0.5 before:right-2 before:left-2 before:h-0.5 before:rounded-[1px] before:bg-accent';
-const DROP_BELOW = 'relative after:absolute after:right-2 after:-bottom-0.5 after:left-2 after:h-0.5 after:rounded-[1px] after:bg-accent';
+const DROP_ABOVE =
+  'relative before:absolute before:-top-0.5 before:right-2 before:left-2 before:h-0.5 before:rounded-[1px] before:bg-accent';
+const DROP_BELOW =
+  'relative after:absolute after:right-2 after:-bottom-0.5 after:left-2 after:h-0.5 after:rounded-[1px] after:bg-accent';
 
 /** A change to a queued message that couldn't be kept (it was sent meanwhile): into the message box
  *  (restore puts it there), if that is empty. */
-export function keepLostEdit(text: string, box: HTMLTextAreaElement | null | undefined, restore: (text: string) => void): void {
+export function keepLostEdit(
+  text: string,
+  box: HTMLTextAreaElement | null | undefined,
+  restore: (text: string) => void,
+): void {
   if (!text || box?.value.trim()) return;
   restore(text);
   toast('That message was already sent. Your change is in the box.');
@@ -43,7 +49,19 @@ export interface QueuedListProps {
   hint?: (q: QueuedMessage) => string | null;
 }
 
-export function QueuedList({ items, head, compact = false, editing, onEditing, onSave, onRemove, onOrder, onLeave, onLost, hint }: QueuedListProps) {
+export function QueuedList({
+  items,
+  head,
+  compact = false,
+  editing,
+  onEditing,
+  onSave,
+  onRemove,
+  onOrder,
+  onLeave,
+  onLost,
+  hint,
+}: QueuedListProps) {
   const root = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | null>(null);
   // (taken back with × while being changed: what was typed goes with it)
@@ -59,12 +77,17 @@ export function QueuedList({ items, head, compact = false, editing, onEditing, o
     if (next.join() !== ids.join()) onOrder(next);
   };
   // (moved with the keyboard: the row is redrawn in its new place, keep the focus on it)
-  const focusLater = (id: string) => setTimeout(() => root.current?.querySelector<HTMLElement>(`[data-qid="${CSS.escape(id)}"] .queued-text`)?.focus(), 0);
+  const focusLater = (id: string) =>
+    setTimeout(
+      () => root.current?.querySelector<HTMLElement>(`[data-qid="${CSS.escape(id)}"] .queued-text`)?.focus(),
+      0,
+    );
 
   const finish = (q: QueuedMessage, text: string | null, then: Then) => {
     if (text != null) {
       const next = text.trim();
-      if (!next && !q.attachments?.length) toast('A queued message needs some words. Take it off the list with × instead.');
+      if (!next && !q.attachments?.length)
+        toast('A queued message needs some words. Take it off the list with × instead.');
       else if (next !== q.text) onSave(q, next);
     }
     const i = ids.indexOf(q.id);
@@ -133,12 +156,20 @@ export function QueuedList({ items, head, compact = false, editing, onEditing, o
             ) : null}
             <Icon name="clock" size={12} />
             {open ? (
-              <QueuedEditor key={q.id} q={q} hasPrev={i > 0} onFinish={(text, then) => finish(q, text, then)} onLost={(text) => removing.current !== q.id && onLost?.(q, text)} />
+              <QueuedEditor
+                key={q.id}
+                q={q}
+                hasPrev={i > 0}
+                onFinish={(text, then) => finish(q, text, then)}
+                onLost={(text) => removing.current !== q.id && onLost?.(q, text)}
+              />
             ) : (
               <button
                 type="button"
                 className="queued-text cursor-text border-0 bg-transparent p-0 text-left text-inherit hover:text-ink focus-visible:text-ink"
-                title={many ? 'Click to change it. Drag to change the order (or Alt+Up / Alt+Down).' : 'Click to change it'}
+                title={
+                  many ? 'Click to change it. Drag to change the order (or Alt+Up / Alt+Down).' : 'Click to change it'
+                }
                 onClick={() => onEditing(q.id)}
                 onKeyDown={(e) => {
                   if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
@@ -154,7 +185,14 @@ export function QueuedList({ items, head, compact = false, editing, onEditing, o
               </button>
             )}
             {hint?.(q) ? <span className="hint">{hint(q)}</span> : null}
-            <button type="button" className="tc-act" title="Don't send this" aria-label="Don't send this" onMouseDown={(e) => open && e.preventDefault()} onClick={() => ((removing.current = q.id), onRemove(q))}>
+            <button
+              type="button"
+              className="tc-act"
+              title="Don't send this"
+              aria-label="Don't send this"
+              onMouseDown={(e) => open && e.preventDefault()}
+              onClick={() => ((removing.current = q.id), onRemove(q))}
+            >
               <Icon name="x" size={12} />
             </button>
           </div>
@@ -166,7 +204,17 @@ export function QueuedList({ items, head, compact = false, editing, onEditing, o
 
 // The box a queued message turns into while you change it. Enter keeps the change, Esc drops it, clicking
 // away keeps it; Up at its start and Down at its end go on to the one above or below.
-function QueuedEditor({ q, hasPrev, onFinish, onLost }: { q: QueuedMessage; hasPrev: boolean; onFinish: (text: string | null, then: Then) => void; onLost: (text: string) => void }) {
+function QueuedEditor({
+  q,
+  hasPrev,
+  onFinish,
+  onLost,
+}: {
+  q: QueuedMessage;
+  hasPrev: boolean;
+  onFinish: (text: string | null, then: Then) => void;
+  onLost: (text: string) => void;
+}) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const done = useRef(false);
   const lost = useRef(onLost);

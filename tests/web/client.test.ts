@@ -1,14 +1,26 @@
 // The page's one way to the server: addresses, headers, errors, uploads and sockets.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiUrl, fileUrl, requestHeaders, serverUrl, setConnection, setPageProject, socketUrl } from '../../web/client/connection.ts';
+import {
+  apiUrl,
+  fileUrl,
+  requestHeaders,
+  serverUrl,
+  setConnection,
+  setPageProject,
+  socketUrl,
+} from '../../web/client/connection.ts';
 import { api, fetchFile, upload } from '../../web/client/http.ts';
 
 type Call = { url: string; init: RequestInit };
 let calls: Call[] = [];
-const answer = (body: unknown, status = 200) => vi.fn(async (url: string, init: RequestInit = {}) => {
-  calls.push({ url, init });
-  return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, statusText: status === 200 ? 'OK' : 'Nope' });
-});
+const answer = (body: unknown, status = 200) =>
+  vi.fn(async (url: string, init: RequestInit = {}) => {
+    calls.push({ url, init });
+    return new Response(typeof body === 'string' ? body : JSON.stringify(body), {
+      status,
+      statusText: status === 200 ? 'OK' : 'Nope',
+    });
+  });
 const headersOf = (c: Call) => Object.fromEntries(new Headers(c.init.headers).entries());
 
 beforeEach(() => {
@@ -31,14 +43,16 @@ describe("the page's project", () => {
 });
 
 describe('addresses', () => {
-  it('are on the page\'s own server by default', () => {
+  it("are on the page's own server by default", () => {
     expect(apiUrl('/agents')).toBe('/api/agents');
     expect(serverUrl('/oauth/x/start')).toBe('/oauth/x/start');
   });
 
   it('encode a query the way the server and readers expect (a space is %20), leaving out null', () => {
     expect(fileUrl('C:\\My files\\a b.png')).toBe('/api/file?path=C%3A%5CMy%20files%5Ca%20b.png');
-    expect(apiUrl('/backups/restore', { name: 'x&y', folder: null, file: undefined, v: 3 })).toBe('/api/backups/restore?name=x%26y&v=3');
+    expect(apiUrl('/backups/restore', { name: 'x&y', folder: null, file: undefined, v: 3 })).toBe(
+      '/api/backups/restore?name=x%26y&v=3',
+    );
     expect(apiUrl('/search?q=1', { page: 2 })).toBe('/api/search?q=1&page=2');
   });
 
@@ -161,10 +175,18 @@ describe('upload()', () => {
   });
 });
 
-describe('files of a project that isn\'t open', () => {
+describe("files of a project that isn't open", () => {
   it('are shown and looked up through that project, picked by the folder that holds them', async () => {
     const { setProjectFolders, filesAt, fileUrl, pdfViewUrl } = await import('../../web/client/connection.ts');
-    setProjectFolders([{ id: 'p1', brainPath: '/work/bakery' }, { id: 'p2', brainPath: '/work/bakery-2/' }, { id: 'p3', brainPath: 'C:\\Projects\\Pod' }, { id: 'p4' }], 'p1');
+    setProjectFolders(
+      [
+        { id: 'p1', brainPath: '/work/bakery' },
+        { id: 'p2', brainPath: '/work/bakery-2/' },
+        { id: 'p3', brainPath: 'C:\\Projects\\Pod' },
+        { id: 'p4' },
+      ],
+      'p1',
+    );
     try {
       expect(filesAt('/work/bakery/notes/a.md')).toBe('');
       expect(filesAt('/work/bakery-2/notes/a.md')).toBe('/p/p2');
@@ -180,7 +202,13 @@ describe('files of a project that isn\'t open', () => {
 
   it('outside every project folder, are looked up in the project whose chat shows them', async () => {
     const { setProjectFolders, filesAt, fileUrl, fileSrc } = await import('../../web/client/connection.ts');
-    setProjectFolders([{ id: 'p1', brainPath: '/work/bakery' }, { id: 'p2', brainPath: '/work/pod' }], 'p1');
+    setProjectFolders(
+      [
+        { id: 'p1', brainPath: '/work/bakery' },
+        { id: 'p2', brainPath: '/work/pod' },
+      ],
+      'p1',
+    );
     try {
       // an agent's own workspace, in a pane of p2
       expect(filesAt('/ws/painter/out.png', 'p2')).toBe('/p/p2');
@@ -191,7 +219,9 @@ describe('files of a project that isn\'t open', () => {
       expect(filesAt('/ws/painter/out.png')).toBe('');
       // a tool's image, saved by the server in p2's data folder and linked as /api/file
       const src = `/api/file?path=${encodeURIComponent('/data/projects/p2/tool-images/a/c/x.png')}`;
-      expect(fileSrc(src, 'p2')).toBe(`/api/p/p2/file?path=${encodeURIComponent('/data/projects/p2/tool-images/a/c/x.png')}`);
+      expect(fileSrc(src, 'p2')).toBe(
+        `/api/p/p2/file?path=${encodeURIComponent('/data/projects/p2/tool-images/a/c/x.png')}`,
+      );
       expect(fileSrc(src)).toBe(src);
       expect(fileSrc('data:image/png;base64,AAAA', 'p2')).toBe('data:image/png;base64,AAAA');
     } finally {

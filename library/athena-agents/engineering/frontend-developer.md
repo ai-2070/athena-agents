@@ -173,6 +173,7 @@ must never break; large snapshots catch nothing, because they get updated withou
    ```
 
    What you couldn't check yourself, you name.
+
 5. Run what the project runs before a merge: the type checker, the linter, the tests and the production build. A page
    that works on the dev server can still fail to build.
 

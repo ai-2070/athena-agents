@@ -25,13 +25,18 @@ function rootMakers(text: string): number[] {
   // createRoot(…), ReactDOM.createRoot(…), hydrateRoot(…)
   for (const m of src.matchAll(/\b(?:createRoot|hydrateRoot)\s*\(/g)) at(m.index);
   // any import of react-dom/client but a type-only one (the braces may span lines), and import('react-dom/client')
-  for (const m of src.matchAll(/\bimport\s+(?!type\b)[^;]*?\bfrom\s*['"]react-dom\/client['"]|\bimport\s*\(\s*['"]react-dom\/client['"]/g)) at(m.index);
+  for (const m of src.matchAll(
+    /\bimport\s+(?!type\b)[^;]*?\bfrom\s*['"]react-dom\/client['"]|\bimport\s*\(\s*['"]react-dom\/client['"]/g,
+  ))
+    at(m.index);
   return [...new Set(lines)].sort((a, b) => a - b);
 }
 
 describe('React roots in the page', () => {
   it('are all made by createAppRoot', () => {
-    const found = sources(WEB).flatMap((file) => rootMakers(fs.readFileSync(file, 'utf8')).map((line) => `${path.relative(WEB, file)}:${line}`));
+    const found = sources(WEB).flatMap((file) =>
+      rootMakers(fs.readFileSync(file, 'utf8')).map((line) => `${path.relative(WEB, file)}:${line}`),
+    );
     expect(found).toEqual([]);
   });
 
@@ -40,7 +45,11 @@ describe('React roots in the page', () => {
     expect(rootMakers("import * as ReactDOM from 'react-dom/client';\nReactDOM.createRoot(el);")).toEqual([1, 2]);
     expect(rootMakers("import {\n  hydrateRoot,\n} from 'react-dom/client';")).toEqual([1]);
     expect(rootMakers("const m = await import('react-dom/client');")).toEqual([1]);
-    expect(rootMakers("import type { Root } from 'react-dom/client';\n// createRoot(el) is not used here\n/* nor\n hydrateRoot( */")).toEqual([]);
-    expect(rootMakers("const root = createAppRoot(el);")).toEqual([]);
+    expect(
+      rootMakers(
+        "import type { Root } from 'react-dom/client';\n// createRoot(el) is not used here\n/* nor\n hydrateRoot( */",
+      ),
+    ).toEqual([]);
+    expect(rootMakers('const root = createAppRoot(el);')).toEqual([]);
   });
 });

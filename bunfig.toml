@@ -1,0 +1,21 @@
+[fmt]
+printWidth = 120
+singleQuote = true
+# Keep what the checkout has: Windows checkouts (CI too) may use CRLF outside skills/.
+endOfLine = "auto"
+ignorePatterns = [
+  # Skills copied unchanged from GitHub: each folder's README.md says from where.
+  "skills/storytold/",
+  "skills/oomol/",
+  "skills/composio/",
+  "skills/orca/",
+  "skills/cua/",
+  "skills/claude-motion/",
+  "skills/anatomy/",
+  "skills/higgsfield/",
+  "skills/subagent-skills/",
+  # Recorded answers the skill scripts' tests replay byte for byte.
+  "tests/skills/",
+  # Written by scripts/build-icons.ts.
+  "web/icons.ts",
+]

@@ -2,7 +2,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { activeProject, agents, chats } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
 import { admitExecution, readExecution, updateExecution } from '../../server/execution.ts';
-import { attachSession, beginRun, bindSession, conversationBinding, invalidateConversation, readBinding, readRun, sessionContext, setRunStatus, settleRun } from '../../server/eve/state.ts';
+import {
+  attachSession,
+  beginRun,
+  bindSession,
+  conversationBinding,
+  invalidateConversation,
+  readBinding,
+  readRun,
+  sessionContext,
+  setRunStatus,
+  settleRun,
+} from '../../server/eve/state.ts';
 import { prepareEveRecovery, retireEveBindings } from '../../server/eve/recovery.ts';
 import { privateDataPath } from '../../server/private.ts';
 import { writeJSON } from '../../server/util.ts';
@@ -14,7 +25,22 @@ function fixture(id: string, parent?: ExecutionRun) {
   const chat = chats.create(agent.id);
   const binding = bindSession(agent, chat, project, 'lifecycle');
   attachSession(binding.id, `session-${id}`);
-  const run: ExecutionRun = { id, projectId: project.id, agentId: agent.id, chatId: chat.id, engine: 'eve', parentRunId: parent?.id || null, ownerAgentId: parent?.ownerAgentId || agent.id, ownerChatId: parent?.ownerChatId || chat.id, depth: parent ? parent.depth + 1 : 0, text: 'Work', from: null, attachments: [], startedAt: Date.now(), status: 'running' };
+  const run: ExecutionRun = {
+    id,
+    projectId: project.id,
+    agentId: agent.id,
+    chatId: chat.id,
+    engine: 'eve',
+    parentRunId: parent?.id || null,
+    ownerAgentId: parent?.ownerAgentId || agent.id,
+    ownerChatId: parent?.ownerChatId || chat.id,
+    depth: parent ? parent.depth + 1 : 0,
+    text: 'Work',
+    from: null,
+    attachments: [],
+    startedAt: Date.now(),
+    status: 'running',
+  };
   admitExecution(run);
   beginRun(id, binding.id, run.depth, run.parentRunId);
   setRunStatus(id, 'running', 'delivery');
@@ -36,7 +62,9 @@ describe('native session retirement', () => {
       expect(fetch).toHaveBeenCalledTimes(1);
       expect(String(fetch.mock.calls[0][0])).toContain(`/session/session-${f.run.id}/end`);
       expect(readBinding(f.binding.id)?.runtimeEnded).toBe(true);
-    } finally { fetch.mockRestore(); }
+    } finally {
+      fetch.mockRestore();
+    }
   });
 
   it('retires deleted owners and changed engines before the worker starts', () => {
@@ -53,10 +81,16 @@ describe('native session retirement', () => {
 
   it('interrupts incompatible native state without migrating or resending it', () => {
     const f = fixture('old-runtime');
-    writeJSON(privateDataPath('runtime', 'eve', 'bindings', `${f.binding.id}.json`), { ...readBinding(f.binding.id)!, runtimeVersion: 'older-build' });
+    writeJSON(privateDataPath('runtime', 'eve', 'bindings', `${f.binding.id}.json`), {
+      ...readBinding(f.binding.id)!,
+      runtimeVersion: 'older-build',
+    });
     expect(() => sessionContext(f.binding.id)).toThrow('updated');
     prepareEveRecovery();
-    expect(readRun(f.run.id)).toMatchObject({ status: 'interrupted', error: expect.stringContaining('Check its results') });
+    expect(readRun(f.run.id)).toMatchObject({
+      status: 'interrupted',
+      error: expect.stringContaining('Check its results'),
+    });
     expect(readBinding(f.binding.id)?.retired).toBe(true);
   });
 });

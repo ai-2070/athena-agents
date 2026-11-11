@@ -61,7 +61,11 @@ export function volumeBounds(v: Volume): { min: Vec3i; max: Vec3i } | null {
     const [cx, cy, cz] = parseChunkKey(k);
     for (let i = 0; i < c.length; i++) {
       if (!c[i]) continue;
-      const p: Vec3i = [cx * CHUNK + (i % CHUNK), cy * CHUNK + Math.floor(i / (CHUNK * CHUNK)), cz * CHUNK + (Math.floor(i / CHUNK) % CHUNK)];
+      const p: Vec3i = [
+        cx * CHUNK + (i % CHUNK),
+        cy * CHUNK + Math.floor(i / (CHUNK * CHUNK)),
+        cz * CHUNK + (Math.floor(i / CHUNK) % CHUNK),
+      ];
       for (let a = 0; a < 3; a++) {
         if (p[a] < min[a]) min[a] = p[a];
         if (p[a] > max[a]) max[a] = p[a];
@@ -79,7 +83,11 @@ export function toBase64(bytes: Uint8Array): string {
   let out = '';
   for (let i = 0; i < bytes.length; i += 3) {
     const n = (bytes[i] << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
-    out += B64[(n >> 18) & 63] + B64[(n >> 12) & 63] + (i + 1 < bytes.length ? B64[(n >> 6) & 63] : '=') + (i + 2 < bytes.length ? B64[n & 63] : '=');
+    out +=
+      B64[(n >> 18) & 63] +
+      B64[(n >> 12) & 63] +
+      (i + 1 < bytes.length ? B64[(n >> 6) & 63] : '=') +
+      (i + 2 < bytes.length ? B64[n & 63] : '=');
   }
   return out;
 }
@@ -104,7 +112,7 @@ export function fromBase64(text: string): Uint8Array {
 /** A chunk as text: pairs of (run length 1..255, value), base64. A whole empty or solid chunk is 48 characters. */
 export function encodeChunk(c: Uint8Array): string {
   const pairs: number[] = [];
-  for (let i = 0; i < c.length; ) {
+  for (let i = 0; i < c.length;) {
     const v = c[i];
     let run = 1;
     while (run < 255 && i + run < c.length && c[i + run] === v) run++;
@@ -131,7 +139,11 @@ export function decodeChunk(text: string): Uint8Array {
 // ---------- shading ----------
 /** A repeatable number in [0, 1) for a voxel position (and a seed). */
 export function hash3(x: number, y: number, z: number, seed = 0): number {
-  let h = Math.imul(x | 0, 0x8da6b343) ^ Math.imul(y | 0, 0xd8163841) ^ Math.imul(z | 0, 0xcb1ab31f) ^ Math.imul(seed | 0, 0x9e3779b1);
+  let h =
+    Math.imul(x | 0, 0x8da6b343) ^
+    Math.imul(y | 0, 0xd8163841) ^
+    Math.imul(z | 0, 0xcb1ab31f) ^
+    Math.imul(seed | 0, 0x9e3779b1);
   h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
   h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
   h ^= h >>> 15;
@@ -150,20 +162,30 @@ export interface MaterialShades {
   shades: Vec3i[];
   jitter: number;
 }
-export const materialShades = (m: VoxelMaterial): MaterialShades => ({ shades: [m.color, ...(m.ramp || [])].map(hexRgb), jitter: Math.max(0, Math.min(0.3, m.jitter ?? 0.06)) });
+export const materialShades = (m: VoxelMaterial): MaterialShades => ({
+  shades: [m.color, ...(m.ramp || [])].map(hexRgb),
+  jitter: Math.max(0, Math.min(0.3, m.jitter ?? 0.06)),
+});
 
 /** The color of the voxel at (x, y, z), 0..255 each: one of the material's shades, a little lighter or darker. */
 export function voxelShade(s: MaterialShades, x: number, y: number, z: number, seed = 0): Vec3i {
   const pick = s.shades.length > 1 ? s.shades[Math.floor(hash3(x, y, z, seed + 1) * s.shades.length)] : s.shades[0];
   const k = 1 + (hash3(x, y, z, seed) * 2 - 1) * s.jitter;
-  return [Math.min(255, Math.round(pick[0] * k)), Math.min(255, Math.round(pick[1] * k)), Math.min(255, Math.round(pick[2] * k))];
+  return [
+    Math.min(255, Math.round(pick[0] * k)),
+    Math.min(255, Math.round(pick[1] * k)),
+    Math.min(255, Math.round(pick[2] * k)),
+  ];
 }
 
 /**
  * A copy's own material swaps with its parent's applied after them: the child's "shirt" → "red", then the
  * parent's "red" → "blue" (the same as web/voxel/instances.ts draws nested copies).
  */
-export function composeSwaps(child: Record<string, string> | undefined, parent: Map<string, string>): Map<string, string> {
+export function composeSwaps(
+  child: Record<string, string> | undefined,
+  parent: Map<string, string>,
+): Map<string, string> {
   const norm = (s: string) => s.trim().toLowerCase();
   const out = new Map<string, string>();
   for (const [k, v] of Object.entries(child || {})) out.set(norm(k), parent.get(norm(v)) ?? norm(v));

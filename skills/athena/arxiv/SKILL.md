@@ -26,13 +26,13 @@ account of what was searched, when, and what that leaves out. arXiv keeps no cit
 
 ## Searching
 
-| In `search_query` | Finds |
-|---|---|
-| `ti:`, `abs:`, `au:`, `co:`, `jr:`, `cat:` | a word in the title, abstract, authors, comments, journal reference; a category (`cat:cs.CL`) |
-| `all:` | a word in any of those |
-| `ti:"chain of thought"` | an exact phrase |
-| `A AND B`, `A OR B`, `A ANDNOT B`, `( )` | both, either, A without B, grouping |
-| `submittedDate:[202401010000 TO 202403312359]` | first versions submitted in that span, in GMT |
+| In `search_query`                              | Finds                                                                                         |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `ti:`, `abs:`, `au:`, `co:`, `jr:`, `cat:`     | a word in the title, abstract, authors, comments, journal reference; a category (`cat:cs.CL`) |
+| `all:`                                         | a word in any of those                                                                        |
+| `ti:"chain of thought"`                        | an exact phrase                                                                               |
+| `A AND B`, `A OR B`, `A ANDNOT B`, `( )`       | both, either, A without B, grouping                                                           |
+| `submittedDate:[202401010000 TO 202403312359]` | first versions submitted in that span, in GMT                                                 |
 
 Beside it go `sortBy` (`relevance`, `submittedDate`, `lastUpdatedDate`), `sortOrder` (`descending`, `ascending`),
 `start` (from 0) and `max_results` (default 10; at most 2000 a request, 30,000 for one query). In an address spaces

@@ -16,17 +16,25 @@ async function inbox() {
   const state = new GatewayStateAdapter(instance.id);
   opened.push(state);
   await state.connect();
-  const input = (id = '1', conversationId = '123') => ({ ...gatewayInput(id, conversationId), accountId: instance.accountId });
+  const input = (id = '1', conversationId = '123') => ({
+    ...gatewayInput(id, conversationId),
+    accountId: instance.accountId,
+  });
   return { instance, state, inbox: new GatewayInbox(state), input };
 }
-afterEach(async () => { await Promise.all(opened.splice(0).map((state) => state.disconnect())); });
+afterEach(async () => {
+  await Promise.all(opened.splice(0).map((state) => state.disconnect()));
+});
 
 describe('gateway application inbox', () => {
   it('durably binds and deduplicates messages, including replay after a destination change', async () => {
     const fixture = await inbox();
     const event = fixture.inbox.accept(fixture.input())!;
     expect(event.status).toBe('queued');
-    const renamed = saveGatewayInstance({ ...gatewayConfig(fixture.instance.accountId), name: 'Renamed' }, fixture.instance.id);
+    const renamed = saveGatewayInstance(
+      { ...gatewayConfig(fixture.instance.accountId), name: 'Renamed' },
+      fixture.instance.id,
+    );
     expect(renamed.routeGeneration).toBe(1);
     expect(fixture.inbox.accept({ ...fixture.input(), sourceEventId: 'another-delivery' })?.id).toBe(event.id);
     const first = listProjects()[0];
@@ -54,7 +62,8 @@ describe('gateway application inbox', () => {
       { ...fixture.input(), accountId: 'other-account' },
       { ...fixture.input(), platform: 'slack' },
       { ...fixture.input(), directMessage: false, conversationId: '-200', triggered: true },
-    ]) expect(fixture.inbox.accept(input)).toBeNull();
+    ])
+      expect(fixture.inbox.accept(input)).toBeNull();
     expect(fixture.inbox.list()).toEqual([]);
     expect(fs.existsSync(fixture.state.inboxFile())).toBe(false);
   });
@@ -71,14 +80,22 @@ describe('gateway application inbox', () => {
 
   it('accepts file-only messages as descriptors and refuses functions or URL fields', async () => {
     const fixture = await inbox();
-    const input = { ...fixture.input(), text: '', media: [{ kind: 'file', fileId: 'private-id', name: 'plan.pdf', size: 100 }] };
+    const input = {
+      ...fixture.input(),
+      text: '',
+      media: [{ kind: 'file', fileId: 'private-id', name: 'plan.pdf', size: 100 }],
+    };
     const event = fixture.inbox.accept(input);
     expect(event?.input.text).toBe('');
     expect(event?.input.media[0].fileId).toBe('private-id');
     expect(event?.status).toBe('waiting-files');
     expect(fixture.inbox.claimNext()).toBeNull();
-    expect(() => fixture.inbox.accept({ ...input, media: [{ ...input.media[0], fetchData: () => 'secret' }] })).toThrow();
-    expect(() => fixture.inbox.accept({ ...input, media: [{ ...input.media[0], url: 'https://example.com/?token=secret' }] })).toThrow();
+    expect(() =>
+      fixture.inbox.accept({ ...input, media: [{ ...input.media[0], fetchData: () => 'secret' }] }),
+    ).toThrow();
+    expect(() =>
+      fixture.inbox.accept({ ...input, media: [{ ...input.media[0], url: 'https://example.com/?token=secret' }] }),
+    ).toThrow();
     expect(fs.readFileSync(fixture.state.inboxFile(), 'utf8')).not.toContain('secret');
   });
 
@@ -100,7 +117,10 @@ describe('gateway application inbox', () => {
   it('rechecks revoked senders and destinations before claiming queued work', async () => {
     const fixture = await inbox();
     fixture.inbox.accept(fixture.input());
-    saveGatewayInstance({ ...gatewayConfig(fixture.instance.accountId), senderPolicy: { platform: 'telegram', allowedUserIds: ['777'] } }, fixture.instance.id);
+    saveGatewayInstance(
+      { ...gatewayConfig(fixture.instance.accountId), senderPolicy: { platform: 'telegram', allowedUserIds: ['777'] } },
+      fixture.instance.id,
+    );
     expect(fixture.inbox.claimNext()).toBeNull();
     expect(fixture.inbox.list()[0].status).toBe('needs-review');
     expect(fixture.inbox.accept(fixture.input('2'))).toBeNull();
@@ -122,11 +142,15 @@ describe('gateway application inbox', () => {
   });
 
   it('retains an empty edit to an existing source and holds its original assignment', async () => {
-    const fixture = await inbox(); fixture.inbox.accept(fixture.input());
+    const fixture = await inbox();
+    fixture.inbox.accept(fixture.input());
     expect(fixture.inbox.accept({ ...fixture.input('2'), text: '', media: [] })).toBeNull();
     const edit = { ...fixture.input(), kind: 'edit', sourceEventId: 'empty-edit', text: '', media: [] };
-    expect(fixture.inbox.accept(edit)?.status).toBe('needs-review'); expect(fixture.inbox.list()[0].status).toBe('needs-review');
-    expect(fixture.inbox.accept({ ...edit, sourceMessageId: 'missing' })).toBeNull(); expect(fixture.inbox.list()).toHaveLength(2); expect(fixture.inbox.claimNext()).toBeNull();
+    expect(fixture.inbox.accept(edit)?.status).toBe('needs-review');
+    expect(fixture.inbox.list()[0].status).toBe('needs-review');
+    expect(fixture.inbox.accept({ ...edit, sourceMessageId: 'missing' })).toBeNull();
+    expect(fixture.inbox.list()).toHaveLength(2);
+    expect(fixture.inbox.claimNext()).toBeNull();
   });
 
   it('keeps raw message content off event notifications and fails closed on storage corruption', async () => {
@@ -134,8 +158,11 @@ describe('gateway application inbox', () => {
     const notifications: unknown[] = [];
     const listener = (event: unknown) => notifications.push(event);
     bus.on('event', listener);
-    try { fixture.inbox.accept({ ...fixture.input(), text: 'private-content' }); }
-    finally { bus.off('event', listener); }
+    try {
+      fixture.inbox.accept({ ...fixture.input(), text: 'private-content' });
+    } finally {
+      bus.off('event', listener);
+    }
     expect(JSON.stringify(notifications)).not.toContain('private-content');
     fs.writeFileSync(fixture.state.inboxFile(), '{broken');
     expect(() => fixture.inbox.accept(fixture.input('2'))).toThrow('unreadable');
@@ -151,22 +178,36 @@ describe('gateway application inbox', () => {
 import { GatewayInbox } from './server/gateways/inbox.ts';
 const state = new GatewayStateAdapter(${JSON.stringify(instance.id)}); await state.connect();
 const inbox = new GatewayInbox(state); inbox.accept(${JSON.stringify(input)}); inbox.claimNext(); console.log('committed'); setInterval(()=>{},1000);`;
-    const child = spawn('bun', ['--eval', code], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn('bun', ['--eval', code], {
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
     try {
       const ready = await Promise.race([
         once(child.stdout!, 'data').then((chunks: unknown[]) => String(chunks[0])),
-        once(child, 'exit').then(() => { throw new Error('Inbox fixture exited early.'); }),
-        new Promise<never>((_resolve, reject) => { setTimeout(() => reject(new Error('Inbox fixture timed out.')), 10000).unref(); }),
+        once(child, 'exit').then(() => {
+          throw new Error('Inbox fixture exited early.');
+        }),
+        new Promise<never>((_resolve, reject) => {
+          setTimeout(() => reject(new Error('Inbox fixture timed out.')), 10000).unref();
+        }),
       ]);
       expect(ready).toContain('committed');
-      const exited = once(child, 'exit'); child.kill('SIGKILL'); await exited;
-      const state = new GatewayStateAdapter(instance.id); opened.push(state); await state.connect();
+      const exited = once(child, 'exit');
+      child.kill('SIGKILL');
+      await exited;
+      const state = new GatewayStateAdapter(instance.id);
+      opened.push(state);
+      await state.connect();
       const recovered = new GatewayInbox(state);
       const operationId = recovered.list()[0].operationId;
       recovered.recover();
       expect(recovered.list()[0]).toMatchObject({ status: 'needs-review', operationId });
       expect(recovered.accept(input)?.id).toBe(recovered.list()[0].id);
       expect(recovered.claimNext()).toBeNull();
-    } finally { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); }
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    }
   });
 });

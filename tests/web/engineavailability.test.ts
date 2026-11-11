@@ -12,7 +12,15 @@ describe('engine setup visibility', () => {
     expect(engineConfigured('venice', data({ secrets: { veniceKey: { set: true } } }))).toBe(true);
   });
   it('checks installation and known CLI sign-in status', () => {
-    const configured = data({ engines: { 'claude-code': { installed: true, loggedIn: false }, codex: { installed: true, loggedIn: false }, hermes: { installed: true }, pi: { installed: false } }, secrets: {} });
+    const configured = data({
+      engines: {
+        'claude-code': { installed: true, loggedIn: false },
+        codex: { installed: true, loggedIn: false },
+        hermes: { installed: true },
+        pi: { installed: false },
+      },
+      secrets: {},
+    });
     expect(engineConfigured('claude', configured)).toBe(false);
     expect(engineConfigured('codex', configured)).toBe(false);
     expect(engineConfigured('hermes', configured)).toBe(true);

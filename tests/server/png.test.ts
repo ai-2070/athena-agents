@@ -6,11 +6,22 @@ import { maskPng } from '../../server/comfyui.ts';
 
 // Made with Pillow 12.3: a random 7x5 RGB picture (rows filtered 0, 1, 0, 0, 2), and a 2-bit palette one with colour 1
 // transparent. grey and alpha are what Pillow's convert("L") and convert("RGBA") give for them.
-const RGB = 'iVBORw0KGgoAAAANSUhEUgAAAAcAAAAFCAIAAAAG+GGPAAAAeUlEQVR4nAFuAJH/AKVNyhglMLsdbRMs3tYjey7ZHj9yHwHLGXFMKyO/BajHE/jDYv3AYDjevDcA7ui5mX9cfCmZ/a/lkyU81lSvTfrXABQnoK6z/ukjL4ryIR+e5JHFsQvstQJCFFxwvJVZW5w+DAg2R+n9gSuD6AK8yjMk3dFSEwAAAABJRU5ErkJggg==';
-const RGB_GREY = [118, 34, 85, 57, 99, 145, 89, 88, 64, 114, 107, 146, 39, 222, 228, 131, 79, 204, 73, 133, 194, 47, 186, 96, 187, 128, 179, 162, 89, 91, 117, 214, 183, 109, 188];
-const PAL = 'iVBORw0KGgoAAAANSUhEUgAAAAcAAAAFAgMAAAD09B5LAAAADFBMVEWG5Y1slJrBNmk7MaQojMOHAAAAAnRSTlP/AOW3MEoAAAAXSURBVHicY6zmZNhlwCCzgOGGA5PMBwAc0QRSeT43+AAAAABJRU5ErkJggg==';
-const PAL_GREY = [137, 65, 101, 65, 101, 191, 137, 101, 65, 101, 101, 191, 65, 191, 191, 137, 65, 191, 101, 101, 191, 65, 137, 101, 191, 137, 191, 191, 65, 65, 137, 191, 191, 65, 191];
-const PAL_ALPHA = [0, 255, 255, 255, 255, 255, 0, 255, 255, 255, 255, 255, 255, 255, 255, 0, 255, 255, 255, 255, 255, 255, 0, 255, 255, 0, 255, 255, 255, 255, 0, 255, 255, 255, 255];
+const RGB =
+  'iVBORw0KGgoAAAANSUhEUgAAAAcAAAAFCAIAAAAG+GGPAAAAeUlEQVR4nAFuAJH/AKVNyhglMLsdbRMs3tYjey7ZHj9yHwHLGXFMKyO/BajHE/jDYv3AYDjevDcA7ui5mX9cfCmZ/a/lkyU81lSvTfrXABQnoK6z/ukjL4ryIR+e5JHFsQvstQJCFFxwvJVZW5w+DAg2R+n9gSuD6AK8yjMk3dFSEwAAAABJRU5ErkJggg==';
+const RGB_GREY = [
+  118, 34, 85, 57, 99, 145, 89, 88, 64, 114, 107, 146, 39, 222, 228, 131, 79, 204, 73, 133, 194, 47, 186, 96, 187, 128,
+  179, 162, 89, 91, 117, 214, 183, 109, 188,
+];
+const PAL =
+  'iVBORw0KGgoAAAANSUhEUgAAAAcAAAAFAgMAAAD09B5LAAAADFBMVEWG5Y1slJrBNmk7MaQojMOHAAAAAnRSTlP/AOW3MEoAAAAXSURBVHicY6zmZNhlwCCzgOGGA5PMBwAc0QRSeT43+AAAAABJRU5ErkJggg==';
+const PAL_GREY = [
+  137, 65, 101, 65, 101, 191, 137, 101, 65, 101, 101, 191, 65, 191, 191, 137, 65, 191, 101, 101, 191, 65, 137, 101, 191,
+  137, 191, 191, 65, 65, 137, 191, 191, 65, 191,
+];
+const PAL_ALPHA = [
+  0, 255, 255, 255, 255, 255, 0, 255, 255, 255, 255, 255, 255, 255, 255, 0, 255, 255, 255, 255, 255, 255, 0, 255, 255,
+  0, 255, 255, 255, 255, 0, 255, 255, 255, 255,
+];
 
 describe('reading PNG pictures', () => {
   it('gives the grey levels and transparency Pillow gives', () => {

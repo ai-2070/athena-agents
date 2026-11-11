@@ -2,21 +2,43 @@
 import { agents, chats } from './store.ts';
 import { listTeams, teamMessages } from './teams.ts';
 import { privateTeams } from './private-conversations.ts';
-import type { ChatItem, ConversationHit, ConversationRead, ConversationReadResult, ConversationSearch, ConversationSearchResult } from '../shared/types.ts';
+import type {
+  ChatItem,
+  ConversationHit,
+  ConversationRead,
+  ConversationReadResult,
+  ConversationSearch,
+  ConversationSearchResult,
+} from '../shared/types.ts';
 
-const pageNumber = (value: unknown, fallback: number, max: number) => typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(0, Math.floor(value))) : fallback;
+const pageNumber = (value: unknown, fallback: number, max: number) =>
+  typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(0, Math.floor(value))) : fallback;
 
 function ownText(item: ChatItem): string {
-  if (item.type === 'tool') return ['search_conversations', 'read_conversation'].includes(item.name) ? '' : `${item.name}\n${JSON.stringify(item.args ?? {})}\n${item.result || ''}`;
+  if (item.type === 'tool')
+    return ['search_conversations', 'read_conversation'].includes(item.name)
+      ? ''
+      : `${item.name}\n${JSON.stringify(item.args ?? {})}\n${item.result || ''}`;
   if (item.type === 'compaction') return ''; // Search the originals rather than copies in checkpoints.
-  return item.text + ((item.type === 'user' || item.type === 'steer') && item.attachments?.length ? `\nAttached: ${item.attachments.join(', ')}` : '');
+  return (
+    item.text +
+    ((item.type === 'user' || item.type === 'steer') && item.attachments?.length
+      ? `\nAttached: ${item.attachments.join(', ')}`
+      : '')
+  );
 }
 
 function memberTeams(agentId: string, teamId?: string, conversationId?: string) {
-  return (conversationId ? privateTeams(conversationId) : listTeams()).filter((t) => t.members.includes(agentId) && (!teamId || t.id === teamId));
+  return (conversationId ? privateTeams(conversationId) : listTeams()).filter(
+    (t) => t.members.includes(agentId) && (!teamId || t.id === teamId),
+  );
 }
 
-export function searchConversations(agentId: string, args: ConversationSearch, conversationId?: string): ConversationSearchResult {
+export function searchConversations(
+  agentId: string,
+  args: ConversationSearch,
+  conversationId?: string,
+): ConversationSearchResult {
   if (!agents.get(agentId)) throw new Error('Only saved dashboard agents can search conversations.');
   const query = typeof args.query === 'string' ? args.query.trim() : '';
   if (!query || query.length > 1000) throw new Error('Give search words, up to 1000 characters.');
@@ -30,12 +52,34 @@ export function searchConversations(agentId: string, args: ConversationSearch, c
     const low = text.toLowerCase();
     if (!words.every((word) => low.includes(word))) return;
     const at = low.indexOf(words[0]);
-    hits.push({ ...hit, title: hit.title.slice(0, 200), author: hit.author.slice(0, 256), excerpt: text.slice(Math.max(0, at - 120), at + 400) });
+    hits.push({
+      ...hit,
+      title: hit.title.slice(0, 200),
+      author: hit.author.slice(0, 256),
+      excerpt: text.slice(Math.max(0, at - 120), at + 400),
+    });
   };
   if (scope !== 'team') {
     for (const chat of chats.all(agentId)) {
       if (chat.conversationId !== conversationId) continue;
-      chat.items.forEach((item, i) => match({ source: 'own', conversationId: chat.id, title: chat.title, messageId: String(i), author: item.type === 'user' || item.type === 'steer' ? item.from || 'user' : item.type === 'assistant' ? agentId : item.type, ts: item.ts || chat.createdAt }, ownText(item)));
+      chat.items.forEach((item, i) =>
+        match(
+          {
+            source: 'own',
+            conversationId: chat.id,
+            title: chat.title,
+            messageId: String(i),
+            author:
+              item.type === 'user' || item.type === 'steer'
+                ? item.from || 'user'
+                : item.type === 'assistant'
+                  ? agentId
+                  : item.type,
+            ts: item.ts || chat.createdAt,
+          },
+          ownText(item),
+        ),
+      );
     }
   }
   if (scope !== 'own') {
@@ -43,11 +87,16 @@ export function searchConversations(agentId: string, args: ConversationSearch, c
     if (args.teamId && !teams.length) throw new Error('That team conversation is not available to you.');
     for (const team of teams) {
       for (const m of teamMessages(team.id)) {
-        match({ source: 'team', conversationId: team.id, title: team.name, messageId: m.id, author: m.from, ts: m.ts }, `${m.text}${m.attachments?.length ? `\nAttached: ${m.attachments.join(', ')}` : ''}`);
+        match(
+          { source: 'team', conversationId: team.id, title: team.name, messageId: m.id, author: m.from, ts: m.ts },
+          `${m.text}${m.attachments?.length ? `\nAttached: ${m.attachments.join(', ')}` : ''}`,
+        );
       }
     }
   }
-  hits.sort((a, b) => b.ts - a.ts || a.conversationId.localeCompare(b.conversationId) || a.messageId.localeCompare(b.messageId));
+  hits.sort(
+    (a, b) => b.ts - a.ts || a.conversationId.localeCompare(b.conversationId) || a.messageId.localeCompare(b.messageId),
+  );
   const page = hits.slice(offset, offset + limit);
   // Leave room below the engines' tool-result limits, including JSON escaping. (The page as JSON is "[",
   // its hits as JSON with commas between them, and "]": each hit is measured once.)
@@ -57,11 +106,19 @@ export function searchConversations(agentId: string, args: ConversationSearch, c
     page.pop();
     size -= sizes.pop()! + 1;
   }
-  return { hits: page, total: hits.length, nextOffset: offset + page.length < hits.length ? offset + page.length : null };
+  return {
+    hits: page,
+    total: hits.length,
+    nextOffset: offset + page.length < hits.length ? offset + page.length : null,
+  };
 }
 
 /** Long originals are read in explicit character pages; an oversized message can always be read to its end. */
-export function readConversation(agentId: string, args: ConversationRead, conversationId?: string): ConversationReadResult {
+export function readConversation(
+  agentId: string,
+  args: ConversationRead,
+  conversationId?: string,
+): ConversationReadResult {
   if (!agents.get(agentId)) throw new Error('Only saved dashboard agents can read conversations.');
   let text: string;
   let title: string;
@@ -69,7 +126,8 @@ export function readConversation(agentId: string, args: ConversationRead, conver
     const chat = chats.get(agentId, args.conversationId);
     const index = /^\d+$/.test(String(args.messageId)) ? Number(args.messageId) : -1;
     const item = chat?.items[index];
-    if (!chat || !item || chat.conversationId !== conversationId) throw new Error('That conversation message is not available to you.');
+    if (!chat || !item || chat.conversationId !== conversationId)
+      throw new Error('That conversation message is not available to you.');
     text = ownText(item);
     title = chat.title;
   } else if (args.source === 'team') {
@@ -83,7 +141,16 @@ export function readConversation(agentId: string, args: ConversationRead, conver
   const offset = pageNumber(args.offset, 0, Number.MAX_SAFE_INTEGER);
   const limit = Math.max(1, pageNumber(args.limit, 8000, 16000));
   let end = Math.min(text.length, offset + limit);
-  const page = (): ConversationReadResult => ({ source: args.source, conversationId: args.conversationId, messageId: args.messageId, title: title.slice(0, 200), text: text.slice(offset, end), totalChars: text.length, offset, nextOffset: end < text.length ? end : null });
+  const page = (): ConversationReadResult => ({
+    source: args.source,
+    conversationId: args.conversationId,
+    messageId: args.messageId,
+    title: title.slice(0, 200),
+    text: text.slice(offset, end),
+    totalChars: text.length,
+    offset,
+    nextOffset: end < text.length ? end : null,
+  });
   while (end > offset && JSON.stringify(page()).length > 20000) end = offset + Math.floor((end - offset) / 2);
   return page();
 }

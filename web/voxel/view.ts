@@ -105,7 +105,9 @@ export function partGeometry(p: MeshPart): THREE.BufferGeometry {
 
 /** Where a part's geometry sits in its object: its region's corner, at its voxel size. */
 export const partMatrix = (p: Pick<ObjectPart, 'min' | 'voxelSize'>, out = new THREE.Matrix4()): THREE.Matrix4 =>
-  out.makeScale(p.voxelSize, p.voxelSize, p.voxelSize).setPosition(p.min[0] * p.voxelSize, p.min[1] * p.voxelSize, p.min[2] * p.voxelSize);
+  out
+    .makeScale(p.voxelSize, p.voxelSize, p.voxelSize)
+    .setPosition(p.min[0] * p.voxelSize, p.min[1] * p.voxelSize, p.min[2] * p.voxelSize);
 
 /** The sky: a gradient on a small canvas, painted again (not made again) as the time of day eases. */
 function skyTexture(): { tex: THREE.CanvasTexture; paint: (env: WorldEnvironment) => void } {
@@ -273,7 +275,9 @@ export function createWorldView(o: WorldViewOptions): WorldView {
   const applyEffects = () => {
     const w = env.weather && env.weather !== 'none' ? env.weather : null;
     const r = weatherSize();
-    const weather: EffectSpec[] = w ? [{ key: `weather:${w}:${Math.round(r / 10)}`, kind: w, box: { w: r * 2, h: 26, d: r * 2 }, amount: 0.7 }] : [];
+    const weather: EffectSpec[] = w
+      ? [{ key: `weather:${w}:${Math.round(r / 10)}`, kind: w, box: { w: r * 2, h: 26, d: r * 2 }, amount: 0.7 }]
+      : [];
     effects.set([...effectSpecs, ...weather]);
   };
   const place: EffectPlace = (key) => {
@@ -314,10 +318,12 @@ export function createWorldView(o: WorldViewOptions): WorldView {
       }
       // the weather follows the view's size
       const wk = `${env.weather || 'none'}:${Math.round(weatherSize() / 10)}`;
-      if (wk !== weatherKey) (weatherKey = wk), applyEffects();
+      if (wk !== weatherKey) ((weatherKey = wk), applyEffects());
       pickLights(now);
       pool.tick(t);
-      const px = ortho.isOrthographicCamera ? (renderer.domElement.height || 1) / Math.max(1e-3, ortho.top - ortho.bottom) : 10;
+      const px = ortho.isOrthographicCamera
+        ? (renderer.domElement.height || 1) / Math.max(1e-3, ortho.top - ortho.bottom)
+        : 10;
       effects.update(dt, t, place, (shown.wind as [number, number, number] | undefined) || DEFAULT_WIND, px);
       if (post) post.render();
       else renderer.render(scene, camera);
@@ -339,14 +345,28 @@ export function createWorldView(o: WorldViewOptions): WorldView {
       const parts: ObjectPart[] = [];
       // the regions that hold any chunk
       const regions = new Set<string>();
-      for (const k of vol.chunks.keys()) regions.add(parseChunkKey(k).map((c) => Math.floor((c * CHUNK) / region)).join(','));
+      for (const k of vol.chunks.keys())
+        regions.add(
+          parseChunkKey(k)
+            .map((c) => Math.floor((c * CHUNK) / region))
+            .join(','),
+        );
       for (const key of regions) {
         const min = key.split(',').map((n) => Number(n) * region) as Vec3i;
-        for (const [cls, p] of Object.entries(meshRegion(vol, min, [region, region, region], palette)) as [RenderClass, MeshPart][]) parts.push({ ...p, cls, voxelSize: vol.voxelSize, min });
+        for (const [cls, p] of Object.entries(meshRegion(vol, min, [region, region, region], palette)) as [
+          RenderClass,
+          MeshPart,
+        ][])
+          parts.push({ ...p, cls, voxelSize: vol.voxelSize, min });
       }
       const g = addParts(id, parts);
       g.position.copy(at);
-      return { voxels: countVoxels(vol), faces: parts.reduce((n, p) => n + p.faces, 0), meshes: g.children.length, ms: Math.round(performance.now() - started) };
+      return {
+        voxels: countVoxels(vol),
+        faces: parts.reduce((n, p) => n + p.faces, 0),
+        meshes: g.children.length,
+        ms: Math.round(performance.now() - started),
+      };
     },
     addParts,
     material: (cls) => mats[cls],
@@ -369,7 +389,8 @@ export function createWorldView(o: WorldViewOptions): WorldView {
       // drawn alone: everything else (but the lights) off for this one picture
       const off: THREE.Object3D[] = [];
       if (s.only) {
-        for (const c of scene.children) if (c.visible && !(c as THREE.Light).isLight) (c.visible = false), off.push(c);
+        for (const c of scene.children)
+          if (c.visible && !(c as THREE.Light).isLight) ((c.visible = false), off.push(c));
         scene.add(s.only);
       }
       // the glowing things near what it shows light it, not the ones near your view
@@ -400,7 +421,11 @@ export function createWorldView(o: WorldViewOptions): WorldView {
       const f = frames || [];
       frames = null;
       const total = f.reduce((a, b) => a + b, 0);
-      return { fps: total ? Math.round((f.length / total) * 10000) / 10 : 0, worstMs: Math.round(Math.max(0, ...f)), frames: f.length };
+      return {
+        fps: total ? Math.round((f.length / total) * 10000) / 10 : 0,
+        worstMs: Math.round(Math.max(0, ...f)),
+        frames: f.length,
+      };
     },
     dispose() {
       unregister();

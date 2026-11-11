@@ -23,7 +23,8 @@ beforeAll(async () => {
   });
   setPort(portOf(dash));
   other = await listen((req, res) => {
-    if (req.url === '/hop') return void res.writeHead(302, { location: `http://127.0.0.1:${portOf(dash)}/api/mcp` }).end();
+    if (req.url === '/hop')
+      return void res.writeHead(302, { location: `http://127.0.0.1:${portOf(dash)}/api/mcp` }).end();
     if (req.url === '/hop2') return void res.writeHead(301, { location: '/fine' }).end();
     res.end('public page');
   });
@@ -35,13 +36,36 @@ afterAll(() => {
 
 describe('agent fetches', () => {
   it('knows the addresses of this PC', () => {
-    for (const ip of ['127.0.0.1', '127.1.2.3', '0.0.0.0', '::1', '::', '[::1]', '::ffff:127.0.0.1', '::ffff:7f00:1', '0:0:0:0:0:0:0:1', '::ffff:0.0.0.0']) expect(isLocalAddress(ip), ip).toBe(true);
-    for (const ip of ['8.8.8.8', '10.0.0.1', '::ffff:8.8.8.8', '2001:db8::1', 'example.com']) expect(isLocalAddress(ip), ip).toBe(false);
+    for (const ip of [
+      '127.0.0.1',
+      '127.1.2.3',
+      '0.0.0.0',
+      '::1',
+      '::',
+      '[::1]',
+      '::ffff:127.0.0.1',
+      '::ffff:7f00:1',
+      '0:0:0:0:0:0:0:1',
+      '::ffff:0.0.0.0',
+    ])
+      expect(isLocalAddress(ip), ip).toBe(true);
+    for (const ip of ['8.8.8.8', '10.0.0.1', '::ffff:8.8.8.8', '2001:db8::1', 'example.com'])
+      expect(isLocalAddress(ip), ip).toBe(false);
   });
 
   it('refuses every way of naming the dashboard', async () => {
     const p = portOf(dash);
-    for (const u of [`http://127.0.0.1:${p}/`, `http://localhost:${p}/`, `http://LOCALHOST.:${p}/`, `http://[::1]:${p}/`, `http://0.0.0.0:${p}/`, `http://127.1:${p}/`, `http://2130706433:${p}/`, `http://[::ffff:127.0.0.1]:${p}/`, `http://a.localhost:${p}/`]) {
+    for (const u of [
+      `http://127.0.0.1:${p}/`,
+      `http://localhost:${p}/`,
+      `http://LOCALHOST.:${p}/`,
+      `http://[::1]:${p}/`,
+      `http://0.0.0.0:${p}/`,
+      `http://127.1:${p}/`,
+      `http://2130706433:${p}/`,
+      `http://[::ffff:127.0.0.1]:${p}/`,
+      `http://a.localhost:${p}/`,
+    ]) {
       expect(await isDashboardUrl(new URL(u)), u).toBe(true);
       await expect(agentFetch(u)).rejects.toThrow(/dashboard/);
     }

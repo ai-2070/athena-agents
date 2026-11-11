@@ -5,7 +5,17 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { activeProject, agents, chats, openProject, runs, saveSettings, setActiveProject, withProject, workflows } from '../../server/store.ts';
+import {
+  activeProject,
+  agents,
+  chats,
+  openProject,
+  runs,
+  saveSettings,
+  setActiveProject,
+  withProject,
+  workflows,
+} from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { dataPath, readJSON } from '../../server/util.ts';
 import { newAgent } from '../../server/library.ts';
@@ -26,18 +36,39 @@ beforeAll(async () => {
     const j = JSON.parse(body) as { messages: { role: string; content: string | null }[] };
     await new Promise<void>((release) => held.push({ release }));
     res.writeHead(200, { 'content-type': 'text/event-stream' });
-    const send = (delta: unknown, finish: string | null = null) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`);
+    const send = (delta: unknown, finish: string | null = null) =>
+      res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`);
     if (j.messages.at(-1)?.role === 'tool') send({ content: 'Saved it.' }, 'stop');
-    else send({ tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: 'write_file', arguments: JSON.stringify({ path: 'out.txt', content: 'from-project-a-run' }) } }] }, 'tool_calls');
+    else
+      send(
+        {
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'write_file',
+                arguments: JSON.stringify({ path: 'out.txt', content: 'from-project-a-run' }),
+              },
+            },
+          ],
+        },
+        'tool_calls',
+      );
     res.end('data: [DONE]\n\n');
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 const until = async (ok: () => boolean, ms = 15000) => {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 20));
   }
@@ -48,7 +79,15 @@ const release = async () => {
   held.shift()!.release();
 };
 const folder = (name: string) => path.join(os.homedir(), 'run-projects', name);
-const filesAgent = () => newAgent({ name: 'Writer', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: ['files'], autonomy: 'auto' });
+const filesAgent = () =>
+  newAgent({
+    name: 'Writer',
+    engine: 'eve',
+    provider: 'custom',
+    model: 'mock',
+    toolGroups: ['files'],
+    autonomy: 'auto',
+  });
 
 describe('withProject()', () => {
   it('pins the project across awaits; openProject() still sees the one that is open', async () => {
@@ -80,7 +119,12 @@ describe('a run', () => {
     expect(fs.readFileSync(path.join(a.brainPath, 'out.txt'), 'utf8')).toBe('from-project-a-run');
     expect(fs.existsSync(path.join(b.brainPath, 'out.txt'))).toBe(false);
     setActiveProject(a.id);
-    expect(chats.get(agent.id, chat.id)!.items.filter((i) => i.type !== 'meta').map((i) => i.type)).toEqual(['user', 'tool', 'assistant']);
+    expect(
+      chats
+        .get(agent.id, chat.id)!
+        .items.filter((i) => i.type !== 'meta')
+        .map((i) => i.type),
+    ).toEqual(['user', 'tool', 'assistant']);
     setActiveProject(b.id);
     expect(chats.list(agent.id)).toEqual([]);
     expect(agents.get(agent.id)).toBeNull();
@@ -89,7 +133,10 @@ describe('a run', () => {
   it("a workflow's record and agent steps stay in its project", async () => {
     const a = await createProject({ name: 'Flow A', mode: 'new', folder: folder('flow-a') });
     const agent = filesAgent();
-    const wf = workflows.save({ name: 'Write it', steps: [{ id: 's1', type: 'agent', agentId: agent.id, label: 'Write', prompt: '{{input}}' }] } as Partial<Team>);
+    const wf = workflows.save({
+      name: 'Write it',
+      steps: [{ id: 's1', type: 'agent', agentId: agent.id, label: 'Write', prompt: '{{input}}' }],
+    } as Partial<Team>);
     const run = await startWorkflow(wf.id, 'go');
     await until(() => held.length > 0);
     const b = await createProject({ name: 'Flow B', mode: 'new', folder: folder('flow-b') });
@@ -106,7 +153,14 @@ describe('a run', () => {
 
   it("a routine's record and agent stay in its project", async () => {
     const a = await createProject({ name: 'Routine A', mode: 'new', folder: folder('routine-a') });
-    newAgent({ name: 'Scribe', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: ['files'], autonomy: 'auto' });
+    newAgent({
+      name: 'Scribe',
+      engine: 'eve',
+      provider: 'custom',
+      model: 'mock',
+      toolGroups: ['files'],
+      autonomy: 'auto',
+    });
     const r = saveRoutine({ name: 'Write it down', text: '@Scribe write the file.' });
     const run = await startRoutine(r.id);
     await until(() => held.length > 0);
@@ -114,7 +168,8 @@ describe('a run', () => {
     await release();
     await release();
     // wait for it to finish while B is still open, reading A's record straight from disk
-    const record = () => readJSON<{ status?: string }>(dataPath('projects', a.id, 'routine-runs', `${run.id}.json`), {});
+    const record = () =>
+      readJSON<{ status?: string }>(dataPath('projects', a.id, 'routine-runs', `${run.id}.json`), {});
     await until(() => record().status !== 'running');
     expect(activeProject().id).toBe(b.id);
     expect(record()).toMatchObject({ status: 'done' });
@@ -133,6 +188,9 @@ describe('a run', () => {
     stopRun(activeRuns().find((x) => x.parentRunId === run.id)!.id);
     held.shift()!.release(); // let the fake model's request finish
     await until(() => listRuns(r.id)[0]?.status !== 'running');
-    expect(listRuns(r.id)[0]).toMatchObject({ status: 'stopped', targets: [expect.objectContaining({ status: 'stopped' })] });
+    expect(listRuns(r.id)[0]).toMatchObject({
+      status: 'stopped',
+      targets: [expect.objectContaining({ status: 'stopped' })],
+    });
   });
 });

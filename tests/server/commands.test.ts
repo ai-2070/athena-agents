@@ -12,7 +12,18 @@ import { HOME } from '../../server/util.ts';
 import { workspaceOf } from '../../server/tools.ts';
 import { activeRuns, loopOf, queueMessage, stopChat, stopLoop } from '../../server/engines/index.ts';
 import { getThread, postUserMessage, stopTeam, teamState } from '../../server/teams.ts';
-import { cutOff, harnessCommands, learnInChat, learnInTeam, loopInChat, loopInTeam, resendInChat, resendInTeam, resumeInChat, resumeInTeam } from '../../server/commands.ts';
+import {
+  cutOff,
+  harnessCommands,
+  learnInChat,
+  learnInTeam,
+  loopInChat,
+  loopInTeam,
+  resendInChat,
+  resendInTeam,
+  resumeInChat,
+  resumeInTeam,
+} from '../../server/commands.ts';
 import { learnText, loopPace, parseCommand, parseLoop, slashSuggestions } from '../../shared/commands.ts';
 import type { ChatItem, EngineId, Team } from '../../shared/types.ts';
 
@@ -28,11 +39,17 @@ beforeAll(async () => {
     await new Promise<void>((release) => waiting.push({ last, release }));
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'ok' } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
 });
 afterAll(() => {
   waiting.splice(0).forEach((w) => w.release());
@@ -40,7 +57,7 @@ afterAll(() => {
 });
 
 const until = async (ok: () => boolean, ms = 5000) => {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 20));
   }
@@ -50,9 +67,11 @@ const release = async () => {
   await until(() => waiting.length > 0);
   waiting.shift()!.release();
 };
-const agent = (name: string, engine: EngineId = 'eve') => newAgent({ name, engine, provider: 'custom', model: 'mock', toolGroups: [] });
+const agent = (name: string, engine: EngineId = 'eve') =>
+  newAgent({ name, engine, provider: 'custom', model: 'mock', toolGroups: [] });
 const items = (agentId: string, chatId: string): ChatItem[] => chats.get(agentId, chatId)?.items || [];
-const users = (agentId: string, chatId: string) => items(agentId, chatId).flatMap((i) => (i.type === 'user' ? [`${i.from || 'you'}: ${i.text}`] : []));
+const users = (agentId: string, chatId: string) =>
+  items(agentId, chatId).flatMap((i) => (i.type === 'user' ? [`${i.from || 'you'}: ${i.text}`] : []));
 const running = (chatId: string) => activeRuns().some((r) => r.chatId === chatId);
 
 describe('reading commands', () => {
@@ -65,9 +84,20 @@ describe('reading commands', () => {
   });
 
   it('suggests commands while you type "/", ours first, then the harness ones', () => {
-    expect(slashSuggestions('/', 'team').map((c) => c.name)).toEqual(['queue', 'stop', 'resume', 'resend', 'loop', 'goal', 'learn', 'clear']);
+    expect(slashSuggestions('/', 'team').map((c) => c.name)).toEqual([
+      'queue',
+      'stop',
+      'resume',
+      'resend',
+      'loop',
+      'goal',
+      'learn',
+      'clear',
+    ]);
     expect(slashSuggestions('/re', 'agent').map((c) => c.name)).toEqual(['resume', 'resend']);
-    expect(slashSuggestions('/c', 'agent', [{ name: 'commit', about: 'Make a commit' }]).map((c) => [c.name, !!c.harness])).toEqual([['commit', true]]);
+    expect(
+      slashSuggestions('/c', 'agent', [{ name: 'commit', about: 'Make a commit' }]).map((c) => [c.name, !!c.harness]),
+    ).toEqual([['commit', true]]);
     expect(slashSuggestions('/stop', 'agent')).toEqual([]);
     expect(slashSuggestions('/loop 5m', 'agent')).toEqual([]);
     expect(slashSuggestions('hi', 'agent')).toEqual([]);
@@ -88,7 +118,10 @@ describe('reading commands', () => {
 
 describe('/learn', () => {
   it('sends the request and where the method is: agents save with save_skill, the Brain with its own actions', () => {
-    expect(parseCommand('/learn ~/books/ddia.epub focus on replication', 'team')).toEqual({ name: 'learn', rest: '~/books/ddia.epub focus on replication' });
+    expect(parseCommand('/learn ~/books/ddia.epub focus on replication', 'team')).toEqual({
+      name: 'learn',
+      rest: '~/books/ddia.epub focus on replication',
+    });
     const forAgent = learnText('https://youtu.be/abc skip the intro', 'agent');
     expect(forAgent.split('\n')[0]).toBe('/learn https://youtu.be/abc skip the intro');
     expect(forAgent).toContain('Learn a reusable skill from: https://youtu.be/abc skip the intro');
@@ -124,8 +157,16 @@ describe('/loop in an agent chat', () => {
     expect(loop).toMatchObject({ text: 'improve the tests', every: null, times: 3, done: 1 });
     for (let i = 0; i < 3; i++) await release();
     await until(() => !loopOf(c.id) && !running(c.id));
-    expect(users(a.id, c.id)).toEqual(['/loop 1 of 3: improve the tests', '/loop 2 of 3: improve the tests', '/loop 3 of 3: improve the tests']);
-    expect(items(a.id, c.id).filter((i) => i.type === 'meta').map((i) => i.text)).toContain('Loop done: sent 3 times.');
+    expect(users(a.id, c.id)).toEqual([
+      '/loop 1 of 3: improve the tests',
+      '/loop 2 of 3: improve the tests',
+      '/loop 3 of 3: improve the tests',
+    ]);
+    expect(
+      items(a.id, c.id)
+        .filter((i) => i.type === 'meta')
+        .map((i) => i.text),
+    ).toContain('Loop done: sent 3 times.');
   });
 
   it('a queued message goes before the loop’s next one', async () => {
@@ -150,7 +191,11 @@ describe('/loop in an agent chat', () => {
     stopChat(c.id);
     await until(() => !running(c.id));
     expect(loopOf(c.id)).toBeNull();
-    expect(items(a.id, c.id).filter((i) => i.type === 'meta').map((i) => i.text)).toContain('Loop stopped.');
+    expect(
+      items(a.id, c.id)
+        .filter((i) => i.type === 'meta')
+        .map((i) => i.text),
+    ).toContain('Loop stopped.');
     waiting.splice(0).forEach((w) => w.release());
   });
 
@@ -209,9 +254,18 @@ describe('/resume and /resend in an agent chat', () => {
 describe('team chats', () => {
   const makeTeam = () => {
     const solo = agent('Solo');
-    return workflows.save({ name: `T ${Math.random()}`, description: '', members: [solo.id], lead: solo.id, steps: [] } as Partial<Team>);
+    return workflows.save({
+      name: `T ${Math.random()}`,
+      description: '',
+      members: [solo.id],
+      lead: solo.id,
+      steps: [],
+    } as Partial<Team>);
   };
-  const userPosts = (teamId: string) => getThread(teamId).messages.filter((m) => m.from === 'user').map((m) => m.text);
+  const userPosts = (teamId: string) =>
+    getThread(teamId)
+      .messages.filter((m) => m.from === 'user')
+      .map((m) => m.text);
   const quiet = (teamId: string) => {
     const s = teamState(teamId);
     return !s.working.length && !s.queued.length;
@@ -248,7 +302,9 @@ describe('team chats', () => {
   it('/learn posts the request for a member to learn', async () => {
     const t = makeTeam();
     await learnInTeam(t.id, 'our release checklist');
-    expect(userPosts(t.id).at(-1)).toMatch(/^\/learn our release checklist\n\nLearn a reusable skill from: our release checklist/);
+    expect(userPosts(t.id).at(-1)).toMatch(
+      /^\/learn our release checklist\n\nLearn a reusable skill from: our release checklist/,
+    );
     await release();
     await until(() => quiet(t.id));
   });
@@ -271,7 +327,10 @@ describe("the harness's own commands", () => {
     const cc = agent('Coder', 'claude-code');
     const mine = path.join(HOME, '.claude');
     fs.mkdirSync(path.join(mine, 'commands'), { recursive: true });
-    fs.writeFileSync(path.join(mine, 'commands', 'review.md'), '---\ndescription: Review the changes\n---\nLook at the diff.');
+    fs.writeFileSync(
+      path.join(mine, 'commands', 'review.md'),
+      '---\ndescription: Review the changes\n---\nLook at the diff.',
+    );
     fs.writeFileSync(path.join(mine, 'commands', 'stop.md'), 'ours wins');
     const ws = path.join(workspaceOf(cc), '.claude', 'skills', 'deploy');
     fs.mkdirSync(ws, { recursive: true });

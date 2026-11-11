@@ -22,7 +22,11 @@ export interface LightCandidate {
 }
 
 // (High's own cost is its finer shading: more lights there would cost it a quarter of its frames)
-export const POOL_SIZE: Record<WorldQuality, { point: number; spot: number }> = { low: { point: 4, spot: 1 }, medium: { point: 8, spot: 2 }, high: { point: 8, spot: 2 } };
+export const POOL_SIZE: Record<WorldQuality, { point: number; spot: number }> = {
+  low: { point: 4, spot: 1 },
+  medium: { point: 8, spot: 2 },
+  high: { point: 8, spot: 2 },
+};
 
 /** How strong a spot of glowing voxels is (0..10), from its summed glow (emissive × faces) and the voxel size. */
 export function glowStrength(power: number, voxelSize: number): number {
@@ -38,7 +42,13 @@ export const reachOf = (strength: number): number => 3 + strength * 2.2;
  * The candidates to light: up to `n`, the best score first. Score: strength over distance from what you look
  * at (in view sizes), so a floodlight across the street beats a candle at your feet, and both beat lights far away.
  */
-export function pickLights(cands: readonly LightCandidate[], target: { x: number; y: number; z: number }, viewRadius: number, n: number, filter: (c: LightCandidate) => boolean = () => true): number[] {
+export function pickLights(
+  cands: readonly LightCandidate[],
+  target: { x: number; y: number; z: number },
+  viewRadius: number,
+  n: number,
+  filter: (c: LightCandidate) => boolean = () => true,
+): number[] {
   const R = Math.max(4, viewRadius);
   const scored: { i: number; s: number }[] = [];
   cands.forEach((c, i) => {
@@ -55,7 +65,8 @@ export function pickLights(cands: readonly LightCandidate[], target: { x: number
 export function flicker(t: number, seed: number, amount: number): number {
   if (amount <= 0) return 1;
   const a = Math.min(1, amount);
-  const n = 0.5 * Math.sin(t * 7.3 + seed) + 0.3 * Math.sin(t * 13.1 + seed * 1.7) + 0.2 * Math.sin(t * 23.7 + seed * 3.1);
+  const n =
+    0.5 * Math.sin(t * 7.3 + seed) + 0.3 * Math.sin(t * 13.1 + seed * 1.7) + 0.2 * Math.sin(t * 23.7 + seed * 3.1);
   return Math.max(0, Math.min(1, 1 - a * 0.45 * (1 + n)));
 }
 
@@ -94,7 +105,7 @@ export class LightPool {
     this.points.forEach((l, k) => {
       const c = pts[k] === undefined ? null : cands[pts[k]];
       this.lit[k] = c;
-      if (!c) return (l.intensity = 0), undefined;
+      if (!c) return ((l.intensity = 0), undefined);
       // a little above its glowing voxels, so the floor under a lamp gets a pool of light, not a hot spot
       l.position.set(c.x, c.y + 0.35, c.z);
       l.color.setRGB(c.r, c.g, c.b);
@@ -103,7 +114,7 @@ export class LightPool {
     this.spots.forEach((l, k) => {
       const c = sps[k] === undefined ? null : cands[sps[k]];
       this.litSpots[k] = c;
-      if (!c || !c.spot) return (l.intensity = 0), undefined;
+      if (!c || !c.spot) return ((l.intensity = 0), undefined);
       l.position.set(c.x, c.y, c.z);
       l.target.position.set(c.spot.x, c.spot.y, c.spot.z);
       l.target.updateMatrixWorld();

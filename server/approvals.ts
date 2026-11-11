@@ -52,7 +52,13 @@ export function durableApproval(operationId: string): DurableApprovalRecord | nu
   return durableById(durableId(operationId));
 }
 
-export const approvalFingerprint = (request: ApprovalRequest): string => canonical({ project: activeProject().id, agent: request.agentId || null, kind: request.kind || 'tool', data: request.data || {} });
+export const approvalFingerprint = (request: ApprovalRequest): string =>
+  canonical({
+    project: activeProject().id,
+    agent: request.agentId || null,
+    kind: request.kind || 'tool',
+    data: request.data || {},
+  });
 
 export function cancelDurableApproval(operationId: string, message: string): void {
   const saved = durableApproval(operationId);
@@ -72,7 +78,10 @@ function restoreDurable(record: DurableApprovalRecord) {
     record.item.brainNote = 'The review was interrupted. Please check this request.';
     writeJSON(durableFile(record.id), record);
   }
-  const timer = setTimeout(() => finish(record.id, { approved: false, message: 'The approval expired.' }), Math.max(1, record.expiresAt - Date.now()));
+  const timer = setTimeout(
+    () => finish(record.id, { approved: false, message: 'The approval expired.' }),
+    Math.max(1, record.expiresAt - Date.now()),
+  );
   timer.unref();
   record.item.projectId ??= record.projectId;
   pending.set(record.id, { item: record.item, resolve: () => {}, timer, reviewing: false, durable: record });
@@ -80,7 +89,9 @@ function restoreDurable(record: DurableApprovalRecord) {
 }
 
 function restoreDurableApprovals() {
-  for (const name of listFiles(privateDataPath('runtime', 'eve', 'approvals'), (file) => /^ap[0-9a-f]{64}\.json$/.test(file))) {
+  for (const name of listFiles(privateDataPath('runtime', 'eve', 'approvals'), (file) =>
+    /^ap[0-9a-f]{64}\.json$/.test(file),
+  )) {
     const record = durableById(name.slice(0, -5));
     if (record) restoreDurable(record);
   }
@@ -105,11 +116,33 @@ export function ensureDurableApproval(operationId: string, request: ApprovalRequ
     restoreDurable(existing);
     return durableById(id) || existing;
   }
-  const item: Approval = { id, kind: request.kind || 'tool', title: request.title, detail: request.detail || '', agentId: request.agentId || null, agentName: request.agentName || '', data: request.data || {}, editable: request.editable ?? null, createdAt: Date.now(), projectId: activeProject().id };
+  const item: Approval = {
+    id,
+    kind: request.kind || 'tool',
+    title: request.title,
+    detail: request.detail || '',
+    agentId: request.agentId || null,
+    agentName: request.agentName || '',
+    data: request.data || {},
+    editable: request.editable ?? null,
+    createdAt: Date.now(),
+    projectId: activeProject().id,
+  };
   const reviewing = brainChecks(item);
-  const record: DurableApprovalRecord = { id, operationId, fingerprint, item, projectId: activeProject().id, expiresAt: Date.now() + (request.timeoutMs ?? 30 * 60_000), reviewing };
+  const record: DurableApprovalRecord = {
+    id,
+    operationId,
+    fingerprint,
+    item,
+    projectId: activeProject().id,
+    expiresAt: Date.now() + (request.timeoutMs ?? 30 * 60_000),
+    reviewing,
+  };
   writeJSON(durableFile(id), record);
-  const timer = setTimeout(() => finish(id, { approved: false, message: 'The approval expired.' }), Math.max(1, record.expiresAt - Date.now()));
+  const timer = setTimeout(
+    () => finish(id, { approved: false, message: 'The approval expired.' }),
+    Math.max(1, record.expiresAt - Date.now()),
+  );
   timer.unref();
   pending.set(id, { item, resolve: () => {}, timer, reviewing, durable: record });
   if (reviewing) void brainReview(id);
@@ -126,7 +159,12 @@ export function setReviewer(fn: Reviewer | null) {
 // The Brain checks what agents and teams want to do. Workflow checkpoints are steps you put
 // there to check yourself, an outside MCP client isn't one of your agents, and a setting is yours
 // (an agent asking isn't you asking): those always come to you.
-const brainChecks = (item: Approval) => !!reviewer && item.kind !== 'workflow' && item.kind !== 'setting' && item.agentId !== '_external' && getSettings().brainApproves !== false;
+const brainChecks = (item: Approval) =>
+  !!reviewer &&
+  item.kind !== 'workflow' &&
+  item.kind !== 'setting' &&
+  item.agentId !== '_external' &&
+  getSettings().brainApproves !== false;
 
 export function requestApproval(request: ApprovalRequest): Promise<ApprovalDecision> {
   if (request.operationId) {
@@ -136,14 +174,40 @@ export function requestApproval(request: ApprovalRequest): Promise<ApprovalDecis
       const entry = pending.get(record.id);
       if (!entry) return resolve({ approved: false, message: 'The approval is no longer available.' });
       const previous = entry.resolve;
-      entry.resolve = (decision) => { previous(decision); resolve(decision); };
+      entry.resolve = (decision) => {
+        previous(decision);
+        resolve(decision);
+      };
     });
   }
-  const { kind = 'tool', title, detail = '', agentId = null, agentName = '', data = {}, editable = null, timeoutMs = 30 * 60_000 } = request;
+  const {
+    kind = 'tool',
+    title,
+    detail = '',
+    agentId = null,
+    agentName = '',
+    data = {},
+    editable = null,
+    timeoutMs = 30 * 60_000,
+  } = request;
   const id = uid('ap');
   return new Promise((resolve) => {
-    const item: Approval = { id, kind, title, detail, agentId, agentName, data, editable, createdAt: Date.now(), projectId: activeProject().id };
-    const timer = setTimeout(() => finish(id, { approved: false, message: 'No answer within 30 minutes, so it was skipped.' }), timeoutMs);
+    const item: Approval = {
+      id,
+      kind,
+      title,
+      detail,
+      agentId,
+      agentName,
+      data,
+      editable,
+      createdAt: Date.now(),
+      projectId: activeProject().id,
+    };
+    const timer = setTimeout(
+      () => finish(id, { approved: false, message: 'No answer within 30 minutes, so it was skipped.' }),
+      timeoutMs,
+    );
     const review = brainChecks(item);
     pending.set(id, { item, resolve, timer, reviewing: review });
     if (review) void brainReview(id);
@@ -158,7 +222,11 @@ function askUser(id: string, note?: string) {
   if (note) p.item.brainNote = note;
   if (p.durable) writeJSON(durableFile(id), { ...p.durable, item: p.item, reviewing: false });
   emit('approvals');
-  log('approval', `${p.item.agentName || 'Dashboard'} is waiting for you: ${p.item.title}${note ? ` (the Brain: ${note})` : ''}`, { agentId: p.item.agentId });
+  log(
+    'approval',
+    `${p.item.agentName || 'Dashboard'} is waiting for you: ${p.item.title}${note ? ` (the Brain: ${note})` : ''}`,
+    { agentId: p.item.agentId },
+  );
 }
 
 async function brainReview(id: string) {
@@ -167,7 +235,8 @@ async function brainReview(id: string) {
   let verdict: BrainVerdict;
   try {
     const project = p.durable ? listProjects().find((item) => item.id === p.durable?.projectId) : null;
-    if (p.durable && !project) return void finish(id, { approved: false, message: 'The request project no longer exists.' });
+    if (p.durable && !project)
+      return void finish(id, { approved: false, message: 'The request project no longer exists.' });
     verdict = await (project ? withProject(project, () => reviewer!(p.item)) : reviewer(p.item));
   } catch (e) {
     return askUser(id, `couldn't check this (${String(e instanceof Error ? e.message : e).slice(0, 160)})`);
@@ -175,7 +244,9 @@ async function brainReview(id: string) {
   // you may have answered it already, or the run was stopped
   if (!pending.has(id)) return;
   if (!verdict.approve) return askUser(id, verdict.reason || 'not sure about this one');
-  log('approval', `The Brain allowed: ${p.item.title}${verdict.reason ? ` (${verdict.reason})` : ''}`, { agentId: p.item.agentId });
+  log('approval', `The Brain allowed: ${p.item.title}${verdict.reason ? ` (${verdict.reason})` : ''}`, {
+    agentId: p.item.agentId,
+  });
   finish(id, { approved: true, message: '' });
 }
 
@@ -190,7 +261,15 @@ function finish(id: string, decision: ApprovalDecision): boolean {
   return true;
 }
 
-export function decide(id: string, { approved, message = '', edited = null, always = false }: { approved?: unknown; message?: string; edited?: unknown; always?: boolean }): boolean {
+export function decide(
+  id: string,
+  {
+    approved,
+    message = '',
+    edited = null,
+    always = false,
+  }: { approved?: unknown; message?: string; edited?: unknown; always?: boolean },
+): boolean {
   const saved = durableById(id);
   if (saved) restoreDurable(saved);
   const p = pending.get(id);
@@ -217,5 +296,7 @@ export function withdrawApprovals(match: (item: Approval) => boolean, message: s
 // Cancel everything a stopped run was waiting on.
 export function cancelForRun(runId: string, { keepOutcomeChecks = false }: { keepOutcomeChecks?: boolean } = {}) {
   restoreDurableApprovals();
-  for (const [id, p] of pending) if (p.item.data?.runId === runId && !(keepOutcomeChecks && p.item.data.outcomeCheck === true)) finish(id, { approved: false, message: 'The run was stopped.' });
+  for (const [id, p] of pending)
+    if (p.item.data?.runId === runId && !(keepOutcomeChecks && p.item.data.outcomeCheck === true))
+      finish(id, { approved: false, message: 'The run was stopped.' });
 }

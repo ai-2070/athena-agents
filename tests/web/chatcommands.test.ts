@@ -61,7 +61,12 @@ describe('commandChips()', () => {
     const onStopLoop = vi.fn();
     const onClearGoal = vi.fn();
     const goal = { id: 'b1', goal: 'tests pass', text: 'tests pass', followUps: 2 } as BrainBrief;
-    commandChips(el, { loop: { text: 'check CI', every: 900_000, times: 10, done: 3, next: null }, goal, onStopLoop, onClearGoal });
+    commandChips(el, {
+      loop: { text: 'check CI', every: 900_000, times: 10, done: 3, next: null },
+      goal,
+      onStopLoop,
+      onClearGoal,
+    });
     expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('Goal: tests pass');
     expect(el.querySelector('.cmd-chip.goal')!.textContent).toContain('2 follow-ups');
     expect(el.querySelector('.cmd-chip.loop')!.textContent).toContain('every 15m · 3 of 10 sent');

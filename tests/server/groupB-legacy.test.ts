@@ -55,7 +55,12 @@ describe('the Brain and old step lists', () => {
 describe('update_team access', () => {
   it('changes only the list that was given', () => {
     const a = newAgent({ name: 'Solo' });
-    const wf = workflows.save({ name: 'Access team', members: [a.id], steps: [], access: { toolGroups: ['web'], mcpServers: ['keep-me'] } } as Partial<Team>);
+    const wf = workflows.save({
+      name: 'Access team',
+      members: [a.id],
+      steps: [],
+      access: { toolGroups: ['web'], mcpServers: ['keep-me'] },
+    } as Partial<Team>);
     applyActions([{ do: 'update_team', team: wf.id, access: { tools: ['files'] } }]);
     expect(workflows.get(wf.id)!.access).toEqual({ toolGroups: ['files'], mcpServers: ['keep-me'] });
     applyActions([{ do: 'update_team', team: wf.id, access: { mcpServers: [] } }]);
@@ -85,9 +90,21 @@ describe('the scheduler', () => {
   afterEach(() => vi.useRealTimers());
 
   it('runs a scheduled step list through its steps, and messages a scheduled team', async () => {
-    const notify = workflows.save({ name: 'Ping', steps: [{ id: 'n', type: 'notify', text: 'Hello {{input}}' }], schedule: { type: 'interval', input: 'there' }, enabled: true } as Partial<Team>);
+    const notify = workflows.save({
+      name: 'Ping',
+      steps: [{ id: 'n', type: 'notify', text: 'Hello {{input}}' }],
+      schedule: { type: 'interval', input: 'there' },
+      enabled: true,
+    } as Partial<Team>);
     const a = newAgent({ name: 'Scout', engine: 'eve', provider: 'nowhere', model: 'x', toolGroups: [] });
-    const team = workflows.save({ name: 'Scouts', members: [a.id], lead: a.id, steps: [], schedule: { type: 'interval', input: 'Morning check' }, enabled: true } as Partial<Team>);
+    const team = workflows.save({
+      name: 'Scouts',
+      members: [a.id],
+      lead: a.id,
+      steps: [],
+      schedule: { type: 'interval', input: 'Morning check' },
+      enabled: true,
+    } as Partial<Team>);
     vi.useFakeTimers({ toFake: ['setInterval'] });
     startScheduler();
     vi.advanceTimersByTime(30_000);

@@ -38,9 +38,30 @@ export interface ToolOutput {
 }
 
 export { fileUrl };
-const MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', mp3: 'audio/mpeg', wav: 'audio/wav', pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', json: 'application/json', csv: 'text/csv' };
-export const mimeOf = (p: string): string => MIME[/\.([a-z0-9]+)$/i.exec(p)?.[1]?.toLowerCase() || ''] || 'application/octet-stream';
-const baseName = (p: string): string => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p;
+const MIME: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  pdf: 'application/pdf',
+  txt: 'text/plain',
+  md: 'text/markdown',
+  json: 'application/json',
+  csv: 'text/csv',
+};
+export const mimeOf = (p: string): string =>
+  MIME[/\.([a-z0-9]+)$/i.exec(p)?.[1]?.toLowerCase() || ''] || 'application/octet-stream';
+const baseName = (p: string): string =>
+  p
+    .replace(/[\\/]+$/, '')
+    .split(/[\\/]/)
+    .pop() || p;
 // the path back from a file part (its url is /api/file?path=…)
 const pathOf = (url: string): string | null => {
   const m = /[?&]path=([^&]+)/.exec(url);
@@ -53,7 +74,15 @@ const pathOf = (url: string): string | null => {
 
 /** A user message's parts: its text, and the attached files. */
 export function userParts(text: string, attachments: readonly string[] = []): ChatPart[] {
-  return [{ type: 'text', text }, ...attachments.map((p): ChatPart => ({ type: 'file', mediaType: mimeOf(p), url: fileUrl(p), filename: baseName(p) }))];
+  return [
+    { type: 'text', text },
+    ...attachments.map((p): ChatPart => ({
+      type: 'file',
+      mediaType: mimeOf(p),
+      url: fileUrl(p),
+      filename: baseName(p),
+    })),
+  ];
 }
 
 /** The text and attached paths of a user message. */
@@ -69,7 +98,11 @@ export function toolPart(it: Extract<ChatItem, { type: 'tool' }>): DynamicToolUI
   const base = { type: 'dynamic-tool' as const, toolName: it.name, toolCallId: it.id, input: it.args ?? {} };
   if (it.result == null || it.status === 'running') return { ...base, state: 'input-available' };
   if (it.isError) return { ...base, state: 'output-error', errorText: it.result || 'Failed' };
-  return { ...base, state: 'output-available', output: { text: it.result, images: it.images || [] } satisfies ToolOutput };
+  return {
+    ...base,
+    state: 'output-available',
+    output: { text: it.result, images: it.images || [] } satisfies ToolOutput,
+  };
 }
 
 /** What a dynamic-tool part's output says (a result from elsewhere is its own text). */
@@ -78,7 +111,10 @@ export function readOutput(output: unknown): ToolOutput {
     const o = output as Partial<ToolOutput>;
     return { text: String(o.text ?? ''), images: Array.isArray(o.images) ? o.images.map(String) : [] };
   }
-  return { text: typeof output === 'string' ? output : output == null ? '' : JSON.stringify(output, null, 2), images: [] };
+  return {
+    text: typeof output === 'string' ? output : output == null ? '' : JSON.stringify(output, null, 2),
+    images: [],
+  };
 }
 
 /** A tool's own name, without the prefix an engine adds to MCP tools (mcp__dashboard__await_agent → await_agent). */
@@ -89,27 +125,40 @@ export const toolBase = (name: string): string => name.replace(/^mcp__[^_]+(?:_[
  *  stays the same while other parts stream in. */
 export function handoffsIn(messages: readonly Pick<ChatMessage, 'parts'>[]): string {
   const lines: string[] = [];
-  for (const m of messages) for (const p of m.parts) {
-    if (p.type !== 'dynamic-tool' || toolBase(p.toolName) !== 'ask_agent' || p.state !== 'output-available') continue;
-    const sent = /Sent to (.+?) \(handle ([\w-]+)\)/.exec(readOutput(p.output).text);
-    if (!sent) continue;
-    const named = (p.input as { agent?: unknown } | null)?.agent;
-    lines.push(`${sent[2]}\t${typeof named === 'string' && named.trim() ? named.trim() : sent[1]}`);
-  }
+  for (const m of messages)
+    for (const p of m.parts) {
+      if (p.type !== 'dynamic-tool' || toolBase(p.toolName) !== 'ask_agent' || p.state !== 'output-available') continue;
+      const sent = /Sent to (.+?) \(handle ([\w-]+)\)/.exec(readOutput(p.output).text);
+      if (!sent) continue;
+      const named = (p.input as { agent?: unknown } | null)?.agent;
+      lines.push(`${sent[2]}\t${typeof named === 'string' && named.trim() ? named.trim() : sent[1]}`);
+    }
   return lines.join('\n');
 }
 
 /** handoffsIn's lines as a map. */
-export const handoffMap = (lines: string): ReadonlyMap<string, string> => new Map(lines ? lines.split('\n').map((l) => l.split('\t') as [string, string]) : []);
+export const handoffMap = (lines: string): ReadonlyMap<string, string> =>
+  new Map(lines ? lines.split('\n').map((l) => l.split('\t') as [string, string]) : []);
 
 /** What a message says, for the search (Ctrl+F): its text, and the names of the tools it used. */
 export function searchText(m: Pick<ChatMessage, 'parts'>): string {
-  return m.parts.map((p) => (p.type === 'text' || p.type === 'reasoning' ? p.text : p.type === 'dynamic-tool' ? p.toolName : p.type === 'data-steer' ? (p.data as { text: string }).text : '')).join('\n');
+  return m.parts
+    .map((p) =>
+      p.type === 'text' || p.type === 'reasoning'
+        ? p.text
+        : p.type === 'dynamic-tool'
+          ? p.toolName
+          : p.type === 'data-steer'
+            ? (p.data as { text: string }).text
+            : '',
+    )
+    .join('\n');
 }
 
 // The cost and token line saved after a run ("$0.0000 · 11392 from cache"): kept in the chat, not shown.
 const USAGE = /^(Memory summary · )?(Estimated \$|\$\d|Cost unavailable|Cost not reported|Usage · )/;
-export const isUsageLine = (it: ChatItem): boolean => it.type === 'meta' && !it.reset && (!!it.billing || USAGE.test(it.text));
+export const isUsageLine = (it: ChatItem): boolean =>
+  it.type === 'meta' && !it.reset && (!!it.billing || USAGE.test(it.text));
 
 export function toUIMessages(items: readonly ChatItem[], from = 0, to = items.length): ChatMessage[] {
   const out: ChatMessage[] = [];
@@ -126,14 +175,31 @@ export function toUIMessages(items: readonly ChatItem[], from = 0, to = items.le
       continue;
     }
     if (it.type === 'assistant') {
-      open = { id: `m-${seq}`, role: 'assistant', parts: [{ type: 'text', text: it.text, state: 'done' }], metadata: { seq } };
+      open = {
+        id: `m-${seq}`,
+        role: 'assistant',
+        parts: [{ type: 'text', text: it.text, state: 'done' }],
+        metadata: { seq },
+      };
       out.push(open);
       continue;
     }
     open = null;
     if (isUsageLine(it)) continue;
-    if (it.type === 'user') out.push({ id: `m-${seq}`, role: 'user', parts: userParts(it.text, it.attachments), metadata: { seq, from: it.from || null } });
-    else out.push({ id: `m-${seq}`, role: 'assistant', parts: [{ type: `data-${it.type}`, data: it } as ChatPart], metadata: { seq } });
+    if (it.type === 'user')
+      out.push({
+        id: `m-${seq}`,
+        role: 'user',
+        parts: userParts(it.text, it.attachments),
+        metadata: { seq, from: it.from || null },
+      });
+    else
+      out.push({
+        id: `m-${seq}`,
+        role: 'assistant',
+        parts: [{ type: `data-${it.type}`, data: it } as ChatPart],
+        metadata: { seq },
+      });
   }
   return out;
 }

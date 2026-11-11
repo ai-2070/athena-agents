@@ -62,7 +62,7 @@ describe('the accent', () => {
     expect(accentFor(undefined).id).toBe('aegean');
   });
 
-  it('is painted in the page\'s tone, and repainted when the page switches', async () => {
+  it("is painted in the page's tone, and repainted when the page switches", async () => {
     const gold = ACCENTS.find((a) => a.id === 'gold')!;
     applyLook({ accent: 'gold' });
     expect(root.style.getPropertyValue('--color-accent')).toBe(gold.light.c);

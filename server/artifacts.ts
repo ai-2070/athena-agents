@@ -12,7 +12,10 @@ const TEXT_MAX = 200_000;
 /** The kind and real path of a file or folder an agent hands in, or an error saying what is wrong with it. */
 export function checkTarget(raw: unknown): { kind: 'file' | 'folder'; path: string } {
   const real = viewable(raw);
-  if (!real) throw new Error(`${String(raw)} is not a file or folder in this project's folders, so it can't be saved as an artifact.`);
+  if (!real)
+    throw new Error(
+      `${String(raw)} is not a file or folder in this project's folders, so it can't be saved as an artifact.`,
+    );
   let st: fs.Stats;
   try {
     st = fs.statSync(real);
@@ -27,10 +30,12 @@ export function teamOf(agentId: string, chatId?: string | null): { id: string; n
   const chatTeam = chatId ? chats.get(agentId, chatId)?.teamId : null;
   // (teams as they read now: an old step list gets its members from its agent steps)
   const teams = listTeams();
-  const team = (chatTeam && teams.find((t) => t.id === chatTeam)) || (() => {
-    const mine = teams.filter((t) => t.members.includes(agentId));
-    return mine.length === 1 ? mine[0] : null;
-  })();
+  const team =
+    (chatTeam && teams.find((t) => t.id === chatTeam)) ||
+    (() => {
+      const mine = teams.filter((t) => t.members.includes(agentId));
+      return mine.length === 1 ? mine[0] : null;
+    })();
   return team ? { id: team.id, name: team.name } : null;
 }
 
@@ -45,11 +50,24 @@ export interface ArtifactInput {
   by?: string;
 }
 
-export function addArtifact({ title, path: target, text, note = '', agentId = null, chatId = null, by }: ArtifactInput): Artifact {
-  const name = String(title || '').trim().slice(0, 120);
+export function addArtifact({
+  title,
+  path: target,
+  text,
+  note = '',
+  agentId = null,
+  chatId = null,
+  by,
+}: ArtifactInput): Artifact {
+  const name = String(title || '')
+    .trim()
+    .slice(0, 120);
   if (!name) throw new Error('Give the artifact a title.');
-  if (!target && !String(text || '').trim()) throw new Error('Give a path to a file or folder, or the text of the result.');
-  const body: Partial<Artifact> = target ? checkTarget(target) : { kind: 'text', text: String(text).slice(0, TEXT_MAX) };
+  if (!target && !String(text || '').trim())
+    throw new Error('Give a path to a file or folder, or the text of the result.');
+  const body: Partial<Artifact> = target
+    ? checkTarget(target)
+    : { kind: 'text', text: String(text).slice(0, TEXT_MAX) };
   const agent = agentId ? agents.get(agentId) : null;
   const team = agentId ? teamOf(agentId, chatId) : null;
   const item = artifacts.save({
@@ -62,7 +80,11 @@ export function addArtifact({ title, path: target, text, note = '', agentId = nu
     teamId: team?.id || null,
     teamName: team?.name || '',
   });
-  log('artifact', `${agent?.name || by || 'Someone'} ${agent || !by ? 'finished' : 'saved'} "${name}"${team ? ` for ${team.name}` : ''}`, { agentId });
+  log(
+    'artifact',
+    `${agent?.name || by || 'Someone'} ${agent || !by ? 'finished' : 'saved'} "${name}"${team ? ` for ${team.name}` : ''}`,
+    { agentId },
+  );
   emit('artifacts');
   return item;
 }

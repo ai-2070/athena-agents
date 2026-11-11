@@ -24,7 +24,8 @@ const BTN_SIZES: Record<ButtonSize, string> = {
 };
 
 const BTN_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-accent text-on-accent border-[color-mix(in_srgb,var(--color-accent)_82%,var(--color-ink))] shadow-raised hover:bg-accent-hover',
+  primary:
+    'bg-accent text-on-accent border-[color-mix(in_srgb,var(--color-accent)_82%,var(--color-ink))] shadow-raised hover:bg-accent-hover',
   ghost:
     'bg-ghost text-ink border-line-2 shadow-raised ' +
     'hover:bg-ghost-hover hover:border-[color-mix(in_srgb,var(--color-ink)_22%,var(--color-line-2))]',
@@ -35,7 +36,11 @@ const BTN_VARIANTS: Record<ButtonVariant, string> = {
 };
 
 /** The classes for an action in the app's shared style. */
-export function buttonClass(variant: ButtonVariant = 'primary', size: ButtonSize = 'default', className: ClassName = '') {
+export function buttonClass(
+  variant: ButtonVariant = 'primary',
+  size: ButtonSize = 'default',
+  className: ClassName = '',
+) {
   const markers = ['btn', variant !== 'primary' && variant, size !== 'default' && size];
   return [...markers, BTN_BASE, BTN_SIZES[size], BTN_VARIANTS[variant], className].filter(Boolean).join(' ');
 }
@@ -44,7 +49,8 @@ export function buttonClass(variant: ButtonVariant = 'primary', size: ButtonSize
  *  action in a row of a panel. Each states its own border width, so one can be borderless. */
 export type IconButtonVariant = 'default' | 'plain' | 'inset' | 'quiet';
 
-const ICON_BTN_BASE = 'icon-btn inline-grid cursor-pointer place-items-center rounded-ctl ' +
+const ICON_BTN_BASE =
+  'icon-btn inline-grid cursor-pointer place-items-center rounded-ctl ' +
   '[transition:transform_0.18s_var(--ease-soft),background-color_0.15s,border-color_0.15s,color_0.15s,box-shadow_0.2s,opacity_0.2s] ' +
   'hover:bg-panel-2 hover:text-ink active:scale-[0.96]';
 
@@ -60,7 +66,9 @@ const ICON_BTN_VARIANTS: Record<IconButtonVariant, string> = {
 
 /** The classes for an icon-only action. */
 export function iconButtonClass(variant: IconButtonVariant = 'default', className: ClassName = '') {
-  return [ICON_BTN_BASE, ICON_BTN_VARIANTS[variant], variant === 'plain' && 'plain', className].filter(Boolean).join(' ');
+  return [ICON_BTN_BASE, ICON_BTN_VARIANTS[variant], variant === 'plain' && 'plain', className]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /** Where a field that opens something sits: on a page (`field`), or in a panel, where it stands in a
@@ -75,7 +83,9 @@ export function fieldTriggerClass(kind: FieldTriggerKind = 'field', className: C
     'flex w-full cursor-pointer items-center gap-2.5 rounded-ctl border border-line-2 text-left outline-none focus-visible:border-accent data-popup-open:border-accent',
     kind === 'field' ? 'bg-bg px-3 py-2 text-[13.5px]' : 'h-9 bg-panel px-3 text-[13px]',
     className,
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /** A pill's tone, as the token its colour comes from. */
@@ -91,7 +101,14 @@ export const PILL_TONES: Record<PillTone, string> = {
 };
 
 /** The tone name the old class carried (`.pill.ok` and friends), left on the element as a hook. */
-const PILL_MARKERS: Record<PillTone, string> = { dim: '', ok: 'ok', warn: 'warn', bad: 'bad', info: 'info', accent: 'accent' };
+const PILL_MARKERS: Record<PillTone, string> = {
+  dim: '',
+  ok: 'ok',
+  warn: 'warn',
+  bad: 'bad',
+  info: 'info',
+  accent: 'accent',
+};
 
 /** A pill's classes. The tone is set on the element as `--tone` (see `pillStyle`). */
 export function pillClass(tone: PillTone = 'dim', className: ClassName = '') {
@@ -102,7 +119,9 @@ export function pillClass(tone: PillTone = 'dim', className: ClassName = '') {
       'border-[color-mix(in_srgb,var(--tone)_22%,var(--color-line))] text-[var(--tone)] ' +
       'bg-[color-mix(in_srgb,var(--tone)_8%,transparent)]',
     className,
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /** The pill's tone as an inline custom property, which `pillClass` reads. */
@@ -118,7 +137,9 @@ export function badgeClass(hot = false, className: ClassName = '') {
     'inline-grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11.5px] leading-none tabular-nums shadow-raised',
     hot ? 'bg-amber font-semibold text-on-accent' : 'bg-panel-2 font-medium text-dim',
     className,
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /** A status light: gray at rest, green when on, amber when busy or waiting. `color` reads `--c`. */
@@ -130,7 +151,13 @@ export function dotClass(tone: DotTone | '' | null | undefined, className: Class
 }
 
 const DOT_BASE = 'inline-block size-2 flex-none rounded-full';
-const DOT_MARKERS: Record<DotTone, string> = { off: 'dot', on: 'dot on', busy: 'dot busy', warn: 'dot warn', color: 'st-dot' };
+const DOT_MARKERS: Record<DotTone, string> = {
+  off: 'dot',
+  on: 'dot on',
+  busy: 'dot busy',
+  warn: 'dot warn',
+  color: 'st-dot',
+};
 export const DOT_CLASSES: Record<DotTone, string> = {
   off: `${DOT_MARKERS.off} ${DOT_BASE} bg-line-2`,
   on: `${DOT_MARKERS.on} ${DOT_BASE} bg-ok shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-ok)_18%,transparent)]`,
@@ -151,7 +178,9 @@ export function chipClass(on = false, className: ClassName = '') {
       '[transition:transform_0.18s_var(--ease-soft),background-color_0.15s,border-color_0.15s,color_0.15s,box-shadow_0.2s,opacity_0.2s]',
     look,
     className,
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /** A row of chips. */

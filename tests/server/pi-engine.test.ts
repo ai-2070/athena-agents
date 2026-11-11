@@ -9,7 +9,12 @@ import type { ChildProcess } from 'node:child_process';
 import type { Chat, RunEvent } from '../../shared/types.ts';
 
 // a fake pi / omp: prints its lines, remembers what it was started with and sent
-const fake = vi.hoisted(() => ({ lines: [] as string[], stderr: '', code: 0, calls: [] as { cmd: string; args: string[]; env: NodeJS.ProcessEnv; input: string; instructions: string }[] }));
+const fake = vi.hoisted(() => ({
+  lines: [] as string[],
+  stderr: '',
+  code: 0,
+  calls: [] as { cmd: string; args: string[]; env: NodeJS.ProcessEnv; input: string; instructions: string }[],
+}));
 vi.mock('../../server/util.ts', async (orig) => {
   const real = await orig<typeof import('../../server/util.ts')>();
   return {
@@ -22,7 +27,13 @@ vi.mock('../../server/util.ts', async (orig) => {
       const stdin = new PassThrough();
       Object.assign(child, { stdout, stderr, stdin, exitCode: null, pid: 0 });
       const at = args.indexOf('--append-system-prompt');
-      const call = { cmd, args, env: opts.env || {}, input: '', instructions: at === -1 ? '' : fs.readFileSync(args[at + 1], 'utf8') };
+      const call = {
+        cmd,
+        args,
+        env: opts.env || {},
+        input: '',
+        instructions: at === -1 ? '' : fs.readFileSync(args[at + 1], 'utf8'),
+      };
       fake.calls.push(call);
       const print = () => {
         for (const l of fake.lines) stdout.write(`${l}\n`);
@@ -47,7 +58,8 @@ vi.mock('../../server/util.ts', async (orig) => {
   };
 });
 
-const { piArgs, piReader, parseModelTable, addBridge, mcpFile, toolText, pi, omp, olderThan } = await import('../../server/engines/pi.ts');
+const { piArgs, piReader, parseModelTable, addBridge, mcpFile, toolText, pi, omp, olderThan } =
+  await import('../../server/engines/pi.ts');
 const { newAgent } = await import('../../server/library.ts');
 const { HOME } = await import('../../server/util.ts');
 
@@ -75,12 +87,30 @@ beforeEach(() => {
 describe('piArgs', () => {
   it('pi: RPC (so a message can go in while it works), its exact session id, the brief as a file, the effort as --thinking', () => {
     const a = newAgent({ name: 'Coder', engine: 'pi', model: 'anthropic/claude-sonnet-5-5', effort: 'high' });
-    expect(piArgs('pi', a, { sessionId: 's1', instructions: 'brief.md' })).toEqual(['--mode', 'rpc', '--model', 'anthropic/claude-sonnet-5-5', '--thinking', 'high', '--append-system-prompt', 'brief.md', '--session-id', 's1']);
+    expect(piArgs('pi', a, { sessionId: 's1', instructions: 'brief.md' })).toEqual([
+      '--mode',
+      'rpc',
+      '--model',
+      'anthropic/claude-sonnet-5-5',
+      '--thinking',
+      'high',
+      '--append-system-prompt',
+      'brief.md',
+      '--session-id',
+      's1',
+    ]);
   });
   it('oh-my-pi: RPC too, resumes only a session it named, and never stops to ask about a tool', () => {
     const a = newAgent({ name: 'Coder', engine: 'omp', autonomy: 'ask' });
     expect(piArgs('omp', a, { sessionId: '', resume: false })).toEqual(['--mode', 'rpc', '--approval-mode', 'yolo']);
-    expect(piArgs('omp', a, { sessionId: 'abc', resume: true })).toEqual(['--mode', 'rpc', '--resume', 'abc', '--approval-mode', 'yolo']);
+    expect(piArgs('omp', a, { sessionId: 'abc', resume: true })).toEqual([
+      '--mode',
+      'rpc',
+      '--resume',
+      'abc',
+      '--approval-mode',
+      'yolo',
+    ]);
   });
   it('the terminal: interactive, no JSON', () => {
     expect(piArgs('pi', newAgent({ name: 'Coder', engine: 'pi' }), { interactive: true })).toEqual([]);
@@ -103,16 +133,45 @@ describe('piReader', () => {
   it('streams text, tool calls and their results, and adds up usage', () => {
     const events: RunEvent[] = [];
     let session = '';
-    const r = piReader((e) => events.push(e), (id) => (session = id));
+    const r = piReader(
+      (e) => events.push(e),
+      (id) => (session = id),
+    );
     const lines = [
       ev({ type: 'session', version: 3, id: 'abc', cwd: '/w' }),
       ev({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'Look' } }),
       ev({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'ing.' } }),
-      ev({ type: 'message_end', message: { role: 'assistant', provider: 'anthropic', model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'Looking.' }], stopReason: 'toolUse', usage: { input: 10, output: 5, cacheRead: 100, cacheWrite: 0, totalTokens: 115, cost: { total: 0.01 } } } }),
+      ev({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          provider: 'anthropic',
+          model: 'claude-sonnet-5-5',
+          content: [{ type: 'text', text: 'Looking.' }],
+          stopReason: 'toolUse',
+          usage: { input: 10, output: 5, cacheRead: 100, cacheWrite: 0, totalTokens: 115, cost: { total: 0.01 } },
+        },
+      }),
       ev({ type: 'tool_execution_start', toolCallId: 't1', toolName: 'bash', args: { command: 'ls' } }),
-      ev({ type: 'tool_execution_end', toolCallId: 't1', toolName: 'bash', result: { content: [{ type: 'text', text: 'a.ts' }] }, isError: false }),
+      ev({
+        type: 'tool_execution_end',
+        toolCallId: 't1',
+        toolName: 'bash',
+        result: { content: [{ type: 'text', text: 'a.ts' }] },
+        isError: false,
+      }),
       // a message without deltas: its text comes whole, after a gap
-      ev({ type: 'message_end', message: { role: 'assistant', provider: 'anthropic', model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'Done.' }], stopReason: 'stop', usage: { input: 20, output: 2, cacheRead: 110, cacheWrite: 0, totalTokens: 132, cost: { total: 0.02 } } } }),
+      ev({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          provider: 'anthropic',
+          model: 'claude-sonnet-5-5',
+          content: [{ type: 'text', text: 'Done.' }],
+          stopReason: 'stop',
+          usage: { input: 20, output: 2, cacheRead: 110, cacheWrite: 0, totalTokens: 132, cost: { total: 0.02 } },
+        },
+      }),
       'not json at all',
       ev({ type: 'some_new_event', x: 1 }),
       ev({ type: 'agent_end', messages: [] }),
@@ -133,37 +192,112 @@ describe('piReader', () => {
       { kind: 'tool_result', id: 't1', text: 'a.ts', isError: false },
       { kind: 'text', text: '\n\nDone.' },
     ]);
-    expect(r.result()).toMatchObject({ answer: 'Looking.\n\nDone.', tokens: 247, cached: 210, context: 132, lastError: '', ended: true });
+    expect(r.result()).toMatchObject({
+      answer: 'Looking.\n\nDone.',
+      tokens: 247,
+      cached: 210,
+      context: 132,
+      lastError: '',
+      ended: true,
+    });
     expect(r.result().cost).toBeCloseTo(0.03);
   });
   it('a turn that ends in an error says why', () => {
-    const r = piReader(() => {}, () => {});
-    r.line(ev({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'No API key for anthropic' } }));
+    const r = piReader(
+      () => {},
+      () => {},
+    );
+    r.line(
+      ev({
+        type: 'message_end',
+        message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'No API key for anthropic' },
+      }),
+    );
     expect(r.result().lastError).toBe('No API key for anthropic');
   });
   it('marks a compaction pi did on its own', () => {
     const events: RunEvent[] = [];
-    const r = piReader((e) => events.push(e), () => {});
-    r.line(ev({ type: 'compaction_end', reason: 'threshold', result: { summary: '…', tokensBefore: 150000 }, aborted: false, willRetry: false }));
+    const r = piReader(
+      (e) => events.push(e),
+      () => {},
+    );
+    r.line(
+      ev({
+        type: 'compaction_end',
+        reason: 'threshold',
+        result: { summary: '…', tokensBefore: 150000 },
+        aborted: false,
+        willRetry: false,
+      }),
+    );
     expect(events).toEqual([{ kind: 'compacted', trigger: 'auto', tokensBefore: 150000 }]);
   });
   it('a tool that returns a picture (read on a PNG): the images go with its result', () => {
     const events: RunEvent[] = [];
-    const r = piReader((e) => events.push(e), () => {});
-    r.line(ev({ type: 'tool_execution_end', toolCallId: 't1', toolName: 'read', result: { content: [{ type: 'text', text: 'Read image file [image/png]' }, { type: 'image', data: 'iVBORw0K', mimeType: 'image/png' }] }, isError: false }));
-    expect(events).toEqual([{ kind: 'tool_result', id: 't1', text: 'Read image file [image/png]\n[image]', isError: false, images: ['data:image/png;base64,iVBORw0K'] }]);
+    const r = piReader(
+      (e) => events.push(e),
+      () => {},
+    );
+    r.line(
+      ev({
+        type: 'tool_execution_end',
+        toolCallId: 't1',
+        toolName: 'read',
+        result: {
+          content: [
+            { type: 'text', text: 'Read image file [image/png]' },
+            { type: 'image', data: 'iVBORw0K', mimeType: 'image/png' },
+          ],
+        },
+        isError: false,
+      }),
+    );
+    expect(events).toEqual([
+      {
+        kind: 'tool_result',
+        id: 't1',
+        text: 'Read image file [image/png]\n[image]',
+        isError: false,
+        images: ['data:image/png;base64,iVBORw0K'],
+      },
+    ]);
   });
   it('tool results: text parts, images as a marker, anything else as JSON', () => {
-    expect(toolText({ content: [{ type: 'text', text: 'a' }, { type: 'image', data: 'x' }] })).toBe('a\n[image]');
+    expect(
+      toolText({
+        content: [
+          { type: 'text', text: 'a' },
+          { type: 'image', data: 'x' },
+        ],
+      }),
+    ).toBe('a\n[image]');
     expect(toolText('plain')).toBe('plain');
     expect(toolText({ ok: true })).toBe('{"ok":true}');
   });
   it('keeps all task batch results in the saved conversation beyond the usual output limit', () => {
     const events: RunEvent[] = [];
-    const r = piReader((e) => events.push(e), () => {});
-    const text = JSON.stringify({ results: Array.from({ length: 300 }, (_, index) => ({ index, success: false, error: 'That task is unavailable.', code: 404 })) });
+    const r = piReader(
+      (e) => events.push(e),
+      () => {},
+    );
+    const text = JSON.stringify({
+      results: Array.from({ length: 300 }, (_, index) => ({
+        index,
+        success: false,
+        error: 'That task is unavailable.',
+        code: 404,
+      })),
+    });
     expect(text.length).toBeGreaterThan(20000);
-    for (const toolName of ['TaskCreate', 'mcp__dashboard__TaskUpdate']) r.line(ev({ type: 'tool_execution_end', toolCallId: toolName, toolName, result: { content: [{ type: 'text', text }] } }));
+    for (const toolName of ['TaskCreate', 'mcp__dashboard__TaskUpdate'])
+      r.line(
+        ev({
+          type: 'tool_execution_end',
+          toolCallId: toolName,
+          toolName,
+          result: { content: [{ type: 'text', text }] },
+        }),
+      );
     expect(events).toHaveLength(2);
     expect(events.every((e) => e.kind === 'tool_result' && e.text === text)).toBe(true);
   });
@@ -171,7 +305,18 @@ describe('piReader', () => {
 
 describe('a pi run', () => {
   it('sends the message as an RPC prompt, starts and keeps its own session, and cleans up the brief', async () => {
-    fake.lines = [ev({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Fixed.' } }), ev({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Fixed.' }], stopReason: 'stop', usage: { input: 3, output: 2, totalTokens: 5, cost: { total: 0.001 } } } })];
+    fake.lines = [
+      ev({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Fixed.' } }),
+      ev({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Fixed.' }],
+          stopReason: 'stop',
+          usage: { input: 3, output: 2, totalTokens: 5, cost: { total: 0.001 } },
+        },
+      }),
+    ];
     const chat = chatOf();
     const events: RunEvent[] = [];
     const res = await pi.run(runArgs('pi', chat, events));
@@ -190,18 +335,45 @@ describe('a pi run', () => {
     expect(fake.calls[1].args[fake.calls[1].args.indexOf('--session-id') + 1]).toBe(sid);
   });
   it('fails with the model’s error', async () => {
-    fake.lines = [ev({ type: 'message_end', message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'rate limited' } })];
+    fake.lines = [
+      ev({
+        type: 'message_end',
+        message: { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'rate limited' },
+      }),
+    ];
     await expect(pi.run(runArgs('pi', chatOf(), []))).rejects.toThrow('rate limited');
   });
   it('oh-my-pi: asks which session it named (get_session_stats: small, unlike get_state), keeps it, then resumes it', async () => {
-    fake.lines = [ev({ type: 'response', id: 'session', command: 'get_session_stats', success: true, data: { sessionId: 'omp-1' } }), ev({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Hi.' }], stopReason: 'stop' } })];
+    fake.lines = [
+      ev({
+        type: 'response',
+        id: 'session',
+        command: 'get_session_stats',
+        success: true,
+        data: { sessionId: 'omp-1' },
+      }),
+      ev({
+        type: 'message_end',
+        message: { role: 'assistant', content: [{ type: 'text', text: 'Hi.' }], stopReason: 'stop' },
+      }),
+    ];
     const chat = chatOf();
     await omp.run(runArgs('omp', chat, []));
     expect(fake.calls[0].args).not.toContain('--resume');
-    expect(fake.calls[0].input.split('\n').filter(Boolean).map((l) => JSON.parse(l) as unknown)).toEqual([{ id: 'prompt', type: 'prompt', message: 'fix the test' }, { id: 'session', type: 'get_session_stats' }]);
+    expect(
+      fake.calls[0].input
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as unknown),
+    ).toEqual([
+      { id: 'prompt', type: 'prompt', message: 'fix the test' },
+      { id: 'session', type: 'get_session_stats' },
+    ]);
     expect(chat.sessionId).toBe('omp-1');
     await omp.run(runArgs('omp', chat, []));
-    expect(fake.calls[1].args.slice(fake.calls[1].args.indexOf('--resume'), fake.calls[1].args.indexOf('--resume') + 2)).toEqual(['--resume', 'omp-1']);
+    expect(
+      fake.calls[1].args.slice(fake.calls[1].args.indexOf('--resume'), fake.calls[1].args.indexOf('--resume') + 2),
+    ).toEqual(['--resume', 'omp-1']);
   });
 });
 
@@ -209,7 +381,8 @@ describe('a session oh-my-pi does not have', () => {
   it('clears it and asks for a new session with the chat so far', async () => {
     const { SessionGone } = await import('../../server/engines/cli.ts');
     fake.code = 1;
-    fake.stderr = 'Error: Session "5bc68a5e-de26-4882-8c34-5a0a2257ed0e" not found. Run `omp --resume` without an argument to pick from recent sessions, or `omp` to start a new one.';
+    fake.stderr =
+      'Error: Session "5bc68a5e-de26-4882-8c34-5a0a2257ed0e" not found. Run `omp --resume` without an argument to pick from recent sessions, or `omp` to start a new one.';
     const chat = chatOf('5bc68a5e-de26-4882-8c34-5a0a2257ed0e');
     const err = await omp.run(runArgs('omp', chat, [])).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SessionGone);
@@ -230,7 +403,8 @@ describe('a session oh-my-pi does not have', () => {
 
 describe('models', () => {
   it("reads pi's --list-models table", () => {
-    const out = 'provider   model                context  max-out  thinking  images\nanthropic  claude-sonnet-5-5    1M       64K      yes       yes\nopenai     gpt-5.6-sol          272K     128K     yes       yes\n';
+    const out =
+      'provider   model                context  max-out  thinking  images\nanthropic  claude-sonnet-5-5    1M       64K      yes       yes\nopenai     gpt-5.6-sol          272K     128K     yes       yes\n';
     expect(parseModelTable(out)).toEqual([
       { id: 'anthropic/claude-sonnet-5-5', name: 'claude-sonnet-5-5', context: 1_000_000 },
       { id: 'openai/gpt-5.6-sol', name: 'gpt-5.6-sol', context: 272_000 },
@@ -246,7 +420,10 @@ describe('addBridge', () => {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, `﻿${JSON.stringify({ mcpServers: { github: { command: 'gh-mcp' } }, other: 1 })}`);
     addBridge('pi');
-    const cfg = JSON.parse(fs.readFileSync(file, 'utf8')) as { mcpServers: Record<string, { command: string; args?: string[]; env?: object; timeout?: number }>; other: number };
+    const cfg = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+      mcpServers: Record<string, { command: string; args?: string[]; env?: object; timeout?: number }>;
+      other: number;
+    };
     expect(cfg.other).toBe(1);
     expect(cfg.mcpServers.github).toEqual({ command: 'gh-mcp' });
     expect(cfg.mcpServers.dashboard.args?.[0]).toMatch(/mcp-bridge\.ts$/);
@@ -257,7 +434,10 @@ describe('addBridge', () => {
   it("oh-my-pi's file, in milliseconds", () => {
     const file = addBridge('omp');
     expect(file).toBe(mcpFile('omp'));
-    expect((JSON.parse(fs.readFileSync(file, 'utf8')) as { mcpServers: { dashboard: { timeout: number } } }).mcpServers.dashboard.timeout).toBe(3_600_000);
+    expect(
+      (JSON.parse(fs.readFileSync(file, 'utf8')) as { mcpServers: { dashboard: { timeout: number } } }).mcpServers
+        .dashboard.timeout,
+    ).toBe(3_600_000);
   });
   it("never replaces a file it can't read", () => {
     const file = mcpFile('omp');
@@ -268,8 +448,18 @@ describe('addBridge', () => {
 });
 
 describe('the bridge before a run', () => {
-  const done = [ev({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Done.' }], stopReason: 'stop' } })];
-  const dashboard = () => (JSON.parse(fs.readFileSync(mcpFile('omp'), 'utf8')) as { mcpServers: Record<string, { command: string; args: string[] }> }).mcpServers.dashboard;
+  const done = [
+    ev({
+      type: 'message_end',
+      message: { role: 'assistant', content: [{ type: 'text', text: 'Done.' }], stopReason: 'stop' },
+    }),
+  ];
+  const dashboard = () =>
+    (
+      JSON.parse(fs.readFileSync(mcpFile('omp'), 'utf8')) as {
+        mcpServers: Record<string, { command: string; args: string[] }>;
+      }
+    ).mcpServers.dashboard;
 
   it("adds the dashboard to its mcp.json when it isn't there, once", async () => {
     fs.rmSync(mcpFile('omp'), { force: true });
@@ -286,11 +476,17 @@ describe('the bridge before a run', () => {
 
   it('puts right an entry whose program is gone (the app moved), and keeps one that works', async () => {
     fake.lines = done;
-    fs.writeFileSync(mcpFile('omp'), JSON.stringify({ mcpServers: { dashboard: { command: '/nowhere/bun', args: ['/nowhere/mcp-bridge.js'] } } }));
+    fs.writeFileSync(
+      mcpFile('omp'),
+      JSON.stringify({ mcpServers: { dashboard: { command: '/nowhere/bun', args: ['/nowhere/mcp-bridge.js'] } } }),
+    );
     await omp.run(runArgs('omp', chatOf(), []));
     expect(dashboard().command).toBe(process.execPath);
     // a hand-made one that names a program on the PATH stays as it is
-    fs.writeFileSync(mcpFile('omp'), JSON.stringify({ mcpServers: { dashboard: { command: 'omp', args: ['bridge'] } } }));
+    fs.writeFileSync(
+      mcpFile('omp'),
+      JSON.stringify({ mcpServers: { dashboard: { command: 'omp', args: ['bridge'] } } }),
+    );
     await omp.run(runArgs('omp', chatOf(), []));
     expect(dashboard()).toEqual({ command: 'omp', args: ['bridge'] });
   });
@@ -300,6 +496,8 @@ describe('the bridge before a run', () => {
     fs.writeFileSync(mcpFile('omp'), '{ "mcpServers": { // a comment');
     await omp.run(runArgs('omp', chatOf(), []));
     expect(fs.readFileSync(mcpFile('omp'), 'utf8')).toBe('{ "mcpServers": { // a comment');
-    expect(fake.calls[0].instructions).toMatch(/^You are Coder\.\n\n\(The dashboard's own tools can't be used in this run: .*isn't valid JSON/);
+    expect(fake.calls[0].instructions).toMatch(
+      /^You are Coder\.\n\n\(The dashboard's own tools can't be used in this run: .*isn't valid JSON/,
+    );
   });
 });

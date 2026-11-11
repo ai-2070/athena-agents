@@ -147,10 +147,10 @@ compute the WACC inside the cell from the two axis values and reuse the formula 
 
 ## A minimal layout
 
-| Sheet | Rows |
-|---|---|
+| Sheet  | Rows                                                                                                                                                                                                                            |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Inputs | case selector, method switch, market data (price, diluted shares, debt, cash, other claims), tax rate, WACC inputs, terminal growth and multiple, valuation date, grid steps, tolerance; bear, base, bull blocks; selected rows |
-| DCF | period ends and year fractions; revenue to unlevered FCF; EBITDA; discount periods and factors; PV of FCF; WACC block; terminal values; bridge; value per share; implied multiple and growth; grids |
-| Checks | the rows above |
+| DCF    | period ends and year fractions; revenue to unlevered FCF; EBITDA; discount periods and factors; PV of FCF; WACC block; terminal values; bridge; value per share; implied multiple and growth; grids                             |
+| Checks | the rows above                                                                                                                                                                                                                  |
 
 Show the user the inputs block, then the FCF schedule, then the WACC and the bridge, before building the grids.

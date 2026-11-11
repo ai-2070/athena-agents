@@ -7,8 +7,10 @@ import { BIG_MARKDOWN } from '../../web/ui/bigmarkdown.tsx';
 // (the dialog draws outside act, as in the page)
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
 
-const section = (i: number) => `## Part ${i}\n\nSome words for part ${i}, with a [link][ref] and a table:\n\n| a | b |\n|---|---|\n| ${i} | x |\n\n${'More text to read. '.repeat(40)}\n`;
-const longDoc = (n: number) => `# Big\n\n${Array.from({ length: n }, (_, i) => section(i)).join('\n')}\n[ref]: https://example.com/ref\n`;
+const section = (i: number) =>
+  `## Part ${i}\n\nSome words for part ${i}, with a [link][ref] and a table:\n\n| a | b |\n|---|---|\n| ${i} | x |\n\n${'More text to read. '.repeat(40)}\n`;
+const longDoc = (n: number) =>
+  `# Big\n\n${Array.from({ length: n }, (_, i) => section(i)).join('\n')}\n[ref]: https://example.com/ref\n`;
 
 describe('mdChunks()', () => {
   it('cuts a text between its blocks, and every piece reads as it would in the whole', () => {
@@ -21,7 +23,9 @@ describe('mdChunks()', () => {
     // a [link][by name] finds its address even when the address is in another piece
     const links = pieces.flatMap((p) => [...p.querySelectorAll('a')]).filter((a) => a.textContent === 'link');
     expect(links).toHaveLength(40);
-    expect(links.every((a) => a.getAttribute('href') === 'https://example.com/ref' && a.target === '_blank')).toBe(true);
+    expect(links.every((a) => a.getAttribute('href') === 'https://example.com/ref' && a.target === '_blank')).toBe(
+      true,
+    );
     // (tables get the same sideways-scrolling box as md() gives them)
     expect(pieces.flatMap((p) => [...p.querySelectorAll('.md-table')])).toHaveLength(40);
     // (by text: happy-dom's sanitizer drops a first element, a heading that starts a piece)
@@ -49,7 +53,9 @@ describe('mdChunks()', () => {
     // every piece with code lines has them inside a code block, none as plain text
     const withCode = pieces.filter((p) => p.textContent!.includes('const x'));
     expect(withCode.length).toBeGreaterThan(1);
-    expect(withCode.every((p) => [...p.querySelectorAll('p')].every((n) => !n.textContent!.includes('const x')))).toBe(true);
+    expect(withCode.every((p) => [...p.querySelectorAll('p')].every((n) => !n.textContent!.includes('const x')))).toBe(
+      true,
+    );
     expect(withCode.every((p) => p.querySelector('code'))).toBe(true);
     // after the cut block the text reads as Markdown again
     expect(pieces.at(-1)!.querySelector('a')!.getAttribute('href')).toBe('https://example.com/ref');
@@ -74,7 +80,16 @@ describe('a Markdown file too big to read', () => {
   it('says so instead of loading it', async () => {
     const text = vi.fn(async () => '# never read');
     const cancel = vi.fn(async () => undefined);
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, headers: new Headers({ 'content-length': String(MAX_MARKDOWN_BYTES + 1) }), text, body: { cancel } })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-length': String(MAX_MARKDOWN_BYTES + 1) }),
+        text,
+        body: { cancel },
+      })),
+    );
     await previewMarkdown('/x/huge.md', 'huge.md');
     expect(text).not.toHaveBeenCalled();
     expect(cancel).toHaveBeenCalled();
@@ -107,7 +122,17 @@ describe('a Markdown file preview', () => {
     });
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
       const height = isBody(this) ? VIEW : this.hasAttribute('data-index') ? PIECE : 0;
-      return { width: isBody(this) ? 800 : 0, height, top: 0, left: 0, right: 0, bottom: height, x: 0, y: 0, toJSON: () => ({}) };
+      return {
+        width: isBody(this) ? 800 : 0,
+        height,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: height,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      };
     });
     vi.spyOn(Element.prototype, 'scrollTop', 'get').mockImplementation(function (this: Element) {
       return tops.get(this) ?? 0;
@@ -121,7 +146,10 @@ describe('a Markdown file preview', () => {
     document.body.innerHTML = '';
   });
   const rest = () => new Promise((r) => setTimeout(r, 200));
-  const parts = () => [...document.querySelectorAll('.md-window .md')].flatMap((p) => [...(p.textContent || '').matchAll(/Part \d+/g)].map((m) => m[0]));
+  const parts = () =>
+    [...document.querySelectorAll('.md-window .md')].flatMap((p) =>
+      [...(p.textContent || '').matchAll(/Part \d+/g)].map((m) => m[0]),
+    );
 
   it('a short file is drawn whole, as before', async () => {
     showMarkdown('notes.md', '# Notes\n\nHello');

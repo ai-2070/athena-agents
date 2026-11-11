@@ -72,6 +72,7 @@ then watching that run.
 
    They list PR titles and authors as written. Edit them into `gh-work/notes.md`: breaking changes and upgrade steps
    first, plain words, noise left out. Show the user.
+
 4. **A draft release**, which the user can look at on GitHub before anyone else sees it:
 
    ```
@@ -83,6 +84,7 @@ then watching that run.
    comes first: `git tag -a v1.5.0 -m "v1.5.0" <sha>` and `git push origin v1.5.0`. Add files with
    `gh release upload v1.5.0 dist/app-1.5.0.zip` (`--clobber` replaces one of the same name). `--prerelease` marks a
    beta; `--latest=false` keeps a patch for an older line from becoming "Latest".
+
 5. **Publish** on the user's word: `gh release edit v1.5.0 --draft=false`. When the repo has immutable releases, the
    tag and files can't change once it's published, so everything is checked while it's a draft.
 6. **Check it**: `gh release view v1.5.0 --json isDraft,isImmutable,publishedAt,url,assets`, and

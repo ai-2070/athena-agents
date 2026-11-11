@@ -52,8 +52,20 @@ export type MapPick =
 
 /** Brands that are black or white take the page's text colour (INK), so they show on light and dark alike; the other brand colours are data. */
 export { INK };
-export const PALETTE = ['#3d58c0', '#b0508a', '#c07a34', '#3a8a7a', '#7350c8', '#b8a03a', '#4f7fa8', '#5a9a3a', '#a84a5a', '#2f8fa0'];
-export const wfColor = (wf: Pick<Team, 'color'>, i: number): string => (/^#[0-9a-f]{6}$/i.test(wf.color || '') ? wf.color! : PALETTE[i % PALETTE.length]);
+export const PALETTE = [
+  '#3d58c0',
+  '#b0508a',
+  '#c07a34',
+  '#3a8a7a',
+  '#7350c8',
+  '#b8a03a',
+  '#4f7fa8',
+  '#5a9a3a',
+  '#a84a5a',
+  '#2f8fa0',
+];
+export const wfColor = (wf: Pick<Team, 'color'>, i: number): string =>
+  /^#[0-9a-f]{6}$/i.test(wf.color || '') ? wf.color! : PALETTE[i % PALETTE.length];
 
 // ---------- connections ----------
 // The connectors on your Claude account (from the header's GET /api/headbar), once the Station has them.
@@ -87,20 +99,44 @@ export const INTEGRATIONS: Integration[] = [
   { id: 'orca', label: 'Orca', glyph: '🐋', color: '#7ab8ff' },
   { id: 'browser', label: 'Browser', glyph: '🌐', color: '#a9d3e2' },
 ];
-const BRAND_OF: Record<string, string> = { codex: 'openai', reddit: 'reddit', claude: 'claude code', x: 'x', telegram: 'telegram', discord: 'discord', blender: 'blender', maya: 'maya', houdini: 'houdini', cad: 'openscad', nvidia: 'nvidia', premiere: 'premiere', photoshop: 'photoshop', aftereffects: 'aftereffects', ffmpeg: 'ffmpeg', browser: 'chrome', ollama: 'ollama' };
+const BRAND_OF: Record<string, string> = {
+  codex: 'openai',
+  reddit: 'reddit',
+  claude: 'claude code',
+  x: 'x',
+  telegram: 'telegram',
+  discord: 'discord',
+  blender: 'blender',
+  maya: 'maya',
+  houdini: 'houdini',
+  cad: 'openscad',
+  nvidia: 'nvidia',
+  premiere: 'premiere',
+  photoshop: 'photoshop',
+  aftereffects: 'aftereffects',
+  ffmpeg: 'ffmpeg',
+  browser: 'chrome',
+  ollama: 'ollama',
+};
 // A brand logo, a Craft app's own icon (PhotoCraft…), or a program's own icon (ComfyUI), for a connector or MCP server name.
 // (a brand logo is drawn in its colour, deepened or lifted when that colour would not show on the page: OpenAI's dark purple on black, say)
 const logoFill = (name: string): string | null => {
   const c = brandColor(name);
   return c ? brandTone(c) : null;
 };
-export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null => brandImage(name, size) || logo(name, size, logoFill(name)) || craftIcon(name, size) || appIcon(name, size);
+export const appLogo = (name: string, size: number): SVGSVGElement | HTMLImageElement | null =>
+  brandImage(name, size) || logo(name, size, logoFill(name)) || craftIcon(name, size) || appIcon(name, size);
 // The brand logo for an integration (or connector name), falling back to its glyph.
 export function mark(id: string, size = 14): SVGSVGElement | HTMLImageElement | string {
   const key = id.startsWith('mcp:') ? id.slice(4) : id.startsWith('cc:') ? id.slice(3) : BRAND_OF[id] || id;
   return appLogo(key, size) || intInfo(id)?.glyph || String(key).slice(0, 2).toUpperCase();
 }
-export const intInfo = (id: string): Integration | undefined => id.startsWith('cc:') ? { id, label: id.slice(3), glyph: connectorLook(id.slice(3)).glyph, color: connectorLook(id.slice(3)).color } : (id.startsWith('mcp:') ? { id, label: id.slice(4), glyph: '⌁', color: craftColor(id.slice(4)) || '#a9d3e2', mcp: true } : INTEGRATIONS.find((x) => x.id === id));
+export const intInfo = (id: string): Integration | undefined =>
+  id.startsWith('cc:')
+    ? { id, label: id.slice(3), glyph: connectorLook(id.slice(3)).glyph, color: connectorLook(id.slice(3)).color }
+    : id.startsWith('mcp:')
+      ? { id, label: id.slice(4), glyph: '⌁', color: craftColor(id.slice(4)) || '#a9d3e2', mcp: true }
+      : INTEGRATIONS.find((x) => x.id === id);
 
 export function availableIntegrations(d: AppState, progs: Program[]): AvailableIntegration[] {
   const P = (id: string) => progs.find((p) => p.id === id);
@@ -118,7 +154,8 @@ export function availableIntegrations(d: AppState, progs: Program[]): AvailableI
     discord: d.accounts.discord.configured,
     browser: true,
   };
-  for (const id of ['comfyui', 'blender', 'maya', 'houdini', 'premiere', 'photoshop', 'aftereffects', 'ffmpeg', 'orca']) avail[id] = !!P(id)?.installed;
+  for (const id of ['comfyui', 'blender', 'maya', 'houdini', 'premiere', 'photoshop', 'aftereffects', 'ffmpeg', 'orca'])
+    avail[id] = !!P(id)?.installed;
   avail.substance = ['painter', 'designer', 'sampler'].some((id) => P(id)?.installed);
   avail.cad = ['openscad', 'prusaslicer'].some((id) => P(id)?.installed);
   avail.nvidia = ['nvidiasmi', 'nvtt'].some((id) => P(id)?.installed);
@@ -151,7 +188,8 @@ export function agentLinks(a: LinkSource | null | undefined): Set<string> {
   if (g.has('orca')) s.add('orca');
   if (g.has('browser')) s.add('browser');
   for (const m of a.mcpServers || []) s.add(`mcp:${m}`);
-  if (a.engine === 'claude-code' && (a.claudeAuth || 'login') === 'login') for (const c of claudeConnectors || []) if (c.status === 'connected') s.add(`cc:${c.name}`);
+  if (a.engine === 'claude-code' && (a.claudeAuth || 'login') === 'login')
+    for (const c of claudeConnectors || []) if (c.status === 'connected') s.add(`cc:${c.name}`);
   return s;
 }
 
@@ -181,7 +219,10 @@ export function toolIntegration(name: unknown): string | null {
   for (const [re, id] of map) if (re.test(n)) return id;
   const m = /^mcp__(.+?)__/.exec(n);
   if (m && /^claude_ai_/.test(m[1])) {
-    const name = m[1].replace(/^claude_ai_/, '').replace(/_/g, ' ').toLowerCase();
+    const name = m[1]
+      .replace(/^claude_ai_/, '')
+      .replace(/_/g, ' ')
+      .toLowerCase();
     const c = (claudeConnectors || []).find((x) => x.name.toLowerCase() === name);
     if (c) return `cc:${c.name}`;
   }
@@ -196,7 +237,8 @@ export function toolIntegration(name: unknown): string | null {
 export function stepLinks(step: TeamStep, agentsById: Map<string, Agent>, wf: TeamView | null = null): Set<string> {
   if (step.type === 'agent') {
     const links = agentLinks(agentsById.get(step.agentId!));
-    if (wf?.access) agentLinks({ toolGroups: wf.access.toolGroups, mcpServers: wf.access.mcpServers }).forEach((l) => links.add(l));
+    if (wf?.access)
+      agentLinks({ toolGroups: wf.access.toolGroups, mcpServers: wf.access.mcpServers }).forEach((l) => links.add(l));
     return links;
   }
   if (step.type === 'tool') {
@@ -229,12 +271,21 @@ export function connectorLook(name: string): { glyph: string; color: string } {
   ];
   for (const [re, glyph, color] of map) if (re.test(n)) return { glyph, color };
   const craft = craftColor(name);
-  return { color: craft || '#a9d3e2', glyph: name.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '⌁' };
+  return {
+    color: craft || '#a9d3e2',
+    glyph:
+      name
+        .replace(/[^A-Za-z0-9]/g, '')
+        .slice(0, 2)
+        .toUpperCase() || '⌁',
+  };
 }
 
 /** Team id → how many routines mention it. */
 export function routineCounts(list: readonly Pick<Routine, 'mentions'>[]): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const r of list) for (const id of new Set(r.mentions.filter((m) => m.kind === 'team' && !m.missing).map((m) => m.id))) out[id] = (out[id] || 0) + 1;
+  for (const r of list)
+    for (const id of new Set(r.mentions.filter((m) => m.kind === 'team' && !m.missing).map((m) => m.id)))
+      out[id] = (out[id] || 0) + 1;
   return out;
 }

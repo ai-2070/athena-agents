@@ -31,7 +31,8 @@ describe('the page reaches the server only through web/client/', () => {
         .split('\n')
         .forEach((line, i) => {
           if (/^\s*(\/\/|\*)/.test(line)) return; // comments may talk about them
-          for (const d of DIRECT) if (d.re.test(line)) found.push(`${path.relative(WEB, file)}:${i + 1} uses ${d.what}`);
+          for (const d of DIRECT)
+            if (d.re.test(line)) found.push(`${path.relative(WEB, file)}:${i + 1} uses ${d.what}`);
         });
     }
     expect(found).toEqual([]);
@@ -47,7 +48,8 @@ describe('the page takes only types from shared/api/', () => {
       fs.readFileSync(file, 'utf8')
         .split('\n')
         .forEach((line, i) => {
-          if (/from ['"][./]*shared\/api\//.test(line) && !/^\s*import type /.test(line)) found.push(`${path.relative(WEB, file)}:${i + 1}`);
+          if (/from ['"][./]*shared\/api\//.test(line) && !/^\s*import type /.test(line))
+            found.push(`${path.relative(WEB, file)}:${i + 1}`);
         });
     }
     expect(found).toEqual([]);

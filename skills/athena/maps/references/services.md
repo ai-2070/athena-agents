@@ -48,12 +48,12 @@ The dashboard's page fetching can read these addresses directly (GET requests, J
 the dashboard; with the user's contact, add `&email=<contact>` to Nominatim addresses. One lookup at a time, at
 least a second apart, and never in a loop: lists go through the script.
 
-| What | Address |
-|---|---|
-| Place to coordinates | `https://nominatim.openstreetmap.org/search?q=Tour%20Eiffel%2C%20Paris&format=jsonv2&limit=3` |
-| Coordinates to address | `https://nominatim.openstreetmap.org/reverse?lat=48.8584&lon=2.2945&format=jsonv2&zoom=18` |
-| A walking route | `https://routing.openstreetmap.de/routed-foot/route/v1/driving/2.2945,48.8584;2.3376,48.8606?overview=false` |
-| Places by tag | `https://overpass-api.de/api/interpreter?data=` followed by the query below, URL-encoded |
+| What                   | Address                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Place to coordinates   | `https://nominatim.openstreetmap.org/search?q=Tour%20Eiffel%2C%20Paris&format=jsonv2&limit=3`                |
+| Coordinates to address | `https://nominatim.openstreetmap.org/reverse?lat=48.8584&lon=2.2945&format=jsonv2&zoom=18`                   |
+| A walking route        | `https://routing.openstreetmap.de/routed-foot/route/v1/driving/2.2945,48.8584;2.3376,48.8606?overview=false` |
+| Places by tag          | `https://overpass-api.de/api/interpreter?data=` followed by the query below, URL-encoded                     |
 
 - Nominatim's `jsonv2` gives `lat` and `lon` as strings, `display_name`, `category` and `type`, `address` (with
   `&addressdetails=1`) and `boundingbox` as `[south, north, west, east]`. `&countrycodes=fr` keeps to a country,

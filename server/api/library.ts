@@ -12,7 +12,8 @@ const p = implement(presetsContract);
 export const libraryRouter = l.router({
   list: l.list.handler(() => library.libraryIndex()),
   agent: l.agent.handler(({ input }) => {
-    const { file, ...a } = library.libraryAgents().find((x) => x.slug === input.slug) || refuse('That agent is not in the library.', 404);
+    const { file, ...a } =
+      library.libraryAgents().find((x) => x.slug === input.slug) || refuse('That agent is not in the library.', 404);
     return { ...a, body: fs.readFileSync(file, 'utf8') };
   }),
   // (each says, with a 404, when what it names isn't there; anything else that goes wrong is a 500)

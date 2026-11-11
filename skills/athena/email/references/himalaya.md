@@ -61,11 +61,11 @@ The password never goes into the configuration as text (`password.raw`), and the
 
 ### The configuration file
 
-| System | Where |
-|---|---|
-| Windows | `%APPDATA%\himalaya\config.toml` |
-| macOS | `~/Library/Application Support/himalaya/config.toml`, or `~/.config/himalaya/config.toml` if only that one exists |
-| Linux | `~/.config/himalaya/config.toml` |
+| System  | Where                                                                                                             |
+| ------- | ----------------------------------------------------------------------------------------------------------------- |
+| Windows | `%APPDATA%\himalaya\config.toml`                                                                                  |
+| macOS   | `~/Library/Application Support/himalaya/config.toml`, or `~/.config/himalaya/config.toml` if only that one exists |
+| Linux   | `~/.config/himalaya/config.toml`                                                                                  |
 
 The wizard's welcome message names the file it uses. Before editing it, copy it once to a backup, and tell the user
 what changed. An IMAP and SMTP account looks like this:
@@ -136,12 +136,12 @@ there may be more, so keep asking for the next one until a page comes back short
 
 `himalaya envelope search <query>` takes the same paging options, and a query built from:
 
-| Clause | Finds |
-|---|---|
+| Clause                                                      | Finds                                                                                     |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `from <word>`, `to <word>`, `subject <word>`, `body <word>` | That text in that part of the message (on IMAP the server matches, usually ignoring case) |
-| `date 2026-11-03` | Sent that day, by the message's Date line |
-| `after 2026-11-01` | Sent after that day, not on it |
-| `flag seen`, `flag answered`, `flag flagged`, `flag draft` | Messages with that flag |
+| `date 2026-11-03`                                           | Sent that day, by the message's Date line                                                 |
+| `after 2026-11-01`                                          | Sent after that day, not on it                                                            |
+| `flag seen`, `flag answered`, `flag flagged`, `flag draft`  | Messages with that flag                                                                   |
 
 Clauses combine with `and`, `or`, `not` and parentheses, and `order by date desc` at the end sorts (`from`, `to` and
 `subject` too; ascending without `desc`). 2.2.1 has no `before`: `not after 2026-10-31` means up to and including that
@@ -188,7 +188,7 @@ himalaya message reply 42 --body-file mail-work/reply-42.txt --send
 - `--posting-style` puts the reply above the quote (`top`, the default), below it (`bottom`), or leaves the quote out
   (`none`).
 - A new message: `himalaya message compose --to bob@example.com --subject "Quarterly numbers" --body-file
-  mail-work/new.txt --attach mail-work/q3.pdf --save drafts`. `--to`, `--cc`, `--bcc` and `--attach` repeat.
+mail-work/new.txt --attach mail-work/q3.pdf --save drafts`. `--to`, `--cc`, `--bcc` and `--attach` repeat.
 - A forward: `himalaya message forward 42 --to carol@example.com --body-file mail-work/fwd.txt --save drafts`. In 2.2.1
   a forward quotes the text but leaves the original's attachments behind: download them (with the user's yes) and add
   each with `--attach`.

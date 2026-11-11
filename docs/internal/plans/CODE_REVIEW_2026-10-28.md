@@ -385,9 +385,9 @@ The parser caps stored model voxels, but scene traversal expands duplicate group
 **Runtime-reproduced at bounded scale** with serialized VOX fixtures, each containing one stored voxel and a chain of groups referencing the next group twice:
 
 | Group layers | File bytes | Stored voxels | Expanded voxels |
-|---|---:|---:|---:|
-| 8 | 352 | 1 | 256 |
-| 12 | 480 | 1 | 4,096 |
+| ------------ | ---------: | ------------: | --------------: |
+| 8            |        352 |             1 |             256 |
+| 12           |        480 |             1 |           4,096 |
 
 The production parser and `voxVoxels()` produced these results. Larger memory-exhausting payloads were deliberately not run. Server exhaustion at larger depths is an inference from the source-proven unchecked exponential expansion.
 
@@ -606,7 +606,7 @@ After the first pass covered every application subsystem, the entire project was
 
 ### Project isolation and asynchronous pinning
 
-The dominant theme of both passes: work that outlives an `await` re-reads the *currently open* project instead of the project that started it. Each of these is a separate entry point, so each needs its own correction (pinning at one call site does not fix the others).
+The dominant theme of both passes: work that outlives an `await` re-reads the _currently open_ project instead of the project that started it. Each of these is a separate entry point, so each needs its own correction (pinning at one call site does not fix the others).
 
 - **30. [P1] A fresh desktop-style profile auto-saves over the shared default Brain folder.** [src-tauri/src/main.rs:220–224](../../../src-tauri/src/main.rs#L220-L224), [server/store.ts:121–128](../../../server/store.ts#L121-L128), [server/projectsync.ts:210–218,459–468,536–538](../../../server/projectsync.ts#L210-L218). The desktop app keeps its own `DASH_DATA`, but its default project points at the same `HOME/Documents/Blacksite/My workspace` the browser build uses. A first launch therefore auto-saves an empty project over that folder's snapshot and prunes its saved skills and world.
   **Runtime-reproduced:** with an isolated HOME containing a saved agent, a saved skill and a saved world, an initially empty `DASH_DATA`, and stdin held open past the startup save. Result: `{"savedAgents":0,"skillSurvived":false,"worldSurvived":false}`. (A first attempt exited early because `DASH_DESKTOP=1` treats closed stdin as "quit"; the desktop app and the smoke script both hold stdin open.) The same risk exists for `scripts/desktop-smoke.ts:36–46`, which isolates `DASH_DATA` but inherits the real HOME.
@@ -808,7 +808,7 @@ The documented installation uses npm, whose Windows command is a `.cmd` shim. `s
 
 **Location:** [server/backup.ts:787–791](../../../server/backup.ts#L787-L791), [server/engines/index.ts:338–351](../../../server/engines/index.ts#L338-L351)
 
-Chats are copied with their `sessionId` and `sessionEngine` intact, and the engine only discards a session when the *engine* changes. A clone therefore resumes the same external conversation: OpenClaw is handed the copied key as `--session-key` and, since the session is not fresh, skips the clone's instructions (the same holds for Hermes). Cloning a project to try something different continues the original's agent conversation.
+Chats are copied with their `sessionId` and `sessionEngine` intact, and the engine only discards a session when the _engine_ changes. A clone therefore resumes the same external conversation: OpenClaw is handed the copied key as `--session-key` and, since the session is not fresh, skips the clone's instructions (the same holds for Hermes). Cloning a project to try something different continues the original's agent conversation.
 
 **Runtime-reproduced:** an isolated project with an OpenClaw chat carrying `dummy-source-session` was cloned through the real backup path; the copy's chat kept the same id, and `openclawArgs` generated `['agent','--session-key','dummy-source-session',…]`. No CLI was launched.
 
@@ -928,7 +928,7 @@ Import checks only that each side is at most 512 voxels; it never checks the res
 
 **Location:** [server/voxel/build.ts:514–522](../../../server/voxel/build.ts#L514-L522)
 
-Undo restores object and prefab metadata by id without re-checking the restored name against *other* ids, although ordinary creation and renaming keep names unique. Two objects can then share a name, and name-based lookup picks the wrong one.
+Undo restores object and prefab metadata by id without re-checking the restored name against _other_ ids, although ordinary creation and renaming keep names unique. Two objects can then share a name, and name-based lookup picks the wrong one.
 
 **Runtime-reproduced:** builder A built `Oak`, renamed it `Birch`; builder B built a new `Oak`; A's undo of the rename succeeded, leaving two objects named `Oak`, and `findObject(w,'Oak')` resolved to A's restored object rather than B's.
 
@@ -958,7 +958,7 @@ Undo restores object and prefab metadata by id without re-checking the restored 
 
 **Location:** [server/teams.ts:579,599,639–641](../../../server/teams.ts#L579-L641)
 
-`runTurn()` delivers the messages available at turn start and records that position, then on completion sets `seen[agent]` to the *current* thread length. Anything another participant posted during the answer was never sent to the agent but is now marked read, so its next turn excludes it — concurrent teammates silently miss each other's results.
+`runTurn()` delivers the messages available at turn start and records that position, then on completion sets `seen[agent]` to the _current_ thread length. Anything another participant posted during the answer was never sent to the agent but is now marked read, so its next turn excludes it — concurrent teammates silently miss each other's results.
 
 **Source-established (not executed).**
 

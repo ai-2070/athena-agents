@@ -108,7 +108,18 @@ const save = () => {
     // windows with chats, bottom first (so they come back in the same order); a lone empty one keeps its place
     const open = wins.filter((w) => w.tabs.length);
     const list = (open.length ? open : wins.slice(0, 1)).sort((a, b) => a.z - b.z);
-    localStorage.setItem(KEY, JSON.stringify({ wins: list.map((w) => ({ rect: w.rect, tabs: w.tabs.map((t) => t.key), active: w.active, min: w.min, max: w.max })) }));
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        wins: list.map((w) => ({
+          rect: w.rect,
+          tabs: w.tabs.map((t) => t.key),
+          active: w.active,
+          min: w.min,
+          max: w.max,
+        })),
+      }),
+    );
   } catch {
     /* private window */
   }
@@ -141,7 +152,21 @@ function defaultRect(): Rect {
 
 /** A new, empty window on top. It is drawn at once, so its body is there to put tabs in. */
 function newWin(rect: Rect, min = false, max = false): Win {
-  const w: Win = { id: nextId++, tabs: [], active: null, min, max, rect: { ...rect }, z: ++zTop, el: null, body: null, pill: null, shrinking: false, minimizing: null, minAt: 0 };
+  const w: Win = {
+    id: nextId++,
+    tabs: [],
+    active: null,
+    min,
+    max,
+    rect: { ...rect },
+    z: ++zTop,
+    el: null,
+    body: null,
+    pill: null,
+    shrinking: false,
+    minimizing: null,
+    minAt: 0,
+  };
   wins.push(w);
   changed();
   return w;
@@ -171,10 +196,22 @@ function ensure(): void {
   el.style.display = 'contents';
   document.body.append(el);
   const h = (host = { root: createAppRoot(el), el });
-  flushSync(() => h.root.render(<StrictMode><IconWeightProvider value="regular"><ChatWindows /></IconWeightProvider></StrictMode>));
+  flushSync(() =>
+    h.root.render(
+      <StrictMode>
+        <IconWeightProvider value="regular">
+          <ChatWindows />
+        </IconWeightProvider>
+      </StrictMode>,
+    ),
+  );
   // also drops the tab of an agent that was deleted
   onState(() => wins.some((w) => w.tabs.length) && refreshChatTabs());
-  if (!window.__teams) rpc.workflows.list().then((w) => ((window.__teams ||= w), changed())).catch(() => {});
+  if (!window.__teams)
+    rpc.workflows
+      .list()
+      .then((w) => ((window.__teams ||= w), changed()))
+      .catch(() => {});
   if (!keysOn) {
     keysOn = true;
     window.addEventListener('keydown', onWindowKey);
@@ -204,7 +241,9 @@ function runAction(act: ChatWindowAction, w?: Win): boolean {
       return true;
     }
     case 'restore': {
-      const last = open.filter((x) => x.min).reduce<Win | null>((a, x) => (!a || x.minAt > a.minAt || (x.minAt === a.minAt && x.z > a.z) ? x : a), null);
+      const last = open
+        .filter((x) => x.min)
+        .reduce<Win | null>((a, x) => (!a || x.minAt > a.minAt || (x.minAt === a.minAt && x.z > a.z) ? x : a), null);
       if (!last?.el) return false;
       setMin(last, false);
       if (last.active) activate(last, last.active);
@@ -313,7 +352,16 @@ function startTabDrag(e: ReactPointerEvent<HTMLElement>, w: Win, t: ChatTab) {
   const sx = e.clientX;
   const sy = e.clientY;
   const r = e.currentTarget.getBoundingClientRect();
-  const d: TabDrag = { key: t.key, from: w, x: sx / z, y: sy / z, offX: (sx - r.left) / z, offY: (sy - r.top) / z, target: w, index: 0 };
+  const d: TabDrag = {
+    key: t.key,
+    from: w,
+    x: sx / z,
+    y: sy / z,
+    offX: (sx - r.left) / z,
+    offY: (sy - r.top) / z,
+    target: w,
+    index: 0,
+  };
   let moved = false;
   const move = (ev: PointerEvent) => {
     if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
@@ -440,20 +488,24 @@ function startResize(e: ReactPointerEvent, w: Win, dir: string) {
   e.stopPropagation();
   const r0 = { ...w.rect };
   const min = minSize();
-  track(w, (dx, dy) => {
-    const r = { ...r0 };
-    if (dir.includes('e')) r.w = r0.w + dx;
-    if (dir.includes('s')) r.h = r0.h + dy;
-    if (dir.includes('w')) {
-      r.w = Math.max(min.w, r0.w - dx);
-      r.x = r0.x + (r0.w - r.w);
-    }
-    if (dir.includes('n')) {
-      r.h = Math.max(min.h, r0.h - dy);
-      r.y = r0.y + (r0.h - r.h);
-    }
-    w.rect = r;
-  }, e);
+  track(
+    w,
+    (dx, dy) => {
+      const r = { ...r0 };
+      if (dir.includes('e')) r.w = r0.w + dx;
+      if (dir.includes('s')) r.h = r0.h + dy;
+      if (dir.includes('w')) {
+        r.w = Math.max(min.w, r0.w - dx);
+        r.x = r0.x + (r0.w - r.w);
+      }
+      if (dir.includes('n')) {
+        r.h = Math.max(min.h, r0.h - dy);
+        r.y = r0.y + (r0.h - r.h);
+      }
+      w.rect = r;
+    },
+    e,
+  );
 }
 
 // Minimize: the window shrinks into its pill. Open again: it grows back out of the pill.
@@ -542,7 +594,11 @@ function snapRect(side: 'left' | 'right', share: number): Rect {
 
 /** Snaps a window to half the screen; snapping it to the same side again makes it ⅔, then ⅓ wide. */
 function snap(w: Win, side: 'left' | 'right'): void {
-  const near = (r: Rect) => Math.abs(r.x - w.rect.x) < 1 && Math.abs(r.y - w.rect.y) < 1 && Math.abs(r.w - w.rect.w) < 1 && Math.abs(r.h - w.rect.h) < 1;
+  const near = (r: Rect) =>
+    Math.abs(r.x - w.rect.x) < 1 &&
+    Math.abs(r.y - w.rect.y) < 1 &&
+    Math.abs(r.w - w.rect.w) < 1 &&
+    Math.abs(r.h - w.rect.h) < 1;
   const i = w.max || w.min ? -1 : SNAP_WIDTHS.findIndex((share) => near(snapRect(side, share)));
   arrange([{ w, rect: snapRect(side, SNAP_WIDTHS[(i + 1) % SNAP_WIDTHS.length]) }]);
   raise(w);
@@ -633,7 +689,11 @@ function combine(): void {
 /** Let the window shape lead, then bring in its contents like the Brain chat. */
 function animateChatParts(el: HTMLElement): void {
   if (reducedMotion()) return;
-  const parts = [el.querySelector('[data-cw-strip]'), el.querySelector('.cw-pane:not(.hidden) .tc-list'), el.querySelector('.cw-pane:not(.hidden) .dock-composer')];
+  const parts = [
+    el.querySelector('[data-cw-strip]'),
+    el.querySelector('.cw-pane:not(.hidden) .tc-list'),
+    el.querySelector('.cw-pane:not(.hidden) .dock-composer'),
+  ];
   parts.forEach((part, i) => {
     if (part?.getAnimations().length) return;
     const animation = part && slideIn(part, { y: 10, duration: 360 + i * 60 });
@@ -702,7 +762,8 @@ const GRIPS: Record<string, string> = {
   se: "absolute z-2 size-4.5 -bottom-1.5 -right-1.5 cursor-nwse-resize after:content-[''] after:absolute after:right-2.25 after:bottom-2.25 after:size-2.5 after:bg-[linear-gradient(135deg,transparent_0_48%,var(--color-line-2)_48%_58%,transparent_58%_70%,var(--color-line-2)_70%_80%,transparent_80%)]",
   sw: 'absolute z-2 size-3.5 -bottom-1 -left-1 cursor-nesw-resize',
 };
-const TAB = 'group/tab relative flex h-10 max-w-[220px] flex-none cursor-pointer items-center gap-2 bg-[linear-gradient(145deg,var(--glass-sheen),transparent_70%)] px-3 text-[13px] font-medium select-none rounded-t-[10px] rounded-b-none [transition:background-color_.15s,color_.15s,opacity_.15s]';
+const TAB =
+  'group/tab relative flex h-10 max-w-[220px] flex-none cursor-pointer items-center gap-2 bg-[linear-gradient(145deg,var(--glass-sheen),transparent_70%)] px-3 text-[13px] font-medium select-none rounded-t-[10px] rounded-b-none [transition:background-color_.15s,color_.15s,opacity_.15s]';
 const BTN = iconButtonClass('plain', 'flex-none');
 /** Where a dragged tab would land: a line in the gap before (or after) a tab. */
 const MARK = 'absolute top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent pointer-events-none';
@@ -749,7 +810,13 @@ function ChatWindows() {
         {torn ? (
           <div
             className="cw-torn fixed rounded-[14px] border-2 border-dashed border-accent/60 bg-accent/5"
-            style={{ zIndex: zTop + 1, left: `${torn.x}px`, top: `${torn.y}px`, width: `${torn.w}px`, height: `${torn.h}px` }}
+            style={{
+              zIndex: zTop + 1,
+              left: `${torn.x}px`,
+              top: `${torn.y}px`,
+              width: `${torn.w}px`,
+              height: `${torn.h}px`,
+            }}
             aria-hidden="true"
           />
         ) : null}
@@ -758,7 +825,9 @@ function ChatWindows() {
         // with more than one window down there, each pill says which chat it holds; a lone team chat says its team
         const open = w.tabs.find((t) => t.key === w.active) || w.tabs[0];
         const named = open && (pilled.length > 1 || (w.tabs.length === 1 && open.kind === 'team'));
-        const label = named ? `${tabInfo(open, busyAgents).label}${w.tabs.length > 1 ? ` +${w.tabs.length - 1}` : ''}` : `${w.tabs.length} chat${w.tabs.length === 1 ? '' : 's'}`;
+        const label = named
+          ? `${tabInfo(open, busyAgents).label}${w.tabs.length > 1 ? ` +${w.tabs.length - 1}` : ''}`
+          : `${w.tabs.length} chat${w.tabs.length === 1 ? '' : 's'}`;
         return createPortal(
           <button
             type="button"
@@ -814,7 +883,8 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
     if (!list || !tab) return;
     const l = tab.offsetLeft;
     if (l < list.scrollLeft) list.scrollLeft = l;
-    else if (l + tab.offsetWidth > list.scrollLeft + list.clientWidth) list.scrollLeft = l + tab.offsetWidth - list.clientWidth;
+    else if (l + tab.offsetWidth > list.scrollLeft + list.clientWidth)
+      list.scrollLeft = l + tab.offsetWidth - list.clientWidth;
   }, [w.active, w.tabs.length, w.max]);
   const any = w.tabs.length > 0;
   // a tab or a window dragged over this window's tabs: show where it goes
@@ -846,7 +916,11 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
         <Tabs.Root className="flex min-w-0" value={w.active} onValueChange={(v) => activate(w, String(v))}>
           {/* ml-1.5: room from the window's own icon; -mb-2: the tab meets the rule under the bar
               (the bar keeps pb-2 so the buttons above it are not crowded against that rule) */}
-          <Tabs.List ref={listRef} className="relative ml-2 -mb-2 flex gap-0.5 self-end overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0" aria-label="Open chats">
+          <Tabs.List
+            ref={listRef}
+            className="relative ml-2 -mb-2 flex gap-0.5 self-end overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0"
+            aria-label="Open chats"
+          >
             {w.tabs.map((t) => {
               const { label, lead, busy } = tabInfo(t, busyAgents);
               const on = t.key === w.active;
@@ -871,7 +945,10 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
                   <button
                     type="button"
                     className={`cw-x text-faint cursor-pointer px-0.5 text-[11px] [transition:opacity_.15s,color_.15s] hover:text-ink ${on ? 'opacity-100' : 'opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100'}`}
-                    title="Close" aria-label={`Close ${label}`} onClick={() => closeTab(t.key)}>
+                    title="Close"
+                    aria-label={`Close ${label}`}
+                    onClick={() => closeTab(t.key)}
+                  >
                     <Icon name="x" size={14} />
                   </button>
                 </div>
@@ -881,20 +958,46 @@ function ChatWindow({ w, busyAgents }: { w: Win; busyAgents: Set<string> }) {
         </Tabs.Root>
         <span className="flex-1 min-w-0" />
         <LayoutMenu w={w} />
-        <IconButton variant="plain" className="flex-none" title={`Minimize (${chatWindowKeys().minimize})`} aria-label="Minimize the chats" onClick={() => setMin(w, true)}>
+        <IconButton
+          variant="plain"
+          className="flex-none"
+          title={`Minimize (${chatWindowKeys().minimize})`}
+          aria-label="Minimize the chats"
+          onClick={() => setMin(w, true)}
+        >
           –
         </IconButton>
-        <IconButton variant="plain" className="flex-none" title="Maximize / restore" aria-label={w.max ? 'Restore the chats' : 'Maximize the chats'} onClick={() => setMax(w, !w.max)}>
+        <IconButton
+          variant="plain"
+          className="flex-none"
+          title="Maximize / restore"
+          aria-label={w.max ? 'Restore the chats' : 'Maximize the chats'}
+          onClick={() => setMax(w, !w.max)}
+        >
           <Icon name="maximize-2" size={13} />
         </IconButton>
-        <IconButton variant="inset" className="flex-none" title="Close this window's chats" aria-label="Close all chats in this window" onClick={() => closeWin(w)}>
+        <IconButton
+          variant="inset"
+          className="flex-none"
+          title="Close this window's chats"
+          aria-label="Close all chats in this window"
+          onClick={() => closeWin(w)}
+        >
           <Icon name="x" size={15} />
         </IconButton>
       </div>
       {/* the conversations' own elements go in here (made outside React) */}
-      <div className={`flex-1 min-h-0 relative overflow-hidden ${w.max ? 'rounded-b-[12px]' : 'rounded-b-[16px]'}`} ref={(el) => void (w.body = el)} />
+      <div
+        className={`flex-1 min-h-0 relative overflow-hidden ${w.max ? 'rounded-b-[12px]' : 'rounded-b-[16px]'}`}
+        ref={(el) => void (w.body = el)}
+      />
       {Object.entries(GRIPS).map(([dir, cls]) => (
-        <div key={dir} className={w.max ? `${cls} hidden` : cls} aria-hidden="true" onPointerDown={(e) => startResize(e, w, dir)} />
+        <div
+          key={dir}
+          className={w.max ? `${cls} hidden` : cls}
+          aria-hidden="true"
+          onPointerDown={(e) => startResize(e, w, dir)}
+        />
       ))}
     </div>
   );
@@ -908,7 +1011,13 @@ function LayoutMenu({ w }: { w: Win }) {
     { act: 'left', label: 'Left half', icon: 'panel-left' },
     { act: 'right', label: 'Right half', icon: 'panel-right' },
     { act: 'side', label: 'Side by side', icon: 'columns-2', off: open.length < 2 },
-    { act: 'separate', label: 'Separate tabs', icon: 'layout-grid', off: open.flatMap((x) => x.tabs).length < 2, line: true },
+    {
+      act: 'separate',
+      label: 'Separate tabs',
+      icon: 'layout-grid',
+      off: open.flatMap((x) => x.tabs).length < 2,
+      line: true,
+    },
     { act: 'combine', label: 'Combine all', icon: 'combine', off: open.length < 2 },
   ];
   return (
@@ -917,16 +1026,30 @@ function LayoutMenu({ w }: { w: Win }) {
         <Icon name="layout-panel-left" size={14} />
       </Menu.Trigger>
       <Menu.Portal>
-        <Menu.Positioner positionMethod="fixed" className="z-96 outline-none" side="bottom" align="end" sideOffset={4} collisionPadding={8}>
+        <Menu.Positioner
+          positionMethod="fixed"
+          className="z-96 outline-none"
+          side="bottom"
+          align="end"
+          sideOffset={4}
+          collisionPadding={8}
+        >
           <Menu.Popup className="cw-layout st-menu dd static min-w-60 max-w-80">
             <Menu.Group>
               <Menu.GroupLabel className="st-menu-head">Arrange</Menu.GroupLabel>
               {items.map((it) => [
                 it.line ? <Menu.Separator key={`${it.act}-line`} className="st-menu-sep" /> : null,
-                <Menu.Item key={it.act} className="st-menu-item data-disabled:opacity-40 data-disabled:pointer-events-none" disabled={it.off} onClick={() => (it.act === 'side' ? sideBySide() : runAction(it.act, w))}>
+                <Menu.Item
+                  key={it.act}
+                  className="st-menu-item data-disabled:opacity-40 data-disabled:pointer-events-none"
+                  disabled={it.off}
+                  onClick={() => (it.act === 'side' ? sideBySide() : runAction(it.act, w))}
+                >
                   <Icon name={it.icon} size={15} />
                   {it.label}
-                  {it.act !== 'side' ? <span className="ml-auto pl-4 text-[12px] text-faint">{keys[it.act]}</span> : null}
+                  {it.act !== 'side' ? (
+                    <span className="ml-auto pl-4 text-[12px] text-faint">{keys[it.act]}</span>
+                  ) : null}
                 </Menu.Item>,
               ])}
             </Menu.Group>
@@ -942,7 +1065,11 @@ function LayoutMenu({ w }: { w: Win }) {
 export function openChat(kind: ChatKind, id: string, { focus = true }: { focus?: boolean } = {}): ChatTabApi {
   ensure();
   const key = `${kind}:${id}`;
-  const w = winOf(key) || topmost(wins.filter((x) => x.tabs.length && !x.min)) || topmost(wins.filter((x) => x.tabs.length)) || wins[0];
+  const w =
+    winOf(key) ||
+    topmost(wins.filter((x) => x.tabs.length && !x.min)) ||
+    topmost(wins.filter((x) => x.tabs.length)) ||
+    wins[0];
   const was = !w.el || w.el.classList.contains('hidden');
   const t = w.tabs.find((x) => x.key === key) || makeTab(w, kind, id);
   w.min = false;
@@ -995,7 +1122,10 @@ export function minimizeMaximizedChats(): void {
 
 /** The open windows' tabs, bottom window first (for tests). */
 export function chatWindows(): { id: number; tabs: string[]; active: string | null }[] {
-  return [...wins].sort((a, b) => a.z - b.z).filter((w) => w.tabs.length).map((w) => ({ id: w.id, tabs: w.tabs.map((t) => t.key), active: w.active }));
+  return [...wins]
+    .sort((a, b) => a.z - b.z)
+    .filter((w) => w.tabs.length)
+    .map((w) => ({ id: w.id, tabs: w.tabs.map((t) => t.key), active: w.active }));
 }
 
 /** Moves a tab to the window with this id (for tests), or with no id into a new window. */

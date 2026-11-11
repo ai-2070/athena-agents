@@ -4,12 +4,12 @@ Checked against ComfyUI 0.44 and its current frontend (November 2026).
 
 ## Two formats
 
-| | Editor format | API format |
-|---|---|---|
-| Made by | File › Save in ComfyUI (the files in `user/default/workflows`), and the `workflow` text inside PNGs ComfyUI saves | File › Export (API), and the `prompt` text inside those PNGs |
-| Shape | `nodes` and `links` lists, plus `groups`, `definitions.subgraphs` and `models` | An object keyed by node id; each node has `class_type` and `inputs`, maybe `_meta.title` |
-| Settings | `widgets_values`, a list in widget order (or an object, for some custom nodes) | Named: `"steps": 30` |
-| Runs as is | No: it has to be converted using the server's node list | Yes: it's what `POST /prompt` takes |
+|            | Editor format                                                                                                     | API format                                                                               |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Made by    | File › Save in ComfyUI (the files in `user/default/workflows`), and the `workflow` text inside PNGs ComfyUI saves | File › Export (API), and the `prompt` text inside those PNGs                             |
+| Shape      | `nodes` and `links` lists, plus `groups`, `definitions.subgraphs` and `models`                                    | An object keyed by node id; each node has `class_type` and `inputs`, maybe `_meta.title` |
+| Settings   | `widgets_values`, a list in widget order (or an object, for some custom nodes)                                    | Named: `"steps": 30`                                                                     |
+| Runs as is | No: it has to be converted using the server's node list                                                           | Yes: it's what `POST /prompt` takes                                                      |
 
 The dashboard converts editor files itself when describing or running them, the way ComfyUI's editor does: values
 by name in files saved since July 2026 (`widgets_values_named`), else in widget order; the dotted inputs below;
@@ -91,13 +91,23 @@ different option means different keys: after changing `resize_type`, set the key
 
 ```json
 {
-  "error": {"type": "prompt_outputs_failed_validation", "message": "Prompt outputs failed validation", "details": "..."},
+  "error": {
+    "type": "prompt_outputs_failed_validation",
+    "message": "Prompt outputs failed validation",
+    "details": "..."
+  },
   "node_errors": {
     "12": {
       "class_type": "ResizeImageMaskNode",
       "dependent_outputs": ["9"],
-      "errors": [{"type": "required_input_missing", "message": "Required input is missing",
-                  "details": "resize_type.width", "extra_info": {"input_name": "resize_type.width"}}]
+      "errors": [
+        {
+          "type": "required_input_missing",
+          "message": "Required input is missing",
+          "details": "resize_type.width",
+          "extra_info": { "input_name": "resize_type.width" }
+        }
+      ]
     }
   }
 }
@@ -107,15 +117,15 @@ The server is the authority on what it accepts: `extra_info.input_name` is the e
 the named node and submit again, one round at a time; regenerating the workflow brings back the same mistakes and new
 ones. The usual types:
 
-| `type` | Meaning | Fix |
-|---|---|---|
-| `missing_node_type` | A class this ComfyUI doesn't have (comes back as `error`, with empty `node_errors`) | A custom node pack to install, or a newer ComfyUI: run the check |
-| `value_not_in_list` | A dropdown value the server doesn't offer: usually a model file or a sampler name | Install the model, or pick from the server's list (`near_matches` in the check) |
-| `required_input_missing` | An input with neither value nor link | Add it under the key in `input_name` |
-| `return_type_mismatch` | A link from an output of the wrong type | Point it at the right output slot |
-| `value_smaller_than_min`, `value_bigger_than_max` | Outside the input's range | Bring it into range |
-| `invalid_input_type` | A value that can't be turned into the input's type (text where a number goes) | Fix the value |
-| `prompt_no_outputs` | Nothing saves or previews a result | Keep (or add) a Save Image or similar node |
+| `type`                                            | Meaning                                                                             | Fix                                                                             |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `missing_node_type`                               | A class this ComfyUI doesn't have (comes back as `error`, with empty `node_errors`) | A custom node pack to install, or a newer ComfyUI: run the check                |
+| `value_not_in_list`                               | A dropdown value the server doesn't offer: usually a model file or a sampler name   | Install the model, or pick from the server's list (`near_matches` in the check) |
+| `required_input_missing`                          | An input with neither value nor link                                                | Add it under the key in `input_name`                                            |
+| `return_type_mismatch`                            | A link from an output of the wrong type                                             | Point it at the right output slot                                               |
+| `value_smaller_than_min`, `value_bigger_than_max` | Outside the input's range                                                           | Bring it into range                                                             |
+| `invalid_input_type`                              | A value that can't be turned into the input's type (text where a number goes)       | Fix the value                                                                   |
+| `prompt_no_outputs`                               | Nothing saves or previews a result                                                  | Keep (or add) a Save Image or similar node                                      |
 
 When only some outputs fail, ComfyUI runs the others and still answers 200, listing the failures in `node_errors`.
 The dashboard's run tool lists those under "Left out by ComfyUI".

@@ -40,10 +40,16 @@ function removeFiles(teamId: string): void {
 export function setMarkFile(teamId: string, name: unknown, dataUrl: unknown): Team {
   const team = workflows.get(teamId);
   if (!team) throw new Error('No such team.');
-  const raw = path.extname(String(name || '')).slice(1).toLowerCase();
+  const raw = path
+    .extname(String(name || ''))
+    .slice(1)
+    .toLowerCase();
   const ext = raw === 'jpeg' ? 'jpg' : raw;
   const isModel = (MODEL_EXT as readonly string[]).includes(ext);
-  if (!isModel && !(IMAGE_EXT as readonly string[]).includes(ext)) throw new Error(`Pick a picture (PNG, JPG, WebP, GIF) or a 3D model (${MODEL_EXT.map((e) => `.${e}`).join(', ')}).`);
+  if (!isModel && !(IMAGE_EXT as readonly string[]).includes(ext))
+    throw new Error(
+      `Pick a picture (PNG, JPG, WebP, GIF) or a 3D model (${MODEL_EXT.map((e) => `.${e}`).join(', ')}).`,
+    );
   const m = /^data:[^,]*;base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(dataUrl || ''));
   if (!m) throw new Error("Couldn't read that file.");
   const buf = Buffer.from(m[1], 'base64');

@@ -6,7 +6,16 @@ import { dataPath, ensureDir, readJSON, writeJSON, listFiles, uid } from './util
 import { newAgent } from './library.ts';
 import { getTeam, isStepList } from './teams.ts';
 import fs from 'node:fs';
-import type { Agent, AgentPreset, AgentTemplate, Preset, PresetListing, Team, TeamPreset, TeamTemplate } from '../shared/types.ts';
+import type {
+  Agent,
+  AgentPreset,
+  AgentTemplate,
+  Preset,
+  PresetListing,
+  Team,
+  TeamPreset,
+  TeamTemplate,
+} from '../shared/types.ts';
 
 /** An agent without what belongs to one copy of it (id, dates, last model, pin, workspace, _fields). */
 export type { AgentPreset, AgentTemplate, Preset, TeamPreset, TeamTemplate } from '../shared/types.ts';
@@ -15,9 +24,15 @@ export type { AgentPreset, AgentTemplate, Preset, TeamPreset, TeamTemplate } fro
 const notFound = (msg: string) => Object.assign(new Error(msg), { status: 404 });
 const DIR = () => ensureDir(dataPath('presets'));
 const RUNTIME_FIELDS = ['id', 'createdAt', 'updatedAt', 'lastModel', 'lastModelAt', 'pinned', 'workspace'];
-const agentTemplate = (a: Partial<Agent>): AgentTemplate => Object.fromEntries(Object.entries(a).filter(([k]) => !RUNTIME_FIELDS.includes(k) && !k.startsWith('_'))) as AgentTemplate;
+const agentTemplate = (a: Partial<Agent>): AgentTemplate =>
+  Object.fromEntries(
+    Object.entries(a).filter(([k]) => !RUNTIME_FIELDS.includes(k) && !k.startsWith('_')),
+  ) as AgentTemplate;
 const TEAM_FIELDS = ['name', 'description', 'color', 'mark', 'access', 'skills', 'schedule'] as const;
-const teamTemplate = (t: Partial<Team>): TeamTemplate => Object.fromEntries(TEAM_FIELDS.filter((k) => t[k] !== undefined).map((k) => [k, structuredClone(t[k])])) as TeamTemplate;
+const teamTemplate = (t: Partial<Team>): TeamTemplate =>
+  Object.fromEntries(
+    TEAM_FIELDS.filter((k) => t[k] !== undefined).map((k) => [k, structuredClone(t[k])]),
+  ) as TeamTemplate;
 
 export function listPresets(): PresetListing[] {
   return listFiles(DIR(), (n) => n.endsWith('.json'))
@@ -41,7 +56,14 @@ export function listPresets(): PresetListing[] {
 export function saveAgentPreset(agentId: string, { name }: { name?: string } = {}): AgentPreset {
   const a = agents.get(agentId);
   if (!a) throw notFound('No such agent.');
-  const p: AgentPreset = { id: uid('pa'), kind: 'agent', name: String(name || a.name).slice(0, 80), description: a.specialty || '', savedAt: Date.now(), agent: agentTemplate(a) };
+  const p: AgentPreset = {
+    id: uid('pa'),
+    kind: 'agent',
+    name: String(name || a.name).slice(0, 80),
+    description: a.specialty || '',
+    savedAt: Date.now(),
+    agent: agentTemplate(a),
+  };
   writeJSON(path.join(DIR(), `${p.id}.json`), p);
   log('preset', `Saved ${a.name} as a preset`);
   return p;
@@ -81,7 +103,9 @@ export function usePreset(id: string): { agent: Agent } | { team: Team; agents: 
     log('preset', `Created ${a.name} from a preset`, { agentId: a.id });
     return { agent: a };
   }
-  const made = p.members.map((m) => newAgent({ ...agentTemplate(structuredClone(m)), source: { type: 'preset', preset: p.id } }));
+  const made = p.members.map((m) =>
+    newAgent({ ...agentTemplate(structuredClone(m)), source: { type: 'preset', preset: p.id } }),
+  );
   const team = workflows.save({
     ...teamTemplate(p.team),
     members: made.map((a) => a.id),
@@ -102,7 +126,12 @@ export function cloneTeam(teamId: string, { withAgents = false }: { withAgents?:
   let lead = t.lead;
   let swap = (id: string) => id;
   if (withAgents) {
-    const map = new Map(members.map((id) => [id, newAgent({ ...agentTemplate(agents.get(id)!), name: `${agents.get(id)!.name} (copy)` })]));
+    const map = new Map(
+      members.map((id) => [
+        id,
+        newAgent({ ...agentTemplate(agents.get(id)!), name: `${agents.get(id)!.name} (copy)` }),
+      ]),
+    );
     swap = (id) => map.get(id)?.id || id;
     members = members.map(swap);
     lead = t.lead ? map.get(t.lead)?.id || null : null;
@@ -112,7 +141,9 @@ export function cloneTeam(teamId: string, { withAgents = false }: { withAgents?:
     name: `${t.name} (copy)`,
     members,
     // a step list keeps its steps (tools, approvals, posts), pointing at the copied agents
-    steps: isStepList(t) ? t.steps.map((s) => ({ ...structuredClone(s), ...(s.agentId ? { agentId: swap(s.agentId) } : {}) })) : members.map((id) => ({ type: 'agent', agentId: id })),
+    steps: isStepList(t)
+      ? t.steps.map((s) => ({ ...structuredClone(s), ...(s.agentId ? { agentId: swap(s.agentId) } : {}) }))
+      : members.map((id) => ({ type: 'agent', agentId: id })),
     lead,
     schedule: { type: 'none' },
     enabled: false,

@@ -21,7 +21,13 @@ const draw = async (items: ChatItem[]) => {
   const el = document.createElement('div');
   document.body.append(el);
   root = createRoot(el);
-  await act(async () => root!.render(toUIMessages(items).map((m) => <MessageView key={m.id} m={m} variant="full" busy={false} streaming={false} dim={false} onSend={() => {}} />)));
+  await act(async () =>
+    root!.render(
+      toUIMessages(items).map((m) => (
+        <MessageView key={m.id} m={m} variant="full" busy={false} streaming={false} dim={false} onSend={() => {}} />
+      )),
+    ),
+  );
   return el;
 };
 
@@ -35,7 +41,10 @@ describe('a stopped run in the chat', () => {
       { type: 'error', text: 'Stopped.' },
       { type: 'error', text: 'rate limited' },
     ]);
-    expect([...el.querySelectorAll('.st-stopped')].map((n) => n.textContent)).toEqual(['Stopped to take your new message.', 'Stopped.']);
+    expect([...el.querySelectorAll('.st-stopped')].map((n) => n.textContent)).toEqual([
+      'Stopped to take your new message.',
+      'Stopped.',
+    ]);
     expect([...el.querySelectorAll('.msg.error')].map((n) => n.textContent)).toEqual(['rate limited']);
     expect(el.querySelector('details.tool .tname')!.textContent).toBe('read_file');
   });
@@ -49,7 +58,10 @@ describe('a message that joined the turn', () => {
       { type: 'steer', steerId: 's1', text: 'also make it blue' },
       { type: 'assistant', text: 'Blue it is.' },
     ]);
-    expect([...el.querySelectorAll('.msg.user')].map((n) => n.textContent)).toEqual(['the long job', 'also make it blue']);
+    expect([...el.querySelectorAll('.msg.user')].map((n) => n.textContent)).toEqual([
+      'the long job',
+      'also make it blue',
+    ]);
     expect(el.querySelector('.msg.user.joined')!.textContent).toBe('also make it blue');
     expect(el.querySelector('.joined-note')!.textContent).toBe('Read while it worked');
     expect(el.querySelectorAll('.msg.error')).toHaveLength(0);
@@ -67,7 +79,10 @@ describe('a dashboard note that heads a report', () => {
     expect(report.querySelector('.msg.meta')!.textContent).toBe('Delegated work finished.');
     expect(el.textContent).not.toContain('Nine rows');
     expect(el.querySelectorAll('.report-line')).toHaveLength(1);
-    expect([...el.querySelectorAll('.msg.meta')].map((n) => n.textContent)).toEqual(['Delegated work finished.', 'Goal reached.']);
+    expect([...el.querySelectorAll('.msg.meta')].map((n) => n.textContent)).toEqual([
+      'Delegated work finished.',
+      'Goal reached.',
+    ]);
     const trigger = report.querySelector<HTMLButtonElement>('button')!;
     expect(trigger.textContent).toBe('Show the report');
     await act(async () => trigger.click());

@@ -21,20 +21,68 @@ export interface Accent {
   dark: AccentTone;
 }
 export const ACCENTS: Accent[] = [
-  { id: 'aegean', label: 'Aegean', light: { c: '#18688e', hover: '#125574', dim: '#347a9a', on: '#ffffff' }, dark: { c: '#7cbad5', hover: '#9dcfe3', dim: '#4289a9', on: '#061923' } },
-  { id: 'olive', label: 'Olive', light: { c: '#5a7d2b', hover: '#496624', dim: '#86a45a', on: '#ffffff' }, dark: { c: '#a3c45d', hover: '#b8d37b', dim: '#738f3f', on: '#10170a' } },
-  { id: 'gold', label: 'Gold', light: { c: '#a87500', hover: '#956700', dim: '#cba041', on: '#1a1204' }, dark: { c: '#e8b95f', hover: '#f0cb84', dim: '#a9833b', on: '#1a1204' } },
-  { id: 'terracotta', label: 'Terracotta', light: { c: '#c0502f', hover: '#a7421f', dim: '#d98369', on: '#ffffff' }, dark: { c: '#f19272', hover: '#f5ab8f', dim: '#b2674d', on: '#1c0b05' } },
-  { id: 'amethyst', label: 'Amethyst', light: { c: '#7c4dcc', hover: '#6a3ab8', dim: '#a283dd', on: '#ffffff' }, dark: { c: '#b69cff', hover: '#cbb8ff', dim: '#7f69c2', on: '#120c24' } },
-  { id: 'slate', label: 'Slate', light: { c: '#33343c', hover: '#1f2026', dim: '#6e6f7a', on: '#ffffff' }, dark: { c: '#d5d7de', hover: '#ffffff', dim: '#8a8c97', on: '#111216' } },
+  {
+    id: 'aegean',
+    label: 'Aegean',
+    light: { c: '#18688e', hover: '#125574', dim: '#347a9a', on: '#ffffff' },
+    dark: { c: '#7cbad5', hover: '#9dcfe3', dim: '#4289a9', on: '#061923' },
+  },
+  {
+    id: 'olive',
+    label: 'Olive',
+    light: { c: '#5a7d2b', hover: '#496624', dim: '#86a45a', on: '#ffffff' },
+    dark: { c: '#a3c45d', hover: '#b8d37b', dim: '#738f3f', on: '#10170a' },
+  },
+  {
+    id: 'gold',
+    label: 'Gold',
+    light: { c: '#a87500', hover: '#956700', dim: '#cba041', on: '#1a1204' },
+    dark: { c: '#e8b95f', hover: '#f0cb84', dim: '#a9833b', on: '#1a1204' },
+  },
+  {
+    id: 'terracotta',
+    label: 'Terracotta',
+    light: { c: '#c0502f', hover: '#a7421f', dim: '#d98369', on: '#ffffff' },
+    dark: { c: '#f19272', hover: '#f5ab8f', dim: '#b2674d', on: '#1c0b05' },
+  },
+  {
+    id: 'amethyst',
+    label: 'Amethyst',
+    light: { c: '#7c4dcc', hover: '#6a3ab8', dim: '#a283dd', on: '#ffffff' },
+    dark: { c: '#b69cff', hover: '#cbb8ff', dim: '#7f69c2', on: '#120c24' },
+  },
+  {
+    id: 'slate',
+    label: 'Slate',
+    light: { c: '#33343c', hover: '#1f2026', dim: '#6e6f7a', on: '#ffffff' },
+    dark: { c: '#d5d7de', hover: '#ffffff', dim: '#8a8c97', on: '#111216' },
+  },
 ];
 // Settings saved before the redesign named their accent after the old colours: they keep their closest hue
-const OLD_ACCENTS: Record<string, string> = { lime: 'aegean', ice: 'aegean', amber: 'gold', rose: 'terracotta', violet: 'amethyst', mint: 'olive' };
+const OLD_ACCENTS: Record<string, string> = {
+  lime: 'aegean',
+  ice: 'aegean',
+  amber: 'gold',
+  rose: 'terracotta',
+  violet: 'amethyst',
+  mint: 'olive',
+};
 /** The accent for a saved id (an old id counts as its closest new one; anything else is the default). */
-export const accentFor = (id: string | undefined): Accent => ACCENTS.find((x) => x.id === (OLD_ACCENTS[id ?? ''] ?? id)) || ACCENTS[0];
+export const accentFor = (id: string | undefined): Accent =>
+  ACCENTS.find((x) => x.id === (OLD_ACCENTS[id ?? ''] ?? id)) || ACCENTS[0];
 /** The accent's tone for light or dark pages. */
 export const accentTone = (a: Accent, dark = isDark()): AccentTone => (dark ? a.dark : a.light);
-export const DEFAULT_LOOK: LookSetting = { theme: 'system', scale: 100, accent: 'aegean', motion: 'full', chatFont: 'sans', station: 'balanced', sidebar: 'status', stationLook: 'classic', worldQuality: 'medium' };
+export const DEFAULT_LOOK: LookSetting = {
+  theme: 'system',
+  scale: 100,
+  accent: 'aegean',
+  motion: 'full',
+  chatFont: 'sans',
+  station: 'balanced',
+  sidebar: 'status',
+  stationLook: 'classic',
+  worldQuality: 'medium',
+};
 let current: LookSetting = DEFAULT_LOOK;
 /** The look in use now (the Station reads its quality from here every frame). */
 export const currentLook = (): LookSetting => current;

@@ -19,7 +19,8 @@ class FakeSocket {
   onopen: (() => void) | null = null;
 }
 
-const serverEvent = (ev: object) => act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
+const serverEvent = (ev: object) =>
+  act(async () => FakeSocket.last!.onmessage!({ data: JSON.stringify({ ts: 0, ...ev }) }));
 // the Brain's open conversation, and the list of its chats
 let history: { role: string; text: string; ts: number }[] = [];
 const threads = [
@@ -36,8 +37,12 @@ let holding = new Set<string>();
 // the Brain's answer being written (the server ends it on /stop)
 let answer: ReadableStreamDefaultController<Uint8Array> | null = null;
 beforeAll(() => {
-  document.body.append(Object.assign(document.createElement('div'), { id: 'modal-root' }), Object.assign(document.createElement('div'), { id: 'toasts' }));
-  Element.prototype.animate ??= () => ({ finished: Promise.resolve(), cancel() {}, onfinish: null, effect: null } as unknown as Animation);
+  document.body.append(
+    Object.assign(document.createElement('div'), { id: 'modal-root' }),
+    Object.assign(document.createElement('div'), { id: 'toasts' }),
+  );
+  Element.prototype.animate ??= () =>
+    ({ finished: Promise.resolve(), cancel() {}, onfinish: null, effect: null }) as unknown as Animation;
   Element.prototype.getAnimations ??= () => [];
   state.data = {
     runs: [],
@@ -55,7 +60,9 @@ beforeAll(() => {
         new ReadableStream<Uint8Array>({
           start: (c) => {
             answer = c;
-            init.signal?.addEventListener('abort', () => c.error(new DOMException('The operation was aborted.', 'AbortError')));
+            init.signal?.addEventListener('abort', () =>
+              c.error(new DOMException('The operation was aborted.', 'AbortError')),
+            );
           },
         }),
         { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } },
@@ -63,7 +70,10 @@ beforeAll(() => {
     if (url === '/api/brain/history') return json(history);
     if (url === '/api/brain/chats') return json(init.method === 'POST' ? { id: `t${calls.length}` } : threads);
     if (url === '/api/brain/chats/t-old/open') {
-      history = [{ role: 'user', text: 'an older question', ts: 1 }, { role: 'brain', text: 'An older answer.', ts: 2 }];
+      history = [
+        { role: 'user', text: 'an older question', ts: 1 },
+        { role: 'brain', text: 'An older answer.', ts: 2 },
+      ];
       return json({ id: 't-old' });
     }
     if (url === '/api/workflows') return json([]);
@@ -96,7 +106,11 @@ const pick = async (label: string) => {
   await act(async () => document.querySelector<HTMLButtonElement>('button.dock-target')!.click());
   await settle();
   // (an agent's row starts with its badge, so match the end of the text)
-  await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((c) => c.textContent!.trim().endsWith(label))!.click());
+  await act(async () =>
+    [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')]
+      .find((c) => c.textContent!.trim().endsWith(label))!
+      .click(),
+  );
   await settle();
 };
 // (New chat keeps the conversation in the list of earlier chats, so it doesn't ask first)
@@ -184,7 +198,11 @@ describe('the earlier chats', () => {
     const rows = [...document.querySelectorAll('.chat-list-row')].map((r) => r.textContent);
     expect(rows[0]).toContain('Now');
     expect(rows[1]).toContain('an older question');
-    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.chat-list-row button')].find((b) => b.textContent?.includes('an older question'))!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('.chat-list-row button')]
+        .find((b) => b.textContent?.includes('an older question'))!
+        .click(),
+    );
     for (let i = 0; i < 20 && !list().includes('An older answer.'); i++) await settle();
     expect(calls.some((c) => c.url === '/api/brain/chats/t-old/open')).toBe(true);
     expect(list()).toContain('an older question');

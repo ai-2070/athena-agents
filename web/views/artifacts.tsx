@@ -12,18 +12,27 @@ import { DomNode, Icon, reactPage, useServerEvents } from '../ui/react.tsx';
 import { SearchBox } from '../ui/controls.tsx';
 import type { Artifact } from '../../shared/types.ts';
 
-const when = (ts?: number) => (ts ? new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
+const when = (ts?: number) =>
+  ts
+    ? new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : '';
 
 /** Everything you can search an artifact by, in lower case. */
-const haystack = (a: Artifact): string => [a.title, a.note, a.agentName, a.teamName, a.kind, a.path, (a.text || '').slice(0, 20_000)].filter(Boolean).join('\n').toLowerCase();
+const haystack = (a: Artifact): string =>
+  [a.title, a.note, a.agentName, a.teamName, a.kind, a.path, (a.text || '').slice(0, 20_000)]
+    .filter(Boolean)
+    .join('\n')
+    .toLowerCase();
 
 /** The artifacts that match every word typed (any order, any case). */
 export function matching(list: readonly Artifact[], query: string): Artifact[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  return words.length ? list.filter((a) => {
-    const hay = haystack(a);
-    return words.every((w) => hay.includes(w));
-  }) : [...list];
+  return words.length
+    ? list.filter((a) => {
+        const hay = haystack(a);
+        return words.every((w) => hay.includes(w));
+      })
+    : [...list];
 }
 
 // kept while you move around the app, as before
@@ -39,21 +48,39 @@ function ArtifactsPage() {
   const list = matching(all || [], query);
   const total = all?.length || 0;
   const remove = async (a: Artifact) => {
-    if (!(await confirmBox(`Remove "${a.title}" from the list? The file or folder itself stays where it is.`, { ok: 'Remove', danger: true }))) return;
+    if (
+      !(await confirmBox(`Remove "${a.title}" from the list? The file or folder itself stays where it is.`, {
+        ok: 'Remove',
+        danger: true,
+      }))
+    )
+      return;
     await attempt(() => rpc.artifacts.remove({ id: a.id }));
     await reload();
   };
   return (
     <>
       <div className="art-search mb-6 flex flex-wrap items-center gap-3">
-        <SearchBox className="w-[min(480px,100%)]" placeholder="Search by name, note, team, who made it, file name…" label="Search artifacts" value={query} onChange={(v) => setQuery((lastQuery = v))} />
-        <span className="hint ml-auto tabular-nums">{query.trim() ? `${list.length} of ${total}` : total ? `${total}` : ''}</span>
+        <SearchBox
+          className="w-[min(480px,100%)]"
+          placeholder="Search by name, note, team, who made it, file name…"
+          label="Search artifacts"
+          value={query}
+          onChange={(v) => setQuery((lastQuery = v))}
+        />
+        <span className="hint ml-auto tabular-nums">
+          {query.trim() ? `${list.length} of ${total}` : total ? `${total}` : ''}
+        </span>
       </div>
       <div className="flex flex-col gap-4">
         {all === null ? null : list.length ? (
           list.map((a) => <ArtifactCard key={a.id} a={a} onRemove={() => void remove(a)} />)
         ) : (
-          <div className="empty mx-auto max-w-[56ch] py-12">{total ? `Nothing matches "${query.trim()}".` : 'Nothing yet. When a team finishes a result that is not a post or email, an agent saves it here with save_artifact.'}</div>
+          <div className="empty mx-auto max-w-[56ch] py-12">
+            {total
+              ? `Nothing matches "${query.trim()}".`
+              : 'Nothing yet. When a team finishes a result that is not a post or email, an agent saves it here with save_artifact.'}
+          </div>
         )}
       </div>
     </>
@@ -62,7 +89,9 @@ function ArtifactsPage() {
 
 function ArtifactCard({ a, onRemove }: { a: Artifact; onRemove: () => void }) {
   const kindIcon = a.kind === 'folder' ? 'folder' : a.kind === 'file' ? 'file' : 'file-text';
-  const who = [a.agentName ? `by ${a.agentName}` : '', a.teamName ? `team ${a.teamName}` : ''].filter(Boolean).join(' · ');
+  const who = [a.agentName ? `by ${a.agentName}` : '', a.teamName ? `team ${a.teamName}` : '']
+    .filter(Boolean)
+    .join(' · ');
   return (
     <Plate className="panel">
       <div className="flex flex-wrap items-center gap-3">
@@ -84,11 +113,25 @@ function ArtifactCard({ a, onRemove }: { a: Artifact; onRemove: () => void }) {
         </details>
       ) : null}
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        {a.kind === 'file' && a.path ? <ButtonLink variant="ghost" size="small" href={fileUrl(a.path)} target="_blank" rel="noopener">Open</ButtonLink> : null}
-        {a.path ? <Button variant="ghost" size="small" onClick={() => copy(a.path!)}>Copy path</Button> : null}
-        {a.text ? <Button variant="ghost" size="small" onClick={() => copy(a.text!)}>Copy text</Button> : null}
+        {a.kind === 'file' && a.path ? (
+          <ButtonLink variant="ghost" size="small" href={fileUrl(a.path)} target="_blank" rel="noopener">
+            Open
+          </ButtonLink>
+        ) : null}
+        {a.path ? (
+          <Button variant="ghost" size="small" onClick={() => copy(a.path!)}>
+            Copy path
+          </Button>
+        ) : null}
+        {a.text ? (
+          <Button variant="ghost" size="small" onClick={() => copy(a.text!)}>
+            Copy text
+          </Button>
+        ) : null}
         <span className="flex-1 min-w-0" />
-        <Button variant="danger" size="small" onClick={onRemove}>Remove</Button>
+        <Button variant="danger" size="small" onClick={onRemove}>
+          Remove
+        </Button>
       </div>
     </Plate>
   );

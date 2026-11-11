@@ -13,7 +13,7 @@ reads it without an account.
 ## Before you start
 
 - **Python 3.10 or newer**, standard library only. Run the script in a shell as `python <skill folder>/scripts/feeds.py
-  …` (on Windows, `py` if `python` isn't found; `python3` there can open the Microsoft Store instead of Python). Every
+…` (on Windows, `py` if `python` isn't found; `python3` there can open the Microsoft Store instead of Python). Every
   command has `--help` and prints JSON. Exit code 0 means done; 1 that it ran but something is missing (a feed in a list
   that failed, no feed found), which the JSON says; 2 that it couldn't do the job, with the reason in one line on
   stderr.
@@ -28,16 +28,16 @@ reads it without an account.
 
 Try the known address first; each of these answered with a feed when this was checked (November 2026):
 
-| Source | Feed address |
-|---|---|
-| GitHub repo | `https://github.com/<owner>/<repo>/releases.atom`, `…/tags.atom`, `…/commits/<branch>.atom` |
-| Hacker News | `https://hnrss.org/frontpage`, `/best`, `/show`, `/newest?q=<words>`; add `&points=50` to skip small stories |
-| arXiv | `https://rss.arxiv.org/rss/<category>` (`/atom/` for Atom), categories joined with `+`: `cs.CL+cs.AI` |
-| Substack, WordPress, Ghost | `<site>/feed` (Substack), `<site>/feed/` and `<site>/category/<slug>/feed/` (WordPress), `<site>/rss/` (Ghost) |
-| Medium | `https://medium.com/feed/@<user>`, `…/feed/<publication>`, `…/feed/tag/<tag>` |
-| Mastodon, Bluesky | `https://<server>/@<user>.rss`, `https://bsky.app/profile/<handle>/rss` |
-| YouTube channel | `https://www.youtube.com/feeds/videos.xml?channel_id=UC…`: it has answered 404 on and off since late 2025 (it did when checked), so try again later, or use the `youtube-content` skill |
-| Reddit | `.rss` after most addresses: `references/reddit.md` |
+| Source                     | Feed address                                                                                                                                                                            |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub repo                | `https://github.com/<owner>/<repo>/releases.atom`, `…/tags.atom`, `…/commits/<branch>.atom`                                                                                             |
+| Hacker News                | `https://hnrss.org/frontpage`, `/best`, `/show`, `/newest?q=<words>`; add `&points=50` to skip small stories                                                                            |
+| arXiv                      | `https://rss.arxiv.org/rss/<category>` (`/atom/` for Atom), categories joined with `+`: `cs.CL+cs.AI`                                                                                   |
+| Substack, WordPress, Ghost | `<site>/feed` (Substack), `<site>/feed/` and `<site>/category/<slug>/feed/` (WordPress), `<site>/rss/` (Ghost)                                                                          |
+| Medium                     | `https://medium.com/feed/@<user>`, `…/feed/<publication>`, `…/feed/tag/<tag>`                                                                                                           |
+| Mastodon, Bluesky          | `https://<server>/@<user>.rss`, `https://bsky.app/profile/<handle>/rss`                                                                                                                 |
+| YouTube channel            | `https://www.youtube.com/feeds/videos.xml?channel_id=UC…`: it has answered 404 on and off since late 2025 (it did when checked), so try again later, or use the `youtube-content` skill |
+| Reddit                     | `.rss` after most addresses: `references/reddit.md`                                                                                                                                     |
 
 Otherwise give `read` the page's address, or run `discover` to see every feed a page offers. Both look in this order:
 the page's `<link rel="alternate">` tags, links on the page that look like feeds (a footer's "RSS"), then the usual

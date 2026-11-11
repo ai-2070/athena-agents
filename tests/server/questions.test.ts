@@ -9,8 +9,14 @@ const queued: { agentId: string; chatId: string; text: string }[] = [];
 const teamPosts: { teamId: string; text: string }[] = [];
 vi.mock('../../server/engines/index.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/engines/index.ts')>()),
-  runInfo: (id: string | null | undefined) => (id && live.has(id) ? { id, agentId: 'x', projectId: 'p', chatId: 'c', depth: 0, signal: new AbortController().signal } : null),
-  queueMessage: (agent: Agent, chat: { id: string }, text: string) => (queued.push({ agentId: agent.id, chatId: chat.id, text }), { runId: 'r-next' }),
+  runInfo: (id: string | null | undefined) =>
+    id && live.has(id)
+      ? { id, agentId: 'x', projectId: 'p', chatId: 'c', depth: 0, signal: new AbortController().signal }
+      : null,
+  queueMessage: (agent: Agent, chat: { id: string }, text: string) => (
+    queued.push({ agentId: agent.id, chatId: chat.id, text }),
+    { runId: 'r-next' }
+  ),
 }));
 vi.mock('../../server/teams.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/teams.ts')>()),
@@ -21,7 +27,8 @@ const { agents, chats, workflows, questions } = await import('../../server/store
 const q = await import('../../server/questions.ts');
 const { callTool, toolsForAgent } = await import('../../server/tools.ts');
 
-const agent = (name = 'Designer'): Agent => agents.save({ name, engine: 'eve', toolGroups: [] } as Partial<Agent> as Agent);
+const agent = (name = 'Designer'): Agent =>
+  agents.save({ name, engine: 'eve', toolGroups: [] } as Partial<Agent> as Agent);
 /** The question ask() just put in the Outbox (once it is there). */
 async function newest() {
   for (let i = 0; i < 200 && !q.waitingQuestions().length; i++) await new Promise((r) => setTimeout(r, 5));
@@ -45,9 +52,21 @@ describe('ask_user', () => {
   it('waits for your click and hands the choice back to the agent', async () => {
     const a = agent();
     live.add('r1');
-    const res = callTool(a, 'ask_user', { question: 'Which style?', choices: ['Flat', '3D', 'Flat', ' '], detail: 'For the **logo**' }, { runId: 'r1' });
+    const res = callTool(
+      a,
+      'ask_user',
+      { question: 'Which style?', choices: ['Flat', '3D', 'Flat', ' '], detail: 'For the **logo**' },
+      { runId: 'r1' },
+    );
     const asked = await newest();
-    expect(asked).toMatchObject({ question: 'Which style?', choices: ['Flat', '3D'], detail: 'For the **logo**', agentName: 'Designer', status: 'waiting', runId: 'r1' });
+    expect(asked).toMatchObject({
+      question: 'Which style?',
+      choices: ['Flat', '3D'],
+      detail: 'For the **logo**',
+      agentName: 'Designer',
+      status: 'waiting',
+      runId: 'r1',
+    });
     expect(q.isWaiting(asked.id)).toBe(true);
     // (the run's chat comes from runInfo: here, the stand-in's)
     expect(asked.chatId).toBe('c');
@@ -73,7 +92,10 @@ describe('ask_user', () => {
   it('a late answer goes to the chat it was asked in as a new message', async () => {
     const a = agent();
     const c = chats.create(a.id, 'Logo');
-    const { question, outcome } = await q.ask({ question: 'Which style?', choices: ['Flat', '3D'], agentId: a.id, chatId: c.id, runId: 'r2' }, { waitMs: 5 });
+    const { question, outcome } = await q.ask(
+      { question: 'Which style?', choices: ['Flat', '3D'], agentId: a.id, chatId: c.id, runId: 'r2' },
+      { waitMs: 5 },
+    );
     expect(outcome.kind).toBe('timeout');
     expect(questions.get(question.id)?.status).toBe('waiting');
     const saved = await q.answerQuestion(question.id, { choice: 'Flat' });
@@ -170,13 +192,15 @@ describe('ask_user', () => {
     expect(q.cleanChoices(undefined)).toEqual([]);
   });
 
-  it('is answered or dismissed from another project too (an Overview pane of a project that isn\'t open)', async () => {
+  it("is answered or dismissed from another project too (an Overview pane of a project that isn't open)", async () => {
     const { createProject } = await import('../../server/projects.ts');
     const { setActiveProject, withProject } = await import('../../server/store.ts');
     const away = await createProject({ name: 'Questions elsewhere' });
     const asker = withProject(away, () => agent('Away designer'));
     const chat = withProject(away, () => chats.create(asker.id));
-    const first = withProject(away, () => q.addQuestion({ question: 'Red or blue?', choices: ['Red', 'Blue'], agentId: asker.id, chatId: chat.id }));
+    const first = withProject(away, () =>
+      q.addQuestion({ question: 'Red or blue?', choices: ['Red', 'Blue'], agentId: asker.id, chatId: chat.id }),
+    );
     const second = withProject(away, () => q.addQuestion({ question: 'Ship it?', agentId: asker.id, chatId: chat.id }));
     const home = await createProject({ name: 'Questions home' });
     setActiveProject(home.id);

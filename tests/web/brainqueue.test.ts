@@ -24,7 +24,10 @@ describe('brainQueue()', () => {
     s.calls[0].answer('first answer');
     expect(await first).toEqual({ kind: 'answer', answer: 'first answer' });
     await tick();
-    expect(s.calls.map((c) => [c.text, c.project])).toEqual([['one', 'A'], ['two', 'A']]);
+    expect(s.calls.map((c) => [c.text, c.project])).toEqual([
+      ['one', 'A'],
+      ['two', 'A'],
+    ]);
     s.calls[1].answer('second answer');
     expect(await second).toEqual({ kind: 'answer', answer: 'second answer' });
   });

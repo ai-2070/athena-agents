@@ -21,16 +21,23 @@ beforeAll(async () => {
     req.on('close', () => res.end());
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
 });
 // (a request a failed test left open would keep close() waiting: drop them all)
-afterAll(() => new Promise<void>((r) => {
-  server.close(() => r());
-  server.closeAllConnections();
-}));
+afterAll(
+  () =>
+    new Promise<void>((r) => {
+      server.close(() => r());
+      server.closeAllConnections();
+    }),
+);
 
 const until = async (ok: () => boolean, ms = 5000) => {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 20));
   }
@@ -38,7 +45,15 @@ const until = async (ok: () => boolean, ms = 5000) => {
 };
 const slow = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const running = (agentId: string) => activeRuns().some((r) => r.agentId === agentId);
-const team = (name: string, members: string[]) => workflows.save({ name, members, lead: members[0], steps: members.map((agentId) => ({ type: 'agent' as const, agentId })), schedule: { type: 'none' }, enabled: false } as Partial<Team>);
+const team = (name: string, members: string[]) =>
+  workflows.save({
+    name,
+    members,
+    lead: members[0],
+    steps: members.map((agentId) => ({ type: 'agent' as const, agentId })),
+    schedule: { type: 'none' },
+    enabled: false,
+  } as Partial<Team>);
 
 describe('the Brain stops work', () => {
   it('stops an agent, and says so when it was not working', async () => {
@@ -48,7 +63,10 @@ describe('the Brain stops work', () => {
     const r = applyActions([{ do: 'stop', to: 'agent', id: 'Busy bee' }]);
     expect(r.done).toEqual([expect.objectContaining({ kind: 'stop', agentId: a.id, text: 'Stopped Busy bee' })]);
     await until(() => !running(a.id));
-    expect(applyActions([{ do: 'stop', to: 'agent', id: a.id }]).done[0]).toMatchObject({ kind: 'note', text: "Busy bee wasn't working" });
+    expect(applyActions([{ do: 'stop', to: 'agent', id: a.id }]).done[0]).toMatchObject({
+      kind: 'note',
+      text: "Busy bee wasn't working",
+    });
   });
 
   it('stopping an agent also takes it off the team turns it waits for', async () => {
@@ -67,7 +85,11 @@ describe('the Brain stops work', () => {
     await new Promise((res) => setTimeout(res, 150));
     expect(running(a.id)).toBe(false);
     expect(teamState(t.id).queued).toEqual([]);
-    expect(getThread(t.id).messages.filter((m) => m.from === a.id).map((m) => m.text)).toEqual(['(stopped)']);
+    expect(
+      getThread(t.id)
+        .messages.filter((m) => m.from === a.id)
+        .map((m) => m.text),
+    ).toEqual(['(stopped)']);
   });
 
   it('stops a team and its queue', async () => {
@@ -87,7 +109,10 @@ describe('the Brain stops work', () => {
     const member = slow('Crew member');
     const stepper = slow('Step agent');
     const t = team('Night crew', [member.id]);
-    const wf = workflows.save({ name: 'Nightly', steps: [{ id: 's1', type: 'agent', agentId: stepper.id, label: 'Think', prompt: '{{input}}' }] } as Partial<Team>);
+    const wf = workflows.save({
+      name: 'Nightly',
+      steps: [{ id: 's1', type: 'agent', agentId: stepper.id, label: 'Think', prompt: '{{input}}' }],
+    } as Partial<Team>);
     void askAgent(solo, 'go').catch(() => {});
     await postUserMessage(t.id, 'go');
     const before = asked;
@@ -104,11 +129,18 @@ describe('the Brain stops work', () => {
     await until(() => runs.get(run.id)?.status !== 'running');
     expect(runs.get(run.id)?.status).toBe('stopped');
 
-    expect(applyActions([{ do: 'stop', to: 'all' }]).done[0]).toMatchObject({ kind: 'note', text: expect.stringContaining('Nothing was running') });
+    expect(applyActions([{ do: 'stop', to: 'all' }]).done[0]).toMatchObject({
+      kind: 'note',
+      text: expect.stringContaining('Nothing was running'),
+    });
   });
 
   it('says what it could not find', () => {
-    const r = applyActions([{ do: 'stop', to: 'agent', id: 'ghost' }, { do: 'stop', to: 'team', id: 'nope' }, { do: 'stop' }]);
+    const r = applyActions([
+      { do: 'stop', to: 'agent', id: 'ghost' },
+      { do: 'stop', to: 'team', id: 'nope' },
+      { do: 'stop' },
+    ]);
     expect(r.done.map((d) => d.kind)).toEqual(['error', 'error', 'error']);
     expect(r.done[2].text).toContain('"to" is agent, team or all');
   });

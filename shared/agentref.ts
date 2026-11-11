@@ -24,5 +24,7 @@ export function findAgent<T extends Named>(all: readonly T[], ref: string): { ag
   const fits = exact.length ? exact : q ? all.filter((a) => a.name.toLowerCase().includes(q)) : [];
   if (fits.length === 1) return { agent: fits[0] };
   if (!fits.length) return { error: `No agent called "${r}".` };
-  return { error: `More than one agent fits "${r}": ${fits.map((a) => `${a.name} [${a.id}]`).join(', ')}. Use the id.` };
+  return {
+    error: `More than one agent fits "${r}": ${fits.map((a) => `${a.name} [${a.id}]`).join(', ')}. Use the id.`,
+  };
 }

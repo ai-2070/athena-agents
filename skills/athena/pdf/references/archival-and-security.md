@@ -47,7 +47,7 @@ Then check: `pdf_tool.py text` on the result and search it for every redacted wo
 A PDF can carry more than its pages show. Check with `pdf_tool.py info` and `pdf_forms.py fields`:
 
 - **Metadata**: author, title, the program that made it, sometimes a user name or a file path. `pdf_tool.py meta
-  in.pdf --clear -o clean.pdf` removes both kinds (the document information and the XMP stream). `meta` without
+in.pdf --clear -o clean.pdf` removes both kinds (the document information and the XMP stream). `meta` without
   `--clear` changes only the document information, and its result notes when the file also has an XMP stream, which
   may still hold the old values.
 - **Attachments**: files embedded in the PDF (`attachments` lists and saves them).
@@ -103,4 +103,5 @@ For scans, `ocrmypdf --output-type pdfa` makes a searchable PDF/A in one step (`
   `/ebook` brings pictures down to 150 dpi and `/screen` to 72 dpi (visibly rough on screen, poor in print).
   Ghostscript rebuilds the whole file, so check that what matters survived (form fields, links, bookmarks), render a
   few pages to compare with the original, and keep the original.
+
 - Report the sizes before and after. If the file barely shrinks, say why (already compressed, or mostly text).

@@ -22,6 +22,10 @@ export function ButtonLink({ variant, size, className, ...props }: Appearance & 
 }
 
 /** An icon-only action. Callers supply an accessible name. */
-export function IconButton({ variant, className = '', ...props }: { variant?: IconButtonVariant } & ComponentPropsWithoutRef<'button'>) {
+export function IconButton({
+  variant,
+  className = '',
+  ...props
+}: { variant?: IconButtonVariant } & ComponentPropsWithoutRef<'button'>) {
   return <button className={iconButtonClass(variant, className)} {...props} />;
 }

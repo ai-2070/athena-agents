@@ -22,6 +22,49 @@ import { assistRouter } from './assist.ts';
 import { worldRouter, worldsRouter } from './world.ts';
 import { gatewaysRouter } from './gateways.ts';
 import { outboxRouter } from './outbox.ts';
-import { artifactsRouter, backupsRouter, filesRouter, layoutRouter, memoryRouter, terminalsRouter, uploadsRouter } from './files.ts';
+import {
+  artifactsRouter,
+  backupsRouter,
+  filesRouter,
+  layoutRouter,
+  memoryRouter,
+  terminalsRouter,
+  uploadsRouter,
+} from './files.ts';
 
-export const apiRouter = implement(contract).router({ agents: agentsRouter, brain: brainRouter, projects: projectsRouter, taskBoard, teams: teamsRouter, workflows: workflowsRouter, questions: questionsRouter, approvals: approvalsRouter, tasks: tasksRouter, routines: routinesRouter, runs: runsRouter, skills: skillsRouter, versions: versionsRouter, library: libraryRouter, presets: presetsRouter, status: statusRouter, settings: settingsRouter, accounts: accountsRouter, mcp: mcpRouter, engines: enginesRouter, programs: programsRouter, comfyui: comfyRouter, assist: assistRouter, files: filesRouter, uploads: uploadsRouter, memory: memoryRouter, artifacts: artifactsRouter, backups: backupsRouter, layout: layoutRouter, terminals: terminalsRouter, world: worldRouter, worlds: worldsRouter, gateways: gatewaysRouter, outbox: outboxRouter });
+export const apiRouter = implement(contract).router({
+  agents: agentsRouter,
+  brain: brainRouter,
+  projects: projectsRouter,
+  taskBoard,
+  teams: teamsRouter,
+  workflows: workflowsRouter,
+  questions: questionsRouter,
+  approvals: approvalsRouter,
+  tasks: tasksRouter,
+  routines: routinesRouter,
+  runs: runsRouter,
+  skills: skillsRouter,
+  versions: versionsRouter,
+  library: libraryRouter,
+  presets: presetsRouter,
+  status: statusRouter,
+  settings: settingsRouter,
+  accounts: accountsRouter,
+  mcp: mcpRouter,
+  engines: enginesRouter,
+  programs: programsRouter,
+  comfyui: comfyRouter,
+  assist: assistRouter,
+  files: filesRouter,
+  uploads: uploadsRouter,
+  memory: memoryRouter,
+  artifacts: artifactsRouter,
+  backups: backupsRouter,
+  layout: layoutRouter,
+  terminals: terminalsRouter,
+  world: worldRouter,
+  worlds: worldsRouter,
+  gateways: gatewaysRouter,
+  outbox: outboxRouter,
+});

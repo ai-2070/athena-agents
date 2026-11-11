@@ -81,10 +81,25 @@ export function moveStep<T>(steps: readonly T[], i: number, by: -1 | 1): T[] {
 }
 
 function Status({ st }: { st: string }) {
-  if (st === 'done') return <span className="text-ok" aria-label="done">✓</span>;
-  if (st === 'failed') return <span className="text-red" aria-label="failed">✕</span>;
+  if (st === 'done')
+    return (
+      <span className="text-ok" aria-label="done">
+        ✓
+      </span>
+    );
+  if (st === 'failed')
+    return (
+      <span className="text-red" aria-label="failed">
+        ✕
+      </span>
+    );
   if (st === 'running') return <Dot tone="busy" aria-label="running" />;
-  if (st === 'needs-you') return <span className="text-amber" aria-label="needs you">!</span>;
+  if (st === 'needs-you')
+    return (
+      <span className="text-amber" aria-label="needs you">
+        !
+      </span>
+    );
   return <span className="text-faint">·</span>;
 }
 
@@ -94,7 +109,9 @@ function WorkflowsList() {
   const [data, setData] = useState<{ list: Workflow[]; templates: WorkflowTemplate[] } | null>(null);
   useEffect(() => {
     let live = true;
-    void Promise.all([rpc.workflows.list(), rpc.workflows.templates.list()]).then(([list, templates]) => live && setData({ list, templates }));
+    void Promise.all([rpc.workflows.list(), rpc.workflows.templates.list()]).then(
+      ([list, templates]) => live && setData({ list, templates }),
+    );
     return () => void (live = false);
   }, []);
   if (!data || !d) return null;
@@ -110,10 +127,13 @@ function WorkflowsList() {
   };
   return (
     <>
-      <p className="lede max-w-[68ch]">A workflow is a list of steps that run in order. Each step gets the result of the one before it, so a researcher can hand findings to a writer, then you approve, then it posts.</p>
+      <p className="lede max-w-[68ch]">
+        A workflow is a list of steps that run in order. Each step gets the result of the one before it, so a researcher
+        can hand findings to a writer, then you approve, then it posts.
+      </p>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="section m-0">Your workflows</h2>
-        <Button  onClick={() => void create()}>
+        <Button onClick={() => void create()}>
           <Icon name="plus" size={14} />
           New workflow
         </Button>
@@ -126,7 +146,11 @@ function WorkflowsList() {
               <div className="card-sub">{wf.description || `${wf.steps.length} steps`}</div>
               <div className="card-foot">
                 <Pill>{`${wf.steps.length} steps`}</Pill>
-                {wf.schedule && wf.schedule.type !== 'none' ? <Pill tone={wf.enabled ? 'ok' : 'dim'}>{wf.enabled ? scheduleText(wf.schedule) : 'schedule off'}</Pill> : null}
+                {wf.schedule && wf.schedule.type !== 'none' ? (
+                  <Pill tone={wf.enabled ? 'ok' : 'dim'}>
+                    {wf.enabled ? scheduleText(wf.schedule) : 'schedule off'}
+                  </Pill>
+                ) : null}
               </div>
             </PlateLink>
           ))}
@@ -142,9 +166,15 @@ function WorkflowsList() {
             <Plate key={t.name} className="card hover:shadow-none">
               <div className="card-title">{t.name}</div>
               <div className="card-sub">{t.description}</div>
-              <div className="hint">{missing.length ? `Uses: ${t.needs.join(', ')}. Missing ${missing.join(', ')} (add from Agent library > Athena, or pick other agents after).` : `Uses: ${t.needs.join(', ')}`}</div>
+              <div className="hint">
+                {missing.length
+                  ? `Uses: ${t.needs.join(', ')}. Missing ${missing.join(', ')} (add from Agent library > Athena, or pick other agents after).`
+                  : `Uses: ${t.needs.join(', ')}`}
+              </div>
               <div className="card-foot">
-                <Button size="small" onClick={() => void startFromTemplate(t)}>Use template</Button>
+                <Button size="small" onClick={() => void startFromTemplate(t)}>
+                  Use template
+                </Button>
               </div>
             </Plate>
           );
@@ -186,7 +216,8 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
   const [input, setInput] = useState('');
   const [runsVersion, setRunsVersion] = useState(0);
   const change = (next: WorkflowStep[]) => (setSteps(next), setDirty(true));
-  const setStep = (i: number, patch: Partial<WorkflowStep>) => change(steps.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const setStep = (i: number, patch: Partial<WorkflowStep>) =>
+    change(steps.map((s, j) => (j === i ? { ...s, ...patch } : s)));
 
   const save = async () => {
     const r = await attempt(() => rpc.workflows.change({ ...sched.current, name, description, steps, id }), 'Saved');
@@ -206,9 +237,13 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
   return (
     <>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <ButtonLink variant="ghost" size="small" href="#/workflows">← Workflows</ButtonLink>
+        <ButtonLink variant="ghost" size="small" href="#/workflows">
+          ← Workflows
+        </ButtonLink>
         <div className="flex flex-wrap items-center gap-3">
-          <Button  disabled={!dirty} onClick={() => void save()}>Save</Button>
+          <Button disabled={!dirty} onClick={() => void save()}>
+            Save
+          </Button>
         </div>
       </div>
       <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-6 max-lg:grid-cols-1">
@@ -231,18 +266,53 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
             <ol>
               {steps.map((s, i) => (
                 <li key={s.id || i}>
-                  {i ? <div className="py-2 text-center text-[14px] leading-none text-faint" aria-hidden="true">↓</div> : null}
+                  {i ? (
+                    <div className="py-2 text-center text-[14px] leading-none text-faint" aria-hidden="true">
+                      ↓
+                    </div>
+                  ) : null}
                   <Plate className="step relative rounded-box p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-3">
                         <span className="text-[12.5px] leading-[normal] font-semibold text-dim">{`Step ${i + 1}`}</span>
-                        <SelectControl aria-label={`Step ${i + 1}: what it does`} value={s.type} onChange={(value) => setStep(i, { type: value })} options={STEP_TYPES} />
-                        <input className="wf-label w-55" aria-label={`Step ${i + 1}: label`} value={s.label || ''} placeholder="Label (optional)" onChange={(e) => setStep(i, { label: e.target.value })} />
+                        <SelectControl
+                          aria-label={`Step ${i + 1}: what it does`}
+                          value={s.type}
+                          onChange={(value) => setStep(i, { type: value })}
+                          options={STEP_TYPES}
+                        />
+                        <input
+                          className="wf-label w-55"
+                          aria-label={`Step ${i + 1}: label`}
+                          value={s.label || ''}
+                          placeholder="Label (optional)"
+                          onChange={(e) => setStep(i, { label: e.target.value })}
+                        />
                       </div>
                       <div className="flex flex-wrap items-center gap-1">
-                        <IconButton title="Move up" aria-label={`Move step ${i + 1} up`} disabled={i === 0} onClick={() => change(moveStep(steps, i, -1))}>↑</IconButton>
-                        <IconButton title="Move down" aria-label={`Move step ${i + 1} down`} disabled={i === steps.length - 1} onClick={() => change(moveStep(steps, i, 1))}>↓</IconButton>
-                        <IconButton title="Remove" aria-label={`Remove step ${i + 1}`} onClick={() => change(steps.filter((_, j) => j !== i))}>✕</IconButton>
+                        <IconButton
+                          title="Move up"
+                          aria-label={`Move step ${i + 1} up`}
+                          disabled={i === 0}
+                          onClick={() => change(moveStep(steps, i, -1))}
+                        >
+                          ↑
+                        </IconButton>
+                        <IconButton
+                          title="Move down"
+                          aria-label={`Move step ${i + 1} down`}
+                          disabled={i === steps.length - 1}
+                          onClick={() => change(moveStep(steps, i, 1))}
+                        >
+                          ↓
+                        </IconButton>
+                        <IconButton
+                          title="Remove"
+                          aria-label={`Remove step ${i + 1}`}
+                          onClick={() => change(steps.filter((_, j) => j !== i))}
+                        >
+                          ✕
+                        </IconButton>
                       </div>
                     </div>
                     <div className="mt-4 flex flex-col gap-4">
@@ -254,7 +324,14 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
             </ol>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               {STEP_TYPES.map((t) => (
-                <Button key={t.value} variant="ghost" size="small" onClick={() => change([...steps, { id: Math.random().toString(36).slice(2), type: t.value, prompt: '{{prev}}' }])}>{`+ ${t.label}`}</Button>
+                <Button
+                  key={t.value}
+                  variant="ghost"
+                  size="small"
+                  onClick={() =>
+                    change([...steps, { id: Math.random().toString(36).slice(2), type: t.value, prompt: '{{prev}}' }])
+                  }
+                >{`+ ${t.label}`}</Button>
               ))}
             </div>
           </Plate>
@@ -264,9 +341,15 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
             <div className="panel-head">
               <h2>Run it</h2>
             </div>
-            <textarea rows={2} aria-label="Input for this run" placeholder="Input for this run ({{input}})" value={input} onChange={(e) => setInput(e.target.value)} />
+            <textarea
+              rows={2}
+              aria-label="Input for this run"
+              placeholder="Input for this run ({{input}})"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+            />
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <Button  onClick={() => void run()}>Run now</Button>
+              <Button onClick={() => void run()}>Run now</Button>
             </div>
           </Plate>
           <Plate className="panel">
@@ -282,7 +365,9 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
             <Runs id={id} version={runsVersion} />
           </Plate>
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="danger" size="small" onClick={() => void del()}>Delete workflow</Button>
+            <Button variant="danger" size="small" onClick={() => void del()}>
+              Delete workflow
+            </Button>
           </div>
         </div>
       </div>
@@ -290,42 +375,107 @@ function EditorForm({ first, tools, d }: { first: Workflow; tools: ToolInfo[]; d
   );
 }
 
-function StepFields({ s, set, tools, d }: { s: WorkflowStep; set: (patch: Partial<WorkflowStep>) => void; tools: ToolInfo[]; d: AppState }) {
-  const area = (label: string, key: 'prompt' | 'message' | 'text', rows: number, fallback: string, hint?: ReactNode) => (
+function StepFields({
+  s,
+  set,
+  tools,
+  d,
+}: {
+  s: WorkflowStep;
+  set: (patch: Partial<WorkflowStep>) => void;
+  tools: ToolInfo[];
+  d: AppState;
+}) {
+  const area = (
+    label: string,
+    key: 'prompt' | 'message' | 'text',
+    rows: number,
+    fallback: string,
+    hint?: ReactNode,
+  ) => (
     <Field label={label} hint={hint}>
-      <textarea rows={rows} value={(s[key] as string | undefined) ?? fallback} placeholder={key === 'prompt' ? '{{prev}}' : undefined} onChange={(e) => set({ [key]: e.target.value })} />
+      <textarea
+        rows={rows}
+        value={(s[key] as string | undefined) ?? fallback}
+        placeholder={key === 'prompt' ? '{{prev}}' : undefined}
+        onChange={(e) => set({ [key]: e.target.value })}
+      />
     </Field>
   );
   if (s.type === 'agent')
     return (
       <>
         <Field label="Agent">
-          <SelectControl aria-label="Agent" value={s.agentId || ''} onChange={(value) => set({ agentId: value })} options={[{ value: '', label: 'Pick an agent…' }, ...d.agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` }))]} />
+          <SelectControl
+            aria-label="Agent"
+            value={s.agentId || ''}
+            onChange={(value) => set({ agentId: value })}
+            options={[
+              { value: '', label: 'Pick an agent…' },
+              ...d.agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` })),
+            ]}
+          />
         </Field>
-        {area('Message', 'prompt', 4, '', 'Use {{input}} for the run input, {{prev}} for the last step, {{step1}}… for any step, {{date}}.')}
+        {area(
+          'Message',
+          'prompt',
+          4,
+          '',
+          'Use {{input}} for the run input, {{prev}} for the last step, {{step1}}… for any step, {{date}}.',
+        )}
       </>
     );
   if (s.type === 'tool')
     return (
       <>
         <Field label="Tool">
-          <SelectControl aria-label="Tool" value={s.tool || ''} onChange={(value) => set({ tool: value })} options={[{ value: '', label: 'Pick a tool…' }, ...tools.filter((t) => t.group !== 'knowledge').map((t) => ({ value: t.name, label: `${t.name} (${t.group})` }))]} />
+          <SelectControl
+            aria-label="Tool"
+            value={s.tool || ''}
+            onChange={(value) => set({ tool: value })}
+            options={[
+              { value: '', label: 'Pick a tool…' },
+              ...tools
+                .filter((t) => t.group !== 'knowledge')
+                .map((t) => ({ value: t.name, label: `${t.name} (${t.group})` })),
+            ]}
+          />
         </Field>
         {s.tool ? <p className="hint">{tools.find((t) => t.name === s.tool)?.description || ''}</p> : null}
-        <Field label="Arguments (JSON)" hint={'Placeholders work inside strings, e.g. {"workflow": "imagegen", "prompt": "{{prev}}"}'}>
+        <Field
+          label="Arguments (JSON)"
+          hint={'Placeholders work inside strings, e.g. {"workflow": "imagegen", "prompt": "{{prev}}"}'}
+        >
           <textarea className="code" rows={4} value={s.args ?? '{}'} onChange={(e) => set({ args: e.target.value })} />
         </Field>
       </>
     );
-  if (s.type === 'approval') return area('What to show you', 'message', 2, '{{prev}}', 'The run pauses in Needs you. You can edit the text before it continues.');
+  if (s.type === 'approval')
+    return area(
+      'What to show you',
+      'message',
+      2,
+      '{{prev}}',
+      'The run pauses in Needs you. You can edit the text before it continues.',
+    );
   if (s.type === 'x_post')
     return (
       <>
         <Field label="Account">
-          <SelectControl aria-label="Account" value={s.account || ''} onChange={(value) => set({ account: value })} options={[{ value: '', label: d.accounts.x.length ? 'First connected account' : 'No X account connected yet' }, ...d.accounts.x.map((a) => ({ value: a.username, label: `@${a.username}` }))]} />
+          <SelectControl
+            aria-label="Account"
+            value={s.account || ''}
+            onChange={(value) => set({ account: value })}
+            options={[
+              { value: '', label: d.accounts.x.length ? 'First connected account' : 'No X account connected yet' },
+              ...d.accounts.x.map((a) => ({ value: a.username, label: `@${a.username}` })),
+            ]}
+          />
         </Field>
         {area('Text', 'text', 3, '{{prev}}')}
-        <Switch checked={!!s.thread} onChange={(v) => set({ thread: v })}>Thread: split parts on a line with ---</Switch>
+        <Switch checked={!!s.thread} onChange={(v) => set({ thread: v })}>
+          Thread: split parts on a line with ---
+        </Switch>
         <p className="hint">It goes to the Outbox for approval unless the account has auto-post on.</p>
       </>
     );
@@ -333,7 +483,9 @@ function StepFields({ s, set, tools, d }: { s: WorkflowStep; set: (patch: Partia
     return (
       <>
         {area('Message', 'text', 2, '{{prev}}')}
-        <Switch checked={!!s.telegram} onChange={(v) => set({ telegram: v })}>Also draft a Telegram message in Outbox</Switch>
+        <Switch checked={!!s.telegram} onChange={(v) => set({ telegram: v })}>
+          Also draft a Telegram message in Outbox
+        </Switch>
         <p className="hint">Choose the gateway recipient and approve the draft in Outbox before it sends.</p>
       </>
     );
@@ -346,7 +498,14 @@ function Runs({ id, version }: { id: string; version: number }) {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const load = useCallback(() => {
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => void rpc.workflows.runs.list({ workflowId: id }).then(setRuns).catch(() => setRuns([])), 150);
+    timer.current = setTimeout(
+      () =>
+        void rpc.workflows.runs
+          .list({ workflowId: id })
+          .then(setRuns)
+          .catch(() => setRuns([])),
+      150,
+    );
   }, [id]);
   useEffect(() => (load(), () => clearTimeout(timer.current)), [load, version]);
   useServerEvents((ev) => ev.type === 'workflow-run' && load());
@@ -362,24 +521,41 @@ function Runs({ id, version }: { id: string; version: number }) {
               <b>{r.status}</b>
               <span className="hint">{`${ago(r.createdAt)} · ${r.trigger}`}</span>
               {r.status === 'running' ? (
-                <Button variant="danger" size="tiny" onClick={(e) => (e.preventDefault(), void attempt(() => rpc.workflows.runs.stop({ id: r.id })))}>Stop</Button>
+                <Button
+                  variant="danger"
+                  size="tiny"
+                  onClick={(e) => (e.preventDefault(), void attempt(() => rpc.workflows.runs.stop({ id: r.id })))}
+                >
+                  Stop
+                </Button>
               ) : null}
             </span>
           </summary>
           {r.input ? <div className="hint">{`Input: ${r.input}`}</div> : null}
           {r.steps.map((s, j) => (
-            <div key={s.id || j} className="grid grid-cols-[22px_1fr] gap-3 border-b border-line py-3 last:border-b-0 [&_pre]:max-h-50">
+            <div
+              key={s.id || j}
+              className="grid grid-cols-[22px_1fr] gap-3 border-b border-line py-3 last:border-b-0 [&_pre]:max-h-50"
+            >
               <Status st={s.status} />
               <div>
                 <div>
                   <b>{`${j + 1}. ${s.label}`}</b>
                   {s.agentName ? <span className="hint">{` · ${s.agentName}`}</span> : null}
                 </div>
-                {s.output ? <pre>{typeof s.output === 'string' ? s.output : JSON.stringify(s.output, null, 2)}</pre> : null}
+                {s.output ? (
+                  <pre>{typeof s.output === 'string' ? s.output : JSON.stringify(s.output, null, 2)}</pre>
+                ) : null}
                 {s.images?.length ? (
                   <div className="tool-images">
                     {s.images.map((src) => (
-                      <button key={src} type="button" className="img-button" aria-label="Show the image big" onClick={() => lightbox(src)}>
+                      <button
+                        key={src}
+                        type="button"
+                        className="img-button"
+                        aria-label="Show the image big"
+                        onClick={() => lightbox(src)}
+                      >
                         <img src={src} alt="" />
                       </button>
                     ))}
@@ -396,4 +572,12 @@ function Runs({ id, version }: { id: string; version: number }) {
 }
 
 export const title = () => 'Workflows';
-export const { render, unmount } = reactPage((p) => (p[0] ? <ProjectScoped><WorkflowEditor id={p[0]} /></ProjectScoped> : <WorkflowsList />));
+export const { render, unmount } = reactPage((p) =>
+  p[0] ? (
+    <ProjectScoped>
+      <WorkflowEditor id={p[0]} />
+    </ProjectScoped>
+  ) : (
+    <WorkflowsList />
+  ),
+);

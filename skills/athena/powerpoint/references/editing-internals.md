@@ -17,7 +17,7 @@ A `.pptx` is a zip of XML parts tied together by relationship files.
 - The main part's content type says what kind of file it is. python-pptx opens only presentations (`.pptx`,
   `.pptm`) and refuses a template or a slide show with "is not a PowerPoint file, content type is ...". The scripts
   read those with the content type changed and save a `.pptx`, so `pptx_deck.py edit template.potx empty.json -o
-  copy.pptx` with the plan `[]` turns a template into a deck your own code can open.
+copy.pptx` with the plan `[]` turns a template into a deck your own code can open.
 
 ## Placeholders and layouts
 

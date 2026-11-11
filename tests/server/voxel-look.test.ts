@@ -19,7 +19,10 @@ describe('world_look', () => {
     const p = requestLook('w1', 'p1', { target: 'overview', width: 1024, height: 640 }, 2000);
     bus.off('event', on);
     setOpenPages(() => 1);
-    return { p, ask: seen.find((e) => e.type === 'world-look') as ServerEvent & { request: string; view: { target: string } } };
+    return {
+      p,
+      ask: seen.find((e) => e.type === 'world-look') as ServerEvent & { request: string; view: { target: string } },
+    };
   };
 
   it('asks the tabs, takes the first picture, ignores bad and late ones', async () => {
@@ -43,7 +46,10 @@ describe('world_look', () => {
   });
 
   it('gives up when nobody answers', async () => {
-    expect(await requestLook('w1', 'p1', { target: 'brain', width: 10, height: 10 }, 30)).toEqual({ image: null, note: 'no open Station answered' });
+    expect(await requestLook('w1', 'p1', { target: 'brain', width: 10, height: 10 }, 30)).toEqual({
+      image: null,
+      note: 'no open Station answered',
+    });
   });
 
   it('the tool returns the picture, or a map in words for an object', async () => {
@@ -53,7 +59,8 @@ describe('world_look', () => {
     expect((await callTool(a, 'world_look', {})).text).toMatch(/no world yet/i);
     build({ by: { kind: 'agent', id: a.id, name: 'Looker' }, object: 'Hut', steps: [{ box: [3, 2, 3], use: 'wood' }] });
     const answer = (e: ServerEvent) => {
-      if (e.type === 'world-look') setTimeout(() => deliverLook((e as ServerEvent & { request: string }).request, { image: PNG }), 5);
+      if (e.type === 'world-look')
+        setTimeout(() => deliverLook((e as ServerEvent & { request: string }).request, { image: PNG }), 5);
     };
     bus.on('event', answer);
     const r = await callTool(a, 'world_look', { target: 'object', name: 'hut', azimuth: 120 });
@@ -74,9 +81,13 @@ describe('world_look in the classic look', () => {
     await new Promise((r) => setTimeout(r, 20));
     const asks = listApprovals().filter((x) => x.kind === 'setting');
     expect(asks).toHaveLength(1);
-    expect(asks[0]).toMatchObject({ title: 'Peeker wants to see the voxel world', data: { allow: 'Turn on the voxel look' } });
+    expect(asks[0]).toMatchObject({
+      title: 'Peeker wants to see the voxel world',
+      data: { allow: 'Turn on the voxel look' },
+    });
     decide(asks[0].id, { approved: false });
-    for (const r of await Promise.all(two)) expect(r.text).toMatch(/^No picture: the user kept the Station in the classic look/);
+    for (const r of await Promise.all(two))
+      expect(r.text).toMatch(/^No picture: the user kept the Station in the classic look/);
     expect(getSettings().look.stationLook).toBe('classic');
   });
 
@@ -108,12 +119,21 @@ describe('world_look in the classic look', () => {
     saveSettings({ look: { stationLook: 'world' } });
     const a = newAgent({ name: 'Peeker', toolGroups: ['world'], autonomy: 'full' });
     const refuse = (e: ServerEvent) => {
-      if (e.type === 'world-look') setTimeout(() => deliverLook((e as ServerEvent & { request: string }).request, { error: "this tab doesn't show that world in the voxel look" }), 5);
+      if (e.type === 'world-look')
+        setTimeout(
+          () =>
+            deliverLook((e as ServerEvent & { request: string }).request, {
+              error: "this tab doesn't show that world in the voxel look",
+            }),
+          5,
+        );
     };
     bus.on('event', refuse);
     const r = await callTool(a, 'world_look', {});
     bus.off('event', refuse);
-    expect(r.text).toMatch(/no open Station could draw it \(this tab doesn't show that world in the voxel look\)\. Ask the user to open the Station with this project open/);
+    expect(r.text).toMatch(
+      /no open Station could draw it \(this tab doesn't show that world in the voxel look\)\. Ask the user to open the Station with this project open/,
+    );
   });
 });
 
@@ -122,7 +142,10 @@ describe('world_look with no page open', () => {
     const { setOpenPages } = await import('../../server/voxel/look.ts');
     setOpenPages(() => 0);
     const t = Date.now();
-    expect(await requestLook('w1', 'p1', { target: 'overview', width: 10, height: 10 })).toEqual({ image: null, note: 'no page is open' });
+    expect(await requestLook('w1', 'p1', { target: 'overview', width: 10, height: 10 })).toEqual({
+      image: null,
+      note: 'no page is open',
+    });
     expect(Date.now() - t).toBeLessThan(500);
     setOpenPages(() => 1);
   });

@@ -27,7 +27,11 @@ function grid(steps: unknown[], palette: VoxelMaterial[] = []) {
 describe('.vox files', () => {
   it('round-trips voxels, colours and up', () => {
     // a column 3 tall with a red top, and a blue voxel to the front (+z)
-    const { g, palette } = grid([{ box: [1, 3, 1], use: 'stone' }, { box: [1, 1, 1], at: [0, 3, 0], use: 'red lacquer' }, { box: [1, 1, 1], at: [0, 0, 2], use: 'neon blue' }]);
+    const { g, palette } = grid([
+      { box: [1, 3, 1], use: 'stone' },
+      { box: [1, 1, 1], at: [0, 3, 0], use: 'red lacquer' },
+      { box: [1, 1, 1], at: [0, 0, 2], use: 'neon blue' },
+    ]);
     const file = parseVox(gridToVox(g, palette));
     expect(file.models.length).toBe(1);
     expect(voxVoxels(file).length).toBe(5);
@@ -43,7 +47,7 @@ describe('.vox files', () => {
       c.forEach((v, i) => {
         if (!v) return;
         const y = cy * 16 + Math.floor(i / 256);
-        if (y > topY) (topY = y), (red = v);
+        if (y > topY) ((topY = y), (red = v));
       });
     }
     expect(topY).toBe(3);
@@ -68,8 +72,14 @@ describe('.vox files', () => {
     const side = 80;
     const xyzi = new Uint8Array(side * side * side * 4);
     let i = 0;
-    for (let x = 0; x < side; x++) for (let y = 0; y < side; y++) for (let z = 0; z < side; z++) xyzi.set([x, y, z, 1], (i++) * 4);
-    const f = { models: [{ size: [side, side, side] as [number, number, number], xyzi }], palette: [[200, 100, 50, 255] as [number, number, number, number]], materials: new Map(), nodes: new Map() };
+    for (let x = 0; x < side; x++)
+      for (let y = 0; y < side; y++) for (let z = 0; z < side; z++) xyzi.set([x, y, z, 1], i++ * 4);
+    const f = {
+      models: [{ size: [side, side, side] as [number, number, number], xyzi }],
+      palette: [[200, 100, 50, 255] as [number, number, number, number]],
+      materials: new Map(),
+      nodes: new Map(),
+    };
     const r = voxToGrid(f, 'Block', 0.25, newId);
     expect(r.count).toBe(side ** 3);
     expect(countVoxels(r.grid.vol)).toBe(side ** 3);
@@ -87,12 +97,33 @@ describe('glTF', () => {
     expect(v.getUint32(0, true)).toBe(0x46546c67);
     expect(v.getUint32(8, true)).toBe(bytes.length);
     const len = v.getUint32(12, true);
-    return JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + len))) as { nodes: { name: string; mesh?: number; rotation?: number[]; scale?: number[]; children?: number[] }[]; meshes: unknown[]; materials: { name: string }[]; accessors: { min?: number[]; max?: number[] }[] };
+    return JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + len))) as {
+      nodes: { name: string; mesh?: number; rotation?: number[]; scale?: number[]; children?: number[] }[];
+      meshes: unknown[];
+      materials: { name: string }[];
+      accessors: { min?: number[]; max?: number[] }[];
+    };
   };
 
   it('a prefab placed many times is one mesh; copies are nodes, mirrored ones flipped', () => {
-    build({ by: me, prefab: 'Post', steps: [{ voxel_size: 0.125 }, { box: [1, 8, 1], use: 'iron' }, { box: [1, 1, 1], at: [0, 8, 0], use: 'lantern' }] });
-    build({ by: me, object: 'Street', steps: [{ box: [20, 1, 4], use: 'cobble' }, { place: 'Post', grid: { rows: 1, cols: 10, gap: [2, 2] }, at: [0, 1, 0] }, { place: 'Post', at: [0, 1, 3], turn: 90, mirror: true }] });
+    build({
+      by: me,
+      prefab: 'Post',
+      steps: [
+        { voxel_size: 0.125 },
+        { box: [1, 8, 1], use: 'iron' },
+        { box: [1, 1, 1], at: [0, 8, 0], use: 'lantern' },
+      ],
+    });
+    build({
+      by: me,
+      object: 'Street',
+      steps: [
+        { box: [20, 1, 4], use: 'cobble' },
+        { place: 'Post', grid: { rows: 1, cols: 10, gap: [2, 2] }, at: [0, 1, 0] },
+        { place: 'Post', at: [0, 1, 3], turn: 90, mirror: true },
+      ],
+    });
     const w = shownWorld().world!;
     const j = glbJson(toGlb(w, { kind: 'object', id: w.objects.find((o) => o.name === 'Street')!.id }));
     // the street's own mesh + one for the post (plain), one for... no swaps: two meshes
@@ -108,7 +139,9 @@ describe('glTF', () => {
     const j = glbJson(toGlb(w, { kind: 'object', id: w.objects.find((o) => o.name === 'Street')!.id }));
     const turned = j.nodes.find((nd) => nd.name === 'Post' && nd.rotation && Math.abs(nd.rotation[1]) > 0.1)!;
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0, 'YXZ'));
-    expect(turned.rotation!.map((x) => Math.round(x * 1000) / 1000)).toEqual([q.x, q.y, q.z, q.w].map((x) => Math.round(x * 1000) / 1000));
+    expect(turned.rotation!.map((x) => Math.round(x * 1000) / 1000)).toEqual(
+      [q.x, q.y, q.z, q.w].map((x) => Math.round(x * 1000) / 1000),
+    );
   });
 
   it('exports: whole world only as glb; a .vox per voxel size', () => {
@@ -132,7 +165,9 @@ describe('the tools', () => {
     const r = await callTool(a, 'world_import', { file, name: 'Street copy', voxel_size: 0.25 });
     expect(r.text).toMatch(/Brought "street\.vox" in as the prefab "Street copy": 80 voxels/);
     expect(shownWorld().world!.palette.some((m) => m.name.startsWith('street copy '))).toBe(true);
-    expect((await callTool(a, 'world_import', { file: path.join('/', 'etc', 'hosts') })).text).toMatch(/outside the folders/);
+    expect((await callTool(a, 'world_import', { file: path.join('/', 'etc', 'hosts') })).text).toMatch(
+      /outside the folders/,
+    );
   });
 });
 
@@ -143,7 +178,15 @@ describe('the prefab library in backups', () => {
     const { listProjects } = await import('../../server/store.ts');
     const { dataPath } = await import('../../server/util.ts');
     const me: WorldBuilder = { kind: 'agent', id: 'mira', name: 'Mira' };
-    build({ by: me, prefab: 'Lantern post', steps: [{ voxel_size: 0.125 }, { box: [1, 6, 1], use: 'iron' }, { box: [1, 1, 1], at: [0, 6, 0], use: 'lantern' }] });
+    build({
+      by: me,
+      prefab: 'Lantern post',
+      steps: [
+        { voxel_size: 0.125 },
+        { box: [1, 6, 1], use: 'iron' },
+        { box: [1, 1, 1], at: [0, 6, 0], use: 'lantern' },
+      ],
+    });
     publishPrefab({ by: me, prefab: 'Lantern post' });
     const entry = libraryEntries().find((e) => e.name === 'Lantern post')!;
     const packed = packProject(listProjects()[0]);
@@ -155,7 +198,11 @@ describe('the prefab library in backups', () => {
     fs.rmSync(dataPath('prefab-library', `${entry.id}.json`));
     const first = await restoreBackup(bytes, { name: 'Restored with library' });
     expect(first.restored.libraryPrefabs).toEqual({ added: 1, same: 0 });
-    expect(libraryEntries().find((e) => e.id === entry.id)!.palette.map((m) => m.name)).toEqual(['iron', 'lantern']);
+    expect(
+      libraryEntries()
+        .find((e) => e.id === entry.id)!
+        .palette.map((m) => m.name),
+    ).toEqual(['iron', 'lantern']);
     // and leaves it alone when it is there
     const again = await restoreBackup(bytes, { name: 'Restored again' });
     expect(again.restored.libraryPrefabs).toEqual({ added: 0, same: 1 });
@@ -164,7 +211,21 @@ describe('the prefab library in backups', () => {
   it('a damaged library entry in a backup is left out', async () => {
     const { putLibraryEntry } = await import('../../server/voxel/prefabs.ts');
     expect(putLibraryEntry({ id: '../evil', name: 'x', palette: [], data: { volumes: [] } })).toBeNull();
-    expect(putLibraryEntry({ id: 'lp-bad', name: 'Bad', palette: [], data: { volumes: [{ id: 'v', voxelSize: 0.1, chunks: { '0,0,0': '!!!' } }] } })).toBeNull();
-    expect(putLibraryEntry({ id: 'lp-bad2', name: 'Bad colour', palette: [{ name: 'x', color: 'red', kind: 'solid' }], data: { volumes: [] } })).toBeNull();
+    expect(
+      putLibraryEntry({
+        id: 'lp-bad',
+        name: 'Bad',
+        palette: [],
+        data: { volumes: [{ id: 'v', voxelSize: 0.1, chunks: { '0,0,0': '!!!' } }] },
+      }),
+    ).toBeNull();
+    expect(
+      putLibraryEntry({
+        id: 'lp-bad2',
+        name: 'Bad colour',
+        palette: [{ name: 'x', color: 'red', kind: 'solid' }],
+        data: { volumes: [] },
+      }),
+    ).toBeNull();
   });
 });

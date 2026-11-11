@@ -7,14 +7,22 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { activeProject, bus, chats, workflows } from '../../server/store.ts';
 import { dataPath, writeJSON } from '../../server/util.ts';
-import { addBrainNote, brainThreads, history, newBrainThread, openBrainThread, removeBrainThread } from '../../server/overseer.ts';
+import {
+  addBrainNote,
+  brainThreads,
+  history,
+  newBrainThread,
+  openBrainThread,
+  removeBrainThread,
+} from '../../server/overseer.ts';
 import { getThread, newTeamThread, openTeamThread, removeTeamThread, teamThreads } from '../../server/teams.ts';
 import { PAST_KEEP, filePast, packPast, pastIds, threadTitle, unpackPast } from '../../server/pastchats.ts';
 import { handleRpc } from '../../server/rpc.ts';
 import type { BrainChatMessage, ServerEvent, Team, TeamMessage } from '../../shared/types.ts';
 
 const pid = () => activeProject().id;
-const brainSays = (messages: BrainChatMessage[]) => writeJSON(dataPath('projects', pid(), 'brain-chat.json'), { messages });
+const brainSays = (messages: BrainChatMessage[]) =>
+  writeJSON(dataPath('projects', pid(), 'brain-chat.json'), { messages });
 const said = (text: string, ts: number): BrainChatMessage[] => [
   { role: 'user', text, ts },
   { role: 'brain', text: `About “${text}”.`, ts: ts + 1 },
@@ -54,7 +62,10 @@ describe('the Brain chat', () => {
     addBrainNote(pid(), 'A note in the new chat.');
     expect(brainThreads()[0].id).toBe(fresh.id);
     openBrainThread(old.id);
-    expect(history().map((m) => m.text)).toEqual(['What is everyone working on?', 'About “What is everyone working on?”.']);
+    expect(history().map((m) => m.text)).toEqual([
+      'What is everyone working on?',
+      'About “What is everyone working on?”.',
+    ]);
     const now = brainThreads();
     expect(now[0]).toMatchObject({ id: old.id, open: true });
     expect(now.find((t) => t.id === fresh.id)).toMatchObject({ open: false, count: 1 });
@@ -96,14 +107,24 @@ describe('the Brain chat', () => {
 
 describe("a team's chat", () => {
   const setup = () => {
-    const a = newAgent({ name: `Poet ${Math.random()}`, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
+    const a = newAgent({
+      name: `Poet ${Math.random()}`,
+      engine: 'eve',
+      provider: 'custom',
+      model: 'mock',
+      toolGroups: [],
+    });
     const team = workflows.save({ name: 'Writers', members: [a.id], lead: a.id, steps: [] } as Partial<Team>);
     const session = chats.create(a.id, 'Team: Writers', team.id);
     const messages: TeamMessage[] = [
       { id: 'm1', ts: 1000, from: 'user', text: 'Write a poem', mentions: [] },
       { id: 'm2', ts: 2000, from: a.id, text: 'Here it is.', mentions: [] },
     ];
-    writeJSON(dataPath('projects', pid(), 'teamchats', `${team.id}.json`), { messages, sessions: { [a.id]: session.id }, seen: { [a.id]: 2 } });
+    writeJSON(dataPath('projects', pid(), 'teamchats', `${team.id}.json`), {
+      messages,
+      sessions: { [a.id]: session.id },
+      seen: { [a.id]: 2 },
+    });
     return { a, team, session };
   };
 
@@ -121,7 +142,10 @@ describe("a team's chat", () => {
     expect(list[1]).toMatchObject({ title: 'Write a poem', count: 2, open: false, updatedAt: 2000 });
 
     openTeamThread(team.id, list[1].id);
-    expect(getThread(team.id)).toMatchObject({ messages: [{ id: 'm1' }, { id: 'm2' }], sessions: { [a.id]: session.id } });
+    expect(getThread(team.id)).toMatchObject({
+      messages: [{ id: 'm1' }, { id: 'm2' }],
+      sessions: { [a.id]: session.id },
+    });
     expect(live.seen.at(-1)).toMatchObject({ teamId: team.id, event: { kind: 'thread', id: list[1].id } });
     // (the empty new chat wasn't kept)
     expect(teamThreads(team.id)).toEqual([expect.objectContaining({ id: list[1].id, open: true })]);
@@ -146,21 +170,53 @@ describe("a team's chat", () => {
   });
 
   it('works for a team whose id can’t be a folder name', () => {
-    const a = newAgent({ name: `Dot ${Math.random()}`, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
-    const team = workflows.save({ id: `writers.v2 ${Date.now()}`, name: 'Writers v2', members: [a.id], lead: a.id, steps: [] } as Partial<Team>);
-    writeJSON(dataPath('projects', pid(), 'teamchats', `${team.id}.json`), { messages: [{ id: 'm1', ts: 1, from: 'user', text: 'Hi', mentions: [] }], sessions: {}, seen: {} });
+    const a = newAgent({
+      name: `Dot ${Math.random()}`,
+      engine: 'eve',
+      provider: 'custom',
+      model: 'mock',
+      toolGroups: [],
+    });
+    const team = workflows.save({
+      id: `writers.v2 ${Date.now()}`,
+      name: 'Writers v2',
+      members: [a.id],
+      lead: a.id,
+      steps: [],
+    } as Partial<Team>);
+    writeJSON(dataPath('projects', pid(), 'teamchats', `${team.id}.json`), {
+      messages: [{ id: 'm1', ts: 1, from: 'user', text: 'Hi', mentions: [] }],
+      sessions: {},
+      seen: {},
+    });
     newTeamThread(team.id);
-    expect(teamThreads(team.id).map((t) => [t.title, t.open])).toEqual([['New chat', true], ['Hi', false]]);
+    expect(teamThreads(team.id).map((t) => [t.title, t.open])).toEqual([
+      ['New chat', true],
+      ['Hi', false],
+    ]);
     // (kept in a folder named after it, that backups carry)
-    expect(packPast(pid(), { left: Infinity, omitted: 0 }).some((p) => /^teams\/x-[0-9a-f]+\//.test(p.name))).toBe(true);
+    expect(packPast(pid(), { left: Infinity, omitted: 0 }).some((p) => /^teams\/x-[0-9a-f]+\//.test(p.name))).toBe(
+      true,
+    );
   });
 
   it(`keeps at most ${PAST_KEEP} earlier chats, and lets the agents forget the ones that go`, () => {
     const { a, team } = setup();
     const owner = { kind: 'team' as const, id: team.id };
     const gone = chats.create(a.id, 'Team: Writers', team.id);
-    filePast(owner, { id: 't_oldest', messages: [{ id: 'x', ts: 5, from: 'user', text: 'Oldest', mentions: [] }], sessions: { [a.id]: gone.id }, seen: {} });
-    for (let i = 1; i < PAST_KEEP; i++) filePast(owner, { id: `t_${i}`, messages: [{ id: 'x', ts: 1000 + i, from: 'user', text: `Chat ${i}`, mentions: [] }], sessions: {}, seen: {} });
+    filePast(owner, {
+      id: 't_oldest',
+      messages: [{ id: 'x', ts: 5, from: 'user', text: 'Oldest', mentions: [] }],
+      sessions: { [a.id]: gone.id },
+      seen: {},
+    });
+    for (let i = 1; i < PAST_KEEP; i++)
+      filePast(owner, {
+        id: `t_${i}`,
+        messages: [{ id: 'x', ts: 1000 + i, from: 'user', text: `Chat ${i}`, mentions: [] }],
+        sessions: {},
+        seen: {},
+      });
     expect(pastIds(owner)).toHaveLength(PAST_KEEP);
     newTeamThread(team.id);
     const ids = pastIds(owner);
@@ -174,7 +230,12 @@ describe("a team's chat", () => {
     newTeamThread(team.id);
     const past = teamThreads(team.id).find((t) => !t.open)!;
     const f = dataPath('projects', pid(), 'past-chats', 'teams', team.id, `${past.id}.json`);
-    writeJSON(f, { id: past.id, messages: [{ id: 'm1', ts: 1000, from: 'user', text: 'Write a longer poem', mentions: [] }], sessions: {}, seen: {} });
+    writeJSON(f, {
+      id: past.id,
+      messages: [{ id: 'm1', ts: 1000, from: 'user', text: 'Write a longer poem', mentions: [] }],
+      sessions: {},
+      seen: {},
+    });
     expect(teamThreads(team.id).find((t) => !t.open)).toMatchObject({ title: 'Write a longer poem', count: 1 });
   });
 
@@ -189,19 +250,37 @@ describe('backups', () => {
     brainSays(said('Back me up', 9000));
     newBrainThread();
     const packed = packPast(pid(), { left: Infinity, omitted: 0 });
-    expect(packed.some((p) => /^brain\/[\w-]+\.json$/.test(p.name) && JSON.stringify(p.data).includes('Back me up'))).toBe(true);
+    expect(
+      packed.some((p) => /^brain\/[\w-]+\.json$/.test(p.name) && JSON.stringify(p.data).includes('Back me up')),
+    ).toBe(true);
     const into = `restored-${Date.now()}`;
-    unpackPast(into, [...packed, { name: '../../settings.json', data: { x: 1 } }, { name: 'brain/../../x.json', data: {} }]);
-    expect(packPast(into, { left: Infinity, omitted: 0 }).map((p) => p.name).sort()).toEqual(packed.map((p) => p.name).sort());
+    unpackPast(into, [
+      ...packed,
+      { name: '../../settings.json', data: { x: 1 } },
+      { name: 'brain/../../x.json', data: {} },
+    ]);
+    expect(
+      packPast(into, { left: Infinity, omitted: 0 })
+        .map((p) => p.name)
+        .sort(),
+    ).toEqual(packed.map((p) => p.name).sort());
   });
 
   it('takes the newest first, as many as fit, and counts the rest', () => {
     const into = `budget-${Date.now()}`;
-    const old = filePast<{ id?: string; messages: unknown[] }>({ kind: 'brain' }, { messages: [{ role: 'user', text: 'old', ts: 1 }] }, into);
+    const old = filePast<{ id?: string; messages: unknown[] }>(
+      { kind: 'brain' },
+      { messages: [{ role: 'user', text: 'old', ts: 1 }] },
+      into,
+    );
     // (written later: newer)
     const t = Date.now() / 1000;
     fs.utimesSync(dataPath('projects', into, 'past-chats', 'brain', `${old}.json`), t - 60, t - 60);
-    const fresh = filePast<{ id?: string; messages: unknown[] }>({ kind: 'brain' }, { messages: [{ role: 'user', text: 'new', ts: 2 }] }, into);
+    const fresh = filePast<{ id?: string; messages: unknown[] }>(
+      { kind: 'brain' },
+      { messages: [{ role: 'user', text: 'new', ts: 2 }] },
+      into,
+    );
     const one = fs.statSync(dataPath('projects', into, 'past-chats', 'brain', `${fresh}.json`)).size;
     const budget = { left: one, omitted: 0 };
     expect(packPast(into, budget).map((p) => p.name)).toEqual([`brain/${fresh}.json`]);
@@ -231,23 +310,46 @@ describe('the routes', () => {
     expect(list[0]).toMatchObject({ id: made.id, open: true });
     const old = list.find((t) => t.title === 'Over the wire')!;
     expect(await send('POST', `/api/brain/chats/${old.id}/open`)).toEqual({ status: 200, json: { id: old.id } });
-    expect(await send('POST', '/api/brain/chats/t-gone/open')).toEqual({ status: 404, json: { error: 'That chat is no longer there.' } });
+    expect(await send('POST', '/api/brain/chats/t-gone/open')).toEqual({
+      status: 404,
+      json: { error: 'That chat is no longer there.' },
+    });
     expect(await send('DELETE', `/api/brain/chats/${old.id}`)).toEqual({ status: 200, json: { ok: true } });
   });
 
   it('lists, starts, opens and deletes a team’s chats', async () => {
     const { team } = (() => {
-      const a = newAgent({ name: `Wire ${Math.random()}`, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
+      const a = newAgent({
+        name: `Wire ${Math.random()}`,
+        engine: 'eve',
+        provider: 'custom',
+        model: 'mock',
+        toolGroups: [],
+      });
       const t = workflows.save({ name: 'Wire team', members: [a.id], lead: a.id, steps: [] } as Partial<Team>);
-      writeJSON(dataPath('projects', pid(), 'teamchats', `${t.id}.json`), { messages: [{ id: 'm1', ts: 1, from: 'user', text: 'Hello team', mentions: [] }], sessions: {}, seen: {} });
+      writeJSON(dataPath('projects', pid(), 'teamchats', `${t.id}.json`), {
+        messages: [{ id: 'm1', ts: 1, from: 'user', text: 'Hello team', mentions: [] }],
+        sessions: {},
+        seen: {},
+      });
       return { team: t };
     })();
     const made = (await send('POST', `/api/teams/${team.id}/chats`)).json as { id: string };
-    const list = (await send('GET', `/api/teams/${team.id}/chats`)).json as { id: string; open: boolean; title: string }[];
-    expect(list.map((t) => [t.title, t.open])).toEqual([['New chat', true], ['Hello team', false]]);
+    const list = (await send('GET', `/api/teams/${team.id}/chats`)).json as {
+      id: string;
+      open: boolean;
+      title: string;
+    }[];
+    expect(list.map((t) => [t.title, t.open])).toEqual([
+      ['New chat', true],
+      ['Hello team', false],
+    ]);
     expect(list[0].id).toBe(made.id);
     expect((await send('POST', `/api/teams/${team.id}/chats/${list[1].id}/open`)).json).toEqual({ id: list[1].id });
-    expect(await send('DELETE', `/api/teams/${team.id}/chats/t-gone`)).toEqual({ status: 404, json: { error: 'That chat is no longer there.' } });
+    expect(await send('DELETE', `/api/teams/${team.id}/chats/t-gone`)).toEqual({
+      status: 404,
+      json: { error: 'That chat is no longer there.' },
+    });
     expect((await send('GET', '/api/teams/nobody/chats')).status).toBe(404);
   });
 });

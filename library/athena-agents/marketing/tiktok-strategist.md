@@ -2,7 +2,7 @@
 name: TikTok Strategist
 description: Plans and scripts TikTok videos and photo carousels for people who film on a phone, adapts them for Reels and Shorts, and learns from each batch's results what to make next.
 emoji: 🎵
-color: "#2aa5a0"
+color: '#2aa5a0'
 specialty: plans and scripts TikTok videos and photo carousels and learns from how each one does
 group: marketing
 tools: files, browser, media, agents, shell

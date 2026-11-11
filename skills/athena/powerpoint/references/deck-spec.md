@@ -26,8 +26,8 @@ nothing was written.
 ```json
 {
   "size": "16:9",
-  "properties": {"title": "Q3 review", "author": "Finance", "subject": "", "keywords": ""},
-  "steps": [{"do": "add", "layout": "Title Slide", "title": "Q3 review"}]
+  "properties": { "title": "Q3 review", "author": "Finance", "subject": "", "keywords": "" },
+  "steps": [{ "do": "add", "layout": "Title Slide", "title": "Q3 review" }]
 }
 ```
 
@@ -44,23 +44,23 @@ use the id. Positions and sizes are inches from the slide's top-left corner, or 
 
 ## Steps
 
-| `do` | Keys | What it does |
-|---|---|---|
-| `add` | `layout`, `master`, `title`, `subtitle`, `body`, `placeholders`, `shapes`, `notes`, `hidden`, `at`, `keep_empty` | A slide from a layout |
-| `text` | `slide`, `shape`, `text`, `cell` | A shape's text (or a table cell's), keeping its look |
-| `table` | `slide`, `shape`, `rows` | Every cell of a table; rows are added or removed at the end |
-| `replace` | `find`, `with`, `slides`, `notes`, `layouts`, `match_case` | Text wherever it is |
-| `fill` | `values`, `slides`, `notes`, `layouts` | `{{name}}` markers replaced by values |
-| `notes` | `slide` or `slides`, `text`, `append` | Speaker notes (`"text": ""` with `"slides": "1-"` empties them all) |
-| `chart` | `slide`, `shape`, `categories`, `series`, `set`, `add`, `remove`, `rename`, `title`, `colors` | A chart's data |
-| `picture` | `slide`, `shape`, `path`, `alt` | A new picture in a picture's frame, or in an empty placeholder |
-| `add_shapes` | `slide`, `shapes` | Shapes added to a slide |
-| `delete_shape` | `slide`, `shape` | A shape taken off |
-| `delete` | `slides` | Slides taken out |
-| `move` | `slides`, `to` | Slides moved; `to` is the number the first has afterwards |
-| `duplicate` | `slide`, `to` | A copy, right after the slide unless `to` says where |
-| `hide` | `slides`, `hidden` | Hidden in the slide show (`"hidden": false` shows them again) |
-| `footer` | `slides`, `text`, `number`, `date` | Footer text, slide number and date from the layout |
+| `do`           | Keys                                                                                                             | What it does                                                        |
+| -------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `add`          | `layout`, `master`, `title`, `subtitle`, `body`, `placeholders`, `shapes`, `notes`, `hidden`, `at`, `keep_empty` | A slide from a layout                                               |
+| `text`         | `slide`, `shape`, `text`, `cell`                                                                                 | A shape's text (or a table cell's), keeping its look                |
+| `table`        | `slide`, `shape`, `rows`                                                                                         | Every cell of a table; rows are added or removed at the end         |
+| `replace`      | `find`, `with`, `slides`, `notes`, `layouts`, `match_case`                                                       | Text wherever it is                                                 |
+| `fill`         | `values`, `slides`, `notes`, `layouts`                                                                           | `{{name}}` markers replaced by values                               |
+| `notes`        | `slide` or `slides`, `text`, `append`                                                                            | Speaker notes (`"text": ""` with `"slides": "1-"` empties them all) |
+| `chart`        | `slide`, `shape`, `categories`, `series`, `set`, `add`, `remove`, `rename`, `title`, `colors`                    | A chart's data                                                      |
+| `picture`      | `slide`, `shape`, `path`, `alt`                                                                                  | A new picture in a picture's frame, or in an empty placeholder      |
+| `add_shapes`   | `slide`, `shapes`                                                                                                | Shapes added to a slide                                             |
+| `delete_shape` | `slide`, `shape`                                                                                                 | A shape taken off                                                   |
+| `delete`       | `slides`                                                                                                         | Slides taken out                                                    |
+| `move`         | `slides`, `to`                                                                                                   | Slides moved; `to` is the number the first has afterwards           |
+| `duplicate`    | `slide`, `to`                                                                                                    | A copy, right after the slide unless `to` says where                |
+| `hide`         | `slides`, `hidden`                                                                                               | Hidden in the slide show (`"hidden": false` shows them again)       |
+| `footer`       | `slides`, `text`, `number`, `date`                                                                               | Footer text, slide number and date from the layout                  |
 
 ### add
 
@@ -82,11 +82,11 @@ A step fails, listing what the layout has, when the layout has no placeholder fo
 - a string; `"\n"` starts a new paragraph;
 - a list of paragraphs, each a string (where `"\n"` breaks the line) or an object:
   `{"text": "Two new stores", "level": 1, "bold": true, "italic": false, "underline": false, "size": 20,
-  "color": "#1F4E79", "font": "Georgia", "link": "https://example.com", "align": "center"}`; `level` runs from 0 to
+"color": "#1F4E79", "font": "Georgia", "link": "https://example.com", "align": "center"}`; `level` runs from 0 to
   8, `size` is points, `link` starts with `https://`, `http://` or `mailto:`, `align` is `left`, `center`, `right` or
   `justify`. All keys but `text` are optional;
 - a paragraph of differently formatted parts: `{"runs": [{"text": "Revenue "}, {"text": "up 18%", "bold": true}],
-  "level": 0}`.
+"level": 0}`.
 
 A placeholder also takes `{"picture": "file.png", "alt": "..."}`, `{"chart": chart}` or `{"table": table}`. A
 picture fills a picture placeholder, cropped to its shape, as PowerPoint does; in a content placeholder it fits inside,
@@ -100,20 +100,28 @@ differ from that.
 
 Every shape has `x`, `y` and may have `name` (later steps can then find it by that name).
 
-| `type` | Keys |
-|---|---|
-| `text` | `w`, `h`, `text`, `size`, `bold`, `italic`, `color`, `font`, `align` (for every paragraph) |
-| `picture` | `path`, `alt`, `w` and/or `h`: with one, the other follows the picture's proportions; with both, it fits inside |
-| `chart` | `w`, `h`, `chart` |
-| `table` | `w`, `table`, `h` (optional: 0.4 in a row) |
-| `box` | `w`, `h`, `shape` (`rectangle`, `rounded`, `oval`), `fill` and `line` (`"#hex"` or `"none"`), `text` and the text keys |
+| `type`    | Keys                                                                                                                   |
+| --------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `text`    | `w`, `h`, `text`, `size`, `bold`, `italic`, `color`, `font`, `align` (for every paragraph)                             |
+| `picture` | `path`, `alt`, `w` and/or `h`: with one, the other follows the picture's proportions; with both, it fits inside        |
+| `chart`   | `w`, `h`, `chart`                                                                                                      |
+| `table`   | `w`, `table`, `h` (optional: 0.4 in a row)                                                                             |
+| `box`     | `w`, `h`, `shape` (`rectangle`, `rounded`, `oval`), `fill` and `line` (`"#hex"` or `"none"`), `text` and the text keys |
 
 ### Charts
 
 ```json
-{"type": "column", "categories": ["Q1", "Q2", "Q3"], "series": {"North": [10, 12, 15], "South": [9, 9, null]},
- "title": "North grew, South stayed flat", "number_format": "#,##0", "legend": "bottom", "labels": true,
- "font_size": 14, "colors": ["#1F4E79", "#A6A6A6"]}
+{
+  "type": "column",
+  "categories": ["Q1", "Q2", "Q3"],
+  "series": { "North": [10, 12, 15], "South": [9, 9, null] },
+  "title": "North grew, South stayed flat",
+  "number_format": "#,##0",
+  "legend": "bottom",
+  "labels": true,
+  "font_size": 14,
+  "colors": ["#1F4E79", "#A6A6A6"]
+}
 ```
 
 `type`: `column`, `column_stacked`, `column_stacked_100`, `bar` (horizontal), `bar_stacked`, `bar_stacked_100`,
@@ -127,7 +135,16 @@ for pie and doughnut; without it the theme's colours are used. Without `title` t
 ### Tables
 
 ```json
-{"rows": [["Region", "Units"], ["North", "1,250"], ["South", "980"]], "header": true, "widths": [2, 1], "font_size": 14}
+{
+  "rows": [
+    ["Region", "Units"],
+    ["North", "1,250"],
+    ["South", "980"]
+  ],
+  "header": true,
+  "widths": [2, 1],
+  "font_size": 14
+}
 ```
 
 The first row is styled as a header unless `"header": false`. `widths` are shares of the table's width. Cells that
@@ -167,23 +184,61 @@ A new deck in a brand template (layout names from `pptx_tool.py info brand.potx`
 
 ```json
 {
-  "properties": {"title": "Q3 review", "author": "Finance"},
+  "properties": { "title": "Q3 review", "author": "Finance" },
   "steps": [
-    {"do": "add", "layout": "Title Slide", "title": "Q3 review", "subtitle": "Sales team, 4 November 2026",
-     "notes": "Open with the headline: every region grew."},
-    {"do": "add", "layout": "Title and Content", "title": "North grew fastest in Q3",
-     "body": ["North up 18%, its best quarter", {"text": "Two new stores opened in May", "level": 1},
-              "South flat for the third quarter"]},
-    {"do": "add", "layout": "Title Only", "title": "Only North beat its target",
-     "shapes": [{"type": "chart", "x": 0.8, "y": 1.6, "w": 11.7, "h": 5.4, "name": "Sales chart",
-                 "chart": {"type": "column", "categories": ["Q1", "Q2", "Q3"],
-                           "series": {"North": [10, 12, 15], "South": [9, 9, 9]},
-                           "number_format": "#,##0", "labels": true}}]},
-    {"do": "add", "layout": "Picture with Caption", "title": "The new Leeds store", "body": "Opened 12 May",
-     "placeholders": {"1": {"picture": "store.jpg", "alt": "Front of the Leeds store"}}},
-    {"do": "add", "layout": "Title and Content", "title": "Next steps",
-     "body": ["Open two stores in the South by {{Q1 date}}", "Review pricing in March"]},
-    {"do": "footer", "slides": "2-", "text": "Sales team · Internal", "number": true}
+    {
+      "do": "add",
+      "layout": "Title Slide",
+      "title": "Q3 review",
+      "subtitle": "Sales team, 4 November 2026",
+      "notes": "Open with the headline: every region grew."
+    },
+    {
+      "do": "add",
+      "layout": "Title and Content",
+      "title": "North grew fastest in Q3",
+      "body": [
+        "North up 18%, its best quarter",
+        { "text": "Two new stores opened in May", "level": 1 },
+        "South flat for the third quarter"
+      ]
+    },
+    {
+      "do": "add",
+      "layout": "Title Only",
+      "title": "Only North beat its target",
+      "shapes": [
+        {
+          "type": "chart",
+          "x": 0.8,
+          "y": 1.6,
+          "w": 11.7,
+          "h": 5.4,
+          "name": "Sales chart",
+          "chart": {
+            "type": "column",
+            "categories": ["Q1", "Q2", "Q3"],
+            "series": { "North": [10, 12, 15], "South": [9, 9, 9] },
+            "number_format": "#,##0",
+            "labels": true
+          }
+        }
+      ]
+    },
+    {
+      "do": "add",
+      "layout": "Picture with Caption",
+      "title": "The new Leeds store",
+      "body": "Opened 12 May",
+      "placeholders": { "1": { "picture": "store.jpg", "alt": "Front of the Leeds store" } }
+    },
+    {
+      "do": "add",
+      "layout": "Title and Content",
+      "title": "Next steps",
+      "body": ["Open two stores in the South by {{Q1 date}}", "Review pricing in March"]
+    },
+    { "do": "footer", "slides": "2-", "text": "Sales team · Internal", "number": true }
   ]
 }
 ```
@@ -192,12 +247,12 @@ Filling in a deck made from a template with markers, then changing a chart and t
 
 ```json
 [
-  {"do": "fill", "values": {"client": "Globex", "date": "4 November 2026"}},
-  {"do": "replace", "find": "Acme", "with": "Globex", "layouts": true},
-  {"do": "text", "slide": 2, "shape": "Title 1", "text": "Globex grew in every region"},
-  {"do": "chart", "slide": 4, "set": {"North": {"Q3": 0.32}}, "add": {"East": [0.1, 0.12, 0.15]}},
-  {"do": "notes", "slide": 4, "text": "East is new this quarter.", "append": true},
-  {"do": "delete", "slides": "6"},
-  {"do": "move", "slides": "5", "to": 2}
+  { "do": "fill", "values": { "client": "Globex", "date": "4 November 2026" } },
+  { "do": "replace", "find": "Acme", "with": "Globex", "layouts": true },
+  { "do": "text", "slide": 2, "shape": "Title 1", "text": "Globex grew in every region" },
+  { "do": "chart", "slide": 4, "set": { "North": { "Q3": 0.32 } }, "add": { "East": [0.1, 0.12, 0.15] } },
+  { "do": "notes", "slide": 4, "text": "East is new this quarter.", "append": true },
+  { "do": "delete", "slides": "6" },
+  { "do": "move", "slides": "5", "to": 2 }
 ]
 ```

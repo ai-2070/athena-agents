@@ -8,14 +8,21 @@ describe('oneAtATime', () => {
   it('refuses a second one while the first goes, then lets the next one run', async () => {
     let finish: () => void = () => {};
     const first = oneAtATime('busy', () => new Promise<string>((resolve) => (finish = () => resolve('done'))));
-    await expect(oneAtATime('Another one is going.', async () => 'second')).rejects.toMatchObject({ message: 'Another one is going.', status: 409 });
+    await expect(oneAtATime('Another one is going.', async () => 'second')).rejects.toMatchObject({
+      message: 'Another one is going.',
+      status: 409,
+    });
     finish();
     expect(await first).toBe('done');
     expect(await oneAtATime('busy', async () => 'next')).toBe('next');
   });
 
   it('answers what failed with 400 and its message, and frees the lock', async () => {
-    await expect(oneAtATime('busy', async () => { throw Object.assign(new Error('That backup is damaged.'), { status: 500 }); })).rejects.toMatchObject({ message: 'That backup is damaged.', status: 400 });
+    await expect(
+      oneAtATime('busy', async () => {
+        throw Object.assign(new Error('That backup is damaged.'), { status: 500 });
+      }),
+    ).rejects.toMatchObject({ message: 'That backup is damaged.', status: 400 });
     expect(await oneAtATime('busy', async () => 1)).toBe(1);
   });
 });

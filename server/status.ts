@@ -33,13 +33,21 @@ const fresh = (v: ClaudeUsage | null): ClaudeUsage | null => {
   const out = { session: ok(v.session), week: ok(v.week), at: v.at };
   return out.session || out.week ? out : null;
 };
-let usageCache: { at: number; value: ClaudeUsage | null; next: number } = { at: 0, value: fresh(readJSON<ClaudeUsage>(USAGE_FILE, null)), next: 0 };
+let usageCache: { at: number; value: ClaudeUsage | null; next: number } = {
+  at: 0,
+  value: fresh(readJSON<ClaudeUsage>(USAGE_FILE, null)),
+  next: 0,
+};
 export async function claudeUsage(): Promise<ClaudeUsage | null> {
   if (Date.now() < usageCache.next) return fresh(usageCache.value);
   let value: ClaudeUsage | null = null;
   let wait = 120_000;
   try {
-    const token = (JSON.parse(fs.readFileSync(path.join(HOME, '.claude', '.credentials.json'), 'utf8')) as { claudeAiOauth?: { accessToken?: string } }).claudeAiOauth?.accessToken;
+    const token = (
+      JSON.parse(fs.readFileSync(path.join(HOME, '.claude', '.credentials.json'), 'utf8')) as {
+        claudeAiOauth?: { accessToken?: string };
+      }
+    ).claudeAiOauth?.accessToken;
     if (token) {
       const r = await fetch('https://api.anthropic.com/api/oauth/usage', {
         headers: { authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20', accept: 'application/json' },
@@ -48,7 +56,13 @@ export async function claudeUsage(): Promise<ClaudeUsage | null> {
       if (r.ok) {
         type Raw = { utilization?: unknown; resets_at?: string | null } | null | undefined;
         const j = (await r.json()) as { five_hour?: Raw; seven_day?: Raw };
-        const pick = (x: Raw): UsageWindow | null => (x && typeof x.utilization === 'number' ? { percent: Math.max(0, Math.min(100, Math.round(x.utilization))), resetsAt: x.resets_at ? Date.parse(x.resets_at) || null : null } : null);
+        const pick = (x: Raw): UsageWindow | null =>
+          x && typeof x.utilization === 'number'
+            ? {
+                percent: Math.max(0, Math.min(100, Math.round(x.utilization))),
+                resetsAt: x.resets_at ? Date.parse(x.resets_at) || null : null,
+              }
+            : null;
         value = { session: pick(j.five_hour), week: pick(j.seven_day), at: Date.now() };
         writeJSON(USAGE_FILE, value);
       } else wait = r.status === 429 ? 90_000 : 30_000; // rate-limited (other apps read it too): try again soon
@@ -62,7 +76,11 @@ export async function claudeUsage(): Promise<ClaudeUsage | null> {
 }
 
 // The MCP connectors Claude Code agents get from your Claude account and config (`claude mcp list`).
-let connCache: { at: number; value: Connector[]; running: Promise<Connector[]> | null } = { at: 0, value: [], running: null };
+let connCache: { at: number; value: Connector[]; running: Promise<Connector[]> | null } = {
+  at: 0,
+  value: [],
+  running: null,
+};
 export async function claudeConnectors(): Promise<Connector[]> {
   if (Date.now() - connCache.at < 5 * 60_000) return connCache.value;
   if (connCache.running) return connCache.running;
@@ -75,8 +93,17 @@ export async function claudeConnectors(): Promise<Connector[]> {
       if (!m) continue;
       const raw = m[1].trim();
       const st = m[3];
-      const status = /connected/i.test(st) ? 'connected' : /auth/i.test(st) ? 'needs-auth' : /not configured/i.test(st) ? 'off' : 'failed';
-      const name = raw.replace(/^claude\.ai\s+/i, '').replace(/^plugin:[^:]+:/i, '').trim();
+      const status = /connected/i.test(st)
+        ? 'connected'
+        : /auth/i.test(st)
+          ? 'needs-auth'
+          : /not configured/i.test(st)
+            ? 'off'
+            : 'failed';
+      const name = raw
+        .replace(/^claude\.ai\s+/i, '')
+        .replace(/^plugin:[^:]+:/i, '')
+        .trim();
       out.push({ id: raw, name, status, detail: st.replace(/^[^\w]+/, '') });
     }
     // One entry per service: the best status wins (e.g. Gmail connected via claude.ai beats a failed plugin copy).
@@ -107,8 +134,12 @@ export async function openrouterUsage(key: string | null | undefined): Promise<O
   try {
     const H = { authorization: `Bearer ${key}` };
     const [credits, k] = await Promise.all([
-      fetch('https://openrouter.ai/api/v1/credits', { headers: H, signal: AbortSignal.timeout(8000) }).then((r) => (r.ok ? (r.json() as Promise<ORCredits>) : null)).catch(() => null),
-      fetch('https://openrouter.ai/api/v1/key', { headers: H, signal: AbortSignal.timeout(8000) }).then((r) => (r.ok ? (r.json() as Promise<ORKey>) : null)).catch(() => null),
+      fetch('https://openrouter.ai/api/v1/credits', { headers: H, signal: AbortSignal.timeout(8000) })
+        .then((r) => (r.ok ? (r.json() as Promise<ORCredits>) : null))
+        .catch(() => null),
+      fetch('https://openrouter.ai/api/v1/key', { headers: H, signal: AbortSignal.timeout(8000) })
+        .then((r) => (r.ok ? (r.json() as Promise<ORKey>) : null))
+        .catch(() => null),
     ]);
     const total = credits?.data?.total_credits;
     const used = credits?.data?.total_usage;
@@ -117,7 +148,12 @@ export async function openrouterUsage(key: string | null | undefined): Promise<O
     if (typeof total === 'number' || typeof today === 'number') {
       value = {
         left: typeof total === 'number' ? Math.max(0, total - (used || 0)) : null,
-        percent: typeof total === 'number' && total > 0 ? Math.min(100, Math.round(((used || 0) / total) * 100)) : limit ? Math.min(100, Math.round(((k?.data?.usage || 0) / limit) * 100)) : null,
+        percent:
+          typeof total === 'number' && total > 0
+            ? Math.min(100, Math.round(((used || 0) / total) * 100))
+            : limit
+              ? Math.min(100, Math.round(((k?.data?.usage || 0) / limit) * 100))
+              : null,
         today: typeof today === 'number' ? today : null,
         week: typeof k?.data?.usage_weekly === 'number' ? k.data.usage_weekly : null,
       };
@@ -135,7 +171,13 @@ type CodexLimits = { primary?: CodexWindow; secondary?: CodexWindow };
 // One logged window (loggedAt = when the log was written). A window that has already reset is dropped.
 export function codexWindow(x: CodexWindow, loggedAt: number, now = Date.now()): UsageWindow | null {
   if (!x || typeof x.used_percent !== 'number') return null;
-  const resetsAt = x.resets_at ? (x.resets_at > 1e12 ? x.resets_at : x.resets_at * 1000) : x.resets_in_seconds ? loggedAt + x.resets_in_seconds * 1000 : null;
+  const resetsAt = x.resets_at
+    ? x.resets_at > 1e12
+      ? x.resets_at
+      : x.resets_at * 1000
+    : x.resets_in_seconds
+      ? loggedAt + x.resets_in_seconds * 1000
+      : null;
   if (resetsAt && resetsAt <= now) return null;
   return { percent: Math.round(x.used_percent), resetsAt };
 }
@@ -161,7 +203,11 @@ export function codexUsage(): CodexUsage | null {
       const lines = fs.readFileSync(newest.full, 'utf8').trim().split('\n').reverse();
       for (const l of lines.slice(0, 400)) {
         if (!l.includes('rate_limits')) continue;
-        const j = JSON.parse(l) as { payload?: { rate_limits?: CodexLimits }; rate_limits?: CodexLimits; msg?: { rate_limits?: CodexLimits } };
+        const j = JSON.parse(l) as {
+          payload?: { rate_limits?: CodexLimits };
+          rate_limits?: CodexLimits;
+          msg?: { rate_limits?: CodexLimits };
+        };
         const rl = j.payload?.rate_limits || j.rate_limits || j.msg?.rate_limits;
         if (!rl) continue;
         const session = codexWindow(rl.primary, newest.t);

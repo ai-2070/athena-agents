@@ -36,7 +36,8 @@ export function ease(kind: AnimKey['ease'], x: number): number {
 }
 
 type Channel = 'turn' | 'move' | 'scale';
-const isVec = (v: unknown): v is [number, number, number] => Array.isArray(v) && v.length === 3 && v.every((n) => Number.isFinite(n));
+const isVec = (v: unknown): v is [number, number, number] =>
+  Array.isArray(v) && v.length === 3 && v.every((n) => Number.isFinite(n));
 
 /** Keys sorted by time, with t clamped to 0..1 (sorted once per clip; keys of bad shape dropped). */
 export function cleanKeys(keys: AnimKey[] | undefined): AnimKey[] {
@@ -86,9 +87,12 @@ export function samplePart(keys: AnimKey[], t: number, out: PartPose): PartPose 
 }
 
 /** Where in a clip `elapsed` seconds are (0..1), and whether a play-once clip has ended. */
-export function clipTime(clip: Pick<AnimationClip, 'duration' | 'loop'>, elapsed: number): { t: number; done: boolean } {
+export function clipTime(
+  clip: Pick<AnimationClip, 'duration' | 'loop'>,
+  elapsed: number,
+): { t: number; done: boolean } {
   const d = clip.duration > 0 ? clip.duration : 1;
-  if (clip.loop) return { t: ((elapsed % d) + d) % d / d, done: false };
+  if (clip.loop) return { t: (((elapsed % d) + d) % d) / d, done: false };
   return { t: Math.min(1, Math.max(0, elapsed / d)), done: elapsed >= d };
 }
 
@@ -99,7 +103,11 @@ export interface PreparedClip {
   tracks: Map<string, AnimKey[]>;
 }
 export function prepareClip(clip: AnimationClip): PreparedClip {
-  return { duration: clip.duration > 0 ? clip.duration : 1, loop: !!clip.loop, tracks: new Map(Object.entries(clip.tracks || {}).map(([k, v]) => [k.trim().toLowerCase(), cleanKeys(v)])) };
+  return {
+    duration: clip.duration > 0 ? clip.duration : 1,
+    loop: !!clip.loop,
+    tracks: new Map(Object.entries(clip.tracks || {}).map(([k, v]) => [k.trim().toLowerCase(), cleanKeys(v)])),
+  };
 }
 
 /** Samples every track of a clip into `pose` (entries reused). */
@@ -133,7 +141,8 @@ export function blendPoses(a: Pose, b: Pose, w: number, out: Pose): Pose {
 }
 
 /** The weight of the new clip during a crossfade that started `since` seconds ago. */
-export const fadeWeight = (since: number, fade = CROSSFADE_S): number => (fade <= 0 ? 1 : Math.max(0, Math.min(1, since / fade)));
+export const fadeWeight = (since: number, fade = CROSSFADE_S): number =>
+  fade <= 0 ? 1 : Math.max(0, Math.min(1, since / fade));
 
 /**
  * Plays a character's clips: the clip of its state, looped, with a play-once clip on top when asked
@@ -216,7 +225,9 @@ export class Animator {
     if (!c) return into;
     // (a play-once clip asked to run several times loops for that long)
     const looping = c.loop || (this.once?.clip === name && this.once.times > 1);
-    const t = looping ? (((elapsed % c.duration) + c.duration) % c.duration) / c.duration : Math.min(1, Math.max(0, elapsed / c.duration));
+    const t = looping
+      ? (((elapsed % c.duration) + c.duration) % c.duration) / c.duration
+      : Math.min(1, Math.max(0, elapsed / c.duration));
     return sampleClip(c, t, into);
   }
 }

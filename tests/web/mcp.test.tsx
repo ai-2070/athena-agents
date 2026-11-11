@@ -20,7 +20,9 @@ let el: HTMLElement;
 beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><section id="view"></section>';
   el = document.getElementById('view')!;
-  servers = { playwright: { type: 'stdio', command: 'npx', args: ['-y', '@playwright/mcp'], env: {}, url: '', headers: {} } };
+  servers = {
+    playwright: { type: 'stdio', command: 'npx', args: ['-y', '@playwright/mcp'], env: {}, url: '', headers: {} },
+  };
   requests = [];
   suggested = undefined;
   mcpMore = {};
@@ -29,8 +31,35 @@ beforeEach(() => {
     const body = init.body ? JSON.parse(String(init.body)) : null;
     requests.push({ method, url, body });
     const json = (v: unknown) => new Response(JSON.stringify(v));
-    if (url === '/api/mcp' && method === 'GET') return json({ servers, presets: [{ name: 'github', title: 'GitHub', description: 'Repos', ready: true, installed: false, type: 'stdio', command: 'npx', args: ['gh'], env: { TOKEN: 'YOUR_TOKEN' } }], ...(suggested ? { suggested } : {}), importable: [], bridge: { command: 'bun', args: ['bridge.js'], env: {} }, ...mcpMore });
-    if (url === '/api/tools') return json({ groups: [{ id: 'files', label: 'Files', description: 'Read and write' }], tools: [{ name: 'read_file', group: 'files', risk: 'none', description: 'Reads' }, { name: 'shell', group: 'files', risk: 'high', description: 'Runs' }] });
+    if (url === '/api/mcp' && method === 'GET')
+      return json({
+        servers,
+        presets: [
+          {
+            name: 'github',
+            title: 'GitHub',
+            description: 'Repos',
+            ready: true,
+            installed: false,
+            type: 'stdio',
+            command: 'npx',
+            args: ['gh'],
+            env: { TOKEN: 'YOUR_TOKEN' },
+          },
+        ],
+        ...(suggested ? { suggested } : {}),
+        importable: [],
+        bridge: { command: 'bun', args: ['bridge.js'], env: {} },
+        ...mcpMore,
+      });
+    if (url === '/api/tools')
+      return json({
+        groups: [{ id: 'files', label: 'Files', description: 'Read and write' }],
+        tools: [
+          { name: 'read_file', group: 'files', risk: 'none', description: 'Reads' },
+          { name: 'shell', group: 'files', risk: 'high', description: 'Runs' },
+        ],
+      });
     if (url === '/api/mcp/playwright/test') return json({ tools: [{ name: 'click' }, { name: 'type' }] });
     if (url === '/api/mcp' && method === 'POST') {
       servers = { ...servers, [body.name]: body };
@@ -52,14 +81,18 @@ const open = async () => {
   await act(async () => mcp.render(el));
   await settle();
 };
-const btn = (root: ParentNode, text: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
+const btn = (root: ParentNode, text: string) =>
+  [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
 const type = (input: HTMLInputElement | HTMLTextAreaElement, text: string) =>
   act(async () => {
     const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     Object.getOwnPropertyDescriptor(proto, 'value')!.set!.call(input, text);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-const field = (label: string) => [...document.querySelectorAll('#modal-root label.field')].find((f) => f.querySelector('span')?.textContent === label)!.querySelector<HTMLInputElement>('input, textarea')!;
+const field = (label: string) =>
+  [...document.querySelectorAll('#modal-root label.field')]
+    .find((f) => f.querySelector('span')?.textContent === label)!
+    .querySelector<HTMLInputElement>('input, textarea')!;
 
 describe('parsing', () => {
   it('reads KEY=value and Name: value lines, skipping the rest', () => {
@@ -78,13 +111,30 @@ describe('parsing', () => {
 describe('the MCP servers tab', () => {
   it('suggests servers for programs on this PC, with why and what they need, and adds one only on a click', async () => {
     suggested = [
-      { name: 'blender', title: 'Blender (live)', description: 'Control a running Blender scene.', reason: 'Blender is installed', needs: 'setup: install the add-on in Blender', program: 'blender' },
-      { name: 'fetch', title: 'Web fetch', description: 'Fetch any URL.', reason: 'useful to most agents, no key or setup', needs: '', program: null },
+      {
+        name: 'blender',
+        title: 'Blender (live)',
+        description: 'Control a running Blender scene.',
+        reason: 'Blender is installed',
+        needs: 'setup: install the add-on in Blender',
+        program: 'blender',
+      },
+      {
+        name: 'fetch',
+        title: 'Web fetch',
+        description: 'Fetch any URL.',
+        reason: 'useful to most agents, no key or setup',
+        needs: '',
+        program: null,
+      },
     ];
     await open();
     expect(el.textContent).toContain('Suggested for this PC');
     const rows = [...el.querySelectorAll('.mcp-suggest')];
-    expect(rows.map((r) => r.querySelector('.mcp-why')!.textContent)).toEqual(['Blender is installed', 'useful to most agents, no key or setup']);
+    expect(rows.map((r) => r.querySelector('.mcp-why')!.textContent)).toEqual([
+      'Blender is installed',
+      'useful to most agents, no key or setup',
+    ]);
     expect(rows[0].querySelector('.mcp-why')!.classList.contains('on')).toBe(true);
     expect(rows[0].textContent).toContain('First: install the add-on in Blender');
     expect(requests.some((r) => r.url === '/api/mcp-preset')).toBe(false);
@@ -107,8 +157,29 @@ describe('the MCP servers tab', () => {
   });
 
   it('gives each preset a decorative mark and keeps its title and add action', async () => {
-    const names = ['playwright', 'chrome-devtools', 'filesystem', 'fetch', 'memory', 'sequential-thinking', 'blender', 'hermes', 'github'];
-    mcpMore = { presets: names.map((name) => ({ name, title: name, description: 'A preset', ready: true, installed: false, type: 'http', url: 'https://example.com/mcp', headers: {} })) };
+    const names = [
+      'playwright',
+      'chrome-devtools',
+      'filesystem',
+      'fetch',
+      'memory',
+      'sequential-thinking',
+      'blender',
+      'hermes',
+      'github',
+    ];
+    mcpMore = {
+      presets: names.map((name) => ({
+        name,
+        title: name,
+        description: 'A preset',
+        ready: true,
+        installed: false,
+        type: 'http',
+        url: 'https://example.com/mcp',
+        headers: {},
+      })),
+    };
     await open();
     const titles = [...el.querySelectorAll('.cards .card-title')];
     expect(titles.map((title) => title.textContent)).toEqual(names);
@@ -120,8 +191,20 @@ describe('the MCP servers tab', () => {
     expect(requests.some((r) => r.url === '/api/mcp-preset')).toBe(false);
   });
 
-  it('gives each added server its mark, a copy its service\'s, without touching the title', async () => {
-    servers = { ...servers, 'oomol-work': { type: 'http', command: '', args: [], env: {}, url: 'https://example.com/mcp', headers: {}, kind: 'oomol', label: 'Work' } };
+  it("gives each added server its mark, a copy its service's, without touching the title", async () => {
+    servers = {
+      ...servers,
+      'oomol-work': {
+        type: 'http',
+        command: '',
+        args: [],
+        env: {},
+        url: 'https://example.com/mcp',
+        headers: {},
+        kind: 'oomol',
+        label: 'Work',
+      },
+    };
     await open();
     const rows = [...el.querySelectorAll('.mcp-server')];
     expect(rows.map((r) => r.querySelector('.title')!.textContent)).toEqual(['playwright', 'oomol-work']);
@@ -129,8 +212,22 @@ describe('the MCP servers tab', () => {
   });
 
   it('finds a preset by its name or what it does', async () => {
-    const preset = (name: string, title: string, description: string) => ({ name, title, description, ready: true, installed: false, type: 'http', url: `https://${name}.example.com/mcp`, headers: {} });
-    mcpMore = { presets: [preset('sentry', 'Sentry', 'Errors and stack traces.'), preset('kiwi', 'Flights (Kiwi.com)', 'Search flights.')] };
+    const preset = (name: string, title: string, description: string) => ({
+      name,
+      title,
+      description,
+      ready: true,
+      installed: false,
+      type: 'http',
+      url: `https://${name}.example.com/mcp`,
+      headers: {},
+    });
+    mcpMore = {
+      presets: [
+        preset('sentry', 'Sentry', 'Errors and stack traces.'),
+        preset('kiwi', 'Flights (Kiwi.com)', 'Search flights.'),
+      ],
+    };
     await open();
     const titles = () => [...el.querySelectorAll('.card-title')].map((t) => t.textContent);
     expect(titles()).toEqual(['Sentry', 'Flights (Kiwi.com)']);
@@ -154,7 +251,16 @@ describe('the MCP servers tab', () => {
 
   it("shows why a server didn't start, with what it printed apart", async () => {
     await open();
-    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: `Couldn't start MCP server "playwright": MCP error -32000: Connection closed\n\nWhat it printed:\nError: Cannot find module 'x'` }), { status: 500 }));
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: `Couldn't start MCP server "playwright": MCP error -32000: Connection closed\n\nWhat it printed:\nError: Cannot find module 'x'`,
+          }),
+          { status: 500 },
+        ),
+    );
     await act(async () => btn(el, 'Test').click());
     await settle();
     const box = el.querySelector('.mcp-test-failed')!;
@@ -180,7 +286,12 @@ describe('the MCP servers tab', () => {
     await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
     await settle();
     const post = requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!;
-    expect(post.body).toMatchObject({ name: 'notion', type: 'http', url: 'https://mcp.notion.com/mcp', headers: { Authorization: 'Bearer abc' } });
+    expect(post.body).toMatchObject({
+      name: 'notion',
+      type: 'http',
+      url: 'https://mcp.notion.com/mcp',
+      headers: { Authorization: 'Bearer abc' },
+    });
     expect(document.querySelector('#modal-root .modal')).toBeNull();
     expect([...el.querySelectorAll('.mcp-server .title')].map((t) => t.textContent)).toEqual(['playwright', 'notion']);
   });
@@ -193,17 +304,26 @@ describe('the MCP servers tab', () => {
     await type(field('Environment'), 'DEBUG=1');
     await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
     await settle();
-    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({ name: 'playwright', args: ['-y', '@playwright/mcp'], env: { DEBUG: '1' } });
+    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({
+      name: 'playwright',
+      args: ['-y', '@playwright/mcp'],
+      env: { DEBUG: '1' },
+    });
   });
 
   it('changing only the description keeps an argument with a space in it whole', async () => {
-    servers = { local: { type: 'stdio', command: 'node', args: ['C:/MCP Servers/server.js'], env: {}, url: '', headers: {} } };
+    servers = {
+      local: { type: 'stdio', command: 'node', args: ['C:/MCP Servers/server.js'], env: {}, url: '', headers: {} },
+    };
     await open();
     await act(async () => btn(el, 'Edit').click());
     expect(field('Arguments').value).toBe('"C:/MCP Servers/server.js"');
     await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
     await settle();
-    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({ name: 'local', args: ['C:/MCP Servers/server.js'] });
+    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({
+      name: 'local',
+      args: ['C:/MCP Servers/server.js'],
+    });
   });
 
   it('removes a server only after you confirm', async () => {
@@ -219,10 +339,26 @@ describe('the MCP servers tab', () => {
 describe('openModal()', () => {
   it('draws React content, stacks a confirm on top, and closing it closes the confirm too', async () => {
     let close!: () => void;
-    await act(async () => void openModal('Form', (c) => ((close = c), <div className="modal-body"><input aria-label="Name" /></div>)));
+    await act(
+      async () =>
+        void openModal(
+          'Form',
+          (c) => (
+            (close = c),
+            (
+              <div className="modal-body">
+                <input aria-label="Name" />
+              </div>
+            )
+          ),
+        ),
+    );
     let asked!: Promise<boolean>;
     await act(async () => void (asked = confirmBox('Sure?')));
-    expect([...document.querySelectorAll('#modal-root .modal h2')].map((h) => h.textContent)).toEqual(['Form', 'Are you sure?']);
+    expect([...document.querySelectorAll('#modal-root .modal h2')].map((h) => h.textContent)).toEqual([
+      'Form',
+      'Are you sure?',
+    ]);
     await act(async () => close());
     expect(await asked).toBe(false);
     expect(document.querySelector('#modal-root .modal')).toBeNull();
@@ -231,12 +367,31 @@ describe('openModal()', () => {
 
 describe('several accounts of one service', () => {
   const OOMOL = 'https://connector.oomol.com/v1/mcp';
-  const oomolPreset = { name: 'oomol', title: 'OOMOL (remote)', service: 'OOMOL', description: 'Your OOMOL apps', ready: true, type: 'http', url: OOMOL, headers: { Authorization: 'Bearer YOUR_MCP_API_KEY' } };
-  const info = (_name: string, title: string, label: string, useFor: string, copies: number) => ({ title, label, kind: 'oomol', service: 'OOMOL', useFor, copies });
+  const oomolPreset = {
+    name: 'oomol',
+    title: 'OOMOL (remote)',
+    service: 'OOMOL',
+    description: 'Your OOMOL apps',
+    ready: true,
+    type: 'http',
+    url: OOMOL,
+    headers: { Authorization: 'Bearer YOUR_MCP_API_KEY' },
+  };
+  const info = (_name: string, title: string, label: string, useFor: string, copies: number) => ({
+    title,
+    label,
+    kind: 'oomol',
+    service: 'OOMOL',
+    useFor,
+    copies,
+  });
 
   it('adds another account from an added preset, with labels and what each is for', async () => {
     servers = { oomol: { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {} } };
-    mcpMore = { presets: [{ ...oomolPreset, installed: true, copies: ['oomol'] }], info: { oomol: info('oomol', 'oomol', '', '', 1) } };
+    mcpMore = {
+      presets: [{ ...oomolPreset, installed: true, copies: ['oomol'] }],
+      info: { oomol: info('oomol', 'oomol', '', '', 1) },
+    };
     await open();
     expect(btn(el, 'Add')).toBeUndefined();
     await act(async () => btn(el, 'Add another').click());
@@ -252,13 +407,37 @@ describe('several accounts of one service', () => {
     await type(oldUse, 'my own mail');
     await act(async () => btn(modal, 'Add').click());
     await settle();
-    expect(requests.find((r) => r.url === '/api/mcp-preset')!.body).toEqual({ name: 'oomol', label: 'Work', useFor: 'acme.com mail', others: { oomol: { label: 'Personal', useFor: 'my own mail' } } });
+    expect(requests.find((r) => r.url === '/api/mcp-preset')!.body).toEqual({
+      name: 'oomol',
+      label: 'Work',
+      useFor: 'acme.com mail',
+      others: { oomol: { label: 'Personal', useFor: 'my own mail' } },
+    });
   });
 
   it('sends only the accounts already there whose label or "use for" changed', async () => {
     servers = {
-      oomol: { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {}, label: 'Personal', useFor: 'my own mail' },
-      'oomol-work': { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {}, label: 'Work', kind: 'oomol', useFor: 'acme.com mail' },
+      oomol: {
+        type: 'http',
+        command: '',
+        args: [],
+        env: {},
+        url: OOMOL,
+        headers: {},
+        label: 'Personal',
+        useFor: 'my own mail',
+      },
+      'oomol-work': {
+        type: 'http',
+        command: '',
+        args: [],
+        env: {},
+        url: OOMOL,
+        headers: {},
+        label: 'Work',
+        kind: 'oomol',
+        useFor: 'acme.com mail',
+      },
     };
     // (an older server sends no "service": the title stands in)
     const { service: _, ...older } = oomolPreset;
@@ -272,22 +451,37 @@ describe('several accounts of one service', () => {
     await type(workLabel, 'Acme');
     await act(async () => btn(modal, 'Add').click());
     await settle();
-    expect(requests.find((r) => r.url === '/api/mcp-preset')!.body).toEqual({ name: 'oomol', label: 'Lab', useFor: '', others: { 'oomol-work': { label: 'Acme', useFor: 'acme.com mail' } } });
+    expect(requests.find((r) => r.url === '/api/mcp-preset')!.body).toEqual({
+      name: 'oomol',
+      label: 'Lab',
+      useFor: '',
+      others: { 'oomol-work': { label: 'Acme', useFor: 'acme.com mail' } },
+    });
   });
 
   it('"Its own service" is sent as its own name, so it stays apart from the ready-made one it looks like', async () => {
     servers = { 'my-oomol': { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {} } };
-    mcpMore = { presets: [{ ...oomolPreset, installed: true, copies: ['my-oomol'] }], info: { 'my-oomol': info('my-oomol', 'my-oomol', '', '', 1) } };
+    mcpMore = {
+      presets: [{ ...oomolPreset, installed: true, copies: ['my-oomol'] }],
+      info: { 'my-oomol': info('my-oomol', 'my-oomol', '', '', 1) },
+    };
     await open();
     await act(async () => btn(el.querySelector('.mcp-server') as HTMLElement, 'Edit').click());
     const select = document.querySelector<HTMLButtonElement>('#modal-root button[aria-label="Same service as"]')!;
     expect(select.textContent?.trim()).toBe('OOMOL');
     await act(async () => select.click());
     await settle();
-    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent?.includes('Its own service'))!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+        .find((option) => option.textContent?.includes('Its own service'))!
+        .click(),
+    );
     await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
     await settle();
-    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({ name: 'my-oomol', kind: 'my-oomol' });
+    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({
+      name: 'my-oomol',
+      kind: 'my-oomol',
+    });
   });
 
   it('a new server left alone has its service worked out by the server', async () => {
@@ -297,15 +491,43 @@ describe('several accounts of one service', () => {
     await type(field('Command'), 'uvx');
     await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
     await settle();
-    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({ name: 'fresh', kind: '' });
+    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({
+      name: 'fresh',
+      kind: '',
+    });
   });
 
   it('shows each account by its label, with what it is for or that it says nothing yet', async () => {
     servers = {
-      'oomol-work': { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {}, label: 'Work', kind: 'oomol', useFor: 'acme.com mail' },
-      'oomol-home': { type: 'http', command: '', args: [], env: {}, url: OOMOL, headers: {}, label: 'Home', kind: 'oomol' },
+      'oomol-work': {
+        type: 'http',
+        command: '',
+        args: [],
+        env: {},
+        url: OOMOL,
+        headers: {},
+        label: 'Work',
+        kind: 'oomol',
+        useFor: 'acme.com mail',
+      },
+      'oomol-home': {
+        type: 'http',
+        command: '',
+        args: [],
+        env: {},
+        url: OOMOL,
+        headers: {},
+        label: 'Home',
+        kind: 'oomol',
+      },
     };
-    mcpMore = { presets: [{ ...oomolPreset, installed: true, copies: ['oomol-work', 'oomol-home'] }], info: { 'oomol-work': info('oomol-work', 'OOMOL: Work', 'Work', 'acme.com mail', 2), 'oomol-home': info('oomol-home', 'OOMOL: Home', 'Home', '', 2) } };
+    mcpMore = {
+      presets: [{ ...oomolPreset, installed: true, copies: ['oomol-work', 'oomol-home'] }],
+      info: {
+        'oomol-work': info('oomol-work', 'OOMOL: Work', 'Work', 'acme.com mail', 2),
+        'oomol-home': info('oomol-home', 'OOMOL: Home', 'Home', '', 2),
+      },
+    };
     await open();
     const rows = [...el.querySelectorAll('.mcp-server')];
     expect(rows[0].querySelector('.title')!.textContent).toBe('OOMOL: Workoomol-workOOMOL account');
@@ -316,10 +538,19 @@ describe('several accounts of one service', () => {
     await act(async () => btn(rows[1] as HTMLElement, 'Edit').click());
     expect(document.querySelector('#modal-root .modal h2')!.textContent).toBe('Edit OOMOL: Home');
     expect(field('Label').value).toBe('Home');
-    expect(document.querySelector<HTMLButtonElement>('#modal-root button[aria-label="Same service as"]')!.textContent?.trim()).toBe('OOMOL');
+    expect(
+      document
+        .querySelector<HTMLButtonElement>('#modal-root button[aria-label="Same service as"]')!
+        .textContent?.trim(),
+    ).toBe('OOMOL');
     await type(field('Use this one for'), 'family calendar');
     await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
     await settle();
-    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({ name: 'oomol-home', label: 'Home', kind: 'oomol', useFor: 'family calendar' });
+    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({
+      name: 'oomol-home',
+      label: 'Home',
+      kind: 'oomol',
+      useFor: 'family calendar',
+    });
   });
 });

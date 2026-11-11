@@ -53,7 +53,11 @@ const WORKFLOW_AGENT: Pick<Agent, 'id' | 'name' | 'toolGroups' | 'autonomy' | 'k
 
 const activeRuns = new Map<string, RunControl>();
 
-export async function startWorkflow(id: string, input = '', { trigger = 'manual' }: { trigger?: string } = {}): Promise<WorkflowRun> {
+export async function startWorkflow(
+  id: string,
+  input = '',
+  { trigger = 'manual' }: { trigger?: string } = {},
+): Promise<WorkflowRun> {
   const wf: Workflow | null = workflows.get(id);
   if (!wf) throw new Error('No such workflow.');
   if (!wf.steps?.length) throw new Error('This workflow has no steps yet.');
@@ -64,7 +68,14 @@ export async function startWorkflow(id: string, input = '', { trigger = 'manual'
     input,
     trigger,
     status: 'running',
-    steps: wf.steps.map((s) => ({ id: s.id, label: s.label || s.type, type: s.type, status: 'waiting', output: '', agentId: s.agentId ?? null })),
+    steps: wf.steps.map((s) => ({
+      id: s.id,
+      label: s.label || s.type,
+      type: s.type,
+      status: 'waiting',
+      output: '',
+      agentId: s.agentId ?? null,
+    })),
   });
   log('workflow', `Started workflow "${wf.name}" (${trigger})`);
   const ac = new AbortController();
@@ -106,7 +117,12 @@ export function markInterruptedRuns() {
 }
 
 async function execute(wf: Workflow, run: WorkflowRun, ctl: RunControl) {
-  const values: Record<string, unknown> = { input: run.input, prev: run.input, date: new Date().toLocaleDateString(), workflow: wf.name };
+  const values: Record<string, unknown> = {
+    input: run.input,
+    prev: run.input,
+    date: new Date().toLocaleDateString(),
+    workflow: wf.name,
+  };
   const save = () => {
     runs.save(run);
     emit('workflow-run', { id: run.id, run: runSummary(run) });
@@ -125,15 +141,28 @@ async function execute(wf: Workflow, run: WorkflowRun, ctl: RunControl) {
         if (!agent) throw new Error(`Step ${i + 1}: the agent no longer exists.`);
         const prompt = renderTemplate(step.prompt || '{{prev}}', values);
         st.agentName = agent.name;
-        output = await askAgent(agent, prompt, { depth: 1, from: `workflow "${wf.name}"`, title: `Workflow: ${wf.name}`, parentRunId: run.id, signal: ctl.signal, extra: wf.access || null });
+        output = await askAgent(agent, prompt, {
+          depth: 1,
+          from: `workflow "${wf.name}"`,
+          title: `Workflow: ${wf.name}`,
+          parentRunId: run.id,
+          signal: ctl.signal,
+          extra: wf.access || null,
+        });
       } else if (step.type === 'tool') {
         let args: Record<string, unknown> = {};
         try {
           args = JSON.parse(renderTemplate(step.args || '{}', jsonSafe(values))) as Record<string, unknown>;
         } catch (e) {
-          throw new Error(`Step ${i + 1}: the tool arguments are not valid JSON after filling in values (${(e as Error).message}).`);
+          throw new Error(
+            `Step ${i + 1}: the tool arguments are not valid JSON after filling in values (${(e as Error).message}).`,
+          );
         }
-        const r = await callTool(WORKFLOW_AGENT, step.tool as string, args, { runId: run.id, depth: 1, signal: ctl.signal });
+        const r = await callTool(WORKFLOW_AGENT, step.tool as string, args, {
+          runId: run.id,
+          depth: 1,
+          signal: ctl.signal,
+        });
         if (r.isError) throw new Error(`Step ${i + 1} (${step.tool}): ${r.text}`);
         output = r.text;
         st.images = r.images;
@@ -151,8 +180,20 @@ async function execute(wf: Workflow, run: WorkflowRun, ctl: RunControl) {
         output = d.edited ?? values.prev;
       } else if (step.type === 'x_post') {
         const text = renderTemplate(step.text || '{{prev}}', values).trim();
-        const parts = step.thread ? text.split(/\n-{3,}\n/).map((s) => s.trim()).filter(Boolean) : null;
-        const r = await draftPost({ platform: 'x', account: step.account as string | undefined, text, thread: parts, agentName: `Workflow: ${wf.name}`, note: `From workflow "${wf.name}"` });
+        const parts = step.thread
+          ? text
+              .split(/\n-{3,}\n/)
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : null;
+        const r = await draftPost({
+          platform: 'x',
+          account: step.account as string | undefined,
+          text,
+          thread: parts,
+          agentName: `Workflow: ${wf.name}`,
+          note: `From workflow "${wf.name}"`,
+        });
         output = r.status === 'posted' ? `Posted: ${r.url}` : `In the Outbox for approval (${r.id}).`;
       } else if (step.type === 'notify') {
         const text = renderTemplate(step.text || '{{prev}}', values);
@@ -161,7 +202,12 @@ async function execute(wf: Workflow, run: WorkflowRun, ctl: RunControl) {
         output = r.text;
         if (step.telegram) {
           ctl.signal.throwIfAborted();
-          const draft = await draftPost({ platform: 'telegram', text, agentName: `Workflow: ${wf.name}`, note: `From workflow "${wf.name}". Choose a gateway recipient and approve in Outbox.` });
+          const draft = await draftPost({
+            platform: 'telegram',
+            text,
+            agentName: `Workflow: ${wf.name}`,
+            note: `From workflow "${wf.name}". Choose a gateway recipient and approve in Outbox.`,
+          });
           output += ` Telegram draft saved to Outbox (${draft.id}); choose its recipient and approve before it sends.`;
         }
       } else throw new Error(`Unknown step type ${step.type}`);
@@ -195,7 +241,17 @@ async function execute(wf: Workflow, run: WorkflowRun, ctl: RunControl) {
 
 // What the Station needs to light up a branch.
 export function runSummary(r: WorkflowRun): RunSummary {
-  return { id: r.id, workflowId: r.workflowId, status: r.status, steps: r.steps.map((s) => ({ status: s.status, label: s.label, agentId: typeof s.agentId === 'string' ? s.agentId : null })), error: r.error || null };
+  return {
+    id: r.id,
+    workflowId: r.workflowId,
+    status: r.status,
+    steps: r.steps.map((s) => ({
+      status: s.status,
+      label: s.label,
+      agentId: typeof s.agentId === 'string' ? s.agentId : null,
+    })),
+    error: r.error || null,
+  };
 }
 
 // Values pasted into JSON need escaping.
@@ -207,7 +263,10 @@ function jsonSafe(values: Record<string, unknown>): Record<string, string> {
 
 // ---------- scheduling ----------
 // Also used for routines: anything with a schedule, an on switch and when it last ran.
-export function due(wf: { schedule?: WorkflowSchedule; enabled?: boolean; lastScheduledAt?: number }, now: number): boolean {
+export function due(
+  wf: { schedule?: WorkflowSchedule; enabled?: boolean; lastScheduledAt?: number },
+  now: number,
+): boolean {
   const s = wf.schedule;
   if (!wf.enabled || !s || s.type === 'none') return false;
   const last = wf.lastScheduledAt || 0;
@@ -218,7 +277,12 @@ export function due(wf: { schedule?: WorkflowSchedule; enabled?: boolean; lastSc
       const [h, m] = time.split(':').map(Number);
       const target = new Date(now);
       target.setHours(h, m, 0, 0);
-      return days.includes(target.getDay()) && now >= target.getTime() && last < target.getTime() && now - target.getTime() < 60 * 60_000;
+      return (
+        days.includes(target.getDay()) &&
+        now >= target.getTime() &&
+        last < target.getTime() &&
+        now - target.getTime() < 60 * 60_000
+      );
     });
   }
   return false;
@@ -233,11 +297,17 @@ export function startScheduler() {
       workflows.save(wf);
       // a step list runs its steps; a team gets its routine message in the team chat
       if (isStepList(wf)) {
-        startWorkflow(wf.id, wf.schedule!.input || '', { trigger: 'schedule' }).catch((e: unknown) => log('error', `Scheduled workflow "${wf.name}": ${(e as Error).message}`));
+        startWorkflow(wf.id, wf.schedule!.input || '', { trigger: 'schedule' }).catch((e: unknown) =>
+          log('error', `Scheduled workflow "${wf.name}": ${(e as Error).message}`),
+        );
         continue;
       }
       const team = normalize(wf);
-      postUserMessage(team.id, wf.schedule!.input || `Scheduled check-in: ${team.description || 'do your routine work'}`, { route: pickMember }).catch((e: unknown) => log('error', `Scheduled team "${wf.name}": ${(e as Error).message}`));
+      postUserMessage(
+        team.id,
+        wf.schedule!.input || `Scheduled check-in: ${team.description || 'do your routine work'}`,
+        { route: pickMember },
+      ).catch((e: unknown) => log('error', `Scheduled team "${wf.name}": ${(e as Error).message}`));
     }
   }, 30_000).unref();
 }
@@ -248,8 +318,19 @@ export const TEMPLATES: WorkflowTemplate[] = [
     description: 'Research a topic, write a post in your voice, you approve, it goes to the Outbox.',
     needs: ['Researcher', 'X Writer'],
     steps: [
-      { type: 'agent', agent: 'Researcher', label: 'Research', prompt: 'Find the 3 most interesting things that happened in the last few days about: {{input}}. Give links.' },
-      { type: 'agent', agent: 'X Writer', label: 'Write', prompt: 'Write ONE post for X (under 280 characters) based on this research. Reply with only the post text, nothing else.\n\n{{prev}}' },
+      {
+        type: 'agent',
+        agent: 'Researcher',
+        label: 'Research',
+        prompt: 'Find the 3 most interesting things that happened in the last few days about: {{input}}. Give links.',
+      },
+      {
+        type: 'agent',
+        agent: 'X Writer',
+        label: 'Write',
+        prompt:
+          'Write ONE post for X (under 280 characters) based on this research. Reply with only the post text, nothing else.\n\n{{prev}}',
+      },
       { type: 'approval', label: 'Approve the post', message: '{{prev}}' },
       { type: 'x_post', label: 'Send to Outbox', text: '{{prev}}' },
     ],
@@ -259,14 +340,27 @@ export const TEMPLATES: WorkflowTemplate[] = [
     name: 'Prompt to image',
     description: 'An agent turns a rough idea into a detailed prompt and runs your ComfyUI workflow.',
     needs: ['Image Maker'],
-    steps: [{ type: 'agent', agent: 'Image Maker', label: 'Make the image', prompt: 'Make an image of: {{input}}. Pick the best workflow and write a detailed prompt.' }],
+    steps: [
+      {
+        type: 'agent',
+        agent: 'Image Maker',
+        label: 'Make the image',
+        prompt: 'Make an image of: {{input}}. Pick the best workflow and write a detailed prompt.',
+      },
+    ],
   },
   {
     name: 'Research brief',
     description: 'Research, then save a markdown brief to the workspace and ping you.',
     needs: ['Researcher'],
     steps: [
-      { type: 'agent', agent: 'Researcher', label: 'Research', prompt: 'Research {{input}} and write a one-page markdown brief with sources. Save it with write_file as brief.md and tell me the path.' },
+      {
+        type: 'agent',
+        agent: 'Researcher',
+        label: 'Research',
+        prompt:
+          'Research {{input}} and write a one-page markdown brief with sources. Save it with write_file as brief.md and tell me the path.',
+      },
       { type: 'notify', label: 'Tell me', text: 'Brief ready: {{prev}}' },
     ],
   },
@@ -281,5 +375,12 @@ export function createFromTemplate(name: string): Team {
     const match = agent ? all.find((a) => a.name.toLowerCase() === agent.toLowerCase()) : null;
     return { id: uid('s'), ...rest, ...(agent ? { agentId: match?.id || '' } : {}) };
   });
-  return workflows.save({ id: uid('wf'), name: t.name, description: t.description, steps, schedule: t.schedule || { type: 'none' }, enabled: false });
+  return workflows.save({
+    id: uid('wf'),
+    name: t.name,
+    description: t.description,
+    steps,
+    schedule: t.schedule || { type: 'none' },
+    enabled: false,
+  });
 }

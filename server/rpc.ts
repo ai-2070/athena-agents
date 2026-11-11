@@ -11,15 +11,30 @@ import { apiRouter } from './api/index.ts';
 /** The most a JSON body may be, here and in the old routes. */
 export const JSON_LIMIT = 25 * 1024 * 1024;
 
-const CODES: Record<number, string> = { 400: 'BAD_REQUEST', 401: 'UNAUTHORIZED', 403: 'FORBIDDEN', 404: 'NOT_FOUND', 409: 'CONFLICT', 413: 'PAYLOAD_TOO_LARGE', 429: 'TOO_MANY_REQUESTS' };
+const CODES: Record<number, string> = {
+  400: 'BAD_REQUEST',
+  401: 'UNAUTHORIZED',
+  403: 'FORBIDDEN',
+  404: 'NOT_FOUND',
+  409: 'CONFLICT',
+  413: 'PAYLOAD_TOO_LARGE',
+  429: 'TOO_MANY_REQUESTS',
+};
 
 /** What a handler threw, as the old routes answer it: its own `status` (400–599) and message, else a 500. */
 export function rpcError(e: unknown): ORPCError<string, unknown> {
   if (e instanceof ORPCError) return e;
-  const status = e && typeof e === 'object' && 'status' in e && typeof e.status === 'number' && e.status >= 400 && e.status < 600 ? e.status : 500;
+  const status =
+    e && typeof e === 'object' && 'status' in e && typeof e.status === 'number' && e.status >= 400 && e.status < 600
+      ? e.status
+      : 500;
   if (status === 500) console.error(e);
   const message = (e instanceof Error && e.message) || String(e);
-  return new ORPCError(CODES[status] || (status < 500 ? 'BAD_REQUEST' : 'INTERNAL_SERVER_ERROR'), { status, message, cause: e });
+  return new ORPCError(CODES[status] || (status < 500 ? 'BAD_REQUEST' : 'INTERNAL_SERVER_ERROR'), {
+    status,
+    message,
+    cause: e,
+  });
 }
 
 /** The words an error is answered with. A failed input check says what was wrong; schemas word theirs plainly. */
@@ -39,11 +54,13 @@ function oldBody<R extends { body: () => Promise<unknown> }>(request: R): R {
     try {
       b = await request.body();
     } catch (e) {
-      if (e instanceof ORPCError && e.code === 'PAYLOAD_TOO_LARGE') throw new ORPCError('PAYLOAD_TOO_LARGE', { status: 413, message: 'Too large', cause: e });
+      if (e instanceof ORPCError && e.code === 'PAYLOAD_TOO_LARGE')
+        throw new ORPCError('PAYLOAD_TOO_LARGE', { status: 413, message: 'Too large', cause: e });
       throw e;
     }
     if (b === undefined) return {};
-    if (b === null || typeof b !== 'object') throw new ORPCError('BAD_REQUEST', { message: 'Body must be a JSON object' });
+    if (b === null || typeof b !== 'object')
+      throw new ORPCError('BAD_REQUEST', { message: 'Body must be a JSON object' });
     return b;
   };
   return { ...request, body: () => (read ??= body()) };
@@ -88,7 +105,11 @@ const handler = rpcHandler(apiRouter);
 
 /** Answers the request if it is an oRPC route. `prefix` is what comes before the route's own path:
  *  '/api', or '/api/p/<project>' for a request run in a project that isn't open. */
-export async function handleRpc(req: http.IncomingMessage, res: http.ServerResponse, prefix: `/${string}`): Promise<boolean> {
+export async function handleRpc(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  prefix: `/${string}`,
+): Promise<boolean> {
   const { matched } = await handler.handle(req, res, { prefix, context: {} });
   return matched;
 }

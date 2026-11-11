@@ -1,6 +1,13 @@
 // The Brain approves: it answers agents' permission requests and passes the unclear ones on to you.
 import { describe, it, expect, afterEach } from 'vitest';
-import { requestApproval, setReviewer, listApprovals, decide, cancelForRun, withdrawApprovals } from '../../server/approvals.ts';
+import {
+  requestApproval,
+  setReviewer,
+  listApprovals,
+  decide,
+  cancelForRun,
+  withdrawApprovals,
+} from '../../server/approvals.ts';
 import { saveSettings, getSettings } from '../../server/store.ts';
 import type { BrainVerdict } from '../../server/approvals.ts';
 
@@ -29,7 +36,12 @@ describe('the Brain approves', () => {
   it('never decides a setting: an agent asking to change one goes to you', async () => {
     let asked = false;
     setReviewer(async () => ((asked = true), { approve: true, reason: 'fine' }));
-    const p = requestApproval({ kind: 'setting', title: 'Mira wants to see the voxel world', agentId: 'a1', agentName: 'Mira' });
+    const p = requestApproval({
+      kind: 'setting',
+      title: 'Mira wants to see the voxel world',
+      agentId: 'a1',
+      agentName: 'Mira',
+    });
     await tick();
     expect(asked).toBe(false);
     const [a] = listApprovals();
@@ -40,7 +52,12 @@ describe('the Brain approves', () => {
 
   it('passes a request it does not approve on to you, with its reason', async () => {
     setReviewer(async () => ({ approve: false, reason: 'pushes to GitHub' }));
-    const p = requestApproval({ title: 'Coder wants to use Bash', detail: 'git push', agentId: 'a1', agentName: 'Coder' });
+    const p = requestApproval({
+      title: 'Coder wants to use Bash',
+      detail: 'git push',
+      agentId: 'a1',
+      agentName: 'Coder',
+    });
     await tick();
     const [a] = listApprovals();
     expect(a.brainNote).toBe('pushes to GitHub');

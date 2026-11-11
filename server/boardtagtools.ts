@@ -4,17 +4,28 @@
 import { activeProject, withProject } from './store.ts';
 import { runInfo } from './engines/index.ts';
 import { isGatewayConversation } from './private-conversations.ts';
-import { addBoardTag, boardTagLine, changeBoardTag, changeBoardTask, findBoardTag, findBoardTask, findBoardTasksText, removeBoardTag } from './taskboard.ts';
+import {
+  addBoardTag,
+  boardTagLine,
+  changeBoardTag,
+  changeBoardTask,
+  findBoardTag,
+  findBoardTask,
+  findBoardTasksText,
+  removeBoardTag,
+} from './taskboard.ts';
 import { tagLabel } from '../shared/boardtags.ts';
 import type { Project } from '../shared/types.ts';
 
-const fail = (message: string): never => { throw Object.assign(new Error(message), { status: 400 }); };
+const fail = (message: string): never => {
+  throw Object.assign(new Error(message), { status: 400 });
+};
 
 /** The project a call changes: its run's own (never the one open on the screen); without a run, the open one. */
 function boardOf(runId: string | null | undefined, agentId: string): Project {
   const run = runId ? runInfo(runId) : null;
   if (runId && (!run || run.agentId !== agentId)) return fail('That run is not available to you.');
-  if (isGatewayConversation(run?.conversationId)) return fail('The Tasks board isn\'t available in this conversation.');
+  if (isGatewayConversation(run?.conversationId)) return fail("The Tasks board isn't available in this conversation.");
   return run?.project || activeProject();
 }
 
@@ -39,20 +50,39 @@ export function agentBoardTags(runId: string | null | undefined, agentId: string
   const by = `agent:${agentId}`;
   return withProject(p, () => {
     const name = typeof args.name === 'string' ? args.name.trim() : '';
-    const tag = () => (name ? findBoardTag(p.id, name) : null) || fail(name ? `No tag "${name}" on the board. ${boardTagLine(p.id)}` : 'Say which tag (name).');
+    const tag = () =>
+      (name ? findBoardTag(p.id, name) : null) ||
+      fail(name ? `No tag "${name}" on the board. ${boardTagLine(p.id)}` : 'Say which tag (name).');
     switch (args.action) {
       case 'list':
         return boardTagLine(p.id);
       case 'find':
-        return findBoardTasksText(p.id, { tags: args.tags, match: args.match, untagged: args.untagged, status: args.status, limit: args.limit });
+        return findBoardTasksText(p.id, {
+          tags: args.tags,
+          match: args.match,
+          untagged: args.untagged,
+          status: args.status,
+          limit: args.limit,
+        });
       case 'create': {
         const t = addBoardTag(p.id, { name: args.name, emoji: args.emoji }, by);
-        return t.made ? `Made tag ${tagLabel(t)}.` : `Tag ${tagLabel(t)} is there already (on ${t.tasks} task${t.tasks === 1 ? '' : 's'}).`;
+        return t.made
+          ? `Made tag ${tagLabel(t)}.`
+          : `Tag ${tagLabel(t)} is there already (on ${t.tasks} task${t.tasks === 1 ? '' : 's'}).`;
       }
       case 'tag': {
-        if (args.tags === undefined && args.add === undefined && args.remove === undefined) return fail('Give tags, add or remove.');
-        const t = changeBoardTask(p.id, findBoardTask(p.id, args.task).id, { tags: args.tags, addTags: args.add, removeTags: args.remove }, undefined, by);
-        return t.tagList.length ? `Tagged #${t.number} ${t.title}: ${t.tagList.map(tagLabel).join(', ')}.` : `#${t.number} ${t.title} has no tags now.`;
+        if (args.tags === undefined && args.add === undefined && args.remove === undefined)
+          return fail('Give tags, add or remove.');
+        const t = changeBoardTask(
+          p.id,
+          findBoardTask(p.id, args.task).id,
+          { tags: args.tags, addTags: args.add, removeTags: args.remove },
+          undefined,
+          by,
+        );
+        return t.tagList.length
+          ? `Tagged #${t.number} ${t.title}: ${t.tagList.map(tagLabel).join(', ')}.`
+          : `#${t.number} ${t.title} has no tags now.`;
       }
       case 'edit': {
         const was = tag();

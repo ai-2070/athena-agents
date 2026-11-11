@@ -65,7 +65,8 @@ export function pasteBox(): PasteBox {
     if (!input) return;
     input.focus();
     input.setSelectionRange(start, end);
-    const done = typeof document.execCommand === 'function' && document.execCommand(text ? 'insertText' : 'delete', false, text);
+    const done =
+      typeof document.execCommand === 'function' && document.execCommand(text ? 'insertText' : 'delete', false, text);
     if (!done) {
       input.setRangeText(text, start, end, 'end');
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -77,11 +78,25 @@ export function pasteBox(): PasteBox {
   const view = (p: Paste) => {
     const m = modal({
       title: p.marker.slice(1, -1),
-      body: h('pre.paste-view', { class: 'm-0 max-h-[60vh] overflow-auto rounded-ctl border border-line bg-bg px-4 py-3.5 font-mono text-[12.5px] leading-[1.55] whitespace-pre-wrap wrap-anywhere' }, p.text),
+      body: h(
+        'pre.paste-view',
+        {
+          class:
+            'm-0 max-h-[60vh] overflow-auto rounded-ctl border border-line bg-bg px-4 py-3.5 font-mono text-[12.5px] leading-[1.55] whitespace-pre-wrap wrap-anywhere',
+        },
+        p.text,
+      ),
       foot: [
         domButton({ variant: 'ghost', onclick: () => (m.close(), remove(p)) }, icon('x', 13), 'Remove'),
         domButton({ variant: 'ghost', onclick: () => copy(p.text) }, icon('copy', 13), 'Copy'),
-        domButton({ variant: 'ghost', title: 'Put the whole text in the message box, to change it', onclick: () => (m.close(), unfold(p)) }, 'Edit in the box'),
+        domButton(
+          {
+            variant: 'ghost',
+            title: 'Put the whole text in the message box, to change it',
+            onclick: () => (m.close(), unfold(p)),
+          },
+          'Edit in the box',
+        ),
         domButton({ onclick: () => m.close() }, 'Close'),
       ],
     });
@@ -99,8 +114,22 @@ export function pasteBox(): PasteBox {
     h(
       'div.att-chip',
       { class: 'py-0 pr-1.5 pl-0 transition-colors hover:bg-panel-2' },
-      h('button.paste-open', { class: 'inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pr-0 pl-1.5 hover:text-accent', type: 'button', title: 'See what you pasted', onclick: () => view(p) }, h('span.att-ico', icon('file-text', 14)), h('span.att-name', p.marker.slice(1, -1))),
-      h('button.att-x', { type: 'button', title: 'Remove', 'aria-label': `Remove ${p.marker.slice(1, -1)}`, onclick: () => remove(p) }, icon('x', 12)),
+      h(
+        'button.paste-open',
+        {
+          class: 'inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pr-0 pl-1.5 hover:text-accent',
+          type: 'button',
+          title: 'See what you pasted',
+          onclick: () => view(p),
+        },
+        h('span.att-ico', icon('file-text', 14)),
+        h('span.att-name', p.marker.slice(1, -1)),
+      ),
+      h(
+        'button.att-x',
+        { type: 'button', title: 'Remove', 'aria-label': `Remove ${p.marker.slice(1, -1)}`, onclick: () => remove(p) },
+        icon('x', 12),
+      ),
     );
   let shown = '';
   function sync() {

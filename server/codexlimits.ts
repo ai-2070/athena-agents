@@ -25,7 +25,8 @@ interface RawLimits {
 
 export type CodexLimits = Omit<ProviderLimits, 'ready' | 'why'> & { resets: CodexResets | null };
 
-const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'bigint' ? Number(v) : null);
+const num = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'bigint' ? Number(v) : null;
 
 /** A window's name from its length: "5h", "Week", "2d". */
 export function windowLabel(mins: number | null, fallback: string): string {
@@ -47,7 +48,11 @@ export function parseCodexLimits(raw: unknown, now = Date.now()): CodexLimits {
     const resetsAt = at ? at * 1000 : null;
     // a window that has already reset starts again from nothing
     const over = resetsAt != null && resetsAt <= now;
-    windows.push({ label: windowLabel(num(w.windowDurationMins), fallback), percent: over ? 0 : Math.max(0, Math.min(100, Math.round(pct))), resetsAt: over ? null : resetsAt });
+    windows.push({
+      label: windowLabel(num(w.windowDurationMins), fallback),
+      percent: over ? 0 : Math.max(0, Math.min(100, Math.round(pct))),
+      resetsAt: over ? null : resetsAt,
+    });
   };
   add(rl.primary, 'Session');
   add(rl.secondary, 'Week');
@@ -59,7 +64,11 @@ export function parseCodexLimits(raw: unknown, now = Date.now()): CodexLimits {
       .filter((c) => typeof c.id === 'string' && (c.status === 'available' || c.status == null))
       .map((c) => {
         const at = num(c.expiresAt);
-        return { id: String(c.id), expiresAt: at ? at * 1000 : null, title: typeof c.title === 'string' ? c.title : null };
+        return {
+          id: String(c.id),
+          expiresAt: at ? at * 1000 : null,
+          title: typeof c.title === 'string' ? c.title : null,
+        };
       })
       .filter((c) => c.expiresAt == null || c.expiresAt > now)
       // the one that runs out first comes first: that's the one to use
@@ -68,7 +77,12 @@ export function parseCodexLimits(raw: unknown, now = Date.now()): CodexLimits {
     const count = num(rc.availableCount) ?? credits.length;
     resets = { available: Math.max(credits.length, count - (listed.length - credits.length)), credits };
   }
-  return { plan: typeof rl.planType === 'string' ? rl.planType : null, windows, resets, blocked: r.ordinaryUsageAllowed === false };
+  return {
+    plan: typeof rl.planType === 'string' ? rl.planType : null,
+    windows,
+    resets,
+    blocked: r.ordinaryUsageAllowed === false,
+  };
 }
 
 /** The Station's top bar meters (SESSION, WEEK) from the same limits the sidebar shows. */
@@ -87,7 +101,10 @@ export function codexRequest<T = unknown>(method: string, params: unknown, timeo
   return new Promise((resolve, reject) => {
     let child: ReturnType<typeof spawnCommand>;
     try {
-      child = spawnCommand('codex', ['app-server'], { cwd: ensureDir(dataPath('runtime')), stdio: ['pipe', 'pipe', 'pipe'] });
+      child = spawnCommand('codex', ['app-server'], {
+        cwd: ensureDir(dataPath('runtime')),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
     } catch (e) {
       reject(e instanceof Error ? e : new Error(String(e)));
       return;
@@ -105,7 +122,9 @@ export function codexRequest<T = unknown>(method: string, params: unknown, timeo
     const timer = setTimeout(() => finish(() => reject(new Error("Codex didn't answer in time."))), timeout);
     const send = (o: unknown) => child.stdin?.write(`${JSON.stringify(o)}\n`);
     child.on('error', (e) => finish(() => reject(e)));
-    child.on('exit', () => finish(() => reject(new Error(`Codex stopped before it answered${err ? `: ${err.trim().slice(-300)}` : '.'}`))));
+    child.on('exit', () =>
+      finish(() => reject(new Error(`Codex stopped before it answered${err ? `: ${err.trim().slice(-300)}` : '.'}`))),
+    );
     child.stderr?.on('data', (d: Buffer) => (err = (err + d.toString()).slice(-2000)));
     child.stdout?.on('data', (d: Buffer) => {
       buf += d.toString();
@@ -134,7 +153,11 @@ export function codexRequest<T = unknown>(method: string, params: unknown, timeo
 }
 
 // Read at most once a minute; tabs asking at the same time share one read.
-let cache: { at: number; value: CodexLimits | null; running: Promise<CodexLimits | null> | null } = { at: 0, value: null, running: null };
+let cache: { at: number; value: CodexLimits | null; running: Promise<CodexLimits | null> | null } = {
+  at: 0,
+  value: null,
+  running: null,
+};
 export async function codexLimits({ force = false } = {}): Promise<CodexLimits | null> {
   if (!force && Date.now() - cache.at < 60_000) return cache.value;
   if (cache.running) return cache.running;
@@ -145,7 +168,10 @@ export async function codexLimits({ force = false } = {}): Promise<CodexLimits |
     } catch {
       // an older Codex without the app server: the numbers its last session wrote down (no resets)
       const u = codexUsage();
-      const windows = [u?.session && { label: 'Session', ...u.session }, u?.week && { label: 'Week', ...u.week }].filter((w): w is LimitWindow => Boolean(w));
+      const windows = [
+        u?.session && { label: 'Session', ...u.session },
+        u?.week && { label: 'Week', ...u.week },
+      ].filter((w): w is LimitWindow => Boolean(w));
       value = windows.length ? { plan: null, windows, resets: null } : cache.value;
     }
     cache = { at: Date.now(), value, running: null };
@@ -161,8 +187,13 @@ export async function codexLimits({ force = false } = {}): Promise<CodexLimits |
 export type ResetOutcome = 'reset' | 'nothingToReset' | 'noCredit' | 'alreadyRedeemed';
 
 /** Uses one free limit reset: the given one, or the one that runs out first. */
-export async function useCodexReset(creditId?: string | null): Promise<{ outcome: ResetOutcome; limits: CodexLimits | null }> {
-  const r = await codexRequest<{ outcome?: unknown }>('account/rateLimitResetCredit/consume', { idempotencyKey: crypto.randomUUID(), creditId: creditId || null });
+export async function useCodexReset(
+  creditId?: string | null,
+): Promise<{ outcome: ResetOutcome; limits: CodexLimits | null }> {
+  const r = await codexRequest<{ outcome?: unknown }>('account/rateLimitResetCredit/consume', {
+    idempotencyKey: crypto.randomUUID(),
+    creditId: creditId || null,
+  });
   const outcome = (['reset', 'nothingToReset', 'noCredit', 'alreadyRedeemed'] as const).find((o) => o === r?.outcome);
   if (!outcome) throw new Error('Codex gave an answer this version of Athena Agents does not know.');
   return { outcome, limits: await codexLimits({ force: true }) };

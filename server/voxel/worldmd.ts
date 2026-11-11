@@ -83,7 +83,10 @@ export function worldMdInfo(worldId: string): WorldMdInfo {
 }
 
 const tidy = (text: string): string => {
-  const t = text.replace(/\r\n/g, '\n').replace(/[ \t]+$/gm, '').trim();
+  const t = text
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .trim();
   return t ? `${t}\n` : '';
 };
 
@@ -92,13 +95,23 @@ export function writeWorldMd(worldId: string, text: unknown): WorldMdInfo {
   if (!getWorld(worldId)) throw bad('No such world.', 404);
   const next = tidy(String(text ?? ''));
   if (!next) throw bad('WORLD.md would be empty. Write what the world is, or keep the template.');
-  if (next.length > WORLD_MD_MAX) throw bad(`WORLD.md can hold up to ${WORLD_MD_MAX.toLocaleString('en-US')} characters (this is ${next.length.toLocaleString('en-US')}). Shorten it.`);
+  if (next.length > WORLD_MD_MAX)
+    throw bad(
+      `WORLD.md can hold up to ${WORLD_MD_MAX.toLocaleString('en-US')} characters (this is ${next.length.toLocaleString('en-US')}). Shorten it.`,
+    );
   const file = fileOf(worldId);
   const before = readWorldMd(worldId);
   if (before === next && worldMdStamp(worldId)) return worldMdInfo(worldId);
   const dir = ensureDir(path.dirname(file));
-  if (fs.lstatSync(dir).isSymbolicLink() || (plainFile(file) === null && fs.existsSync(file))) throw bad('WORLD.md is not a plain file; not writing through it.');
-  if (worldMdStamp(worldId)) keepVersion<WorldMdVersionItem>(worldMdVersionsDir(worldId), { name: WORLD_MD, text: before }, { name: WORLD_MD, text: next }, { ignore: ['name'] });
+  if (fs.lstatSync(dir).isSymbolicLink() || (plainFile(file) === null && fs.existsSync(file)))
+    throw bad('WORLD.md is not a plain file; not writing through it.');
+  if (worldMdStamp(worldId))
+    keepVersion<WorldMdVersionItem>(
+      worldMdVersionsDir(worldId),
+      { name: WORLD_MD, text: before },
+      { name: WORLD_MD, text: next },
+      { ignore: ['name'] },
+    );
   const tmp = `${file}.${process.pid}.${crypto.randomBytes(3).toString('hex')}.tmp`;
   fs.writeFileSync(tmp, next);
   fs.renameSync(tmp, file);
@@ -124,10 +137,15 @@ function headings(lines: string[]): Heading[] {
   return out;
 }
 
-const norm = (s: string) => s.replace(/^#+\s*/, '').trim().toLowerCase();
+const norm = (s: string) =>
+  s
+    .replace(/^#+\s*/, '')
+    .trim()
+    .toLowerCase();
 
 /** Where a section ends: the next heading at its level or above (or the end). */
-const endOf = (hs: Heading[], h: Heading, total: number) => hs.find((x) => x.line > h.line && x.level <= h.level)?.line ?? total;
+const endOf = (hs: Heading[], h: Heading, total: number) =>
+  hs.find((x) => x.line > h.line && x.level <= h.level)?.line ?? total;
 
 /**
  * `section` names a heading, or a path of them: "Places › Koi pond" (also "Places > Koi pond" or
@@ -144,7 +162,9 @@ export function editSection(text: string, section: string, content: string, appe
   for (let i = 0; i < path.length; i++) {
     const want = norm(path[i]);
     const hs = headings(lines);
-    const found = hs.find((h) => h.line > scope.from && h.line < scope.to && h.level > scope.level && norm(h.text) === want);
+    const found = hs.find(
+      (h) => h.line > scope.from && h.line < scope.to && h.level > scope.level && norm(h.text) === want,
+    );
     if (found) {
       target = found;
       scope = { from: found.line, to: endOf(hs, found, lines.length), level: found.level };
@@ -170,7 +190,13 @@ export function editSection(text: string, section: string, content: string, appe
   while (bodyEnd > h.line + 1 && !lines[bodyEnd - 1].trim()) bodyEnd--;
   if (append) {
     const old = lines.slice(h.line + 1, bodyEnd);
-    lines.splice(h.line + 1, bodyEnd - (h.line + 1), ...old, ...(old.length && old[old.length - 1].trim() && !/^[-*+]\s|^\d+\.\s/.test(body) ? [''] : []), ...body.split('\n'));
+    lines.splice(
+      h.line + 1,
+      bodyEnd - (h.line + 1),
+      ...old,
+      ...(old.length && old[old.length - 1].trim() && !/^[-*+]\s|^\d+\.\s/.test(body) ? [''] : []),
+      ...body.split('\n'),
+    );
   } else lines.splice(h.line + 1, bodyEnd - (h.line + 1), ...(body ? ['', ...body.split('\n')] : []));
   return tidy(lines.join('\n').replace(/\n{3,}/g, '\n\n'));
 }
@@ -182,7 +208,8 @@ export function writeWorldMdSection(worldId: string, section: string, content: u
 }
 
 /** When builders update WORLD.md. Said once, in their instructions (not in the tools or their results). */
-export const KEEP_WORLD_MD = 'Keep it up to date: after you build a place or dress a character, update its section with world_md_section and add one line to "Story so far".';
+export const KEEP_WORLD_MD =
+  'Keep it up to date: after you build a place or dress a character, update its section with world_md_section and add one line to "Story so far".';
 
 /** WORLD.md for a builder's instructions: cut to WORLD_MD_SHOWN. */
 export function worldMdContext(worldId: string, worldName: string): string {

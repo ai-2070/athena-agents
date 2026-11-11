@@ -8,7 +8,10 @@ describe('Station opacities', () => {
   it('are saved per project, rounded and kept between 0 and 100', async () => {
     const a = await createProject({ name: 'Faint' });
     const b = await createProject({ name: 'Untouched' });
-    expect(updateProject(a.id, { backgroundOpacity: 33.6, mapDotsOpacity: 140 })).toMatchObject({ backgroundOpacity: 34, mapDotsOpacity: 100 });
+    expect(updateProject(a.id, { backgroundOpacity: 33.6, mapDotsOpacity: 140 })).toMatchObject({
+      backgroundOpacity: 34,
+      mapDotsOpacity: 100,
+    });
     expect(updateProject(a.id, { mapDotsOpacity: -5 }).mapDotsOpacity).toBe(0);
     const other = listProjects().find((x) => x.id === b.id)!;
     expect(other.backgroundOpacity).toBeUndefined();

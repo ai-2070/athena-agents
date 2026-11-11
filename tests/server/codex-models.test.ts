@@ -10,9 +10,21 @@ import { clearWhichCache } from '../../server/util.ts';
 // the shape Codex 0.163 prints (trimmed)
 const catalog = {
   models: [
-    { slug: 'gpt-6-astra', display_name: 'GPT-6-Astra', description: 'Frontier intelligence.', visibility: 'list', priority: 2 },
+    {
+      slug: 'gpt-6-astra',
+      display_name: 'GPT-6-Astra',
+      description: 'Frontier intelligence.',
+      visibility: 'list',
+      priority: 2,
+    },
     { slug: 'codex-auto-review', display_name: 'Codex Auto Review', visibility: 'hide', priority: 43 },
-    { slug: 'gpt-6.1-sol', display_name: 'GPT-6.1-Sol', description: 'Latest workhorse.', visibility: 'list', priority: 1 },
+    {
+      slug: 'gpt-6.1-sol',
+      display_name: 'GPT-6.1-Sol',
+      description: 'Latest workhorse.',
+      visibility: 'list',
+      priority: 1,
+    },
     { slug: 'gpt-6-luna', visibility: 'list', priority: 5 },
   ],
 };
@@ -76,12 +88,19 @@ describe('listModels', () => {
     // the picker gets Codex's default first
     expect(ids(await codexModelList())).toEqual(['', 'gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-luna']);
     // and the Brain's find_models sees them, with what each is for
-    expect(await availableModels('codex')).toContainEqual({ id: 'gpt-6.1-sol', name: 'GPT-6.1-Sol', note: 'Latest workhorse.' });
+    expect(await availableModels('codex')).toContainEqual({
+      id: 'gpt-6.1-sol',
+      name: 'GPT-6.1-Sol',
+      note: 'Latest workhorse.',
+    });
   });
 
   it("reads the catalog Codex keeps when it can't print one", async () => {
     fakeCodex(null);
-    fs.writeFileSync(path.join(codexHome, 'models_cache.json'), JSON.stringify({ fetched_at: '2026-10-28T06:00:12Z', ...catalog }));
+    fs.writeFileSync(
+      path.join(codexHome, 'models_cache.json'),
+      JSON.stringify({ fetched_at: '2026-10-28T06:00:12Z', ...catalog }),
+    );
     expect(ids(await listModels())).toEqual(['gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-luna']);
   });
 

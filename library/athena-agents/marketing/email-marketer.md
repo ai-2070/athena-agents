@@ -2,7 +2,7 @@
 name: Email Marketer
 description: Plans and writes your email marketing (newsletters, welcome and onboarding sequences, launches, win-backs) and looks after the list, consent, deliverability and results, setting flows up as drafts for your OK.
 emoji: 📬
-color: "#8a63d2"
+color: '#8a63d2'
 specialty: plans, writes and measures email marketing, from newsletters to automated flows
 group: marketing
 tools: files, browser, media, agents, shell
@@ -187,10 +187,10 @@ Also: the other three emails, the sign-up form copy
 
 A sequence is planned as a table first:
 
-| # | Sent when | Its job | Subject | Main action | Leaves if |
-|---|---|---|---|---|---|
-| 1 | At sign-up | Deliver the guide, say what's coming and how often | [Your glaze guide is inside] | Download | Unsubscribes |
-| 2 | 2 days later | Show how the work is made | [How a mug gets made] | Visit the shop | Buys |
+| #   | Sent when    | Its job                                            | Subject                      | Main action    | Leaves if    |
+| --- | ------------ | -------------------------------------------------- | ---------------------------- | -------------- | ------------ |
+| 1   | At sign-up   | Deliver the guide, say what's coming and how often | [Your glaze guide is inside] | Download       | Unsubscribes |
+| 2   | 2 days later | Show how the work is made                          | [How a mug gets made]        | Visit the shop | Buys         |
 
 A monthly report says in plain sentences what went out and to whom, what it brought (clicks, orders and revenue from
 the shop's own figures where possible, replies) against unsubscribes and complaints and the last few months, list

@@ -22,12 +22,59 @@ const world = (over: Partial<VoxelWorld> = {}): VoxelWorld => ({
   voxelSize: 0.25,
   palette: [],
   objects: [
-    { id: 'o1', name: 'Sky island', by: mira, anchor: { to: 'brain' }, position: [0, 0, 0], rotation: 0, scale: 1, volumes: [{ id: 'v', voxelSize: 0.5, count: 1200, min: null, max: null }], createdAt: 1, updatedAt: Date.now() },
-    { id: 'o2', name: 'Lamps', by: { kind: 'agent', id: 'a2', name: 'Kenji' }, anchor: { to: 'world' }, position: [0, 0, 0], rotation: 0, scale: 1, volumes: [], instances: 12, hidden: true, createdAt: 1, updatedAt: Date.now() },
+    {
+      id: 'o1',
+      name: 'Sky island',
+      by: mira,
+      anchor: { to: 'brain' },
+      position: [0, 0, 0],
+      rotation: 0,
+      scale: 1,
+      volumes: [{ id: 'v', voxelSize: 0.5, count: 1200, min: null, max: null }],
+      createdAt: 1,
+      updatedAt: Date.now(),
+    },
+    {
+      id: 'o2',
+      name: 'Lamps',
+      by: { kind: 'agent', id: 'a2', name: 'Kenji' },
+      anchor: { to: 'world' },
+      position: [0, 0, 0],
+      rotation: 0,
+      scale: 1,
+      volumes: [],
+      instances: 12,
+      hidden: true,
+      createdAt: 1,
+      updatedAt: Date.now(),
+    },
   ],
   prefabs: [],
-  lights: [{ id: 'l1', name: 'Doorway', by: mira, kind: 'spot', color: '#ffb860', intensity: 4, range: 10, anchor: { to: 'world' }, position: [0, 2, 0] }],
-  effects: [{ id: 'e1', name: 'Pond lights', by: mira, kind: 'fireflies', size: [4, 2, 4], amount: 0.5, anchor: { to: 'world' }, position: [0, 0, 0] }],
+  lights: [
+    {
+      id: 'l1',
+      name: 'Doorway',
+      by: mira,
+      kind: 'spot',
+      color: '#ffb860',
+      intensity: 4,
+      range: 10,
+      anchor: { to: 'world' },
+      position: [0, 2, 0],
+    },
+  ],
+  effects: [
+    {
+      id: 'e1',
+      name: 'Pond lights',
+      by: mira,
+      kind: 'fireflies',
+      size: [4, 2, 4],
+      amount: 0.5,
+      anchor: { to: 'world' },
+      position: [0, 0, 0],
+    },
+  ],
   skins: { teams: {}, agents: { a1: { hidden: true, label: false } } },
   environment: envPreset('golden'),
   createdAt: 1,
@@ -49,25 +96,90 @@ beforeEach(() => {
   mdText = '# Garden world\n\n## Theme and meaning\nA calm garden.';
   mdWorld = 'w1';
   listing = [
-    { id: 'w1', name: 'Garden world', homeProject: 'p1', built: true, objects: 2, voxels: 1200, usedBy: ['p1'], isDefault: false, updatedAt: Date.now() },
-    { id: 'w2', name: 'Old city', homeProject: 'p2', built: true, objects: 9, voxels: 50000, usedBy: [], isDefault: true, updatedAt: Date.now() - 86_400_000 },
+    {
+      id: 'w1',
+      name: 'Garden world',
+      homeProject: 'p1',
+      built: true,
+      objects: 2,
+      voxels: 1200,
+      usedBy: ['p1'],
+      isDefault: false,
+      updatedAt: Date.now(),
+    },
+    {
+      id: 'w2',
+      name: 'Old city',
+      homeProject: 'p2',
+      built: true,
+      objects: 9,
+      voxels: 50000,
+      usedBy: [],
+      isDefault: true,
+      updatedAt: Date.now() - 86_400_000,
+    },
   ];
-  state.data = { agents: [{ id: 'a1', name: 'Mira' }], projects: [{ id: 'p1', name: 'Launch' }, { id: 'p2', name: 'City' }], project: { id: 'p1', name: 'Launch' }, settings: { look: { stationLook: 'world' } } } as unknown as AppState;
+  state.data = {
+    agents: [{ id: 'a1', name: 'Mira' }],
+    projects: [
+      { id: 'p1', name: 'Launch' },
+      { id: 'p2', name: 'City' },
+    ],
+    project: { id: 'p1', name: 'Launch' },
+    settings: { look: { stationLook: 'world' } },
+  } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ method, url, body });
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url === '/api/world') return json({ world: world(), how: 'own' });
-    if (url === '/api/world/md' && method === 'PUT') return json({ worldId: 'w1', text: (mdText = (body as { text: string }).text), updatedAt: Date.now(), max: 50000 });
-    if (url === '/api/world/md') return json({ worldId: mdWorld, text: mdText, updatedAt: Date.now() - 60_000, max: 50000 });
-    if (url === '/api/world/md/versions') return json([{ id: 'v1', at: Date.now() - 3_600_000, by: 'agent', chars: 30 }]);
-    if (url === '/api/world/md/versions/v1/restore') return json({ worldId: 'w1', text: (mdText = '# Back'), updatedAt: Date.now(), max: 50000 });
-    if (url === '/api/world/prefabs') return json([{ id: 'p1', name: 'Lamp post', description: 'an iron lamp', tags: [], by: mira, volumes: [], pivot: [0, 0, 0], size: [0.25, 2.25, 0.25], createdAt: 1, updatedAt: 1, uses: { in: ['"Lamps"'], copies: 12 } }]);
+    if (url === '/api/world/md' && method === 'PUT')
+      return json({
+        worldId: 'w1',
+        text: (mdText = (body as { text: string }).text),
+        updatedAt: Date.now(),
+        max: 50000,
+      });
+    if (url === '/api/world/md')
+      return json({ worldId: mdWorld, text: mdText, updatedAt: Date.now() - 60_000, max: 50000 });
+    if (url === '/api/world/md/versions')
+      return json([{ id: 'v1', at: Date.now() - 3_600_000, by: 'agent', chars: 30 }]);
+    if (url === '/api/world/md/versions/v1/restore')
+      return json({ worldId: 'w1', text: (mdText = '# Back'), updatedAt: Date.now(), max: 50000 });
+    if (url === '/api/world/prefabs')
+      return json([
+        {
+          id: 'p1',
+          name: 'Lamp post',
+          description: 'an iron lamp',
+          tags: [],
+          by: mira,
+          volumes: [],
+          pivot: [0, 0, 0],
+          size: [0.25, 2.25, 0.25],
+          createdAt: 1,
+          updatedAt: 1,
+          uses: { in: ['"Lamps"'], copies: 12 },
+        },
+      ]);
     if (url === '/api/world/changes') return json([{ at: Date.now() - 30_000, by: 'Mira', what: 'built Sky island' }]);
     if (url === '/api/world/undo') return json({ text: 'Undid: Mira built Sky island.' });
     if (url === '/api/worlds') return json(listing);
-    if (url.startsWith('/api/prefab-library')) return json([{ id: 'lp1', name: 'Palm', description: 'a date palm', tags: [], by: 'Imhotep', fromWorld: 'Nile', size: [2, 3.5, 2], voxels: 85, createdAt: 1 }]);
+    if (url.startsWith('/api/prefab-library'))
+      return json([
+        {
+          id: 'lp1',
+          name: 'Palm',
+          description: 'a date palm',
+          tags: [],
+          by: 'Imhotep',
+          fromWorld: 'Nile',
+          size: [2, 3.5, 2],
+          voxels: 85,
+          createdAt: 1,
+        },
+      ]);
     if (url === '/api/world/prefabs/import') return json({ id: 'p9', name: 'Palm 2' });
     if (url === '/api/world/prefabs/p1/publish') return json({ text: 'Published "Lamp post" in the prefab library.' });
     if (url === '/api/world/export') return json({ paths: ['/x/lamps.glb'], artifacts: ['a1'], note: '' });
@@ -85,9 +197,12 @@ const open = async () => {
   await act(async () => void (view = mountReact(el, <WorldPanel onClose={() => {}} />)));
   await settle();
 };
-const button = (root: ParentNode, text: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent!.trim() === text)!;
+const button = (root: ParentNode, text: string) =>
+  [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent!.trim() === text)!;
 const tab = async (name: string) => {
-  await act(async () => [...el.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((t) => t.textContent === name)!.click());
+  await act(async () =>
+    [...el.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((t) => t.textContent === name)!.click(),
+  );
   await settle();
 };
 const sure = async (label: string) => {
@@ -113,7 +228,9 @@ describe('the World panel', () => {
     });
     await act(async () => button(el, 'Save').click());
     await settle();
-    expect(calls.find((c) => c.method === 'PUT' && c.url === '/api/world/md')!.body).toEqual({ text: '# Garden world\n\nNew text.' });
+    expect(calls.find((c) => c.method === 'PUT' && c.url === '/api/world/md')!.body).toEqual({
+      text: '# Garden world\n\nNew text.',
+    });
     expect(el.querySelector('textarea')).toBeNull();
   });
 
@@ -171,15 +288,23 @@ describe('the World panel', () => {
   it('Look: time of day, weather, lights, effects, and bringing a hidden agent back', async () => {
     await open();
     await tab('Look');
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.chip')].find((b) => b.textContent === 'Night')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLButtonElement>('.chip')].find((b) => b.textContent === 'Night')!.click(),
+    );
     expect(calls.find((c) => c.url === '/api/world/environment')!.body).toEqual({ preset: 'night' });
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('.chip')].find((b) => b.textContent === 'Snow')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLButtonElement>('.chip')].find((b) => b.textContent === 'Snow')!.click(),
+    );
     expect(calls.filter((c) => c.url === '/api/world/environment').at(-1)!.body).toEqual({ weather: 'snow' });
     expect(el.textContent).toContain('Doorway');
     expect(el.textContent).toContain('Pond lights');
     expect(el.textContent).toContain('Mira off the map · no name label');
     await act(async () => button(el, 'Show on the map').click());
-    expect(calls.find((c) => c.url === '/api/world/skins')!.body).toEqual({ to: 'agent', id: 'a1', fields: { hidden: false, label: true } });
+    expect(calls.find((c) => c.url === '/api/world/skins')!.body).toEqual({
+      to: 'agent',
+      id: 'a1',
+      fields: { hidden: false, label: true },
+    });
     await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Take Doorway away"]')!.click());
     expect(calls.some((c) => c.method === 'DELETE' && c.url === '/api/world/lights/l1')).toBe(true);
   });
@@ -222,11 +347,17 @@ describe('files and pictures out, the prefab library in', () => {
     await act(async () => button(el, '3D model').click());
     await settle();
     expect(calls.find((c) => c.url === '/api/world/export')!.body).toEqual({ what: 'object', id: 'o1', format: 'glb' });
-    expect(document.getElementById('toasts')!.textContent + document.body.textContent).toContain('Saved "Sky island" to Artifacts');
+    expect(document.getElementById('toasts')!.textContent + document.body.textContent).toContain(
+      'Saved "Sky island" to Artifacts',
+    );
     await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Export Lamp post"]')!.click());
     await act(async () => button(el, '.vox').click());
     await settle();
-    expect(calls.filter((c) => c.url === '/api/world/export')[1].body).toEqual({ what: 'prefab', id: 'p1', format: 'vox' });
+    expect(calls.filter((c) => c.url === '/api/world/export')[1].body).toEqual({
+      what: 'prefab',
+      id: 'p1',
+      format: 'vox',
+    });
     await tab('World');
     await act(async () => button(el, 'Export the whole world').click());
     await settle();
@@ -243,7 +374,9 @@ describe('files and pictures out, the prefab library in', () => {
     await settle();
     expect(calls.find((c) => c.url === '/api/world/prefabs/import')!.body).toEqual({ name: 'Palm' });
     expect(document.body.textContent).toContain('Took "Palm" into this world as "Palm 2"');
-    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Share Lamp post to the library"]')!.click());
+    await act(async () =>
+      el.querySelector<HTMLButtonElement>('button[aria-label="Share Lamp post to the library"]')!.click(),
+    );
     await settle();
     expect(calls.some((c) => c.method === 'POST' && c.url === '/api/world/prefabs/p1/publish')).toBe(true);
   });
@@ -256,7 +389,10 @@ describe('files and pictures out, the prefab library in', () => {
     await open();
     await act(async () => el.querySelector<HTMLButtonElement>('.world-picture')!.click());
     await settle();
-    expect(calls.find((c) => c.url === '/api/world/picture')!.body).toEqual({ image: 'data:image/jpeg;base64,1600', name: 'Garden world' });
+    expect(calls.find((c) => c.url === '/api/world/picture')!.body).toEqual({
+      image: 'data:image/jpeg;base64,1600',
+      name: 'Garden world',
+    });
     expect(document.body.textContent).toContain('Saved a picture to Artifacts');
     off();
   });

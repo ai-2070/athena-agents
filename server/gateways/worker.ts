@@ -37,7 +37,12 @@ export interface Transport {
   upload?: GatewayFileSender;
 }
 interface WorkerOptions {
-  transport?(state: GatewayStateAdapter, inbox: GatewayInbox, activity: (connected: boolean) => void, signal: AbortSignal): Transport;
+  transport?(
+    state: GatewayStateAdapter,
+    inbox: GatewayInbox,
+    activity: (connected: boolean) => void,
+    signal: AbortSignal,
+  ): Transport;
   health?(value: GatewayHealth): void;
   retryMs?: number;
   monitorMs?: number;
@@ -45,22 +50,50 @@ interface WorkerOptions {
 }
 const quiet: Logger = { child: () => quiet, debug() {}, info() {}, warn() {}, error() {} };
 
-function telegramTransport(state: GatewayStateAdapter, inbox: GatewayInbox, activity: (connected: boolean) => void, signal: AbortSignal): Transport {
+function telegramTransport(
+  state: GatewayStateAdapter,
+  inbox: GatewayInbox,
+  activity: (connected: boolean) => void,
+  signal: AbortSignal,
+): Transport {
   const botToken = getGatewaySecrets(state.instanceId).botToken;
   if (!botToken) throw new GatewaySetupError('Add a Telegram bot token before connecting.');
   const telegram = new TelegramIntakeAdapter(state.instanceId, inbox, botToken, activity, { signal });
-  const chat = new Chat({ userName: 'Athena', adapters: { telegram }, state, logger: quiet, concurrency: 'concurrent' });
-  return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => telegram.isPolling, download: (id, maxBytes, signal) => telegram.downloadFileSource(id, maxBytes, signal), reply: (event, text, signal, approved) => telegram.replyText(event, text, signal, approved), upload: (event, file, signal) => telegram.replyDocument(event, file, signal) };
+  const chat = new Chat({
+    userName: 'Athena',
+    adapters: { telegram },
+    state,
+    logger: quiet,
+    concurrency: 'concurrent',
+  });
+  return {
+    start: () => chat.initialize(),
+    stop: () => chat.shutdown(),
+    alive: () => telegram.isPolling,
+    download: (id, maxBytes, signal) => telegram.downloadFileSource(id, maxBytes, signal),
+    reply: (event, text, signal, approved) => telegram.replyText(event, text, signal, approved),
+    upload: (event, file, signal) => telegram.replyDocument(event, file, signal),
+  };
 }
 
-function slackTransport(state: GatewayStateAdapter, inbox: GatewayInbox, activity: (connected: boolean) => void, signal: AbortSignal): Transport {
+function slackTransport(
+  state: GatewayStateAdapter,
+  inbox: GatewayInbox,
+  activity: (connected: boolean) => void,
+  signal: AbortSignal,
+): Transport {
   const { botToken, appToken } = getGatewaySecrets(state.instanceId);
   if (!botToken || !appToken) throw new GatewaySetupError('Add Slack bot and app tokens before connecting.');
   const slack = new SlackIntakeAdapter(state.instanceId, inbox, botToken, appToken, activity, { signal });
   const chat = new Chat({ userName: 'Athena', adapters: { slack }, state, logger: quiet, concurrency: 'concurrent' });
-  return { start: () => chat.initialize(), stop: () => chat.shutdown(), alive: () => slack.isConnected,
+  return {
+    start: () => chat.initialize(),
+    stop: () => chat.shutdown(),
+    alive: () => slack.isConnected,
     download: (id, maxBytes, signal, event) => slack.downloadFileSource(id, maxBytes, signal, event),
-    reply: (event, text, signal) => slack.replyText(event, text, signal), upload: (event, file, signal) => slack.replyDocument(event, file, signal) };
+    reply: (event, text, signal) => slack.replyText(event, text, signal),
+    upload: (event, file, signal) => slack.replyDocument(event, file, signal),
+  };
 }
 
 /** A supervised local intake worker. Agent execution and delivery consume the saved inbox separately. */
@@ -92,11 +125,24 @@ export class GatewayWorker {
     this.current = { instanceId, status: 'paused', reason: '', attempts: 0, updatedAt: Date.now() };
   }
 
-  health(): GatewayHealth { return { ...this.current }; }
+  health(): GatewayHealth {
+    return { ...this.current };
+  }
 
-  private publish(status: GatewayHealth['status'], reason = '', details: Pick<GatewayHealth, 'retryAt' | 'recoveryRequired'> = {}): void {
+  private publish(
+    status: GatewayHealth['status'],
+    reason = '',
+    details: Pick<GatewayHealth, 'retryAt' | 'recoveryRequired'> = {},
+  ): void {
     if (this.closed && status !== 'paused') return;
-    this.current = { instanceId: this.instanceId, status, reason, attempts: this.attempts, updatedAt: Date.now(), ...details };
+    this.current = {
+      instanceId: this.instanceId,
+      status,
+      reason,
+      attempts: this.attempts,
+      updatedAt: Date.now(),
+      ...details,
+    };
     this.options.health?.(this.health());
   }
 
@@ -106,7 +152,9 @@ export class GatewayWorker {
     if (this.disposing) return this.disposing.then(() => this.start());
     clearTimeout(this.retry);
     this.retry = undefined;
-    return this.starting = this.open().finally(() => { this.starting = undefined; });
+    return (this.starting = this.open().finally(() => {
+      this.starting = undefined;
+    }));
   }
 
   private async open(): Promise<void> {
@@ -118,7 +166,8 @@ export class GatewayWorker {
     this.abort = abort;
     try {
       const instance = getGatewayInstance(this.instanceId);
-      if (!instance.enabled || !gatewayPlatformAvailable(instance.platform)) throw new GatewaySetupError('This gateway instance is paused or unavailable.');
+      if (!instance.enabled || !gatewayPlatformAvailable(instance.platform))
+        throw new GatewaySetupError('This gateway instance is paused or unavailable.');
       captureGatewayRoute(instance.id);
       this.releaseAccount = await claimGatewayAccount(instance.platform, instance.accountId);
       abort.signal.throwIfAborted();
@@ -129,10 +178,27 @@ export class GatewayWorker {
       inbox.recover();
       const outbox = new GatewayOutboxLedger(state, inbox);
       outbox.recover();
-      const transport = (this.options.transport ?? (instance.platform === 'whatsapp' ? whatsAppTransport : instance.platform === 'discord' ? discordTransport : instance.platform === 'slack' ? slackTransport : telegramTransport))(state, inbox, (connected) => {
-        if (!connected && (instance.platform === 'discord' || instance.platform === 'whatsapp')) abort.abort();
-        this.publish(connected ? 'connected' : 'retrying', connected ? '' : 'This gateway could not receive messages. It will retry.');
-      }, abort.signal);
+      const transport = (
+        this.options.transport ??
+        (instance.platform === 'whatsapp'
+          ? whatsAppTransport
+          : instance.platform === 'discord'
+            ? discordTransport
+            : instance.platform === 'slack'
+              ? slackTransport
+              : telegramTransport)
+      )(
+        state,
+        inbox,
+        (connected) => {
+          if (!connected && (instance.platform === 'discord' || instance.platform === 'whatsapp')) abort.abort();
+          this.publish(
+            connected ? 'connected' : 'retrying',
+            connected ? '' : 'This gateway could not receive messages. It will retry.',
+          );
+        },
+        abort.signal,
+      );
       this.transport = transport;
       await transport.start();
       abort.signal.throwIfAborted();
@@ -143,9 +209,18 @@ export class GatewayWorker {
       abort.signal.throwIfAborted();
       if (transport.reply) {
         const execution = this.options.execution ?? gatewayExecution;
-        if (instance.platform === 'telegram' || instance.platform === 'discord') this.releaseOutbox = registerGatewayOutbox(instance.id, outbox, abort.signal);
+        if (instance.platform === 'telegram' || instance.platform === 'discord')
+          this.releaseOutbox = registerGatewayOutbox(instance.id, outbox, abort.signal);
         if (transport.upload) this.releaseDeliverables = registerGatewayDeliverables(instance.id, inbox, abort.signal);
-        this.replies = new GatewayReplies(inbox, transport.reply, abort.signal, (event, kind) => kind !== 'approval' || execution.approvalPending?.(event) === true, transport.upload, outbox); this.replies.start();
+        this.replies = new GatewayReplies(
+          inbox,
+          transport.reply,
+          abort.signal,
+          (event, kind) => kind !== 'approval' || execution.approvalPending?.(event) === true,
+          transport.upload,
+          outbox,
+        );
+        this.replies.start();
         this.dispatcher = new GatewayDispatcher(inbox, abort.signal, execution);
         await this.dispatcher.start();
       }
@@ -156,7 +231,9 @@ export class GatewayWorker {
         if (transport.alive() || this.closed) return;
         clearInterval(this.monitor);
         this.monitor = undefined;
-        void this.restart().catch(() => this.publish('needs-setup', 'This gateway could not stop safely. Restart Athena before retrying.'));
+        void this.restart().catch(() =>
+          this.publish('needs-setup', 'This gateway could not stop safely. Restart Athena before retrying.'),
+        );
       }, this.options.monitorMs ?? 1000);
       this.monitor.unref();
     } catch (error) {
@@ -173,11 +250,26 @@ export class GatewayWorker {
   }
 
   private connectionFailed(error: unknown): void {
-    if (error instanceof WhatsAppRelayError && error.kind !== 'retry') this.publish('needs-setup', error.message, { recoveryRequired: error.kind === 'review' });
-    else if (error instanceof GatewaySetupError) this.publish('needs-setup', error.message, error instanceof DiscordGatewayGapError ? { recoveryRequired: true } : {});
+    if (error instanceof WhatsAppRelayError && error.kind !== 'retry')
+      this.publish('needs-setup', error.message, { recoveryRequired: error.kind === 'review' });
+    else if (error instanceof GatewaySetupError)
+      this.publish(
+        'needs-setup',
+        error.message,
+        error instanceof DiscordGatewayGapError ? { recoveryRequired: true } : {},
+      );
     else {
-      const retryAt = error instanceof DiscordGatewayRetryError || error instanceof WhatsAppRelayError ? error.retryAt : undefined;
-      this.publish('retrying', retryAt ? error instanceof WhatsAppRelayError ? 'The WhatsApp relay asked this instance to wait before reconnecting.' : 'Discord asked this instance to wait before reconnecting.' : 'This gateway could not connect or restore its inbox. Check setup and local storage.', { retryAt });
+      const retryAt =
+        error instanceof DiscordGatewayRetryError || error instanceof WhatsAppRelayError ? error.retryAt : undefined;
+      this.publish(
+        'retrying',
+        retryAt
+          ? error instanceof WhatsAppRelayError
+            ? 'The WhatsApp relay asked this instance to wait before reconnecting.'
+            : 'Discord asked this instance to wait before reconnecting.'
+          : 'This gateway could not connect or restore its inbox. Check setup and local storage.',
+        { retryAt },
+      );
       this.scheduleRetry(retryAt);
     }
   }
@@ -188,19 +280,25 @@ export class GatewayWorker {
     const delay = Math.min(2147483647, Math.max(backoff, (retryAt ?? 0) - Date.now()));
     this.retry = setTimeout(() => {
       this.retry = undefined;
-      void this.start().catch(() => this.publish('needs-setup', 'This gateway could not reconnect safely. Restart Athena before retrying.'));
+      void this.start().catch(() =>
+        this.publish('needs-setup', 'This gateway could not reconnect safely. Restart Athena before retrying.'),
+      );
     }, delay);
     this.retry.unref();
   }
 
   private dispose(): Promise<void> {
-    return this.disposing ??= this.disposeOwned().finally(() => { this.disposing = undefined; });
+    return (this.disposing ??= this.disposeOwned().finally(() => {
+      this.disposing = undefined;
+    }));
   }
 
   private async disposeOwned(): Promise<void> {
     this.abort?.abort();
-    this.releaseDeliverables?.(); this.releaseDeliverables = undefined;
-    this.releaseOutbox?.(); this.releaseOutbox = undefined;
+    this.releaseDeliverables?.();
+    this.releaseDeliverables = undefined;
+    this.releaseOutbox?.();
+    this.releaseOutbox = undefined;
     const transport = this.transport;
     const state = this.state;
     const releaseAccount = this.releaseAccount;
@@ -217,50 +315,98 @@ export class GatewayWorker {
     this.releaseAccount = undefined;
     this.files = undefined;
     this.inbox = undefined;
-    this.dispatcher = undefined; this.replies = undefined;
+    this.dispatcher = undefined;
+    this.replies = undefined;
   }
 
   retryFiles(eventId: string): void {
-    if (this.closed || !this.inbox || !this.files) throw Object.assign(new Error('Connect this gateway before retrying its files.'), { status: 400 });
+    if (this.closed || !this.inbox || !this.files)
+      throw Object.assign(new Error('Connect this gateway before retrying its files.'), { status: 400 });
     this.inbox.retryFiles(eventId);
   }
 
   retryReply(eventId: string): void {
-    if (this.closed || !this.inbox || !this.replies) throw Object.assign(new Error('Connect this gateway before retrying its reply.'), { status: 400 });
-    try { this.inbox.retryReply(eventId); }
-    catch { throw Object.assign(new Error('This reply cannot be retried. Check its status, access and destination.'), { status: 400 }); }
+    if (this.closed || !this.inbox || !this.replies)
+      throw Object.assign(new Error('Connect this gateway before retrying its reply.'), { status: 400 });
+    try {
+      this.inbox.retryReply(eventId);
+    } catch {
+      throw Object.assign(new Error('This reply cannot be retried. Check its status, access and destination.'), {
+        status: 400,
+      });
+    }
   }
 
   reconcile(eventId: string): GatewayReconciliation {
-    if (this.closed || !this.dispatcher) throw Object.assign(new Error('Connect this gateway before checking its saved work.'), { status: 400 });
-    try { return this.dispatcher.reconcile(eventId); }
-    catch { throw Object.assign(new Error('This work cannot be reconciled. Check the saved destination, sender access and source edits. Nothing was restarted or sent.'), { status: 400 }); }
+    if (this.closed || !this.dispatcher)
+      throw Object.assign(new Error('Connect this gateway before checking its saved work.'), { status: 400 });
+    try {
+      return this.dispatcher.reconcile(eventId);
+    } catch {
+      throw Object.assign(
+        new Error(
+          'This work cannot be reconciled. Check the saved destination, sender access and source edits. Nothing was restarted or sent.',
+        ),
+        { status: 400 },
+      );
+    }
   }
 
   groupAlbum(eventId: string, body: unknown): { leaderId: string } {
-    if (this.closed || !this.inbox || !this.dispatcher) throw Object.assign(new Error('Connect this gateway before grouping its album.'), { status: 400 });
-    try { return this.inbox.groupAlbum(eventId, body); }
-    catch { throw Object.assign(new Error('This album cannot be grouped. Reload and check all source messages, saved files, limits and destination.'), { status: 400 }); }
+    if (this.closed || !this.inbox || !this.dispatcher)
+      throw Object.assign(new Error('Connect this gateway before grouping its album.'), { status: 400 });
+    try {
+      return this.inbox.groupAlbum(eventId, body);
+    } catch {
+      throw Object.assign(
+        new Error(
+          'This album cannot be grouped. Reload and check all source messages, saved files, limits and destination.',
+        ),
+        { status: 400 },
+      );
+    }
   }
 
   cleanup(body: unknown): { removed: number } {
-    if (this.closed || !this.inbox) throw Object.assign(new Error('This gateway is changing connection state. Retry cleanup once it has settled.'), { status: 400 });
-    try { return this.inbox.cleanup(body); }
-    catch (error) { throw Object.assign(new Error(error instanceof GatewayCleanupError ? error.message : 'This inbox could not be cleaned safely. Check its saved receipts before retrying.'), { status: 400 }); }
+    if (this.closed || !this.inbox)
+      throw Object.assign(new Error('This gateway is changing connection state. Retry cleanup once it has settled.'), {
+        status: 400,
+      });
+    try {
+      return this.inbox.cleanup(body);
+    } catch (error) {
+      throw Object.assign(
+        new Error(
+          error instanceof GatewayCleanupError
+            ? error.message
+            : 'This inbox could not be cleaned safely. Check its saved receipts before retrying.',
+        ),
+        { status: 400 },
+      );
+    }
   }
 
   async selectDocuments(eventId: string, body: unknown): Promise<void> {
-    if (this.closed || !this.inbox || !this.transport?.upload || !this.replies || !this.abort) throw Object.assign(new Error('Connect this gateway before selecting files.'), { status: 400 });
+    if (this.closed || !this.inbox || !this.transport?.upload || !this.replies || !this.abort)
+      throw Object.assign(new Error('Connect this gateway before selecting files.'), { status: 400 });
     await selectGatewayDocuments(this.inbox, eventId, body, this.abort.signal);
   }
 
   changeDocument(eventId: string, index: number, action: 'retry' | 'skip'): void {
-    if (this.closed || !this.inbox || !this.transport?.upload || !Number.isSafeInteger(index) || index < 0) throw Object.assign(new Error('Connect this gateway and choose a saved file.'), { status: 400 });
-    try { this.inbox.changeOutgoing(eventId, index, action); }
-    catch { throw Object.assign(new Error('This file cannot be changed. Check its status, access and destination.'), { status: 400 }); }
+    if (this.closed || !this.inbox || !this.transport?.upload || !Number.isSafeInteger(index) || index < 0)
+      throw Object.assign(new Error('Connect this gateway and choose a saved file.'), { status: 400 });
+    try {
+      this.inbox.changeOutgoing(eventId, index, action);
+    } catch {
+      throw Object.assign(new Error('This file cannot be changed. Check its status, access and destination.'), {
+        status: 400,
+      });
+    }
   }
 
-  stop(): Promise<void> { return this.stopping ??= this.close(); }
+  stop(): Promise<void> {
+    return (this.stopping ??= this.close());
+  }
 
   private async close(): Promise<void> {
     this.closed = true;

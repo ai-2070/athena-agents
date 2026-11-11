@@ -2,7 +2,14 @@
 // (the chat keeps their links), shown by /api/file, and gone with the chat.
 import fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { imageType, inlineToolImagesNoted, keepToolImages, splitContent, toolImagesDir, withImageNote } from '../../server/toolimages.ts';
+import {
+  imageType,
+  inlineToolImagesNoted,
+  keepToolImages,
+  splitContent,
+  toolImagesDir,
+  withImageNote,
+} from '../../server/toolimages.ts';
 import { chats } from '../../server/store.ts';
 import { viewable } from '../../server/files.ts';
 import { newAgent } from '../../server/library.ts';
@@ -44,9 +51,22 @@ describe('inlineToolImagesNoted', () => {
   it('sends at most six images of at most 5 MB, and says how many were left out and why', async () => {
     const png = `data:image/png;base64,${PNG}`;
     const big = `data:image/png;base64,${'A'.repeat(8 * 1024 * 1024)}`;
-    const r = await inlineToolImagesNoted([png, big, 'data:image/svg+xml;base64,PHN2Zz4=', png, png, png, png, png, png, png]);
+    const r = await inlineToolImagesNoted([
+      png,
+      big,
+      'data:image/svg+xml;base64,PHN2Zz4=',
+      png,
+      png,
+      png,
+      png,
+      png,
+      png,
+      png,
+    ]);
     expect(r.images).toHaveLength(6);
-    expect(r.note).toBe('4 images were left out of what you see: 2 past the limit of 6 per tool call, 1 over 5 MB, 1 that could not be read as a PNG, JPEG, WebP or GIF of at most 5 MB. Ask for fewer or smaller images if you need them.');
+    expect(r.note).toBe(
+      '4 images were left out of what you see: 2 past the limit of 6 per tool call, 1 over 5 MB, 1 that could not be read as a PNG, JPEG, WebP or GIF of at most 5 MB. Ask for fewer or smaller images if you need them.',
+    );
     expect(withImageNote('Done', r.note)).toBe(`Done\n\n${r.note}`);
     // all sent: no note, the text as it was
     const all = await inlineToolImagesNoted([png]);
@@ -65,7 +85,13 @@ describe('inlineToolImagesNoted', () => {
 
 describe('keepToolImages', () => {
   it('saves data: images next to the chat, once per picture, and keeps other links as they are', () => {
-    const urls = keepToolImages('agent-1', 'chat-1', [`data:image/png;base64,${PNG}`, `data:image/png;base64,${PNG}`, '/api/comfyui/view?f=1', 'data:text/html;base64,PGI+', 'data:image/png;base64,']);
+    const urls = keepToolImages('agent-1', 'chat-1', [
+      `data:image/png;base64,${PNG}`,
+      `data:image/png;base64,${PNG}`,
+      '/api/comfyui/view?f=1',
+      'data:text/html;base64,PGI+',
+      'data:image/png;base64,',
+    ]);
     expect(urls).toHaveLength(3);
     expect(urls[0]).toBe(urls[1]);
     expect(urls[2]).toBe('/api/comfyui/view?f=1');
@@ -78,7 +104,9 @@ describe('keepToolImages', () => {
   });
 
   it('an unsafe id saves nothing', () => {
-    expect(keepToolImages('../x', 'c', [`data:image/png;base64,${PNG}`, 'https://a/b.png'])).toEqual(['https://a/b.png']);
+    expect(keepToolImages('../x', 'c', [`data:image/png;base64,${PNG}`, 'https://a/b.png'])).toEqual([
+      'https://a/b.png',
+    ]);
   });
 
   it('deleting the chat deletes its images', () => {
@@ -95,7 +123,9 @@ describe('during a run', () => {
     const a = newAgent({ name: 'Viewer', engine: 'claude-code', toolGroups: [] });
     const chat = chats.create(a.id);
     await startRun(a, chat, 'check the screenshot').promise;
-    const tool = chats.get(a.id, chat.id)!.items.find((i): i is Extract<ChatItem, { type: 'tool' }> => i.type === 'tool')!;
+    const tool = chats
+      .get(a.id, chat.id)!
+      .items.find((i): i is Extract<ChatItem, { type: 'tool' }> => i.type === 'tool')!;
     expect(tool.images).toHaveLength(1);
     expect(tool.images![0]).toMatch(/^\/api\/file\?path=/);
     expect(fs.readFileSync(pathOf(tool.images![0])).equals(Buffer.from(PNG, 'base64'))).toBe(true);

@@ -2,7 +2,7 @@
 name: Senior Developer
 description: Writes and fixes code across the stack, from a quick prototype to a careful change in a large codebase, and proves it works; the default pick for building something or fixing a bug.
 emoji: 🧑‍💻
-color: "#2fa57a"
+color: '#2fa57a'
 specialty: builds and fixes software across the stack, from quick prototypes to careful changes in large codebases
 group: engineering
 tools: files, shell, browser, programs, agents

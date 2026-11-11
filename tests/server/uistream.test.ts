@@ -26,7 +26,11 @@ const open = (runId: string, { later, own, ended }: Opening = {}) =>
 const run = (event: RunEvent, runId = 'r1', chatId = 'c1') => emit('run', { runId, agentId: 'a1', chatId, event });
 const tick = (ms = 15) => new Promise((r) => setTimeout(r, ms));
 
-async function read(runId = 'r1', drive: () => Promise<void>, opening: Opening = {}): Promise<{ last: UIMessage; data: unknown[] }> {
+async function read(
+  runId = 'r1',
+  drive: () => Promise<void>,
+  opening: Opening = {},
+): Promise<{ last: UIMessage; data: unknown[] }> {
   const data: unknown[] = [];
   const stream = open(runId, opening);
   // (transient data parts, the status lines, come through the stream but don't stay in the message)
@@ -69,10 +73,17 @@ describe('streamRun()', () => {
     const parts = last.parts.filter((p) => p.type !== 'step-start');
     expect(parts.map((p) => p.type)).toEqual(['text', 'dynamic-tool', 'dynamic-tool', 'text']);
     expect(parts[0]).toMatchObject({ type: 'text', text: 'Rendering now.', state: 'done' });
-    expect(parts[1]).toMatchObject({ toolName: 'blender_run_python', state: 'output-available', input: { code: 'x' }, output: { text: 'done', images: ['/a.png'] } });
+    expect(parts[1]).toMatchObject({
+      toolName: 'blender_run_python',
+      state: 'output-available',
+      input: { code: 'x' },
+      output: { text: 'done', images: ['/a.png'] },
+    });
     expect(parts[2]).toMatchObject({ toolName: 'ffmpeg', state: 'output-error', errorText: 'boom' });
     expect(parts[3]).toMatchObject({ text: 'Saved.' });
-    expect(data).toEqual([expect.objectContaining({ type: 'data-status', data: { text: 'Using blender…' }, transient: true })]);
+    expect(data).toEqual([
+      expect.objectContaining({ type: 'data-status', data: { text: 'Using blender…' }, transient: true }),
+    ]);
   });
 
   it('opening while it runs: the turn so far first, then the rest', async () => {
@@ -88,7 +99,12 @@ describe('streamRun()', () => {
       run({ kind: 'error', text: 'Stopped.' }, 'r2');
     });
     const parts = last.parts.filter((p) => p.type !== 'step-start');
-    expect(parts.map((p) => (p.type === 'text' ? p.text : (p as { toolName: string }).toolName))).toEqual(['Reading the brief. ', 'read_file', 'write_file', 'All done.']);
+    expect(parts.map((p) => (p.type === 'text' ? p.text : (p as { toolName: string }).toolName))).toEqual([
+      'Reading the brief. ',
+      'read_file',
+      'write_file',
+      'All done.',
+    ]);
     expect(parts[1]).toMatchObject({ state: 'output-available', output: { text: 'the brief', images: [] } });
     expect(parts[2]).toMatchObject({ state: 'output-available', output: { text: 'written', images: [] } });
   });
@@ -108,20 +124,33 @@ describe('a message that joined the turn', () => {
       run({ kind: 'done', text: '' }, 'r3');
     });
     const parts = last.parts.filter((p) => p.type !== 'step-start');
-    expect(parts.map((p) => (p.type === 'text' ? p.text : p.type === 'data-steer' ? `> ${(p.data as { text: string }).text}` : p.type))).toEqual(['Starting. ', '> also make it blue', 'Blue it is. ', '> and bigger', 'Done.']);
-    expect(parts[3]).toMatchObject({ type: 'data-steer', data: { steerId: 's2', text: 'and bigger', attachments: ['/u/a.png'] } });
+    expect(
+      parts.map((p) =>
+        p.type === 'text' ? p.text : p.type === 'data-steer' ? `> ${(p.data as { text: string }).text}` : p.type,
+      ),
+    ).toEqual(['Starting. ', '> also make it blue', 'Blue it is. ', '> and bigger', 'Done.']);
+    expect(parts[3]).toMatchObject({
+      type: 'data-steer',
+      data: { steerId: 's2', text: 'and bigger', attachments: ['/u/a.png'] },
+    });
   });
 });
 
 describe('the message a stream sent into the turn', () => {
   it('is left out of that stream: the view that sent it shows it already', async () => {
     replayItems = [];
-    const { last } = await read('r4', async () => {
-      run({ kind: 'steer', id: 's9', text: 'mine' }, 'r4');
-      run({ kind: 'steer', id: 's8', text: 'another tab' }, 'r4');
-      run({ kind: 'done', text: '' }, 'r4');
-    }, { own: 's9' });
-    expect(last.parts.flatMap((p) => (p.type === 'data-steer' ? [(p.data as { text: string }).text] : []))).toEqual(['another tab']);
+    const { last } = await read(
+      'r4',
+      async () => {
+        run({ kind: 'steer', id: 's9', text: 'mine' }, 'r4');
+        run({ kind: 'steer', id: 's8', text: 'another tab' }, 'r4');
+        run({ kind: 'done', text: '' }, 'r4');
+      },
+      { own: 's9' },
+    );
+    expect(last.parts.flatMap((p) => (p.type === 'data-steer' ? [(p.data as { text: string }).text] : []))).toEqual([
+      'another tab',
+    ]);
   });
 });
 
@@ -137,13 +166,17 @@ describe('streamRun() for a run that already ended', () => {
 describe('streamRun() for a run that starts later', () => {
   it('says it is waiting, then streams that run once it starts (nothing from before)', async () => {
     replayItems = [];
-    const { last, data } = await read('r20', async () => {
-      run({ kind: 'text', text: 'NOT MINE: the run before it' }, 'r19');
-      startLater!('r20');
-      await tick(10);
-      run({ kind: 'text', text: 'On the new plan.' }, 'r20');
-      run({ kind: 'done', text: '' }, 'r20');
-    }, { later: true });
+    const { last, data } = await read(
+      'r20',
+      async () => {
+        run({ kind: 'text', text: 'NOT MINE: the run before it' }, 'r19');
+        startLater!('r20');
+        await tick(10);
+        run({ kind: 'text', text: 'On the new plan.' }, 'r20');
+        run({ kind: 'done', text: '' }, 'r20');
+      },
+      { later: true },
+    );
     const parts = last.parts.filter((p) => p.type !== 'step-start');
     expect(parts).toEqual([expect.objectContaining({ type: 'text', text: 'On the new plan.' })]);
     expect(data).toEqual([expect.objectContaining({ type: 'data-status', data: { text: 'Waiting for it to stop…' } })]);
@@ -151,33 +184,50 @@ describe('streamRun() for a run that starts later', () => {
 
   it('shows what that run said before the stream knew it was the one (nothing missed, nothing twice)', async () => {
     replayItems = [];
-    const { last } = await read('r22', async () => {
-      // it starts and speaks in the moment before the stream hears its id: its chat has it already
-      run({ kind: 'text', text: 'Started. ' }, 'r22');
-      replayItems = [{ type: 'user', text: 'go' }, { type: 'assistant', text: 'Started. ' }];
-      startLater!('r22');
-      await tick(10);
-      run({ kind: 'text', text: 'Carrying on.' }, 'r22');
-      run({ kind: 'done', text: '' }, 'r22');
-    }, { later: true });
-    expect(last.parts.filter((p) => p.type !== 'step-start')).toEqual([expect.objectContaining({ type: 'text', text: 'Started. Carrying on.' })]);
+    const { last } = await read(
+      'r22',
+      async () => {
+        // it starts and speaks in the moment before the stream hears its id: its chat has it already
+        run({ kind: 'text', text: 'Started. ' }, 'r22');
+        replayItems = [
+          { type: 'user', text: 'go' },
+          { type: 'assistant', text: 'Started. ' },
+        ];
+        startLater!('r22');
+        await tick(10);
+        run({ kind: 'text', text: 'Carrying on.' }, 'r22');
+        run({ kind: 'done', text: '' }, 'r22');
+      },
+      { later: true },
+    );
+    expect(last.parts.filter((p) => p.type !== 'step-start')).toEqual([
+      expect.objectContaining({ type: 'text', text: 'Started. Carrying on.' }),
+    ]);
   });
 
   it('ends at once when that run ended before the stream knew it (its done went already)', async () => {
     replayItems = [];
     // (nothing after the start drives it: a stream that waited for the done would never end)
-    const { last } = await read('r23', async () => {
-      run({ kind: 'done', text: '' }, 'r23');
-      startLater!('r23');
-    }, { later: true, ended: true });
+    const { last } = await read(
+      'r23',
+      async () => {
+        run({ kind: 'done', text: '' }, 'r23');
+        startLater!('r23');
+      },
+      { later: true, ended: true },
+    );
     expect(last.parts.filter((p) => p.type !== 'step-start')).toEqual([]);
   });
 
   it('ends, with nothing in it, when that run never starts (it was taken back)', async () => {
     replayItems = [];
-    const { last } = await read('r21', async () => {
-      startLater!(null);
-    }, { later: true });
+    const { last } = await read(
+      'r21',
+      async () => {
+        startLater!(null);
+      },
+      { later: true },
+    );
     expect(last.parts.filter((p) => p.type !== 'step-start')).toEqual([]);
   });
 });
@@ -188,7 +238,10 @@ describe('streamRun() when the run fails', () => {
     const errors: string[] = [];
     const stream = open('r9');
     const reading = (async () => {
-      for await (const _m of readUIMessageStream({ stream, onError: (e) => errors.push(String((e as Error).message)) }));
+      for await (const _m of readUIMessageStream({
+        stream,
+        onError: (e) => errors.push(String((e as Error).message)),
+      }));
     })();
     await tick(30);
     run({ kind: 'text', text: 'Trying' }, 'r9');
@@ -230,7 +283,19 @@ describe('TurnChunks', () => {
     w.text('b');
     w.finish();
     w.finish();
-    expect(out.map((c) => c.type)).toEqual(['start', 'start-step', 'text-start', 'text-delta', 'text-end', 'tool-input-available', 'text-start', 'text-delta', 'text-end', 'finish-step', 'finish']);
+    expect(out.map((c) => c.type)).toEqual([
+      'start',
+      'start-step',
+      'text-start',
+      'text-delta',
+      'text-end',
+      'tool-input-available',
+      'text-start',
+      'text-delta',
+      'text-end',
+      'finish-step',
+      'finish',
+    ]);
     expect(out[5]).toMatchObject({ input: {}, dynamic: true });
   });
 });
@@ -242,23 +307,33 @@ describe('streamBrain()', () => {
     const stream = streamBrain((onPart) => script(onPart));
     const errors: string[] = [];
     let last: UIMessage | null = null;
-    for await (const m of readUIMessageStream({ stream, onError: (e) => errors.push(String((e as Error).message || e)) })) last = structuredClone(m);
+    for await (const m of readUIMessageStream({
+      stream,
+      onError: (e) => errors.push(String((e as Error).message || e)),
+    }))
+      last = structuredClone(m);
     return { last: last!, errors };
   }
   const text = (m: UIMessage) => {
     const at = m.parts.findLastIndex((p) => p.type === 'data-restart');
-    return m.parts.slice(at + 1).map((p) => (p.type === 'text' ? p.text : '')).join('');
+    return m.parts
+      .slice(at + 1)
+      .map((p) => (p.type === 'text' ? p.text : ''))
+      .join('');
   };
 
   it('the answer as it is written, never its actions block (even split across pieces), then the whole answer', async () => {
     script = async (onPart) => {
-      for (const t of ['I made the ', 'team.\n\n`', '``act', 'ions\n[{"do":"create_team"}]\n```']) onPart({ kind: 'text', text: t });
+      for (const t of ['I made the ', 'team.\n\n`', '``act', 'ions\n[{"do":"create_team"}]\n```'])
+        onPart({ kind: 'text', text: t });
       return { answer: 'I made the team.', done: [{ kind: 'team', text: 'Made "Thumbs"' }], delegate: null };
     };
     const { last } = await ask();
     expect(text(last)).toBe('I made the team.\n\n');
     expect(text(last)).not.toContain('`');
-    expect(last.parts.find((p) => p.type === 'data-answer')).toMatchObject({ data: { answer: 'I made the team.', done: [{ kind: 'team' }] } });
+    expect(last.parts.find((p) => p.type === 'data-answer')).toMatchObject({
+      data: { answer: 'I made the team.', done: [{ kind: 'team' }] },
+    });
   });
 
   it('the files it reads show as tool calls; answering again replaces what it wrote', async () => {
@@ -272,7 +347,11 @@ describe('streamBrain()', () => {
     };
     const { last } = await ask();
     expect(text(last)).toBe('Here is the plan.');
-    expect(last.parts.find((p) => p.type === 'dynamic-tool')).toMatchObject({ toolName: 'Read', state: 'output-available', output: { text: '# Brain' } });
+    expect(last.parts.find((p) => p.type === 'dynamic-tool')).toMatchObject({
+      toolName: 'Read',
+      state: 'output-available',
+      output: { text: '# Brain' },
+    });
   });
 
   it('an answer ending in `code` keeps its closing backtick; an ACTIONS fence in any case stays hidden', async () => {

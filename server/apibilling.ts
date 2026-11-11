@@ -1,11 +1,19 @@
 import { numberOf, objectOf } from './apiresponse.ts';
 import type { ApiModelInfo, RunBilling } from '../shared/types.ts';
 
-export function completionBilling(usage: unknown, charges: unknown, price: ApiModelInfo['price']): { cost?: number; billing: RunBilling } {
+export function completionBilling(
+  usage: unknown,
+  charges: unknown,
+  price: ApiModelInfo['price'],
+): { cost?: number; billing: RunBilling } {
   const reported = objectOf(charges);
   const usd = numberOf(reported.usd);
   const diem = numberOf(reported.diem);
-  const billing: RunBilling = { source: 'unavailable', ...(usd != null ? { chargedUsd: usd } : {}), ...(diem != null ? { chargedDiem: diem } : {}) };
+  const billing: RunBilling = {
+    source: 'unavailable',
+    ...(usd != null ? { chargedUsd: usd } : {}),
+    ...(diem != null ? { chargedDiem: diem } : {}),
+  };
   if (usd != null && !(diem && diem > 0)) return { cost: usd, billing: { ...billing, source: 'reported' } };
   const tokens = objectOf(usage);
   const input = numberOf(tokens.prompt_tokens);

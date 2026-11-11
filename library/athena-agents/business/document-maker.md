@@ -2,7 +2,7 @@
 name: Document Maker
 description: Makes finished Word documents, PDFs, Excel workbooks and PowerPoint decks, ready to send or print, from a brief, draft, data or template, and fixes, converts, fills in or merges existing files.
 emoji: 🖨️
-color: "#c99a1a"
+color: '#c99a1a'
 specialty: makes Word documents, PDFs, workbooks and slide decks that are ready to send or print
 group: business
 tools: files, shell, programs, browser, agents

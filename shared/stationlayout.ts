@@ -5,7 +5,8 @@
 export const FIRST = 14;
 
 /** A team platform's radius for its number of agents. */
-export const platformRadius = (members: number): number => Math.max(6, (Math.max(1, members) * 5.6) / (2 * Math.PI) + 3.4);
+export const platformRadius = (members: number): number =>
+  Math.max(6, (Math.max(1, members) * 5.6) / (2 * Math.PI) + 3.4);
 
 /** How far a desk sits from its platform's centre. */
 export const DESK_RING = 1.55;
@@ -57,12 +58,19 @@ export function teamSpots(teams: PlanTeam[], o: { benchCount: number; hasAgent: 
   // without a Bench, start on a world axis so the platforms run diagonally on screen (isometric look)
   const front = gap ? Math.PI / 4 : 0;
   const biggest = Math.max(5, ...teams.map((t) => platformRadius(t.members.length)));
-  const dist = Math.max(FIRST + biggest, n > 1 ? (biggest + 2.5) / Math.sin(Math.PI / Math.max(2, n + (gap ? 1 : 0))) : 0);
+  const dist = Math.max(
+    FIRST + biggest,
+    n > 1 ? (biggest + 2.5) / Math.sin(Math.PI / Math.max(2, n + (gap ? 1 : 0))) : 0,
+  );
   return teams.map((t, i) => {
-    const auto = front + gap / 2 + (n === 1 ? (Math.PI * 2 - gap) / 2 : (i / Math.max(1, n - (gap ? 1 : 0))) * (Math.PI * 2 - gap));
+    const auto =
+      front +
+      gap / 2 +
+      (n === 1 ? (Math.PI * 2 - gap) / 2 : (i / Math.max(1, n - (gap ? 1 : 0))) * (Math.PI * 2 - gap));
     const ang = typeof t.angle === 'number' ? t.angle : auto;
     const home: [number, number] = [Math.cos(ang) * dist, Math.sin(ang) * dist];
-    const center: [number, number] = t.pos && Number.isFinite(t.pos.x) && Number.isFinite(t.pos.z) ? [t.pos.x, t.pos.z] : home;
+    const center: [number, number] =
+      t.pos && Number.isFinite(t.pos.x) && Number.isFinite(t.pos.z) ? [t.pos.x, t.pos.z] : home;
     const spin = typeof t.rot === 'number' ? t.rot : 0;
     const members = t.members.filter(o.hasAgent);
     const radius = platformRadius(members.length);
@@ -89,7 +97,10 @@ export function benchSpot(agentIds: string[], saved?: { x: number; z: number } |
   const right: [number, number] = [-dir[1], dir[0]];
   const cols = Math.min(4, agentIds.length);
   const rows = Math.ceil(agentIds.length / 4);
-  const center: [number, number] = saved && Number.isFinite(saved.x) && Number.isFinite(saved.z) ? [saved.x, saved.z] : [dir[0] * (11 + rows * 1.6), dir[1] * (11 + rows * 1.6)];
+  const center: [number, number] =
+    saved && Number.isFinite(saved.x) && Number.isFinite(saved.z)
+      ? [saved.x, saved.z]
+      : [dir[0] * (11 + rows * 1.6), dir[1] * (11 + rows * 1.6)];
   const desks = agentIds.map((agentId, j) => {
     const cx = (j % 4) - (cols - 1) / 2;
     const cz = Math.floor(j / 4) - (rows - 1) / 2;

@@ -14,7 +14,16 @@ import type { AgentQuestion, AppState } from '../../shared/types.ts';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
 
-const question = (over: Partial<AgentQuestion> = {}): AgentQuestion => ({ id: 'qn1', question: 'Which style?', choices: ['Flat', '3D'], status: 'waiting', agentId: 'a1', agentName: 'Designer', createdAt: Date.now(), ...over });
+const question = (over: Partial<AgentQuestion> = {}): AgentQuestion => ({
+  id: 'qn1',
+  question: 'Which style?',
+  choices: ['Flat', '3D'],
+  status: 'waiting',
+  agentId: 'a1',
+  agentName: 'Designer',
+  createdAt: Date.now(),
+  ...over,
+});
 let list: AgentQuestion[];
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
@@ -23,7 +32,10 @@ let root: Root | null = null;
 beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><section id="view"></section>';
   el = document.getElementById('view')!;
-  list = [question(), question({ id: 'qn0', question: 'Old one?', status: 'answered', choice: 'Yes', delivered: 'chat' })];
+  list = [
+    question(),
+    question({ id: 'qn0', question: 'Old one?', status: 'answered', choice: 'Yes', delivered: 'chat' }),
+  ];
   requests = [];
   state.data = { outboxPending: 0, questions: [list[0]], accounts: { x: [], reddit: [] } } as unknown as AppState;
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
@@ -46,7 +58,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const btn = (text: string) => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
+const btn = (text: string) =>
+  [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
 const type = (input: HTMLTextAreaElement, text: string) =>
   act(async () => {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(input, text);
@@ -64,7 +77,10 @@ describe('a question card', () => {
     await type(el.querySelector('textarea')!, 'with a soft shadow');
     await act(async () => btn('3D').click());
     await settle();
-    expect(requests.find((r) => r.url === '/api/questions/qn1/answer')!.body).toEqual({ choice: '3D', text: 'with a soft shadow' });
+    expect(requests.find((r) => r.url === '/api/questions/qn1/answer')!.body).toEqual({
+      choice: '3D',
+      text: 'with a soft shadow',
+    });
     expect(document.getElementById('toasts')!.textContent).toContain('Sent to Designer');
   });
 
@@ -74,14 +90,21 @@ describe('a question card', () => {
     await type(el.querySelector('textarea')!, 'Use the blue one');
     await act(async () => btn('Send answer').click());
     await settle();
-    expect(requests.find((r) => r.url === '/api/questions/qn1/answer')!.body).toEqual({ choice: '', text: 'Use the blue one' });
+    expect(requests.find((r) => r.url === '/api/questions/qn1/answer')!.body).toEqual({
+      choice: '',
+      text: 'Use the blue one',
+    });
     await act(async () => btn('Dismiss').click());
     await settle();
     expect(requests.some((r) => r.url === '/api/questions/qn1/dismiss' && r.method === 'POST')).toBe(true);
   });
 
   it('an answered one says what you answered and where it went', async () => {
-    await show(<QuestionCard q={question({ status: 'answered', choice: 'Flat', reply: 'and bold', delivered: 'team', teamName: 'Brand' })} />);
+    await show(
+      <QuestionCard
+        q={question({ status: 'answered', choice: 'Flat', reply: 'and bold', delivered: 'team', teamName: 'Brand' })}
+      />,
+    );
     expect(el.textContent).toContain('You answered: Flat · and bold');
     expect(el.textContent).toContain('Sent to Designer in the Brand chat.');
     expect(el.querySelector('textarea')).toBeNull();
@@ -100,14 +123,20 @@ describe('the Needs you drawer', () => {
       await type(el.querySelector('textarea')!, 'bold please');
       // the app state refreshes (another question arrives): the card and what you typed stay
       await act(async () => {
-        state.data = { ...state.data!, questions: [list[0], question({ id: 'qn2', question: 'Which font?', choices: ['Serif', 'Sans'] })] };
+        state.data = {
+          ...state.data!,
+          questions: [list[0], question({ id: 'qn2', question: 'Which font?', choices: ['Serif', 'Sans'] })],
+        };
         for (const fn of state.listeners) fn(state.data);
       });
       expect(el.querySelectorAll('.approval.question')).toHaveLength(2);
       expect(el.querySelector('textarea')!.value).toBe('bold please');
       await act(async () => btn('Flat').click());
       await settle();
-      expect(requests.find((r) => r.url === '/api/questions/qn1/answer')!.body).toEqual({ choice: 'Flat', text: 'bold please' });
+      expect(requests.find((r) => r.url === '/api/questions/qn1/answer')!.body).toEqual({
+        choice: 'Flat',
+        text: 'bold please',
+      });
       // (no Remove there: answered ones live in the Outbox)
       expect(btn('Remove')).toBeUndefined();
     } finally {
@@ -128,7 +157,8 @@ describe('the Outbox', () => {
 });
 
 describe('in the chat', () => {
-  const part = (input: unknown, state: DynamicToolUIPart['state'] = 'input-available') => ({ type: 'dynamic-tool', toolName: 'ask_user', toolCallId: 't1', input, state }) as DynamicToolUIPart;
+  const part = (input: unknown, state: DynamicToolUIPart['state'] = 'input-available') =>
+    ({ type: 'dynamic-tool', toolName: 'ask_user', toolCallId: 't1', input, state }) as DynamicToolUIPart;
 
   it('finds the waiting question an ask_user call made', () => {
     expect(questionFor(state.data!.questions, { question: ' Which style? ' })?.id).toBe('qn1');
@@ -137,13 +167,22 @@ describe('in the chat', () => {
   });
 
   it('two agents asking the same thing: each tool call shows its own agent’s question', () => {
-    const qs = [question({ id: 'qa', agentId: 'a1', chatId: 'c1' }), question({ id: 'qb', agentId: 'a2', chatId: 'c2' })];
+    const qs = [
+      question({ id: 'qa', agentId: 'a1', chatId: 'c1' }),
+      question({ id: 'qb', agentId: 'a2', chatId: 'c2' }),
+    ];
     expect(questionFor(qs, { question: 'Which style?' }, { agentId: 'a1', chatId: 'c1' })?.id).toBe('qa');
     expect(questionFor(qs, { question: 'Which style?' }, { agentId: 'a2', chatId: 'c2' })?.id).toBe('qb');
     // the same agent in another chat: not that one's
     expect(questionFor(qs, { question: 'Which style?' }, { agentId: 'a1', chatId: 'c9' })).toBeNull();
     // (one asked with no chat known still shows in the agent's chat)
-    expect(questionFor([question({ id: 'qc', agentId: 'a1', chatId: null })], { question: 'Which style?' }, { agentId: 'a1', chatId: 'c1' })?.id).toBe('qc');
+    expect(
+      questionFor(
+        [question({ id: 'qc', agentId: 'a1', chatId: null })],
+        { question: 'Which style?' },
+        { agentId: 'a1', chatId: 'c1' },
+      )?.id,
+    ).toBe('qc');
   });
 
   it('lets you answer right under the tool call while the agent waits', async () => {
@@ -152,26 +191,55 @@ describe('in the chat', () => {
     expect(btn('Flat')).toBeTruthy();
   });
 
-  it('shows a tool\'s images from the chat\'s own project in a pane of another project', async () => {
+  it("shows a tool's images from the chat's own project in a pane of another project", async () => {
     const { ChatProject } = await import('../../web/chat/project.ts');
     const src = `/api/file?path=${encodeURIComponent('/data/projects/p2/tool-images/a/c/x.png')}`;
-    const done = { type: 'dynamic-tool', toolName: 'screenshot', toolCallId: 't2', input: {}, state: 'output-available', output: { text: 'ok', images: [src] } } as DynamicToolUIPart;
-    await show(<ChatProject.Provider value="p2"><ToolCard part={done} variant="full" busy={false} /></ChatProject.Provider>);
+    const done = {
+      type: 'dynamic-tool',
+      toolName: 'screenshot',
+      toolCallId: 't2',
+      input: {},
+      state: 'output-available',
+      output: { text: 'ok', images: [src] },
+    } as DynamicToolUIPart;
+    await show(
+      <ChatProject.Provider value="p2">
+        <ToolCard part={done} variant="full" busy={false} />
+      </ChatProject.Provider>,
+    );
     expect(el.querySelector('img')!.getAttribute('src')).toBe(src.replace('/api/file', '/api/p/p2/file'));
   });
 
-  it('in a pane of another project, shows and answers that project\'s question, not the open one\'s', async () => {
+  it("in a pane of another project, shows and answers that project's question, not the open one's", async () => {
     const { ChatProject } = await import('../../web/chat/project.ts');
-    await show(<ChatProject.Provider value="p2"><ToolCard part={part({ question: 'Which style?' })} variant="full" busy /></ChatProject.Provider>);
+    await show(
+      <ChatProject.Provider value="p2">
+        <ToolCard part={part({ question: 'Which style?' })} variant="full" busy />
+      </ChatProject.Provider>,
+    );
     await settle();
     expect(btn('Flat')).toBeUndefined();
     await act(async () => btn('Round').click());
     await settle();
-    expect(requests.find((r) => r.method === 'POST')).toMatchObject({ url: '/api/p/p2/questions/theirs/answer', body: { choice: 'Round', text: '' } });
+    expect(requests.find((r) => r.method === 'POST')).toMatchObject({
+      url: '/api/p/p2/questions/theirs/answer',
+      body: { choice: 'Round', text: '' },
+    });
   });
 
   it('shows no card once the call is done', async () => {
-    await show(<ToolCard part={{ ...part({ question: 'Which style?' }, 'output-available'), output: 'The user answered: "Flat"' } as DynamicToolUIPart} variant="full" busy={false} />);
+    await show(
+      <ToolCard
+        part={
+          {
+            ...part({ question: 'Which style?' }, 'output-available'),
+            output: 'The user answered: "Flat"',
+          } as DynamicToolUIPart
+        }
+        variant="full"
+        busy={false}
+      />,
+    );
     expect(el.querySelector('.question')).toBeNull();
   });
 });

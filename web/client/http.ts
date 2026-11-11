@@ -22,12 +22,18 @@ function parse(text: string): unknown {
 }
 
 const errorOf = (data: unknown, fallback: string, status: number): Error & { status: number } => {
-  const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' && data.error ? data.error : fallback;
+  const message =
+    data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' && data.error
+      ? data.error
+      : fallback;
   return Object.assign(new Error(message), { status });
 };
 
 // The JSON the server sent back. T is what the caller expects: GET<Agent[]>('/agents').
-export async function api<T = unknown>(path: string, { method = 'GET', body, raw, query }: ApiOptions = {}): Promise<T> {
+export async function api<T = unknown>(
+  path: string,
+  { method = 'GET', body, raw, query }: ApiOptions = {},
+): Promise<T> {
   const type = raw ? 'application/octet-stream' : body !== undefined ? 'application/json' : null;
   const res = await fetch(apiUrl(path, query), {
     method,
@@ -55,7 +61,11 @@ export interface UploadOptions {
 }
 
 /** POSTs a file as the raw body, with progress (fetch can't report upload progress), and reads the JSON answer. */
-export function upload<T = unknown>(path: string, file: Blob, { query, onProgress, signal }: UploadOptions = {}): Promise<T> {
+export function upload<T = unknown>(
+  path: string,
+  file: Blob,
+  { query, onProgress, signal }: UploadOptions = {},
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     if (signal?.aborted) return reject(new Error('Cancelled'));
     const xhr = new XMLHttpRequest();

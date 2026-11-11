@@ -22,8 +22,32 @@ const later = Date.now() + 86_400_000;
 
 function accounts({ xAuto = false, redditAuto = false, withReddit = true } = {}) {
   const a: AccountsFile = {
-    x: { x1: { id: 'x1', username: 'ada', name: 'Ada', autopost: xAuto, accessToken: 'xt', expiresAt: later, connectedAt: 1 } },
-    ...(withReddit ? { reddit: { r1: { id: 'r1', username: 'ada_r', autopost: redditAuto, accessToken: 'rt', refreshToken: 'rr', expiresAt: later, connectedAt: 1 } } } : {}),
+    x: {
+      x1: {
+        id: 'x1',
+        username: 'ada',
+        name: 'Ada',
+        autopost: xAuto,
+        accessToken: 'xt',
+        expiresAt: later,
+        connectedAt: 1,
+      },
+    },
+    ...(withReddit
+      ? {
+          reddit: {
+            r1: {
+              id: 'r1',
+              username: 'ada_r',
+              autopost: redditAuto,
+              accessToken: 'rt',
+              refreshToken: 'rr',
+              expiresAt: later,
+              connectedAt: 1,
+            },
+          },
+        }
+      : {}),
   };
   writeJSON(dataPath('accounts.json'), a);
 }
@@ -35,16 +59,44 @@ beforeEach(() => {
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
     const raw = init.body;
-    const body = raw instanceof URLSearchParams ? Object.fromEntries(raw) : typeof raw === 'string' ? JSON.parse(raw) : raw instanceof FormData ? 'form' : null;
+    const body =
+      raw instanceof URLSearchParams
+        ? Object.fromEntries(raw)
+        : typeof raw === 'string'
+          ? JSON.parse(raw)
+          : raw instanceof FormData
+            ? 'form'
+            : null;
     calls.push({ method, url, body });
-    if (url === 'https://api.x.com/2/media/upload') return json({ data: { id: String(100 + calls.filter((c) => c.url.endsWith('/media/upload')).length) } });
+    if (url === 'https://api.x.com/2/media/upload')
+      return json({ data: { id: String(100 + calls.filter((c) => c.url.endsWith('/media/upload')).length) } });
     if (url === 'https://api.x.com/2/media/metadata') return json({ data: { id: (body as { id: string }).id } });
     if (url === 'https://api.x.com/2/tweets') return json({ data: { id: '900' } });
-    if (url === 'https://oauth.reddit.com/api/submit') return json({ json: { errors: [], data: { name: 't3_new', url: 'https://www.reddit.com/r/test/comments/new/' } } });
+    if (url === 'https://oauth.reddit.com/api/submit')
+      return json({
+        json: { errors: [], data: { name: 't3_new', url: 'https://www.reddit.com/r/test/comments/new/' } },
+      });
     if (url.endsWith('/r/test/about/rules') || url.endsWith('/r/test/about/rules.json'))
-      return json({ rules: [{ kind: 'link', short_name: 'No spam', description: 'Self-promotion once a week at most.' }, { kind: 'all', short_name: 'Be kind', description: '' }] });
+      return json({
+        rules: [
+          { kind: 'link', short_name: 'No spam', description: 'Self-promotion once a week at most.' },
+          { kind: 'all', short_name: 'Be kind', description: '' },
+        ],
+      });
     if (url.endsWith('/r/test/about') || url.endsWith('/r/test/about.json'))
-      return json({ kind: 't5', data: { display_name: 'test', title: 'Testing', public_description: 'A place to test.', description: '## Sidebar\nFlair every post.', submit_text: 'Use a flair.', subscribers: 42, over18: false, submission_type: 'self' } });
+      return json({
+        kind: 't5',
+        data: {
+          display_name: 'test',
+          title: 'Testing',
+          public_description: 'A place to test.',
+          description: '## Sidebar\nFlair every post.',
+          submit_text: 'Use a flair.',
+          subscribers: 42,
+          over18: false,
+          submission_type: 'self',
+        },
+      });
     return new Response('not faked', { status: 404 });
   });
 });
@@ -66,7 +118,10 @@ describe('X posts with auto-post on', () => {
     // once you approve it, it goes out as a reply
     const sent = await social.approvePost(reply.id);
     expect(sent.status).toBe('posted');
-    expect(calls.find((c) => c.url.endsWith('/tweets'))!.body).toEqual({ text: 'Thanks!', reply: { in_reply_to_tweet_id: '123' } });
+    expect(calls.find((c) => c.url.endsWith('/tweets'))!.body).toEqual({
+      text: 'Thanks!',
+      reply: { in_reply_to_tweet_id: '123' },
+    });
   });
 
   it('keeps everything waiting when auto-post is off', async () => {
@@ -80,9 +135,14 @@ describe("X's length limit", () => {
   it('counts as X does, not by code points', async () => {
     accounts();
     // 141 Chinese letters are 141 code points but 282 to X
-    await expect(social.draftPost({ platform: 'x', text: '中'.repeat(141) })).rejects.toThrow(/282 characters as X counts them/);
+    await expect(social.draftPost({ platform: 'x', text: '中'.repeat(141) })).rejects.toThrow(
+      /282 characters as X counts them/,
+    );
     // a long link is 23
-    const ok = await social.draftPost({ platform: 'x', text: `${'a'.repeat(250)} https://example.com/${'p'.repeat(100)}` });
+    const ok = await social.draftPost({
+      platform: 'x',
+      text: `${'a'.repeat(250)} https://example.com/${'p'.repeat(100)}`,
+    });
     expect(ok.status).toBe('pending');
   });
 
@@ -108,33 +168,67 @@ describe('alt text on X images', () => {
     accounts();
     const a = img('a.png');
     const b = img('b.png');
-    const p = await social.draftPost({ platform: 'x', text: 'Look', images: [a, b], imageAlt: ['A red cube on a table', ''], imageRoots: [dir] });
+    const p = await social.draftPost({
+      platform: 'x',
+      text: 'Look',
+      images: [a, b],
+      imageAlt: ['A red cube on a table', ''],
+      imageRoots: [dir],
+    });
     expect(p.imageAlt).toEqual({ [a]: 'A red cube on a table' });
     const r = await social.approvePost(p.id);
     expect(r.status).toBe('posted');
     const meta = calls.filter((c) => c.url.endsWith('/media/metadata'));
     expect(meta).toHaveLength(1);
-    expect(meta[0].body).toEqual({ id: expect.stringMatching(/^\d+$/), metadata: { alt_text: { text: 'A red cube on a table' } } });
+    expect(meta[0].body).toEqual({
+      id: expect.stringMatching(/^\d+$/),
+      metadata: { alt_text: { text: 'A red cube on a table' } },
+    });
     // metadata comes before the post that uses the image
-    expect(calls.findIndex((c) => c.url.endsWith('/media/metadata'))).toBeLessThan(calls.findIndex((c) => c.url.endsWith('/tweets')));
-    expect((calls.find((c) => c.url.endsWith('/tweets'))!.body as { media: { media_ids: string[] } }).media.media_ids).toHaveLength(2);
+    expect(calls.findIndex((c) => c.url.endsWith('/media/metadata'))).toBeLessThan(
+      calls.findIndex((c) => c.url.endsWith('/tweets')),
+    );
+    expect(
+      (calls.find((c) => c.url.endsWith('/tweets'))!.body as { media: { media_ids: string[] } }).media.media_ids,
+    ).toHaveLength(2);
   });
 
   it('refuses alt text over 1,000 characters', async () => {
     accounts();
-    await expect(social.draftPost({ platform: 'x', text: 'Look', images: [img('c.png')], imageAlt: ['x'.repeat(1001)], imageRoots: [dir] })).rejects.toThrow(/at most 1000/);
+    await expect(
+      social.draftPost({
+        platform: 'x',
+        text: 'Look',
+        images: [img('c.png')],
+        imageAlt: ['x'.repeat(1001)],
+        imageRoots: [dir],
+      }),
+    ).rejects.toThrow(/at most 1000/);
   });
 });
 
 describe('Reddit flair', () => {
   it('is stored with the draft and sent when it is posted', async () => {
     accounts();
-    const p = await social.draftPost({ platform: 'reddit', subreddit: 'test', title: 'Hi', text: 'Body', flairId: 'abc-123', flairText: 'Discussion', note: 'For the launch' });
+    const p = await social.draftPost({
+      platform: 'reddit',
+      subreddit: 'test',
+      title: 'Hi',
+      text: 'Body',
+      flairId: 'abc-123',
+      flairText: 'Discussion',
+      note: 'For the launch',
+    });
     expect(p.reddit).toMatchObject({ flairId: 'abc-123', flairText: 'Discussion' });
     expect(p.note).toBe('For the launch');
     const r = await social.approvePost(p.id);
     expect(r.status).toBe('posted');
-    expect(calls.find((c) => c.url.endsWith('/api/submit'))!.body).toMatchObject({ sr: 'test', kind: 'self', flair_id: 'abc-123', flair_text: 'Discussion' });
+    expect(calls.find((c) => c.url.endsWith('/api/submit'))!.body).toMatchObject({
+      sr: 'test',
+      kind: 'self',
+      flair_id: 'abc-123',
+      flair_text: 'Discussion',
+    });
   });
 
   it('sends no flair fields when there is none', async () => {
@@ -148,8 +242,12 @@ describe('Reddit flair', () => {
 
   it('refuses flair longer than Reddit allows', async () => {
     accounts();
-    await expect(social.draftPost({ platform: 'reddit', subreddit: 'test', title: 'Hi', text: 'B', flairText: 'x'.repeat(65) })).rejects.toThrow(/64/);
-    await expect(social.draftPost({ platform: 'reddit', subreddit: 'test', title: 'Hi', text: 'B', flairId: 'x'.repeat(37) })).rejects.toThrow(/36/);
+    await expect(
+      social.draftPost({ platform: 'reddit', subreddit: 'test', title: 'Hi', text: 'B', flairText: 'x'.repeat(65) }),
+    ).rejects.toThrow(/64/);
+    await expect(
+      social.draftPost({ platform: 'reddit', subreddit: 'test', title: 'Hi', text: 'B', flairId: 'x'.repeat(37) }),
+    ).rejects.toThrow(/36/);
   });
 });
 
@@ -157,9 +255,19 @@ describe("a subreddit's rules", () => {
   it('come from /about/rules and /about, signed in', async () => {
     accounts();
     const r = await reddit.subredditRules('r/test');
-    expect(calls.map((c) => c.url).sort()).toEqual(['https://oauth.reddit.com/r/test/about', 'https://oauth.reddit.com/r/test/about/rules']);
+    expect(calls.map((c) => c.url).sort()).toEqual([
+      'https://oauth.reddit.com/r/test/about',
+      'https://oauth.reddit.com/r/test/about/rules',
+    ]);
     expect(calls.every((c) => c.method === 'GET')).toBe(true);
-    expect(r).toMatchObject({ subreddit: 'test', subscribers: 42, allows: 'self', summary: 'A place to test.', submitText: 'Use a flair.', sidebar: '## Sidebar\nFlair every post.' });
+    expect(r).toMatchObject({
+      subreddit: 'test',
+      subscribers: 42,
+      allows: 'self',
+      summary: 'A place to test.',
+      submitText: 'Use a flair.',
+      sidebar: '## Sidebar\nFlair every post.',
+    });
     expect(r.rules).toEqual([
       { name: 'No spam', text: 'Self-promotion once a week at most.', appliesTo: 'posts' },
       { name: 'Be kind', text: '', appliesTo: 'posts and comments' },
@@ -169,7 +277,10 @@ describe("a subreddit's rules", () => {
   it("work through Reddit's public JSON without an account", async () => {
     accounts({ withReddit: false });
     const r = await reddit.subredditRules('test');
-    expect(calls.map((c) => c.url).sort()).toEqual(['https://www.reddit.com/r/test/about.json', 'https://www.reddit.com/r/test/about/rules.json']);
+    expect(calls.map((c) => c.url).sort()).toEqual([
+      'https://www.reddit.com/r/test/about.json',
+      'https://www.reddit.com/r/test/about/rules.json',
+    ]);
     expect(r.rules).toHaveLength(2);
   });
 

@@ -36,13 +36,16 @@ describe('skill marks', () => {
       forgetSkills();
     });
 
-    it("keeps the puzzle piece for a skill of yours that only shares its id with one that comes with the dashboard", async () => {
+    it('keeps the puzzle piece for a skill of yours that only shares its id with one that comes with the dashboard', async () => {
       const skills = [
         { slug: 'review-loop', name: 'Our code review', mine: true },
         { slug: 'vectorcraft', name: 'My vector notes', mine: true },
         { slug: 'motion-design', name: 'motion-design' },
       ];
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ skills, claude: [] }), { status: 200 })));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(new Response(JSON.stringify({ skills, claude: [] }), { status: 200 })),
+      );
       expect(skillMark('review-loop')).toEqual(SKILL_MARKS['review-loop']);
       await loadSkills();
       expect(skillMark('review-loop')).toEqual({ icon: 'puzzle' });

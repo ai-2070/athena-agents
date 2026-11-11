@@ -54,12 +54,20 @@ function collect(triple: string) {
   }
   if (!files.length) throw new Error(`Nothing was built in ${bundle}`);
   const part = updaterPart(triple, files);
-  if (!Object.keys(part.platforms).length) console.warn('release: no signed updates (no TAURI_SIGNING_PRIVATE_KEY): installed apps can\'t update to this build');
+  if (!Object.keys(part.platforms).length)
+    console.warn(
+      "release: no signed updates (no TAURI_SIGNING_PRIVATE_KEY): installed apps can't update to this build",
+    );
   fs.writeFileSync(path.join(PARTS, `${triple}.json`), JSON.stringify(part, null, 2));
 }
 
 function manifest(tag: string, repo: string) {
-  const parts = fs.existsSync(PARTS) ? fs.readdirSync(PARTS).filter((n) => n.endsWith('.json')).map((n) => JSON.parse(fs.readFileSync(path.join(PARTS, n), 'utf8')) as UpdaterPart) : [];
+  const parts = fs.existsSync(PARTS)
+    ? fs
+        .readdirSync(PARTS)
+        .filter((n) => n.endsWith('.json'))
+        .map((n) => JSON.parse(fs.readFileSync(path.join(PARTS, n), 'utf8')) as UpdaterPart)
+    : [];
   const latest = updaterManifest({ tag, repo, parts });
   fs.mkdirSync(FILES, { recursive: true });
   fs.writeFileSync(path.join(FILES, 'latest.json'), JSON.stringify(latest, null, 2));
@@ -69,4 +77,7 @@ function manifest(tag: string, repo: string) {
 const command = process.argv[2];
 if (command === 'collect') collect(arg('target'));
 else if (command === 'manifest') manifest(arg('tag'), arg('repo'));
-else throw new Error('Use: bun scripts/desktop-release.ts collect --target <triple> | manifest --tag <v…> --repo <owner/name>');
+else
+  throw new Error(
+    'Use: bun scripts/desktop-release.ts collect --target <triple> | manifest --tag <v…> --repo <owner/name>',
+  );

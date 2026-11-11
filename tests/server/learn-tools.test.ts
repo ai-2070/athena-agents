@@ -10,14 +10,21 @@ import { agents } from '../../server/store.ts';
 import { listVersions } from '../../server/versions.ts';
 
 // (autonomy "auto": save_skill is low risk, so it asks only an agent set to ask)
-const learner = () => newAgent({ name: `Learner ${Math.random().toString(36).slice(2, 7)}`, autonomy: 'auto', toolGroups: [] });
+const learner = () =>
+  newAgent({ name: `Learner ${Math.random().toString(36).slice(2, 7)}`, autonomy: 'auto', toolGroups: [] });
 
 describe('read_skill with a name that is no skill', () => {
   it('lists the library skills that match its words, so an agent finds ones it was not given', async () => {
-    skills.saveSkill({ name: 'Postgres replication', description: 'Use when setting up streaming replication or a failover.', body: 'Steps.' });
+    skills.saveSkill({
+      name: 'Postgres replication',
+      description: 'Use when setting up streaming replication or a failover.',
+      body: 'Steps.',
+    });
     const r = await callTool(learner(), 'read_skill', { name: 'replication failover' });
     expect(r.isError).toBeFalsy();
-    expect(r.text).toContain('There is no skill called "replication failover". Skills in the library that match its words (open one with read_skill and its id):');
+    expect(r.text).toContain(
+      'There is no skill called "replication failover". Skills in the library that match its words (open one with read_skill and its id):',
+    );
     expect(r.text).toContain('- postgres-replication: Postgres replication.');
     const none = await callTool(learner(), 'read_skill', { name: 'zzz-nothing-like-it' });
     expect(none.isError).toBe(true);
@@ -29,7 +36,9 @@ describe('read_skill with a name that is no skill', () => {
     expect(common.isError).toBe(true);
     expect(common.text).not.toContain('- postgres-replication');
     // a wrong word among them doesn't hide the right one; ids with underscores are read as words
-    expect((await callTool(learner(), 'read_skill', { name: 'use postgres_failover' })).text).toContain('- postgres-replication');
+    expect((await callTool(learner(), 'read_skill', { name: 'use postgres_failover' })).text).toContain(
+      '- postgres-replication',
+    );
   });
 });
 
@@ -48,14 +57,30 @@ describe('save_skill', () => {
     expect(s.files.map((f) => f.path)).toEqual(['references/ch05-replication.md']);
     expect(agents.get(a.id)?.skills).toContain('designing-data-systems');
     // a second skill under a name that's taken is refused: update the first
-    const again = await callTool(a, 'save_skill', { name: 'Designing data systems', description: 'x', body: 'y' }).catch((e: unknown) => ({ text: String(e), isError: true }));
+    const again = await callTool(a, 'save_skill', {
+      name: 'Designing data systems',
+      description: 'x',
+      body: 'y',
+    }).catch((e: unknown) => ({ text: String(e), isError: true }));
     expect(again.text).toMatch(/exists already: update it/);
   });
 
   it('updates a skill as one change: the old text and files stay in History, and bringing it back brings them back', async () => {
     const a = learner();
-    await callTool(a, 'save_skill', { name: 'Release checklist', description: 'Use before each release.', body: 'Old steps.', files: [{ path: 'references/old.md', text: 'old notes' }] });
-    await callTool(a, 'save_skill', { skill: 'release-checklist', name: 'Release checklist', description: 'Use before each release.', body: 'New steps.', files: [{ path: 'references/new.md', text: 'new notes' }], remove: ['references/old.md'] });
+    await callTool(a, 'save_skill', {
+      name: 'Release checklist',
+      description: 'Use before each release.',
+      body: 'Old steps.',
+      files: [{ path: 'references/old.md', text: 'old notes' }],
+    });
+    await callTool(a, 'save_skill', {
+      skill: 'release-checklist',
+      name: 'Release checklist',
+      description: 'Use before each release.',
+      body: 'New steps.',
+      files: [{ path: 'references/new.md', text: 'new notes' }],
+      remove: ['references/old.md'],
+    });
     const now = skills.getSkill('release-checklist')!;
     expect(now.body).toContain('New steps.');
     expect(now.files.map((f) => f.path)).toEqual(['references/new.md']);
@@ -71,8 +96,22 @@ describe('save_skill', () => {
 
   it('keeps files to references/, scripts/ and templates/, with plain names and a size limit', async () => {
     const a = learner();
-    const tryFile = (p: string, text = 'x') => callTool(a, 'save_skill', { name: `Paths ${p}`, description: 'Use for a test.', body: 'b', files: [{ path: p, text }] }).catch((e: unknown) => ({ text: String(e), isError: true }));
-    for (const bad of ['../escape.md', 'references/../../escape.md', 'SKILL.md', 'notes.md', '/etc/passwd', 'references/.hidden', 'C:\\temp\\x.md']) {
+    const tryFile = (p: string, text = 'x') =>
+      callTool(a, 'save_skill', {
+        name: `Paths ${p}`,
+        description: 'Use for a test.',
+        body: 'b',
+        files: [{ path: p, text }],
+      }).catch((e: unknown) => ({ text: String(e), isError: true }));
+    for (const bad of [
+      '../escape.md',
+      'references/../../escape.md',
+      'SKILL.md',
+      'notes.md',
+      '/etc/passwd',
+      'references/.hidden',
+      'C:\\temp\\x.md',
+    ]) {
       expect((await tryFile(bad)).text, bad).toMatch(/can't be one of a skill's files/);
     }
     expect((await tryFile('references/big.md', 'x'.repeat(skills.SKILL_FILE_MAX + 1))).text).toMatch(/too big/);
@@ -82,7 +121,12 @@ describe('save_skill', () => {
   });
 
   it('refuses an update to a skill that does not exist', async () => {
-    const r = await callTool(learner(), 'save_skill', { skill: 'no-such-skill', name: 'X', description: 'Use never.', body: 'b' }).catch((e: unknown) => ({ text: String(e), isError: true }));
+    const r = await callTool(learner(), 'save_skill', {
+      skill: 'no-such-skill',
+      name: 'X',
+      description: 'Use never.',
+      body: 'b',
+    }).catch((e: unknown) => ({ text: String(e), isError: true }));
     expect(r.text).toMatch(/There is no skill "no-such-skill"/);
   });
 });

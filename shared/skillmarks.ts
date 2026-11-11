@@ -4,7 +4,8 @@
 // bundled skill has one. The Craft apps' own skills aren't listed: web/crafticons.ts finds their icons.
 
 /** img: a picture (tile: the dark square a light mark sits on). logo: a brand logo in web/icons.ts. icon: a Phosphor line icon, in a colour of its own or the accent. */
-export type SkillMarkSpec = { img: string; tile?: string; craft?: boolean } | { logo: string } | { icon: string; color?: string };
+export type SkillMarkSpec =
+  { img: string; tile?: string; craft?: boolean } | { logo: string } | { icon: string; color?: string };
 
 const ORCA = { img: '/app-icons/orca.png' };
 const CUA = { img: '/app-icons/cua.png' };

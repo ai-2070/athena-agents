@@ -12,11 +12,17 @@ export function fitTextarea(t: HTMLTextAreaElement): void {
 const fitAll = (): void => document.querySelectorAll<HTMLTextAreaElement>(SELECTOR).forEach(fitTextarea);
 
 /** Turns the fallback on where the browser can't do it itself. */
-export function autosizeTextareas(supported = typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content')): boolean {
+export function autosizeTextareas(
+  supported = typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content'),
+): boolean {
   if (supported) return false;
-  document.addEventListener('input', (e) => {
-    if (e.target instanceof HTMLTextAreaElement && e.target.matches(SELECTOR)) fitTextarea(e.target);
-  }, true);
+  document.addEventListener(
+    'input',
+    (e) => {
+      if (e.target instanceof HTMLTextAreaElement && e.target.matches(SELECTOR)) fitTextarea(e.target);
+    },
+    true,
+  );
   // a box emptied from code (after sending) or a new one fires no input event: check them all after the next change
   let queued = false;
   const later = (): void => {

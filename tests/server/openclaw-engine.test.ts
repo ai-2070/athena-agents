@@ -46,7 +46,21 @@ const args = (chat: Chat, text: string, events: RunEvent[] = []) => ({
   systemPrompt: 'You are Claw.',
   attachments: [],
 });
-const ok = (text: string) => JSON.stringify({ payloads: [{ text, mediaUrl: null }], meta: { durationMs: 900, agentMeta: { sessionId: 'x', provider: 'openai', model: 'gpt-5.6-sol', usage: { input: 100, output: 20, cacheRead: 50, total: 120 }, costUsd: 0.004 }, toolSummary: { calls: 1, tools: ['read'] } } });
+const ok = (text: string) =>
+  JSON.stringify({
+    payloads: [{ text, mediaUrl: null }],
+    meta: {
+      durationMs: 900,
+      agentMeta: {
+        sessionId: 'x',
+        provider: 'openai',
+        model: 'gpt-5.6-sol',
+        usage: { input: 100, output: 20, cacheRead: 50, total: 120 },
+        costUsd: 0.004,
+      },
+      toolSummary: { calls: 1, tools: ['read'] },
+    },
+  });
 
 beforeEach(() => {
   fake.replies = [];
@@ -55,25 +69,70 @@ beforeEach(() => {
 
 describe('openclawArgs', () => {
   it('the agent, the chat’s session, the message file, JSON, and model and thinking when set', () => {
-    const a = newAgent({ name: 'Claw', engine: 'openclaw', openclawAgent: 'ops', model: 'openai/gpt-5.4', effort: 'high' });
-    expect(openclawArgs(a, { sessionKey: 'dashboard-c1', messageFile: 'm.md' })).toEqual(['agent', '--agent', 'ops', '--session-key', 'dashboard-c1', '--message-file', 'm.md', '--json', '--timeout', '0', '--model', 'openai/gpt-5.4', '--thinking', 'high']);
-    expect(openclawArgs(newAgent({ name: 'Claw', engine: 'openclaw' }), { sessionKey: 'k', messageFile: 'm.md', local: true })).toEqual(['agent', '--session-key', 'k', '--message-file', 'm.md', '--json', '--timeout', '0', '--local']);
+    const a = newAgent({
+      name: 'Claw',
+      engine: 'openclaw',
+      openclawAgent: 'ops',
+      model: 'openai/gpt-5.4',
+      effort: 'high',
+    });
+    expect(openclawArgs(a, { sessionKey: 'dashboard-c1', messageFile: 'm.md' })).toEqual([
+      'agent',
+      '--agent',
+      'ops',
+      '--session-key',
+      'dashboard-c1',
+      '--message-file',
+      'm.md',
+      '--json',
+      '--timeout',
+      '0',
+      '--model',
+      'openai/gpt-5.4',
+      '--thinking',
+      'high',
+    ]);
+    expect(
+      openclawArgs(newAgent({ name: 'Claw', engine: 'openclaw' }), {
+        sessionKey: 'k',
+        messageFile: 'm.md',
+        local: true,
+      }),
+    ).toEqual(['agent', '--session-key', 'k', '--message-file', 'm.md', '--json', '--timeout', '0', '--local']);
   });
   it('leaves out an agent id that is not plain', () => {
-    expect(openclawArgs(newAgent({ name: 'Claw', engine: 'openclaw', openclawAgent: 'a b"c' }), { sessionKey: 'k', messageFile: 'm' })).not.toContain('--agent');
+    expect(
+      openclawArgs(newAgent({ name: 'Claw', engine: 'openclaw', openclawAgent: 'a b"c' }), {
+        sessionKey: 'k',
+        messageFile: 'm',
+      }),
+    ).not.toContain('--agent');
   });
 });
 
 describe('readReply', () => {
   it('the answer, usage, cost and model', () => {
-    expect(readReply(parseReply(ok('Done.'))!)).toEqual({ text: 'Done.', tokens: 120, cached: 50, cost: 0.004, model: 'openai/gpt-5.6-sol', tools: ['read'] });
+    expect(readReply(parseReply(ok('Done.'))!)).toEqual({
+      text: 'Done.',
+      tokens: 120,
+      cached: 50,
+      cost: 0.004,
+      model: 'openai/gpt-5.6-sol',
+      tools: ['read'],
+    });
   });
   it('a Gateway reply wrapped in result', () => {
-    expect(readReply({ runId: 'r', status: 'ok', result: { payloads: [{ text: 'A' }, { text: 'B' }] } }).text).toBe('A\n\nB');
+    expect(readReply({ runId: 'r', status: 'ok', result: { payloads: [{ text: 'A' }, { text: 'B' }] } }).text).toBe(
+      'A\n\nB',
+    );
   });
   it('errors: the CLI envelope, the run’s own error, and a turn still going', () => {
-    expect(() => readReply({ ok: false, error: { type: 'cli_error', message: 'No agent "x"' } })).toThrow('No agent "x"');
-    expect(() => readReply({ payloads: [], meta: { error: { kind: 'context_overflow', message: 'context window exceeded' } } })).toThrow('context window exceeded');
+    expect(() => readReply({ ok: false, error: { type: 'cli_error', message: 'No agent "x"' } })).toThrow(
+      'No agent "x"',
+    );
+    expect(() =>
+      readReply({ payloads: [], meta: { error: { kind: 'context_overflow', message: 'context window exceeded' } } }),
+    ).toThrow('context window exceeded');
     expect(() => readReply({ status: 'in_flight' })).toThrow(/still answering/);
   });
   it('JSON after log lines, or none', () => {
@@ -84,7 +143,13 @@ describe('readReply', () => {
 
 describe('an OpenClaw run', () => {
   it("answers here when the Gateway isn't running, keeps the chat's session, and cleans up", async () => {
-    fake.replies = [JSON.stringify({ ok: false, error: { type: 'cli_error', message: 'Gateway not reachable at ws://127.0.0.1:18789 (ECONNREFUSED).' } }), ok('Hello.')];
+    fake.replies = [
+      JSON.stringify({
+        ok: false,
+        error: { type: 'cli_error', message: 'Gateway not reachable at ws://127.0.0.1:18789 (ECONNREFUSED).' },
+      }),
+      ok('Hello.'),
+    ];
     const chat = chatOf();
     const events: RunEvent[] = [];
     const res = await run(args(chat, 'hi', events));

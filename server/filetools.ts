@@ -14,7 +14,8 @@ const SEARCH_TOTAL_BYTES = 100 * 1024 * 1024;
 const SEARCH_MS = 8000;
 const WALK = { maxDepth: 12, limit: 20_000 };
 
-export const sizeText = (n: number): string => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 ** 2).toFixed(1)} MB`);
+export const sizeText = (n: number): string =>
+  n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 ** 2).toFixed(1)} MB`;
 const looksBinary = (b: Buffer): boolean => b.subarray(0, 8000).includes(0);
 const isPlainFile = (p: string): boolean => {
   try {
@@ -29,7 +30,10 @@ const slashed = (p: string): string => p.split(path.sep).join('/');
 export function readText(real: string, shown: string, opts: PageOptions = {}): string {
   const st = fs.statSync(real);
   if (st.isDirectory()) throw new Error(`${shown} is a folder: list it with list_files.`);
-  if (st.size > READ_MAX_BYTES) throw new Error(`${shown} is ${sizeText(st.size)}, too big to read here. Look for what you need with search_files.`);
+  if (st.size > READ_MAX_BYTES)
+    throw new Error(
+      `${shown} is ${sizeText(st.size)}, too big to read here. Look for what you need with search_files.`,
+    );
   const bytes = fs.readFileSync(real);
   if (looksBinary(bytes)) return `${shown} is not a text file (${sizeText(st.size)}).`;
   return pageText(bytes.toString('utf8'), opts);
@@ -42,7 +46,10 @@ export interface PageOptions {
 }
 
 /** Part of a text, from line offset (a document's text pages the same way as a file's). Whole, it is as it was. */
-export function pageText(text: string, { offset = 1, limit = READ_LINES, chars = READ_CHARS }: PageOptions = {}): string {
+export function pageText(
+  text: string,
+  { offset = 1, limit = READ_LINES, chars = READ_CHARS }: PageOptions = {},
+): string {
   const lines = text.split('\n');
   // (a final newline doesn't count as a line of its own)
   const total = lines.length - (lines.at(-1) === '' ? 1 : 0);
@@ -50,7 +57,8 @@ export function pageText(text: string, { offset = 1, limit = READ_LINES, chars =
   const most = Math.min(Math.max(1, Math.floor(Number(limit) || READ_LINES)), READ_LINES);
   let end = start - 1;
   let size = 0;
-  while (end < total && end - start + 1 < most && size + lines[end]!.length + 1 <= chars) size += lines[end++]!.length + 1;
+  while (end < total && end - start + 1 < most && size + lines[end]!.length + 1 <= chars)
+    size += lines[end++]!.length + 1;
   if (end < start && total) {
     const line = lines[start - 1]!;
     return `${line.slice(0, chars)}\n\n[Line ${start} of ${total} is ${line.length} characters long: only its first ${chars} are shown.${start < total ? ` Continue with offset ${start + 1}.` : ''}]`;
@@ -82,8 +90,14 @@ export function applyEdits(text: string, edits: FileEdit[]): { text: string; rep
       next = next.replace(/\r?\n/g, '\r\n');
     }
     const count = out.split(old).length - 1;
-    if (!count) throw new Error(`The text to replace isn't in the file${which}. Read the file again and copy the text exactly, spaces included.`);
-    if (count > 1 && !e.all) throw new Error(`The text to replace is there ${count} times${which}: include more of the text around it, or set all to replace every one.`);
+    if (!count)
+      throw new Error(
+        `The text to replace isn't in the file${which}. Read the file again and copy the text exactly, spaces included.`,
+      );
+    if (count > 1 && !e.all)
+      throw new Error(
+        `The text to replace is there ${count} times${which}: include more of the text around it, or set all to replace every one.`,
+      );
     out = e.all ? out.split(old).join(next) : out.replace(old, () => next);
     replaced += e.all ? count : 1;
   });
@@ -103,7 +117,11 @@ export function globRegExp(glob: string): RegExp {
     else if (c === '?') re += '[^/]';
     else if (c === '{' && glob.indexOf('}', i) > i) {
       const close = glob.indexOf('}', i);
-      re += `(?:${glob.slice(i + 1, close).split(',').map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`;
+      re += `(?:${glob
+        .slice(i + 1, close)
+        .split(',')
+        .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('|')})`;
       i = close;
     } else re += c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
@@ -122,10 +140,15 @@ export function findFiles(root: string, shown: string, pattern: string): string 
   if (!String(pattern || '').trim()) throw new Error('Give a pattern, e.g. "**/*.md".');
   const match = matcher(String(pattern));
   const found = walk(root, { ...WALK, filter: (p) => isPlainFile(p) && match(slashed(path.relative(root, p))) });
-  const dated = found.map((p) => ({ rel: slashed(path.relative(root, p)), at: fs.statSync(p).mtimeMs })).sort((a, b) => b.at - a.at);
+  const dated = found
+    .map((p) => ({ rel: slashed(path.relative(root, p)), at: fs.statSync(p).mtimeMs }))
+    .sort((a, b) => b.at - a.at);
   if (!dated.length) return `No file under ${shown} matches "${pattern}".`;
   const more = dated.length > FOUND_SHOWN ? `\n[${dated.length - FOUND_SHOWN} more: use a narrower pattern.]` : '';
-  return `${shown}\n${dated.slice(0, FOUND_SHOWN).map((f) => f.rel).join('\n')}${more}`;
+  return `${shown}\n${dated
+    .slice(0, FOUND_SHOWN)
+    .map((f) => f.rel)
+    .join('\n')}${more}`;
 }
 
 // Nested quantifiers like (a+)+ can take forever on one line: those are searched for as plain text.
@@ -144,7 +167,9 @@ export function searchFiles(root: string, shown: string, query: string, glob?: s
   }
   const single = fs.statSync(root).isFile();
   const match = glob ? matcher(glob) : () => true;
-  const files = single ? [root] : walk(root, { ...WALK, filter: (p) => isPlainFile(p) && match(slashed(path.relative(root, p))) });
+  const files = single
+    ? [root]
+    : walk(root, { ...WALK, filter: (p) => isPlainFile(p) && match(slashed(path.relative(root, p))) });
   const started = Date.now();
   const hits: string[] = [];
   let total = 0;
@@ -166,13 +191,20 @@ export function searchFiles(root: string, shown: string, query: string, glob?: s
     bytes += size;
     if (looksBinary(buf)) continue;
     const rel = single ? path.basename(file) : slashed(path.relative(root, file));
-    buf.toString('utf8').split('\n').forEach((line, i) => {
-      if (!re.test(line)) return;
-      if (++total <= MATCHES_SHOWN) hits.push(`${rel}:${i + 1}: ${(line.length > 300 ? `${line.slice(0, 300)}…` : line).trimEnd()}`);
-    });
+    buf
+      .toString('utf8')
+      .split('\n')
+      .forEach((line, i) => {
+        if (!re.test(line)) return;
+        if (++total <= MATCHES_SHOWN)
+          hits.push(`${rel}:${i + 1}: ${(line.length > 300 ? `${line.slice(0, 300)}…` : line).trimEnd()}`);
+      });
   }
   if (!total) return `No line under ${shown} matches "${q}".${stopped}`;
-  const more = total > MATCHES_SHOWN ? `\n[First ${MATCHES_SHOWN} of ${total} matching lines: search for something narrower.]` : '';
+  const more =
+    total > MATCHES_SHOWN
+      ? `\n[First ${MATCHES_SHOWN} of ${total} matching lines: search for something narrower.]`
+      : '';
   return `${single ? shown : `In ${shown}:`}\n${hits.join('\n')}${more}${stopped ? `\n[${stopped.trim()}]` : ''}`;
 }
 

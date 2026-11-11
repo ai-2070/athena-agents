@@ -6,7 +6,20 @@
 // mention() change its text directly, as typing does.
 import { attachMentionEditor } from './chat/mentioneditor.ts';
 import { icon } from './icons.ts';
-import { Suspense, createContext, lazy, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  Suspense,
+  createContext,
+  lazy,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { state, attempt, md, ago, onEvent, onReconnect, confirmBox, toast } from './core.ts';
 import { rpcAt } from './client/rpc.ts';
@@ -30,7 +43,17 @@ import { Avatar, DomNode, Icon, IconWeightProvider, mountReact, useAppState } fr
 import { Dot } from './ui/marks.tsx';
 import { Button, IconButton } from './ui/button.tsx';
 import { TasksAndChats } from './chatlist.tsx';
-import type { Agent, BrainBrief, LoopInfo, QueuedMessage, RunEvent, Team, TeamMessage, TeamRef, TeamState } from '../shared/types.ts';
+import type {
+  Agent,
+  BrainBrief,
+  LoopInfo,
+  QueuedMessage,
+  RunEvent,
+  Team,
+  TeamMessage,
+  TeamRef,
+  TeamState,
+} from '../shared/types.ts';
 
 // A working agent's turn (and the work behind a reply): the AI SDK pieces load when first needed.
 const TurnView = lazy(() => import('./chat/TurnView.tsx').then((m) => ({ default: m.TurnView })));
@@ -109,31 +132,59 @@ const MSG_RELAY = `${MSG} tc-relay`;
 /** an agent working now, its turn streaming in */
 const MSG_LIVE = `${MSG} tc-live`;
 const WHO = 'flex items-center gap-2.5 mb-2.5 text-[13px] [&_.avatar]:size-6 [&_.avatar]:text-[12px]';
-const TEAM_AV = 'avatar tc-team-av bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_18%,transparent)] text-[color:var(--team-color,var(--color-ice))] text-[12px] leading-[normal] font-semibold';
+const TEAM_AV =
+  'avatar tc-team-av bg-[color-mix(in_srgb,var(--team-color,var(--color-ice))_18%,transparent)] text-[color:var(--team-color,var(--color-ice))] text-[12px] leading-[normal] font-semibold';
 /** a message's text (Markdown) */
-const TEXT = 'font-chat text-[13.5px] leading-[1.6] wrap-anywhere [&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-2.5 [&_p:last-child]:mb-0 [&_pre]:max-h-[200px]';
+const TEXT =
+  'font-chat text-[13.5px] leading-[1.6] wrap-anywhere [&_p]:mx-0 [&_p]:mt-0 [&_p]:mb-2.5 [&_p:last-child]:mb-0 [&_pre]:max-h-[200px]';
 const MENTION = 'tc-mention cursor-pointer font-medium rounded-[5px] px-1 text-accent bg-accent/10';
 const MENTION_TEAM = 'tc-mention tc-team cursor-pointer font-medium rounded-[5px] px-1 text-ice bg-ice/10';
 const TYPING = 'flex items-center gap-2 text-[12.5px] leading-[normal] font-normal';
 /** the steps behind a reply, and a live turn */
 const TURN_BODY = 'mt-2 flex flex-col gap-2 min-w-0';
-const blank = (): TeamChatData => ({ team: null, others: [], messages: [], working: [], queued: [], held: [], loop: null, goal: null, activity: {}, sessions: {}, turning: new Set(), switched: 0 });
+const blank = (): TeamChatData => ({
+  team: null,
+  others: [],
+  messages: [],
+  working: [],
+  queued: [],
+  held: [],
+  loop: null,
+  goal: null,
+  activity: {},
+  sessions: {},
+  turning: new Set(),
+  switched: 0,
+});
 // The team's project, when it isn't the open one (an Overview pane): its members are the agents fetched for that
 // project (a copied project has agents with the same ids), and their turns are read from there.
 const TeamProject = createContext<string | undefined>(undefined);
-const agentIn = (projectId: string | undefined) => (id: string): Agent | undefined => (projectId ? projectAgents(projectId) : state.data?.agents || []).find((a) => a.id === id);
+const agentIn =
+  (projectId: string | undefined) =>
+  (id: string): Agent | undefined =>
+    (projectId ? projectAgents(projectId) : state.data?.agents || []).find((a) => a.id === id);
 const useAgentOf = () => agentIn(useContext(TeamProject));
 
 /** Who wrote a message, in a few words (the quote above a reply). */
 export function senderName(m: TeamMessage, agentName: (id: string) => string | undefined): string {
   if (m.relay) return `#${m.relay.teamName}`;
-  return m.from === 'user' ? 'You' : m.from === 'brain' ? 'Brain' : m.from === 'system' ? 'System' : agentName(m.from) || '';
+  return m.from === 'user'
+    ? 'You'
+    : m.from === 'brain'
+      ? 'Brain'
+      : m.from === 'system'
+        ? 'System'
+        : agentName(m.from) || '';
 }
 
 /** What highlights @Names and #Teams in a message (group 1: an @name, group 2: a #team). */
 export function mentionPattern(names: string[], teams: string[]): RegExp {
   const esc = (n: string) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const longest = (xs: string[]) => [...xs].sort((a, b) => b.length - a.length).map(esc).join('|');
+  const longest = (xs: string[]) =>
+    [...xs]
+      .sort((a, b) => b.length - a.length)
+      .map(esc)
+      .join('|');
   return new RegExp(`@(${longest(names)})${teams.length ? `|(?<![\\w#&/])#(${longest(teams)})(?![\\w-])` : ''}`, 'gi');
 }
 
@@ -162,7 +213,8 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
       if (ev.projectId && mine && ev.projectId !== mine) return;
       if (ev.type === 'team' && ev.teamId === teamId) {
         const e = ev.event as TeamEvent;
-        if (e.kind === 'message' && !c.messages.some((m) => m.id === e.message.id)) c.messages = [...c.messages, e.message];
+        if (e.kind === 'message' && !c.messages.some((m) => m.id === e.message.id))
+          c.messages = [...c.messages, e.message];
         if (e.kind === 'message' && early.loading) early.fresh.add(e.message.id);
         if (e.kind === 'state') {
           Object.assign(c, { working: e.working, queued: e.queued, held: e.held || [], loop: e.loop || null });
@@ -170,7 +222,16 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
         }
         if (e.kind === 'cleared' || e.kind === 'thread') {
           // (the agents' sessions are gone with it, or are the other conversation's)
-          Object.assign(c, { messages: [], sessions: {}, working: [], held: [], loop: null, goal: null, activity: {}, turning: new Set() });
+          Object.assign(c, {
+            messages: [],
+            sessions: {},
+            working: [],
+            held: [],
+            loop: null,
+            goal: null,
+            activity: {},
+            turning: new Set(),
+          });
           early.cleared ||= early.loading;
         }
         // (the conversation opened instead: what it holds comes with a fresh look)
@@ -203,7 +264,12 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
       // what a working member is doing right now
       if (ev.type === 'run' && c.working.includes(ev.agentId as string)) {
         const run = ev.event as RunEvent;
-        const doing = run.kind === 'tool' ? run.name.replace(/^mcp__dashboard__/, '').replace(/_/g, ' ') : run.kind === 'text' ? 'writing' : null;
+        const doing =
+          run.kind === 'tool'
+            ? run.name.replace(/^mcp__dashboard__/, '').replace(/_/g, ' ')
+            : run.kind === 'text'
+              ? 'writing'
+              : null;
         if (doing && c.activity[ev.agentId as string] !== doing) {
           c.activity = { ...c.activity, [ev.agentId as string]: doing };
           bump();
@@ -212,22 +278,37 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
     });
     // again: the event socket came back, and what happened while it was down never came as events
     const load = (again: boolean) => {
-      const now: typeof early = (early = { loading: true, cleared: false, state: false, fresh: new Set(), turned: new Set() });
-      rpcAt(projectAt(projectId)).teams.chat({ id: teamId })
+      const now: typeof early = (early = {
+        loading: true,
+        cleared: false,
+        state: false,
+        fresh: new Set(),
+        turned: new Set(),
+      });
+      rpcAt(projectAt(projectId))
+        .teams.chat({ id: teamId })
         .then((r) => {
           if (!alive || now !== early) return;
           c.team = r.team;
           c.others = r.others || [];
           // (again: the saved chat stands, with what came in while it loaded)
-          c.messages = mergeSnapshot(r.messages, again ? c.messages.filter((m) => now.fresh.has(m.id)) : c.messages, now.cleared);
+          c.messages = mergeSnapshot(
+            r.messages,
+            again ? c.messages.filter((m) => now.fresh.has(m.id)) : c.messages,
+            now.cleared,
+          );
           // (cleared while it loaded: the snapshot's sessions and who was working are from before)
           if (!now.cleared) {
             c.sessions = { ...(r.sessions || {}), ...c.sessions };
             // who was already working when this opened: their turns are going now (again: a turn that
             // ended while the socket was down is not going any more)
-            c.turning = new Set([...(again ? [...c.turning].filter((id) => now.turned.has(id)) : c.turning), ...r.working]);
+            c.turning = new Set([
+              ...(again ? [...c.turning].filter((id) => now.turned.has(id)) : c.turning),
+              ...r.working,
+            ]);
           }
-          if (!now.state && !now.cleared) Object.assign(c, { working: r.working, queued: r.queued, held: r.held || [], loop: r.loop || null });
+          if (!now.state && !now.cleared)
+            Object.assign(c, { working: r.working, queued: r.queued, held: r.held || [], loop: r.loop || null });
           c.goal = again ? r.goal || null : c.goal || r.goal || null;
           bump();
         })
@@ -287,14 +368,17 @@ function textWithMentions(text: string, names: readonly string[], teams: readonl
           tag.textContent = m;
           if (m.startsWith('#')) tag.prepend(icon('users', 11, 'mr-0.5 align-[-1px]'));
           tag.type = 'button';
-          tag.addEventListener('click', () => tag.dispatchEvent(new CustomEvent('chat-mention', { bubbles: true, detail: m })));
+          tag.addEventListener('click', () =>
+            tag.dispatchEvent(new CustomEvent('chat-mention', { bubbles: true, detail: m })),
+          );
           frag.append(child.textContent!.slice(last, idx), tag);
           last = idx + m.length;
           return m;
         });
         frag.append(child.textContent!.slice(last));
         child.replaceWith(frag);
-      } else if (child.nodeType === 1 && (child as Element).tagName !== 'CODE' && (child as Element).tagName !== 'PRE') walk(child);
+      } else if (child.nodeType === 1 && (child as Element).tagName !== 'CODE' && (child as Element).tagName !== 'PRE')
+        walk(child);
     }
   };
   walk(el);
@@ -331,13 +415,24 @@ function Fold({ children }: { children: ReactNode }) {
     animation.current?.cancel();
     if (!el || from === null || reducedMotion() || typeof el.animate !== 'function') return;
     const to = folded ? FOLD_AT : inner.current?.scrollHeight || 0;
-    animation.current = el.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 240, easing: 'ease-in-out' });
+    animation.current = el.animate([{ height: `${from}px` }, { height: `${to}px` }], {
+      duration: 240,
+      easing: 'ease-in-out',
+    });
     void animation.current.finished.catch(() => {});
   }, [folded]);
   useEffect(() => () => animation.current?.cancel(), []);
   return (
     <>
-      <div ref={outer} style={folded ? { height: FOLD_AT } : undefined} className={folded ? 'tc-folded overflow-hidden [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]' : 'overflow-hidden'}>
+      <div
+        ref={outer}
+        style={folded ? { height: FOLD_AT } : undefined}
+        className={
+          folded
+            ? 'tc-folded overflow-hidden [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]'
+            : 'overflow-hidden'
+        }
+      >
         <div ref={inner}>{children}</div>
       </div>
       {long ? (
@@ -346,9 +441,16 @@ function Fold({ children }: { children: ReactNode }) {
             type="button"
             className="tc-more inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint transition-colors duration-200 ease-in-out hover:text-ink"
             aria-expanded={open}
-            onClick={() => { fromHeight.current = outer.current?.getBoundingClientRect().height ?? null; setOpen(!open); }}
+            onClick={() => {
+              fromHeight.current = outer.current?.getBoundingClientRect().height ?? null;
+              setOpen(!open);
+            }}
           >
-            <Icon name="chevron-down" size={12} className={`transition-transform duration-200 ease-in-out ${open ? 'rotate-180' : ''}`} />
+            <Icon
+              name="chevron-down"
+              size={12}
+              className={`transition-transform duration-200 ease-in-out ${open ? 'rotate-180' : ''}`}
+            />
             {open ? 'Show less' : 'Show more'}
           </button>
         </div>
@@ -373,14 +475,36 @@ function Work({ m, shown = false }: { m: TeamMessage; shown?: boolean }) {
   const at = projectAt(useContext(TeamProject));
   const turn = m.turn!;
   return (
-    <CollapseRoot className="tc-work mt-2.5 text-left" open={open} onOpenChange={(value) => { setOpen(value); if (value) setOpened(true); }}>
+    <CollapseRoot
+      className="tc-work mt-2.5 text-left"
+      open={open}
+      onOpenChange={(value) => {
+        setOpen(value);
+        if (value) setOpened(true);
+      }}
+    >
       <CollapseTrigger className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] leading-[normal] font-medium text-faint transition-colors duration-200 ease-in-out hover:text-ink">
-        <Icon name="chevron-down" size={12} className={`transition-transform duration-200 ease-in-out ${open ? 'rotate-180' : ''}`} />
+        <Icon
+          name="chevron-down"
+          size={12}
+          className={`transition-transform duration-200 ease-in-out ${open ? 'rotate-180' : ''}`}
+        />
         {open ? 'Hide the work' : 'Show the work'}
       </CollapseTrigger>
       <CollapsePanel keepMounted>
         <div className={TURN_BODY}>
-          {opened ? <Suspense fallback={null}><TurnView agentId={m.from} chatId={turn.chatId} at={at} from={turn.from} to={turn.to} empty="No steps were saved for this reply." /></Suspense> : null}
+          {opened ? (
+            <Suspense fallback={null}>
+              <TurnView
+                agentId={m.from}
+                chatId={turn.chatId}
+                at={at}
+                from={turn.from}
+                to={turn.to}
+                empty="No steps were saved for this reply."
+              />
+            </Suspense>
+          ) : null}
         </div>
       </CollapsePanel>
     </CollapseRoot>
@@ -394,13 +518,35 @@ function SystemLine({ text, names, teams }: { text: string; names: string; teams
   if (!split) return <div className={line}>{text}</div>;
   return (
     <ReportLine heading={split.heading} lineClass={line}>
-      <DomNode className="dom-contents" make={() => textWithMentions(split.report, names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[text, names, teams]} />
+      <DomNode
+        className="dom-contents"
+        make={() => textWithMentions(split.report, names ? names.split('\n') : [], teams ? teams.split('\n') : [])}
+        deps={[text, names, teams]}
+      />
     </ReportLine>
   );
 }
 
 /** One message. Memo: a message drawn once stays as it is while others arrive or stream in. */
-const Message = memo(function Message({ m, parent, author, team, lead, names, teams, onReply }: { m: TeamMessage; parent: TeamMessage | null; author: Agent | undefined; team: TeamRef | undefined; lead: boolean; names: string; teams: string; onReply: (m: TeamMessage) => void }) {
+const Message = memo(function Message({
+  m,
+  parent,
+  author,
+  team,
+  lead,
+  names,
+  teams,
+  onReply,
+}: {
+  m: TeamMessage;
+  parent: TeamMessage | null;
+  author: Agent | undefined;
+  team: TeamRef | undefined;
+  lead: boolean;
+  names: string;
+  teams: string;
+  onReply: (m: TeamMessage) => void;
+}) {
   const project = useContext(TeamProject);
   const agentOf = useAgentOf();
   if (m.from === 'system') return <SystemLine text={m.text} names={names} teams={teams} />;
@@ -410,37 +556,72 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
   // its turn was stopped: a quiet line in place of a reply, and its work so far, open
   const stopped = stoppedTurn(m);
   return (
-    <div className={relay ? MSG_RELAY : m.from === 'user' ? MSG_ME : MSG_OTHER} style={relay ? ({ '--team-color': team?.color || 'var(--color-ice)' } as CSSProperties) : undefined}>
+    <div
+      className={relay ? MSG_RELAY : m.from === 'user' ? MSG_ME : MSG_OTHER}
+      style={relay ? ({ '--team-color': team?.color || 'var(--color-ice)' } as CSSProperties) : undefined}
+    >
       <div className={m.from === 'user' ? 'sr-only' : WHO}>
         {author ? (
           <Avatar agent={author} />
         ) : brain ? (
-          <div className="avatar bg-accent/10 text-accent"><Icon name="brain" size={14} /></div>
+          <div className="avatar bg-accent/10 text-accent">
+            <Icon name="brain" size={14} />
+          </div>
         ) : relay ? (
           <div className={TEAM_AV}>{team?.mark || '#'}</div>
         ) : (
-          <div className="avatar text-accent"><Icon name="users" size={14} /></div>
+          <div className="avatar text-accent">
+            <Icon name="users" size={14} />
+          </div>
         )}
-        <b>{author ? author.name : brain ? 'Brain' : relay ? `#${team?.name || relay.teamName}` : m.from === 'user' ? 'You' : 'Someone'}</b>
-        {relay ? <span className="tc-relay-tag text-[12px] font-medium leading-[normal] text-faint">{relay.answers ? `answered · ${relay.byName}` : `asks this team · ${relay.byName}`}</span> : null}
+        <b>
+          {author
+            ? author.name
+            : brain
+              ? 'Brain'
+              : relay
+                ? `#${team?.name || relay.teamName}`
+                : m.from === 'user'
+                  ? 'You'
+                  : 'Someone'}
+        </b>
+        {relay ? (
+          <span className="tc-relay-tag text-[12px] font-medium leading-[normal] text-faint">
+            {relay.answers ? `answered · ${relay.byName}` : `asks this team · ${relay.byName}`}
+          </span>
+        ) : null}
         {lead ? <span className="tc-lead">★ lead</span> : null}
         <Ago ts={m.ts} />
         <span className="flex-1 min-w-0" />
         {author ? (
-          <button type="button" className="tc-act" title={`Reply to ${author.name}`} aria-label={`Reply to ${author.name}`} onClick={() => onReply(m)}>
+          <button
+            type="button"
+            className="tc-act"
+            title={`Reply to ${author.name}`}
+            aria-label={`Reply to ${author.name}`}
+            onClick={() => onReply(m)}
+          >
             <Icon name="reply" size={13} />
           </button>
         ) : null}
       </div>
-      {parent ? <div className="text-[12px] text-faint mb-2 truncate">{`↪ ${senderName(parent, (id) => agentOf(id)?.name)}: ${String(parent.text).slice(0, 90)}`}</div> : null}
+      {parent ? (
+        <div className="text-[12px] text-faint mb-2 truncate">{`↪ ${senderName(parent, (id) => agentOf(id)?.name)}: ${String(parent.text).slice(0, 90)}`}</div>
+      ) : null}
       {stopped ? (
         <div className="tc-stopped flex items-center gap-1.5 text-[12.5px] leading-[normal] text-faint">
           <Icon name="square" size={10} />
-          {stopped === 'steer' ? 'Stopped to take your new message. Its work so far is kept.' : 'Stopped. Its work so far is kept.'}
+          {stopped === 'steer'
+            ? 'Stopped to take your new message. Its work so far is kept.'
+            : 'Stopped. Its work so far is kept.'}
         </div>
       ) : m.text ? (
         <Fold>
-          <DomNode className="dom-contents" make={() => textWithMentions(m.text, names ? names.split('\n') : [], teams ? teams.split('\n') : [])} deps={[m.text, names, teams]} />
+          <DomNode
+            className="dom-contents"
+            make={() => textWithMentions(m.text, names ? names.split('\n') : [], teams ? teams.split('\n') : [])}
+            deps={[m.text, names, teams]}
+          />
         </Fold>
       ) : null}
       <DomNode
@@ -457,7 +638,10 @@ const Message = memo(function Message({ m, parent, author, team, lead, names, te
       {m.mentions?.length && m.from !== 'user' ? (
         <div className="flex items-center gap-1.5 mt-2.5 text-[12px] font-medium leading-[normal] text-ice">
           <Icon name="send" size={11} />
-          {`handed to ${m.mentions.map((id) => agentOf(id)?.name).filter(Boolean).join(', ')}`}
+          {`handed to ${m.mentions
+            .map((id) => agentOf(id)?.name)
+            .filter(Boolean)
+            .join(', ')}`}
         </div>
       ) : null}
     </div>
@@ -471,7 +655,13 @@ function LiveTurn({ agentId, chatId }: { agentId: string; chatId: string }) {
   return (
     <div className={MSG_LIVE}>
       <div className={WHO}>
-        {a ? <Avatar agent={a} /> : <div className="avatar"><Icon name="bot" size={14} /></div>}
+        {a ? (
+          <Avatar agent={a} />
+        ) : (
+          <div className="avatar">
+            <Icon name="bot" size={14} />
+          </div>
+        )}
         <b>{a?.name || 'Agent'}</b>
         <span className="hint">working…</span>
       </div>
@@ -500,7 +690,19 @@ function mentionIn(input: HTMLTextAreaElement, name: string): void {
   input.setSelectionRange(input.value.length, input.value.length);
 }
 
-function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; height: number; fill: boolean; box: BoxRef; projectId?: string }) {
+function TeamChat({
+  teamId,
+  height,
+  fill,
+  box,
+  projectId,
+}: {
+  teamId: string;
+  height: number;
+  fill: boolean;
+  box: BoxRef;
+  projectId?: string;
+}) {
   useAppState(); // (names, avatars and who is lead follow the app state)
   useProjectAgents(projectId); // (and the members of a team of a project that isn't open, once fetched)
   const agentOf = agentIn(projectId);
@@ -532,7 +734,10 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
   // something to send in the box (words or files): Send; nothing while the team works: Stop
   const [filled, setFilled] = useState(false);
   const refill = useRef(() => {});
-  const tray = useMemo(() => attachTray({ onChange: () => refill.current(), iconWeight: 'regular', project: projectId }), [projectId]);
+  const tray = useMemo(
+    () => attachTray({ onChange: () => refill.current(), iconWeight: 'regular', project: projectId }),
+    [projectId],
+  );
   refill.current = () => setFilled(!!input.current?.value.trim() || tray.count() > 0);
   // long pasted text, folded into a chip until it is sent
   const pastes = useMemo(() => pasteBox(), []);
@@ -580,7 +785,10 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
       loop: store.current.loop,
       goal: store.current.goal,
       onStopLoop: () => void attempt(() => rpcAt(at).teams.stopLoop({ id: teamId })),
-      onClearGoal: () => void attempt(() => rpcAt(at).teams.clearGoal({ id: teamId })).then((r) => r && ((store.current.goal = null), bump())),
+      onClearGoal: () =>
+        void attempt(() => rpcAt(at).teams.clearGoal({ id: teamId })).then(
+          (r) => r && ((store.current.goal = null), bump()),
+        ),
     });
   }, [chipsSig, teamId, store, bump]);
 
@@ -611,15 +819,28 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     const r = await attempt(() => rpcAt(at).teams.stop({ id: teamId }));
     // what you queued comes back to the box, so stopping never loses it
     const back = r?.unqueued || [];
-    if (back.length) restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
-    if (back.some((q) => q.attachments?.length)) toast('Your queued messages are back in the box. Attach their files again.');
+    if (back.length)
+      restore(
+        back
+          .map((q) => q.text)
+          .filter(Boolean)
+          .join('\n\n'),
+      );
+    if (back.some((q) => q.attachments?.length))
+      toast('Your queued messages are back in the box. Attach their files again.');
   };
   const reply = useCallback((m: TeamMessage | null) => {
     setReplyTo(m);
     if (m) input.current?.focus();
   }, []);
   const clear = async (): Promise<boolean> => {
-    if (!(await confirmBox('Clear this team chat? Each agent also forgets the conversation.', { ok: 'Clear', danger: true }))) return false;
+    if (
+      !(await confirmBox('Clear this team chat? Each agent also forgets the conversation.', {
+        ok: 'Clear',
+        danger: true,
+      }))
+    )
+      return false;
     return (await attempt(() => rpcAt(at).teams.clear({ id: teamId }))) !== undefined;
   };
   // New chat and the earlier ones: the server keeps the thread with the others ('cleared' or 'thread' comes back).
@@ -648,7 +869,8 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     if (!(await leaveWork('Opening another chat'))) return;
     await attempt(() => rpcAt(at).teams.openThread({ id: teamId, chatId }));
   };
-  const removeThread = async (c: { id: string }) => (await attempt(() => rpcAt(at).teams.removeThread({ id: teamId, chatId: c.id }))) !== undefined;
+  const removeThread = async (c: { id: string }) =>
+    (await attempt(() => rpcAt(at).teams.removeThread({ id: teamId, chatId: c.id }))) !== undefined;
   const held = (q: QueuedMessage | undefined) => {
     if (q && !store.current.held.some((x) => x.id === q.id)) {
       store.current.held = [...store.current.held, q];
@@ -670,7 +892,9 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     if (name === 'clear') return void ((await clear()) || restore(typed));
     if (name === 'goal' && !rest) {
       const r = await attempt(() => rpcAt(at).teams.chat({ id: teamId }));
-      return void (r && toast(r.goal ? `Goal: ${goalText(r.goal)}` : 'No goal yet. Type /goal and what done looks like.'));
+      return void (
+        r && toast(r.goal ? `Goal: ${goalText(r.goal)}` : 'No goal yet. Type /goal and what done looks like.')
+      );
     }
     const calls = rpcAt(at).teams;
     if (name === 'goal') {
@@ -680,7 +904,9 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
       return bump();
     }
     if (name !== 'resend' && name !== 'resume') return restore(typed);
-    const r = await attempt(async () => (name === 'resend' ? await calls.resend({ id: teamId }) : await calls.resume({ id: teamId })));
+    const r = await attempt(async () =>
+      name === 'resend' ? await calls.resend({ id: teamId }) : await calls.resume({ id: teamId }),
+    );
     if (!r) return restore(typed);
     held('queued' in r ? r.queued : undefined);
   };
@@ -697,7 +923,8 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
     const box = input.current!;
     // (with pasted text put back: a long goal pasted in goes in full)
     const now = parseCommand(pastes.text(), 'team');
-    if (now && ['stop', 'resume', 'resend', 'goal', 'clear'].includes(now.name)) return command(now.name, now.rest, pastes.text().trim());
+    if (now && ['stop', 'resume', 'resend', 'goal', 'clear'].includes(now.name))
+      return command(now.name, now.rest, pastes.text().trim());
     // /loop off ends the loop: the files staged for the next message stay (they would go nowhere)
     if (now?.name === 'loop' && LOOP_OFF.test(now.rest)) return loopOff(now.rest, pastes.text().trim());
     if ((!box.value.trim() && !tray.count()) || sending.current) return;
@@ -739,7 +966,9 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
       const taken = tray.take();
       const body = { id: teamId, text, replyTo: replyRef.current?.id || null, attachments };
       const calls = rpcAt(at).teams;
-      const r = await attempt(async () => (queued != null ? await calls.queue(body) : { message: await (steer ? calls.steer(body) : calls.send(body)) }));
+      const r = await attempt(async () =>
+        queued != null ? await calls.queue(body) : { message: await (steer ? calls.steer(body) : calls.send(body)) },
+      );
       if (!r) {
         restore(text);
         tray.put(taken);
@@ -782,7 +1011,12 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
   // ---- the box: @ suggestions, the / menu, Enter to send
   useEffect(() => {
     const ta = input.current!;
-    const offEditor = attachMentionEditor(ta, () => [...membersRef.current.map((a) => '@' + a.name), '@everyone', '@Brain', ...store.current.others.map((t) => ({ tag: '#' + t.name, icon: 'users' }))]);
+    const offEditor = attachMentionEditor(ta, () => [
+      ...membersRef.current.map((a) => '@' + a.name),
+      '@everyone',
+      '@Brain',
+      ...store.current.others.map((t) => ({ tag: '#' + t.name, icon: 'users' })),
+    ]);
     box.input = ta;
     const addMention = (event: Event) => {
       const tag = (event as CustomEvent<string>).detail;
@@ -807,7 +1041,10 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
       if (!m) return null;
       const q = m[3].toLowerCase();
       // # is another team, @ someone here
-      const all: MentionOption[] = m[2] === '#' ? store.current.others.map((t) => ({ label: t.name, t })) : [...membersRef.current.map((a) => ({ label: a.name, a })), { label: 'everyone' }, { label: 'Brain' }];
+      const all: MentionOption[] =
+        m[2] === '#'
+          ? store.current.others.map((t) => ({ label: t.name, t }))
+          : [...membersRef.current.map((a) => ({ label: a.name, a })), { label: 'everyone' }, { label: 'Brain' }];
       const opts = all.filter((o) => o.label.toLowerCase().startsWith(q) || o.label.toLowerCase().includes(q));
       return opts.length ? { start: pos - m[3].length - 1, opts, index: Math.min(index, opts.length - 1) } : null;
     };
@@ -829,7 +1066,7 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
         pickRef.current(s.opts[s.index]);
         return;
       }
-      if (e.key === 'Escape' && suggestRef.current) return e.preventDefault(), setSuggest(null);
+      if (e.key === 'Escape' && suggestRef.current) return (e.preventDefault(), setSuggest(null));
       // Up in an empty box: change the last queued message
       const held = store.current.held;
       if (e.key === 'ArrowUp' && !ta.value && held.length && !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
@@ -886,7 +1123,12 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
             return stops ? `Each agent also forgets it, and it stops ${stops}.` : 'Each agent also forgets it.';
           },
           end: (
-            <IconButton variant="plain" title="New chat (this one is kept under Chats)" aria-label="New chat" onClick={() => void newThread()}>
+            <IconButton
+              variant="plain"
+              title="New chat (this one is kept under Chats)"
+              aria-label="New chat"
+              onClick={() => void newThread()}
+            >
               <Icon name="square-pen" size={15} />
             </IconButton>
           ),
@@ -895,7 +1137,11 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
       <div
         // (in a scrolling column, an item must keep its height: never squeezed by the list's;
         // -mt-2 takes back the column's gap: the tasks bar has room under it already)
-        className={fill ? '-mt-2 tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_8px,#000_calc(100%-10px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-2 pb-2 *:shrink-0 flex-1 min-h-0' : '-mt-2 tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_8px,#000_calc(100%-10px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-2 pb-2 px-1 *:shrink-0 min-h-[120px]'}
+        className={
+          fill
+            ? '-mt-2 tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_8px,#000_calc(100%-10px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-2 pb-2 *:shrink-0 flex-1 min-h-0'
+            : '-mt-2 tc-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_8px,#000_calc(100%-10px),transparent_100%)] overflow-y-auto flex flex-col gap-6 pt-2 pb-2 px-1 *:shrink-0 min-h-[120px]'
+        }
         ref={list}
         style={fill ? undefined : { maxHeight: `${height}px` }}
         onScroll={(e) => {
@@ -909,7 +1155,9 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
               key={m.id}
               m={m}
               parent={m.replyTo ? C.messages.find((x) => x.id === m.replyTo) || null : null}
-              author={m.from === 'user' || m.from === 'system' || m.from === 'brain' || m.relay ? undefined : agentOf(m.from)}
+              author={
+                m.from === 'user' || m.from === 'system' || m.from === 'brain' || m.relay ? undefined : agentOf(m.from)
+              }
               team={m.relay ? C.others.find((t) => t.id === m.relay!.teamId) : undefined}
               lead={!!lead && lead === m.from}
               names={names}
@@ -920,7 +1168,11 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
         ) : (
           <div className="text-center text-dim py-12 px-2 text-[13px]">
             <Icon name="message-square" size={22} className="text-faint mb-2.5" />
-            <p>{lead ? `Write to the team. ${agentOf(lead)?.name} (lead) takes it and brings in the others.` : 'Write to the team. The best fit answers, or @mention someone.'}</p>
+            <p>
+              {lead
+                ? `Write to the team. ${agentOf(lead)?.name} (lead) takes it and brings in the others.`
+                : 'Write to the team. The best fit answers, or @mention someone.'}
+            </p>
           </div>
         )}
         {/* whose turn is going now, streaming in, after the messages */}
@@ -953,7 +1205,9 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
             {C.working.map((id) => (
               <span key={id} className={`${TYPING} text-dim`}>
                 <Dot tone="busy" />
-                {id === 'brain' ? 'The Brain is answering…' : `${agentOf(id)?.name || 'Agent'} is working${C.activity[id] ? ` · ${C.activity[id]}` : '…'}`}
+                {id === 'brain'
+                  ? 'The Brain is answering…'
+                  : `${agentOf(id)?.name || 'Agent'} is working${C.activity[id] ? ` · ${C.activity[id]}` : '…'}`}
               </span>
             ))}
             {C.queued
@@ -982,7 +1236,17 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
       <DomNode className="dom-contents" make={() => pastes.el} deps={[pastes]} />
       <div className="dock-composer relative">
         <div className="flex-1 min-w-0 relative">
-          <textarea className="dock-input block field-sizing-content min-h-[56px] max-h-[max(160px,20vh)] w-full resize-none text-[13.5px]" ref={input} rows={2} aria-label="Message the team" placeholder={busy.length ? 'The team is working… Write to change its course now, or /queue a message for when it is done' : PLACEHOLDER} />
+          <textarea
+            className="dock-input block field-sizing-content min-h-[56px] max-h-[max(160px,20vh)] w-full resize-none text-[13.5px]"
+            ref={input}
+            rows={2}
+            aria-label="Message the team"
+            placeholder={
+              busy.length
+                ? 'The team is working… Write to change its course now, or /queue a message for when it is done'
+                : PLACEHOLDER
+            }
+          />
           <div className={`tc-suggest${suggest ? '' : ' hidden'}`} role="listbox" aria-label="Mention">
             {suggest?.opts.map((o, i) => (
               <button
@@ -996,13 +1260,19 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
                 {o.a ? (
                   <Avatar agent={o.a} />
                 ) : o.t ? (
-                  <div className={TEAM_AV} style={{ '--team-color': o.t.color || 'var(--color-ice)' } as CSSProperties}>{o.t.mark || '#'}</div>
+                  <div className={TEAM_AV} style={{ '--team-color': o.t.color || 'var(--color-ice)' } as CSSProperties}>
+                    {o.t.mark || '#'}
+                  </div>
                 ) : (
                   <Icon name={o.label === 'Brain' ? 'brain' : 'users'} size={14} />
                 )}
                 <span className="min-w-0 max-w-[45%] shrink-0 truncate font-medium">{`${o.t ? '#' : '@'}${o.label}`}</span>
                 {o.label === 'Brain' && !o.t ? <span className="hint">ask the Brain</span> : null}
-                {o.a?.specialty ? <span className="hint">{o.a.specialty}</span> : o.t ? <span className="hint">{o.t.description || 'ask this team'}</span> : null}
+                {o.a?.specialty ? (
+                  <span className="hint">{o.a.specialty}</span>
+                ) : o.t ? (
+                  <span className="hint">{o.t.description || 'ask this team'}</span>
+                ) : null}
               </button>
             ))}
           </div>
@@ -1023,16 +1293,29 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
                   deps={[leadAgent]}
                 />
               </>
-            ) : <span className="pl-1.5 text-[12.5px] text-faint">Each agent uses its own model</span>}
+            ) : (
+              <span className="pl-1.5 text-[12.5px] text-faint">Each agent uses its own model</span>
+            )}
           </div>
           <div className="flex flex-none items-center gap-1">
             <DomNode as="span" className="dom-contents" make={() => tray.picker} deps={[tray]} />
             {busy.length && !filled ? (
-              <Button variant="danger" className="size-8! px-0!" title="Stop the whole team" aria-label="Stop" onClick={() => void stop()}>
+              <Button
+                variant="danger"
+                className="size-8! px-0!"
+                title="Stop the whole team"
+                aria-label="Stop"
+                onClick={() => void stop()}
+              >
                 <Icon name="square" size={14} />
               </Button>
             ) : (
-              <Button className="size-8! px-0!" title={busy.length ? 'Send now: whoever is working stops and takes this up (Enter)' : 'Send (Enter)'} aria-label="Send" onClick={() => void send()}>
+              <Button
+                className="size-8! px-0!"
+                title={busy.length ? 'Send now: whoever is working stops and takes this up (Enter)' : 'Send (Enter)'}
+                aria-label="Send"
+                onClick={() => void send()}
+              >
                 <Icon name="arrow-up" size={16} />
               </Button>
             )}
@@ -1043,9 +1326,22 @@ function TeamChat({ teamId, height, fill, box, projectId }: { teamId: string; he
   );
 }
 
-export function renderTeamChat(container: HTMLElement, teamId: string, { height = 360, fill = false, projectId }: TeamChatOptions = {}): TeamChatApi {
+export function renderTeamChat(
+  container: HTMLElement,
+  teamId: string,
+  { height = 360, fill = false, projectId }: TeamChatOptions = {},
+): TeamChatApi {
   const box: BoxRef = { input: null, pending: { focus: false, mentions: [] } };
-  const root = mountReact(container, <IconWeightProvider value="regular"><TeamProject.Provider value={projectId}><ChatProject.Provider value={projectId}><TeamChat teamId={teamId} height={height} fill={fill} box={box} projectId={projectId} /></ChatProject.Provider></TeamProject.Provider></IconWeightProvider>);
+  const root = mountReact(
+    container,
+    <IconWeightProvider value="regular">
+      <TeamProject.Provider value={projectId}>
+        <ChatProject.Provider value={projectId}>
+          <TeamChat teamId={teamId} height={height} fill={fill} box={box} projectId={projectId} />
+        </ChatProject.Provider>
+      </TeamProject.Provider>
+    </IconWeightProvider>,
+  );
   return {
     // (before the box is drawn, kept until it is)
     focus: () => (box.input ? box.input.focus() : (box.pending.focus = true)),

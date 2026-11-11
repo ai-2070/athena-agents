@@ -9,7 +9,9 @@ const APP_ICONS: Record<string, { src: string; tile?: string }> = {
 };
 
 const find = (name: string | null | undefined): { src: string; tile?: string } | null => {
-  const n = String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const n = String(name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
   const key = Object.keys(APP_ICONS).find((k) => n.includes(k));
   return key ? APP_ICONS[key] : null;
 };
@@ -18,9 +20,19 @@ const find = (name: string | null | undefined): { src: string; tile?: string } |
 export const appIconUrl = (name: string | null | undefined): string | null => find(name)?.src ?? null;
 
 /** The inline style an icon of this size needs to be seen on any page (its dark tile), or undefined when it needs none. */
-export function appIconStyle(name: string | null | undefined, size = 20): { background: string; padding: string; borderRadius: string; boxSizing: 'border-box' } | undefined {
+export function appIconStyle(
+  name: string | null | undefined,
+  size = 20,
+): { background: string; padding: string; borderRadius: string; boxSizing: 'border-box' } | undefined {
   const tile = find(name)?.tile;
-  return tile ? { background: tile, padding: `${Math.max(1, Math.round(size * 0.18))}px`, borderRadius: `${Math.max(3, Math.round(size * 0.24))}px`, boxSizing: 'border-box' } : undefined;
+  return tile
+    ? {
+        background: tile,
+        padding: `${Math.max(1, Math.round(size * 0.18))}px`,
+        borderRadius: `${Math.max(3, Math.round(size * 0.24))}px`,
+        boxSizing: 'border-box',
+      }
+    : undefined;
 }
 
 // The icon as an <img>, or null when there isn't one.

@@ -2,7 +2,7 @@
 name: 3D Artist
 description: Builds, lights and renders 3D scenes, models and product shots in Blender, turns them into turntable videos or GIFs, and prepares models for the web, game engines or 3D printing.
 emoji: 🧊
-color: "#d6803b"
+color: '#d6803b'
 specialty: builds, lights and renders 3D scenes and models in Blender
 group: media
 tools: blender, assets, media, files, programs, browser, agents, shell

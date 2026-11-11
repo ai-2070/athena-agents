@@ -3,12 +3,22 @@ import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
 const runtime = path.join(root, 'runtime', 'eve');
-if (!Bun.semver.satisfies(Bun.version, '>=1.4.0')) throw new Error('Bun 1.4 or newer is required to build the Eve runtime.');
+if (!Bun.semver.satisfies(Bun.version, '>=1.4.0'))
+  throw new Error('Bun 1.4 or newer is required to build the Eve runtime.');
 for (let attempt = 0; ; attempt++) {
-  const build = Bun.spawn([process.execPath, path.join(root, 'node_modules/eve/bin/eve.js'), 'build', '--profile', '.eve/build-profile.json'], {
-    cwd: runtime, stdout: 'pipe', stderr: 'pipe',
-  });
-  const [code, stdout, stderr] = await Promise.all([build.exited, new Response(build.stdout).text(), new Response(build.stderr).text()]);
+  const build = Bun.spawn(
+    [process.execPath, path.join(root, 'node_modules/eve/bin/eve.js'), 'build', '--profile', '.eve/build-profile.json'],
+    {
+      cwd: runtime,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+  const [code, stdout, stderr] = await Promise.all([
+    build.exited,
+    new Response(build.stdout).text(),
+    new Response(build.stderr).text(),
+  ]);
   // Windows file scanners can hold a newly traced file briefly.
   if (code && process.platform === 'win32' && attempt < 2 && /EBUSY|EPERM/.test(stdout + stderr)) {
     await Bun.sleep(500 * (attempt + 1));

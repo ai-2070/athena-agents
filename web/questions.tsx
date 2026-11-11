@@ -39,21 +39,45 @@ export const projectQuestions = projectList<AgentQuestion>((at) => rpcAt(at).que
 
 /** The waiting question in the list that a chat's ask_user call made (matched by its text, newest first,
  *  and by the agent and chat it is in: two agents asking the same thing each answer their own). */
-export function questionFor(list: readonly AgentQuestion[] | undefined, input: unknown, owner?: QuestionOwner | null): AgentQuestion | null {
-  const asked = input && typeof input === 'object' ? String((input as { question?: unknown }).question ?? '').trim().slice(0, 2000) : '';
+export function questionFor(
+  list: readonly AgentQuestion[] | undefined,
+  input: unknown,
+  owner?: QuestionOwner | null,
+): AgentQuestion | null {
+  const asked =
+    input && typeof input === 'object'
+      ? String((input as { question?: unknown }).question ?? '')
+          .trim()
+          .slice(0, 2000)
+      : '';
   if (!asked) return null;
   // (a question asked outside a known chat has no chatId: then the agent alone decides)
-  const theirs = (q: AgentQuestion) => !owner || (q.agentId === owner.agentId && (!q.chatId || !owner.chatId || q.chatId === owner.chatId));
+  const theirs = (q: AgentQuestion) =>
+    !owner || (q.agentId === owner.agentId && (!q.chatId || !owner.chatId || q.chatId === owner.chatId));
   return [...(list || [])].reverse().find((q) => q.status === 'waiting' && q.question === asked && theirs(q)) || null;
 }
 
 /** Where a card is shown: the Outbox page, under the tool call in a chat, or in the Needs you drawer. */
 export type QuestionPlace = 'outbox' | 'chat' | 'drawer';
-const CARD: Record<QuestionPlace, string> = { outbox: 'panel question', chat: 'question in-chat', drawer: 'approval question' };
+const CARD: Record<QuestionPlace, string> = {
+  outbox: 'panel question',
+  chat: 'question in-chat',
+  drawer: 'approval question',
+};
 
 /** One question: click a choice, or write an answer (or both: what you wrote goes along with the choice).
  *  project: the question's project when it isn't the open one (a chat in an Overview pane): answered there. */
-export function QuestionCard({ q, place = 'outbox', changed, project }: { q: AgentQuestion; place?: QuestionPlace; changed?: () => void; project?: string }) {
+export function QuestionCard({
+  q,
+  place = 'outbox',
+  changed,
+  project,
+}: {
+  q: AgentQuestion;
+  place?: QuestionPlace;
+  changed?: () => void;
+  project?: string;
+}) {
   const at = projectAt(project);
   const inChat = place === 'chat';
   const [text, setText] = useState('');
@@ -62,7 +86,10 @@ export function QuestionCard({ q, place = 'outbox', changed, project }: { q: Age
   const who = q.agentName || 'the agent';
   const answer = async (choice?: string) => {
     setBusy(true);
-    const r = await attempt(() => rpcAt(at).questions.answer({ id: q.id, choice: choice || '', text }), `Sent to ${who}`);
+    const r = await attempt(
+      () => rpcAt(at).questions.answer({ id: q.id, choice: choice || '', text }),
+      `Sent to ${who}`,
+    );
     setBusy(false);
     if (r) {
       setText('');
@@ -82,10 +109,18 @@ export function QuestionCard({ q, place = 'outbox', changed, project }: { q: Age
       <div className="flex flex-wrap items-center gap-2.5">
         <span className={pillClass(tone)}>{label}</span>
         {inChat ? <span className="hint">Also in your Outbox</span> : <b>{q.agentName || 'An agent'}</b>}
-        {inChat ? null : <span className="hint">{`${q.teamName ? `team ${q.teamName} · ` : ''}${ago(q.createdAt)}`}</span>}
+        {inChat ? null : (
+          <span className="hint">{`${q.teamName ? `team ${q.teamName} · ` : ''}${ago(q.createdAt)}`}</span>
+        )}
       </div>
       <p className="text-[15px] leading-relaxed font-semibold whitespace-pre-wrap wrap-anywhere">{q.question}</p>
-      {q.detail ? <DomNode className="hint [&>:first-child>:first-child]:mt-0 [&>:first-child>:last-child]:mb-0" make={() => md(q.detail)} deps={[q.detail]} /> : null}
+      {q.detail ? (
+        <DomNode
+          className="hint [&>:first-child>:first-child]:mt-0 [&>:first-child>:last-child]:mb-0"
+          make={() => md(q.detail)}
+          deps={[q.detail]}
+        />
+      ) : null}
       {waiting ? (
         <>
           {q.choices.length ? (
@@ -108,16 +143,34 @@ export function QuestionCard({ q, place = 'outbox', changed, project }: { q: Age
           <textarea
             rows={2}
             aria-label={`Answer ${who}`}
-            placeholder={q.choices.length ? 'Add a note, or answer in your own words…' : `Answer ${who} in your own words…`}
+            placeholder={
+              q.choices.length ? 'Add a note, or answer in your own words…' : `Answer ${who} in your own words…`
+            }
             value={text}
             disabled={busy}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && text.trim() && void answer()}
           />
           <div className="flex flex-wrap items-center gap-2.5">
-            <Button size="small" variant={text.trim() ? 'primary' : 'ghost'} disabled={busy || !text.trim()} title="Send what you wrote (Ctrl+Enter)" onClick={() => void answer()}>Send answer</Button>
+            <Button
+              size="small"
+              variant={text.trim() ? 'primary' : 'ghost'}
+              disabled={busy || !text.trim()}
+              title="Send what you wrote (Ctrl+Enter)"
+              onClick={() => void answer()}
+            >
+              Send answer
+            </Button>
             <span className="min-w-0 flex-1" />
-            <Button variant="ghost" size="small" disabled={busy} title={`Close it without answering: ${who} hears you passed`} onClick={() => void dismiss()}>Dismiss</Button>
+            <Button
+              variant="ghost"
+              size="small"
+              disabled={busy}
+              title={`Close it without answering: ${who} hears you passed`}
+              onClick={() => void dismiss()}
+            >
+              Dismiss
+            </Button>
           </div>
         </>
       ) : (
@@ -131,7 +184,9 @@ export function QuestionCard({ q, place = 'outbox', changed, project }: { q: Age
           {after ? <p className="hint">{after}</p> : null}
           {place !== 'outbox' ? null : (
             <div className="flex flex-wrap items-center gap-2.5">
-              <Button size="tiny" variant="ghost" onClick={() => void remove()}>Remove</Button>
+              <Button size="tiny" variant="ghost" onClick={() => void remove()}>
+                Remove
+              </Button>
             </div>
           )}
         </>

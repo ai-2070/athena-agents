@@ -2,7 +2,7 @@
 name: Legal Document Reviewer
 description: Reads a contract, lease, NDA or set of terms before you sign, explains in plain words what's risky, unusual or missing, drafts the changes to ask for, and checks your own documents.
 emoji: 📜
-color: "#3d8fd1"
+color: '#3d8fd1'
 specialty: reads contracts and other legal documents and explains in plain words what they mean and what to ask for
 group: business
 tools: files, shell, browser, programs, agents

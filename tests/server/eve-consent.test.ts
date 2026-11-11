@@ -34,7 +34,9 @@ describe('Eve nested consent checkpoints', () => {
   it('parks tool access even at Full autonomy, then grants the saved request once', async () => {
     const { agent, binding, runId, id } = fixture('full');
     const args = { tools: 'shell', why: 'Run the requested build' };
-    expect(await eveToolPolicy(binding.id, 'session', runId, 'grant', 'request_tool', args)).toEqual({ status: 'user-approval' });
+    expect(await eveToolPolicy(binding.id, 'session', runId, 'grant', 'request_tool', args)).toEqual({
+      status: 'user-approval',
+    });
     expect(agents.get(agent.id)?.toolGroups).not.toContain('shell');
     const request = listApprovals().find((item) => item.data.runId === runId)!;
     expect(request.kind).toBe('tools');
@@ -51,7 +53,9 @@ describe('Eve nested consent checkpoints', () => {
     await createOtherObject('Shared bench');
     const { agent, binding, runId, id } = fixture('ask');
     const args = { object: 'Shared bench', steps: [{ box: [1, 1, 1], use: 'stone' }] };
-    expect(await eveToolPolicy(binding.id, 'session', runId, 'build', 'world_build', args)).toEqual({ status: 'user-approval' });
+    expect(await eveToolPolicy(binding.id, 'session', runId, 'build', 'world_build', args)).toEqual({
+      status: 'user-approval',
+    });
     const requests = listApprovals().filter((item) => item.data.runId === runId);
     expect(requests).toHaveLength(1);
     expect(requests[0]?.detail).toContain('Original builder built');
@@ -83,7 +87,10 @@ describe('Eve nested consent checkpoints', () => {
     const { binding, runId } = fixture();
     const args = { object: 'Approved target', steps: [{ box: [3, 1, 1] }] };
     await eveToolPolicy(binding.id, 'session', runId, 'edited', 'world_build', args);
-    decide(listApprovals().find((item) => item.data.runId === runId)!.id, { approved: true, edited: { ...args, object: 'Different target' } });
+    decide(listApprovals().find((item) => item.data.runId === runId)!.id, {
+      approved: true,
+      edited: { ...args, object: 'Different target' },
+    });
     const before = JSON.stringify(shownWorld().world);
     expect(await eveTool(binding.id, 'session', runId, 'edited', 'world_build', args)).toMatchObject({ denied: true });
     expect(JSON.stringify(shownWorld().world)).toBe(before);
@@ -93,7 +100,9 @@ describe('Eve nested consent checkpoints', () => {
     const { binding, runId, id } = fixture('full');
     await createOtherObject('Look subject');
     saveSettings({ look: { stationLook: 'classic' } });
-    expect(await eveToolPolicy(binding.id, 'session', runId, 'look', 'world_look', {})).toEqual({ status: 'user-approval' });
+    expect(await eveToolPolicy(binding.id, 'session', runId, 'look', 'world_look', {})).toEqual({
+      status: 'user-approval',
+    });
     expect(getSettings().look.stationLook).toBe('classic');
     const request = listApprovals().find((item) => item.data.runId === runId)!;
     expect(request.kind).toBe('setting');

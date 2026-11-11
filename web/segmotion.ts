@@ -8,7 +8,9 @@ export function slideSegment(from: HTMLButtonElement | null, to: HTMLButtonEleme
   if (!width || !height) return;
   const animation = to.animate(
     [
-      { transform: `translate(${from.offsetLeft - to.offsetLeft}px, ${from.offsetTop - to.offsetTop}px) scale(${from.offsetWidth / width}, ${from.offsetHeight / height})` },
+      {
+        transform: `translate(${from.offsetLeft - to.offsetLeft}px, ${from.offsetTop - to.offsetTop}px) scale(${from.offsetWidth / width}, ${from.offsetHeight / height})`,
+      },
       { transform: 'none' },
     ],
     { pseudoElement: '::before', duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)' },

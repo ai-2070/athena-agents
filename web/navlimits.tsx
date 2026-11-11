@@ -36,7 +36,8 @@ export function resetLimitsCache(): void {
 }
 
 // each project remembers what it last showed; one that never switched follows Settings > Appearance
-export const sidebarPanel = (): SidebarPanel => state.data?.project?.sidebar || state.data?.settings?.look?.sidebar || currentLook().sidebar || 'status';
+export const sidebarPanel = (): SidebarPanel =>
+  state.data?.project?.sidebar || state.data?.settings?.look?.sidebar || currentLook().sidebar || 'status';
 
 /** Remembers the choice for the open project too (here now, on the server in the background). */
 export function rememberSidebarPanel(p: SidebarPanel): void {
@@ -57,7 +58,8 @@ const PANEL = 'contents';
 // display:contents box navLimits returns, which lays them out as if they were there themselves
 const lines = (host: Element | null): HTMLElement[] => {
   if (!host) return [];
-  const open = (el: Element): Element[] => (el.classList.contains(PANEL) || el.classList.contains('nav-list') ? [...el.children].flatMap(open) : [el]);
+  const open = (el: Element): Element[] =>
+    el.classList.contains(PANEL) || el.classList.contains('nav-list') ? [...el.children].flatMap(open) : [el];
   return [...host.children]
     .flatMap(open)
     .filter((el): el is HTMLElement => el instanceof HTMLElement && !el.classList.contains('sidebar-panel-switch'));
@@ -81,13 +83,24 @@ export function setSidebarPanel(p: SidebarPanel, redraw: () => void): void {
     if (reducedMotion() || typeof document.body.animate !== 'function') return;
     const now = host?.querySelector<HTMLElement>('.sidebar-panel-mark');
     if (now && mark?.width) flipFrom(now, mark, { duration: 260 });
-    lines(host).forEach((el, i) => el.animate([{ opacity: 0, transform: `translateX(${dir * 12}px)` }, { opacity: 1, transform: 'none' }], { duration: 260, delay: Math.min(i, 10) * 22, easing: EASE, fill: 'backwards' }));
+    lines(host).forEach((el, i) =>
+      el.animate(
+        [
+          { opacity: 0, transform: `translateX(${dir * 12}px)` },
+          { opacity: 1, transform: 'none' },
+        ],
+        { duration: 260, delay: Math.min(i, 10) * 22, easing: EASE, fill: 'backwards' },
+      ),
+    );
   };
   const old = lines(host);
   if (!old.length || reducedMotion() || typeof old[0].animate !== 'function') return swap();
   switching = true;
   // (swaps on time even if an animation never reports back)
-  void Promise.race([Promise.all(old.map((el) => slideOut(el, { x: -dir * 8, duration: 110 }))), new Promise((r) => setTimeout(r, 160))]).then(swap);
+  void Promise.race([
+    Promise.all(old.map((el) => slideOut(el, { x: -dir * 8, duration: 110 }))),
+    new Promise((r) => setTimeout(r, 160)),
+  ]).then(swap);
 }
 
 /** "2d 13h", "4h 10m", "12m" until the given time (ms). */
@@ -106,26 +119,51 @@ const when = (at: number) => new Date(at).toLocaleString([], { weekday: 'short',
 function load(redraw: () => void): void {
   if (loading || Date.now() - loadedAt < stale()) return;
   loading = true;
-  rpc.status.usageLimits().then(
-    (l) => ((limits = l), (failed = false)),
-    () => (failed = true),
-  ).finally(() => {
-    loading = false;
-    loadedAt = Date.now();
-    redraw();
-  });
+  rpc.status
+    .usageLimits()
+    .then(
+      (l) => ((limits = l), (failed = false)),
+      () => (failed = true),
+    )
+    .finally(() => {
+      loading = false;
+      loadedAt = Date.now();
+      redraw();
+    });
 }
 
-const ROW = 'group flex min-w-0 w-full items-center gap-2.5 rounded-ctl px-2 py-1 text-[12.5px] leading-5 text-dim no-underline [transition:background-color_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
+const ROW =
+  'group flex min-w-0 w-full items-center gap-2.5 rounded-ctl px-2 py-1 text-[12.5px] leading-5 text-dim no-underline [transition:background-color_0.15s,color_0.15s] hover:bg-ink/5 hover:text-ink focus-visible:outline-offset-[-2px]';
 const close = () => document.body.classList.remove('nav-open');
 
-function ProviderHead({ name, brand, color, p, href, right }: { name: string; brand: string; color: string | undefined; p: ProviderLimits; href: string; right: string }) {
+function ProviderHead({
+  name,
+  brand,
+  color,
+  p,
+  href,
+  right,
+}: {
+  name: string;
+  brand: string;
+  color: string | undefined;
+  p: ProviderLimits;
+  href: string;
+  right: string;
+}) {
   const dot: DotTone | '' = !p.ready ? (p.why === 'not signed in' ? 'warn' : '') : p.blocked ? 'warn' : 'on';
   return (
     <a className={ROW} href={href} title={p.ready ? `${name} plan limits` : `${name}: ${p.why}`} onClick={close}>
       <Dot tone={dot} className="size-1.5 [box-shadow:none]" />
-      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-ink"><DomNode as="span" className="contents" make={() => logo(brand, 12, color)} deps={[brand, color]} /><span className="min-w-0 truncate">{name}</span></span>
-      {right ? <span className="max-w-[48%] min-w-0 truncate text-right text-[11.5px] text-faint" title={right}>{right}</span> : null}
+      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-ink">
+        <DomNode as="span" className="contents" make={() => logo(brand, 12, color)} deps={[brand, color]} />
+        <span className="min-w-0 truncate">{name}</span>
+      </span>
+      {right ? (
+        <span className="max-w-[48%] min-w-0 truncate text-right text-[11.5px] text-faint" title={right}>
+          {right}
+        </span>
+      ) : null}
     </a>
   );
 }
@@ -133,26 +171,52 @@ function ProviderHead({ name, brand, color, p, href, right }: { name: string; br
 function Meter({ w }: { w: LimitWindow }) {
   const hot = w.percent >= 90 ? 'bg-red' : w.percent >= 75 ? 'bg-amber' : 'bg-accent';
   return (
-    <div className="limit-row flex items-center gap-2 py-1 pl-4 text-[11.5px] text-dim" title={w.resetsAt ? `${w.label}: ${w.percent}% used · starts again ${when(w.resetsAt)}` : `${w.label}: ${w.percent}% used`}>
+    <div
+      className="limit-row flex items-center gap-2 py-1 pl-4 text-[11.5px] text-dim"
+      title={
+        w.resetsAt
+          ? `${w.label}: ${w.percent}% used · starts again ${when(w.resetsAt)}`
+          : `${w.label}: ${w.percent}% used`
+      }
+    >
       <span className="w-8 flex-none text-faint">{w.label}</span>
-      <span className="relative h-1 min-w-4 flex-1 overflow-hidden rounded-full bg-ink/10"><i className={`absolute inset-y-0 left-0 rounded-full ${hot}`} style={{ width: `${w.percent}%` }} /></span>
+      <span className="relative h-1 min-w-4 flex-1 overflow-hidden rounded-full bg-ink/10">
+        <i className={`absolute inset-y-0 left-0 rounded-full ${hot}`} style={{ width: `${w.percent}%` }} />
+      </span>
       <b className="w-9 flex-none text-right font-medium text-ink tabular-nums">{`${w.percent}%`}</b>
-      <span className="w-11 flex-none text-right text-faint tabular-nums">{w.resetsAt ? timeUntil(w.resetsAt) : ''}</span>
+      <span className="w-11 flex-none text-right text-faint tabular-nums">
+        {w.resetsAt ? timeUntil(w.resetsAt) : ''}
+      </span>
     </div>
   );
 }
 
 function Windows({ p }: { p: ProviderLimits }) {
   if (!p.ready) return null;
-  if (!p.windows.length) return <div className="py-1 pl-4 text-[11.5px] text-faint">{failed ? "couldn't read the limits" : limits ? 'no numbers yet' : 'reading…'}</div>;
-  return <>{p.windows.map((w, i) => <Meter key={i} w={w} />)}</>;
+  if (!p.windows.length)
+    return (
+      <div className="py-1 pl-4 text-[11.5px] text-faint">
+        {failed ? "couldn't read the limits" : limits ? 'no numbers yet' : 'reading…'}
+      </div>
+    );
+  return (
+    <>
+      {p.windows.map((w, i) => (
+        <Meter key={i} w={w} />
+      ))}
+    </>
+  );
 }
 
 function LimitsView({ redraw }: { redraw: () => void }) {
   const S = (q: string) => `#/settings?${q}`;
-  const cc: ProviderLimits = limits?.claude || { ready: !!state.data?.engines?.['claude-code']?.installed, windows: [] };
+  const cc: ProviderLimits = limits?.claude || {
+    ready: !!state.data?.engines?.['claude-code']?.installed,
+    windows: [],
+  };
   const cx: ProviderLimits = limits?.codex || { ready: !!state.data?.engines?.codex?.loggedIn, windows: [] };
-  const plan = (p: string | null | undefined) => (p ? p.replace(/lite$/i, ' lite').replace(/^./, (c) => c.toUpperCase()) : '');
+  const plan = (p: string | null | undefined) =>
+    p ? p.replace(/lite$/i, ' lite').replace(/^./, (c) => c.toUpperCase()) : '';
   // a native mouseenter/focusin (React's onMouseEnter only comes from mouseover), so the reset card still opens
   let own: HTMLDivElement | null = null;
   const codexRef = (el: HTMLDivElement | null) => {
@@ -165,11 +229,25 @@ function LimitsView({ redraw }: { redraw: () => void }) {
   };
   return (
     <>
-      <ProviderHead name="Claude" brand="claude" color={undefined} p={cc} href={S('tab=general&find=Claude Code')} right={cc.ready ? '' : cc.why || ''} />
+      <ProviderHead
+        name="Claude"
+        brand="claude"
+        color={undefined}
+        p={cc}
+        href={S('tab=general&find=Claude Code')}
+        right={cc.ready ? '' : cc.why || ''}
+      />
       <Windows p={cc} />
       <div className="h-2" />
       <div className="codex-limits flex flex-col" ref={codexRef}>
-        <ProviderHead name="Codex" brand="openai" color="currentColor" p={cx} href={S('tab=general&find=OpenAI Codex')} right={cx.ready ? (cx.blocked ? 'limit reached' : plan(cx.plan)) : cx.why || ''} />
+        <ProviderHead
+          name="Codex"
+          brand="openai"
+          color="currentColor"
+          p={cx}
+          href={S('tab=general&find=OpenAI Codex')}
+          right={cx.ready ? (cx.blocked ? 'limit reached' : plan(cx.plan)) : cx.why || ''}
+        />
         <Windows p={cx} />
       </div>
     </>
@@ -179,21 +257,43 @@ function LimitsView({ redraw }: { redraw: () => void }) {
 // asks before spending a free reset; resolves true when the user picks Reset now
 function askReset(available: number, expiresAt: number | null, used: number): Promise<boolean> {
   return new Promise((resolve) => {
-    openModal('Are you sure?', (close) => (
-      <>
-        <div className="modal-body text-[14px] leading-[1.65] text-ink [&_p]:mb-3 [&_p:last-child]:mb-0">
-          <div className="flex flex-col gap-2">
-            <p className="m-0">Use a free Codex limit reset now? Your Codex usage limits start again from 0%.</p>
-            <p className="hint m-0">{`You have ${available}.${expiresAt ? ` This one runs out in ${timeUntil(expiresAt)} if you don't use it.` : ''}`}</p>
-            {used < 50 ? <p className="hint m-0">{`You have only used ${used}% so far, so you may want to keep it for later.`}</p> : null}
+    openModal(
+      'Are you sure?',
+      (close) => (
+        <>
+          <div className="modal-body text-[14px] leading-[1.65] text-ink [&_p]:mb-3 [&_p:last-child]:mb-0">
+            <div className="flex flex-col gap-2">
+              <p className="m-0">Use a free Codex limit reset now? Your Codex usage limits start again from 0%.</p>
+              <p className="hint m-0">{`You have ${available}.${expiresAt ? ` This one runs out in ${timeUntil(expiresAt)} if you don't use it.` : ''}`}</p>
+              {used < 50 ? (
+                <p className="hint m-0">{`You have only used ${used}% so far, so you may want to keep it for later.`}</p>
+              ) : null}
+            </div>
           </div>
-        </div>
-        <div className="modal-foot">
-          <Button variant="ghost" onClick={() => { resolve(false); close(); }}>Cancel</Button>
-          <Button variant="primary" onClick={() => { resolve(true); close(); }}>Reset now</Button>
-        </div>
-      </>
-    ), { narrow: true, onClose: () => resolve(false) });
+          <div className="modal-foot">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                resolve(false);
+                close();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                resolve(true);
+                close();
+              }}
+            >
+              Reset now
+            </Button>
+          </div>
+        </>
+      ),
+      { narrow: true, onClose: () => resolve(false) },
+    );
   });
 }
 
@@ -235,7 +335,8 @@ let anchor: HTMLElement | null = null;
 let codexEl: HTMLElement | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 // (above the sidebar, which is z-80 on the Station)
-const POP = 'codex-resets glass fixed z-[85] flex w-60 flex-col gap-1 rounded-box px-4 py-3.5 animate-[fade_0.15s_ease-out]';
+const POP =
+  'codex-resets glass fixed z-[85] flex w-60 flex-col gap-1 rounded-box px-4 py-3.5 animate-[fade_0.15s_ease-out]';
 
 const hasResets = () => !!(limits?.codex.ready && limits.codex.resets?.available);
 
@@ -268,8 +369,21 @@ function ResetCard({ redraw }: { redraw: () => void }) {
   return (
     <>
       <span className="text-[13px] font-semibold text-ink">{`${r.available} rate-limit reset${r.available === 1 ? '' : 's'} available`}</span>
-      {next?.expiresAt ? <span className="text-[12px] text-faint" title={`Runs out ${when(next.expiresAt)}`}>{`Next expires in ${timeUntil(next.expiresAt)}`}</span> : null}
-      <Button variant="ghost" size="tiny" className="mt-1.5 self-start" disabled={resetting} onClick={() => void spendReset(redraw)}>{resetting ? 'Resetting…' : 'Reset now'}</Button>
+      {next?.expiresAt ? (
+        <span
+          className="text-[12px] text-faint"
+          title={`Runs out ${when(next.expiresAt)}`}
+        >{`Next expires in ${timeUntil(next.expiresAt)}`}</span>
+      ) : null}
+      <Button
+        variant="ghost"
+        size="tiny"
+        className="mt-1.5 self-start"
+        disabled={resetting}
+        onClick={() => void spendReset(redraw)}
+      >
+        {resetting ? 'Resetting…' : 'Reset now'}
+      </Button>
     </>
   );
 }
@@ -337,7 +451,8 @@ export function navLimits(redraw: () => void): HTMLElement[] {
   return [host];
 }
 
-const SWITCH = 'sidebar-panel-switch sticky bottom-0 z-10 mt-2 flex gap-0.5 rounded-[10px] border border-line bg-side p-1';
+const SWITCH =
+  'sidebar-panel-switch sticky bottom-0 z-10 mt-2 flex gap-0.5 rounded-[10px] border border-line bg-side p-1';
 let switchRoot: Root | null = null;
 
 /** The Status / Limits switch at the bottom of the sidebar's list. */
@@ -353,10 +468,21 @@ export function panelSwitch(redraw: () => void): HTMLElement {
 function PanelTabs({ redraw }: { redraw: () => void }) {
   const now = sidebarPanel();
   const tab = (p: SidebarPanel, label: string, title: string) => (
-    <button type="button" className={`sidebar-panel-tab relative flex-1 cursor-pointer rounded-[7px] border-0 bg-transparent px-2 py-1.5 text-[12px] leading-4 font-medium transition-colors duration-150 ${now === p ? 'on text-ink' : 'text-faint hover:text-ink'}`} title={title} aria-pressed={now === p} onClick={() => now !== p && setSidebarPanel(p, redraw)}>
+    <button
+      type="button"
+      className={`sidebar-panel-tab relative flex-1 cursor-pointer rounded-[7px] border-0 bg-transparent px-2 py-1.5 text-[12px] leading-4 font-medium transition-colors duration-150 ${now === p ? 'on text-ink' : 'text-faint hover:text-ink'}`}
+      title={title}
+      aria-pressed={now === p}
+      onClick={() => now !== p && setSidebarPanel(p, redraw)}
+    >
       <span className="relative z-1">{label}</span>
       {/* the selected plate glides to the other tab on a switch */}
-      {now === p ? <span className="sidebar-panel-mark pointer-events-none absolute inset-0 rounded-[7px] border border-line-2 bg-panel-2 shadow-[inset_0_1px_0_var(--glass-spec)]" aria-hidden="true" /> : null}
+      {now === p ? (
+        <span
+          className="sidebar-panel-mark pointer-events-none absolute inset-0 rounded-[7px] border border-line-2 bg-panel-2 shadow-[inset_0_1px_0_var(--glass-spec)]"
+          aria-hidden="true"
+        />
+      ) : null}
     </button>
   );
   return (

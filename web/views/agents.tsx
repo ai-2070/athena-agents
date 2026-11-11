@@ -22,9 +22,29 @@ import type { ModelListing } from '../models.tsx';
 import { defaultModelForEngine } from '../../shared/modeldefaults.ts';
 import { EFFORT_NAMES, effortFor, effortLevels } from '../../shared/effort.ts';
 import { copiesWarning, mcpOptions } from '../mcpcopies.ts';
-import { CATEGORY_COLORS, ENGINE_NAMES, OTHER_COLOR, agentCategory, agentModel, categorySlices, engineKey, inSlice, modelSlices } from '../agentstats.ts';
+import {
+  CATEGORY_COLORS,
+  ENGINE_NAMES,
+  OTHER_COLOR,
+  agentCategory,
+  agentModel,
+  categorySlices,
+  engineKey,
+  inSlice,
+  modelSlices,
+} from '../agentstats.ts';
 import type { Slice } from '../agentstats.ts';
-import type { Agent, AgentDetail, AppState, Autonomy, EngineStatus, HermesProfile, McpServerInfo, OpenClawAgent, Team } from '../../shared/types.ts';
+import type {
+  Agent,
+  AgentDetail,
+  AppState,
+  Autonomy,
+  EngineStatus,
+  HermesProfile,
+  McpServerInfo,
+  OpenClawAgent,
+  Team,
+} from '../../shared/types.ts';
 
 const EmojiPicker = lazy(() => import('../ui/emojipicker.tsx').then((m) => ({ default: m.EmojiPicker })));
 
@@ -42,9 +62,18 @@ export async function openTerminal(agent: Pick<Agent, 'id'>): Promise<void> {
 }
 
 /** "Claude Code", "Eve · openrouter", "Hermes · writer"… */
-export function engineLabel(a: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>): string {
+export function engineLabel(
+  a: Pick<Agent, 'engine'> & Partial<Pick<Agent, 'provider' | 'hermesProfile' | 'openclawAgent'>>,
+): string {
   const label = ENGINE_LABEL[a.engine] || a.engine;
-  const extra = a.engine === 'eve' ? ` · ${a.provider}` : a.engine === 'hermes' && a.hermesProfile ? ` · ${a.hermesProfile}` : a.engine === 'openclaw' && a.openclawAgent ? ` · ${a.openclawAgent}` : '';
+  const extra =
+    a.engine === 'eve'
+      ? ` · ${a.provider}`
+      : a.engine === 'hermes' && a.hermesProfile
+        ? ` · ${a.hermesProfile}`
+        : a.engine === 'openclaw' && a.openclawAgent
+          ? ` · ${a.openclawAgent}`
+          : '';
   return `${label}${extra}`;
 }
 
@@ -58,20 +87,46 @@ interface ChartPick {
 const CAPTION = 'text-[12.5px] leading-none font-medium text-dim';
 
 /** One number of the overview: what it counts, the figure. live: something is going on (a pulsing dot). */
-function StatTile({ icon, label, value, live = false, valueClass = '' }: { icon: string; label: string; value: number; live?: boolean; valueClass?: string }) {
+function StatTile({
+  icon,
+  label,
+  value,
+  live = false,
+  valueClass = '',
+}: {
+  icon: string;
+  label: string;
+  value: number;
+  live?: boolean;
+  valueClass?: string;
+}) {
   return (
     <Plate className="rounded-box px-5 py-4">
       <div className="flex items-center justify-between gap-2">
         <span className={`${CAPTION} truncate`}>{label}</span>
         {live ? <Dot tone="busy" /> : <Icon name={icon} size={15} className="text-faint" />}
       </div>
-      <b className={`${valueClass} mt-3.5 block text-[28px] leading-none font-semibold tracking-tight text-ink tabular-nums`}>{value}</b>
+      <b
+        className={`${valueClass} mt-3.5 block text-[28px] leading-none font-semibold tracking-tight text-ink tabular-nums`}
+      >
+        {value}
+      </b>
     </Plate>
   );
 }
 
 /** What kinds of agents the project has (one bar, a segment per category) and which models they run on. */
-function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppState; pick: ChartPick | null; setPick: (p: ChartPick | null) => void }) {
+function AgentsOverview({
+  agents,
+  d,
+  pick,
+  setPick,
+}: {
+  agents: Agent[];
+  d: AppState;
+  pick: ChartPick | null;
+  setPick: (p: ChartPick | null) => void;
+}) {
   const [hot, setHot] = useState<string | null>(null);
   const total = agents.length;
   const cats = categorySlices(agents);
@@ -81,7 +136,8 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
   const kinds = new Set(agents.map((a) => agentCategory(a).id)).size;
   const working = agents.filter((a) => isRunning(a.id)).length;
   const pct = (n: number) => `${Math.round((n / total) * 100)}%`;
-  const toggle = (kind: ChartPick['kind'], slice: Slice) => setPick(pick?.kind === kind && pick.slice.id === slice.id ? null : { kind, slice });
+  const toggle = (kind: ChartPick['kind'], slice: Slice) =>
+    setPick(pick?.kind === kind && pick.slice.id === slice.id ? null : { kind, slice });
   const picked = (kind: ChartPick['kind'], s: Slice) => pick?.kind === kind && pick.slice.id === s.id;
   // a segment is dimmed while another one is pointed at or picked
   const catFocus = hot || (pick?.kind === 'category' ? pick.slice.id : null);
@@ -93,7 +149,11 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
         <StatTile icon="bot" label="Agents" value={total} valueClass="agents-total" />
         <StatTile icon="radio" label="Working now" value={working} live={working > 0} />
         <StatTile icon="layout-grid" label={kinds === 1 ? 'Category' : 'Categories'} value={kinds} />
-        <StatTile icon="cpu" label="Models" value={new Set(agents.map((a) => agentModel(a, d.settings.defaults).id)).size} />
+        <StatTile
+          icon="cpu"
+          label="Models"
+          value={new Set(agents.map((a) => agentModel(a, d.settings.defaults).id)).size}
+        />
       </div>
       <Plate className="panel grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-x-12 gap-y-8 max-lg:grid-cols-1">
         <div className="min-w-0">
@@ -116,10 +176,18 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
               ))}
             </div>
             {shown ? (
-              <div className="glass pointer-events-none absolute bottom-full z-10 mb-3 -translate-x-1/2 rounded-ctl px-3 py-2 text-[12.5px] leading-[1.4] whitespace-nowrap" style={{ left: `${((before + shown.count / 2) / total) * 100}%` }} role="tooltip">
+              <div
+                className="glass pointer-events-none absolute bottom-full z-10 mb-3 -translate-x-1/2 rounded-ctl px-3 py-2 text-[12.5px] leading-[1.4] whitespace-nowrap"
+                style={{ left: `${((before + shown.count / 2) / total) * 100}%` }}
+                role="tooltip"
+              >
                 <b className="text-ink">{shown.label}</b>
                 <span className="text-dim tabular-nums">{`  ${shown.count} · ${pct(shown.count)}`}</span>
-                {shown.rest ? <div className="max-w-70 whitespace-normal text-dim">{shown.rest.map((r) => `${r.label} ${r.count}`).join(', ')}</div> : null}
+                {shown.rest ? (
+                  <div className="max-w-70 whitespace-normal text-dim">
+                    {shown.rest.map((r) => `${r.label} ${r.count}`).join(', ')}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -134,7 +202,11 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
                   onMouseLeave={() => setHot(null)}
                   onClick={() => toggle('category', s)}
                 >
-                  <span className="size-2.5 flex-none rounded-full" style={{ background: s.color }} aria-hidden="true" />
+                  <span
+                    className="size-2.5 flex-none rounded-full"
+                    style={{ background: s.color }}
+                    aria-hidden="true"
+                  />
                   {s.label}
                   <span className="text-[12px] text-dim tabular-nums">{s.count}</span>
                 </button>
@@ -150,7 +222,9 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
                 <button
                   type="button"
                   className={`group grid w-full cursor-pointer grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-ctl px-2 py-2 text-left transition-[background,opacity] duration-150 hover:bg-ink/5 focus-visible:outline-2 focus-visible:outline-accent ${pick?.kind === 'model' && !picked('model', m) ? 'opacity-45' : ''} ${picked('model', m) ? 'bg-ink/7' : ''}`}
-                  title={m.rest ? m.rest.map((r) => `${r.label} (${r.sub}) ${r.count}`).join('\n') : `${m.label} · ${m.sub}`}
+                  title={
+                    m.rest ? m.rest.map((r) => `${r.label} (${r.sub}) ${r.count}`).join('\n') : `${m.label} · ${m.sub}`
+                  }
                   aria-label={`${m.label}${m.sub ? ` on ${m.sub}` : ''}: ${m.count} of ${total} agents`}
                   aria-pressed={picked('model', m)}
                   onClick={() => toggle('model', m)}
@@ -161,7 +235,13 @@ function AgentsOverview({ agents, d, pick, setPick }: { agents: Agent[]; d: AppS
                   </span>
                   <span className="h-1.5 overflow-hidden rounded-full bg-panel-2" aria-hidden="true">
                     {/* (each model in its own colour from the same six as the categories) */}
-                    <span className="block h-full rounded-full opacity-85 transition-opacity duration-150 group-hover:opacity-100" style={{ width: `${(m.count / topModel) * 100}%`, background: m.id === 'other' ? OTHER_COLOR : CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
+                    <span
+                      className="block h-full rounded-full opacity-85 transition-opacity duration-150 group-hover:opacity-100"
+                      style={{
+                        width: `${(m.count / topModel) * 100}%`,
+                        background: m.id === 'other' ? OTHER_COLOR : CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+                      }}
+                    />
                   </span>
                   <span className="text-right text-[12.5px] text-dim tabular-nums">{m.count}</span>
                 </button>
@@ -195,8 +275,19 @@ function AgentsList() {
   };
   if (!d) return null;
   const q = filter.toLowerCase();
-  const inPick = (a: Agent) => !pick || inSlice(pick.slice, pick.kind === 'category' ? agentCategory(a).id : pick.kind === 'engine' ? engineKey(a) : agentModel(a, d.settings.defaults).id);
-  const shown = d.agents.filter((a) => (!q || `${a.name} ${a.specialty} ${a.description}`.toLowerCase().includes(q)) && inPick(a));
+  const inPick = (a: Agent) =>
+    !pick ||
+    inSlice(
+      pick.slice,
+      pick.kind === 'category'
+        ? agentCategory(a).id
+        : pick.kind === 'engine'
+          ? engineKey(a)
+          : agentModel(a, d.settings.defaults).id,
+    );
+  const shown = d.agents.filter(
+    (a) => (!q || `${a.name} ${a.specialty} ${a.description}`.toLowerCase().includes(q)) && inPick(a),
+  );
   const create = async () => {
     const a = await attempt(() => rpc.agents.create({ name: 'New agent' }));
     if (a) navigate(`#/agents/${a.id}/edit`);
@@ -205,10 +296,25 @@ function AgentsList() {
     <>
       {d.agents.length > 1 ? <AgentsOverview agents={d.agents} d={d} pick={pick} setPick={setPick} /> : null}
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <SearchBox className="w-[min(360px,100%)]" label="Search agents" placeholder="Search agents" value={filter} onChange={(v) => setFilter((lastFilter = v))} />
+        <SearchBox
+          className="w-[min(360px,100%)]"
+          label="Search agents"
+          placeholder="Search agents"
+          value={filter}
+          onChange={(v) => setFilter((lastFilter = v))}
+        />
         {pick ? (
-          <button type="button" className={chipClass(true, "agents-pick")} onClick={() => setPick(null)} title="Show every agent">
-            {pick.kind === 'model' ? `Model: ${pick.slice.label}` : pick.kind === 'engine' ? `On ${pick.slice.label}` : pick.slice.label}
+          <button
+            type="button"
+            className={chipClass(true, 'agents-pick')}
+            onClick={() => setPick(null)}
+            title="Show every agent"
+          >
+            {pick.kind === 'model'
+              ? `Model: ${pick.slice.label}`
+              : pick.kind === 'engine'
+                ? `On ${pick.slice.label}`
+                : pick.slice.label}
             <span aria-hidden="true">✕</span>
           </button>
         ) : null}
@@ -218,7 +324,7 @@ function AgentsList() {
             <Icon name="store" size={14} />
             Hire from Agent library
           </ButtonLink>
-          <Button  onClick={() => void create()}>
+          <Button onClick={() => void create()}>
             <Icon name="plus" size={14} />
             New agent
           </Button>
@@ -241,7 +347,9 @@ function AgentsList() {
                   working
                 </Pill>
               ) : a.pinned ? (
-                <span className="corner text-faint" aria-label="pinned">★</span>
+                <span className="corner text-faint" aria-label="pinned">
+                  ★
+                </span>
               ) : null}
               <div className="flex flex-wrap items-center gap-2">
                 <Pill className="inline-flex items-center gap-1.5">
@@ -249,7 +357,10 @@ function AgentsList() {
                   {engineLabel(a)}
                 </Pill>
                 <Pill className="inline-flex items-center gap-1.5">
-                  <Icon name={a.autonomy === 'full' ? 'zap' : a.autonomy === 'ask' ? 'hand' : 'shield-check'} size={11} />
+                  <Icon
+                    name={a.autonomy === 'full' ? 'zap' : a.autonomy === 'ask' ? 'hand' : 'shield-check'}
+                    size={11}
+                  />
                   {a.autonomy === 'full' ? 'full autonomy' : a.autonomy === 'ask' ? 'asks first' : 'auto'}
                 </Pill>
               </div>
@@ -263,7 +374,14 @@ function AgentsList() {
                   Edit
                 </ButtonLink>
                 {a.engine !== 'eve' ? (
-                  <Button variant="ghost" size="small" className="ml-auto" title="Open a terminal for this agent" aria-label={`Terminal for ${a.name}`} onClick={() => void openTerminal(a)}>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    className="ml-auto"
+                    title="Open a terminal for this agent"
+                    aria-label={`Terminal for ${a.name}`}
+                    onClick={() => void openTerminal(a)}
+                  >
                     <Icon name="terminal" size={13} />
                     Terminal
                   </Button>
@@ -276,8 +394,10 @@ function AgentsList() {
         <div className="empty py-12">No agent matches.</div>
       ) : (
         <div className="flex flex-col items-center gap-4 py-12 text-center">
-          <p className="m-0 max-w-[44ch] text-dim">No agents yet. Hire a specialist from the Agent library, or start with a blank one.</p>
-          <ButtonLink  href="#/library">
+          <p className="m-0 max-w-[44ch] text-dim">
+            No agents yet. Hire a specialist from the Agent library, or start with a blank one.
+          </p>
+          <ButtonLink href="#/library">
             <Icon name="store" size={14} />
             Hire from Agent library
           </ButtonLink>
@@ -290,7 +410,12 @@ function AgentsList() {
 // ---------- the editor ----------
 const AUTONOMY: { value: Autonomy; label: string; title: string; icon: string }[] = [
   { value: 'ask', label: 'Ask first', title: 'You approve every action that changes something', icon: 'hand' },
-  { value: 'auto', label: 'Auto', title: 'Asks only for risky things: running code, shell, sending messages', icon: 'shield-check' },
+  {
+    value: 'auto',
+    label: 'Auto',
+    title: 'Asks only for risky things: running code, shell, sending messages',
+    icon: 'shield-check',
+  },
   { value: 'full', label: 'Full', title: 'Never asks. Only for agents you trust completely', icon: 'zap' },
 ];
 
@@ -309,7 +434,8 @@ const partId = (id: string) => `agent-part-${id}`;
 /** A choice tile (an engine, an autonomy level): its icon over its name, lit when picked. */
 const TILE =
   'relative flex min-w-0 cursor-pointer flex-col items-start gap-2.5 rounded-box border border-line bg-panel/60 p-3 text-left text-dim [transition:border-color_0.15s,background-color_0.15s,color_0.15s,box-shadow_0.15s] hover:border-line-2 hover:bg-panel-2 hover:text-ink aria-checked:border-accent aria-checked:bg-accent/8 aria-checked:text-ink aria-checked:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]';
-const TILE_ICON = 'grid size-8 flex-none place-items-center rounded-[9px] border border-line bg-panel-2 text-dim [[aria-checked=true]_&]:border-accent/40 [[aria-checked=true]_&]:bg-accent/12 [[aria-checked=true]_&]:text-accent';
+const TILE_ICON =
+  'grid size-8 flex-none place-items-center rounded-[9px] border border-line bg-panel-2 text-dim [[aria-checked=true]_&]:border-accent/40 [[aria-checked=true]_&]:bg-accent/12 [[aria-checked=true]_&]:text-accent';
 /** A part of the page: one surface, its sections split by hairlines. */
 const PART = 'scroll-mt-40 rounded-box p-6 max-sm:p-4';
 
@@ -329,8 +455,13 @@ function AgentEditor({ id }: { id: string }) {
   useEffect(() => {
     let live = true;
     // (Hermes profiles and OpenClaw agents ask their CLIs, which can be slow: they load with their engine's fields)
-    void Promise.all([rpc.agents.get({ id }), rpc.mcp.list().catch((): McpListing => ({ servers: {} })), rpc.workflows.list().catch((): Team[] => [])]).then(
-      ([agent, mcp, teams]) => live && setData({ agent, servers: Object.keys(mcp.servers), info: (mcp as McpListing).info, teams }),
+    void Promise.all([
+      rpc.agents.get({ id }),
+      rpc.mcp.list().catch((): McpListing => ({ servers: {} })),
+      rpc.workflows.list().catch((): Team[] => []),
+    ]).then(
+      ([agent, mcp, teams]) =>
+        live && setData({ agent, servers: Object.keys(mcp.servers), info: (mcp as McpListing).info, teams }),
     );
     return () => void (live = false);
   }, [id, version]);
@@ -345,7 +476,9 @@ function PartsNav() {
     if (typeof IntersectionObserver === 'undefined') return;
     const io = new IntersectionObserver(
       (entries) => {
-        const top = entries.filter((e) => e.isIntersecting).sort((x, y) => x.boundingClientRect.top - y.boundingClientRect.top)[0];
+        const top = entries
+          .filter((e) => e.isIntersecting)
+          .sort((x, y) => x.boundingClientRect.top - y.boundingClientRect.top)[0];
         if (top) setSeen(top.target.id.replace('agent-part-', ''));
       },
       { rootMargin: '-15% 0px -65% 0px' },
@@ -375,7 +508,8 @@ function PartsNav() {
 }
 
 /** The colour box takes #rrggbb: an agent without a colour starts on the accent. */
-const colorValue = (c?: string): string => (c && /^#[0-9a-f]{6}$/i.test(c) ? c : /^#[0-9a-f]{6}$/i.test(themeColor('accent')) ? themeColor('accent') : '#18688e');
+const colorValue = (c?: string): string =>
+  c && /^#[0-9a-f]{6}$/i.test(c) ? c : /^#[0-9a-f]{6}$/i.test(themeColor('accent')) ? themeColor('accent') : '#18688e';
 
 function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload: () => void }) {
   const { agent, servers, info, teams } = data;
@@ -400,13 +534,17 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
     }
   };
   // A new engine or provider may not have the effort level: keep the nearest one it has, the one the Effort field shows.
-  const fit = (x: Agent): Agent => (x.effort && !(x.engine === 'eve' && x.provider === 'venice') ? { ...x, effort: effortFor(x.engine, x.effort, x.provider) } : x);
+  const fit = (x: Agent): Agent =>
+    x.effort && !(x.engine === 'eve' && x.provider === 'venice')
+      ? { ...x, effort: effortFor(x.engine, x.effort, x.provider) }
+      : x;
   const pickEngine = (engine: Agent['engine']) => {
     setA((x) => fit({ ...x, engine, model: defaultModelForEngine(engine, d.settings.defaults, x.provider) }));
     setDirty(true);
   };
   const del = async () => {
-    if (!(await confirmBox(`Delete ${a.name}? Its chats stay in the data folder.`, { ok: 'Delete', danger: true }))) return;
+    if (!(await confirmBox(`Delete ${a.name}? Its chats stay in the data folder.`, { ok: 'Delete', danger: true })))
+      return;
     if (await attempt(() => rpc.agents.remove({ id }), 'Deleted')) navigate('#/agents');
   };
   const clone = async () => {
@@ -425,11 +563,15 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
       {/* the agent at the top, with Chat and Save: it stays in view on this long page */}
       {/* (just under the app's own top bar, which is sticky too and 3.5rem tall) */}
       <div className="sticky top-14 z-10 -mx-3 mb-8 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-line px-3 py-3 backdrop-blur-md">
-        <ButtonLink variant="ghost" size="small" href="#/agents">← Agents</ButtonLink>
+        <ButtonLink variant="ghost" size="small" href="#/agents">
+          ← Agents
+        </ButtonLink>
         <div className="flex min-w-0 flex-1 items-center gap-3 [&_.avatar]:size-10 [&_.avatar]:rounded-[11px] [&_.avatar]:text-[20px]">
           <Avatar agent={a} />
           <div className="min-w-0">
-            <h1 className="m-0 truncate text-[18px] leading-tight font-semibold text-ink">{a.name.trim() || 'Agent'}</h1>
+            <h1 className="m-0 truncate text-[18px] leading-tight font-semibold text-ink">
+              {a.name.trim() || 'Agent'}
+            </h1>
             <p className="m-0 mt-0.5 truncate text-[12.5px] text-dim">{`Edit agent · ${engineLabel(a)}${a.model ? ` · ${a.model}` : ''}`}</p>
           </div>
         </div>
@@ -444,7 +586,9 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
             <Icon name="message-square" size={14} />
             Chat
           </Button>
-          <Button disabled={!dirty} onClick={() => void save()}>Save</Button>
+          <Button disabled={!dirty} onClick={() => void save()}>
+            Save
+          </Button>
         </div>
       </div>
 
@@ -452,11 +596,17 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
         <PartsNav />
         <div className="flex min-w-0 flex-col gap-6">
           <Plate id={partId('identity')} className={PART}>
-            <FormSection icon="bot" title="Identity and instructions" hint="Who it is and how it works. Click the picture to change it.">
+            <FormSection
+              icon="bot"
+              title="Identity and instructions"
+              hint="Who it is and how it works. Click the picture to change it."
+            >
               <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-4">
                 <div className="flex-none [&_.avatar]:size-15 [&_.avatar]:rounded-[14px] [&_.avatar]:text-[30px]">
                   <Suspense fallback={<Avatar agent={a} lg />}>
-                    <EmojiPicker value={a.emoji} onChange={(emoji) => set('emoji', emoji)}><Avatar agent={a} lg /></EmojiPicker>
+                    <EmojiPicker value={a.emoji} onChange={(emoji) => set('emoji', emoji)}>
+                      <Avatar agent={a} lg />
+                    </EmojiPicker>
                   </Suspense>
                 </div>
                 <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
@@ -466,25 +616,54 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
                     </Field>
                   </div>
                   <Field label="Color">
-                    <input type="color" value={colorValue(a.color)} aria-label="Color" onChange={(e) => set('color', e.target.value)} />
+                    <input
+                      type="color"
+                      value={colorValue(a.color)}
+                      aria-label="Color"
+                      onChange={(e) => set('color', e.target.value)}
+                    />
                   </Field>
                 </div>
               </div>
               <Field label="Specialty" hint="One line. Other agents see it when deciding who to ask.">
-                <input value={a.specialty} placeholder="e.g. writes punchy X threads about AI" onChange={(e) => set('specialty', e.target.value)} />
+                <input
+                  value={a.specialty}
+                  placeholder="e.g. writes punchy X threads about AI"
+                  onChange={(e) => set('specialty', e.target.value)}
+                />
               </Field>
               <Field label="Instructions">
-                <textarea className="code min-h-60 leading-[1.6]" rows={12} value={a.systemPrompt} placeholder="How this agent thinks, works and talks. Its process, rules, what good output looks like." onChange={(e) => set('systemPrompt', e.target.value)} />
+                <textarea
+                  className="code min-h-60 leading-[1.6]"
+                  rows={12}
+                  value={a.systemPrompt}
+                  placeholder="How this agent thinks, works and talks. Its process, rules, what good output looks like."
+                  onChange={(e) => set('systemPrompt', e.target.value)}
+                />
               </Field>
             </FormSection>
           </Plate>
 
           <Plate id={partId('brain')} className={PART}>
-            <FormSection icon="cpu" title="Brain" hint={engineInfo?.description || 'What runs the agent, and which model it thinks with.'}>
+            <FormSection
+              icon="cpu"
+              title="Brain"
+              hint={engineInfo?.description || 'What runs the agent, and which model it thinks with.'}
+            >
               <div role="radiogroup" aria-label="Brain" className="grid grid-cols-4 gap-2 max-sm:grid-cols-2">
                 {d.engineList.map((e) => (
-                  <button key={e.id} type="button" role="radio" aria-checked={a.engine === e.id} title={e.description} className={TILE} onClick={() => a.engine !== e.id && pickEngine(e.id)}>
-                    <span className={TILE_ICON}><ProgramGlyph id={e.id} size={16} /></span>
+                  <button
+                    key={e.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={a.engine === e.id}
+                    title={e.description}
+                    className={TILE}
+                    onClick={() => a.engine !== e.id && pickEngine(e.id)}
+                  >
+                    <span className={TILE_ICON}>
+                      <ProgramGlyph id={e.id} size={16} />
+                    </span>
                     <span className="max-w-full truncate text-[13px] font-semibold">{e.label}</span>
                   </button>
                 ))}
@@ -509,11 +688,24 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
 
           <Plate id={partId('behaviour')} className={PART}>
             <div className="flex flex-col gap-6">
-              <FormSection icon="shield-check" title="Autonomy" hint="How much it does before asking you. X posts always wait in the Outbox unless an account has auto-post on.">
+              <FormSection
+                icon="shield-check"
+                title="Autonomy"
+                hint="How much it does before asking you. X posts always wait in the Outbox unless an account has auto-post on."
+              >
                 <div role="radiogroup" aria-label="Autonomy" className="grid grid-cols-3 gap-2 max-sm:grid-cols-1">
                   {AUTONOMY.map((o) => (
-                    <button key={o.value} type="button" role="radio" aria-checked={(a.autonomy || 'auto') === o.value} className={TILE} onClick={() => set('autonomy', o.value)}>
-                      <span className={TILE_ICON}><Icon name={o.icon} size={16} /></span>
+                    <button
+                      key={o.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={(a.autonomy || 'auto') === o.value}
+                      className={TILE}
+                      onClick={() => set('autonomy', o.value)}
+                    >
+                      <span className={TILE_ICON}>
+                        <Icon name={o.icon} size={16} />
+                      </span>
                       <span className="flex min-w-0 flex-col gap-0.5">
                         <span className="text-[13px] font-semibold text-ink">{o.label}</span>
                         <span className="text-[12px] leading-normal text-dim">{o.title}</span>
@@ -527,14 +719,29 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
                     {a.alwaysAllow.map((t) => (
                       <Pill key={t}>{t}</Pill>
                     ))}
-                    <Button variant="ghost" size="tiny" className="ml-auto" onClick={() => (set('alwaysAllow', []), toast('Cleared; save to apply'))}>Clear</Button>
+                    <Button
+                      variant="ghost"
+                      size="tiny"
+                      className="ml-auto"
+                      onClick={() => (set('alwaysAllow', []), toast('Cleared; save to apply'))}
+                    >
+                      Clear
+                    </Button>
                   </div>
                 ) : null}
               </FormSection>
               <FormSection icon="sparkles" title="Answers">
-                <Switch checked={!!a.richAnswers} onChange={(v) => set('richAnswers', v)} className="flex-nowrap! items-start! gap-3.5! rounded-box border border-line bg-panel-2/40 px-4 py-3.5 [&_.switch]:mt-0.5 [&_.switch]:flex-none">
+                <Switch
+                  checked={!!a.richAnswers}
+                  onChange={(v) => set('richAnswers', v)}
+                  className="flex-nowrap! items-start! gap-3.5! rounded-box border border-line bg-panel-2/40 px-4 py-3.5 [&_.switch]:mt-0.5 [&_.switch]:flex-none"
+                >
                   <span className="block text-[13.5px] font-medium text-ink">Rich answers</span>
-                  <span className="mt-0.5 block text-[12.5px] leading-normal text-dim">In your own chats it answers with live cards, tables, charts and forms. Good for research and reports. Leave off for coding agents and small or local models: it adds about 13k tokens to every message. Team chats, routines and other agents always get plain text.</span>
+                  <span className="mt-0.5 block text-[12.5px] leading-normal text-dim">
+                    In your own chats it answers with live cards, tables, charts and forms. Good for research and
+                    reports. Leave off for coding agents and small or local models: it adds about 13k tokens to every
+                    message. Team chats, routines and other agents always get plain text.
+                  </span>
                 </Switch>
               </FormSection>
             </div>
@@ -542,28 +749,59 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
 
           <Plate id={partId('tools')} className={PART}>
             <div className="flex flex-col gap-6">
-              <FormSection icon="wrench" title="Tools" hint="Point at a tool for what it does. Claude Code and Hermes agents also keep their own built-in tools.">
-                <ChipSet label="Tools" options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={a.toolGroups} onChange={(v) => set('toolGroups', v)} />
+              <FormSection
+                icon="wrench"
+                title="Tools"
+                hint="Point at a tool for what it does. Claude Code and Hermes agents also keep their own built-in tools."
+              >
+                <ChipSet
+                  label="Tools"
+                  options={d.toolGroups.map((g) => ({ value: g.id, label: g.label, title: g.description }))}
+                  value={a.toolGroups}
+                  onChange={(v) => set('toolGroups', v)}
+                />
               </FormSection>
               <FormSection icon="plug" title="MCP servers" hint="Outside apps and services it can use.">
                 {servers.length ? (
                   <div>
-                    <ChipSet label="MCP servers" options={mcpOptions(servers, info).map((option) => ({ ...option, label: <span className="inline-flex items-center gap-2"><PresetGlyph id={info?.[option.value]?.kind || option.value} size={14} />{option.label}</span> }))} value={a.mcpServers} onChange={(v) => set('mcpServers', v)} />
-                    {copiesWarning(a.mcpServers, info) ? <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(a.mcpServers, info)}</p> : null}
+                    <ChipSet
+                      label="MCP servers"
+                      options={mcpOptions(servers, info).map((option) => ({
+                        ...option,
+                        label: (
+                          <span className="inline-flex items-center gap-2">
+                            <PresetGlyph id={info?.[option.value]?.kind || option.value} size={14} />
+                            {option.label}
+                          </span>
+                        ),
+                      }))}
+                      value={a.mcpServers}
+                      onChange={(v) => set('mcpServers', v)}
+                    />
+                    {copiesWarning(a.mcpServers, info) ? (
+                      <p className="hint mcp-copies-warning mt-2 text-amber">{copiesWarning(a.mcpServers, info)}</p>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="m-0 rounded-box border border-dashed border-line-2 px-4 py-3 text-[13px] text-dim">
-                    No MCP servers yet. <a href="#/settings?tab=mcp">Add one</a> (browser control, GitHub, Blender live…).
+                    No MCP servers yet. <a href="#/settings?tab=mcp">Add one</a> (browser control, GitHub, Blender
+                    live…).
                   </p>
                 )}
               </FormSection>
-              <FormSection icon="puzzle" title="Skills" hint="Its own skills. It also gets the project's and, while working for a team, that team's (both greyed). Save to apply.">
+              <FormSection
+                icon="puzzle"
+                title="Skills"
+                hint="Its own skills. It also gets the project's and, while working for a team, that team's (both greyed). Save to apply."
+              >
                 <DomNode
                   make={() =>
                     skillPicker(a.skills || [], (skills) => set('skills', skills), {
                       inherited: [
                         ...(d.project?.skills || []).map((slug) => ({ slug, from: 'project' })),
-                        ...teams.filter((w) => (w.members || []).includes(id)).flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name }))),
+                        ...teams
+                          .filter((w) => (w.members || []).includes(id))
+                          .flatMap((w) => (w.skills || []).map((slug) => ({ slug, from: w.name }))),
                       ],
                       empty: 'No skills of its own yet.',
                     })
@@ -575,11 +813,20 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
           </Plate>
 
           <Plate id={partId('workspace')} className={PART}>
-            <FormSection icon="folder" title="Workspace" hint="Where it saves files and runs commands. Empty: its own folder in the dashboard data.">
+            <FormSection
+              icon="folder"
+              title="Workspace"
+              hint="Where it saves files and runs commands. Empty: its own folder in the dashboard data."
+            >
               <div className="flex items-end gap-2 max-sm:flex-col max-sm:items-stretch">
                 <div className="min-w-0 flex-1">
                   <Field label="Working folder">
-                    <input className="code" value={a.workspace || ''} placeholder={agent.workspacePath} onChange={(e) => set('workspace', e.target.value.trim())} />
+                    <input
+                      className="code"
+                      value={a.workspace || ''}
+                      placeholder={agent.workspacePath}
+                      onChange={(e) => set('workspace', e.target.value.trim())}
+                    />
                   </Field>
                 </div>
                 <Button variant="ghost" onClick={() => void attempt(() => rpc.agents.openWorkspace({ id }))}>
@@ -602,11 +849,32 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
                 Clone
               </Button>
               {/* put back: show it as it is now (changes not saved yet are dropped) */}
-              <DomNode as="span" make={() => historyButton('agent', id, () => (setDirty(false), reload()))} deps={[id]} />
-              <Button variant="ghost" size="small" title="Keep it as a template you can create again in any project (Agent library > Your presets)" onClick={() => void attempt(() => rpc.presets.saveAgent({ id }), `Saved ${a.name} as a preset`)}><Icon name="bookmark-plus" size={13} />
+              <DomNode
+                as="span"
+                make={() => historyButton('agent', id, () => (setDirty(false), reload()))}
+                deps={[id]}
+              />
+              <Button
+                variant="ghost"
+                size="small"
+                title="Keep it as a template you can create again in any project (Agent library > Your presets)"
+                onClick={() => void attempt(() => rpc.presets.saveAgent({ id }), `Saved ${a.name} as a preset`)}
+              >
+                <Icon name="bookmark-plus" size={13} />
                 Save as preset
               </Button>
-              <Button variant="ghost" size="small" title="Write it to ~/.claude/agents so any Claude Code session can use it" onClick={() => void attempt(() => rpc.agents.exportClaude({ id }), (r) => `Saved as ${r.file}`)}><Icon name="terminal" size={13} />
+              <Button
+                variant="ghost"
+                size="small"
+                title="Write it to ~/.claude/agents so any Claude Code session can use it"
+                onClick={() =>
+                  void attempt(
+                    () => rpc.agents.exportClaude({ id }),
+                    (r) => `Saved as ${r.file}`,
+                  )
+                }
+              >
+                <Icon name="terminal" size={13} />
                 Install in Claude Code
               </Button>
               <Button variant="danger" size="small" className="ml-auto" onClick={() => void del()}>
@@ -622,7 +890,21 @@ function EditorForm({ data, d, reload }: { data: EditorData; d: AppState; reload
   );
 }
 
-function ModelInput({ label, hint, value, placeholder, models, onChange }: { label: string; hint: string; value: string; placeholder: string; models: ModelListing[]; onChange: (value: string) => void }) {
+function ModelInput({
+  label,
+  hint,
+  value,
+  placeholder,
+  models,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: string;
+  placeholder: string;
+  models: ModelListing[];
+  onChange: (value: string) => void;
+}) {
   const anchor = useRef<HTMLDivElement>(null);
   const [showAll, setShowAll] = useState(false);
   return (
@@ -634,19 +916,42 @@ function ModelInput({ label, hint, value, placeholder, models, onChange }: { lab
           if (details.reason !== 'item-press') setShowAll(false);
           onChange(next.trim());
         }}
-        onOpenChange={(open) => { if (!open) setShowAll(false); }}
+        onOpenChange={(open) => {
+          if (!open) setShowAll(false);
+        }}
         itemToStringValue={(item: ModelListing) => item.id}
-        filter={showAll ? null : (item: ModelListing, query: string) => `${item.id} ${item.name}`.toLowerCase().includes(query.toLowerCase())}
+        filter={
+          showAll
+            ? null
+            : (item: ModelListing, query: string) =>
+                `${item.id} ${item.name}`.toLowerCase().includes(query.toLowerCase())
+        }
         openOnInputClick
       >
         <div className="relative" ref={anchor}>
-          <Autocomplete.Input aria-labelledby="agent-model-label" className="code w-full pr-10" placeholder={placeholder} />
-          <Autocomplete.Trigger aria-label="Show models" className="absolute inset-y-0 right-0 grid w-10 cursor-pointer place-items-center rounded-ctl text-dim hover:text-ink" onClick={() => setShowAll(true)}>
+          <Autocomplete.Input
+            aria-labelledby="agent-model-label"
+            className="code w-full pr-10"
+            placeholder={placeholder}
+          />
+          <Autocomplete.Trigger
+            aria-label="Show models"
+            className="absolute inset-y-0 right-0 grid w-10 cursor-pointer place-items-center rounded-ctl text-dim hover:text-ink"
+            onClick={() => setShowAll(true)}
+          >
             <Icon name="chevron-down" size={14} />
           </Autocomplete.Trigger>
         </div>
         <Autocomplete.Portal>
-          <Autocomplete.Positioner positionMethod="fixed" anchor={anchor} side="bottom" align="start" sideOffset={5} className="z-96 outline-none" collisionPadding={8}>
+          <Autocomplete.Positioner
+            positionMethod="fixed"
+            anchor={anchor}
+            side="bottom"
+            align="start"
+            sideOffset={5}
+            className="z-96 outline-none"
+            collisionPadding={8}
+          >
             <Autocomplete.Popup className="glass st-menu w-(--anchor-width) max-w-(--available-width) outline-none empty:hidden has-[>[role=listbox]:empty]:hidden">
               <Autocomplete.List className="max-h-72 overflow-y-auto">
                 {(item: ModelListing) => (
@@ -667,7 +972,12 @@ function ModelInput({ label, hint, value, placeholder, models, onChange }: { lab
 }
 
 /** The fields that depend on the engine: model, sign-in, provider, profile, and how hard it thinks. */
-function EngineFields({ a, d, set, fit }: {
+function EngineFields({
+  a,
+  d,
+  set,
+  fit,
+}: {
   a: Agent;
   d: AppState;
   set: <K extends keyof Agent>(k: K, v: Agent[K]) => void;
@@ -679,21 +989,48 @@ function EngineFields({ a, d, set, fit }: {
   const needs = a.engine === 'hermes' ? 'hermes' : a.engine === 'openclaw' ? 'openclaw' : null;
   useEffect(() => {
     let live = true;
-    if (needs === 'hermes') void rpc.engines.hermesProfiles().then((p) => live && setProfiles(p)).catch(() => {});
-    if (needs === 'openclaw') void rpc.engines.openclawAgents().then((c) => live && setClawAgents(c)).catch(() => {});
+    if (needs === 'hermes')
+      void rpc.engines
+        .hermesProfiles()
+        .then((p) => live && setProfiles(p))
+        .catch(() => {});
+    if (needs === 'openclaw')
+      void rpc.engines
+        .openclawAgents()
+        .then((c) => live && setClawAgents(c))
+        .catch(() => {});
     return () => void (live = false);
   }, [needs]);
   useEffect(() => {
     let live = true;
     setModels([]);
-    void rpc.status.models(a.engine === 'eve' ? { engine: 'eve', provider: a.provider } : { engine: a.engine })
+    void rpc.status
+      .models(a.engine === 'eve' ? { engine: 'eve', provider: a.provider } : { engine: a.engine })
       .catch((): ModelListing[] => [])
       .then((m) => live && setModels(m.slice(0, 600)));
     return () => void (live = false);
   }, [a.engine, a.provider]);
   const placeholder =
-    a.engine === 'claude-code' ? 'sonnet' : a.engine === 'hermes' ? "profile's default" : a.engine === 'openclaw' ? "the OpenClaw agent's model" : a.engine === 'pi' || a.engine === 'omp' ? 'its default (e.g. anthropic/claude-sonnet-5-5)' : a.engine === 'opencode' ? 'its default (e.g. openrouter/deepseek/deepseek-v4.1-flash)' : a.provider === 'venice' ? 'Choose a Venice model' : 'anthropic/claude-sonnet-5.5';
-  const pick = (label: string, value: string, options: SelectOption[], onChange: (v: string) => void, hint?: ReactNode) => (
+    a.engine === 'claude-code'
+      ? 'sonnet'
+      : a.engine === 'hermes'
+        ? "profile's default"
+        : a.engine === 'openclaw'
+          ? "the OpenClaw agent's model"
+          : a.engine === 'pi' || a.engine === 'omp'
+            ? 'its default (e.g. anthropic/claude-sonnet-5-5)'
+            : a.engine === 'opencode'
+              ? 'its default (e.g. openrouter/deepseek/deepseek-v4.1-flash)'
+              : a.provider === 'venice'
+                ? 'Choose a Venice model'
+                : 'anthropic/claude-sonnet-5.5';
+  const pick = (
+    label: string,
+    value: string,
+    options: SelectOption[],
+    onChange: (v: string) => void,
+    hint?: ReactNode,
+  ) => (
     <Field label={label} hint={hint}>
       <SelectControl aria-label={label} value={value} options={options} onChange={onChange} />
     </Field>
@@ -701,15 +1038,29 @@ function EngineFields({ a, d, set, fit }: {
   const modelEfforts = models.find((m) => m.id === a.model)?.reasoningEfforts;
   const showEffort = a.engine !== 'eve' || a.provider !== 'venice' || !!modelEfforts?.length;
   const model = (label: string, hint: string) => (
-    <div className={showEffort ? 'col-span-full grid grid-cols-2 items-start gap-4 max-md:grid-cols-1' : 'col-span-full'}>
-      <ModelInput label={label} hint={hint} value={a.model || ''} placeholder={placeholder} models={models} onChange={(value) => set('model', value)} />
-      {showEffort ? pick(
-        'Effort',
-        effortFor(a.engine, a.effort, a.provider, modelEfforts),
-        [{ value: '', label: "Model's default" }, ...effortLevels(a.engine, a.provider, modelEfforts).map((e) => ({ value: e, label: EFFORT_NAMES[e] }))],
-        (v) => set('effort', v as Agent['effort']),
-        'How hard the model thinks before it answers. More effort: better on hard work, but slower and uses more of your plan.',
-      ) : null}
+    <div
+      className={showEffort ? 'col-span-full grid grid-cols-2 items-start gap-4 max-md:grid-cols-1' : 'col-span-full'}
+    >
+      <ModelInput
+        label={label}
+        hint={hint}
+        value={a.model || ''}
+        placeholder={placeholder}
+        models={models}
+        onChange={(value) => set('model', value)}
+      />
+      {showEffort
+        ? pick(
+            'Effort',
+            effortFor(a.engine, a.effort, a.provider, modelEfforts),
+            [
+              { value: '', label: "Model's default" },
+              ...effortLevels(a.engine, a.provider, modelEfforts).map((e) => ({ value: e, label: EFFORT_NAMES[e] })),
+            ],
+            (v) => set('effort', v as Agent['effort']),
+            'How hard the model thinks before it answers. More effort: better on hard work, but slower and uses more of your plan.',
+          )
+        : null}
     </div>
   );
   let parts: ReactNode = null;
@@ -738,7 +1089,10 @@ function EngineFields({ a, d, set, fit }: {
             'Provider',
             a.provider || 'openrouter',
             [
-              { value: 'openrouter', label: `OpenRouter${d.secrets.openrouterKey.set ? '' : ' (add key in Settings)'}` },
+              {
+                value: 'openrouter',
+                label: `OpenRouter${d.secrets.openrouterKey.set ? '' : ' (add key in Settings)'}`,
+              },
               { value: 'venice', label: `Venice${d.secrets.veniceKey?.set ? '' : ' (add key in Settings)'}` },
               { value: 'lmstudio', label: 'LM Studio (local)' },
               { value: 'ollama', label: 'Ollama (local)' },
@@ -751,7 +1105,17 @@ function EngineFields({ a, d, set, fit }: {
           {model('Model', 'Start typing to search. Pick one that supports tools.')}
         </div>
         <Field label="Temperature">
-          <input type="number" step="0.1" min="0" max="2" value={a.temperature ?? ''} placeholder="model default" onChange={(e) => set('temperature', (e.target.value === '' ? '' : Number(e.target.value)) as Agent['temperature'])} />
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            max="2"
+            value={a.temperature ?? ''}
+            placeholder="model default"
+            onChange={(e) =>
+              set('temperature', (e.target.value === '' ? '' : Number(e.target.value)) as Agent['temperature'])
+            }
+          />
         </Field>
       </>
     );
@@ -763,20 +1127,43 @@ function EngineFields({ a, d, set, fit }: {
           {model('Model', "Empty = Codex's default. Pick one of the models Codex lists, or type an id.")}
           <div>
             <div className="label">Codex</div>
-            <p className="hint">{cx.installed ? (cx.loggedIn ? `Signed in · ${cx.version || ''}` : 'Installed, not signed in yet: Settings > General > Sign in') : 'Not installed yet: Settings > General > Install Codex'}</p>
+            <p className="hint">
+              {cx.installed
+                ? cx.loggedIn
+                  ? `Signed in · ${cx.version || ''}`
+                  : 'Installed, not signed in yet: Settings > General > Sign in'
+                : 'Not installed yet: Settings > General > Install Codex'}
+            </p>
           </div>
         </div>
-        <p className="hint">Codex runs in the workspace folder. Autonomy maps to its sandbox: Ask first = read-only, Auto = can edit the workspace, Full = no sandbox.</p>
+        <p className="hint">
+          Codex runs in the workspace folder. Autonomy maps to its sandbox: Ask first = read-only, Auto = can edit the
+          workspace, Full = no sandbox.
+        </p>
       </>
     );
   } else if (a.engine === 'hermes')
     parts = (
       <>
         <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
-          {pick('Hermes profile', a.hermesProfile || '', [{ value: '', label: 'default' }, ...profiles.filter((p) => p.name !== 'default').map((p) => ({ value: p.name, label: `${p.name} (${p.model})` }))], (v) => set('hermesProfile', v), 'The profile brings its own memory, skills and tools.')}
+          {pick(
+            'Hermes profile',
+            a.hermesProfile || '',
+            [
+              { value: '', label: 'default' },
+              ...profiles
+                .filter((p) => p.name !== 'default')
+                .map((p) => ({ value: p.name, label: `${p.name} (${p.model})` })),
+            ],
+            (v) => set('hermesProfile', v),
+            'The profile brings its own memory, skills and tools.',
+          )}
           {model('Model override', "Leave empty to use the profile's model.")}
         </div>
-        <p className="hint">Hermes uses its own tools. To give it the dashboard tools too, use "Give Hermes the dashboard tools" on the MCP servers page.</p>
+        <p className="hint">
+          Hermes uses its own tools. To give it the dashboard tools too, use "Give Hermes the dashboard tools" on the
+          MCP servers page.
+        </p>
       </>
     );
   else if (a.engine === 'pi' || a.engine === 'omp') {
@@ -788,7 +1175,11 @@ function EngineFields({ a, d, set, fit }: {
           {model('Model', `Empty = ${name}'s default. Ids are provider/model, e.g. anthropic/claude-sonnet-5-5.`)}
           <div>
             <div className="label">{name}</div>
-            <p className="hint">{st.installed ? `Found${st.version ? ` · ${st.version}` : ''}` : `Not installed yet: ${a.engine === 'pi' ? 'npm install -g @earendil-works/pi-coding-agent' : 'bun install -g @oh-my-pi/pi-coding-agent'}`}</p>
+            <p className="hint">
+              {st.installed
+                ? `Found${st.version ? ` · ${st.version}` : ''}`
+                : `Not installed yet: ${a.engine === 'pi' ? 'npm install -g @earendil-works/pi-coding-agent' : 'bun install -g @oh-my-pi/pi-coding-agent'}`}
+            </p>
           </div>
         </div>
         <p className="hint">{`${name} works in the workspace folder with its own tools (read, bash, edit, write…) and runs them without asking, whatever the autonomy below says. Sign it in to a model provider in a terminal (/login). For the dashboard tools too, use "Give pi and oh-my-pi the dashboard tools" on the MCP servers page.`}</p>
@@ -798,10 +1189,25 @@ function EngineFields({ a, d, set, fit }: {
     parts = (
       <>
         <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
-          {pick('OpenClaw agent', a.openclawAgent || '', [{ value: '', label: 'its default agent' }, ...clawAgents.map((x) => ({ value: x.id, label: `${x.id}${x.model ? ` (${x.model})` : ''}${x.isDefault ? ' · default' : ''}` }))], (v) => set('openclawAgent', v), 'It brings its own memory, skills and tools.')}
+          {pick(
+            'OpenClaw agent',
+            a.openclawAgent || '',
+            [
+              { value: '', label: 'its default agent' },
+              ...clawAgents.map((x) => ({
+                value: x.id,
+                label: `${x.id}${x.model ? ` (${x.model})` : ''}${x.isDefault ? ' · default' : ''}`,
+              })),
+            ],
+            (v) => set('openclawAgent', v),
+            'It brings its own memory, skills and tools.',
+          )}
           {model('Model override', "Leave empty to use the OpenClaw agent's model.")}
         </div>
-        <p className="hint">Each chat here is its own OpenClaw session. It goes through your OpenClaw Gateway when it is running, else OpenClaw answers here on its own. OpenClaw's own approval settings apply to its tools.</p>
+        <p className="hint">
+          Each chat here is its own OpenClaw session. It goes through your OpenClaw Gateway when it is running, else
+          OpenClaw answers here on its own. OpenClaw's own approval settings apply to its tools.
+        </p>
       </>
     );
   else if (a.engine === 'opencode') {
@@ -809,13 +1215,26 @@ function EngineFields({ a, d, set, fit }: {
     parts = (
       <>
         <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
-          {model('Model', "Empty = opencode's default. Ids are provider/model, e.g. openrouter/deepseek/deepseek-v4.1-flash.")}
+          {model(
+            'Model',
+            "Empty = opencode's default. Ids are provider/model, e.g. openrouter/deepseek/deepseek-v4.1-flash.",
+          )}
           <div>
             <div className="label">opencode</div>
-            <p className="hint">{!st.installed ? 'Not installed yet: npm install -g @opencode/cli' : st.tooOld ? `Found ${st.version}: agents need opencode 2 or later (npm install -g @opencode/cli)` : `Found${st.version ? ` · ${st.version}` : ''}`}</p>
+            <p className="hint">
+              {!st.installed
+                ? 'Not installed yet: npm install -g @opencode/cli'
+                : st.tooOld
+                  ? `Found ${st.version}: agents need opencode 2 or later (npm install -g @opencode/cli)`
+                  : `Found${st.version ? ` · ${st.version}` : ''}`}
+            </p>
           </div>
         </div>
-        <p className="hint">opencode works in the workspace folder with its own tools (read, edit, shell…) and the dashboard tools. It asks you before risky steps the way the autonomy below says. Its free models work right away; to use your own accounts, run opencode auth login in a terminal.</p>
+        <p className="hint">
+          opencode works in the workspace folder with its own tools (read, edit, shell…) and the dashboard tools. It
+          asks you before risky steps the way the autonomy below says. Its free models work right away; to use your own
+          accounts, run opencode auth login in a terminal.
+        </p>
       </>
     );
   }
@@ -827,7 +1246,8 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
   const [info, setInfo] = useState<{ folders: string[]; files: AgentDetail['knowledgeFiles'] } | null>(null);
   const load = useCallback(
     () =>
-      rpc.agents.get({ id })
+      rpc.agents
+        .get({ id })
         .then((fresh) => {
           setInfo({ folders: fresh.knowledge?.folders || [], files: fresh.knowledgeFiles });
           synced(fresh.knowledge);
@@ -841,7 +1261,10 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
   const addNote = async () => {
     const name = await promptBox('Note name', { value: 'notes.md' });
     if (!name) return;
-    const content = await promptBox(name, { multiline: true, placeholder: 'Facts, style guides, product details, anything this agent should know.' });
+    const content = await promptBox(name, {
+      multiline: true,
+      placeholder: 'Facts, style guides, product details, anything this agent should know.',
+    });
     if (content == null) return;
     await attempt(() => rpc.agents.knowledge.add({ id, name, content }), 'Added');
     await load();
@@ -858,7 +1281,10 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
     await load();
   };
   const addFolder = async () => {
-    const folder = await promptBox('Link a folder or file', { label: 'Full path on this PC (the agent reads text files inside it)', placeholder: 'C:\\Users\\you\\Documents\\brand' });
+    const folder = await promptBox('Link a folder or file', {
+      label: 'Full path on this PC (the agent reads text files inside it)',
+      placeholder: 'C:\\Users\\you\\Documents\\brand',
+    });
     if (!folder) return;
     await attempt(() => rpc.agents.knowledge.add({ id, folder: folder.trim().replace(/^"|"$/g, '') }), 'Linked');
     await load();
@@ -872,14 +1298,24 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
   return (
     <div className="flex flex-col gap-3">
       <p className="hint m-0">
-        {total <= 24000 ? 'Small knowledge is given to the agent in full with every message.' : 'Large knowledge: the agent searches it when needed (knowledge_search).'}
+        {total <= 24000
+          ? 'Small knowledge is given to the agent in full with every message.'
+          : 'Large knowledge: the agent searches it when needed (knowledge_search).'}
         {` ${info.files.length} file${info.files.length === 1 ? '' : 's'} · ${Math.round(total / 1024)} KB`}
       </p>
       {info.folders.map((f) => (
         <div key={f} className="list-row">
           <Icon name="folder" size={15} className="flex-none text-dim" />
           <div className="flex-1 min-w-0 font-mono text-[12.5px] wrap-anywhere">{f}</div>
-          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.agents.knowledge.remove({ params: { id }, query: { folder: f } })).then(load)}>Unlink</Button>
+          <Button
+            variant="ghost"
+            size="tiny"
+            onClick={() =>
+              void attempt(() => rpc.agents.knowledge.remove({ params: { id }, query: { folder: f } })).then(load)
+            }
+          >
+            Unlink
+          </Button>
         </div>
       ))}
       {info.files
@@ -891,22 +1327,49 @@ function Knowledge({ id, synced }: { id: string; synced: (knowledge: Agent['know
               {f.label}
               <span className="hint">{` · ${Math.max(1, Math.round(f.size / 1024))} KB`}</span>
             </div>
-            <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.agents.knowledge.remove({ params: { id }, query: { label: f.label } })).then(load)}>Remove</Button>
+            <Button
+              variant="ghost"
+              size="tiny"
+              onClick={() =>
+                void attempt(() => rpc.agents.knowledge.remove({ params: { id }, query: { label: f.label } })).then(
+                  load,
+                )
+              }
+            >
+              Remove
+            </Button>
           </div>
         ))}
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" size="small" onClick={() => void addNote()}><Icon name="pen-line" size={13} />Write a note</Button>
+        <Button variant="ghost" size="small" onClick={() => void addNote()}>
+          <Icon name="pen-line" size={13} />
+          Write a note
+        </Button>
         <label className={buttonClass('ghost', 'small')}>
           <Icon name="upload" size={13} />
           Upload files
           <input type="file" multiple hidden onChange={(e) => void upload(e.target.files)} />
         </label>
-        <Button variant="ghost" size="small" onClick={() => void addFolder()}><Icon name="folder-open" size={13} />Link a folder</Button>
-        <Button variant="ghost" size="small" onClick={() => void addUrl()}><Icon name="globe" size={13} />From a web page</Button>
+        <Button variant="ghost" size="small" onClick={() => void addFolder()}>
+          <Icon name="folder-open" size={13} />
+          Link a folder
+        </Button>
+        <Button variant="ghost" size="small" onClick={() => void addUrl()}>
+          <Icon name="globe" size={13} />
+          From a web page
+        </Button>
       </div>
     </div>
   );
 }
 
 export const title = (params: string[] = []): string => (params[1] === 'edit' ? 'Edit agent' : 'Agents');
-export const { render, unmount } = reactPage((params) => (params[0] && params[1] === 'edit' ? <ProjectScoped><AgentEditor id={params[0]} /></ProjectScoped> : <AgentsList />));
+export const { render, unmount } = reactPage((params) =>
+  params[0] && params[1] === 'edit' ? (
+    <ProjectScoped>
+      <AgentEditor id={params[0]} />
+    </ProjectScoped>
+  ) : (
+    <AgentsList />
+  ),
+);

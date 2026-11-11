@@ -54,8 +54,13 @@ const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
 
 export const hasFiles = (e: DragEvent): boolean => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
 export const isFolderPath = (p: string): boolean => /[\\/]$/.test(p);
-export const baseName = (p: string): string => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p;
-const size = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+export const baseName = (p: string): string =>
+  p
+    .replace(/[\\/]+$/, '')
+    .split(/[\\/]/)
+    .pop() || p;
+const size = (n: number) =>
+  n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 
 // Everything in a drop, folders walked (minus .git, node_modules and OS clutter).
 // The entries are taken before the first await: the browser empties the DataTransfer after the event.
@@ -69,20 +74,25 @@ export async function filesFromDrop(dt: DataTransfer): Promise<PickedFile[]> {
     if (out.length >= MAX_FILES) return void (capped = true);
     if (entry.isFile) {
       if (SKIP_FILES.test(entry.name)) return;
-      const file = await new Promise<File>((res, rej) => (entry as FileSystemFileEntry).file(res, rej)).catch(() => null);
+      const file = await new Promise<File>((res, rej) => (entry as FileSystemFileEntry).file(res, rej)).catch(
+        () => null,
+      );
       if (file) out.push({ file, rel: prefix + entry.name });
     } else if (entry.isDirectory) {
       if (SKIP_DIRS.has(entry.name)) return;
       const reader = (entry as FileSystemDirectoryEntry).createReader();
       // readEntries hands them out in chunks until it returns none
       for (;;) {
-        const chunk = await new Promise<FileSystemEntry[]>((res, rej) => reader.readEntries(res, rej)).catch((): FileSystemEntry[] => []);
+        const chunk = await new Promise<FileSystemEntry[]>((res, rej) => reader.readEntries(res, rej)).catch(
+          (): FileSystemEntry[] => [],
+        );
         if (!chunk.length) break;
         for (const e of chunk) await walk(e, `${prefix}${entry.name}/`);
       }
     }
   };
-  if (!entries.some(Boolean)) return readable(loose.filter((f) => !SKIP_FILES.test(f.name)).map((file) => ({ file, rel: file.name })));
+  if (!entries.some(Boolean))
+    return readable(loose.filter((f) => !SKIP_FILES.test(f.name)).map((file) => ({ file, rel: file.name })));
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
     if (e) await walk(e, '');
@@ -101,11 +111,15 @@ async function readable(picked: PickedFile[]): Promise<PickedFile[]> {
         : p.file
             .slice(0, 1)
             .arrayBuffer()
-            .then(() => true, () => false),
+            .then(
+              () => true,
+              () => false,
+            ),
     ),
   );
   const out = picked.filter((_, i) => ok[i]);
-  if (out.length < picked.length) toast('A folder couldn’t be read this way. Drop it, or pick it with the paperclip.', 'warn', 6000);
+  if (out.length < picked.length)
+    toast('A folder couldn’t be read this way. Drop it, or pick it with the paperclip.', 'warn', 6000);
   return out;
 }
 
@@ -148,12 +162,24 @@ export function pasteHasFiles(dt: DataTransfer): boolean {
 
 // From an <input type=file> (a folder picker gives each file's path inside the folder).
 export function filesFromInput(list: FileList | null): PickedFile[] {
-  return [...(list || [])].filter((f) => !SKIP_FILES.test(f.name)).map((file) => ({ file, rel: file.webkitRelativePath || file.name }));
+  return [...(list || [])]
+    .filter((f) => !SKIP_FILES.test(f.name))
+    .map((file) => ({ file, rel: file.webkitRelativePath || file.name }));
 }
 
 // One file to POST /api/uploads/<batch>, raw, with progress. at: '/p/<projectId>' for a project that isn't open.
-const sendFile = (batch: string, p: PickedFile, onProgress: (sent: number) => void, signal: AbortSignal, at = ''): Promise<UploadedFile> =>
-  upload<UploadedFile>(`${at}/uploads/${encodeURIComponent(batch)}`, p.file, { query: { path: p.rel }, onProgress, signal });
+const sendFile = (
+  batch: string,
+  p: PickedFile,
+  onProgress: (sent: number) => void,
+  signal: AbortSignal,
+  at = '',
+): Promise<UploadedFile> =>
+  upload<UploadedFile>(`${at}/uploads/${encodeURIComponent(batch)}`, p.file, {
+    query: { path: p.rel },
+    onProgress,
+    signal,
+  });
 
 // At most a few uploads at once, across every chip and tray on the page.
 const MAX_PARALLEL = 4;
@@ -190,7 +216,8 @@ function group(picked: PickedFile[]): Item[] {
       state: 'waiting',
       error: null,
       path: null,
-      preview: !folder && IMAGE.test(key) && files[0].file.size < 20_000_000 ? URL.createObjectURL(files[0].file) : null,
+      preview:
+        !folder && IMAGE.test(key) && files[0].file.size < 20_000_000 ? URL.createObjectURL(files[0].file) : null,
       removed: false,
       cancel: new AbortController(),
     });
@@ -214,11 +241,17 @@ async function uploadItem(it: Item, batch: string, redraw: () => void, at = ''):
       limited(async () => {
         if (it.removed || failure) return;
         try {
-          const saved = await sendFile(batch, p, (n) => {
-            sentBy.set(p, n);
-            it.sent = [...sentBy.values()].reduce((a, b) => a + b, 0);
-            redraw();
-          }, it.cancel.signal, at);
+          const saved = await sendFile(
+            batch,
+            p,
+            (n) => {
+              sentBy.set(p, n);
+              it.sent = [...sentBy.values()].reduce((a, b) => a + b, 0);
+              redraw();
+            },
+            it.cancel.signal,
+            at,
+          );
           sentBy.set(p, p.file.size);
           it.path ||= saved.top;
         } catch (e) {
@@ -253,7 +286,10 @@ async function uploadItems(items: Item[], redraw: () => void, at = ''): Promise<
         if (!it.removed) Object.assign(it, { state: 'error', error: (e as Error).message });
       }
       // taken back while it was uploading: remove what did arrive
-      if (it.removed && it.path) rpcAt(at).uploads.remove({ query: { path: it.path } }).catch(() => {});
+      if (it.removed && it.path)
+        rpcAt(at)
+          .uploads.remove({ query: { path: it.path } })
+          .catch(() => {});
       it.settle();
       redraw();
     }),
@@ -302,38 +338,88 @@ function opener(it: Item): { title: string; go: () => void } | null {
   if (it.kind !== 'file') return null;
   const file = it.picked[0]?.file;
   const kind = previewKind(it.name);
-  if (kind === 'image' && (it.preview || it.path)) return { title: `Show ${it.name} bigger`, go: () => lightbox(it.preview || fileUrl(it.path!), it.name) };
-  if (kind === 'markdown' && file) return { title: `Read ${it.name}`, go: () => void (markdownTooBig(it.name, file.size) || file.text().then((t) => showMarkdown(it.name, t), () => toast(`${it.name} couldn’t be read.`, 'error'))) };
+  if (kind === 'image' && (it.preview || it.path))
+    return { title: `Show ${it.name} bigger`, go: () => lightbox(it.preview || fileUrl(it.path!), it.name) };
+  if (kind === 'markdown' && file)
+    return {
+      title: `Read ${it.name}`,
+      go: () =>
+        void (
+          markdownTooBig(it.name, file.size) ||
+          file.text().then(
+            (t) => showMarkdown(it.name, t),
+            () => toast(`${it.name} couldn’t be read.`, 'error'),
+          )
+        ),
+    };
   // in the desktop app any file opens in its own program once it is uploaded
   if (onDesktop() && it.path && it.state === 'done') return { title: `Open ${it.name}`, go: () => openFile(it.path!) };
-  if (kind === 'pdf' && it.path && it.state === 'done') return { title: `Open ${it.name} in a new tab`, go: () => openPdf(it.path!) };
+  if (kind === 'pdf' && it.path && it.state === 'done')
+    return { title: `Open ${it.name} in a new tab`, go: () => openPdf(it.path!) };
   return null;
 }
 
 /** One chip: a thumbnail or icon, its name, how far it has got, and its ✕. */
 function Chip({ it, onRemove }: { it: Item; onRemove: (it: Item) => void }) {
   const pct = it.bytes ? Math.min(100, Math.round((it.sent / it.bytes) * 100)) : 100;
-  const meta = it.state === 'error' ? it.error : it.state === 'uploading' ? `${pct}%` : it.kind === 'folder' ? `${it.picked.length} file${it.picked.length === 1 ? '' : 's'} · ${size(it.bytes)}` : size(it.bytes);
+  const meta =
+    it.state === 'error'
+      ? it.error
+      : it.state === 'uploading'
+        ? `${pct}%`
+        : it.kind === 'folder'
+          ? `${it.picked.length} file${it.picked.length === 1 ? '' : 's'} · ${size(it.bytes)}`
+          : size(it.bytes);
   const open = it.state === 'error' ? null : opener(it);
   const face = (
     <>
-      {it.preview ? <img className="size-5.5 flex-none rounded-[4px] object-cover" src={it.preview} alt="" /> : <span className="att-ico"><Icon name={it.kind === 'folder' ? 'folder' : 'file'} size={14} /></span>}
+      {it.preview ? (
+        <img className="size-5.5 flex-none rounded-[4px] object-cover" src={it.preview} alt="" />
+      ) : (
+        <span className="att-ico">
+          <Icon name={it.kind === 'folder' ? 'folder' : 'file'} size={14} />
+        </span>
+      )}
       <span className="att-name">{it.name}</span>
-      <span className={`max-w-[140px] truncate text-[11.5px] leading-[normal] tabular-nums ${it.state === 'error' ? 'text-red' : it.state === 'uploading' ? 'text-accent' : 'text-faint'}`}>{meta}</span>
+      <span
+        className={`max-w-[140px] truncate text-[11.5px] leading-[normal] tabular-nums ${it.state === 'error' ? 'text-red' : it.state === 'uploading' ? 'text-accent' : 'text-faint'}`}
+      >
+        {meta}
+      </span>
     </>
   );
   return (
-    <div className={`att-chip ${it.state}${open ? ' transition-colors hover:bg-panel-2' : ''}`} title={it.state === 'error' ? it.error || '' : it.path || it.name}>
+    <div
+      className={`att-chip ${it.state}${open ? ' transition-colors hover:bg-panel-2' : ''}`}
+      title={it.state === 'error' ? it.error || '' : it.path || it.name}
+    >
       {/* a file that can be looked at opens when clicked (the name and size are its button) */}
       {open ? (
-        <button className="att-open flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-inherit [font:inherit] hover:text-accent [&:hover_.att-ico]:text-accent" type="button" title={open.title} aria-label={open.title} onClick={open.go}>
+        <button
+          className="att-open flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-inherit [font:inherit] hover:text-accent [&:hover_.att-ico]:text-accent"
+          type="button"
+          title={open.title}
+          aria-label={open.title}
+          onClick={open.go}
+        >
           {face}
         </button>
       ) : (
         face
       )}
-      {it.state === 'uploading' ? <span className="absolute bottom-0 left-0 h-0.5 w-full origin-left bg-accent [transform:scaleX(var(--p,0))] transition-transform duration-150 ease-linear" style={{ '--p': String(pct / 100) } as CSSProperties} /> : null}
-      <button className="att-x" type="button" title="Remove" aria-label={`Remove ${it.name}`} onClick={() => onRemove(it)}>
+      {it.state === 'uploading' ? (
+        <span
+          className="absolute bottom-0 left-0 h-0.5 w-full origin-left bg-accent [transform:scaleX(var(--p,0))] transition-transform duration-150 ease-linear"
+          style={{ '--p': String(pct / 100) } as CSSProperties}
+        />
+      ) : null}
+      <button
+        className="att-x"
+        type="button"
+        title="Remove"
+        aria-label={`Remove ${it.name}`}
+        onClick={() => onRemove(it)}
+      >
         <Icon name="x" size={12} />
       </button>
     </div>
@@ -341,12 +427,25 @@ function Chip({ it, onRemove }: { it: Item; onRemove: (it: Item) => void }) {
 }
 
 /** What a dragged-over drop zone shows. */
-const OVERLAY_CLASS = 'pointer-events-none absolute inset-0.75 z-50 flex animate-[fade_0.12s_ease-out] flex-col items-center justify-center gap-2 rounded-box bg-glass-strong p-4 text-center text-[13px] leading-[normal] font-medium text-accent backdrop-blur-[3px]';
+const OVERLAY_CLASS =
+  'pointer-events-none absolute inset-0.75 z-50 flex animate-[fade_0.12s_ease-out] flex-col items-center justify-center gap-2 rounded-box bg-glass-strong p-4 text-center text-[13px] leading-[normal] font-medium text-accent backdrop-blur-[3px]';
 
 // deferred: hold the files and upload only when ready() is called (a new project: its folder doesn't exist yet).
 // iconWeight: the weight the chat around it draws its icons in (the paperclip is drawn apart from it).
 // project: files go to that project's uploads (an Overview pane of a project that isn't open).
-export function attachTray({ deferred = false, onChange, iconWeight, pickerButton = PICKER_BUTTON, project }: { deferred?: boolean; onChange?: () => void; iconWeight?: IconWeight; pickerButton?: { variant?: ButtonVariant; size?: ButtonSize; class?: string; label?: string }; project?: string } = {}): AttachTray {
+export function attachTray({
+  deferred = false,
+  onChange,
+  iconWeight,
+  pickerButton = PICKER_BUTTON,
+  project,
+}: {
+  deferred?: boolean;
+  onChange?: () => void;
+  iconWeight?: IconWeight;
+  pickerButton?: { variant?: ButtonVariant; size?: ButtonSize; class?: string; label?: string };
+  project?: string;
+} = {}): AttachTray {
   const at = projectAt(project);
   let items: Item[] = [];
   const el = document.createElement('div');
@@ -365,7 +464,12 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
   // the paperclip and its menu (Files…, A folder…) are the app's dropdown, drawn into this host
   const menuHost = document.createElement('span');
   menuHost.className = 'inline-flex';
-  mountAttachMenu(menuHost, { files: () => fileIn.click(), folder: () => dirIn.click(), weight: iconWeight, button: pickerButton });
+  mountAttachMenu(menuHost, {
+    files: () => fileIn.click(),
+    folder: () => dirIn.click(),
+    weight: iconWeight,
+    button: pickerButton,
+  });
   const picker = document.createElement('span');
   picker.className = 'relative inline-flex flex-none';
   picker.append(menuHost, fileIn, dirIn);
@@ -390,7 +494,10 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
     for (const fn of listeners) fn();
   };
 
-  const forget = (p: string) => rpcAt(at).uploads.remove({ query: { path: p } }).catch(() => {});
+  const forget = (p: string) =>
+    rpcAt(at)
+      .uploads.remove({ query: { path: p } })
+      .catch(() => {});
   const remove = (it: Item) => {
     it.removed = true;
     it.cancel.abort();
@@ -405,7 +512,11 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
     let fresh = group(picked);
     const room = MAX_ATTACHMENTS - items.length;
     if (fresh.length > room) {
-      toast(`A message can carry ${MAX_ATTACHMENTS} files or folders. ${room > 0 ? `Only the first ${room} were added; put` : 'Put'} the rest in a folder and attach that instead.`, 'warn', 7000);
+      toast(
+        `A message can carry ${MAX_ATTACHMENTS} files or folders. ${room > 0 ? `Only the first ${room} were added; put` : 'Put'} the rest in a folder and attach that instead.`,
+        'warn',
+        7000,
+      );
       for (const it of fresh.slice(Math.max(0, room))) if (it.preview) URL.revokeObjectURL(it.preview);
       fresh = fresh.slice(0, Math.max(0, room));
       if (!fresh.length) return;
@@ -423,14 +534,22 @@ export function attachTray({ deferred = false, onChange, iconWeight, pickerButto
     items.filter((it) => it.state === 'error').forEach(retry);
     // until nothing is left to upload: files added while waiting are included too
     for (;;) {
-      void uploadItems(items.filter((it) => it.state === 'waiting'), redraw, at);
+      void uploadItems(
+        items.filter((it) => it.state === 'waiting'),
+        redraw,
+        at,
+      );
       const pending = items.filter((it) => it.state === 'uploading');
       if (!pending.length) break;
       await Promise.all(pending.map((it) => it.done));
     }
     const failed = items.filter((it) => it.state === 'error');
     if (failed.length) {
-      toast(`${failed.map((f) => f.name).join(', ')} didn't upload: ${failed[0].error}. Remove ${failed.length === 1 ? 'it' : 'them'} or attach again.`, 'error', 7000);
+      toast(
+        `${failed.map((f) => f.name).join(', ')} didn't upload: ${failed[0].error}. Remove ${failed.length === 1 ? 'it' : 'them'} or attach again.`,
+        'error',
+        7000,
+      );
       return null;
     }
     return items.map((it) => it.path).filter((p): p is string => !!p);
@@ -552,19 +671,35 @@ function SentChips({ paths }: { paths: readonly string[] }) {
         if (isFolderPath(p))
           return (
             <span key={`${p}:${i}`} className="att-chip sent" title={p}>
-              <span className="att-ico"><Icon name="folder" size={13} /></span>
+              <span className="att-ico">
+                <Icon name="folder" size={13} />
+              </span>
               <span className="att-name">{`${name}/`}</span>
             </span>
           );
         if (IMAGE.test(p))
           return (
-            <a key={`${p}:${i}`} className="att-img group block leading-[0]" href={url} target="_blank" rel="noopener" title={p}>
-              <img className="h-18 w-24 rounded-[8px] border border-line-2 object-cover group-hover:shadow-lift" src={url} alt={name} loading="lazy" />
+            <a
+              key={`${p}:${i}`}
+              className="att-img group block leading-[0]"
+              href={url}
+              target="_blank"
+              rel="noopener"
+              title={p}
+            >
+              <img
+                className="h-18 w-24 rounded-[8px] border border-line-2 object-cover group-hover:shadow-lift"
+                src={url}
+                alt={name}
+                loading="lazy"
+              />
             </a>
           );
         return (
           <a key={`${p}:${i}`} className="att-chip sent" href={url} target="_blank" rel="noopener" title={p}>
-            <span className="att-ico"><Icon name="file" size={13} /></span>
+            <span className="att-ico">
+              <Icon name="file" size={13} />
+            </span>
             <span className="att-name">{name}</span>
           </a>
         );

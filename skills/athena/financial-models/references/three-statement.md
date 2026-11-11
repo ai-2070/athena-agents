@@ -133,11 +133,11 @@ recalculate and see the difference fall to zero in every period and every case.
 
 ## A minimal layout
 
-| Sheet | Rows |
-|---|---|
-| Inputs | drivers, debt terms, minimum cash, tax and losses, scenario blocks, tolerance |
-| Model (or IS, BS, CF and Schedules) | income statement; losses carried forward; balance sheet; cash flow; revolver |
-| Checks | one row per check, one column per period |
+| Sheet                               | Rows                                                                          |
+| ----------------------------------- | ----------------------------------------------------------------------------- |
+| Inputs                              | drivers, debt terms, minimum cash, tax and losses, scenario blocks, tolerance |
+| Model (or IS, BS, CF and Schedules) | income statement; losses carried forward; balance sheet; cash flow; revolver  |
+| Checks                              | one row per check, one column per period                                      |
 
 Show the user the historicals and drivers, then the income statement, then the balance sheet with its check, before the
 cash flow and scenarios.

@@ -21,13 +21,35 @@ export const MAX_WAIT_S = 1800;
 const handoffs = () => readExecution().handoffs.filter((h) => !h.endedAt || Date.now() - h.endedAt < KEEP_MS);
 
 /** Starts the task in a new chat with the target and returns at once. */
-export async function startHandoff(from: Pick<Agent, 'id' | 'name'>, target: Agent, task: string, { depth, parentRunId, signal }: { depth: number; parentRunId?: string | null; signal?: AbortSignal }): Promise<Handoff> {
+export async function startHandoff(
+  from: Pick<Agent, 'id' | 'name'>,
+  target: Agent,
+  task: string,
+  { depth, parentRunId, signal }: { depth: number; parentRunId?: string | null; signal?: AbortSignal },
+): Promise<Handoff> {
   const { askAgent, isStopping, RunStopped } = await import('./engines/index.ts');
   const chat = chats.create(target.id, `Asked by ${from.name}`);
-  const saved: SavedHandoff = { id: uid('h'), from: from.id, projectId: activeProject().id, to: target.id, toName: target.name, chatId: chat.id, runId: uid('r'), task, startedAt: Date.now() };
+  const saved: SavedHandoff = {
+    id: uid('h'),
+    from: from.id,
+    projectId: activeProject().id,
+    to: target.id,
+    toName: target.name,
+    chatId: chat.id,
+    runId: uid('r'),
+    task,
+    startedAt: Date.now(),
+  };
   saveHandoff(saved);
   const h: Handoff = { ...saved, done: Promise.resolve() };
-  h.done = askAgent(target, task, { depth, from: from.name, chatId: chat.id, parentRunId, signal, reservedRunId: h.runId }).then(
+  h.done = askAgent(target, task, {
+    depth,
+    from: from.name,
+    chatId: chat.id,
+    parentRunId,
+    signal,
+    reservedRunId: h.runId,
+  }).then(
     (answer) => {
       h.answer = answer;
       h.endedAt = Date.now();
@@ -35,7 +57,11 @@ export async function startHandoff(from: Pick<Agent, 'id' | 'name'>, target: Age
     },
     (e: unknown) => {
       // Shutdown aborts the local waiter while a saved native run can still resume.
-      if (isStopping() && readExecution().runs.some((run) => run.id === h.runId && run.status === 'running' && !run.stopRequested)) return;
+      if (
+        isStopping() &&
+        readExecution().runs.some((run) => run.id === h.runId && run.status === 'running' && !run.stopRequested)
+      )
+        return;
       h.error = e instanceof RunStopped ? 'it was stopped' : (e as Error).message || String(e);
       h.endedAt = Date.now();
       saveHandoff({ ...saved, error: h.error, endedAt: h.endedAt });
@@ -46,7 +72,8 @@ export async function startHandoff(from: Pick<Agent, 'id' | 'name'>, target: Age
   return h;
 }
 
-const minutes = (ms: number) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} s` : `${Math.round(ms / 60_000)} min`);
+const minutes = (ms: number) =>
+  ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} s` : `${Math.round(ms / 60_000)} min`;
 
 /** Its latest words while it works (its live chat), for "still working" answers. */
 function soFar(h: SavedHandoff, live: Chat | null): string {
@@ -58,11 +85,20 @@ function soFar(h: SavedHandoff, live: Chat | null): string {
 }
 
 /** Waits up to waitS seconds for a handoff's answer: the answer, its error, or that it is still going. */
-export async function awaitHandoff(id: string, askerId: string, waitS = DEFAULT_WAIT_S, signal?: AbortSignal): Promise<{ text: string; isError?: boolean }> {
+export async function awaitHandoff(
+  id: string,
+  askerId: string,
+  waitS = DEFAULT_WAIT_S,
+  signal?: AbortSignal,
+): Promise<{ text: string; isError?: boolean }> {
   const found = handoffs().find((h) => h.id === String(id || '').trim());
   // (another project's handoff isn't there for this one)
   let h = found && found.projectId === activeProject().id ? found : undefined;
-  if (!h) return { text: `No handoff with handle ${id}. (Finished ones are kept for 6 hours; call await_agent without a handle to list yours.)`, isError: true };
+  if (!h)
+    return {
+      text: `No handoff with handle ${id}. (Finished ones are kept for 6 hours; call await_agent without a handle to list yours.)`,
+      isError: true,
+    };
   if (h.from !== askerId) return { text: 'That handle belongs to another agent.', isError: true };
   if (!h.endedAt && !signal?.aborted) {
     const wait = Math.min(MAX_WAIT_S, Math.max(1, Number(waitS) || DEFAULT_WAIT_S)) * 1000;
@@ -70,12 +106,13 @@ export async function awaitHandoff(id: string, askerId: string, waitS = DEFAULT_
     let poll: ReturnType<typeof setInterval> | undefined;
     let onAbort = () => {};
     await Promise.race([
-      jobs.get(h.id) || new Promise<void>((resolve) => {
-        const handle = h!.id;
-        poll = setInterval(() => {
-          if (handoffs().find((item) => item.id === handle)?.endedAt) resolve();
-        }, 100);
-      }),
+      jobs.get(h.id) ||
+        new Promise<void>((resolve) => {
+          const handle = h!.id;
+          poll = setInterval(() => {
+            if (handoffs().find((item) => item.id === handle)?.endedAt) resolve();
+          }, 100);
+        }),
       new Promise<void>((r) => (timer = setTimeout(r, wait))),
       new Promise<void>((r) => {
         onAbort = () => r();
@@ -92,22 +129,35 @@ export async function awaitHandoff(id: string, askerId: string, waitS = DEFAULT_
 }
 
 /** Where a handoff is now: its answer, its error, or how far it got. */
-async function describe(h: SavedHandoff, again = `Call await_agent again with handle ${h.id}.`): Promise<{ text: string; isError?: boolean }> {
+async function describe(
+  h: SavedHandoff,
+  again = `Call await_agent again with handle ${h.id}.`,
+): Promise<{ text: string; isError?: boolean }> {
   if (h.error) return { text: `${h.toName} couldn't finish: ${h.error}`, isError: true };
   if (h.endedAt) return { text: `${h.toName} says:\n${h.answer || '(no answer)'}` };
   const { liveChat } = await import('./engines/index.ts');
-  return { text: `${h.toName} is still working on it (${minutes(Date.now() - h.startedAt)} so far).${soFar(h, liveChat(h.chatId, h.projectId))}${again ? `\n${again}` : ''}` };
+  return {
+    text: `${h.toName} is still working on it (${minutes(Date.now() - h.startedAt)} so far).${soFar(h, liveChat(h.chatId, h.projectId))}${again ? `\n${again}` : ''}`,
+  };
 }
 
 /** Several handoffs in one call: waits until one is done (or, with all, every one), then says where each is. */
-export async function awaitHandoffs(ids: string[], askerId: string, { all = false, waitS = DEFAULT_WAIT_S, signal }: { all?: boolean; waitS?: number; signal?: AbortSignal } = {}): Promise<{ text: string; isError?: boolean }> {
+export async function awaitHandoffs(
+  ids: string[],
+  askerId: string,
+  { all = false, waitS = DEFAULT_WAIT_S, signal }: { all?: boolean; waitS?: number; signal?: AbortSignal } = {},
+): Promise<{ text: string; isError?: boolean }> {
   const wanted = [...new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))];
   if (wanted.length <= 1) return awaitHandoff(wanted[0] || '', askerId, waitS, signal);
   const projectId = activeProject().id;
   const find = (id: string) => handoffs().find((h) => h.id === id && h.projectId === projectId);
   for (const id of wanted) {
     const h = find(id);
-    if (!h) return { text: `No handoff with handle ${id}. (Finished ones are kept for 6 hours; call await_agent without a handle to list yours.)`, isError: true };
+    if (!h)
+      return {
+        text: `No handoff with handle ${id}. (Finished ones are kept for 6 hours; call await_agent without a handle to list yours.)`,
+        isError: true,
+      };
     if (h.from !== askerId) return { text: `Handle ${id} belongs to another agent.`, isError: true };
   }
   const finished = () => wanted.filter((id) => find(id)?.endedAt).length;
@@ -132,15 +182,25 @@ export async function awaitHandoffs(ids: string[], askerId: string, { all = fals
   const parts = await Promise.all(wanted.map(async (id) => ({ id, ...(await describe(find(id)!, '')) })));
   const working = parts.filter((p) => !find(p.id)?.endedAt).map((p) => p.id);
   const text = parts.map((p) => `[${p.id}] ${p.text}`).join('\n\n');
-  return { text: working.length ? `${text}\n\nStill working: call await_agent again with handles ${JSON.stringify(working)}.` : text, isError: parts.every((p) => p.isError) };
+  return {
+    text: working.length
+      ? `${text}\n\nStill working: call await_agent again with handles ${JSON.stringify(working)}.`
+      : text,
+    isError: parts.every((p) => p.isError),
+  };
 }
 
 /** The asker's handoffs, newest first (await_agent without a handle). */
 export function listHandoffs(askerId: string): string {
   const projectId = activeProject().id;
-  const mine = handoffs().filter((h) => h.from === askerId && h.projectId === projectId).sort((a, b) => b.startedAt - a.startedAt);
+  const mine = handoffs()
+    .filter((h) => h.from === askerId && h.projectId === projectId)
+    .sort((a, b) => b.startedAt - a.startedAt);
   if (!mine.length) return 'You have no handoffs. Give a task to a teammate with ask_agent.';
   return mine
-    .map((h) => `- ${h.id} → ${h.toName}: "${h.task.replace(/\s+/g, ' ').slice(0, 80)}" — ${h.error ? `failed (${h.error.slice(0, 80)})` : h.endedAt ? 'done, answer ready' : `working, ${minutes(Date.now() - h.startedAt)}`}`)
+    .map(
+      (h) =>
+        `- ${h.id} → ${h.toName}: "${h.task.replace(/\s+/g, ' ').slice(0, 80)}" — ${h.error ? `failed (${h.error.slice(0, 80)})` : h.endedAt ? 'done, answer ready' : `working, ${minutes(Date.now() - h.startedAt)}`}`,
+    )
     .join('\n');
 }

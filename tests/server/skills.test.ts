@@ -6,7 +6,8 @@ import * as skills from '../../server/skills.ts';
 import { dataPath } from '../../server/util.ts';
 import { activeProject, saveProjects, listProjects } from '../../server/store.ts';
 
-const make = (name: string, description = `Use for ${name}.`, body = `Steps for ${name}.`) => skills.saveSkill({ name, description, body });
+const make = (name: string, description = `Use for ${name}.`, body = `Steps for ${name}.`) =>
+  skills.saveSkill({ name, description, body });
 
 // Make every file and folder in a skill look a minute old: a skill changed in the last moments is
 // always read again (file times can be coarse), so only an older one is kept.
@@ -30,7 +31,9 @@ const reads = (dir: string, fn: () => void): Record<string, number> => {
     const count: Record<string, number> = {};
     spy.mock.calls.forEach(([p], i) => {
       if (typeof p !== 'string' || spy.mock.results[i].type !== 'return') return;
-      const rel = [path.relative(dir, p), path.relative(real, p)].find((r) => r && !r.startsWith('..') && !path.isAbsolute(r));
+      const rel = [path.relative(dir, p), path.relative(real, p)].find(
+        (r) => r && !r.startsWith('..') && !path.isAbsolute(r),
+      );
       if (rel) count[rel.split(path.sep).join('/')] = (count[rel.split(path.sep).join('/')] || 0) + 1;
     });
     return count;
@@ -63,7 +66,10 @@ describe('skills library', () => {
   it('reads multi-line descriptions (YAML >- blocks)', () => {
     const dir = dataPath('skills', 'folded');
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, 'SKILL.md'), '---\nname: folded\ndescription: >-\n  first line\n  second line\n---\nbody');
+    fs.writeFileSync(
+      path.join(dir, 'SKILL.md'),
+      '---\nname: folded\ndescription: >-\n  first line\n  second line\n---\nbody',
+    );
     expect(skills.getSkill('folded')?.description).toBe('first line second line');
   });
 
@@ -75,13 +81,17 @@ describe('skills library', () => {
       expect(s).toMatchObject({ name, description });
       s = skills.saveSkill({ slug: s.slug, name: s.name, description: s.description, body: s.body })!;
     }
-    for (const odd of ['>', '| pipe', '- dash', '[x]', '{x}', '@x', 'true\\']) expect(skills.saveSkill({ name: odd, description: 'Use it.', body: '' })?.name).toBe(odd);
+    for (const odd of ['>', '| pipe', '- dash', '[x]', '{x}', '@x', 'true\\'])
+      expect(skills.saveSkill({ name: odd, description: 'Use it.', body: '' })?.name).toBe(odd);
   });
 
   it('decodes quoted names and descriptions written by hand or the old way', () => {
     const dir = dataPath('skills', 'quoted');
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, 'SKILL.md'), '---\nname: "Say \\"Hi\\" \\x41\\u00e9"\ndescription: \'It\'\'s for C:\\src\'\n---\nbody');
+    fs.writeFileSync(
+      path.join(dir, 'SKILL.md'),
+      '---\nname: "Say \\"Hi\\" \\x41\\u00e9"\ndescription: \'It\'\'s for C:\\src\'\n---\nbody',
+    );
     expect(skills.getSkill('quoted')).toMatchObject({ name: 'Say "Hi" Aé', description: "It's for C:\\src" });
     // an escape YAML doesn't know is kept as it was, and a plain value keeps its quotes
     fs.writeFileSync(path.join(dir, 'SKILL.md'), '---\nname: "C:\\src\\q"\ndescription: Say "hi"\n---\nbody');
@@ -129,14 +139,24 @@ describe('finding and searching a skill', () => {
     fs.writeFileSync(path.join(dir, 'data.bin'), 'tool\0binary');
     fs.writeFileSync(path.join(dir, '.hidden.md'), 'tool hidden');
     const out = skills.searchSkill(s!.slug, 'tool');
-    expect(out.split('\n').sort()).toEqual(['SKILL.md:7: Run the TOOL first.', 'references/commands.md:1: tool list', 'references/commands.md:3: another tool'].sort());
-    expect(skills.searchSkill(s!.slug, 'tool', 'references/commands.md')).toBe('references/commands.md:1: tool list\nreferences/commands.md:3: another tool');
+    expect(out.split('\n').sort()).toEqual(
+      [
+        'SKILL.md:7: Run the TOOL first.',
+        'references/commands.md:1: tool list',
+        'references/commands.md:3: another tool',
+      ].sort(),
+    );
+    expect(skills.searchSkill(s!.slug, 'tool', 'references/commands.md')).toBe(
+      'references/commands.md:1: tool list\nreferences/commands.md:3: another tool',
+    );
     // one file asked for by name is searched even when it isn't text
     expect(skills.searchSkill(s!.slug, 'binary', 'data.bin')).toBe('data.bin:1: tool\0binary');
     // not a regular expression: searched for as plain words
-    expect(skills.searchSkill(s!.slug, 'TOOL first.(')).toBe("No line in the skill's files matches \"TOOL first.(\".");
+    expect(skills.searchSkill(s!.slug, 'TOOL first.(')).toBe('No line in the skill\'s files matches "TOOL first.(".');
     expect(skills.searchSkill(s!.slug, 'the tool f')).toBe('SKILL.md:7: Run the TOOL first.');
-    expect(() => skills.searchSkill(s!.slug, 'tool', '../brand-voice/SKILL.md')).toThrow(/not part of the skill|no file/);
+    expect(() => skills.searchSkill(s!.slug, 'tool', '../brand-voice/SKILL.md')).toThrow(
+      /not part of the skill|no file/,
+    );
     expect(() => skills.searchSkill(s!.slug, 'tool', 'missing.md')).toThrow('The skill has no file "missing.md".');
     expect(() => skills.searchSkill('no-such-skill', 'tool')).toThrow('No skill "no-such-skill".');
   });
@@ -165,24 +185,39 @@ describe('reading skills once', () => {
     const dir = handMade('kept-skill', 'Old steps.');
     expect(reads(dir, () => skills.getSkill('kept-skill'))).toEqual({ 'SKILL.md': 1 });
     // read once more for the prompt, the list and read_skill: nothing comes from disk
-    expect(reads(dir, () => {
-      expect(skills.getSkill('kept-skill')?.body).toBe('Old steps.');
-      expect(skills.listSkills().find((s) => s.slug === 'kept-skill')?.preview).toBe('Old steps.');
-      expect(skills.findSkill('kept-skill')?.files.map((f) => f.path)).toEqual(['references/a.md']);
-      expect(skills.skillsPrompt({ skills: ['kept-skill'] })).toContain('kept-skill: Use it. [id: kept-skill; has 1 extra file]');
-    })).toEqual({});
+    expect(
+      reads(dir, () => {
+        expect(skills.getSkill('kept-skill')?.body).toBe('Old steps.');
+        expect(skills.listSkills().find((s) => s.slug === 'kept-skill')?.preview).toBe('Old steps.');
+        expect(skills.findSkill('kept-skill')?.files.map((f) => f.path)).toEqual(['references/a.md']);
+        expect(skills.skillsPrompt({ skills: ['kept-skill'] })).toContain(
+          'kept-skill: Use it. [id: kept-skill; has 1 extra file]',
+        );
+      }),
+    ).toEqual({});
     // edited by hand
-    fs.writeFileSync(path.join(dir, 'SKILL.md'), '---\nname: kept-skill\ndescription: Use it.\n---\nNew steps, longer.');
+    fs.writeFileSync(
+      path.join(dir, 'SKILL.md'),
+      '---\nname: kept-skill\ndescription: Use it.\n---\nNew steps, longer.',
+    );
     expect(skills.getSkill('kept-skill')?.body).toBe('New steps, longer.');
     settle(dir);
     skills.getSkill('kept-skill');
     // a file added in a folder of the skill
     fs.writeFileSync(path.join(dir, 'references', 'b.md'), 'second');
-    expect(skills.getSkill('kept-skill')?.files.map((f) => f.path).sort()).toEqual(['references/a.md', 'references/b.md']);
+    expect(
+      skills
+        .getSkill('kept-skill')
+        ?.files.map((f) => f.path)
+        .sort(),
+    ).toEqual(['references/a.md', 'references/b.md']);
     settle(dir);
     skills.getSkill('kept-skill');
     // where it was installed from
-    fs.writeFileSync(path.join(dir, '.source.json'), JSON.stringify({ url: 'https://github.com/o/r', repo: 'o/r', ref: 'main', path: '', installedAt: 1 }));
+    fs.writeFileSync(
+      path.join(dir, '.source.json'),
+      JSON.stringify({ url: 'https://github.com/o/r', repo: 'o/r', ref: 'main', path: '', installedAt: 1 }),
+    );
     expect(skills.getSkill('kept-skill')?.origin?.repo).toBe('o/r');
     // gone
     fs.rmSync(dir, { recursive: true, force: true });
@@ -193,10 +228,12 @@ describe('reading skills once', () => {
   it('reads a skill changed in the last moments again', () => {
     const s = make('Fresh skill');
     const dir = dataPath('skills', s!.slug);
-    expect(reads(dir, () => {
-      skills.getSkill(s!.slug);
-      skills.getSkill(s!.slug);
-    })).toEqual({ 'SKILL.md': 2 });
+    expect(
+      reads(dir, () => {
+        skills.getSkill(s!.slug);
+        skills.getSkill(s!.slug);
+      }),
+    ).toEqual({ 'SKILL.md': 2 });
   });
 
   it("sees the dashboard's own changes at once", () => {
@@ -209,7 +246,10 @@ describe('reading skills once', () => {
     expect(skills.skillsPrompt({ skills: [s!.slug] })).toContain('Edited skill: Use for edits.');
     settle(dir);
     skills.getSkill(s!.slug);
-    skills.restoreSkill({ slug: s!.slug, name: 'Edited skill', description: 'Use for old edits.', body: 'First text.' }, 'none');
+    skills.restoreSkill(
+      { slug: s!.slug, name: 'Edited skill', description: 'Use for old edits.', body: 'First text.' },
+      'none',
+    );
     expect(skills.findSkill('edited skill')).toMatchObject({ description: 'Use for old edits.' });
     settle(dir);
     skills.getSkill(s!.slug);
@@ -229,7 +269,10 @@ describe('reading skills once', () => {
     const dir = handMade('searched-skill', 'Find the needle here.');
     skills.getSkill('searched-skill');
     let out = '';
-    expect(reads(dir, () => (out = skills.searchSkill('searched-skill', 'needle|reference')))).toEqual({ 'SKILL.md': 1, 'references/a.md': 1 });
+    expect(reads(dir, () => (out = skills.searchSkill('searched-skill', 'needle|reference')))).toEqual({
+      'SKILL.md': 1,
+      'references/a.md': 1,
+    });
     expect(out).toBe('SKILL.md:5: Find the needle here.\nreferences/a.md:1: first reference');
   });
 });

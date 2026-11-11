@@ -87,7 +87,11 @@ function startsWith(bytes: Uint8Array, values: ArrayLike<number>, at = 0): boole
 /** Whether `needle` occurs in `bytes` (a part's name in a ZIP). */
 function contains(bytes: Uint8Array, needle: Uint8Array): boolean {
   const first = needle[0]!;
-  for (let at = bytes.indexOf(first); at !== -1 && at + needle.length <= bytes.length; at = bytes.indexOf(first, at + 1)) {
+  for (
+    let at = bytes.indexOf(first);
+    at !== -1 && at + needle.length <= bytes.length;
+    at = bytes.indexOf(first, at + 1)
+  ) {
     if (startsWith(bytes, needle, at)) return true;
   }
   return false;
@@ -100,7 +104,8 @@ const pdfHeader = (bytes: Uint8Array, name: string) => {
   if (startsWith(bytes, PDF)) return true;
   if (!PDF_NAME.test(name)) return false;
   const head = bytes.subarray(0, 1024);
-  for (let at = head.indexOf(PDF[0]!); at !== -1; at = head.indexOf(PDF[0]!, at + 1)) if (startsWith(head, PDF, at)) return true;
+  for (let at = head.indexOf(PDF[0]!); at !== -1; at = head.indexOf(PDF[0]!, at + 1))
+    if (startsWith(head, PDF, at)) return true;
   return false;
 };
 
@@ -182,7 +187,9 @@ export async function readDocumentFile(real: string, opts: ReadOptions = {}): Pr
   if (!mayBeDocument(real)) return null;
   if (st.size > DOCUMENT_MAX_BYTES) {
     if (!isDocumentName(real)) return null;
-    throw new DocumentError(`It is ${sizeText(st.size)}: documents are read up to ${DOCUMENT_MAX_BYTES / 1024 / 1024} MB.`);
+    throw new DocumentError(
+      `It is ${sizeText(st.size)}: documents are read up to ${DOCUMENT_MAX_BYTES / 1024 / 1024} MB.`,
+    );
   }
   const bytes = fs.readFileSync(real);
   const kind = documentKind(bytes, path.basename(real));
@@ -199,7 +206,8 @@ export async function readDocumentFile(real: string, opts: ReadOptions = {}): Pr
 }
 
 /** Whether a read document has any text (a scanned PDF has only its page marks). */
-export const documentHasText = (read: DocumentRead): boolean => !!(read.kind === 'pdf' ? read.text.replace(/--- Page \d+ ---/g, '') : read.text).trim();
+export const documentHasText = (read: DocumentRead): boolean =>
+  !!(read.kind === 'pdf' ? read.text.replace(/--- Page \d+ ---/g, '') : read.text).trim();
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
@@ -223,7 +231,11 @@ export function documentAbout(read: DocumentRead): string {
  * What read_file and read_document answer for a document: what it is and anything to know, then its text from line
  * offset (the same parts a text file comes in). Null when the file isn't a document.
  */
-export async function readDocumentPart(real: string, shown: string, opts: PageOptions & ReadOptions = {}): Promise<string | null> {
+export async function readDocumentPart(
+  real: string,
+  shown: string,
+  opts: PageOptions & ReadOptions = {},
+): Promise<string | null> {
   let read: DocumentRead | null;
   try {
     read = await readDocumentFile(real, opts);
@@ -240,7 +252,11 @@ export async function readDocumentPart(real: string, shown: string, opts: PageOp
 // ---------- the text of each kind ----------
 
 /** The text of a document's bytes, whole. */
-export async function documentText(kind: DocumentKind, bytes: Uint8Array, opts: ReadOptions = {}): Promise<DocumentRead> {
+export async function documentText(
+  kind: DocumentKind,
+  bytes: Uint8Array,
+  opts: ReadOptions = {},
+): Promise<DocumentRead> {
   switch (kind) {
     case 'pdf': {
       const read = await pdfText(bytes, opts);
@@ -261,14 +277,18 @@ export async function documentText(kind: DocumentKind, bytes: Uint8Array, opts: 
       return { kind, text: read.text, notes: [], slides: read.slides };
     }
     case 'old-office':
-      throw new DocumentError('older Office files (.doc, .xls, .ppt) have no text to give here. Save it as .docx, .xlsx, .pptx or PDF.');
+      throw new DocumentError(
+        'older Office files (.doc, .xls, .ppt) have no text to give here. Save it as .docx, .xlsx, .pptx or PDF.',
+      );
   }
 }
 
 // ---------- PDF ----------
 
 // The desktop app runs the server bundled, and the worker as a file of its own next to it (scripts/build-desktop.ts).
-const PDF_WORKER = ((js) => (fs.existsSync(js) ? js : path.join(ROOT, 'server', 'pdfworker.ts')))(path.join(ROOT, 'server', 'pdfworker.js'));
+const PDF_WORKER = ((js) => (fs.existsSync(js) ? js : path.join(ROOT, 'server', 'pdfworker.ts')))(
+  path.join(ROOT, 'server', 'pdfworker.js'),
+);
 
 type PdfRead = { text: string; total: number; read: number };
 type PdfAnswer = PdfRead | { error: 'password' | 'unreadable' };
@@ -305,13 +325,23 @@ async function threadSlot(signal?: AbortSignal): Promise<() => void> {
 
 // The thread failing (it couldn't start, or crashed) is the reader's fault, not the file's: said so, and logged.
 function readerFailed(cause: unknown): DocumentError {
-  if (cause && typeof cause === 'object' && 'code' in cause && cause.code === 'ERR_WORKER_OUT_OF_MEMORY') return new DocumentError('it needs too much memory to read.');
-  log('error', `The PDF reader stopped working (${PDF_WORKER}): ${cause instanceof Error ? cause.message : String(cause)}`);
-  return new DocumentError("the PDF reader didn't work, so it couldn't be read. Try again; if it keeps happening, restart the dashboard.", { lasting: false });
+  if (cause && typeof cause === 'object' && 'code' in cause && cause.code === 'ERR_WORKER_OUT_OF_MEMORY')
+    return new DocumentError('it needs too much memory to read.');
+  log(
+    'error',
+    `The PDF reader stopped working (${PDF_WORKER}): ${cause instanceof Error ? cause.message : String(cause)}`,
+  );
+  return new DocumentError(
+    "the PDF reader didn't work, so it couldn't be read. Try again; if it keeps happening, restart the dashboard.",
+    { lasting: false },
+  );
 }
 
 /** A PDF's text page by page, read in a thread that is stopped after timeoutMs, or when signal is. */
-export async function pdfText(bytes: Uint8Array, { timeoutMs = PDF_TIMEOUT_MS, signal }: ReadOptions = {}): Promise<PdfRead> {
+export async function pdfText(
+  bytes: Uint8Array,
+  { timeoutMs = PDF_TIMEOUT_MS, signal }: ReadOptions = {},
+): Promise<PdfRead> {
   const free = await threadSlot(signal);
   let worker: Worker;
   try {
@@ -338,15 +368,23 @@ export async function pdfText(bytes: Uint8Array, { timeoutMs = PDF_TIMEOUT_MS, s
         settle();
       };
       // (cut short by a caller's budget, it may read in full another time)
-      timer = setTimeout(() => end(() => reject(new DocumentError('it took too long to read.', { lasting: limit >= PDF_TIMEOUT_MS }))), limit);
+      timer = setTimeout(
+        () => end(() => reject(new DocumentError('it took too long to read.', { lasting: limit >= PDF_TIMEOUT_MS }))),
+        limit,
+      );
       onAbort = () => end(() => reject(signal?.reason ?? new Error('Stopped.')));
       if (signal?.aborted) onAbort();
       signal?.addEventListener('abort', onAbort, { once: true });
       worker.once('message', (message: PdfAnswer) => end(() => resolve(message)));
       worker.once('error', (error) => end(() => reject(readerFailed(error))));
-      worker.once('exit', (code) => end(() => reject(readerFailed(new Error(`it ended (code ${code}) without an answer`)))));
+      worker.once('exit', (code) =>
+        end(() => reject(readerFailed(new Error(`it ended (code ${code}) without an answer`)))),
+      );
     });
-    if ('error' in answer) throw new DocumentError(answer.error === 'password' ? 'it is password protected.' : "it isn't a PDF that can be read.");
+    if ('error' in answer)
+      throw new DocumentError(
+        answer.error === 'password' ? 'it is password protected.' : "it isn't a PDF that can be read.",
+      );
     return answer;
   } finally {
     clearTimeout(timer);
@@ -394,7 +432,8 @@ function unpack(bytes: Uint8Array, wanted: (name: string) => boolean): Map<strin
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 
-const safeChar = (code: number, fallback: string) => (Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : fallback);
+const safeChar = (code: number, fallback: string) =>
+  Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : fallback;
 
 /** XML text with its five entities and character references decoded; nothing else is. */
 export function xmlText(text: string): string {
@@ -410,7 +449,10 @@ export function xmlText(text: string): string {
  * is w (Word) or a (slides). A cell's own paragraphs (every cell ends with one) are joined by spaces.
  */
 function runsAsLines(xml: string, ns: 'w' | 'a'): string {
-  const token = new RegExp(`<${ns}:t(?:\\s[^>]*)?>([^<]*)</${ns}:t>|<${ns}:tab/>|<${ns}:br(?:\\s[^>]*)?/>|<${ns}:tc(?:\\s[^>]*)?>|</${ns}:p>|</${ns}:tc>|</${ns}:tr>`, 'g');
+  const token = new RegExp(
+    `<${ns}:t(?:\\s[^>]*)?>([^<]*)</${ns}:t>|<${ns}:tab/>|<${ns}:br(?:\\s[^>]*)?/>|<${ns}:tc(?:\\s[^>]*)?>|</${ns}:p>|</${ns}:tc>|</${ns}:tr>`,
+    'g',
+  );
   // the text outside any cell, then one entry per cell open around this point (a table can sit in a cell)
   const open: string[] = [''];
   const add = (text: string) => {
@@ -424,7 +466,11 @@ function runsAsLines(xml: string, ns: 'w' | 'a'): string {
     else if (tag === `</${ns}:tr>`) add(inCell ? ' ' : '\n');
     else if (tag === `</${ns}:tc>`) {
       if (!inCell) continue;
-      const cell = open.pop()!.replace(/\s+/g, ' ').replace(/(?: \|)+$/, '').trim();
+      const cell = open
+        .pop()!
+        .replace(/\s+/g, ' ')
+        .replace(/(?: \|)+$/, '')
+        .trim();
       add(`${cell} | `);
     } else open.push('');
   }
@@ -453,7 +499,11 @@ function relationTargets(rels: string, folder: string): Map<string, string> {
     const id = /\bId="([^"]+)"/.exec(rel)?.[1];
     const target = /\bTarget="([^"]+)"/.exec(rel)?.[1];
     // (absolute targets start at the package's root)
-    if (id && target) targets.set(id, target.startsWith('/') ? target.slice(1) : `${folder}/${target.replace(new RegExp(`^${folder}/`), '')}`);
+    if (id && target)
+      targets.set(
+        id,
+        target.startsWith('/') ? target.slice(1) : `${folder}/${target.replace(new RegExp(`^${folder}/`), '')}`,
+      );
   }
   return targets;
 }
@@ -471,18 +521,28 @@ function columnIndex(letters: string): number {
 
 // SpreadsheetML's elements may carry a prefix (<x:row>, <x:c>), as files written with the Open XML SDK have them.
 /** Every <t>'s text in a fragment, run after run (a rich-text string's pieces). */
-const runsText = (fragment: string) => [...fragment.matchAll(/<(?:\w+:)?t(?:\s[^>]*)?>([^<]*)<\/(?:\w+:)?t>/g)].map((m) => xmlText(m[1]!)).join('');
+const runsText = (fragment: string) =>
+  [...fragment.matchAll(/<(?:\w+:)?t(?:\s[^>]*)?>([^<]*)<\/(?:\w+:)?t>/g)].map((m) => xmlText(m[1]!)).join('');
 
 /**
  * An Excel workbook's text: each sheet under its name, a row per line, cells split by tabs. Values are what Excel
  * stored: a formula's last result, a date as its serial number.
  */
 export function excelText(bytes: Uint8Array): { text: string; sheets: string[]; notes: string[] } {
-  const parts = unpack(bytes, (name) => name === 'xl/workbook.xml' || name === 'xl/_rels/workbook.xml.rels' || name === 'xl/sharedStrings.xml' || /^xl\/worksheets\/[^/]+\.xml$/.test(name));
+  const parts = unpack(
+    bytes,
+    (name) =>
+      name === 'xl/workbook.xml' ||
+      name === 'xl/_rels/workbook.xml.rels' ||
+      name === 'xl/sharedStrings.xml' ||
+      /^xl\/worksheets\/[^/]+\.xml$/.test(name),
+  );
   const workbook = parts.get('xl/workbook.xml');
   if (workbook === undefined) throw new DocumentError('it has no workbook in it.');
   const targets = relationTargets(parts.get('xl/_rels/workbook.xml.rels') ?? '', 'xl');
-  const shared = [...(parts.get('xl/sharedStrings.xml') ?? '').matchAll(/<(?:\w+:)?si>([\s\S]*?)<\/(?:\w+:)?si>/g)].map((m) => runsText(m[1]!));
+  const shared = [...(parts.get('xl/sharedStrings.xml') ?? '').matchAll(/<(?:\w+:)?si>([\s\S]*?)<\/(?:\w+:)?si>/g)].map(
+    (m) => runsText(m[1]!),
+  );
   const sheets: string[] = [];
   const notes: string[] = [];
   const out: string[] = [];
@@ -530,7 +590,10 @@ export function excelText(bytes: Uint8Array): { text: string; sheets: string[]; 
       }
       rows.push(line);
     }
-    if (total > SHEET_MAX_ROWS) notes.push(`Sheet “${name}”: only the first ${SHEET_MAX_ROWS} of ${total} rows with something in them were read.`);
+    if (total > SHEET_MAX_ROWS)
+      notes.push(
+        `Sheet “${name}”: only the first ${SHEET_MAX_ROWS} of ${total} rows with something in them were read.`,
+      );
     out.push(`--- Sheet: ${name} ---\n${rows.join('\n')}`);
   }
   notes.push("Cells hold what Excel stored: a formula's last result, and a date as a serial number.");
@@ -539,13 +602,25 @@ export function excelText(bytes: Uint8Array): { text: string; sheets: string[]; 
 
 /** A PowerPoint deck's text, slide by slide in the deck's order. */
 export function powerpointText(bytes: Uint8Array): { text: string; slides: number } {
-  const parts = unpack(bytes, (name) => name === 'ppt/presentation.xml' || name === 'ppt/_rels/presentation.xml.rels' || /^ppt\/slides\/[^/]+\.xml$/.test(name));
+  const parts = unpack(
+    bytes,
+    (name) =>
+      name === 'ppt/presentation.xml' ||
+      name === 'ppt/_rels/presentation.xml.rels' ||
+      /^ppt\/slides\/[^/]+\.xml$/.test(name),
+  );
   const deck = parts.get('ppt/presentation.xml');
   if (deck === undefined) throw new DocumentError('it has no presentation in it.');
   const targets = relationTargets(parts.get('ppt/_rels/presentation.xml.rels') ?? '', 'ppt');
-  const order = [...deck.matchAll(/<p:sldId\b[^>]*\br:id="([^"]+)"/g)].map((m) => targets.get(m[1]!)).filter((name): name is string => !!name && parts.has(name));
+  const order = [...deck.matchAll(/<p:sldId\b[^>]*\br:id="([^"]+)"/g)]
+    .map((m) => targets.get(m[1]!))
+    .filter((name): name is string => !!name && parts.has(name));
   // (a deck whose list can't be followed: its slides by number)
-  const names = order.length ? order : [...parts.keys()].filter((n) => n.startsWith('ppt/slides/')).sort((a, b) => Number(/(\d+)\.xml$/.exec(a)?.[1] ?? 0) - Number(/(\d+)\.xml$/.exec(b)?.[1] ?? 0));
+  const names = order.length
+    ? order
+    : [...parts.keys()]
+        .filter((n) => n.startsWith('ppt/slides/'))
+        .sort((a, b) => Number(/(\d+)\.xml$/.exec(a)?.[1] ?? 0) - Number(/(\d+)\.xml$/.exec(b)?.[1] ?? 0));
   const text = names.map((name, i) => `--- Slide ${i + 1} ---\n${runsAsLines(parts.get(name)!, 'a')}`).join('\n\n');
   return { text, slides: names.length };
 }

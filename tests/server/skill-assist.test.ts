@@ -15,13 +15,30 @@ function model(answer: unknown) {
   return { ask, calls };
 }
 
-const current = { name: 'Release notes', description: 'Use when writing release notes.', body: '# Steps\n\n1. List user-facing changes first.\n2. Link the PR.' };
+const current = {
+  name: 'Release notes',
+  description: 'Use when writing release notes.',
+  body: '# Steps\n\n1. List user-facing changes first.\n2. Link the PR.',
+};
 
 describe('skills from plain words', () => {
   it('writes a new skill from a description', async () => {
-    const m = model({ name: 'Email to clients', description: 'Use when writing an email to a client.', body: '# How\n\nBe brief.', note: 'Wrote a short email skill.' });
-    const d = await draftSkill('How I write emails to clients: brief, warm, one ask', { ask: m.ask, others: [{ slug: 'brand-voice', name: 'Brand voice', description: 'Our tone everywhere' }] });
-    expect(d).toEqual({ name: 'Email to clients', description: 'Use when writing an email to a client.', body: '# How\n\nBe brief.', note: 'Wrote a short email skill.' });
+    const m = model({
+      name: 'Email to clients',
+      description: 'Use when writing an email to a client.',
+      body: '# How\n\nBe brief.',
+      note: 'Wrote a short email skill.',
+    });
+    const d = await draftSkill('How I write emails to clients: brief, warm, one ask', {
+      ask: m.ask,
+      others: [{ slug: 'brand-voice', name: 'Brand voice', description: 'Our tone everywhere' }],
+    });
+    expect(d).toEqual({
+      name: 'Email to clients',
+      description: 'Use when writing an email to a client.',
+      body: '# How\n\nBe brief.',
+      note: 'Wrote a short email skill.',
+    });
     expect(m.calls[0].system).toMatch(/Write a new skill/);
     expect(m.calls[0].system).toContain('Brand voice: Our tone everywhere'); // so it doesn't write a copy
     expect(m.calls[0].system).toMatch(/Never put secrets/);
@@ -41,19 +58,26 @@ describe('skills from plain words', () => {
   });
 
   it('keeps a field the model left out or emptied while editing', async () => {
-    const d = await draftSkill('shorter description', { current, ask: model({ description: 'Release notes.', body: '   ', note: 'Shortened it.' }).ask });
+    const d = await draftSkill('shorter description', {
+      current,
+      ask: model({ description: 'Release notes.', body: '   ', note: 'Shortened it.' }).ask,
+    });
     expect(d).toMatchObject({ name: 'Release notes', description: 'Release notes.', body: current.body });
   });
 
   it('turns away an answer that is not a skill', async () => {
-    await expect(draftSkill('x', { ask: model('Sorry, I cannot help with that.').ask })).rejects.toThrow(/wasn't a skill/);
+    await expect(draftSkill('x', { ask: model('Sorry, I cannot help with that.').ask })).rejects.toThrow(
+      /wasn't a skill/,
+    );
     await expect(draftSkill('x', { ask: model('{"name": "broken" "x"}').ask })).rejects.toThrow(/wasn't a skill/);
     // a new skill needs all three
     await expect(draftSkill('x', { ask: model({ name: 'Only a name' }).ask })).rejects.toThrow(/missing/);
   });
 
   it('keeps every field to its size, on one line where it must be', async () => {
-    const d = await draftSkill('big', { ask: model({ name: 'N'.repeat(200), description: 'Use\nwhen\n\nwriting.', body: 'b'.repeat(70000) }).ask });
+    const d = await draftSkill('big', {
+      ask: model({ name: 'N'.repeat(200), description: 'Use\nwhen\n\nwriting.', body: 'b'.repeat(70000) }).ask,
+    });
     expect(d.name).toHaveLength(80);
     expect(d.description).toBe('Use when writing.');
     expect(d.body).toHaveLength(60000);
@@ -74,7 +98,11 @@ describe('skills from plain words', () => {
   });
 
   it('shows the model the skills most like the request, and every other one by name, however big the library', async () => {
-    const lib = Array.from({ length: 120 }, (_, i) => ({ slug: `s${i}`, name: `Skill ${String(i).padStart(3, '0')}`, description: `About topic ${i}` }));
+    const lib = Array.from({ length: 120 }, (_, i) => ({
+      slug: `s${i}`,
+      name: `Skill ${String(i).padStart(3, '0')}`,
+      description: `About topic ${i}`,
+    }));
     lib.push({ slug: 'zz', name: 'Zz changelog', description: 'Use when writing release notes for a version.' });
     const m = model({ name: 'Release notes', description: 'Use when writing release notes.', body: 'b' });
     await draftSkill('how we write release notes', { ask: m.ask, others: lib });
@@ -97,7 +125,12 @@ describe('skills from plain words', () => {
   });
 
   it('says plainly when the answer was cut off', async () => {
-    await expect(draftSkill('x', { current, ask: model('{"name":"Release notes","description":"…","body":"# Steps\n1. List').ask })).rejects.toThrow(/cut off before the end/);
+    await expect(
+      draftSkill('x', {
+        current,
+        ask: model('{"name":"Release notes","description":"…","body":"# Steps\n1. List').ask,
+      }),
+    ).rejects.toThrow(/cut off before the end/);
     const stopped = async () => {
       throw new Error('The answer was cut off: it ran past the length limit.');
     };
@@ -113,10 +146,15 @@ describe('the Brain on OpenRouter', () => {
     const sent: { max_tokens?: number }[] = [];
     vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
       sent.push(JSON.parse(String(init.body)));
-      return new Response(JSON.stringify({ choices: [{ message: { content: '{"name":"half' }, finish_reason: 'length' }] }), { status: 200 });
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '{"name":"half' }, finish_reason: 'length' }] }),
+        { status: 200 },
+      );
     });
     await expect(think('s', 'u', { maxTokens: 12345 })).rejects.toThrow(/cut off/);
     expect(sent[0].max_tokens).toBe(12345);
-    await expect(draftSkill('x', { current: { name: 'a', description: 'b', body: 'c' } })).rejects.toThrow(/cut off before the end/);
+    await expect(draftSkill('x', { current: { name: 'a', description: 'b', body: 'c' } })).rejects.toThrow(
+      /cut off before the end/,
+    );
   });
 });

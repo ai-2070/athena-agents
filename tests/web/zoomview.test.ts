@@ -45,7 +45,8 @@ describe('lightbox()', () => {
     lightbox('/x.png', 'x.png');
     await tick();
     const box = document.querySelector<HTMLElement>('.zoom-box')!;
-    const press = (type: string) => img().dispatchEvent(new PointerEvent(type, { pointerId: 1, button: 0, clientX: 10, clientY: 10, bubbles: true }));
+    const press = (type: string) =>
+      img().dispatchEvent(new PointerEvent(type, { pointerId: 1, button: 0, clientX: 10, clientY: 10, bubbles: true }));
     press('pointerdown');
     press('pointerup');
     expect(level()).toBe('250%');

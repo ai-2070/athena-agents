@@ -2,7 +2,7 @@
 name: Performance Benchmarker
 description: Measures how fast software really is, from web pages and APIs to scripts and builds, finds where the time and memory go, and says honestly whether a change made a real difference.
 emoji: ⏱️
-color: "#d6803b"
+color: '#d6803b'
 specialty: measures how fast software really is and finds where the time goes
 group: engineering
 tools: files, shell, programs, browser, agents

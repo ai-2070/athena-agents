@@ -33,9 +33,22 @@ vi.mock('../../server/util.ts', async (orig) => {
       // (RPC mode: it answers its prompt line, and exits once its input closes after it settled)
       const answer = () => {
         if (mode === 'silent') return;
-        stdout.write(line({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: mode === 'hang' ? 'Working on the long one' : 'Switched.' } }));
+        stdout.write(
+          line({
+            type: 'message_update',
+            assistantMessageEvent: {
+              type: 'text_delta',
+              delta: mode === 'hang' ? 'Working on the long one' : 'Switched.',
+            },
+          }),
+        );
         if (mode === 'hang') return;
-        stdout.write(line({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Switched.' }], stopReason: 'stop' } }));
+        stdout.write(
+          line({
+            type: 'message_end',
+            message: { role: 'assistant', content: [{ type: 'text', text: 'Switched.' }], stopReason: 'stop' },
+          }),
+        );
         stdout.write(line({ type: 'agent_settled' }));
       };
       stdin.on('data', (d: Buffer) => {
@@ -61,7 +74,7 @@ const { steer } = await import('../../server/engines/pi.ts');
 vi.spyOn(steer, 'can').mockReturnValue(false);
 
 const until = async (ok: () => boolean, ms = 10000) => {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 10));
   }
@@ -116,10 +129,22 @@ describe('steering a command-line agent', () => {
 
 describe('stoppedBefore()', () => {
   it('reads the last thing in the chat, cost lines aside', () => {
-    expect(stoppedBefore([{ type: 'error', text: 'Stopped.', stopped: 'stop' }, { type: 'meta', text: '$0.01' }])).toBe('stop');
-    expect(stoppedBefore([{ type: 'error', text: 'Stopped to take your new message.', stopped: 'steer' }])).toBe('steer');
+    expect(
+      stoppedBefore([
+        { type: 'error', text: 'Stopped.', stopped: 'stop' },
+        { type: 'meta', text: '$0.01' },
+      ]),
+    ).toBe('stop');
+    expect(stoppedBefore([{ type: 'error', text: 'Stopped to take your new message.', stopped: 'steer' }])).toBe(
+      'steer',
+    );
     expect(stoppedBefore([{ type: 'error', text: 'rate limited' }])).toBeNull();
-    expect(stoppedBefore([{ type: 'error', text: 'Stopped.', stopped: 'stop' }, { type: 'assistant', text: 'Done.' }])).toBeNull();
+    expect(
+      stoppedBefore([
+        { type: 'error', text: 'Stopped.', stopped: 'stop' },
+        { type: 'assistant', text: 'Done.' },
+      ]),
+    ).toBeNull();
     expect(stoppedBefore([])).toBeNull();
   });
 });

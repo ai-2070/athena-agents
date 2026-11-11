@@ -26,7 +26,8 @@ vi.mock('../../server/brain.ts', async (orig) => ({
   brainModel: () => ({ provider: 'openrouter', model: 'mock', effort: '', fallback: false }),
   think: async (system: string, user: string) => {
     asked.push({ system, user });
-    if (system.includes('Decide whether the brief is done')) return verdicts.shift() ?? '{"done":true,"summary":"Looks done."}';
+    if (system.includes('Decide whether the brief is done'))
+      return verdicts.shift() ?? '{"done":true,"summary":"Looks done."}';
     if (system.includes('wrote to you (@Brain)')) return replies.shift() ?? '{"reply":"Noted."}';
     return answers.shift() ?? 'NOTHING';
   },
@@ -40,7 +41,8 @@ const say = (name: string, last: string): string => {
   if (name === 'Finisher') return 'Done: saved thumb.png.';
   if (name === 'Dawdler') return 'Started on it.';
   if (name === 'Asker') return last.includes('1280x720') ? 'Done at 1280x720.' : '@Brain which size should it be?';
-  if (name === 'Needy') return last.includes('passed it on') ? 'Waiting for the account.' : '@Brain we need an X account to post.';
+  if (name === 'Needy')
+    return last.includes('passed it on') ? 'Waiting for the account.' : '@Brain we need an X account to post.';
   if (name === 'Writer') return 'Report written.';
   return 'Okay.';
 };
@@ -57,11 +59,17 @@ beforeAll(async () => {
     const reply = name === 'Holder' ? 'Held answer.' : say(name, text(j.messages.at(-1)!.content));
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: reply } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
   startIrc();
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
@@ -71,18 +79,29 @@ beforeEach(() => {
 });
 
 const until = async (ok: () => boolean, ms = 8000) => {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 25));
   }
   throw new Error('timed out');
 };
 const agent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
-const team = (name: string, lead: string) => workflows.save({ name, description: 'Make things', members: [lead], lead, steps: [{ type: 'agent', agentId: lead }] } as Partial<Team>);
-const delegate = (to: 'team' | 'agent', id: string, message: string) => `On it.\n\`\`\`actions\n[{"do":"delegate","to":"${to}","id":"${id}","message":"${message}"}]\n\`\`\``;
+const team = (name: string, lead: string) =>
+  workflows.save({
+    name,
+    description: 'Make things',
+    members: [lead],
+    lead,
+    steps: [{ type: 'agent', agentId: lead }],
+  } as Partial<Team>);
+const delegate = (to: 'team' | 'agent', id: string, message: string) =>
+  `On it.\n\`\`\`actions\n[{"do":"delegate","to":"${to}","id":"${id}","message":"${message}"}]\n\`\`\``;
 const briefFor = (targetId: string) => listBriefs().findLast((b) => b.targetId === targetId);
 const thread = (teamId: string) => getThread(teamId).messages;
-const notes = () => history().filter((m) => m.role === 'brain').map((m) => m.text);
+const notes = () =>
+  history()
+    .filter((m) => m.role === 'brain')
+    .map((m) => m.text);
 
 describe('the Brain hands work on as itself', () => {
   it('posts the brief in the team chat as the Brain, then checks the result and tells you', async () => {
@@ -101,12 +120,23 @@ describe('the Brain hands work on as itself', () => {
   it('stops after consecutive checks without progress and asks the user for help', async () => {
     const lead = agent('Dawdler');
     const t = team('Slowpokes', lead.id);
-    verdicts.push('{"done":false,"followUp":"@Dawdler please finish it","summary":"Only started."}', '{"done":false,"followUp":"@Dawdler finish it now","summary":"Still only started."}', '{"done":false,"followUp":"again","summary":"Never got past starting."}');
+    verdicts.push(
+      '{"done":false,"followUp":"@Dawdler please finish it","summary":"Only started."}',
+      '{"done":false,"followUp":"@Dawdler finish it now","summary":"Still only started."}',
+      '{"done":false,"followUp":"again","summary":"Never got past starting."}',
+    );
     answers.push(delegate('team', t.id, 'Write the script'));
     await ask('get the script written');
     await until(() => briefFor(t.id)?.status === 'stuck');
     const from = thread(t.id).map((m) => (m.from === 'brain' ? `brain: ${m.text}` : 'agent'));
-    expect(from).toEqual(['brain: Write the script', 'agent', 'brain: @Dawdler please finish it', 'agent', 'brain: @Dawdler finish it now', 'agent']);
+    expect(from).toEqual([
+      'brain: Write the script',
+      'agent',
+      'brain: @Dawdler please finish it',
+      'agent',
+      'brain: @Dawdler finish it now',
+      'agent',
+    ]);
     expect(briefFor(t.id)?.followUps).toBe(NO_PROGRESS_LIMIT - 1);
     expect(notes().at(-1)).toMatch(/Slowpokes needs you.*Never got past starting/);
   });
@@ -116,7 +146,11 @@ describe('the Brain hands work on as itself', () => {
     answers.push(delegate('agent', w.id, 'Write the weekly report'));
     const r = await ask('weekly report please');
     const chatId = r.delegate?.sent?.chatId as string;
-    expect(chats.get(w.id, chatId)?.items[0]).toMatchObject({ type: 'user', text: 'Write the weekly report', from: 'the Brain' });
+    expect(chats.get(w.id, chatId)?.items[0]).toMatchObject({
+      type: 'user',
+      text: 'Write the weekly report',
+      from: 'the Brain',
+    });
     await until(() => briefFor(w.id)?.status === 'done');
     expect(notes().at(-1)).toContain('**Writer finished.**');
   });
@@ -212,15 +246,27 @@ describe('follow-up edge cases', () => {
     expect(briefFor(t.id)?.status).toBe('stopped');
     judge('{"done":false,"followUp":"@Finisher add the logo","summary":"No logo."}');
     await new Promise((r) => setTimeout(r, 200));
-    expect(thread(t.id).filter((m) => m.from === 'brain').map((m) => m.text)).toEqual(['Make the poster']);
+    expect(
+      thread(t.id)
+        .filter((m) => m.from === 'brain')
+        .map((m) => m.text),
+    ).toEqual(['Make the poster']);
     expect(briefFor(t.id)?.status).toBe('stopped');
   });
 
-  it("a stopped team goal with nothing left to pick up stays stopped on /resume", () => {
+  it('a stopped team goal with nothing left to pick up stays stopped on /resume', () => {
     const lead = agent('Finisher');
     const t = team('After a restart', lead.id);
     // (stopped before a restart: the brief is saved, the cut-off turns are not)
-    const b = addBrief({ kind: 'team', targetId: t.id, name: t.name, text: 'Ship it', goal: 'Ship it', origin: 'chat', ts: Date.now() });
+    const b = addBrief({
+      kind: 'team',
+      targetId: t.id,
+      name: t.name,
+      text: 'Ship it',
+      goal: 'Ship it',
+      origin: 'chat',
+      ts: Date.now(),
+    });
     updateBrief(b.id, { status: 'stopped' });
     expect(() => resumeInTeam(t.id)).toThrow(/Nothing was left to pick up again/);
     expect(briefFor(t.id)?.status).toBe('stopped');
@@ -229,7 +275,13 @@ describe('follow-up edge cases', () => {
   it('keeps a brief in the project it was handed out in while the team picks who answers', async () => {
     const x = agent('Finisher');
     const y = agent('Writer');
-    const t = workflows.save({ name: 'Leaderless', description: '', members: [x.id, y.id], lead: null, steps: [] } as Partial<Team>);
+    const t = workflows.save({
+      name: 'Leaderless',
+      description: '',
+      members: [x.id, y.id],
+      lead: null,
+      steps: [],
+    } as Partial<Team>);
     const a = activeProject();
     const b = await createProject({ name: 'IRC C', mode: 'new', folder: path.join(os.homedir(), 'irc-projects', 'c') });
     setActiveProject(a.id);
@@ -277,7 +329,10 @@ describe('@Brain in a team chat', () => {
     await postUserMessage(t.id, '@Brain what is this team for?');
     await until(() => thread(t.id).length === 2);
     await new Promise((r) => setTimeout(r, 150));
-    expect(thread(t.id).map((m) => `${m.from}: ${m.text}`)).toEqual(['user: @Brain what is this team for?', 'brain: This team makes things.']);
+    expect(thread(t.id).map((m) => `${m.from}: ${m.text}`)).toEqual([
+      'user: @Brain what is this team for?',
+      'brain: This team makes things.',
+    ]);
     expect(calls.Quietone).toBeUndefined();
   });
 });

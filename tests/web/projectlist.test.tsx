@@ -29,7 +29,9 @@ beforeEach(() => {
   vi.stubGlobal('fetch', async (url: string) => {
     asked.push(url);
     await new Promise((r) => setTimeout(r, 10));
-    return new Response(JSON.stringify([{ id: `${url}#${asked.length}` }]), { headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify([{ id: `${url}#${asked.length}` }]), {
+      headers: { 'content-type': 'application/json' },
+    });
   });
   document.body.innerHTML = '<div id="host"></div>';
   root = createRoot(document.getElementById('host')!);
@@ -40,7 +42,7 @@ afterEach(() => {
 });
 
 describe('projectList()', () => {
-  it('asks once per project for every pane, once more for a change, and draws only that project\'s panes', async () => {
+  it("asks once per project for every pane, once more for a change, and draws only that project's panes", async () => {
     const things = projectList<{ id: string }>((at) => api<{ id: string }[]>(`${at}/things`), ['things']);
     const draws: Record<string, number> = { p2: 0, p3: 0 };
     function Pane({ id }: { id: string }) {
@@ -48,7 +50,16 @@ describe('projectList()', () => {
       draws[id] += 1;
       return <span className={`pane-${id}`}>{list.length}</span>;
     }
-    await act(async () => root.render(<>{[1, 2, 3].map((n) => <Pane key={n} id="p2" />)}<Pane id="p3" /></>));
+    await act(async () =>
+      root.render(
+        <>
+          {[1, 2, 3].map((n) => (
+            <Pane key={n} id="p2" />
+          ))}
+          <Pane id="p3" />
+        </>,
+      ),
+    );
     await settle();
     expect(asked.sort()).toEqual(['/api/p/p2/things', '/api/p/p3/things']);
     expect(document.querySelectorAll('.pane-p2')[0].textContent).toBe('1');

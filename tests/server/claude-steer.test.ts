@@ -57,23 +57,43 @@ vi.mock('../../server/util.ts', async (orig) => {
 
 const { newAgent } = await import('../../server/library.ts');
 const { chats } = await import('../../server/store.ts');
-const { activeRuns, joinChatTurn, missedMessages, queuedMessages, startRun, steerChat, stopRun } = await import('../../server/engines/index.ts');
+const { activeRuns, joinChatTurn, missedMessages, queuedMessages, startRun, steerChat, stopRun } =
+  await import('../../server/engines/index.ts');
 const claude = await import('../../server/engines/claude.ts');
 
 const until = async (ok: () => boolean, ms = 5000) => {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 10));
   }
   throw new Error('timed out');
 };
 const idle = (chat: Chat) => !activeRuns().some((r) => r.chatId === chat.id);
-const said = (chat: Chat) => chat.items.flatMap((i) => (i.type === 'user' || i.type === 'steer' || i.type === 'assistant' || i.type === 'error' ? [`${i.type}: ${i.text}`] : i.type === 'tool' ? [`tool: ${i.name}`] : []));
+const said = (chat: Chat) =>
+  chat.items.flatMap((i) =>
+    i.type === 'user' || i.type === 'steer' || i.type === 'assistant' || i.type === 'error'
+      ? [`${i.type}: ${i.text}`]
+      : i.type === 'tool'
+        ? [`tool: ${i.name}`]
+        : [],
+  );
 // what the CLI prints: its start, a message echoed as it reads it, its words, a tool call and result, the turn's end
 const init = { type: 'system', subtype: 'init', session_id: 'claude-session' };
-const echo = (input: { uuid: string; content: string }) => ({ type: 'user', isReplay: true, uuid: input.uuid, message: { role: 'user', content: input.content } });
+const echo = (input: { uuid: string; content: string }) => ({
+  type: 'user',
+  isReplay: true,
+  uuid: input.uuid,
+  message: { role: 'user', content: input.content },
+});
 const says = (id: string, text: string) => ({ type: 'assistant', message: { id, content: [{ type: 'text', text }] } });
-const result = (text: string, cost: number, cacheRead: number) => ({ type: 'result', subtype: 'success', result: text, is_error: false, total_cost_usd: cost, usage: { cache_read_input_tokens: cacheRead } });
+const result = (text: string, cost: number, cacheRead: number) => ({
+  type: 'result',
+  subtype: 'success',
+  result: text,
+  is_error: false,
+  total_cost_usd: cost,
+  usage: { cache_read_input_tokens: cacheRead },
+});
 
 async function start(name: string, depth = 0) {
   const a = newAgent({ name, engine: 'claude-code', toolGroups: [] });
@@ -89,13 +109,19 @@ async function start(name: string, depth = 0) {
 
 describe('steering a Claude Code agent', () => {
   it('reads its messages as JSON lines and echoes each as it reads it', () => {
-    const args = claude.claudeArgs(newAgent({ name: 'Args', engine: 'claude-code' }), { promptFile: 'p.md', mcpFile: 'm.json' });
+    const args = claude.claudeArgs(newAgent({ name: 'Args', engine: 'claude-code' }), {
+      promptFile: 'p.md',
+      mcpFile: 'm.json',
+    });
     expect(args).toEqual(expect.arrayContaining(['--input-format', 'stream-json', '--replay-user-messages']));
   });
 
   it('a message while it works goes into the turn: the same run reads it at its next step', async () => {
     const { a, chat, runId, promise, p } = await start('Joiner');
-    p.out({ type: 'assistant', message: { id: 'm1', content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'sleep 8' } }] } });
+    p.out({
+      type: 'assistant',
+      message: { id: 'm1', content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'sleep 8' } }] },
+    });
     await until(() => chat.items.some((i) => i.type === 'tool'));
     const steered = await steerChat(a, chat, 'also make it blue');
     expect(steered.runId).toBe(runId);
@@ -104,7 +130,9 @@ describe('steering a Claude Code agent', () => {
     expect(p.inputs[1]!.content).toBe('also make it blue');
     // (shown once Claude says it read it, where it read it; until then it waits first in the queue, marked as sent)
     expect(chat.items.some((i) => i.type === 'steer')).toBe(false);
-    expect(queuedMessages(chat.id)).toEqual([expect.objectContaining({ id: steered.steerId, text: 'also make it blue', reading: runId })]);
+    expect(queuedMessages(chat.id)).toEqual([
+      expect.objectContaining({ id: steered.steerId, text: 'also make it blue', reading: runId }),
+    ]);
     p.out({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'slept' }] } });
     p.out(echo(p.inputs[1]!));
     await until(() => !queuedMessages(chat.id).length);
@@ -113,7 +141,12 @@ describe('steering a Claude Code agent', () => {
     expect(await promise).toBe('Done, and it is blue.');
     await until(() => idle(chat));
     expect(p.ended).toBe(true);
-    expect(said(chat)).toEqual(['user: do the long job', 'tool: Bash', 'steer: also make it blue', 'assistant: Done, and it is blue.']);
+    expect(said(chat)).toEqual([
+      'user: do the long job',
+      'tool: Bash',
+      'steer: also make it blue',
+      'assistant: Done, and it is blue.',
+    ]);
     expect(chat.items.find((i) => i.type === 'steer')).toMatchObject({ steerId: steered.steerId, runId });
     expect(fake.procs).toHaveLength(1);
   });
@@ -135,21 +168,40 @@ describe('steering a Claude Code agent', () => {
     // (the run's answer is both turns': a team or agent waiting on it gets the first one too)
     expect(await promise).toBe('Answer one.\n\nAnswer two.');
     await until(() => idle(chat));
-    expect(said(chat)).toEqual(['user: do the long job', 'assistant: Answer one.', 'steer: and a summary', 'assistant: Answer two.']);
+    expect(said(chat)).toEqual([
+      'user: do the long job',
+      'assistant: Answer one.',
+      'steer: and a summary',
+      'assistant: Answer two.',
+    ]);
   });
 
   it('one echo for messages that waited together: each shows as read', async () => {
     const { a, chat, promise, p } = await start('Together');
-    p.out({ type: 'assistant', message: { id: 'm1', content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'sleep 8' } }] } });
+    p.out({
+      type: 'assistant',
+      message: { id: 'm1', content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'sleep 8' } }] },
+    });
     await steerChat(a, chat, 'make it blue');
     await steerChat(a, chat, 'and round');
     await until(() => p.inputs.length === 3);
-    p.out({ type: 'user', isReplay: true, uuid: p.inputs[1]!.uuid, message: { role: 'user', content: 'make it blue\nand round' } });
+    p.out({
+      type: 'user',
+      isReplay: true,
+      uuid: p.inputs[1]!.uuid,
+      message: { role: 'user', content: 'make it blue\nand round' },
+    });
     p.out(says('m2', 'Blue and round.'));
     p.out(result('Blue and round.', 0, 0));
     await promise;
     await until(() => idle(chat));
-    expect(said(chat)).toEqual(['user: do the long job', 'tool: Bash', 'steer: make it blue', 'steer: and round', 'assistant: Blue and round.']);
+    expect(said(chat)).toEqual([
+      'user: do the long job',
+      'tool: Bash',
+      'steer: make it blue',
+      'steer: and round',
+      'assistant: Blue and round.',
+    ]);
     expect(queuedMessages(chat.id)).toEqual([]);
     expect(fake.procs).toHaveLength(1);
   });
@@ -175,7 +227,12 @@ describe('steering a Claude Code agent', () => {
       q.out(result('The summary.', 0, 0));
       // (the queued turn reads the chat afresh)
       await until(() => idle(chat) && said(chats.get(a.id, chat.id)!).length === 4);
-      expect(said(chats.get(a.id, chat.id)!)).toEqual(['user: do the long job', 'assistant: Answer one.', 'user: and a summary', 'assistant: The summary.']);
+      expect(said(chats.get(a.id, chat.id)!)).toEqual([
+        'user: do the long job',
+        'assistant: Answer one.',
+        'user: and a summary',
+        'assistant: The summary.',
+      ]);
     } finally {
       claude.READ_WAIT.ms = wait;
     }
@@ -198,7 +255,9 @@ describe('steering a Claude Code agent', () => {
     claude.READ_WAIT.ms = 50;
     try {
       const { chat, runId, promise, p } = await start('Member', 1);
-      expect(await joinChatTurn(chat.id, { text: 'You (the user): and a summary', teamMessageId: 'm-late' })).toBe(true);
+      expect(await joinChatTurn(chat.id, { text: 'You (the user): and a summary', teamMessageId: 'm-late' })).toBe(
+        true,
+      );
       await until(() => p.inputs.length === 2);
       // (a team's message waits in the team, not in the member's own queue)
       expect(queuedMessages(chat.id)).toEqual([]);

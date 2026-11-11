@@ -19,7 +19,11 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
 const send = async (method: string, p: string, body?: unknown) => {
-  const r = await fetch(base + p, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const r = await fetch(base + p, {
+    method,
+    headers: { 'content-type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
   return { status: r.status, json: (await r.json()) as Record<string, unknown> };
 };
 const team = () => {
@@ -30,17 +34,40 @@ const team = () => {
 describe('team chats over oRPC', () => {
   it('show the thread with the team, its goal and the other teams', async () => {
     const t = team();
-    expect((await send('GET', `/api/teams/${t.id}/chat`)).json).toMatchObject({ team: { id: t.id, name: 'Bakers' }, messages: [], goal: null, others: expect.any(Array) });
-    expect(await send('GET', '/api/teams/nobody/chat')).toEqual({ status: 404, json: { error: 'That team is unavailable.' } });
+    expect((await send('GET', `/api/teams/${t.id}/chat`)).json).toMatchObject({
+      team: { id: t.id, name: 'Bakers' },
+      messages: [],
+      goal: null,
+      others: expect.any(Array),
+    });
+    expect(await send('GET', '/api/teams/nobody/chat')).toEqual({
+      status: 404,
+      json: { error: 'That team is unavailable.' },
+    });
   });
 
   it('refuse a message of the wrong kind in plain words', async () => {
     const t = team();
-    expect(await send('POST', `/api/teams/${t.id}/messages`, { text: 7 })).toEqual({ status: 400, json: { error: 'Type a message first.' } });
-    expect(await send('POST', `/api/teams/${t.id}/messages`, { text: 'hi', replyTo: 3 })).toEqual({ status: 400, json: { error: 'replyTo must name a message.' } });
-    expect(await send('POST', `/api/teams/${t.id}/goal`, {})).toEqual({ status: 400, json: { error: 'Say what done looks like.' } });
-    expect(await send('POST', `/api/teams/${t.id}/queue/order`, { ids: 'a' })).toEqual({ status: 400, json: { error: 'ids must be a list.' } });
-    expect(await send('POST', `/api/teams/${t.id}/resend`)).toEqual({ status: 400, json: { error: 'Nothing to send again yet.' } });
+    expect(await send('POST', `/api/teams/${t.id}/messages`, { text: 7 })).toEqual({
+      status: 400,
+      json: { error: 'Type a message first.' },
+    });
+    expect(await send('POST', `/api/teams/${t.id}/messages`, { text: 'hi', replyTo: 3 })).toEqual({
+      status: 400,
+      json: { error: 'replyTo must name a message.' },
+    });
+    expect(await send('POST', `/api/teams/${t.id}/goal`, {})).toEqual({
+      status: 400,
+      json: { error: 'Say what done looks like.' },
+    });
+    expect(await send('POST', `/api/teams/${t.id}/queue/order`, { ids: 'a' })).toEqual({
+      status: 400,
+      json: { error: 'ids must be a list.' },
+    });
+    expect(await send('POST', `/api/teams/${t.id}/resend`)).toEqual({
+      status: 400,
+      json: { error: 'Nothing to send again yet.' },
+    });
   });
 
   it('answer the held queue, a loop, stop and clear when nobody works', async () => {
@@ -52,6 +79,9 @@ describe('team chats over oRPC', () => {
     expect((await send('DELETE', `${at}/loop`)).json).toEqual({ ok: false });
     expect((await send('POST', `${at}/stop`)).json).toMatchObject({ unqueued: [] });
     expect(await send('POST', `${at}/clear`)).toEqual({ status: 200, json: { ok: true } });
-    expect(await send('POST', '/api/teams/nobody/clear')).toEqual({ status: 404, json: { error: 'That team is unavailable.' } });
+    expect(await send('POST', '/api/teams/nobody/clear')).toEqual({
+      status: 404,
+      json: { error: 'That team is unavailable.' },
+    });
   });
 });

@@ -3,7 +3,16 @@
 // how they are drawn: solid, glowing, glass, water, leaves (they sway) or metal. Glowing voxels also carry
 // how bright they glow, and are gathered into a few spots that light up what is around them. Pure: no
 // three.js, no DOM, so it can run in a worker and in tests.
-import { CHUNK, cellIndex, chunkKey, decodeChunk, materialShades, newVolume, parseChunkKey, voxelShade } from './voxel.ts';
+import {
+  CHUNK,
+  cellIndex,
+  chunkKey,
+  decodeChunk,
+  materialShades,
+  newVolume,
+  parseChunkKey,
+  voxelShade,
+} from './voxel.ts';
 import type { MaterialShades, Vec3i, Volume } from './voxel.ts';
 import type { VoxelMaterial, VoxelObjectData } from './types.ts';
 
@@ -86,7 +95,15 @@ interface Mat {
   shades: MaterialShades;
 }
 const FALLBACK: VoxelMaterial = { name: 'unknown', color: '#8a8a8a', kind: 'solid' };
-const CLASS_OF: Record<VoxelMaterial['kind'], RenderClass> = { solid: 'opaque', snow: 'opaque', emissive: 'emissive', glass: 'transparent', water: 'water', leaf: 'leaf', metal: 'metal' };
+const CLASS_OF: Record<VoxelMaterial['kind'], RenderClass> = {
+  solid: 'opaque',
+  snow: 'opaque',
+  emissive: 'emissive',
+  glass: 'transparent',
+  water: 'water',
+  leaf: 'leaf',
+  metal: 'metal',
+};
 const classOf = (m: VoxelMaterial): RenderClass => CLASS_OF[m.kind] || 'opaque';
 /** How bright a glowing material is when it doesn't say (0..8). */
 export const DEFAULT_EMISSIVE = 3;
@@ -95,9 +112,17 @@ export const DEFAULT_EMISSIVE = 3;
  * Meshes the voxels of `vol` in the box from `min` with `size` voxels on each side.
  * palette[v - 1] is the material of value v. seed changes every voxel's shade.
  */
-export function meshRegion(vol: Volume, min: Vec3i, size: Vec3i, palette: VoxelMaterial[], seed = 0, lightCell = 8): MeshResult {
+export function meshRegion(
+  vol: Volume,
+  min: Vec3i,
+  size: Vec3i,
+  palette: VoxelMaterial[],
+  seed = 0,
+  lightCell = 8,
+): MeshResult {
   const [sx, sy, sz] = size;
-  if (sx > MAX_REGION || sy > MAX_REGION || sz > MAX_REGION) throw new Error(`A region can be at most ${MAX_REGION} voxels on a side`);
+  if (sx > MAX_REGION || sy > MAX_REGION || sz > MAX_REGION)
+    throw new Error(`A region can be at most ${MAX_REGION} voxels on a side`);
   // the region with a one-voxel border from its neighbours, so faces and corners at the edge are right
   const px = sx + 2;
   const py = sy + 2;
@@ -161,7 +186,14 @@ export function meshRegion(vol: Volume, min: Vec3i, size: Vec3i, palette: VoxelM
   for (const cls of RENDER_CLASSES) {
     const n = count[cls];
     if (!n) continue;
-    const p: MeshPart = { positions: new Uint8Array(n * 12), normals: new Int8Array(n * 12), colors: new Uint8Array(n * 12), indices: new Uint32Array(n * 6), faces: n, ...(cls === 'emissive' ? { glow: new Uint8Array(n * 4) } : {}) };
+    const p: MeshPart = {
+      positions: new Uint8Array(n * 12),
+      normals: new Int8Array(n * 12),
+      colors: new Uint8Array(n * 12),
+      indices: new Uint32Array(n * 6),
+      faces: n,
+      ...(cls === 'emissive' ? { glow: new Uint8Array(n * 4) } : {}),
+    };
     out[cls] = p;
     fill[cls] = { p, f: 0 };
   }
@@ -251,12 +283,25 @@ export function meshObject(data: VoxelObjectData, palette: VoxelMaterial[], regi
     const vol = newVolume(v.voxelSize);
     for (const [k, text] of Object.entries(v.chunks || {})) vol.chunks.set(k, decodeChunk(text));
     const regions = new Set<string>();
-    for (const k of vol.chunks.keys()) regions.add(parseChunkKey(k).map((c) => Math.floor((c * CHUNK) / region)).join(','));
+    for (const k of vol.chunks.keys())
+      regions.add(
+        parseChunkKey(k)
+          .map((c) => Math.floor((c * CHUNK) / region))
+          .join(','),
+      );
     for (const key of regions) {
       const min = key.split(',').map((n) => Number(n) * region) as Vec3i;
       // glow spots about 2 map units apart, whatever the voxel size
-      const parts = meshRegion(vol, min, [region, region, region], palette, 0, Math.max(2, Math.round(2 / v.voxelSize)));
-      for (const [cls, p] of Object.entries(parts) as [RenderClass, MeshPart][]) out.push({ ...p, cls, voxelSize: v.voxelSize, min });
+      const parts = meshRegion(
+        vol,
+        min,
+        [region, region, region],
+        palette,
+        0,
+        Math.max(2, Math.round(2 / v.voxelSize)),
+      );
+      for (const [cls, p] of Object.entries(parts) as [RenderClass, MeshPart][])
+        out.push({ ...p, cls, voxelSize: v.voxelSize, min });
     }
   }
   return out;

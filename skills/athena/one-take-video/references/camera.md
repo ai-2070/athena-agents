@@ -11,6 +11,7 @@ from top to bottom; the camera works with its logarithm, so a push-in from 1000 
 as even as one from 500 to 250.
 
 Each beat gives the camera a framing:
+
 - by default, its hero, sized so the hero's box (turned with the prop) takes `fill` of the frame's height, or of its
   width when it's wide: `cam: { fill: 0.6 }`. `dx` and `dy` nudge the centre (room for a caption beside it), and
   `rot` turns the frame in degrees;
@@ -24,7 +25,7 @@ rest.
 
 `buildPath()` turns the framings into one path, once, when the page is ready:
 
-1. **Moves.** The move into beat *k* takes `move` seconds (1.6 by default) and is placed so 60% of it happens before
+1. **Moves.** The move into beat _k_ takes `move` seconds (1.6 by default) and is placed so 60% of it happens before
    the line starts and 40% after: the hero is mostly there for the first word, and the camera settles during it.
    When two beats are too close for both moves, the moves meet halfway. A beat shorter than its move is usually a
    line that should share the framing before it: give it the same hero, or a shorter `move`.
@@ -66,6 +67,7 @@ hero does the same.
 ## Finishing
 
 After the world is drawn, three passes over the whole frame, each set to 0 to turn it off:
+
 - **Glow** (`LOOK.glow`): a quarter-size copy of the frame, with its darks pushed down and blurred, laid over the
   frame in "screen" mode, so only bright things bloom.
 - **Vignette** (`LOOK.vignette`): a radial darkening from the middle to the corners.
@@ -75,6 +77,7 @@ After the world is drawn, three passes over the whole frame, each set to 0 to tu
 ## Adding a kind of prop
 
 Add an entry to `KINDS` with three parts:
+
 - `bounds(o)`: its box in the world, `{ cx, cy, w, h, rot }`, for framing;
 - `fast(o)`: the time spans in which it moves fast, `[[start, end], ...]`, for motion blur;
 - `draw(ctx, o, t, k)`: draw it at time `t`, in world units (the camera has already been applied). `k` is screen

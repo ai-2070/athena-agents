@@ -9,7 +9,8 @@ import { listVersions } from '../../server/versions.ts';
 import type { SkillVersionItem } from '../../server/skills.ts';
 
 const markerFile = () => dataPath('skills', '.builtin.json');
-const readMarker = (): { added: string[]; copies: Record<string, string>; kept: string[] } => JSON.parse(fs.readFileSync(markerFile(), 'utf8'));
+const readMarker = (): { added: string[]; copies: Record<string, string>; kept: string[] } =>
+  JSON.parse(fs.readFileSync(markerFile(), 'utf8'));
 // as if an older dashboard had put what is in the folder now there (or something with this fingerprint)
 function recordAsShipped(slug: string, sum = skills.copySum(skills.skillDir(slug))) {
   const m = readMarker();
@@ -24,9 +25,21 @@ describe('skills that come with the dashboard', () => {
     const mine = dataPath('skills', 'anatomy');
     fs.mkdirSync(mine, { recursive: true });
     fs.writeFileSync(path.join(mine, 'SKILL.md'), '---\nname: My anatomy\ndescription: Mine.\n---\nmine');
-    fs.writeFileSync(path.join(mine, '.source.json'), JSON.stringify({ url: 'https://github.com/wheresryan22/anatomy/tree/main', repo: 'wheresryan22/anatomy', ref: 'main', path: '', installedAt: 1 }));
+    fs.writeFileSync(
+      path.join(mine, '.source.json'),
+      JSON.stringify({
+        url: 'https://github.com/wheresryan22/anatomy/tree/main',
+        repo: 'wheresryan22/anatomy',
+        ref: 'main',
+        path: '',
+        installedAt: 1,
+      }),
+    );
     fs.mkdirSync(dataPath('skills', 'claude-motion'), { recursive: true });
-    fs.writeFileSync(dataPath('skills', 'claude-motion', 'SKILL.md'), '---\nname: My motion notes\ndescription: Mine.\n---\nmine');
+    fs.writeFileSync(
+      dataPath('skills', 'claude-motion', 'SKILL.md'),
+      '---\nname: My motion notes\ndescription: Mine.\n---\nmine',
+    );
 
     skills.ensureBuiltinSkills();
     skills.ensureBuiltinSkills();
@@ -71,7 +84,7 @@ describe('skills that come with the dashboard', () => {
     expect(fs.readdirSync(dataPath('tmp')).filter((x) => x.startsWith('bundled-'))).toEqual([]);
   });
 
-  it("update the skills the dashboard writes itself the same way", () => {
+  it('update the skills the dashboard writes itself the same way', () => {
     const md = path.join(skills.skillDir('orca-agents'), 'SKILL.md');
     const latest = fs.readFileSync(md, 'utf8');
     fs.writeFileSync(md, '---\nname: Start agents in Orca\ndescription: Old.\n---\n\nOld steps.\n');
@@ -103,7 +116,9 @@ describe('skills that come with the dashboard', () => {
     expect(readMarker().copies.composio).toBe(skills.copySum(skills.skillDir('composio')));
     // changed: can't tell whether by you or by an older dashboard, so it stays as it is
     expect(readMarker().copies['sound-design']).toBeUndefined();
-    expect(fs.readFileSync(path.join(skills.skillDir('sound-design'), 'SKILL.md'), 'utf8')).toContain('Our studio mixes');
+    expect(fs.readFileSync(path.join(skills.skillDir('sound-design'), 'SKILL.md'), 'utf8')).toContain(
+      'Our studio mixes',
+    );
   });
 
   it('keep a deleted one deleted, even when a newer version comes', () => {

@@ -50,7 +50,8 @@ export function readZip(buf: Buffer): ZipEntry[] {
     p += 46 + nameLen + extraLen + commentLen;
     if (name.endsWith('/')) continue;
     if (((external >>> 16) & 0o170000) === 0o120000) continue; // a symlink
-    if (size === 0xffffffff || compressed === 0xffffffff || local === 0xffffffff) throw new Error('Zip files over 4 GB are not supported.');
+    if (size === 0xffffffff || compressed === 0xffffffff || local === 0xffffffff)
+      throw new Error('Zip files over 4 GB are not supported.');
     total += size;
     if (total > MAX_TOTAL) throw new Error('The zip unpacks to more than 4 GB.');
     if (buf.readUInt32LE(local) !== 0x04034b50) throw new Error('The zip is damaged.');

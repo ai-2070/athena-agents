@@ -25,7 +25,10 @@ export async function claimGatewayState(instanceId: string): Promise<() => Promi
 
 /** Account claims also guard against two instance records created by competing dashboard processes. */
 export function claimGatewayAccount(platform: GatewayPlatform, accountId: string): Promise<() => Promise<void>> {
-  const key = crypto.createHash('sha256').update(JSON.stringify([platform, accountId])).digest('hex');
+  const key = crypto
+    .createHash('sha256')
+    .update(JSON.stringify([platform, accountId]))
+    .digest('hex');
   return claimDirectory(privateDataPath('gateways-accounts', key));
 }
 
@@ -36,9 +39,11 @@ async function claimDirectory(directory: string): Promise<() => Promise<void>> {
     await once(server, 'listening');
   } catch {
     server.close();
-    throw new Error('Cannot claim this gateway instance. Another worker or local program owns its private ownership port.');
+    throw new Error(
+      'Cannot claim this gateway instance. Another worker or local program owns its private ownership port.',
+    );
   }
   server.unref();
   let closing: Promise<void> | undefined;
-  return () => closing ??= new Promise<void>((resolve) => server.close(() => resolve()));
+  return () => (closing ??= new Promise<void>((resolve) => server.close(() => resolve())));
 }

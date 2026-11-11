@@ -18,11 +18,20 @@ export function viewRoots(): string[] {
     .list()
     .map((a) => a.workspace)
     .filter((w): w is string => !!w && path.isAbsolute(w));
-  return [ensureBrain(), projectData('knowledge'), projectData('tool-images'), dataPath('outputs'), ...comfyOutputDirs(), ...workspaces, ...(getSettings().allowedFolders || [])];
+  return [
+    ensureBrain(),
+    projectData('knowledge'),
+    projectData('tool-images'),
+    dataPath('outputs'),
+    ...comfyOutputDirs(),
+    ...workspaces,
+    ...(getSettings().allowedFolders || []),
+  ];
 }
 
 /** The real path of p when it is inside one of the folders above (links followed), else null. */
-export const viewable = (p: unknown, roots = viewRoots()): string | null => (typeof p === 'string' && p.trim() && path.isAbsolute(p.trim()) ? insideRoots(path.resolve(p.trim()), roots) : null);
+export const viewable = (p: unknown, roots = viewRoots()): string | null =>
+  typeof p === 'string' && p.trim() && path.isAbsolute(p.trim()) ? insideRoots(path.resolve(p.trim()), roots) : null;
 
 const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
 const VIDEO = /\.(mp4|webm|m4v|mov)$/i;
@@ -30,7 +39,18 @@ const AUDIO = /\.(mp3|wav|ogg|oga|m4a)$/i;
 // 3D models the page can show (.blend and the like stay plain files)
 const MODEL = /\.(glb|gltf|obj|stl|ply|fbx)$/i;
 
-export const kindOf = (p: string, isDir = false): FileKind => (isDir ? 'folder' : IMAGE.test(p) ? 'image' : VIDEO.test(p) ? 'video' : AUDIO.test(p) ? 'audio' : MODEL.test(p) ? 'model' : 'file');
+export const kindOf = (p: string, isDir = false): FileKind =>
+  isDir
+    ? 'folder'
+    : IMAGE.test(p)
+      ? 'image'
+      : VIDEO.test(p)
+        ? 'video'
+        : AUDIO.test(p)
+          ? 'audio'
+          : MODEL.test(p)
+            ? 'model'
+            : 'file';
 
 /** Looks up the paths a chat mentions (up to 50 at a time). */
 export function fileInfo(paths: unknown): FileInfo[] {
@@ -41,7 +61,14 @@ export function fileInfo(paths: unknown): FileInfo[] {
     if (!real) return { path: raw, ok: false };
     try {
       const st = fs.statSync(real);
-      return { path: raw, ok: true, kind: kindOf(real, st.isDirectory()), name: path.basename(real), size: st.isDirectory() ? 0 : st.size, modified: st.mtimeMs };
+      return {
+        path: raw,
+        ok: true,
+        kind: kindOf(real, st.isDirectory()),
+        name: path.basename(real),
+        size: st.isDirectory() ? 0 : st.size,
+        modified: st.mtimeMs,
+      };
     } catch {
       return { path: raw, ok: false };
     }
@@ -62,6 +89,9 @@ export function open(p: unknown): void {
   const real = viewable(p);
   if (!real) throw Object.assign(new Error('That file is outside the dashboard folders.'), { status: 403 });
   if (!fs.existsSync(real)) throw Object.assign(new Error('That file is no longer there.'), { status: 404 });
-  if (runnable(p) || runnable(real)) throw Object.assign(new Error(`${path.basename(real)} is a program or script, so it isn't opened from here.`), { status: 403 });
+  if (runnable(p) || runnable(real))
+    throw Object.assign(new Error(`${path.basename(real)} is a program or script, so it isn't opened from here.`), {
+      status: 403,
+    });
   openWithShell(real);
 }

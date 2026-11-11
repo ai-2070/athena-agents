@@ -140,6 +140,7 @@ limits every query to the customer set for the current transaction, so a forgott
 than another customer's rows. A test checks that it does.
 
 Options rejected:
+
 - A database per customer: the strongest separation, and one customer can be restored or deleted on its own, but
   every migration and backup runs [N] times. Worth it if contracts demand it.
 - A schema per customer: separation in between, with most of the per-customer migration cost.

@@ -13,7 +13,8 @@ const GAP_MS = 250;
 /** How much longer than meant a held-back frame may come (a screen draws only on its own beat). */
 const AIM_SLACK = 1.25;
 
-export const lowerQuality = (q: WorldQuality): WorldQuality | null => (q === 'high' ? 'medium' : q === 'medium' ? 'low' : null);
+export const lowerQuality = (q: WorldQuality): WorldQuality | null =>
+  q === 'high' ? 'medium' : q === 'medium' ? 'low' : null;
 
 /** Watches frame times; says when to step down. */
 export class SlowWatch {

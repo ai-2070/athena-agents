@@ -34,7 +34,13 @@ class FakeXHR {
     const folder = rel.includes('/');
     this.finished = true;
     this.status = 200;
-    this.responseText = JSON.stringify({ path: `/up/${rel}`, top: folder ? `/up/${rel.split('/')[0]}/` : `/up/${rel}`, kind: folder ? 'folder' : 'file', name: rel, size: 1 });
+    this.responseText = JSON.stringify({
+      path: `/up/${rel}`,
+      top: folder ? `/up/${rel.split('/')[0]}/` : `/up/${rel}`,
+      kind: folder ? 'folder' : 'file',
+      name: rel,
+      size: 1,
+    });
     this.onload?.();
   }
   fail(error = 'disk full') {
@@ -49,7 +55,8 @@ const deleted: string[] = [];
 const flush = async (n = 8) => {
   for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0));
 };
-const files = (...rels: string[]): PickedFile[] => rels.map((rel) => ({ rel, file: new File(['x'], rel.split('/').pop()!) }));
+const files = (...rels: string[]): PickedFile[] =>
+  rels.map((rel) => ({ rel, file: new File(['x'], rel.split('/').pop()!) }));
 // finish every request, including ones that start as others end
 const finishAll = async () => {
   for (let i = 0, idle = 0; i < 100 && idle < 2; i++) {
@@ -75,12 +82,12 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('attachTray()', () => {
-  it('uploads into another project when it is a pane of a project that isn\'t open', async () => {
+  it("uploads into another project when it is a pane of a project that isn't open", async () => {
     const tray = attachTray({ project: 'p2' });
     tray.add(files('notes.txt'));
     await flush();
     expect(open()[0].url).toBe('/api/p/p2/uploads/b1?path=notes.txt');
-    expect((vi.mocked(fetch).mock.calls[0][0] as string)).toBe('/api/p/p2/uploads');
+    expect(vi.mocked(fetch).mock.calls[0][0] as string).toBe('/api/p/p2/uploads');
     await finishAll();
     expect(await tray.ready()).toEqual(['/up/notes.txt']);
   });
@@ -146,7 +153,9 @@ describe('attachTray()', () => {
     const req = tray.ready();
     tray.add(files('b.txt'));
     await flush();
-    open().find((x) => x.rel === 'a.txt')!.ok();
+    open()
+      .find((x) => x.rel === 'a.txt')!
+      .ok();
     await flush();
     let done = false;
     void req.then(() => (done = true));
@@ -187,7 +196,12 @@ describe('pasting into a chat', () => {
     return e;
   };
   const clip = (text: Record<string, string>, list: File[]) =>
-    ({ types: [...Object.keys(text), ...(list.length ? ['Files'] : [])], items: list.map((f) => ({ kind: 'file', getAsFile: () => f })), files: list, getData: (t: string) => text[t] ?? '' }) as unknown as DataTransfer;
+    ({
+      types: [...Object.keys(text), ...(list.length ? ['Files'] : [])],
+      items: list.map((f) => ({ kind: 'file', getAsFile: () => f })),
+      files: list,
+      getData: (t: string) => text[t] ?? '',
+    }) as unknown as DataTransfer;
 
   it('attaches a screenshot pasted into the message box, and stops it pasting as text', async () => {
     const tray = attachTray();
@@ -225,7 +239,10 @@ describe('restoreDraft()', () => {
 
 describe('looking at attached files before sending', () => {
   const frame = () => new Promise((r) => setTimeout(r, 40));
-  const chip = (tray: ReturnType<typeof attachTray>, name: string) => [...tray.el.querySelectorAll<HTMLElement>('.att-chip')].find((c) => c.querySelector('.att-name')!.textContent === name)!;
+  const chip = (tray: ReturnType<typeof attachTray>, name: string) =>
+    [...tray.el.querySelectorAll<HTMLElement>('.att-chip')].find(
+      (c) => c.querySelector('.att-name')!.textContent === name,
+    )!;
 
   it('pictures and Markdown open straight away, a PDF once uploaded, other files not at all', async () => {
     document.body.append(Object.assign(document.createElement('div'), { id: 'modal-root' }));
@@ -261,7 +278,13 @@ describe('looking at attached files before sending', () => {
 
   it('in the desktop app any uploaded file opens in its own program', async () => {
     const posted: unknown[] = [];
-    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => (posted.push([url, init.body ? JSON.parse(String(init.body)) : null]), new Response('{"ok":true}')));
+    vi.stubGlobal(
+      'fetch',
+      async (url: string, init: RequestInit) => (
+        posted.push([url, init.body ? JSON.parse(String(init.body)) : null]),
+        new Response('{"ok":true}')
+      ),
+    );
     state.data = { desktop: true } as AppState;
     try {
       const tray = attachTray();

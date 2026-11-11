@@ -1,8 +1,15 @@
 import fs from 'node:fs';
 import { readJSON, writeJSON } from '../util.ts';
 
-interface Stamp { mtimeMs: number; size: number; ino: number }
-interface Entry<S> { stamp: Stamp; summary: S }
+interface Stamp {
+  mtimeMs: number;
+  size: number;
+  ino: number;
+}
+interface Entry<S> {
+  stamp: Stamp;
+  summary: S;
+}
 
 export interface RecordFilesOptions<T, S> {
   /** The small part every listing needs; kept for every file seen. */
@@ -25,7 +32,8 @@ const statOf = (file: string): fs.Stats | null => {
     return null;
   }
 };
-const same = (stamp: Stamp, stat: fs.Stats) => stamp.mtimeMs === stat.mtimeMs && stamp.size === stat.size && stamp.ino === stat.ino;
+const same = (stamp: Stamp, stat: fs.Stats) =>
+  stamp.mtimeMs === stat.mtimeMs && stamp.size === stat.size && stamp.ino === stat.ino;
 
 function freeze<T>(value: T): T {
   if (value === null || typeof value !== 'object' || Object.isFrozen(value)) return value;
@@ -69,8 +77,9 @@ export class RecordFiles<T extends object, S> {
       this.forget(file);
       return null;
     }
-    try { this.options.check?.(value, file); }
-    catch (error) {
+    try {
+      this.options.check?.(value, file);
+    } catch (error) {
       this.forget(file);
       throw error;
     }
@@ -82,7 +91,7 @@ export class RecordFiles<T extends object, S> {
     const stat = statOf(file);
     const entry = this.entries.get(file);
     if (stat && entry && same(entry.stamp, stat)) return entry.summary;
-    return this.read(file) ? this.entries.get(file)?.summary ?? null : null;
+    return this.read(file) ? (this.entries.get(file)?.summary ?? null) : null;
   }
 
   write(file: string, value: T): T {
@@ -95,8 +104,11 @@ export class RecordFiles<T extends object, S> {
   }
 
   remove(file: string): void {
-    try { fs.rmSync(file, { force: true }); }
-    finally { this.forget(file); }
+    try {
+      fs.rmSync(file, { force: true });
+    } finally {
+      this.forget(file);
+    }
   }
 
   forget(file: string): void {

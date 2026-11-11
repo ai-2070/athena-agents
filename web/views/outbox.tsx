@@ -34,7 +34,9 @@ async function copyImage(url: string): Promise<void> {
       canvas.width = bmp.width;
       canvas.height = bmp.height;
       canvas.getContext('2d')!.drawImage(bmp, 0, 0);
-      blob = await new Promise<Blob>((ok, no) => canvas.toBlob((b) => (b ? ok(b) : no(new Error('no image'))), 'image/png'));
+      blob = await new Promise<Blob>((ok, no) =>
+        canvas.toBlob((b) => (b ? ok(b) : no(new Error('no image'))), 'image/png'),
+      );
     }
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
     toast('Image copied');
@@ -47,10 +49,23 @@ export function Outbox() {
   const data = useAppState();
   const [list, setList] = useState<OutboxPost[] | null>(null);
   const version = useRef(0);
-  const reload = useCallback(async () => { const next = ++version.current; const value = await rpc.outbox.list(); if (next === version.current) setList(value); }, []);
+  const reload = useCallback(async () => {
+    const next = ++version.current;
+    const value = await rpc.outbox.list();
+    if (next === version.current) setList(value);
+  }, []);
   useEffect(() => void reload().catch(() => setList([])), [reload]);
-  useEffect(() => () => { version.current++; }, []);
-  useServerEvents((ev) => { if (ev.type === 'project') setList(null); if (['outbox', 'project', 'gateway-inbox', 'gateway-health', 'gateways'].includes(ev.type)) void reload().catch(() => {}); });
+  useEffect(
+    () => () => {
+      version.current++;
+    },
+    [],
+  );
+  useServerEvents((ev) => {
+    if (ev.type === 'project') setList(null);
+    if (['outbox', 'project', 'gateway-inbox', 'gateway-health', 'gateways'].includes(ev.type))
+      void reload().catch(() => {});
+  });
   if (!list || !data) return null;
   const pending = list.filter((p) => ['pending', 'failed', 'posting'].includes(p.status));
   const done = list.filter((p) => p.status === 'posted' || p.status === 'rejected' || p.status === 'returned');
@@ -58,22 +73,45 @@ export function Outbox() {
   return (
     <Sections>
       <Questions />
-      {data.accounts.x.length ? <Compose accounts={data.accounts.x.map((a) => a.username)} added={() => void reload()} /> : null}
+      {data.accounts.x.length ? (
+        <Compose accounts={data.accounts.x.map((a) => a.username)} added={() => void reload()} />
+      ) : null}
       <GatewayCompose key={`compose-${data.project?.id ?? ''}`} added={() => void reload()} />
       {/* nothing waiting: the heading goes above, so the note is in the middle of the page, not of the right column */}
-      <Section title={`Waiting for you (${pending.length})`} headingClassName="section" bare className={pending.length ? '' : 'lg:grid-cols-1'}>
+      <Section
+        title={`Waiting for you (${pending.length})`}
+        headingClassName="section"
+        bare
+        className={pending.length ? '' : 'lg:grid-cols-1'}
+      >
         {pending.length ? (
           <div className="flex flex-col gap-4">
-            {pending.map((p) => p.platform === 'telegram' || p.platform === 'discord' ? <GatewayOutboxCard key={`${data.project?.id ?? ''}-${p.id}`} p={p} changed={changed} /> : <PostCard key={p.id} p={p} changed={changed} />)}
+            {pending.map((p) =>
+              p.platform === 'telegram' || p.platform === 'discord' ? (
+                <GatewayOutboxCard key={`${data.project?.id ?? ''}-${p.id}`} p={p} changed={changed} />
+              ) : (
+                <PostCard key={p.id} p={p} changed={changed} />
+              ),
+            )}
           </div>
         ) : (
-          <div className="empty mx-auto max-w-[56ch] py-12">No posts waiting. Agents with the Social tools put their drafts here.</div>
+          <div className="empty mx-auto max-w-[56ch] py-12">
+            No posts waiting. Agents with the Social tools put their drafts here.
+          </div>
         )}
       </Section>
       {done.length ? (
         <Section title="History" headingClassName="section" bare>
           <div className="flex flex-col gap-4">
-            {done.slice(0, 40).map((p) => p.platform === 'telegram' || p.platform === 'discord' ? <GatewayOutboxCard key={`${data.project?.id ?? ''}-${p.id}`} p={p} changed={changed} /> : <PostCard key={p.id} p={p} changed={changed} />)}
+            {done
+              .slice(0, 40)
+              .map((p) =>
+                p.platform === 'telegram' || p.platform === 'discord' ? (
+                  <GatewayOutboxCard key={`${data.project?.id ?? ''}-${p.id}`} p={p} changed={changed} />
+                ) : (
+                  <PostCard key={p.id} p={p} changed={changed} />
+                ),
+              )}
           </div>
         </Section>
       ) : null}
@@ -95,16 +133,22 @@ function Questions() {
     <Section title={`Questions from agents (${waiting.length})`} headingClassName="section" bare>
       {waiting.length ? (
         <div className="flex flex-col gap-4">
-          {waiting.map((q) => <QuestionCard key={q.id} q={q} changed={changed} />)}
+          {waiting.map((q) => (
+            <QuestionCard key={q.id} q={q} changed={changed} />
+          ))}
         </div>
       ) : (
-        <div className="empty mx-auto max-w-[56ch] py-12">No questions waiting. When an agent needs you to choose or is stuck, it asks here.</div>
+        <div className="empty mx-auto max-w-[56ch] py-12">
+          No questions waiting. When an agent needs you to choose or is stuck, it asks here.
+        </div>
       )}
       {done.length ? (
         <details className="mt-4">
           <summary className="hint">{`Answered and closed (${done.length})`}</summary>
           <div className="mt-4 flex flex-col gap-4">
-            {done.map((q) => <QuestionCard key={q.id} q={q} changed={changed} />)}
+            {done.map((q) => (
+              <QuestionCard key={q.id} q={q} changed={changed} />
+            ))}
           </div>
         </details>
       ) : null}
@@ -124,11 +168,25 @@ function Compose({ accounts, added }: { accounts: string[]; added: () => void })
   return (
     <Section title="New post" bare>
       <Plate className="panel">
-        <textarea rows={3} aria-label="New post" placeholder="Write a post yourself…" value={text} onChange={(e) => setText(e.target.value)} />
+        <textarea
+          rows={3}
+          aria-label="New post"
+          placeholder="Write a post yourself…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <SelectControl aria-label="Post as" value={account} onChange={setAccount} options={accounts.map((a) => ({ value: a, label: `@${a}` }))} />
+          <SelectControl
+            aria-label="Post as"
+            value={account}
+            onChange={setAccount}
+            options={accounts.map((a) => ({ value: a, label: `@${a}` }))}
+          />
           <span className="hint flex-1 min-w-0" />
-          <Button variant="ghost" size="small" onClick={() => void save()}><Icon name="save" size={13} />Save to Outbox</Button>
+          <Button variant="ghost" size="small" onClick={() => void save()}>
+            <Icon name="save" size={13} />
+            Save to Outbox
+          </Button>
         </div>
       </Plate>
     </Section>
@@ -156,10 +214,12 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
   // changed here and not saved yet: until then, a newer version from the server (saved in another
   // tab, a thread partly posted) replaces what the card shows, so Approve never sends an old copy
   const edited = useRef(false);
-  const touch = <T,>(set: (v: T) => void) => (v: T) => {
-    edited.current = true;
-    set(v);
-  };
+  const touch =
+    <T,>(set: (v: T) => void) =>
+    (v: T) => {
+      edited.current = true;
+      set(v);
+    };
   const setParts = touch(setPartsNow);
   const setImages = touch(setImagesNow);
   const setTitle = touch(setTitleNow);
@@ -186,7 +246,10 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
   };
   const discuss = async () => {
     setBusy(true);
-    const r = await attempt(() => rpc.outbox.discuss({ id: p.id, text: note }), `Sent back to ${p.teamName || 'the team'}`);
+    const r = await attempt(
+      () => rpc.outbox.discuss({ id: p.id, text: note }),
+      `Sent back to ${p.teamName || 'the team'}`,
+    );
     setBusy(false);
     if (r) changed();
   };
@@ -199,12 +262,29 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
         <b>{p.accountLabel}</b>
         <span className="hint">{`by ${p.agentName || 'you'}${p.teamName ? ` · team ${p.teamName}` : ''} · ${ago(p.createdAt)}`}</span>
         {p.parts.length > 1 ? <Pill tone="info">{`thread of ${p.parts.length}`}</Pill> : null}
-        {p.url ? <ButtonLink variant="ghost" size="tiny" className="ml-auto" href={p.url} target="_blank" rel="noopener"><Icon name="external-link" size={12} />{link}</ButtonLink> : null}
+        {p.url ? (
+          <ButtonLink variant="ghost" size="tiny" className="ml-auto" href={p.url} target="_blank" rel="noopener">
+            <Icon name="external-link" size={12} />
+            {link}
+          </ButtonLink>
+        ) : null}
       </div>
-      {p.platform === 'reddit' ? <div className="hint mt-4">{p.reddit?.kind === 'comment' ? `Comment replying to ${p.reddit.parent}` : `Post in r/${p.reddit?.subreddit}${p.reddit?.link ? ` · link: ${p.reddit.link}` : ''}`}</div> : null}
+      {p.platform === 'reddit' ? (
+        <div className="hint mt-4">
+          {p.reddit?.kind === 'comment'
+            ? `Comment replying to ${p.reddit.parent}`
+            : `Post in r/${p.reddit?.subreddit}${p.reddit?.link ? ` · link: ${p.reddit.link}` : ''}`}
+        </div>
+      ) : null}
       {title !== null ? (
         <div className="mt-4">
-          <input aria-label="Title" placeholder="Title" value={title} disabled={!editable} onChange={(e) => setTitle(e.target.value)} />
+          <input
+            aria-label="Title"
+            placeholder="Title"
+            value={title}
+            disabled={!editable}
+            onChange={(e) => setTitle(e.target.value)}
+          />
         </div>
       ) : null}
       {p.note ? <p className="hint mt-4">{p.note}</p> : null}
@@ -218,17 +298,45 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
             return (
               <div key={f} className="flex flex-col gap-1.5">
                 <div className="relative">
-                  <img className="max-h-30 max-w-45 rounded-[8px] block" src={url} alt={p.imageAlt?.[f] || name} title={p.imageAlt?.[f] || f} />
+                  <img
+                    className="max-h-30 max-w-45 rounded-[8px] block"
+                    src={url}
+                    alt={p.imageAlt?.[f] || name}
+                    title={p.imageAlt?.[f] || f}
+                  />
                   {editable ? (
-                    <Button variant="ghost" size="tiny" className="absolute top-1 right-1" title="Take this image off the post" aria-label={`Take ${name} off the post`} onClick={() => setImages(images.filter((x) => x !== f))}>
+                    <Button
+                      variant="ghost"
+                      size="tiny"
+                      className="absolute top-1 right-1"
+                      title="Take this image off the post"
+                      aria-label={`Take ${name} off the post`}
+                      onClick={() => setImages(images.filter((x) => x !== f))}
+                    >
                       ✕
                     </Button>
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Button variant="ghost" size="tiny" title="Copy the image, to paste it into a post yourself" onClick={() => void copyImage(url)}><Icon name="copy" size={12} />Copy</Button>
-                  <ButtonLink variant="ghost" size="tiny" href={url} download={name} title="Save the image file"><Icon name="download" size={12} />Save</ButtonLink>
-                  {desktop ? <Button variant="ghost" size="tiny" title={`Open ${name}`} onClick={() => openFile(f)}><Icon name="external-link" size={12} />Open</Button> : null}
+                  <Button
+                    variant="ghost"
+                    size="tiny"
+                    title="Copy the image, to paste it into a post yourself"
+                    onClick={() => void copyImage(url)}
+                  >
+                    <Icon name="copy" size={12} />
+                    Copy
+                  </Button>
+                  <ButtonLink variant="ghost" size="tiny" href={url} download={name} title="Save the image file">
+                    <Icon name="download" size={12} />
+                    Save
+                  </ButtonLink>
+                  {desktop ? (
+                    <Button variant="ghost" size="tiny" title={`Open ${name}`} onClick={() => openFile(f)}>
+                      <Icon name="external-link" size={12} />
+                      Open
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             );
@@ -247,7 +355,11 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
               />
               <div className="flex flex-wrap items-center gap-3 justify-between">
                 <span className="hint">{parts.length > 1 ? `Part ${i + 1}` : ''}</span>
-                {p.platform === 'x' ? <span className={`hint tabular-nums ${chars(t) > LIMIT ? 'text-red' : ''}`}>{`${chars(t)}/${LIMIT}`}</span> : null}
+                {p.platform === 'x' ? (
+                  <span
+                    className={`hint tabular-nums ${chars(t) > LIMIT ? 'text-red' : ''}`}
+                  >{`${chars(t)}/${LIMIT}`}</span>
+                ) : null}
               </div>
             </div>
           ))}
@@ -255,32 +367,83 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
       ) : (
         <div className="flex flex-col gap-3 mt-4">
           {p.parts.map((t, i) => (
-            <div key={i} className="whitespace-pre-wrap">{t}</div>
+            <div key={i} className="whitespace-pre-wrap">
+              {t}
+            </div>
           ))}
         </div>
       )}
       {editable ? (
         <>
           <div className="flex flex-wrap items-center gap-3 mt-4">
-            <Button size="small" disabled={busy} onClick={() => void approve()}><Icon name="check" size={13} />{p.platform === 'x' ? 'Approve & post' : 'Approve & send'}</Button>
-            <Button variant="ghost" size="small" onClick={() => void attempt(() => rpc.outbox.edit({ id: p.id, ...edits() }), 'Saved').then((r) => r && (edited.current = false))}><Icon name="save" size={13} />Save edits</Button>
-            <Button variant="ghost" size="small" aria-expanded={discussing} title="Talk it over with the team that wrote it: your note goes into their chat and the draft is sent back" onClick={() => setDiscussing(!discussing)}><Icon name="message-circle" size={13} />Discuss with team</Button>
-            <Button variant="danger" size="small" onClick={() => void attempt(() => rpc.outbox.reject({ id: p.id })).then(changed)}><Icon name="x" size={13} />Reject</Button>
+            <Button size="small" disabled={busy} onClick={() => void approve()}>
+              <Icon name="check" size={13} />
+              {p.platform === 'x' ? 'Approve & post' : 'Approve & send'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="small"
+              onClick={() =>
+                void attempt(() => rpc.outbox.edit({ id: p.id, ...edits() }), 'Saved').then(
+                  (r) => r && (edited.current = false),
+                )
+              }
+            >
+              <Icon name="save" size={13} />
+              Save edits
+            </Button>
+            <Button
+              variant="ghost"
+              size="small"
+              aria-expanded={discussing}
+              title="Talk it over with the team that wrote it: your note goes into their chat and the draft is sent back"
+              onClick={() => setDiscussing(!discussing)}
+            >
+              <Icon name="message-circle" size={13} />
+              Discuss with team
+            </Button>
+            <Button
+              variant="danger"
+              size="small"
+              onClick={() => void attempt(() => rpc.outbox.reject({ id: p.id })).then(changed)}
+            >
+              <Icon name="x" size={13} />
+              Reject
+            </Button>
           </div>
           {/* what should change: goes to the team's chat as a message to the agent who wrote it, and the draft leaves the Outbox */}
           {discussing ? (
             <div className="flex flex-col gap-3 mt-4">
-              <textarea rows={3} aria-label="What should change" placeholder={`What should change? This goes to ${p.agentName || 'the team'}${p.teamName ? ` in the ${p.teamName} chat` : ''}.`} value={note} onChange={(e) => setNote(e.target.value)} />
+              <textarea
+                rows={3}
+                aria-label="What should change"
+                placeholder={`What should change? This goes to ${p.agentName || 'the team'}${p.teamName ? ` in the ${p.teamName} chat` : ''}.`}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
               <div className="flex flex-wrap items-center gap-3">
-                <Button size="small" disabled={busy} onClick={() => void discuss()}><Icon name="send" size={13} />Send to team</Button>
-                <Button variant="ghost" size="small" onClick={() => setDiscussing(false)}><Icon name="x" size={13} />Cancel</Button>
+                <Button size="small" disabled={busy} onClick={() => void discuss()}>
+                  <Icon name="send" size={13} />
+                  Send to team
+                </Button>
+                <Button variant="ghost" size="small" onClick={() => setDiscussing(false)}>
+                  <Icon name="x" size={13} />
+                  Cancel
+                </Button>
               </div>
             </div>
           ) : null}
         </>
       ) : (
         <div className="flex flex-wrap items-center gap-3 mt-4">
-          <Button variant="ghost" size="tiny" onClick={() => void attempt(() => rpc.outbox.remove({ id: p.id })).then(changed)}><Icon name="trash-2" size={12} />Remove</Button>
+          <Button
+            variant="ghost"
+            size="tiny"
+            onClick={() => void attempt(() => rpc.outbox.remove({ id: p.id })).then(changed)}
+          >
+            <Icon name="trash-2" size={12} />
+            Remove
+          </Button>
         </div>
       )}
     </Plate>

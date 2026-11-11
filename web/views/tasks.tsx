@@ -17,15 +17,56 @@ import { DomNode, Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { Bone, Skeleton } from '../ui/skeleton.tsx';
 import { grab, useDragPreview } from '../taskmotion.ts';
 import { openChat } from '../chatwin.tsx';
-import { DraftWithBrain, Markdown, useMentionBox, useMentionables, PRIORITIES, Pick, PriorityIcon, STATUSES, StatusIcon, TaskFiles, WORK_STATES, WhoMark, askForDraft, assigneeChoices, confirmStop, isWorking, openTaskComposer, priorityChoices, statusChoices, taskKey, usePeople, useTray } from '../taskboard.tsx';
+import {
+  DraftWithBrain,
+  Markdown,
+  useMentionBox,
+  useMentionables,
+  PRIORITIES,
+  Pick,
+  PriorityIcon,
+  STATUSES,
+  StatusIcon,
+  TaskFiles,
+  WORK_STATES,
+  WhoMark,
+  askForDraft,
+  assigneeChoices,
+  confirmStop,
+  isWorking,
+  openTaskComposer,
+  priorityChoices,
+  statusChoices,
+  taskKey,
+  usePeople,
+  useTray,
+} from '../taskboard.tsx';
 import type { Choice } from '../taskboard.tsx';
 import { TagFilter, TagPicker, knownTagFilter, tagOptions } from '../tasktags.tsx';
 import type { TagFilterValue } from '../tasktags.tsx';
 import { tagKey, tagsMatch } from '../../shared/boardtags.ts';
 import type { Candidate } from '../routinemention.ts';
-import { Card, DropGhost, askWhyBlocked, byRank, cardKey, errorText, place, ref, same, startedNote } from '../taskcard.tsx';
+import {
+  Card,
+  DropGhost,
+  askWhyBlocked,
+  byRank,
+  cardKey,
+  errorText,
+  place,
+  ref,
+  same,
+  startedNote,
+} from '../taskcard.tsx';
 import type { Assignee, Placement } from '../taskcard.tsx';
-import type { BoardComment, BoardPriority, BoardStatus, BoardTag, BoardTask, TaskBoardData } from '../../shared/types.ts';
+import type {
+  BoardComment,
+  BoardPriority,
+  BoardStatus,
+  BoardTag,
+  BoardTask,
+  TaskBoardData,
+} from '../../shared/types.ts';
 
 export { place, rankBetween } from '../taskcard.tsx';
 
@@ -51,8 +92,6 @@ function useCaretAtEnd(box: { current: HTMLTextAreaElement | null }, editing: bo
     ta.setSelectionRange(ta.value.length, ta.value.length);
   }, [box, editing]);
 }
-
-
 
 // ---------- the board ----------
 function TaskBoardPage() {
@@ -127,7 +166,11 @@ function TaskBoardPage() {
     const off = onEvent((e) => {
       if (e.type === 'board' && (project === 'all' || !e.projectId || e.projectId === project)) soon();
       if (e.type === 'project' || e.type === 'projects') soon();
-      if ((e.type === 'agents' || e.type === 'workflows') && (typeof e.id !== 'string' || assigned(`${e.type === 'agents' ? 'agent' : 'team'}:${e.id}`))) soon();
+      if (
+        (e.type === 'agents' || e.type === 'workflows') &&
+        (typeof e.id !== 'string' || assigned(`${e.type === 'agents' ? 'agent' : 'team'}:${e.id}`))
+      )
+        soon();
     });
     const offReconnect = onReconnect(soon);
     return () => (clearTimeout(timer), off(), offReconnect());
@@ -159,14 +202,31 @@ function TaskBoardPage() {
       // (the one that crosses columns rides above the others)
       el.style.position = 'relative';
       el.style.zIndex = '20';
-      const a = el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+      const a = el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], {
+        duration: 360,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      });
       void a.finished.catch(() => {}).finally(() => ((el.style.position = ''), (el.style.zIndex = '')));
     }
   });
 
   const tasks = data?.tasks || [];
   const q = search.trim().toLowerCase();
-  const shown = tasks.filter((t) => (!q || `${taskKey(t.number)} ${t.title} ${t.description} ${t.projectName} ${t.tagList.map((x) => x.name).join(' ')}`.toLowerCase().includes(q)) && (!assignee || t.assigneeName === assignee) && (!priority || t.priority === priority) && tagsMatch(t.tagList.map((x) => x.name), tagFilter.keys, tagFilter.match, tagFilter.untagged));
+  const shown = tasks.filter(
+    (t) =>
+      (!q ||
+        `${taskKey(t.number)} ${t.title} ${t.description} ${t.projectName} ${t.tagList.map((x) => x.name).join(' ')}`
+          .toLowerCase()
+          .includes(q)) &&
+      (!assignee || t.assigneeName === assignee) &&
+      (!priority || t.priority === priority) &&
+      tagsMatch(
+        t.tagList.map((x) => x.name),
+        tagFilter.keys,
+        tagFilter.match,
+        tagFilter.untagged,
+      ),
+  );
   const columns = useMemo(() => {
     const now = Date.now();
     return STATUSES.map((s) => {
@@ -175,7 +235,9 @@ function TaskBoardPage() {
       return { ...s, list, hidden: all.length - list.length };
     });
   }, [shown, older]);
-  const people = [...new Set(tasks.map((t) => t.assigneeName))].sort((a, b) => (a === 'Unassigned' ? 1 : b === 'Unassigned' ? -1 : a.localeCompare(b)));
+  const people = [...new Set(tasks.map((t) => t.assigneeName))].sort((a, b) =>
+    a === 'Unassigned' ? 1 : b === 'Unassigned' ? -1 : a.localeCompare(b),
+  );
   const allProjects = project === 'all';
   const filtered = !!(q || assignee || priority || tagFilter.keys.length || tagFilter.untagged);
   const tagChoices = useMemo(() => tagOptions(data?.tags), [data]);
@@ -197,12 +259,36 @@ function TaskBoardPage() {
     const saved = (saving.current.get(key) ?? Promise.resolve<number | null>(task.updatedAt)).then(async (version) => {
       if (version === null) return null;
       try {
-        if (respaced.length) await rpc.taskBoard.rerank({ ranks: respaced.map((r) => ({ projectId: r.task.projectId, id: r.task.id, status: r.task.status, rank: r.rank })) });
+        if (respaced.length)
+          await rpc.taskBoard.rerank({
+            ranks: respaced.map((r) => ({
+              projectId: r.task.projectId,
+              id: r.task.id,
+              status: r.task.status,
+              rank: r.rank,
+            })),
+          });
         const r = await rpc.taskBoard.change({ ...ref(task), ...patch, expectedUpdatedAt: version });
         // the server's version (and the names of who has it), leaving the rest as shown
-        const named = 'assignee' in patch ? { assigneeName: r.task.assigneeName, assigneeEmoji: r.task.assigneeEmoji, assigneeColor: r.task.assigneeColor } : {};
+        const named =
+          'assignee' in patch
+            ? {
+                assigneeName: r.task.assigneeName,
+                assigneeEmoji: r.task.assigneeEmoji,
+                assigneeColor: r.task.assigneeColor,
+              }
+            : {};
         const work = { work: r.task.work, workerName: r.task.workerName };
-        setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...named, ...work, updatedAt: r.task.updatedAt } : t)) } : d));
+        setData((d) =>
+          d
+            ? {
+                ...d,
+                tasks: d.tasks.map((t) =>
+                  same(t, task) ? { ...t, ...named, ...work, updatedAt: r.task.updatedAt } : t,
+                ),
+              }
+            : d,
+        );
         startedNote(task, r.task);
         return r.task.updatedAt;
       } catch (e) {
@@ -221,7 +307,12 @@ function TaskBoardPage() {
     return saved;
   };
   /** Saves a move (and shows it at once); one the server refuses goes back. Moving to Blocked asks why first. */
-  const move = async (task: BoardTask, status: BoardStatus, { rank, respaced }: Placement, at?: { x: number; y: number }) => {
+  const move = async (
+    task: BoardTask,
+    status: BoardStatus,
+    { rank, respaced }: Placement,
+    at?: { x: number; y: number },
+  ) => {
     if (status === task.status && rank === task.rank && !respaced.length) return;
     // (only asks while someone works on it: a quick second move must not wait behind a question)
     if (status !== 'in_progress' && isWorking(task) && !(await confirmStop(task))) return;
@@ -235,9 +326,24 @@ function TaskBoardPage() {
     const patch = { status, rank, ...(blockedReason !== undefined ? { blockedReason } : {}) };
     // (the version stays the server's; a card moved to Done counts as done now)
     const room = new Map(respaced.map((r) => [cardKey(r.task), r.rank]));
-    setData((d) => (d ? { ...d, tasks: d.tasks.map((t) => (same(t, task) ? { ...t, ...patch, ...(status === 'done' && t.status !== 'done' ? { doneAt: Date.now() } : {}) } : room.has(cardKey(t)) ? { ...t, rank: room.get(cardKey(t))! } : t)) } : d));
+    setData((d) =>
+      d
+        ? {
+            ...d,
+            tasks: d.tasks.map((t) =>
+              same(t, task)
+                ? { ...t, ...patch, ...(status === 'done' && t.status !== 'done' ? { doneAt: Date.now() } : {}) }
+                : room.has(cardKey(t))
+                  ? { ...t, rank: room.get(cardKey(t))! }
+                  : t,
+            ),
+          }
+        : d,
+    );
     const saved = saveCard(task, patch, respaced);
-    requestAnimationFrame(() => board.current?.querySelector<HTMLElement>(`[data-task-id="${cardKey(task)}"]`)?.focus({ preventScroll: true }));
+    requestAnimationFrame(() =>
+      board.current?.querySelector<HTMLElement>(`[data-task-id="${cardKey(task)}"]`)?.focus({ preventScroll: true }),
+    );
     await saved;
   };
   /** Gives a card to someone (shown at once, with their name and mark). */
@@ -250,7 +356,11 @@ function TaskBoardPage() {
   // the column's cards (the ones filtered out or older keep their order too)
   const placeAt = (status: BoardStatus, index: number, task: BoardTask) => {
     const others = columns.find((c) => c.value === status)!.list.filter((t) => !same(t, task));
-    return place(tasks.filter((t) => t.status === status && !same(t, task)).sort(byRank), others[index - 1], others[index]);
+    return place(
+      tasks.filter((t) => t.status === status && !same(t, task)).sort(byRank),
+      others[index - 1],
+      others[index],
+    );
   };
   const toColumn = (task: BoardTask, status: BoardStatus) => void move(task, status, placeAt(status, 0, task));
   const step = (task: BoardTask, dir: -1 | 1) => {
@@ -267,11 +377,19 @@ function TaskBoardPage() {
     setDrop(null);
     if (!task || !target || target.status !== status) return;
     // let go where it already was: nothing moves (and no gap was drawn there)
-    if (task.status === status && target.index === columns.find((c) => c.value === status)!.list.findIndex((t) => same(t, task))) return;
+    if (
+      task.status === status &&
+      target.index === columns.find((c) => c.value === status)!.list.findIndex((t) => same(t, task))
+    )
+      return;
     void move(task, status, placeAt(status, target.index, task), at);
   };
   const remove = async (task: BoardTask) => {
-    if (!(await confirmStop(task)) || !(await confirmBox(`Remove ${taskKey(task.number)} "${task.title}"?`, { ok: 'Remove', danger: true }))) return;
+    if (
+      !(await confirmStop(task)) ||
+      !(await confirmBox(`Remove ${taskKey(task.number)} "${task.title}"?`, { ok: 'Remove', danger: true }))
+    )
+      return;
     try {
       remember();
       setData((d) => (d ? { ...d, tasks: d.tasks.filter((t) => !same(t, task)) } : d));
@@ -297,7 +415,13 @@ function TaskBoardPage() {
   const projectChoices: Choice[] = [
     { value: 'here', label: 'This project', mark: <Icon name="folder-open" size={14} className="text-faint" /> },
     { value: 'all', label: 'All projects', mark: <Icon name="layers" size={14} className="text-faint" /> },
-    ...(data?.projects || []).filter((p) => p.id !== here).map((p) => ({ value: p.id, label: `${p.name}${p.open ? ` (${p.open})` : ''}`, mark: <Icon name="folder" size={14} className="text-faint" /> })),
+    ...(data?.projects || [])
+      .filter((p) => p.id !== here)
+      .map((p) => ({
+        value: p.id,
+        label: `${p.name}${p.open ? ` (${p.open})` : ''}`,
+        mark: <Icon name="folder" size={14} className="text-faint" />,
+      })),
   ];
 
   return (
@@ -305,33 +429,88 @@ function TaskBoardPage() {
       {/* filters as one quiet row of pills; New task on the right */}
       <div className="flex flex-wrap items-center gap-2">
         <label className="relative w-56 max-sm:w-full">
-          <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-faint"><Icon name="search" size={13} /></span>
-          <input className="h-8! rounded-full! py-0! pl-8! text-[12.5px]!" aria-label="Search tasks" placeholder="Search tasks" value={search} maxLength={240} onChange={(e) => setSearch(e.currentTarget.value)} />
+          <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-faint">
+            <Icon name="search" size={13} />
+          </span>
+          <input
+            className="h-8! rounded-full! py-0! pl-8! text-[12.5px]!"
+            aria-label="Search tasks"
+            placeholder="Search tasks"
+            value={search}
+            maxLength={240}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
         </label>
-        <Pick label="Projects shown" value={which === 'here' || which === 'all' || data?.projects.some((p) => p.id === which) ? which : 'here'} choices={projectChoices} onChange={pick} />
-        <Pick label="Assigned to" value={assignee} choices={[{ value: '', label: 'Anyone', mark: <Icon name="users" size={14} className="text-faint" /> }, ...people.map((o) => ({ value: o, label: o }))]} onChange={setAssignee} />
-        <Pick label="Priority" value={priority} choices={[{ value: '', label: 'Any priority', mark: <Icon name="chevrons-up" size={14} className="text-faint" /> }, ...PRIORITIES.map((p) => ({ value: p.value, label: p.label, mark: <PriorityIcon priority={p.value} /> }))]} onChange={setPriority} />
-        <TagFilter options={tagChoices} value={tagFilter} onChange={setTagFilter} projectId={allProjects ? undefined : project} />
+        <Pick
+          label="Projects shown"
+          value={which === 'here' || which === 'all' || data?.projects.some((p) => p.id === which) ? which : 'here'}
+          choices={projectChoices}
+          onChange={pick}
+        />
+        <Pick
+          label="Assigned to"
+          value={assignee}
+          choices={[
+            { value: '', label: 'Anyone', mark: <Icon name="users" size={14} className="text-faint" /> },
+            ...people.map((o) => ({ value: o, label: o })),
+          ]}
+          onChange={setAssignee}
+        />
+        <Pick
+          label="Priority"
+          value={priority}
+          choices={[
+            { value: '', label: 'Any priority', mark: <Icon name="chevrons-up" size={14} className="text-faint" /> },
+            ...PRIORITIES.map((p) => ({ value: p.value, label: p.label, mark: <PriorityIcon priority={p.value} /> })),
+          ]}
+          onChange={setPriority}
+        />
+        <TagFilter
+          options={tagChoices}
+          value={tagFilter}
+          onChange={setTagFilter}
+          projectId={allProjects ? undefined : project}
+        />
         {filtered ? (
-          <Button variant="plain" size="small" onClick={() => (setSearch(''), setAssignee(''), setPriority(''), setTagFilter({ keys: [], untagged: false, match: 'any' }))}>
+          <Button
+            variant="plain"
+            size="small"
+            onClick={() => (
+              setSearch(''),
+              setAssignee(''),
+              setPriority(''),
+              setTagFilter({ keys: [], untagged: false, match: 'any' })
+            )}
+          >
             <Icon name="x" size={13} />
             Clear
           </Button>
         ) : null}
-        <span className="ml-auto text-[12.5px] text-faint tabular-nums max-sm:hidden">{data ? `${open} open${allProjects ? ' in all projects' : ''}` : ''}</span>
+        <span className="ml-auto text-[12.5px] text-faint tabular-nums max-sm:hidden">
+          {data ? `${open} open${allProjects ? ' in all projects' : ''}` : ''}
+        </span>
         <Button size="small" onClick={() => compose()}>
           <Icon name="plus" size={14} />
           New task
         </Button>
       </div>
       {error ? (
-        <div role="alert" className="flex items-center gap-3 rounded-box border border-red/30 bg-red/6 px-4 py-3 text-[13px] text-red">
+        <div
+          role="alert"
+          className="flex items-center gap-3 rounded-box border border-red/30 bg-red/6 px-4 py-3 text-[13px] text-red"
+        >
           <span className="min-w-0 flex-1">{error}</span>
-          <Button variant="ghost" size="small" onClick={() => void load()}>Try again</Button>
+          <Button variant="ghost" size="small" onClick={() => void load()}>
+            Try again
+          </Button>
         </div>
       ) : null}
       {/* the columns fill the window and each scrolls on its own; the board scrolls sideways when it is narrow */}
-      <div ref={board} className="relative grid h-[calc(100dvh-13.5rem)] min-h-96 auto-cols-[minmax(13.5rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-1" aria-label="Task board">
+      <div
+        ref={board}
+        className="relative grid h-[calc(100dvh-13.5rem)] min-h-96 auto-cols-[minmax(13.5rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-1"
+        aria-label="Task board"
+      >
         {columns.map((c) => {
           const index = drop?.status === c.value ? drop.index : null;
           const others = c.list.filter((t) => !dragging || !same(t, dragging));
@@ -349,13 +528,19 @@ function TaskBoardPage() {
                 if (!dragging) return;
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
-                const cards = [...e.currentTarget.querySelectorAll<HTMLElement>('[data-task-id]')].filter((el) => el.dataset.taskId !== cardKey(dragging));
-                const at = cards.findIndex((el) => { const r = el.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
+                const cards = [...e.currentTarget.querySelectorAll<HTMLElement>('[data-task-id]')].filter(
+                  (el) => el.dataset.taskId !== cardKey(dragging),
+                );
+                const at = cards.findIndex((el) => {
+                  const r = el.getBoundingClientRect();
+                  return e.clientY < r.top + r.height / 2;
+                });
                 const next = at === -1 ? cards.length : at;
                 setDrop((d) => (d?.status === c.value && d.index === next ? d : { status: c.value, index: next }));
               }}
               onDragLeave={(e: ReactDragEvent) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrop((d) => (d?.status === c.value ? null : d));
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+                  setDrop((d) => (d?.status === c.value ? null : d));
               }}
               onDrop={(e: ReactDragEvent) => {
                 e.preventDefault();
@@ -365,15 +550,25 @@ function TaskBoardPage() {
               <div className="flex h-9 flex-none items-center gap-2 px-1.5">
                 <StatusIcon status={c.value} />
                 <h2 className="m-0 text-[13px] font-semibold text-ink">{c.label}</h2>
-                <span className="rounded-full bg-ink/6 px-1.5 text-[11px] leading-[18px] text-dim tabular-nums">{data ? c.list.length : '…'}</span>
+                <span className="rounded-full bg-ink/6 px-1.5 text-[11px] leading-[18px] text-dim tabular-nums">
+                  {data ? c.list.length : '…'}
+                </span>
                 {/* a task starts in one of the first three; Blocked and Done are moved to */}
                 {canAdd ? (
-                  <IconButton variant="plain" className="ml-auto opacity-0 group-hover/col:opacity-100 focus-visible:opacity-100" aria-label={`Create a task in ${c.label}`} title={`Create a task in ${c.label}`} onClick={() => compose(c.value)}>
+                  <IconButton
+                    variant="plain"
+                    className="ml-auto opacity-0 group-hover/col:opacity-100 focus-visible:opacity-100"
+                    aria-label={`Create a task in ${c.label}`}
+                    title={`Create a task in ${c.label}`}
+                    onClick={() => compose(c.value)}
+                  >
                     <Icon name="plus" size={15} />
                   </IconButton>
                 ) : null}
               </div>
-              <div className={`flex min-h-0 flex-1 flex-col overflow-y-auto rounded-box p-1.5 [transition:background-color_0.15s,box-shadow_0.15s] ${index !== null ? 'bg-accent/6 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]' : 'bg-ink/[0.025]'}`}>
+              <div
+                className={`flex min-h-0 flex-1 flex-col overflow-y-auto rounded-box p-1.5 [transition:background-color_0.15s,box-shadow_0.15s] ${index !== null ? 'bg-accent/6 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]' : 'bg-ink/[0.025]'}`}
+              >
                 {!data && !error ? (
                   <Skeleton label="Loading tasks…" className="flex flex-col gap-1.5">
                     {[0, 1, 2].map((i) => (
@@ -388,7 +583,9 @@ function TaskBoardPage() {
                     {c.list.map((t) => {
                       const place = others.indexOf(t);
                       return [
-                        gap !== null && dragging && place === gap ? <DropGhost key={`slot-${cardKey(t)}`} task={dragging} height={slot} /> : null,
+                        gap !== null && dragging && place === gap ? (
+                          <DropGhost key={`slot-${cardKey(t)}`} task={dragging} height={slot} />
+                        ) : null,
                         <Card
                           key={cardKey(t)}
                           task={t}
@@ -406,10 +603,18 @@ function TaskBoardPage() {
                         />,
                       ];
                     })}
-                    {gap !== null && dragging && gap >= others.length ? <DropGhost task={dragging} height={slot} /> : null}
+                    {gap !== null && dragging && gap >= others.length ? (
+                      <DropGhost task={dragging} height={slot} />
+                    ) : null}
                     {data && !c.list.length && index === null ? (
                       <li className="flex flex-col items-center gap-2 px-3 py-8 text-center text-[12.5px] text-faint">
-                        {filtered ? 'Nothing here matches.' : c.value === 'done' ? (older ? 'Nothing done yet.' : 'Nothing done in the last 14 days.') : 'No tasks'}
+                        {filtered
+                          ? 'Nothing here matches.'
+                          : c.value === 'done'
+                            ? older
+                              ? 'Nothing done yet.'
+                              : 'Nothing done in the last 14 days.'
+                            : 'No tasks'}
                         {canAdd && !filtered ? (
                           <Button variant="plain" size="tiny" onClick={() => compose(c.value)}>
                             <Icon name="plus" size={12} />
@@ -431,7 +636,8 @@ function TaskBoardPage() {
         })}
       </div>
       <p className="m-0 text-[12px] text-faint">
-        Drag a card, or focus it and press <kbd>[</kbd> / <kbd>]</kbd> to change column and <kbd>Alt</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd> to move it up or down. Enter opens it.
+        Drag a card, or focus it and press <kbd>[</kbd> / <kbd>]</kbd> to change column and <kbd>Alt</kbd>+<kbd>↑</kbd>{' '}
+        / <kbd>↓</kbd> to move it up or down. Enter opens it.
       </p>
     </div>
   );
@@ -453,12 +659,21 @@ function TaskPage({ projectId, id }: { projectId: string; id: string }) {
   }, [projectId, id]);
   useEffect(() => void load(), [load]);
   // (changed somewhere else: on the board, by the Brain, in another tab)
-  useEffect(() => onEvent((e) => e.type === 'board' && e.projectId === projectId && Array.isArray(e.ids) && e.ids.includes(id) && void load()), [load, projectId, id]);
+  useEffect(
+    () =>
+      onEvent(
+        (e) =>
+          e.type === 'board' && e.projectId === projectId && Array.isArray(e.ids) && e.ids.includes(id) && void load(),
+      ),
+    [load, projectId, id],
+  );
   if (error)
     return (
       <div className="mx-auto flex max-w-xl flex-col items-center gap-3 py-16 text-center">
         <p className="m-0 text-[13.5px] text-red">{error}</p>
-        <ButtonLink variant="ghost" size="small" href="#/tasks">Back to tasks</ButtonLink>
+        <ButtonLink variant="ghost" size="small" href="#/tasks">
+          Back to tasks
+        </ButtonLink>
       </div>
     );
   if (!task)
@@ -505,7 +720,12 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
     q.pending++;
     q.chain = q.chain.then(async () => {
       try {
-        const r = await rpc.taskBoard.change({ ...ref(latest.current), ...(addTags.length ? { addTags } : {}), ...(removeTags.length ? { removeTags } : {}), expectedUpdatedAt: latest.current.updatedAt });
+        const r = await rpc.taskBoard.change({
+          ...ref(latest.current),
+          ...(addTags.length ? { addTags } : {}),
+          ...(removeTags.length ? { removeTags } : {}),
+          expectedUpdatedAt: latest.current.updatedAt,
+        });
         latest.current = r.task;
         onChange(r.task);
       } catch (e) {
@@ -524,7 +744,11 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
     void save({ status: s });
   };
   const remove = async () => {
-    if (!(await confirmStop(task)) || !(await confirmBox(`Remove ${taskKey(task.number)} "${task.title}"?`, { ok: 'Remove', danger: true }))) return;
+    if (
+      !(await confirmStop(task)) ||
+      !(await confirmBox(`Remove ${taskKey(task.number)} "${task.title}"?`, { ok: 'Remove', danger: true }))
+    )
+      return;
     try {
       await rpc.taskBoard.remove(ref(task));
       navigate('#/tasks');
@@ -532,11 +756,17 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
       toast(errorText(e), 'error');
     }
   };
-  const copyLink = () => void navigator.clipboard?.writeText(location.href).then(() => toast(`Link to ${taskKey(task.number)} copied`), () => toast('Could not copy the link', 'error'));
+  const copyLink = () =>
+    void navigator.clipboard?.writeText(location.href).then(
+      () => toast(`Link to ${taskKey(task.number)} copied`),
+      () => toast('Could not copy the link', 'error'),
+    );
   const detail = (label: string, value: string, title?: string) => (
     <div className="flex items-center justify-between gap-3 py-1 text-[12.5px]">
       <dt className="text-dim">{label}</dt>
-      <dd className="m-0 min-w-0 truncate text-ink" title={title}>{value}</dd>
+      <dd className="m-0 min-w-0 truncate text-ink" title={title}>
+        {value}
+      </dd>
     </div>
   );
   return (
@@ -548,10 +778,17 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
             Tasks
           </a>
           <Icon name="chevron-right" size={13} className="text-faint" />
-          <span aria-current="page" className="flex-none font-medium text-ink tabular-nums">{taskKey(task.number)}</span>
+          <span aria-current="page" className="flex-none font-medium text-ink tabular-nums">
+            {taskKey(task.number)}
+          </span>
         </nav>
         <div className="ml-auto flex items-center gap-1">
-          <IconButton variant="plain" aria-label="Copy a link to this task" title="Copy a link to this task" onClick={copyLink}>
+          <IconButton
+            variant="plain"
+            aria-label="Copy a link to this task"
+            title="Copy a link to this task"
+            onClick={copyLink}
+          >
             <Icon name="link" size={15} />
           </IconButton>
           <Dropdown>
@@ -559,9 +796,13 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
               <Icon name="ellipsis" size={15} />
             </DropdownTrigger>
             <DropdownContent align="end" className="min-w-44">
-              <DropdownItem icon="link" onClick={copyLink}>Copy link</DropdownItem>
+              <DropdownItem icon="link" onClick={copyLink}>
+                Copy link
+              </DropdownItem>
               <DropdownSeparator />
-              <DropdownItem icon="trash-2" danger onClick={() => void remove()}>Remove task</DropdownItem>
+              <DropdownItem icon="trash-2" danger onClick={() => void remove()}>
+                Remove task
+              </DropdownItem>
             </DropdownContent>
           </Dropdown>
         </div>
@@ -576,19 +817,58 @@ function TaskDocument({ task, onChange }: { task: BoardTask; onChange: (t: Board
                 <div className="font-medium text-ink">Blocked</div>
                 <div className="text-dim">{task.blockedReason || 'No reason given.'}</div>
               </div>
-              <Button variant="ghost" size="tiny" onClick={async () => { const why = await askWhyBlocked(task); if (why !== null) void save({ blockedReason: why }); }}>Change</Button>
+              <Button
+                variant="ghost"
+                size="tiny"
+                onClick={async () => {
+                  const why = await askWhyBlocked(task);
+                  if (why !== null) void save({ blockedReason: why });
+                }}
+              >
+                Change
+              </Button>
             </div>
           ) : null}
           <DescriptionEditor task={task} mentions={mentions} onSave={save} />
-          <TaskFiles task={task} files={task.files} onRemove={(f) => void save({ files: (task.files || []).filter((x) => x.path !== f.path).map((x) => x.path) })} />
+          <TaskFiles
+            task={task}
+            files={task.files}
+            onRemove={(f) =>
+              void save({ files: (task.files || []).filter((x) => x.path !== f.path).map((x) => x.path) })
+            }
+          />
           <Activity task={task} mentions={mentions} onChange={onChange} />
         </article>
         <aside aria-label="Properties" className="flex flex-col gap-4 lg:sticky lg:top-20 max-lg:order-1">
           <div className="flex flex-col gap-0.5 rounded-box border border-line bg-panel p-2 shadow-card">
-            <Pick look="row" label="Status" value={task.status} choices={statusChoices()} onChange={(v) => void changeStatus(v as BoardStatus)} />
-            <Pick look="row" label="Priority" value={task.priority} choices={priorityChoices()} onChange={(v) => void save({ priority: v as BoardPriority })} />
-            <Pick look="row" label="Assigned to" value={task.assignee} choices={assigneeChoices(people)} onChange={(v) => void confirmStop(task).then((ok) => ok && save({ assignee: v }))} />
-            <TagPicker look="row" projectId={task.projectId} value={tagView ?? task.tags ?? []} known={task.tagList} onChange={saveTags} />
+            <Pick
+              look="row"
+              label="Status"
+              value={task.status}
+              choices={statusChoices()}
+              onChange={(v) => void changeStatus(v as BoardStatus)}
+            />
+            <Pick
+              look="row"
+              label="Priority"
+              value={task.priority}
+              choices={priorityChoices()}
+              onChange={(v) => void save({ priority: v as BoardPriority })}
+            />
+            <Pick
+              look="row"
+              label="Assigned to"
+              value={task.assignee}
+              choices={assigneeChoices(people)}
+              onChange={(v) => void confirmStop(task).then((ok) => ok && save({ assignee: v }))}
+            />
+            <TagPicker
+              look="row"
+              projectId={task.projectId}
+              value={tagView ?? task.tags ?? []}
+              known={task.tagList}
+              onChange={saveTags}
+            />
           </div>
           <WorkBox task={task} onChange={onChange} />
           <dl className="m-0 flex flex-col px-2">
@@ -616,7 +896,9 @@ function WorkBox({ task, onChange }: { task: BoardTask; onChange: (t: BoardTask)
   const act = async (what: 'start' | 'stop' | 'check') => {
     setBusy(true);
     try {
-      const r = await (what === 'check' ? rpc.taskBoard.check({ ...ref(task), operationId: w?.operationId }) : rpc.taskBoard[what](ref(task)));
+      const r = await (what === 'check'
+        ? rpc.taskBoard.check({ ...ref(task), operationId: w?.operationId })
+        : rpc.taskBoard[what](ref(task)));
       onChange(r.task);
       if (what === 'start') startedNote(task, r.task);
     } catch (e) {
@@ -631,27 +913,75 @@ function WorkBox({ task, onChange }: { task: BoardTask; onChange: (t: BoardTask)
   const here = app?.project?.id === task.projectId;
   // (the Brain's work opens in the chat or thread of the agent or team it handed it to)
   const agentId = w?.target.kind === 'agent' ? w.target.id : w?.handedTo?.kind === 'agent' ? w.handedTo.id : null;
-  const openWork = w && here ? (w.chatId && agentId ? () => navigate(`#/agents/${agentId}/${w.chatId}`) : w.teamId ? () => void openChat('team', w.teamId!) : null) : null;
+  const openWork =
+    w && here
+      ? w.chatId && agentId
+        ? () => navigate(`#/agents/${agentId}/${w.chatId}`)
+        : w.teamId
+          ? () => void openChat('team', w.teamId!)
+          : null
+      : null;
   return (
-    <section aria-label="Work" className="work-box flex flex-col gap-2.5 rounded-box border border-line bg-panel p-3 shadow-card">
+    <section
+      aria-label="Work"
+      className="work-box flex flex-col gap-2.5 rounded-box border border-line bg-panel p-3 shadow-card"
+    >
       <div className="flex items-center gap-2 text-[12.5px]">
-        <WhoMark who={w ? (w.target.kind === 'brain' ? 'brain' : `${w.target.kind}:${w.target.id}`) : task.assignee} emoji={w ? undefined : task.assigneeEmoji} color={w ? undefined : task.assigneeColor} size={20} />
+        <WhoMark
+          who={w ? (w.target.kind === 'brain' ? 'brain' : `${w.target.kind}:${w.target.id}`) : task.assignee}
+          emoji={w ? undefined : task.assigneeEmoji}
+          color={w ? undefined : task.assigneeColor}
+          size={20}
+        />
         <b className="min-w-0 truncate font-medium text-ink">{who}</b>
         {state ? (
           <span className={`work-state ml-auto inline-flex flex-none items-center gap-1 font-medium ${state.tone}`}>
-            {going && w!.state !== 'waiting' ? <span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" /> : <Icon name={state.icon} size={12} />}
+            {going && w!.state !== 'waiting' ? (
+              <span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
+            ) : (
+              <Icon name={state.icon} size={12} />
+            )}
             {state.label}
           </span>
-        ) : <span className="ml-auto text-faint">Not started</span>}
+        ) : (
+          <span className="ml-auto text-faint">Not started</span>
+        )}
       </div>
-      {w?.note && (w.state === 'needs-review' || w.state === 'blocked') ? <p className="m-0 text-[12.5px] leading-snug text-dim">{w.note}</p> : null}
+      {w?.note && (w.state === 'needs-review' || w.state === 'blocked') ? (
+        <p className="m-0 text-[12.5px] leading-snug text-dim">{w.note}</p>
+      ) : null}
       {!w ? <p className="m-0 text-[12.5px] leading-snug text-dim">Moving the task to In progress starts it.</p> : null}
-      {w ? <p className="m-0 text-[11.5px] text-faint" title={new Date(w.startedAt).toLocaleString()}>Started {ago(w.startedAt)}{w.endedAt ? ` · ended ${ago(w.endedAt)}` : ''}</p> : null}
+      {w ? (
+        <p className="m-0 text-[11.5px] text-faint" title={new Date(w.startedAt).toLocaleString()}>
+          Started {ago(w.startedAt)}
+          {w.endedAt ? ` · ended ${ago(w.endedAt)}` : ''}
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-1.5">
-        {going ? <Button variant="ghost" size="small" disabled={busy} onClick={() => void act('stop')}><Icon name="square" size={12} />Stop</Button> : null}
-        {!going && canWork ? <Button variant="ghost" size="small" disabled={busy} onClick={() => void act('start')}><Icon name="play" size={12} />{w ? 'Start again' : 'Start'}</Button> : null}
-        {w?.state === 'needs-review' ? <Button variant="ghost" size="small" disabled={busy} onClick={() => void act('check')}><Icon name="rotate-ccw" size={12} />Check saved work</Button> : null}
-        {openWork ? <Button variant="plain" size="small" onClick={openWork}><Icon name="message-square" size={12} />{w!.teamId ? 'Open thread' : 'Open chat'}</Button> : null}
+        {going ? (
+          <Button variant="ghost" size="small" disabled={busy} onClick={() => void act('stop')}>
+            <Icon name="square" size={12} />
+            Stop
+          </Button>
+        ) : null}
+        {!going && canWork ? (
+          <Button variant="ghost" size="small" disabled={busy} onClick={() => void act('start')}>
+            <Icon name="play" size={12} />
+            {w ? 'Start again' : 'Start'}
+          </Button>
+        ) : null}
+        {w?.state === 'needs-review' ? (
+          <Button variant="ghost" size="small" disabled={busy} onClick={() => void act('check')}>
+            <Icon name="rotate-ccw" size={12} />
+            Check saved work
+          </Button>
+        ) : null}
+        {openWork ? (
+          <Button variant="plain" size="small" onClick={openWork}>
+            <Icon name="message-square" size={12} />
+            {w!.teamId ? 'Open thread' : 'Open chat'}
+          </Button>
+        ) : null}
       </div>
     </section>
   );
@@ -682,11 +1012,23 @@ function TitleEditor({ task, onSave }: { task: BoardTask; onSave: (title: string
 }
 
 /** The description: Markdown to read, and Edit to write it (with Draft with the Brain); Ctrl+Enter saves. */
-function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentions: Candidate[]; onSave: (patch: { description: string; files?: string[] }) => Promise<boolean> }) {
+function DescriptionEditor({
+  task,
+  mentions,
+  onSave,
+}: {
+  task: BoardTask;
+  mentions: Candidate[];
+  onSave: (patch: { description: string; files?: string[] }) => Promise<boolean>;
+}) {
   const [editing, setEditing] = useState(false);
   const tray = useTray();
   const frame = useRef<HTMLDivElement>(null);
-  useEffect(() => (editing && frame.current ? tray.dropZone(frame.current, 'Drop files to attach them to the task') : undefined), [editing, tray]);
+  useEffect(
+    () =>
+      editing && frame.current ? tray.dropZone(frame.current, 'Drop files to attach them to the task') : undefined,
+    [editing, tray],
+  );
   const box = useRef<HTMLTextAreaElement>(null);
   useMentionBox(box, mentions, editing);
   useCaretAtEnd(box, editing);
@@ -694,7 +1036,9 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
   const [busy, setBusy] = useState(false);
   // the description as it was when editing started (the page keeps loading changes made meanwhile)
   const start = useRef(task.description);
-  useEffect(() => { if (!editing) setValue(task.description); }, [task.description, editing]);
+  useEffect(() => {
+    if (!editing) setValue(task.description);
+  }, [task.description, editing]);
   const edit = () => {
     start.current = task.description;
     setEditing(true);
@@ -702,7 +1046,15 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
   const save = async () => {
     if (value === task.description && !tray.count()) return setEditing(false);
     // changed while you were writing: replace it only if you say so
-    if (value !== task.description && task.description !== start.current && !(await confirmBox('Someone changed this description while you were editing it. Replace their version with yours?', { ok: 'Replace' }))) return;
+    if (
+      value !== task.description &&
+      task.description !== start.current &&
+      !(await confirmBox(
+        'Someone changed this description while you were editing it. Replace their version with yours?',
+        { ok: 'Replace' },
+      ))
+    )
+      return;
     setBusy(true);
     const added = await tray.ready();
     if (added === null) return setBusy(false);
@@ -715,9 +1067,17 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
   };
   if (!editing)
     return task.description ? (
-      <div className="group relative -mx-3 rounded-box px-3 py-2 [transition:background-color_0.15s] hover:bg-ink/3" onDoubleClick={editOnDoubleClick(edit)}>
+      <div
+        className="group relative -mx-3 rounded-box px-3 py-2 [transition:background-color_0.15s] hover:bg-ink/3"
+        onDoubleClick={editOnDoubleClick(edit)}
+      >
         <Markdown text={task.description} mentions={mentions} />
-        <Button variant="ghost" size="tiny" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100" onClick={edit}>
+        <Button
+          variant="ghost"
+          size="tiny"
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          onClick={edit}
+        >
           <Icon name="pencil" size={12} />
           Edit
         </Button>
@@ -729,7 +1089,10 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
       </Button>
     );
   return (
-    <div ref={frame} className="relative flex flex-col overflow-hidden rounded-box border border-accent/50 bg-bg shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_12%,transparent)]">
+    <div
+      ref={frame}
+      className="relative flex flex-col overflow-hidden rounded-box border border-accent/50 bg-bg shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_12%,transparent)]"
+    >
       <textarea
         ref={box}
         aria-label="Description"
@@ -741,7 +1104,8 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
         onChange={(e) => setValue(e.currentTarget.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return (e.preventDefault(), void save());
-          if (e.key === 'Escape') return (e.preventDefault(), e.stopPropagation(), setValue(task.description), setEditing(false));
+          if (e.key === 'Escape')
+            return (e.preventDefault(), e.stopPropagation(), setValue(task.description), setEditing(false));
         }}
         className="min-h-48 resize-y overflow-y-auto rounded-none! border-0! bg-transparent! px-4! py-3! text-[14px]! leading-relaxed shadow-none! focus:shadow-none! whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
       />
@@ -756,7 +1120,14 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
             placeholder: 'e.g. Make it a checklist',
           }}
           draft={async (instruction) => {
-            const d = await askForDraft({ projectId: task.projectId, kind: 'task', taskId: task.id, title: task.title, description: value, instruction });
+            const d = await askForDraft({
+              projectId: task.projectId,
+              kind: 'task',
+              taskId: task.id,
+              title: task.title,
+              description: value,
+              instruction,
+            });
             if (d.kind !== 'task') return null;
             const was = value;
             setValue(d.description);
@@ -765,8 +1136,17 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
         />
         <span className="text-[11.5px] text-faint max-sm:hidden">Markdown supported</span>
         <span className="ml-auto flex items-center gap-1.5">
-          <Button variant="plain" size="small" onClick={() => (setValue(task.description), setEditing(false))} disabled={busy}>Cancel</Button>
-          <Button size="small" onClick={() => void save()} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
+          <Button
+            variant="plain"
+            size="small"
+            onClick={() => (setValue(task.description), setEditing(false))}
+            disabled={busy}
+          >
+            Cancel
+          </Button>
+          <Button size="small" onClick={() => void save()} disabled={busy}>
+            {busy ? 'Saving…' : 'Save'}
+          </Button>
         </span>
       </div>
     </div>
@@ -774,7 +1154,15 @@ function DescriptionEditor({ task, mentions, onSave }: { task: BoardTask; mentio
 }
 
 /** What happened on the task: when it was made, and the comments, with a box to add one. */
-function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Candidate[]; onChange: (t: BoardTask) => void }) {
+function Activity({
+  task,
+  mentions,
+  onChange,
+}: {
+  task: BoardTask;
+  mentions: Candidate[];
+  onChange: (t: BoardTask) => void;
+}) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
@@ -783,7 +1171,10 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
   const tray = useTray();
   const [, setFiles] = useState(0);
   useEffect(() => tray.listen(() => setFiles(tray.count())), [tray]);
-  useEffect(() => (form.current ? tray.dropZone(form.current, 'Drop files to attach them to your comment') : undefined), [tray]);
+  useEffect(
+    () => (form.current ? tray.dropZone(form.current, 'Drop files to attach them to your comment') : undefined),
+    [tray],
+  );
   const comments = task.comments || [];
   const empty = !text.trim() && !tray.count();
   const send = async () => {
@@ -805,17 +1196,31 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
     <section aria-label="Activity" className="mt-4 flex flex-col gap-5 border-t border-line pt-6">
       <div className="flex items-baseline gap-2">
         <h2 className="m-0 text-[14px] font-semibold text-ink">Activity</h2>
-        {comments.length ? <span className="text-[12px] text-faint">{`${comments.length} comment${comments.length === 1 ? '' : 's'}`}</span> : null}
+        {comments.length ? (
+          <span className="text-[12px] text-faint">{`${comments.length} comment${comments.length === 1 ? '' : 's'}`}</span>
+        ) : null}
       </div>
       <ol className="m-0 flex list-none flex-col gap-4 p-0">
         <li className="flex items-center gap-2.5 text-[12.5px] text-dim">
-          <span className="grid size-6 flex-none place-items-center"><Icon name="plus" size={13} className="text-faint" /></span>
-          <span><b className="font-medium text-ink">{task.creatorName}</b> created the task</span>
-          <span className="text-faint" title={new Date(task.createdAt).toLocaleString()}>· {ago(task.createdAt)}</span>
+          <span className="grid size-6 flex-none place-items-center">
+            <Icon name="plus" size={13} className="text-faint" />
+          </span>
+          <span>
+            <b className="font-medium text-ink">{task.creatorName}</b> created the task
+          </span>
+          <span className="text-faint" title={new Date(task.createdAt).toLocaleString()}>
+            · {ago(task.createdAt)}
+          </span>
         </li>
-        {comments.map((c) => <Comment key={c.id} task={task} comment={c} mentions={mentions} onChange={onChange} />)}
+        {comments.map((c) => (
+          <Comment key={c.id} task={task} comment={c} mentions={mentions} onChange={onChange} />
+        ))}
       </ol>
-      <form ref={form} className="relative flex flex-col overflow-hidden rounded-box border border-line bg-bg shadow-card [transition:border-color_0.15s] focus-within:border-accent/60" onSubmit={(e) => (e.preventDefault(), void send())}>
+      <form
+        ref={form}
+        className="relative flex flex-col overflow-hidden rounded-box border border-line bg-bg shadow-card [transition:border-color_0.15s] focus-within:border-accent/60"
+        onSubmit={(e) => (e.preventDefault(), void send())}
+      >
         <textarea
           ref={box}
           aria-label="Comment"
@@ -834,11 +1239,18 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
             disabled={busy}
             wording={{
               heading: 'Draft a comment',
-              about: 'The Brain reads the task, its comments and what is here, and writes a comment. Tell it what to say',
+              about:
+                'The Brain reads the task, its comments and what is here, and writes a comment. Tell it what to say',
               placeholder: 'e.g. Ask when the quote will be ready',
             }}
             draft={async (instruction) => {
-              const d = await askForDraft({ projectId: task.projectId, kind: 'comment', taskId: task.id, text, instruction });
+              const d = await askForDraft({
+                projectId: task.projectId,
+                kind: 'comment',
+                taskId: task.id,
+                text,
+                instruction,
+              });
               if (d.kind !== 'comment') return null;
               const was = text;
               setText(d.text);
@@ -856,7 +1268,17 @@ function Activity({ task, mentions, onChange }: { task: BoardTask; mentions: Can
 }
 
 /** One comment: who wrote it and when, in Markdown; yours can be changed or removed. */
-function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; comment: BoardComment; mentions: Candidate[]; onChange: (t: BoardTask) => void }) {
+function Comment({
+  task,
+  comment: c,
+  mentions,
+  onChange,
+}: {
+  task: BoardTask;
+  comment: BoardComment;
+  mentions: Candidate[];
+  onChange: (t: BoardTask) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(c.text);
   const box = useRef<HTMLTextAreaElement>(null);
@@ -886,24 +1308,47 @@ function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; co
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-[12.5px]">
           <b className="font-medium text-ink">{c.byName}</b>
-          <span className="text-faint" title={new Date(c.at).toLocaleString()}>{ago(c.at)}{c.editedAt ? ' · edited' : ''}</span>
+          <span className="text-faint" title={new Date(c.at).toLocaleString()}>
+            {ago(c.at)}
+            {c.editedAt ? ' · edited' : ''}
+          </span>
           {c.by === 'you' && !editing ? (
             <span className="ml-auto flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-              <IconButton variant="plain" aria-label="Edit comment" title="Edit" onClick={edit}><Icon name="pencil" size={13} /></IconButton>
-              <IconButton variant="plain" aria-label="Remove comment" title="Remove" onClick={() => void remove()}><Icon name="trash-2" size={13} /></IconButton>
+              <IconButton variant="plain" aria-label="Edit comment" title="Edit" onClick={edit}>
+                <Icon name="pencil" size={13} />
+              </IconButton>
+              <IconButton variant="plain" aria-label="Remove comment" title="Remove" onClick={() => void remove()}>
+                <Icon name="trash-2" size={13} />
+              </IconButton>
             </span>
           ) : null}
         </div>
         {editing ? (
           <div className="mt-1.5 flex flex-col gap-2">
-            <textarea ref={box} aria-label="Edit comment" autoFocus rows={3} className="min-h-20 w-full rounded-ctl border border-line-2 bg-bg px-3 py-2 text-[14px] leading-relaxed whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]" value={value} onChange={(e) => setValue(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), void save())} />
+            <textarea
+              ref={box}
+              aria-label="Edit comment"
+              autoFocus
+              rows={3}
+              className="min-h-20 w-full rounded-ctl border border-line-2 bg-bg px-3 py-2 text-[14px] leading-relaxed whitespace-pre-wrap text-ink outline-none empty:before:pointer-events-none empty:before:text-faint empty:before:content-[attr(data-placeholder)]"
+              value={value}
+              onChange={(e) => setValue(e.currentTarget.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), void save())}
+            />
             <div className="flex justify-end gap-1.5">
-              <Button variant="plain" size="small" onClick={() => setEditing(false)}>Cancel</Button>
-              <Button size="small" onClick={() => void save()} disabled={!value.trim()}>Save</Button>
+              <Button variant="plain" size="small" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+              <Button size="small" onClick={() => void save()} disabled={!value.trim()}>
+                Save
+              </Button>
             </div>
           </div>
         ) : (
-          <div className="mt-1 flex flex-col gap-2 rounded-box border border-line bg-panel/60 px-3.5 py-2.5" onDoubleClick={c.by === 'you' ? editOnDoubleClick(edit) : undefined}>
+          <div
+            className="mt-1 flex flex-col gap-2 rounded-box border border-line bg-panel/60 px-3.5 py-2.5"
+            onDoubleClick={c.by === 'you' ? editOnDoubleClick(edit) : undefined}
+          >
             {c.text ? <Markdown text={c.text} mentions={mentions} /> : null}
             <TaskFiles task={task} files={c.files} />
           </div>
@@ -914,4 +1359,6 @@ function Comment({ task, comment: c, mentions, onChange }: { task: BoardTask; co
 }
 
 export const title = (p: string[]) => (p[1] ? 'Task' : 'Tasks');
-export const { render, unmount } = reactPage((p) => (p[0] && p[1] ? <TaskPage projectId={decodeURIComponent(p[0])} id={decodeURIComponent(p[1])} /> : <TaskBoardPage />));
+export const { render, unmount } = reactPage((p) =>
+  p[0] && p[1] ? <TaskPage projectId={decodeURIComponent(p[0])} id={decodeURIComponent(p[1])} /> : <TaskBoardPage />,
+);

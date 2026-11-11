@@ -104,7 +104,7 @@ Ctrl+Z, and never costs anyone their scene.
   literal module name or `bl_ext`; relative imports; no changes to `sys.path`, other add-ons or Blender's modules;
   nothing written into the add-on's own folder, which may be read-only and is replaced on update (use
   `bpy.utils.extension_path_user(__package__, create=True)`); dependencies as wheels in `./wheels/`, never `pip
-  install` at run time; no updater of its own; and no network call without checking `bpy.app.online_access` and
+install` at run time; no updater of its own; and no network call without checking `bpy.app.online_access` and
   declaring the `network` permission. Most tools that read or write files need the `files` permission. Set
   `platforms` only when the package carries binaries.
 - extensions.blender.org takes add-ons under GPL-3.0-or-later with bundled images, fonts and other assets under CC0,
@@ -167,6 +167,7 @@ Ctrl+Z, and never costs anyone their scene.
    fixtures are the files that break checks: linked and overridden data, a mesh shared by several objects, collection
    instances, empty material slots, names with quotes, accents or emoji, objects hidden or in excluded collections,
    and a file saved by the oldest supported Blender.
+
 5. Some things only show in a window: the panel, a greyed-out button's tooltip, Ctrl+Z after each operator, a
    dialog. Click through once on a copy, or ask the artist to, and say which happened. Code you couldn't run in a
    given version is marked as not run there.

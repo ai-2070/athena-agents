@@ -13,8 +13,25 @@ const settle = (ms = 40) => act(() => new Promise((r) => setTimeout(r, ms)));
 const now = Date.now();
 let n = 0;
 const card = (over: Partial<BoardTask>): BoardTask => ({
-  id: 't', number: ++n, projectId: 'p1', projectName: 'Bakery', title: 'Task', description: '', status: 'todo', priority: 'normal', assignee: '', rank: 0,
-  createdBy: 'you', createdAt: now, updatedAt: now, assigneeName: 'Unassigned', creatorName: 'You', commentCount: 0, fileCount: 0, tagList: [], ...over,
+  id: 't',
+  number: ++n,
+  projectId: 'p1',
+  projectName: 'Bakery',
+  title: 'Task',
+  description: '',
+  status: 'todo',
+  priority: 'normal',
+  assignee: '',
+  rank: 0,
+  createdBy: 'you',
+  createdAt: now,
+  updatedAt: now,
+  assigneeName: 'Unassigned',
+  creatorName: 'You',
+  commentCount: 0,
+  fileCount: 0,
+  tagList: [],
+  ...over,
 });
 // live events from the server, through a stand-in for the event socket
 class FakeSocket {
@@ -22,17 +39,30 @@ class FakeSocket {
   onopen: (() => void) | null = null;
   onclose: (() => void) | null = null;
   onmessage: ((m: MessageEvent<string>) => void) | null = null;
-  constructor() { FakeSocket.last = this; }
+  constructor() {
+    FakeSocket.last = this;
+  }
 }
 const serverEvent = async (ev: Omit<ServerEvent, 'ts'>) => {
-  await act(async () => FakeSocket.last.onmessage!({ data: JSON.stringify({ ts: Date.now(), ...ev }) } as MessageEvent<string>));
+  await act(async () =>
+    FakeSocket.last.onmessage!({ data: JSON.stringify({ ts: Date.now(), ...ev }) } as MessageEvent<string>),
+  );
   await settle(200);
 };
 let board: BoardTask[];
 let workNext: Record<string, Partial<TaskWork>>;
 // what the server adds to a task you save (work it started)
 let afterPut: ((t: BoardTask) => BoardTask) | null;
-const working = (over: Partial<TaskWork> = {}): TaskWork => ({ operationId: 'r1', conversationId: 'board-c', target: { kind: 'agent', id: 'x' }, chatId: 'ch1', runId: 'r1', startedAt: now, state: 'working', ...over });
+const working = (over: Partial<TaskWork> = {}): TaskWork => ({
+  operationId: 'r1',
+  conversationId: 'board-c',
+  target: { kind: 'agent', id: 'x' },
+  chatId: 'ch1',
+  runId: 'r1',
+  startedAt: now,
+  state: 'working',
+  ...over,
+});
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
 
@@ -47,7 +77,14 @@ beforeEach(() => {
   workNext = { stop: { state: 'stopped' }, start: { state: 'working', operationId: 'r2' }, check: { state: 'review' } };
   board = [
     card({ id: 'a', title: 'Write the menu', rank: 1, priority: 'high' }),
-    card({ id: 'b', title: 'Take photos', rank: 2, assignee: 'agent:x', assigneeName: 'Photographer', assigneeEmoji: '📷' }),
+    card({
+      id: 'b',
+      title: 'Take photos',
+      rank: 2,
+      assignee: 'agent:x',
+      assigneeName: 'Photographer',
+      assigneeEmoji: '📷',
+    }),
     card({ id: 'c', title: 'Print flyers', status: 'in_progress', rank: 1 }),
     card({ id: 'r', title: 'Check the prices', status: 'in_review', rank: 1 }),
     card({ id: 'k', title: 'Order the oven', status: 'blocked', blockedReason: 'Waiting for the quote', rank: 1 }),
@@ -65,22 +102,45 @@ beforeEach(() => {
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url.startsWith('/api/task-board?')) {
       const project = new URLSearchParams(url.split('?')[1]).get('project');
-      if (!['all', 'p1', 'p2'].includes(project!)) return new Response(JSON.stringify({ error: 'That project is unavailable.' }), { status: 404 });
-      return json({ projects: [{ id: 'p1', name: 'Bakery', open: 5 }, { id: 'p2', name: 'Podcast', open: 1 }], tasks: board.filter((t) => project === 'all' || t.projectId === project) });
+      if (!['all', 'p1', 'p2'].includes(project!))
+        return new Response(JSON.stringify({ error: 'That project is unavailable.' }), { status: 404 });
+      return json({
+        projects: [
+          { id: 'p1', name: 'Bakery', open: 5 },
+          { id: 'p2', name: 'Podcast', open: 1 },
+        ],
+        tasks: board.filter((t) => project === 'all' || t.projectId === project),
+      });
     }
-    if (url.startsWith('/api/task-board-people/')) return json({ agents: [{ id: 'x', name: 'Photographer', emoji: '📷' }], teams: [] });
+    if (url.startsWith('/api/task-board-people/'))
+      return json({ agents: [{ id: 'x', name: 'Photographer', emoji: '📷' }], teams: [] });
     const one = /^\/api\/task-board\/([^/]+)\/([^/]+)$/.exec(url);
     if (one && method === 'GET') {
       const t = board.find((x) => x.projectId === one[1] && x.id === one[2]);
-      return t ? json({ task: t }) : new Response(JSON.stringify({ error: 'That task is unavailable.' }), { status: 404 });
+      return t
+        ? json({ task: t })
+        : new Response(JSON.stringify({ error: 'That task is unavailable.' }), { status: 404 });
     }
     if (one && method === 'PUT') {
       // (like the server: a save made on an old version is refused)
       const i = board.findIndex((t) => t.projectId === one[1] && t.id === one[2]);
       const { expectedUpdatedAt, ...change } = body as Partial<BoardTask> & { expectedUpdatedAt?: number };
-      if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== board[i].updatedAt) return new Response(JSON.stringify({ error: 'This task changed meanwhile. Reload it before saving.' }), { status: 409 });
+      if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== board[i].updatedAt)
+        return new Response(JSON.stringify({ error: 'This task changed meanwhile. Reload it before saving.' }), {
+          status: 409,
+        });
       // (and names who has it, as the server does)
-      const named = change.assignee === undefined ? {} : { assigneeName: ({ '': 'Unassigned', you: 'You', brain: 'The Brain', 'agent:x': 'Photographer' } as Record<string, string>)[change.assignee] };
+      const named =
+        change.assignee === undefined
+          ? {}
+          : {
+              assigneeName: (
+                { '': 'Unassigned', you: 'You', brain: 'The Brain', 'agent:x': 'Photographer' } as Record<
+                  string,
+                  string
+                >
+              )[change.assignee],
+            };
       board[i] = { ...board[i], ...change, ...named, updatedAt: board[i].updatedAt + 1 };
       if (afterPut) board[i] = afterPut(board[i]);
       return json({ task: board[i] });
@@ -94,7 +154,13 @@ beforeEach(() => {
       return json({ task: board[i] });
     }
     const comments = /^\/api\/task-board\/([^/]+)\/([^/]+)\/comments/.exec(url);
-    if (comments) return json({ task: { ...board.find((t) => t.id === comments[2]), comments: [{ id: 'c9', by: 'you', byName: 'You', text: body?.text, at: now }] } });
+    if (comments)
+      return json({
+        task: {
+          ...board.find((t) => t.id === comments[2]),
+          comments: [{ id: 'c9', by: 'you', byName: 'You', text: body?.text, at: now }],
+        },
+      });
     if (method === 'POST') return json({ task: card({ id: 'new', ...body }) });
     return json({ ok: true });
   });
@@ -110,11 +176,14 @@ const open = async (params: string[] = []) => {
   await settle();
 };
 const column = (label: string) => el.querySelector<HTMLElement>(`section[aria-label="${label}"]`)!;
-const ids = (label: string) => [...column(label).querySelectorAll('[data-task-id]')].map((c) => c.getAttribute('data-task-id')!.split('/')[1]);
+const ids = (label: string) =>
+  [...column(label).querySelectorAll('[data-task-id]')].map((c) => c.getAttribute('data-task-id')!.split('/')[1]);
 // a drag event with what the board reads from it (happy-dom leaves dataTransfer out)
 const dragEvent = (kind: string) => {
   const e = new DragEvent(kind, { bubbles: true, cancelable: true });
-  Object.defineProperty(e, 'dataTransfer', { value: { effectAllowed: '', dropEffect: '', setData: () => {}, setDragImage: () => {} } });
+  Object.defineProperty(e, 'dataTransfer', {
+    value: { effectAllowed: '', dropEffect: '', setData: () => {}, setDragImage: () => {} },
+  });
   return e;
 };
 const type = async (input: HTMLInputElement | HTMLTextAreaElement, text: string) =>
@@ -127,7 +196,13 @@ describe('the Tasks board', () => {
   it('shows this project in five columns, in rank order, with Done showing the last 14 days', async () => {
     await open();
     expect(requests[0].url).toBe('/api/task-board?project=p1');
-    expect([...el.querySelectorAll('section[data-column] h2')].map((h) => h.textContent)).toEqual(['To do', 'In progress', 'In review', 'Blocked', 'Done']);
+    expect([...el.querySelectorAll('section[data-column] h2')].map((h) => h.textContent)).toEqual([
+      'To do',
+      'In progress',
+      'In review',
+      'Blocked',
+      'Done',
+    ]);
     expect(ids('To do')).toEqual(['a', 'b']);
     expect(ids('In review')).toEqual(['r']);
     expect(column('Blocked').textContent).toContain('Waiting for the quote');
@@ -161,12 +236,22 @@ describe('the Tasks board', () => {
   it('moves a card a column with ] and within one with Alt+↓, saving it in its own project', async () => {
     await open();
     const a = () => el.querySelector<HTMLElement>('[data-task-id="p1/a"]')!;
-    await act(async () => a().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true })));
+    await act(async () =>
+      a().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true })),
+    );
     expect(ids('To do')).toEqual(['b', 'a']);
-    expect(requests.at(-1)).toMatchObject({ method: 'PUT', url: '/api/task-board/p1/a', body: { status: 'todo', rank: 2 + 1024 } });
+    expect(requests.at(-1)).toMatchObject({
+      method: 'PUT',
+      url: '/api/task-board/p1/a',
+      body: { status: 'todo', rank: 2 + 1024 },
+    });
     await act(async () => a().dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })));
     expect(ids('In progress')).toEqual(['a', 'c']);
-    expect(requests.at(-1)).toMatchObject({ method: 'PUT', url: '/api/task-board/p1/a', body: { status: 'in_progress', rank: 1 - 1024 } });
+    expect(requests.at(-1)).toMatchObject({
+      method: 'PUT',
+      url: '/api/task-board/p1/a',
+      body: { status: 'in_progress', rank: 1 - 1024 },
+    });
   });
 
   it('saves quick moves of one card one after another, each on the version the last one left', async () => {
@@ -177,7 +262,11 @@ describe('the Tasks board', () => {
       a().dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true }));
     });
     await settle();
-    expect(requests.filter((r) => r.method === 'PUT').map((r) => (r.body as { expectedUpdatedAt: number }).expectedUpdatedAt)).toEqual([now, now + 1]);
+    expect(
+      requests
+        .filter((r) => r.method === 'PUT')
+        .map((r) => (r.body as { expectedUpdatedAt: number }).expectedUpdatedAt),
+    ).toEqual([now, now + 1]);
     expect(document.getElementById('toasts')!.textContent).toBe('');
     expect(ids('In progress')).toEqual(['a', 'c']);
   });
@@ -186,7 +275,11 @@ describe('the Tasks board', () => {
     await open();
     // (the Brain moved it a moment ago; this board hasn't loaded that yet)
     board[0] = { ...board[0], status: 'in_review', updatedAt: now + 9 };
-    await act(async () => el.querySelector<HTMLElement>('[data-task-id="p1/a"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })));
+    await act(async () =>
+      el
+        .querySelector<HTMLElement>('[data-task-id="p1/a"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })),
+    );
     await settle();
     expect(document.getElementById('toasts')!.textContent).toContain('This task changed meanwhile.');
     expect(ids('In review')).toEqual(['a', 'r']);
@@ -200,10 +293,18 @@ describe('the Tasks board', () => {
     const box = document.querySelector<HTMLInputElement>('.modal input')!;
     expect(document.querySelector('.modal')!.textContent).toContain('Why is #4 blocked?');
     await type(box, 'Waiting for the owner');
-    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent === 'Move to Blocked')!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('.modal button')]
+        .find((b) => b.textContent === 'Move to Blocked')!
+        .click(),
+    );
     await settle();
     expect(ids('Blocked')).toEqual(['r', 'k']);
-    expect(requests.at(-1)).toMatchObject({ method: 'PUT', url: '/api/task-board/p1/r', body: { status: 'blocked', blockedReason: 'Waiting for the owner' } });
+    expect(requests.at(-1)).toMatchObject({
+      method: 'PUT',
+      url: '/api/task-board/p1/r',
+      body: { status: 'blocked', blockedReason: 'Waiting for the owner' },
+    });
   });
 
   it('makes a task in the New task window, in the column it was opened from', async () => {
@@ -216,9 +317,22 @@ describe('the Tasks board', () => {
     await type(modal.querySelector<HTMLTextAreaElement>('textarea[aria-label="Description"]')!, 'Before Friday.');
     expect(modal.querySelector('[aria-label="Status: In review"]')).not.toBeNull();
     // Ctrl+Enter makes it
-    await act(async () => modal.querySelector('form')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true })));
+    await act(async () =>
+      modal
+        .querySelector('form')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true })),
+    );
     await settle();
-    expect(requests.find((r) => r.method === 'POST')).toMatchObject({ url: '/api/task-board/p1', body: { title: 'Taste the new cake', description: 'Before Friday.', status: 'in_review', priority: 'normal', assignee: '' } });
+    expect(requests.find((r) => r.method === 'POST')).toMatchObject({
+      url: '/api/task-board/p1',
+      body: {
+        title: 'Taste the new cake',
+        description: 'Before Friday.',
+        status: 'in_review',
+        priority: 'normal',
+        assignee: '',
+      },
+    });
   });
 
   it('drafts an empty new task only once you say what it should be', async () => {
@@ -226,23 +340,33 @@ describe('the Tasks board', () => {
     await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Create a task in In review"]')!.click());
     await settle();
     const modal = document.querySelector<HTMLElement>('.modal')!;
-    await act(async () => [...modal.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Draft with the Brain')!.click());
+    await act(async () =>
+      [...modal.querySelectorAll<HTMLButtonElement>('button')]
+        .find((b) => b.textContent === 'Draft with the Brain')!
+        .click(),
+    );
     await settle();
     const popup = document.querySelector<HTMLElement>('.st-menu')!;
     expect(popup.querySelector('h3')?.textContent).toBe('Draft this task');
     const go = () => [...popup.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Draft')!;
     // (with no title, no description and nothing asked the Brain has nothing to go on)
     expect(go().disabled).toBe(true);
-    await act(async () => popup.querySelector('textarea')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    await act(async () =>
+      popup.querySelector('textarea')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+    );
     expect(requests.some((r) => r.url === '/api/task-board-draft')).toBe(false);
     await type(popup.querySelector('textarea')!, 'order the flowers');
     expect(go().disabled).toBe(false);
-    await act(async () => popup.querySelector('textarea')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
-    await act(async () => [...modal.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Cancel')!.click());
+    await act(async () =>
+      popup.querySelector('textarea')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+    );
+    await act(async () =>
+      [...modal.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Cancel')!.click(),
+    );
     await settle();
   });
 
-  it('says in the New task window whether who it\'s given to starts on it once it\'s made', async () => {
+  it("says in the New task window whether who it's given to starts on it once it's made", async () => {
     await open();
     await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Create a task in To do"]')!.click());
     await settle();
@@ -251,7 +375,11 @@ describe('the Tasks board', () => {
     const pick = async (trigger: string, item: string) => {
       await act(async () => modal.querySelector<HTMLButtonElement>(`[aria-label="${trigger}"]`)!.click());
       await settle();
-      await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((i) => i.textContent?.endsWith(item))!.click());
+      await act(async () =>
+        [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')]
+          .find((i) => i.textContent?.endsWith(item))!
+          .click(),
+      );
       await settle();
     };
     // (no one picks it up: no note)
@@ -264,7 +392,9 @@ describe('the Tasks board', () => {
     expect(note()).toBe('The Brain will start working right after creation.');
     await pick('Assigned to: The Brain', 'You');
     expect(note()).toBe('');
-    await act(async () => [...modal.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Cancel')!.click());
+    await act(async () =>
+      [...modal.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Cancel')!.click(),
+    );
     await settle();
   });
 
@@ -278,21 +408,40 @@ describe('the Tasks board', () => {
     ];
     await open();
     expect(ids('To do')).toEqual(['x', 'y', 'z']);
-    await act(async () => el.querySelector<HTMLElement>('[data-task-id="p1/x"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true })));
+    await act(async () =>
+      el
+        .querySelector<HTMLElement>('[data-task-id="p1/x"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true })),
+    );
     await settle();
     expect(ids('To do')).toEqual(['y', 'x', 'z']);
     const puts = requests.filter((r) => r.method === 'PUT');
-    expect(puts[0]).toMatchObject({ url: '/api/task-board-ranks', body: { ranks: [{ projectId: 'p2', id: 'z', status: 'todo', rank: 2048 }] } });
+    expect(puts[0]).toMatchObject({
+      url: '/api/task-board-ranks',
+      body: { ranks: [{ projectId: 'p2', id: 'z', status: 'todo', rank: 2048 }] },
+    });
     expect(puts[1]).toMatchObject({ url: '/api/task-board/p1/x', body: { status: 'todo', rank: 1024 } });
   });
 
   it('places a card between two, spacing the column out when there is no room', () => {
     const [a, b, c] = [card({ id: 'a', rank: 0 }), card({ id: 'b', rank: 0 }), card({ id: 'c', rank: 5 })];
     expect(tasks.place([a, c], a, c)).toEqual({ rank: 2.5, respaced: [] });
-    expect(tasks.place([a, b, c], a, b)).toEqual({ rank: 1024, respaced: [{ task: b, rank: 2048 }, { task: c, rank: 3072 }] });
+    expect(tasks.place([a, b, c], a, b)).toEqual({
+      rank: 1024,
+      respaced: [
+        { task: b, rank: 2048 },
+        { task: c, rank: 3072 },
+      ],
+    });
     // ranks too close to split
     const [d, e] = [card({ id: 'd', rank: 1 }), card({ id: 'e', rank: 1 + Number.EPSILON })];
-    expect(tasks.place([d, e], d, e)).toEqual({ rank: 1024, respaced: [{ task: d, rank: 0 }, { task: e, rank: 2048 }] });
+    expect(tasks.place([d, e], d, e)).toEqual({
+      rank: 1024,
+      respaced: [
+        { task: d, rank: 0 },
+        { task: e, rank: 2048 },
+      ],
+    });
     expect(tasks.place([a, c], undefined, a).rank).toBe(-1024);
   });
 
@@ -309,10 +458,13 @@ describe('the Tasks board', () => {
     expect(requests.some((r) => r.method === 'PUT')).toBe(false);
     await drag('a');
     expect(ids('To do')).toEqual(['b', 'a']);
-    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/a', body: { status: 'todo', rank: 2 + 1024 } });
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({
+      url: '/api/task-board/p1/a',
+      body: { status: 'todo', rank: 2 + 1024 },
+    });
   });
 
-  it('doesn\'t load the board again under a card being dragged, and does once it is let go', async () => {
+  it("doesn't load the board again under a card being dragged, and does once it is let go", async () => {
     await open();
     await act(async () => el.querySelector('[data-task-id="p1/a"]')!.dispatchEvent(dragEvent('dragstart')));
     // the Brain moves the card meanwhile
@@ -339,7 +491,7 @@ describe('the Tasks board', () => {
     expect(loads()).toBe(before + 1);
   });
 
-  it('gives a card to an agent from its mark, loading the project\'s agents and teams when it opens', async () => {
+  it("gives a card to an agent from its mark, loading the project's agents and teams when it opens", async () => {
     await open();
     expect(requests.some((r) => r.url.startsWith('/api/task-board-people/'))).toBe(false);
     const a = () => el.querySelector<HTMLElement>('[data-task-id="p1/a"]')!;
@@ -350,14 +502,24 @@ describe('the Tasks board', () => {
     expect(items.map((i) => i.textContent)).toEqual(['Unassigned', 'You', 'The Brain', '📷Photographer']);
     await act(async () => items.at(-1)!.click());
     await settle();
-    expect(requests.filter((r) => r.method === 'PUT').at(-1)).toMatchObject({ url: '/api/task-board/p1/a', body: { assignee: 'agent:x', expectedUpdatedAt: now } });
+    expect(requests.filter((r) => r.method === 'PUT').at(-1)).toMatchObject({
+      url: '/api/task-board/p1/a',
+      body: { assignee: 'agent:x', expectedUpdatedAt: now },
+    });
     expect(a().querySelector('[title="Assigned to Photographer"]')).not.toBeNull();
     // (opening it didn't open the task)
     expect(location.hash).toBe('');
   });
 
   it('shows who works on a card and its files, and asks before a move stops the work', async () => {
-    board[2] = { ...board[2], assignee: 'agent:x', assigneeName: 'Photographer', fileCount: 2, work: working(), workerName: 'Photographer' };
+    board[2] = {
+      ...board[2],
+      assignee: 'agent:x',
+      assigneeName: 'Photographer',
+      fileCount: 2,
+      work: working(),
+      workerName: 'Photographer',
+    };
     board[3] = { ...board[3], work: working({ state: 'waiting' }), workerName: 'Photographer' };
     await open();
     const c = () => el.querySelector<HTMLElement>('[data-task-id="p1/c"]')!;
@@ -367,26 +529,50 @@ describe('the Tasks board', () => {
     // moving it on asks first; No leaves it where it is
     await act(async () => c().dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })));
     expect(document.querySelector('.modal')!.textContent).toContain('Photographer is working on #3. Stop it?');
-    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent !== 'Stop it')!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('.modal button')]
+        .find((b) => b.textContent !== 'Stop it')!
+        .click(),
+    );
     await settle();
     expect(ids('In progress')).toEqual(['c']);
     expect(requests.some((r) => r.method === 'PUT')).toBe(false);
     await act(async () => c().dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })));
-    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent === 'Stop it')!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('.modal button')]
+        .find((b) => b.textContent === 'Stop it')!
+        .click(),
+    );
     await settle();
-    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/c', body: { status: 'in_review' } });
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({
+      url: '/api/task-board/p1/c',
+      body: { status: 'in_review' },
+    });
   });
 
   it('says who started on a card you moved to In progress, with Stop', async () => {
     await open();
-    afterPut = (t) => ({ ...t, work: working({ conversationId: 'board-b', operationId: 'r5' }), workerName: 'Photographer' });
-    await act(async () => el.querySelector<HTMLElement>('[data-task-id="p1/b"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })));
+    afterPut = (t) => ({
+      ...t,
+      work: working({ conversationId: 'board-b', operationId: 'r5' }),
+      workerName: 'Photographer',
+    });
+    await act(async () =>
+      el
+        .querySelector<HTMLElement>('[data-task-id="p1/b"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true })),
+    );
     await settle();
-    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/b', body: { status: 'in_progress' } });
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({
+      url: '/api/task-board/p1/b',
+      body: { status: 'in_progress' },
+    });
     const toasts = document.getElementById('toasts')!;
     expect(toasts.textContent).toContain('Photographer started on #2');
     expect(el.querySelector('[data-task-id="p1/b"] .work-mark')).not.toBeNull();
-    await act(async () => [...toasts.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Stop')!.click());
+    await act(async () =>
+      [...toasts.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Stop')!.click(),
+    );
     await settle();
     expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/task-board/p1/b/stop' });
   });
@@ -399,7 +585,7 @@ describe('the Tasks board', () => {
   });
 });
 
-describe('a task\'s own page', () => {
+describe("a task's own page", () => {
   it('shows the task with its properties, and saves a new title when you leave it', async () => {
     await open(['p1', 'k']);
     expect(el.querySelector('nav[aria-label="Breadcrumb"]')!.textContent).toBe('Tasks#5');
@@ -413,48 +599,80 @@ describe('a task\'s own page', () => {
     await act(async () => title.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
     await settle();
     // (with the version it was made on, so a change made meanwhile isn't overwritten)
-    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/k', body: { title: 'Order the new oven', expectedUpdatedAt: now } });
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({
+      url: '/api/task-board/p1/k',
+      body: { title: 'Order the new oven', expectedUpdatedAt: now },
+    });
   });
 
   it('asks before a description edit replaces one made meanwhile, and saves it on the newest version', async () => {
     await open(['p1', 'a']);
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Add a description…')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLButtonElement>('button')]
+        .find((b) => b.textContent === 'Add a description…')!
+        .click(),
+    );
     await type(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Description"]')!, 'Mine');
     // the Brain writes one while the editor is open
     board[0] = { ...board[0], description: 'Theirs', updatedAt: now + 5 };
     await serverEvent({ type: 'board', projectId: 'p1', ids: ['a'] });
-    const saveButton = () => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Save')!;
+    const saveButton = () =>
+      [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Save')!;
     await act(async () => saveButton().click());
     await settle();
-    expect(document.querySelector('.modal')!.textContent).toContain('Someone changed this description while you were editing it.');
-    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent === 'Cancel')!.click());
+    expect(document.querySelector('.modal')!.textContent).toContain(
+      'Someone changed this description while you were editing it.',
+    );
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('.modal button')]
+        .find((b) => b.textContent === 'Cancel')!
+        .click(),
+    );
     await settle();
     expect(requests.some((r) => r.method === 'PUT')).toBe(false);
     expect(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Description"]')!.value).toBe('Mine');
     await act(async () => saveButton().click());
     await settle();
-    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal button')].find((b) => b.textContent === 'Replace')!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('.modal button')]
+        .find((b) => b.textContent === 'Replace')!
+        .click(),
+    );
     await settle();
-    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({ url: '/api/task-board/p1/a', body: { description: 'Mine', expectedUpdatedAt: now + 5 } });
+    expect(requests.find((r) => r.method === 'PUT')).toMatchObject({
+      url: '/api/task-board/p1/a',
+      body: { description: 'Mine', expectedUpdatedAt: now + 5 },
+    });
   });
 
   it('shows the description as Markdown, and its comments, and adds one', async () => {
-    board[0] = { ...board[0], description: 'Use **real** butter.', comments: [{ id: 'c1', by: 'brain', byName: 'The Brain', text: 'Checked the *price*.', at: now }] };
+    board[0] = {
+      ...board[0],
+      description: 'Use **real** butter.',
+      comments: [{ id: 'c1', by: 'brain', byName: 'The Brain', text: 'Checked the *price*.', at: now }],
+    };
     await open(['p1', 'a']);
     expect(el.querySelector('strong')?.textContent).toBe('real');
     expect(el.querySelector('section[aria-label="Activity"]')!.textContent).toContain('The Brain');
     expect(el.querySelector('section[aria-label="Activity"] em')?.textContent).toBe('price');
     await type(el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Comment"]')!, 'Looks *good*');
-    await act(async () => el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Comment"]')!.form!.requestSubmit());
+    await act(async () =>
+      el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Comment"]')!.form!.requestSubmit(),
+    );
     await settle();
-    expect(requests.find((r) => r.method === 'POST')).toMatchObject({ url: '/api/task-board/p1/a/comments', body: { text: 'Looks *good*' } });
+    expect(requests.find((r) => r.method === 'POST')).toMatchObject({
+      url: '/api/task-board/p1/a/comments',
+      body: { text: 'Looks *good*' },
+    });
   });
 
   it('drafts a comment with the Brain, and Undo takes it back', async () => {
     await open(['p1', 'a']);
     const box = () => el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Comment"]')!;
     await type(box(), 'mine');
-    const draft = [...el.querySelectorAll<HTMLButtonElement>('section[aria-label="Activity"] button')].find((b) => b.textContent === 'Draft with the Brain')!;
+    const draft = [...el.querySelectorAll<HTMLButtonElement>('section[aria-label="Activity"] button')].find(
+      (b) => b.textContent === 'Draft with the Brain',
+    )!;
     await act(async () => draft.click());
     await settle();
     const ask = () => document.querySelector<HTMLTextAreaElement>('.st-menu textarea')!;
@@ -463,16 +681,24 @@ describe('a task\'s own page', () => {
     // (Enter drafts; Shift+Enter would start a new line)
     await act(async () => ask().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     await settle();
-    expect(requests.find((r) => r.url === '/api/task-board-draft')).toMatchObject({ method: 'POST', body: { projectId: 'p1', kind: 'comment', taskId: 'a', text: 'mine', instruction: 'ask about the oven' } });
+    expect(requests.find((r) => r.url === '/api/task-board-draft')).toMatchObject({
+      method: 'POST',
+      body: { projectId: 'p1', kind: 'comment', taskId: 'a', text: 'mine', instruction: 'ask about the oven' },
+    });
     expect(box().value).toBe('Is the oven here yet?');
     // (drafting never sends the comment)
     expect(requests.some((r) => r.url.endsWith('/comments'))).toBe(false);
-    await act(async () => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Undo')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Undo')!.click(),
+    );
     expect(box().value).toBe('mine');
   });
 
-  it('shows @mentions of agents as pills, and @ in the comment box offers the project\'s agents', async () => {
-    board[0] = { ...board[0], comments: [{ id: 'c1', by: 'you', byName: 'You', text: 'Ask @Photographer for the shots.', at: now }] };
+  it("shows @mentions of agents as pills, and @ in the comment box offers the project's agents", async () => {
+    board[0] = {
+      ...board[0],
+      comments: [{ id: 'c1', by: 'you', byName: 'You', text: 'Ask @Photographer for the shots.', at: now }],
+    };
     await open(['p1', 'a']);
     await settle(60);
     const pill = el.querySelector('section[aria-label="Activity"] .task-mention');
@@ -489,7 +715,9 @@ describe('a task\'s own page', () => {
     await settle();
     const menu = document.querySelector('.rt-menu')!;
     expect([...menu.querySelectorAll('.rt-menu-item')].map((b) => b.textContent)).toEqual(['📷Photographer']);
-    await act(async () => box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
+    await act(async () =>
+      box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })),
+    );
     expect(box.value).toBe('Thanks @Photographer ');
     expect(el.querySelector('section[aria-label="Activity"] [data-mention="@Photographer"]')).not.toBeNull();
   });
@@ -499,17 +727,26 @@ describe('a task\'s own page', () => {
     root.innerHTML = '<p>Ask @Café, not @Caféé or me@Café; then @Trend Scout—and <code>@Café</code> @Trend</p>';
     const who = (kind: 'agent' | 'team', id: string, name: string) => ({ kind, id, name, lead: '', sub: '' });
     pillMentions(root, [who('agent', 'c', 'Café'), who('agent', 's', 'Trend Scout'), who('team', 't', 'Trend')]);
-    expect([...root.querySelectorAll('.task-mention')].map((p) => p.textContent)).toEqual(['@Café', '@Trend Scout', '@Trend']);
+    expect([...root.querySelectorAll('.task-mention')].map((p) => p.textContent)).toEqual([
+      '@Café',
+      '@Trend Scout',
+      '@Trend',
+    ]);
     expect(root.querySelector('code')!.textContent).toBe('@Café');
   });
 
   it('opens the description, and a comment of yours, for editing on a double-click (not one from someone else)', async () => {
-    board[0] = { ...board[0], description: 'Use **real** butter, from [the farm](https://example.com).', comments: [
-      { id: 'c1', by: 'you', byName: 'You', text: 'Mine to change', at: now },
-      { id: 'c2', by: 'brain', byName: 'The Brain', text: 'From the Brain', at: now },
-    ] };
+    board[0] = {
+      ...board[0],
+      description: 'Use **real** butter, from [the farm](https://example.com).',
+      comments: [
+        { id: 'c1', by: 'you', byName: 'You', text: 'Mine to change', at: now },
+        { id: 'c2', by: 'brain', byName: 'The Brain', text: 'From the Brain', at: now },
+      ],
+    };
     await open(['p1', 'a']);
-    const dbl = (target: Element) => act(async () => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    const dbl = (target: Element) =>
+      act(async () => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
     // (not on a link in it)
     await dbl(el.querySelector('a[href="https://example.com"]')!);
     expect(el.querySelector('textarea[aria-label="Description"]')).toBeNull();
@@ -517,8 +754,12 @@ describe('a task\'s own page', () => {
     const description = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Description"]')!;
     expect(description.value).toBe('Use **real** butter, from [the farm](https://example.com).');
     // the caret at the end, ready to add to it
-    expect([description.selectionStart, description.selectionEnd]).toEqual([description.value.length, description.value.length]);
-    const comment = (text: string) => [...el.querySelectorAll('section[aria-label="Activity"] li')].find((li) => li.textContent?.includes(text))!;
+    expect([description.selectionStart, description.selectionEnd]).toEqual([
+      description.value.length,
+      description.value.length,
+    ]);
+    const comment = (text: string) =>
+      [...el.querySelectorAll('section[aria-label="Activity"] li')].find((li) => li.textContent?.includes(text))!;
     await dbl(comment('From the Brain').querySelector('.md')!);
     expect(el.querySelector('textarea[aria-label="Edit comment"]')).toBeNull();
     await dbl(comment('Mine to change').querySelector('.md')!);
@@ -528,12 +769,19 @@ describe('a task\'s own page', () => {
   });
 
   it('shows the work on a task: Stop while it goes, Check saved work when it needs a look, Start again after', async () => {
-    board[2] = { ...board[2], assignee: 'agent:x', assigneeName: 'Photographer', work: working(), workerName: 'Photographer' };
+    board[2] = {
+      ...board[2],
+      assignee: 'agent:x',
+      assigneeName: 'Photographer',
+      work: working(),
+      workerName: 'Photographer',
+    };
     await open(['p1', 'c']);
     const box = () => el.querySelector<HTMLElement>('section[aria-label="Work"]')!;
     expect(box().textContent).toContain('Photographer');
     expect(box().textContent).toContain('Working');
-    const button = (label: string) => [...box().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes(label));
+    const button = (label: string) =>
+      [...box().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes(label));
     expect(button('Open chat')).toBeDefined();
     workNext.stop = { state: 'needs-review', note: 'Its run was interrupted.' };
     await act(async () => button('Stop')!.click());
@@ -543,7 +791,11 @@ describe('a task\'s own page', () => {
     expect(box().textContent).toContain('Its run was interrupted.');
     await act(async () => button('Check saved work')!.click());
     await settle();
-    expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/task-board/p1/c/check', body: { operationId: 'r1' } });
+    expect(requests.at(-1)).toMatchObject({
+      method: 'POST',
+      url: '/api/task-board/p1/c/check',
+      body: { operationId: 'r1' },
+    });
     expect(box().textContent).toContain('Ready for review');
     await act(async () => button('Start again')!.click());
     await settle();
@@ -558,10 +810,20 @@ describe('a task\'s own page', () => {
     expect(box().textContent).toContain('Moving the task to In progress starts it.');
     expect([...box().querySelectorAll('button')].some((b) => b.textContent?.includes('Start'))).toBe(true);
     location.hash = '';
-    board[2] = { ...board[2], assignee: 'brain', assigneeName: 'The Brain', work: working({ target: { kind: 'brain', id: 'brain' }, handedTo: { kind: 'agent', id: 'x' } }), workerName: 'The Brain' };
+    board[2] = {
+      ...board[2],
+      assignee: 'brain',
+      assigneeName: 'The Brain',
+      work: working({ target: { kind: 'brain', id: 'brain' }, handedTo: { kind: 'agent', id: 'x' } }),
+      workerName: 'The Brain',
+    };
     await open(['p1', 'c']);
     expect(box().textContent).toContain('The Brain');
-    await act(async () => [...box().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('Open chat'))!.click());
+    await act(async () =>
+      [...box().querySelectorAll<HTMLButtonElement>('button')]
+        .find((b) => b.textContent?.includes('Open chat'))!
+        .click(),
+    );
     expect(location.hash).toBe('#/agents/x/ch1');
   });
 
@@ -569,10 +831,21 @@ describe('a task\'s own page', () => {
     board[1] = {
       ...board[1],
       files: [{ path: 'batch1/menu.pdf', name: 'menu.pdf', size: 10, by: 'you', at: now }],
-      comments: [{ id: 'c1', by: 'agent:x', byName: 'Photographer', text: 'Here are the shots.', at: now, files: [{ path: 'batch2/shot.png', name: 'shot.png', size: 5, by: 'agent:x', at: now }] }],
+      comments: [
+        {
+          id: 'c1',
+          by: 'agent:x',
+          byName: 'Photographer',
+          text: 'Here are the shots.',
+          at: now,
+          files: [{ path: 'batch2/shot.png', name: 'shot.png', size: 5, by: 'agent:x', at: now }],
+        },
+      ],
     };
     await open(['p1', 'b']);
-    expect(el.querySelector('section[aria-label="Work"]')!.textContent).toContain('Moving the task to In progress starts it.');
+    expect(el.querySelector('section[aria-label="Work"]')!.textContent).toContain(
+      'Moving the task to In progress starts it.',
+    );
     const links = [...el.querySelectorAll<HTMLAnchorElement>('.task-files a')].map((a) => a.getAttribute('href'));
     expect(links).toContain('/api/task-board-file/p1/b?path=batch1%2Fmenu.pdf');
     expect(links).toContain('/api/task-board-file/p1/b?path=batch2%2Fshot.png');

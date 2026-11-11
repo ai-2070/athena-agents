@@ -2,7 +2,7 @@
 name: Code Reviewer
 description: Reviews a change, AI-written or not, for bugs, security holes and code that will be hard to keep, says what to fix first and can fix it.
 emoji: 👁️
-color: "#6b7bff"
+color: '#6b7bff'
 specialty: reviews code changes and says what to fix first
 group: engineering
 tools: files, shell, browser, agents

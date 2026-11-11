@@ -3,7 +3,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { expandPastes, isLongPaste, pasteBox, pasteLabel } from '../../web/pastes.ts';
 
 const paste = (target: HTMLElement, text: string, files: File[] = []) => {
-  const data = { types: ['text/plain', ...(files.length ? ['Files'] : [])], items: files.map((f) => ({ kind: 'file', getAsFile: () => f })), files, getData: (t: string) => (t === 'text/plain' ? text : '') } as unknown as DataTransfer;
+  const data = {
+    types: ['text/plain', ...(files.length ? ['Files'] : [])],
+    items: files.map((f) => ({ kind: 'file', getAsFile: () => f })),
+    files,
+    getData: (t: string) => (t === 'text/plain' ? text : ''),
+  } as unknown as DataTransfer;
   const e = new Event('paste', { bubbles: true, cancelable: true });
   Object.defineProperty(e, 'clipboardData', { value: data });
   target.dispatchEvent(e);
@@ -38,7 +43,9 @@ describe('what counts as a long paste', () => {
   });
   it('puts known pastes back and leaves other brackets alone', () => {
     const map = new Map([[1, 'a $& b']]);
-    expect(expandPastes('see [Pasted text #1 · 3 lines] and [Pasted text #9 · 2 lines]', map)).toBe('see a $& b and [Pasted text #9 · 2 lines]');
+    expect(expandPastes('see [Pasted text #1 · 3 lines] and [Pasted text #9 · 2 lines]', map)).toBe(
+      'see a $& b and [Pasted text #9 · 2 lines]',
+    );
   });
 });
 
@@ -80,7 +87,9 @@ describe('pasteBox()', () => {
     paste(input, long);
     box.el.querySelector<HTMLButtonElement>('.paste-open')!.click();
     expect(document.querySelector('.paste-view')?.textContent).toBe(long);
-    const remove = [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent?.trim().endsWith('Remove'))!;
+    const remove = [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) =>
+      b.textContent?.trim().endsWith('Remove'),
+    )!;
     remove.click();
     expect(input.value).toBe('');
     // (the dialog animates away first)
@@ -93,7 +102,9 @@ describe('pasteBox()', () => {
     const long = lines(15);
     paste(input, long);
     box.el.querySelector<HTMLButtonElement>('.paste-open')!.click();
-    [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Edit in the box')!.click();
+    [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')]
+      .find((b) => b.textContent === 'Edit in the box')!
+      .click();
     expect(input.value).toBe(long);
     expect(box.el.classList.contains('hidden')).toBe(true);
   });

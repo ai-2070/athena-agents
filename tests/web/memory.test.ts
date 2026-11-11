@@ -21,7 +21,14 @@ beforeEach(() => {
       puts.push({ url: String(url), text });
       stored = { ...stored, text, updatedAt: Date.now() };
     }
-    return new Response(JSON.stringify(String(url).includes('/versions/') ? { kind: 'memory', id: 'a1', name: "Writer's MEMORY.md", current: stored.text, versions: [] } : stored), { status: 200 });
+    return new Response(
+      JSON.stringify(
+        String(url).includes('/versions/')
+          ? { kind: 'memory', id: 'a1', name: "Writer's MEMORY.md", current: stored.text, versions: [] }
+          : stored,
+      ),
+      { status: 200 },
+    );
   });
   vi.stubGlobal(
     'WebSocket',
@@ -40,7 +47,8 @@ const mounted = async (owner = 'a1') => {
   document.body.append(ed.el);
   await tick();
   const area = ed.el.querySelector('textarea')!;
-  const button = (label: string) => Array.from(ed.el.querySelectorAll('button')).find((b) => b.textContent?.includes(label)) as HTMLButtonElement;
+  const button = (label: string) =>
+    Array.from(ed.el.querySelectorAll('button')).find((b) => b.textContent?.includes(label)) as HTMLButtonElement;
   const type = (text: string) => {
     area.value = text;
     area.dispatchEvent(new Event('input'));

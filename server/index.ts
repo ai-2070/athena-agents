@@ -6,7 +6,16 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
-import { ROOT, PORT as DEFAULT_PORT, setPort, dataPath, exists, openWithShell, ensureDir, insideRoots } from './util.ts';
+import {
+  ROOT,
+  PORT as DEFAULT_PORT,
+  setPort,
+  dataPath,
+  exists,
+  openWithShell,
+  ensureDir,
+  insideRoots,
+} from './util.ts';
 import * as store from './store.ts';
 import { agents, workflows, bus, getSettings, internalToken, log, rememberAlwaysAllow } from './store.ts';
 import { requestApproval, setReviewer } from './approvals.ts';
@@ -46,7 +55,14 @@ import { handleRpc, JSON_LIMIT } from './rpc.ts';
 import type { Agent, Project } from '../shared/types.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
-for (const k of ['CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_SESSION_ID']) delete process.env[k];
+for (const k of [
+  'CLAUDECODE',
+  'CLAUDE_CODE_CHILD_SESSION',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_SSE_PORT',
+  'CLAUDE_CODE_SESSION_ID',
+])
+  delete process.env[k];
 
 const argv = process.argv.slice(2);
 const PORT = (argv.includes('--port') && Number(argv[argv.indexOf('--port') + 1])) || DEFAULT_PORT;
@@ -61,7 +77,31 @@ const VITE = viteFromArgs(argv);
 const VENDOR: Record<string, string> = {
   'xterm.css': 'node_modules/@xterm/xterm/css/xterm.css',
 };
-const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.ogg': 'audio/ogg', '.oga': 'audio/ogg', '.m4a': 'audio/mp4', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2' };
+const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.mp4': 'video/mp4',
+  '.m4v': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
+  '.ogg': 'audio/ogg',
+  '.oga': 'audio/ogg',
+  '.m4a': 'audio/mp4',
+  '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json',
+  '.wav': 'audio/wav',
+  '.mp3': 'audio/mpeg',
+  '.woff2': 'font/woff2',
+};
 
 // ---------- tiny router ----------
 /** :name parts of the path. */
@@ -96,7 +136,8 @@ const postFile = (p: string, h: Handler<string>) => route('POST', p, h, true);
 // details, a team's thread, a chat's tasks, the questions its agents ask, the Brain's chat, MEMORY.md and its
 // versions, attached files, and showing that project's files.
 // Everything else (projects, settings, keys, backups) stays global.
-const SCOPED = /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|workflows|tasks(\/[\w-]+)?|questions(\/[\w-]+\/(answer|dismiss))?|brain\/(history|stream|steer)|memory\/[\w-]+|versions\/memory\/[^/]+(\/[^/]+(\/restore)?)?|uploads(\/[\w-]+)?|file|files\/(info|open|reveal))$/;
+const SCOPED =
+  /^\/(agents(\/[\w-]+(\/.*)?)?|teams\/[\w-]+\/.+|workflows|tasks(\/[\w-]+)?|questions(\/[\w-]+\/(answer|dismiss))?|brain\/(history|stream|steer)|memory\/[\w-]+|versions\/memory\/[^/]+(\/[^/]+(\/restore)?)?|uploads(\/[\w-]+)?|file|files\/(info|open|reveal))$/;
 function scopedRoute(pathname: string): { project: Project; path: string } | null {
   const m = /^\/api\/p\/([^/]+)(\/.*)$/.exec(pathname);
   if (!m) return null;
@@ -120,9 +161,14 @@ const need = <T>(v: T, msg = 'Not found'): NonNullable<T> => {
 // ---------- external agent for MCP clients that are not dashboard agents (e.g. Hermes, Claude Desktop) ----------
 /** Not a saved agent: only the fields the tools look at. */
 type ExternalAgent = Pick<Agent, 'id' | 'name' | 'toolGroups' | 'autonomy' | 'knowledge'> & Partial<Agent>;
-const EXTERNAL: ExternalAgent = { id: '_external', name: 'External MCP client', toolGroups: tools.TOOL_GROUPS.map((g) => g.id).filter((g) => g !== 'shell'), autonomy: 'ask', knowledge: { folders: [] } };
+const EXTERNAL: ExternalAgent = {
+  id: '_external',
+  name: 'External MCP client',
+  toolGroups: tools.TOOL_GROUPS.map((g) => g.id).filter((g) => g !== 'shell'),
+  autonomy: 'ask',
+  knowledge: { folders: [] },
+};
 const agentFor = (id: string | null | undefined): Agent | ExternalAgent => (id ? agents.get(id) : null) || EXTERNAL;
-
 
 // ---------- the page's state, the activity feed, the header and sidebar meters, About: server/api/status.ts ----------
 
@@ -181,7 +227,9 @@ setReviewer(overseer.reviewApproval);
 get('/api/task-board-file/:projectId/:id', async ({ projectId, id }, _b, q, res) => {
   const p = store.projectById(projectId);
   const t = need(taskBoard.savedBoardTask(projectId, id));
-  const listed = [...(t.files || []), ...(t.comments || []).flatMap((c) => c.files || [])].some((f) => f.path === q.path);
+  const listed = [...(t.files || []), ...(t.comments || []).flatMap((c) => c.files || [])].some(
+    (f) => f.path === q.path,
+  );
   const file = listed ? taskFilePath(p, q.path) : null;
   if (!file) throw new HttpError(404, 'That file is missing.');
   sendFileSafely(res, file);
@@ -218,7 +266,11 @@ get('/api/file', async (_p, _b, q, res) => {
 });
 
 // Agent-made files are shown, never run: only media display inline; everything else downloads, sandboxed.
-function sendFileSafely(res: http.ServerResponse, p: string, type = MIME[path.extname(p).toLowerCase()] || 'application/octet-stream') {
+function sendFileSafely(
+  res: http.ServerResponse,
+  p: string,
+  type = MIME[path.extname(p).toLowerCase()] || 'application/octet-stream',
+) {
   const inline = /^(image\/(png|jpeg|webp|gif)|video\/|audio\/)/.test(type);
   // the size up front: the page can tell a file too big to show before it downloads it
   let length: Record<string, string> = {};
@@ -232,7 +284,9 @@ function sendFileSafely(res: http.ServerResponse, p: string, type = MIME[path.ex
     'content-type': type,
     'x-content-type-options': 'nosniff',
     'content-security-policy': 'sandbox; default-src none',
-    ...(inline ? {} : { 'content-disposition': `attachment; filename="${path.basename(p).replace(/[^\w.\- ]/g, '_')}"` }),
+    ...(inline
+      ? {}
+      : { 'content-disposition': `attachment; filename="${path.basename(p).replace(/[^\w.\- ]/g, '_')}"` }),
   });
   const stream = fs.createReadStream(p);
   stream.on('error', () => res.destroy());
@@ -268,13 +322,19 @@ get('/api/workflows/:id/mark', async ({ id }, _b, _q, res) => {
 // ---------- internal: the MCP bridge calls these ----------
 // A bridge that belongs to a run works in the run's project (its agent, workspace and data), even
 // after you open another one. Without a run (an outside MCP client) it's the project open now.
-const inRunProject = <T>(run: engines.RunInfo | null, fn: () => T): T => (run ? store.withProject(run.project, fn) : fn());
+const inRunProject = <T>(run: engines.RunInfo | null, fn: () => T): T =>
+  run ? store.withProject(run.project, fn) : fn();
 // The agent as its run has it: what a team gave it for this work (tools, MCP servers, skills) counts too.
 // Its saved settings (autonomy, "always allow") are read fresh.
 const bridgeAgent = (run: engines.RunInfo | null, id: string | null | undefined): Agent | ExternalAgent => {
   const agent = agentFor(id);
   if (!run || !id || run.agentId !== id || agent === EXTERNAL) return agent;
-  return { ...agent, toolGroups: run.agent.toolGroups, mcpServers: run.agent.mcpServers, _teamSkills: run.agent._teamSkills };
+  return {
+    ...agent,
+    toolGroups: run.agent.toolGroups,
+    mcpServers: run.agent.mcpServers,
+    _teamSkills: run.agent._teamSkills,
+  };
 };
 get('/api/internal/tools', async (_p, _b, q) => {
   const run = engines.runInfo(q.run);
@@ -285,25 +345,37 @@ get('/api/internal/tools', async (_p, _b, q) => {
       list.push({
         name: 'permission_prompt',
         description: 'Internal: Claude Code uses this to ask the user for permission. Never call it yourself.',
-        parameters: { type: 'object', properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } }, required: ['tool_name'] },
+        parameters: {
+          type: 'object',
+          properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } },
+          required: ['tool_name'],
+        },
       });
     return { tools: list };
   });
 });
-post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown> }>('/api/internal/tools/call', async (_p, body) => {
-  // The bridge says which run it belongs to; that gives the right project, approvals, Stop button and delegation depth.
-  const run = engines.runInfo(body.run);
-  return inRunProject(run, async () => {
-    const agent = bridgeAgent(run, body.agent);
-    const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
-    if (body.name === 'permission_prompt') return { text: JSON.stringify(await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId)) };
-    const r = tools.clipForModel(await tools.callTool(agent, body.name, body.args || {}, ctx), body.name, ctx.runId);
-    // MCP takes pictures as data only: ComfyUI's result links are read here, so the agent sees them too
-    if (!r.images?.length) return r;
-    const { images, note } = await inlineToolImagesNoted(r.images);
-    return { ...r, images, text: withImageNote(r.text, note) };
-  });
-});
+post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown> }>(
+  '/api/internal/tools/call',
+  async (_p, body) => {
+    // The bridge says which run it belongs to; that gives the right project, approvals, Stop button and delegation depth.
+    const run = engines.runInfo(body.run);
+    return inRunProject(run, async () => {
+      const agent = bridgeAgent(run, body.agent);
+      const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
+      if (body.name === 'permission_prompt')
+        return {
+          text: JSON.stringify(
+            await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId),
+          ),
+        };
+      const r = tools.clipForModel(await tools.callTool(agent, body.name, body.args || {}, ctx), body.name, ctx.runId);
+      // MCP takes pictures as data only: ComfyUI's result links are read here, so the agent sees them too
+      if (!r.images?.length) return r;
+      const { images, note } = await inlineToolImagesNoted(r.images);
+      return { ...r, images, text: withImageNote(r.text, note) };
+    });
+  },
+);
 
 /** What Claude Code sends to permission_prompt. */
 interface PermissionRequest {
@@ -312,13 +384,26 @@ interface PermissionRequest {
   tool_use_id?: string;
 }
 
-async function claudePermission(agent: Agent | ExternalAgent, { tool_name, input = {} }: PermissionRequest, runId: string | null) {
+async function claudePermission(
+  agent: Agent | ExternalAgent,
+  { tool_name, input = {} }: PermissionRequest,
+  runId: string | null,
+) {
   if ((agent.alwaysAllow || []).includes(tool_name)) return { behavior: 'allow', updatedInput: input };
   const detail = input.command || input.file_path || input.url || input.pattern || JSON.stringify(input, null, 2);
   const account = mcp.accountOfTool(tool_name);
-  const d = await requestApproval({ kind: 'claude', title: `${agent.name} wants to use ${tool_name}${account ? ` on ${account}` : ''}`, detail: String(detail).slice(0, 4000), agentId: agent.id, agentName: agent.name, data: { tool: tool_name, args: input, runId } });
+  const d = await requestApproval({
+    kind: 'claude',
+    title: `${agent.name} wants to use ${tool_name}${account ? ` on ${account}` : ''}`,
+    detail: String(detail).slice(0, 4000),
+    agentId: agent.id,
+    agentName: agent.name,
+    data: { tool: tool_name, args: input, runId },
+  });
   if (d.approved && d.always) rememberAlwaysAllow(agent.id, [tool_name]);
-  return d.approved ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: d.message || 'The user declined this. Ask them how to proceed.' };
+  return d.approved
+    ? { behavior: 'allow', updatedInput: input }
+    : { behavior: 'deny', message: d.message || 'The user declined this. Ask them how to proceed.' };
 }
 
 // ---------- OAuth (plain GET pages) ----------
@@ -364,7 +449,11 @@ async function handleOAuth(url: URL, req: http.IncomingMessage, res: http.Server
 }
 
 function page(res: http.ServerResponse, status: number, title: string, text: string, close = false) {
-  const esc = (s: unknown) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[c]);
+  const esc = (s: unknown) =>
+    String(s).replace(
+      /[&<>"]/g,
+      (c) => (({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }) as Record<string, string>)[c],
+    );
   res.writeHead(status, { 'content-type': 'text/html; charset=utf-8' });
   res.end(
     `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><title>${esc(title)}</title><link rel="stylesheet" href="/dist/app.css"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}main{width:min(520px,100%);padding:24px;border:1px solid var(--color-line);border-radius:12px;background:var(--color-panel);box-shadow:inset 0 1px 0 var(--glass-spec)}h2{margin:0 0 8px;font-size:18px;font-weight:600}p{margin:0 0 12px;color:var(--color-dim)}p:last-child{margin-bottom:0}a:hover{text-decoration:underline}</style><body><main><h2>${esc(title)}</h2><p>${esc(text)}</p><p><a href="/#/settings?tab=connections">Back to the dashboard</a></p></main>${close ? '<script>setTimeout(()=>{location.href="/#/settings?tab=connections"},1500)</script>' : ''}`,
@@ -439,14 +528,23 @@ function serveStatic(url: URL, res: http.ServerResponse): boolean {
     const v = VENDOR[rel.slice(8)];
     if (!v) return false;
     const file = path.join(ROOT, v);
-    res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'text/javascript', 'cache-control': 'max-age=86400' });
-    fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
+    res.writeHead(200, {
+      'content-type': MIME[path.extname(file)] || 'text/javascript',
+      'cache-control': 'max-age=86400',
+    });
+    fs.createReadStream(file)
+      .on('error', () => res.destroy())
+      .pipe(res);
     return true;
   }
   if (rel === '/' || !path.extname(rel)) rel = '/index.html';
   const file = path.resolve(PUBLIC, '.' + rel);
   if (!file.startsWith(PUBLIC + path.sep) || !exists(file) || !fs.statSync(file).isFile()) return false;
-  const headers: Record<string, string> = { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' };
+  const headers: Record<string, string> = {
+    'content-type': MIME[path.extname(file)] || 'application/octet-stream',
+    'cache-control': 'no-cache',
+    'x-content-type-options': 'nosniff',
+  };
   // Agent output is shown as markdown: no outside scripts, and images only from here (nothing leaks out).
   if (file.endsWith('.html')) {
     headers['content-security-policy'] = pageCsp(PORT, VITE);
@@ -456,11 +554,17 @@ function serveStatic(url: URL, res: http.ServerResponse): boolean {
     const page = fs.readFileSync(file, 'utf8');
     const html = VITE && rel === '/index.html' ? devPage(page, VITE) : page;
     res.writeHead(200, headers);
-    res.end(theme === 'light' || theme === 'dark' ? html.replace('<html lang="en"', `<html lang="en" data-theme="${theme}"`) : html);
+    res.end(
+      theme === 'light' || theme === 'dark'
+        ? html.replace('<html lang="en"', `<html lang="en" data-theme="${theme}"`)
+        : html,
+    );
     return true;
   }
   res.writeHead(200, headers);
-  fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
+  fs.createReadStream(file)
+    .on('error', () => res.destroy())
+    .pipe(res);
   return true;
 }
 
@@ -473,7 +577,13 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url!, `http://${req.headers.host}`);
   // Browsers label requests from other websites (an <img> or link pointing here). Only the X callback may arrive that way.
   const site = req.headers['sec-fetch-site'];
-  if (site && site !== 'same-origin' && site !== 'none' && !['/oauth/x/callback', '/oauth/reddit/callback'].includes(url.pathname) && (url.pathname.startsWith('/api/') || url.pathname.startsWith('/oauth/'))) {
+  if (
+    site &&
+    site !== 'same-origin' &&
+    site !== 'none' &&
+    !['/oauth/x/callback', '/oauth/reddit/callback'].includes(url.pathname) &&
+    (url.pathname.startsWith('/api/') || url.pathname.startsWith('/oauth/'))
+  ) {
     res.writeHead(403, { 'content-type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Requests from other websites are not allowed.' }));
   }
@@ -495,7 +605,15 @@ const server = http.createServer(async (req, res) => {
       // A change made for the project the page shows, after another one was opened (in this tab or another):
       // refused, so it can't land in the wrong project. Project routes name their project themselves.
       const pageProject = req.headers['x-dash-project'];
-      if (!scope && !internal && req.method !== 'GET' && typeof pageProject === 'string' && pageProject && !url.pathname.startsWith('/api/projects') && pageProject !== store.activeProject().id) {
+      if (
+        !scope &&
+        !internal &&
+        req.method !== 'GET' &&
+        typeof pageProject === 'string' &&
+        pageProject &&
+        !url.pathname.startsWith('/api/projects') &&
+        pageProject !== store.activeProject().id
+      ) {
         throw new HttpError(409, 'Another project was opened meanwhile. Nothing was changed; try again.');
       }
       if (pathname === '/api/comfyui/view') return await comfy.proxyView(Object.fromEntries(url.searchParams), res);
@@ -580,7 +698,10 @@ const pageReady = exists(path.join(PUBLIC, 'dist', 'app.js'))
   ? Promise.resolve()
   : new Promise<void>((done) => {
       console.log('  Building the page (public/dist)…');
-      const child = spawn(process.execPath, [path.join(ROOT, 'scripts', 'build-web.ts')], { cwd: ROOT, stdio: 'inherit' });
+      const child = spawn(process.execPath, [path.join(ROOT, 'scripts', 'build-web.ts')], {
+        cwd: ROOT,
+        stdio: 'inherit',
+      });
       child.on('exit', (code) => {
         if (code) console.error('  Could not build the page. Run: bun run build');
         done();
@@ -591,8 +712,9 @@ ensureDir(dataPath('outputs'));
 fs.rmSync(dataPath('tmp', 'received'), { recursive: true, force: true }); // uploads cut off by a crash
 internalToken();
 store.migrateLayout();
-try { await eveRuntime.recover(); }
-catch (error) {
+try {
+  await eveRuntime.recover();
+} catch (error) {
   if (error instanceof EveOwnershipError) throw error;
   log('error', 'Eve could not restore saved work. It will try again before accepting new Eve work.');
 }
@@ -607,7 +729,11 @@ irc.startIrc();
 eveCoordinator.start();
 await gatewaySupervisor.start();
 boardWork.boardWork.start();
-void irc.recoverWork().catch((e: unknown) => store.log('error', `Couldn't resume saved work: ${e instanceof Error ? e.message : String(e)}`));
+void irc
+  .recoverWork()
+  .catch((e: unknown) =>
+    store.log('error', `Couldn't resume saved work: ${e instanceof Error ? e.message : String(e)}`),
+  );
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
 projectSync.startAutoSave();
@@ -626,7 +752,9 @@ server.on('error', (e: NodeJS.ErrnoException) => {
 store.migrateGlobalOutbox();
 server.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`;
-  console.log(`\n  Athena Agents is running at ${url}\n  Data folder: ${dataPath()}${VITE ? `\n  Hot reload: the page's code comes from ${VITE}` : ''}\n  Press Ctrl+C to stop.\n`);
+  console.log(
+    `\n  Athena Agents is running at ${url}\n  Data folder: ${dataPath()}${VITE ? `\n  Hot reload: the page's code comes from ${VITE}` : ''}\n  Press Ctrl+C to stop.\n`,
+  );
   log('system', 'Dashboard started');
   if (OPEN) void pageReady.then(() => openWithShell(url));
 });
@@ -637,14 +765,16 @@ const shutdown = () => {
   stopping = true;
   terms.closeAll();
   // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
-  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns()]).finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()])).finally(() => {
-    try {
-      saveToolStats();
-    } catch {
-      /* the numbers are only a help */
-    }
-    process.exit(0);
-  });
+  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns()])
+    .finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()]))
+    .finally(() => {
+      try {
+        saveToolStats();
+      } catch {
+        /* the numbers are only a help */
+      }
+      process.exit(0);
+    });
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

@@ -19,17 +19,17 @@ delete row 10 after the insert, or delete first.
 
 ## What moves
 
-| What | Where | How |
-|---|---|---|
-| Cell formulas, array formulas | every sheet | references into the changed sheet move; text in quotes and table references don't need to |
-| Defined names | workbook and sheet scope | as formulas |
-| Data validations | every sheet | their list sources move; their ranges on the changed sheet move |
-| Conditional formats | every sheet | their rule formulas move; their ranges on the changed sheet move |
-| Merged ranges | changed sheet | move, grow, shrink; a range cut to one cell is unmerged |
-| Tables | changed sheet | range, filter and sort move; a column inserted inside one becomes a table column named Column1, Column2… |
-| Filter, sort, frozen panes, print area, print titles, page breaks | changed sheet | move with their rows or columns |
-| Row heights, column widths, hidden rows and columns, outline levels | changed sheet | move |
-| Notes and links | changed sheet | move with their cells; links to a place in the workbook point at the moved cell |
+| What                                                                | Where                    | How                                                                                                      |
+| ------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Cell formulas, array formulas                                       | every sheet              | references into the changed sheet move; text in quotes and table references don't need to                |
+| Defined names                                                       | workbook and sheet scope | as formulas                                                                                              |
+| Data validations                                                    | every sheet              | their list sources move; their ranges on the changed sheet move                                          |
+| Conditional formats                                                 | every sheet              | their rule formulas move; their ranges on the changed sheet move                                         |
+| Merged ranges                                                       | changed sheet            | move, grow, shrink; a range cut to one cell is unmerged                                                  |
+| Tables                                                              | changed sheet            | range, filter and sort move; a column inserted inside one becomes a table column named Column1, Column2… |
+| Filter, sort, frozen panes, print area, print titles, page breaks   | changed sheet            | move with their rows or columns                                                                          |
+| Row heights, column widths, hidden rows and columns, outline levels | changed sheet            | move                                                                                                     |
+| Notes and links                                                     | changed sheet            | move with their cells; links to a place in the workbook point at the moved cell                          |
 
 ## How a reference moves
 
@@ -49,16 +49,16 @@ The rules are Excel's own.
 
 ## Reading the result
 
-| Key | What it says |
-|---|---|
-| `did` | the operation, in words |
-| `formulas`, `formulas_changed` | up to 100 changed formulas with before and after, and the total |
-| `names`, `validations`, `conditional_formats`, `merges`, `tables`, `other` | each range or formula that changed, `to: null` when it went |
-| `filter`, `freeze`, `print_area`, `print_titles` | before and after, when they changed |
-| `cells_deleted` | filled cells a delete removed |
-| `ref_errors` | formulas and names that now hold `#REF!` because what they pointed at was deleted |
-| `not_shifted` | what the script didn't move (below) |
-| `lost_on_save` | what openpyxl left out when it saved (shapes, slicers…), as `info` warned |
+| Key                                                                        | What it says                                                                      |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `did`                                                                      | the operation, in words                                                           |
+| `formulas`, `formulas_changed`                                             | up to 100 changed formulas with before and after, and the total                   |
+| `names`, `validations`, `conditional_formats`, `merges`, `tables`, `other` | each range or formula that changed, `to: null` when it went                       |
+| `filter`, `freeze`, `print_area`, `print_titles`                           | before and after, when they changed                                               |
+| `cells_deleted`                                                            | filled cells a delete removed                                                     |
+| `ref_errors`                                                               | formulas and names that now hold `#REF!` because what they pointed at was deleted |
+| `not_shifted`                                                              | what the script didn't move (below)                                               |
+| `lost_on_save`                                                             | what openpyxl left out when it saved (shapes, slicers…), as `info` warned         |
 
 Exit code 1 means at least one of `ref_errors`, `not_shifted` or `lost_on_save` has something in it. Fix it, or tell the
 user in plain words what still points at the old place.

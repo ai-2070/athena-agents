@@ -26,7 +26,8 @@ vi.mock('../../server/util.ts', async (orig) => {
       (child.stderr as PassThrough | null)?.end();
     },
     spawnCommand: (cmd: string, args: string[], opts: unknown) => {
-      if (cmd !== 'pi' && cmd !== 'omp') return real.spawnCommand(cmd, args, opts as Parameters<typeof real.spawnCommand>[2]);
+      if (cmd !== 'pi' && cmd !== 'omp')
+        return real.spawnCommand(cmd, args, opts as Parameters<typeof real.spawnCommand>[2]);
       const child = new EventEmitter() as ChildProcess & EventEmitter;
       const stdout = new PassThrough();
       const stderr = new PassThrough();
@@ -61,19 +62,44 @@ const { activeRuns, queuedMessages, startRun, steerChat } = await import('../../
 const pi = await import('../../server/engines/pi.ts');
 
 const until = async (ok: () => boolean, ms = 5000) => {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 10));
   }
   throw new Error('timed out');
 };
 const idle = (chat: Chat) => !activeRuns().some((r) => r.chatId === chat.id);
-const said = (chat: Chat) => chat.items.flatMap((i) => (i.type === 'user' || i.type === 'steer' || i.type === 'assistant' || i.type === 'error' ? [`${i.type}: ${i.text}`] : i.type === 'tool' ? [`tool: ${i.name}`] : []));
+const said = (chat: Chat) =>
+  chat.items.flatMap((i) =>
+    i.type === 'user' || i.type === 'steer' || i.type === 'assistant' || i.type === 'error'
+      ? [`${i.type}: ${i.text}`]
+      : i.type === 'tool'
+        ? [`tool: ${i.name}`]
+        : [],
+  );
 // what pi prints: a user message as it reads it, its words, a tool call and result, the run's end
 const user = (text: string) => ({ type: 'message_end', message: { role: 'user', content: [{ type: 'text', text }] } });
-const says = (text: string) => ({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text }], stopReason: 'stop', usage: { input: 3, output: 2, totalTokens: 5 } } });
-const tool = (id: string) => ({ type: 'tool_execution_start', toolCallId: id, toolName: 'bash', args: { command: 'sleep 8' } });
-const toolDone = (id: string) => ({ type: 'tool_execution_end', toolCallId: id, toolName: 'bash', result: { content: [{ type: 'text', text: 'slept' }] } });
+const says = (text: string) => ({
+  type: 'message_end',
+  message: {
+    role: 'assistant',
+    content: [{ type: 'text', text }],
+    stopReason: 'stop',
+    usage: { input: 3, output: 2, totalTokens: 5 },
+  },
+});
+const tool = (id: string) => ({
+  type: 'tool_execution_start',
+  toolCallId: id,
+  toolName: 'bash',
+  args: { command: 'sleep 8' },
+});
+const toolDone = (id: string) => ({
+  type: 'tool_execution_end',
+  toolCallId: id,
+  toolName: 'bash',
+  result: { content: [{ type: 'text', text: 'slept' }] },
+});
 const settled = [{ type: 'agent_end' }, { type: 'agent_settled' }];
 
 async function start(name: string) {
@@ -118,7 +144,12 @@ describe('steering a pi agent', () => {
     for (const e of settled) p.out(e);
     expect(await promise).toBe('Done, and it is blue.');
     await until(() => idle(chat));
-    expect(said(chat)).toEqual(['user: do the long job', 'tool: bash', 'steer: also make it blue', 'assistant: Done, and it is blue.']);
+    expect(said(chat)).toEqual([
+      'user: do the long job',
+      'tool: bash',
+      'steer: also make it blue',
+      'assistant: Done, and it is blue.',
+    ]);
     expect(fake.procs).toHaveLength(1);
   });
 
@@ -134,7 +165,12 @@ describe('steering a pi agent', () => {
     for (const e of settled) p.out(e);
     expect(await promise).toBe('Answer one.\n\nAnswer two.');
     await until(() => idle(chat));
-    expect(said(chat)).toEqual(['user: do the long job', 'assistant: Answer one.', 'steer: and a summary', 'assistant: Answer two.']);
+    expect(said(chat)).toEqual([
+      'user: do the long job',
+      'assistant: Answer one.',
+      'steer: and a summary',
+      'assistant: Answer two.',
+    ]);
   });
 
   it('one it refuses goes next, as its own message', async () => {
@@ -142,7 +178,13 @@ describe('steering a pi agent', () => {
     p.out(tool('t1'));
     const steered = await steerChat(a, chat, 'the one it refused');
     await until(() => p.inputs.length === 2);
-    p.out({ type: 'response', id: `steer-${steered.steerId}`, command: 'steer', success: false, error: 'Extension commands cannot be queued (say)' });
+    p.out({
+      type: 'response',
+      id: `steer-${steered.steerId}`,
+      command: 'steer',
+      success: false,
+      error: 'Extension commands cannot be queued (say)',
+    });
     p.out(toolDone('t1'));
     p.out(says('Done.'));
     for (const e of settled) p.out(e);
@@ -155,7 +197,13 @@ describe('steering a pi agent', () => {
     q.out(says('Ran it.'));
     for (const e of settled) q.out(e);
     await until(() => idle(chat) && said(chats.get(a.id, chat.id)!).length === 5);
-    expect(said(chats.get(a.id, chat.id)!)).toEqual(['user: do the long job', 'tool: bash', 'assistant: Done.', 'user: the one it refused', 'assistant: Ran it.']);
+    expect(said(chats.get(a.id, chat.id)!)).toEqual([
+      'user: do the long job',
+      'tool: bash',
+      'assistant: Done.',
+      'user: the one it refused',
+      'assistant: Ran it.',
+    ]);
   });
 
   it("a user message that isn't one of ours (an extension's) marks nothing read, and the text around it keeps its gap", async () => {
@@ -177,7 +225,13 @@ describe('steering a pi agent', () => {
     q.out(says('Blue.'));
     for (const e of settled) q.out(e);
     await until(() => idle(chat) && said(chats.get(a.id, chat.id)!).length === 5);
-    expect(said(chats.get(a.id, chat.id)!)).toEqual(['user: do the long job', 'tool: bash', 'assistant: Done.\n\nNext.', 'user: also make it blue', 'assistant: Blue.']);
+    expect(said(chats.get(a.id, chat.id)!)).toEqual([
+      'user: do the long job',
+      'tool: bash',
+      'assistant: Done.\n\nNext.',
+      'user: also make it blue',
+      'assistant: Blue.',
+    ]);
   });
 
   it('one a command expanded into other words (a skill) still reads as the next', async () => {
@@ -191,7 +245,12 @@ describe('steering a pi agent', () => {
     for (const e of settled) p.out(e);
     await promise;
     await until(() => idle(chat));
-    expect(said(chat)).toEqual(['user: do the long job', 'tool: bash', 'steer: /skill:review the diff', 'assistant: Reviewed.']);
+    expect(said(chat)).toEqual([
+      'user: do the long job',
+      'tool: bash',
+      'steer: /skill:review the diff',
+      'assistant: Reviewed.',
+    ]);
     expect(fake.procs).toHaveLength(1);
   });
 
@@ -200,7 +259,13 @@ describe('steering a pi agent', () => {
     p.out(tool('t1'));
     const steered = await steerChat(a, chat, 'note this down');
     await until(() => p.inputs.length === 2);
-    p.out({ type: 'response', id: `steer-${steered.steerId}`, command: 'steer', success: true, data: { disposition: 'handled' } });
+    p.out({
+      type: 'response',
+      id: `steer-${steered.steerId}`,
+      command: 'steer',
+      success: true,
+      data: { disposition: 'handled' },
+    });
     await until(() => !queuedMessages(chat.id).length);
     p.out(toolDone('t1'));
     p.out(says('Done.'));
@@ -383,7 +448,14 @@ describe('steering an oh-my-pi agent', () => {
   it('one refused before reaching the agent (a prompt_result with an error): the run fails with why', async () => {
     const { chat, promise, p } = await startOmp('OmpFailed');
     p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true });
-    p.out({ type: 'prompt_result', id: 'prompt', agentInvoked: false, status: 'error', error: { message: 'Session cost cap reached', retryable: false }, sessionSettled: true });
+    p.out({
+      type: 'prompt_result',
+      id: 'prompt',
+      agentInvoked: false,
+      status: 'error',
+      error: { message: 'Session cost cap reached', retryable: false },
+      sessionSettled: true,
+    });
     await promise;
     expect(p.ended).toBe(true);
     expect(said(chat).at(-1)).toBe('error: oh-my-pi refused the message: Session cost cap reached');
@@ -444,10 +516,19 @@ describe('steering an oh-my-pi agent', () => {
     await until(() => fake.procs[0]?.inputs.length === 2);
     const p = fake.procs[0]!;
     // (its prompt, then which session it named)
-    expect(p.inputs).toEqual([{ id: 'prompt', type: 'prompt', message: 'do the long job' }, { id: 'session', type: 'get_session_stats' }]);
+    expect(p.inputs).toEqual([
+      { id: 'prompt', type: 'prompt', message: 'do the long job' },
+      { id: 'session', type: 'get_session_stats' },
+    ]);
     p.out({ type: 'ready', protocolVersion: 1 });
     p.out({ type: 'response', id: 'prompt', command: 'prompt', success: true });
-    p.out({ type: 'response', id: 'session', command: 'get_session_stats', success: true, data: { sessionId: 'omp-session' } });
+    p.out({
+      type: 'response',
+      id: 'session',
+      command: 'get_session_stats',
+      success: true,
+      data: { sessionId: 'omp-session' },
+    });
     p.out(user('do the long job'));
     p.out(tool('t1'));
     await until(() => chat.items.some((i) => i.type === 'tool'));
@@ -469,6 +550,11 @@ describe('steering an oh-my-pi agent', () => {
     expect(await promise).toBe('Done, and it is blue.');
     expect(p.ended).toBe(true);
     await until(() => idle(chat));
-    expect(said(chat)).toEqual(['user: do the long job', 'tool: bash', 'steer: also make it blue', 'assistant: Done, and it is blue.']);
+    expect(said(chat)).toEqual([
+      'user: do the long job',
+      'tool: bash',
+      'steer: also make it blue',
+      'assistant: Done, and it is blue.',
+    ]);
   });
 });

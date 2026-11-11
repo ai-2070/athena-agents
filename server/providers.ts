@@ -7,7 +7,11 @@ export type { ProviderDef, ApiProvider as Provider } from './apiproviders.ts';
 export type ModelInfo = ApiModelInfo;
 
 export function status(): EngineStatus['eve'] {
-  return { openrouter: !!getSecrets().openrouterKey, venice: !!getSecrets().veniceKey, custom: !!getSettings().providers.custom.baseUrl };
+  return {
+    openrouter: !!getSecrets().openrouterKey,
+    venice: !!getSecrets().veniceKey,
+    custom: !!getSettings().providers.custom.baseUrl,
+  };
 }
 
 export const providerOf = (agent: Pick<Agent, 'provider'>) => resolveApiProvider(agent.provider || 'openrouter');

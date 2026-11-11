@@ -121,14 +121,14 @@ checked in late 2026. Read the platform's own help page before relying on one, a
 
 Where to start is a judgment call, and the account's own results overrule it:
 
-| Platform | A good first test when | What the ad needs |
-|---|---|---|
-| Facebook and Instagram | Almost any consumer product or local service; where most should start | One clear concept per ad, with vertical cuts for Reels and Stories |
-| TikTok | The product shows well in a short demo, people buy on impulse, creators already talk about it | A video that looks like a TikTok, sound on, a creator or the founder |
-| LinkedIn | The buyer is defined by job, seniority or company, and a customer is worth a lot | A plain, useful post in a person's voice; lead quality checked in the CRM, not the form count |
-| Pinterest | People plan the purchase ahead: home, weddings, food, style, gifts | A Pin worth saving that links to the page that delivers, running while people plan, not in the buying week |
-| Snapchat | The buyers are on it (check the reach for the area in its ads manager); quick purchases, apps | Full-screen vertical, fast, shot on a phone |
-| Reddit | Research-heavy buys in a hobby, trade or tech community | A plain, specific post that holds up in that community, and someone to answer the comments |
+| Platform               | A good first test when                                                                        | What the ad needs                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Facebook and Instagram | Almost any consumer product or local service; where most should start                         | One clear concept per ad, with vertical cuts for Reels and Stories                                         |
+| TikTok                 | The product shows well in a short demo, people buy on impulse, creators already talk about it | A video that looks like a TikTok, sound on, a creator or the founder                                       |
+| LinkedIn               | The buyer is defined by job, seniority or company, and a customer is worth a lot              | A plain, useful post in a person's voice; lead quality checked in the CRM, not the form count              |
+| Pinterest              | People plan the purchase ahead: home, weddings, food, style, gifts                            | A Pin worth saving that links to the page that delivers, running while people plan, not in the buying week |
+| Snapchat               | The buyers are on it (check the reach for the area in its ads manager); quick purchases, apps | Full-screen vertical, fast, shot on a phone                                                                |
+| Reddit                 | Research-heavy buys in a hobby, trade or tech community                                       | A plain, specific post that holds up in that community, and someone to answer the comments                 |
 
 ### Policies and claims
 

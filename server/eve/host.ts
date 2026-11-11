@@ -29,7 +29,11 @@ const owners = new Map<string, symbol>();
 
 function noLinks(directory: string) {
   if (!fs.existsSync(directory)) return;
-  if (fs.lstatSync(directory).isSymbolicLink() || fs.readdirSync(directory, { recursive: true, withFileTypes: true }).some((entry) => entry.isSymbolicLink())) throw new Error('Eve filesystem templates cannot contain links.');
+  if (
+    fs.lstatSync(directory).isSymbolicLink() ||
+    fs.readdirSync(directory, { recursive: true, withFileTypes: true }).some((entry) => entry.isSymbolicLink())
+  )
+    throw new Error('Eve filesystem templates cannot contain links.');
 }
 
 /** The owner must close this handle; stdin also closes automatically if the owner crashes. */
@@ -39,11 +43,22 @@ export async function startEveHost(options: EveHostOptions): Promise<EveHost> {
   if (owners.has(key)) throw new Error('This Eve runtime folder already has an owner.');
   const owner = Symbol();
   owners.set(key, owner);
-  const release = () => { if (owners.get(key) === owner) owners.delete(key); };
+  const release = () => {
+    if (owners.get(key) === owner) owners.delete(key);
+  };
   try {
     const host = await launchEveHost(options);
     void host.exited.then(release);
-    return { ...host, close: async () => { try { await host.close(); } finally { release(); } } };
+    return {
+      ...host,
+      close: async () => {
+        try {
+          await host.close();
+        } finally {
+          release();
+        }
+      },
+    };
   } catch (error) {
     release();
     throw error;
@@ -54,11 +69,13 @@ async function launchEveHost(options: EveHostOptions): Promise<EveHost> {
   options.signal?.throwIfAborted();
   const dataRoot = realTarget(DATA);
   const wanted = realTarget(options.directory);
-  if (!dataRoot || !wanted || !isInside(dataRoot, wanted)) throw new Error('Eve runtime state must stay under the data folder.');
+  if (!dataRoot || !wanted || !isInside(dataRoot, wanted))
+    throw new Error('Eve runtime state must stay under the data folder.');
   const directory = ensureDir(options.directory);
   const templates = path.join(directory, '.eve', 'sandbox-cache');
   const templateTarget = realTarget(templates);
-  if (!templateTarget || !isInside(wanted, templateTarget)) throw new Error('The Eve filesystem cache points outside its runtime folder.');
+  if (!templateTarget || !isInside(wanted, templateTarget))
+    throw new Error('The Eve filesystem cache points outside its runtime folder.');
   noLinks(options.templates);
   noLinks(templates);
   fs.cpSync(options.templates, templates, { recursive: true, force: false, errorOnExist: false });
@@ -72,9 +89,22 @@ async function launchEveHost(options: EveHostOptions): Promise<EveHost> {
   const url = `http://127.0.0.1:${port}`;
   const token = crypto.randomBytes(32).toString('hex');
   const child: ChildProcess = spawn(options.executable, [options.entry], {
-    cwd: directory, windowsHide: true,
+    cwd: directory,
+    windowsHide: true,
     // Inline-owned steps retain a 14-minute lease after a crash. Use queued steps locally.
-    env: { ...process.env, NODE_ENV: 'production', HOST: '127.0.0.1', NITRO_HOST: '127.0.0.1', PORT: String(port), NITRO_PORT: String(port), WORKFLOW_LOCAL_BASE_URL: url, WORKFLOW_INLINE_OWNERSHIP: '0', ATHENA_EVE_TOKEN: token, ATHENA_EVE_BRIDGE_URL: options.bridgeUrl, ATHENA_EVE_BRIDGE_TOKEN: options.bridgeToken },
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      HOST: '127.0.0.1',
+      NITRO_HOST: '127.0.0.1',
+      PORT: String(port),
+      NITRO_PORT: String(port),
+      WORKFLOW_LOCAL_BASE_URL: url,
+      WORKFLOW_INLINE_OWNERSHIP: '0',
+      ATHENA_EVE_TOKEN: token,
+      ATHENA_EVE_BRIDGE_URL: options.bridgeUrl,
+      ATHENA_EVE_BRIDGE_TOKEN: options.bridgeToken,
+    },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   // Runtime output can contain model/provider diagnostics; do not broadcast or log raw output.
@@ -82,15 +112,19 @@ async function launchEveHost(options: EveHostOptions): Promise<EveHost> {
   child.stderr?.resume();
   child.stdin?.on('error', () => {});
   let failure: Error | undefined;
-  child.on('error', (error) => { failure = error; });
+  child.on('error', (error) => {
+    failure = error;
+  });
   const exited = new Promise<void>((resolve) => {
     child.once('exit', () => resolve());
     child.once('error', () => resolve());
   });
   let closing: Promise<void> | undefined;
-  const onAbort = () => { void close(); };
+  const onAbort = () => {
+    void close();
+  };
   function close(): Promise<void> {
-    return closing ??= stop().finally(() => options.signal?.removeEventListener('abort', onAbort));
+    return (closing ??= stop().finally(() => options.signal?.removeEventListener('abort', onAbort)));
   }
   async function stop() {
     if (child.exitCode !== null || child.signalCode !== null || failure) return;
@@ -107,12 +141,23 @@ async function launchEveHost(options: EveHostOptions): Promise<EveHost> {
     while (Date.now() < deadline) {
       options.signal?.throwIfAborted();
       if (failure) throw failure;
-      if (child.exitCode !== null || child.signalCode !== null) throw new Error('The Eve runtime exited before it was ready.');
+      if (child.exitCode !== null || child.signalCode !== null)
+        throw new Error('The Eve runtime exited before it was ready.');
       try {
         const response = await fetch(`${url}/eve/v1/health`, { signal: AbortSignal.timeout(1000), redirect: 'error' });
         const result: unknown = response.ok ? await response.json() : null;
-        if (result && typeof result === 'object' && 'ok' in result && result.ok === true && 'status' in result && result.status === 'ready') return { url, token, exited, close };
-      } catch { /* the private listener is still starting */ }
+        if (
+          result &&
+          typeof result === 'object' &&
+          'ok' in result &&
+          result.ok === true &&
+          'status' in result &&
+          result.status === 'ready'
+        )
+          return { url, token, exited, close };
+      } catch {
+        /* the private listener is still starting */
+      }
       await pause(100);
     }
     throw new Error('The Eve runtime did not become ready.');

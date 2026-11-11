@@ -18,7 +18,12 @@ export const taskBoard = os.router({
   add: os.add.handler(async ({ input: { projectId, files: list, ...fields } }) => {
     const files = await filesFromRequest(projectById(projectId), list ?? []);
     const task = board.addBoardTask(projectId, fields, 'you', files);
-    return { task: task.status === 'in_progress' && work.canPickUp(task.assignee) ? await work.startWork(projectId, task.id) : task };
+    return {
+      task:
+        task.status === 'in_progress' && work.canPickUp(task.assignee)
+          ? await work.startWork(projectId, task.id)
+          : task,
+    };
   }),
   get: os.get.handler(({ input }) => ({ task: board.boardTask(input.projectId, input.id) })),
   change: os.change.handler(async ({ input: { projectId, id, files: list, ...change } }) => {
@@ -40,7 +45,9 @@ export const taskBoard = os.router({
   tags: {
     list: os.tags.list.handler(({ input }) => ({ tags: board.boardTags(input.projectId) })),
     add: os.tags.add.handler(({ input: { projectId, ...tag } }) => ({ tag: board.addBoardTag(projectId, tag, 'you') })),
-    change: os.tags.change.handler(({ input: { projectId, tagId, ...tag } }) => ({ tag: board.changeBoardTag(projectId, tagId, tag) })),
+    change: os.tags.change.handler(({ input: { projectId, tagId, ...tag } }) => ({
+      tag: board.changeBoardTag(projectId, tagId, tag),
+    })),
     remove: os.tags.remove.handler(({ input }) => board.removeBoardTag(input.projectId, input.tagId)),
   },
   comments: {
@@ -48,10 +55,16 @@ export const taskBoard = os.router({
       const files = await filesFromRequest(projectById(projectId), list ?? []);
       const task = board.addBoardComment(projectId, id, text, 'you', files);
       // (while an agent or team works on it, your comment reaches them too)
-      void work.passToWorker(projectId, id, `A new comment on the task from you:\n\n${text ?? ''}`, files).catch(() => {});
+      void work
+        .passToWorker(projectId, id, `A new comment on the task from you:\n\n${text ?? ''}`, files)
+        .catch(() => {});
       return { task };
     }),
-    change: os.comments.change.handler(({ input }) => ({ task: board.changeBoardComment(input.projectId, input.id, input.commentId, input.text) })),
-    remove: os.comments.remove.handler(({ input }) => ({ task: board.changeBoardComment(input.projectId, input.id, input.commentId, null) })),
+    change: os.comments.change.handler(({ input }) => ({
+      task: board.changeBoardComment(input.projectId, input.id, input.commentId, input.text),
+    })),
+    remove: os.comments.remove.handler(({ input }) => ({
+      task: board.changeBoardComment(input.projectId, input.id, input.commentId, null),
+    })),
   },
 });

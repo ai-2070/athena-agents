@@ -6,7 +6,8 @@ import { getThread, postUserMessage } from '../../server/teams.ts';
 import { servicesOf, soleHolder } from '../../server/services.ts';
 import type { Agent, ServerEvent, Team } from '../../shared/types.ts';
 
-const a = (name: string, toolGroups: string[] = [], mcpServers: string[] = []) => ({ ...newAgent({ name, engine: 'eve', toolGroups }), mcpServers }) as Agent;
+const a = (name: string, toolGroups: string[] = [], mcpServers: string[] = []) =>
+  ({ ...newAgent({ name, engine: 'eve', toolGroups }), mcpServers }) as Agent;
 
 describe('soleHolder', () => {
   const lead = a('Lead', ['files']);
@@ -43,7 +44,13 @@ describe('in a team chat', () => {
   it('goes to the only member with the service, before the lead', async () => {
     const lead = a('Lead', ['files']);
     const artist = a('Artist', ['blender']);
-    const team = workflows.save({ name: 'Studio', description: 'Make things', members: [lead.id, artist.id], lead: lead.id, steps: [] } as Partial<Team>);
+    const team = workflows.save({
+      name: 'Studio',
+      description: 'Make things',
+      members: [lead.id, artist.id],
+      lead: lead.id,
+      steps: [],
+    } as Partial<Team>);
     const routed: unknown[] = [];
     const listen = (ev: ServerEvent) => {
       const e = (ev as unknown as { type: string; teamId?: string; event?: { kind: string } }).event;

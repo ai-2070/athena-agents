@@ -12,7 +12,16 @@ import type { AppState, Team } from '../../shared/types.ts';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
 
-const team = (over: Partial<TeamView> = {}): TeamView => ({ id: 't1', name: 'Thumbs', members: ['a1', 'a2'], lead: 'a1', steps: [], description: 'Make thumbnails', ...over }) as TeamView;
+const team = (over: Partial<TeamView> = {}): TeamView =>
+  ({
+    id: 't1',
+    name: 'Thumbs',
+    members: ['a1', 'a2'],
+    lead: 'a1',
+    steps: [],
+    description: 'Make thumbnails',
+    ...over,
+  }) as TeamView;
 let picked: MapPick | null;
 let teams: TeamView[];
 let saved: TeamView[];
@@ -43,7 +52,8 @@ const open = async (p: MapPick) => {
   await act(async () => void (view ? view.update() : (view = mountStationPanel(el, api()))));
   await settle();
 };
-const button = (text: string) => [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent!.trim() === text)!;
+const button = (text: string) =>
+  [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent!.trim() === text)!;
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><aside class="st-panel"></aside>';
@@ -74,9 +84,31 @@ beforeEach(() => {
     if (init?.method === 'POST') posts.push({ url, body: JSON.parse(String(init.body || '{}')) });
     if (url === '/api/routines')
       return json([
-        { id: 'r1', name: 'Weekly thumbnails', text: '@Thumbs make three', enabled: true, schedule: { type: 'daily', times: ['09:00'] }, mentions: [{ kind: 'team', id: 't1', name: 'Thumbs' }], lastRun: null },
-        { id: 'r2', name: 'Posts only', text: '@Posts write', enabled: true, schedule: { type: 'none' }, mentions: [{ kind: 'team', id: 't2', name: 'Posts' }] },
-        { id: 'r3', name: 'Paused one', text: '@Thumbs later', enabled: false, schedule: { type: 'none' }, mentions: [{ kind: 'team', id: 't1', name: 'Thumbs' }] },
+        {
+          id: 'r1',
+          name: 'Weekly thumbnails',
+          text: '@Thumbs make three',
+          enabled: true,
+          schedule: { type: 'daily', times: ['09:00'] },
+          mentions: [{ kind: 'team', id: 't1', name: 'Thumbs' }],
+          lastRun: null,
+        },
+        {
+          id: 'r2',
+          name: 'Posts only',
+          text: '@Posts write',
+          enabled: true,
+          schedule: { type: 'none' },
+          mentions: [{ kind: 'team', id: 't2', name: 'Posts' }],
+        },
+        {
+          id: 'r3',
+          name: 'Paused one',
+          text: '@Thumbs later',
+          enabled: false,
+          schedule: { type: 'none' },
+          mentions: [{ kind: 'team', id: 't1', name: 'Thumbs' }],
+        },
       ]);
     if (url === '/api/brain')
       return json({
@@ -131,26 +163,36 @@ describe('the Station panel', () => {
     expect(saved.at(-1)!.members).toEqual(['a1', 'a2', 'a3']);
     expect(saved.at(-1)!.steps!.map((s) => s.agentId)).toEqual(['a1', 'a2', 'a3']);
     // taking off the lead takes the lead too
-    await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Take Scout off this team"]')!.click());
+    await act(async () =>
+      el.querySelector<HTMLButtonElement>('button[aria-label="Take Scout off this team"]')!.click(),
+    );
     expect(saved.at(-1)!.members).toEqual(['a2']);
     expect(saved.at(-1)!.lead).toBe(null);
   });
 
   it('a team: Setup uses the shared searchable emoji picker', async () => {
     await open({ type: 'branch', id: 't1' });
-    await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click(),
+    );
     await settle();
     expect(el.querySelector('.mono-fields')).not.toBeNull();
-    const titles = [...el.querySelectorAll('.mono-fields > section')].map((x) => x.firstElementChild!.textContent?.trim());
+    const titles = [...el.querySelectorAll('.mono-fields > section')].map((x) =>
+      x.firstElementChild!.textContent?.trim(),
+    );
     expect(titles.slice(0, 3)).toEqual(['Name and goal', 'Team skills', 'Extra access']);
     expect(titles).toContain('Symbol on the map');
-    const symbol = [...el.querySelectorAll('.mono-fields > section')].find((x) => x.firstElementChild!.textContent?.trim() === 'Symbol on the map')!;
+    const symbol = [...el.querySelectorAll('.mono-fields > section')].find(
+      (x) => x.firstElementChild!.textContent?.trim() === 'Symbol on the map',
+    )!;
     await vi.waitFor(() => expect(symbol.querySelector('[aria-label="Choose emoji"]')).not.toBeNull());
     await act(async () => symbol.querySelector<HTMLButtonElement>('[aria-label="Choose emoji"]')!.click());
     await settle();
     const search = document.querySelector<HTMLInputElement>('[aria-label="Search emoji"]')!;
     expect(search).not.toBeNull();
-    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Emoji choices"] button')][0]!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Emoji choices"] button')][0]!.click(),
+    );
     expect(saved.at(-1)!.mark).toBeTruthy();
     expect(saved.at(-1)!.markFile).toBeNull();
     expect(symbol.querySelector('input[aria-label="Your own emoji"]')?.classList.contains('h-9')).toBe(true);
@@ -158,7 +200,9 @@ describe('the Station panel', () => {
 
   it('a team: the Setup tab saves the name when you leave the field', async () => {
     await open({ type: 'branch', id: 't1' });
-    await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click(),
+    );
     await settle();
     const name = el.querySelector<HTMLInputElement>('input[aria-label="Team name"]')!;
     expect(name.value).toBe('Thumbs');
@@ -171,11 +215,18 @@ describe('the Station panel', () => {
 
   it('a team: Setup lists the routines that mention it as cards, and starts a new one with it mentioned', async () => {
     await open({ type: 'branch', id: 't1' });
-    await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click(),
+    );
     await settle();
-    const routines = [...el.querySelectorAll('.mono-fields > section')].find((x) => x.firstElementChild!.textContent?.trim() === 'Routines')!;
+    const routines = [...el.querySelectorAll('.mono-fields > section')].find(
+      (x) => x.firstElementChild!.textContent?.trim() === 'Routines',
+    )!;
     const cards = [...routines.querySelectorAll<HTMLButtonElement>('button.st-conn')];
-    expect(cards.map((c) => c.textContent)).toEqual(['Weekly thumbnailsDaily at 9AMNot run yet', 'Paused oneRun by handOff']);
+    expect(cards.map((c) => c.textContent)).toEqual([
+      'Weekly thumbnailsDaily at 9AMNot run yet',
+      'Paused oneRun by handOff',
+    ]);
     await act(async () => cards[0].click());
     expect(location.hash).toBe('#/routines/r1');
     await act(async () => button('New routine for this team').click());
@@ -183,17 +234,32 @@ describe('the Station panel', () => {
   });
 
   it('counts the routines that mention each team, once per routine, leaving out deleted teams', () => {
-    expect(routineCounts([
-      { mentions: [{ kind: 'team', id: 't1', name: 'A' }, { kind: 'agent', id: 'a1', name: 'B' }] },
-      { mentions: [{ kind: 'team', id: 't1', name: 'A' }, { kind: 'team', id: 't1', name: 'A' }, { kind: 'team', id: 't2', name: 'C' }] },
-      { mentions: [{ kind: 'team', id: 't3', name: 'Gone', missing: true }] },
-    ])).toEqual({ t1: 2, t2: 1 });
+    expect(
+      routineCounts([
+        {
+          mentions: [
+            { kind: 'team', id: 't1', name: 'A' },
+            { kind: 'agent', id: 'a1', name: 'B' },
+          ],
+        },
+        {
+          mentions: [
+            { kind: 'team', id: 't1', name: 'A' },
+            { kind: 'team', id: 't1', name: 'A' },
+            { kind: 'team', id: 't2', name: 'C' },
+          ],
+        },
+        { mentions: [{ kind: 'team', id: 't3', name: 'Gone', missing: true }] },
+      ]),
+    ).toEqual({ t1: 2, t2: 1 });
   });
 
   it('a team with the daily message from before routines shows it, and Turn off stops it', async () => {
     teams[0] = team({ schedule: { type: 'daily', times: ['09:00'], input: 'Post the news' }, enabled: true });
     await open({ type: 'branch', id: 't1' });
-    await act(async () => [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click());
+    await act(async () =>
+      [...el.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent === 'Setup')!.click(),
+    );
     await settle();
     expect(el.textContent).toContain('Post the news');
     await act(async () => button('Turn off').click());
@@ -223,7 +289,11 @@ describe('the Station panel', () => {
     for (let i = 0; i < 20 && !el.querySelector('.st-file'); i++) await settle();
     expect(el.querySelector('.st-panel-title')!.textContent).toBe('Launch');
     expect(el.querySelector('.st-about-text')!.textContent).toBe('A product launch.');
-    expect([...el.querySelectorAll('.st-file')].map((f) => f.textContent!.trim())).toEqual(['notes', '.DS_Store', 'PROJECT.md']);
+    expect([...el.querySelectorAll('.st-file')].map((f) => f.textContent!.trim())).toEqual([
+      'notes',
+      '.DS_Store',
+      'PROJECT.md',
+    ]);
     // a folder opens in Finder / Explorer, a Markdown file opens to read, anything else is just a name
     expect([...el.querySelectorAll('.st-file')].map((f) => f.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON']);
     await act(async () => el.querySelector<HTMLButtonElement>('button.st-file')!.click());

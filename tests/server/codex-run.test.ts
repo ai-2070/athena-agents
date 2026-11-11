@@ -24,7 +24,11 @@ beforeAll(() => {
   fs.mkdirSync(pkg, { recursive: true });
   fs.copyFileSync(SCRIPT, path.join(pkg, 'codex.js'));
   fs.writeFileSync(path.join(bin, 'codex.cmd'), npmShim('node_modules\\@openai\\codex\\bin\\codex.js'));
-  fs.writeFileSync(path.join(bin, 'codex'), `#!/bin/sh\nexec "${process.execPath}" "${path.join(pkg, 'codex.js')}" "$@"\n`, { mode: 0o755 });
+  fs.writeFileSync(
+    path.join(bin, 'codex'),
+    `#!/bin/sh\nexec "${process.execPath}" "${path.join(pkg, 'codex.js')}" "$@"\n`,
+    { mode: 0o755 },
+  );
   oldPath = process.env.PATH || '';
   process.env.PATH = `${bin}${path.delimiter}${oldPath}`;
   clearWhichCache();
@@ -51,7 +55,10 @@ describe('npm-installed Codex', () => {
       fs.writeFileSync(path.join(dir, 'node_modules', 'x', 'bin', 'x.js'), '');
       fs.writeFileSync(path.join(dir, 'node.exe'), '');
       fs.writeFileSync(path.join(dir, 'x.cmd'), npmShim('node_modules\\x\\bin\\x.js'));
-      expect(shimTarget(path.join(dir, 'x.cmd'))).toEqual({ command: path.join(dir, 'node.exe'), args: [path.join(dir, 'node_modules', 'x', 'bin', 'x.js')] });
+      expect(shimTarget(path.join(dir, 'x.cmd'))).toEqual({
+        command: path.join(dir, 'node.exe'),
+        args: [path.join(dir, 'node_modules', 'x', 'bin', 'x.js')],
+      });
       // any other .cmd is no shim
       fs.writeFileSync(path.join(dir, 'y.cmd'), '@echo off\r\necho hi\r\n');
       expect(shimTarget(path.join(dir, 'y.cmd'))).toBeNull();
@@ -75,7 +82,7 @@ describe('npm-installed Codex', () => {
   it('keeps every task batch outcome in saved MCP results', async () => {
     process.env.FAKE_CODEX_MODE = 'tasks';
     const chat = await ask();
-    const results = chat.items.flatMap((i) => i.type === 'tool' && i.result ? [i.result] : []);
+    const results = chat.items.flatMap((i) => (i.type === 'tool' && i.result ? [i.result] : []));
     expect(results).toHaveLength(2);
     for (const text of results) {
       expect(text.length).toBeGreaterThan(20000);

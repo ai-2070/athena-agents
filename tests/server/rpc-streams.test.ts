@@ -24,7 +24,9 @@ const server = http.createServer(async (req, res) => {
 });
 beforeAll(async () => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  rpc = createORPCClient(new OpenAPILink(contract, { url: `http://127.0.0.1:${(server.address() as net.AddressInfo).port}/api` }));
+  rpc = createORPCClient(
+    new OpenAPILink(contract, { url: `http://127.0.0.1:${(server.address() as net.AddressInfo).port}/api` }),
+  );
 });
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 afterEach(() => vi.restoreAllMocks());
@@ -36,22 +38,29 @@ const listening = () => bus.listenerCount('event');
 const refused = (call: Promise<unknown>) =>
   call.then(
     () => null,
-    (e: { status?: number; data?: { body?: { error?: string } } }) => ({ status: e.status, error: e.data?.body?.error }),
+    (e: { status?: number; data?: { body?: { error?: string } } }) => ({
+      status: e.status,
+      error: e.data?.body?.error,
+    }),
   );
 
 /** Reads a stream to its end, as the AI SDK does: the message as it ends up. */
 async function readAll(it: UIStream): Promise<UIMessage> {
   let last: UIMessage | null = null;
-  for await (const m of readUIMessageStream({ stream: eventIteratorToUnproxiedDataStream(it) })) last = structuredClone(m);
+  for await (const m of readUIMessageStream({ stream: eventIteratorToUnproxiedDataStream(it) }))
+    last = structuredClone(m);
   return last!;
 }
-const shown = (m: UIMessage) => m.parts.flatMap((p) => (p.type === 'text' ? [p.text] : p.type === 'dynamic-tool' ? [`[${p.toolName}]`] : []));
+const shown = (m: UIMessage) =>
+  m.parts.flatMap((p) => (p.type === 'text' ? [p.text] : p.type === 'dynamic-tool' ? [`[${p.toolName}]`] : []));
 
 /** A run that the engines say goes on (no engine needed): its id, and its chat. */
 function fakeRun(runId: string) {
   const a = newAgent({ name: 'Scout' });
   const c = chats.create(a.id);
-  const started = vi.spyOn(engines, 'startRun').mockReturnValue({ runId, promise: Promise.resolve(''), signal: new AbortController().signal });
+  const started = vi
+    .spyOn(engines, 'startRun')
+    .mockReturnValue({ runId, promise: Promise.resolve(''), signal: new AbortController().signal });
   vi.spyOn(engines, 'runActive').mockReturnValue(true);
   return { a, c, started };
 }
@@ -60,7 +69,12 @@ describe('an agent chat’s stream over oRPC', () => {
   it('sends the message and streams its run: text, a tool call with its result, then the end', async () => {
     const { a, c, started } = fakeRun('r-send');
     const it = await rpc.agents.chats.stream({ id: a.id, chatId: c.id, text: '  Render it  ' });
-    expect(started).toHaveBeenCalledWith(expect.objectContaining({ id: a.id }), expect.objectContaining({ id: c.id }), 'Render it', { attachments: [] });
+    expect(started).toHaveBeenCalledWith(
+      expect.objectContaining({ id: a.id }),
+      expect.objectContaining({ id: c.id }),
+      'Render it',
+      { attachments: [] },
+    );
     const reading = readAll(it);
     await tick();
     run(c.id, 'r-send', { kind: 'text', text: 'Rendering. ' });
@@ -76,9 +90,18 @@ describe('an agent chat’s stream over oRPC', () => {
   it('refuses before streaming, in plain words: nothing typed, an agent or chat that isn’t there', async () => {
     const a = newAgent({ name: 'Scout' });
     const c = chats.create(a.id);
-    expect(await refused(rpc.agents.chats.stream({ id: a.id, chatId: c.id, text: '  ' }))).toEqual({ status: 400, error: 'Type a message first.' });
-    expect(await refused(rpc.agents.chats.stream({ id: 'nobody', chatId: c.id, text: 'hi' }))).toEqual({ status: 404, error: 'That agent is unavailable.' });
-    expect(await refused(rpc.agents.chats.stream({ id: a.id, chatId: 'gone', text: 'hi' }))).toEqual({ status: 404, error: 'That chat is unavailable.' });
+    expect(await refused(rpc.agents.chats.stream({ id: a.id, chatId: c.id, text: '  ' }))).toEqual({
+      status: 400,
+      error: 'Type a message first.',
+    });
+    expect(await refused(rpc.agents.chats.stream({ id: 'nobody', chatId: c.id, text: 'hi' }))).toEqual({
+      status: 404,
+      error: 'That agent is unavailable.',
+    });
+    expect(await refused(rpc.agents.chats.stream({ id: a.id, chatId: 'gone', text: 'hi' }))).toEqual({
+      status: 404,
+      error: 'That chat is unavailable.',
+    });
   });
 
   it('picks up the run going in a chat (the turn so far, then the rest), and is nothing when none runs', async () => {
@@ -86,7 +109,13 @@ describe('an agent chat’s stream over oRPC', () => {
     const c = chats.create(a.id);
     expect(await rpc.agents.chats.reconnect({ id: a.id, chatId: c.id })).toBeNull();
     vi.spyOn(engines, 'chatRunId').mockReturnValue('r-again');
-    vi.spyOn(engines, 'liveChat').mockReturnValue({ ...c, items: [{ type: 'user', text: 'go' }, { type: 'assistant', text: 'So far. ' }] });
+    vi.spyOn(engines, 'liveChat').mockReturnValue({
+      ...c,
+      items: [
+        { type: 'user', text: 'go' },
+        { type: 'assistant', text: 'So far. ' },
+      ],
+    });
     const it = await rpc.agents.chats.reconnect({ id: a.id, chatId: c.id });
     const reading = readAll(it!);
     await tick();
@@ -107,7 +136,13 @@ describe('an agent chat’s stream over oRPC', () => {
     await tick();
     // the new run starts and speaks in the moment before the stream hears its id
     run(c.id, 'r-next', { kind: 'text', text: 'On the new plan. ' });
-    live.mockReturnValue({ ...c, items: [{ type: 'user', text: 'New plan' }, { type: 'assistant', text: 'On the new plan. ' }] });
+    live.mockReturnValue({
+      ...c,
+      items: [
+        { type: 'user', text: 'New plan' },
+        { type: 'assistant', text: 'On the new plan. ' },
+      ],
+    });
     start('r-next');
     await tick();
     run(c.id, 'r-next', { kind: 'text', text: 'Done.' });
@@ -120,7 +155,13 @@ describe('an agent chat’s stream over oRPC', () => {
     const c = chats.create(a.id);
     vi.spyOn(engines, 'runActive').mockReturnValue(true);
     vi.spyOn(engines, 'steerChat').mockResolvedValue({ runId: 'r-join', steerId: 's1' });
-    vi.spyOn(engines, 'liveChat').mockReturnValue({ ...c, items: [{ type: 'user', text: 'go' }, { type: 'assistant', text: 'Shown already. ' }] });
+    vi.spyOn(engines, 'liveChat').mockReturnValue({
+      ...c,
+      items: [
+        { type: 'user', text: 'go' },
+        { type: 'assistant', text: 'Shown already. ' },
+      ],
+    });
     const it = await rpc.agents.chats.stream({ id: a.id, chatId: c.id, text: 'Also this', steer: true });
     const reading = readAll(it);
     await tick();
@@ -132,7 +173,11 @@ describe('an agent chat’s stream over oRPC', () => {
   it('refuses attachments that aren’t files in plain words', async () => {
     const a = newAgent({ name: 'Scout' });
     const c = chats.create(a.id);
-    expect(await refused(rpc.agents.chats.stream({ id: a.id, chatId: c.id, text: 'hi', attachments: [1 as unknown as string] }))).toEqual({ status: 400, error: 'Each attachment is a file of the project.' });
+    expect(
+      await refused(
+        rpc.agents.chats.stream({ id: a.id, chatId: c.id, text: 'hi', attachments: [1 as unknown as string] }),
+      ),
+    ).toEqual({ status: 400, error: 'Each attachment is a file of the project.' });
   });
 
   it('stops listening when the page stops reading (the run goes on)', async () => {
@@ -156,23 +201,38 @@ describe('the Brain’s streamed answer over oRPC', () => {
       return { answer: 'On it.', done: [], delegate: null } as unknown as Awaited<ReturnType<typeof overseer.ask>>;
     });
     const m = await readAll(await rpc.brain.stream({ text: 'Plan the week', project: null, goal: true }));
-    expect(asked).toHaveBeenCalledWith('Plan the week', expect.objectContaining({ project: null, attachments: [], goal: true }));
+    expect(asked).toHaveBeenCalledWith(
+      'Plan the week',
+      expect.objectContaining({ project: null, attachments: [], goal: true }),
+    );
     expect(shown(m)).toEqual(['On it.\n']);
     expect(m.parts.find((p) => p.type === 'data-answer')).toMatchObject({ data: { answer: 'On it.' } });
   });
 
   it('refuses before the stream starts, in plain words: nothing to ask, a project that isn’t an id', async () => {
     expect(await refused(rpc.brain.stream({ text: '' }))).toEqual({ status: 400, error: 'Type a message first.' });
-    expect(await refused(rpc.brain.stream({ text: 'hi', project: 7 as unknown as string }))).toEqual({ status: 400, error: 'project must be the id of a project.' });
-    expect(await refused(rpc.brain.stream({ text: 'hi', attachments: [{}] as unknown as string[] }))).toEqual({ status: 400, error: 'Each attachment is a file of the project.' });
+    expect(await refused(rpc.brain.stream({ text: 'hi', project: 7 as unknown as string }))).toEqual({
+      status: 400,
+      error: 'project must be the id of a project.',
+    });
+    expect(await refused(rpc.brain.stream({ text: 'hi', attachments: [{}] as unknown as string[] }))).toEqual({
+      status: 400,
+      error: 'Each attachment is a file of the project.',
+    });
   });
 });
 
 describe('a stream’s answer', () => {
   it('asks a proxy not to hold it back, and isn’t cached', async () => {
-    vi.spyOn(overseer, 'ask').mockResolvedValue({ answer: 'Hi.', done: [], delegate: null } as unknown as Awaited<ReturnType<typeof overseer.ask>>);
+    vi.spyOn(overseer, 'ask').mockResolvedValue({ answer: 'Hi.', done: [], delegate: null } as unknown as Awaited<
+      ReturnType<typeof overseer.ask>
+    >);
     const port = (server.address() as net.AddressInfo).port;
-    const res = await fetch(`http://127.0.0.1:${port}/api/brain/stream`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'hi' }) });
+    const res = await fetch(`http://127.0.0.1:${port}/api/brain/stream`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'hi' }),
+    });
     expect(res.headers.get('content-type')).toMatch(/^text\/event-stream/);
     expect(res.headers.get('x-accel-buffering')).toBe('no');
     expect(res.headers.get('cache-control')).toBe('no-store');

@@ -48,8 +48,15 @@ several, each tool name gets its server's name in front (`orders_find_orders`). 
 and spare JSON's doubled backslashes.
 
 ```json
-{"mcpServers": {"orders": {"command": "uv", "env": {"SQLITE_PATH": "C:/Users/ana/shop/orders.db"},
-  "args": ["run", "--with", "fastmcp", "fastmcp", "run", "C:/Users/ana/shop/orders_server.py"]}}}
+{
+  "mcpServers": {
+    "orders": {
+      "command": "uv",
+      "env": { "SQLITE_PATH": "C:/Users/ana/shop/orders.db" },
+      "args": ["run", "--with", "fastmcp", "fastmcp", "run", "C:/Users/ana/shop/orders_server.py"]
+    }
+  }
+}
 ```
 
 Then `fastmcp call mcp-work/test.json find_orders customer=ana@example.com`. A start that fails shows only as

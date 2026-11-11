@@ -16,20 +16,31 @@ describe('parseActions()', () => {
   });
 
   it('accepts a single action object and tolerates text around the JSON', () => {
-    expect(parseActions('ok\n```actions\n{"do":"hire","members":[]}\n```').actions).toEqual([{ do: 'hire', members: [] }]);
+    expect(parseActions('ok\n```actions\n{"do":"hire","members":[]}\n```').actions).toEqual([
+      { do: 'hire', members: [] },
+    ]);
     expect(parseActions('```actions\nhere: [{"do":"hire"}] done\n```').actions).toEqual([{ do: 'hire' }]);
   });
 
   it('a plain answer has no actions; broken JSON gives none instead of failing', () => {
-    expect(parseActions('Nobody is working right now.')).toEqual({ answer: 'Nobody is working right now.', actions: [] });
+    expect(parseActions('Nobody is working right now.')).toEqual({
+      answer: 'Nobody is working right now.',
+      actions: [],
+    });
     expect(parseActions('x\n```actions\n[{oops\n```').actions).toEqual([]);
   });
 });
 
 describe('applyActions()', () => {
   it('keeps task ids in metadata and out of task activity text', () => {
-    const created = applyActions([{ do: 'TaskCreate', subject: 'Check the report [phase 2]', description: 'Verify the report.' }]).done[0];
-    expect(created).toMatchObject({ kind: 'task', text: 'Created task: Check the report [phase 2]', taskId: expect.any(String) });
+    const created = applyActions([
+      { do: 'TaskCreate', subject: 'Check the report [phase 2]', description: 'Verify the report.' },
+    ]).done[0];
+    expect(created).toMatchObject({
+      kind: 'task',
+      text: 'Created task: Check the report [phase 2]',
+      taskId: expect.any(String),
+    });
     for (const status of ['in_progress', 'completed', 'deleted']) {
       const result = applyActions([{ do: 'TaskUpdate', taskId: created.taskId, status }]).done[0];
       expect(result.taskId).toBe(created.taskId);
@@ -41,7 +52,16 @@ describe('applyActions()', () => {
     const writer = newAgent({ name: 'Writer' });
     const before = agents.list().length;
     const r = applyActions([
-      { do: 'create_team', name: 'Social', description: 'Posts', members: [{ agent: writer.id }, { new: { name: 'Designer', emoji: '🎨', specialty: 'images', instructions: 'Make images.' } }], lead: { agent: writer.id } },
+      {
+        do: 'create_team',
+        name: 'Social',
+        description: 'Posts',
+        members: [
+          { agent: writer.id },
+          { new: { name: 'Designer', emoji: '🎨', specialty: 'images', instructions: 'Make images.' } },
+        ],
+        lead: { agent: writer.id },
+      },
     ]);
     expect(agents.list().length).toBe(before + 1);
     const team = workflows.list().find((w) => w.name === 'Social')!;
@@ -146,13 +166,25 @@ describe('the Brain and routines', () => {
     newAgent({ name: 'Scout' });
     const { done } = applyActions([
       { do: 'create_team', name: 'Post Crew', members: [{ new: { name: 'Poster', specialty: 'writes posts' } }] },
-      { do: 'create_routine', name: 'Morning post', text: '@Scout finds news, @Post Crew writes it up with @Brand voice.', schedule: { type: 'daily', times: ['7:30'], days: ['Mon', 'wednesday', 9] }, enabled: true },
+      {
+        do: 'create_routine',
+        name: 'Morning post',
+        text: '@Scout finds news, @Post Crew writes it up with @Brand voice.',
+        schedule: { type: 'daily', times: ['7:30'], days: ['Mon', 'wednesday', 9] },
+        enabled: true,
+      },
     ]);
     const made = done.find((d) => d.kind === 'routine')!;
-    expect(made.text).toBe('Made the routine "Morning post" (daily 07:30 Mon Wed; for Post Crew, Scout; skills: Brand voice)');
+    expect(made.text).toBe(
+      'Made the routine "Morning post" (daily 07:30 Mon Wed; for Post Crew, Scout; skills: Brand voice)',
+    );
     const { getRoutine } = await import('../../server/routines.ts');
     const r = getRoutine(made.routineId!)!;
-    expect(r.mentions.map((m) => `${m.kind}:${m.name}`)).toEqual(['agent:Scout', 'team:Post Crew', 'skill:Brand voice']);
+    expect(r.mentions.map((m) => `${m.kind}:${m.name}`)).toEqual([
+      'agent:Scout',
+      'team:Post Crew',
+      'skill:Brand voice',
+    ]);
     expect(r.schedule).toEqual({ type: 'daily', times: ['07:30'], days: [1, 3] });
     expect(r.enabled).toBe(true);
     expect(done.some((d) => d.kind === 'error')).toBe(false);
@@ -160,9 +192,18 @@ describe('the Brain and routines', () => {
 
   it('updates a routine by name, then deletes it', async () => {
     const { listRoutines, getRoutine } = await import('../../server/routines.ts');
-    const { done: made } = applyActions([{ do: 'create_routine', name: 'Weekly report', text: '@Scout sums up the week.' }]);
+    const { done: made } = applyActions([
+      { do: 'create_routine', name: 'Weekly report', text: '@Scout sums up the week.' },
+    ]);
     const id = made[0].routineId!;
-    const { done } = applyActions([{ do: 'update_routine', routine: 'weekly report', text: '@Scout sums up the week in 5 bullets.', schedule: { type: 'interval', minutes: 1 } }]);
+    const { done } = applyActions([
+      {
+        do: 'update_routine',
+        routine: 'weekly report',
+        text: '@Scout sums up the week in 5 bullets.',
+        schedule: { type: 'interval', minutes: 1 },
+      },
+    ]);
     expect(done[0].text).toMatch(/^Updated "Weekly report": what to do, schedule/);
     expect(getRoutine(id)!.text).toBe('@Scout sums up the week in 5 bullets.');
     expect(getRoutine(id)!.schedule).toEqual({ type: 'interval', minutes: 5 }); // at least 5 minutes
@@ -172,7 +213,10 @@ describe('the Brain and routines', () => {
   });
 
   it('says so when a routine mentions nobody, and will not run it', () => {
-    const { done } = applyActions([{ do: 'create_routine', name: 'Lonely', text: 'Ask @Nobody Real to check in.' }, { do: 'run_routine', routine: 'new' }]);
+    const { done } = applyActions([
+      { do: 'create_routine', name: 'Lonely', text: 'Ask @Nobody Real to check in.' },
+      { do: 'run_routine', routine: 'new' },
+    ]);
     expect(done.map((d) => d.kind)).toEqual(['routine', 'error', 'error']);
     expect(done[1].text).toMatch(/doesn't mention an agent or team/);
     expect(done[2].text).toMatch(/^run_routine: .*can't run/);
@@ -187,7 +231,9 @@ describe('the Brain and routines', () => {
     const snap = await snapshot({ fileBudget: 0 });
     expect(snap).toContain('more characters not shown');
     expect(snap).not.toContain('THE END');
-    const { done } = applyActions([{ do: 'update_routine', routine: id, text: '@Scout does less.', schedule: { type: 'daily', times: ['10:00'] } }]);
+    const { done } = applyActions([
+      { do: 'update_routine', routine: id, text: '@Scout does less.', schedule: { type: 'daily', times: ['10:00'] } },
+    ]);
     expect(done[0].kind).toBe('error');
     expect(done[0].text).toMatch(/too long to rewrite here/);
     expect(getRoutine(id)!.text).toBe(long);
@@ -201,7 +247,9 @@ describe('the Brain and routines', () => {
   it('shows routines and skills in its snapshot', async () => {
     const { snapshot } = await import('../../server/overseer.ts');
     const snap = await snapshot({ fileBudget: 0 });
-    expect(snap).toMatch(/ROUTINES \(\d+;[\s\S]*Morning post \| daily 07:30 Mon Wed \| agents: Scout \| teams: Post Crew \| skills: Brand voice \| last run: never run/);
+    expect(snap).toMatch(
+      /ROUTINES \(\d+;[\s\S]*Morning post \| daily 07:30 Mon Wed \| agents: Scout \| teams: Post Crew \| skills: Brand voice \| last run: never run/,
+    );
     expect(snap).toMatch(/- id=brand-voice[^|]* \| Brand voice: How we sound\. \| given to: /);
   });
 });
@@ -219,7 +267,14 @@ describe("a team's tools follow its work", () => {
 
   it("the Brain's team gets them even when it forgets, and a tool you take away stays away", () => {
     const eng = newAgent({ name: 'Engineer', toolGroups: ['files', 'programs'] });
-    applyActions([{ do: 'create_team', name: 'Launch', description: 'Ships the app and tweets about each release', members: [{ agent: eng.id }] }]);
+    applyActions([
+      {
+        do: 'create_team',
+        name: 'Launch',
+        description: 'Ships the app and tweets about each release',
+        members: [{ agent: eng.id }],
+      },
+    ]);
     const team = workflows.list().find((w) => w.name === 'Launch')!;
     expect(team.access?.toolGroups).toContain('social');
     // taken away on purpose: not put back

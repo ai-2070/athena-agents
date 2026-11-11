@@ -91,18 +91,18 @@ tab are removed and the 8 agents leave the code (`STARTERS` in `server/library.t
 
 Decided with the user:
 
-| Question | Answer |
-|---|---|
-| Shape | Better agent files: one Markdown file per agent, as today. Hiring copies its text into a new agent |
-| Which ones | The 80 below, approved as listed |
-| Groups | 9: Testing and Security are part of Engineering, and Finance of Business and finance |
-| Where | A new folder. `library/agency-agents/` stays unchanged until the last step, then it is deleted |
-| Athena's 8 | Rewritten into the same folder, to the same standard. One list in the Library |
-| Agents already hired | Left alone. They keep their copy of the old text and keep working |
-| Backwards compatibility | None. The Agency keeps working untouched until the switch at the end. Nothing matches old hires or old slugs to the new agents, and nothing hides old entries in between |
-| Shared line | Agents hired from the new library get one more sentence from the dashboard: their role is where they're strongest, not a limit. Agents people wrote themselves don't |
-| Review | 5 samples first for the user to approve the style, then batches of about 10. A second agent checks each file and the user skims each batch |
-| Scope | A role is where an agent is strongest, not a fence. As models and their tools get better, agents take on nearby work themselves instead of refusing it or handing it off (see [Roles are a starting point](#roles-are-a-starting-point)) |
+| Question                | Answer                                                                                                                                                                                                                                   |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shape                   | Better agent files: one Markdown file per agent, as today. Hiring copies its text into a new agent                                                                                                                                       |
+| Which ones              | The 80 below, approved as listed                                                                                                                                                                                                         |
+| Groups                  | 9: Testing and Security are part of Engineering, and Finance of Business and finance                                                                                                                                                     |
+| Where                   | A new folder. `library/agency-agents/` stays unchanged until the last step, then it is deleted                                                                                                                                           |
+| Athena's 8              | Rewritten into the same folder, to the same standard. One list in the Library                                                                                                                                                            |
+| Agents already hired    | Left alone. They keep their copy of the old text and keep working                                                                                                                                                                        |
+| Backwards compatibility | None. The Agency keeps working untouched until the switch at the end. Nothing matches old hires or old slugs to the new agents, and nothing hides old entries in between                                                                 |
+| Shared line             | Agents hired from the new library get one more sentence from the dashboard: their role is where they're strongest, not a limit. Agents people wrote themselves don't                                                                     |
+| Review                  | 5 samples first for the user to approve the style, then batches of about 10. A second agent checks each file and the user skims each batch                                                                                               |
+| Scope                   | A role is where an agent is strongest, not a fence. As models and their tools get better, agents take on nearby work themselves instead of refusing it or handing it off (see [Roles are a starting point](#roles-are-a-starting-point)) |
 
 ## What's wrong with the current files
 
@@ -139,7 +139,7 @@ The full version goes into `library/athena-agents/README.md`, so whoever writes 
 name: Code Reviewer
 description: Reviews a change for bugs, security holes and code that will be hard to keep, and says what to fix first.
 emoji: 👁️
-color: "#6b7bff"
+color: '#6b7bff'
 specialty: reviews code changes and says what to fix first
 group: engineering
 tools: files, programs, agents
@@ -147,17 +147,17 @@ skills: requesting-code-review, independent-review
 ---
 ```
 
-| Key | What it's for |
-|---|---|
-| `name`, `emoji` | The card and the hired agent. Names stay recognisable ("Frontend Developer") |
-| `description` | One sentence: what it does and when you'd pick it. The card shows it, and the Brain reads it when it picks a teammate |
-| `color` | Hex, mid-tone, readable on white and near-black (the upstream files have `cyan`, `neon-cyan`) |
-| `specialty` | Lower-case phrase that finishes "You are Code Reviewer, …" in `buildSystemPrompt` |
-| `group` | An id from `groups.json` (id and label, in the order the Library's chips show them) |
-| `tools` | The tool groups it starts with, from `TOOL_GROUPS` (`server/tools.ts`). Replaces `suggestTools`. Every agent has `shell` (the user's call). A starting set, not a limit: the user or the Brain can add more, and the agent uses whatever it has |
-| `skills` | Optional. Bundled skill slugs it starts with, on the same terms. Hiring keeps only the ones in the user's skill library |
-| `engine` | Optional. Only where the agent needs one (Mail Assistant: `claude-code`, for the Gmail connector) |
-| `starter` | `true` on Athena's 8. The Home page's "add the starter team" hires these |
+| Key             | What it's for                                                                                                                                                                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`, `emoji` | The card and the hired agent. Names stay recognisable ("Frontend Developer")                                                                                                                                                                    |
+| `description`   | One sentence: what it does and when you'd pick it. The card shows it, and the Brain reads it when it picks a teammate                                                                                                                           |
+| `color`         | Hex, mid-tone, readable on white and near-black (the upstream files have `cyan`, `neon-cyan`)                                                                                                                                                   |
+| `specialty`     | Lower-case phrase that finishes "You are Code Reviewer, …" in `buildSystemPrompt`                                                                                                                                                               |
+| `group`         | An id from `groups.json` (id and label, in the order the Library's chips show them)                                                                                                                                                             |
+| `tools`         | The tool groups it starts with, from `TOOL_GROUPS` (`server/tools.ts`). Replaces `suggestTools`. Every agent has `shell` (the user's call). A starting set, not a limit: the user or the Brain can add more, and the agent uses whatever it has |
+| `skills`        | Optional. Bundled skill slugs it starts with, on the same terms. Hiring keeps only the ones in the user's skill library                                                                                                                         |
+| `engine`        | Optional. Only where the agent needs one (Mail Assistant: `claude-code`, for the Gmail connector)                                                                                                                                               |
+| `starter`       | `true` on Athena's 8. The Home page's "add the starter team" hires these                                                                                                                                                                        |
 
 ### Body
 

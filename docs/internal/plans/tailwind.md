@@ -7,14 +7,14 @@ The page's styles are Tailwind 4. `web/styles/app.css` is the entry: `scripts/bu
 
 Cascade layers, lowest first:
 
-| Layer | What | Where |
-|---|---|---|
-| `theme` | tokens (`--color-accent`, `--font-mono`, …) | `@theme` in `app.css` |
-| `base` | Tailwind's reset (preflight) + our element styles: body, links, `p`, `pre`, `code`, text inputs, `select`, headings stay bold | `base.css` |
-| `openui` | the chats' OpenUI stylesheet (wrapped by the build) | `public/dist/openui.css` |
-| `helpers` | old helper classes (`.row`, `.dim`, …) until every area uses utilities | `legacy/helpers.css` |
-| `components` | the shared pieces (`btn`, `card`, `pill`, `modal`, `st-menu`, …), then the old per-area styles not moved yet | `components.css`, `legacy/<area>.css` |
-| `utilities` | Tailwind utilities: they win over everything above | in the markup |
+| Layer        | What                                                                                                                          | Where                                 |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `theme`      | tokens (`--color-accent`, `--font-mono`, …)                                                                                   | `@theme` in `app.css`                 |
+| `base`       | Tailwind's reset (preflight) + our element styles: body, links, `p`, `pre`, `code`, text inputs, `select`, headings stay bold | `base.css`                            |
+| `openui`     | the chats' OpenUI stylesheet (wrapped by the build)                                                                           | `public/dist/openui.css`              |
+| `helpers`    | old helper classes (`.row`, `.dim`, …) until every area uses utilities                                                        | `legacy/helpers.css`                  |
+| `components` | the shared pieces (`btn`, `card`, `pill`, `modal`, `st-menu`, …), then the old per-area styles not moved yet                  | `components.css`, `legacy/<area>.css` |
+| `utilities`  | Tailwind utilities: they win over everything above                                                                            | in the markup                         |
 
 `components.css` is the only hand-written CSS that stays: pieces used across the app, Markdown output
 (`.md`), and things utilities can't reach. Everything specific to one page or panel is utilities in its
@@ -81,21 +81,21 @@ also write the hover: `bg-transparent hover:bg-panel-2`.
 
 ## Old helper classes → utilities
 
-| Old | Utilities |
-|---|---|
-| `mono` | `font-mono` |
-| `dim` `faint` `accent` `amber` `red` | `text-dim` `text-faint` `text-accent` `text-amber` `text-red` |
-| `grow` | `flex-1 min-w-0` |
-| `row` | `flex flex-wrap items-center gap-2.5` |
-| `row nowrap` | `flex items-center gap-2.5` |
-| `col` | `flex flex-col gap-2.5` |
-| `between` | `justify-between` |
-| `gap-lg` | `gap-4.5` |
-| `mt` / `mt-lg` | `mt-3.5` / `mt-7` |
-| `nowrap` (not on a row) | `whitespace-nowrap` |
-| `pre-wrap` | `whitespace-pre-wrap` |
-| `grid-2` | `grid grid-cols-2 gap-3.5 max-md:grid-cols-1` |
-| `two-col` | `grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1` |
+| Old                                  | Utilities                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------- |
+| `mono`                               | `font-mono`                                                                           |
+| `dim` `faint` `accent` `amber` `red` | `text-dim` `text-faint` `text-accent` `text-amber` `text-red`                         |
+| `grow`                               | `flex-1 min-w-0`                                                                      |
+| `row`                                | `flex flex-wrap items-center gap-2.5`                                                 |
+| `row nowrap`                         | `flex items-center gap-2.5`                                                           |
+| `col`                                | `flex flex-col gap-2.5`                                                               |
+| `between`                            | `justify-between`                                                                     |
+| `gap-lg`                             | `gap-4.5`                                                                             |
+| `mt` / `mt-lg`                       | `mt-3.5` / `mt-7`                                                                     |
+| `nowrap` (not on a row)              | `whitespace-nowrap`                                                                   |
+| `pre-wrap`                           | `whitespace-pre-wrap`                                                                 |
+| `grid-2`                             | `grid grid-cols-2 gap-3.5 max-md:grid-cols-1`                                         |
+| `two-col`                            | `grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1` |
 
 The helpers were the weakest styles: any other rule on the same element won. So when an element had a
 helper and another class setting the same property (`card row`: the card's 8px gap won), leave the

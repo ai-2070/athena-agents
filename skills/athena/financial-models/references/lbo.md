@@ -63,7 +63,7 @@ Cash closing              =D38+D28-D31-D32
 
 - With several tranches, take every tranche's mandatory repayment out of the cash available, then sweep in order of
   seniority: each tranche's sweep is `MAX(0, MIN(cash left after the tranches above it, its opening balance less its
-  mandatory repayment))`.
+mandatory repayment))`.
 - A revolver covers years when cash falls short: draw `=MAX(0,MinCash-cash before revolver)`, repay first when cash
   returns (the revolver in `three-statement.md` works the same).
 - Repayment terms (amortisation, sweep share, call premiums) come from the term sheet the user has; don't assume them.
@@ -112,10 +112,10 @@ interest rate, and exit year × exit multiple.
 
 ## A minimal layout
 
-| Sheet | Rows |
-|---|---|
+| Sheet  | Rows                                                                                                                                                                                        |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Inputs | entry EBITDA and multiple, exit multiple, leverage per tranche and rates, amortisation, fees, minimum cash, tax rate, operating drivers, closing date, years to exit, grid steps, tolerance |
-| Model | sources and uses (closing column); dates; revenue to free cash flow; one block per tranche (opening, mandatory, sweep, closing); cash; sponsor cash flows; exit; IRR, XIRR, MOIC; grids |
-| Checks | the rows above |
+| Model  | sources and uses (closing column); dates; revenue to free cash flow; one block per tranche (opening, mandatory, sweep, closing); cash; sponsor cash flows; exit; IRR, XIRR, MOIC; grids     |
+| Checks | the rows above                                                                                                                                                                              |
 
 Show the user sources and uses, then the operating forecast, then the debt schedule, then returns, before the grids.

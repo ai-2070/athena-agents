@@ -11,14 +11,44 @@ export interface ChatFont {
   stack: string;
 }
 export const CHAT_FONTS: ChatFont[] = [
-  { id: 'sans', label: 'Geist', like: 'The same font as the rest of the page (the default)', stack: "'Geist', 'Segoe UI', system-ui, sans-serif" },
-  { id: 'serif', label: 'Merriweather', like: 'A book-like serif', stack: "'Merriweather', Georgia, 'Times New Roman', serif" },
-  { id: 'mono', label: 'JetBrains Mono', like: 'Like Claude Code in a terminal', stack: "'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" },
-  { id: 'system', label: 'System font', like: 'Like ChatGPT: your computer’s own font (Segoe UI on Windows, San Francisco on a Mac)', stack: "ui-sans-serif, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif" },
-  { id: 'google', label: 'Google Sans', like: 'Like Gemini and Google Search', stack: "'Google Sans', 'Segoe UI', system-ui, sans-serif" },
+  {
+    id: 'sans',
+    label: 'Geist',
+    like: 'The same font as the rest of the page (the default)',
+    stack: "'Geist', 'Segoe UI', system-ui, sans-serif",
+  },
+  {
+    id: 'serif',
+    label: 'Merriweather',
+    like: 'A book-like serif',
+    stack: "'Merriweather', Georgia, 'Times New Roman', serif",
+  },
+  {
+    id: 'mono',
+    label: 'JetBrains Mono',
+    like: 'Like Claude Code in a terminal',
+    stack: "'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace",
+  },
+  {
+    id: 'system',
+    label: 'System font',
+    like: 'Like ChatGPT: your computer’s own font (Segoe UI on Windows, San Francisco on a Mac)',
+    stack: "ui-sans-serif, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif",
+  },
+  {
+    id: 'google',
+    label: 'Google Sans',
+    like: 'Like Gemini and Google Search',
+    stack: "'Google Sans', 'Segoe UI', system-ui, sans-serif",
+  },
   { id: 'roboto', label: 'Roboto', like: 'Like Android', stack: "'Roboto', 'Segoe UI', system-ui, sans-serif" },
   // San Francisco can only be used on Apple devices; Inter is the closest free match
-  { id: 'apple', label: 'San Francisco', like: 'Like iPhone and Mac (Inter, a close match, on Windows)', stack: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', sans-serif" },
+  {
+    id: 'apple',
+    label: 'San Francisco',
+    like: 'Like iPhone and Mac (Inter, a close match, on Windows)',
+    stack: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', sans-serif",
+  },
 ];
 export const chatFont = (id: string | undefined): ChatFont => CHAT_FONTS.find((f) => f.id === id) || CHAT_FONTS[0];
 
@@ -35,11 +65,33 @@ export interface StationLevel {
   screenPx: number;
 }
 export const STATION_QUALITY: StationLevel[] = [
-  { id: 'smooth', label: 'Smooth', hint: 'As many frames as your screen shows and full sharpness. Uses the most power.', fps: { moving: null, still: 60, away: 30 }, pixelRatio: 2, screenPx: 32 },
-  { id: 'balanced', label: 'Balanced', hint: '60 frames a second while you move around, 30 when nothing moves, fewer when the window is in the back.', fps: { moving: 60, still: 30, away: 15 }, pixelRatio: 1.5, screenPx: 40 },
-  { id: 'saver', label: 'Battery saver', hint: '30 frames a second at most and a little softer. For laptops on battery and older PCs, and many agents.', fps: { moving: 30, still: 20, away: 8 }, pixelRatio: 1, screenPx: 110 },
+  {
+    id: 'smooth',
+    label: 'Smooth',
+    hint: 'As many frames as your screen shows and full sharpness. Uses the most power.',
+    fps: { moving: null, still: 60, away: 30 },
+    pixelRatio: 2,
+    screenPx: 32,
+  },
+  {
+    id: 'balanced',
+    label: 'Balanced',
+    hint: '60 frames a second while you move around, 30 when nothing moves, fewer when the window is in the back.',
+    fps: { moving: 60, still: 30, away: 15 },
+    pixelRatio: 1.5,
+    screenPx: 40,
+  },
+  {
+    id: 'saver',
+    label: 'Battery saver',
+    hint: '30 frames a second at most and a little softer. For laptops on battery and older PCs, and many agents.',
+    fps: { moving: 30, still: 20, away: 8 },
+    pixelRatio: 1,
+    screenPx: 110,
+  },
 ];
-export const stationLevel = (id: string | undefined): StationLevel => STATION_QUALITY.find((q) => q.id === id) || STATION_QUALITY[1];
+export const stationLevel = (id: string | undefined): StationLevel =>
+  STATION_QUALITY.find((q) => q.id === id) || STATION_QUALITY[1];
 
 /** How strong the project's background picture is (percent) when it hasn't picked one: dimmed in the classic
  *  look so the map's lines and names stay easy to read, full in the voxel look where it takes the sky's place. */
@@ -55,12 +107,17 @@ export function toPercent(v: unknown): number | null {
 
 type StationOpacity = { backgroundOpacity?: number | null; mapDotsOpacity?: number | null };
 /** The project's picture opacity in this look (its own, or the look's default). */
-export const backgroundOpacity = (p: StationOpacity | null | undefined, look: 'classic' | 'world'): number => toPercent(p?.backgroundOpacity) ?? BACKGROUND_OPACITY[look];
+export const backgroundOpacity = (p: StationOpacity | null | undefined, look: 'classic' | 'world'): number =>
+  toPercent(p?.backgroundOpacity) ?? BACKGROUND_OPACITY[look];
 /** The project's map dots opacity (its own, or the default). */
-export const mapDotsOpacity = (p: StationOpacity | null | undefined): number => toPercent(p?.mapDotsOpacity) ?? MAP_DOTS_OPACITY;
+export const mapDotsOpacity = (p: StationOpacity | null | undefined): number =>
+  toPercent(p?.mapDotsOpacity) ?? MAP_DOTS_OPACITY;
 
 /** The Station opacities a saved project had (only valid ones), to put back with updateProject. */
-export function savedOpacity(saved: { backgroundOpacity?: unknown; mapDotsOpacity?: unknown } | null | undefined): { backgroundOpacity?: number; mapDotsOpacity?: number } {
+export function savedOpacity(saved: { backgroundOpacity?: unknown; mapDotsOpacity?: unknown } | null | undefined): {
+  backgroundOpacity?: number;
+  mapDotsOpacity?: number;
+} {
   const out: { backgroundOpacity?: number; mapDotsOpacity?: number } = {};
   for (const key of ['backgroundOpacity', 'mapDotsOpacity'] as const) {
     const pct = toPercent(saved?.[key]);

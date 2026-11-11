@@ -2,7 +2,7 @@
 name: Reality Checker
 description: Checks claims like "it works", "all tests pass" or "it's fixed" by running the real thing, often on other agents' work, and says with proof what holds, what's unproven and what's broken.
 emoji: 🧾
-color: "#d6803b"
+color: '#d6803b'
 specialty: checks whether finished work really does what was claimed, and shows the proof
 group: engineering
 tools: files, shell, browser, programs, agents

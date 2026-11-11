@@ -30,9 +30,11 @@ beforeEach(() => {
     const method = init.method || 'GET';
     requests.push({ method, url, body: init.body ? JSON.parse(String(init.body)) : null });
     const json = (v: unknown) => new Response(JSON.stringify(v));
-    if (url === '/api/skills' && method === 'GET') return json({ skills: [skill('voice', 'Brand voice'), skill('notes', 'Release notes')], claude: [] });
+    if (url === '/api/skills' && method === 'GET')
+      return json({ skills: [skill('voice', 'Brand voice'), skill('notes', 'Release notes')], claude: [] });
     if (url === '/api/workflows') return json([{ id: 't1', name: 'Social', color: '#f0b04a', skills: [] }]);
-    if (url === '/api/skills/voice' && method === 'GET') return json({ ...skill('voice', 'Brand voice'), body: 'Be kind.' });
+    if (url === '/api/skills/voice' && method === 'GET')
+      return json({ ...skill('voice', 'Brand voice'), body: 'Be kind.' });
     if (url === '/api/state') return json(state.data);
     return json({ ok: true });
   });
@@ -46,7 +48,8 @@ const open = async (params: string[] = []) => {
   await act(async () => skills.render(el, params));
   await settle();
 };
-const card = (name: string) => [...el.querySelectorAll('.skill-card')].find((c) => c.querySelector('.skill-name')?.textContent === name)!;
+const card = (name: string) =>
+  [...el.querySelectorAll('.skill-card')].find((c) => c.querySelector('.skill-name')?.textContent === name)!;
 
 describe('flip()', () => {
   it('adds a skill, or takes it out when it is there', () => {
@@ -58,7 +61,10 @@ describe('flip()', () => {
 describe('the Skills page', () => {
   it('shows who has each skill', async () => {
     await open();
-    expect([...card('Brand voice').querySelectorAll('.skill-use')].map((u) => u.textContent!.trim())).toEqual(['Project', '🧑‍💻 Coder']);
+    expect([...card('Brand voice').querySelectorAll('.skill-use')].map((u) => u.textContent!.trim())).toEqual([
+      'Project',
+      '🧑‍💻 Coder',
+    ]);
     expect(card('Release notes').querySelector('.skill-uses')!.textContent).toBe('Not given to anyone yet');
   });
 
@@ -67,7 +73,13 @@ describe('the Skills page', () => {
     await act(async () => card('Release notes').querySelector<HTMLButtonElement>('.skill-foot .btn.small')!.click());
     await settle();
     const items = [...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')];
-    expect(items.map((i) => `${i.textContent!.trim()}=${i.getAttribute('aria-checked')}`)).toEqual(['The Brain=false', 'This project (Site)=false', 'Social=false', '✍️Writer=false', '🧑‍💻Coder=false']);
+    expect(items.map((i) => `${i.textContent!.trim()}=${i.getAttribute('aria-checked')}`)).toEqual([
+      'The Brain=false',
+      'This project (Site)=false',
+      'Social=false',
+      '✍️Writer=false',
+      '🧑‍💻Coder=false',
+    ]);
     await act(async () => items.find((i) => i.textContent!.includes('Writer'))!.click());
     await settle();
     expect(requests.find((r) => r.method === 'PUT' && r.url === '/api/agents/a1')!.body).toEqual({ skills: ['notes'] });
@@ -77,10 +89,27 @@ describe('the Skills page', () => {
     const plain = globalThis.fetch;
     const mine = skill('my-voice', 'My voice');
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) =>
-      url === '/api/skills' ? new Response(JSON.stringify({ skills: [skill('solidcraft', 'solidcraft'), skill('craft-anything', 'craft-anything'), skill('orca-cli', 'orca-cli'), skill('github', 'GitHub'), skill('storytold', 'storytold'), mine], claude: [] })) : plain(url, init));
+      url === '/api/skills'
+        ? new Response(
+            JSON.stringify({
+              skills: [
+                skill('solidcraft', 'solidcraft'),
+                skill('craft-anything', 'craft-anything'),
+                skill('orca-cli', 'orca-cli'),
+                skill('github', 'GitHub'),
+                skill('storytold', 'storytold'),
+                mine,
+              ],
+              claude: [],
+            }),
+          )
+        : plain(url, init),
+    );
     await open();
     expect(card('solidcraft').querySelector('img.skill-ico')!.getAttribute('src')).toBe('/craft-icons/solidcraft.png');
-    expect(card('craft-anything').querySelector('img.skill-ico')!.getAttribute('src')).toBe('/craft-icons/craft-anything.png');
+    expect(card('craft-anything').querySelector('img.skill-ico')!.getAttribute('src')).toBe(
+      '/craft-icons/craft-anything.png',
+    );
     expect(card('orca-cli').querySelector('img.skill-ico')!.getAttribute('src')).toBe('/app-icons/orca.png');
     expect(card('GitHub').querySelector('.skill-ico svg.logo-svg')!.getAttribute('aria-label')).toBe('GitHub');
     const puzzle = icon('puzzle').innerHTML;
@@ -105,8 +134,14 @@ describe('the Skills page', () => {
 
   it('deletes a skill only after you confirm', async () => {
     await open();
-    await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Delete the skill Release notes"]')!.click());
-    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Delete')!.click());
+    await act(async () =>
+      el.querySelector<HTMLButtonElement>('[aria-label="Delete the skill Release notes"]')!.click(),
+    );
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')]
+        .find((b) => b.textContent === 'Delete')!
+        .click(),
+    );
     await settle();
     expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/skills/notes')).toBe(true);
   });

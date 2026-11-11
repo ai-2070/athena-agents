@@ -61,6 +61,7 @@ The CLI below is pinned; use Node 24.22 or newer for deployment. Run it from the
    pending. The new service refuses requests until its secrets are configured. It also refuses plain
    HTTP, browser-origin requests and unsupported routes. `/health` checks configuration/liveness and
    returns no account data.
+
 3. Set three separate secrets through Wrangler's prompt. Do not put them into the checked-in file:
 
    ```sh
@@ -72,6 +73,7 @@ The CLI below is pinned; use Node 24.22 or newer for deployment. Run it from the
    `META_APP_SECRET` is the app secret from Meta, at least 16 characters. Choose a verification token
    of at least 16 characters and an independent random admin key of at least 32 characters. The
    relay does **not** need a Meta access token, model-provider key or Athena credential.
+
 4. Create a pairing code with `POST /admin/pairing`, using the admin key in an Authorization header.
    Pair it through `/v1/pair` before connecting Meta. Codes expire after ten minutes and work once.
    The pull token is returned only by that successful pairing response. Save it securely on the
@@ -111,20 +113,20 @@ All non-verification responses are JSON with `Cache-Control: no-store`. Errors c
 never raw bodies, database errors or credentials. No endpoint sends WhatsApp messages or downloads
 media. Account IDs are strings throughout. These types live in `shared/types.ts`.
 
-| Endpoint | Authorization and body | Result |
-| --- | --- | --- |
-| `GET /health` | None | Configuration/liveness only |
-| `GET /webhooks/meta` | Meta's `hub.mode`, `hub.verify_token`, `hub.challenge` query | Challenge or refusal |
-| `POST /webhooks/meta` | Meta signature, JSON, at most 1 MiB | 200 only after durable commit; duplicate bodies are accepted without requeueing |
-| `POST /admin/pairing` | Admin bearer; `{}` or `{"replacePending":true}` | One-time code and its expiry |
-| `POST /v1/pair` | `{"code":"…"}` | Installation/account IDs, epoch, current cursor, limits and a one-time pull token |
-| `GET /v1/status` | Pull bearer | Queue counts, limits, epoch/cursor and any retention gap; no message bodies |
-| `POST /v1/claim` | Pull bearer; `{"epoch":"…","consumerId":"<uuid>"}` | Exclusive 60-second lease, cursor and expiry |
-| `GET /v1/pull?epoch=…&after=…&limit=20` | Pull bearer and `X-Relay-Lease` | Ordered envelopes and renewed lease |
-| `POST /v1/ack` | Pull bearer and lease; `{"epoch":"…","through":1,"eventId":"<envelope-id>"}` | Acknowledges the delivered prefix; deletes its raw bodies |
-| `POST /v1/release` | Pull bearer and lease; `{"epoch":"…"}` | Releases ownership without acknowledging content |
-| `POST /admin/recovery` | Admin bearer; `{"epoch":"…","through":1,"acknowledgeGap":true}` | Explicitly accepts loss through the current gap and removes that queued prefix |
-| `POST /admin/revoke` | Admin bearer; `{"acknowledgeDrop":true}` | Revokes keys/lease, changes epoch and deletes queued raw bodies |
+| Endpoint                                | Authorization and body                                                       | Result                                                                            |
+| --------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `GET /health`                           | None                                                                         | Configuration/liveness only                                                       |
+| `GET /webhooks/meta`                    | Meta's `hub.mode`, `hub.verify_token`, `hub.challenge` query                 | Challenge or refusal                                                              |
+| `POST /webhooks/meta`                   | Meta signature, JSON, at most 1 MiB                                          | 200 only after durable commit; duplicate bodies are accepted without requeueing   |
+| `POST /admin/pairing`                   | Admin bearer; `{}` or `{"replacePending":true}`                              | One-time code and its expiry                                                      |
+| `POST /v1/pair`                         | `{"code":"…"}`                                                               | Installation/account IDs, epoch, current cursor, limits and a one-time pull token |
+| `GET /v1/status`                        | Pull bearer                                                                  | Queue counts, limits, epoch/cursor and any retention gap; no message bodies       |
+| `POST /v1/claim`                        | Pull bearer; `{"epoch":"…","consumerId":"<uuid>"}`                           | Exclusive 60-second lease, cursor and expiry                                      |
+| `GET /v1/pull?epoch=…&after=…&limit=20` | Pull bearer and `X-Relay-Lease`                                              | Ordered envelopes and renewed lease                                               |
+| `POST /v1/ack`                          | Pull bearer and lease; `{"epoch":"…","through":1,"eventId":"<envelope-id>"}` | Acknowledges the delivered prefix; deletes its raw bodies                         |
+| `POST /v1/release`                      | Pull bearer and lease; `{"epoch":"…"}`                                       | Releases ownership without acknowledging content                                  |
+| `POST /admin/recovery`                  | Admin bearer; `{"epoch":"…","through":1,"acknowledgeGap":true}`              | Explicitly accepts loss through the current gap and removes that queued prefix    |
+| `POST /admin/revoke`                    | Admin bearer; `{"acknowledgeDrop":true}`                                     | Revokes keys/lease, changes epoch and deletes queued raw bodies                   |
 
 Each envelope contains a sequence, stable body digest, receipt/expiry times, the exact original body
 as base64, and the original signature and Content-Type values. Other HTTP headers are discarded.

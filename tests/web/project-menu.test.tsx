@@ -29,7 +29,9 @@ beforeEach(() => {
 afterEach(async () => {
   const popup = document.querySelector('.proj-menu');
   if (popup) {
-    await act(async () => { popup.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); });
+    await act(async () => {
+      popup.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
     await settle();
   }
   vi.unstubAllGlobals();
@@ -37,13 +39,17 @@ afterEach(async () => {
 
 const open = async () => {
   anchor.focus();
-  await act(async () => { openProjectMenu(anchor); });
+  await act(async () => {
+    openProjectMenu(anchor);
+  });
   await settle();
 };
 const row = (id: string) => document.querySelector<HTMLElement>(`.proj-menu [data-id="${id}"]`)!;
 const item = (id: string) => row(id).querySelector<HTMLButtonElement>('.st-menu-item')!;
 const key = async (target: Element, name: string, options: KeyboardEventInit = {}) => {
-  await act(async () => { target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...options })); });
+  await act(async () => {
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...options }));
+  });
   await settle();
 };
 
@@ -52,10 +58,18 @@ describe('project menu', () => {
     await open();
     expect(document.querySelector('.proj-menu .st-menu-head')?.textContent).toBe('Projects');
     expect(item('a').classList.contains('on')).toBe(true);
-    expect([...document.querySelectorAll('.proj-menu [data-id]')].map((el) => el.getAttribute('data-id'))).toEqual(['a', 'b', 'c']);
-    await act(async () => { item('b').click(); });
+    expect([...document.querySelectorAll('.proj-menu [data-id]')].map((el) => el.getAttribute('data-id'))).toEqual([
+      'a',
+      'b',
+      'c',
+    ]);
+    await act(async () => {
+      item('b').click();
+    });
     await settle();
-    expect(requests.filter((r) => r.url === '/api/projects/b/activate')).toMatchObject([{ method: 'POST', url: '/api/projects/b/activate' }]);
+    expect(requests.filter((r) => r.url === '/api/projects/b/activate')).toMatchObject([
+      { method: 'POST', url: '/api/projects/b/activate' },
+    ]);
     expect(document.querySelector('.proj-menu')).toBeNull();
   });
 
@@ -104,8 +118,14 @@ describe('project menu', () => {
     await open();
     item('b').focus();
     await key(item('b'), 'ArrowUp', { altKey: true });
-    expect([...document.querySelectorAll('.proj-menu [data-id]')].map((el) => el.getAttribute('data-id'))).toEqual(['b', 'a', 'c']);
-    expect(requests.filter((r) => r.url === '/api/projects/order')).toEqual([{ method: 'POST', url: '/api/projects/order', body: { ids: ['b', 'a', 'c'] } }]);
+    expect([...document.querySelectorAll('.proj-menu [data-id]')].map((el) => el.getAttribute('data-id'))).toEqual([
+      'b',
+      'a',
+      'c',
+    ]);
+    expect(requests.filter((r) => r.url === '/api/projects/order')).toEqual([
+      { method: 'POST', url: '/api/projects/order', body: { ids: ['b', 'a', 'c'] } },
+    ]);
     expect(document.activeElement).toBe(item('b'));
   });
 });

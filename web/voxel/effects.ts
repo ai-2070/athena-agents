@@ -24,7 +24,13 @@ export interface Particles {
 export type Rand = () => number;
 
 export function makeParticles(n: number, box: EffectBox, rnd: Rand): Particles {
-  const p: Particles = { n, pos: new Float32Array(n * 3), vel: new Float32Array(n * 3), phase: new Float32Array(n), life: new Float32Array(n) };
+  const p: Particles = {
+    n,
+    pos: new Float32Array(n * 3),
+    vel: new Float32Array(n * 3),
+    phase: new Float32Array(n),
+    life: new Float32Array(n),
+  };
   for (let i = 0; i < n; i++) {
     p.pos[i * 3] = (rnd() - 0.5) * box.w;
     p.pos[i * 3 + 1] = rnd() * box.h;
@@ -47,7 +53,13 @@ function wrapXZ(p: Particles, i: number, box: EffectBox): void {
 }
 
 /** Falling things (petals, leaves, snow, rain, dust): down, with the wind and a sway; back to the top at the floor. */
-export function stepFalling(p: Particles, box: EffectBox, dt: number, o: { fall: number; sway: number; wind: [number, number, number] }, rnd: Rand): void {
+export function stepFalling(
+  p: Particles,
+  box: EffectBox,
+  dt: number,
+  o: { fall: number; sway: number; wind: [number, number, number] },
+  rnd: Rand,
+): void {
   for (let i = 0; i < p.n; i++) {
     const k = i * 3;
     p.phase[i] += dt;
@@ -65,7 +77,13 @@ export function stepFalling(p: Particles, box: EffectBox, dt: number, o: { fall:
 }
 
 /** Rising things (smoke, steam, embers, sparks): up from the floor and spreading; they live `life` seconds and start again. */
-export function stepRising(p: Particles, box: EffectBox, dt: number, o: { rise: number; spread: number; life: number; wind: [number, number, number]; gravity?: number }, rnd: Rand): void {
+export function stepRising(
+  p: Particles,
+  box: EffectBox,
+  dt: number,
+  o: { rise: number; spread: number; life: number; wind: [number, number, number]; gravity?: number },
+  rnd: Rand,
+): void {
   for (let i = 0; i < p.n; i++) {
     const k = i * 3;
     p.phase[i] += dt;
@@ -80,7 +98,7 @@ export function stepRising(p: Particles, box: EffectBox, dt: number, o: { rise: 
       p.pos[k + 1] = rnd() * 0.2;
       p.pos[k + 2] = (rnd() - 0.5) * box.d * 0.3;
       p.vel[k] = (rnd() - 0.5) * o.spread;
-      p.vel[k + 1] = (o.gravity ? 1.5 + rnd() * 2 : 0);
+      p.vel[k + 1] = o.gravity ? 1.5 + rnd() * 2 : 0;
       p.vel[k + 2] = (rnd() - 0.5) * o.spread;
       p.life[i] = 0.6 + rnd() * 0.4;
     }
@@ -97,8 +115,8 @@ export function stepWander(p: Particles, box: EffectBox, dt: number, speed: numb
       p.vel[k + a] = Math.max(-speed, Math.min(speed, p.vel[k + a] + (rnd() - 0.5) * speed * dt * 4));
       p.pos[k + a] += p.vel[k + a] * dt;
     }
-    if (p.pos[k + 1] < 0.2) (p.pos[k + 1] = 0.2), (p.vel[k + 1] = Math.abs(p.vel[k + 1]));
-    if (p.pos[k + 1] > box.h) (p.pos[k + 1] = box.h), (p.vel[k + 1] = -Math.abs(p.vel[k + 1]));
+    if (p.pos[k + 1] < 0.2) ((p.pos[k + 1] = 0.2), (p.vel[k + 1] = Math.abs(p.vel[k + 1])));
+    if (p.pos[k + 1] > box.h) ((p.pos[k + 1] = box.h), (p.vel[k + 1] = -Math.abs(p.vel[k + 1])));
     wrapXZ(p, i, box);
   }
 }
@@ -200,11 +218,18 @@ class System {
   private s = new THREE.Vector3();
   private v = new THREE.Vector3();
 
-  constructor(spec: EffectSpec, count: number, slow: number, seed: number, cubeGeo: THREE.BufferGeometry, birdGeo: THREE.BufferGeometry) {
+  constructor(
+    spec: EffectSpec,
+    count: number,
+    slow: number,
+    seed: number,
+    cubeGeo: THREE.BufferGeometry,
+    birdGeo: THREE.BufferGeometry,
+  ) {
     this.spec = spec;
     this.slow = slow;
     let a = seed >>> 0 || 1;
-    this.rnd = () => ((a = (Math.imul(a, 1664525) + 1013904223) >>> 0) / 4294967296);
+    this.rnd = () => (a = (Math.imul(a, 1664525) + 1013904223) >>> 0) / 4294967296;
     const k = KINDS[spec.kind];
     this.look = k.look;
     this.colors = (spec.colors?.length ? spec.colors : k.colors).map((c) => new THREE.Color(c));
@@ -218,7 +243,10 @@ class System {
     } else if (this.look === 'streak') {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 6), 3));
-      this.line = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: this.colors[0], transparent: true, opacity: 0.45, depthWrite: false }));
+      this.line = new THREE.LineSegments(
+        geo,
+        new THREE.LineBasicMaterial({ color: this.colors[0], transparent: true, opacity: 0.45, depthWrite: false }),
+      );
       this.line.frustumCulled = false;
       this.obj = this.line;
     } else {
@@ -273,7 +301,13 @@ class System {
         break;
       case 'smoke':
       case 'steam':
-        stepRising(p, box, d, { rise: spec.kind === 'smoke' ? 0.7 : 1.1, spread: 0.3, life: spec.kind === 'smoke' ? 6 : 3, wind: w }, this.rnd);
+        stepRising(
+          p,
+          box,
+          d,
+          { rise: spec.kind === 'smoke' ? 0.7 : 1.1, spread: 0.3, life: spec.kind === 'smoke' ? 6 : 3, wind: w },
+          this.rnd,
+        );
         break;
       case 'mist':
         stepWander(p, box, d, 0.12, this.rnd);
@@ -311,7 +345,17 @@ class System {
       const arr = a.array as Float32Array;
       for (let i = 0; i < p.n; i++) {
         const k = i * 3;
-        arr.set([p.pos[k], p.pos[k + 1], p.pos[k + 2], p.pos[k] - w[0] * 0.04, p.pos[k + 1] + size, p.pos[k + 2] - w[2] * 0.04], i * 6);
+        arr.set(
+          [
+            p.pos[k],
+            p.pos[k + 1],
+            p.pos[k + 2],
+            p.pos[k] - w[0] * 0.04,
+            p.pos[k + 1] + size,
+            p.pos[k + 2] - w[2] * 0.04,
+          ],
+          i * 6,
+        );
       }
       a.needsUpdate = true;
     } else if (this.points) {
@@ -325,7 +369,12 @@ class System {
         const life = Math.max(0, Math.min(1, p.life[i]));
         if (this.look === 'glow') {
           // fireflies blink; embers and sparks fade as they go
-          const blink = spec.kind === 'fireflies' ? Math.max(0, Math.sin(p.phase[i] * 1.8 + i)) : spec.kind === 'dust' ? 0.35 : life;
+          const blink =
+            spec.kind === 'fireflies'
+              ? Math.max(0, Math.sin(p.phase[i] * 1.8 + i))
+              : spec.kind === 'dust'
+                ? 0.35
+                : life;
           sz[i] = size;
           al[i] = blink;
         } else {
@@ -340,9 +389,9 @@ class System {
   }
 
   dispose(): void {
-    if (this.inst) (this.inst.material as THREE.Material).dispose(), this.inst.dispose();
-    if (this.line) this.line.geometry.dispose(), (this.line.material as THREE.Material).dispose();
-    if (this.points) this.points.geometry.dispose(), (this.points.material as THREE.Material).dispose();
+    if (this.inst) ((this.inst.material as THREE.Material).dispose(), this.inst.dispose());
+    if (this.line) (this.line.geometry.dispose(), (this.line.material as THREE.Material).dispose());
+    if (this.points) (this.points.geometry.dispose(), (this.points.material as THREE.Material).dispose());
   }
 }
 
@@ -363,11 +412,18 @@ export class EffectsLayer {
     this.quality = quality;
     this.reduced = reducedMotion;
     // a bird seen from above: two wings in a shallow V
-    const wing = (side: number) => new THREE.BoxGeometry(1, 0.08, 0.35).translate(side * 0.5, 0, 0).rotateY(side * 0.35);
+    const wing = (side: number) =>
+      new THREE.BoxGeometry(1, 0.08, 0.35).translate(side * 0.5, 0, 0).rotateY(side * 0.35);
     const l = wing(-1);
     const r = wing(1);
-    const pos = [...(l.getAttribute('position').array as Float32Array), ...(r.getAttribute('position').array as Float32Array)];
-    const nor = [...(l.getAttribute('normal').array as Float32Array), ...(r.getAttribute('normal').array as Float32Array)];
+    const pos = [
+      ...(l.getAttribute('position').array as Float32Array),
+      ...(r.getAttribute('position').array as Float32Array),
+    ];
+    const nor = [
+      ...(l.getAttribute('normal').array as Float32Array),
+      ...(r.getAttribute('normal').array as Float32Array),
+    ];
     const li = l.getIndex()!.array;
     const ri = r.getIndex()!.array;
     const idx = [...li, ...Array.from(ri, (i) => i + l.getAttribute('position').count)];

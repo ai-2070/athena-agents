@@ -13,13 +13,35 @@ type Json = Record<string, unknown>;
 export const GLB_MAX_NODES = 200_000;
 
 const CLASS_MATERIAL: Record<RenderClass, Json> = {
-  opaque: { name: 'solid', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 0.88 } },
+  opaque: {
+    name: 'solid',
+    pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 0.88 },
+  },
   // glowing: unlit, so its colours show at full strength (glTF has no per-vertex emission)
-  emissive: { name: 'glowing', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 1 }, extensions: { KHR_materials_unlit: {} } },
-  transparent: { name: 'glass', alphaMode: 'BLEND', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 0.38], metallicFactor: 0, roughnessFactor: 0.1 } },
-  water: { name: 'water', alphaMode: 'BLEND', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 0.72], metallicFactor: 0, roughnessFactor: 0.15 } },
-  leaf: { name: 'leaf', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 0.9 }, doubleSided: true },
-  metal: { name: 'metal', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0.6, roughnessFactor: 0.35 } },
+  emissive: {
+    name: 'glowing',
+    pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 1 },
+    extensions: { KHR_materials_unlit: {} },
+  },
+  transparent: {
+    name: 'glass',
+    alphaMode: 'BLEND',
+    pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 0.38], metallicFactor: 0, roughnessFactor: 0.1 },
+  },
+  water: {
+    name: 'water',
+    alphaMode: 'BLEND',
+    pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 0.72], metallicFactor: 0, roughnessFactor: 0.15 },
+  },
+  leaf: {
+    name: 'leaf',
+    pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 0.9 },
+    doubleSided: true,
+  },
+  metal: {
+    name: 'metal',
+    pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0.6, roughnessFactor: 0.35 },
+  },
 };
 const CLASSES = Object.keys(CLASS_MATERIAL) as RenderClass[];
 
@@ -42,7 +64,12 @@ function quat(turn = 0, tilt = 0, roll = 0): [number, number, number, number] {
   const [cz, sz] = [Math.cos(roll * h), Math.sin(roll * h)];
   // q = qy * qx * qz
   const yx = [cy * sx, sy * cx, -sy * sx, cy * cx];
-  return [yx[0] * cz + yx[1] * sz, yx[1] * cz - yx[0] * sz, yx[2] * cz + yx[3] * sz, yx[3] * cz - yx[2] * sz] as [number, number, number, number];
+  return [yx[0] * cz + yx[1] * sz, yx[1] * cz - yx[0] * sz, yx[2] * cz + yx[3] * sz, yx[3] * cz - yx[2] * sz] as [
+    number,
+    number,
+    number,
+    number,
+  ];
 }
 
 export function toGlb(w: VoxelWorld, target: GltfTarget): Uint8Array {
@@ -64,7 +91,10 @@ export function toGlb(w: VoxelWorld, target: GltfTarget): Uint8Array {
     byteLength += bytes.length;
     return bufferViews.length - 1;
   };
-  const accessor = (bytes: Uint8Array, a: Json, target?: number) => (accessors.push({ bufferView: add(bytes, target), ...a }), accessors.length - 1);
+  const accessor = (bytes: Uint8Array, a: Json, target?: number) => (
+    accessors.push({ bufferView: add(bytes, target), ...a }),
+    accessors.length - 1
+  );
 
   /** A mesh for meshed parts (null when there is nothing to draw). */
   const meshOf = (parts: ObjectPart[], name: string): number | null => {
@@ -88,11 +118,19 @@ export function toGlb(w: VoxelWorld, target: GltfTarget): Uint8Array {
       used.add(p.cls);
       primitives.push({
         attributes: {
-          POSITION: accessor(new Uint8Array(pos.buffer), { componentType: 5126, count: n, type: 'VEC3', min: lo, max: hi }, 34962),
+          POSITION: accessor(
+            new Uint8Array(pos.buffer),
+            { componentType: 5126, count: n, type: 'VEC3', min: lo, max: hi },
+            34962,
+          ),
           NORMAL: accessor(new Uint8Array(nor.buffer), { componentType: 5126, count: n, type: 'VEC3' }, 34962),
           COLOR_0: accessor(new Uint8Array(col.buffer), { componentType: 5126, count: n, type: 'VEC3' }, 34962),
         },
-        indices: accessor(new Uint8Array(p.indices.buffer, p.indices.byteOffset, p.indices.byteLength), { componentType: 5125, count: p.indices.length, type: 'SCALAR' }, 34963),
+        indices: accessor(
+          new Uint8Array(p.indices.buffer, p.indices.byteOffset, p.indices.byteLength),
+          { componentType: 5125, count: p.indices.length, type: 'SCALAR' },
+          34963,
+        ),
         material: CLASSES.indexOf(p.cls),
       });
     }
@@ -119,22 +157,38 @@ export function toGlb(w: VoxelWorld, target: GltfTarget): Uint8Array {
     return prefabData.get(id) ?? null;
   };
   /** Nodes for the copies placed in some data (and the copies inside them), as children of `into`. */
-  const copies = (list: PrefabInstance[] | undefined, depth: number, seen: string[], parentSwap: Map<string, string> = new Map()): number[] => {
+  const copies = (
+    list: PrefabInstance[] | undefined,
+    depth: number,
+    seen: string[],
+    parentSwap: Map<string, string> = new Map(),
+  ): number[] => {
     const out: number[] = [];
     if (depth > 4) return out;
     for (const inst of list || []) {
       const p = w.prefabs.find((x) => x.id === inst.prefab);
       if (!p || seen.includes(p.id)) continue;
-      if (nodes.length + 2 > GLB_MAX_NODES) throw Object.assign(new Error(`That has too many copies (copies inside copies counted) to go in one file: the most is about ${(GLB_MAX_NODES / 2).toLocaleString('en-US')}.`), { status: 413 });
+      if (nodes.length + 2 > GLB_MAX_NODES)
+        throw Object.assign(
+          new Error(
+            `That has too many copies (copies inside copies counted) to go in one file: the most is about ${(GLB_MAX_NODES / 2).toLocaleString('en-US')}.`,
+          ),
+          { status: 413 },
+        );
       // a copy's swaps, then the ones of the copies it is inside (as the page draws it)
       const swap = composeSwaps(inst.swap, parentSwap);
       const sorted = [...swap].sort((a, b) => (a[0] < b[0] ? -1 : 1));
       const key = `${p.id}|${JSON.stringify(sorted)}`;
       const data = dataOf(p.id);
-      if (!prefabMeshes.has(key)) prefabMeshes.set(key, data ? meshOf(meshObject({ volumes: data.volumes }, paletteFor(sorted)), p.name) : null);
+      if (!prefabMeshes.has(key))
+        prefabMeshes.set(key, data ? meshOf(meshObject({ volumes: data.volumes }, paletteFor(sorted)), p.name) : null);
       const mesh = prefabMeshes.get(key);
       // its pivot stands at p: the prefab's voxels are moved back by the pivot in a child node
-      const inner: Json = { name: `${p.name} (voxels)`, translation: p.pivot.map((n) => -n), ...(mesh !== null && mesh !== undefined ? { mesh } : {}) };
+      const inner: Json = {
+        name: `${p.name} (voxels)`,
+        translation: p.pivot.map((n) => -n),
+        ...(mesh !== null && mesh !== undefined ? { mesh } : {}),
+      };
       nodes.push(inner);
       const innerId = nodes.length - 1;
       const kids = [innerId];
@@ -143,7 +197,13 @@ export function toGlb(w: VoxelWorld, target: GltfTarget): Uint8Array {
         (nodes[innerId].children = (nodes[innerId].children as number[] | undefined) || []).push(c);
       }
       const s = inst.scale || 1;
-      nodes.push({ name: inst.name || p.name, translation: inst.p, rotation: quat(inst.turn, inst.tilt, inst.roll), scale: [inst.mirror ? -s : s, s, s], children: kids });
+      nodes.push({
+        name: inst.name || p.name,
+        translation: inst.p,
+        rotation: quat(inst.turn, inst.tilt, inst.roll),
+        scale: [inst.mirror ? -s : s, s, s],
+        children: kids,
+      });
       out.push(nodes.length - 1);
     }
     return out;
@@ -161,10 +221,23 @@ export function toGlb(w: VoxelWorld, target: GltfTarget): Uint8Array {
     if (!p) throw Object.assign(new Error('No such prefab.'), { status: 404 });
     roots = [objectNode(readPrefab(w.id, p.id), p.name, { translation: p.pivot.map((n) => -n) }, [p.id])];
   } else {
-    const list = target.kind === 'object' ? w.objects.filter((o) => o.id === target.id) : w.objects.filter((o) => !o.hidden);
-    if (!list.length) throw Object.assign(new Error(target.kind === 'object' ? 'No such object.' : 'Nothing is built in this world yet.'), { status: 404 });
+    const list =
+      target.kind === 'object' ? w.objects.filter((o) => o.id === target.id) : w.objects.filter((o) => !o.hidden);
+    if (!list.length)
+      throw Object.assign(
+        new Error(target.kind === 'object' ? 'No such object.' : 'Nothing is built in this world yet.'),
+        { status: 404 },
+      );
     // (pinned to a team or an agent: placed from the middle of the map; the Station isn't in the file)
-    roots = list.map((o) => objectNode(readObject(w.id, o.id), o.name, target.kind === 'world' ? { translation: o.position, rotation: quat(o.rotation), scale: [o.scale, o.scale, o.scale] } : {}));
+    roots = list.map((o) =>
+      objectNode(
+        readObject(w.id, o.id),
+        o.name,
+        target.kind === 'world'
+          ? { translation: o.position, rotation: quat(o.rotation), scale: [o.scale, o.scale, o.scale] }
+          : {},
+      ),
+    );
   }
 
   const json: Json = {

@@ -47,8 +47,16 @@ export function useDragPreview(board: RefObject<HTMLElement | null>): void {
       if (typeof e.dataTransfer.setDragImage === 'function') e.dataTransfer.setDragImage(blank, 0, 0);
       const copy = cardCopy(card);
       Object.assign(copy.style, {
-        position: 'fixed', left: '0', top: '0', width: `${box.width}px`, margin: '0', zIndex: '60', pointerEvents: 'none',
-        opacity: '0.95', boxShadow: 'var(--shadow-pop)', transition: 'none',
+        position: 'fixed',
+        left: '0',
+        top: '0',
+        width: `${box.width}px`,
+        margin: '0',
+        zIndex: '60',
+        pointerEvents: 'none',
+        opacity: '0.95',
+        boxShadow: 'var(--shadow-pop)',
+        transition: 'none',
       });
       document.body.append(copy);
       preview = copy;

@@ -23,9 +23,23 @@ export const programsRouter = p.router({
 });
 
 export const comfyRouter = c.router({
-  status: c.status.handler(async () => ({ status: await comfy.queueStatus(), workflows: comfy.listWorkflows().map(({ name, dir }) => ({ name, dir })) })),
+  status: c.status.handler(async () => ({
+    status: await comfy.queueStatus(),
+    workflows: comfy.listWorkflows().map(({ name, dir }) => ({ name, dir })),
+  })),
   describe: c.describe.handler(({ input }) => refusing(() => comfy.describeWorkflow(input.workflow))),
-  run: c.run.handler(({ input }) => refusing(() => comfy.runWorkflow({ workflow: input.workflow, prompt: input.prompt || undefined, negative: input.negative || undefined, inputs: input.inputs || {} }))),
+  run: c.run.handler(({ input }) =>
+    refusing(() =>
+      comfy.runWorkflow({
+        workflow: input.workflow,
+        prompt: input.prompt || undefined,
+        negative: input.negative || undefined,
+        inputs: input.inputs || {},
+      }),
+    ),
+  ),
   start: c.start.handler(async () => ({ message: await refusing(() => comfy.startComfy()) })),
-  saveWorkflow: c.saveWorkflow.handler(({ input }) => ({ file: refusing(() => comfy.saveApiWorkflow(input.name, input.json)) })),
+  saveWorkflow: c.saveWorkflow.handler(({ input }) => ({
+    file: refusing(() => comfy.saveApiWorkflow(input.name, input.json)),
+  })),
 });

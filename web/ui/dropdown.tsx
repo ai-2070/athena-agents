@@ -22,10 +22,24 @@ export function Dropdown(props: Menu.Root.Props) {
 export const DropdownTrigger = Menu.Trigger;
 
 /** The popup, placed against the trigger. Put what to show as children. */
-export function DropdownContent({ side = 'bottom', align = 'start', sideOffset = 6, className = '', children, ...popup }: Menu.Popup.Props & Pick<Menu.Positioner.Props, 'side' | 'align' | 'sideOffset'>) {
+export function DropdownContent({
+  side = 'bottom',
+  align = 'start',
+  sideOffset = 6,
+  className = '',
+  children,
+  ...popup
+}: Menu.Popup.Props & Pick<Menu.Positioner.Props, 'side' | 'align' | 'sideOffset'>) {
   return (
     <Menu.Portal>
-      <Menu.Positioner positionMethod="fixed" className="z-96 outline-none" side={side} align={align} sideOffset={sideOffset} collisionPadding={8}>
+      <Menu.Positioner
+        positionMethod="fixed"
+        className="z-96 outline-none"
+        side={side}
+        align={align}
+        sideOffset={sideOffset}
+        collisionPadding={8}
+      >
         <Menu.Popup className={`st-menu dd static ${className}`.trim()} {...popup}>
           {children}
         </Menu.Popup>
@@ -35,7 +49,13 @@ export function DropdownContent({ side = 'bottom', align = 'start', sideOffset =
 }
 
 /** Something to do: an icon (a name from web/phosphor.ts), then its words. danger: red, for what deletes. */
-export function DropdownItem({ icon, danger = false, className = '', children, ...item }: Menu.Item.Props & { icon?: string; danger?: boolean }) {
+export function DropdownItem({
+  icon,
+  danger = false,
+  className = '',
+  children,
+  ...item
+}: Menu.Item.Props & { icon?: string; danger?: boolean }) {
   return (
     <Menu.Item className={`st-menu-item${danger ? ' danger' : ''} ${className}`.trim()} {...item}>
       {icon ? <Icon name={icon} size={16} /> : null}
@@ -55,7 +75,12 @@ export function DropdownSeparator() {
 
 /** One choice out of several: the one picked has a check at the right; picking closes the menu. */
 export const DropdownRadioGroup = Menu.RadioGroup;
-export function DropdownRadioItem({ icon, className = '', children, ...item }: Menu.RadioItem.Props & { icon?: ReactNode }) {
+export function DropdownRadioItem({
+  icon,
+  className = '',
+  children,
+  ...item
+}: Menu.RadioItem.Props & { icon?: ReactNode }) {
   return (
     <Menu.RadioItem closeOnClick className={`st-menu-item ${className}`.trim()} {...item}>
       {icon}
@@ -68,7 +93,12 @@ export function DropdownRadioItem({ icon, className = '', children, ...item }: M
 }
 
 /** One of several that can be on at once: a check at the right while it is; the menu stays open for the next. */
-export function DropdownCheckboxItem({ icon, className = '', children, ...item }: Menu.CheckboxItem.Props & { icon?: ReactNode }) {
+export function DropdownCheckboxItem({
+  icon,
+  className = '',
+  children,
+  ...item
+}: Menu.CheckboxItem.Props & { icon?: ReactNode }) {
   return (
     <Menu.CheckboxItem closeOnClick={false} className={`st-menu-item ${className}`.trim()} {...item}>
       {icon}

@@ -8,7 +8,16 @@ import { getVoxel } from '../../shared/voxel.ts';
 import { loadGrids } from './ops.ts';
 import { readObject, readPrefab, worldVoxels } from './store.ts';
 import { shownWorld } from './link.ts';
-import { anchorText, boxText, findObject, findPrefab, placedCopies, prefabSize, recentChanges, WORLD_LIMITS } from './build.ts';
+import {
+  anchorText,
+  boxText,
+  findObject,
+  findPrefab,
+  placedCopies,
+  prefabSize,
+  recentChanges,
+  WORLD_LIMITS,
+} from './build.ts';
 import { sceneText } from './scene.ts';
 import { skinsText } from './characters.ts';
 import type { VoxelWorld } from '../../shared/types.ts';
@@ -17,7 +26,13 @@ export { platformRadius };
 
 const ago = (ts: number) => {
   const s = Math.round((Date.now() - ts) / 1000);
-  return s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)}m ago` : s < 129600 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`;
+  return s < 90
+    ? `${s}s ago`
+    : s < 5400
+      ? `${Math.round(s / 60)}m ago`
+      : s < 129600
+        ? `${Math.round(s / 3600)}h ago`
+        : `${Math.round(s / 86400)}d ago`;
 };
 
 /** Where things are on the map, and where a builder should and shouldn't build: the same layout the Station
@@ -27,7 +42,13 @@ function layoutText(agentId?: string): string {
   const teams = workflows
     .list()
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map((t) => ({ ...t, members: (Array.isArray(t.members) ? t.members : [...new Set((t.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId as string))]).filter((id) => agents.get(id)) }));
+    .map((t) => ({
+      ...t,
+      members: (Array.isArray(t.members)
+        ? t.members
+        : [...new Set((t.steps || []).filter((x) => x.type === 'agent' && x.agentId).map((x) => x.agentId as string))]
+      ).filter((id) => agents.get(id)),
+    }));
   const all = agents.list().sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.name.localeCompare(b.name));
   const onTeams = new Set(teams.flatMap((t) => t.members));
   const benched = all.filter((a) => !onTeams.has(a.id)).map((a) => a.id);
@@ -42,18 +63,43 @@ function layoutText(agentId?: string): string {
   ];
   teams.forEach((t, i) => {
     const sp = spots[i];
-    lines.push(`- team "${t.name}" (anchor team:${t.id}): centre ${xz(sp.center)}, platform radius ${sp.radius.toFixed(1)}, ${t.members.length} agent${t.members.length === 1 ? '' : 's'}${agentId && t.members.includes(agentId) ? ' ← your team' : ''}${sp.desks.length ? `; desks: ${sp.desks.map((d) => `${who(d.agentId)}${d.lead ? ' (lead)' : ''} at ${xz(d.at)}`).join(', ')}` : ''}`);
+    lines.push(
+      `- team "${t.name}" (anchor team:${t.id}): centre ${xz(sp.center)}, platform radius ${sp.radius.toFixed(1)}, ${t.members.length} agent${t.members.length === 1 ? '' : 's'}${agentId && t.members.includes(agentId) ? ' ← your team' : ''}${sp.desks.length ? `; desks: ${sp.desks.map((d) => `${who(d.agentId)}${d.lead ? ' (lead)' : ''} at ${xz(d.at)}`).join(', ')}` : ''}`,
+    );
   });
-  if (bench) lines.push(`- the Bench (agents on no team): centre ${xz(bench.center)}, a slab about ${bench.size[0].toFixed(1)} across and ${bench.size[1].toFixed(1)} deep, turned to face the Brain; desks: ${bench.desks.map((d) => `${who(d.agentId)} at ${xz(d.at)}`).join(', ')}`);
+  if (bench)
+    lines.push(
+      `- the Bench (agents on no team): centre ${xz(bench.center)}, a slab about ${bench.size[0].toFixed(1)} across and ${bench.size[1].toFixed(1)} deep, turned to face the Brain; desks: ${bench.desks.map((d) => `${who(d.agentId)} at ${xz(d.at)}`).join(', ')}`,
+    );
   const mine = agentId ? spots.find((sp) => sp.desks.some((d) => d.agentId === agentId)) : undefined;
-  if (agentId && !mine) lines.push('You are not on a team: you sit on the Bench, in front of the Brain. Build where the user or the Brain asks, anchored to "agent:<your id>" for things that belong to you.');
-  else if (mine) lines.push(`Your plot: the ring from ${mine.radius.toFixed(1)} to ${(mine.radius + 8).toFixed(1)} map units around your team's platform (anchor team:${mine.id}, centre ${xz(mine.center)}). Build there unless asked otherwise.`);
+  if (agentId && !mine)
+    lines.push(
+      'You are not on a team: you sit on the Bench, in front of the Brain. Build where the user or the Brain asks, anchored to "agent:<your id>" for things that belong to you.',
+    );
+  else if (mine)
+    lines.push(
+      `Your plot: the ring from ${mine.radius.toFixed(1)} to ${(mine.radius + 8).toFixed(1)} map units around your team's platform (anchor team:${mine.id}, centre ${xz(mine.center)}). Build there unless asked otherwise.`,
+    );
   return lines.join('\n');
 }
 
-export function worldText(w: VoxelWorld, { how, fromProject, agentId, builder = false }: { how: string; fromProject?: string; agentId?: string; builder?: boolean }): string {
-  const objects = w.objects.map((o) => `- "${o.name}" (id ${o.id}) by ${o.by.name}${o.lastBy && o.lastBy.name !== o.by.name ? `, last changed by ${o.lastBy.name}` : ''} ${ago(o.updatedAt)}: ${o.volumes.reduce((n, v) => n + v.count, 0).toLocaleString('en-US')} voxels at voxel size ${[...new Set(o.volumes.map((v) => v.voxelSize))].join(' and ') || '-'}, ${boxText(o)}, at ${o.position.join(', ')} from ${anchorText(o.anchor)}${o.rotation ? `, turned ${o.rotation}°` : ''}${o.scale !== 1 ? `, scale ${o.scale}` : ''}${o.instances ? `, ${o.instances} prefab copies placed in it` : ''}${o.hidden ? ' (hidden)' : ''}`);
-  const prefabs = w.prefabs.map((p) => `- "${p.name}" by ${p.by.name}: ${p.description || 'no description'} | ${prefabSize(w, p)} map units, ${p.volumes.reduce((n, v) => n + v.count, 0).toLocaleString('en-US')} voxels${p.instances ? ` and ${p.instances} ${p.instances === 1 ? 'copy' : 'copies'} of other prefabs` : ''}`);
+export function worldText(
+  w: VoxelWorld,
+  {
+    how,
+    fromProject,
+    agentId,
+    builder = false,
+  }: { how: string; fromProject?: string; agentId?: string; builder?: boolean },
+): string {
+  const objects = w.objects.map(
+    (o) =>
+      `- "${o.name}" (id ${o.id}) by ${o.by.name}${o.lastBy && o.lastBy.name !== o.by.name ? `, last changed by ${o.lastBy.name}` : ''} ${ago(o.updatedAt)}: ${o.volumes.reduce((n, v) => n + v.count, 0).toLocaleString('en-US')} voxels at voxel size ${[...new Set(o.volumes.map((v) => v.voxelSize))].join(' and ') || '-'}, ${boxText(o)}, at ${o.position.join(', ')} from ${anchorText(o.anchor)}${o.rotation ? `, turned ${o.rotation}°` : ''}${o.scale !== 1 ? `, scale ${o.scale}` : ''}${o.instances ? `, ${o.instances} prefab copies placed in it` : ''}${o.hidden ? ' (hidden)' : ''}`,
+  );
+  const prefabs = w.prefabs.map(
+    (p) =>
+      `- "${p.name}" by ${p.by.name}: ${p.description || 'no description'} | ${prefabSize(w, p)} map units, ${p.volumes.reduce((n, v) => n + v.count, 0).toLocaleString('en-US')} voxels${p.instances ? ` and ${p.instances} ${p.instances === 1 ? 'copy' : 'copies'} of other prefabs` : ''}`,
+  );
   const changes = recentChanges(w.id, 6).map((c) => `- ${ago(c.at)}: ${c.by} ${c.what}`);
   return [
     `World "${w.name}" (${how === 'carried' ? `carried over from another project${fromProject ? ` (${fromProject})` : ''}: your first build makes this project its own copy` : how === 'shared' ? 'shared with another project: changes show there too' : "this project's own"}).`,
@@ -63,7 +109,9 @@ export function worldText(w: VoxelWorld, { how, fromProject, agentId, builder = 
     layoutText(agentId),
     '',
     objects.length ? `Objects:\n${objects.join('\n')}` : 'No objects yet.',
-    prefabs.length ? `\nPrefabs (place copies with {"place": "<name>"}; world_prefab "list" says where each is used):\n${prefabs.join('\n')}` : '\nNo prefabs yet: make the small things you need many of (people, trees, lamps…) as prefabs, then place them.',
+    prefabs.length
+      ? `\nPrefabs (place copies with {"place": "<name>"}; world_prefab "list" says where each is used):\n${prefabs.join('\n')}`
+      : '\nNo prefabs yet: make the small things you need many of (people, trees, lamps…) as prefabs, then place them.',
     `\n${sceneText(w, { builder })}`,
     `\n${skinsText(w)}`,
     changes.length ? `\nRecent changes:\n${changes.join('\n')}` : '',
@@ -77,7 +125,9 @@ export function objectMap(w: VoxelWorld, ref: string, size?: number): string {
   const o = findObject(w, ref) || findPrefab(w, ref);
   if (!o) return `No object or prefab "${ref}".`;
   const grids = loadGrids('anchor' in o ? readObject(w.id, o.id) : readPrefab(w.id, o.id));
-  const g = (size !== undefined ? grids.find((x) => Math.abs(x.voxelSize - size) < 1e-6) : null) || [...grids].sort((a, b) => b.vol.chunks.size - a.vol.chunks.size)[0];
+  const g =
+    (size !== undefined ? grids.find((x) => Math.abs(x.voxelSize - size) < 1e-6) : null) ||
+    [...grids].sort((a, b) => b.vol.chunks.size - a.vol.chunks.size)[0];
   const v = o.volumes.find((x) => x.id === g?.id);
   if (!g || !v?.min || !v.max) return `"${o.name}" is empty.`;
   const [x0, y0, z0] = v.min;
@@ -109,9 +159,15 @@ export function objectMap(w: VoxelWorld, ref: string, size?: number): string {
   ].join('\n');
 }
 
-export function worldInfo({ project, agentId, map, size }: { project?: string; agentId?: string; map?: string; size?: number } = {}): string {
+export function worldInfo({
+  project,
+  agentId,
+  map,
+  size,
+}: { project?: string; agentId?: string; map?: string; size?: number } = {}): string {
   const shown = shownWorld(project);
-  if (!shown.world) return `No world yet. Your first world_build starts one for this project. It will be ${DIORAMA_SHORT}.\n\n${layoutText(agentId)}`;
+  if (!shown.world)
+    return `No world yet. Your first world_build starts one for this project. It will be ${DIORAMA_SHORT}.\n\n${layoutText(agentId)}`;
   const from = listProjects().find((p) => p.id === shown.fromProject)?.name;
   const text = `${worldText(shown.world, { how: shown.how, fromProject: from, agentId, builder: true })}\nThe world is ${DIORAMA_SHORT}.`;
   return map ? `${text}\n\n${objectMap(shown.world, map, size)}` : text;

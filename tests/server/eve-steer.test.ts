@@ -3,7 +3,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { activeProject, agents, chats } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
-import { attachSession, beginRun, bindSession, readRun, setRunStatus, settleRun, stageTerminal } from '../../server/eve/state.ts';
+import {
+  attachSession,
+  beginRun,
+  bindSession,
+  readRun,
+  setRunStatus,
+  settleRun,
+  stageTerminal,
+} from '../../server/eve/state.ts';
 import { sendSteer } from '../../server/eve/steer.ts';
 
 // reading the message's files: the turn ends meanwhile when the test says so
@@ -31,14 +39,18 @@ describe('a steer message read while its turn ends', () => {
     steerableRun('steer-race');
     // the turn's end has arrived, and is being written down
     during.read = () => stageTerminal('steer-race', { line: 3, status: 'completed', parts: ['done'] });
-    await expect(sendSteer('steer-race', { id: 'late', text: 'and a summary', attachments: [], from: null })).rejects.toThrow('can no longer take a message');
+    await expect(
+      sendSteer('steer-race', { id: 'late', text: 'and a summary', attachments: [], from: null }),
+    ).rejects.toThrow('can no longer take a message');
     expect(readRun('steer-race')?.steers ?? []).toEqual([]);
   });
 
   it("isn't saved on a turn that ended", async () => {
     steerableRun('steer-ended');
     during.read = () => settleRun('steer-ended', 'completed', 'done');
-    await expect(sendSteer('steer-ended', { id: 'late', text: 'and a summary', attachments: [], from: null })).rejects.toThrow('can no longer take a message');
+    await expect(
+      sendSteer('steer-ended', { id: 'late', text: 'and a summary', attachments: [], from: null }),
+    ).rejects.toThrow('can no longer take a message');
     expect(readRun('steer-ended')?.steers ?? []).toEqual([]);
   });
 });

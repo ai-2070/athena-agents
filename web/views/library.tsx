@@ -15,10 +15,20 @@ import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { ProgramGlyph } from '../ui/programmark.tsx';
 import { modelInfo, openModelPicker } from '../models.tsx';
 import type { ModelPatch } from '../models.tsx';
-import type { Agent, AppState, EngineId, LibraryAgentListing, LibraryIndex, PresetListing } from '../../shared/types.ts';
+import type {
+  Agent,
+  AppState,
+  EngineId,
+  LibraryAgentListing,
+  LibraryIndex,
+  PresetListing,
+} from '../../shared/types.ts';
 
 type Overrides = Pick<Agent, 'engine' | 'model'> & Partial<Pick<Agent, 'provider' | 'effort'>>;
-type HirePayload = { source: 'library'; slug: string; overrides: Overrides } | { source: 'hermes'; profile: string } | { source: 'claude'; slug: string };
+type HirePayload =
+  | { source: 'library'; slug: string; overrides: Overrides }
+  | { source: 'hermes'; profile: string }
+  | { source: 'claude'; slug: string };
 type Tab = 'athena' | 'hermes' | 'claude' | 'presets';
 
 // Kept while you move around the app, as before.
@@ -36,7 +46,10 @@ function overrides(engine: EngineId, data: AppState, choice: ModelPatch | null):
   const d = data.settings.defaults;
   return {
     engine,
-    model: engine === 'eve' ? choice?.model || defaultModelForEngine(engine, d, choice?.provider) : defaultModelForEngine(engine, d),
+    model:
+      engine === 'eve'
+        ? choice?.model || defaultModelForEngine(engine, d, choice?.provider)
+        : defaultModelForEngine(engine, d),
     ...(engine === 'eve' && choice ? { provider: choice.provider, effort: choice.effort } : {}),
   };
 }
@@ -52,7 +65,16 @@ async function hire(payload: HirePayload, name: string): Promise<Agent | undefin
       wf.members = [...new Set([...(wf.members || []), a.id])];
       // the step list mirrors members (the Team editor and runs use it)
       const steps = wf.steps || [];
-      if (!steps.some((s) => s.type === 'agent' && s.agentId === a.id)) wf.steps = [...steps, { id: Math.random().toString(36).slice(2), type: 'agent', agentId: a.id, prompt: steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}' }];
+      if (!steps.some((s) => s.type === 'agent' && s.agentId === a.id))
+        wf.steps = [
+          ...steps,
+          {
+            id: Math.random().toString(36).slice(2),
+            type: 'agent',
+            agentId: a.id,
+            prompt: steps.length ? 'Continue from this:\n{{prev}}' : '{{input}}',
+          },
+        ];
       await rpc.workflows.change({ ...wf, id: branch }).catch(() => {});
       toast(`${name} joined the ${wf.name} team`);
       return a;
@@ -68,7 +90,10 @@ async function preview(a: LibraryAgentListing, doHire: () => unknown) {
   const m = modal({
     title: `${a.emoji} ${a.name}`,
     body: h('div.msg.assistant', md(full.body.replace(/^---[\s\S]*?---/, ''))),
-    foot: [domButton({ variant: 'ghost', onclick: () => m.close() }, 'Close'), domButton({ onclick: () => (m.close(), doHire()) }, 'Hire')],
+    foot: [
+      domButton({ variant: 'ghost', onclick: () => m.close() }, 'Close'),
+      domButton({ onclick: () => (m.close(), doHire()) }, 'Hire'),
+    ],
   });
 }
 
@@ -83,7 +108,8 @@ function Empty({ children, action }: { children: ReactNode; action?: ReactNode }
 }
 
 // ---------- while it loads: the page's shape ----------
-const LEDE = 'Hire a specialist and it joins your team with its instructions already written. You can change anything afterwards.';
+const LEDE =
+  'Hire a specialist and it joins your team with its instructions already written. You can change anything afterwards.';
 const TAB_W = ['w-24', 'w-30', 'w-44', 'w-28'];
 const CHIP_W = ['w-11', 'w-25', 'w-24', 'w-17', 'w-36', 'w-44', 'w-40', 'w-36', 'w-40', 'w-44', 'w-40'];
 const TITLE_W = ['w-32', 'w-28', 'w-24', 'w-36'];
@@ -93,14 +119,18 @@ function LibrarySkeleton() {
     <Skeleton label="Loading library…">
       <p className="lede max-w-[68ch]">{LEDE}</p>
       <div className="flex gap-7 border-b border-line px-4 pt-2 pb-3.5">
-        {TAB_W.map((w, i) => <Bone key={i} className={`h-4 ${w}`} />)}
+        {TAB_W.map((w, i) => (
+          <Bone key={i} className={`h-4 ${w}`} />
+        ))}
       </div>
       <div className="mt-8 flex flex-wrap items-center gap-3">
         <Bone className="h-10 w-[min(400px,100%)]" />
         <Bone className="ml-auto h-10 w-[560px] max-xl:hidden" />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        {CHIP_W.map((w, i) => <Bone key={i} className={`h-8 rounded-full ${w}`} />)}
+        {CHIP_W.map((w, i) => (
+          <Bone key={i} className={`h-8 rounded-full ${w}`} />
+        ))}
       </div>
       <div className="cards mt-6">
         {Array.from({ length: 8 }, (_, i) => (
@@ -145,7 +175,12 @@ function LibraryPage() {
     return () => void (live = false);
   }, []);
 
-  if (failed) return <Plate className="panel"><p className="text-red">Something went wrong: {failed}</p></Plate>;
+  if (failed)
+    return (
+      <Plate className="panel">
+        <p className="text-red">Something went wrong: {failed}</p>
+      </Plate>
+    );
   if (!lib || !data) return <LibrarySkeleton />;
 
   const pick = (t: Tab) => setTab((lastTab = t));
@@ -159,10 +194,36 @@ function LibraryPage() {
     tab === 'athena' ? (
       <div className="ml-auto flex flex-wrap items-center gap-3">
         <span className="label">Runs on</span>
-        <Segmented label="Runs on" options={data.engineList.map((e) => ({ value: e.id, label: <span className="inline-flex items-center gap-2"><ProgramGlyph id={e.id} size={14} />{e.label}</span> }))} value={engine} onChange={setEngine} />
-        {engine === 'eve' ? <Button variant="ghost" size="small" onClick={(event) => openModelPicker(event.currentTarget, apiChoice || { engine: 'eve', provider: 'openrouter', model: data.settings.defaults.openrouterModel }, setApiChoice, { title: 'Model for new hires', engines: ['eve'] })}>
-          {apiChoice ? `${modelInfo(apiChoice).where} · ${modelInfo(apiChoice).short}` : 'Choose Eve model'}
-        </Button> : null}
+        <Segmented
+          label="Runs on"
+          options={data.engineList.map((e) => ({
+            value: e.id,
+            label: (
+              <span className="inline-flex items-center gap-2">
+                <ProgramGlyph id={e.id} size={14} />
+                {e.label}
+              </span>
+            ),
+          }))}
+          value={engine}
+          onChange={setEngine}
+        />
+        {engine === 'eve' ? (
+          <Button
+            variant="ghost"
+            size="small"
+            onClick={(event) =>
+              openModelPicker(
+                event.currentTarget,
+                apiChoice || { engine: 'eve', provider: 'openrouter', model: data.settings.defaults.openrouterModel },
+                setApiChoice,
+                { title: 'Model for new hires', engines: ['eve'] },
+              )
+            }
+          >
+            {apiChoice ? `${modelInfo(apiChoice).where} · ${modelInfo(apiChoice).short}` : 'Choose Eve model'}
+          </Button>
+        ) : null}
       </div>
     ) : null;
   const ov = () => overrides(engine, data, apiChoice);
@@ -174,7 +235,9 @@ function LibraryPage() {
         <Plate className="panel mb-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span>Hiring into a Station team: new hires are added as its next step.</span>
-            <ButtonLink variant="ghost" size="small" href="#/station">Back to Station</ButtonLink>
+            <ButtonLink variant="ghost" size="small" href="#/station">
+              Back to Station
+            </ButtonLink>
           </div>
         </Plate>
       ) : null}
@@ -189,7 +252,13 @@ function LibraryPage() {
 }
 
 /** A card's buttons: one to add it, then Chat and Edit for the agent it made. */
-function HireFoot({ onHire, children }: { onHire: () => Promise<Agent | undefined>; children: (hire: () => void) => ReactNode }) {
+function HireFoot({
+  onHire,
+  children,
+}: {
+  onHire: () => Promise<Agent | undefined>;
+  children: (hire: () => void) => ReactNode;
+}) {
   const [hired, setHired] = useState<Agent | null>(null);
   const [busy, setBusy] = useState(false);
   const go = async () => {
@@ -203,8 +272,12 @@ function HireFoot({ onHire, children }: { onHire: () => Promise<Agent | undefine
     <div className="card-foot">
       {hired ? (
         <>
-          <Button size="small" onClick={() => navigate(`#/agents/${hired.id}`)}>Chat</Button>
-          <Button variant="ghost" size="small" onClick={() => navigate(`#/agents/${hired.id}/edit`)}>Edit</Button>
+          <Button size="small" onClick={() => navigate(`#/agents/${hired.id}`)}>
+            Chat
+          </Button>
+          <Button variant="ghost" size="small" onClick={() => navigate(`#/agents/${hired.id}/edit`)}>
+            Edit
+          </Button>
         </>
       ) : (
         children(go)
@@ -229,18 +302,31 @@ function Athena({ lib, overrides: ov, runsOn }: { lib: LibraryIndex; overrides: 
   const groups = [...new Map(lib.agents.map((a) => [a.group, a.groupLabel])).entries()];
   const q = query.toLowerCase();
   const inGroup = (a: LibraryAgentListing) => !group || (group === STARTER ? a.starter : a.group === group);
-  const list = lib.agents.filter((a) => inGroup(a) && (!q || `${a.name} ${a.specialty} ${a.description} ${a.groupLabel}`.toLowerCase().includes(q)));
+  const list = lib.agents.filter(
+    (a) => inGroup(a) && (!q || `${a.name} ${a.specialty} ${a.description} ${a.groupLabel}`.toLowerCase().includes(q)),
+  );
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
-        <SearchBox className="w-[min(400px,100%)]" autoFocus label="Search the agents" placeholder={`Search ${lib.agents.length} agents: "seo", "unity", "contracts", "security"…`} value={query} onChange={(v) => setQuery((lastQuery = v))} />
+        <SearchBox
+          className="w-[min(400px,100%)]"
+          autoFocus
+          label="Search the agents"
+          placeholder={`Search ${lib.agents.length} agents: "seo", "unity", "contracts", "security"…`}
+          value={query}
+          onChange={(v) => setQuery((lastQuery = v))}
+        />
         {runsOn}
       </div>
       {/* (a toggle's value can't be empty, so All is 'all') */}
       <Chips
         label="Group"
         className="mt-4"
-        options={[{ value: 'all', label: 'All' }, { value: STARTER, label: 'Starter team' }, ...groups.map(([value, label]) => ({ value, label }))]}
+        options={[
+          { value: 'all', label: 'All' },
+          { value: STARTER, label: 'Starter team' },
+          ...groups.map(([value, label]) => ({ value, label })),
+        ]}
         value={group || 'all'}
         onChange={(g) => setGroup((lastGroup = g === 'all' ? '' : g))}
       />
@@ -253,7 +339,12 @@ function Athena({ lib, overrides: ov, runsOn }: { lib: LibraryIndex; overrides: 
                 key={a.slug}
                 top={
                   <>
-                    <div className="avatar" style={{ '--agent-color': a.color || 'var(--color-accent)' } as CSSProperties}>{a.emoji}</div>
+                    <div
+                      className="avatar"
+                      style={{ '--agent-color': a.color || 'var(--color-accent)' } as CSSProperties}
+                    >
+                      {a.emoji}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="card-title">{a.name}</div>
                       <div className="label mt-0.5">{a.groupLabel}</div>
@@ -265,8 +356,12 @@ function Athena({ lib, overrides: ov, runsOn }: { lib: LibraryIndex; overrides: 
                   <HireFoot onHire={doHire}>
                     {(go) => (
                       <>
-                        <Button size="small" onClick={go}>Hire</Button>
-                        <Button variant="ghost" size="small" onClick={() => void preview(a, go)}>Read</Button>
+                        <Button size="small" onClick={go}>
+                          Hire
+                        </Button>
+                        <Button variant="ghost" size="small" onClick={() => void preview(a, go)}>
+                          Read
+                        </Button>
                       </>
                     )}
                   </HireFoot>
@@ -282,11 +377,19 @@ function Athena({ lib, overrides: ov, runsOn }: { lib: LibraryIndex; overrides: 
 }
 
 function Hermes({ lib, data }: { lib: LibraryIndex; data: AppState }) {
-  if (!lib.hermes.length) return <Empty>{data.engines.hermes.installed ? 'No Hermes profiles found.' : 'Hermes is not installed on this PC.'}</Empty>;
+  if (!lib.hermes.length)
+    return (
+      <Empty>
+        {data.engines.hermes.installed ? 'No Hermes profiles found.' : 'Hermes is not installed on this PC.'}
+      </Empty>
+    );
   const have = new Set(data.agents.filter((a) => a.engine === 'hermes').map((a) => a.hermesProfile || 'default'));
   return (
     <>
-      <p className="hint mb-6 max-w-[68ch]">Each Hermes profile keeps its own memory, skills and tools. Add one to chat with it here, use it in workflows, or let other agents ask it for help.</p>
+      <p className="hint mb-6 max-w-[68ch]">
+        Each Hermes profile keeps its own memory, skills and tools. Add one to chat with it here, use it in workflows,
+        or let other agents ask it for help.
+      </p>
       <div className="cards">
         {lib.hermes.map((p) => (
           <Card
@@ -302,9 +405,17 @@ function Hermes({ lib, data }: { lib: LibraryIndex; data: AppState }) {
             }
             foot={
               have.has(p.name) ? (
-                <div className="card-foot"><Pill tone="ok">on your team</Pill></div>
+                <div className="card-foot">
+                  <Pill tone="ok">on your team</Pill>
+                </div>
               ) : (
-                <HireFoot onHire={() => hire({ source: 'hermes', profile: p.name }, p.name)}>{(go) => <Button size="small" onClick={go}>Add as agent</Button>}</HireFoot>
+                <HireFoot onHire={() => hire({ source: 'hermes', profile: p.name }, p.name)}>
+                  {(go) => (
+                    <Button size="small" onClick={go}>
+                      Add as agent
+                    </Button>
+                  )}
+                </HireFoot>
               )
             }
           />
@@ -317,7 +428,10 @@ function Hermes({ lib, data }: { lib: LibraryIndex; data: AppState }) {
 function Claude({ lib }: { lib: LibraryIndex }) {
   return (
     <>
-      <p className="hint mb-6 max-w-[68ch]">Subagents saved in ~/.claude/agents. Import one as a dashboard agent, or go the other way with "Install in Claude Code" on any agent.</p>
+      <p className="hint mb-6 max-w-[68ch]">
+        Subagents saved in ~/.claude/agents. Import one as a dashboard agent, or go the other way with "Install in
+        Claude Code" on any agent.
+      </p>
       {lib.claude.length ? (
         <div className="cards">
           {lib.claude.map((s) => (
@@ -332,7 +446,15 @@ function Claude({ lib }: { lib: LibraryIndex }) {
                   </div>
                 </>
               }
-              foot={<HireFoot onHire={() => hire({ source: 'claude', slug: s.slug }, s.name)}>{(go) => <Button size="small" onClick={go}>Import</Button>}</HireFoot>}
+              foot={
+                <HireFoot onHire={() => hire({ source: 'claude', slug: s.slug }, s.name)}>
+                  {(go) => (
+                    <Button size="small" onClick={go}>
+                      Import
+                    </Button>
+                  )}
+                </HireFoot>
+              }
             />
           ))}
         </div>
@@ -348,7 +470,10 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
   const [busy, setBusy] = useState<string | null>(null);
   const use = async (p: PresetListing) => {
     setBusy(p.id);
-    const r = await attempt(() => rpc.presets.use({ id: p.id }), p.kind === 'team' ? `Team "${p.name}" created with ${p.members!.length} agents` : `${p.name} created`);
+    const r = await attempt(
+      () => rpc.presets.use({ id: p.id }),
+      p.kind === 'team' ? `Team "${p.name}" created with ${p.members!.length} agents` : `${p.name} created`,
+    );
     setBusy(null);
     if (!r) return;
     refreshSoon(0);
@@ -356,7 +481,13 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
     else navigate(`#/station?team=${r.team.id}`);
   };
   const del = async (p: PresetListing) => {
-    if (!(await confirmBox(`Delete the preset "${p.name}"? Agents and teams made from it stay.`, { ok: 'Delete', danger: true }))) return;
+    if (
+      !(await confirmBox(`Delete the preset "${p.name}"? Agents and teams made from it stay.`, {
+        ok: 'Delete',
+        danger: true,
+      }))
+    )
+      return;
     if (await attempt(() => rpc.presets.remove({ id: p.id }), 'Deleted')) await reload();
   };
   const card = (p: PresetListing) => (
@@ -365,21 +496,41 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
       top={
         <>
           {p.kind === 'team' ? (
-            <div className="avatar" style={{ '--agent-color': p.color || 'var(--color-accent)', color: p.color || 'var(--color-accent)' } as CSSProperties}><Icon name="users" size={18} /></div>
+            <div
+              className="avatar"
+              style={
+                {
+                  '--agent-color': p.color || 'var(--color-accent)',
+                  color: p.color || 'var(--color-accent)',
+                } as CSSProperties
+              }
+            >
+              <Icon name="users" size={18} />
+            </div>
           ) : (
             <div className="avatar">{p.emoji || '🤖'}</div>
           )}
           <div className="flex-1 min-w-0">
             <div className="card-title">{p.name}</div>
-            <div className="hint">{p.kind === 'team' ? `Team · ${p.members!.length} agents${p.lead ? ` · ★ ${p.lead}` : ''}` : 'Agent'}</div>
+            <div className="hint">
+              {p.kind === 'team' ? `Team · ${p.members!.length} agents${p.lead ? ` · ★ ${p.lead}` : ''}` : 'Agent'}
+            </div>
           </div>
         </>
       }
       sub={
         <>
           {p.description ? <div className="card-sub">{p.description}</div> : null}
-          {p.kind === 'team' ? <div className="my-1 flex flex-wrap gap-2">{p.members!.map((m) => <Pill key={m.name}>{`${m.emoji || ''} ${m.name}`}</Pill>)}</div> : null}
-          {p.skills?.length ? <div className="hint">{`${p.skills.length} skill${p.skills.length === 1 ? '' : 's'}`}</div> : null}
+          {p.kind === 'team' ? (
+            <div className="my-1 flex flex-wrap gap-2">
+              {p.members!.map((m) => (
+                <Pill key={m.name}>{`${m.emoji || ''} ${m.name}`}</Pill>
+              ))}
+            </div>
+          ) : null}
+          {p.skills?.length ? (
+            <div className="hint">{`${p.skills.length} skill${p.skills.length === 1 ? '' : 's'}`}</div>
+          ) : null}
         </>
       }
       foot={
@@ -389,7 +540,13 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
             {p.kind === 'team' ? 'Create this team' : 'Create this agent'}
           </Button>
           <span className="flex-1 min-w-0" />
-          <Button variant="danger" size="small" title="Delete preset" aria-label={`Delete the preset ${p.name}`} onClick={() => void del(p)}>
+          <Button
+            variant="danger"
+            size="small"
+            title="Delete preset"
+            aria-label={`Delete the preset ${p.name}`}
+            onClick={() => void del(p)}
+          >
             <Icon name="trash-2" size={13} />
           </Button>
         </div>
@@ -400,7 +557,10 @@ function Presets({ presets, reload }: { presets: PresetListing[]; reload: () => 
   const agentsP = presets.filter((p) => p.kind === 'agent');
   return (
     <>
-      <p className="hint mb-6 max-w-[68ch]">Save any agent or team as a preset (its panel on the Station, or right-click it). Presets work in every project: each use makes fresh copies here.</p>
+      <p className="hint mb-6 max-w-[68ch]">
+        Save any agent or team as a preset (its panel on the Station, or right-click it). Presets work in every project:
+        each use makes fresh copies here.
+      </p>
       {!presets.length ? <p className="empty py-12">No presets yet.</p> : null}
       {teamsP.length ? (
         <>

@@ -7,9 +7,19 @@ import { newAgent } from '../../server/library.ts';
 import { contextWindow } from '../../server/context.ts';
 
 const model = {
-  id: 'venice-chat', type: 'text', model_spec: {
-    name: 'Venice Chat', availableContextTokens: 131072, offline: false,
-    capabilities: { supportsFunctionCalling: false, supportsVision: true, supportsMultipleImages: false, supportsReasoningEffort: true, reasoningEffortOptions: ['none', 'low', 'high', 'future-option'] },
+  id: 'venice-chat',
+  type: 'text',
+  model_spec: {
+    name: 'Venice Chat',
+    availableContextTokens: 131072,
+    offline: false,
+    capabilities: {
+      supportsFunctionCalling: false,
+      supportsVision: true,
+      supportsMultipleImages: false,
+      supportsReasoningEffort: true,
+      reasoningEffortOptions: ['none', 'low', 'high', 'future-option'],
+    },
     pricing: { input: { usd: 0.15 }, output: { usd: 0.6 }, cache_input: { usd: 0.03 } },
   },
 };
@@ -22,16 +32,42 @@ afterEach(() => {
 
 describe('Venice model discovery', () => {
   it('normalizes nested metadata without multiplying already-per-million prices', () => {
-    expect(normalizeApiModels({ data: [model] }, 'venice')).toEqual([{
-      id: 'venice-chat', name: 'Venice Chat', context: 131072, tools: false, vision: true, multipleImages: false,
-      reasoningEfforts: ['low', 'high'], offline: false, price: { in: 0.15, out: 0.6, cached: 0.03 },
-    }]);
+    expect(normalizeApiModels({ data: [model] }, 'venice')).toEqual([
+      {
+        id: 'venice-chat',
+        name: 'Venice Chat',
+        context: 131072,
+        tools: false,
+        vision: true,
+        multipleImages: false,
+        reasoningEfforts: ['low', 'high'],
+        offline: false,
+        price: { in: 0.15, out: 0.6, cached: 0.03 },
+      },
+    ]);
   });
 
   it('keeps absent capabilities and prices unknown, preserves zero prices, and rejects malformed rows', () => {
-    const rows = normalizeApiModels({ data: [null, { id: 1 }, {}, { id: 'image', type: 'image' }, { id: 'bare' }, {
-      id: 'free', model_spec: { availableContextTokens: -1, capabilities: { supportsReasoningEffort: false }, pricing: { input: { usd: 0 }, output: { usd: '0' } } },
-    }] }, 'venice');
+    const rows = normalizeApiModels(
+      {
+        data: [
+          null,
+          { id: 1 },
+          {},
+          { id: 'image', type: 'image' },
+          { id: 'bare' },
+          {
+            id: 'free',
+            model_spec: {
+              availableContextTokens: -1,
+              capabilities: { supportsReasoningEffort: false },
+              pricing: { input: { usd: 0 }, output: { usd: '0' } },
+            },
+          },
+        ],
+      },
+      'venice',
+    );
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ id: 'bare', context: null, price: null });
     expect(rows[0]?.tools).toBeUndefined();
@@ -44,7 +80,10 @@ describe('Venice model discovery', () => {
     const fetcher = vi.fn(async () => Response.json({ data: [model] }));
     vi.stubGlobal('fetch', fetcher);
     expect((await listModels('venice'))[0]?.name).toBe('Venice Chat');
-    expect(fetcher).toHaveBeenCalledWith('https://api.venice.ai/api/v1/models?type=text', { headers: {}, signal: expect.any(AbortSignal) });
+    expect(fetcher).toHaveBeenCalledWith('https://api.venice.ai/api/v1/models?type=text', {
+      headers: {},
+      signal: expect.any(AbortSignal),
+    });
     expect(providerProblem('venice')).toContain('no Venice key');
     const found = await findModels('venice', 'chat');
     expect(found).toContain('no tool use');
@@ -55,7 +94,9 @@ describe('Venice model discovery', () => {
   });
 
   it('reports offline models and rejects them for new selections', async () => {
-    vi.stubGlobal('fetch', async () => Response.json({ data: [{ ...model, model_spec: { ...model.model_spec, offline: true } }] }));
+    vi.stubGlobal('fetch', async () =>
+      Response.json({ data: [{ ...model, model_spec: { ...model.model_spec, offline: true } }] }),
+    );
     expect((await availableModels('venice'))[0]?.note).toContain('temporarily unavailable');
     expect(await checkModel('venice', 'venice-chat')).toContain('temporarily unavailable');
   });
@@ -63,7 +104,16 @@ describe('Venice model discovery', () => {
   it('does not accept a failed HTTP response as a catalog or change OpenRouter price units', async () => {
     vi.stubGlobal('fetch', async () => Response.json({ data: [model] }, { status: 403 }));
     expect(await listModels('venice')).toEqual([]);
-    expect(normalizeApiModels({ data: [{ id: 'a/b', supported_parameters: ['tools'], pricing: { prompt: '0.000001', completion: '0.000003' } }] }, 'openrouter')[0]).toMatchObject({ tools: true, price: { in: 1, out: 3 } });
+    expect(
+      normalizeApiModels(
+        {
+          data: [
+            { id: 'a/b', supported_parameters: ['tools'], pricing: { prompt: '0.000001', completion: '0.000003' } },
+          ],
+        },
+        'openrouter',
+      )[0],
+    ).toMatchObject({ tools: true, price: { in: 1, out: 3 } });
     expect(normalizeApiModels({ data: [{ id: 'local' }] }, 'lmstudio')[0]).toMatchObject({ tools: true, price: null });
   });
 });

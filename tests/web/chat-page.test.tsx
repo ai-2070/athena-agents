@@ -15,7 +15,14 @@ class FakeSocket {
 let requests: { method: string; url: string }[];
 let titles: string[];
 let el: HTMLElement;
-const agent = { id: 'a1', name: 'Writer', emoji: '✍️', engine: 'claude-code', tools: ['read_file', 'web_search'], specialty: 'Posts' };
+const agent = {
+  id: 'a1',
+  name: 'Writer',
+  emoji: '✍️',
+  engine: 'claude-code',
+  tools: ['read_file', 'web_search'],
+  specialty: 'Posts',
+};
 const chats = [
   { id: 'c1', title: 'Launch post', updatedAt: Date.now(), count: 4 },
   { id: 'c2', title: 'Old', updatedAt: Date.now() - 86_400_000, count: 1 },
@@ -27,17 +34,26 @@ beforeEach(() => {
   el = document.getElementById('view')!;
   requests = [];
   titles = [];
-  state.data = { agents: [agent], runs: [], approvals: [], settings: { defaults: {} }, engines: {} } as unknown as AppState;
+  state.data = {
+    agents: [agent],
+    runs: [],
+    approvals: [],
+    settings: { defaults: {} },
+    engines: {},
+  } as unknown as AppState;
   vi.stubGlobal('WebSocket', FakeSocket);
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
     requests.push({ method, url });
-    const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { 'content-type': 'application/json' } });
+    const json = (v: unknown, status = 200) =>
+      new Response(JSON.stringify(v), { status, headers: { 'content-type': 'application/json' } });
     if (url === '/api/agents/a1') return json(agent);
     if (url === '/api/agents/gone') return json({ error: 'Unknown agent' }, 404);
     if (url === '/api/agents/a1/chats' && method === 'GET') return json(chats);
-    if (url === '/api/agents/a1/chats/c1' && method === 'GET') return json({ id: 'c1', title: 'Launch post', items: [] });
-    if (url === '/api/agents/a1/chats/c1/memory') return json({ tokens: 170_000, window: 200_000, compactAt: 160_000, percent: 85, auto: true });
+    if (url === '/api/agents/a1/chats/c1' && method === 'GET')
+      return json({ id: 'c1', title: 'Launch post', items: [] });
+    if (url === '/api/agents/a1/chats/c1/memory')
+      return json({ tokens: 170_000, window: 200_000, compactAt: 160_000, percent: 85, auto: true });
     if (url.endsWith('/stream')) return new Response(null, { status: 204 });
     return json(url.includes('/commands') ? [] : { ok: true });
   });
@@ -84,7 +100,11 @@ describe('the agent chat page', () => {
     await open(['a1', 'c1']);
     await settle(80);
     const nav = el.querySelector('nav[aria-label="Chats"]')!;
-    expect([...nav.querySelectorAll('a')].map((a) => `${a.querySelector('.t')!.textContent}${a.getAttribute('aria-current') ? '*' : ''}`)).toEqual(['Launch post*', 'Old', 'Routine: Morning news']);
+    expect(
+      [...nav.querySelectorAll('a')].map(
+        (a) => `${a.querySelector('.t')!.textContent}${a.getAttribute('aria-current') ? '*' : ''}`,
+      ),
+    ).toEqual(['Launch post*', 'Old', 'Routine: Morning news']);
     // grouped by the day they were last used
     expect(nav.textContent).toContain('Today');
     expect(nav.textContent).toContain('Yesterday');
@@ -102,9 +122,21 @@ describe('the agent chat page', () => {
     // Rename, Clear memory and Delete are in the "…" menu
     await act(async () => el.querySelector<HTMLButtonElement>('.chat-head [aria-label="Chat options"]')!.click());
     await settle();
-    expect([...document.querySelectorAll('.st-menu .st-menu-item')].map((i) => i.textContent)).toEqual(['Rename', 'Clear memory', 'Delete']);
-    await act(async () => [...document.querySelectorAll<HTMLElement>('.st-menu .st-menu-item')].find((b) => b.textContent === 'Delete')!.click());
-    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Delete')!.click());
+    expect([...document.querySelectorAll('.st-menu .st-menu-item')].map((i) => i.textContent)).toEqual([
+      'Rename',
+      'Clear memory',
+      'Delete',
+    ]);
+    await act(async () =>
+      [...document.querySelectorAll<HTMLElement>('.st-menu .st-menu-item')]
+        .find((b) => b.textContent === 'Delete')!
+        .click(),
+    );
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')]
+        .find((b) => b.textContent === 'Delete')!
+        .click(),
+    );
     await settle();
     expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/agents/a1/chats/c1')).toBe(true);
     expect(location.hash).toBe('#/agents/a1');
@@ -113,13 +145,22 @@ describe('the agent chat page', () => {
   it('puts a chat under Today, Yesterday, This week, This month or Older', () => {
     const now = new Date(2026, 10, 2, 15).getTime();
     const day = 86_400_000;
-    expect([now - 60_000, now - day, now - 3 * day, now - 20 * day, now - 60 * day].map((t) => dayOf(t, now))).toEqual(['Today', 'Yesterday', 'This week', 'This month', 'Older']);
+    expect([now - 60_000, now - day, now - 3 * day, now - 20 * day, now - 60 * day].map((t) => dayOf(t, now))).toEqual([
+      'Today',
+      'Yesterday',
+      'This week',
+      'This month',
+      'Older',
+    ]);
   });
 
   it('keeps one group per heading, even for a chat out of place', () => {
     const at = (updatedAt: number, id: string) => ({ id, updatedAt });
     const t = Date.now();
     const groups = dayGroups([at(t, 'a'), at(t - 40 * 86_400_000, 'old'), at(t - 1000, 'b')]);
-    expect(groups.map((g) => [g.day, g.list.map((c) => c.id)])).toEqual([['Today', ['a', 'b']], ['Older', ['old']]]);
+    expect(groups.map((g) => [g.day, g.list.map((c) => c.id)])).toEqual([
+      ['Today', ['a', 'b']],
+      ['Older', ['old']],
+    ]);
   });
 });

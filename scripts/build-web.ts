@@ -20,12 +20,25 @@ const clean = process.argv.includes('--clean');
 const apiDir = path.join(root, 'shared', 'api');
 let routes: { stamp: string; contents: string } | null = null;
 const apiStamp = (): string =>
-  fs.readdirSync(apiDir).filter((f) => f.endsWith('.ts')).sort().map((f) => `${f}:${fs.statSync(path.join(apiDir, f)).mtimeMs}`).join('|');
+  fs
+    .readdirSync(apiDir)
+    .filter((f) => f.endsWith('.ts'))
+    .sort()
+    .map((f) => `${f}:${fs.statSync(path.join(apiDir, f)).mtimeMs}`)
+    .join('|');
 async function apiContract(): Promise<string> {
   const stamp = apiStamp();
   if (routes?.stamp === stamp) return routes.contents;
-  const run = Bun.spawn([process.execPath, path.join(root, 'scripts', 'api-routes.ts')], { cwd: root, stdout: 'pipe', stderr: 'pipe' });
-  const [out, err, code] = await Promise.all([new Response(run.stdout).text(), new Response(run.stderr).text(), run.exited]);
+  const run = Bun.spawn([process.execPath, path.join(root, 'scripts', 'api-routes.ts')], {
+    cwd: root,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [out, err, code] = await Promise.all([
+    new Response(run.stdout).text(),
+    new Response(run.stderr).text(),
+    run.exited,
+  ]);
   if (code !== 0) throw new Error(`The API routes didn't load:\n${err}`);
   routes = { stamp, contents: `export const contract = ${out};` };
   return routes.contents;
@@ -33,7 +46,10 @@ async function apiContract(): Promise<string> {
 const apiRoutes: Bun.BunPlugin = {
   name: 'api-routes',
   setup(b) {
-    b.onLoad({ filter: /[\\/]shared[\\/]api[\\/]index\.ts$/ }, async () => ({ contents: await apiContract(), loader: 'js' }));
+    b.onLoad({ filter: /[\\/]shared[\\/]api[\\/]index\.ts$/ }, async () => ({
+      contents: await apiContract(),
+      loader: 'js',
+    }));
   },
 };
 
@@ -70,7 +86,10 @@ async function build(): Promise<boolean> {
   }
   // OpenUI's stylesheet for the chats (web/chat), linked when a chat first opens. In its own layer
   // (placed in web/styles/app.css): above Tailwind's reset, below the page's own styles.
-  const openui = fs.readFileSync(path.join(root, 'node_modules', '@openuidev', 'react-ui', 'dist', 'styles', 'index.css'), 'utf8');
+  const openui = fs.readFileSync(
+    path.join(root, 'node_modules', '@openuidev', 'react-ui', 'dist', 'styles', 'index.css'),
+    'utf8',
+  );
   fs.writeFileSync(path.join(tmpdir, 'openui.css'), `@layer openui {\n${openui}\n}\n`);
   // (outputs read their size from the files, so take it before the move)
   const size = result.outputs.reduce((n, o) => n + o.size, 0);
@@ -84,7 +103,9 @@ async function build(): Promise<boolean> {
     fs.cpSync(tmpdir, outdir, { recursive: true });
     fs.rmSync(tmpdir, { recursive: true, force: true });
   }
-  console.log(`web: ${result.outputs.length} files, ${(size / 1024).toFixed(0)} KB in ${Math.round(performance.now() - started)} ms → public/dist`);
+  console.log(
+    `web: ${result.outputs.length} files, ${(size / 1024).toFixed(0)} KB in ${Math.round(performance.now() - started)} ms → public/dist`,
+  );
   return true;
 }
 

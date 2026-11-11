@@ -1,8 +1,8 @@
 # Chat SDK Gateways with files
 
-*Plan, 1 November 2026. Experimental Telegram conversations added 2 November;
+_Plan, 1 November 2026. Experimental Telegram conversations added 2 November;
 Experimental Slack and Discord text/file delivery added 3 November. Product setup remains incomplete.
-New gateway data does not need a legacy compatibility layer.*
+New gateway data does not need a legacy compatibility layer._
 
 ## Implementation status
 
@@ -108,16 +108,17 @@ New gateway data does not need a legacy compatibility layer.*
   routing; live-account validation is still pending.
 - Current outgoing capabilities at SDK/adapters `4.43.0`:
 
-  | Platform | Files | Limit | Captions and grouping |
-  | --- | --- | --- | --- |
-  | Telegram | Nonempty regular files as documents, including images/audio/video | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | No file captions, native media or albums. One SDK transport request and remote receipt per file, with a 30-second send timeout |
-  | Slack | Hosted local uploads and explicitly selected regular output files | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Bounded private streaming downloads; one external-upload allocation, byte upload and completion per file, without SDK retry/fallback |
-  | Discord | Private message attachments and selected regular output files | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Refreshed source-message CDN URLs and one multipart request per selected file; experimental supervised workers |
-  | WhatsApp | Guarded PDF, plain `.txt` and Office document uploads; application transport not enabled yet | At most 20 MiB per file and configured message/daily caps; live verification pending | One upload plus one contextual document message per file, with the 24-hour window checked before both. No captions, albums, native image/audio/video sends or template fallback |
+  | Platform | Files                                                                                        | Limit                                                                                       | Captions and grouping                                                                                                                                                           |
+  | -------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Telegram | Nonempty regular files as documents, including images/audio/video                            | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | No file captions, native media or albums. One SDK transport request and remote receipt per file, with a 30-second send timeout                                                  |
+  | Slack    | Hosted local uploads and explicitly selected regular output files                            | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Bounded private streaming downloads; one external-upload allocation, byte upload and completion per file, without SDK retry/fallback                                            |
+  | Discord  | Private message attachments and selected regular output files                                | At most 20 MiB per file, 10 files and 50 MiB per assignment; configured limits can be lower | Refreshed source-message CDN URLs and one multipart request per selected file; experimental supervised workers                                                                  |
+  | WhatsApp | Guarded PDF, plain `.txt` and Office document uploads; application transport not enabled yet | At most 20 MiB per file and configured message/daily caps; live verification pending        | One upload plus one contextual document message per file, with the 24-hour window checked before both. No captions, albums, native image/audio/video sends or template fallback |
 
   The application uses the SDK's Telegram multipart transport primitive directly for documents,
   avoiding formatter fallback, grouped sends and hidden retries that would obscure per-file outcomes.
   Ordinary artifacts and tool images are never attached automatically.
+
 - Added `prepare_gateway_files` and high-risk `send_gateway_files` tools for explicit run deliverables.
   Inspection returns eligible paths, sizes and SHA-256 hashes without selecting or sending files.
   The send request carries those hashes through the existing autonomy/approval policy, rechecks
@@ -1135,12 +1136,12 @@ can ship separately. Do not also implement Eve-native channels for these four pl
 
 Required sender policy from the product discussion:
 
-| Platform | Sender guard |
-|---|---|
-| Telegram | Required allowlist of numeric user IDs |
-| WhatsApp | Required allowlist of phone numbers, stored in canonical international form |
-| Slack | Optional allowlist of user IDs; an empty list adds no user-specific restriction |
-| Discord | Explicit guild/channel or DM scope; optional user-ID allowlist proposed for finer control |
+| Platform | Sender guard                                                                              |
+| -------- | ----------------------------------------------------------------------------------------- |
+| Telegram | Required allowlist of numeric user IDs                                                    |
+| WhatsApp | Required allowlist of phone numbers, stored in canonical international form               |
+| Slack    | Optional allowlist of user IDs; an empty list adds no user-specific restriction           |
+| Discord  | Explicit guild/channel or DM scope; optional user-ID allowlist proposed for finer control |
 
 Gateway instance setup is the user's authorization to send ordinary replies to accepted messages in its
 configured conversation. It does not authorize arbitrary outbound posts, unrelated recipients or
@@ -1167,14 +1168,14 @@ Use the official packages `chat`, `@chat-adapter/telegram`, `@chat-adapter/disco
 update `bun.lock`. Next.js scaffolding, Vercel Connect and Vercel AI Gateway are not required by this
 design. [Repository](https://github.com/vercel/chat), [adapter catalog](https://chat-sdk.dev/adapters)
 
-| Adapter | Verified constraint and source |
-|---|---|
-| Telegram | Supports polling and webhooks; polling and a registered webhook are mutually exclusive. Its optional SDK user allowlist defaults to allowing everyone when omitted, so Athena must impose its required guard. [Telegram](https://chat-sdk.dev/adapters/official/telegram) |
-| Discord | HTTP interactions do not deliver normal messages. Regular messages need a persistent Gateway WebSocket. [Discord](https://chat-sdk.dev/adapters/official/discord) |
-| Slack | Socket Mode can receive events behind a firewall without a public HTTP endpoint. Bot and app tokens are distinct. [Slack](https://chat-sdk.dev/adapters/official/slack) |
-| WhatsApp | Uses Meta WhatsApp Business Cloud, signed HTTP events, media upload and template restrictions outside the customer-service window. This is not a personal-account/WhatsApp Web bridge. [WhatsApp](https://chat-sdk.dev/adapters/official/whatsapp) |
-| Files | Incoming attachments can supply lazy `fetchData()` and serializable `fetchMetadata`; outgoing generic uploads use `files`, while typed media can use `attachments`. [Files](https://chat-sdk.dev/docs/files) |
-| State | SDK state covers subscriptions, locks and cache. Memory state is not restart-safe; custom state adapters are supported. Lock conflict defaults must not become dropped user messages. [State adapters](https://chat-sdk.dev/docs/state-adapters), [concurrency](https://chat-sdk.dev/docs/concurrency) |
+| Adapter  | Verified constraint and source                                                                                                                                                                                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Telegram | Supports polling and webhooks; polling and a registered webhook are mutually exclusive. Its optional SDK user allowlist defaults to allowing everyone when omitted, so Athena must impose its required guard. [Telegram](https://chat-sdk.dev/adapters/official/telegram)                              |
+| Discord  | HTTP interactions do not deliver normal messages. Regular messages need a persistent Gateway WebSocket. [Discord](https://chat-sdk.dev/adapters/official/discord)                                                                                                                                      |
+| Slack    | Socket Mode can receive events behind a firewall without a public HTTP endpoint. Bot and app tokens are distinct. [Slack](https://chat-sdk.dev/adapters/official/slack)                                                                                                                                |
+| WhatsApp | Uses Meta WhatsApp Business Cloud, signed HTTP events, media upload and template restrictions outside the customer-service window. This is not a personal-account/WhatsApp Web bridge. [WhatsApp](https://chat-sdk.dev/adapters/official/whatsapp)                                                     |
+| Files    | Incoming attachments can supply lazy `fetchData()` and serializable `fetchMetadata`; outgoing generic uploads use `files`, while typed media can use `attachments`. [Files](https://chat-sdk.dev/docs/files)                                                                                           |
+| State    | SDK state covers subscriptions, locks and cache. Memory state is not restart-safe; custom state adapters are supported. Lock conflict defaults must not become dropped user messages. [State adapters](https://chat-sdk.dev/docs/state-adapters), [concurrency](https://chat-sdk.dev/docs/concurrency) |
 
 Adapter APIs and platform restrictions change. During implementation, verify the exact installed
 version's event, media and lifecycle support; do not derive feature parity from the shared interface.
@@ -1306,14 +1307,14 @@ people do not become one fabricated local user. Ignore own-message echoes and st
 
 Add new shapes to `shared/types.ts`, with server-only credentials kept out of browser-safe records:
 
-| Record | Purpose |
-|---|---|
-| Gateway instance | Stable instance ID, platform, instance name/account label, project, discriminated Brain/team/agent target, transport, sender policy, conversation scopes, file limits and enabled state |
-| Gateway instance secret record | Instance-scoped bot/app tokens, signing/verification secrets and relay credentials, stored through the secrets layer |
-| Conversation binding | Instance ID and external composite identity to local project, agent/team/Brain conversation and route generation |
-| Inbox event | Instance ID, stable source ID, actor, received time, normalized input, serializable media descriptors and processing status |
-| Delivery | Instance ID, bound route generation, destination, source run/message, text parts, approved files, remote IDs, attempts and individual outcomes |
-| Gateway instance health | Instance ID, redacted status, last activity, reconnect/failure reason and counts; emit changes to open tabs |
+| Record                         | Purpose                                                                                                                                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gateway instance               | Stable instance ID, platform, instance name/account label, project, discriminated Brain/team/agent target, transport, sender policy, conversation scopes, file limits and enabled state |
+| Gateway instance secret record | Instance-scoped bot/app tokens, signing/verification secrets and relay credentials, stored through the secrets layer                                                                    |
+| Conversation binding           | Instance ID and external composite identity to local project, agent/team/Brain conversation and route generation                                                                        |
+| Inbox event                    | Instance ID, stable source ID, actor, received time, normalized input, serializable media descriptors and processing status                                                             |
+| Delivery                       | Instance ID, bound route generation, destination, source run/message, text parts, approved files, remote IDs, attempts and individual outcomes                                          |
+| Gateway instance health        | Instance ID, redacted status, last activity, reconnect/failure reason and counts; emit changes to open tabs                                                                             |
 
 Persist through `store.ts` helpers. Add a local `StateAdapter` backed by the same storage layer for
 SDK subscriptions, TTL cache/dedupe and leases. It supports one local worker per gateway instance, with

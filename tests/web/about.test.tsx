@@ -23,7 +23,14 @@ function serve(about: AboutInfo) {
     }),
   );
 }
-const info = (stars: number | null): AboutInfo => ({ name: 'Athena Agents', version: '1.2.3', repo: REPO.slug, url: REPO.url, license: 'MIT OR Apache-2.0', stars });
+const info = (stars: number | null): AboutInfo => ({
+  name: 'Athena Agents',
+  version: '1.2.3',
+  repo: REPO.slug,
+  url: REPO.url,
+  license: 'MIT OR Apache-2.0',
+  stars,
+});
 
 beforeEach(() => {
   asked.length = 0;
@@ -50,7 +57,9 @@ describe('Settings > About', () => {
     expect(star.href).toBe(REPO.url);
     expect(star.target).toBe('_blank');
     expect(star.textContent).toContain('1,234');
-    expect([...el.querySelectorAll<HTMLAnchorElement>('a')].map((a) => a.href)).toEqual(expect.arrayContaining([`${REPO.url}/issues`, `${REPO.url}/releases`]));
+    expect([...el.querySelectorAll<HTMLAnchorElement>('a')].map((a) => a.href)).toEqual(
+      expect.arrayContaining([`${REPO.url}/issues`, `${REPO.url}/releases`]),
+    );
     expect(el.textContent).toContain('http://localhost:4800');
   });
 

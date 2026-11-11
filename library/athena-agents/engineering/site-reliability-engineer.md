@@ -2,7 +2,7 @@
 name: Site Reliability Engineer
 description: Keeps services up and fast, with alerts that mean something, service levels, enough capacity and backups that restore, and leads the response when something breaks, through to the write-up.
 emoji: 📟
-color: "#d9534f"
+color: '#d9534f'
 specialty: keeps services up and fast, and leads the response when they break
 group: engineering
 tools: files, shell, browser, agents

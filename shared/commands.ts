@@ -19,9 +19,24 @@ export const COMMANDS: readonly SlashCommand[] = [
   { name: 'stop', args: '', about: 'Stop the work now (queued messages come back to the box)', in: ALL },
   { name: 'resume', args: '', about: 'Pick up work that was stopped or paused', in: ALL },
   { name: 'resend', args: '', about: 'Send your last message again', in: ALL },
-  { name: 'loop', args: '[15m] [5x] message', about: 'Repeat a message: every so often, or again after each answer', in: ALL },
-  { name: 'goal', args: 'what done looks like', about: 'Keep at it until the Brain says it is done (/goal clear to drop it)', in: ALL },
-  { name: 'learn', args: '[file, link, video or what to learn]', about: 'Turn a document, link, video or what we just did into a skill', in: ALL },
+  {
+    name: 'loop',
+    args: '[15m] [5x] message',
+    about: 'Repeat a message: every so often, or again after each answer',
+    in: ALL,
+  },
+  {
+    name: 'goal',
+    args: 'what done looks like',
+    about: 'Keep at it until the Brain says it is done (/goal clear to drop it)',
+    in: ALL,
+  },
+  {
+    name: 'learn',
+    args: '[file, link, video or what to learn]',
+    about: 'Turn a document, link, video or what we just did into a skill',
+    in: ALL,
+  },
   { name: 'clear', args: '', about: 'Clear this chat (each agent also forgets it)', in: ['team'] },
 ];
 
@@ -42,12 +57,18 @@ export interface SlashOption extends SlashCommand {
 
 /** The commands to suggest while the box holds just "/" and the start of a name (ours first, then the
  *  harness's own: extra). */
-export function slashSuggestions(text: string, kind: ChatKind, extra: readonly { name: string; about: string }[] = []): SlashOption[] {
+export function slashSuggestions(
+  text: string,
+  kind: ChatKind,
+  extra: readonly { name: string; about: string }[] = [],
+): SlashOption[] {
   const m = /^\/([\w:.-]*)$/.exec(text);
   if (!m) return [];
   const q = m[1].toLowerCase();
   const ours: SlashOption[] = COMMANDS.filter((c) => c.in.includes(kind) && c.name.startsWith(q) && c.name !== q);
-  const theirs: SlashOption[] = extra.filter((c) => c.name.toLowerCase().startsWith(q) && c.name.toLowerCase() !== q).map((c) => ({ name: c.name, args: '', about: c.about, in: [kind], harness: true }));
+  const theirs: SlashOption[] = extra
+    .filter((c) => c.name.toLowerCase().startsWith(q) && c.name.toLowerCase() !== q)
+    .map((c) => ({ name: c.name, args: '', about: c.about, in: [kind], harness: true }));
   return [...ours, ...theirs].slice(0, 40);
 }
 
@@ -59,10 +80,14 @@ export const LEARN_SKILL = 'learn';
  *  own actions; agents with the save_skill tool. Files attached to the message are sources too. */
 export function learnText(request: string, kind: ChatKind): string {
   const what = request.trim() || 'what we just did in this chat: the steps that worked, the fixes and what to avoid';
-  const save = kind === 'brain'
-    ? `Save it with create_skill or update_skill. A source you can't read yourself (a file, a page, a video) goes to an agent who can: ask them to learn it with the skill "${LEARN_SKILL}" and save it with save_skill.`
-    : 'Save it with save_skill.';
-  return `/learn ${request.trim()}`.trim() + `\n\nLearn a reusable skill from: ${what}\n\nOpen the skill "${LEARN_SKILL}" first (read_skill name="${LEARN_SKILL}") and follow it: gather the sources (any files attached here count), write the skill, check it. ${save} Then tell me its name, what it captured and what you left out.`;
+  const save =
+    kind === 'brain'
+      ? `Save it with create_skill or update_skill. A source you can't read yourself (a file, a page, a video) goes to an agent who can: ask them to learn it with the skill "${LEARN_SKILL}" and save it with save_skill.`
+      : 'Save it with save_skill.';
+  return (
+    `/learn ${request.trim()}`.trim() +
+    `\n\nLearn a reusable skill from: ${what}\n\nOpen the skill "${LEARN_SKILL}" first (read_skill name="${LEARN_SKILL}") and follow it: gather the sources (any files attached here count), write the skill, check it. ${save} Then tell me its name, what it captured and what you left out.`
+  );
 }
 
 /** Consecutive completion checks without new progress before asking the user for help. */
@@ -110,13 +135,19 @@ export function parseLoop(rest: string): LoopRequest | { error: string } {
 /** "every 15m" / "after each answer", for the loop chip. */
 export function loopPace(every: number | null): string {
   if (every == null) return 'after each answer';
-  const units: [number, string][] = [[86400_000, 'd'], [3600_000, 'h'], [60_000, 'm'], [1000, 's']];
+  const units: [number, string][] = [
+    [86400_000, 'd'],
+    [3600_000, 'h'],
+    [60_000, 'm'],
+    [1000, 's'],
+  ];
   for (const [ms, u] of units) if (every % ms === 0) return `every ${every / ms}${u}`;
   return `every ${Math.round(every / 1000)}s`;
 }
 
 /** A brief that shows as a goal in its chat: your /goal, the Brain's handed-out work, or an ordinary message
  *  the agent, the lead or the Brain saw as real work (not a greeting or a simple question). */
-export const showsGoal = (b: Pick<BrainBrief, 'goal' | 'automatic' | 'recognized'>): boolean => !!b.goal && (!b.automatic || !!b.recognized);
+export const showsGoal = (b: Pick<BrainBrief, 'goal' | 'automatic' | 'recognized'>): boolean =>
+  !!b.goal && (!b.automatic || !!b.recognized);
 /** What the goal chip says: the agent's or lead's "done looks like", else your words. */
 export const goalText = (b: Pick<BrainBrief, 'goal' | 'doneWhen' | 'text'>): string => b.doneWhen || b.goal || b.text;

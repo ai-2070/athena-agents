@@ -30,7 +30,8 @@ export const newThreadId = (): string => uid('t');
 export const OPEN_THREAD = 'open';
 
 // A team's folder: its id, or for an id that can't name a folder (a dot, a space…), a name made from it.
-const folderOf = (teamId: string) => (SAFE.test(teamId) ? teamId : `x-${crypto.createHash('sha256').update(teamId).digest('hex').slice(0, 40)}`);
+const folderOf = (teamId: string) =>
+  SAFE.test(teamId) ? teamId : `x-${crypto.createHash('sha256').update(teamId).digest('hex').slice(0, 40)}`;
 function dir(owner: ThreadOwner, pid: string): string {
   if (owner.kind === 'brain') return dataPath('projects', pid, PAST_DIR, 'brain');
   return dataPath('projects', pid, PAST_DIR, 'teams', folderOf(owner.id));
@@ -41,7 +42,9 @@ function file(owner: ThreadOwner, id: string, pid: string): string | null {
 
 /** The ids of its past conversations. */
 export function pastIds(owner: ThreadOwner, pid = activeProject().id): string[] {
-  return listFiles(dir(owner, pid), (n) => n.endsWith('.json')).map((n) => n.slice(0, -5)).filter((id) => SAFE.test(id));
+  return listFiles(dir(owner, pid), (n) => n.endsWith('.json'))
+    .map((n) => n.slice(0, -5))
+    .filter((id) => SAFE.test(id));
 }
 
 export function readPast<T extends ThreadMeta>(owner: ThreadOwner, id: string, pid = activeProject().id): T | null {
@@ -76,7 +79,10 @@ interface Digest {
 }
 // by file; a file read again only once it changed (or this server wrote it)
 const digests = new Map<string, { mtimeMs: number; size: number; digest: Digest | null }>();
-type Digested<M extends { ts?: number }, T extends Thread<M>> = Pick<ThreadPlace<M, T>, 'owner' | 'pid' | 'yours' | 'holds'>;
+type Digested<M extends { ts?: number }, T extends Thread<M>> = Pick<
+  ThreadPlace<M, T>,
+  'owner' | 'pid' | 'yours' | 'holds'
+>;
 function pastDigests<M extends { ts?: number }, T extends Thread<M>>(place: Digested<M, T>): Digest[] {
   const folder = dir(place.owner, place.pid);
   const seen = new Set<string>();
@@ -92,7 +98,10 @@ function pastDigests<M extends { ts?: number }, T extends Thread<M>>(place: Dige
     const was = digests.get(f);
     if (was && was.mtimeMs === st.mtimeMs && was.size === st.size) return was.digest ? [was.digest] : [];
     const t = readPast<T>(place.owner, id, place.pid);
-    const digest = t && Array.isArray(t.messages) ? { summary: summarize(t, t.messages, place.yours, false), holds: place.holds?.(t) || [] } : null;
+    const digest =
+      t && Array.isArray(t.messages)
+        ? { summary: summarize(t, t.messages, place.yours, false), holds: place.holds?.(t) || [] }
+        : null;
     digests.set(f, { mtimeMs: st.mtimeMs, size: st.size, digest });
     return digest ? [digest] : [];
   });
@@ -150,21 +159,30 @@ export function startThread<M extends { ts?: number }, T extends Thread<M>>(plac
 }
 
 /** Opens a past conversation: the one open now takes its place among the others. */
-export function reopenThread<M extends { ts?: number }, T extends Thread<M>>(place: ThreadPlace<M, T>, id: string): { id: string } {
+export function reopenThread<M extends { ts?: number }, T extends Thread<M>>(
+  place: ThreadPlace<M, T>,
+  id: string,
+): { id: string } {
   const open = place.open();
   if (id === OPEN_THREAD || id === open.id) return { id: open.id || OPEN_THREAD };
   const past = readPast<T>(place.owner, id, place.pid);
   if (!past || !Array.isArray(past.messages)) throw new Error('That chat is no longer there.');
   place.leave(open);
   const { updatedAt: _left, ...thread } = past;
-  place.show({ ...place.blank(), ...thread, id, createdAt: past.createdAt || past.messages[0]?.ts || Date.now() }, 'opened');
+  place.show(
+    { ...place.blank(), ...thread, id, createdAt: past.createdAt || past.messages[0]?.ts || Date.now() },
+    'opened',
+  );
   dropPast(place.owner, id, place.pid);
   keepFew(place);
   return { id };
 }
 
 /** Deletes a conversation. The open one is emptied instead. */
-export function deleteThread<M extends { ts?: number }, T extends Thread<M>>(place: ThreadPlace<M, T>, id: string): void {
+export function deleteThread<M extends { ts?: number }, T extends Thread<M>>(
+  place: ThreadPlace<M, T>,
+  id: string,
+): void {
   const open = place.open();
   if (id === OPEN_THREAD || id === open.id) return place.clear();
   const past = readPast<T>(place.owner, id, place.pid);
@@ -191,48 +209,70 @@ export function packPast(pid: string, budget: { left: number; omitted: number })
   const root = dataPath('projects', pid, PAST_DIR);
   const names = [
     ...listFiles(path.join(root, 'brain'), (n) => n.endsWith('.json')).map((n) => `brain/${n}`),
-    ...listDirs(path.join(root, 'teams')).flatMap((t) => listFiles(path.join(root, 'teams', t), (n) => n.endsWith('.json')).map((n) => `teams/${t}/${n}`)),
+    ...listDirs(path.join(root, 'teams')).flatMap((t) =>
+      listFiles(path.join(root, 'teams', t), (n) => n.endsWith('.json')).map((n) => `teams/${t}/${n}`),
+    ),
   ];
-  const files = names.filter((n) => PAST_NAME.test(n)).flatMap((name) => {
-    const f = path.join(root, ...name.split('/'));
-    try {
-      const st = fs.lstatSync(f);
-      return st.isFile() ? [{ name, f, size: st.size, at: st.mtimeMs }] : [];
-    } catch {
-      return [];
-    }
-  });
-  return files.sort((a, b) => b.at - a.at).flatMap(({ name, f, size }) => {
-    if (size > budget.left) {
-      budget.omitted++;
-      return [];
-    }
-    const data = readJSON<unknown>(f);
-    if (data == null) return [];
-    budget.left -= size;
-    return [{ name, data }];
-  });
+  const files = names
+    .filter((n) => PAST_NAME.test(n))
+    .flatMap((name) => {
+      const f = path.join(root, ...name.split('/'));
+      try {
+        const st = fs.lstatSync(f);
+        return st.isFile() ? [{ name, f, size: st.size, at: st.mtimeMs }] : [];
+      } catch {
+        return [];
+      }
+    });
+  return files
+    .sort((a, b) => b.at - a.at)
+    .flatMap(({ name, f, size }) => {
+      if (size > budget.left) {
+        budget.omitted++;
+        return [];
+      }
+      const data = readJSON<unknown>(f);
+      if (data == null) return [];
+      budget.left -= size;
+      return [{ name, data }];
+    });
 }
 /** Puts a backup's past conversations back (names that aren't one's place are skipped). */
 export function unpackPast(pid: string, list: { name: string; data: unknown }[]): void {
-  for (const { name, data } of list) if (PAST_NAME.test(name) && data != null) writeJSON(dataPath('projects', pid, PAST_DIR, ...name.split('/')), data);
+  for (const { name, data } of list)
+    if (PAST_NAME.test(name) && data != null) writeJSON(dataPath('projects', pid, PAST_DIR, ...name.split('/')), data);
 }
 
 // ---------- the list's lines ----------
 /** A conversation's name: the start of the first thing you wrote in it. */
 export function threadTitle(first: string | undefined): string {
-  const t = String(first || '').replace(/\s+/g, ' ').trim();
+  const t = String(first || '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!t) return 'New chat';
   return t.length > 60 ? `${t.slice(0, 59).trimEnd()}…` : t;
 }
 
 /** One line of the list. messages: what's in it (yours are the ones for which mine() is true). */
-export function summarize<M extends { ts?: number }>(thread: ThreadMeta, messages: M[], mine: (m: M) => string | null, open: boolean): ThreadSummary {
+export function summarize<M extends { ts?: number }>(
+  thread: ThreadMeta,
+  messages: M[],
+  mine: (m: M) => string | null,
+  open: boolean,
+): ThreadSummary {
   const first = messages.map(mine).find((t) => t != null);
   const createdAt = thread.createdAt || messages[0]?.ts || 0;
   const last = messages.at(-1)?.ts;
-  return { id: thread.id || '', title: threadTitle(first ?? undefined), count: messages.length, createdAt, updatedAt: Math.max(last || 0, thread.updatedAt || 0, createdAt), open };
+  return {
+    id: thread.id || '',
+    title: threadTitle(first ?? undefined),
+    count: messages.length,
+    createdAt,
+    updatedAt: Math.max(last || 0, thread.updatedAt || 0, createdAt),
+    open,
+  };
 }
 
 /** The open one first, then the rest newest first. */
-export const byRecent = (list: ThreadSummary[]): ThreadSummary[] => list.sort((a, b) => Number(b.open) - Number(a.open) || b.updatedAt - a.updatedAt);
+export const byRecent = (list: ThreadSummary[]): ThreadSummary[] =>
+  list.sort((a, b) => Number(b.open) - Number(a.open) || b.updatedAt - a.updatedAt);

@@ -67,11 +67,28 @@ export interface BackupRestored {
 }
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
-export const fileSize = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`);
+export const fileSize = (n: number) =>
+  n >= 1e9
+    ? `${(n / 1e9).toFixed(1)} GB`
+    : n >= 1e6
+      ? `${(n / 1e6).toFixed(1)} MB`
+      : `${Math.max(1, Math.round(n / 1e3))} KB`;
 
 /** "3 agents · 1 team · 2 skills": what a backup holds, in one line. */
 export function summaryLine(s: BackupSummary): string {
-  return [plural(s.agents, 'agent'), plural(s.teams, 'team'), s.routines ? plural(s.routines, 'routine') : '', s.chats ? plural(s.chats, 'chat') : '', plural(s.skills, 'skill'), s.presets ? plural(s.presets, 'preset') : '', s.libraryPrefabs ? plural(s.libraryPrefabs, 'library prefab') : '', s.memories ? plural(s.memories, 'MEMORY.md file') : '', s.versions ? plural(s.versions, 'earlier version') : ''].filter(Boolean).join(' · ');
+  return [
+    plural(s.agents, 'agent'),
+    plural(s.teams, 'team'),
+    s.routines ? plural(s.routines, 'routine') : '',
+    s.chats ? plural(s.chats, 'chat') : '',
+    plural(s.skills, 'skill'),
+    s.presets ? plural(s.presets, 'preset') : '',
+    s.libraryPrefabs ? plural(s.libraryPrefabs, 'library prefab') : '',
+    s.memories ? plural(s.memories, 'MEMORY.md file') : '',
+    s.versions ? plural(s.versions, 'earlier version') : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /** The summary in a backup file's first lines, or null when it isn't a backup. Reads only the start of the file. */
@@ -135,12 +152,16 @@ export async function backupProject(p: Pick<Project, 'id' | 'name'>): Promise<vo
               </p>
             ) : null}
             <div className="flex items-center gap-2 rounded-ctl border border-line bg-panel-2 py-1.5 pr-1.5 pl-3">
-              <code className="min-w-0 flex-1 font-mono text-[12px] leading-[normal] font-normal wrap-anywhere text-ink">{r.file}</code>
+              <code className="min-w-0 flex-1 font-mono text-[12px] leading-[normal] font-normal wrap-anywhere text-ink">
+                {r.file}
+              </code>
               <IconButton title="Copy the path" aria-label="Copy the path" onClick={() => copy(r.file)}>
                 <Icon name="copy" size={14} />
               </IconButton>
             </div>
-            <p className="hint">To bring it back, here or on another PC: New project &gt; Backup, and drop this file in.</p>
+            <p className="hint">
+              To bring it back, here or on another PC: New project &gt; Backup, and drop this file in.
+            </p>
           </div>
         </div>
         <div className="modal-foot">
@@ -156,9 +177,21 @@ export async function backupProject(p: Pick<Project, 'id' | 'name'>): Promise<vo
 }
 
 /** Restore a backup as a new project: a dropped file, or the name of one in the backups folder. */
-export async function restoreBackup(src: { file: File } | { listed: string }, opts: { name: string; folder: string; description: string }): Promise<Project & { restored: BackupRestored }> {
-  const query = { name: opts.name || null, folder: opts.folder || null, description: opts.description || null, file: 'listed' in src ? src.listed : null };
-  const data = await api<(Project & { restored: BackupRestored }) | null>('/backups/restore', { method: 'POST', raw: 'file' in src ? src.file : undefined, query });
+export async function restoreBackup(
+  src: { file: File } | { listed: string },
+  opts: { name: string; folder: string; description: string },
+): Promise<Project & { restored: BackupRestored }> {
+  const query = {
+    name: opts.name || null,
+    folder: opts.folder || null,
+    description: opts.description || null,
+    file: 'listed' in src ? src.listed : null,
+  };
+  const data = await api<(Project & { restored: BackupRestored }) | null>('/backups/restore', {
+    method: 'POST',
+    raw: 'file' in src ? src.file : undefined,
+    query,
+  });
   if (!data || !('restored' in data)) throw new Error('Restore failed: the dashboard gave no answer.');
   return data;
 }
@@ -179,5 +212,8 @@ export function restoredText(name: string, r: BackupRestored): string {
 }
 
 // the server reads these from files in the backups folder: anyone could have put one there
-export const listBackups = () => rpc.backups.list().then((r) => ({ ...r, backups: r.backups.map((b) => ({ ...b, summary: cleanSummary(b.summary) })) }));
+export const listBackups = () =>
+  rpc.backups
+    .list()
+    .then((r) => ({ ...r, backups: r.backups.map((b) => ({ ...b, summary: cleanSummary(b.summary) })) }));
 export const backupAgo = (s: BackupSummary | null, modifiedAt: number) => ago(s?.createdAt || modifiedAt);

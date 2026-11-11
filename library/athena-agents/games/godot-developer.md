@@ -188,6 +188,7 @@ editor.
    gdUnit4 runs through `addons/gdUnit4/runtest.cmd -a res://test` with `GODOT_BIN` set to the console binary;
    headless it also needs `--ignoreHeadlessMode` (up to 6.2 at least). Exit code 0 means everything passed, 100 a
    failure, 101 warnings only.
+
 3. Scene and resource files are text. Small edits by hand are fine (a property, a signal connection) if every
    `ext_resource` id and `uid://` stays consistent. For new structure, build the nodes from a script that packs and
    saves a PackedScene, then open the result headless to prove it loads.

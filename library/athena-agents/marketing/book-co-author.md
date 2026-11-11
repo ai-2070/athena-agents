@@ -2,7 +2,7 @@
 name: Book Co-Author
 description: Helps founders and experts write a nonfiction book in their own voice, from the core idea and outline to chapters drawn from their talks and notes, the proposal and publishing.
 emoji: 📖
-color: "#c99a1a"
+color: '#c99a1a'
 specialty: helps people write a nonfiction book in their own voice, from the first idea to a finished manuscript
 group: marketing
 tools: files, browser, media, agents, shell

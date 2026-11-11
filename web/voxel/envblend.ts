@@ -10,7 +10,14 @@ const hex = (h: string): [number, number, number] => {
   const n = m ? parseInt(m[1], 16) : 0;
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
-const toHex = (c: [number, number, number]) => `#${c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')}`;
+const toHex = (c: [number, number, number]) =>
+  `#${c
+    .map((v) =>
+      Math.round(Math.max(0, Math.min(255, v)))
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 export function lerpColor(a: string, b: string, t: number): string {
@@ -35,13 +42,33 @@ export function lerpEnv(a: WorldEnvironment, b: WorldEnvironment, t: number): Wo
   const n = (x: number, y: number) => lerp(x, y, t);
   return {
     ...b,
-    sky: { top: c(a.sky.top, b.sky.top), horizon: c(a.sky.horizon, b.sky.horizon), bottom: c(a.sky.bottom, b.sky.bottom) },
+    sky: {
+      top: c(a.sky.top, b.sky.top),
+      horizon: c(a.sky.horizon, b.sky.horizon),
+      bottom: c(a.sky.bottom, b.sky.bottom),
+    },
     fog: { color: c(a.fog.color, b.fog.color), density: n(a.fog.density, b.fog.density) },
-    sun: { color: c(a.sun.color, b.sun.color), intensity: n(a.sun.intensity, b.sun.intensity), azimuth: lerpAngle(a.sun.azimuth, b.sun.azimuth, t), elevation: n(a.sun.elevation, b.sun.elevation) },
-    ambient: { sky: c(a.ambient.sky, b.ambient.sky), ground: c(a.ambient.ground, b.ambient.ground), intensity: n(a.ambient.intensity, b.ambient.intensity) },
+    sun: {
+      color: c(a.sun.color, b.sun.color),
+      intensity: n(a.sun.intensity, b.sun.intensity),
+      azimuth: lerpAngle(a.sun.azimuth, b.sun.azimuth, t),
+      elevation: n(a.sun.elevation, b.sun.elevation),
+    },
+    ambient: {
+      sky: c(a.ambient.sky, b.ambient.sky),
+      ground: c(a.ambient.ground, b.ambient.ground),
+      intensity: n(a.ambient.intensity, b.ambient.intensity),
+    },
     bloom: n(a.bloom, b.bloom),
     tiltShift: n(a.tiltShift, b.tiltShift),
     exposure: n(a.exposure, b.exposure),
-    wind: a.wind || b.wind ? [n(a.wind?.[0] ?? 0, b.wind?.[0] ?? 0), n(a.wind?.[1] ?? 0, b.wind?.[1] ?? 0), n(a.wind?.[2] ?? 0, b.wind?.[2] ?? 0)] : undefined,
+    wind:
+      a.wind || b.wind
+        ? [
+            n(a.wind?.[0] ?? 0, b.wind?.[0] ?? 0),
+            n(a.wind?.[1] ?? 0, b.wind?.[1] ?? 0),
+            n(a.wind?.[2] ?? 0, b.wind?.[2] ?? 0),
+          ]
+        : undefined,
   };
 }

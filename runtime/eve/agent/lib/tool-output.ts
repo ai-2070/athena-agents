@@ -10,5 +10,7 @@ export function modelToolOutput(output: unknown) {
     if (!match) throw new Error('The saved tool image is invalid.');
     return toolOutputPart.file(match[2], { mediaType: match[1] });
   });
-  return images.length ? toolOutput.content([toolOutputPart.text(result.text), ...images]) : toolOutput.text(result.text);
+  return images.length
+    ? toolOutput.content([toolOutputPart.text(result.text), ...images])
+    : toolOutput.text(result.text);
 }

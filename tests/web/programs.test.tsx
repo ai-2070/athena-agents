@@ -17,7 +17,23 @@ class FakeSocket {
     FakeSocket.last = this;
   }
 }
-const prog = (id: string, over: Record<string, unknown> = {}) => ({ id, name: id[0].toUpperCase() + id.slice(1), category: 'creative', icon: '🎨', installed: true, optional: false, exe: 'x.exe', shortcut: null, version: '4.2', versions: null, cli: false, running: false, serviceUrl: null, actions: ['launch'], ...over });
+const prog = (id: string, over: Record<string, unknown> = {}) => ({
+  id,
+  name: id[0].toUpperCase() + id.slice(1),
+  category: 'creative',
+  icon: '🎨',
+  installed: true,
+  optional: false,
+  exe: 'x.exe',
+  shortcut: null,
+  version: '4.2',
+  versions: null,
+  cli: false,
+  running: false,
+  serviceUrl: null,
+  actions: ['launch'],
+  ...over,
+});
 let progs: ReturnType<typeof prog>[];
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
@@ -25,18 +41,39 @@ let el: HTMLElement;
 beforeEach(() => {
   document.body.innerHTML = '<div id="modal-root"></div><div id="toasts"></div><section id="view"></section>';
   el = document.getElementById('view')!;
-  progs = [prog('blender'), prog('ffmpeg', { category: 'dev', cli: true, version: null, exe: null, actions: [] }), prog('premiere', { installed: false })];
+  progs = [
+    prog('blender'),
+    prog('ffmpeg', { category: 'dev', cli: true, version: null, exe: null, actions: [] }),
+    prog('premiere', { installed: false }),
+  ];
   requests = [];
   vi.stubGlobal('WebSocket', FakeSocket);
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const method = init.method || 'GET';
     requests.push({ method, url, body: init.body ? JSON.parse(String(init.body)) : null });
     const json = (v: unknown) => new Response(JSON.stringify(v));
-    if (url.startsWith('/api/programs/all')) return json([{ name: 'Notepad', shortcut: 'n.lnk', folder: 'Accessories' }, { name: 'Paint', shortcut: 'p.lnk', folder: '' }]);
+    if (url.startsWith('/api/programs/all'))
+      return json([
+        { name: 'Notepad', shortcut: 'n.lnk', folder: 'Accessories' },
+        { name: 'Paint', shortcut: 'p.lnk', folder: '' },
+      ]);
     if (url.startsWith('/api/programs/launch')) return json({ message: 'Starting it' });
     if (url.startsWith('/api/programs')) return json(progs);
-    if (url === '/api/comfyui') return json({ status: { running: true, url: 'http://127.0.0.1:8188' }, workflows: [{ name: 'portrait', dir: 'x' }, { name: 'landscape', dir: 'x' }] });
-    if (url === '/api/comfyui/run') return json({ promptId: 'p', workflow: 'landscape', files: [{ kind: 'images', url: '/api/comfyui/view?f=1.png', filename: '1.png' }], seconds: 3 });
+    if (url === '/api/comfyui')
+      return json({
+        status: { running: true, url: 'http://127.0.0.1:8188' },
+        workflows: [
+          { name: 'portrait', dir: 'x' },
+          { name: 'landscape', dir: 'x' },
+        ],
+      });
+    if (url === '/api/comfyui/run')
+      return json({
+        promptId: 'p',
+        workflow: 'landscape',
+        files: [{ kind: 'images', url: '/api/comfyui/view?f=1.png', filename: '1.png' }],
+        seconds: 3,
+      });
     return json({});
   });
   connectEvents();
@@ -50,7 +87,8 @@ const open = async () => {
   await act(async () => programs.render(el));
   await settle();
 };
-const btn = (root: ParentNode, text: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
+const btn = (root: ParentNode, text: string) =>
+  [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
 
 describe('progState()', () => {
   it('says the version or how it runs, and whether it runs or is starting', () => {
@@ -63,7 +101,12 @@ describe('progState()', () => {
 describe('the Programs tab', () => {
   it('groups what was found and lists what was not', async () => {
     await open();
-    expect([...el.querySelectorAll('h2.section')].map((h) => h.textContent)).toEqual(['Images and design', 'Developer tools', 'Not found', 'All apps (Start Menu)']);
+    expect([...el.querySelectorAll('h2.section')].map((h) => h.textContent)).toEqual([
+      'Images and design',
+      'Developer tools',
+      'Not found',
+      'All apps (Start Menu)',
+    ]);
     expect(el.textContent).toContain('Premiere Set custom paths in Settings.');
   });
 
@@ -99,7 +142,11 @@ describe('the Programs tab', () => {
     await open();
     await act(async () => el.querySelector<HTMLButtonElement>('button[aria-label="Workflow"]')!.click());
     await settle();
-    await act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent?.trim() === 'landscape')!.click());
+    await act(async () =>
+      [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+        .find((option) => option.textContent?.trim() === 'landscape')!
+        .click(),
+    );
     const prompt = el.querySelector<HTMLTextAreaElement>('textarea[aria-label="Prompt"]')!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(prompt, 'a red fox');
@@ -107,7 +154,10 @@ describe('the Programs tab', () => {
     });
     await act(async () => btn(el, 'Run').click());
     await settle();
-    expect(requests.find((r) => r.url === '/api/comfyui/run')!.body).toEqual({ workflow: 'landscape', prompt: 'a red fox' });
+    expect(requests.find((r) => r.url === '/api/comfyui/run')!.body).toEqual({
+      workflow: 'landscape',
+      prompt: 'a red fox',
+    });
     expect(el.querySelector('.img-button img')!.getAttribute('src')).toBe('/api/comfyui/view?f=1.png');
   });
 });

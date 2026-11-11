@@ -77,7 +77,8 @@ export const ENV_PRESETS: Record<WorldEnvPreset, WorldEnvironment> = {
   },
 };
 
-export const envPreset = (p: WorldEnvPreset | string): WorldEnvironment => JSON.parse(JSON.stringify(ENV_PRESETS[p as WorldEnvPreset] || ENV_PRESETS.station)) as WorldEnvironment;
+export const envPreset = (p: WorldEnvPreset | string): WorldEnvironment =>
+  JSON.parse(JSON.stringify(ENV_PRESETS[p as WorldEnvPreset] || ENV_PRESETS.station)) as WorldEnvironment;
 
 /** The sun's direction (towards the sun) from its azimuth and elevation in degrees. */
 export function sunDirection(azimuth: number, elevation: number): [number, number, number] {

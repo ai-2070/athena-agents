@@ -147,8 +147,24 @@ export function ChatView(p: ChatViewProps) {
 
   // the server answered the last send (so it has the message): a failure after that is the run's, not the send's
   const accepted = useRef(false);
-  const transport = useMemo(() => chatTransport(agent.id, () => chatIdRef.current, () => (accepted.current = true), at), [agent.id, at]);
-  const { messages, setMessages, sendMessage, status, stop: stopStream, resumeStream } = useChat<ChatMessage>({
+  const transport = useMemo(
+    () =>
+      chatTransport(
+        agent.id,
+        () => chatIdRef.current,
+        () => (accepted.current = true),
+        at,
+      ),
+    [agent.id, at],
+  );
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    status,
+    stop: stopStream,
+    resumeStream,
+  } = useChat<ChatMessage>({
     id: viewId,
     transport,
     onData: (part) => {
@@ -170,19 +186,24 @@ export function ChatView(p: ChatViewProps) {
   const approvals = (app?.approvals || []).filter((a) => a.agentId === agent.id && ours(a.projectId));
 
   // the saved chat, shown as it is. after: a stream just ended (its flag may not have caught up yet)
-  const reload = useCallback(async (after = false) => {
-    const id = chatIdRef.current;
-    if (!id) return;
-    const saved = await rpcAt(at).agents.chats.get({ id: agent.id, chatId: id }).catch(() => null);
-    if (!saved || chatIdRef.current !== id) return;
-    setItems(saved.items);
-    setQueued(saved.queued || []);
-    setLoop(saved.loop || null);
-    setGoal(saved.goal || null);
-    // (while a stream is going it keeps its own message; the saved chat comes when it ends)
-    if (after || !streamingRef.current) setMessages(toUIMessages(saved.items));
-    onChat.current?.(saved);
-  }, [agent.id, at, setMessages]);
+  const reload = useCallback(
+    async (after = false) => {
+      const id = chatIdRef.current;
+      if (!id) return;
+      const saved = await rpcAt(at)
+        .agents.chats.get({ id: agent.id, chatId: id })
+        .catch(() => null);
+      if (!saved || chatIdRef.current !== id) return;
+      setItems(saved.items);
+      setQueued(saved.queued || []);
+      setLoop(saved.loop || null);
+      setGoal(saved.goal || null);
+      // (while a stream is going it keeps its own message; the saved chat comes when it ends)
+      if (after || !streamingRef.current) setMessages(toUIMessages(saved.items));
+      onChat.current?.(saved);
+    },
+    [agent.id, at, setMessages],
+  );
 
   // pick up a run going in this chat: the messages before its turn, then the turn streamed in
   const following = useRef(false);
@@ -219,7 +240,11 @@ export function ChatView(p: ChatViewProps) {
   useEffect(() => {
     void (async () => {
       await reload();
-      if (chatIdRef.current && state.data?.runs.some((r) => r.chatId === chatIdRef.current && oursRef.current(r.projectId))) await follow();
+      if (
+        chatIdRef.current &&
+        state.data?.runs.some((r) => r.chatId === chatIdRef.current && oursRef.current(r.projectId))
+      )
+        await follow();
     })();
   }, []);
 
@@ -244,7 +269,12 @@ export function ChatView(p: ChatViewProps) {
         if (ev.type !== 'run') return;
         const kind = (ev.event as { kind?: string })?.kind;
         // (the server starts a queued message right as the turn before it ends: this view may still be streaming that one)
-        if (kind === 'start' && (streamingRef.current || sending.current || following.current) && queuedRef.current.length) missedStart.current = true;
+        if (
+          kind === 'start' &&
+          (streamingRef.current || sending.current || following.current) &&
+          queuedRef.current.length
+        )
+          missedStart.current = true;
         if (kind === 'start' && !streamingRef.current && !sending.current) void reload().then(follow);
         else if ((kind === 'done' || kind === 'error') && !streamingRef.current && !sending.current) void reload();
       }),
@@ -258,8 +288,12 @@ export function ChatView(p: ChatViewProps) {
       const box = input.current;
       if (steering.current) return;
       // (a button in an earlier answer: not while it works)
-      if (busy && typed != null) return void toast(`${agent.name} is working. Wait for it, or write a message to change its course.`);
-      if (busy && helping) return void toast(`${agent.name} is working for a team or another agent here. /queue your message for when it is done.`);
+      if (busy && typed != null)
+        return void toast(`${agent.name} is working. Wait for it, or write a message to change its course.`);
+      if (busy && helping)
+        return void toast(
+          `${agent.name} is working for a team or another agent here. /queue your message for when it is done.`,
+        );
       // while it works: this message changes its course (the run going now stops, this one goes next)
       const steer = busy;
       if (sending.current && !steer) return;
@@ -313,7 +347,10 @@ export function ChatView(p: ChatViewProps) {
         failed.current = null;
         accepted.current = false;
         setStatusText('Thinking…');
-        await sendMessage({ role: 'user', parts: userParts(text, attachments), metadata: {} }, steer ? { body: { steer: true } } : undefined);
+        await sendMessage(
+          { role: 'user', parts: userParts(text, attachments), metadata: {} },
+          steer ? { body: { steer: true } } : undefined,
+        );
         // (set by onError while it streamed)
         const fail = failed.current as { message: string; refused: boolean } | null;
         if (fail) {
@@ -422,7 +459,8 @@ export function ChatView(p: ChatViewProps) {
     if (!id) return back();
     const calls = rpcAt(at).agents.chats;
     const here = { id: agent.id, chatId: id };
-    if (name === 'goal' && !rest) return void toast(goal ? `Goal: ${goalText(goal)}` : 'No goal yet. Type /goal and what done looks like.');
+    if (name === 'goal' && !rest)
+      return void toast(goal ? `Goal: ${goalText(goal)}` : 'No goal yet. Type /goal and what done looks like.');
     if (name === 'loop') {
       // (with the files in the tray: each loop message carries them; not when it is ended)
       const off = /^(off|stop|end|cancel)$/i.test(rest);
@@ -473,8 +511,15 @@ export function ChatView(p: ChatViewProps) {
     const r = await attempt(() => rpcAt(at).agents.chats.stop({ id: agent.id, chatId: id }));
     // what you queued comes back to the box, so stopping never loses it
     const back = r?.unqueued || [];
-    if (back.length) restore(back.map((q) => q.text).filter(Boolean).join('\n\n'));
-    if (back.some((q) => q.attachments?.length)) toast('Your queued messages are back in the box. Attach their files again.');
+    if (back.length)
+      restore(
+        back
+          .map((q) => q.text)
+          .filter(Boolean)
+          .join('\n\n'),
+      );
+    if (back.some((q) => q.attachments?.length))
+      toast('Your queued messages are back in the box. Attach their files again.');
   }, [agent.id, at, stopStream, restore]);
 
   if (p.apiRef)
@@ -528,13 +573,21 @@ export function ChatView(p: ChatViewProps) {
   // / for commands: a menu above the box while it holds just "/" and the start of a name
   const [slash, setSlash] = useState<{ options: SlashOption[]; active: number } | null>(null);
   useEffect(() => {
-    void rpcAt(at).agents.commands({ id: agent.id })
+    void rpcAt(at)
+      .agents.commands({ id: agent.id })
       .then((list) => setHarness(Array.isArray(list) ? list : []))
       .catch(() => {});
   }, [agent.id, at]);
   const lookForSlash = () => {
     const options = slashSuggestions(input.current?.value || '', 'agent', harness);
-    setSlash((was) => (options.length ? { options, active: was && was.options.length === options.length ? Math.min(was.active, options.length - 1) : 0 } : null));
+    setSlash((was) =>
+      options.length
+        ? {
+            options,
+            active: was && was.options.length === options.length ? Math.min(was.active, options.length - 1) : 0,
+          }
+        : null,
+    );
   };
   const pickSlash = (o: SlashOption) => {
     const box = input.current;
@@ -549,7 +602,8 @@ export function ChatView(p: ChatViewProps) {
   const onSlashKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
     if (!slash || e.nativeEvent.isComposing) return false;
     const n = slash.options.length;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') setSlash({ ...slash, active: (slash.active + (e.key === 'ArrowDown' ? 1 : n - 1)) % n });
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp')
+      setSlash({ ...slash, active: (slash.active + (e.key === 'ArrowDown' ? 1 : n - 1)) % n });
     else if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') pickSlash(slash.options[slash.active]);
     else if (e.key === 'Escape') {
       e.stopPropagation();
@@ -565,14 +619,25 @@ export function ChatView(p: ChatViewProps) {
   useEffect(() => {
     const box = input.current;
     if (!box) return;
-    return attachMentionEditor(box, () => othersRef.current.filter((a) => a.id !== agent.id && a.name.trim()).map((a) => `@${agentRef(a, othersRef.current)}`));
+    return attachMentionEditor(box, () =>
+      othersRef.current
+        .filter((a) => a.id !== agent.id && a.name.trim())
+        .map((a) => `@${agentRef(a, othersRef.current)}`),
+    );
   }, [agent.id, at]);
   // (it can only hand work on with ask_agent, which the Delegate tools give it)
   const canDelegate = !!others.find((a) => a.id === agent.id)?.toolGroups?.includes('agents');
   const lookForMention = () => {
     const box = input.current;
-    const found = box && box.selectionStart === box.selectionEnd ? agentMentions(box.value, box.selectionStart, others, agent.id) : null;
-    setMention((was) => (found ? { ...found, active: was && was.start === found.start ? Math.min(was.active, found.options.length - 1) : 0 } : null));
+    const found =
+      box && box.selectionStart === box.selectionEnd
+        ? agentMentions(box.value, box.selectionStart, others, agent.id)
+        : null;
+    setMention((was) =>
+      found
+        ? { ...found, active: was && was.start === found.start ? Math.min(was.active, found.options.length - 1) : 0 }
+        : null,
+    );
   };
   const pickMention = (a: MentionAgent) => {
     const box = input.current;
@@ -588,7 +653,8 @@ export function ChatView(p: ChatViewProps) {
   const onMentionKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
     if (!mention || e.nativeEvent.isComposing) return false;
     const n = mention.options.length;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') setMention({ ...mention, active: (mention.active + (e.key === 'ArrowDown' ? 1 : n - 1)) % n });
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp')
+      setMention({ ...mention, active: (mention.active + (e.key === 'ArrowDown' ? 1 : n - 1)) % n });
     else if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') pickMention(mention.options[mention.active]);
     else if (e.key === 'Escape') {
       // (and not the chat window)
@@ -623,9 +689,21 @@ export function ChatView(p: ChatViewProps) {
   };
   // Ctrl+F (⌘F): a long chat draws only some of its messages, so the search reads them all and scrolls to the one it found
   const revealRow = useRef<((i: number) => void) | null>(null);
-  const find = useFind(list, windowed ? { count: shown.length, text: (i) => searchText(shown[i]), reveal: (i) => revealRow.current?.(i) } : null);
+  const find = useFind(
+    list,
+    windowed ? { count: shown.length, text: (i) => searchText(shown[i]), reveal: (i) => revealRow.current?.(i) } : null,
+  );
   const rows = windowed ? (
-    <Windowed items={shown} scroller={list} atEnd={near.current} gap={compact ? 16 : 20} estimate={(m, width) => estimateHeight(m, width, compact)} memoKey={(m) => `${agent.id}/${chatId || viewId}/${compact ? 'c' : ''}${m.id}/${messageSig(m)}`} render={row} reveal={revealRow} />
+    <Windowed
+      items={shown}
+      scroller={list}
+      atEnd={near.current}
+      gap={compact ? 16 : 20}
+      estimate={(m, width) => estimateHeight(m, width, compact)}
+      memoKey={(m) => `${agent.id}/${chatId || viewId}/${compact ? 'c' : ''}${m.id}/${messageSig(m)}`}
+      render={row}
+      reveal={revealRow}
+    />
   ) : (
     shown.map(row)
   );
@@ -634,9 +712,18 @@ export function ChatView(p: ChatViewProps) {
   // what the streaming message is doing now: writing, or using a tool (a status line from the server,
   // like "Compacting the chat…", comes first)
   const lastPart = streaming ? messages[messages.length - 1]?.parts.at(-1) : undefined;
-  const doing = lastPart?.type === 'dynamic-tool' && lastPart.state !== 'output-available' && lastPart.state !== 'output-error' ? `Using ${lastPart.toolName}…` : lastPart?.type === 'text' ? 'Writing…' : '';
+  const doing =
+    lastPart?.type === 'dynamic-tool' && lastPart.state !== 'output-available' && lastPart.state !== 'output-error'
+      ? `Using ${lastPart.toolName}…`
+      : lastPart?.type === 'text'
+        ? 'Writing…'
+        : '';
   const generic = !statusText || /^(Thinking|Working)…$/.test(statusText);
-  const statusLine = (approvals.length && busy ? `Waiting for you: ${approvals[0].title}` : '') || (generic && doing) || statusText || (busy ? 'Working…' : '');
+  const statusLine =
+    (approvals.length && busy ? `Waiting for you: ${approvals[0].title}` : '') ||
+    (generic && doing) ||
+    statusText ||
+    (busy ? 'Working…' : '');
   // (click, keyup and blur are read on the box around it: the pill editor that takes the textarea's place gets them)
   const composer = (
     <div
@@ -653,11 +740,27 @@ export function ChatView(p: ChatViewProps) {
         ref={input}
         className={variant === 'mini' ? 'max-h-50 min-h-11.5 flex-1 resize-none' : `dock-input w-full ${COMPOSER_TEXT}`}
         rows={variant === 'mini' ? 1 : 2}
-        placeholder={helping ? `${agent.name} is working for a team or another agent… /queue a message for when it is done` : busy ? `${agent.name} is working… Write to change course now, or /queue a message for when it is done` : compact ? `Message ${agent.name}…  (Enter to send, @ for another agent)` : `Message ${agent.name}…`}
+        placeholder={
+          helping
+            ? `${agent.name} is working for a team or another agent… /queue a message for when it is done`
+            : busy
+              ? `${agent.name} is working… Write to change course now, or /queue a message for when it is done`
+              : compact
+                ? `Message ${agent.name}…  (Enter to send, @ for another agent)`
+                : `Message ${agent.name}…`
+        }
         onKeyDown={(e) => {
           if (onSlashKey(e) || onMentionKey(e)) return;
           // Up in an empty box: change the last queued message
-          if (e.key === 'ArrowUp' && !e.currentTarget.value && queued.length && !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          if (
+            e.key === 'ArrowUp' &&
+            !e.currentTarget.value &&
+            queued.length &&
+            !e.altKey &&
+            !e.shiftKey &&
+            !e.ctrlKey &&
+            !e.metaKey
+          ) {
             e.preventDefault();
             return setEditing(queued[queued.length - 1].id);
           }
@@ -691,9 +794,15 @@ export function ChatView(p: ChatViewProps) {
                 pickSlash(o);
               }}
             >
-              <b className="slash-name flex-none font-mono text-[12.5px] leading-[normal] font-semibold text-accent">/{o.name}</b>
-              {o.args ? <span className="flex-none font-mono text-[11.5px] leading-[normal] text-faint">{o.args}</span> : null}
-              <span className="hint min-w-0">{o.harness ? `${o.about || 'Claude Code command'} · Claude Code` : o.about}</span>
+              <b className="slash-name flex-none font-mono text-[12.5px] leading-[normal] font-semibold text-accent">
+                /{o.name}
+              </b>
+              {o.args ? (
+                <span className="flex-none font-mono text-[11.5px] leading-[normal] text-faint">{o.args}</span>
+              ) : null}
+              <span className="hint min-w-0">
+                {o.harness ? `${o.about || 'Claude Code command'} · Claude Code` : o.about}
+              </span>
             </button>
           ))}
         </div>
@@ -719,7 +828,11 @@ export function ChatView(p: ChatViewProps) {
               {a.specialty ? <span className="hint">{a.specialty}</span> : null}
             </button>
           ))}
-          {canDelegate ? null : <div className="hint mention-note mt-1 border-t border-line px-2.5 pt-2 pb-1.5 text-[12px]">To pass work on, {agent.name} needs Delegate turned on in its tools.</div>}
+          {canDelegate ? null : (
+            <div className="hint mention-note mt-1 border-t border-line px-2.5 pt-2 pb-1.5 text-[12px]">
+              To pass work on, {agent.name} needs Delegate turned on in its tools.
+            </div>
+          )}
         </div>
       ) : null}
     </div>
@@ -728,11 +841,26 @@ export function ChatView(p: ChatViewProps) {
   const working = streaming || serverRunning;
   const sendBtn =
     working && !filled ? (
-      <Button key="stop" variant="danger" size={variant === 'mini' ? 'small' : 'default'} className={variant === 'mini' ? undefined : 'size-8! px-0!'} onClick={() => void stop()} title={`Stop ${agent.name}`} aria-label="Stop">
+      <Button
+        key="stop"
+        variant="danger"
+        size={variant === 'mini' ? 'small' : 'default'}
+        className={variant === 'mini' ? undefined : 'size-8! px-0!'}
+        onClick={() => void stop()}
+        title={`Stop ${agent.name}`}
+        aria-label="Stop"
+      >
         <Dom make={() => icon('square', variant === 'mini' ? 13 : 14)} deps={[]} />
       </Button>
     ) : (
-      <Button key="send" size={variant === 'mini' ? 'small' : 'default'} className={variant === 'mini' ? undefined : 'size-8! px-0!'} onClick={submit}  title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'} aria-label="Send">
+      <Button
+        key="send"
+        size={variant === 'mini' ? 'small' : 'default'}
+        className={variant === 'mini' ? undefined : 'size-8! px-0!'}
+        onClick={submit}
+        title={working ? `Send now: ${agent.name} stops what it is doing and takes this up (Enter)` : 'Send (Enter)'}
+        aria-label="Send"
+      >
         <Dom make={() => icon(variant === 'mini' ? 'send' : 'arrow-up', variant === 'mini' ? 14 : 16)} deps={[]} />
       </Button>
     );
@@ -749,7 +877,13 @@ export function ChatView(p: ChatViewProps) {
               {goalText(goal)}
             </span>
             <span className="hint">{goalLine(goal)}</span>
-            <button type="button" className="tc-act" title="Drop this goal" aria-label="Drop this goal" onClick={() => void command('goal', 'clear', false)}>
+            <button
+              type="button"
+              className="tc-act"
+              title="Drop this goal"
+              aria-label="Drop this goal"
+              onClick={() => void command('goal', 'clear', false)}
+            >
               <Dom make={() => icon('x', 12)} deps={[]} />
             </button>
           </div>
@@ -762,7 +896,13 @@ export function ChatView(p: ChatViewProps) {
               {loop.text}
             </span>
             <span className="hint">{loopLine(loop)}</span>
-            <button type="button" className="tc-act" title="Stop the loop" aria-label="Stop the loop" onClick={() => void command('loop', 'off', false)}>
+            <button
+              type="button"
+              className="tc-act"
+              title="Stop the loop"
+              aria-label="Stop the loop"
+              onClick={() => void command('loop', 'off', false)}
+            >
               <Dom make={() => icon('x', 12)} deps={[]} />
             </button>
           </div>
@@ -791,106 +931,171 @@ export function ChatView(p: ChatViewProps) {
   return (
     <ChatProject.Provider value={p.projectId}>
       <Handoffs.Provider value={handoffs}>
-      {find}
-      {variant !== 'mini' && (
-        <div className={compact ? '' : 'px-10 max-md:px-4'}>
-          {/* (the floating window's tab lists the agent's earlier chats beside its tasks) */}
-          {p.chats ? (
-            <TasksAndChats tasks={{ view: `agent:${agent.id}`, scope: { kind: 'agent', id: agent.id }, chatId: chatId || undefined, projectId: p.projectId }} chats={p.chats} />
-          ) : (
-            <TaskPanel view={`agent:${agent.id}`} scope={{ kind: 'agent', id: agent.id }} chatId={chatId || undefined} projectId={p.projectId} />
-          )}
-        </div>
-      )}
-      <div ref={list} className={variant === 'mini' ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto py-2' : compact ? 'ac-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-14px),transparent_100%)] flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pt-1 pb-2' : 'messages'} onScroll={onScroll}>
-        {empty ? (
-          variant === 'mini' ? (
-            <p className="empty">No messages yet.</p>
-          ) : compact ? (
-            <div className="m-auto py-12 text-center text-dim">
-              <Dom make={() => icon('message-circle', 22)} deps={[]} />
-              <p className="mt-2.5 mb-0">Say hi to {agent.name}.</p>
-              <p className="hint mt-1.5 mb-0">{agent.specialty || ''}</p>
-            </div>
-          ) : (
-            <div className="empty-chat m-auto w-full max-w-[520px] py-12 text-center text-dim">
-              <div className="mx-auto grid size-14 place-items-center rounded-[16px] border border-line bg-panel text-[30px] leading-none shadow-[inset_0_1px_0_var(--glass-spec)]">{agent.emoji || '🤖'}</div>
-              <p className="mt-5 mb-0 text-[17px] font-semibold tracking-tight text-ink">Ask {agent.name} anything</p>
-              {agent.specialty ? <p className="mx-auto mt-1.5 mb-0 max-w-[44ch] text-[13.5px] leading-normal text-dim">{agent.specialty}</p> : null}
-              {/* a few things to try: each puts its words in the message box */}
-              <div className={`mt-7 grid gap-2 text-left ${suggestions(agent).length > 1 ? 'sm:grid-cols-2' : 'mx-auto max-w-[300px]'}`}>
-                {suggestions(agent).map((t) => (
-                  <button type="button" key={t} className="group/try flex w-full cursor-pointer items-start gap-2.5 rounded-box border border-line bg-panel px-3.5 py-3 text-left text-[13px] leading-snug text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-[transform,background-color,color,border-color] duration-150 active:scale-[0.98] motion-reduce:transition-none hover:border-line-2 hover:bg-panel-2 hover:text-ink" onClick={() => p.apiRef?.current?.setDraft(t)}>
-                    <Dom className="mt-px flex-none text-faint group-hover/try:text-accent" make={() => icon('sparkles', 14)} deps={[]} />
-                    <span className="min-w-0 flex-1">{t}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )
-        ) : (
-          rows
+        {find}
+        {variant !== 'mini' && (
+          <div className={compact ? '' : 'px-10 max-md:px-4'}>
+            {/* (the floating window's tab lists the agent's earlier chats beside its tasks) */}
+            {p.chats ? (
+              <TasksAndChats
+                tasks={{
+                  view: `agent:${agent.id}`,
+                  scope: { kind: 'agent', id: agent.id },
+                  chatId: chatId || undefined,
+                  projectId: p.projectId,
+                }}
+                chats={p.chats}
+              />
+            ) : (
+              <TaskPanel
+                view={`agent:${agent.id}`}
+                scope={{ kind: 'agent', id: agent.id }}
+                chatId={chatId || undefined}
+                projectId={p.projectId}
+              />
+            )}
+          </div>
         )}
-      </div>
-      {variant === 'mini' ? null : (
-        <div className={compact ? 'empty:hidden' : 'px-10 max-md:px-4'}>
-          {approvals.map((a) => (
-            <Dom key={a.id} className={compact ? undefined : 'mb-3 max-w-[860px]'} make={() => approvalCard(a)} deps={[a.id]} />
-          ))}
-        </div>
-      )}
-      {chips}
-      {queuedList}
-      <div className={compact ? 'min-h-5 pt-1 text-[12.5px] leading-[normal] text-dim' : 'status-line flex min-h-6 items-center gap-2 px-10 pt-2 text-[12.5px] leading-[normal] text-dim max-md:px-4'}>
-        {statusLine ? (
-          compact ? (
-            statusLine
-          ) : (
-            <>
-              <Dot tone="busy" />
-              {statusLine}
-            </>
-          )
-        ) : null}
-      </div>
-      {compact ? (
-        <>
-          {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
-          <Dom make={() => pastes.el} deps={[pastes]} />
-          {variant === 'mini' ? (
-            <div className="flex items-end gap-2">
-              {composer}
-              {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
-              {sendBtn}
-            </div>
-          ) : (
-            <div className="dock-composer relative">
-              {composer}
-              <div className={`${COMPOSER_BTNS} items-center px-2 pt-1 pb-2`} style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-                {p.footer ? <span className="mr-auto min-w-0"><Dom make={() => p.footer!} deps={[p.footer]} /></span> : null}
-                {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
-                {sendBtn}
+        <div
+          ref={list}
+          className={
+            variant === 'mini'
+              ? 'oc-mini-list flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto py-2'
+              : compact
+                ? 'ac-list [mask-image:linear-gradient(to_bottom,transparent_0,#000_12px,#000_calc(100%-14px),transparent_100%)] flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pt-1 pb-2'
+                : 'messages'
+          }
+          onScroll={onScroll}
+        >
+          {empty ? (
+            variant === 'mini' ? (
+              <p className="empty">No messages yet.</p>
+            ) : compact ? (
+              <div className="m-auto py-12 text-center text-dim">
+                <Dom make={() => icon('message-circle', 22)} deps={[]} />
+                <p className="mt-2.5 mb-0">Say hi to {agent.name}.</p>
+                <p className="hint mt-1.5 mb-0">{agent.specialty || ''}</p>
               </div>
-            </div>
+            ) : (
+              <div className="empty-chat m-auto w-full max-w-[520px] py-12 text-center text-dim">
+                <div className="mx-auto grid size-14 place-items-center rounded-[16px] border border-line bg-panel text-[30px] leading-none shadow-[inset_0_1px_0_var(--glass-spec)]">
+                  {agent.emoji || '🤖'}
+                </div>
+                <p className="mt-5 mb-0 text-[17px] font-semibold tracking-tight text-ink">Ask {agent.name} anything</p>
+                {agent.specialty ? (
+                  <p className="mx-auto mt-1.5 mb-0 max-w-[44ch] text-[13.5px] leading-normal text-dim">
+                    {agent.specialty}
+                  </p>
+                ) : null}
+                {/* a few things to try: each puts its words in the message box */}
+                <div
+                  className={`mt-7 grid gap-2 text-left ${suggestions(agent).length > 1 ? 'sm:grid-cols-2' : 'mx-auto max-w-[300px]'}`}
+                >
+                  {suggestions(agent).map((t) => (
+                    <button
+                      type="button"
+                      key={t}
+                      className="group/try flex w-full cursor-pointer items-start gap-2.5 rounded-box border border-line bg-panel px-3.5 py-3 text-left text-[13px] leading-snug text-dim shadow-[inset_0_1px_0_var(--glass-spec)] transition-[transform,background-color,color,border-color] duration-150 active:scale-[0.98] motion-reduce:transition-none hover:border-line-2 hover:bg-panel-2 hover:text-ink"
+                      onClick={() => p.apiRef?.current?.setDraft(t)}
+                    >
+                      <Dom
+                        className="mt-px flex-none text-faint group-hover/try:text-accent"
+                        make={() => icon('sparkles', 14)}
+                        deps={[]}
+                      />
+                      <span className="min-w-0 flex-1">{t}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          ) : (
+            rows
           )}
-        </>
-      ) : (
-        <div className="composer">
-          {/* files, the box and its buttons, and the model: the width comes from the column the page puts this in */}
-          <div>
+        </div>
+        {variant === 'mini' ? null : (
+          <div className={compact ? 'empty:hidden' : 'px-10 max-md:px-4'}>
+            {approvals.map((a) => (
+              <Dom
+                key={a.id}
+                className={compact ? undefined : 'mb-3 max-w-[860px]'}
+                make={() => approvalCard(a)}
+                deps={[a.id]}
+              />
+            ))}
+          </div>
+        )}
+        {chips}
+        {queuedList}
+        <div
+          className={
+            compact
+              ? 'min-h-5 pt-1 text-[12.5px] leading-[normal] text-dim'
+              : 'status-line flex min-h-6 items-center gap-2 px-10 pt-2 text-[12.5px] leading-[normal] text-dim max-md:px-4'
+          }
+        >
+          {statusLine ? (
+            compact ? (
+              statusLine
+            ) : (
+              <>
+                <Dot tone="busy" />
+                {statusLine}
+              </>
+            )
+          ) : null}
+        </div>
+        {compact ? (
+          <>
             {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
             <Dom make={() => pastes.el} deps={[pastes]} />
-            <div className="dock-composer relative">
-              {composer}
-              <div className={`${COMPOSER_BTNS} items-center px-2 pt-1 pb-2`} style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-                {p.footer ? <span className="mr-auto inline-flex min-w-0 items-center [&_.model-chip]:h-7 [&_.model-chip]:rounded-ctl [&_.model-chip]:border-transparent [&_.model-chip]:bg-transparent [&_.model-chip]:px-2 [&_.model-chip]:py-0 [&_.model-chip]:text-dim [&_.model-chip]:hover:bg-panel-2 [&_.model-chip]:hover:text-ink"><Dom make={() => p.footer!} deps={[p.footer]} /></span> : null}
+            {variant === 'mini' ? (
+              <div className="flex items-end gap-2">
+                {composer}
                 {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
                 {sendBtn}
+              </div>
+            ) : (
+              <div className="dock-composer relative">
+                {composer}
+                <div
+                  className={`${COMPOSER_BTNS} items-center px-2 pt-1 pb-2`}
+                  style={{ flexDirection: 'row', justifyContent: 'flex-end' }}
+                >
+                  {p.footer ? (
+                    <span className="mr-auto min-w-0">
+                      <Dom make={() => p.footer!} deps={[p.footer]} />
+                    </span>
+                  ) : null}
+                  {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
+                  {sendBtn}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="composer">
+            {/* files, the box and its buttons, and the model: the width comes from the column the page puts this in */}
+            <div>
+              {tray ? <Dom make={() => tray.el} deps={[tray]} /> : null}
+              <Dom make={() => pastes.el} deps={[pastes]} />
+              <div className="dock-composer relative">
+                {composer}
+                <div
+                  className={`${COMPOSER_BTNS} items-center px-2 pt-1 pb-2`}
+                  style={{ flexDirection: 'row', justifyContent: 'flex-end' }}
+                >
+                  {p.footer ? (
+                    <span className="mr-auto inline-flex min-w-0 items-center [&_.model-chip]:h-7 [&_.model-chip]:rounded-ctl [&_.model-chip]:border-transparent [&_.model-chip]:bg-transparent [&_.model-chip]:px-2 [&_.model-chip]:py-0 [&_.model-chip]:text-dim [&_.model-chip]:hover:bg-panel-2 [&_.model-chip]:hover:text-ink">
+                      <Dom make={() => p.footer!} deps={[p.footer]} />
+                    </span>
+                  ) : null}
+                  {tray ? <Dom make={() => tray.picker} deps={[tray]} /> : null}
+                  {sendBtn}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
       </Handoffs.Provider>
     </ChatProject.Provider>
   );

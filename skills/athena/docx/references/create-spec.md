@@ -8,28 +8,28 @@ python-docx code. Checked in November 2026 against python-docx 1.2.0 and LibreOf
 
 Top level, all optional except `blocks`:
 
-| Key | What it does |
-|---|---|
-| `template` | a `.docx` or `.dotx` to start from (path relative to the spec): its styles, theme, page setup, headers and footers. Its body is removed unless `"keep_body": true` |
-| `page_size`, `landscape` | `A4`, `letter`, `legal`, `A3`, `A5` or `[width_mm, height_mm]`. Default A4, or the template's own |
-| `margins_mm` | one number for all four sides, or `{"top", "bottom", "left", "right"}`. Default 25.4, Word's "Normal" margins |
-| `font`, `font_size` | the Normal style's font (for every script: Latin, East Asian, Arabic and Hebrew) and size in points |
-| `title`, `author`, `subject`, `keywords` | the file's properties, shown in File › Info |
-| `header`, `footer` | one line of text each; they replace a template's own header or footer, logo included |
-| `page_numbers` | `true` for "Page N of M" in the footer, or a pattern such as `"Seite {PAGE} von {NUMPAGES}"` |
-| `styles` | paragraph styles of your own: `name`, `base`, `font`, `size`, `bold`, `italic`, `color`, `space_before`, `space_after` (points), `align` |
+| Key                                      | What it does                                                                                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `template`                               | a `.docx` or `.dotx` to start from (path relative to the spec): its styles, theme, page setup, headers and footers. Its body is removed unless `"keep_body": true` |
+| `page_size`, `landscape`                 | `A4`, `letter`, `legal`, `A3`, `A5` or `[width_mm, height_mm]`. Default A4, or the template's own                                                                  |
+| `margins_mm`                             | one number for all four sides, or `{"top", "bottom", "left", "right"}`. Default 25.4, Word's "Normal" margins                                                      |
+| `font`, `font_size`                      | the Normal style's font (for every script: Latin, East Asian, Arabic and Hebrew) and size in points                                                                |
+| `title`, `author`, `subject`, `keywords` | the file's properties, shown in File › Info                                                                                                                        |
+| `header`, `footer`                       | one line of text each; they replace a template's own header or footer, logo included                                                                               |
+| `page_numbers`                           | `true` for "Page N of M" in the footer, or a pattern such as `"Seite {PAGE} von {NUMPAGES}"`                                                                       |
+| `styles`                                 | paragraph styles of your own: `name`, `base`, `font`, `size`, `bold`, `italic`, `color`, `space_before`, `space_after` (points), `align`                           |
 
 Blocks:
 
-| `type` | Takes |
-|---|---|
-| `heading` | `text` or `runs`, `level` 1 to 9 (0 is the Title style) |
-| `paragraph` | `text` (a `\n` is a line break) or `runs`; `style`, `align` (`left`, `center`, `right`, `justify`) |
-| `bullets`, `numbered` | `items`: text, or `{"text": .., "level": 2}` (or `runs` instead of `text`) |
-| `table` | `rows` (lists of cells), `header` (default true), `style` (default `Table Grid`), `widths_mm`, `align` per column |
-| `image` | `path`, `width_mm` (height keeps the proportions), `align` (default center), `caption` |
-| `toc` | `levels` (default 3), `title` |
-| `page_break` | nothing |
+| `type`                | Takes                                                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `heading`             | `text` or `runs`, `level` 1 to 9 (0 is the Title style)                                                           |
+| `paragraph`           | `text` (a `\n` is a line break) or `runs`; `style`, `align` (`left`, `center`, `right`, `justify`)                |
+| `bullets`, `numbered` | `items`: text, or `{"text": .., "level": 2}` (or `runs` instead of `text`)                                        |
+| `table`               | `rows` (lists of cells), `header` (default true), `style` (default `Table Grid`), `widths_mm`, `align` per column |
+| `image`               | `path`, `width_mm` (height keeps the proportions), `align` (default center), `caption`                            |
+| `toc`                 | `levels` (default 3), `title`                                                                                     |
+| `page_break`          | nothing                                                                                                           |
 
 A run is `{"text": ..}` with any of `bold`, `italic`, `underline`, `strike`, `superscript`, `subscript`, `color` (six
 hex digits), `size`, `font`, and `link` (http, https or mailto; drawn in Word's link blue and underlined unless the

@@ -24,7 +24,19 @@ import type { SkinGlow, SkinHost } from './skins.ts';
 import { BuildFx } from './buildfx.ts';
 import type { FlatCopy, Variant } from './instances.ts';
 import { envPreset } from '../../shared/worldenv.ts';
-import type { ShownWorld, VoxelMaterial, VoxelObjectData, VoxelObjectMeta, VoxelPrefabMeta, VoxelWorld, WorldAnchor, WorldBuilder, WorldEffect, WorldLight, WorldLookView } from '../../shared/types.ts';
+import type {
+  ShownWorld,
+  VoxelMaterial,
+  VoxelObjectData,
+  VoxelObjectMeta,
+  VoxelPrefabMeta,
+  VoxelWorld,
+  WorldAnchor,
+  WorldBuilder,
+  WorldEffect,
+  WorldLight,
+  WorldLookView,
+} from '../../shared/types.ts';
 
 /** Where an anchor is on the map now (null: not in this project, e.g. another project's team). */
 export type AnchorAt = (a: WorldAnchor) => THREE.Vector3 | null;
@@ -91,7 +103,13 @@ function meshInWorker(data: VoxelObjectData, palette: VoxelMaterial[]): Promise<
 
 /** A prefab variant, meshed: its parts as shared geometry, and how many objects use it now. */
 interface PrefabMesh {
-  parts: { geo: THREE.BufferGeometry; cls: RenderClass; local: THREE.Matrix4; lights?: Float32Array; voxelSize: number }[];
+  parts: {
+    geo: THREE.BufferGeometry;
+    cls: RenderClass;
+    local: THREE.Matrix4;
+    lights?: Float32Array;
+    voxelSize: number;
+  }[];
   users: number;
 }
 
@@ -107,12 +125,26 @@ interface GlowSpot {
 }
 
 /** Glow spots of meshed parts, through a matrix (the part's place, and a copy's). */
-function glowSpots(lights: Float32Array | undefined, voxelSize: number, m: THREE.Matrix4, out: GlowSpot[], v = new THREE.Vector3()): void {
+function glowSpots(
+  lights: Float32Array | undefined,
+  voxelSize: number,
+  m: THREE.Matrix4,
+  out: GlowSpot[],
+  v = new THREE.Vector3(),
+): void {
   if (!lights) return;
   for (let i = 0; i + LIGHT_STRIDE <= lights.length; i += LIGHT_STRIDE) {
     v.set(lights[i], lights[i + 1], lights[i + 2]).applyMatrix4(m);
     // colour from sRGB to linear light
-    out.push({ x: v.x, y: v.y, z: v.z, r: lights[i + 3] ** 2.2, g: lights[i + 4] ** 2.2, b: lights[i + 5] ** 2.2, strength: glowStrength(lights[i + 6], voxelSize) });
+    out.push({
+      x: v.x,
+      y: v.y,
+      z: v.z,
+      r: lights[i + 3] ** 2.2,
+      g: lights[i + 4] ** 2.2,
+      b: lights[i + 5] ** 2.2,
+      strength: glowStrength(lights[i + 6], voxelSize),
+    });
   }
 }
 
@@ -134,7 +166,12 @@ interface Placed {
 
 const stampOf = (p: VoxelPrefabMeta) => p.voxelsAt ?? p.updatedAt;
 
-export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: SkinHost, onShown?: (s: ShownWithName) => void): WorldLayer {
+export function createWorldLayer(
+  view: WorldView,
+  anchorAt: AnchorAt,
+  host?: SkinHost,
+  onShown?: (s: ShownWithName) => void,
+): WorldLayer {
   let shown: ShownWithName | null = null;
   let alive = true;
   const placed = new Map<string, Placed>();
@@ -158,7 +195,9 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
   const loadPrefabs = async (instances: { prefab: string }[] | undefined): Promise<void> => {
     const wid = worldId;
     for (let round = 0; round < 5; round++) {
-      const missing = [...reachablePrefabs(instances as VoxelObjectData['instances'], (id) => prefabData.get(id)?.data)].filter((id) => prefabs.has(id) && !prefabData.has(id));
+      const missing = [
+        ...reachablePrefabs(instances as VoxelObjectData['instances'], (id) => prefabData.get(id)?.data),
+      ].filter((id) => prefabs.has(id) && !prefabData.has(id));
       if (!missing.length) return;
       await Promise.all(
         missing.map(async (id) => {
@@ -183,11 +222,21 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
     // (another object meshed the same variant meanwhile)
     const raced = prefabMeshes.get(key);
     if (raced) return raced;
-    const pm: PrefabMesh = { parts: parts.map((p) => ({ geo: partGeometry(p), cls: p.cls, local: partMatrix(p), lights: p.lights, voxelSize: p.voxelSize })), users: 0 };
+    const pm: PrefabMesh = {
+      parts: parts.map((p) => ({
+        geo: partGeometry(p),
+        cls: p.cls,
+        local: partMatrix(p),
+        lights: p.lights,
+        voxelSize: p.voxelSize,
+      })),
+      users: 0,
+    };
     prefabMeshes.set(key, pm);
     return pm;
   };
-  const meshKeyOf = (id: string, v: Variant) => `${id}@${prefabs.has(id) ? stampOf(prefabs.get(id)!) : 'gone'}|${variantKey(v)}|${paletteKey}`;
+  const meshKeyOf = (id: string, v: Variant) =>
+    `${id}@${prefabs.has(id) ? stampOf(prefabs.get(id)!) : 'gone'}|${variantKey(v)}|${paletteKey}`;
 
   // skins: the Brain, platforms and agents dressed as prefabs (when the Station says what it shows)
   const skins = host
@@ -223,7 +272,6 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
   /** objects whose build plays on the next frame (once their place on the map is known) */
   const playBuilds: { id: string; by: WorldBuilder | null }[] = [];
 
-
   // ---------- light and effects ----------
   let lights: WorldLight[] = [];
   let lightVersion = 0;
@@ -248,14 +296,37 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
     // glowing voxels of skins (a crystal agent, a brazier hub) light things too
     skinGlow.length = 0;
     skins?.glow(skinGlow);
-    for (const g of skinGlow) out.push({ x: g.x, y: g.y, z: g.z, r: g.r, g: g.g, b: g.b, strength: g.strength, range: reachOf(g.strength), flicker: 0, seed: seed++ });
+    for (const g of skinGlow)
+      out.push({
+        x: g.x,
+        y: g.y,
+        z: g.z,
+        r: g.r,
+        g: g.g,
+        b: g.b,
+        strength: g.strength,
+        range: reachOf(g.strength),
+        flicker: 0,
+        seed: seed++,
+      });
     for (const p of placed.values()) {
       p.group.updateWorldMatrix(true, false);
       const m = p.group.matrixWorld;
       for (const list of [p.glow, p.copyGlow])
         for (const g of list) {
           tmp.set(g.x, g.y, g.z).applyMatrix4(m);
-          out.push({ x: tmp.x, y: tmp.y, z: tmp.z, r: g.r, g: g.g, b: g.b, strength: g.strength, range: reachOf(g.strength), flicker: 0, seed: seed++ });
+          out.push({
+            x: tmp.x,
+            y: tmp.y,
+            z: tmp.z,
+            r: g.r,
+            g: g.g,
+            b: g.b,
+            strength: g.strength,
+            range: reachOf(g.strength),
+            flicker: 0,
+            seed: seed++,
+          });
         }
     }
     const c = new THREE.Color();
@@ -264,9 +335,22 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
       if (!f) continue;
       tmp.set(...l.position).applyMatrix4(f);
       c.set(l.color);
-      const cand: LightCandidate = { x: tmp.x, y: tmp.y, z: tmp.z, r: c.r, g: c.g, b: c.b, strength: Math.max(0, Math.min(10, l.intensity)), range: l.range > 0 ? l.range : reachOf(l.intensity), flicker: l.flicker || 0, seed: seed++ };
+      const cand: LightCandidate = {
+        x: tmp.x,
+        y: tmp.y,
+        z: tmp.z,
+        r: c.r,
+        g: c.g,
+        b: c.b,
+        strength: Math.max(0, Math.min(10, l.intensity)),
+        range: l.range > 0 ? l.range : reachOf(l.intensity),
+        flicker: l.flicker || 0,
+        seed: seed++,
+      };
       if (l.kind === 'spot') {
-        const t = l.target ? new THREE.Vector3(...l.target).applyMatrix4(f) : new THREE.Vector3(tmp.x, tmp.y - 1, tmp.z);
+        const t = l.target
+          ? new THREE.Vector3(...l.target).applyMatrix4(f)
+          : new THREE.Vector3(tmp.x, tmp.y - 1, tmp.z);
         cand.spot = { x: t.x, y: t.y, z: t.z, angle: l.angle || 30 };
       }
       out.push(cand);
@@ -277,7 +361,14 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
   const effectMatrix = new THREE.Matrix4();
   const setEffects = (list: WorldEffect[]) => {
     effectList = list;
-    const specs: EffectSpec[] = list.map((e) => ({ key: `${e.id}:${JSON.stringify([e.kind, e.size, e.amount, e.colors, e.wind])}`, kind: e.kind, box: { w: Math.max(0.5, e.size[0]), h: Math.max(0.5, e.size[1]), d: Math.max(0.5, e.size[2]) }, amount: e.amount, colors: e.colors, wind: e.wind }));
+    const specs: EffectSpec[] = list.map((e) => ({
+      key: `${e.id}:${JSON.stringify([e.kind, e.size, e.amount, e.colors, e.wind])}`,
+      kind: e.kind,
+      box: { w: Math.max(0.5, e.size[0]), h: Math.max(0.5, e.size[1]), d: Math.max(0.5, e.size[2]) },
+      amount: e.amount,
+      colors: e.colors,
+      wind: e.wind,
+    }));
     view.setEffects(specs, (key) => {
       const e = effectList.find((x) => key.startsWith(`${x.id}:`));
       const f = e ? frameOf(e, effectMatrix) : null;
@@ -366,7 +457,6 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
         .map((id) => `${id}@${prefabs.has(id) ? stampOf(prefabs.get(id)!) : 'gone'}`)
         .join(',')}#${data.instances?.length || 0}`;
 
-
     const drawCopies = async (p: Placed): Promise<void> => {
       dropCopies(p);
       await loadPrefabs(p.data.instances);
@@ -412,7 +502,13 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
     for (const o of want.values()) {
       const p = placed.get(o.id);
       // its voxels and their colours are as meshed: at most its copies' prefabs changed
-      if (p && p.palette === palette && p.meta.voxelsAt === o.voxelsAt && (p.meta.instances || 0) === (o.instances || 0) && JSON.stringify(p.meta.volumes) === JSON.stringify(o.volumes)) {
+      if (
+        p &&
+        p.palette === palette &&
+        p.meta.voxelsAt === o.voxelsAt &&
+        (p.meta.instances || 0) === (o.instances || 0) &&
+        JSON.stringify(p.meta.volumes) === JSON.stringify(o.volumes)
+      ) {
         p.meta = o;
         await loadPrefabs(p.data.instances);
         if (stale()) return;
@@ -430,7 +526,17 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
       const glow: GlowSpot[] = [];
       const pm = new THREE.Matrix4();
       for (const part of parts) glowSpots(part.lights, part.voxelSize, partMatrix(part, pm), glow);
-      const np: Placed = { meta: o, palette, group: view.addParts(groupId(o), parts), data, copiesKey: '', copies: [], meshKeys: [], glow, copyGlow: [] };
+      const np: Placed = {
+        meta: o,
+        palette,
+        group: view.addParts(groupId(o), parts),
+        data,
+        copiesKey: '',
+        copies: [],
+        meshKeys: [],
+        glow,
+        copyGlow: [],
+      };
       placed.set(o.id, np);
       // a new object from a live build grows from its first frame on the map
       if (!p && pendingBuilds.has(o.id)) fx.grow(np.group, performance.now());
@@ -554,7 +660,15 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
           box.setFromObject(only.group);
         } else lookBox(v, box);
         if (box.isEmpty()) return false;
-        const image = view.snapshot({ box, azimuth: v.azimuth, elevation: v.elevation, zoom: v.zoom, width: v.width || 1024, height: v.height || 640, only: only?.group });
+        const image = view.snapshot({
+          box,
+          azimuth: v.azimuth,
+          elevation: v.elevation,
+          zoom: v.zoom,
+          width: v.width || 1024,
+          height: v.height || 640,
+          only: only?.group,
+        });
         await rpc.world.snapshot({ request: req.request, image });
         return true;
       } catch {
@@ -569,7 +683,15 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
       for (const p of placed.values()) {
         const m = p.meta;
         // pinned to something this project doesn't have: where it last stood, or from the middle
-        const base = anchorAt(m.anchor) || (m.lastWorldPos ? fallback.set(m.lastWorldPos[0] - m.position[0], m.lastWorldPos[1] - m.position[1], m.lastWorldPos[2] - m.position[2]) : fallback.set(0, 0, 0));
+        const base =
+          anchorAt(m.anchor) ||
+          (m.lastWorldPos
+            ? fallback.set(
+                m.lastWorldPos[0] - m.position[0],
+                m.lastWorldPos[1] - m.position[1],
+                m.lastWorldPos[2] - m.position[2],
+              )
+            : fallback.set(0, 0, 0));
         p.group.position.set(base.x + m.position[0], base.y + m.position[1], base.z + m.position[2]);
         p.group.rotation.y = (m.rotation * Math.PI) / 180;
         p.group.scale.setScalar(m.scale || 1);
@@ -587,7 +709,12 @@ export function createWorldLayer(view: WorldView, anchorAt: AnchorAt, host?: Ski
         if (fxBox.isEmpty()) continue;
         fxBox.getCenter(fxTo);
         fxTo.y = fxBox.max.y;
-        fx.built(builderAt(b.by, fxFrom), fxTo, b.by?.kind === 'brain' ? '#ffd36e' : themeColor('accent', '#18688e'), now);
+        fx.built(
+          builderAt(b.by, fxFrom),
+          fxTo,
+          b.by?.kind === 'brain' ? '#ffd36e' : themeColor('accent', '#18688e'),
+          now,
+        );
       }
       fx.update(now);
     },

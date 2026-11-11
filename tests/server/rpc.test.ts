@@ -11,13 +11,16 @@ import { rpcError, rpcHandler } from '../../server/rpc.ts';
 
 const contract = {
   things: {
-    add: oc.route({ method: 'POST', path: '/things/{listId}' })
+    add: oc
+      .route({ method: 'POST', path: '/things/{listId}' })
       .input(z.object({ listId: z.string(), name: z.string({ error: 'Give the thing a name.' }) }))
       .output(type<{ thing: { listId: string; name: string } }>()),
-    make: oc.route({ method: 'POST', path: '/things' })
+    make: oc
+      .route({ method: 'POST', path: '/things' })
       .input(z.object({ name: z.string().optional() }))
       .output(type<{ name?: string }>()),
-    get: oc.route({ method: 'GET', path: '/things/{listId}/{id}' })
+    get: oc
+      .route({ method: 'GET', path: '/things/{listId}/{id}' })
       .input(z.object({ listId: z.string(), id: z.string() }))
       .output(type<{ id: string }>()),
   },
@@ -56,7 +59,8 @@ beforeAll(async () => {
 });
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
-const post = (p: string, body: string) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+const post = (p: string, body: string) =>
+  fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
 
 describe('oRPC routes', () => {
   it('answer at their own address with JSON that is never cached', async () => {
@@ -122,34 +126,56 @@ describe('oRPC routes', () => {
   it('refuse a body over the limit with 413, in the old routes’ words', async () => {
     const body = JSON.stringify({ name: 'x'.repeat(200) });
     const answer = await new Promise<{ status: number; text: string }>((resolve, reject) => {
-      const req = http.request(`${base}/small/things`, { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) } }, (res) => {
-        let text = '';
-        res.on('data', (c) => (text += String(c)));
-        res.on('end', () => resolve({ status: res.statusCode || 0, text }));
-      });
+      const req = http.request(
+        `${base}/small/things`,
+        { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) } },
+        (res) => {
+          let text = '';
+          res.on('data', (c) => (text += String(c)));
+          res.on('end', () => resolve({ status: res.statusCode || 0, text }));
+        },
+      );
       req.on('error', reject);
       req.end(body);
     });
     expect(answer.status).toBe(413);
     expect(JSON.parse(answer.text)).toEqual({ error: 'Too large' });
     // (under the limit is fine)
-    expect(await (await fetch(`${base}/small/things`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"name":"a"}' })).json()).toEqual({ name: 'a' });
+    expect(
+      await (
+        await fetch(`${base}/small/things`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{"name":"a"}',
+        })
+      ).json(),
+    ).toEqual({ name: 'a' });
   });
 
   it('leave a request that isn’t theirs to the old routes, body unread', async () => {
     const r = await post('/api/other', '{"x":1}');
     expect(await r.json()).toEqual({ old: true, body: '{"x":1}' });
     // (the same address with another method isn't theirs either)
-    expect(await (await fetch(`${base}/api/things/l`, { method: 'PUT', body: 'y' })).json()).toEqual({ old: true, body: 'y' });
+    expect(await (await fetch(`${base}/api/things/l`, { method: 'PUT', body: 'y' })).json()).toEqual({
+      old: true,
+      body: 'y',
+    });
   });
 });
 
 describe('rpcError', () => {
   it('keeps a status from 400 to 599 and its message, and makes anything else a 500', () => {
-    expect(rpcError(Object.assign(new Error('Taken'), { status: 409 }))).toMatchObject({ status: 409, message: 'Taken', code: 'CONFLICT' });
+    expect(rpcError(Object.assign(new Error('Taken'), { status: 409 }))).toMatchObject({
+      status: 409,
+      message: 'Taken',
+      code: 'CONFLICT',
+    });
     expect(rpcError(Object.assign(new Error('Odd'), { status: 418 }))).toMatchObject({ status: 418, message: 'Odd' });
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(rpcError(Object.assign(new Error('Fine?'), { status: 200 }))).toMatchObject({ status: 500, message: 'Fine?' });
+    expect(rpcError(Object.assign(new Error('Fine?'), { status: 200 }))).toMatchObject({
+      status: 500,
+      message: 'Fine?',
+    });
     expect(rpcError('just words')).toMatchObject({ status: 500, message: 'just words' });
     logged.mockRestore();
   });

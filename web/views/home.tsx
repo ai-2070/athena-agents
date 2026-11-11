@@ -12,7 +12,20 @@ import type { ActivityEntry, AppState, Program } from '../../shared/types.ts';
 import { appIconStyle, appIconUrl } from '../appicons.ts';
 
 const SERVICES = ['comfyui', 'lmstudio', 'ollama', 'netdesk', 'orca', 'blender', 'premiere', 'photoshop'];
-const KIND_ICON: Record<string, string> = { run: 'play', error: 'circle-x', approval: 'hand', social: 'send', workflow: 'workflow', program: 'monitor', mcp: 'plug', library: 'store', terminal: 'terminal', system: 'clock', notify: 'bell', skill: 'puzzle' };
+const KIND_ICON: Record<string, string> = {
+  run: 'play',
+  error: 'circle-x',
+  approval: 'hand',
+  social: 'send',
+  workflow: 'workflow',
+  program: 'monitor',
+  mcp: 'plug',
+  library: 'store',
+  terminal: 'terminal',
+  system: 'clock',
+  notify: 'bell',
+  skill: 'puzzle',
+};
 /** The newest activity kept on the page. */
 const KEEP = 200;
 
@@ -24,10 +37,18 @@ function HomePage() {
   const [progs, setProgs] = useState<Program[] | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   useEffect(() => {
-    void rpc.programs.list({}).then(setProgs).catch(() => setProgs([]));
-    void rpc.status.activity().then(setActivity).catch(() => {});
+    void rpc.programs
+      .list({})
+      .then(setProgs)
+      .catch(() => setProgs([]));
+    void rpc.status
+      .activity()
+      .then(setActivity)
+      .catch(() => {});
   }, []);
-  useServerEvents((ev) => ev.type === 'activity' && setActivity((a) => [ev.entry as ActivityEntry, ...a].slice(0, KEEP)));
+  useServerEvents(
+    (ev) => ev.type === 'activity' && setActivity((a) => [ev.entry as ActivityEntry, ...a].slice(0, KEEP)),
+  );
   if (!d) return null;
   const agents = d.agents || [];
   const needs = d.approvals.length + d.outboxPending + (d.questions?.length || 0);
@@ -37,7 +58,12 @@ function HomePage() {
       <div className="stats mb-8 grid grid-cols-4 gap-4 max-lg:grid-cols-2">
         <Stat label="Agents" num={agents.length} href="#/agents" />
         <Stat label="Working now" num={d.runs.length} kind={d.runs.length ? 'live' : ''} />
-        <Stat label="Needs you" num={needs} kind={needs ? 'hot' : ''} onClick={() => document.getElementById('drawer')!.classList.remove('hidden')} />
+        <Stat
+          label="Needs you"
+          num={needs}
+          kind={needs ? 'hot' : ''}
+          onClick={() => document.getElementById('drawer')!.classList.remove('hidden')}
+        />
         <Stat label="X accounts" num={d.accounts.x.length} href="#/settings?tab=connections" />
       </div>
       {!agents.length ? <Onboarding d={d} /> : null}
@@ -71,7 +97,9 @@ function HomePage() {
                         <div className="title">{r.agentName}</div>
                         <div className="hint">{`started ${ago(r.startedAt)}`}</div>
                       </div>
-                      <ButtonLink variant="ghost" size="small" href={`#/agents/${r.agentId}/${r.chatId}`}>Watch</ButtonLink>
+                      <ButtonLink variant="ghost" size="small" href={`#/agents/${r.agentId}/${r.chatId}`}>
+                        Watch
+                      </ButtonLink>
                     </div>
                   );
                 })}
@@ -83,7 +111,9 @@ function HomePage() {
               <div className="panel-head">
                 <h2>Your agents</h2>
                 <div className="actions">
-                  <ButtonLink variant="ghost" size="small" href="#/agents">All agents</ButtonLink>
+                  <ButtonLink variant="ghost" size="small" href="#/agents">
+                    All agents
+                  </ButtonLink>
                 </div>
               </div>
               <div className="cards grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
@@ -112,17 +142,40 @@ function HomePage() {
             <div className="panel-head">
               <h2>Programs</h2>
               <div className="actions">
-                <ButtonLink variant="ghost" size="small" href="#/settings?tab=programs">All programs</ButtonLink>
+                <ButtonLink variant="ghost" size="small" href="#/settings?tab=programs">
+                  All programs
+                </ButtonLink>
               </div>
             </div>
             {services.length ? (
               <div className="list">
                 {services.map((p) => (
                   <div key={p.id} className="list-row">
-                    <span className="w-6 text-center">{appIconUrl(p.id) ? <img className="app-icon inline-block align-middle" src={appIconUrl(p.id)!} width={20} height={20} alt="" style={appIconStyle(p.id)} /> : null /* (a program without an icon of its own shows none) */}</span>
+                    <span className="w-6 text-center">
+                      {
+                        appIconUrl(p.id) ? (
+                          <img
+                            className="app-icon inline-block align-middle"
+                            src={appIconUrl(p.id)!}
+                            width={20}
+                            height={20}
+                            alt=""
+                            style={appIconStyle(p.id)}
+                          />
+                        ) : null /* (a program without an icon of its own shows none) */
+                      }
+                    </span>
                     <div className="flex-1 min-w-0">
                       <div className="title">{p.name}</div>
-                      <div className="hint">{p.running ? (p.serviceUrl ? `running · ${p.serviceUrl}` : 'running') : p.version ? `v${p.version}` : 'installed'}</div>
+                      <div className="hint">
+                        {p.running
+                          ? p.serviceUrl
+                            ? `running · ${p.serviceUrl}`
+                            : 'running'
+                          : p.version
+                            ? `v${p.version}`
+                            : 'installed'}
+                      </div>
                     </div>
                     <Dot tone={p.running ? 'on' : 'off'} />
                   </div>
@@ -162,7 +215,19 @@ const NUM = 'num mt-3.5 text-[28px] leading-none font-semibold tracking-tight te
 
 /** A number at the top. With href or onClick it is a link or a button to where that number lives.
  *  kind: live (something is running) or hot (it needs you) put a small dot by the caption. */
-function Stat({ label, num, kind = '', href, onClick }: { label: string; num: number; kind?: string; href?: string; onClick?: () => void }) {
+function Stat({
+  label,
+  num,
+  kind = '',
+  href,
+  onClick,
+}: {
+  label: string;
+  num: number;
+  kind?: string;
+  href?: string;
+  onClick?: () => void;
+}) {
   // stat and num stay for the tests
   const base = 'stat glass-plate block w-full rounded-box px-5 py-4 text-left text-ink [font:inherit]';
   const cls = href || onClick ? `${base} cursor-pointer transition-colors hover:bg-panel-2 hover:text-ink` : base;
@@ -175,15 +240,27 @@ function Stat({ label, num, kind = '', href, onClick }: { label: string; num: nu
       <div className={NUM}>{num}</div>
     </>
   );
-  if (href) return <a className={cls} href={href}>{body}</a>;
-  if (onClick) return <button type="button" className={cls} onClick={onClick}>{body}</button>;
+  if (href)
+    return (
+      <a className={cls} href={href}>
+        {body}
+      </a>
+    );
+  if (onClick)
+    return (
+      <button type="button" className={cls} onClick={onClick}>
+        {body}
+      </button>
+    );
   return <div className={cls}>{body}</div>;
 }
 
 function QuickTask({ d }: { d: AppState }) {
   const agents = d.agents;
   const [text, setText] = useState(quick.text);
-  const [agentId, setAgentId] = useState(() => (agents.some((a) => a.id === quick.agentId) ? quick.agentId : agents[0].id));
+  const [agentId, setAgentId] = useState(() =>
+    agents.some((a) => a.id === quick.agentId) ? quick.agentId : agents[0].id,
+  );
   const box = useRef<HTMLTextAreaElement>(null);
   const send = () =>
     attempt(async () => {
@@ -200,7 +277,12 @@ function QuickTask({ d }: { d: AppState }) {
         <h2>Give an agent a task</h2>
       </div>
       <div className="max-w-75">
-        <SelectControl aria-label="Agent" value={agentId} onChange={(value) => setAgentId((quick.agentId = value))} options={agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` }))} />
+        <SelectControl
+          aria-label="Agent"
+          value={agentId}
+          onChange={(value) => setAgentId((quick.agentId = value))}
+          options={agents.map((a) => ({ value: a.id, label: `${a.emoji || ''} ${a.name}` }))}
+        />
       </div>
       <div className="mt-4">
         <textarea
@@ -215,7 +297,7 @@ function QuickTask({ d }: { d: AppState }) {
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <span className="hint">Opens a new chat with that agent.</span>
-        <Button  onClick={() => void send()}>Send</Button>
+        <Button onClick={() => void send()}>Send</Button>
       </div>
     </Plate>
   );
@@ -227,14 +309,35 @@ function Onboarding({ d }: { d: AppState }) {
   const addStarterTeam = async () => {
     setAdding(true);
     const lib = await rpc.library.list().catch(() => null);
-    for (const a of (lib?.agents || []).filter((x) => x.starter)) await attempt(() => rpc.library.hire({ source: 'library', slug: a.slug }));
+    for (const a of (lib?.agents || []).filter((x) => x.starter))
+      await attempt(() => rpc.library.hire({ source: 'library', slug: a.slug }));
     navigate('#/agents');
   };
   const steps = [
-    { done: d.engines['claude-code'].installed || (d.secrets.openrouterKey.set || !!d.secrets.veniceKey?.set), text: 'Pick how agents think: use Claude Code on this PC, or add an OpenRouter or Venice key for API models.', href: '#/settings', cta: 'Settings' },
-    { done: false, text: 'Add agents: start with the Athena team, or hire specialists from the Agent library.', href: '#/library', cta: 'Open library' },
-    { done: d.accounts.x.length > 0, text: 'Connect your X account so agents can draft posts for you to approve.', href: '#/settings?tab=connections', cta: 'Connections' },
-    { done: false, text: 'Give agents more abilities: browser control, files, GitHub and any MCP server.', href: '#/settings?tab=mcp', cta: 'MCP servers' },
+    {
+      done: d.engines['claude-code'].installed || d.secrets.openrouterKey.set || !!d.secrets.veniceKey?.set,
+      text: 'Pick how agents think: use Claude Code on this PC, or add an OpenRouter or Venice key for API models.',
+      href: '#/settings',
+      cta: 'Settings',
+    },
+    {
+      done: false,
+      text: 'Add agents: start with the Athena team, or hire specialists from the Agent library.',
+      href: '#/library',
+      cta: 'Open library',
+    },
+    {
+      done: d.accounts.x.length > 0,
+      text: 'Connect your X account so agents can draft posts for you to approve.',
+      href: '#/settings?tab=connections',
+      cta: 'Connections',
+    },
+    {
+      done: false,
+      text: 'Give agents more abilities: browser control, files, GitHub and any MCP server.',
+      href: '#/settings?tab=mcp',
+      cta: 'MCP servers',
+    },
   ];
   return (
     <div className="panel mb-8">
@@ -244,10 +347,21 @@ function Onboarding({ d }: { d: AppState }) {
       <ol className="list home-steps">
         {steps.map((s, i) => (
           <li key={s.cta} className="list-row">
-            <span className={`w-6 text-[13px] tabular-nums ${s.done ? 'text-ok' : 'text-faint'}`} aria-label={s.done ? 'done' : `step ${i + 1}`}>{s.done ? '✓' : `0${i + 1}`}</span>
+            <span
+              className={`w-6 text-[13px] tabular-nums ${s.done ? 'text-ok' : 'text-faint'}`}
+              aria-label={s.done ? 'done' : `step ${i + 1}`}
+            >
+              {s.done ? '✓' : `0${i + 1}`}
+            </span>
             <div className="flex-1 min-w-0">{s.text}</div>
-            {i === 1 ? <Button size="small" disabled={adding} onClick={() => void addStarterTeam()}>Add Athena team</Button> : null}
-            <ButtonLink variant="ghost" size="small" href={s.href}>{s.cta}</ButtonLink>
+            {i === 1 ? (
+              <Button size="small" disabled={adding} onClick={() => void addStarterTeam()}>
+                Add Athena team
+              </Button>
+            ) : null}
+            <ButtonLink variant="ghost" size="small" href={s.href}>
+              {s.cta}
+            </ButtonLink>
           </li>
         ))}
       </ol>

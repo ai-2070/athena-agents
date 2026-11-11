@@ -8,7 +8,16 @@ import { newAgent } from '../../server/library.ts';
 import * as skills from '../../server/skills.ts';
 import { applyActions } from '../../server/overseer.ts';
 import { historyOf, versionOf, restoreVersion, deletedItems, undelete, asText } from '../../server/history.ts';
-import { keepVersion, listVersions, canonical, changedFields, withActor, versionFilesDir, COALESCE_MS, VERSIONS_KEPT } from '../../server/versions.ts';
+import {
+  keepVersion,
+  listVersions,
+  canonical,
+  changedFields,
+  withActor,
+  versionFilesDir,
+  COALESCE_MS,
+  VERSIONS_KEPT,
+} from '../../server/versions.ts';
 import { dataPath } from '../../server/util.ts';
 import type { Agent, Team } from '../../shared/types.ts';
 
@@ -39,7 +48,8 @@ describe('versions.ts', () => {
     // a forced one (a restore) and a delete are always kept
     expect(withActor('brain', () => keepVersion(dir, { a: 4 }, { a: 5 }, {}), { force: true })).not.toBeNull();
     expect(keepVersion(dir, { a: 5 }, null, { deleted: true })?.deleted).toBe(true);
-    for (let i = 0; i < VERSIONS_KEPT + 5; i++) withActor('you', () => keepVersion(dir, { i }, { i: i + 1 }), { force: true });
+    for (let i = 0; i < VERSIONS_KEPT + 5; i++)
+      withActor('you', () => keepVersion(dir, { i }, { i: i + 1 }), { force: true });
     expect(listVersions(dir)).toHaveLength(VERSIONS_KEPT);
   });
 });
@@ -55,7 +65,9 @@ describe("the Brain's changes", () => {
     ]);
     const h = historyOf('skill', 'brain-edits');
     expect(h.versions.map((v) => v.by)).toEqual(['brain', 'brain', 'brain']);
-    expect(listVersions<{ body: string }>(skills.skillVersionsDir('brain-edits')).map((v) => v.item.body.split(/\s+/).pop())).toEqual(['Three.', 'Two.', 'One.']);
+    expect(
+      listVersions<{ body: string }>(skills.skillVersionsDir('brain-edits')).map((v) => v.item.body.split(/\s+/).pop()),
+    ).toEqual(['Three.', 'Two.', 'One.']);
     // your edits close together on the page are still one change
     skills.saveSkill({ slug: 'brain-edits', name: 'Brain edits', description: 'Use for testing.', body: 'Six.' });
     skills.saveSkill({ slug: 'brain-edits', name: 'Brain edits', description: 'Use for testing.', body: 'Seven.' });
@@ -105,7 +117,8 @@ describe('versions made close together (review fixes)', () => {
     const first = withActor('you', () => keepVersion(dir, { n: 0 }, { n: 1 }), { force: true })!;
     fs.mkdirSync(versionFilesDir(dir, first.id), { recursive: true });
     fs.writeFileSync(path.join(versionFilesDir(dir, first.id), 'f.txt'), 'x');
-    for (let i = 1; i <= VERSIONS_KEPT; i++) withActor('you', () => keepVersion(dir, { n: i }, { n: i + 1 }), { force: true });
+    for (let i = 1; i <= VERSIONS_KEPT; i++)
+      withActor('you', () => keepVersion(dir, { n: i }, { n: i + 1 }), { force: true });
     expect(listVersions(dir).some((v) => v.id === first.id)).toBe(false);
     expect(fs.existsSync(versionFilesDir(dir, first.id))).toBe(false);
   });
@@ -138,7 +151,13 @@ describe('agents and teams', () => {
   });
 
   it("a team's place on the map isn't a version; its goal is", () => {
-    const t = workflows.save({ name: 'Map team', description: 'Goal one', members: [], lead: null, steps: [] } as Partial<Team>);
+    const t = workflows.save({
+      name: 'Map team',
+      description: 'Goal one',
+      members: [],
+      lead: null,
+      steps: [],
+    } as Partial<Team>);
     workflows.save({ ...workflows.get(t.id)!, pos: { x: 3, z: 4 }, rot: 1 });
     expect(listVersions(workflows.versionsDir(t.id)!)).toHaveLength(0);
     workflows.save({ ...workflows.get(t.id)!, description: 'Goal two' });
@@ -146,7 +165,14 @@ describe('agents and teams', () => {
   });
 
   it("restoring a team keeps when its schedule last ran, so it doesn't run again right away", () => {
-    const t = workflows.save({ name: 'Scheduled team', description: 'Goal A', members: [], lead: null, steps: [], schedule: { type: 'interval', minutes: 60 } } as Partial<Team>);
+    const t = workflows.save({
+      name: 'Scheduled team',
+      description: 'Goal A',
+      members: [],
+      lead: null,
+      steps: [],
+      schedule: { type: 'interval', minutes: 60 },
+    } as Partial<Team>);
     workflows.save({ ...workflows.get(t.id)!, lastScheduledAt: 1000 } as Partial<Team>);
     workflows.save({ ...workflows.get(t.id)!, description: 'Goal B' });
     workflows.save({ ...workflows.get(t.id)!, lastScheduledAt: 999_999 } as Partial<Team>);
@@ -156,7 +182,13 @@ describe('agents and teams', () => {
 
   it('brings back a deleted agent and team', () => {
     const a = newAgent({ name: 'Gone soon' });
-    const t = workflows.save({ name: 'Gone team', description: 'x', members: [a.id], lead: null, steps: [] } as Partial<Team>);
+    const t = workflows.save({
+      name: 'Gone team',
+      description: 'x',
+      members: [a.id],
+      lead: null,
+      steps: [],
+    } as Partial<Team>);
     agents.remove(a.id);
     workflows.remove(t.id);
     expect(deletedItems('agent').map((x) => x.name)).toContain('Gone soon');
@@ -184,7 +216,12 @@ describe('skills', () => {
   it('keeps versions of your edits too, and restores one', () => {
     later();
     skills.saveSkill({ name: 'Versioned skill', description: 'Use for v.', body: 'Version one.' });
-    skills.saveSkill({ slug: 'versioned-skill', name: 'Versioned skill', description: 'Use for v.', body: 'Version two.' });
+    skills.saveSkill({
+      slug: 'versioned-skill',
+      name: 'Versioned skill',
+      description: 'Use for v.',
+      body: 'Version two.',
+    });
     const h = historyOf('skill', 'versioned-skill');
     expect(h.versions).toHaveLength(1);
     expect(h.versions[0].changes).toEqual(['instructions']);
@@ -215,7 +252,14 @@ describe('skills', () => {
   });
 
   it('shows every versioned field, so a listed change is never invisible', () => {
-    const agent = asText('agent', { name: 'A', engine: 'eve', provider: 'openrouter', temperature: 0.3, color: '#123456', systemPrompt: 'x' } as Agent);
+    const agent = asText('agent', {
+      name: 'A',
+      engine: 'eve',
+      provider: 'openrouter',
+      temperature: 0.3,
+      color: '#123456',
+      systemPrompt: 'x',
+    } as Agent);
     expect(agent).toContain('Provider: openrouter');
     expect(agent).toContain('Temperature: 0.3');
     expect(agent).toContain('color: "#123456"');
@@ -225,7 +269,10 @@ describe('skills', () => {
       members: [],
       lead: null,
       schedule: { type: 'daily', times: ['09:00'], days: [1, 3], input: 'the news' },
-      steps: [{ type: 'tool', tool: 'web_search', args: '{"q":"x"}', label: 'Search' }, { type: 'agent', agentId: 'a1', prompt: 'Sum it up' }],
+      steps: [
+        { type: 'tool', tool: 'web_search', args: '{"q":"x"}', label: 'Search' },
+        { type: 'agent', agentId: 'a1', prompt: 'Sum it up' },
+      ],
     } as unknown as Team);
     expect(team).toContain('Schedule: daily at 09:00 on Mon, Wed');
     expect(team).toContain('with: the news');
@@ -247,7 +294,7 @@ describe('skills', () => {
     expect(fs.existsSync(path.join(dir, '.env.example'))).toBe(true);
   });
 
-  it("restoring a version kept with its files puts back exactly those files, and that can be undone", () => {
+  it('restoring a version kept with its files puts back exactly those files, and that can be undone', () => {
     const s = skills.saveSkill({ name: 'File swap', description: 'Use to swap.', body: 'Old.' })!;
     const dir = skills.skillDir(s.slug);
     fs.writeFileSync(path.join(dir, 'old.md'), 'old file');
@@ -275,7 +322,10 @@ describe('skills', () => {
     skills.deleteSkillEverywhere(s.slug);
     const oldest = historyOf('skill', s.slug).versions[0].id;
     skills.saveSkill({ name: 'Oldest one', description: 'Use it.', body: 'Again 0.' });
-    for (let i = 1; i < VERSIONS_KEPT; i++) withActor('you', () => skills.saveSkill({ slug: s.slug, name: 'Oldest one', description: 'Use it.', body: `Again ${i}.` }));
+    for (let i = 1; i < VERSIONS_KEPT; i++)
+      withActor('you', () =>
+        skills.saveSkill({ slug: s.slug, name: 'Oldest one', description: 'Use it.', body: `Again ${i}.` }),
+      );
     const vdir = skills.skillVersionsDir(s.slug);
     expect(listVersions(vdir)).toHaveLength(VERSIONS_KEPT);
     expect(listVersions(vdir).at(-1)?.id).toBe(oldest);
@@ -286,8 +336,12 @@ describe('skills', () => {
   });
 
   it('as text', () => {
-    expect(asText('skill', { slug: 's', name: 'S', description: 'Use it.', body: 'Do it.' })).toBe('Name: S\nWhen to use it: Use it.\n\nDo it.');
-    expect(asText('agent', { name: 'A', emoji: '🤖', engine: 'claude-code', systemPrompt: 'Be kind.' } as Agent)).toMatch(/^Name: 🤖 A\n[\s\S]*\n\nInstructions:\nBe kind\.$/);
+    expect(asText('skill', { slug: 's', name: 'S', description: 'Use it.', body: 'Do it.' })).toBe(
+      'Name: S\nWhen to use it: Use it.\n\nDo it.',
+    );
+    expect(
+      asText('agent', { name: 'A', emoji: '🤖', engine: 'claude-code', systemPrompt: 'Be kind.' } as Agent),
+    ).toMatch(/^Name: 🤖 A\n[\s\S]*\n\nInstructions:\nBe kind\.$/);
   });
 
   it('refuses unknown ids', () => {

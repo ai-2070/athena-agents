@@ -15,7 +15,13 @@ import type { ChatItem, Team } from '../../shared/types.ts';
 
 // A fake model. Each request waits for the test; one asked to "write" sends the start of its answer first.
 let server: http.Server;
-interface Held { all: string; last: string; release: () => void; closed: boolean; done?: boolean }
+interface Held {
+  all: string;
+  last: string;
+  release: () => void;
+  closed: boolean;
+  done?: boolean;
+}
 const held: Held[] = [];
 const seen: string[] = [];
 let writeFirst = false;
@@ -26,11 +32,15 @@ beforeAll(async () => {
     for await (const c of req) body += c;
     const j = JSON.parse(body) as { messages: { content: unknown }[] };
     const text = (c: unknown) => (typeof c === 'string' ? c : JSON.stringify(c));
-    const all = j.messages.slice(1).map((m) => text(m.content)).join('\n\n');
+    const all = j.messages
+      .slice(1)
+      .map((m) => text(m.content))
+      .join('\n\n');
     const last = text(j.messages.at(-1)?.content);
     seen.push(all);
     res.writeHead(200, { 'content-type': 'text/event-stream' });
-    const delta = (content: string) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content } }] })}\n\n`);
+    const delta = (content: string) =>
+      res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content } }] })}\n\n`);
     if (writeFirst) {
       writeFirst = false;
       delta('Here is the long one: ');
@@ -44,11 +54,17 @@ beforeAll(async () => {
     h.done = true;
     if (h.closed) return;
     delta(`re: ${last.slice(-60)}`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
 });
 afterAll(() => {
   for (const h of held.splice(0)) h.release();
@@ -56,7 +72,7 @@ afterAll(() => {
 });
 
 const until = async (ok: () => boolean, ms = 20000) => {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 20));
   }
@@ -64,7 +80,12 @@ const until = async (ok: () => boolean, ms = 20000) => {
 };
 const agent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const running = (chatId: string) => activeRuns().filter((r) => r.chatId === chatId);
-const said = (items: ChatItem[]) => items.flatMap((i) => (i.type === 'user' || i.type === 'steer' || i.type === 'assistant' || i.type === 'error' ? [`${i.type}: ${i.text}`] : []));
+const said = (items: ChatItem[]) =>
+  items.flatMap((i) =>
+    i.type === 'user' || i.type === 'steer' || i.type === 'assistant' || i.type === 'error'
+      ? [`${i.type}: ${i.text}`]
+      : [],
+  );
 // the next request the model has (not one Eve gave up on)
 const next = async (has?: string) => {
   const open = (h: Held) => !h.closed && !h.done && (!has || h.all.includes(has));
@@ -116,9 +137,18 @@ describe('a message while an API-model agent works', () => {
     second.release();
     await until(() => !running(c.id).length);
     // your message moved to the turn it started, as that turn's own message
-    expect(said(chats.get(a.id, c.id)!.items)).toEqual(['user: the long job', 'assistant: Here is the long one: re: the long job', 'user: and a short summary', 'assistant: re: and a short summary']);
+    expect(said(chats.get(a.id, c.id)!.items)).toEqual([
+      'user: the long job',
+      'assistant: Here is the long one: re: the long job',
+      'user: and a short summary',
+      'assistant: re: and a short summary',
+    ]);
     expect(readRun(first!.id)!.steers![0]).toMatchObject({ adoptedBy: followed });
-    expect(readRun(followed)).toMatchObject({ status: 'completed', adopted: true, deliveryId: readRun(first!.id)!.steers![0]!.deliveryId });
+    expect(readRun(followed)).toMatchObject({
+      status: 'completed',
+      adopted: true,
+      deliveryId: readRun(first!.id)!.steers![0]!.deliveryId,
+    });
   }, 40000);
 
   it('a run following a turn Eve never starts gives up instead of waiting forever', async () => {
@@ -131,13 +161,17 @@ describe('a message while an API-model agent works', () => {
     const wait = ADOPT_WAIT.ms;
     ADOPT_WAIT.ms = 300;
     try {
-      const { promise } = startRun(a, c, 'a message Eve never had', { adopt: { bindingId, deliveryId: 'never-delivered', steers: [] } });
+      const { promise } = startRun(a, c, 'a message Eve never had', {
+        adopt: { bindingId, deliveryId: 'never-delivered', steers: [] },
+      });
       await promise;
       await until(() => !running(c.id).length);
     } finally {
       ADOPT_WAIT.ms = wait;
     }
-    expect(said(chats.get(a.id, c.id)!.items).at(-1)).toBe('error: Eve did not start the turn with your message. Send it again.');
+    expect(said(chats.get(a.id, c.id)!.items).at(-1)).toBe(
+      'error: Eve did not start the turn with your message. Send it again.',
+    );
   }, 40000);
 
   it('with nothing going, it is an ordinary message', async () => {
@@ -152,11 +186,18 @@ describe('a message while an API-model agent works', () => {
 });
 
 describe('a message while a team works', () => {
-  const thread = (team: Team, names: Record<string, string>) => getThread(team.id).messages.map((m) => `${names[m.from] || m.from}: ${m.text.trim()}`);
+  const thread = (team: Team, names: Record<string, string>) =>
+    getThread(team.id).messages.map((m) => `${names[m.from] || m.from}: ${m.text.trim()}`);
 
   it('whoever is working takes it into their turn: nobody stops, and one reply answers both', async () => {
     const worker = agent('Worker');
-    const team = workflows.save({ name: 'Join', description: 'x', members: [worker.id], lead: worker.id, steps: [] } as Partial<Team>);
+    const team = workflows.save({
+      name: 'Join',
+      description: 'x',
+      members: [worker.id],
+      lead: worker.id,
+      steps: [],
+    } as Partial<Team>);
     await postUserMessage(team.id, 'do the long job');
     await next('do the long job');
     const msg = await steerTeam(team.id, 'also make it blue');
@@ -167,7 +208,11 @@ describe('a message while a team works', () => {
     await until(() => !teamState(team.id).working.length && getThread(team.id).messages.length >= 3);
     await new Promise((r) => setTimeout(r, 200));
     const names = { [worker.id]: 'Worker' };
-    expect(thread(team, names)).toEqual(['user: do the long job', 'user: also make it blue', expect.stringMatching(/^Worker: re: [\s\S]*You \(the user\): also make it blue$/)]);
+    expect(thread(team, names)).toEqual([
+      'user: do the long job',
+      'user: also make it blue',
+      expect.stringMatching(/^Worker: re: [\s\S]*You \(the user\): also make it blue$/),
+    ]);
     // its work shows your message where it came in
     const reply = getThread(team.id).messages[2]!;
     const work = chats.get(worker.id, reply.turn!.chatId)!.items.slice(reply.turn!.from, reply.turn!.to);
@@ -177,7 +222,13 @@ describe('a message while a team works', () => {
 
   it('one that comes while it writes its final reply: it takes it next, as an ordinary turn', async () => {
     const worker = agent('Writer');
-    const team = workflows.save({ name: 'Late join', description: 'x', members: [worker.id], lead: worker.id, steps: [] } as Partial<Team>);
+    const team = workflows.save({
+      name: 'Late join',
+      description: 'x',
+      members: [worker.id],
+      lead: worker.id,
+      steps: [],
+    } as Partial<Team>);
     writeFirst = true;
     await postUserMessage(team.id, 'write the long one');
     const writing = await next('write the long one');
@@ -191,7 +242,12 @@ describe('a message while a team works', () => {
     await until(() => !teamState(team.id).working.length && getThread(team.id).messages.length >= 4);
     const names = { [worker.id]: 'Writer' };
     // (one reply for each turn: the one it was writing, then the one with your message)
-    expect(thread(team, names)).toEqual(['user: write the long one', 'user: and a short summary', expect.stringMatching(/^Writer: Here is the long one: re: /), expect.stringMatching(/^Writer: re: /)]);
+    expect(thread(team, names)).toEqual([
+      'user: write the long one',
+      'user: and a short summary',
+      expect.stringMatching(/^Writer: Here is the long one: re: /),
+      expect.stringMatching(/^Writer: re: /),
+    ]);
     // the turn that missed it doesn't show it as read: it shows in the turn that took it
     const [missed, took] = getThread(team.id).messages.slice(2);
     const work = (m: typeof missed) => chats.get(worker.id, m!.turn!.chatId)!.items.slice(m!.turn!.from, m!.turn!.to);

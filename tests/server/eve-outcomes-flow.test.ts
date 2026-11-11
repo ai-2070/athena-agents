@@ -26,21 +26,59 @@ describe('Eve tool outcomes in a live run', () => {
   it('keeps an uncertain outcome for user review after run cleanup and recovery', async () => {
     model = http.createServer(async (request, response) => {
       if (request.url?.endsWith('/models')) return response.end(JSON.stringify({ data: [] }));
-      for await (const _part of request) { /* drain the model request */ }
-      const delta = { tool_calls: [{ index: 0, id: 'change-call', type: 'function', function: { name: 'actions__change', arguments: '{}' } }] };
-      response.writeHead(200, { 'content-type': 'text/event-stream' }).end(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`);
+      for await (const _part of request) {
+        /* drain the model request */
+      }
+      const delta = {
+        tool_calls: [
+          { index: 0, id: 'change-call', type: 'function', function: { name: 'actions__change', arguments: '{}' } },
+        ],
+      };
+      response
+        .writeHead(200, { 'content-type': 'text/event-stream' })
+        .end(
+          `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
+        );
     });
     model.listen(0, '127.0.0.1');
     await once(model, 'listening');
     const address = model.address();
     if (!address || typeof address === 'string') throw new Error('No test port.');
-    saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${address.port}/v1`, label: 'Outcome fixture' } }, contextWindowTokens: 64000, brainApproves: false, brainFollowsUp: false });
+    saveSettings({
+      providers: { custom: { baseUrl: `http://127.0.0.1:${address.port}/v1`, label: 'Outcome fixture' } },
+      contextWindowTokens: 64000,
+      brainApproves: false,
+      brainFollowsUp: false,
+    });
     mcp.saveServer('actions', { type: 'http', url: 'http://127.0.0.1:1/mcp', enabled: true });
-    vi.spyOn(mcp, 'listTools').mockResolvedValue([{ name: 'change', inputSchema: { type: 'object', properties: {} }, annotations: { readOnlyHint: false, destructiveHint: true } }]);
-    const execute = vi.spyOn(mcp, 'callTool').mockRejectedValue(new Error('The connection failed after making part of the change.'));
-    const agent = agents.save(newAgent({ name: 'Outcome review', engine: 'eve', provider: 'custom', model: 'mock', autonomy: 'full', toolGroups: [], mcpServers: ['actions'], richAnswers: false }));
+    vi.spyOn(mcp, 'listTools').mockResolvedValue([
+      {
+        name: 'change',
+        inputSchema: { type: 'object', properties: {} },
+        annotations: { readOnlyHint: false, destructiveHint: true },
+      },
+    ]);
+    const execute = vi
+      .spyOn(mcp, 'callTool')
+      .mockRejectedValue(new Error('The connection failed after making part of the change.'));
+    const agent = agents.save(
+      newAgent({
+        name: 'Outcome review',
+        engine: 'eve',
+        provider: 'custom',
+        model: 'mock',
+        autonomy: 'full',
+        toolGroups: [],
+        mcpServers: ['actions'],
+        richAnswers: false,
+      }),
+    );
     const run = startRun(agent, chats.create(agent.id), 'Make the change.');
-    const ordinary = ensureDurableApproval('ordinary-wait', { title: 'Another pending action', agentId: agent.id, data: { runId: run.runId } });
+    const ordinary = ensureDurableApproval('ordinary-wait', {
+      title: 'Another pending action',
+      agentId: agent.id,
+      data: { runId: run.runId },
+    });
 
     expect(await run.promise).toBe('');
     expect(readRun(run.runId)?.status).toBe('interrupted');

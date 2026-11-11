@@ -37,20 +37,53 @@ const sessions = new Map<string, TerminalSession>();
 const MAX_BUFFER = 400_000;
 
 export function listTerminals(): Terminal[] {
-  return [...sessions.values()].map(({ id, title, agentId, createdAt, exited, exitCode, command, projectId }) => ({ id, title, agentId, createdAt, exited, exitCode, command, ...(projectId ? { projectId } : {}) }));
+  return [...sessions.values()].map(({ id, title, agentId, createdAt, exited, exitCode, command, projectId }) => ({
+    id,
+    title,
+    agentId,
+    createdAt,
+    exited,
+    exitCode,
+    command,
+    ...(projectId ? { projectId } : {}),
+  }));
 }
 
-function spawnPty(command: string, args: string[], { cwd, env, cols = 120, rows = 32 }: { cwd?: string | null; env?: NodeJS.ProcessEnv | null; cols?: number; rows?: number }): IPty {
+function spawnPty(
+  command: string,
+  args: string[],
+  {
+    cwd,
+    env,
+    cols = 120,
+    rows = 32,
+  }: { cwd?: string | null; env?: NodeJS.ProcessEnv | null; cols?: number; rows?: number },
+): IPty {
   let file = which(command) || command;
   let argv = args;
   if (IS_WIN && /\.(cmd|bat)$/i.test(file)) {
     argv = ['/d', '/c', file, ...args];
     file = process.env.ComSpec || 'cmd.exe';
   }
-  return pty.spawn(file, argv, { name: 'xterm-256color', cols, rows, cwd: cwd || HOME, env: { ...(env || process.env), TERM: 'xterm-256color', COLORTERM: 'truecolor' } });
+  return pty.spawn(file, argv, {
+    name: 'xterm-256color',
+    cols,
+    rows,
+    cwd: cwd || HOME,
+    env: { ...(env || process.env), TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+  });
 }
 
-export function createTerminal({ kind = 'shell', agent = null, command = null, args = [], title = null, cwd = null, cols, rows }: CreateTerminalOptions): { id: string; title: string } {
+export function createTerminal({
+  kind = 'shell',
+  agent = null,
+  command = null,
+  args = [],
+  title = null,
+  cwd = null,
+  cols,
+  rows,
+}: CreateTerminalOptions): { id: string; title: string } {
   let cmd: string;
   let argv: string[] = [];
   let env = process.env;
@@ -68,7 +101,10 @@ export function createTerminal({ kind = 'shell', agent = null, command = null, a
       argv = hermesArgs(agent, { interactive: true });
     } else if (agent.engine === 'codex') {
       cmd = 'codex';
-      const launch = codexLaunch(agent, { interactive: true, promptFile: terminalPromptFile(agent, buildSystemPrompt(agent)) });
+      const launch = codexLaunch(agent, {
+        interactive: true,
+        promptFile: terminalPromptFile(agent, buildSystemPrompt(agent)),
+      });
       argv = launch.args;
       env = { ...process.env, ...launch.env };
     } else if (agent.engine === 'pi' || agent.engine === 'omp') {
@@ -83,7 +119,10 @@ export function createTerminal({ kind = 'shell', agent = null, command = null, a
       const launch = opencodeTerminal(agent, buildSystemPrompt(agent));
       argv = launch.args;
       env = launch.env;
-    } else throw new Error('API-model agents chat in the dashboard; open a terminal for a Claude Code, Codex, Hermes, pi, oh-my-pi, OpenClaw or opencode agent.');
+    } else
+      throw new Error(
+        'API-model agents chat in the dashboard; open a terminal for a Claude Code, Codex, Hermes, pi, oh-my-pi, OpenClaw or opencode agent.',
+      );
     name ||= `${agent.emoji || ''} ${agent.name}`.trim();
   } else if (kind === 'command' && command) {
     cmd = command;
@@ -97,7 +136,19 @@ export function createTerminal({ kind = 'shell', agent = null, command = null, a
   if (!which(cmd) && !IS_WIN) throw new Error(`${cmd} was not found.`);
   const p = spawnPty(cmd, argv, { cwd: dir, env, cols, rows });
   const id = uid('t');
-  const s: TerminalSession = { id, title: name, agentId: agent?.id || null, command: [cmd, ...argv].join(' ').slice(0, 300), pty: p, buffer: '', clients: new Set(), createdAt: Date.now(), exited: false, exitCode: null, projectId: activeProject().id };
+  const s: TerminalSession = {
+    id,
+    title: name,
+    agentId: agent?.id || null,
+    command: [cmd, ...argv].join(' ').slice(0, 300),
+    pty: p,
+    buffer: '',
+    clients: new Set(),
+    createdAt: Date.now(),
+    exited: false,
+    exitCode: null,
+    projectId: activeProject().id,
+  };
   p.onData((d) => {
     s.buffer += d;
     if (s.buffer.length > MAX_BUFFER) s.buffer = s.buffer.slice(-MAX_BUFFER);

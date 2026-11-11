@@ -3,7 +3,14 @@
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { state } from '../../web/core.ts';
-import { chatWindows, closeChatsForProject, minimizeMaximizedChats, moveChatTab, openChat, restoreChats } from '../../web/chatwin.tsx';
+import {
+  chatWindows,
+  closeChatsForProject,
+  minimizeMaximizedChats,
+  moveChatTab,
+  openChat,
+  restoreChats,
+} from '../../web/chatwin.tsx';
 import { isMac } from '../../web/shortcuts.ts';
 import type { AppState } from '../../shared/types.ts';
 
@@ -23,9 +30,16 @@ beforeEach(() => {
     ],
   } as unknown as AppState;
   window.__teams = [];
-  vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(url.endsWith('/chats') ? [] : url.endsWith('/commands') ? [] : {}), { headers: { 'content-type': 'application/json' } }));
+  vi.stubGlobal(
+    'fetch',
+    async (url: string) =>
+      new Response(JSON.stringify(url.endsWith('/chats') ? [] : url.endsWith('/commands') ? [] : {}), {
+        headers: { 'content-type': 'application/json' },
+      }),
+  );
   // (no animations in happy-dom)
-  Element.prototype.animate ??= () => ({ finished: Promise.resolve(), cancel() {}, onfinish: null } as unknown as Animation);
+  Element.prototype.animate ??= () =>
+    ({ finished: Promise.resolve(), cancel() {}, onfinish: null }) as unknown as Animation;
   Element.prototype.getAnimations ??= () => [];
 });
 afterEach(async () => {
@@ -47,7 +61,10 @@ describe('the chat window', () => {
     expect(tabs().map((t) => t.textContent)).toEqual(['🔭Scout']);
     await act(async () => void openChat('agent', 'a2'));
     await settle();
-    expect(tabs().map((t) => `${t.textContent}${t.getAttribute('aria-selected') === 'true' ? '*' : ''}`)).toEqual(['🔭Scout', '✍️Writer*']);
+    expect(tabs().map((t) => `${t.textContent}${t.getAttribute('aria-selected') === 'true' ? '*' : ''}`)).toEqual([
+      '🔭Scout',
+      '✍️Writer*',
+    ]);
     // the tab you are on shows its pane
     const panes = [...document.querySelectorAll<HTMLElement>('.cw-pane')];
     expect(panes.map((p) => p.classList.contains('hidden'))).toEqual([true, false]);
@@ -61,13 +78,17 @@ describe('the chat window', () => {
     expect(close.closest('[role="tab"]')).toBeNull();
     await act(async () => close.click());
     expect(tabs().map((t) => t.textContent)).toEqual(['🔭Scout']);
-    expect(JSON.parse(localStorage.getItem('dash-chatwin')!).wins.map((w: { tabs: string[] }) => w.tabs)).toEqual([['agent:a1']]);
+    expect(JSON.parse(localStorage.getItem('dash-chatwin')!).wins.map((w: { tabs: string[] }) => w.tabs)).toEqual([
+      ['agent:a1'],
+    ]);
   });
 
   it('maximized, stops above the bottom bar instead of under Ask the Brain', async () => {
     await act(async () => void openChat('agent', 'a1'));
     await settle();
-    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Maximize the chats"]')!.click());
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('button[aria-label="Maximize the chats"]')!.click(),
+    );
     await settle();
     const bottom = parseFloat(win().style.top) + parseFloat(win().style.height);
     // the bar sits 18px up and is about 44px tall
@@ -81,7 +102,9 @@ describe('the chat window', () => {
     await act(async () => minimizeMaximizedChats());
     await settle();
     expect(win().classList.contains('hidden')).toBe(false);
-    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Maximize the chats"]')!.click());
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('button[aria-label="Maximize the chats"]')!.click(),
+    );
     await act(async () => minimizeMaximizedChats());
     await settle();
     expect(win().classList.contains('hidden')).toBe(true);
@@ -94,7 +117,9 @@ describe('the chat window', () => {
   it('minimizes to a pill in the bottom bar, and opens again from it', async () => {
     await act(async () => void openChat('agent', 'a1'));
     await settle();
-    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Minimize the chats"]')!.click());
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('button[aria-label="Minimize the chats"]')!.click(),
+    );
     await settle();
     const pill = document.querySelector<HTMLButtonElement>('.bottom-bar .cw-pill')!;
     expect(pill.classList.contains('hidden')).toBe(false);
@@ -108,11 +133,17 @@ describe('the chat window', () => {
 
   it('⌘↓ / Ctrl+↓ minimizes the window on top, ⌘↑ / Ctrl+↑ brings back the one minimized last', async () => {
     const press = (key: string) => {
-      const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...(isMac() ? { metaKey: true } : { ctrlKey: true }) });
+      const e = new KeyboardEvent('keydown', {
+        key,
+        bubbles: true,
+        cancelable: true,
+        ...(isMac() ? { metaKey: true } : { ctrlKey: true }),
+      });
       act(() => void window.dispatchEvent(e));
       return e.defaultPrevented;
     };
-    const shown = () => [...document.querySelectorAll<HTMLElement>('.cw')].filter((el) => !el.classList.contains('hidden')).length;
+    const shown = () =>
+      [...document.querySelectorAll<HTMLElement>('.cw')].filter((el) => !el.classList.contains('hidden')).length;
     await act(async () => void openChat('agent', 'a1'));
     await settle();
     await act(async () => void openChat('agent', 'a2'));
@@ -139,16 +170,18 @@ describe('the chat window', () => {
     expect(press('ArrowUp')).toBe(false);
   });
 
-  it('a lone team chat\'s pill says the team\'s name', async () => {
+  it("a lone team chat's pill says the team's name", async () => {
     window.__teams = [{ id: 't1', name: 'Research', color: '#7350c8' }] as unknown as typeof window.__teams;
     await act(async () => void openChat('team', 't1'));
     await settle();
-    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Minimize the chats"]')!.click());
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('button[aria-label="Minimize the chats"]')!.click(),
+    );
     await settle();
     expect(document.querySelector('.bottom-bar .cw-pill')!.textContent).toBe('Research');
   });
 
-  it('lets the tabs shrink and scroll when they don\'t fit, also with a mouse wheel', async () => {
+  it("lets the tabs shrink and scroll when they don't fit, also with a mouse wheel", async () => {
     await act(async () => void openChat('agent', 'a1'));
     await act(async () => void openChat('agent', 'a2'));
     await settle();
@@ -176,11 +209,17 @@ describe('arranging the windows', () => {
     act(() => void window.dispatchEvent(e));
     return e.defaultPrevented;
   };
-  const shown = () => [...document.querySelectorAll<HTMLElement>('.cw')].filter((el) => !el.classList.contains('hidden'));
+  const shown = () =>
+    [...document.querySelectorAll<HTMLElement>('.cw')].filter((el) => !el.classList.contains('hidden'));
   /** Each shown window's tabs and where it is, left to right. */
   const layout = () =>
     shown()
-      .map((el) => ({ tabs: [...el.querySelectorAll('[role="tab"]')].map((t) => t.textContent).join(','), x: parseFloat(el.style.left), y: parseFloat(el.style.top), w: parseFloat(el.style.width) }))
+      .map((el) => ({
+        tabs: [...el.querySelectorAll('[role="tab"]')].map((t) => t.textContent).join(','),
+        x: parseFloat(el.style.left),
+        y: parseFloat(el.style.top),
+        w: parseFloat(el.style.width),
+      }))
       .sort((a, b) => a.x - b.x);
   // the room arranged windows share (happy-dom's screen is 1024 × 768): right of the rail, above the bottom bar
   const area = { x: 72, y: 64, w: 1024 - 86, h: 768 - 64 - 74 };
@@ -227,7 +266,9 @@ describe('arranging the windows', () => {
     await act(async () => void openChat('agent', 'a2'));
     await act(async () => moveChatTab('agent:a2', null));
     await settle();
-    await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Minimize the chats"]')!.click());
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('button[aria-label="Minimize the chats"]')!.click(),
+    );
     await settle();
     expect(shown()).toHaveLength(1);
     arrange('ArrowUp');
@@ -248,15 +289,26 @@ describe('arranging the windows', () => {
     await act(async () => void openChat('agent', 'a2'));
     await act(async () => moveChatTab('agent:a2', null));
     await settle();
-    await act(async () => document.querySelector<HTMLButtonElement>('[data-win] button[aria-label="Arrange the chat windows"]')!.click());
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[data-win] button[aria-label="Arrange the chat windows"]')!.click(),
+    );
     await settle();
     const items = [...document.querySelectorAll<HTMLElement>('.cw-layout [role="menuitem"]')];
     const k = isMac() ? '⌃⌥' : 'Ctrl+Alt+';
-    expect(items.map((i) => i.textContent!.trim())).toEqual([`Left half${k}←`, `Right half${k}→`, 'Side by side', `Separate tabs${k}↑`, `Combine all${k}↓`]);
+    expect(items.map((i) => i.textContent!.trim())).toEqual([
+      `Left half${k}←`,
+      `Right half${k}→`,
+      'Side by side',
+      `Separate tabs${k}↑`,
+      `Combine all${k}↓`,
+    ]);
     await act(async () => items.find((i) => i.textContent!.trim() === 'Side by side')!.click());
     await settle();
     const half = (area.w - 10) / 2;
-    expect(layout().map((l) => [l.x, l.w])).toEqual([[area.x, half], [area.x + half + 10, half]]);
+    expect(layout().map((l) => [l.x, l.w])).toEqual([
+      [area.x, half],
+      [area.x + half + 10, half],
+    ]);
   });
 });
 
@@ -296,10 +348,13 @@ describe('dragging tabs and windows', () => {
     // the conversation moved with it, into the new window
     const [, second] = chatWindows();
     expect(document.querySelector(`[data-win="${second.id}"] .cw-pane:not(.hidden)`)).not.toBeNull();
-    expect(JSON.parse(localStorage.getItem('dash-chatwin')!).wins.map((w: { tabs: string[] }) => w.tabs)).toEqual([['agent:a1'], ['agent:a2']]);
+    expect(JSON.parse(localStorage.getItem('dash-chatwin')!).wins.map((w: { tabs: string[] }) => w.tabs)).toEqual([
+      ['agent:a1'],
+      ['agent:a2'],
+    ]);
   });
 
-  it('drags a tab onto another window\'s tabs, and the window it left goes away', async () => {
+  it("drags a tab onto another window's tabs, and the window it left goes away", async () => {
     await twoTabs();
     await act(async () => moveChatTab('agent:a2', null));
     const [first, second] = chatWindows();
@@ -317,7 +372,7 @@ describe('dragging tabs and windows', () => {
     expect(shown()).toHaveLength(1);
   });
 
-  it('merges a window into another by dragging it by its title bar onto the other\'s tabs', async () => {
+  it("merges a window into another by dragging it by its title bar onto the other's tabs", async () => {
     await twoTabs();
     await act(async () => moveChatTab('agent:a2', null));
     const [first, second] = chatWindows();
@@ -360,14 +415,25 @@ describe('dragging tabs and windows', () => {
   });
 
   it('brings back every window, and a save from before there were several', async () => {
-    localStorage.setItem('dash-chatwin', JSON.stringify({ wins: [{ tabs: ['agent:a1'], active: 'agent:a1' }, { rect: { x: 300, y: 100, w: 500, h: 400 }, tabs: ['agent:a2'], active: 'agent:a2' }] }));
+    localStorage.setItem(
+      'dash-chatwin',
+      JSON.stringify({
+        wins: [
+          { tabs: ['agent:a1'], active: 'agent:a1' },
+          { rect: { x: 300, y: 100, w: 500, h: 400 }, tabs: ['agent:a2'], active: 'agent:a2' },
+        ],
+      }),
+    );
     await act(async () => restoreChats());
     await settle();
     expect(chatWindows().map((w) => w.tabs)).toEqual([['agent:a1'], ['agent:a2']]);
     expect(shown()).toHaveLength(2);
     await act(async () => closeChatsForProject());
     document.body.innerHTML = '<div class="bottom-bar"></div>';
-    localStorage.setItem('dash-chatwin', JSON.stringify({ rect: { x: 80, y: 60, w: 500, h: 400 }, tabs: ['agent:a1', 'agent:a2'], active: 'agent:a2' }));
+    localStorage.setItem(
+      'dash-chatwin',
+      JSON.stringify({ rect: { x: 80, y: 60, w: 500, h: 400 }, tabs: ['agent:a1', 'agent:a2'], active: 'agent:a2' }),
+    );
     await act(async () => restoreChats());
     await settle();
     expect(chatWindows()).toEqual([expect.objectContaining({ tabs: ['agent:a1', 'agent:a2'], active: 'agent:a2' })]);

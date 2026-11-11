@@ -12,6 +12,7 @@ chat view, its task list, turn views, the model chip and MEMORY.md with its Hist
 `/versions/memory/…`) (their agents come from `web/projectagents.ts`), and the tray
 uploads into that project. Questions are answered in the project that has them. There is one strip for every project.
 Fixed since:
+
 - Files of another project are shown and looked up through that project, chosen by the folder that holds them
   (`filesAt()`).
 - A copied project's agents and teams (the same ids) sit beside the originals: requests carry their project
@@ -33,6 +34,7 @@ project. The old hidden Overview page (`#/home`) is called Home. Your own order 
 that carry `projectId` (the page reads the overview again, a moment after any change that matters).
 
 **Decided (3 November):**
+
 - It's called **Overview**, and it's an additional page. The Station stays the start page.
 - Terminals open as panes from the first strip step.
 - Git changes and pull requests aren't built now. The side panels are made so they can be added later without changing
@@ -46,6 +48,7 @@ strip where each keeps its width, and says at a glance what needs you. It works 
 ## What Kanso does, and what we take
 
 Kanso has four parts:
+
 1. **One sidebar for every repository**, with its worktrees and sessions (agents, shells, dev servers) under it. Each
    session has a status dot. You can sort by **Needs you first**, last update, kind, as on screen, or your own order
    (drag), and pin the important ones.
@@ -58,16 +61,16 @@ Kanso has four parts:
 
 It also stays light: a panel exists only while it is open, and panes off screen aren't drawn.
 
-| Kanso | Athena |
-|---|---|
-| Repository | **Project** (its letter mark or logo, its name, how many are working) |
-| Worktree with its branch | An agent's own **workspace folder**, with its Git branch when it is a repository (a later step) |
-| Session: agent, shell, dev server | **Agent chat**, **team thread**, **the Brain**, **terminal**; and a task's work (`board-<taskId>`) |
-| Needs you | **Approvals**, **questions** in the Outbox, **blocked completion checks**, board tasks waiting for your OK |
-| Pane | A chat, made by the same components as today (`renderAgentChat`, `renderTeamChat`, the Brain's chat view, a terminal) |
-| Files and Changes panels | **Files** (the project folder, with the previews we already have). Changes and pull requests come later |
-| Open with (Cmd+Shift+O) | **Open in VS Code** (the folder action we have), and the desktop app's open-with |
-| Status line | "2 need you · 4 of 7 working · 3 projects", and the open project's folder save |
+| Kanso                             | Athena                                                                                                                |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Repository                        | **Project** (its letter mark or logo, its name, how many are working)                                                 |
+| Worktree with its branch          | An agent's own **workspace folder**, with its Git branch when it is a repository (a later step)                       |
+| Session: agent, shell, dev server | **Agent chat**, **team thread**, **the Brain**, **terminal**; and a task's work (`board-<taskId>`)                    |
+| Needs you                         | **Approvals**, **questions** in the Outbox, **blocked completion checks**, board tasks waiting for your OK            |
+| Pane                              | A chat, made by the same components as today (`renderAgentChat`, `renderTeamChat`, the Brain's chat view, a terminal) |
+| Files and Changes panels          | **Files** (the project folder, with the previews we already have). Changes and pull requests come later               |
+| Open with (Cmd+Shift+O)           | **Open in VS Code** (the folder action we have), and the desktop app's open-with                                      |
+| Status line                       | "2 need you · 4 of 7 working · 3 projects", and the open project's folder save                                        |
 
 **Left out:** Kanso's theme (we use our own tokens and look), its native window captures, and Spend and Specs.
 
@@ -89,6 +92,7 @@ It also stays light: a panel exists only while it is open, and panes off screen 
 ```
 
 ### The sidebar
+
 - **Scope**, at the top: **This project**, **All projects**, or one project. It's remembered, like the board's choice.
 - **Each project is a group:** its mark, its name, and "2 working" or "1 needs you". It folds. Under it come its
   sessions:
@@ -110,6 +114,7 @@ It also stays light: a panel exists only while it is open, and panes off screen 
   instead, as today.
 
 ### The strip
+
 - **Panes keep their width.** Choose 1 to 8 columns per view (− and + in the status line). The view slides sideways
   and never squeezes.
 - **A new pane** opens next to the one you're in, and the view glides to it (with `prefers-reduced-motion`, it jumps).
@@ -127,7 +132,9 @@ It also stays light: a panel exists only while it is open, and panes off screen 
 - **What's open is remembered** in this browser: panes, widths, pins, stacks and columns, for each scope.
 
 ### The side panels
+
 On the right, one at a time, folding away:
+
 - **Tasks:** the board in a column, for the scope;
 - **Needs you:** approvals and questions, answered right there;
 - **Files:** the project folder, opening with the previews we have.
@@ -137,6 +144,7 @@ icon, the component, and whether it shows in this scope), so adding them later m
 to the page.
 
 ### The status line
+
 - "**2 need you**": click to open Needs you.
 - "**4 of 7 working**": click to slide to the next one working.
 - The number of projects, in All projects.
@@ -144,6 +152,7 @@ to the page.
 - In This project: the folder save ("auto-saved 2 min ago"), as the sidebar shows today.
 
 ## How it fits what exists
+
 - **The Station stays the home and the start page.** Overview is an additional page, a new sidebar item next to Tasks.
   It replaces neither the Station nor the chat windows. A pane can go to a chat window and back (its menu, or dragging it onto the map later).
 - **The chats are the same components**, so everything they do comes along: queued messages, approvals in the chat,
@@ -154,6 +163,7 @@ to the page.
 
 Terminals today belong to the PC, not a project. `server/terminals.ts` keeps each one's id, title, command and agent;
 the Terminals page draws them with xterm over a WebSocket (`XTerm` in `web/views/terminals.tsx`).
+
 - **Their own component.** `XTerm` moves to `web/terminalview.tsx`, exported, so the Terminals page and a pane draw the
   same thing. A pane keeps its terminal connected while it is open, also off screen (a terminal is cheap and its output
   must not be lost). It is fitted again when its width or stack height changes.
@@ -187,12 +197,13 @@ the board names its project in its addresses. "All projects" needs three things:
    - what is running (the engine's run list is already global and has `projectId`);
    - what needs you;
    - the board's open count.
-   It is read once, then kept current from events, and kept small: no chat contents.
+     It is read once, then kept current from events, and kept small: no chat contents.
 3. **Events say their project.** `run`, `team`, `chat`, `brief`, `approvals` and `questions` events carry `projectId`
    where they don't yet, so the page updates the right project without reloading everything. Audit every `emit` these
    panes listen to.
 
 On the page:
+
 - **`web/client`** gets `scoped(projectId)`: the same `GET`/`POST`/… with the prefix, used when a pane's project isn't
   the open one.
 - **The chat components** take a `projectId` and a data source for that project's agents and teams
@@ -208,41 +219,42 @@ A browser takes Cmd+W, Cmd+D and Cmd+1…9 (close tab, bookmark, switch tab). On
 character in a text box (Alt+P is π), so Alt alone would get in the way while you write. The page uses **Ctrl+Alt**
 (⌃⌥ on a Mac), as the chat windows already do. The desktop app adds Kanso's Cmd keys later (below).
 
-| Keys (⌃⌥ on a Mac) | What they do |
-|---|---|
-| Ctrl+Alt+1 … 9 | Go to pane 1 to 9 |
+| Keys (⌃⌥ on a Mac)        | What they do                                   |
+| ------------------------- | ---------------------------------------------- |
+| Ctrl+Alt+1 … 9            | Go to pane 1 to 9                              |
 | Ctrl+Alt+[ and Ctrl+Alt+] | Previous and next pane (the view glides to it) |
-| Ctrl+Alt+Shift+[ and ] | Move the pane left and right |
-| Ctrl+Alt+− and Ctrl+Alt+= | Fewer or more columns per view |
-| Ctrl+Alt+P | Pin the pane |
-| Ctrl+Alt+S | Stack the pane onto the one before it |
-| Ctrl+Alt+W | Close the pane |
-| Ctrl+Alt+O | Open the pane's folder in VS Code |
-| Ctrl+Alt+N | Jump to the next session that needs you |
+| Ctrl+Alt+Shift+[ and ]    | Move the pane left and right                   |
+| Ctrl+Alt+− and Ctrl+Alt+= | Fewer or more columns per view                 |
+| Ctrl+Alt+P                | Pin the pane                                   |
+| Ctrl+Alt+S                | Stack the pane onto the one before it          |
+| Ctrl+Alt+W                | Close the pane                                 |
+| Ctrl+Alt+O                | Open the pane's folder in VS Code              |
+| Ctrl+Alt+N                | Jump to the next session that needs you        |
 
 They're listed in the shortcuts help. The chat windows' Ctrl+Alt keys are the arrows, so none of these clash with them.
 
 **Later: Kanso's Cmd keys in the desktop app.** The desktop app can take Cmd keys a browser keeps, so it can offer
 Kanso's as well (Ctrl+Alt still works there). Only while Overview is shown, and only after the rest is built.
 
-| Keys (desktop app, macOS) | What they do |
-|---|---|
-| Cmd+1 … Cmd+9 | Go to pane 1 to 9 |
-| Cmd+[ and Cmd+] | Previous and next pane |
+| Keys (desktop app, macOS)     | What they do                                             |
+| ----------------------------- | -------------------------------------------------------- |
+| Cmd+1 … Cmd+9                 | Go to pane 1 to 9                                        |
+| Cmd+[ and Cmd+]               | Previous and next pane                                   |
 | Cmd+D, Cmd+Alt+D, Cmd+Shift+D | New pane right, left, below (stacked): asks what to open |
-| Cmd+Alt+Up and Cmd+Alt+Down | Move the focus within a stack |
-| Cmd+W | Close the pane |
-| Cmd+Shift+[ and Cmd+Shift+] | Move the pane left and right |
-| Cmd+Shift+− and Cmd+Shift+= | Fewer or more columns per view |
-| Cmd+Shift+0 | Even the panes out |
-| Cmd+Shift+O | Open the pane's folder in VS Code |
-| Cmd+Alt+P | Pin the pane |
+| Cmd+Alt+Up and Cmd+Alt+Down   | Move the focus within a stack                            |
+| Cmd+W                         | Close the pane                                           |
+| Cmd+Shift+[ and Cmd+Shift+]   | Move the pane left and right                             |
+| Cmd+Shift+− and Cmd+Shift+=   | Fewer or more columns per view                           |
+| Cmd+Shift+0                   | Even the panes out                                       |
+| Cmd+Shift+O                   | Open the pane's folder in VS Code                        |
+| Cmd+Alt+P                     | Pin the pane                                             |
 
 On Windows the desktop app keeps Ctrl+Alt only: Ctrl+W, Ctrl+D and Ctrl+1…9 are too common there.
 
 ## Look
 
 "Linear, but white" as everywhere: quiet surfaces, hairline borders, one accent, Geist.
+
 - Pane headers are `bg-panel` with a hairline. The focused pane gets the accent's thin border.
 - Needs you uses amber (`text-amber`), and a pill in the pane header.
 - Working is the breathing dot the board uses.
@@ -274,11 +286,11 @@ Each step ships on its own and is useful by itself.
    - Kanso's Cmd keys in the desktop app (see Keys).
 
 ## Tests
+
 - **Server:**
   - `/api/p/<id>/…` runs in that project: reading and sending in an agent chat of a project that isn't open, a team
     post, Stop.
-  - Global routes refuse the prefix, the open-project guard still refuses unscoped changes, and a missing project gives
-    404.
+  - Global routes refuse the prefix, the open-project guard still refuses unscoped changes, and a missing project gives 404.
   - `GET /api/overview` counts working and needs you per project and has no chat contents.
   - Events carry `projectId`.
   - A new terminal saves the open project; older ones without it are listed under This PC.
@@ -294,4 +306,5 @@ Each step ships on its own and is useful by itself.
   selection, as the mention editor showed).
 
 ## Open questions
+
 None left: the five from the first draft are answered at the top.

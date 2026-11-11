@@ -29,12 +29,34 @@ import { Avatar, DomNode, Icon, IconWeightProvider, useAppState } from './ui/rea
 import { Dot } from './ui/marks.tsx';
 import { ChipSet } from './ui/controls.tsx';
 import { Button, IconButton } from './ui/button.tsx';
-import { Dropdown, DropdownContent, DropdownGroup, DropdownLabel, DropdownRadioGroup, DropdownRadioItem, DropdownTrigger } from './ui/dropdown.tsx';
+import {
+  Dropdown,
+  DropdownContent,
+  DropdownGroup,
+  DropdownLabel,
+  DropdownRadioGroup,
+  DropdownRadioItem,
+  DropdownTrigger,
+} from './ui/dropdown.tsx';
 import type { AttachTray, PickedFile } from './attach.tsx';
 import type { PasteBox } from './pastes.ts';
 import type { AgentDraft, BranchDesign } from './builder.tsx';
 import type { TeamEvent } from './teamchat.tsx';
-import type { Agent, AppState, BrainAnswer, BrainChatMessage, BrainDelegate, BrainDone, BrainStep, ChatItem, QueuedMessage, RunEvent, ServerEvent, TeamListing, TeamMessage } from '../shared/types.ts';
+import type {
+  Agent,
+  AppState,
+  BrainAnswer,
+  BrainChatMessage,
+  BrainDelegate,
+  BrainDone,
+  BrainStep,
+  ChatItem,
+  QueuedMessage,
+  RunEvent,
+  ServerEvent,
+  TeamListing,
+  TeamMessage,
+} from '../shared/types.ts';
 import type { UIMessage } from 'ai';
 
 // A handed-off agent's turn, streamed in as it goes: the AI SDK pieces load when first needed.
@@ -65,13 +87,58 @@ interface Sent {
 }
 type UserItem = { id: string; kind: 'user'; text: string; attachments?: string[]; sent?: Sent };
 /** action: a button after the text ("Send it my message") */
-type NoteItem = { id: string; kind: 'note'; text: string; busy?: boolean; error?: boolean; action?: { label: string; run: () => void } };
+type NoteItem = {
+  id: string;
+  kind: 'note';
+  text: string;
+  busy?: boolean;
+  error?: boolean;
+  action?: { label: string; run: () => void };
+};
 /** started: its message went, so its turn can be streamed in (web/chat/TurnView); turn: counts the
  *  turns started since (a /resume), so the view follows the new one */
-type AgentItem = { id: string; kind: 'agent'; agentId: string; chatId: string; text: string; tools: ToolChip[]; images: string[]; reason: string; done: boolean; status?: string; started?: boolean; turn?: number };
-type BranchItem = { id: string; kind: 'branch'; wfId: string; name: string; reason: string; since: number; messages: TeamMessage[]; working: string[]; next?: string[]; runId?: string; steps?: unknown; error?: string | null; output?: string; briefId?: string };
+type AgentItem = {
+  id: string;
+  kind: 'agent';
+  agentId: string;
+  chatId: string;
+  text: string;
+  tools: ToolChip[];
+  images: string[];
+  reason: string;
+  done: boolean;
+  status?: string;
+  started?: boolean;
+  turn?: number;
+};
+type BranchItem = {
+  id: string;
+  kind: 'branch';
+  wfId: string;
+  name: string;
+  reason: string;
+  since: number;
+  messages: TeamMessage[];
+  working: string[];
+  next?: string[];
+  runId?: string;
+  steps?: unknown;
+  error?: string | null;
+  output?: string;
+  briefId?: string;
+};
 /** live: the answer is still streaming in (answer: what it has written so far; steps: the tools it used) */
-type BrainItem = { id: string; kind: 'brain'; answer?: string; done: BrainDone[]; delegate?: BrainDelegate | null; old?: boolean; live?: boolean; steps?: BrainStep[]; ask?: Sent };
+type BrainItem = {
+  id: string;
+  kind: 'brain';
+  answer?: string;
+  done: BrainDone[];
+  delegate?: BrainDelegate | null;
+  old?: boolean;
+  live?: boolean;
+  steps?: BrainStep[];
+  ask?: Sent;
+};
 type DraftItem = { id: string; kind: 'agent-draft'; agent: AgentDraft; task: string; attachments: string[] };
 /** One message in the Brain chat. */
 type DockItem = UserItem | NoteItem | AgentItem | BranchItem | BrainItem | DraftItem;
@@ -104,10 +171,26 @@ interface Dock {
   stoppedWork?: { chats: { agentId: string; chatId: string }[]; teams: string[] } | null;
 }
 
-const D: Dock = { open: false, shown: false, launcherHidden: false, launcherFaded: false, target: 'auto', items: [], input: null, workflows: [], project: null, panel: null, launcher: null };
+const D: Dock = {
+  open: false,
+  shown: false,
+  launcherHidden: false,
+  launcherFaded: false,
+  target: 'auto',
+  items: [],
+  input: null,
+  workflows: [],
+  project: null,
+  panel: null,
+  launcher: null,
+};
 const PLACEHOLDER = 'What do you want done?';
 // what the empty chat offers to start with (click one: it goes into the box, ready to send or change)
-const SUGGESTIONS = ['What is everyone working on?', 'Make me a social media team', 'Write PROJECT.md for this project'];
+const SUGGESTIONS = [
+  'What is everyone working on?',
+  'Make me a social media team',
+  'Write PROJECT.md for this project',
+];
 
 // ---------- looks (dock-msg, user and brain stay: tests look them up) ----------
 // Answers sit on the glass with no card of their own (the name row says who wrote them); yours is a soft plate.
@@ -155,7 +238,10 @@ export function initDock(): void {
   D.tray = attachTray({ onChange: draw, iconWeight: 'regular' });
   D.pastes = pasteBox();
   // the bottom bar holds the "Ask the Brain" button (and the minimized chats, web/chatwin.tsx)
-  const bar = h('div.bottom-bar', { class: 'fixed z-45 left-1/2 bottom-4.5 [transform:translateX(-50%)] flex items-center gap-2.5 pointer-events-none *:pointer-events-auto' });
+  const bar = h('div.bottom-bar', {
+    class:
+      'fixed z-45 left-1/2 bottom-4.5 [transform:translateX(-50%)] flex items-center gap-2.5 pointer-events-none *:pointer-events-auto',
+  });
   const host = h('div.dom-contents');
   document.body.append(bar, host);
   D.project = state.data?.project?.id || null;
@@ -182,7 +268,12 @@ export function initDock(): void {
     if (shortcut) {
       e.preventDefault();
       toggle(shortcut === 'open' ? true : !D.open);
-    } else if (e.key === 'Escape' && D.open && !e.defaultPrevented && !document.querySelector('.modal-back, .model-menu, .st-menu')) {
+    } else if (
+      e.key === 'Escape' &&
+      D.open &&
+      !e.defaultPrevented &&
+      !document.querySelector('.modal-back, .model-menu, .st-menu')
+    ) {
       // (a menu that is open takes the Esc: it closes, and the chat stays)
       e.preventDefault();
       toggle(false);
@@ -243,7 +334,12 @@ async function loadHistory({ whole = false }: { whole?: boolean } = {}) {
 
 // A saved Brain answer with the files it read and what it did shown as they were live. Answers saved before the actions were
 // kept apart have them in the text as "(…)" lines at the end; those are split off as plain notes.
-export function savedAnswer(m: BrainHistoryEntry): { answer: string; done: BrainDone[]; delegate?: BrainDelegate; steps?: BrainStep[] } {
+export function savedAnswer(m: BrainHistoryEntry): {
+  answer: string;
+  done: BrainDone[];
+  delegate?: BrainDelegate;
+  steps?: BrainStep[];
+} {
   const delegate = m.delegate ? { ...m.delegate } : undefined;
   if (m.done || m.delegate || m.steps) return { answer: m.text, done: m.done || [], delegate, steps: m.steps };
   const lines = m.text.split('\n');
@@ -267,7 +363,10 @@ let thread: string | null = null;
 let switching = 0;
 /** Goes up each time another conversation is shown (the Chats list closes). */
 let switched = 0;
-async function switchThread(go: () => Promise<{ id: string }>, { whole = false }: { whole?: boolean } = {}): Promise<boolean> {
+async function switchThread(
+  go: () => Promise<{ id: string }>,
+  { whole = false }: { whole?: boolean } = {},
+): Promise<boolean> {
   switching++;
   const r = await attempt(go).finally(() => switching--);
   if (!r) return false;
@@ -353,7 +452,8 @@ export function openDock(target: string | null = null, text = ''): void {
 
 // Opening grows the chat out of the "Ask the Brain" button; closing folds it back into it. A page without the button
 // (the Overview, a full chat page) has it rise and sink where it is instead.
-const noButton = () => document.body.classList.contains('no-brain-button') || document.body.classList.contains('in-chat');
+const noButton = () =>
+  document.body.classList.contains('no-brain-button') || document.body.classList.contains('in-chat');
 let closing: Promise<void> | null = null;
 function toggle(open: boolean) {
   if (open === D.open && !closing) return;
@@ -369,9 +469,12 @@ function toggle(open: boolean) {
     if (panel && !noButton() && from?.width && !reducedMotion()) {
       flipFrom(panel, from, { duration: 460, fade: true });
       // the inside arrives a moment later, so the shape leads
-      for (const [i, part] of [...panel.children].entries()) slideIn(part, { y: 10, duration: 360 + i * 60 })?.effect?.updateTiming({ delay: 120 + i * 40, fill: 'backwards' });
-    }
-    else if (panel && noButton()) slideIn(panel, { y: 12, scale: 0.98, duration: 300 });
+      for (const [i, part] of [...panel.children].entries())
+        slideIn(part, { y: 10, duration: 360 + i * 60 })?.effect?.updateTiming({
+          delay: 120 + i * 40,
+          fill: 'backwards',
+        });
+    } else if (panel && noButton()) slideIn(panel, { y: 12, scale: 0.98, duration: 300 });
     setTimeout(() => D.input?.focus(), 30);
     return;
   }
@@ -379,7 +482,9 @@ function toggle(open: boolean) {
   Object.assign(D, { launcherHidden: false, launcherFaded: true });
   now();
   if (!panel || !launcher) return void (Object.assign(D, { shown: false, launcherFaded: false }), now());
-  const fold = noButton() ? slideOut(panel, { y: 12, scale: 0.98 }) : flipTo(panel, launcher.getBoundingClientRect(), { duration: 300 });
+  const fold = noButton()
+    ? slideOut(panel, { y: 12, scale: 0.98 })
+    : flipTo(panel, launcher.getBoundingClientRect(), { duration: 300 });
   const done = (closing = fold.then(() => {
     if (closing !== done) return;
     closing = null;
@@ -399,7 +504,12 @@ async function loadWorkflows() {
 const teamsToPick = () => D.workflows.filter((w) => w.members?.length || w.steps?.length);
 function checkTarget() {
   const t = D.target;
-  const ok = t === 'auto' || t === 'new-agent' || t === 'new-branch' || (t.startsWith('a:') && !!state.data?.agents.some((a) => a.id === t.slice(2))) || (t.startsWith('b:') && teamsToPick().some((w) => w.id === t.slice(2)));
+  const ok =
+    t === 'auto' ||
+    t === 'new-agent' ||
+    t === 'new-branch' ||
+    (t.startsWith('a:') && !!state.data?.agents.some((a) => a.id === t.slice(2))) ||
+    (t.startsWith('b:') && teamsToPick().some((w) => w.id === t.slice(2)));
   if (!ok) D.target = 'auto';
 }
 
@@ -412,7 +522,14 @@ function modelNode(t: string, agents: readonly Agent[]): Node | null {
   if (t.startsWith('b:')) {
     const wf = D.workflows.find((w) => w.id === t.slice(2));
     const lead = wf?.lead ? agents.find((x) => x.id === wf.lead) : null;
-    return lead ? h('span', { class: 'inline-flex items-center gap-1 text-[11px]', title: 'The team lead answers first' }, '★ ', modelChip(lead, { compact: true })) : h('span.hint', { class: 'inline-flex items-center gap-1 text-[11px]' }, 'each agent its own model');
+    return lead
+      ? h(
+          'span',
+          { class: 'inline-flex items-center gap-1 text-[11px]', title: 'The team lead answers first' },
+          '★ ',
+          modelChip(lead, { compact: true }),
+        )
+      : h('span.hint', { class: 'inline-flex items-center gap-1 text-[11px]' }, 'each agent its own model');
   }
   // The Brain itself (and New agent / New team): the Brain's own model
   return brainModelChip();
@@ -442,17 +559,35 @@ function Markdown({ text, className }: { text: string; className: string }) {
   );
 }
 function Previews({ text, attachments, id }: { text: string; attachments?: string[]; id: string }) {
-  return <DomNode className="dom-contents" make={() => mentionPreviews(text, attachments, { compact: true, key: `dock:${id}` })} deps={[id, text, JSON.stringify(attachments || [])]} />;
+  return (
+    <DomNode
+      className="dom-contents"
+      make={() => mentionPreviews(text, attachments, { compact: true, key: `dock:${id}` })}
+      deps={[id, text, JSON.stringify(attachments || [])]}
+    />
+  );
 }
 
 // A tool call the Brain made, as the chats show them (open it for its input and result).
 export function StepCard({ st }: { st: BrainStep }) {
   const input = typeof st.input === 'string' ? st.input : JSON.stringify(st.input ?? {}, null, 2);
-  const brief = st.input && typeof st.input === 'object' ? Object.values(st.input as Record<string, unknown>).filter((v) => typeof v === 'string').join(' · ').slice(0, 120) : '';
+  const brief =
+    st.input && typeof st.input === 'object'
+      ? Object.values(st.input as Record<string, unknown>)
+          .filter((v) => typeof v === 'string')
+          .join(' · ')
+          .slice(0, 120)
+      : '';
   return (
     <details className={`tool small${st.state === 'error' ? ' error' : ''}`}>
       <summary>
-        {st.state === 'running' ? <Dot tone="busy" /> : st.state === 'error' ? <span className="text-red">✕</span> : <span className="text-accent">✓</span>}
+        {st.state === 'running' ? (
+          <Dot tone="busy" />
+        ) : st.state === 'error' ? (
+          <span className="text-red">✕</span>
+        ) : (
+          <span className="text-accent">✓</span>
+        )}
         <span className="tname">{st.name}</span>
         <span className="targ">{brief}</span>
       </summary>
@@ -472,24 +607,43 @@ export function StepCard({ st }: { st: BrainStep }) {
   );
 }
 
-const DONE_ICONS: Record<string, string> = { team: 'users', hired: 'user-plus', file: 'file-text', routine: 'repeat', skill: 'puzzle', model: 'cpu', mcp: 'plug', stop: 'square', memory: 'file-text', error: 'triangle-alert', note: 'check' };
+const DONE_ICONS: Record<string, string> = {
+  team: 'users',
+  hired: 'user-plus',
+  file: 'file-text',
+  routine: 'repeat',
+  skill: 'puzzle',
+  model: 'cpu',
+  mcp: 'plug',
+  stop: 'square',
+  memory: 'file-text',
+  error: 'triangle-alert',
+  note: 'check',
+};
 // What the Brain did, with where to see it.
 function DoneAction({ d }: { d: BrainDone }) {
   const suffix = d.kind === 'task' && d.taskId ? ` [${d.taskId}]` : '';
   const text = suffix && d.text.endsWith(suffix) ? d.text.slice(0, -suffix.length) : d.text;
   const open = d.boardTask
-    ? { label: 'Open', go: () => navigate(`#/tasks/${encodeURIComponent(d.boardTask!.projectId)}/${encodeURIComponent(d.boardTask!.id)}`) }
+    ? {
+        label: 'Open',
+        go: () =>
+          navigate(`#/tasks/${encodeURIComponent(d.boardTask!.projectId)}/${encodeURIComponent(d.boardTask!.id)}`),
+      }
     : d.teamId
-    ? { label: 'Show', go: () => navigate(`#/station?team=${d.teamId}`) }
-    : d.routineId
-      ? { label: 'Open', go: () => navigate(`#/routines/${d.routineId}`) }
-      : d.skillId
-        ? { label: 'Open', go: () => navigate(`#/skills/${d.skillId}`) }
-        : d.kind === 'mcp'
-          ? { label: 'Open', go: () => navigate('#/settings?tab=mcp') }
-          : d.memory
-            ? { label: 'Open', go: () => openMemory(d.memory!, d.memory === BRAIN ? 'The Brain' : agentOf(d.memory!)?.name) }
-            : null;
+      ? { label: 'Show', go: () => navigate(`#/station?team=${d.teamId}`) }
+      : d.routineId
+        ? { label: 'Open', go: () => navigate(`#/routines/${d.routineId}`) }
+        : d.skillId
+          ? { label: 'Open', go: () => navigate(`#/skills/${d.skillId}`) }
+          : d.kind === 'mcp'
+            ? { label: 'Open', go: () => navigate('#/settings?tab=mcp') }
+            : d.memory
+              ? {
+                  label: 'Open',
+                  go: () => openMemory(d.memory!, d.memory === BRAIN ? 'The Brain' : agentOf(d.memory!)?.name),
+                }
+              : null;
   return (
     <div className={d.kind === 'error' ? ACT_ERR : ACT_OK}>
       <Icon name={DONE_ICONS[d.kind] || 'check'} size={13} />
@@ -528,7 +682,10 @@ function BrainMessage({ it, settings }: { it: BrainItem; settings: AppState['set
           The Brain is looking at the project…
         </div>
       ) : (
-        <Markdown text={it.answer || (it.done?.length ? '' : '(no answer)')} className={it.live ? `${ANSWER} cursor` : ANSWER} />
+        <Markdown
+          text={it.answer || (it.done?.length ? '' : '(no answer)')}
+          className={it.live ? `${ANSWER} cursor` : ANSWER}
+        />
       )}
       {it.answer && !it.live ? <Previews text={it.answer} id={it.id} /> : null}
       {it.done?.length ? (
@@ -568,7 +725,13 @@ function AgentMessage({ it }: { it: AgentItem }) {
       {it.started ? (
         <div className="flex flex-col gap-2 min-w-0">
           <Suspense fallback={null}>
-            <TurnView key={it.turn || 0} agentId={it.agentId} chatId={it.chatId} live onSend={(t) => void continueAgent(it, t)} />
+            <TurnView
+              key={it.turn || 0}
+              agentId={it.agentId}
+              chatId={it.chatId}
+              live
+              onSend={(t) => void continueAgent(it, t)}
+            />
           </Suspense>
         </div>
       ) : it.text ? (
@@ -601,7 +764,12 @@ function TeamThreadMessage({ m }: { m: TeamMessage }) {
           </div>
         ) : null}
         <b>{a?.name || (brain ? 'Brain' : 'Team')}</b>
-        {m.mentions?.length ? <span className="hint">{`→ ${m.mentions.map((id) => agentOf(id)?.name).filter(Boolean).join(', ')}`}</span> : null}
+        {m.mentions?.length ? (
+          <span className="hint">{`→ ${m.mentions
+            .map((id) => agentOf(id)?.name)
+            .filter(Boolean)
+            .join(', ')}`}</span>
+        ) : null}
       </div>
       <Markdown text={String(m.text).slice(0, 3000)} className={ANSWER} />
       <Previews text={m.text} attachments={m.attachments} id={m.id} />
@@ -672,7 +840,12 @@ function DraftCard({ it }: { it: DraftItem }) {
         <input aria-label="What it does" value={spec} onChange={(e) => setSpec((a.specialty = e.target.value))} />
       </div>
       <div className="mt-4">
-        <ChipSet label="Tools" options={(state.data?.toolGroups || []).map((g) => ({ value: g.id, label: g.label, title: g.description }))} value={groups} onChange={(v) => setGroups((a.toolGroups = v))} />
+        <ChipSet
+          label="Tools"
+          options={(state.data?.toolGroups || []).map((g) => ({ value: g.id, label: g.label, title: g.description }))}
+          value={groups}
+          onChange={(v) => setGroups((a.toolGroups = v))}
+        />
       </div>
       <details className="mt-4">
         <summary className="hint cursor-pointer">Instructions</summary>
@@ -764,7 +937,10 @@ function DockList({ settings }: { settings: AppState['settings'] | undefined }) 
               <Icon name="sparkles" size={20} />
             </div>
             <h3 className="m-0 text-[16px] leading-[1.3] font-semibold text-ink">Ask the Brain</h3>
-            <p className="mt-1.5 mb-0 text-[13.5px] leading-[1.55] text-dim">Ask about the project, or ask for anything to be done. It sees every agent and team, builds teams from the Agent library, and hands work to the right one.</p>
+            <p className="mt-1.5 mb-0 text-[13.5px] leading-[1.55] text-dim">
+              Ask about the project, or ask for anything to be done. It sees every agent and team, builds teams from the
+              Agent library, and hands work to the right one.
+            </p>
             <div className="mt-5 flex w-full flex-col gap-1.5">
               {SUGGESTIONS.map((s) => (
                 <button type="button" key={s} className="dock-suggest" onClick={() => suggest(s)}>
@@ -784,7 +960,8 @@ function TargetMenu({ agents, teams }: { agents: readonly Agent[]; teams: readon
   const t = D.target;
   const agent = t.startsWith('a:') ? agents.find((a) => a.id === t.slice(2)) : undefined;
   const team = t.startsWith('b:') ? teams.find((w) => w.id === t.slice(2)) : undefined;
-  const shown = agent?.name || team?.name || (t === 'new-agent' ? 'New agent' : t === 'new-branch' ? 'New team' : 'The Brain');
+  const shown =
+    agent?.name || team?.name || (t === 'new-agent' ? 'New agent' : t === 'new-branch' ? 'New team' : 'The Brain');
   // an agent's badge (a plain <select> could only show its emoji as small text)
   const badge = (a: Agent, size: string) => (
     <span className={`flex flex-none ${size}`}>
@@ -793,7 +970,11 @@ function TargetMenu({ agents, teams }: { agents: readonly Agent[]; teams: readon
   );
   return (
     <Dropdown>
-      <DropdownTrigger className="dock-target" aria-label="Send to" title="Who gets your message. The Brain answers, builds teams and agents, and hands work on.">
+      <DropdownTrigger
+        className="dock-target"
+        aria-label="Send to"
+        title="Who gets your message. The Brain answers, builds teams and agents, and hands work on."
+      >
         {agent ? badge(agent, '[&_.avatar]:size-4 [&_.avatar]:text-[10px]') : null}
         <span className="min-w-0 truncate">{shown}</span>
         <Icon name="chevron-down" size={12} className="flex-none text-faint" />
@@ -819,7 +1000,11 @@ function TargetMenu({ agents, teams }: { agents: readonly Agent[]; teams: readon
             <DropdownGroup>
               <DropdownLabel>Agents</DropdownLabel>
               {agents.map((a) => (
-                <DropdownRadioItem key={a.id} value={`a:${a.id}`} icon={badge(a, '[&_.avatar]:size-5 [&_.avatar]:text-[12px]')}>
+                <DropdownRadioItem
+                  key={a.id}
+                  value={`a:${a.id}`}
+                  icon={badge(a, '[&_.avatar]:size-5 [&_.avatar]:text-[12px]')}
+                >
                   {a.name}
                 </DropdownRadioItem>
               ))}
@@ -907,7 +1092,12 @@ function DockView({ bar }: { bar: HTMLElement }) {
   // your /loop's chip
   const loopSig = JSON.stringify(loop.info());
   useEffect(() => {
-    commandChips(chips.current!, { loop: loop.info(), goal: null, onStopLoop: () => loop.stop() && add({ kind: 'note', text: 'Loop stopped.' }), onClearGoal: () => {} });
+    commandChips(chips.current!, {
+      loop: loop.info(),
+      goal: null,
+      onStopLoop: () => loop.stop() && add({ kind: 'note', text: 'Loop stopped.' }),
+      onClearGoal: () => {},
+    });
   }, [loopSig]);
 
   const agents = data?.agents || [];
@@ -916,12 +1106,21 @@ function DockView({ bar }: { bar: HTMLElement }) {
   const idle = dockIdle();
   // the button says so while the Brain writes an answer
   const brainBusy = D.items.some((it) => it.kind === 'brain' && it.live);
-  const placeholder = D.tray?.count() ? 'What should be done with these files?' : idle ? PLACEHOLDER : 'Working… Write to change course now, or /queue a message for when this is done';
+  const placeholder = D.tray?.count()
+    ? 'What should be done with these files?'
+    : idle
+      ? PLACEHOLDER
+      : 'Working… Write to change course now, or /queue a message for when this is done';
   // nothing to send while something works: Stop in Send's place
   drawnFilled = !!D.input?.value.trim();
   const stopInstead = !idle && !drawnFilled && !D.tray?.count();
   // (the list works with queued messages: the files a held one carries, and whom it goes to)
-  const queuedItems: QueuedMessage[] = waiting.map((m) => ({ id: m.id, text: m.text, ts: 0, ...(m.extra.attachments.length ? { attachments: m.extra.attachments } : {}) }));
+  const queuedItems: QueuedMessage[] = waiting.map((m) => ({
+    id: m.id,
+    text: m.text,
+    ts: 0,
+    ...(m.extra.attachments.length ? { attachments: m.extra.attachments } : {}),
+  }));
   const targetOf = new Map(waiting.map((m) => [m.id, m.extra.target]));
   return (
     <>
@@ -945,7 +1144,9 @@ function DockView({ bar }: { bar: HTMLElement }) {
           ) : (
             <span>Ask the Brain…</span>
           )}
-          <kbd className="max-md:hidden font-sans text-[11.5px] font-medium leading-[normal] text-faint border border-line rounded-[6px] px-1.5 py-0.5 ml-1">{brainKeyLabel(station)}</kbd>
+          <kbd className="max-md:hidden font-sans text-[11.5px] font-medium leading-[normal] text-faint border border-line rounded-[6px] px-1.5 py-0.5 ml-1">
+            {brainKeyLabel(station)}
+          </kbd>
         </button>,
         bar,
       )}
@@ -959,10 +1160,20 @@ function DockView({ bar }: { bar: HTMLElement }) {
             Brain chat
           </b>
           <span className="flex-1 min-w-0" />
-          <IconButton variant="plain" onClick={() => void newConversation()} title="New chat (this one is kept under Chats)" aria-label="New chat">
+          <IconButton
+            variant="plain"
+            onClick={() => void newConversation()}
+            title="New chat (this one is kept under Chats)"
+            aria-label="New chat"
+          >
             <Icon name="square-pen" size={16} />
           </IconButton>
-          <IconButton variant="plain" onClick={() => openMemory(BRAIN)} title="The Brain's MEMORY.md: what it remembers across conversations" aria-label="The Brain's MEMORY.md">
+          <IconButton
+            variant="plain"
+            onClick={() => openMemory(BRAIN)}
+            title="The Brain's MEMORY.md: what it remembers across conversations"
+            aria-label="The Brain's MEMORY.md"
+          >
             <Icon name="file-text" size={16} />
           </IconButton>
           <IconButton variant="inset" onClick={() => toggle(false)} aria-label="Close">
@@ -970,7 +1181,15 @@ function DockView({ bar }: { bar: HTMLElement }) {
           </IconButton>
         </div>
         <div className="px-5 max-sm:px-4">
-          <TasksAndChats tasks={{ filters: true }} chats={{ load: () => rpc.brain.threads(), onOpen: (c) => void openConversation(c.id), onRemove: removeConversation, switched }} />
+          <TasksAndChats
+            tasks={{ filters: true }}
+            chats={{
+              load: () => rpc.brain.threads(),
+              onOpen: (c) => void openConversation(c.id),
+              onRemove: removeConversation,
+              switched,
+            }}
+          />
         </div>
         <DockList settings={data?.settings} />
         <div className="cmd-chips compact pt-2 px-5 pb-0 max-sm:pt-1 max-sm:px-0 hidden" ref={chips} />
@@ -1000,7 +1219,13 @@ function DockView({ bar }: { bar: HTMLElement }) {
         <div className="px-5 pt-1 pb-4 max-sm:px-4">
           {/* one glass field: the text on top, and under it who it goes to, which model answers, the paperclip and Send */}
           <div className="dock-composer relative">
-            <textarea className="dock-input block field-sizing-content min-h-[56px] max-h-[max(160px,20vh)] w-full resize-none" ref={input} rows={2} aria-label="Message the Brain" placeholder={placeholder} />
+            <textarea
+              className="dock-input block field-sizing-content min-h-[56px] max-h-[max(160px,20vh)] w-full resize-none"
+              ref={input}
+              rows={2}
+              aria-label="Message the Brain"
+              placeholder={placeholder}
+            />
             <span className="dom-contents" ref={slashHost} />
             <div className="flex items-center gap-1 px-2 pt-1 pb-2">
               {/* who it goes to and which model answers (these wrap on a narrow screen; the buttons stay on the right) */}
@@ -1017,11 +1242,26 @@ function DockView({ bar }: { bar: HTMLElement }) {
                 <DomNode as="span" className="dom-contents" make={() => D.tray!.picker} deps={[]} />
                 {/* (Stop in Send's place while something works and the box is empty) */}
                 {stopInstead ? (
-                  <Button variant="danger" className="size-8! px-0!" onClick={() => void brainStop()} title="Stop the Brain and the work it handed on" aria-label="Stop">
+                  <Button
+                    variant="danger"
+                    className="size-8! px-0!"
+                    onClick={() => void brainStop()}
+                    title="Stop the Brain and the work it handed on"
+                    aria-label="Stop"
+                  >
                     <Icon name="square" size={14} />
                   </Button>
                 ) : (
-                  <Button className="size-8! px-0!" onClick={() => void send()} title={idle ? 'Send (Enter)' : 'Send now: the Brain stops the answer it is writing and takes this up (Enter)'} aria-label="Send">
+                  <Button
+                    className="size-8! px-0!"
+                    onClick={() => void send()}
+                    title={
+                      idle
+                        ? 'Send (Enter)'
+                        : 'Send now: the Brain stops the answer it is writing and takes this up (Enter)'
+                    }
+                    aria-label="Send"
+                  >
                     <Icon name="arrow-up" size={16} />
                   </Button>
                 )}
@@ -1046,12 +1286,19 @@ interface BrainAsk {
   /** stop reading its answer (you sent a new message meanwhile) */
   signal?: AbortSignal;
 }
-async function streamBrainAnswer(text: string, project: string | null, { attachments, onUpdate, goal, signal }: BrainAsk): Promise<BrainAnswer> {
+async function streamBrainAnswer(
+  text: string,
+  project: string | null,
+  { attachments, onUpdate, goal, signal }: BrainAsk,
+): Promise<BrainAnswer> {
   const [{ readUIMessageStream }, { brainStream }] = await Promise.all([import('ai'), import('./chat/transport.ts')]);
   const stream = await brainStream({ text, project, attachments, ...(goal ? { goal: true } : {}) }, { signal });
   let answer: BrainAnswer | null = null;
   const errors: string[] = [];
-  for await (const m of readUIMessageStream({ stream, onError: (e) => errors.push((e as Error).message || String(e)) })) {
+  for await (const m of readUIMessageStream({
+    stream,
+    onError: (e) => errors.push((e as Error).message || String(e)),
+  })) {
     onUpdate(m);
     const d = m.parts.find((p) => p.type === 'data-answer') as { data?: BrainAnswer } | undefined;
     if (d?.data) answer = d.data;
@@ -1066,11 +1313,26 @@ export function brainProgress(m: UIMessage): { answer: string; steps: BrainStep[
   const steps = parts.flatMap((p): BrainStep[] => {
     if (p.type !== 'dynamic-tool') return [];
     const out = p.state === 'output-available' ? p.output : null;
-    return [{ id: p.toolCallId, name: p.toolName, input: p.input, state: p.state === 'output-error' ? 'error' : p.state === 'output-available' ? 'done' : 'running', output: p.state === 'output-error' ? p.errorText : out && typeof out === 'object' && 'text' in out ? String((out as { text: unknown }).text) : '' }];
+    return [
+      {
+        id: p.toolCallId,
+        name: p.toolName,
+        input: p.input,
+        state: p.state === 'output-error' ? 'error' : p.state === 'output-available' ? 'done' : 'running',
+        output:
+          p.state === 'output-error'
+            ? p.errorText
+            : out && typeof out === 'object' && 'text' in out
+              ? String((out as { text: unknown }).text)
+              : '',
+      },
+    ];
   });
   return { answer, steps };
 }
-const brainAsks = brainQueue<BrainAnswer, BrainAsk>((text, project, extra) => streamBrainAnswer(text, project, extra ?? { attachments: [], onUpdate: () => {} }));
+const brainAsks = brainQueue<BrainAnswer, BrainAsk>((text, project, extra) =>
+  streamBrainAnswer(text, project, extra ?? { attachments: [], onUpdate: () => {} }),
+);
 const openProject = () => state.data?.project?.id || null;
 
 let sending = false;
@@ -1124,17 +1386,22 @@ async function send(given: string[] = []) {
     }
     const spec = parseLoop(cmd.rest);
     if ('error' in spec) return toast(spec.error);
-    if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Try again in a moment.');
+    if (D.target === 'auto' && !(D.project || openProject()))
+      return toast('The project is still loading. Try again in a moment.');
     emptyBox();
     tray.take();
     return loop.start(spec, { attachments, target: D.target });
   }
   // "/learn …": the Brain (or the agent or team it's addressed to) turns it, and the files, into a skill
   if (cmd?.name === 'learn') {
-    if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Try again in a moment.');
+    if (D.target === 'auto' && !(D.project || openProject()))
+      return toast('The project is still loading. Try again in a moment.');
     emptyBox();
     tray.take();
-    return void held.add(learnText(cmd.rest, D.target === 'auto' ? 'brain' : 'agent'), { attachments, target: D.target });
+    return void held.add(learnText(cmd.rest, D.target === 'auto' ? 'brain' : 'agent'), {
+      attachments,
+      target: D.target,
+    });
   }
   if (cmd && cmd.name !== 'queue') {
     emptyBox();
@@ -1147,7 +1414,8 @@ async function send(given: string[] = []) {
   // who it goes to: as chosen now (not whoever is picked while the Brain's answer is being stopped)
   const target = D.target;
   // a Brain message belongs to a project: wait until the page knows which one is open
-  if (target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Send it again in a moment.');
+  if (target === 'auto' && !(D.project || openProject()))
+    return toast('The project is still loading. Send it again in a moment.');
   emptyBox();
   tray.take();
   if (queued != null) return void held.add(text, { attachments, target });
@@ -1194,9 +1462,16 @@ async function track(work: () => Promise<unknown>): Promise<void> {
     draw();
   }
 }
-const working = (it: DockItem) => (it.kind === 'brain' && !!it.live) || (it.kind === 'agent' && !it.done) || (it.kind === 'branch' && !!(it.working.length || it.next?.length));
+const working = (it: DockItem) =>
+  (it.kind === 'brain' && !!it.live) ||
+  (it.kind === 'agent' && !it.done) ||
+  (it.kind === 'branch' && !!(it.working.length || it.next?.length));
 const dockIdle = () => !pending && !D.items.some(working);
-const held = holdQueue<HeldExtra>({ idle: dockIdle, send: (m) => track(() => dispatch(m.text, m.extra.attachments, m.extra.target, { goal: m.extra.goal })), onChange: draw });
+const held = holdQueue<HeldExtra>({
+  idle: dockIdle,
+  send: (m) => track(() => dispatch(m.text, m.extra.attachments, m.extra.target, { goal: m.extra.goal })),
+  onChange: draw,
+});
 // /loop: kept in the page; a due one waits for /queue messages and for the chat to be idle
 const loop = chatLoop<HeldExtra>({
   idle: () => dockIdle() && !held.items().length,
@@ -1215,8 +1490,10 @@ async function command(name: string, rest: string) {
     return void held.add(last.text, { attachments: last.attachments, target: last.target, goal: last.goal });
   }
   if (name === 'goal') {
-    if (!rest) return toast('Type /goal and what done looks like. The Brain hands it on and follows up until it is met.');
-    if (D.target === 'auto' && !(D.project || openProject())) return toast('The project is still loading. Try again in a moment.');
+    if (!rest)
+      return toast('Type /goal and what done looks like. The Brain hands it on and follows up until it is met.');
+    if (D.target === 'auto' && !(D.project || openProject()))
+      return toast('The project is still loading. Try again in a moment.');
     // (waits like a /queue message if something is working)
     return void held.add(rest, { attachments: [], target: D.target, goal: true });
   }
@@ -1230,14 +1507,31 @@ async function brainStop() {
   brainAsks.reset();
   for (const x of live) remove(x);
   const back = held.clear();
-  if (back.length) D.pastes!.restore(back.map((m) => m.text).filter(Boolean).join('\n\n'));
+  if (back.length)
+    D.pastes!.restore(
+      back
+        .map((m) => m.text)
+        .filter(Boolean)
+        .join('\n\n'),
+    );
   const looped = loop.stop();
-  const chats = D.items.filter((x): x is AgentItem => x.kind === 'agent' && !x.done).map((x) => ({ agentId: x.agentId, chatId: x.chatId }));
-  const teams = [...new Set(D.items.filter((x): x is BranchItem => x.kind === 'branch' && !!(x.working.length || x.next?.length)).map((x) => x.wfId))];
+  const chats = D.items
+    .filter((x): x is AgentItem => x.kind === 'agent' && !x.done)
+    .map((x) => ({ agentId: x.agentId, chatId: x.chatId }));
+  const teams = [
+    ...new Set(
+      D.items
+        .filter((x): x is BranchItem => x.kind === 'branch' && !!(x.working.length || x.next?.length))
+        .map((x) => x.wfId),
+    ),
+  ];
   D.stoppedWork = { chats, teams };
   const r = await attempt(() => rpc.brain.stop({ chats, teams }));
   const what = [live.length ? 'the Brain' : '', ...(r?.stopped || []), looped ? 'the loop' : ''].filter(Boolean);
-  add({ kind: 'note', text: what.length ? `Stopped ${what.join(', ')}. /resume picks it up again.` : 'Nothing was working.' });
+  add({
+    kind: 'note',
+    text: what.length ? `Stopped ${what.join(', ')}. /resume picks it up again.` : 'Nothing was working.',
+  });
 }
 
 // /resume: the answer /stop cut off is asked again; the agents and teams it stopped carry on.
@@ -1292,8 +1586,9 @@ async function dispatch(text: string, attachments: string[], t: string, { goal =
     if (at !== -1) D.items.splice(at, 1);
   };
   // a new conversation or another project since: this answer is no longer wanted here
-  if (turn.kind === 'stale') return drop(), draw();
-  if (turn.kind === 'error') return drop(), add({ kind: 'note', text: `The Brain couldn't answer: ${turn.error}`, error: true });
+  if (turn.kind === 'stale') return (drop(), draw());
+  if (turn.kind === 'error')
+    return (drop(), add({ kind: 'note', text: `The Brain couldn't answer: ${turn.error}`, error: true }));
   showAnswer(live, turn.answer, goal);
 }
 
@@ -1308,7 +1603,11 @@ function showAnswer(live: BrainItem, r: BrainAnswer, goal: boolean) {
   }
   // the server already handed it on, as the Brain: follow the agent's chat or the team's thread here
   const d = r.delegate;
-  if (goal && !d) add({ kind: 'note', text: "The Brain didn't hand this goal to anyone, so there is nothing to follow up. Pick an agent or team above, or ask it to hand it on." });
+  if (goal && !d)
+    add({
+      kind: 'note',
+      text: "The Brain didn't hand this goal to anyone, so there is nothing to follow up. Pick an agent or team above, or ask it to hand it on.",
+    });
   if (d) follow(d);
 }
 
@@ -1317,18 +1616,39 @@ function showAnswer(live: BrainItem, r: BrainAnswer, goal: boolean) {
 function follow(d: BrainDelegate) {
   if (d.kind === 'agent' && d.sent?.chatId) {
     const chatId = d.sent.chatId;
-    const it = add({ kind: 'agent', agentId: d.id, chatId, text: '', tools: [], images: [], reason: 'from the Brain', done: false, started: true });
+    const it = add({
+      kind: 'agent',
+      agentId: d.id,
+      chatId,
+      text: '',
+      tools: [],
+      images: [],
+      reason: 'from the Brain',
+      done: false,
+      started: true,
+    });
     // it may have finished before this answer got here (then no 'done' comes for this card)
-    void rpc.runs.list()
+    void rpc.runs
+      .list()
       .then((runs) => {
-        if (!runs.some((x) => x.chatId === chatId)) (it.done = true), draw();
+        if (!runs.some((x) => x.chatId === chatId)) ((it.done = true), draw());
       })
       .catch(() => {});
   }
   if (d?.kind === 'branch' && d.sent?.ts) {
-    const it = add({ kind: 'branch', wfId: d.id, name: d.name, reason: 'from the Brain', since: d.sent.ts, messages: [], working: [], briefId: d.sent.messageId });
+    const it = add({
+      kind: 'branch',
+      wfId: d.id,
+      name: d.name,
+      reason: 'from the Brain',
+      since: d.sent.ts,
+      messages: [],
+      working: [],
+      briefId: d.sent.messageId,
+    });
     // the team may have answered before this answer got here: those messages came before the item did
-    void rpc.teams.chat({ id: d.id })
+    void rpc.teams
+      .chat({ id: d.id })
       .then((t) => {
         if (!D.items.includes(it)) return;
         mergeTeamMessages(it, t.messages);
@@ -1339,15 +1659,19 @@ function follow(d: BrainDelegate) {
       // (a team deleted since: nothing to follow)
       .catch(() => {
         const at = D.items.indexOf(it);
-        if (at !== -1) D.items.splice(at, 1), draw();
+        if (at !== -1) (D.items.splice(at, 1), draw());
       });
   }
 }
 
 // Team messages for a dock item: the ones since its brief (not yours, not the brief itself), each once, in order.
-export function mergeTeamMessages(it: Pick<BranchItem, 'messages' | 'since' | 'briefId'>, messages: TeamMessage[]): void {
+export function mergeTeamMessages(
+  it: Pick<BranchItem, 'messages' | 'since' | 'briefId'>,
+  messages: TeamMessage[],
+): void {
   const have = new Set(it.messages.map((m) => m.id));
-  for (const m of messages) if (!have.has(m.id) && m.from !== 'user' && m.id !== it.briefId && m.ts >= it.since) it.messages.push(m);
+  for (const m of messages)
+    if (!have.has(m.id) && m.from !== 'user' && m.id !== it.briefId && m.ts >= it.since) it.messages.push(m);
   it.messages.sort((a, b) => a.ts - b.ts);
 }
 
@@ -1356,7 +1680,11 @@ async function toAgent(agentId: string, text: string, reason = '', attachments: 
   const c = await attempt(() => rpc.agents.chats.create({ id: agentId }));
   if (!c) return;
   const it = add({ kind: 'agent', agentId, chatId: c.id, text: '', tools: [], images: [], reason, done: false });
-  const r = await attempt(async () => (goal ? await rpc.agents.chats.goal({ id: agentId, chatId: c.id, text }) : await rpc.agents.chats.send({ id: agentId, chatId: c.id, text, attachments })));
+  const r = await attempt(async () =>
+    goal
+      ? await rpc.agents.chats.goal({ id: agentId, chatId: c.id, text })
+      : await rpc.agents.chats.send({ id: agentId, chatId: c.id, text, attachments }),
+  );
   if (!r) {
     it.done = true;
     it.text = '(could not start)';
@@ -1377,13 +1705,31 @@ async function continueAgent(it: AgentItem, text: string) {
   const r = await attempt(() => rpc.agents.chats.send({ id: it.agentId, chatId: it.chatId, text, attachments: [] }));
   if (!r || !D.items.includes(it)) return;
   add({ kind: 'user', text });
-  add({ kind: 'agent', agentId: it.agentId, chatId: it.chatId, text: '', tools: [], images: [], reason: it.reason, done: false, started: true });
+  add({
+    kind: 'agent',
+    agentId: it.agentId,
+    chatId: it.chatId,
+    text: '',
+    tools: [],
+    images: [],
+    reason: it.reason,
+    done: false,
+    started: true,
+  });
 }
 
 async function toBranch(wfId: string, text: string, reason = '', attachments: string[] = [], goal = false) {
   const wf = D.workflows.find((w) => w.id === wfId);
   // (shown before it is sent, so it hears who starts working: the team starts before the reply comes)
-  const it = add({ kind: 'branch', wfId, name: wf?.name || 'Team', reason, since: Date.now(), messages: [], working: [] });
+  const it = add({
+    kind: 'branch',
+    wfId,
+    name: wf?.name || 'Team',
+    reason,
+    since: Date.now(),
+    messages: [],
+    working: [],
+  });
   if (goal) {
     if (!(await attempt(() => rpc.teams.goal({ id: wfId, text })))) remove(it);
     return draw();
@@ -1402,7 +1748,9 @@ async function toBranch(wfId: string, text: string, reason = '', attachments: st
 async function newAgent(text: string, attachments: string[] = []) {
   const n = add({ kind: 'note', text: 'Designing an agent for this…', busy: true });
   const gen = conversation;
-  const a: Partial<AgentDraft> & Failed = await rpc.assist.agent({ text, attachments }).catch((e: Error) => ({ error: e.message }));
+  const a: Partial<AgentDraft> & Failed = await rpc.assist
+    .agent({ text, attachments })
+    .catch((e: Error) => ({ error: e.message }));
   // (a new conversation or another project since: the design belongs to the old one)
   if (gen !== conversation) return;
   remove(n);
@@ -1413,7 +1761,9 @@ async function newAgent(text: string, attachments: string[] = []) {
 async function newBranch(text: string, attachments: string[] = []) {
   const n = add({ kind: 'note', text: 'Building a team from your agents…', busy: true });
   const gen = conversation;
-  const design: Partial<BranchDesign> & Failed = await rpc.assist.branch({ text, attachments }).catch((e: Error) => ({ error: e.message }));
+  const design: Partial<BranchDesign> & Failed = await rpc.assist
+    .branch({ text, attachments })
+    .catch((e: Error) => ({ error: e.message }));
   if (gen !== conversation) return;
   remove(n);
   if (design.error) return add({ kind: 'note', text: `Couldn't build it: ${design.error}`, error: true });
@@ -1423,7 +1773,12 @@ async function newBranch(text: string, attachments: string[] = []) {
     files: attachments,
     onSaved: async (wf) => {
       await loadWorkflows();
-      D.items.push({ id: 'ran' + wf.id, kind: 'note', text: `Team "${wf.name}" is ready.`, action: { label: 'Send it my message', run: () => void toBranch(wf.id, text, '', attachments) } });
+      D.items.push({
+        id: 'ran' + wf.id,
+        kind: 'note',
+        text: `Team "${wf.name}" is ready.`,
+        action: { label: 'Send it my message', run: () => void toBranch(wf.id, text, '', attachments) },
+      });
       draw();
     },
   });
@@ -1432,7 +1787,8 @@ async function newBranch(text: string, attachments: string[] = []) {
 // ---------- live updates ----------
 function handleEvent(ev: ServerEvent) {
   if (ev.type === 'workflows') loadWorkflows();
-  if (ev.type === 'brain-chat' && ev.projectId === D.project && !ev.conversationId && typeof ev.thread === 'string') threadChanged(ev.thread);
+  if (ev.type === 'brain-chat' && ev.projectId === D.project && !ev.conversationId && typeof ev.thread === 'string')
+    threadChanged(ev.thread);
   // the Brain reviewed finished work by itself and recorded or improved a skill, or checked on work it
   // handed out (brain-note: done, stuck, or a team needs you)
   if ((ev.type === 'brain-learned' || ev.type === 'brain-note') && ev.projectId === D.project) {
@@ -1441,7 +1797,11 @@ function handleEvent(ev: ServerEvent) {
   }
   // an answer your new message cut off, but too far along to stop: what it did shows, and the work it handed on is followed
   if (ev.type === 'brain-late' && ev.projectId === D.project && ev.answer && typeof ev.answer === 'object') {
-    showAnswer(add({ kind: 'brain', answer: '', done: [], steps: [] }) as BrainItem, ev.answer as BrainAnswer, ev.goal === true);
+    showAnswer(
+      add({ kind: 'brain', answer: '', done: [], steps: [] }) as BrainItem,
+      ev.answer as BrainAnswer,
+      ev.goal === true,
+    );
     return;
   }
   if (ev.type === 'run') {
@@ -1466,10 +1826,15 @@ function handleEvent(ev: ServerEvent) {
       it.done = true;
       if (e.kind === 'error') it.text += `\n\n**Error:** ${e.text}`;
       // the saved chat has the full answer
-      rpc.agents.chats.get({ id: it.agentId, chatId: it.chatId })
+      rpc.agents.chats
+        .get({ id: it.agentId, chatId: it.chatId })
         .then((c) => {
           const lastUser = c.items.findLastIndex((x) => x.type === 'user');
-          const answer = c.items.slice(lastUser + 1).filter((x): x is Extract<ChatItem, { type: 'assistant' }> => x.type === 'assistant').map((x) => x.text).join('\n\n');
+          const answer = c.items
+            .slice(lastUser + 1)
+            .filter((x): x is Extract<ChatItem, { type: 'assistant' }> => x.type === 'assistant')
+            .map((x) => x.text)
+            .join('\n\n');
           if (answer) it.text = answer;
           draw();
         })
@@ -1499,7 +1864,8 @@ function handleEvent(ev: ServerEvent) {
     it.steps = run.steps;
     if (run.status !== 'running') {
       it.error = run.error || null;
-      rpc.workflows.runs.list({ workflowId: it.wfId })
+      rpc.workflows.runs
+        .list({ workflowId: it.wfId })
         .then((runs) => {
           const r = runs.find((x) => x.id === it.runId);
           if (r?.output) it.output = String(r.output).slice(0, 4000);

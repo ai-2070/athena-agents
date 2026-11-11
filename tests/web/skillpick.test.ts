@@ -19,7 +19,11 @@ beforeEach(async () => {
     { slug: 'seo', name: 'SEO', description: 'Search basics.' },
   ];
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
-  vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(String(url).includes('/skills') ? { skills, claude: [] } : { ok: true })));
+  vi.stubGlobal(
+    'fetch',
+    async (url: string) =>
+      new Response(JSON.stringify(String(url).includes('/skills') ? { skills, claude: [] } : { ok: true })),
+  );
   forgetSkills();
   await loadSkills(true);
 });
@@ -43,13 +47,15 @@ const click = async (element: HTMLElement) => {
   await tick();
 };
 
-
 describe('skillPicker() menu', () => {
   it('lists the library with each description, filters as you type, and adds what you pick', async () => {
     const saved: string[][] = [];
     const picker = await open(saved);
     const menu = document.querySelector('.skp-menu')!;
-    expect([...menu.querySelectorAll('.st-menu-item')].map((b) => b.textContent)).toEqual(['House styleHow we write.', 'SEOSearch basics.']);
+    expect([...menu.querySelectorAll('.st-menu-item')].map((b) => b.textContent)).toEqual([
+      'House styleHow we write.',
+      'SEOSearch basics.',
+    ]);
     const search = menu.querySelector<HTMLInputElement>('input')!;
     expect(document.activeElement).toBe(search);
     await act(async () => {
@@ -101,7 +107,11 @@ describe('skillPicker() menu', () => {
   it('New opens the skill editor right here, and a skill made there is added too', async () => {
     const saved: string[][] = [];
     const picker = await open(saved);
-    await click([...document.querySelectorAll<HTMLButtonElement>('.skp-menu button')].find((b) => b.textContent?.trim() === 'New')!);
+    await click(
+      [...document.querySelectorAll<HTMLButtonElement>('.skp-menu button')].find(
+        (b) => b.textContent?.trim() === 'New',
+      )!,
+    );
     expect(document.querySelector('.modal h2')!.textContent).toBe('New skill');
     // the editor saved one: the library now has a third skill
     skills.push({ slug: 'new-one', name: 'New one', description: 'Fresh.' });
@@ -110,7 +120,9 @@ describe('skillPicker() menu', () => {
     const [desc, body] = document.querySelectorAll<HTMLTextAreaElement>('.modal label.field textarea');
     desc.value = 'Fresh.';
     body.value = 'Steps.';
-    [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')].find((b) => b.textContent === 'Add skill')!.click();
+    [...document.querySelectorAll<HTMLButtonElement>('.modal-foot button')]
+      .find((b) => b.textContent === 'Add skill')!
+      .click();
     await tick();
     await tick();
     await tick();
@@ -124,7 +136,11 @@ describe('skillPicker() menu', () => {
   ])('%s opens its import dialog', async (label, title) => {
     const saved: string[][] = [];
     await open(saved);
-    await click([...document.querySelectorAll<HTMLButtonElement>('.skp-menu button')].find((b) => b.textContent?.trim() === label)!);
+    await click(
+      [...document.querySelectorAll<HTMLButtonElement>('.skp-menu button')].find(
+        (b) => b.textContent?.trim() === label,
+      )!,
+    );
     await tick();
     expect(document.querySelector('.modal h2')?.textContent).toBe(title);
     expect(document.querySelector('.skp-menu')).toBeNull();

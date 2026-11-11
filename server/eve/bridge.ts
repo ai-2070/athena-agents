@@ -12,7 +12,19 @@ import { recordAsked, recordToolCall } from '../toolstats.ts';
 import { approvalFingerprint, cancelDurableApproval, durableApproval, ensureDurableApproval } from '../approvals.ts';
 import type { ApprovalRequest } from '../approvals.ts';
 import * as mcp from '../mcp.ts';
-import { attachSession, awaitingTakeover, readRun, readRunSummary, recordCharge, recordConfiguration, recordCostBaseline, recordLimit, sessionContext, setRunStatus, workingRunOf } from './state.ts';
+import {
+  attachSession,
+  awaitingTakeover,
+  readRun,
+  readRunSummary,
+  recordCharge,
+  recordConfiguration,
+  recordCostBaseline,
+  recordLimit,
+  sessionContext,
+  setRunStatus,
+  workingRunOf,
+} from './state.ts';
 import { executeOperation, operationId, prepareOperation, readOperation, saveOperation } from './operations.ts';
 import { canonical } from '../../shared/canonical.ts';
 import { admissionHistory, admissionSelection } from './admission.ts';
@@ -66,13 +78,18 @@ async function startingContext(bindingId: string, sessionId: string) {
   }
 }
 
-export async function eveConfiguration(bindingId: string, sessionId: string, nativeCost = 0): Promise<EveRuntimeConfiguration> {
+export async function eveConfiguration(
+  bindingId: string,
+  sessionId: string,
+  nativeCost = 0,
+): Promise<EveRuntimeConfiguration> {
   const { binding, project, agent, chat, run } = await startingContext(bindingId, sessionId);
   const costBaseline = recordCostBaseline(run.id, nativeCost);
   return withProject(project, async () => {
     const selection = await modelOf(run.id, agent, chat);
     const provider = providerOf({ ...agent, provider: selection.provider });
-    if (provider.base !== selection.baseUrl) throw new Error('The model address changed during this turn. Start a new turn to use it.');
+    if (provider.base !== selection.baseUrl)
+      throw new Error('The model address changed during this turn. Start a new turn to use it.');
     const defs = selection.capabilities?.tools === false ? [] : (await toolList(agent, chat)).defs;
     // Built once per run: the same start of the prompt on every step keeps the provider's cache.
     const instructions = await runInstructions(run.id, () => buildInstructions(agent, chat, run.depth));
@@ -84,10 +101,17 @@ export async function eveConfiguration(bindingId: string, sessionId: string, nat
       ...selection,
       cacheKey: binding.id,
       costBaseline,
-      ...(selection.provider === 'venice' ? { spentUsd: readRun(run.id)?.charges?.reduce((sum, charge) => sum + (charge.cost || 0), 0) || 0 } : {}),
-      apiKey: provider.headers.authorization?.replace(/^Bearer /, '') || '', headers,
+      ...(selection.provider === 'venice'
+        ? { spentUsd: readRun(run.id)?.charges?.reduce((sum, charge) => sum + (charge.cost || 0), 0) || 0 }
+        : {}),
+      apiKey: provider.headers.authorization?.replace(/^Bearer /, '') || '',
+      headers,
       instructions,
-      tools: defs.map((tool) => ({ name: tool.function.name, description: tool.function.description || '', inputSchema: modelSchema(tool.function.parameters) })),
+      tools: defs.map((tool) => ({
+        name: tool.function.name,
+        description: tool.function.description || '',
+        inputSchema: modelSchema(tool.function.parameters),
+      })),
     };
     const { apiKey: _key, headers: _headers, ...definition } = configuration;
     recordConfiguration(run.id, definition);
@@ -96,30 +120,71 @@ export async function eveConfiguration(bindingId: string, sessionId: string, nat
 }
 
 /** The consent check of one call. /tool runs it again and then executes the route it checked. */
-async function checkCall(bindingId: string, sessionId: string, runId: string, callId: string, name: string, args: Record<string, unknown>) {
+async function checkCall(
+  bindingId: string,
+  sessionId: string,
+  runId: string,
+  callId: string,
+  name: string,
+  args: Record<string, unknown>,
+) {
   const { project, agent, run, chat } = invocationContext(bindingId, sessionId, runId);
   let target: ToolRoute | undefined;
   const policy = await withProject(project, async (): Promise<Policy> => {
     const saved = readOperation(operationId(bindingId, sessionId, runId, callId));
-    if (saved && (saved.name !== name || canonical(saved.args) !== canonical(args) || saved.runId !== run.id)) throw new Error('The tool call changed its saved operation.');
+    if (saved && (saved.name !== name || canonical(saved.args) !== canonical(args) || saved.runId !== run.id))
+      throw new Error('The tool call changed its saved operation.');
     if (saved?.status === 'completed') return { status: 'approved' };
-    if (saved?.status === 'cancelled' || saved?.status === 'uncertain') return { status: 'denied', reason: 'This operation cannot be repeated. Check its outcome in Athena.' };
+    if (saved?.status === 'cancelled' || saved?.status === 'uncertain')
+      return { status: 'denied', reason: 'This operation cannot be repeated. Check its outcome in Athena.' };
     const { route } = await toolList(agent, chat);
     target = route.get(name);
     if (!target) throw new Error('This tool is no longer available to the agent.');
     const fresh = invocationContext(bindingId, sessionId, runId);
-    if (target.kind === 'mcp' && (!fresh.agent.mcpServers.includes(target.server) || !mcp.isEnabled(target.server))) throw new Error('This MCP account is no longer available to the agent.');
+    if (target.kind === 'mcp' && (!fresh.agent.mcpServers.includes(target.server) || !mcp.isEnabled(target.server)))
+      throw new Error('This MCP account is no longer available to the agent.');
     const edited = durableApproval(operationId(bindingId, sessionId, runId, callId))?.decision?.edited;
-    const effective = edited !== null && typeof edited === 'object' && !Array.isArray(edited) ? edited as Record<string, unknown> : args;
+    const effective =
+      edited !== null && typeof edited === 'object' && !Array.isArray(edited)
+        ? (edited as Record<string, unknown>)
+        : args;
     const approvalContext = { runId: run.id, approvalArgs: args };
-    const plan = target.kind === 'builtin' ? await toolApprovalPlan(fresh.agent, target.name, effective, approvalContext)
-      : { risk: target.risk, requests: needsApproval(fresh.agent, target.risk, name) ? [toolApprovalRequest(fresh.agent, name, effective, { ...approvalContext, mcpServer: target.server })] : [] };
+    const plan =
+      target.kind === 'builtin'
+        ? await toolApprovalPlan(fresh.agent, target.name, effective, approvalContext)
+        : {
+            risk: target.risk,
+            requests: needsApproval(fresh.agent, target.risk, name)
+              ? [toolApprovalRequest(fresh.agent, name, effective, { ...approvalContext, mcpServer: target.server })]
+              : [],
+          };
     const origin = target.kind === 'builtin' ? `builtin:${target.name}` : `mcp:${target.server}:${target.name}`;
-    const operation = prepareOperation({ runId: run.id, bindingId, sessionId, callId, name, args, origin, risk: plan.risk });
+    const operation = prepareOperation({
+      runId: run.id,
+      bindingId,
+      sessionId,
+      callId,
+      name,
+      args,
+      origin,
+      risk: plan.risk,
+    });
     if (operation.status === 'running') return { status: 'approved' };
     if (target.kind === 'builtin' && target.name === 'ask_user') {
-      const question = addQuestion({ question: String(args.question || ''), detail: typeof args.detail === 'string' ? args.detail : undefined, choices: args.choices, agentId: agent.id, chatId: fresh.binding.chatId, runId: run.id, operationId: operation.id });
-      saveOperation({ ...operation, questionId: question.id, status: question.status === 'waiting' ? 'waiting' : 'prepared' });
+      const question = addQuestion({
+        question: String(args.question || ''),
+        detail: typeof args.detail === 'string' ? args.detail : undefined,
+        choices: args.choices,
+        agentId: agent.id,
+        chatId: fresh.binding.chatId,
+        runId: run.id,
+        operationId: operation.id,
+      });
+      saveOperation({
+        ...operation,
+        questionId: question.id,
+        status: question.status === 'waiting' ? 'waiting' : 'prepared',
+      });
       if (question.status === 'waiting') setRunStatus(run.id, 'waiting');
       return { status: question.status === 'waiting' ? 'user-approval' : 'approved' };
     }
@@ -128,37 +193,67 @@ async function checkCall(bindingId: string, sessionId: string, runId: string, ca
       if (operation.approvalChecks && checks.some((check) => !operation.approvalChecks!.includes(check))) {
         cancelDurableApproval(operation.id, 'The tool target or required consent changed.');
         saveOperation({ ...operation, status: 'cancelled' });
-        return { status: 'denied', reason: 'The tool target or required consent changed. Make a new call for the current target.' };
+        return {
+          status: 'denied',
+          reason: 'The tool target or required consent changed. Make a new call for the current target.',
+        };
       }
       const previous = operation.approvalId ? durableApproval(operation.id) : null;
       if (operation.approvalId && !previous) throw new Error('The saved consent is missing.');
       // One native wait covers every check; the executor verifies each individual boundary again.
-      const request: ApprovalRequest = previous?.item || (plan.requests.length === 1 ? plan.requests[0]! : {
-        ...toolApprovalRequest(fresh.agent, name, args, approvalContext),
-        detail: plan.requests.map((item) => `${item.title}\n${item.detail || ''}`).join('\n\n'),
-        data: { tool: name, args, runId: run.id, checks },
-      });
+      const request: ApprovalRequest =
+        previous?.item ||
+        (plan.requests.length === 1
+          ? plan.requests[0]!
+          : {
+              ...toolApprovalRequest(fresh.agent, name, args, approvalContext),
+              detail: plan.requests.map((item) => `${item.title}\n${item.detail || ''}`).join('\n\n'),
+              data: { tool: name, args, runId: run.id, checks },
+            });
       if (!previous) recordAsked(name);
       const approval = ensureDurableApproval(operation.id, request);
-      saveOperation({ ...operation, approvalChecks: operation.approvalChecks || checks, approvalId: approval.id, status: approval.decision ? approval.decision.approved ? 'prepared' : 'cancelled' : 'waiting' });
+      saveOperation({
+        ...operation,
+        approvalChecks: operation.approvalChecks || checks,
+        approvalId: approval.id,
+        status: approval.decision ? (approval.decision.approved ? 'prepared' : 'cancelled') : 'waiting',
+      });
       if (!approval.decision) {
         setRunStatus(run.id, 'waiting');
         return { status: 'user-approval' };
       }
-      return approval.decision.approved ? { status: 'approved' } : { status: 'denied', reason: approval.decision.message || 'The user denied this tool call.' };
+      return approval.decision.approved
+        ? { status: 'approved' }
+        : { status: 'denied', reason: approval.decision.message || 'The user denied this tool call.' };
     }
     return { status: 'approved' };
   });
   return { policy, target };
 }
 
-export async function eveToolPolicy(bindingId: string, sessionId: string, runId: string, callId: string, name: string, args: Record<string, unknown>): Promise<Policy> {
+export async function eveToolPolicy(
+  bindingId: string,
+  sessionId: string,
+  runId: string,
+  callId: string,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<Policy> {
   return (await checkCall(bindingId, sessionId, runId, callId, name, args)).policy;
 }
 
-export async function eveTool(bindingId: string, sessionId: string, runId: string, callId: string, name: string, args: Record<string, unknown>, signal?: AbortSignal) {
+export async function eveTool(
+  bindingId: string,
+  sessionId: string,
+  runId: string,
+  callId: string,
+  name: string,
+  args: Record<string, unknown>,
+  signal?: AbortSignal,
+) {
   const { policy, target: checked } = await checkCall(bindingId, sessionId, runId, callId, name, args);
-  if (policy.status !== 'approved') return { text: policy.reason || 'This tool is waiting for approval in Athena.', isError: true, denied: true };
+  if (policy.status !== 'approved')
+    return { text: policy.reason || 'This tool is waiting for approval in Athena.', isError: true, denied: true };
   // Checked again after the consent check's waits, before anything runs.
   const { project, agent, run, chat } = invocationContext(bindingId, sessionId, runId);
   const id = operationId(bindingId, sessionId, runId, callId);
@@ -178,28 +273,55 @@ export async function eveTool(bindingId: string, sessionId: string, runId: strin
         const question = questions.get(operation.questionId);
         return question?.status === 'answered'
           ? { text: answerResult({ choice: question.choice || '', text: question.reply || '' }) }
-          : { text: 'The question was closed without an answer. Ask what the user wants next.', isError: true, denied: true };
+          : {
+              text: 'The question was closed without an answer. Ask what the user wants next.',
+              isError: true,
+              denied: true,
+            };
       }
       const edited = durableApproval(id)?.decision?.edited;
-      const effective = edited !== null && typeof edited === 'object' && !Array.isArray(edited) ? edited as Record<string, unknown> : args;
-      const context = { runId: run.id, depth: run.depth, signal, operationId: id, approvalArgs: args,
+      const effective =
+        edited !== null && typeof edited === 'object' && !Array.isArray(edited)
+          ? (edited as Record<string, unknown>)
+          : args;
+      const context = {
+        runId: run.id,
+        depth: run.depth,
+        signal,
+        operationId: id,
+        approvalArgs: args,
         approvalDecision: async (request: ApprovalRequest) => {
           const saved = readOperation(id);
           const decision = durableApproval(id)?.decision;
-          if (signal?.aborted || !['running', 'waiting'].includes(readRunSummary(run.id)?.status || '') || !saved?.approvalChecks?.includes(approvalFingerprint(request)) || !decision?.approved) return { approved: false, message: 'This action is not covered by the saved approval. Make a new call for the current target.' };
+          if (
+            signal?.aborted ||
+            !['running', 'waiting'].includes(readRunSummary(run.id)?.status || '') ||
+            !saved?.approvalChecks?.includes(approvalFingerprint(request)) ||
+            !decision?.approved
+          )
+            return {
+              approved: false,
+              message: 'This action is not covered by the saved approval. Make a new call for the current target.',
+            };
           return { ...decision, always: saved.approvalChecks.length === 1 && decision.always };
         },
       };
       // (what the model gets back stays within the result limit; the receipt keeps exactly that)
-      if (target.kind === 'builtin') return clipForModel(await callTool(fresh.agent, target.name, effective, context), target.name, run.id);
-      if (!fresh.agent.mcpServers.includes(target.server) || !mcp.isEnabled(target.server)) return { text: 'This MCP account is no longer available.', isError: true, denied: true };
+      if (target.kind === 'builtin')
+        return clipForModel(await callTool(fresh.agent, target.name, effective, context), target.name, run.id);
+      if (!fresh.agent.mcpServers.includes(target.server) || !mcp.isEnabled(target.server))
+        return { text: 'This MCP account is no longer available.', isError: true, denied: true };
       const refused = await gate(fresh.agent, name, target.risk, effective, { ...context, mcpServer: target.server });
       if (signal?.aborted) return { text: 'Stopped.', isError: true, denied: true };
       if (refused) return refused;
       const started = Date.now();
       try {
         const answer = await mcp.callTool(target.server, target.name, effective, { signal });
-        recordToolCall(name, { ms: Date.now() - started, chars: answer.text.length, isError: answer.text.startsWith('ERROR: ') });
+        recordToolCall(name, {
+          ms: Date.now() - started,
+          chars: answer.text.length,
+          isError: answer.text.startsWith('ERROR: '),
+        });
         return clipForModel(answer, name, run.id);
       } catch (e) {
         recordToolCall(name, { ms: Date.now() - started, chars: 0, isError: true });
@@ -209,14 +331,43 @@ export async function eveTool(bindingId: string, sessionId: string, runId: strin
     const operation = readOperation(id);
     if (operation?.status === 'uncertain') {
       if (['running', 'waiting'].includes(readRunSummary(run.id)?.status || '')) setRunStatus(run.id, 'interrupted');
-      ensureDurableApproval(`reconcile:${id}`, { kind: 'workflow', title: `Check the outcome of ${name}`, detail: 'This tool may already have made changes. Check its outcome before starting more work. Allow to mark this check done; this run stays interrupted and the tool will not be repeated.', agentId: agent.id, agentName: agent.name, data: { tool: name, args, runId: run.id, outcomeCheck: true } });
+      ensureDurableApproval(`reconcile:${id}`, {
+        kind: 'workflow',
+        title: `Check the outcome of ${name}`,
+        detail:
+          'This tool may already have made changes. Check its outcome before starting more work. Allow to mark this check done; this run stays interrupted and the tool will not be repeated.',
+        agentId: agent.id,
+        agentName: agent.name,
+        data: { tool: name, args, runId: run.id, outcomeCheck: true },
+      });
     }
     return result;
   });
 }
 
-const chargeSchema = z.object({ id: z.uuid(), cost: z.number().finite().nonnegative().optional(), billing: z.object({ source: z.enum(['reported', 'estimated', 'unavailable']), chargedUsd: z.number().finite().nonnegative().optional(), chargedDiem: z.number().finite().nonnegative().optional() }) });
-const requestSchema = z.object({ binding: z.string().min(1), input: z.object({ sessionId: z.string().min(1).optional(), runId: z.string().min(1).optional(), nativeCost: z.number().finite().nonnegative().optional(), charge: chargeSchema.optional(), messageHash: z.string().length(64).optional(), limit: z.enum(['steps', 'cost']).optional(), callId: z.string().optional(), name: z.string().optional(), args: z.record(z.string(), z.unknown()).optional() }) });
+const chargeSchema = z.object({
+  id: z.uuid(),
+  cost: z.number().finite().nonnegative().optional(),
+  billing: z.object({
+    source: z.enum(['reported', 'estimated', 'unavailable']),
+    chargedUsd: z.number().finite().nonnegative().optional(),
+    chargedDiem: z.number().finite().nonnegative().optional(),
+  }),
+});
+const requestSchema = z.object({
+  binding: z.string().min(1),
+  input: z.object({
+    sessionId: z.string().min(1).optional(),
+    runId: z.string().min(1).optional(),
+    nativeCost: z.number().finite().nonnegative().optional(),
+    charge: chargeSchema.optional(),
+    messageHash: z.string().length(64).optional(),
+    limit: z.enum(['steps', 'cost']).optional(),
+    callId: z.string().optional(),
+    name: z.string().optional(),
+    args: z.record(z.string(), z.unknown()).optional(),
+  }),
+});
 
 /** A separate authenticated listener; dashboard request guards are never bypassed. */
 export async function openEveBridge() {
@@ -230,8 +381,13 @@ export async function openEveBridge() {
       return;
     }
     const controller = new AbortController();
-    response.on('close', () => { if (!response.writableEnded) controller.abort(); });
-    if (request.method !== 'POST' || !['/admission', '/configuration', '/limit', '/billing', '/policy', '/tool'].includes(request.url || '')) {
+    response.on('close', () => {
+      if (!response.writableEnded) controller.abort();
+    });
+    if (
+      request.method !== 'POST' ||
+      !['/admission', '/configuration', '/limit', '/billing', '/policy', '/tool'].includes(request.url || '')
+    ) {
       response.writeHead(404).end();
       return;
     }
@@ -259,26 +415,61 @@ export async function openEveBridge() {
         const { project, agent, chat, run } = invocationContext(body.binding, body.input.sessionId!, body.input.runId);
         // Only the two limits are needed, not a whole new configuration.
         const selection = await withProject(project, () => modelOf(run.id, agent, chat));
-        const reason = body.input.limit === 'steps' ? `Stopped after ${selection.maxModelSteps} model steps. Raise Max tool steps in Settings to continue.` : `Stopped: this run reached the $${selection.costLimitUsd} limit set in Settings.`;
+        const reason =
+          body.input.limit === 'steps'
+            ? `Stopped after ${selection.maxModelSteps} model steps. Raise Max tool steps in Settings to continue.`
+            : `Stopped: this run reached the $${selection.costLimitUsd} limit set in Settings.`;
         recordLimit(body.input.runId, reason);
         response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ reason }));
         return;
       }
-      if (!['/admission', '/configuration'].includes(request.url || '') && !(body.input.callId && body.input.runId)) throw new Error('An Eve run and tool call ID are required.');
-      if (request.url === '/admission' && !(body.input.runId && body.input.messageHash)) throw new Error('A saved Eve input is required.');
-      const value = request.url === '/admission' ? { history: admissionHistory(body.binding, body.input.runId!, body.input.messageHash!, body.input.sessionId) }
-        : request.url === '/configuration' ? await eveConfiguration(body.binding, body.input.sessionId!, body.input.nativeCost)
-          : request.url === '/policy' ? await eveToolPolicy(body.binding, body.input.sessionId!, body.input.runId!, body.input.callId!, body.input.name || '', body.input.args || {})
-            : await eveTool(body.binding, body.input.sessionId!, body.input.runId!, body.input.callId!, body.input.name || '', body.input.args || {}, controller.signal);
+      if (!['/admission', '/configuration'].includes(request.url || '') && !(body.input.callId && body.input.runId))
+        throw new Error('An Eve run and tool call ID are required.');
+      if (request.url === '/admission' && !(body.input.runId && body.input.messageHash))
+        throw new Error('A saved Eve input is required.');
+      const value =
+        request.url === '/admission'
+          ? {
+              history: admissionHistory(body.binding, body.input.runId!, body.input.messageHash!, body.input.sessionId),
+            }
+          : request.url === '/configuration'
+            ? await eveConfiguration(body.binding, body.input.sessionId!, body.input.nativeCost)
+            : request.url === '/policy'
+              ? await eveToolPolicy(
+                  body.binding,
+                  body.input.sessionId!,
+                  body.input.runId!,
+                  body.input.callId!,
+                  body.input.name || '',
+                  body.input.args || {},
+                )
+              : await eveTool(
+                  body.binding,
+                  body.input.sessionId!,
+                  body.input.runId!,
+                  body.input.callId!,
+                  body.input.name || '',
+                  body.input.args || {},
+                  controller.signal,
+                );
       response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(value));
     } catch {
       // A provider failure may contain credentials; only a fixed message leaves the bridge.
-      response.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'The Eve bridge request could not be completed.' }));
+      response
+        .writeHead(400, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ error: 'The Eve bridge request could not be completed.' }));
     }
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Could not start the private Eve tool bridge.');
-  return { url: `http://127.0.0.1:${address.port}`, token, close: async () => { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); } };
+  return {
+    url: `http://127.0.0.1:${address.port}`,
+    token,
+    close: async () => {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    },
+  };
 }

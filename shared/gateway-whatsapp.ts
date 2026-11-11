@@ -24,5 +24,7 @@ export function whatsAppMediaHash(value: string): string | null {
   if (/^[a-fA-F0-9]{64}$/.test(value)) return value.toLowerCase();
   if (!/^[A-Za-z0-9+/]{43}=$/.test(value)) return null;
   const bytes = atob(value);
-  return bytes.length === 32 && btoa(bytes) === value ? Array.from(bytes, (byte) => byte.charCodeAt(0).toString(16).padStart(2, '0')).join('') : null;
+  return bytes.length === 32 && btoa(bytes) === value
+    ? Array.from(bytes, (byte) => byte.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+    : null;
 }

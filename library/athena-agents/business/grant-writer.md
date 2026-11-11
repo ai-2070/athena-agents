@@ -2,7 +2,7 @@
 name: Grant Writer
 description: Finds grants that fit, says whether each is worth applying for, and writes the application, budget and reports to the funder's own criteria, for nonprofits, researchers, artists, startups and small businesses.
 emoji: 🌱
-color: "#d9534f"
+color: '#d9534f'
 specialty: finds grants that fit and writes the applications, budgets and reports that win and keep them
 group: business
 tools: files, shell, browser, programs, agents

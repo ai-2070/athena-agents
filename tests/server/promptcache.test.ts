@@ -10,7 +10,10 @@ import { chats, saveSettings, setSecret } from '../../server/store.ts';
 
 describe('cacheFields', () => {
   it('Claude models on OpenRouter get a cache point and stay with one provider', () => {
-    expect(cacheFields('openrouter', 'anthropic/claude-sonnet-5.5', 'c_1')).toEqual({ session_id: 'c_1', cache_control: { type: 'ephemeral' } });
+    expect(cacheFields('openrouter', 'anthropic/claude-sonnet-5.5', 'c_1')).toEqual({
+      session_id: 'c_1',
+      cache_control: { type: 'ephemeral' },
+    });
     expect(asksForCache('openrouter', '~anthropic/claude-haiku-latest')).toBe(true);
   });
 
@@ -20,13 +23,17 @@ describe('cacheFields', () => {
   });
 
   it('local and custom servers get nothing they might not understand', () => {
-    for (const p of ['lmstudio', 'ollama', 'custom']) expect(cacheFields(p, 'anthropic/claude-sonnet-5.5', 'c_1')).toEqual({});
+    for (const p of ['lmstudio', 'ollama', 'custom'])
+      expect(cacheFields(p, 'anthropic/claude-sonnet-5.5', 'c_1')).toEqual({});
   });
 });
 
 describe('systemMessage (the Brain)', () => {
   it('marks the end of the instructions for a Claude model', () => {
-    expect(systemMessage('anthropic/claude-haiku-5.5', 'rules')).toEqual({ role: 'system', content: [{ type: 'text', text: 'rules', cache_control: { type: 'ephemeral' } }] });
+    expect(systemMessage('anthropic/claude-haiku-5.5', 'rules')).toEqual({
+      role: 'system',
+      content: [{ type: 'text', text: 'rules', cache_control: { type: 'ephemeral' } }],
+    });
   });
 
   it('leaves other models as plain text', () => {
@@ -43,7 +50,9 @@ describe('the Brain keeps to one provider', () => {
     const sent: Record<string, unknown>[] = [];
     vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
       sent.push(JSON.parse(String(init.body)) as Record<string, unknown>);
-      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] }), { status: 200 });
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] }), {
+        status: 200,
+      });
     });
     await think('rules', 'first question');
     await think('rules', 'second question');
@@ -79,13 +88,25 @@ describe('a run that read from the cache', () => {
       req.resume();
       req.on('end', () => {
         if (req.url?.endsWith('/models')) return res.end(JSON.stringify({ data: [{ id: 'mock' }] }));
-        const usage = { cost: 0.002, total_tokens: 5000, prompt_tokens: 4900, completion_tokens: 100, prompt_tokens_details: { cached_tokens: 4096 } };
+        const usage = {
+          cost: 0.002,
+          total_tokens: 5000,
+          prompt_tokens: 4900,
+          completion_tokens: 100,
+          prompt_tokens_details: { cached_tokens: 4096 },
+        };
         res.writeHead(200, { 'content-type': 'text/event-stream' });
-        res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'hi' }, finish_reason: 'stop' }], usage })}\n\ndata: [DONE]\n\n`);
+        res.end(
+          `data: ${JSON.stringify({ choices: [{ delta: { content: 'hi' }, finish_reason: 'stop' }], usage })}\n\ndata: [DONE]\n\n`,
+        );
       });
     });
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-    saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+    saveSettings({
+      providers: {
+        custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+      },
+    });
   });
   afterAll(() => new Promise<void>((r) => server.close(() => r())));
 

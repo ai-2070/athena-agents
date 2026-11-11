@@ -2,7 +2,16 @@ import fs from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { activeProject, agents, chats, saveSettings } from '../../server/store.ts';
 import { newAgent } from '../../server/library.ts';
-import { beginRun, bindSession, conversationBinding, markProjected, readBinding, readRun, setRunStatus, settleRun } from '../../server/eve/state.ts';
+import {
+  beginRun,
+  bindSession,
+  conversationBinding,
+  markProjected,
+  readBinding,
+  readRun,
+  setRunStatus,
+  settleRun,
+} from '../../server/eve/state.ts';
 import { operationsForRun, prepareOperation, readOperation, saveOperation } from '../../server/eve/operations.ts';
 import { decide, durableApproval, ensureDurableApproval } from '../../server/approvals.ts';
 import { EVE_RECEIPT_DAYS, removeOldEveReceipts } from '../../server/eve/retention.ts';
@@ -18,24 +27,53 @@ const approvalFile = (key: string) => file('approvals', durableApproval(key)!.id
 afterEach(() => vi.useRealTimers());
 
 /** A run with one tool call and a saved input, ended (and dated) as asked. */
-function run(id: string, { status = 'completed', operation = 'completed', daysAgo = EVE_RECEIPT_DAYS + 1 }: { status?: 'completed' | 'failed' | 'stopped' | 'interrupted' | 'running'; operation?: EveToolOperation['status']; daysAgo?: number } = {}) {
+function run(
+  id: string,
+  {
+    status = 'completed',
+    operation = 'completed',
+    daysAgo = EVE_RECEIPT_DAYS + 1,
+  }: {
+    status?: 'completed' | 'failed' | 'stopped' | 'interrupted' | 'running';
+    operation?: EveToolOperation['status'];
+    daysAgo?: number;
+  } = {},
+) {
   saveSettings({ brainApproves: false });
   const agent = agents.save(newAgent({ engine: 'eve', name: id }));
   const chat = chats.create(agent.id, id);
   const binding = bindSession(agent, chat, activeProject(), 'retention');
   beginRun(id, binding.id);
   setRunStatus(id, 'running');
-  const prepared = prepareOperation({ runId: id, bindingId: binding.id, sessionId: 'session', callId: 'call', name: 'send', args: { to: 'peer' }, origin: 'builtin:send', risk: 'high' });
-  const approval = ensureDurableApproval(prepared.id, { title: `Send for ${id}`, agentId: agent.id, data: { runId: id } });
+  const prepared = prepareOperation({
+    runId: id,
+    bindingId: binding.id,
+    sessionId: 'session',
+    callId: 'call',
+    name: 'send',
+    args: { to: 'peer' },
+    origin: 'builtin:send',
+    risk: 'high',
+  });
+  const approval = ensureDurableApproval(prepared.id, {
+    title: `Send for ${id}`,
+    agentId: agent.id,
+    data: { runId: id },
+  });
   decide(approval.id, { approved: true });
   saveOperation({ ...prepared, approvalId: approval.id, status: operation });
   writeJSON(file('admissions', id), { id });
   if (status !== 'running') settleRun(id, status, 'Done');
-  writeJSON(file('runs', id), { ...readRun(id)!, ...(status === 'running' ? {} : { endedAt: Date.now() - daysAgo * DAY }), updatedAt: Date.now() - daysAgo * DAY });
+  writeJSON(file('runs', id), {
+    ...readRun(id)!,
+    ...(status === 'running' ? {} : { endedAt: Date.now() - daysAgo * DAY }),
+    updatedAt: Date.now() - daysAgo * DAY,
+  });
   return { agent, chat, binding, operation: readOperation(prepared.id)! };
 }
 
-const kept = (id: string) => !!readRun(id) && fs.existsSync(file('admissions', id)) && operationsForRun(id).length === 1;
+const kept = (id: string) =>
+  !!readRun(id) && fs.existsSync(file('admissions', id)) && operationsForRun(id).length === 1;
 
 describe('removing old Eve receipts', () => {
   it('removes the run, its operations, its input and its decided consent after 30 days', () => {
@@ -57,7 +95,11 @@ describe('removing old Eve receipts', () => {
   it('keeps runs that are not finished or whose results are not all in the chat', () => {
     run('still-working', { status: 'running' });
     run('not-projected');
-    writeJSON(file('runs', 'not-projected'), { ...readRun('not-projected')!, events: [{ id: '1:0:0', event: { kind: 'text', text: 'Unsaved reply' } }], projected: 0 });
+    writeJSON(file('runs', 'not-projected'), {
+      ...readRun('not-projected')!,
+      events: [{ id: '1:0:0', event: { kind: 'text', text: 'Unsaved reply' } }],
+      projected: 0,
+    });
     expect(removeOldEveReceipts()).toEqual([]);
     expect(kept('still-working') && kept('not-projected')).toBe(true);
     markProjected('not-projected', 1);
@@ -74,7 +116,12 @@ describe('removing old Eve receipts', () => {
     const asked = run('asked', { operation: 'cancelled' });
     writeJSON(approvalFile(asked.operation.id), { ...durableApproval(asked.operation.id)!, decision: undefined });
     const checked = run('checked', { status: 'interrupted', operation: 'cancelled' });
-    const check = ensureDurableApproval(`reconcile:${checked.operation.id}`, { kind: 'workflow', title: 'Check the outcome', agentId: checked.agent.id, data: { runId: 'checked', outcomeCheck: true } });
+    const check = ensureDurableApproval(`reconcile:${checked.operation.id}`, {
+      kind: 'workflow',
+      title: 'Check the outcome',
+      agentId: checked.agent.id,
+      data: { runId: 'checked', outcomeCheck: true },
+    });
     expect(removeOldEveReceipts()).toEqual([]);
     expect(kept('asked') && kept('checked')).toBe(true);
     decide(check.id, { approved: true });
@@ -91,7 +138,9 @@ describe('removing old Eve receipts', () => {
     expect(conversationBinding(activeProject().id, lost.agent.id, lost.chat.id, 'retention')).toBeNull();
     // A finished conversation keeps its native session for the next turn.
     expect(readBinding(finished.binding.id)?.retired).toBe(false);
-    expect(conversationBinding(activeProject().id, finished.agent.id, finished.chat.id, 'retention')?.id).toBe(finished.binding.id);
+    expect(conversationBinding(activeProject().id, finished.agent.id, finished.chat.id, 'retention')?.id).toBe(
+      finished.binding.id,
+    );
   });
 
   it('dates runs stopped before this change by their last save, and stopping now saves when it ended', () => {
@@ -100,7 +149,11 @@ describe('removing old Eve receipts', () => {
     setRunStatus('stopped-now', 'stopped');
     expect(readRun('stopped-now')?.endedAt).toBeGreaterThanOrEqual(at);
     expect(removeOldEveReceipts()).toEqual([]);
-    writeJSON(file('runs', 'stopped-now'), { ...readRun('stopped-now')!, endedAt: undefined, updatedAt: at - (EVE_RECEIPT_DAYS + 1) * DAY });
+    writeJSON(file('runs', 'stopped-now'), {
+      ...readRun('stopped-now')!,
+      endedAt: undefined,
+      updatedAt: at - (EVE_RECEIPT_DAYS + 1) * DAY,
+    });
     expect(removeOldEveReceipts()).toEqual(['stopped-now']);
     expect(readBinding(stopped.binding.id)?.retired).toBe(true);
   });
@@ -116,7 +169,9 @@ describe('when Eve removes old receipts', () => {
       bridge: async () => ({ url: 'http://127.0.0.1:1', token: 'fixture', close: async () => {} }),
       host: async () => {
         let resolve = () => {};
-        const exited = new Promise<void>((done) => { resolve = done; });
+        const exited = new Promise<void>((done) => {
+          resolve = done;
+        });
         exit = resolve;
         return { url: 'http://127.0.0.1:2', token: 'fixture', exited, close: async () => resolve() };
       },

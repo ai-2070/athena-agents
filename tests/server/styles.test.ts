@@ -62,7 +62,8 @@ describe('the stylesheet', () => {
 
   it('has no class names built from pieces (Tailwind reads the source text)', () => {
     // e.g. `bg-${color}`: the finished name never appears in the source, so no CSS is made for it
-    const piece = /['"`\s](bg|text|border|ring|fill|stroke|shadow|from|to|via|w|h|min-w|max-w|min-h|max-h|p[xytrbl]|m[xytrbl]|gap|grid-cols|col-span|row-span|rounded|opacity|z|top|left|right|bottom|inset|translate-[xy]|font|leading|tracking)-\$\{/;
+    const piece =
+      /['"`\s](bg|text|border|ring|fill|stroke|shadow|from|to|via|w|h|min-w|max-w|min-h|max-h|p[xytrbl]|m[xytrbl]|gap|grid-cols|col-span|row-span|rounded|opacity|z|top|left|right|bottom|inset|translate-[xy]|font|leading|tracking)-\$\{/;
     const found: string[] = [];
     for (const file of sources(WEB)) {
       fs.readFileSync(file, 'utf8')
@@ -84,7 +85,8 @@ describe('the stylesheet', () => {
     for (const file of sources(WEB)) {
       const src = fs.readFileSync(file, 'utf8');
       for (const m of src.matchAll(/([^\s`'"{}]+)\$\{/g)) {
-        if (ds.candidatesToCss([m[1]])[0]) found.push(`${path.relative(WEB, file)}:${src.slice(0, m.index).split('\n').length} ${m[1]}`);
+        if (ds.candidatesToCss([m[1]])[0])
+          found.push(`${path.relative(WEB, file)}:${src.slice(0, m.index).split('\n').length} ${m[1]}`);
       }
     }
     expect(found).toEqual([]);
@@ -111,7 +113,17 @@ describe('the fonts', () => {
   });
 
   it('include every chat font Settings > Appearance offers (other than ones on the computer)', () => {
-    const onComputer = new Set(['Segoe UI', 'Segoe UI Variable Text', 'SF Pro Text', 'Georgia', 'Times New Roman', 'Helvetica', 'Arial', 'Menlo', 'Consolas']);
+    const onComputer = new Set([
+      'Segoe UI',
+      'Segoe UI Variable Text',
+      'SF Pro Text',
+      'Georgia',
+      'Times New Roman',
+      'Helvetica',
+      'Arial',
+      'Menlo',
+      'Consolas',
+    ]);
     const shipped = new Set(FONTS.map((f) => f.family));
     const named = CHAT_FONTS.flatMap((f) => [...f.stack.matchAll(/'([^']+)'/g)].map((m) => m[1] ?? ''));
     expect(named.filter((n) => !onComputer.has(n) && !shipped.has(n))).toEqual([]);

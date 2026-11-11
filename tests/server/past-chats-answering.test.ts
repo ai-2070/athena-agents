@@ -20,7 +20,8 @@ const thinking = async () => {
   await vi.waitUntil(() => waiting.length > 0);
   return waiting.shift()!;
 };
-const pastOf = (id: string) => readPast<{ id?: string; messages: BrainChatMessage[] }>({ kind: 'brain' }, id)?.messages.map((m) => m.text);
+const pastOf = (id: string) =>
+  readPast<{ id?: string; messages: BrainChatMessage[] }>({ kind: 'brain' }, id)?.messages.map((m) => m.text);
 
 describe('the Brain chat while the Brain answers', () => {
   it('New chat on an empty chat still starts another, and the late answer goes with the question', async () => {
@@ -39,7 +40,14 @@ describe('the Brain chat while the Brain answers', () => {
   });
 
   it('opening an earlier chat files the question with the one left, even when that one is opened again', async () => {
-    writeJSON(dataPath('projects', pid(), 'brain-chat.json'), { id: 't_older', createdAt: 1, messages: [{ role: 'user', text: 'Older', ts: 1 }, { role: 'brain', text: 'Yes.', ts: 2 }] });
+    writeJSON(dataPath('projects', pid(), 'brain-chat.json'), {
+      id: 't_older',
+      createdAt: 1,
+      messages: [
+        { role: 'user', text: 'Older', ts: 1 },
+        { role: 'brain', text: 'Yes.', ts: 2 },
+      ],
+    });
     const left = newBrainThread();
     const answer = ask('Plan the launch.');
     const go = await thinking();

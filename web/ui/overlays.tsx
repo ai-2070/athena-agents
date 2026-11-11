@@ -133,7 +133,15 @@ function Layer({ list, index, container }: { list: Entry[]; index: number; conta
   );
 }
 
-function DialogView({ entry, container, children }: { entry: Entry; container: HTMLElement | null; children: ReactNode }) {
+function DialogView({
+  entry,
+  container,
+  children,
+}: {
+  entry: Entry;
+  container: HTMLElement | null;
+  children: ReactNode;
+}) {
   const { spec } = entry;
   const title = useNodes(spec.title);
   const foot = useNodes(spec.foot);
@@ -141,12 +149,28 @@ function DialogView({ entry, container, children }: { entry: Entry; container: H
   const body = useRef<HTMLDivElement | null>(null);
   const bodyRef = useCallback((el: HTMLDivElement | null) => ((body.current = el), bodyNodes(el)), [bodyNodes]);
   const popup = useRef<HTMLDivElement>(null);
-  const firstFocus = () => spec.focus?.() || popup.current?.querySelector<HTMLElement>('.modal-body input:not([type=checkbox]):not([type=radio]):not([disabled]), .modal-body textarea') || popup.current;
+  const firstFocus = () =>
+    spec.focus?.() ||
+    popup.current?.querySelector<HTMLElement>(
+      '.modal-body input:not([type=checkbox]):not([type=radio]):not([disabled]), .modal-body textarea',
+    ) ||
+    popup.current;
   return (
-    <Dialog.Root open={entry.open} onOpenChange={(open) => !open && closeEntry(entry)} onOpenChangeComplete={(open) => !open && remove(entry)}>
+    <Dialog.Root
+      open={entry.open}
+      onOpenChange={(open) => !open && closeEntry(entry)}
+      onOpenChangeComplete={(open) => !open && remove(entry)}
+    >
       <Dialog.Portal container={container}>
-        <Dialog.Viewport className={`modal-back${spec.exit !== false ? ' exit' : ''}`} ref={(el: HTMLDivElement | null) => void (entry.view.current = el || entry.view.current)}>
-          <Dialog.Popup ref={popup} className={`modal${spec.narrow ? ' narrow' : spec.medium ? ' medium' : ''}`} initialFocus={firstFocus}>
+        <Dialog.Viewport
+          className={`modal-back${spec.exit !== false ? ' exit' : ''}`}
+          ref={(el: HTMLDivElement | null) => void (entry.view.current = el || entry.view.current)}
+        >
+          <Dialog.Popup
+            ref={popup}
+            className={`modal${spec.narrow ? ' narrow' : spec.medium ? ' medium' : ''}`}
+            initialFocus={firstFocus}
+          >
             <div className="modal-head">
               {spec.titleNode ? <Dialog.Title>{spec.titleNode}</Dialog.Title> : <Dialog.Title ref={title} />}
               {/* (the same close button as the Station's side panel) */}
@@ -182,10 +206,23 @@ export function openDialog(spec: DialogSpec): OpenDialog {
 
 /** A dialog with React content, for React pages. content gets close(); it draws <div className="modal-body">
  *  and, if it has buttons, <div className="modal-foot">. It stacks with every other dialog. */
-export function openModal(title: ReactNode, content: (close: () => void) => ReactNode, { narrow = false, medium = false, onClose }: { narrow?: boolean; medium?: boolean; onClose?: () => void } = {}): OpenDialog {
+export function openModal(
+  title: ReactNode,
+  content: (close: () => void) => ReactNode,
+  { narrow = false, medium = false, onClose }: { narrow?: boolean; medium?: boolean; onClose?: () => void } = {},
+): OpenDialog {
   let handle: OpenDialog | null = null;
   const close = () => handle?.close();
-  handle = openDialog({ title: [], titleNode: title, body: [], foot: null, narrow, medium, onClose, content: <ModalContent render={() => content(close)} /> });
+  handle = openDialog({
+    title: [],
+    titleNode: title,
+    body: [],
+    foot: null,
+    narrow,
+    medium,
+    onClose,
+    content: <ModalContent render={() => content(close)} />,
+  });
   return handle;
 }
 // (a component, so the content's hooks belong to it)

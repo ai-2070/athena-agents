@@ -16,7 +16,11 @@ vi.mock('../../server/util.ts', async (orig) => {
       const env = { ...process.env, ...(opts.env || {}) };
       calls.push({ args, env });
       if (args[0] === '--version') return { code: 0, stdout: '9.9.9', stderr: '' };
-      return { code: 0, stdout: env.ANTHROPIC_API_KEY ? '{"loggedIn": true, "authMethod": "api_key"}' : '{"loggedIn": false}', stderr: '' };
+      return {
+        code: 0,
+        stdout: env.ANTHROPIC_API_KEY ? '{"loggedIn": true, "authMethod": "api_key"}' : '{"loggedIn": false}',
+        stderr: '',
+      };
     },
   };
 });
@@ -25,7 +29,8 @@ import type { Agent } from '../../shared/types.ts';
 
 const files = { promptFile: 'prompt.md', mcpFile: 'mcp.json' };
 const modeOf = (args: string[]) => args[args.indexOf('--permission-mode') + 1];
-const agent = (autonomy: Agent['autonomy']) => newAgent({ name: `Claude ${autonomy}`, engine: 'claude-code', autonomy });
+const agent = (autonomy: Agent['autonomy']) =>
+  newAgent({ name: `Claude ${autonomy}`, engine: 'claude-code', autonomy });
 
 describe('claudeArgs() permission mode', () => {
   it('"Ask first" never auto-accepts edits: it uses the default mode and routes prompts to the dashboard', () => {
@@ -63,7 +68,7 @@ describe('claudeArgs() questions', () => {
 });
 
 describe('parseAuthStatus()', () => {
-  it("reads the login from `claude auth status`, which also knows about the macOS Keychain", () => {
+  it('reads the login from `claude auth status`, which also knows about the macOS Keychain', () => {
     expect(parseAuthStatus('{\n  "loggedIn": true,\n  "authMethod": "claude.ai"\n}\n')).toBe(true);
     expect(parseAuthStatus('{"loggedIn": false}')).toBe(false);
   });
@@ -85,9 +90,24 @@ describe('claudeEnv() sign-in', () => {
   const withAuth = (claudeAuth: Agent['claudeAuth']) => ({ ...agent('auto'), claudeAuth });
 
   it('"My Claude login" leaves out keys, tokens and endpoints that would win over the login', () => {
-    Object.assign(process.env, { ANTHROPIC_API_KEY: 'sk-env', ANTHROPIC_AUTH_TOKEN: 'tok', ANTHROPIC_BASE_URL: 'https://proxy.example', ANTHROPIC_PROFILE: 'work', anthropic_api_key: 'sk-lower', CLAUDE_CODE_OAUTH_TOKEN: 'oauth', KEEP_ME: '1' });
+    Object.assign(process.env, {
+      ANTHROPIC_API_KEY: 'sk-env',
+      ANTHROPIC_AUTH_TOKEN: 'tok',
+      ANTHROPIC_BASE_URL: 'https://proxy.example',
+      ANTHROPIC_PROFILE: 'work',
+      anthropic_api_key: 'sk-lower',
+      CLAUDE_CODE_OAUTH_TOKEN: 'oauth',
+      KEEP_ME: '1',
+    });
     const env = claudeEnv(withAuth('login'));
-    for (const k of ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_PROFILE', 'anthropic_api_key']) expect(env).not.toHaveProperty(k);
+    for (const k of [
+      'ANTHROPIC_API_KEY',
+      'ANTHROPIC_AUTH_TOKEN',
+      'ANTHROPIC_BASE_URL',
+      'ANTHROPIC_PROFILE',
+      'anthropic_api_key',
+    ])
+      expect(env).not.toHaveProperty(k);
     // a subscription token from `claude setup-token` is still your login
     expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe('oauth');
     expect(env.KEEP_ME).toBe('1');
@@ -101,7 +121,11 @@ describe('claudeEnv() sign-in', () => {
   });
 
   it('an API key from Settings is the one used, not a leftover token or endpoint', () => {
-    Object.assign(process.env, { ANTHROPIC_API_KEY: 'sk-env', ANTHROPIC_AUTH_TOKEN: 'tok', ANTHROPIC_BASE_URL: 'https://proxy.example' });
+    Object.assign(process.env, {
+      ANTHROPIC_API_KEY: 'sk-env',
+      ANTHROPIC_AUTH_TOKEN: 'tok',
+      ANTHROPIC_BASE_URL: 'https://proxy.example',
+    });
     setSecret('anthropicKey', 'sk-settings');
     const env = claudeEnv(withAuth('anthropic'));
     expect(env.ANTHROPIC_API_KEY).toBe('sk-settings');

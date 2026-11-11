@@ -15,13 +15,13 @@ with LibreOffice.
 
 ## Metrics for the question
 
-| Question or industry | Usual metrics |
-|---|---|
-| Value of the whole business, across capital structures | EV/Revenue, EV/EBITDA, EV/EBIT |
-| Value to shareholders, profitable companies | P/E, and P/E against growth (PEG) |
-| Unprofitable or early growth | EV/Revenue, with growth beside it |
+| Question or industry                                                    | Usual metrics                                                |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Value of the whole business, across capital structures                  | EV/Revenue, EV/EBITDA, EV/EBIT                               |
+| Value to shareholders, profitable companies                             | P/E, and P/E against growth (PEG)                            |
+| Unprofitable or early growth                                            | EV/Revenue, with growth beside it                            |
 | Banks and insurers (debt is their raw material, so EV isn't meaningful) | P/E, price to book, price to tangible book, return on equity |
-| REITs | price to FFO or AFFO (funds from operations), dividend yield |
+| REITs                                                                   | price to FFO or AFFO (funds from operations), dividend yield |
 
 Pick three to five that answer the user's question, plus the operating figures that explain the differences (growth,
 margins). More columns make the table harder to read, not more right.
@@ -98,12 +98,12 @@ To pull one peer's figure elsewhere, use an exact match: `=INDEX(O4:O8,MATCH("Pe
 
 ## A minimal layout
 
-| Sheet | Rows |
-|---|---|
+| Sheet           | Rows                                                                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Inputs or Peers | one row per peer: name, price, price date, diluted shares, debt, cash, NCI, the period's revenue, EBITDA, net income, growth; each with a source |
-| Peers | market cap, EV and the multiples beside the inputs; a blank row; the statistics |
-| Valuation | the target's figures, the implied values at the quartiles, the range per metric |
-| Checks | the rows above |
+| Peers           | market cap, EV and the multiples beside the inputs; a blank row; the statistics                                                                  |
+| Valuation       | the target's figures, the implied values at the quartiles, the range per metric                                                                  |
+| Checks          | the rows above                                                                                                                                   |
 
 Write in the header the date the prices are as of, the currency and the units. Use no figures from memory: every
 number comes from a filing, the user or a source the user named.

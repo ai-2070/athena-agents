@@ -10,19 +10,26 @@ const agent = { id: 'scope-agent', name: 'Scoped', toolGroups: ['files', 'shell'
 describe('tools by conversation', () => {
   it('lists the board tools only in a board task conversation', () => {
     expect(names(toolDefs(agent))).not.toContain('board_task');
-    expect(names(toolDefs(agent, { conversationId: 'board-t1' }))).toEqual(expect.arrayContaining(['board_task', 'board_reply']));
+    expect(names(toolDefs(agent, { conversationId: 'board-t1' }))).toEqual(
+      expect.arrayContaining(['board_task', 'board_reply']),
+    );
     expect(names(toolDefs(agent, { conversationId: 'board-t1' }))).not.toContain('send_gateway_files');
   });
 
   it('lists the board tag tools everywhere but in a gateway conversation, asking first before a tag is deleted', () => {
-    for (const conversationId of [undefined, 'board-t1']) expect(names(toolDefs(agent, { conversationId }))).toContain('board_tags');
+    for (const conversationId of [undefined, 'board-t1'])
+      expect(names(toolDefs(agent, { conversationId }))).toContain('board_tags');
     expect(names(toolDefs(agent, { conversationId: 'a'.repeat(64) }))).not.toContain('board_tags');
-    expect(['list', 'find', 'create', 'tag', 'edit', 'delete'].map((action) => riskOf('board_tags', { action }))).toEqual(['none', 'none', 'none', 'none', 'low', 'high']);
+    expect(
+      ['list', 'find', 'create', 'tag', 'edit', 'delete'].map((action) => riskOf('board_tags', { action })),
+    ).toEqual(['none', 'none', 'none', 'none', 'low', 'high']);
   });
 
   it('lists the gateway file tools only in a gateway conversation', () => {
     expect(names(toolDefs(agent))).not.toContain('prepare_gateway_files');
-    expect(names(toolDefs(agent, { conversationId: 'a'.repeat(64) }))).toEqual(expect.arrayContaining(['prepare_gateway_files', 'send_gateway_files']));
+    expect(names(toolDefs(agent, { conversationId: 'a'.repeat(64) }))).toEqual(
+      expect.arrayContaining(['prepare_gateway_files', 'send_gateway_files']),
+    );
     expect(names(toolDefs(agent, { conversationId: 'a'.repeat(64) }))).not.toContain('board_task');
   });
 
@@ -44,7 +51,9 @@ describe('tools by engine', () => {
   });
 
   it('keeps them for Eve and for outside MCP clients', () => {
-    expect(names(toolDefs(agent, { engine: 'eve' }))).toEqual(expect.arrayContaining(['read_file', 'write_file', 'run_command']));
+    expect(names(toolDefs(agent, { engine: 'eve' }))).toEqual(
+      expect.arrayContaining(['read_file', 'write_file', 'run_command']),
+    );
     expect(names(toolDefs(agent))).toEqual(expect.arrayContaining(['read_file', 'write_file', 'run_command']));
   });
 });
@@ -60,10 +69,14 @@ describe('the permission check', () => {
   });
 
   it('refuses a tool from a group the agent does not have', async () => {
-    await expect(callTool({ id: 'x', name: 'X', toolGroups: [] }, 'read_file', { path: 'a.txt' })).rejects.toThrow(/isn't allowed to use read_file/);
+    await expect(callTool({ id: 'x', name: 'X', toolGroups: [] }, 'read_file', { path: 'a.txt' })).rejects.toThrow(
+      /isn't allowed to use read_file/,
+    );
   });
 
   it('gives knowledge tools only to agents with knowledge files', () => {
-    expect(names(toolsForAgent({ id: 'nokb', name: 'No knowledge', toolGroups: [] }))).not.toContain('knowledge_search');
+    expect(names(toolsForAgent({ id: 'nokb', name: 'No knowledge', toolGroups: [] }))).not.toContain(
+      'knowledge_search',
+    );
   });
 });

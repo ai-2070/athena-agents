@@ -1,10 +1,35 @@
 // Projects: create, switch, and look inside a project's Brain folder (files, notes, GitHub).
 import fs from 'node:fs';
 import path from 'node:path';
-import { HOME, ensureDir, exists, insideRoots, isPlainDir, realTarget, run, slugify, uid, which, dataPath } from './util.ts';
+import {
+  HOME,
+  ensureDir,
+  exists,
+  insideRoots,
+  isPlainDir,
+  realTarget,
+  run,
+  slugify,
+  uid,
+  which,
+  dataPath,
+} from './util.ts';
 import { listProjects, saveProjects, activeProject, setActiveProject, log } from './store.ts';
 import { toPercent } from '../shared/look.ts';
-import type { Project, FolderEntry, FolderListing, FoundFolder, ProjectOverviewItem, ProjectPeek, ProjectsOverview, ProjectSummary, ProjectWithMedia, BrainEntry, BrainGit, BrainInfo } from '../shared/types.ts';
+import type {
+  Project,
+  FolderEntry,
+  FolderListing,
+  FoundFolder,
+  ProjectOverviewItem,
+  ProjectPeek,
+  ProjectsOverview,
+  ProjectSummary,
+  ProjectWithMedia,
+  BrainEntry,
+  BrainGit,
+  BrainInfo,
+} from '../shared/types.ts';
 
 // (the shapes the page reads: shared/types.ts)
 export type { FoundFolder, ProjectOverviewItem, ProjectsOverview, ProjectWithMedia };
@@ -39,21 +64,36 @@ export interface CreateProjectInput {
 }
 
 // mode: "new" (fresh folder), "existing" (a folder you already have), "github" (clone a repo into a folder)
-export async function createProject({ name, mode = 'new', folder = '', repo = '', description = '' }: CreateProjectInput): Promise<Project> {
+export async function createProject({
+  name,
+  mode = 'new',
+  folder = '',
+  repo = '',
+  description = '',
+}: CreateProjectInput): Promise<Project> {
   name = String(name || '').trim();
   if (!name) throw new Error('Give the project a name.');
-  let brainPath = String(folder || '').trim().replace(/^"|"$/g, '');
+  let brainPath = String(folder || '')
+    .trim()
+    .replace(/^"|"$/g, '');
   repo = String(repo || '').trim();
   if (mode === 'existing') {
-    if (!brainPath || !exists(brainPath) || !fs.statSync(brainPath).isDirectory()) throw new Error(`${brainPath || 'That folder'} doesn't exist.`);
+    if (!brainPath || !exists(brainPath) || !fs.statSync(brainPath).isDirectory())
+      throw new Error(`${brainPath || 'That folder'} doesn't exist.`);
   } else {
     brainPath ||= path.join(PROJECTS_ROOT, slugify(name));
     if (mode === 'github') {
       if (!repo) throw new Error('Which GitHub repo? Use owner/name or a URL.');
-      if (exists(brainPath) && fs.readdirSync(brainPath).length) throw new Error(`${brainPath} already has files in it. Pick an empty or new folder.`);
+      if (exists(brainPath) && fs.readdirSync(brainPath).length)
+        throw new Error(`${brainPath} already has files in it. Pick an empty or new folder.`);
       ensureDir(path.dirname(brainPath));
       const short = /^[\w.-]+\/[\w.-]+$/.test(repo);
-      const r = which('gh') && short ? await run('gh', ['repo', 'clone', repo, brainPath], { timeout: 15 * 60_000 }) : await run('git', ['clone', short ? `https://github.com/${repo}.git` : repo, brainPath], { timeout: 15 * 60_000 });
+      const r =
+        which('gh') && short
+          ? await run('gh', ['repo', 'clone', repo, brainPath], { timeout: 15 * 60_000 })
+          : await run('git', ['clone', short ? `https://github.com/${repo}.git` : repo, brainPath], {
+              timeout: 15 * 60_000,
+            });
       if (r.code !== 0) throw new Error(`Couldn't clone ${repo}: ${(r.stderr || r.stdout).trim().slice(-500)}`);
     } else {
       ensureDir(brainPath);
@@ -64,7 +104,16 @@ export async function createProject({ name, mode = 'new', folder = '', repo = ''
   }
   const list = listProjects();
   const id = `${slugify(name)}-${uid().slice(-4)}`;
-  const project: Project = { id, name, description: String(description || '').trim().slice(0, 6000), brainPath: path.resolve(brainPath), repo, createdAt: Date.now() };
+  const project: Project = {
+    id,
+    name,
+    description: String(description || '')
+      .trim()
+      .slice(0, 6000),
+    brainPath: path.resolve(brainPath),
+    repo,
+    createdAt: Date.now(),
+  };
   saveProjects([...list, project]);
   setActiveProject(id);
   log('project', `Created project "${name}" (${mode === 'github' ? `cloned ${repo}` : brainPath})`);
@@ -72,7 +121,11 @@ export async function createProject({ name, mode = 'new', folder = '', repo = ''
 }
 
 /** backgroundOpacity / mapDotsOpacity: 0-100, or null to go back to the default. */
-export type ProjectPatch = Partial<Pick<Project, 'name' | 'description' | 'skills' | 'brainPath'>> & { backgroundOpacity?: unknown; mapDotsOpacity?: unknown; sidebar?: unknown };
+export type ProjectPatch = Partial<Pick<Project, 'name' | 'description' | 'skills' | 'brainPath'>> & {
+  backgroundOpacity?: unknown;
+  mapDotsOpacity?: unknown;
+  sidebar?: unknown;
+};
 
 export function updateProject(id: string, patch: ProjectPatch): Project {
   const list = listProjects();
@@ -167,17 +220,39 @@ export async function brainInfo(p: Project = activeProject()): Promise<BrainInfo
   entries.sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
   let git: BrainGit | null = null;
   if (exists(path.join(p.brainPath, '.git'))) {
-    const g = (...args: string[]) => run('git', ['-C', p.brainPath, ...args], { timeout: 15000 }).then((r) => r.stdout.trim());
-    const [branch, remote, last, status] = await Promise.all([g('rev-parse', '--abbrev-ref', 'HEAD'), g('remote', 'get-url', 'origin'), g('log', '-1', '--format=%s · %cr'), g('status', '--porcelain')]);
-    git = { branch, remote, url: remote.replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, ''), last, changes: status ? status.split('\n').length : 0 };
+    const g = (...args: string[]) =>
+      run('git', ['-C', p.brainPath, ...args], { timeout: 15000 }).then((r) => r.stdout.trim());
+    const [branch, remote, last, status] = await Promise.all([
+      g('rev-parse', '--abbrev-ref', 'HEAD'),
+      g('remote', 'get-url', 'origin'),
+      g('log', '-1', '--format=%s · %cr'),
+      g('status', '--porcelain'),
+    ]);
+    git = {
+      branch,
+      remote,
+      url: remote.replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, ''),
+      last,
+      changes: status ? status.split('\n').length : 0,
+    };
   }
-  return { project: withLogo(p), entries: entries.slice(0, 60), files, sizeMB: +(bytes / 1e6).toFixed(1), git, summary: projectSummary(p) };
+  return {
+    project: withLogo(p),
+    entries: entries.slice(0, 60),
+    files,
+    sizeMB: +(bytes / 1e6).toFixed(1),
+    git,
+    summary: projectSummary(p),
+  };
 }
 
 export function addNote(name: unknown, content: unknown, p: Project = activeProject()): string {
   ensureBrain(p);
   const dir = ensureDir(path.join(p.brainPath, 'notes'));
-  const safe = String(name || 'note').replace(/[^\w.\- ]+/g, '_').replace(/\.md$/i, '') + '.md';
+  const safe =
+    String(name || 'note')
+      .replace(/[^\w.\- ]+/g, '_')
+      .replace(/\.md$/i, '') + '.md';
   const file = path.join(dir, safe);
   // a notes/ folder or a note that links out of the Brain folder (planted in a project folder) would write over a file elsewhere
   const real = insideRoots(file, [p.brainPath]);
@@ -193,7 +268,8 @@ export function brainFolder(sub: unknown, p: Project = activeProject()): string 
   if (sub == null || sub === '') return root;
   const target = path.resolve(root, String(sub));
   const real = insideRoots(target, [root]);
-  if (!real || !isPlainDir(real)) throw Object.assign(new Error('That folder isn’t in the Brain folder.'), { status: 403 });
+  if (!real || !isPlainDir(real))
+    throw Object.assign(new Error('That folder isn’t in the Brain folder.'), { status: 403 });
   return real;
 }
 
@@ -222,7 +298,13 @@ export function folderListing(sub: unknown, p: Project = activeProject(), max = 
         continue;
       }
     }
-    entries.push({ name: e.name, dir: dirEntry, ...(size !== undefined ? { size } : {}), path: full, rel: rel ? `${rel}/${e.name}` : e.name });
+    entries.push({
+      name: e.name,
+      dir: dirEntry,
+      ...(size !== undefined ? { size } : {}),
+      path: full,
+      rel: rel ? `${rel}/${e.name}` : e.name,
+    });
   }
   entries.sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
   return { rel, entries: entries.slice(0, max), more: Math.max(0, entries.length - max) };
@@ -265,7 +347,13 @@ export function overview(peek: (folder: string) => ProjectPeek | null = () => nu
     active: activeProject().id,
     root: PROJECTS_ROOT,
     projects: list
-      .map((p) => ({ ...withLogo(p), agents: count(p.id, 'agents'), teams: count(p.id, 'workflows'), hasProjectMd: exists(path.join(p.brainPath, 'PROJECT.md')), saved: peek(p.brainPath) }))
+      .map((p) => ({
+        ...withLogo(p),
+        agents: count(p.id, 'agents'),
+        teams: count(p.id, 'workflows'),
+        hasProjectMd: exists(path.join(p.brainPath, 'PROJECT.md')),
+        saved: peek(p.brainPath),
+      }))
       .sort((a, b) => (b.openedAt || b.createdAt || 0) - (a.openedAt || a.createdAt || 0)),
     found,
   };
@@ -332,7 +420,13 @@ const changedAt = (f: string | null): number | null => {
 export function withLogo(p: Project): ProjectWithMedia {
   const m = modelFile(p);
   const modelAt = changedAt(m);
-  return { ...p, logoAt: changedAt(logoFile(p)), modelAt, modelExt: m && modelAt ? path.extname(m).slice(1) : null, backgroundAt: changedAt(backgroundFile(p)) };
+  return {
+    ...p,
+    logoAt: changedAt(logoFile(p)),
+    modelAt,
+    modelExt: m && modelAt ? path.extname(m).slice(1) : null,
+    backgroundAt: changedAt(backgroundFile(p)),
+  };
 }
 
 // What the bytes really are (the data URL's type is only what the browser says).
@@ -340,14 +434,16 @@ export function sniffImage(buf: Buffer): (typeof LOGO_EXT)[number] | null {
   if (buf.length > 8 && buf[0] === 0x89 && buf.toString('ascii', 1, 4) === 'PNG') return 'png';
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
   if (buf.length > 6 && buf.toString('ascii', 0, 3) === 'GIF') return 'gif';
-  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP')
+    return 'webp';
   return null;
 }
 
 function logoDir(p: Project): string {
   const dir = ensureDir(path.join(p.brainPath, '.dashboard'));
   // never write through a link someone planted in the project folder
-  if (fs.lstatSync(dir).isSymbolicLink()) throw new Error("The project's .dashboard folder is a link; not writing there.");
+  if (fs.lstatSync(dir).isSymbolicLink())
+    throw new Error("The project's .dashboard folder is a link; not writing there.");
   return dir;
 }
 
@@ -478,8 +574,12 @@ export function looksLikeModel(ext: string, buf: Buffer): boolean {
 
 export function setModel(id: string, name: unknown, dataUrl: unknown): ProjectWithMedia {
   const p = needProject(id);
-  const ext = path.extname(String(name || '')).slice(1).toLowerCase();
-  if (!(MODEL_EXT as readonly string[]).includes(ext)) throw new Error(`Pick a 3D model file: ${MODEL_EXT.map((e) => `.${e}`).join(', ')}.`);
+  const ext = path
+    .extname(String(name || ''))
+    .slice(1)
+    .toLowerCase();
+  if (!(MODEL_EXT as readonly string[]).includes(ext))
+    throw new Error(`Pick a 3D model file: ${MODEL_EXT.map((e) => `.${e}`).join(', ')}.`);
   const m = /^data:[^,]*;base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(dataUrl || ''));
   if (!m) throw new Error("Couldn't read that file.");
   const buf = Buffer.from(m[1], 'base64');
@@ -524,7 +624,15 @@ export function projectSummary(p: Project = activeProject()): ProjectSummary {
     const para = text
       .split(/\r?\n\s*\r?\n/)
       .map((b) => b.trim())
-      .find((b) => b && !b.startsWith('#') && !b.startsWith('<') && !b.startsWith('![') && !b.startsWith('|') && !b.startsWith('```'));
+      .find(
+        (b) =>
+          b &&
+          !b.startsWith('#') &&
+          !b.startsWith('<') &&
+          !b.startsWith('![') &&
+          !b.startsWith('|') &&
+          !b.startsWith('```'),
+      );
     if (para) return { text: para.replace(/\s+/g, ' ').slice(0, 500), from: name };
   }
   return { text: '', from: null };

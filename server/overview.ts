@@ -11,7 +11,15 @@ import { listApprovals } from './approvals.ts';
 import { listBriefs } from './briefs.ts';
 import { isTeamBusy } from './teams.ts';
 import { projectCards } from './taskboard.ts';
-import type { ActiveRun, Approval, OverviewData, OverviewProject, OverviewSession, Project, Terminal } from '../shared/types.ts';
+import type {
+  ActiveRun,
+  Approval,
+  OverviewData,
+  OverviewProject,
+  OverviewSession,
+  Project,
+  Terminal,
+} from '../shared/types.ts';
 
 const mtime = (file: string): number => {
   try {
@@ -30,7 +38,12 @@ const newest = new Map<string, { chatId?: string; at: number; read: number }>();
 const isPrivate = (chatId: string) => chatId.startsWith('private-chat-');
 bus.on('event', (e) => {
   if (e.type !== 'chats') return;
-  const { agentId, chatId, project, removed } = e as { agentId?: unknown; chatId?: unknown; project?: unknown; removed?: unknown };
+  const { agentId, chatId, project, removed } = e as {
+    agentId?: unknown;
+    chatId?: unknown;
+    project?: unknown;
+    removed?: unknown;
+  };
   if (typeof agentId !== 'string' || typeof project !== 'string') return;
   const key = `${project}/${agentId}`;
   if (removed || typeof chatId !== 'string') newest.delete(key);
@@ -85,7 +98,13 @@ function projectOverview(p: Project, open: Project, live: Live): OverviewProject
       const approval = approvals.find((x) => x.agentId === a.id);
       const question = waiting.find((q) => q.agentId === a.id && !q.teamId);
       const brief = stuck.find((b) => b.kind === 'agent' && b.targetId === a.id);
-      const why = approval ? `Approval: ${approval.title}` : question ? `Question: ${question.question}` : brief ? brief.summary || 'Its work stopped for you' : '';
+      const why = approval
+        ? `Approval: ${approval.title}`
+        : question
+          ? `Question: ${question.question}`
+          : brief
+            ? brief.summary || 'Its work stopped for you'
+            : '';
       const chat = newestChat(p.id, a.id);
       sessions.push({
         kind: 'agent',
@@ -104,7 +123,11 @@ function projectOverview(p: Project, open: Project, live: Live): OverviewProject
     for (const t of workflows.list()) {
       const question = waiting.find((q) => q.teamId === t.id);
       const brief = stuck.find((b) => b.kind === 'team' && b.targetId === t.id);
-      const why = question ? `Question: ${question.question}` : brief ? brief.summary || 'Its work stopped for you' : '';
+      const why = question
+        ? `Question: ${question.question}`
+        : brief
+          ? brief.summary || 'Its work stopped for you'
+          : '';
       sessions.push({
         kind: 'team',
         id: t.id,
@@ -117,11 +140,25 @@ function projectOverview(p: Project, open: Project, live: Live): OverviewProject
 
     // the Brain: its own approvals (installing a skill, say) need you
     const brainAsks = approvals.find((x) => !x.agentId);
-    sessions.push({ kind: 'brain', id: 'brain', name: 'The Brain', status: brainAsks ? 'needs-you' : 'idle', ...(brainAsks ? { why: cut(`Approval: ${brainAsks.title}`) } : {}), updatedAt: mtime(dataPath('projects', p.id, 'brain-chat.json')) });
+    sessions.push({
+      kind: 'brain',
+      id: 'brain',
+      name: 'The Brain',
+      status: brainAsks ? 'needs-you' : 'idle',
+      ...(brainAsks ? { why: cut(`Approval: ${brainAsks.title}`) } : {}),
+      updatedAt: mtime(dataPath('projects', p.id, 'brain-chat.json')),
+    });
 
     // the terminals opened in this project (running, or ended with their code)
     for (const t of live.terminals.filter((x) => (x.projectId || open.id) === p.id)) {
-      sessions.push({ kind: 'terminal', id: t.id, name: t.title, status: 'idle', ...(t.exited ? { ended: true, why: `Ended (exit code ${t.exitCode ?? '?'})` } : {}), updatedAt: t.createdAt });
+      sessions.push({
+        kind: 'terminal',
+        id: t.id,
+        name: t.title,
+        status: 'idle',
+        ...(t.exited ? { ended: true, why: `Ended (exit code ${t.exitCode ?? '?'})` } : {}),
+        updatedAt: t.createdAt,
+      });
     }
 
     // board tasks an agent or team works on, or whose work waits for you
@@ -129,8 +166,21 @@ function projectOverview(p: Project, open: Project, live: Live): OverviewProject
     for (const t of board) {
       const state = t.work?.state;
       if (!state || !['starting', 'working', 'waiting', 'needs-review'].includes(state)) continue;
-      const why = state === 'waiting' ? `${t.workerName || 'Its worker'} needs your OK for a step` : state === 'needs-review' ? 'Its work needs a look' : '';
-      sessions.push({ kind: 'task', id: t.id, number: t.number, name: t.title, status: why ? 'needs-you' : 'working', ...(why ? { why } : {}), updatedAt: t.updatedAt });
+      const why =
+        state === 'waiting'
+          ? `${t.workerName || 'Its worker'} needs your OK for a step`
+          : state === 'needs-review'
+            ? 'Its work needs a look'
+            : '';
+      sessions.push({
+        kind: 'task',
+        id: t.id,
+        number: t.number,
+        name: t.title,
+        status: why ? 'needs-you' : 'working',
+        ...(why ? { why } : {}),
+        updatedAt: t.updatedAt,
+      });
     }
 
     return {
@@ -149,6 +199,8 @@ export function overview(): OverviewData {
   const open = activeProject();
   const list = listProjects();
   const live: Live = { runs: activeRuns(), approvals: listApprovals(), terminals: listTerminals() };
-  const projects = [...list.filter((p) => p.id === open.id), ...list.filter((p) => p.id !== open.id)].map((p) => projectOverview(p, open, live));
+  const projects = [...list.filter((p) => p.id === open.id), ...list.filter((p) => p.id !== open.id)].map((p) =>
+    projectOverview(p, open, live),
+  );
   return { active: open.id, projects };
 }

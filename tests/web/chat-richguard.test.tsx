@@ -31,8 +31,22 @@ describe('a Rich answer that can not be drawn', () => {
     await act(async () =>
       root!.render(
         <>
-          <MessageView m={message([{ type: 'text', text: 'First, a plain answer.' }])} variant="full" busy={false} streaming={false} dim={false} onSend={() => {}} />
-          <MessageView m={{ ...message([{ type: 'text', text: code }]), id: 'm2' }} variant="full" busy={false} streaming={false} dim={false} onSend={() => {}} />
+          <MessageView
+            m={message([{ type: 'text', text: 'First, a plain answer.' }])}
+            variant="full"
+            busy={false}
+            streaming={false}
+            dim={false}
+            onSend={() => {}}
+          />
+          <MessageView
+            m={{ ...message([{ type: 'text', text: code }]), id: 'm2' }}
+            variant="full"
+            busy={false}
+            streaming={false}
+            dim={false}
+            onSend={() => {}}
+          />
         </>,
       ),
     );

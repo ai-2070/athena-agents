@@ -25,12 +25,17 @@ export interface ClaudeSubagent extends ClaudeSubagentListing {
 const LIBRARY_DIR = path.join(ROOT, 'library', 'athena-agents');
 // (answered as a 404 by the routes)
 const notFound = (msg: string) => Object.assign(new Error(msg), { status: 404 });
-const commaList = (v: string | undefined): string[] => (v || '').split(',').map((x) => x.trim()).filter(Boolean);
+const commaList = (v: string | undefined): string[] =>
+  (v || '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
 
 let libraryCache: LibraryAgent[] | null = null;
 export function libraryAgents(): LibraryAgent[] {
   if (libraryCache) return libraryCache;
-  const groups = readJSON<{ groups?: { id?: string; label?: string }[] }>(path.join(LIBRARY_DIR, 'groups.json'), {}).groups || [];
+  const groups =
+    readJSON<{ groups?: { id?: string; label?: string }[] }>(path.join(LIBRARY_DIR, 'groups.json'), {}).groups || [];
   const out: LibraryAgent[] = [];
   for (const g of groups) {
     if (!g.id) continue;
@@ -73,7 +78,13 @@ export function claudeSubagents(): ClaudeSubagent[] {
   return listFiles(dir, (n) => n.endsWith('.md')).map((f) => {
     const text = fs.readFileSync(path.join(dir, f), 'utf8');
     const { meta } = parseFrontmatter(text);
-    return { slug: f.replace(/\.md$/, ''), name: meta.name || f.replace(/\.md$/, ''), description: meta.description || '', model: meta.model || '', file: path.join(dir, f) };
+    return {
+      slug: f.replace(/\.md$/, ''),
+      name: meta.name || f.replace(/\.md$/, ''),
+      description: meta.description || '',
+      model: meta.model || '',
+      file: path.join(dir, f),
+    };
   });
 }
 
@@ -123,7 +134,16 @@ export function newAgent(fields: Partial<Agent> = {}): Agent {
 }
 
 // (a Record, so a new engine can't be left out)
-const ENGINE_IDS: Record<EngineId, true> = { 'claude-code': true, eve: true, hermes: true, codex: true, pi: true, omp: true, openclaw: true, opencode: true };
+const ENGINE_IDS: Record<EngineId, true> = {
+  'claude-code': true,
+  eve: true,
+  hermes: true,
+  codex: true,
+  pi: true,
+  omp: true,
+  openclaw: true,
+  opencode: true,
+};
 const isEngineId = (e: string): e is EngineId => Object.hasOwn(ENGINE_IDS, e);
 
 // The agent gets a copy of the file's text, its tools and engine, and the skills it names that are in your skill
@@ -169,7 +189,15 @@ export function importClaudeSubagent(slug: string): Agent {
   const s = claudeSubagents().find((x) => x.slug === slug);
   if (!s) throw notFound('No such Claude Code subagent.');
   const { body } = parseFrontmatter(fs.readFileSync(s.file, 'utf8'));
-  return newAgent({ name: s.name, emoji: '✳️', specialty: s.description.slice(0, 140), description: s.description, systemPrompt: body.trim(), engine: 'claude-code', source: { type: 'claude', slug } });
+  return newAgent({
+    name: s.name,
+    emoji: '✳️',
+    specialty: s.description.slice(0, 140),
+    description: s.description,
+    systemPrompt: body.trim(),
+    engine: 'claude-code',
+    source: { type: 'claude', slug },
+  });
 }
 
 // Write an agent as a Claude Code subagent (~/.claude/agents/<slug>.md) so you can use it in any Claude session.
@@ -179,7 +207,10 @@ export function exportToClaude(agent: Agent): string {
   const file = path.join(dir, `${slug}.md`);
   // a real YAML string: a backslash (a Windows path) or a quote must not break the frontmatter
   const desc = JSON.stringify((agent.description || agent.specialty || agent.name).replace(/\s+/g, ' ').trim());
-  fs.writeFileSync(file, `---\nname: ${slug}\ndescription: ${desc}\n---\n\n${agent.systemPrompt || `You are ${agent.name}.`}\n`);
+  fs.writeFileSync(
+    file,
+    `---\nname: ${slug}\ndescription: ${desc}\n---\n\n${agent.systemPrompt || `You are ${agent.name}.`}\n`,
+  );
   log('library', `Installed ${agent.name} into Claude Code as subagent "${slug}"`, { agentId: agent.id });
   return file;
 }

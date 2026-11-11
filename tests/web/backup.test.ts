@@ -5,7 +5,11 @@ const file = (head: string, rest = 'gzip bytes') => new Blob([head, rest]);
 
 describe('reading what a backup holds', () => {
   it('reads the summary line of a backup file', async () => {
-    const s = await readBackupSummary(file(`MY-DASHBOARD-BACKUP 1\n${JSON.stringify({ app: 'my-dashboard', name: 'Launch', agents: 3, teams: 1, skills: 2, agentList: [{ name: 'Writer', emoji: '✍️' }] })}\n`));
+    const s = await readBackupSummary(
+      file(
+        `MY-DASHBOARD-BACKUP 1\n${JSON.stringify({ app: 'my-dashboard', name: 'Launch', agents: 3, teams: 1, skills: 2, agentList: [{ name: 'Writer', emoji: '✍️' }] })}\n`,
+      ),
+    );
     expect(s).toMatchObject({ name: 'Launch', agents: 3, agentList: [{ name: 'Writer', emoji: '✍️' }], omitted: 0 });
     expect(summaryLine(s!)).toBe('3 agents · 1 team · 2 skills');
   });
@@ -22,7 +26,14 @@ describe('reading what a backup holds', () => {
     expect(s).toMatchObject({ name: '', agents: 0, teams: 0, agentList: [] });
     expect(summaryLine(s!)).toBe('0 agents · 0 teams · 0 skills');
     // wrong types everywhere
-    expect(cleanSummary({ app: 'my-dashboard', name: { x: 1 }, agents: '9', agentList: [null, 'x', { name: 7, emoji: null }, { name: 'Ok' }] })).toMatchObject({
+    expect(
+      cleanSummary({
+        app: 'my-dashboard',
+        name: { x: 1 },
+        agents: '9',
+        agentList: [null, 'x', { name: 7, emoji: null }, { name: 'Ok' }],
+      }),
+    ).toMatchObject({
       name: '',
       agents: 0,
       agentList: [
@@ -40,8 +51,22 @@ describe('earlier versions in a backup', () => {
     const s = cleanSummary({ app: 'my-dashboard', agents: 1, teams: 0, skills: 2, versions: 14 })!;
     expect(s.versions).toBe(14);
     expect(summaryLine(s)).toContain('14 earlier versions');
-    expect(summaryLine(cleanSummary({ app: 'my-dashboard', agents: 1, teams: 0, skills: 2 })!)).not.toContain('earlier');
-    const r = { agents: 1, teams: 0, routines: 0, chats: 0, knowledgeFiles: 0, brainFiles: 0, skills: { added: 0, same: 0, renamed: [] }, presets: { added: 0, same: 0 }, versions: 3, paused: 0, logo: false };
+    expect(summaryLine(cleanSummary({ app: 'my-dashboard', agents: 1, teams: 0, skills: 2 })!)).not.toContain(
+      'earlier',
+    );
+    const r = {
+      agents: 1,
+      teams: 0,
+      routines: 0,
+      chats: 0,
+      knowledgeFiles: 0,
+      brainFiles: 0,
+      skills: { added: 0, same: 0, renamed: [] },
+      presets: { added: 0, same: 0 },
+      versions: 3,
+      paused: 0,
+      logo: false,
+    };
     expect(restoredText('P', r)).toContain('3 earlier versions');
   });
 });
@@ -49,7 +74,23 @@ describe('earlier versions in a backup', () => {
 describe('library prefabs in a backup', () => {
   it('the summary line and the restore message mention them', async () => {
     const { restoredText } = await import('../../web/backup.tsx');
-    expect(summaryLine(cleanSummary({ app: 'my-dashboard', agents: 1, teams: 0, skills: 0, libraryPrefabs: 3 })!)).toBe('1 agent · 0 teams · 0 skills · 3 library prefabs');
-    expect(restoredText('X', { agents: 1, teams: 0, routines: 0, chats: 0, knowledgeFiles: 0, brainFiles: 0, skills: { added: 0, same: 0, renamed: [] }, presets: { added: 0, same: 0 }, libraryPrefabs: { added: 2, same: 1 }, paused: 0, logo: false })).toBe('Restored "X": 1 agent, 0 teams and 2 library prefabs.');
+    expect(summaryLine(cleanSummary({ app: 'my-dashboard', agents: 1, teams: 0, skills: 0, libraryPrefabs: 3 })!)).toBe(
+      '1 agent · 0 teams · 0 skills · 3 library prefabs',
+    );
+    expect(
+      restoredText('X', {
+        agents: 1,
+        teams: 0,
+        routines: 0,
+        chats: 0,
+        knowledgeFiles: 0,
+        brainFiles: 0,
+        skills: { added: 0, same: 0, renamed: [] },
+        presets: { added: 0, same: 0 },
+        libraryPrefabs: { added: 2, same: 1 },
+        paused: 0,
+        logo: false,
+      }),
+    ).toBe('Restored "X": 1 agent, 0 teams and 2 library prefabs.');
   });
 });

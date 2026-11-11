@@ -15,24 +15,61 @@ import type { EveRuntimeConfiguration } from '../../shared/types.ts';
 import type { SessionStreamEvent } from 'eve/client';
 
 afterEach(() => vi.restoreAllMocks());
-const config: EveRuntimeConfiguration = { runId: 'model-proof', provider: 'openrouter', model: 'anthropic/claude-proof', baseUrl: 'https://provider.invalid/v1', apiKey: 'unit-fixture-key', headers: {}, instructions: '', contextWindow: 64000, tools: [], cacheKey: 'private-binding', effort: 'high', temperature: 0, maxModelSteps: 16, costLimitUsd: 2, costBaseline: 0 };
+const config: EveRuntimeConfiguration = {
+  runId: 'model-proof',
+  provider: 'openrouter',
+  model: 'anthropic/claude-proof',
+  baseUrl: 'https://provider.invalid/v1',
+  apiKey: 'unit-fixture-key',
+  headers: {},
+  instructions: '',
+  contextWindow: 64000,
+  tools: [],
+  cacheKey: 'private-binding',
+  effort: 'high',
+  temperature: 0,
+  maxModelSteps: 16,
+  costLimitUsd: 2,
+  costBaseline: 0,
+};
 const prompt = () => [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'Hello' }] }];
 
 // What OpenRouter answers when Anthropic refuses a request (a tool schema it doesn't take, here)
-const refused = { error: { message: 'Provider returned error', code: 400, metadata: {
-  raw: JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'tools.0.custom.input_schema: input_schema does not support oneOf, allOf, or anyOf at the top level' } }),
-  provider_name: 'Anthropic', is_byok: false,
-} } };
-const why = 'Anthropic: tools.0.custom.input_schema: input_schema does not support oneOf, allOf, or anyOf at the top level';
+const refused = {
+  error: {
+    message: 'Provider returned error',
+    code: 400,
+    metadata: {
+      raw: JSON.stringify({
+        type: 'error',
+        error: {
+          type: 'invalid_request_error',
+          message: 'tools.0.custom.input_schema: input_schema does not support oneOf, allOf, or anyOf at the top level',
+        },
+      }),
+      provider_name: 'Anthropic',
+      is_byok: false,
+    },
+  },
+};
+const why =
+  'Anthropic: tools.0.custom.input_schema: input_schema does not support oneOf, allOf, or anyOf at the top level';
 
 describe('why a model call failed', () => {
-  it.each(['doGenerate', 'doStream'] as const)("%s says the provider's own reason, not only OpenRouter's", async (call) => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json(refused, { status: 400 }));
-    await expect(athenaModel(config)[call]({ prompt: prompt() })).rejects.toThrow(`Provider returned error (${why})`);
-  });
+  it.each(['doGenerate', 'doStream'] as const)(
+    "%s says the provider's own reason, not only OpenRouter's",
+    async (call) => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json(refused, { status: 400 }));
+      await expect(athenaModel(config)[call]({ prompt: prompt() })).rejects.toThrow(`Provider returned error (${why})`);
+    },
+  );
   it('the chat says what the model said, and the Brain reads the same reason', () => {
-    expect(failureText({ error: `Provider returned error (${why})` })).toBe(`Eve could not finish this work. The model said: Provider returned error (${why})`);
-    expect(failureText({ limitReason: 'Stopped after 16 model steps.', error: 'x' })).toBe('Stopped after 16 model steps.');
+    expect(failureText({ error: `Provider returned error (${why})` })).toBe(
+      `Eve could not finish this work. The model said: Provider returned error (${why})`,
+    );
+    expect(failureText({ limitReason: 'Stopped after 16 model steps.', error: 'x' })).toBe(
+      'Stopped after 16 model steps.',
+    );
     expect(failureText(null)).toContain('Check its saved results');
     expect(apiErrorMessage(refused, 'fallback')).toBe(`Provider returned error (${why})`);
     expect(apiErrorMessage({ error: { message: 'Rate limited' } }, 'fallback')).toBe('Rate limited');
@@ -40,43 +77,108 @@ describe('why a model call failed', () => {
 });
 
 describe('Eve model controls', () => {
-  it.each(['lmstudio', 'custom'] as const)('uses the selected %s connection without remote-provider fields', async (provider) => {
-    let sent: Record<string, unknown> = {};
-    let target = '';
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
-      target = String(url);
-      sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer unit-fixture-key');
-      return Response.json({ id: 'completion', created: 1, model: 'local-model', choices: [{ index: 0, message: { role: 'assistant', content: 'Ready' }, finish_reason: 'stop' }] });
-    });
-    await athenaModel({ ...config, provider, baseUrl: 'http://127.0.0.1:9876/v1', model: 'local-model' }).doGenerate({ prompt: prompt() });
-    expect(target).toBe('http://127.0.0.1:9876/v1/chat/completions');
-    expect(sent).toMatchObject({ model: 'local-model', reasoning_effort: 'high', temperature: 0 });
-    expect(sent).not.toHaveProperty('cache_control');
-    expect(sent).not.toHaveProperty('session_id');
-  });
+  it.each(['lmstudio', 'custom'] as const)(
+    'uses the selected %s connection without remote-provider fields',
+    async (provider) => {
+      let sent: Record<string, unknown> = {};
+      let target = '';
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+        target = String(url);
+        sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        expect(new Headers(init?.headers).get('authorization')).toBe('Bearer unit-fixture-key');
+        return Response.json({
+          id: 'completion',
+          created: 1,
+          model: 'local-model',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'Ready' }, finish_reason: 'stop' }],
+        });
+      });
+      await athenaModel({ ...config, provider, baseUrl: 'http://127.0.0.1:9876/v1', model: 'local-model' }).doGenerate({
+        prompt: prompt(),
+      });
+      expect(target).toBe('http://127.0.0.1:9876/v1/chat/completions');
+      expect(sent).toMatchObject({ model: 'local-model', reasoning_effort: 'high', temperature: 0 });
+      expect(sent).not.toHaveProperty('cache_control');
+      expect(sent).not.toHaveProperty('session_id');
+    },
+  );
   it('counts PDF pages even when a small compressed file expands to many pages', () => {
     const compressed = deflateSync(Buffer.from('/Type /Page '.repeat(12)));
-    const pdf = Buffer.concat([Buffer.from('%PDF-1.4\n/Type /ObjStm\nstream\n'), compressed, Buffer.from('\nendstream')]);
+    const pdf = Buffer.concat([
+      Buffer.from('%PDF-1.4\n/Type /ObjStm\nstream\n'),
+      compressed,
+      Buffer.from('\nendstream'),
+    ]);
     expect(fileTokens('application/pdf', pdf.toString('base64'))).toBe(36000);
     expect(fileTokens('application/pdf', Buffer.from('%PDF-1.4 /Count 40').toString('base64'))).toBe(120000);
   });
   it('sends saved tool images as vision input after all matching tool results', async () => {
     const result = await captureToolImages({ text: 'Screenshot', images: ['data:image/png;base64,YQ=='] });
-    expect(modelToolOutput(result)).toMatchObject({ type: 'content', value: [{ type: 'text', text: 'Screenshot' }, { type: 'file', data: { type: 'data', data: 'YQ==' } }] });
+    expect(modelToolOutput(result)).toMatchObject({
+      type: 'content',
+      value: [
+        { type: 'text', text: 'Screenshot' },
+        { type: 'file', data: { type: 'data', data: 'YQ==' } },
+      ],
+    });
     let body: Record<string, unknown> = {};
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
       body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      return Response.json({ id: 'vision', created: 1, model: config.model, choices: [{ index: 0, message: { role: 'assistant', content: 'Seen' }, finish_reason: 'stop' }] });
+      return Response.json({
+        id: 'vision',
+        created: 1,
+        model: config.model,
+        choices: [{ index: 0, message: { role: 'assistant', content: 'Seen' }, finish_reason: 'stop' }],
+      });
     });
     const model = athenaModel(config);
-    await model.doGenerate({ prompt: [{ role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'one', toolName: 'screenshot', input: {} }, { type: 'tool-call', toolCallId: 'two', toolName: 'read', input: {} }] }, { role: 'tool', content: [{ type: 'tool-result', toolCallId: 'one', toolName: 'screenshot', output: { type: 'content', value: [{ type: 'text', text: 'Screenshot' }, { type: 'file', data: { type: 'data', data: 'YQ==' }, mediaType: 'image/png' }] } }] }, { role: 'tool', content: [{ type: 'tool-result', toolCallId: 'two', toolName: 'read', output: { type: 'text', value: 'Other result' } }] }] });
+    await model.doGenerate({
+      prompt: [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool-call', toolCallId: 'one', toolName: 'screenshot', input: {} },
+            { type: 'tool-call', toolCallId: 'two', toolName: 'read', input: {} },
+          ],
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'one',
+              toolName: 'screenshot',
+              output: {
+                type: 'content',
+                value: [
+                  { type: 'text', text: 'Screenshot' },
+                  { type: 'file', data: { type: 'data', data: 'YQ==' }, mediaType: 'image/png' },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'two',
+              toolName: 'read',
+              output: { type: 'text', value: 'Other result' },
+            },
+          ],
+        },
+      ],
+    });
     const messages = body.messages as { role: string; content: unknown; tool_call_id?: string }[];
     expect(messages.map((message) => message.role)).toEqual(['assistant', 'tool', 'tool', 'user']);
     expect(messages[1]).toMatchObject({ tool_call_id: 'one', content: 'Screenshot' });
     expect(JSON.stringify(messages.at(-1))).toContain('data:image/png;base64,YQ==');
     const unavailable = await captureToolImages({ text: 'Result', images: ['https://untrusted.invalid/image.png'] });
-    expect(unavailable.text).toBe('Result\n\n1 image was left out of what you see: 1 that could not be read as a PNG, JPEG, WebP or GIF of at most 5 MB. Ask for fewer or smaller images if you need them.');
+    expect(unavailable.text).toBe(
+      'Result\n\n1 image was left out of what you see: 1 that could not be read as a PNG, JPEG, WebP or GIF of at most 5 MB. Ask for fewer or smaller images if you need them.',
+    );
     expect(unavailable.modelImages).toEqual([]);
   });
   it('does not grant another model call because subtracting decimal costs rounds down', () => {
@@ -89,10 +191,27 @@ describe('Eve model controls', () => {
     let sent: Record<string, unknown> = {};
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
       sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      return Response.json({ id: 'completion', created: 1, model: config.model, choices: [{ index: 0, message: { role: 'assistant', content: 'Hi' }, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 10, cost: '0.0125', prompt_tokens_details: { cached_tokens: 40 } } });
+      return Response.json({
+        id: 'completion',
+        created: 1,
+        model: config.model,
+        choices: [{ index: 0, message: { role: 'assistant', content: 'Hi' }, finish_reason: 'stop' }],
+        usage: {
+          prompt_tokens: 100,
+          completion_tokens: 10,
+          cost: '0.0125',
+          prompt_tokens_details: { cached_tokens: 40 },
+        },
+      });
     });
     const result = await athenaModel(config).doGenerate({ prompt: prompt() });
-    expect(sent).toMatchObject({ model: config.model, temperature: 0, reasoning: { effort: 'high' }, session_id: 'private-binding', cache_control: { type: 'ephemeral' } });
+    expect(sent).toMatchObject({
+      model: config.model,
+      temperature: 0,
+      reasoning: { effort: 'high' },
+      session_id: 'private-binding',
+      cache_control: { type: 'ephemeral' },
+    });
     expect(sent).not.toHaveProperty('reasoning_effort');
     expect(result.providerMetadata?.gateway).toEqual({ cost: 0.0125 });
     expect(result.usage.inputTokens.cacheRead).toBe(40);
@@ -103,13 +222,17 @@ describe('Eve model controls', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
       sent.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
       const usage = { prompt_tokens: 20, completion_tokens: 5, ...(sent.length === 2 ? { cost: 0 } : {}) };
-      return new Response(`data: ${JSON.stringify({ id: 'response', choices: [{ index: 0, delta: { content: 'Hi' }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage })}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } });
+      return new Response(
+        `data: ${JSON.stringify({ id: 'response', choices: [{ index: 0, delta: { content: 'Hi' }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage })}\n\ndata: [DONE]\n\n`,
+        { headers: { 'content-type': 'text/event-stream' } },
+      );
     });
     const model = athenaModel({ ...config, provider: 'ollama', effort: 'low', temperature: undefined });
     const costs: unknown[] = [];
     for (let i = 0; i < 2; i++) {
       const result = await model.doStream({ prompt: prompt() });
-      for await (const part of result.stream) if (part.type === 'finish') costs.push(part.providerMetadata?.gateway?.cost);
+      for await (const part of result.stream)
+        if (part.type === 'finish') costs.push(part.providerMetadata?.gateway?.cost);
     }
     expect(sent[0]).toMatchObject({ reasoning_effort: 'low', stream_options: { include_usage: true } });
     expect(sent[0]).not.toHaveProperty('reasoning');
@@ -120,11 +243,29 @@ describe('Eve model controls', () => {
   });
 
   it('validates temperature and selects supported effort before any dispatch', async () => {
-    saveSettings({ contextWindowTokens: 64000, providers: { custom: { baseUrl: 'http://127.0.0.1:9000/v1', label: 'Unit model' } } });
+    saveSettings({
+      contextWindowTokens: 64000,
+      providers: { custom: { baseUrl: 'http://127.0.0.1:9000/v1', label: 'Unit model' } },
+    });
     setSecret('customKey', 'fixture-key');
-    const agent = agents.save(newAgent({ engine: 'eve', name: 'Options', provider: 'custom', model: 'selected-model', effort: 'max', temperature: 0.5 }));
+    const agent = agents.save(
+      newAgent({
+        engine: 'eve',
+        name: 'Options',
+        provider: 'custom',
+        model: 'selected-model',
+        effort: 'max',
+        temperature: 0.5,
+      }),
+    );
     const chat = chats.create(agent.id);
-    expect(await selectEveModel(agent, chat)).toMatchObject({ provider: 'custom', model: 'selected-model', effort: 'high', temperature: 0.5, contextWindow: 64000 });
+    expect(await selectEveModel(agent, chat)).toMatchObject({
+      provider: 'custom',
+      model: 'selected-model',
+      effort: 'high',
+      temperature: 0.5,
+      contextWindow: 64000,
+    });
     await expect(selectEveModel({ ...agent, temperature: NaN }, chat)).rejects.toThrow('Temperature');
     await expect(selectEveModel({ ...agent, temperature: 3 }, chat)).rejects.toThrow('Temperature');
   });
@@ -138,7 +279,21 @@ describe('native Eve usage', () => {
     attachSession(binding.id, 'meter-session');
     beginRun('meter-run', binding.id);
     setRunStatus('meter-run', 'running', 'delivery');
-    const event = (line: number, costUsd?: number, summary = false): SessionStreamEvent => ({ type: 'usage.recorded', data: { kind: 'model', owner: summary ? { changeId: 'summary' } : { runId: 'model' }, usage: { inputTokens: 100, outputTokens: 10, cacheReadTokens: 40, cacheWriteTokens: 5, ...(costUsd === undefined ? {} : { costUsd }) } }, meta: { position: { line, index: 0 }, at: new Date().toISOString() } });
+    const event = (line: number, costUsd?: number, summary = false): SessionStreamEvent => ({
+      type: 'usage.recorded',
+      data: {
+        kind: 'model',
+        owner: summary ? { changeId: 'summary' } : { runId: 'model' },
+        usage: {
+          inputTokens: 100,
+          outputTokens: 10,
+          cacheReadTokens: 40,
+          cacheWriteTokens: 5,
+          ...(costUsd === undefined ? {} : { costUsd }),
+        },
+      },
+      meta: { position: { line, index: 0 }, at: new Date().toISOString() },
+    });
     projectEvent('meter-run', event(1, 0.1));
     projectEvent('meter-run', event(1, 0.1));
     projectEvent('meter-run', event(2, 0.05, true));

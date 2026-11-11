@@ -29,11 +29,45 @@ import type { Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { useIconWeight } from './react.tsx';
 
 const BY_EXT: Record<string, PhosphorIcon> = {
-  md: FileMdIcon, markdown: FileMdIcon, txt: FileTxtIcon, pdf: FilePdfIcon, doc: FileDocIcon, docx: FileDocIcon, csv: FileCsvIcon, ini: FileIniIcon,
-  json: FileCodeIcon, yaml: FileCodeIcon, yml: FileCodeIcon, toml: FileCodeIcon, xml: FileCodeIcon, sh: FileCodeIcon, ps1: FileCodeIcon, go: FileCodeIcon,
-  ts: FileTsIcon, tsx: FileTsxIcon, js: FileJsIcon, mjs: FileJsIcon, jsx: FileJsxIcon, py: FilePyIcon, rs: FileRsIcon, html: FileHtmlIcon, css: FileCssIcon,
-  png: FilePngIcon, jpg: FileJpgIcon, jpeg: FileJpgIcon, svg: FileSvgIcon, gif: FileImageIcon, webp: FileImageIcon, avif: FileImageIcon, bmp: FileImageIcon,
-  mp4: FileVideoIcon, mov: FileVideoIcon, webm: FileVideoIcon, mp3: FileAudioIcon, wav: FileAudioIcon, zip: FileZipIcon,
+  md: FileMdIcon,
+  markdown: FileMdIcon,
+  txt: FileTxtIcon,
+  pdf: FilePdfIcon,
+  doc: FileDocIcon,
+  docx: FileDocIcon,
+  csv: FileCsvIcon,
+  ini: FileIniIcon,
+  json: FileCodeIcon,
+  yaml: FileCodeIcon,
+  yml: FileCodeIcon,
+  toml: FileCodeIcon,
+  xml: FileCodeIcon,
+  sh: FileCodeIcon,
+  ps1: FileCodeIcon,
+  go: FileCodeIcon,
+  ts: FileTsIcon,
+  tsx: FileTsxIcon,
+  js: FileJsIcon,
+  mjs: FileJsIcon,
+  jsx: FileJsxIcon,
+  py: FilePyIcon,
+  rs: FileRsIcon,
+  html: FileHtmlIcon,
+  css: FileCssIcon,
+  png: FilePngIcon,
+  jpg: FileJpgIcon,
+  jpeg: FileJpgIcon,
+  svg: FileSvgIcon,
+  gif: FileImageIcon,
+  webp: FileImageIcon,
+  avif: FileImageIcon,
+  bmp: FileImageIcon,
+  mp4: FileVideoIcon,
+  mov: FileVideoIcon,
+  webm: FileVideoIcon,
+  mp3: FileAudioIcon,
+  wav: FileAudioIcon,
+  zip: FileZipIcon,
 };
 
 /** A folder. */
@@ -49,5 +83,14 @@ export function FileIcon({ name, size = 16 }: { name: string; size?: number }) {
 
 /** The same official ribbon used in the program list. */
 export function VSCodeIcon({ size = 16 }: { size?: number }) {
-  return <img src={serverUrl('/brand/engines/vscode.png')} width={size} height={size} alt="" aria-hidden="true" className="flex-none object-contain" />;
+  return (
+    <img
+      src={serverUrl('/brand/engines/vscode.png')}
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden="true"
+      className="flex-none object-contain"
+    />
+  );
 }

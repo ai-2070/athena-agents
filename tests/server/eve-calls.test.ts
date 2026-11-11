@@ -17,9 +17,22 @@ afterEach(() => vi.restoreAllMocks());
 const runFile = (id: string) => privateDataPath('runtime', 'eve', 'runs', `${id}.json`);
 
 function fixture(name: string, options: { toolGroups?: string[]; mcpServers?: string[] } = {}) {
-  saveSettings({ providers: { custom: { baseUrl: 'http://127.0.0.1:9876/v1', label: 'Fixture' } }, contextWindowTokens: 64000 });
+  saveSettings({
+    providers: { custom: { baseUrl: 'http://127.0.0.1:9876/v1', label: 'Fixture' } },
+    contextWindowTokens: 64000,
+  });
   setSecret('customKey', 'call-count-fixture-key');
-  const agent = agents.save(newAgent({ engine: 'eve', name, provider: 'custom', model: 'proof', toolGroups: options.toolGroups || [], mcpServers: options.mcpServers || [], richAnswers: false }));
+  const agent = agents.save(
+    newAgent({
+      engine: 'eve',
+      name,
+      provider: 'custom',
+      model: 'proof',
+      toolGroups: options.toolGroups || [],
+      mcpServers: options.mcpServers || [],
+      richAnswers: false,
+    }),
+  );
   const chat = chats.create(agent.id, name);
   const binding = bindSession(agent, chat, activeProject(), 'proof');
   const start = (runId: string) => {
@@ -31,7 +44,11 @@ function fixture(name: string, options: { toolGroups?: string[]; mcpServers?: st
 
 /** What Eve asks for around one model call: model, instructions and tools, then the cost check. */
 async function modelStep(bindingId: string) {
-  const configs = await Promise.all([eveConfiguration(bindingId, 'session'), eveConfiguration(bindingId, 'session'), eveConfiguration(bindingId, 'session')]);
+  const configs = await Promise.all([
+    eveConfiguration(bindingId, 'session'),
+    eveConfiguration(bindingId, 'session'),
+    eveConfiguration(bindingId, 'session'),
+  ]);
   return [...configs, await eveConfiguration(bindingId, 'session')];
 }
 
@@ -41,7 +58,22 @@ function history(count: number) {
   for (let i = 0; i < count; i++) {
     const id = `history-${count}-${i}`;
     other.start(id);
-    saveOperation({ id: operationId(other.binding.id, 'session', id, 'call'), runId: id, bindingId: other.binding.id, sessionId: 'session', callId: 'call', name: 'memory_read', args: {}, origin: 'builtin:memory_read', risk: 'none', fingerprint: '', status: 'completed', result: { text: 'old' }, createdAt: 1, updatedAt: 1 });
+    saveOperation({
+      id: operationId(other.binding.id, 'session', id, 'call'),
+      runId: id,
+      bindingId: other.binding.id,
+      sessionId: 'session',
+      callId: 'call',
+      name: 'memory_read',
+      args: {},
+      origin: 'builtin:memory_read',
+      risk: 'none',
+      fingerprint: '',
+      status: 'completed',
+      result: { text: 'old' },
+      createdAt: 1,
+      updatedAt: 1,
+    });
     settleRun(id, 'completed', 'Old answer');
     writeJSON(runFile(id), { ...readRun(id)!, answer: 'Edited elsewhere' });
   }
@@ -51,18 +83,30 @@ describe('Eve call counts', () => {
   it('builds the instructions once per run and reads no other run files during a step with one tool call', async () => {
     history(20);
     mcp.saveServer('count-fixture', { type: 'http', url: 'http://127.0.0.1:1/mcp', enabled: true });
-    const lists = vi.spyOn(mcp, 'listTools').mockResolvedValue([{ name: 'lookup', description: 'Look something up', inputSchema: { type: 'object', properties: {} }, annotations: { readOnlyHint: true } }]);
+    const lists = vi.spyOn(mcp, 'listTools').mockResolvedValue([
+      {
+        name: 'lookup',
+        description: 'Look something up',
+        inputSchema: { type: 'object', properties: {} },
+        annotations: { readOnlyHint: true },
+      },
+    ]);
     const f = fixture('Counted', { mcpServers: ['count-fixture'] });
     f.start('counted-run');
     const stats = vi.spyOn(fs, 'lstatSync');
-    const runStats = () => stats.mock.calls.filter(([file]) => String(file).includes(`${path.sep}runs${path.sep}`)).length;
+    const runStats = () =>
+      stats.mock.calls.filter(([file]) => String(file).includes(`${path.sep}runs${path.sep}`)).length;
     resetEveCounts();
 
     const configs = await modelStep(f.binding.id);
     expect(new Set(configs.map((config) => config.instructions)).size).toBe(1);
     expect(configs[0]!.tools.map((tool) => tool.name)).toContain('count-fixture__lookup');
-    expect(await eveToolPolicy(f.binding.id, 'session', 'counted-run', 'call-1', 'memory_add', { note: 'Prefers tea' })).toEqual({ status: 'approved' });
-    expect((await eveTool(f.binding.id, 'session', 'counted-run', 'call-1', 'memory_add', { note: 'Prefers tea' })).isError).toBeFalsy();
+    expect(
+      await eveToolPolicy(f.binding.id, 'session', 'counted-run', 'call-1', 'memory_add', { note: 'Prefers tea' }),
+    ).toEqual({ status: 'approved' });
+    expect(
+      (await eveTool(f.binding.id, 'session', 'counted-run', 'call-1', 'memory_add', { note: 'Prefers tea' })).isError,
+    ).toBeFalsy();
 
     // Before: 4 prompt builds, 7 tool lists (7 MCP list requests), 10 call checks that each read all 21 run files.
     expect(eveCounts).toMatchObject({ promptBuilds: 1, toolLists: 6, contexts: 9, runReads: 0, operationReads: 0 });
@@ -85,9 +129,20 @@ describe('Eve call counts', () => {
     resetEveCounts();
     const bridge = await openEveBridge();
     try {
-      const response = await fetch(`${bridge.url}/limit`, { method: 'POST', headers: { authorization: `Bearer ${bridge.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ binding: f.binding.id, input: { sessionId: 'session', runId: 'limited-run', limit: 'steps' } }) });
-      expect(await response.json()).toEqual({ reason: 'Stopped after 16 model steps. Raise Max tool steps in Settings to continue.' });
-    } finally { await bridge.close(); }
+      const response = await fetch(`${bridge.url}/limit`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${bridge.token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          binding: f.binding.id,
+          input: { sessionId: 'session', runId: 'limited-run', limit: 'steps' },
+        }),
+      });
+      expect(await response.json()).toEqual({
+        reason: 'Stopped after 16 model steps. Raise Max tool steps in Settings to continue.',
+      });
+    } finally {
+      await bridge.close();
+    }
     expect(eveCounts).toMatchObject({ promptBuilds: 0, toolLists: 0 });
     expect(readRun('limited-run')?.limitReason).toContain('16 model steps');
   });
@@ -99,7 +154,10 @@ describe('one set of instructions per run', () => {
     f.start('memory-run');
     const [first] = await modelStep(f.binding.id);
     expect(first!.instructions).not.toContain('Takes notes in green');
-    expect((await eveTool(f.binding.id, 'session', 'memory-run', 'note', 'memory_add', { note: 'Takes notes in green' })).text).toContain('Remembered');
+    expect(
+      (await eveTool(f.binding.id, 'session', 'memory-run', 'note', 'memory_add', { note: 'Takes notes in green' }))
+        .text,
+    ).toContain('Remembered');
     const later = await modelStep(f.binding.id);
     expect(later.every((config) => config.instructions === first!.instructions)).toBe(true);
     expect(keptSnapshots()).toBeGreaterThan(0);
@@ -126,7 +184,9 @@ describe('one set of instructions per run', () => {
     const names = after.tools.map((tool) => tool.name);
     expect(names).toContain('read_file');
     // The tools it had keep their order.
-    expect(names.filter((name) => before.tools.some((tool) => tool.name === name))).toEqual(before.tools.map((tool) => tool.name));
+    expect(names.filter((name) => before.tools.some((tool) => tool.name === name))).toEqual(
+      before.tools.map((tool) => tool.name),
+    );
     expect(after.instructions).toBe(before.instructions);
     expect(readRun('tools-run')?.configurationVersions).toHaveLength(2);
   });
@@ -138,8 +198,25 @@ describe('cached Eve records', () => {
     f.start('edited-run');
     await eveConfiguration(f.binding.id, 'session');
     const id = operationId(f.binding.id, 'session', 'edited-run', 'call');
-    saveOperation({ id, runId: 'edited-run', bindingId: f.binding.id, sessionId: 'session', callId: 'call', name: 'memory_read', args: {}, origin: 'builtin:memory_read', risk: 'none', fingerprint: '', status: 'prepared', createdAt: 1, updatedAt: 1 });
-    writeJSON(privateDataPath('runtime', 'eve', 'operations', `${id}.json`), { ...readOperation(id)!, status: 'uncertain' });
+    saveOperation({
+      id,
+      runId: 'edited-run',
+      bindingId: f.binding.id,
+      sessionId: 'session',
+      callId: 'call',
+      name: 'memory_read',
+      args: {},
+      origin: 'builtin:memory_read',
+      risk: 'none',
+      fingerprint: '',
+      status: 'prepared',
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    writeJSON(privateDataPath('runtime', 'eve', 'operations', `${id}.json`), {
+      ...readOperation(id)!,
+      status: 'uncertain',
+    });
     expect(readOperation(id)?.status).toBe('uncertain');
     expect(operationsForRun('edited-run').map((item) => item.status)).toEqual(['uncertain']);
     writeJSON(runFile('edited-run'), { ...readRun('edited-run')!, status: 'stopped' });
@@ -153,7 +230,21 @@ describe('cached Eve records', () => {
     f.start('found-run');
     const id = operationId(f.binding.id, 'session', 'found-run', 'outside');
     expect(operationsForRun('found-run')).toEqual([]);
-    writeJSON(privateDataPath('runtime', 'eve', 'operations', `${id}.json`), { id, runId: 'found-run', bindingId: f.binding.id, sessionId: 'session', callId: 'outside', name: 'memory_read', args: {}, origin: 'builtin:memory_read', risk: 'none', fingerprint: '', status: 'completed', createdAt: 1, updatedAt: 1 });
+    writeJSON(privateDataPath('runtime', 'eve', 'operations', `${id}.json`), {
+      id,
+      runId: 'found-run',
+      bindingId: f.binding.id,
+      sessionId: 'session',
+      callId: 'outside',
+      name: 'memory_read',
+      args: {},
+      origin: 'builtin:memory_read',
+      risk: 'none',
+      fingerprint: '',
+      status: 'completed',
+      createdAt: 1,
+      updatedAt: 1,
+    });
     expect(operationsForRun('found-run').map((item) => item.id)).toEqual([id]);
     fs.rmSync(privateDataPath('runtime', 'eve', 'operations', `${id}.json`));
     expect(operationsForRun('found-run')).toEqual([]);
@@ -165,7 +256,9 @@ describe('cached Eve records', () => {
     f.start('frozen-run');
     const run = readRun('frozen-run')!;
     expect(Object.isFrozen(run) && Object.isFrozen(run.events)).toBe(true);
-    expect(() => { (run as { status: string }).status = 'completed'; }).toThrow(TypeError);
+    expect(() => {
+      (run as { status: string }).status = 'completed';
+    }).toThrow(TypeError);
     expect(readRun('frozen-run')?.status).toBe('running');
     const record = setRunStatus('frozen-run', 'waiting');
     record.status = 'completed';

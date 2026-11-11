@@ -58,16 +58,16 @@ people's agents, teams and routines all name skills by id.
 
 Decided with the user:
 
-| Question | Answer |
-|---|---|
-| Shape | One folder per skill, as today: `SKILL.md` plus reference files and scripts. Same ids where a skill survives |
-| Where | `skills/athena/<id>/`, flat. `skills/hermes/` stays unchanged until the switch, then is deleted |
-| Merges | All seven: finance 6 → 1, action items 2 → 1, email 2 → 1, decisions 2 → 1, mcporter into fastmcp, architecture-diagram into concept-diagrams, reddit-reading into rss-feeds |
-| Cuts | duckduckgo-search only. stocks is rebuilt on official and keyed sources, jupyter-notebook on Jupyter's own client; youtube-content stays, with a terms note |
-| Scripts | **Every script is written fresh.** The old ones are a description of what's needed, not code to carry over. Each new script has tests, run in CI on Linux and Windows |
-| Copies already installed | Replaced if the user hasn't changed them; the old version stays in the skill's History. Changed copies, and copies of ids that go away, are left alone |
-| Link back | None. The repo is private, so these come without "from …" or **Download again**, like the subagent skills |
-| Review | 5 samples first for the user to approve the style, then batches. A second agent checks each batch and the user skims it |
+| Question                 | Answer                                                                                                                                                                       |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shape                    | One folder per skill, as today: `SKILL.md` plus reference files and scripts. Same ids where a skill survives                                                                 |
+| Where                    | `skills/athena/<id>/`, flat. `skills/hermes/` stays unchanged until the switch, then is deleted                                                                              |
+| Merges                   | All seven: finance 6 → 1, action items 2 → 1, email 2 → 1, decisions 2 → 1, mcporter into fastmcp, architecture-diagram into concept-diagrams, reddit-reading into rss-feeds |
+| Cuts                     | duckduckgo-search only. stocks is rebuilt on official and keyed sources, jupyter-notebook on Jupyter's own client; youtube-content stays, with a terms note                  |
+| Scripts                  | **Every script is written fresh.** The old ones are a description of what's needed, not code to carry over. Each new script has tests, run in CI on Linux and Windows        |
+| Copies already installed | Replaced if the user hasn't changed them; the old version stays in the skill's History. Changed copies, and copies of ids that go away, are left alone                       |
+| Link back                | None. The repo is private, so these come without "from …" or **Download again**, like the subagent skills                                                                    |
+| Review                   | 5 samples first for the user to approve the style, then batches. A second agent checks each batch and the user skims it                                                      |
 
 ## What's wrong with the current skills
 
@@ -131,9 +131,9 @@ description: Use when a bug, failing test or wrong output needs fixing and the c
 ---
 ```
 
-| Key | What it's for |
-|---|---|
-| `name` | Sentence case, plain words ("Systematic debugging", "PDF files"). The Skills page and the agent's list show it |
+| Key           | What it's for                                                                                                                                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | Sentence case, plain words ("Systematic debugging", "PDF files"). The Skills page and the agent's list show it                                                                                                                      |
 | `description` | **When to use it** first, then what it does; at most about 300 characters. Every agent with the skill reads it on every message and decides from it alone whether to open the skill, so it names the situations, not just the topic |
 
 The id is the folder name.
@@ -341,16 +341,16 @@ general fixes above (tool names, Windows, UTF-8, safety), which aren't repeated 
 16 ids, and where each went. People who already have these keep their copies, which go on working; new installs don't
 get them.
 
-| Old id | Now |
-|---|---|
+| Old id                                                                              | Now              |
+| ----------------------------------------------------------------------------------- | ---------------- |
 | excel-author, dcf-model, lbo-model, 3-statement-model, comps-analysis, merger-model | financial-models |
-| email-inbox-triage, himalaya | email |
-| meeting-action-items, document-to-action-items | action-items |
-| one-three-one-rule, decision-questionnaire | decisions |
-| mcporter | fastmcp |
-| architecture-diagram | concept-diagrams |
-| reddit-reading | rss-feeds |
-| duckduckgo-search | cut |
+| email-inbox-triage, himalaya                                                        | email            |
+| meeting-action-items, document-to-action-items                                      | action-items     |
+| one-three-one-rule, decision-questionnaire                                          | decisions        |
+| mcporter                                                                            | fastmcp          |
+| architecture-diagram                                                                | concept-diagrams |
+| reddit-reading                                                                      | rss-feeds        |
+| duckduckgo-search                                                                   | cut              |
 
 The agent library's writers on `LZL0/skills` list 10 of these ids (excel-author, 3-statement-model, dcf-model,
 comps-analysis, reddit-reading, duckduckgo-search, meeting-action-items, one-three-one-rule, decision-questionnaire,
@@ -394,7 +394,7 @@ Until the switch, `skills/athena/` is read only by its tests: the Hermes skills 
 - `tests/skills/`: the scripts' pytest tests, a `requirements.txt` with the packages they need, and a `conftest.py` that
   makes each test's files in a temp folder.
 - `.github/workflows/ci.yml`: a "Skill scripts" job on ubuntu and windows: Python 3.10, `pip install -r
-  tests/skills/requirements.txt`, `python -m pytest tests/skills`.
+tests/skills/requirements.txt`, `python -m pytest tests/skills`.
 
 ### Step 2: the switch
 

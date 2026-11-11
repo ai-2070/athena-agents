@@ -20,13 +20,18 @@ const os = implement(contract);
 const pictured = <T>(id: string, p: T): T => (store.emit('project-logo', { id }), p);
 
 export const projectsRouter = os.router({
-  list: os.list.handler(() => ({ active: projects.withLogo(store.activeProject()), projects: store.listProjects().map(projects.withLogo), root: projects.projectsRoot() })),
+  list: os.list.handler(() => ({
+    active: projects.withLogo(store.activeProject()),
+    projects: store.listProjects().map(projects.withLogo),
+    root: projects.projectsRoot(),
+  })),
   reorder: os.reorder.handler(({ input }) => ({ projects: store.reorderProjects(input.ids).map(projects.withLogo) })),
   create: os.create.handler(async ({ input }) => {
     let p: Project & { restored?: RestoreResult | null } = await projects.createProject(input);
     // a folder saved by the dashboard before: load its agents, teams and chats
     const restored = projectSync.restoreInto(p.id, p.brainPath);
-    if (restored && !p.description && restored.project.description) p = projects.updateProject(p.id, { description: restored.project.description });
+    if (restored && !p.description && restored.project.description)
+      p = projects.updateProject(p.id, { description: restored.project.description });
     if (restored?.project.skills?.length) p = projects.updateProject(p.id, { skills: restored.project.skills });
     if (restored) p = projects.updateProject(p.id, savedOpacity(restored.project));
     if (restored) store.emit('project', { id: p.id });
@@ -35,7 +40,10 @@ export const projectsRouter = os.router({
     projects.startScreenDone();
     return made;
   }),
-  overview: os.overview.handler(() => ({ ...projects.overview(projectSync.peek), showLauncher: projects.startScreenPending() })),
+  overview: os.overview.handler(() => ({
+    ...projects.overview(projectSync.peek),
+    showLauncher: projects.startScreenPending(),
+  })),
   save: os.save.handler(() => projectSync.saveProject(store.activeProject().id)),
   launcherDone: os.launcherDone.handler(() => {
     projects.startScreenDone();
@@ -64,20 +72,25 @@ export const projectsRouter = os.router({
   }),
   backup: os.backup.handler(({ input }) => backup.createBackup(input.id)),
   clone: os.clone.handler(async ({ input }) => {
-    const r = await backup.oneAtATime('Another project is being copied or restored. Try again when it is done.', () => backup.cloneProject(input.id, input.name));
+    const r = await backup.oneAtATime('Another project is being copied or restored. Try again when it is done.', () =>
+      backup.cloneProject(input.id, input.name),
+    );
     projects.touch(r.project.id);
     return { ...projects.withLogo(enableOrcaSkill(r.project.id) || r.project), restored: r.restored };
   }),
   remove: os.remove.handler(({ input }) => projects.removeProject(input.id)),
   // Backs it up, checks the backup, then removes it. Not while an agent is working in it.
   delete: os.delete.handler(({ input: { id } }) => {
-    if (engines.activeRuns().some((run) => engines.runInfo(run.id)?.projectId === id)) return refuse('An agent is still working in this project. Stop it first, then delete the project.', 409);
+    if (engines.activeRuns().some((run) => engines.runInfo(run.id)?.projectId === id))
+      return refuse('An agent is still working in this project. Stop it first, then delete the project.', 409);
     // (a backup still being unpacked keeps its 409)
     return refusing(() => backup.backupAndDeleteProject(id));
   }),
   setLogo: os.setLogo.handler(({ input }) => pictured(input.id, projects.setLogo(input.id, input.data))),
   removeLogo: os.removeLogo.handler(({ input }) => pictured(input.id, projects.removeLogo(input.id))),
-  setBackground: os.setBackground.handler(({ input }) => pictured(input.id, projects.setBackground(input.id, input.data))),
+  setBackground: os.setBackground.handler(({ input }) =>
+    pictured(input.id, projects.setBackground(input.id, input.data)),
+  ),
   removeBackground: os.removeBackground.handler(({ input }) => pictured(input.id, projects.removeBackground(input.id))),
   setModel: os.setModel.handler(({ input }) => pictured(input.id, projects.setModel(input.id, input.name, input.data))),
   removeModel: os.removeModel.handler(({ input }) => pictured(input.id, projects.removeModel(input.id))),

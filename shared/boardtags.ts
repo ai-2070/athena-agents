@@ -38,7 +38,7 @@ export const tagKey = (text: string): string => splitTag(text).name.toLocaleLowe
 export function tagNameProblem(name: string): string {
   if (!name) return 'Give the tag a name.';
   if (graphemes(name).length > TAG_NAME_MAX) return `A tag's name can be up to ${TAG_NAME_MAX} characters.`;
-  if (name.includes(',')) return 'A tag\'s name can\'t have a comma.';
+  if (name.includes(',')) return "A tag's name can't have a comma.";
   return '';
 }
 
@@ -47,7 +47,12 @@ export const tagLabel = (t: { name: string; emoji?: string }): string => (t.emoj
 
 export type TagMatch = 'any' | 'all';
 /** Whether a task's tags (names) pass a filter of tag names: any or all of them; untagged also lets tasks with no tags through. */
-export function tagsMatch(names: readonly string[], wanted: readonly string[], match: TagMatch = 'any', untagged = false): boolean {
+export function tagsMatch(
+  names: readonly string[],
+  wanted: readonly string[],
+  match: TagMatch = 'any',
+  untagged = false,
+): boolean {
   if (!wanted.length && !untagged) return true;
   if (untagged && !names.length) return true;
   if (!wanted.length) return false;

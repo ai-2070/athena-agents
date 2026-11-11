@@ -6,7 +6,16 @@
 // The first build on a carried-over world gives the project its own copy, so the other project's world
 // stays as it was. Only a world the user chose to share takes builds from two projects.
 import { activeProject, getSettings, listProjects, saveProjects, saveSettings, emit } from '../store.ts';
-import { copyWorld, deleteWorld as removeWorldFiles, getWorld, listWorlds, newWorld, saveCount, saveWorld, worldVoxels } from './store.ts';
+import {
+  copyWorld,
+  deleteWorld as removeWorldFiles,
+  getWorld,
+  listWorlds,
+  newWorld,
+  saveCount,
+  saveWorld,
+  worldVoxels,
+} from './store.ts';
 import type { Project, ProjectWorldLink, ShownWorld, VoxelWorld, WorldListing } from '../../shared/types.ts';
 
 const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
@@ -44,7 +53,12 @@ export function carryOver(except?: string): VoxelWorld | null {
 export function shownWorld(pid: string = activeProject().id): ShownWorld {
   const link = project(pid).world;
   const linked = link ? getWorld(link.id) : null;
-  if (linked && (link?.chosen || link?.mode === 'shared')) return { world: linked, how: link?.mode === 'shared' ? 'shared' : 'own', ...(link?.mode === 'shared' ? { fromProject: linked.homeProject } : {}) };
+  if (linked && (link?.chosen || link?.mode === 'shared'))
+    return {
+      world: linked,
+      how: link?.mode === 'shared' ? 'shared' : 'own',
+      ...(link?.mode === 'shared' ? { fromProject: linked.homeProject } : {}),
+    };
   if (linked?.built) return { world: linked, how: 'own' };
   const carried = carryOver(linked?.id);
   if (carried) return { world: carried, how: 'carried', fromProject: carried.homeProject };
@@ -64,7 +78,10 @@ function prepare(pid: string): { world: VoxelWorld; keep?: () => void; drop?: ()
   if (shown.world && (shown.how === 'own' || shown.how === 'shared')) return { world: shown.world };
   const p = project(pid);
   const before = p.world;
-  const made = shown.world && shown.how === 'carried' ? copyWorld(shown.world.id, pid, shown.world.name) : newWorld(pid, `${p.name}'s world`);
+  const made =
+    shown.world && shown.how === 'carried'
+      ? copyWorld(shown.world.id, pid, shown.world.name)
+      : newWorld(pid, `${p.name}'s world`);
   // linked straight away, so whatever the change calls sees the same world
   setLink(pid, { id: made.id, mode: 'own' });
   return {
@@ -72,7 +89,14 @@ function prepare(pid: string): { world: VoxelWorld; keep?: () => void; drop?: ()
     keep: () => {
       // its own unbuilt world isn't needed any more
       const own = before ? getWorld(before.id) : null;
-      if (own && own.id !== made.id && !own.built && own.homeProject === pid && !usedBy(own.id).some((id) => id !== pid)) removeWorldFiles(own.id);
+      if (
+        own &&
+        own.id !== made.id &&
+        !own.built &&
+        own.homeProject === pid &&
+        !usedBy(own.id).some((id) => id !== pid)
+      )
+        removeWorldFiles(own.id);
     },
     drop: () => {
       setLink(pid, before);
@@ -111,7 +135,17 @@ export function usedBy(worldId: string): string[] {
 export function listWorldsFor(): WorldListing[] {
   const def = getSettings().defaultWorld;
   return listWorlds()
-    .map((w) => ({ id: w.id, name: w.name, homeProject: w.homeProject, built: w.built, objects: w.objects.length, voxels: worldVoxels(w), usedBy: usedBy(w.id), isDefault: w.id === def, updatedAt: w.updatedAt }))
+    .map((w) => ({
+      id: w.id,
+      name: w.name,
+      homeProject: w.homeProject,
+      built: w.built,
+      objects: w.objects.length,
+      voxels: worldVoxels(w),
+      usedBy: usedBy(w.id),
+      isDefault: w.id === def,
+      updatedAt: w.updatedAt,
+    }))
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
@@ -133,7 +167,8 @@ export function chooseWorld(pid: string, choice: WorldChoice, worldId?: string |
     if (choice === 'copy') {
       const copy = copyWorld(w.id, pid);
       setLink(pid, { id: copy.id, mode: 'own', chosen: true });
-    } else if (choice === 'share') setLink(pid, { id: w.id, mode: w.homeProject === pid ? 'own' : 'shared', chosen: true });
+    } else if (choice === 'share')
+      setLink(pid, { id: w.id, mode: w.homeProject === pid ? 'own' : 'shared', chosen: true });
     else throw bad('Choose share, copy, new or auto.');
   }
   return shownWorld(pid);
@@ -148,7 +183,9 @@ export function setDefaultWorld(worldId: string | null): void {
 export function renameWorld(worldId: string, name: unknown): VoxelWorld {
   const w = getWorld(worldId);
   if (!w) throw bad('No such world.', 404);
-  const n = String(name ?? '').trim().slice(0, 80);
+  const n = String(name ?? '')
+    .trim()
+    .slice(0, 80);
   if (!n) throw bad('Give the world a name.');
   w.name = n;
   return saveWorld(w, { renamed: true });
@@ -158,7 +195,11 @@ export function renameWorld(worldId: string, name: unknown): VoxelWorld {
 export function deleteUnusedWorld(worldId: string): void {
   if (!getWorld(worldId)) throw bad('No such world.', 404);
   const users = usedBy(worldId);
-  if (users.length) throw bad(`A project still uses this world (${users.map((id) => listProjects().find((p) => p.id === id)?.name || id).join(', ')}). Pick another world there first.`, 409);
+  if (users.length)
+    throw bad(
+      `A project still uses this world (${users.map((id) => listProjects().find((p) => p.id === id)?.name || id).join(', ')}). Pick another world there first.`,
+      409,
+    );
   if (getSettings().defaultWorld === worldId) saveSettings({ defaultWorld: '' });
   removeWorldFiles(worldId);
 }

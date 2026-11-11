@@ -32,7 +32,7 @@ vi.mock('../../server/brain.ts', async (orig) => ({
       checkedSystems.push(system);
       const v = verdicts.shift();
       if (v instanceof Error) throw v;
-      return await v ?? '{"done":true,"summary":"Looks done."}';
+      return (await v) ?? '{"done":true,"summary":"Looks done."}';
     }
     brainRequests.push(user);
     return (await answers.shift()) ?? 'NOTHING';
@@ -56,27 +56,58 @@ beforeAll(async () => {
     calls.set(name, n);
     if (name === 'Broken' || name === 'Offline' || (name === 'Transient' && n === 1)) {
       res.writeHead(name === 'Broken' ? 401 : 503, { 'content-type': 'application/json' });
-      return res.end(JSON.stringify({ error: { message: name === 'Broken' ? 'Authentication failed' : '503 overloaded' } }));
+      return res.end(
+        JSON.stringify({ error: { message: name === 'Broken' ? 'Authentication failed' : '503 overloaded' } }),
+      );
     }
     if (name === 'Holder') await new Promise<void>((go) => held.push(go));
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     if (name === 'Taskworker') {
       const last = j.messages.at(-1)!;
-      const result = last.role === 'tool' ? JSON.parse(text(last.content)) as { task?: { id: string }; success?: boolean } : null;
-      const fn = !result ? { name: 'TaskCreate', arguments: JSON.stringify({ subject: 'Verify the task', description: 'Check the result before marking complete.' }) } : result.task ? { name: 'TaskUpdate', arguments: JSON.stringify({ taskId: result.task.id, status: 'completed' }) } : null;
-      if (fn) { res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: `task-${n}`, type: 'function', function: fn }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`); return res.end(); }
+      const result =
+        last.role === 'tool' ? (JSON.parse(text(last.content)) as { task?: { id: string }; success?: boolean }) : null;
+      const fn = !result
+        ? {
+            name: 'TaskCreate',
+            arguments: JSON.stringify({
+              subject: 'Verify the task',
+              description: 'Check the result before marking complete.',
+            }),
+          }
+        : result.task
+          ? { name: 'TaskUpdate', arguments: JSON.stringify({ taskId: result.task.id, status: 'completed' }) }
+          : null;
+      if (fn) {
+        res.write(
+          `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: `task-${n}`, type: 'function', function: fn }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
+        );
+        return res.end();
+      }
     }
     if (['Evidence', 'Delegator'].includes(name) && j.messages.at(-1)?.role === 'user') {
-      const fn = name === 'Evidence' ? { name: 'list_agents', arguments: '{}' } : { name: 'ask_agent', arguments: JSON.stringify({ agent: childId, message: 'Finish the delegated part.' }) };
-      res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'tool-one', type: 'function', function: fn }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`);
+      const fn =
+        name === 'Evidence'
+          ? { name: 'list_agents', arguments: '{}' }
+          : { name: 'ask_agent', arguments: JSON.stringify({ agent: childId, message: 'Finish the delegated part.' }) };
+      res.write(
+        `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'tool-one', type: 'function', function: fn }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
+      );
       return res.end();
     }
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: `${name} worked on it.${name === 'Repeater' ? '' : ` Result ${n}.`}` } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: `${name} worked on it.${name === 'Repeater' ? '' : ` Result ${n}.`}` } }] })}\n\n`,
+    );
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
   startIrc();
 });
 afterAll(() => {
@@ -93,7 +124,7 @@ beforeEach(() => {
 });
 
 const until = async (ok: () => boolean, ms = 8000) => {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 25));
   }
@@ -101,14 +132,21 @@ const until = async (ok: () => boolean, ms = 8000) => {
 };
 const agent = (name: string) => newAgent({ name, engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
 const items = (agentId: string, chatId: string): ChatItem[] => chats.get(agentId, chatId)?.items || [];
-const users = (agentId: string, chatId: string) => items(agentId, chatId).filter((i) => i.type === 'user').map((i) => (i.type === 'user' ? `${i.from || 'you'}: ${i.text.split('\n')[0]}` : ''));
-const notes = (agentId: string, chatId: string) => items(agentId, chatId).filter((i) => i.type === 'meta').map((i) => i.text);
+const users = (agentId: string, chatId: string) =>
+  items(agentId, chatId)
+    .filter((i) => i.type === 'user')
+    .map((i) => (i.type === 'user' ? `${i.from || 'you'}: ${i.text.split('\n')[0]}` : ''));
+const notes = (agentId: string, chatId: string) =>
+  items(agentId, chatId)
+    .filter((i) => i.type === 'meta')
+    .map((i) => i.text);
 const notDone = (followUp: string) => JSON.stringify({ done: false, followUp, summary: 'Not there yet.' });
 const briefIn = (chatId: string) => listBriefs().findLast((b) => b.chatId === chatId)!;
 
 describe('ordinary assignments keep going automatically', () => {
   it('lets an API agent create and finish a saved task with real core tools', async () => {
-    const a = agent('Taskworker'); const c = chats.create(a.id);
+    const a = agent('Taskworker');
+    const c = chats.create(a.id);
     startRun(a, c, 'Finish the assignment and track the work.');
     await until(() => briefIn(c.id)?.status === 'done');
     const t = savedTasks().find((t) => t.scope.kind === 'agent' && t.scope.id === a.id)!;
@@ -117,13 +155,28 @@ describe('ordinary assignments keep going automatically', () => {
   });
 
   it('does not accept a done verdict while linked saved tasks are still unfinished', async () => {
-    const a = agent('Heldtask'); const c = chats.create(a.id);
+    const a = agent('Heldtask');
+    const c = chats.create(a.id);
     let release!: (s: string) => void;
-    verdicts.push(new Promise<string>((r) => { release = r; }));
+    verdicts.push(
+      new Promise<string>((r) => {
+        release = r;
+      }),
+    );
     startRun(a, c, 'Finish the saved steps.');
     await until(() => checked.length === 1);
-    const t = createTask({ subject: 'Required check', description: 'Must be verified.' }, { admin: true, scope: { kind: 'agent', id: a.id }, briefId: briefIn(c.id).id });
-    verdicts.push(JSON.stringify({ done: false, blocked: true, userAction: 'Provide the required test fixture.', summary: 'The check needs a fixture.' }));
+    const t = createTask(
+      { subject: 'Required check', description: 'Must be verified.' },
+      { admin: true, scope: { kind: 'agent', id: a.id }, briefId: briefIn(c.id).id },
+    );
+    verdicts.push(
+      JSON.stringify({
+        done: false,
+        blocked: true,
+        userAction: 'Provide the required test fixture.',
+        summary: 'The check needs a fixture.',
+      }),
+    );
     release('{"done":true,"summary":"Claimed done too early."}');
     await until(() => briefIn(c.id)?.status === 'blocked');
     expect(users(a.id, c.id).at(-1)).toContain('unfinished saved tasks');
@@ -132,27 +185,59 @@ describe('ordinary assignments keep going automatically', () => {
 
   it('gives the Brain task creation, dependency updates and full TaskGet results', async () => {
     const unique = `Brain plan ${Date.now()}`;
-    answers.push(`Saved the plan.\n\`\`\`actions\n${JSON.stringify([{ do: 'TaskCreate', subject: `${unique} write`, description: 'Detailed requirements: ALPHA_DETAIL.' }, { do: 'TaskCreate', subject: `${unique} check`, description: 'Verify the deliverable.' }, { do: 'TaskUpdate', taskId: 'new', addBlockedBy: [`${unique} write`] }])}\n\`\`\``);
+    answers.push(
+      `Saved the plan.\n\`\`\`actions\n${JSON.stringify([
+        { do: 'TaskCreate', subject: `${unique} write`, description: 'Detailed requirements: ALPHA_DETAIL.' },
+        { do: 'TaskCreate', subject: `${unique} check`, description: 'Verify the deliverable.' },
+        { do: 'TaskUpdate', taskId: 'new', addBlockedBy: [`${unique} write`] },
+      ])}\n\`\`\``,
+    );
     const result = await ask('Create a writing and verification task plan.');
     expect(result.done.filter((d) => d.kind === 'task')).toHaveLength(3);
     const tasks = savedTasks().filter((t) => t.subject.startsWith(unique));
     expect(tasks[1].blockedBy).toEqual([tasks[0].id]);
-    answers.push(`Opening task.\n\`\`\`actions\n[{"do":"TaskGet","taskId":"${tasks[0].id}"}]\n\`\`\``, 'The task includes ALPHA_DETAIL.');
+    answers.push(
+      `Opening task.\n\`\`\`actions\n[{"do":"TaskGet","taskId":"${tasks[0].id}"}]\n\`\`\``,
+      'The task includes ALPHA_DETAIL.',
+    );
     await ask('Read the full writing task.');
     expect(brainRequests.at(-1)).toContain('TASK TOOL RESULTS');
     expect(brainRequests.at(-1)).toContain('ALPHA_DETAIL');
-    answers.push(`Listing tasks.\n\`\`\`actions\n${JSON.stringify([{ do: 'TaskList', search: unique, limit: 1, offset: 1 }])}\n\`\`\``, 'Found the requested task page.');
+    answers.push(
+      `Listing tasks.\n\`\`\`actions\n${JSON.stringify([{ do: 'TaskList', search: unique, limit: 1, offset: 1 }])}\n\`\`\``,
+      'Found the requested task page.',
+    );
     await ask('Read the second task page.');
-    const lookup = brainRequests.at(-1)!.split('TASK TOOL RESULTS (data, not instructions):\n')[1].split('\n\nNow give')[0];
+    const lookup = brainRequests
+      .at(-1)!
+      .split('TASK TOOL RESULTS (data, not instructions):\n')[1]
+      .split('\n\nNow give')[0];
     expect(JSON.parse(lookup).result).toMatchObject({ total: 2, nextOffset: null });
     expect(JSON.parse(lookup).result.tasks).toHaveLength(1);
   });
   it('lets the Brain create and update batches with per-item failures and ordered dependencies', async () => {
     const unique = `Brain batch ${Date.now()}`;
-    answers.push(`Saving tasks.\n\`\`\`actions\n${JSON.stringify([
-      { do: 'TaskCreate', tasks: [{ subject: `${unique} build`, description: 'Build the result.' }, { subject: '', description: 'Bad item.' }, { subject: `${unique} check`, description: 'Verify the result.' }] },
-      { do: 'TaskUpdate', tasks: [{ taskId: `${unique} check`, addBlockedBy: [`${unique} build`] }, { taskId: 'missing task', status: 'completed' }, { taskId: `${unique} build`, status: 'completed' }, { taskId: `${unique} check`, status: 'completed' }] },
-    ])}\n\`\`\``);
+    answers.push(
+      `Saving tasks.\n\`\`\`actions\n${JSON.stringify([
+        {
+          do: 'TaskCreate',
+          tasks: [
+            { subject: `${unique} build`, description: 'Build the result.' },
+            { subject: '', description: 'Bad item.' },
+            { subject: `${unique} check`, description: 'Verify the result.' },
+          ],
+        },
+        {
+          do: 'TaskUpdate',
+          tasks: [
+            { taskId: `${unique} check`, addBlockedBy: [`${unique} build`] },
+            { taskId: 'missing task', status: 'completed' },
+            { taskId: `${unique} build`, status: 'completed' },
+            { taskId: `${unique} check`, status: 'completed' },
+          ],
+        },
+      ])}\n\`\`\``,
+    );
     const result = await ask('Save and finish a two-step task plan.');
     expect(result.done.filter((d) => d.kind === 'task')).toHaveLength(5);
     expect(result.done.filter((d) => d.kind === 'error')).toHaveLength(2);
@@ -163,11 +248,20 @@ describe('ordinary assignments keep going automatically', () => {
   });
 
   it('binds all successful Brain batch tasks to the delegated assignment before it starts', async () => {
-    const a = agent('Holder'); const unique = `Delegated batch ${Date.now()}`;
-    answers.push(`Handing it on.\n\`\`\`actions\n${JSON.stringify([
-      { do: 'TaskCreate', tasks: [{ subject: `${unique} first`, description: 'First requirement.', scope: { kind: 'agent', id: a.id } }, { subject: `${unique} second`, description: 'Second requirement.', scope: { kind: 'agent', id: a.id } }] },
-      { do: 'delegate', to: 'agent', id: a.id, message: 'Finish both saved tasks.' },
-    ])}\n\`\`\``);
+    const a = agent('Holder');
+    const unique = `Delegated batch ${Date.now()}`;
+    answers.push(
+      `Handing it on.\n\`\`\`actions\n${JSON.stringify([
+        {
+          do: 'TaskCreate',
+          tasks: [
+            { subject: `${unique} first`, description: 'First requirement.', scope: { kind: 'agent', id: a.id } },
+            { subject: `${unique} second`, description: 'Second requirement.', scope: { kind: 'agent', id: a.id } },
+          ],
+        },
+        { do: 'delegate', to: 'agent', id: a.id, message: 'Finish both saved tasks.' },
+      ])}\n\`\`\``,
+    );
     const result = await ask('Finish both requirements.');
     const chatId = result.delegate!.sent!.chatId!;
     await until(() => held.length > 0);
@@ -175,7 +269,8 @@ describe('ordinary assignments keep going automatically', () => {
     const tasks = savedTasks().filter((t) => t.subject.startsWith(unique));
     expect(tasks).toHaveLength(2);
     expect(tasks.every((t) => t.briefId === brief.id)).toBe(true);
-    for (const task of tasks) updateTask({ taskId: task.id, status: 'completed' }, { admin: true, scope: { kind: 'brain' } });
+    for (const task of tasks)
+      updateTask({ taskId: task.id, status: 'completed' }, { admin: true, scope: { kind: 'brain' } });
     held.shift()!();
     await until(() => briefIn(chatId).status === 'done');
   });
@@ -183,7 +278,15 @@ describe('ordinary assignments keep going automatically', () => {
   it('checks a direct message and continues beyond the old five-turn cap while results advance', async () => {
     const a = agent('Progressing');
     const c = chats.create(a.id);
-    for (let n = 0; n < 7; n++) verdicts.push(JSON.stringify({ done: false, progress: `Result ${n + 1} delivered`, followUp: `Finish part ${n + 2}`, summary: `Part ${n + 1} complete.` }));
+    for (let n = 0; n < 7; n++)
+      verdicts.push(
+        JSON.stringify({
+          done: false,
+          progress: `Result ${n + 1} delivered`,
+          followUp: `Finish part ${n + 2}`,
+          summary: `Part ${n + 1} complete.`,
+        }),
+      );
     startRun(a, c, 'Finish all eight parts, with checks.');
     await until(() => briefIn(c.id)?.status === 'done');
     expect(briefIn(c.id)).toMatchObject({ automatic: true, followUps: 7, stalled: 0 });
@@ -197,12 +300,16 @@ describe('ordinary assignments keep going automatically', () => {
     verdicts.push(notDone('@Teamworker add the verification.'));
     await postUserMessage(t.id, 'Make the report and verify it.');
     await until(() => listBriefs().findLast((b) => b.targetId === t.id)?.status === 'done');
-    expect(getThread(t.id).messages.some((m) => m.from === 'brain' && m.text.includes('add the verification'))).toBe(true);
+    expect(getThread(t.id).messages.some((m) => m.from === 'brain' && m.text.includes('add the verification'))).toBe(
+      true,
+    );
   });
 
   it('keeps the full user request as the condition when the Brain delegates a shorter brief', async () => {
     const a = agent('Assigned');
-    answers.push(`On it.\n\`\`\`actions\n[{"do":"delegate","to":"agent","id":"${a.id}","message":"Make the report"}]\n\`\`\``);
+    answers.push(
+      `On it.\n\`\`\`actions\n[{"do":"delegate","to":"agent","id":"${a.id}","message":"Make the report"}]\n\`\`\``,
+    );
     const result = await ask('Make the report, verify every figure, and include the sources.');
     const c = result.delegate!.sent!.chatId!;
     await until(() => briefIn(c)?.status === 'done');
@@ -222,7 +329,15 @@ describe('ordinary assignments keep going automatically', () => {
   it('stops repeated identical results even when the evaluator paraphrases progress', async () => {
     const a = agent('Repeater');
     const c = chats.create(a.id);
-    for (let n = 0; n < 4; n++) verdicts.push(JSON.stringify({ done: false, progress: `Claim ${n}`, followUp: 'Try a different approach.', summary: 'Still unfinished.' }));
+    for (let n = 0; n < 4; n++)
+      verdicts.push(
+        JSON.stringify({
+          done: false,
+          progress: `Claim ${n}`,
+          followUp: 'Try a different approach.',
+          summary: 'Still unfinished.',
+        }),
+      );
     startRun(a, c, 'Do the work.');
     await until(() => briefIn(c.id)?.status === 'stuck');
     expect(briefIn(c.id).followUps).toBe(3);
@@ -232,7 +347,14 @@ describe('ordinary assignments keep going automatically', () => {
   it('records a blocker separately from completion and resumes the original assignment after an answer', async () => {
     const a = agent('Blocked');
     const c = chats.create(a.id);
-    verdicts.push(JSON.stringify({ done: false, blocked: true, userAction: 'Connect the project account.', summary: 'The draft is ready; publishing needs access.' }));
+    verdicts.push(
+      JSON.stringify({
+        done: false,
+        blocked: true,
+        userAction: 'Connect the project account.',
+        summary: 'The draft is ready; publishing needs access.',
+      }),
+    );
     startRun(a, c, 'Draft and publish the report.');
     await until(() => briefIn(c.id)?.status === 'blocked');
     const b = briefIn(c.id);
@@ -249,7 +371,14 @@ describe('ordinary assignments keep going automatically', () => {
   it('routes a team blocker through Needs you and resumes the same team assignment after the answer', async () => {
     const a = agent('Teamblocked');
     const t = workflows.save({ name: 'Team needing access', members: [a.id], lead: a.id, steps: [] } as Partial<Team>);
-    verdicts.push(JSON.stringify({ done: false, blocked: true, userAction: 'Choose the destination account.', summary: 'A draft is ready.' }));
+    verdicts.push(
+      JSON.stringify({
+        done: false,
+        blocked: true,
+        userAction: 'Choose the destination account.',
+        summary: 'A draft is ready.',
+      }),
+    );
     await postUserMessage(t.id, 'Publish the draft in the chosen account.');
     await until(() => listBriefs().findLast((b) => b.targetId === t.id)?.status === 'blocked');
     const b = listBriefs().findLast((b) => b.targetId === t.id)!;
@@ -330,7 +459,7 @@ describe('ordinary assignments keep going automatically', () => {
     expect(checked).toHaveLength(0);
   });
 
-  it('team completion waits for a member\'s background delegate and sees its finished result', async () => {
+  it("team completion waits for a member's background delegate and sees its finished result", async () => {
     const child = agent('Holder');
     childId = child.id;
     const a = agents.save({ ...agent('Delegator'), toolGroups: ['agents'] });
@@ -361,9 +490,19 @@ describe('ordinary assignments keep going automatically', () => {
     const child = agent('Holder');
     childId = child.id;
     const helper = agents.save({ ...agent('Delegator'), toolGroups: ['agents'] });
-    const destination = workflows.save({ name: 'Helper crew', members: [helper.id], lead: helper.id, steps: [] } as Partial<Team>);
+    const destination = workflows.save({
+      name: 'Helper crew',
+      members: [helper.id],
+      lead: helper.id,
+      steps: [],
+    } as Partial<Team>);
     const lead = agent('Requester');
-    const origin = workflows.save({ name: 'Request crew', members: [lead.id], lead: lead.id, steps: [] } as Partial<Team>);
+    const origin = workflows.save({
+      name: 'Request crew',
+      members: [lead.id],
+      lead: lead.id,
+      steps: [],
+    } as Partial<Team>);
     await postUserMessage(origin.id, '#Helper crew finish the assignment.');
     await until(() => held.length > 0 && !teamState(destination.id).working.length);
     expect(checked).toHaveLength(0);
@@ -379,7 +518,11 @@ describe('ordinary assignments keep going automatically', () => {
     const a = agent('Steered');
     const c = chats.create(a.id);
     let release!: (s: string) => void;
-    verdicts.push(new Promise<string>((r) => { release = r; }));
+    verdicts.push(
+      new Promise<string>((r) => {
+        release = r;
+      }),
+    );
     startRun(a, c, 'Write the draft.');
     await until(() => checked.length === 1);
     queueMessage(a, chats.get(a.id, c.id)!, 'Also add a summary.');
@@ -395,7 +538,11 @@ describe('ordinary assignments keep going automatically', () => {
     const a = agent('Stopcheck');
     const c = chats.create(a.id);
     let release!: (s: string) => void;
-    verdicts.push(new Promise<string>((r) => { release = r; }));
+    verdicts.push(
+      new Promise<string>((r) => {
+        release = r;
+      }),
+    );
     startRun(a, c, 'Work until finished.');
     await until(() => checked.length === 1);
     stopChat(c.id);
@@ -428,7 +575,17 @@ describe('ordinary assignments keep going automatically', () => {
   it('recovers saved open work after startup without restarting stopped work', async () => {
     const a = agent('Recovered');
     const c = chats.create(a.id);
-    const b = addBrief({ kind: 'agent', targetId: a.id, chatId: c.id, name: a.name, text: 'Finish the saved assignment.', goal: 'Finish the saved assignment.', automatic: true, origin: 'chat', ts: Date.now() });
+    const b = addBrief({
+      kind: 'agent',
+      targetId: a.id,
+      chatId: c.id,
+      name: a.name,
+      text: 'Finish the saved assignment.',
+      goal: 'Finish the saved assignment.',
+      automatic: true,
+      origin: 'chat',
+      ts: Date.now(),
+    });
     verdicts.push(notDone('Check the files and finish the saved assignment.'));
     await recoverWork();
     await until(() => listBriefs().find((x) => x.id === b.id)?.status === 'done');
@@ -444,7 +601,10 @@ describe('/goal in an agent chat', () => {
     const { goal } = goalInChat(a.id, c.id, 'the login page works and has tests');
     expect(goal?.origin).toBe('chat');
     await until(() => listBriefs().find((b) => b.id === goal!.id)?.status === 'done');
-    expect(users(a.id, c.id)).toEqual(['/goal: Your goal: the login page works and has tests', 'the Brain: Add the tests too.']);
+    expect(users(a.id, c.id)).toEqual([
+      '/goal: Your goal: the login page works and has tests',
+      'the Brain: Add the tests too.',
+    ]);
     expect(checked[0]).toContain("THE USER'S GOAL");
     expect(checked[0]).toContain('the login page works and has tests');
     // (the reply above says what was done: the note doesn't repeat the check's summary)
@@ -497,7 +657,13 @@ describe('/goal in an agent chat', () => {
 describe('/goal in a team chat', () => {
   it('posts it for the team and checks when the team goes quiet; the result is posted in the thread', async () => {
     const lead = agent('Leader');
-    const t = workflows.save({ name: `Goal team ${Date.now()}`, description: '', members: [lead.id], lead: lead.id, steps: [] } as Partial<Team>);
+    const t = workflows.save({
+      name: `Goal team ${Date.now()}`,
+      description: '',
+      members: [lead.id],
+      lead: lead.id,
+      steps: [],
+    } as Partial<Team>);
     verdicts.push(notDone('@Leader add the summary.'));
     const { goal } = await goalInTeam(t.id, 'a weekly report with a summary');
     await until(() => listBriefs().find((b) => b.id === goal!.id)?.status === 'done');
@@ -512,7 +678,9 @@ describe('/goal in a team chat', () => {
 describe('/stop and /resume in the Brain chat', () => {
   it('stops the work the Brain handed out, and /resume picks it up again', async () => {
     const a = agent('Holder');
-    answers.push(`On it.\n\`\`\`actions\n[{"do":"delegate","to":"agent","id":"${a.id}","message":"Write the report"}]\n\`\`\``);
+    answers.push(
+      `On it.\n\`\`\`actions\n[{"do":"delegate","to":"agent","id":"${a.id}","message":"Write the report"}]\n\`\`\``,
+    );
     const r = await ask('get the report written');
     const chatId = r.delegate!.sent!.chatId!;
     await until(() => held.length > 0);
@@ -550,7 +718,9 @@ describe('/stop and /resume in the Brain chat', () => {
   it('a /goal from the Brain chat is kept for its hand-off even with follow-ups off', async () => {
     saveSettings({ brainFollowsUp: false });
     const a = agent('Finisher');
-    answers.push(`Handing it on.\n\`\`\`actions\n[{"do":"delegate","to":"agent","id":"${a.id}","message":"Make the site load fast"}]\n\`\`\``);
+    answers.push(
+      `Handing it on.\n\`\`\`actions\n[{"do":"delegate","to":"agent","id":"${a.id}","message":"Make the site load fast"}]\n\`\`\``,
+    );
     await ask('the site loads in under a second', { goal: true });
     const b = listBriefs().findLast((x) => x.targetId === a.id)!;
     expect(b.goal).toBe('the site loads in under a second');
@@ -560,10 +730,12 @@ describe('/stop and /resume in the Brain chat', () => {
 });
 
 describe('simple questions are not goals', () => {
-  const setGoal = (a: { id: string; name: string }, chatId: string, goal: string) => goalTool().run({ goal }, { agent: a, runId: chatRunId(a.id, chatId) });
+  const setGoal = (a: { id: string; name: string }, chatId: string, goal: string) =>
+    goalTool().run({ goal }, { agent: a, runId: chatRunId(a.id, chatId) });
 
   it('a question the reply answers closes quietly: no goal, no note', async () => {
-    const a = agent('Answerer'); const c = chats.create(a.id);
+    const a = agent('Answerer');
+    const c = chats.create(a.id);
     verdicts.push('{"assignment":false,"done":true,"summary":"Answered the question."}');
     startRun(a, c, 'What does parseCommand do?');
     expect(openGoal('agent', a.id, c.id)).toBeNull();
@@ -575,8 +747,17 @@ describe('simple questions are not goals', () => {
   });
 
   it('work the Brain recognizes at its check becomes the chat goal and is followed up', async () => {
-    const a = agent('Recognized'); const c = chats.create(a.id);
-    verdicts.push(JSON.stringify({ assignment: true, done: false, progress: 'Part one', followUp: 'Add the tests.', summary: 'Half done.' }));
+    const a = agent('Recognized');
+    const c = chats.create(a.id);
+    verdicts.push(
+      JSON.stringify({
+        assignment: true,
+        done: false,
+        progress: 'Part one',
+        followUp: 'Add the tests.',
+        summary: 'Half done.',
+      }),
+    );
     startRun(a, c, 'Add a help command.');
     await until(() => briefIn(c.id)?.status === 'done');
     expect(briefIn(c.id)).toMatchObject({ recognized: true, followUps: 1 });
@@ -586,13 +767,18 @@ describe('simple questions are not goals', () => {
   });
 
   it('the agent sets the goal with set_goal: it shows at once and the check reads it beside your words', async () => {
-    const a = agent('Holder'); const c = chats.create(a.id);
+    const a = agent('Holder');
+    const c = chats.create(a.id);
     startRun(a, c, 'Add a help command.');
     await until(() => held.length > 0);
     expect(openGoal('agent', a.id, c.id)).toBeNull();
     const r = await setGoal(a, c.id, 'The help command lists every command.');
     expect(r.text).toContain('Goal set');
-    expect(openGoal('agent', a.id, c.id)).toMatchObject({ recognized: true, doneWhen: 'The help command lists every command.', goal: 'Add a help command.' });
+    expect(openGoal('agent', a.id, c.id)).toMatchObject({
+      recognized: true,
+      doneWhen: 'The help command lists every command.',
+      goal: 'Add a help command.',
+    });
     held.shift()!();
     await until(() => briefIn(c.id)?.status === 'done');
     expect(checkedSystems[0]).not.toContain('assignment: false when');
@@ -601,10 +787,13 @@ describe('simple questions are not goals', () => {
   });
 
   it('set_goal leaves your own /goal as it is', async () => {
-    const a = agent('Holder'); const c = chats.create(a.id);
+    const a = agent('Holder');
+    const c = chats.create(a.id);
     const { goal } = goalInChat(a.id, c.id, 'the build is green');
     await until(() => held.length > 0);
-    expect((await setGoal(a, c.id, 'Something else.')).text).toContain('The user already set the goal: the build is green');
+    expect((await setGoal(a, c.id, 'Something else.')).text).toContain(
+      'The user already set the goal: the build is green',
+    );
     expect(openGoal('agent', a.id, c.id)).toMatchObject({ id: goal!.id, goal: 'the build is green' });
     expect(openGoal('agent', a.id, c.id)?.doneWhen).toBeUndefined();
     goalInChat(a.id, c.id, 'clear');
@@ -613,10 +802,27 @@ describe('simple questions are not goals', () => {
   });
 
   it('in a team only the lead sets the goal', async () => {
-    const lead = agent('Leadgoal'); const member = agent('Holder');
-    const t = workflows.save({ name: `Set goal team ${Date.now()}`, members: [lead.id, member.id], lead: lead.id, steps: [] } as Partial<Team>);
-    const b = addBrief({ kind: 'team', targetId: t.id, name: t.name, text: 'Make the report.', goal: 'Make the report.', automatic: true, origin: 'chat', ts: Date.now() });
-    const c = chats.create(member.id); c.teamId = t.id; chats.save(c);
+    const lead = agent('Leadgoal');
+    const member = agent('Holder');
+    const t = workflows.save({
+      name: `Set goal team ${Date.now()}`,
+      members: [lead.id, member.id],
+      lead: lead.id,
+      steps: [],
+    } as Partial<Team>);
+    const b = addBrief({
+      kind: 'team',
+      targetId: t.id,
+      name: t.name,
+      text: 'Make the report.',
+      goal: 'Make the report.',
+      automatic: true,
+      origin: 'chat',
+      ts: Date.now(),
+    });
+    const c = chats.create(member.id);
+    c.teamId = t.id;
+    chats.save(c);
     startRun(member, c, 'Your part of the report.', { from: 'the team' });
     await until(() => held.length > 0);
     expect((await setGoal(member, c.id, 'A report.')).text).toContain("The team's lead sets its goal");
@@ -628,7 +834,8 @@ describe('simple questions are not goals', () => {
 
   it('with follow-ups off, set_goal keeps nothing and says so', async () => {
     saveSettings({ brainFollowsUp: false });
-    const a = agent('Holder'); const c = chats.create(a.id);
+    const a = agent('Holder');
+    const c = chats.create(a.id);
     startRun(a, c, 'Add a help command.');
     await until(() => held.length > 0);
     expect((await setGoal(a, c.id, 'Done when it works.')).text).toContain('Completion checks are off');

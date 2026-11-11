@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { CHUNK, CHUNK_CELLS, countVoxels, decodeChunk, encodeChunk, fromBase64, getVoxel, hash3, materialShades, newVolume, setVoxel, toBase64, volumeBounds, voxelShade } from '../../shared/voxel.ts';
+import {
+  CHUNK,
+  CHUNK_CELLS,
+  countVoxels,
+  decodeChunk,
+  encodeChunk,
+  fromBase64,
+  getVoxel,
+  hash3,
+  materialShades,
+  newVolume,
+  setVoxel,
+  toBase64,
+  volumeBounds,
+  voxelShade,
+} from '../../shared/voxel.ts';
 
 describe('voxel volumes', () => {
   it('sets and reads voxels across chunks, negative coordinates included', () => {

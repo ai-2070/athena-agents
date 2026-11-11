@@ -6,7 +6,15 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
-import { activeProject, listProjects, saveProjects, saveSettings, setActiveProject, withProject, workflows } from '../../server/store.ts';
+import {
+  activeProject,
+  listProjects,
+  saveProjects,
+  saveSettings,
+  setActiveProject,
+  withProject,
+  workflows,
+} from '../../server/store.ts';
 import { dataPath, readJSON } from '../../server/util.ts';
 import { clearThread, getThread, postUserMessage, setBrainHandlers, stopTeam, teamState } from '../../server/teams.ts';
 import { RunStopped } from '../../server/engines/index.ts';
@@ -26,11 +34,17 @@ beforeAll(async () => {
     await gate;
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Late answer.' } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  saveSettings({ providers: { custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' } } });
+  saveSettings({
+    providers: {
+      custom: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, label: 'Fake model' },
+    },
+  });
 });
 afterAll(() => {
   release();
@@ -53,7 +67,10 @@ const deferred = <T>() => {
   const promise = new Promise<T>((r) => (resolve = r));
   return { promise, resolve };
 };
-const texts = (pid: string, teamId: string) => readJSON<{ messages: TeamMessage[] }>(dataPath('projects', pid, 'teamchats', `${teamId}.json`), { messages: [] }).messages.map((m) => m.text);
+const texts = (pid: string, teamId: string) =>
+  readJSON<{ messages: TeamMessage[] }>(dataPath('projects', pid, 'teamchats', `${teamId}.json`), {
+    messages: [],
+  }).messages.map((m) => m.text);
 
 describe('a copied project', () => {
   it("has its own team: stopping the copy leaves the original's work going", async () => {
@@ -85,7 +102,12 @@ describe('picking who answers', () => {
   it('stays in its project when you open another one meanwhile', async () => {
     const a = agent('Picked one');
     const b = agent('Other one');
-    const team = workflows.save({ name: 'No lead team', members: [a.id, b.id], lead: null, steps: [] } as Partial<Team>);
+    const team = workflows.save({
+      name: 'No lead team',
+      members: [a.id, b.id],
+      lead: null,
+      steps: [],
+    } as Partial<Team>);
     const src = activeProject();
     saveProjects([...listProjects(), { ...src, id: 'other-2', name: 'Other' }]);
     const picked = deferred<string>();
@@ -106,7 +128,12 @@ describe('picking who answers', () => {
   it('starts nobody when a routine was stopped meanwhile', async () => {
     const a = agent('Routine one');
     const b = agent('Routine two');
-    const team = workflows.save({ name: 'Routine team', members: [a.id, b.id], lead: null, steps: [] } as Partial<Team>);
+    const team = workflows.save({
+      name: 'Routine team',
+      members: [a.id, b.id],
+      lead: null,
+      steps: [],
+    } as Partial<Team>);
     const picked = deferred<string>();
     const ac = new AbortController();
     const n = calls;
@@ -117,7 +144,10 @@ describe('picking who answers', () => {
     await new Promise((r) => setTimeout(r, 150));
     expect(calls).toBe(n);
     expect(teamState(team.id)).toMatchObject({ working: [], queued: [] });
-    expect(getThread(team.id).messages.map((m) => m.text)).toEqual(['Routine work', 'Stopped before anyone started on it.']);
+    expect(getThread(team.id).messages.map((m) => m.text)).toEqual([
+      'Routine work',
+      'Stopped before anyone started on it.',
+    ]);
   });
 });
 
@@ -148,7 +178,12 @@ describe('what an agent has read', () => {
   it("doesn't count messages written during its turn as read", async () => {
     const lead = agent('Reader lead');
     const mate = agent('Reader mate');
-    const team = workflows.save({ name: 'Reader team', members: [lead.id, mate.id], lead: lead.id, steps: [] } as Partial<Team>);
+    const team = workflows.save({
+      name: 'Reader team',
+      members: [lead.id, mate.id],
+      lead: lead.id,
+      steps: [],
+    } as Partial<Team>);
     hold();
     const n = calls;
     await postUserMessage(team.id, 'Start');
@@ -158,7 +193,10 @@ describe('what an agent has read', () => {
     await wait(() => calls > n + 1);
     release();
     await wait(() => teamState(team.id).working.length === 0 && getThread(team.id).messages.length >= 4);
-    const file = readJSON<{ seen: Record<string, number> }>(dataPath('projects', activeProject().id, 'teamchats', `${team.id}.json`), { seen: {} });
+    const file = readJSON<{ seen: Record<string, number> }>(
+      dataPath('projects', activeProject().id, 'teamchats', `${team.id}.json`),
+      { seen: {} },
+    );
     expect(file.seen[lead.id]).toBe(1);
     expect(file.seen[mate.id]).toBe(2);
   });
