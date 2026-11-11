@@ -163,7 +163,7 @@ describe('model picker: Eve and where its model comes from', () => {
     document.body.append(brainModelChip());
     document.querySelector<HTMLButtonElement>('.model-chip')!.click();
     const names = tabs().map((t) => t.textContent);
-    expect(names).toEqual(['Favorites', 'Claude', 'Eve', 'Hermes', 'Codex']);
+    expect(names).toEqual(['Favorites', 'Claude', 'Eve', 'Hermes', 'Codex', 'opencode']);
     const rows = [...document.querySelectorAll('.model-body .model-row')].map((r) => r.textContent);
     expect(rows).toEqual([expect.stringContaining('gpt-5')]);
   });

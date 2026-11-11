@@ -92,7 +92,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
       </Section>
 
       <Section title="The Brain's model" description="The Brain oversees the project: it answers about it and its files, builds teams and agents, writes PROJECT.md and hands work out.">
-        <Row title="Model" titleId="brain-model-label" description="It can run on Claude Code, OpenRouter, Venice, Hermes or Codex. Claude Code and Codex can also open files in the project folder.">
+        <Row title="Model" titleId="brain-model-label" description="It can run on Claude Code, OpenRouter, Venice, Hermes, Codex or opencode. Claude Code, Codex and opencode can also open files in the project folder.">
           <DomNode make={() => brainModelChip({ prefix: '', onChange: (b) => (s.brain = b) })} deps={[]} />
         </Row>
         <Row title="Memory" description="What the Brain remembers across its conversations in this project. Read or change it any time.">

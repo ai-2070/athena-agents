@@ -68,7 +68,7 @@ Open **Settings → General & keys** and set up the engines you want. You only n
 | **OpenClaw** | The `openclaw` CLI, set up with `openclaw onboard`. |
 | **opencode** | opencode 2 or later (`npm install -g @opencode/cli`). Its free models work right away; sign in to your own providers with `opencode auth login`. |
 
-Then pick **the Brain's model** on the same page. The Brain is the assistant that runs the project for you.
+Then pick **the Brain's model** on the same page. The Brain is the assistant that runs the project for you. It can think with Claude Code, Eve (OpenRouter or Venice), Hermes, Codex or opencode.
 
 ### Your first five minutes
 

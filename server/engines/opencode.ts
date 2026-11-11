@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { which, spawnCommand, killTree, BRIDGE_SCRIPT, PORT, DATA, dataPath, ensureDir } from '../util.ts';
+import { which, spawnCommand, killTree, run as runCmd, BRIDGE_SCRIPT, PORT, DATA, dataPath, ensureDir } from '../util.ts';
 import { agents, internalToken, log } from '../store.ts';
 import { listServers } from '../mcp.ts';
 import { toolDefs, workspaceOf } from '../tools.ts';
@@ -638,4 +638,61 @@ export function terminalLaunch(agent: Agent, systemPrompt: string): { args: stri
 }
 
 export const opencode: Engine<OpencodeStatus> = { run, status, steer };
+
+// ---------- the Brain's quick questions ----------
+/** One line of `opencode run --format json` (the fields used here). */
+interface RunLine {
+  type?: string;
+  part?: { id?: string; text?: string; tool?: string; state?: { status?: string; input?: unknown; output?: unknown; error?: unknown } };
+  error?: { message?: string };
+}
+export type AskPart = { kind: 'text'; text: string } | { kind: 'tool'; id: string; name: string; args?: unknown } | { kind: 'tool_result'; id: string; text: string; isError?: boolean };
+
+/** The Brain asks opencode one thing: `opencode run` on its own private server, as an agent that can at most
+ *  read (read, glob, grep) in cwd, with nothing kept in its session lists. The prompt goes in on stdin. */
+export async function ask({ system, user, model = '', effort = '', cwd, read = false, timeout = 90000, onPart }: { system: string; user: string; model?: string; effort?: string; cwd?: string; read?: boolean; timeout?: number; onPart?: (p: AskPart) => void }): Promise<string> {
+  usable();
+  const ref = model ? modelRef(model) : null;
+  if (model && !ref) throw new Error(`"${model}" isn't an opencode model: it is written provider/model, like openrouter/deepseek/deepseek-v4.1-flash.`);
+  const variant = effort && model ? variantFor(effort, (await listModels().catch(() => [])).find((m) => m.id === model)?.variants || []) : '';
+  const dir = ensureDir(dataPath('tmp'));
+  const tag = `opencode-brain-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+  const brief = path.join(dir, `${tag}.md`);
+  const config = path.join(dir, `${tag}.json`);
+  fs.writeFileSync(brief, system);
+  // nothing but reading (when asked to), not even the MCP servers of the user's own opencode config
+  const permissions = [rule('*', 'deny'), ...(read ? [rule('read', 'allow'), rule('glob', 'allow'), rule('grep', 'allow'), rule('read', 'deny', '*.env'), rule('read', 'deny', '*.env.*')] : [])];
+  fs.writeFileSync(config, JSON.stringify({ $schema: 'https://opencode.ai/config.json', agents: { [BRAIN_AGENT]: { mode: 'primary', description: 'The Athena Agents Brain', system: `{file:${brief.replace(/\\/g, '/')}}`, permissions } } }));
+  const texts: string[] = [];
+  let err = '';
+  const onLine = (line: string) => {
+    if (!line.startsWith('{')) return;
+    let ev: RunLine;
+    try {
+      ev = JSON.parse(line) as RunLine;
+    } catch {
+      return;
+    }
+    const p = ev.part || {};
+    if (ev.type === 'text' && p.text) {
+      onPart?.({ kind: 'text', text: (texts.length ? '\n\n' : '') + p.text });
+      texts.push(p.text);
+    } else if (ev.type === 'tool_use' && p.id) {
+      const st = p.state || {};
+      onPart?.({ kind: 'tool', id: p.id, name: p.tool || 'tool', args: st.input });
+      onPart?.({ kind: 'tool_result', id: p.id, text: (typeof st.output === 'string' ? st.output : errText(st.error) || JSON.stringify(st.output ?? '')).slice(0, 20000), isError: st.status === 'error' });
+    } else if (ev.type === 'error') err = ev.error?.message || 'opencode failed.';
+  };
+  try {
+    const args = ['run', '--standalone', '--format', 'json', '--archived', '--agent', BRAIN_AGENT, ...(ref ? ['-m', `${model}${variant ? `#${variant}` : ''}`] : [])];
+    const r = await runCmd('opencode', args, { input: user, timeout, cwd, env: { ...process.env, OPENCODE_CONFIG: config }, onLine: (l) => onLine(l.trim()) });
+    const answer = texts.join('\n\n');
+    if (!answer) throw new Error(`opencode didn't answer (${(err || r.stderr || '').trim().slice(-300) || `exit ${r.code}`})`);
+    return answer;
+  } finally {
+    fs.rmSync(brief, { force: true });
+    fs.rmSync(config, { force: true });
+  }
+}
+const BRAIN_AGENT = 'athena-brain';
 

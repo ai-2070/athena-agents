@@ -225,11 +225,11 @@ export function modelChip(agent: Agent, { onChange, compact = false, at = '' }: 
 }
 
 // ---------- the Brain's own model ----------
-// settings.brain = { provider: 'claude' | 'openrouter' | 'hermes' | 'codex', model }
-const BRAIN_ENGINE: Record<string, EngineId | undefined> = { claude: 'claude-code', openrouter: 'eve', venice: 'eve', hermes: 'hermes', codex: 'codex' };
-const BRAIN_PROVIDER: Record<string, BrainSetting['provider'] | undefined> = { 'claude-code': 'claude', eve: 'openrouter', hermes: 'hermes', codex: 'codex' };
+// settings.brain = { provider: 'claude' | 'openrouter' | 'venice' | 'hermes' | 'codex' | 'opencode', model }
+const BRAIN_ENGINE: Record<string, EngineId | undefined> = { claude: 'claude-code', openrouter: 'eve', venice: 'eve', hermes: 'hermes', codex: 'codex', opencode: 'opencode' };
+const BRAIN_PROVIDER: Record<string, BrainSetting['provider'] | undefined> = { 'claude-code': 'claude', eve: 'openrouter', hermes: 'hermes', codex: 'codex', opencode: 'opencode' };
 /** The engines the Brain can think with (its picker offers only these). */
-const BRAIN_ENGINES: readonly EngineId[] = ['claude-code', 'eve', 'hermes', 'codex'];
+const BRAIN_ENGINES: readonly EngineId[] = ['claude-code', 'eve', 'hermes', 'codex', 'opencode'];
 export function brainAsAgent(b: { provider?: string; model?: string; effort?: Effort | '' } | null | undefined = state.data?.settings?.brain): ModelTarget & { model: string; provider: string } {
   const p = b?.provider || 'claude';
   const model = p === 'venice' ? b?.model || state.data?.settings?.defaults?.veniceModel || '' : b?.model ?? (p === 'claude' ? 'haiku' : '');
@@ -252,7 +252,7 @@ export function brainModelChip({ onChange, prefix = 'Brain · ' }: { onChange?: 
       // (an engine the Brain can't think with is not offered; never quietly swap in Claude for one)
       const brain = brainSettingFromChoice(patch);
       if (!brain) {
-        toast("The Brain can't use that engine. Pick Claude, OpenRouter, Venice, Hermes or Codex.", 'error');
+        toast("The Brain can't use that engine. Pick Claude, OpenRouter, Venice, Hermes, Codex or opencode.", 'error');
         return false;
       }
       const r = await attempt(() => rpc.settings.save({ brain }));

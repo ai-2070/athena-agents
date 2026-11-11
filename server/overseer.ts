@@ -2154,7 +2154,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false,
   // the request names its project, so opening another one meanwhile doesn't make its answer stale
   const elsewhere = openProject().id !== p.id;
   const bm = brainModel();
-  const canRead = bm.provider === 'claude' || bm.provider === 'codex';
+  const canRead = bm.provider === 'claude' || bm.provider === 'codex' || bm.provider === 'opencode';
   const snap = await snapshot({ fileBudget: canRead ? 6000 : 12000, conversationId });
   const past = history(p.id, conversationId);
   const convo = past.length ? `\n\nEARLIER IN THIS CHAT:\n${past.slice(-12).map((m) => `${m.role === 'user' ? `User${m.from ? ` (${m.from})` : ''}` : 'Brain'}: ${cut(brainChatLine(m), 600)}${m.attachments?.length ? ` [attached: ${attachmentNames(m.attachments)}]` : ''}`).join('\n')}` : '';
@@ -2182,7 +2182,7 @@ async function answerNow(text: string, { attachments = [], onPart, goal = false,
     }
     onPart?.(part);
   };
-  const opts = { tools: bm.provider === 'claude' ? 'Read,Glob,Grep' : '', cwd: ensureBrain(p), timeout: 180000, maxTokens: 4000, onPart: tell };
+  const opts = { tools: bm.provider === 'claude' || bm.provider === 'opencode' ? 'Read,Glob,Grep' : '', cwd: ensureBrain(p), timeout: 180000, maxTokens: 4000, onPart: tell };
   let parsed = parseActions(await think(system, prompt, opts));
   // it asked to open skills or look up models: give it what it asked for and let it answer again (once)
   const asked = parsed.actions.filter((a) => actionKind(a) === 'read_skill').map((a) => String(a.skill || a.id || a.name || ''));

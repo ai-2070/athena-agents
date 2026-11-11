@@ -29,6 +29,8 @@ describe('modelInfo()', () => {
     expect(brainAsAgent({ provider: 'claude', model: 'haiku' })).toMatchObject({ engine: 'claude-code', model: 'haiku' });
     expect(brainAsAgent({ provider: 'openrouter', model: 'x/y' })).toMatchObject({ engine: 'eve', model: 'x/y' });
     expect(brainAsAgent({ provider: 'codex', model: '' }).engine).toBe('codex');
+    expect(brainAsAgent({ provider: 'opencode', model: 'openrouter/x/y' })).toMatchObject({ engine: 'opencode', model: 'openrouter/x/y' });
+    expect(brainSettingFromChoice({ engine: 'opencode', model: 'openrouter/x/y', effort: 'high' })).toEqual({ provider: 'opencode', model: 'openrouter/x/y', effort: 'high' });
     const venice = brainAsAgent({ provider: 'venice', model: 'my-model', effort: 'high' });
     expect(venice).toMatchObject({ engine: 'eve', provider: 'venice', model: 'my-model' });
     expect(modelInfo(venice).where).toBe('Venice');

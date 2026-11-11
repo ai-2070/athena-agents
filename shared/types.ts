@@ -1457,7 +1457,7 @@ export interface ActivityEntry {
 
 // ---------- settings ----------
 export interface BrainSetting {
-  provider: 'claude' | 'openrouter' | 'venice' | 'hermes' | 'codex';
+  provider: 'claude' | 'openrouter' | 'venice' | 'hermes' | 'codex' | 'opencode';
   model: string;
   /** How hard it thinks. '' or missing = the model's default. */
   effort?: Effort | '';

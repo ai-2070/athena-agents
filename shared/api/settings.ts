@@ -33,7 +33,7 @@ const settingsPatch = z.object({
   x: z.object({ clientId: text('The X client ID') }).partial(),
   reddit: z.object({ clientId: text('The Reddit client ID'), username: text('The Reddit username') }).partial(),
   brain: z.object({
-    provider: z.enum(['claude', 'openrouter', 'venice', 'hermes', 'codex'], { error: 'The Brain thinks with claude, openrouter, venice, hermes or codex.' }),
+    provider: z.enum(['claude', 'openrouter', 'venice', 'hermes', 'codex', 'opencode'], { error: 'The Brain thinks with claude, openrouter, venice, hermes, codex or opencode.' }),
     model: text('The Brain\'s model'),
     effort: z.enum(EFFORT).catch(''),
   }).partial(),
