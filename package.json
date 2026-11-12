@@ -118,7 +118,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",
-    "@cloudflare/workers-types": "5.20261110.1",
+    "@cloudflare/workers-types": "5.20261112.1",
     "@tailwindcss/node": "4.3.5",
     "@tailwindcss/oxide": "4.3.5",
     "@tauri-apps/cli": "2.12.4",
