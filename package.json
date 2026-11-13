@@ -61,7 +61,8 @@
     "gateways:whatsapp-media-smoke": "bun scripts/gateways-whatsapp-media-smoke.ts"
   },
   "engines": {
-    "bun": ">=1.4"
+    "bun": ">=1.4",
+    "node": ">=26"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.92",

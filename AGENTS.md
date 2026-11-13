@@ -74,9 +74,10 @@ scripts' tests (`python -m pytest tests/skills`, Python 3.10). `.github/workflow
 - `verbatimModuleSyntax` + `erasableSyntaxOnly`: `import type` for types; no `enum`, `namespace` or constructor
   parameter properties.
 - Relative imports include the `.ts` / `.tsx` extension.
-- **Server code must also run under Node** (Vitest): no `Bun.*` or `bun:` APIs in `server/` or `shared/`. Scripts in
-  `scripts/` may use Bun.
-- Server tsconfig has no DOM types and web has no Node types: keep `shared/` free of both.
+- **Server code must also run under Node 26** (Vitest): no `Bun.*` or `bun:` APIs in `server/` or `shared/`. Scripts
+  in `scripts/` may use Bun.
+- Server and Eve code target ES2025 (Node 26); web stays on ES2023 for browsers. `shared/` is checked by both, so it
+  keeps to ES2023 and has no DOM or Node types.
 - **A JSON route** goes in its area's contract (`shared/api/`) and `server/api/`, never `server/index.ts`; the page
   calls it with `rpc`. Word schema errors in plain words. Outside `web/client/`, the page imports only types from
   `shared/api/`.
