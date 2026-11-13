@@ -1,0 +1,23 @@
+docs/guide.md
+  s_dd47165ca43658::t_d0ec780efb7684 306
+server/irc.ts
+  s_dd47165ca43658::t_03b3dc9bce90aa 38-39,42-43,172-174
+tests/server/goals.test.ts
+  s_dd47165ca43658::t_03b3dc9bce90aa 450-451,507,585
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "79b37ec24dce55576e147c9816ae655468a86393",
+  "prompts": {},
+  "sessions": {
+    "s_dd47165ca43658": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "598cc2cd-7ecf-4325-8f43-3c959bd12c09",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

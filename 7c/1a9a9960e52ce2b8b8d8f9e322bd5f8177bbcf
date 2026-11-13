@@ -1,0 +1,30 @@
+server/pastchats.ts
+  s_5670dec4b6606b::t_698f81870593f1 3,5-6,21,25-26,32-33,36,56-58,67,71-97,99-149,152-185,188-190,196-213,221
+server/teams.ts
+  s_5670dec4b6606b::t_db0d052ef7244c 13-14,1320-1344,1347,1356,1358,1361,1363,1366,1371
+tests/server/past-chats.test.ts
+  s_5670dec4b6606b::t_179bfd0a99deee 3,12,148-180,191,195-199,201-203,205-208
+  s_5670dec4b6606b::t_35496c91dd6fe5 200,204
+server/overseer.ts
+  s_5670dec4b6606b::t_b792b488180540 26-27,600-616,618,620,622
+server/backup.ts
+  s_5670dec4b6606b::t_db0d052ef7244c 46,310-312,355,369
+docs/guide.md
+  s_5670dec4b6606b::t_703cceb448b93f 101,434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7c1a9a9960e52ce2b8b8d8f9e322bd5f8177bbcf",
+  "prompts": {},
+  "sessions": {
+    "s_5670dec4b6606b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78e33d2f-7d85-42f8-9076-d6ade75a14a4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+tests/lock-ports.ts
+  s_dd47165ca43658::t_424784f5da4f7c 1-50
+vitest.config.ts
+  s_dd47165ca43658::t_12578b38df6195 10
+tests/server/setup.ts
+  s_dd47165ca43658::t_12578b38df6195 6,18-20,22,24-26
+tests/server/rpc-mcp.test.ts
+  s_dd47165ca43658::t_bb81fca3755cfe 6,11-16
+  s_dd47165ca43658::t_aad1363abc4928 17
+tests/server/rpc-skills.test.ts
+  s_dd47165ca43658::t_bb81fca3755cfe 13-19
+tests/server/ownership-port.test.ts
+  s_dd47165ca43658::t_25e854d6d2eef0 6-8,52-61
+  s_dd47165ca43658::t_12578b38df6195 42
+  s_dd47165ca43658::t_7d97cf9448b43a 62-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "575fb9017d46cc463bc0e811a79e43870a43214b",
+  "prompts": {},
+  "sessions": {
+    "s_dd47165ca43658": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "598cc2cd-7ecf-4325-8f43-3c959bd12c09",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

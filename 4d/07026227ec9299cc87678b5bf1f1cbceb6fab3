@@ -1,0 +1,26 @@
+web/chatlist.tsx
+  s_5670dec4b6606b::t_2cafaec3dd21bb 30,74-75
+web/teamchat.tsx
+  s_5670dec4b6606b::t_2cafaec3dd21bb 621-634,874-878
+tests/web/chatlist.test.tsx
+  s_5670dec4b6606b::t_2cafaec3dd21bb 139-141,146-148,153,155,176,181-202
+  s_5670dec4b6606b::t_0e909f0c1c9e7d 203
+docs/guide.md
+  s_5670dec4b6606b::t_8cbfc8aded7834 101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d07026227ec9299cc87678b5bf1f1cbceb6fab3",
+  "prompts": {},
+  "sessions": {
+    "s_5670dec4b6606b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78e33d2f-7d85-42f8-9076-d6ade75a14a4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
