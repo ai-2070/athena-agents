@@ -1,0 +1,25 @@
+tsconfig.server.json
+  s_32082b50511838::t_58622851ebc298 4-5
+package.json
+  s_32082b50511838::t_58622851ebc298 64-65
+AGENTS.md
+  s_32082b50511838::t_cf3a8b71d10707 77-80
+runtime/eve/tsconfig.json
+  s_32082b50511838::t_58622851ebc298 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f31e870c807d10625b80c5cfe387be15f423694c",
+  "prompts": {},
+  "sessions": {
+    "s_32082b50511838": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4fe2a03-f60d-4929-b3ff-1738ad5f9985",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
