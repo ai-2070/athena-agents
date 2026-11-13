@@ -2,7 +2,7 @@
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
-const entry = process.argv[2] || path.join(root, 'runtime/eve/.output/server/index.mjs');
+const entry = process.argv[2] || path.join(root, 'runtime/eve/.output/launch.mjs');
 const executable = process.argv[3] || process.execPath;
 const templates = process.argv[4] || path.join(root, 'runtime/eve/.eve/sandbox-cache');
 for (const window of ['intent', 'event', 'cleanup', 'model']) {

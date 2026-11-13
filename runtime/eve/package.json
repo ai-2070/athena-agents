@@ -5,7 +5,7 @@
   "dependencies": {
     "@athena/eve-world": "file:../eve-world",
     "@workflow/world-local": "5.2.1",
-    "eve": "1.0.0-rc.2",
+    "eve": "1.0.0-rc.13",
     "ai": "7.0.170",
     "@ai-sdk/openai-compatible": "3.0.90",
     "zod": "4.6.7",
