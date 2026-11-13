@@ -11,6 +11,17 @@
   },
   "packageRules": [
     {
+      "description": "A Markdown guide whose name looks like a Dockerfile to Renovate: its example images aren't dependencies",
+      "matchFileNames": ["skills/athena/docker-management/references/**"],
+      "enabled": false
+    },
+    {
+      "description": "CI tests the skill scripts on the oldest Python they promise (ci.yml): raise it on purpose, not on release",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["python"],
+      "enabled": false
+    },
+    {
       "description": "Eve's local store carries a patch for its exact version (runtime/eve-world/README.md): an update has to move the patch with it",
       "matchPackageNames": ["@workflow/world-local"],
       "dependencyDashboardApproval": true
