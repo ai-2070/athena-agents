@@ -495,7 +495,10 @@ try {
       'base64',
     ),
   );
-  fs.writeFileSync(document, '%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF');
+  fs.writeFileSync(
+    document,
+    '%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 10 10] >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF',
+  );
   for (const [index, attachments] of [[image, document], []].entries()) {
     const id = `admission-proof-${index}`;
     const text = `ADMISSION_PROOF_${index}`;

@@ -30,7 +30,7 @@ const eve = Bun.spawn(
   [
     bun,
     path.join(root, 'scripts/eve-smoke.ts'),
-    path.join(app, 'runtime/eve/server/index.mjs'),
+    path.join(app, 'runtime/eve/launch.mjs'),
     bun,
     path.join(app, 'runtime/eve-sandbox-cache'),
   ],
@@ -44,7 +44,7 @@ const recovery = Bun.spawn(
   [
     bun,
     path.join(root, 'scripts/eve-recovery-smoke.ts'),
-    path.join(app, 'runtime/eve/server/index.mjs'),
+    path.join(app, 'runtime/eve/launch.mjs'),
     bun,
     path.join(app, 'runtime/eve-sandbox-cache'),
   ],
