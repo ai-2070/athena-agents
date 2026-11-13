@@ -1,0 +1,33 @@
+scripts/eve-recovery-smoke.ts
+  s_32082b50511838::t_b0c5cc524abf46 5
+scripts/eve-integration-smoke.ts
+  s_32082b50511838::t_55fabf22668162 498-501
+scripts/desktop-smoke.ts
+  s_32082b50511838::t_b0c5cc524abf46 33,47
+runtime/eve/launch.mjs
+  s_32082b50511838::t_ec1b6baf4aea55 5-13
+scripts/eve-smoke.ts
+  s_32082b50511838::t_b0c5cc524abf46 15,212-213
+bun.lock
+  s_32082b50511838::t_437037c6d017da 46,848,872,1214,1612-1613,1636,1670-1699
+package.json
+  s_32082b50511838::t_4c9f67aaf6820d 105
+runtime/eve/package.json
+  s_32082b50511838::t_0008cd1f81920f 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e66f88a4265b9452c3eca9bc74054dad63ceba9",
+  "prompts": {},
+  "sessions": {
+    "s_32082b50511838": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4fe2a03-f60d-4929-b3ff-1738ad5f9985",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
