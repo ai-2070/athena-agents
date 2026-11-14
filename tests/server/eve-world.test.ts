@@ -146,4 +146,52 @@ describe('the pinned Eve local store', () => {
       }
     },
   );
+  // ...and when the new file is the one held too, the old one goes back: the write fails, nothing is lost
+  it.runIf(process.platform === 'win32')(
+    'keeps the old file when neither the old nor the new one can be moved into place',
+    async () => {
+      const dataDir = dataPath('eve-world-both-held');
+      const world = createWorld({ dataDir, recoverActiveRuns: false });
+      await world.start?.();
+      try {
+        const created = await world.events.create(null, {
+          eventType: 'run_created',
+          specVersion: 8,
+          eventData: { deploymentId: 'fixture', workflowName: 'workflow//fixture//work', input: new Uint8Array([1]) },
+        });
+        const id = created.run?.runId;
+        if (!id) throw new Error('The fixture run was not saved.');
+        const record = `${id}.json`;
+        const before = fs.readFileSync(`${dataDir}/runs/${record}`, 'utf8');
+        const eperm = (from: unknown, to: unknown) =>
+          Object.assign(new Error(`EPERM: operation not permitted, rename '${from}' -> '${to}'`), {
+            code: 'EPERM',
+            syscall: 'rename',
+          });
+        const originalSync = fs.renameSync;
+        const original = fs.promises.rename;
+        const held = vi.spyOn(fs.promises, 'rename').mockImplementation(async (from, to) => {
+          if (String(to).endsWith(record) && fs.existsSync(to)) throw eperm(from, to);
+          return original(from, to);
+        });
+        const heldSync = vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+          if (String(from).includes(`${record}.tmp.`) && !String(from).endsWith('.old')) throw eperm(from, to);
+          return originalSync(from, to);
+        });
+        try {
+          await expect(world.events.create(id, { eventType: 'run_started', specVersion: 8 })).rejects.toMatchObject({
+            code: 'EPERM',
+          });
+        } finally {
+          held.mockRestore();
+          heldSync.mockRestore();
+        }
+        expect(fs.readFileSync(`${dataDir}/runs/${record}`, 'utf8')).toBe(before);
+        expect(fs.readdirSync(`${dataDir}/runs`).filter((file) => file.includes('.tmp.'))).toEqual([]);
+        expect((await world.runs.get(id)).status).toBe('pending');
+      } finally {
+        await world.close?.();
+      }
+    },
+  );
 });
