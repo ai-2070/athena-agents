@@ -22,8 +22,8 @@
       "enabled": false
     },
     {
-      "description": "Eve's local store carries a patch for its exact version (runtime/eve-world/README.md): an update has to move the patch with it",
-      "matchPackageNames": ["@workflow/world-local"],
+      "description": "Eve's local store carries a patch for its exact version (runtime/eve-world/README.md): an update has to move the patch with it, and @workflow/world stays on the version that store is built for",
+      "matchPackageNames": ["@workflow/world-local", "@workflow/world"],
       "dependencyDashboardApproval": true
     }
   ]

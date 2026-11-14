@@ -441,8 +441,16 @@ describe("the worker's tools", () => {
     const outside = path.join(process.env.DASH_DATA!, 'secrets.json');
     await expect(workerReply(runId, agent.id, { text: 'x', files: [outside] })).rejects.toThrow('cannot be attached');
     const link = path.join(brain, 'chart-link.png');
-    fs.symlinkSync(chart, link);
-    await expect(workerReply(runId, agent.id, { text: 'x', files: [link] })).rejects.toThrow('cannot be attached');
+    let linked = true;
+    try {
+      fs.symlinkSync(chart, link);
+    } catch (e) {
+      // file links need admin rights or Developer Mode on Windows: the rest still runs
+      if ((e as NodeJS.ErrnoException).code !== 'EPERM') throw e;
+      linked = false;
+    }
+    if (linked)
+      await expect(workerReply(runId, agent.id, { text: 'x', files: [link] })).rejects.toThrow('cannot be attached');
 
     expect(
       await workerReply(runId, agent.id, { text: 'Here is the chart.', files: [chart], status: 'in_review' }),

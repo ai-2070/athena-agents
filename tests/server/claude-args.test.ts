@@ -99,6 +99,8 @@ describe('claudeEnv() sign-in', () => {
       CLAUDE_CODE_OAUTH_TOKEN: 'oauth',
       KEEP_ME: '1',
     });
+    // (Windows ignores case in variable names: there the lower-case key replaced the upper-case one)
+    const before = process.env.ANTHROPIC_API_KEY;
     const env = claudeEnv(withAuth('login'));
     for (const k of [
       'ANTHROPIC_API_KEY',
@@ -112,7 +114,9 @@ describe('claudeEnv() sign-in', () => {
     expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe('oauth');
     expect(env.KEEP_ME).toBe('1');
     expect(env.MCP_TOOL_TIMEOUT).toBeTruthy();
-    expect(process.env.ANTHROPIC_API_KEY).toBe('sk-env');
+    // your own environment is left as it was
+    expect(process.env.ANTHROPIC_API_KEY).toBe(before);
+    expect(before).toBe(process.platform === 'win32' ? 'sk-lower' : 'sk-env');
   });
 
   it('agents saved without a choice use the login too', () => {
