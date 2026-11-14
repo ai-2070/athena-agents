@@ -86,6 +86,7 @@ const DEFAULT_SETTINGS: Settings = {
   brainSkills: ['self-improvement'],
   brainAnyGitHub: false,
   brainFollowsUp: true,
+  brainTools: 'full',
   look: {
     theme: 'system',
     scale: 100,

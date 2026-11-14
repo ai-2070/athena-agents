@@ -128,7 +128,7 @@ Hire a specialist with its instructions already written. 88 agents come with the
 
 ### Tools through MCP
 
-Connect agents to programs and services with the Model Context Protocol. Add servers from a list of ready-made ones in one click, or just ask the Brain. **Suggested for this PC** points out servers for programs you already have. There are presets for browsers, Cua (agents use the apps on your computer, or work in throwaway sandbox computers), GitHub, Notion, Linear, Canva, Blender, Maya, Houdini, Unity, Unreal Engine, Godot, ElevenLabs, FreeCAD, your 3D printer and many more.
+Connect agents to programs and services with the Model Context Protocol. Add servers from a list of ready-made ones in one click, or just ask the Brain. The Brain can use the tools of every server that is on itself too ("check my Gmail through Composio"): **Settings → The Brain's tools** sets whether it runs them all, asks before ones that change things, or doesn't use them. **Suggested for this PC** points out servers for programs you already have. There are presets for browsers, Cua (agents use the apps on your computer, or work in throwaway sandbox computers), GitHub, Notion, Linear, Canva, Blender, Maya, Houdini, Unity, Unreal Engine, Godot, ElevenLabs, FreeCAD, your 3D printer and many more.
 
 ![The MCP servers settings page with six servers added](docs/images/mcp.png)
 
@@ -154,6 +154,7 @@ Choose how much each agent may do on its own:
 | **Full**           | Never. Only for agents and access you trust.                   |
 
 - **The Brain approves** routine, reversible requests for you and sends anything risky or unclear to **Needs you**. That's a model's judgment, not a guarantee.
+- **The Brain's tools** start on **Full**: the Brain may run any tool of the MCP servers that are on, including ones that send or delete. Choose **Ask first** to approve those yourself.
 - **No login means no lock.** The app only listens on your own computer (`127.0.0.1`), but anyone who can reach it can use it. Never put it behind a public tunnel or proxy.
 - **Keys stay on the server.** API keys and account tokens are never sent to the browser or put into project saves and backups.
 - **It's not a sandbox.** File tools stay inside the folders you allow, but shell commands and outside tools run with your account's access.

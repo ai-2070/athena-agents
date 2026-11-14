@@ -157,13 +157,14 @@ export function setReviewer(fn: Reviewer | null) {
 }
 
 // The Brain checks what agents and teams want to do. Workflow checkpoints are steps you put
-// there to check yourself, an outside MCP client isn't one of your agents, and a setting is yours
-// (an agent asking isn't you asking): those always come to you.
+// there to check yourself, an outside MCP client isn't one of your agents, a setting is yours
+// (an agent asking isn't you asking), and the Brain doesn't check its own requests: those always come to you.
 const brainChecks = (item: Approval) =>
   !!reviewer &&
   item.kind !== 'workflow' &&
   item.kind !== 'setting' &&
   item.agentId !== '_external' &&
+  item.agentId !== 'brain' &&
   getSettings().brainApproves !== false;
 
 export function requestApproval(request: ApprovalRequest): Promise<ApprovalDecision> {
