@@ -4,6 +4,7 @@
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
 import type {
+  BrainToolGrant,
   BridgeServerConfig,
   CodexResetResult,
   EngineStatus,
@@ -49,6 +50,18 @@ export const mcp = {
     .route({ method: 'DELETE', path: '/mcp/{name}' })
     .input(z.object({ name: z.string() }))
     .output(type<{ ok: true }>()),
+  /** The tools you let the Brain use without asking (Always allow in Needs you). */
+  brainGrants: oc.route({ method: 'GET', path: '/brain-tools/allowed' }).output(type<{ allowed: BrainToolGrant[] }>()),
+  /** Takes Always allow back: the Brain asks for that tool again. */
+  forgetBrainGrant: oc
+    .route({ method: 'POST', path: '/brain-tools/allowed/forget' })
+    .input(
+      z.object({
+        server: z.string({ error: 'Say which server.' }),
+        tool: z.string({ error: 'The tool must be text.' }).optional(),
+      }),
+    )
+    .output(type<{ allowed: BrainToolGrant[] }>()),
   /** Starts it and lists its tools. */
   test: oc
     .route({ method: 'POST', path: '/mcp/{name}/test' })

@@ -17,6 +17,7 @@ import { brandSrc, followTheme } from '../brandimages.ts';
 import type {
   AppState,
   BrainToolAccess,
+  BrainToolGrant,
   EngineStatus,
   SecretKey,
   SecretStatus,
@@ -211,6 +212,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
         description="The Brain can use the tools of every MCP server that is on (Composio, OOMOL, GitHub…) itself, on any model it runs on: to check an inbox, find a file or send one message you asked for. Bigger work still goes to an agent or team."
       >
         <BrainToolsRow initial={s.brainTools} reload={reload} />
+        <BrainGrantsRow />
       </Section>
 
       <Section
@@ -527,6 +529,54 @@ function BrainToolsRow({ initial, reload }: { initial: BrainToolAccess; reload: 
         value={value}
         onChange={(v) => void change(v)}
       />
+    </Row>
+  );
+}
+
+/** The tools you let the Brain use without asking (Always allow in Needs you), each one with a way to take it back.
+ *  Nothing shows while there are none. */
+function BrainGrantsRow() {
+  const [grants, setGrants] = useState<BrainToolGrant[]>([]);
+  useEffect(() => {
+    void rpc.mcp
+      .brainGrants()
+      .then((r) => setGrants(Array.isArray(r.allowed) ? r.allowed : []))
+      .catch(() => {});
+  }, []);
+  if (!grants.length) return null;
+  const forget = async (g: BrainToolGrant) => {
+    const r = await attempt(() => rpc.mcp.forgetBrainGrant(g), 'The Brain will ask before using it again');
+    if (r) setGrants(r.allowed);
+  };
+  return (
+    <Row
+      title="Always allowed"
+      description="Tools you let the Brain use without asking. Take one back and it asks you again."
+      stack
+    >
+      <ul className="brain-grants flex flex-col gap-2">
+        {grants.map((g) => (
+          <li
+            key={`${g.server}
+${g.tool}`}
+            className="flex items-center justify-between gap-3"
+          >
+            <span className="min-w-0 truncate font-mono text-[13px] text-ink">
+              {g.server} · {g.tool}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="tiny"
+              className="flex-none"
+              aria-label={`Take back ${g.tool} on ${g.server}`}
+              onClick={() => void forget(g)}
+            >
+              Take back
+            </Button>
+          </li>
+        ))}
+      </ul>
     </Row>
   );
 }

@@ -37,6 +37,7 @@ const secrets = {
 let veniceAccount: VeniceAccountInfo;
 let requests: { method: string; url: string; body: unknown }[];
 let refuse: string | null;
+let grants: { server: string; tool: string }[];
 let el: HTMLElement;
 
 beforeEach(() => {
@@ -44,6 +45,7 @@ beforeEach(() => {
   el = document.getElementById('view')!;
   requests = [];
   refuse = null;
+  grants = [];
   secrets.veniceKey.set = false;
   veniceAccount = { accessPermitted: true, expired: false, expiresAt: null, balances: { usd: 3, diem: 5, bundled: 0 } };
   state.data = {
@@ -69,6 +71,12 @@ beforeEach(() => {
       return new Response(JSON.stringify(method === 'GET' ? { settings, secrets } : { ok: true }));
     if (url === '/api/state') return new Response(JSON.stringify(state.data));
     if (url === '/api/settings/test-venice') return Response.json(veniceAccount);
+    if (url === '/api/brain-tools/allowed') return Response.json({ allowed: grants });
+    if (url === '/api/brain-tools/allowed/forget') {
+      const { server, tool } = JSON.parse(String(init.body)) as { server: string; tool: string };
+      grants = grants.filter((g) => g.server !== server || g.tool !== tool);
+      return Response.json({ allowed: grants });
+    }
     return new Response('{}');
   });
 });
@@ -197,6 +205,29 @@ describe('General & keys', () => {
     await settle();
     expect(requests.filter((r) => r.method === 'PUT').map((r) => r.body)).toEqual([{ brainTools: 'ask' }]);
     expect(el.textContent).toContain('Anything else waits for you in Needs you');
+  });
+
+  it('shows the tools the Brain may use without asking, and takes one back', async () => {
+    await open();
+    expect(el.textContent).not.toContain('Always allowed');
+    act(() => general.unmount());
+    grants = [
+      { server: 'composio', tool: 'GMAIL_SEND_EMAIL' },
+      { server: 'oomol', tool: 'DRIVE_UPLOAD' },
+    ];
+    await open();
+    const list = el.querySelector('.brain-grants')!;
+    expect(list.textContent).toContain('composio · GMAIL_SEND_EMAIL');
+    await act(async () =>
+      list.querySelector<HTMLButtonElement>('[aria-label="Take back GMAIL_SEND_EMAIL on composio"]')!.click(),
+    );
+    await settle();
+    expect(requests.find((r) => r.url === '/api/brain-tools/allowed/forget')?.body).toEqual({
+      server: 'composio',
+      tool: 'GMAIL_SEND_EMAIL',
+    });
+    expect(el.querySelector('.brain-grants')!.textContent).not.toContain('GMAIL_SEND_EMAIL');
+    expect(el.querySelector('.brain-grants')!.textContent).toContain('DRIVE_UPLOAD');
   });
 
   it('saves a key, then clears the box; Save waits until a key is typed', async () => {

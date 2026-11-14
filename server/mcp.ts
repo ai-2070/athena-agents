@@ -13,6 +13,7 @@ import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { HOME, IS_WIN, BRIDGE_SCRIPT, PORT, dataPath, readJSON, writeJSON, which, exists } from './util.ts';
 import { emit, log, internalToken, agents, workflows, listProjects, withProject } from './store.ts';
 import type {
+  BrainToolGrant,
   BridgeServerConfig,
   ImportableServer,
   McpPreset,
@@ -1376,6 +1377,7 @@ export function renamedGrant(grant: string, from: string, to: string | null, eng
 // Agents and teams name their servers, so a removed or renamed server changes on all of them, in every
 // project. Always-allowed tools go too: a new server with the old name mustn't inherit them.
 function renameOnEveryone(from: string, to: string | null) {
+  renameBrainGrants(from, to);
   const swap = (list: string[] | undefined): string[] | null =>
     (list || []).includes(from)
       ? [...new Set((list || []).map((x) => (x === from ? to : x)).filter((x): x is string => Boolean(x)))]
@@ -1400,6 +1402,42 @@ function renameOnEveryone(from: string, to: string | null) {
       }
     });
   }
+}
+
+// ---------- the Brain's "Always allow" ----------
+// Tools you let the Brain use without asking, by server and tool (kept apart: both names may hold "__"). They follow
+// a server's rename and go when it is removed, so a new server under an old name asks again.
+const brainGrantsFile = () => dataPath('brain-tools.json');
+const isGrant = (g: unknown): g is BrainToolGrant =>
+  !!g &&
+  typeof g === 'object' &&
+  typeof (g as { server?: unknown }).server === 'string' &&
+  typeof (g as { tool?: unknown }).tool === 'string';
+export function brainGrants(): BrainToolGrant[] {
+  const raw = readJSON<{ allowed?: unknown }>(brainGrantsFile(), {}).allowed;
+  return Array.isArray(raw) ? raw.filter(isGrant).map(({ server, tool }) => ({ server, tool })) : [];
+}
+function saveBrainGrants(list: BrainToolGrant[]): void {
+  writeJSON(brainGrantsFile(), { allowed: list });
+  emit('mcp');
+}
+export const brainMayUse = (server: string, tool: string): boolean =>
+  brainGrants().some((g) => g.server === server && g.tool === tool);
+export function allowForBrain(server: string, tool: string): void {
+  if (!brainMayUse(server, tool)) saveBrainGrants([...brainGrants(), { server, tool }]);
+}
+/** Takes back Always allow for one tool, or for all of a server's when tool is left out. */
+export function forgetBrainGrant(server: string, tool?: string): void {
+  const all = brainGrants();
+  const kept = all.filter((g) => g.server !== server || (tool !== undefined && g.tool !== tool));
+  if (kept.length !== all.length) saveBrainGrants(kept);
+}
+function renameBrainGrants(from: string, to: string | null): void {
+  const all = brainGrants();
+  if (!all.some((g) => g.server === from)) return;
+  const next =
+    to === null ? all.filter((g) => g.server !== from) : all.map((g) => (g.server === from ? { ...g, server: to } : g));
+  saveBrainGrants(next.filter((g, i) => next.findIndex((x) => x.server === g.server && x.tool === g.tool) === i));
 }
 
 /** Remove a server and take it off every agent and team that had it. */

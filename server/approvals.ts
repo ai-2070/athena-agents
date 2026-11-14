@@ -167,6 +167,14 @@ const brainChecks = (item: Approval) =>
   item.agentId !== 'brain' &&
   getSettings().brainApproves !== false;
 
+/** How long a request waits, in words ("15 minutes"), for the note when nobody answered. */
+export function waitWords(ms: number): string {
+  const unit = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  if (ms < 60_000) return unit(Math.max(1, Math.round(ms / 1000)), 'second');
+  if (ms < 2 * 3_600_000) return unit(Math.round(ms / 60_000), 'minute');
+  return unit(Math.round(ms / 3_600_000), 'hour');
+}
+
 export function requestApproval(request: ApprovalRequest): Promise<ApprovalDecision> {
   if (request.operationId) {
     const record = ensureDurableApproval(request.operationId, request);
@@ -206,7 +214,12 @@ export function requestApproval(request: ApprovalRequest): Promise<ApprovalDecis
       projectId: activeProject().id,
     };
     const timer = setTimeout(
-      () => finish(id, { approved: false, message: 'No answer within 30 minutes, so it was skipped.' }),
+      () =>
+        finish(id, {
+          approved: false,
+          timedOut: true,
+          message: `No answer within ${waitWords(timeoutMs)}, so it was skipped.`,
+        }),
       timeoutMs,
     );
     const review = brainChecks(item);

@@ -34,6 +34,11 @@ export const mcpRouter = m.router({
   bridge: m.bridge.handler(() => mcp.bridgeServerConfig('')),
   save: m.save.handler(({ input: { name, ...server } }) => refusing(() => mcp.saveServer(name, server))),
   remove: m.remove.handler(({ input }) => (mcp.removeServerEverywhere(input.name), { ok: true as const })),
+  brainGrants: m.brainGrants.handler(() => ({ allowed: mcp.brainGrants() })),
+  forgetBrainGrant: m.forgetBrainGrant.handler(({ input }) => {
+    mcp.forgetBrainGrant(input.server, input.tool);
+    return { allowed: mcp.brainGrants() };
+  }),
   test: m.test.handler(async ({ input }) => ({ tools: await mcp.testServer(input.name) })),
   addPreset: m.addPreset.handler(({ input }) => {
     const preset = mcp.PRESETS.find((x) => x.name === input.name) || refuse('Unknown preset', 404);
