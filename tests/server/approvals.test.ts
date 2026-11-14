@@ -7,6 +7,7 @@ import {
   decide,
   cancelForRun,
   withdrawApprovals,
+  waitWords,
 } from '../../server/approvals.ts';
 import { saveSettings, getSettings } from '../../server/store.ts';
 import type { BrainVerdict } from '../../server/approvals.ts';
@@ -121,5 +122,15 @@ describe('the Brain approves', () => {
     await tick();
     expect(calls).toBe(0);
     expect(listApprovals()).toHaveLength(1);
+  });
+
+  it('a request nobody answers says how long it waited, and that it timed out', async () => {
+    saveSettings({ brainApproves: false });
+    const d = await requestApproval({ title: 'Coder wants to use Write', agentId: 'a1', timeoutMs: 20 });
+    expect(d).toEqual({ approved: false, timedOut: true, message: 'No answer within 1 second, so it was skipped.' });
+    expect(waitWords(15 * 60_000)).toBe('15 minutes');
+    expect(waitWords(60_000)).toBe('1 minute');
+    expect(waitWords(30 * 60_000)).toBe('30 minutes');
+    expect(waitWords(3 * 3_600_000)).toBe('3 hours');
   });
 });

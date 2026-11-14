@@ -147,7 +147,16 @@ it('keeps a replacement file even if its name and age match a former reservation
   expect(fs.readFileSync(orphan.target, 'utf8')).toBe('User replacement');
 });
 
-it.each(['file', 'batch', 'root', 'proof'] as const)('does not follow a replaced %s link', async (kind) => {
+it.for(['file', 'batch', 'root', 'proof'] as const)('does not follow a replaced %s link', async (kind, ctx) => {
+  // file links need admin rights or Developer Mode on Windows (folder junctions don't)
+  const fileLink = (target: string, at: string) => {
+    try {
+      fs.symlinkSync(target, at);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EPERM') ctx.skip();
+      throw e;
+    }
+  };
   const f = await fixture();
   const orphan = f.allocate('1-orphan.txt', true);
   const other = newBatch();
@@ -155,7 +164,7 @@ it.each(['file', 'batch', 'root', 'proof'] as const)('does not follow a replaced
   fs.writeFileSync(victim, 'Must survive');
   if (kind === 'file') {
     fs.unlinkSync(orphan.target);
-    fs.symlinkSync(victim, orphan.target);
+    fileLink(victim, orphan.target);
   }
   if (kind === 'batch') {
     fs.renameSync(f.dir, `${f.dir}-held`);
@@ -172,7 +181,7 @@ it.each(['file', 'batch', 'root', 'proof'] as const)('does not follow a replaced
   }
   if (kind === 'proof') {
     fs.renameSync(orphan.proof, `${orphan.proof}-held`);
-    fs.symlinkSync(`${orphan.proof}-held`, orphan.proof);
+    fileLink(`${orphan.proof}-held`, orphan.proof);
   }
   await f.retire();
   f.age();

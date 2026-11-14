@@ -1506,6 +1506,8 @@ export interface ApprovalDecision {
   message: string;
   edited?: unknown;
   always?: boolean;
+  /** Nobody answered in time (not a no from you). */
+  timedOut?: boolean;
 }
 
 export interface DurableApprovalRecord {
@@ -1628,6 +1630,15 @@ export interface ActivityEntry {
 }
 
 // ---------- settings ----------
+/** The Brain's own use of MCP tools: full (every tool, no asking), ask (tools that only read run, the rest wait
+ *  for you in Needs you) or off. */
+export type BrainToolAccess = 'full' | 'ask' | 'off';
+/** A tool you let the Brain use without asking (Always allow in Needs you). */
+export interface BrainToolGrant {
+  server: string;
+  tool: string;
+}
+
 export interface BrainSetting {
   provider: 'claude' | 'openrouter' | 'venice' | 'hermes' | 'codex' | 'opencode';
   model: string;
@@ -1691,6 +1702,8 @@ export interface Settings {
   brainAnyGitHub: boolean;
   /** The Brain checks ordinary assignments after each turn and continues until delivered or blocked. */
   brainFollowsUp: boolean;
+  /** What the Brain may do with the tools of the MCP servers that are on (see BrainToolAccess). */
+  brainTools: BrainToolAccess;
   look: LookSetting;
   telegram: { chatId: string };
   maxToolSteps: number;

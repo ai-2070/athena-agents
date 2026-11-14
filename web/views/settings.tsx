@@ -16,6 +16,8 @@ import { ProgramGlyph, ProgramLabel } from '../ui/programmark.tsx';
 import { brandSrc, followTheme } from '../brandimages.ts';
 import type {
   AppState,
+  BrainToolAccess,
+  BrainToolGrant,
   EngineStatus,
   SecretKey,
   SecretStatus,
@@ -203,6 +205,14 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
           title="Install skills from any GitHub link"
           description="Off: the Brain installs skills only from GitHub repos you named in the Brain chat yourself. On: also from links it finds in files, pages or agents' answers. Skills are instructions your agents follow, so only turn this on if you trust where those links come from."
         />
+      </Section>
+
+      <Section
+        title={<IconLabel icon="plug">The Brain's tools</IconLabel>}
+        description="The Brain can use the tools of every MCP server that is on (Composio, OOMOL, GitHub…) itself, on any model it runs on: to check an inbox, find a file or send one message you asked for. Bigger work still goes to an agent or team."
+      >
+        <BrainToolsRow initial={s.brainTools} reload={reload} />
+        <BrainGrantsRow />
       </Section>
 
       <Section
@@ -457,6 +467,117 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
         </Button>
       </div>
     </div>
+  );
+}
+
+const BRAIN_TOOLS: Record<BrainToolAccess, { said: string; about: string }> = {
+  full: {
+    said: 'The Brain uses MCP tools without asking',
+    about:
+      'Every tool runs right away, including ones that send, post, edit or delete. The Brain only uses those when you ask for them.',
+  },
+  ask: {
+    said: 'The Brain asks before tools that change things',
+    about:
+      'Tools that only read run right away. Anything else waits for you in Needs you (the Brain never approves its own requests).',
+  },
+  off: {
+    said: "The Brain doesn't use MCP tools",
+    about: 'It can still give servers to agents and teams and hand them the work.',
+  },
+};
+
+/** How freely the Brain uses MCP tools itself; saves on its own. When saving fails it shows what is really set again. */
+function BrainToolsRow({ initial, reload }: { initial: BrainToolAccess; reload: () => Promise<unknown> }) {
+  const [value, setValue] = useState<BrainToolAccess>(initial === 'ask' || initial === 'off' ? initial : 'full');
+  const change = async (next: BrainToolAccess) => {
+    setValue(next);
+    const saved = await attempt(() => rpc.settings.save({ brainTools: next }), BRAIN_TOOLS[next].said);
+    if (saved) refreshSoon(0);
+    else await reload();
+  };
+  return (
+    <Row title="Tool access" titleId="brain-tools-label" description={BRAIN_TOOLS[value].about}>
+      <Segmented
+        label="Tool access"
+        options={[
+          {
+            value: 'full',
+            label: (
+              <IconLabel icon="zap" compact>
+                Full
+              </IconLabel>
+            ),
+          },
+          {
+            value: 'ask',
+            label: (
+              <IconLabel icon="hand" compact>
+                Ask first
+              </IconLabel>
+            ),
+          },
+          {
+            value: 'off',
+            label: (
+              <IconLabel icon="circle-x" compact>
+                Off
+              </IconLabel>
+            ),
+          },
+        ]}
+        value={value}
+        onChange={(v) => void change(v)}
+      />
+    </Row>
+  );
+}
+
+/** The tools you let the Brain use without asking (Always allow in Needs you), each one with a way to take it back.
+ *  Nothing shows while there are none. */
+function BrainGrantsRow() {
+  const [grants, setGrants] = useState<BrainToolGrant[]>([]);
+  useEffect(() => {
+    void rpc.mcp
+      .brainGrants()
+      .then((r) => setGrants(Array.isArray(r.allowed) ? r.allowed : []))
+      .catch(() => {});
+  }, []);
+  if (!grants.length) return null;
+  const forget = async (g: BrainToolGrant) => {
+    const r = await attempt(() => rpc.mcp.forgetBrainGrant(g), 'The Brain will ask before using it again');
+    if (r) setGrants(r.allowed);
+  };
+  return (
+    <Row
+      title="Always allowed"
+      description="Tools you let the Brain use without asking. Take one back and it asks you again."
+      stack
+    >
+      <ul className="brain-grants flex flex-col gap-2">
+        {grants.map((g) => (
+          <li
+            key={`${g.server}
+${g.tool}`}
+            className="flex items-center justify-between gap-3"
+          >
+            <span className="min-w-0 truncate font-mono text-[13px] text-ink">
+              {g.server} · {g.tool}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="tiny"
+              className="flex-none"
+              aria-label={`Take back ${g.tool} on ${g.server}`}
+              onClick={() => void forget(g)}
+            >
+              Take back
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </Row>
   );
 }
 
