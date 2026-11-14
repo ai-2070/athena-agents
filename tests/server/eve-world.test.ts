@@ -104,4 +104,46 @@ describe('the pinned Eve local store', () => {
       });
     }
   }
+  // Windows: replacing a file fails while something holds it open, even an antivirus scan that lets it be deleted
+  it.runIf(process.platform === 'win32')(
+    'saves over a file that cannot be replaced while something holds it',
+    async () => {
+      const dataDir = dataPath('eve-world-held');
+      const world = createWorld({ dataDir, recoverActiveRuns: false });
+      await world.start?.();
+      try {
+        const created = await world.events.create(null, {
+          eventType: 'run_created',
+          specVersion: 8,
+          eventData: { deploymentId: 'fixture', workflowName: 'workflow//fixture//work', input: new Uint8Array([1]) },
+        });
+        const id = created.run?.runId;
+        if (!id) throw new Error('The fixture run was not saved.');
+        const record = `${id}.json`;
+        const original = fs.promises.rename;
+        let refused = 0;
+        const held = vi.spyOn(fs.promises, 'rename').mockImplementation(async (from, to) => {
+          if (String(to).endsWith(record) && fs.existsSync(to)) {
+            refused++;
+            throw Object.assign(new Error(`EPERM: operation not permitted, rename '${from}' -> '${to}'`), {
+              code: 'EPERM',
+              syscall: 'rename',
+            });
+          }
+          return original(from, to);
+        });
+        try {
+          await world.events.create(id, { eventType: 'run_started', specVersion: 8 });
+        } finally {
+          held.mockRestore();
+        }
+        expect(refused).toBeGreaterThan(1);
+        expect((await world.runs.get(id)).status).toBe('running');
+        const runs = fs.readdirSync(`${dataDir}/runs`);
+        expect(runs.filter((file) => file.includes('.tmp.'))).toEqual([]);
+      } finally {
+        await world.close?.();
+      }
+    },
+  );
 });

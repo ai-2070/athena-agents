@@ -13,6 +13,13 @@ Startup finishes pending claims before Eve requeues work, then drops the tempora
 does not run a model or tool, invent an outcome, or reset a running step. Expired/deleted runs
 are not restored. The local world continues to require one owning process.
 
+The patch also saves over files on Windows that can't be replaced right then. Renaming over a file fails
+(`EPERM`) while anything holds it open, and an antivirus scan can hold one for many seconds without
+showing as an open file; the store's write then failed, and its queue retried seconds later, so work
+stalled. Deleting the file still works, so after a short retry the store deletes the old file and renames
+the new one in, in one synchronous step: nothing else in the process reads in between, and until the
+rename the new data stays in the temp file (kept if that rename fails).
+
 The patch is for that exact version. To update the package, run `bun patch @workflow/world-local`, make the same
 changes in the new version, `bun patch --commit 'node_modules/@workflow/world-local'`, and drop the old patch and
 its `patchedDependencies` entry; `tests/server/eve-world.test.ts` fails while the patch doesn't apply. Renovate
