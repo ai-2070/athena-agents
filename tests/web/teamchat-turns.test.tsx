@@ -248,8 +248,9 @@ describe('team chat turns', () => {
     for (let i = 0; i < 100 && !work.querySelector('details.tool'); i++) await settle();
     expect(requests).toContain('GET /api/agents/lead/chats/lead-chat');
     expect(work.querySelector('details.tool .tname')!.textContent).toBe('read_file');
-    // (the message to the agent isn't repeated: the thread shows it)
+    // (the message to the agent and its reply aren't repeated: the thread shows them)
     expect(work.textContent).not.toContain('team brief');
+    expect(work.textContent).not.toContain('make the thumbnail');
     const loaded = requests.filter((request) => request === 'GET /api/agents/lead/chats/lead-chat').length;
     await act(async () => trigger.click());
     expect(trigger.getAttribute('aria-expanded')).toBe('false');

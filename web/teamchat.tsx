@@ -501,6 +501,7 @@ function Work({ m, shown = false }: { m: TeamMessage; shown?: boolean }) {
                 at={at}
                 from={turn.from}
                 to={turn.to}
+                reply={m.text}
                 empty="No steps were saved for this reply."
               />
             </Suspense>
