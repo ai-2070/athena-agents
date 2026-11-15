@@ -448,6 +448,8 @@ interface StationState {
   feedEl: HTMLDivElement;
   zoomEl: HTMLDivElement;
   emptyEl: HTMLDivElement;
+  /** what the empty-map card shows now: it is redrawn only when that changes */
+  emptyKey?: string;
   statsEl: HTMLDivElement;
   clockEl?: HTMLSpanElement;
   usageEl?: HTMLDivElement;
@@ -4684,6 +4686,7 @@ function drawHud(): void {
     // (so do the zoom and home buttons)
     S.zoomEl.addEventListener('pointerdown', minimizeMaximizedChats);
     S.emptyEl = h('div', { class: 'absolute left-5 top-22 pointer-events-none' });
+    S.emptyKey = undefined;
     S.statsEl = h('div', {
       class: 'absolute top-16 right-5 pointer-events-auto group-has-[.st-panel:not(.hidden)]/root:hidden',
     });
@@ -5028,6 +5031,10 @@ const EMPTY_TITLE = 'font-sans text-[16px] leading-[1.3] font-semibold mb-2';
 const EMPTY_P = 'text-dim text-[13.5px] leading-[1.55] mb-4';
 function drawEmpty(d: AppState): void {
   if (!S?.emptyEl) return;
+  // the HUD redraws on every state update: a card built again each time replays its entrance and flickers
+  const key = !d.agents.length ? 'none' : !S.workflows.length ? `ready:${d.agents.length}` : '';
+  if (key === S.emptyKey) return;
+  S.emptyKey = key;
   let card: HTMLDivElement | null = null;
   if (!d.agents.length)
     card = h(
