@@ -77,6 +77,7 @@ export class TurnChunks {
         text: e.text,
         ...(e.from ? { from: e.from } : {}),
         ...(e.attachments?.length ? { attachments: e.attachments } : {}),
+        ...(e.teamMessageId ? { teamMessageId: e.teamMessageId } : {}),
       });
   }
   /** The turn so far, from the saved items (everything after the last message to the agent). */
@@ -90,6 +91,7 @@ export class TurnChunks {
           text: it.text,
           ...(it.from ? { from: it.from } : {}),
           ...(it.attachments?.length ? { attachments: it.attachments } : {}),
+          ...(it.teamMessageId ? { teamMessageId: it.teamMessageId } : {}),
         });
       else if (it.type === 'tool') {
         this.tool(it.id, it.name, it.args);

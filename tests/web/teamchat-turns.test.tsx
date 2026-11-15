@@ -234,6 +234,36 @@ describe('team chat turns', () => {
     expect(el.querySelector('.tc-live')).toBeNull();
   });
 
+  it("a message of yours the agent took into its turn isn't shown in it again: the thread shows it", async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    for (let i = 0; i < 100 && !requests.includes('GET /api/agents/maker/chats/maker-chat/stream'); i++) await settle();
+    const block = el.querySelector('.tc-live')!;
+    await act(async () => {
+      live.push({ type: 'start', messageId: 'run-x' });
+      live.push({ type: 'text-start', id: 'a' });
+      live.push({ type: 'text-delta', id: 'a', delta: 'Rendering' });
+      live.push({ type: 'text-end', id: 'a' });
+      live.push({
+        type: 'data-steer',
+        data: {
+          steerId: 's1',
+          text: '[team message u2]\nYou (the user): use blue',
+          from: 'You (the user)',
+          teamMessageId: 'u2',
+        },
+      });
+      // (one typed in the agent's own chat isn't in the thread: it stays)
+      live.push({ type: 'data-steer', data: { steerId: 's2', text: 'and bigger' } });
+    });
+    await settle();
+    expect(block.textContent).toContain('Rendering');
+    expect(block.textContent).not.toContain('[team message');
+    expect(block.textContent).not.toContain('use blue');
+    expect(block.textContent).toContain('and bigger');
+  });
+
   it('"Show the work" opens the steps and tool calls behind a reply', async () => {
     const el = document.createElement('div');
     document.body.append(el);

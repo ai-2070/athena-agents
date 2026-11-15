@@ -134,6 +134,26 @@ describe('a message that joined the turn', () => {
       data: { steerId: 's2', text: 'and bigger', attachments: ['/u/a.png'] },
     });
   });
+  it("keeps a team message's id, in the replay and live (the team chat leaves those out)", async () => {
+    replayItems = [
+      { type: 'user', text: 'the long job' },
+      {
+        type: 'steer',
+        steerId: 's1',
+        text: '[team message m1]\nYou (the user): blue',
+        runId: 'r5',
+        teamMessageId: 'm1',
+      },
+    ];
+    const { last } = await read('r5', async () => {
+      run({ kind: 'steer', id: 's2', text: '[team message m2]\nYou (the user): bigger', teamMessageId: 'm2' }, 'r5');
+      run({ kind: 'done', text: '' }, 'r5');
+    });
+    const ids = last.parts.flatMap((p) =>
+      p.type === 'data-steer' ? [(p.data as { teamMessageId?: string }).teamMessageId] : [],
+    );
+    expect(ids).toEqual(['m1', 'm2']);
+  });
 });
 
 describe('the message a stream sent into the turn', () => {

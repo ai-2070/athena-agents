@@ -6,7 +6,7 @@ import { useChat } from '@ai-sdk/react';
 import { rpcAt } from '../client/rpc.ts';
 import { Handoffs, MessageView } from './parts.tsx';
 import { chatTransport } from './transport.ts';
-import { handoffMap, handoffsIn, toUIMessages, withoutReply } from './messages.ts';
+import { handoffMap, handoffsIn, toUIMessages, withoutReply, withoutTeamSteers } from './messages.ts';
 import type { ChatMessage } from './messages.ts';
 
 export interface TurnViewProps {
@@ -36,7 +36,9 @@ export function TurnView({ agentId, chatId, at = '', live, from, to, empty, repl
   const [loaded, setLoaded] = useState(false);
   const owner = useMemo(() => ({ agentId, chatId }), [agentId, chatId]);
   const streaming = status === 'submitted' || status === 'streaming';
-  const handoffKey = handoffsIn(messages);
+  // (a team message that joined the turn is in the team chat already)
+  const shown = useMemo(() => withoutTeamSteers(messages), [messages]);
+  const handoffKey = handoffsIn(shown);
   const handoffs = useMemo(() => handoffMap(handoffKey), [handoffKey]);
 
   useEffect(() => {
@@ -58,7 +60,7 @@ export function TurnView({ agentId, chatId, at = '', live, from, to, empty, repl
         const last = chat.items.findLastIndex((i) => i.type === 'user');
         const a = live || from == null ? last : from;
         const b = live || to == null ? chat.items.length : to;
-        const mine = toUIMessages(chat.items, a, b).filter((m) => m.role !== 'user');
+        const mine = withoutTeamSteers(toUIMessages(chat.items, a, b).filter((m) => m.role !== 'user'));
         setMessages(live || reply == null ? mine : withoutReply(mine, reply));
       }
       setLoaded(true);
@@ -68,12 +70,12 @@ export function TurnView({ agentId, chatId, at = '', live, from, to, empty, repl
     };
   }, []);
 
-  if (!messages.length) return loaded && empty ? <div className="hint">{empty}</div> : null;
-  const lastId = messages[messages.length - 1]?.id;
+  if (!shown.length) return loaded && empty ? <div className="hint">{empty}</div> : null;
+  const lastId = shown[shown.length - 1]?.id;
   return (
     <Handoffs.Provider value={handoffs}>
       <div className="flex min-w-0 flex-col gap-2">
-        {messages.map((m) => (
+        {shown.map((m) => (
           <MessageView
             key={m.id}
             m={m}

@@ -25,7 +25,7 @@ export interface MessageData {
   meta: Extract<ChatItem, { type: 'meta' }>;
   compaction: CompactionItem;
   /** a message you sent that joined the turn going on */
-  steer: Pick<Extract<ChatItem, { type: 'steer' }>, 'steerId' | 'text' | 'from' | 'attachments'>;
+  steer: Pick<Extract<ChatItem, { type: 'steer' }>, 'steerId' | 'text' | 'from' | 'attachments' | 'teamMessageId'>;
   [k: string]: unknown;
 }
 export type ChatMessage = UIMessage<MessageMeta, MessageData>;
@@ -208,6 +208,20 @@ export function toUIMessages(items: readonly ChatItem[], from = 0, to = items.le
 export function beforeTurn(messages: readonly ChatMessage[]): ChatMessage[] {
   const last = messages.findLastIndex((m) => m.role === 'user');
   return messages.slice(0, last + 1);
+}
+
+/** Without the team messages that joined the turn: the team chat shows them already (and the agent got them
+ *  in their prompt form, "[team message id]" and all). */
+export function withoutTeamSteers(messages: readonly ChatMessage[]): ChatMessage[] {
+  const out: ChatMessage[] = [];
+  for (const m of messages) {
+    const parts = m.parts.filter(
+      (p) => !(p.type === 'data-steer' && (p.data as { teamMessageId?: string }).teamMessageId),
+    );
+    if (parts.length === m.parts.length) out.push(m);
+    else if (parts.length) out.push({ ...m, parts });
+  }
+  return out;
 }
 
 /** A turn's work without the reply it ended with: where the reply is already shown (a team chat's
