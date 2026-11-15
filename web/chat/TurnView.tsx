@@ -6,7 +6,7 @@ import { useChat } from '@ai-sdk/react';
 import { rpcAt } from '../client/rpc.ts';
 import { Handoffs, MessageView } from './parts.tsx';
 import { chatTransport } from './transport.ts';
-import { handoffMap, handoffsIn, toUIMessages } from './messages.ts';
+import { handoffMap, handoffsIn, toUIMessages, withoutReply } from './messages.ts';
 import type { ChatMessage } from './messages.ts';
 
 export interface TurnViewProps {
@@ -21,13 +21,15 @@ export interface TurnViewProps {
   to?: number;
   /** what to show when there is nothing (yet) */
   empty?: string;
+  /** a finished turn whose reply is shown already: left out, so it doesn't show twice */
+  reply?: string;
   /** the live turn ended (the stream is over) */
   onEnd?: () => void;
   /** a Rich answer's buttons: what they send */
   onSend?: (text: string) => void;
 }
 
-export function TurnView({ agentId, chatId, at = '', live, from, to, empty, onEnd, onSend }: TurnViewProps) {
+export function TurnView({ agentId, chatId, at = '', live, from, to, empty, reply, onEnd, onSend }: TurnViewProps) {
   const transport = useMemo(() => chatTransport(agentId, () => chatId, undefined, at), [agentId, chatId, at]);
   const [viewId] = useState(() => `turn-${chatId}-${Math.random().toString(36).slice(2, 8)}`);
   const { messages, setMessages, resumeStream, status } = useChat<ChatMessage>({ id: viewId, transport });
@@ -56,7 +58,8 @@ export function TurnView({ agentId, chatId, at = '', live, from, to, empty, onEn
         const last = chat.items.findLastIndex((i) => i.type === 'user');
         const a = live || from == null ? last : from;
         const b = live || to == null ? chat.items.length : to;
-        setMessages(toUIMessages(chat.items, a, b).filter((m) => m.role !== 'user'));
+        const mine = toUIMessages(chat.items, a, b).filter((m) => m.role !== 'user');
+        setMessages(live || reply == null ? mine : withoutReply(mine, reply));
       }
       setLoaded(true);
     })();

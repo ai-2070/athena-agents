@@ -209,3 +209,21 @@ export function beforeTurn(messages: readonly ChatMessage[]): ChatMessage[] {
   const last = messages.findLastIndex((m) => m.role === 'user');
   return messages.slice(0, last + 1);
 }
+
+/** A turn's work without the reply it ended with: where the reply is already shown (a team chat's
+ *  message), the work would repeat it. Only trailing text the reply contains goes. */
+export function withoutReply(messages: readonly ChatMessage[], reply: string): ChatMessage[] {
+  const said = reply.trim();
+  const out = [...messages];
+  while (said && out.length) {
+    const m = out[out.length - 1];
+    if (m.role !== 'assistant' || !m.parts.length || m.parts.some((p) => p.type !== 'text')) break;
+    const text = m.parts
+      .map((p) => (p.type === 'text' ? p.text : ''))
+      .join('')
+      .trim();
+    if (text && !said.includes(text)) break;
+    out.pop();
+  }
+  return out;
+}
