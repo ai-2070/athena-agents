@@ -119,6 +119,10 @@ interface CallOptions {
   proceed: () => boolean;
   max: number;
 }
+const TURNED_OFF = {
+  text: "Skipped: the user turned the Brain's tools off, so it didn't run. Don't try again.",
+  isError: true,
+};
 const NOT_WANTED = { text: "Skipped: the user stopped this answer or moved on, so it didn't run.", isError: true };
 
 async function call(
@@ -132,6 +136,8 @@ async function call(
     return { text: `${server} has no tool "${tool}": list them with mcp_tools.`, isError: true, changed: false };
   const changes = mcpToolRisk(found) === 'high';
   if (signal?.aborted || !proceed()) return { ...NOT_WANTED, changed: false };
+  // (read again now: Off may have been picked while the tools were listed)
+  if (brainToolAccess() === 'off') return { ...TURNED_OFF, changed: false };
   if (brainToolAccess() === 'ask' && changes && !brainMayUse(server, tool)) {
     const key = `${server}__${tool}`;
     const ref = uid('bt');
@@ -168,6 +174,7 @@ async function call(
     if (d.always) allowForBrain(server, tool);
     // (the answer may have been dropped while it waited)
     if (signal?.aborted || !proceed()) return { ...NOT_WANTED, changed: false };
+    if (brainToolAccess() === 'off') return { ...TURNED_OFF, changed: false };
   }
   let r: Awaited<ReturnType<typeof callTool>>;
   try {
