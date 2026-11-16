@@ -297,6 +297,7 @@ Completed reviews:
 - Trigger/evidence: delay reconnect before headers, then steer/close. `reconnectToStream` ignores the SDK's abort signal while steering waits for `followDone`.
 - Impact/expected: steering blocks until request settlement/timeout and closed views leave requests outstanding. Forward cancellation.
 - Limits: installed SDK inspected; network timing untested.
+- Fixed: a chat's reconnect passes the AI SDK's abort signal on to its request. Test in `tests/web/chat-transport.test.ts`.
 
 ### BH-030 — Non-ASCII suffixes turn longer words into team mentions
 
