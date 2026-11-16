@@ -383,6 +383,7 @@ Completed reviews:
 - Trigger/evidence: clear memory during a CLI turn, receive more output, crash before finalization. Saved `clearMemoryOnEnd` is not applied by non-native recovery before reseeding/settling.
 - Impact/expected: post-reset material can reenter the new session's context. Apply the terminal reset as normal/native finalizers do.
 - Limits: native tests express intended behavior; no restart scenario.
+- Fixed: recovery of an interrupted (non-native) run applies a saved Clear memory, as the normal and native endings do. Test in `tests/server/execution.test.ts`.
 
 ### BH-041 — A crash erases a steer between queue and transcript writes
 

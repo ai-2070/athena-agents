@@ -1503,6 +1503,9 @@ export function recoverExecution(): void {
           chat.sessionId = null;
           chat.reseed = true;
         }
+        // Clear memory pressed while it worked: it happens now, as it would have when the turn ended (what came
+        // after the reset mustn't go into the next session)
+        finishMemoryReset(chat, run.id);
         chats.save(chat);
       });
     updateExecution(run.id, { settled: true });

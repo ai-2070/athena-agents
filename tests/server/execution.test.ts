@@ -236,6 +236,23 @@ describe('saved Stop commands', () => {
   });
 });
 
+describe('Clear memory pressed while a turn worked, then a restart', () => {
+  it('still clears the memory, so what came after it stays out of the next session', async () => {
+    const { memoryStart } = await import('../../shared/context.ts');
+    const { run, chat } = fixture();
+    admitExecution(run);
+    updateExecution(run.id, { clearMemoryOnEnd: true });
+    chat.items.push({ type: 'assistant', text: 'written after the reset' });
+    chat.sessionId = 'cli-session';
+    chats.save(chat);
+    recoverExecution();
+    const saved = chats.get(chat.agentId, chat.id)!;
+    expect(saved.items.some((i) => i.type === 'meta' && i.sourceId === `reset:${run.id}`)).toBe(true);
+    expect(memoryStart(saved.items)).toBe(saved.items.length);
+    expect(saved.sessionId).toBeNull();
+  });
+});
+
 describe('a message read just before a restart', () => {
   it('is sent again only if the chat does not show it as read', () => {
     const { project, chat, agent, queue } = fixture();
