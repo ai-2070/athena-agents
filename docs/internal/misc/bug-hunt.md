@@ -223,6 +223,7 @@ Completed reviews:
 - Trigger/evidence: one target stops and another fails. Neither all-stopped nor all-failed matches, so aggregate status is `done`.
 - Impact/expected: a run with no successful targets looks completed successfully; define appropriate mixed terminal-state precedence.
 - Limits: no routine executed.
+- Fixed: a routine run is done only when a target finished (`routineStatus()`); none finished and one failed is failed, else stopped. Test in `tests/server/routines.test.ts`.
 
 ### BH-023 — Deleted workflows can continue outstanding actions
 
