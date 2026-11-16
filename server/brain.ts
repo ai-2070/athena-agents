@@ -232,9 +232,20 @@ export async function think(
     // streamed: the text as it comes
     let text = '';
     let buf = '';
+    // (a stream that just stops, with no [DONE] nor a reason to finish, is an answer cut off on the way)
+    let finished = false;
+    // (an answer that comes whole, as JSON, though a stream was asked for: read as one)
+    let streamed = false;
+    let whole = '';
     const dec = new TextDecoder();
     const consume = (line: string) => {
-      if (!line.startsWith('data:') || line.slice(5).trim() === '[DONE]') return;
+      if (!streamed && !line.startsWith('data:') && whole.length < 2_000_000) whole += `${line}\n`;
+      if (!line.startsWith('data:')) return;
+      streamed = true;
+      if (line.slice(5).trim() === '[DONE]') {
+        finished = true;
+        return;
+      }
       try {
         const j = JSON.parse(line.slice(5)) as {
           error?: unknown;
@@ -243,6 +254,7 @@ export async function think(
         if (j.error) throw new Error(apiErrorMessage(j, `${provider.label} failed.`));
         if (j.choices?.[0]?.finish_reason === 'length')
           throw new Error('The answer was cut off: it ran past the length limit.');
+        if (j.choices?.[0]?.finish_reason) finished = true;
         const d = j.choices?.[0]?.delta?.content;
         if (d) {
           text += d;
@@ -264,6 +276,16 @@ export async function think(
     }
     buf += dec.decode();
     if (buf.trim()) consume(buf.trim());
+    if (!streamed && whole.trim().startsWith('{')) {
+      const j = JSON.parse(whole) as ApiChat;
+      if (j.error) throw new Error(apiErrorMessage(j, `${provider.label} failed.`));
+      if (j.choices?.[0]?.finish_reason === 'length')
+        throw new Error('The answer was cut off: it ran past the length limit.');
+      const content = j.choices?.[0]?.message?.content || '';
+      if (content) part({ kind: 'text', text: content });
+      return content;
+    }
+    if (!finished) throw new Error(`${provider.label} stopped sending before the answer was finished.`);
     return text;
   }
   if (bm.provider === 'codex') {

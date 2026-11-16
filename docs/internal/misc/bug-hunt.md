@@ -682,6 +682,7 @@ Completed reviews:
 - Trigger/evidence: OpenRouter/Venice SSE cleanly closes after preliminary text without `[DONE]`/terminal choice. Parser tracks no completion marker and returns text; plain prose is accepted, and a preceding complete action fence can apply.
 - Impact/expected: incomplete replies/actions appear successful, or delegation silently disappears. Detect unterminated generation.
 - Limits: tests cover explicit length finish, not absent completion; no provider/proxy request.
+- Fixed: a streamed Brain answer counts as finished only with `[DONE]` or a finish reason; one that just stops is an error. An answer that comes whole as JSON, though a stream was asked for, is read as JSON. Test in `tests/server/brain-stream.test.ts`.
 
 ### BH-074 — Saved thread edits corrupt the already-published prefix
 

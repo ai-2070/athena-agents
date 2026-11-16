@@ -48,6 +48,19 @@ describe('think() with onPart', () => {
     ]);
   });
 
+  it('a stream that just stops, with no end, is no answer', async () => {
+    setSecret('openrouterKey', 'sk-or-test');
+    saveSettings({ brain: { provider: 'openrouter', model: 'mock' } });
+    vi.stubGlobal('fetch', async () => {
+      const enc = new TextEncoder();
+      const body = `data: ${JSON.stringify({ choices: [{ delta: { content: 'I will hand this to ' } }] })}\n\n`;
+      return new Response(new ReadableStream({ start: (c) => (c.enqueue(enc.encode(body)), c.close()) }), {
+        status: 200,
+      });
+    });
+    await expect(think('system', 'user', { onPart: () => {} })).rejects.toThrow(/before the answer was finished/);
+  });
+
   it('streamed too, an answer cut off at the length limit is no answer', async () => {
     setSecret('openrouterKey', 'sk-or-test');
     saveSettings({ brain: { provider: 'openrouter', model: 'mock' } });
