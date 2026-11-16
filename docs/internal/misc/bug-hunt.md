@@ -422,6 +422,7 @@ Completed reviews:
 - Trigger/evidence: delayed/surviving bridge calls carry a finished/stopped `DASH_RUN`, possibly after a switch. Null lookup is treated as intentionally unbound, selecting open project with no cancellation.
 - Impact/expected: post-run mutations, including risk-none `save_artifact`, can hit another project. Reject supplied-but-unavailable run ownership.
 - Limits: internal token required; not unauthenticated HTTP access. Valid live runs are pinned; no timing scenario.
+- Fixed: a bridge call or tool listing that names a run which has ended is refused (410) instead of running unbound in the open project. Test in `tests/server/api.test.ts`.
 
 ### BH-047 — MCP cancellation does not reach forwarded operations
 

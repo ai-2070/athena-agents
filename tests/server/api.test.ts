@@ -1837,6 +1837,22 @@ describe('agent runs and projects', () => {
     // a project that is gone is refused, never swapped for the open one
     expect((await call('no-such-project')).status).toBe(410);
     expect(fs.existsSync(path.join(b.brainPath, 'terminal.txt'))).toBe(false);
+    // a bridge of a run that has ended works nowhere, not in the open project
+    const ended = await req('/api/internal/tools/call', {
+      method: 'POST',
+      headers: internal,
+      body: JSON.stringify({
+        agent: agent.id,
+        run: 'r-long-gone',
+        name: 'write_file',
+        args: { path: 'late.txt', content: 'late' },
+      }),
+    });
+    expect(ended.status).toBe(410);
+    expect(fs.existsSync(path.join(b.brainPath, 'late.txt'))).toBe(false);
+    expect((await req(`/api/internal/tools?agent=${agent.id}&run=r-long-gone`, { headers: internal })).status).toBe(
+      410,
+    );
   });
 
   it('the MCP bridge gives an agent the tools its team gave it for the work', async () => {

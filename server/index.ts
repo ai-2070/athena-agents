@@ -323,8 +323,15 @@ get('/api/workflows/:id/mark', async ({ id }, _b, _q, res) => {
 // A bridge that belongs to a run works in the run's project (its agent, workspace and data), even
 // after you open another one. An agent's terminal has no run, but its bridge names the project it was opened in.
 // Without either (an outside MCP client) it's the project open now.
-const inRunProject = <T>(run: engines.RunInfo | null, projectId: string | null | undefined, fn: () => T): T => {
+const inRunProject = <T>(
+  run: engines.RunInfo | null,
+  projectId: string | null | undefined,
+  fn: () => T,
+  runId?: string | null,
+): T => {
   if (run) return store.withProject(run.project, fn);
+  // a bridge of a run that has ended (a late call, or one its CLI left running) works nowhere: never in the open project
+  if (runId) throw new HttpError(410, 'The run this belongs to has ended. Nothing was done.');
   if (!projectId) return fn();
   const project = store.listProjects().find((p) => p.id === projectId);
   if (!project) throw new HttpError(410, 'The project this terminal was opened in is gone.');
@@ -344,42 +351,56 @@ const bridgeAgent = (run: engines.RunInfo | null, id: string | null | undefined)
 };
 get('/api/internal/tools', async (_p, _b, q) => {
   const run = engines.runInfo(q.run);
-  return inRunProject(run, q.project, () => {
-    const agent = bridgeAgent(run, q.agent);
-    const list = tools.toolDefs(agent, { conversationId: run?.conversationId, engine: agent.engine });
-    if (agent.engine === 'claude-code')
-      list.push({
-        name: 'permission_prompt',
-        description: 'Internal: Claude Code uses this to ask the user for permission. Never call it yourself.',
-        parameters: {
-          type: 'object',
-          properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } },
-          required: ['tool_name'],
-        },
-      });
-    return { tools: list };
-  });
+  return inRunProject(
+    run,
+    q.project,
+    () => {
+      const agent = bridgeAgent(run, q.agent);
+      const list = tools.toolDefs(agent, { conversationId: run?.conversationId, engine: agent.engine });
+      if (agent.engine === 'claude-code')
+        list.push({
+          name: 'permission_prompt',
+          description: 'Internal: Claude Code uses this to ask the user for permission. Never call it yourself.',
+          parameters: {
+            type: 'object',
+            properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } },
+            required: ['tool_name'],
+          },
+        });
+      return { tools: list };
+    },
+    q.run,
+  );
 });
 post<{ agent?: string; run?: string; project?: string; name: string; args?: Record<string, unknown> }>(
   '/api/internal/tools/call',
   async (_p, body) => {
     // The bridge says which run it belongs to; that gives the right project, approvals, Stop button and delegation depth.
     const run = engines.runInfo(body.run);
-    return inRunProject(run, body.project, async () => {
-      const agent = bridgeAgent(run, body.agent);
-      const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
-      if (body.name === 'permission_prompt')
-        return {
-          text: JSON.stringify(
-            await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId),
-          ),
-        };
-      const r = tools.clipForModel(await tools.callTool(agent, body.name, body.args || {}, ctx), body.name, ctx.runId);
-      // MCP takes pictures as data only: ComfyUI's result links are read here, so the agent sees them too
-      if (!r.images?.length) return r;
-      const { images, note } = await inlineToolImagesNoted(r.images);
-      return { ...r, images, text: withImageNote(r.text, note) };
-    });
+    return inRunProject(
+      run,
+      body.project,
+      async () => {
+        const agent = bridgeAgent(run, body.agent);
+        const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
+        if (body.name === 'permission_prompt')
+          return {
+            text: JSON.stringify(
+              await claudePermission(agent, (body.args || {}) as unknown as PermissionRequest, ctx.runId),
+            ),
+          };
+        const r = tools.clipForModel(
+          await tools.callTool(agent, body.name, body.args || {}, ctx),
+          body.name,
+          ctx.runId,
+        );
+        // MCP takes pictures as data only: ComfyUI's result links are read here, so the agent sees them too
+        if (!r.images?.length) return r;
+        const { images, note } = await inlineToolImagesNoted(r.images);
+        return { ...r, images, text: withImageNote(r.text, note) };
+      },
+      body.run,
+    );
   },
 );
 
