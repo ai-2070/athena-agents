@@ -948,6 +948,7 @@ Completed reviews:
 - Trigger/evidence: save/refresh a URL returning an HTTP error, such as transient 500. Handler never checks `res.ok`, converts the response and saves under a deterministic filename.
 - Impact/expected: error text becomes authoritative knowledge and can replace a useful file while reporting success. Reject unsuccessful responses before writing.
 - Limits: no network request; inspected tests cover notes/folder links, not URL status.
+- Fixed: a knowledge URL that answers with an error is refused (502) before anything is written, so a copy saved earlier stays. Test in `tests/server/rpc-agents.test.ts`.
 
 ### BH-111 — Knowledge search snippets can omit every matching term
 

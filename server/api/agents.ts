@@ -191,6 +191,12 @@ export const agentsRouter = os.router({
         // (the download takes a while: the file goes to this project's agent, whichever project is open by then)
         return store.withProject(store.activeProject(), async () => {
           const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+          // (an error page is not the page: it never replaces a good copy saved before)
+          if (!res.ok)
+            return refuse(
+              `${url} answered ${res.status}${res.statusText ? ` ${res.statusText}` : ''}. Nothing was saved.`,
+              502,
+            );
           const text = await res.text();
           const file = name || new URL(url).hostname + new URL(url).pathname.replace(/\W+/g, '_') + '.md';
           return {
