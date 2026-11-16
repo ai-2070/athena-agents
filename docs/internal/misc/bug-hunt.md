@@ -987,6 +987,7 @@ Completed reviews:
 - Trigger/evidence: Stop during workflow loading, metadata lookup or image upload. Preparation/upload/submission neither receive nor recheck cancellation; first check is in polling after POST /prompt.
 - Impact/expected: remaining files transfer and GPU execution can begin despite Stop. Preserve cancellation through preparation, check before effects and reconcile accepted submission.
 - Limits: initial tool guard covers only entry; no Stop/service scenario executed.
+- Fixed: `runWorkflow()` checks Stop before each step (finding ComfyUI, loading the workflow, each upload, the submission), uploads take the run's signal, and a submission accepted while Stop came is taken back out of the queue at once (queued-only runs too). Tests in `tests/server/comfyui-run.test.ts`.
 
 ### BH-118 — Promoted subgraph widgets ignore supported named values
 

@@ -26,6 +26,9 @@ const uploads: Upload[] = [];
 const prompts: { prompt: ApiWorkflow }[] = [];
 let nodeErrors: Record<string, ComfyNodeError> = {};
 let outputs: Record<string, unknown> = {};
+// a test's hook as each request comes in (Stop pressed while ComfyUI is asked something), and what left the queue
+let onRequest: (route: string) => void = () => {};
+const takenBack: unknown[] = [];
 // what ComfyUI calls an upload: it renames one rather than replace a different file of the same name
 const renamed: Record<string, string> = { 'photo.png': 'photo (1).png' };
 
@@ -52,6 +55,7 @@ beforeAll(async () => {
       res.end(JSON.stringify(v));
     };
     const route = new URL(req.url || '/', 'http://x').pathname;
+    onRequest(route);
     if (route === '/system_stats') return json({ system: {}, devices: [] });
     if (route === '/object_info') return json(OBJECT_INFO);
     if (route === '/upload/image' || route === '/upload/mask') {
@@ -73,6 +77,7 @@ beforeAll(async () => {
     }
     if (route === '/history/job-1')
       return json({ 'job-1': { status: { status_str: 'success', completed: true }, outputs } });
+    if (route === '/queue' && req.method === 'POST') takenBack.push(JSON.parse(body.toString()));
     if (route === '/queue') return json({ queue_running: [], queue_pending: [] });
     json({}, 404);
   });
@@ -85,6 +90,8 @@ beforeEach(() => {
   uploads.length = 0;
   prompts.length = 0;
   nodeErrors = {};
+  onRequest = () => {};
+  takenBack.length = 0;
   outputs = { '9': { images: [{ filename: 'out_00001_.png', subfolder: '', type: 'output' }] } };
 });
 
@@ -252,6 +259,42 @@ describe('sending input pictures with a run', () => {
     } finally {
       saveSettings({ comfyui: { url: base } });
     }
+  });
+});
+
+describe('Stop', () => {
+  it('while it looks for ComfyUI: no picture is sent and nothing is queued', async () => {
+    const stop = new AbortController();
+    onRequest = (route) => route === '/system_stats' && stop.abort();
+    const r = await callTool(
+      agent,
+      'comfyui_run',
+      { workflow: 'img2img', images: [{ file: 'photo.png' }] },
+      {
+        signal: stop.signal,
+      },
+    );
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain('Stopped');
+    expect(uploads).toHaveLength(0);
+    expect(prompts).toHaveLength(0);
+  });
+
+  it('while a picture goes up: the next step never comes', async () => {
+    const stop = new AbortController();
+    onRequest = (route) => route === '/upload/image' && stop.abort();
+    await expect(
+      runWorkflow({ workflow: 'img2img', images: [{ file: path.join(workspace, 'photo.png') }], signal: stop.signal }),
+    ).rejects.toThrow('Stopped');
+    expect(prompts).toHaveLength(0);
+  });
+
+  it('while the work is sent: ComfyUI took it, so it comes back out of the queue', async () => {
+    const stop = new AbortController();
+    onRequest = (route) => route === '/prompt' && stop.abort();
+    await expect(runWorkflow({ workflow: 'img2img', signal: stop.signal })).rejects.toThrow('Stopped');
+    expect(prompts).toHaveLength(1);
+    expect(takenBack).toEqual([{ delete: ['job-1'] }]);
   });
 });
 

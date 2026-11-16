@@ -651,8 +651,15 @@ export async function runWorkflow({
   onProgress,
   signal,
 }: RunWorkflowOptions = {}): Promise<RunWorkflowQueued | RunWorkflowDone> {
+  // Stop counts at every step before the work is sent: no file goes over and nothing is queued after it
+  const halt = () => {
+    if (signal?.aborted) throw new Error('Stopped.');
+  };
+  halt();
   const url = await requireUrl();
+  halt();
   const { api, warnings, workflow: w } = await loadApiWorkflow(workflow, url);
+  halt();
   const p = findPromptNodes(api);
   if (prompt != null) {
     if (!p.promptInputs.length)
@@ -673,7 +680,8 @@ export async function runWorkflow({
   const targets = images.length ? await imageTargets(api, images, url) : [];
   const uploaded: ComfyUploaded[] = [];
   for (const t of targets) {
-    const value = await sendImage(url, t);
+    halt();
+    const value = await sendImage(url, t, signal ?? undefined);
     setInput(api, t.key, value);
     uploaded.push({ file: t.image.file, ...(t.image.mask ? { mask: t.image.mask } : {}), value, input: t.key });
   }
@@ -693,6 +701,7 @@ export async function runWorkflow({
     }
   }
   for (const n of Object.values(api)) delete n._meta;
+  halt();
   const clientId = crypto.randomUUID();
   const res = await fetchJSON<{ prompt_id: string; node_errors?: Record<string, ComfyNodeError> }>(`${url}/prompt`, {
     method: 'POST',
@@ -705,6 +714,11 @@ export async function runWorkflow({
     throw new Error(`ComfyUI rejected the workflow: ${err}`);
   });
   const promptId = res.prompt_id;
+  // (Stop while it was being sent: ComfyUI took it, so it is taken back out of the queue)
+  if (signal?.aborted) {
+    if (promptId) await cancelPrompt(url, promptId);
+    throw new Error('Stopped.');
+  }
   // A 200 answer can still list nodes that failed: ComfyUI runs the outputs that passed and drops the rest.
   const nodeErrors = res.node_errors && typeof res.node_errors === 'object' ? res.node_errors : {};
   if (!wait) return { promptId, queued: true as const, seeds, warnings, uploaded, nodeErrors };
@@ -863,6 +877,7 @@ async function upload(
   filename: string,
   bytes: Buffer,
   fields: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<string> {
   const form = new FormData();
   form.set('image', new Blob([new Uint8Array(bytes)]), filename);
@@ -870,7 +885,7 @@ async function upload(
   const r = await fetchJSON<{ name?: unknown; subfolder?: unknown }>(`${url}${route}`, {
     method: 'POST',
     body: form,
-    timeout: 120000,
+    signal: signal ? AbortSignal.any([AbortSignal.timeout(120000), signal]) : AbortSignal.timeout(120000),
   });
   if (!r || typeof r.name !== 'string') throw new Error(`ComfyUI's answer to ${filename} had no file name in it.`);
   // what a loader node's input takes: "subfolder/name" when it went into a subfolder
@@ -880,20 +895,31 @@ async function upload(
 // One picture into ComfyUI's input folder, and its mask onto it. ComfyUI renames an upload rather than replace a
 // different file of the same name, so the name it gives back is the one to use. The masked copy is a new file named
 // after the picture; the picture itself stays as it was.
-async function sendImage(url: string, { image, mask }: ImageTarget): Promise<string> {
-  const value = await upload(url, '/upload/image', path.basename(image.file), fs.readFileSync(image.file), {
-    type: 'input',
-  }).catch((e: Error) => {
+async function sendImage(url: string, { image, mask }: ImageTarget, signal?: AbortSignal): Promise<string> {
+  const value = await upload(
+    url,
+    '/upload/image',
+    path.basename(image.file),
+    fs.readFileSync(image.file),
+    { type: 'input' },
+    signal,
+  ).catch((e: Error) => {
+    if (signal?.aborted) throw new Error('Stopped.');
     throw new Error(`ComfyUI didn't take ${path.basename(image.file)}: ${e.message}`);
   });
   if (!mask) return value;
+  if (signal?.aborted) throw new Error('Stopped.');
   const slash = value.lastIndexOf('/');
   const ref = { filename: value.slice(slash + 1), subfolder: slash > 0 ? value.slice(0, slash) : '', type: 'input' };
-  return upload(url, '/upload/mask', `${ref.filename.replace(/\.[^.]+$/, '')}-mask.png`, mask.png, {
-    type: 'input',
-    subfolder: ref.subfolder,
-    original_ref: JSON.stringify(ref),
-  }).catch((e: Error) => {
+  return upload(
+    url,
+    '/upload/mask',
+    `${ref.filename.replace(/\.[^.]+$/, '')}-mask.png`,
+    mask.png,
+    { type: 'input', subfolder: ref.subfolder, original_ref: JSON.stringify(ref) },
+    signal,
+  ).catch((e: Error) => {
+    if (signal?.aborted) throw new Error('Stopped.');
     throw new Error(`ComfyUI couldn't put the mask onto ${value} (the two have to be the same size): ${e.message}`);
   });
 }
