@@ -534,6 +534,7 @@ export function attachTray({
     if (it.path) forget(it.path);
     withDone(Object.assign(it, { state: 'waiting', error: null, path: null, sent: 0 }));
   };
+  let sending: Item[] | null = null;
   const ready = async (): Promise<string[] | null> => {
     items.filter((it) => it.state === 'error').forEach(retry);
     // until nothing is left to upload: files added while waiting are included too
@@ -556,7 +557,9 @@ export function attachTray({
       );
       return null;
     }
-    return items.map((it) => it.path).filter((p): p is string => !!p);
+    // (what this message carries: take() takes these, not files that finish after it while it is being sent)
+    sending = items.filter((it) => !!it.path);
+    return sending.map((it) => it.path!);
   };
 
   const dropZone = (zone: HTMLElement, label = 'Drop files or folders to attach') => {
@@ -600,12 +603,17 @@ export function attachTray({
     const leave = (e: DragEvent) => {
       if (!zone.contains(e.relatedTarget as Node | null)) show(false);
     };
+    // (a folder takes a while to read: once the chat that took it is closed, what it finds goes nowhere)
+    let closed = false;
+    const addOpen = (files: PickedFile[]) => {
+      if (!closed) add(files);
+    };
     const drop = (e: DragEvent) => {
       if (!hasFiles(e)) return;
       e.preventDefault();
       e.stopPropagation();
       show(false);
-      void filesFromDrop(e.dataTransfer!).then(add);
+      void filesFromDrop(e.dataTransfer!).then(addOpen);
     };
     // Ctrl+V / ⌘V anywhere inside, the message box included; plain text pastes as usual
     const paste = (e: ClipboardEvent) => {
@@ -613,7 +621,7 @@ export function attachTray({
       const files = filesFromPaste(e.clipboardData);
       if (!files) return;
       e.preventDefault();
-      void files.then(add);
+      void files.then(addOpen);
     };
     zone.addEventListener('dragenter', over);
     zone.addEventListener('dragover', over);
@@ -621,6 +629,7 @@ export function attachTray({
     zone.addEventListener('drop', drop);
     zone.addEventListener('paste', paste);
     return () => {
+      closed = true;
       show(false);
       zone.removeEventListener('dragenter', over);
       zone.removeEventListener('dragover', over);
@@ -640,12 +649,30 @@ export function attachTray({
     busy: () => items.some((it) => it.state === 'uploading' || (!deferred && it.state === 'waiting')),
     ready,
     take: () => {
-      const out = items.filter((it) => it.state === 'done');
-      items = items.filter((it) => it.state !== 'done');
+      const mine = sending ? new Set(sending) : null;
+      sending = null;
+      const taken = (it: Item) => it.state === 'done' && (!mine || mine.has(it));
+      const out = items.filter(taken);
+      items = items.filter((it) => !taken(it));
+      // (a picture's preview is let go once it is sent: one put back after a failed send gets a new one)
+      for (const it of out)
+        if (it.preview) {
+          URL.revokeObjectURL(it.preview);
+          it.preview = null;
+        }
       redraw();
       return out;
     },
     put: (back) => {
+      for (const it of back)
+        if (
+          !it.preview &&
+          it.kind === 'file' &&
+          IMAGE.test(it.name) &&
+          it.picked[0] &&
+          it.picked[0].file.size < 20_000_000
+        )
+          it.preview = URL.createObjectURL(it.picked[0].file);
       items = [...back, ...items];
       redraw();
     },

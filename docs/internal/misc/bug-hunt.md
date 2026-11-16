@@ -1322,6 +1322,7 @@ Completed reviews:
 - Trigger/evidence: ready snapshots A; add/finish B while first-chat/task creation awaits. take later removes every currently completed item, although request contained only A.
 - Impact/expected: B disappears unsent and unavailable for next message. Consume precisely snapshot-owned items.
 - Limits: both consumer awaits traced; no browser scenario.
+- Fixed: `take()` takes the items the last `ready()` sent, so a file that finished while the message was on its way stays for the next one. Test in `tests/web/attach-tray.test.ts`.
 
 ### BH-150 — Closed drop zones keep processing folders and start abandoned uploads
 
@@ -1330,6 +1331,7 @@ Completed reviews:
 - Trigger/evidence: close chat while filesFromDrop walks a folder. Cleanup discards current items/listeners, but promise later calls add and starts uploads.
 - Impact/expected: files enter an abandoned tray without composer or later discard. Invalidate pending drop/paste processing when owner disposes.
 - Limits: no folder walk/upload scenario executed.
+- Fixed: files a drop or paste finds after its drop zone was closed are not added (nor uploaded). Test in `tests/web/attach-tray.test.ts`.
 
 ### BH-151 — Successfully consumed image attachments leak their object URLs
 
@@ -1338,6 +1340,7 @@ Completed reviews:
 - Trigger/evidence: repeatedly send images successfully. take removes items without revoking URLs; consumers never release them, and later clear/discard sees only remaining items.
 - Impact/expected: registered Blobs persist until page unload. Release accepted-send resources while allowing failed-send restoration.
 - Limits: browser memory not measured.
+- Fixed: a sent picture's preview URL is let go when it is taken; one put back after a failed send gets a new one. No test of its own.
 
 ### BH-152 — Partially successful preview boxes never retry missing files
 

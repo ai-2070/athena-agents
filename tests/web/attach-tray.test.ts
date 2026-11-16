@@ -184,6 +184,18 @@ describe('attachTray()', () => {
     expect(tray.count()).toBe(1);
   });
 
+  it('take() takes what ready() sent, not a file that finished after it while the message went', async () => {
+    const tray = attachTray();
+    tray.add(files('a.txt'));
+    await finishAll();
+    expect(await tray.ready()).toEqual(['/up/a.txt']);
+    // while the message is on its way (a new chat being made), another file is added and finishes
+    tray.add(files('b.txt'));
+    await finishAll();
+    expect(tray.take().map((it) => it.path)).toEqual(['/up/a.txt']);
+    expect(tray.count()).toBe(1);
+  });
+
   it('a deferred tray uploads on ready(), including files added meanwhile', async () => {
     const tray = attachTray({ deferred: true });
     tray.add(files('a.txt'));
@@ -237,6 +249,21 @@ describe('pasting into a chat', () => {
     expect(paste(input, clip({}, [new File(['x'], 'b.txt')])).defaultPrevented).toBe(false);
     await flush();
     expect(tray.count()).toBe(1);
+  });
+
+  it('a file pasted into a chat closed before it was read goes nowhere', async () => {
+    const tray = attachTray();
+    const zone = document.createElement('div');
+    const input = document.createElement('textarea');
+    zone.append(input);
+    document.body.append(zone);
+    const stop = tray.dropZone(zone);
+    paste(input, clip({}, [new File(['x'], 'image.png', { type: 'image/png' })]));
+    // closed at once, before the pasted file is read
+    stop();
+    await flush();
+    expect(tray.count()).toBe(0);
+    expect(open()).toHaveLength(0);
   });
 });
 
