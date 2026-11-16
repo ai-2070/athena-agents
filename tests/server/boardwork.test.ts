@@ -445,6 +445,22 @@ describe('the Brain picks up its task', () => {
   });
 });
 
+describe('Start', () => {
+  it('moves a card in To do or Blocked to In progress, where the board follows its work', async () => {
+    const agent = newAgent({ name: 'Starter' });
+    const todo = addBoardTask(project(), { title: 'From To do', assignee: `agent:${agent.id}` });
+    expect((await startWork(project(), todo.id)).status).toBe('in_progress');
+    const blocked = addBoardTask(project(), { title: 'From Blocked', assignee: `agent:${agent.id}` });
+    editBoardTask(project(), blocked.id, (t) => {
+      t.status = 'blocked';
+      t.blockedReason = 'Waiting for the logo';
+    });
+    const card = await startWork(project(), blocked.id);
+    expect(card.status).toBe('in_progress');
+    expect(task(blocked.id).blockedReason).toBeUndefined();
+  });
+});
+
 describe("the worker's tools", () => {
   it('a reply whose task was moved to Done while its files were copied changes nothing', async () => {
     const agent = newAgent({ name: 'Slow replier' });

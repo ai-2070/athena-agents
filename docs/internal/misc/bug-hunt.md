@@ -183,6 +183,7 @@ Completed reviews:
 - Trigger/evidence: start an assigned To do/Blocked task from its page. Work starts without changing status/blocked reason; automatic settlement advances only In progress cards.
 - Impact/expected: board and execution disagree, including after success. Explicit Start should transition into execution state.
 - Limits: static caller-to-settlement trace; no task launched.
+- Fixed: Start on a task in To do or Blocked moves it to In progress (and clears its blocked reason) as the work is claimed. Test in `tests/server/boardwork.test.ts`.
 
 ### BH-018 — Superseded workers can overwrite task state after file copying
 

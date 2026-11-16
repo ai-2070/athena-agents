@@ -132,6 +132,11 @@ export async function startWork(projectId: string, taskId: string): Promise<Boar
         startedAt: Date.now(),
         state: 'starting',
       };
+      // Start on a card in To do or Blocked moves it to In progress, where the board follows the work it started
+      if (task.status === 'todo' || task.status === 'blocked') {
+        task.status = 'in_progress';
+        delete task.blockedReason;
+      }
       claimed.task = structuredClone(task);
     });
     if (!claimed.task) return saved;
