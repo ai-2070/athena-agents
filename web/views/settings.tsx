@@ -235,6 +235,21 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
       </Section>
 
       <Section
+        title={<IconLabel icon="history">Session search</IconLabel>}
+        description="Let agents look things up in every saved session of the project, not only their own."
+      >
+        <SavedSwitch
+          field="sessionSearch"
+          initial={s.sessionSearch === true}
+          on="Every agent, team and the Brain can search all sessions"
+          off="Agents search only their own chats and their teams"
+          reload={reload}
+          title="Search all sessions"
+          description="On: every agent, every team member and the Brain get search_sessions and read_session, to find and read what was said and done in any agent chat, team thread or Brain conversation in this project. Off: agents can only look up their own chats and the teams they belong to. Chats with people writing in from Telegram, Discord and other gateways are never included."
+        />
+      </Section>
+
+      <Section
         title="Defaults for new agents"
         description="What a new agent starts with. You can change it for each agent."
       >
@@ -591,7 +606,7 @@ function SavedSwitch({
   title,
   description,
 }: {
-  field: 'brainApproves' | 'brainAnyGitHub' | 'brainFollowsUp';
+  field: 'brainApproves' | 'brainAnyGitHub' | 'brainFollowsUp' | 'sessionSearch';
   initial: boolean;
   on: string;
   off: string;

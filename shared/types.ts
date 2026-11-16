@@ -1355,6 +1355,57 @@ export interface ConversationReadResult {
   nextOffset: number | null;
 }
 
+/** Session search (Settings › Session search): every saved session in the project, not only the caller's own.
+ *  An agent chat's owner is its agent id, a team thread's its team id; the Brain's owner is "brain". */
+export type SessionSource = 'agent' | 'team' | 'brain';
+
+export interface SessionSearch {
+  query: string;
+  source?: SessionSource;
+  owner?: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface SessionHit {
+  source: SessionSource;
+  owner: string;
+  ownerName: string;
+  sessionId: string;
+  title: string;
+  messageId: string;
+  author: string;
+  ts: number;
+  excerpt: string;
+}
+
+export interface SessionSearchResult {
+  hits: SessionHit[];
+  total: number;
+  nextOffset: number | null;
+}
+
+export interface SessionRead {
+  source: SessionSource;
+  owner: string;
+  sessionId: string;
+  messageId: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface SessionReadResult {
+  source: SessionSource;
+  owner: string;
+  sessionId: string;
+  messageId: string;
+  title: string;
+  text: string;
+  totalChars: number;
+  offset: number;
+  nextOffset: number | null;
+}
+
 /** A read-only marker reported by the engine that owns the session. */
 export type CompactionMode = 'engine';
 export type CompactionTrigger = 'auto' | 'manual' | 'overflow';
@@ -1704,6 +1755,8 @@ export interface Settings {
   brainFollowsUp: boolean;
   /** What the Brain may do with the tools of the MCP servers that are on (see BrainToolAccess). */
   brainTools: BrainToolAccess;
+  /** Every agent, team and the Brain can search and read all saved sessions in the project. Off by default. */
+  sessionSearch: boolean;
   look: LookSetting;
   telegram: { chatId: string };
   maxToolSteps: number;

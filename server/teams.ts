@@ -203,6 +203,12 @@ export function teamMessages(teamId: string): TeamMessage[] {
   return loadChat(teamId).messages;
 }
 
+/** The open conversation's id (none until something is said in it) and its full transcript. */
+export function currentTeamThread(teamId: string): { id?: string; createdAt?: number; messages: TeamMessage[] } {
+  const c = loadChat(teamId);
+  return { id: c.id, createdAt: c.createdAt, messages: c.messages };
+}
+
 // ---------- who is working ----------
 // Kept per project: a copied project has the same team ids, but its teams are other teams.
 const rt = new Map<string, Runtime>(); // `<project id>/<team id>` -> { queue: [{agentId, msgIds}], running: Set, episode: {turns}, stopped }
