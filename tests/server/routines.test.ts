@@ -259,6 +259,25 @@ describe('a routine', () => {
     await expect(startRoutine(r.id)).rejects.toThrow(/Mention at least one agent or team/);
   });
 
+  it("runs a project's schedule while another project is open", async () => {
+    const { activeProject, setActiveProject, withProject } = await import('../../server/store.ts');
+    const { createProject } = await import('../../server/projects.ts');
+    const home = activeProject();
+    const r = saveRoutine({
+      name: 'Elsewhere',
+      text: 'Do it.',
+      schedule: { type: 'interval', minutes: 5 },
+      enabled: true,
+    });
+    await createProject({ name: 'Open meanwhile', mode: 'new' });
+    try {
+      checkRoutineSchedules(Date.now() + 3_600_000);
+      expect(withProject(home, () => getRoutine(r.id)?.lastScheduledAt)).toBeGreaterThan(0);
+    } finally {
+      setActiveProject(home.id);
+    }
+  });
+
   it('will not run without an agent or a team', async () => {
     const r = saveRoutine({ name: 'Nobody', text: 'Do something.' });
     await expect(startRoutine(r.id)).rejects.toThrow(/Mention at least one agent or team/);

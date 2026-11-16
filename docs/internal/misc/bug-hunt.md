@@ -219,6 +219,7 @@ Completed reviews:
 - Trigger/evidence: enable A's schedule and leave B open past its time. Schedulers enumerate active-project collections only; daily work can pass the one-hour catch-up window.
 - Impact/expected: background schedules are skipped if they are intended to be project-independent.
 - Limits: no documented open-project-only rule found; source trace, not runtime.
+- Fixed: routine and workflow schedules are checked in every project (each run in its own project), not only the open one; the guide says so. Test in `tests/server/routines.test.ts`.
 
 ### BH-022 — Entirely unsuccessful routines can be Done
 

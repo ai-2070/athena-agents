@@ -290,15 +290,19 @@ export function markInterruptedRoutines() {
   }
 }
 
+// Every project's schedules, not only the open one's: each routine runs in its own project.
 export function checkRoutineSchedules(now = Date.now()) {
-  for (const r of routines.list()) {
-    if (!due(r, now)) continue;
-    r.lastScheduledAt = now;
-    routines.save(r);
-    startRoutine(r.id, { trigger: 'schedule', input: r.schedule?.input || '' }).catch((e: unknown) =>
-      log('error', `Scheduled routine "${r.name}": ${(e as Error).message}`),
-    );
-  }
+  for (const p of listProjects())
+    withProject(p, () => {
+      for (const r of routines.list()) {
+        if (!due(r, now)) continue;
+        r.lastScheduledAt = now;
+        routines.save(r);
+        startRoutine(r.id, { trigger: 'schedule', input: r.schedule?.input || '' }).catch((e: unknown) =>
+          log('error', `Scheduled routine "${r.name}": ${(e as Error).message}`),
+        );
+      }
+    });
 }
 
 export function startRoutineScheduler() {

@@ -297,27 +297,33 @@ export function due(
 }
 
 export function startScheduler() {
-  setInterval(() => {
-    const now = Date.now();
-    for (const wf of workflows.list() as Workflow[]) {
-      if (!due(wf, now)) continue;
-      wf.lastScheduledAt = now;
-      workflows.save(wf);
-      // a step list runs its steps; a team gets its routine message in the team chat
-      if (isStepList(wf)) {
-        startWorkflow(wf.id, wf.schedule!.input || '', { trigger: 'schedule' }).catch((e: unknown) =>
-          log('error', `Scheduled workflow "${wf.name}": ${(e as Error).message}`),
-        );
-        continue;
-      }
-      const team = normalize(wf);
-      postUserMessage(
-        team.id,
-        wf.schedule!.input || `Scheduled check-in: ${team.description || 'do your routine work'}`,
-        { route: pickMember },
-      ).catch((e: unknown) => log('error', `Scheduled team "${wf.name}": ${(e as Error).message}`));
+  setInterval(() => checkWorkflowSchedules(), 30_000).unref();
+}
+
+// Every project's schedules, not only the open one's: each runs in its own project.
+export function checkWorkflowSchedules(now = Date.now()): void {
+  for (const p of listProjects()) withProject(p, () => checkSchedulesHere(now));
+}
+
+function checkSchedulesHere(now: number): void {
+  for (const wf of workflows.list() as Workflow[]) {
+    if (!due(wf, now)) continue;
+    wf.lastScheduledAt = now;
+    workflows.save(wf);
+    // a step list runs its steps; a team gets its routine message in the team chat
+    if (isStepList(wf)) {
+      startWorkflow(wf.id, wf.schedule!.input || '', { trigger: 'schedule' }).catch((e: unknown) =>
+        log('error', `Scheduled workflow "${wf.name}": ${(e as Error).message}`),
+      );
+      continue;
     }
-  }, 30_000).unref();
+    const team = normalize(wf);
+    postUserMessage(
+      team.id,
+      wf.schedule!.input || `Scheduled check-in: ${team.description || 'do your routine work'}`,
+      { route: pickMember },
+    ).catch((e: unknown) => log('error', `Scheduled team "${wf.name}": ${(e as Error).message}`));
+  }
 }
 
 export const TEMPLATES: WorkflowTemplate[] = [
