@@ -312,3 +312,110 @@ describe('the social tools', () => {
     expect(prompt).toContain('replies and DMs always wait');
   });
 });
+
+describe('the Outbox, one decision at a time', () => {
+  const tweets = () => calls.filter((c) => c.url.endsWith('/tweets'));
+
+  it('never posts a draft you rejected, whatever an older tab still shows', async () => {
+    accounts();
+    const p = await social.draftPost({ platform: 'x', text: 'Not this one' });
+    social.rejectPost(p.id, 'no');
+    await expect(social.approvePost(p.id)).rejects.toThrow(/rejected/);
+    expect(tweets()).toHaveLength(0);
+  });
+
+  it('refuses to approve a post with nothing left in it', async () => {
+    accounts();
+    const p = await social.draftPost({ platform: 'x', text: 'Something' });
+    await expect(social.approvePost(p.id, { parts: ['  ', ''] })).rejects.toThrow(/nothing to post/);
+    expect(tweets()).toHaveLength(0);
+    expect(social.listPosts().find((x) => x.id === p.id)?.status).toBe('pending');
+  });
+
+  it('posts the link you edited on a Reddit link post', async () => {
+    accounts();
+    const p = await social.draftPost({
+      platform: 'reddit',
+      subreddit: 'test',
+      title: 'Look',
+      link: 'https://old.example/a',
+    });
+    const r = await social.approvePost(p.id, { parts: ['https://new.example/b'] });
+    expect(r.status).toBe('posted');
+    expect(calls.find((c) => c.url.endsWith('/api/submit'))!.body).toMatchObject({
+      kind: 'link',
+      url: 'https://new.example/b',
+    });
+    const q = await social.draftPost({
+      platform: 'reddit',
+      subreddit: 'test',
+      title: 'Look',
+      link: 'https://old.example/a',
+    });
+    expect(() => social.editPost(q.id, { parts: ['not a link'] })).toThrow(/web address/);
+  });
+
+  it("can't be changed, rejected or removed while it is being posted", async () => {
+    accounts();
+    const p = await social.draftPost({ platform: 'x', text: 'Slow one' });
+    let release = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const real = globalThis.fetch;
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url === 'https://api.x.com/2/tweets') await gate;
+      return real(url, init);
+    });
+    const posting = social.approvePost(p.id);
+    await vi.waitFor(() => expect(social.listPosts().find((x) => x.id === p.id)?.status).toBe('posting'));
+    expect(() => social.editPost(p.id, { parts: ['Changed'] })).toThrow(/being sent/);
+    expect(() => social.rejectPost(p.id)).toThrow(/being sent/);
+    expect(() => social.removePost(p.id)).toThrow(/being sent/);
+    release();
+    expect((await posting).status).toBe('posted');
+    expect(social.listPosts().find((x) => x.id === p.id)?.parts).toEqual(['Slow one']);
+  });
+
+  it('a draft being sent back to its team is not posted meanwhile, nor sent back twice', async () => {
+    accounts();
+    const p = await social.draftPost({
+      platform: 'x',
+      text: 'Rework me',
+      agentName: 'Writer',
+    });
+    const { outbox } = await import('../../server/store.ts');
+    outbox.save({ ...outbox.get(p.id)!, teamId: 't1', teamName: 'Crew' });
+    let release = () => {};
+    const told: string[] = [];
+    const send = (_team: string, text: string) => (told.push(text), new Promise<void>((r) => (release = r)));
+    const returning = social.returnPost(p.id, 'Shorter please', send);
+    await vi.waitFor(() => expect(told).toHaveLength(1));
+    await expect(social.approvePost(p.id)).rejects.toThrow(/already being published|being sent/);
+    await expect(social.returnPost(p.id, 'Again', send)).rejects.toThrow(/being sent/);
+    release();
+    expect((await returning).status).toBe('returned');
+    expect(told).toHaveLength(1);
+    expect(tweets()).toHaveLength(0);
+  });
+
+  it('keeps the posted part of a thread as it was posted when the rest is edited', async () => {
+    accounts();
+    const p = await social.draftPost({ platform: 'x', text: 'A' });
+    const { outbox } = await import('../../server/store.ts');
+    outbox.save({ ...outbox.get(p.id)!, parts: ['A', 'B', 'C'], postIds: ['1'], status: 'failed' });
+    const edited = social.editPost(p.id, { parts: ['A changed', 'B2'] });
+    expect(edited.parts).toEqual(['A', 'B2']);
+  });
+
+  it('a post left "posting" when the dashboard stopped is shown as failed, saying how far it got', async () => {
+    accounts();
+    const p = await social.draftPost({ platform: 'x', text: 'A' });
+    const { outbox } = await import('../../server/store.ts');
+    outbox.save({ ...outbox.get(p.id)!, parts: ['A', 'B'], postIds: ['1'], status: 'posting' });
+    const shown = social.listPosts().find((x) => x.id === p.id)!;
+    expect(shown.status).toBe('failed');
+    expect(shown.error).toMatch(/1 of 2 parts are on X/);
+    // approving again goes on after the part that is posted
+    expect((await social.approvePost(p.id)).status).toBe('posted');
+    expect(tweets()).toHaveLength(1);
+  });
+});

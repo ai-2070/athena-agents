@@ -657,6 +657,7 @@ Completed reviews:
 - Trigger/evidence: `[A,B,C]` fails after A posts; save edits `[B,C]`. Complete replacement leaves one `postIds` receipt, so retry skips B. Editing A without removing it also changes local transcript but not public text.
 - Impact/expected: retries omit intended parts or history misrepresents published content. Preserve the immutable prefix as approval already does.
 - Limits: no provider call.
+- Fixed: editing a thread keeps the parts already posted as they were (`editedParts()`, as approval did). Test in `tests/server/social-posting.test.ts`.
 
 ### BH-075 — Publishing overwrites concurrent edit/reject/remove decisions
 
@@ -665,6 +666,7 @@ Completed reviews:
 - Trigger/evidence: mutate X/Reddit card during pending provider request. Only approvals use `publishing`; gateway-only mutation guard returns for social. Publisher later saves its stale object.
 - Impact/expected: edits/rejection vanish or removed cards reappear. Refuse/reconcile competing lifecycle mutations.
 - Limits: UI exposes Remove during posting; timing untested.
+- Fixed: while an X or Reddit post is being published or sent back, editing, rejecting, removing or approving it again is refused (`assertNotBusy()`). Test in `tests/server/social-posting.test.ts`.
 
 ### BH-076 — Stale approval still publishes rejected/returned drafts
 
@@ -673,6 +675,7 @@ Completed reviews:
 - Trigger/evidence: another tab's stale approval arrives after rejection/return. Approval short-circuits only `posted`, without requiring pending/failed.
 - Impact/expected: externally sends content after a terminal user decision. Revalidate allowed lifecycle state.
 - Limits: no provider call or race execution.
+- Fixed: approval only posts a draft that is pending or failed; a rejected or sent-back one is refused. Test in `tests/server/social-posting.test.ts`.
 
 ### BH-077 — Asynchronous return does not claim the draft
 
@@ -681,6 +684,7 @@ Completed reviews:
 - Trigger/evidence: returning feedback awaits team routing while draft remains pending; approval publishes meanwhile. Return saves stale `returned` object, overwriting status/receipts. Concurrent returns also duplicate feedback.
 - Impact/expected: contradictory publication records or duplicate feedback. Claim/revalidate across asynchronous delivery.
 - Limits: route may await member choice; no model/platform call.
+- Fixed: sending a draft back claims it until the team has been told, so it cannot be approved or sent back twice meanwhile. Test in `tests/server/social-posting.test.ts`.
 
 ### BH-078 — Empty X approval reports a nonexistent post as published
 
@@ -689,6 +693,7 @@ Completed reviews:
 - Trigger/evidence: clear every textarea and approve. Filtering leaves no parts; length check succeeds, publish loops zero times and returns `/status/undefined`.
 - Impact/expected: card becomes posted though no tweet/image was sent. Reject empty approval as drafting already does.
 - Limits: source trace only; no publication.
+- Fixed: an X post or DM with nothing left in it is refused before anything is marked posting. Test in `tests/server/social-posting.test.ts`.
 
 ### BH-079 — Reddit link edits publish the old URL
 
@@ -697,6 +702,7 @@ Completed reviews:
 - Trigger/evidence: edit visible URL on a link draft. Editor changes `parts`, while publisher prefers unchanged `reddit.link`.
 - Impact/expected: original URL is published although saved/displayed parts show replacement. Synchronize link state or do not expose misleading edits.
 - Limits: no Reddit request.
+- Fixed: editing a Reddit link post's text changes the link that is posted (and must be one web address). Test in `tests/server/social-posting.test.ts`.
 
 ### BH-080 — Interrupted social publications remain stranded in Posting
 
@@ -705,6 +711,7 @@ Completed reviews:
 - Trigger/evidence: interrupt process after durable `posting`. In-memory lock disappears, startup never reconciles social Outbox, and only pending/failed cards show approval/retry.
 - Impact/expected: partial threads with saved continuation receipts remain in Waiting with Remove rather than actionable recovery. Classify unfinished/uncertain posting without blindly resending.
 - Limits: no process interruption or provider interaction.
+- Fixed: a post left "posting" with nothing sending it becomes failed when listed or acted on, saying how many X parts are posted (approving continues from there) or that a Reddit post or DM may have gone out. Test in `tests/server/social-posting.test.ts`.
 
 ### BH-081 — Old X refresh responses overwrite a new sign-in
 
