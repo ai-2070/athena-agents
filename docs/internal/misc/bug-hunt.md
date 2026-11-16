@@ -374,6 +374,7 @@ Completed reviews:
 - Trigger/evidence: unread “write a summary” and “summary”; replay echoes only the first UUID. Text fallback marks both read and removes both pending deliveries.
 - Impact/expected: an unconsumed instruction appears consumed and can be lost to recovery. Combined replay acknowledgement needs unambiguous identity.
 - Limits: separate-message replay source trace; no process run.
+- Fixed: a Claude echo marks another waiting message read only when that message is a whole line-bounded part of it, so "summary" is not read by "write a summary". Test in `tests/server/claude-steer.test.ts`.
 
 ### BH-040 — CLI recovery omits pending terminal memory reset
 

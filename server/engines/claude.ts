@@ -340,9 +340,11 @@ async function runClaude({
       // it read a message sent while it worked: the chat shows it here. (One echo may carry several
       // messages that waited together: the others count as read too.)
       if (msg.uuid === first) return;
-      const said = echoedText(msg.message?.content);
+      // (the messages that waited together are joined by line breaks: one counts as read only when it is a whole
+      // part of the echo, so "summary" isn't read by "write a summary")
+      const said = `\n${echoedText(msg.message?.content)}\n`;
       for (const [uuid, m] of [...input.unread])
-        if (uuid === msg.uuid || (!!m.text && said.includes(m.text))) input.read(uuid);
+        if (uuid === msg.uuid || (!!m.text && said.includes(`\n${m.text}\n`))) input.read(uuid);
       return;
     }
     if (msg.type === 'stream_event') {
