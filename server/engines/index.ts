@@ -841,9 +841,10 @@ export function startRun(
   const onEventIn = (ev: RunEvent) => {
     if (ev.kind === 'text' || ev.kind === 'tool') heard = true;
     if (ev.kind === 'steer') {
-      // the engine read a message sent while it worked: it shows here, where it came in (and no longer waits to go next)
+      // the engine read a message sent while it worked: it shows here, where it came in (and no longer waits to go
+      // next). Saved in the chat before it leaves the queue: a crash in between keeps it somewhere (recovery drops a
+      // queued copy the chat already has)
       entry.unread?.delete(ev.id);
-      if (depth === 0) unqueue(chat.id, ev.id, project.id);
       current = null;
       pushItem(chat, {
         type: 'steer',
@@ -855,6 +856,7 @@ export function startRun(
         ...(ev.teamMessageId ? { teamMessageId: ev.teamMessageId } : {}),
       });
       persist();
+      if (depth === 0) unqueue(chat.id, ev.id, project.id);
     } else if (ev.kind === 'text') {
       if (!current) current = pushItem(chat, { type: 'assistant', text: '' });
       current.text += ev.text;
@@ -1516,8 +1518,16 @@ export function recoverExecution(): void {
       continue;
     }
     if (queue.paused) stopChatWork(queue.chatId, project.id);
-    // (one a run had been sent and not read: that run is gone, so it is an ordinary queued message now)
-    const items = queue.items.map((q) => (q.reading ? (({ reading: _, ...rest }) => rest)(q) : q));
+    // (one a run had been sent and not read: that run is gone, so it is an ordinary queued message now. One the chat
+    // shows as read already was read: the server ended before it left the queue)
+    const read = new Set(
+      withProject(project, () =>
+        (chats.get(queue.agentId, queue.chatId)?.items || []).flatMap((i) => (i.type === 'steer' ? [i.steerId] : [])),
+      ),
+    );
+    const items = queue.items
+      .filter((q) => !(q.reading && read.has(q.id)))
+      .map((q) => (q.reading ? (({ reading: _, ...rest }) => rest)(q) : q));
     if (items.length)
       waiting.set(chatKey(project.id, queue.chatId), {
         agentId: queue.agentId,

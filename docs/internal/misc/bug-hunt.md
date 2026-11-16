@@ -380,6 +380,7 @@ Completed reviews:
 - Trigger/evidence: crash after acknowledgement durably unqueues but before saving its transcript receipt. Execution contains only initial input; recovery discards interrupted CLI sessions and reseeds from saved chat.
 - Impact/expected: acknowledged instructions vanish from both pending work and history. Keep a recoverable receipt across that write boundary.
 - Limits: no crash induced.
+- Fixed: a message the engine read is saved in the chat before it leaves the queue, and recovery drops a queued copy the chat already shows as read, so a crash in between neither loses nor repeats it. Test in `tests/server/execution.test.ts` (the crash itself was not run).
 
 ### BH-042 — Team search ignores archived conversations
 
