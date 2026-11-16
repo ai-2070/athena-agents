@@ -1,6 +1,6 @@
 # Bug hunt
 
-Started: 2026-11-16. Updated after all twelve subagent reviews completed.
+Started: 2026-11-16. Twelve reviews completed; two additional reviews are running.
 
 Investigation only: no application code changed. This is an accumulating concern log, not a claim of exhaustive coverage or patch-introduced regressions.
 
@@ -15,7 +15,7 @@ Investigation only: no application code changed. This is an accumulating concern
 
 ## Review coverage
 
-All twelve reviews completed:
+Completed reviews:
 
 - StorageBugs: storage, project isolation, portable saves, backup/restore.
 - TaskLifecycleBugs: board work, routines, workflows, cancellation and scheduling.
@@ -29,7 +29,9 @@ All twelve reviews completed:
 - DesktopLifecycleBugs: startup/shutdown, tray, updater and packaging.
 - BrainOrchestrationBugs: routing, handoffs, completion evidence and project ownership.
 - SocialPostingBugs: OAuth, account refresh, Outbox publication, retry and lifecycle.
-- Parent review: shared text/mention helpers, archive search and selected finding traces.
+- KnowledgeDocumentBugs (running): knowledge caching/access, document extraction and PDF worker lifecycle.
+- TerminalCommandBugs (running): terminal ownership, shell execution, timeouts and cleanup.
+- Parent review: shared text/mention helpers, archive search, memory persistence and selected finding traces.
 
 ## Findings
 
@@ -696,3 +698,19 @@ All twelve reviews completed:
 - Trigger/evidence: refresh receives an HTTP-success document containing OAuth `error`. Callback checks `tok.error`, refresh does not; it can persist undefined token with future expiry.
 - Impact/expected: later calls send `Bearer undefined` instead of exposing refresh failure. Validate the token/error response before saving.
 - Limits: discrepancy/control flow confirmed; whether current Reddit refresh failures use this response shape is unverified. No provider request.
+
+### BH-084 — Memory reads and writes miss ancestor symlink escapes
+
+- Reporter: parent. Severity: medium. Status: source-confirmed containment omission; no filesystem payload executed.
+- Sources: `server/memory.ts:34-40,51-65,97-128,178-194`; `server/engines/index.ts:660`; `server/overseer.ts:3045`.
+- Trigger/evidence: replace a memory owner directory with a junction/symlink to an outside directory containing MEMORY.md. `plainFile()` checks only the final file, so reads accept it through the linked ancestor. For writes, link the enclosing `memory` directory instead: immediate owner/file checks do not inspect that ancestor.
+- Impact/expected: outside contents can enter agent/Brain instructions, and writes can replace an outside MEMORY.md. Resolve and validate the complete destination against the intended data root, not only final components.
+- Limits: requires filesystem control over the data-tree link and destination permissions; not an unauthenticated remote attack. Ordinary leaf-link coverage (`tests/server/memory.test.ts:125-133`) does not cover ancestor links. No read/write scenario run.
+
+### BH-085 — Memory import writes through an existing file symlink
+
+- Reporter: parent. Severity: medium. Status: source-confirmed import/write mismatch; not reproduced.
+- Sources: `server/memory.ts:155-161`; `server/projectsync.ts:500`; `server/backup.ts:1012`; contrasting ordinary write guard `server/memory.ts:110-115`.
+- Trigger/evidence: a restore destination has a plain owner directory but MEMORY.md itself is a symlink to an outside file. `putMemory()` checks only the directory, then `writeFileSync()` follows the file link. Its folder/backup callers use that helper.
+- Impact/expected: import can overwrite the outside target with restored memory despite the ordinary editor rejecting that link. Apply equivalent destination safety to import.
+- Limits: requires an already-planted destination link (or concurrent filesystem control over a new restore destination) plus target write permission. This does not claim that a backup archive alone can create the link; no restore or symlink executed.
