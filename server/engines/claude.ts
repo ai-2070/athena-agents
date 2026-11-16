@@ -297,6 +297,7 @@ async function runClaude({
   });
   const onAbort = () => killTree(child);
   signal.addEventListener('abort', onAbort);
+  if (signal.aborted) onAbort();
 
   let buf = '';
   let stderr = '';

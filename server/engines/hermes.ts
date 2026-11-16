@@ -73,6 +73,7 @@ export async function run({ agent, chat, text, signal, onEvent, systemPrompt }: 
   });
   const onAbort = () => killTree(child);
   signal.addEventListener('abort', onAbort);
+  if (signal.aborted) onAbort();
   let buf = '';
   let stderr = '';
   // (cast: TypeScript can't see the callback below set it)

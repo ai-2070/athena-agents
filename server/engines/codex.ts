@@ -301,6 +301,8 @@ export async function run({
       'OpenAI Codex is not installed. Install it in Settings > General (or run: npm install -g @openai/codex), then sign in with "codex login".',
     );
   const { args, env } = codexLaunch(agent, { runId, version: (await checkedStatus()).version });
+  // (Stop may have come while the version was looked up: nothing has started yet)
+  if (signal.aborted) throw new Error('Stopped.');
   if (chat.sessionId) args.push('resume', chat.sessionId, '-');
   else args.push('-');
   // Codex keeps its own system prompt; the agent brief goes with the first message.
@@ -312,6 +314,7 @@ export async function run({
   });
   const onAbort = () => killTree(child);
   signal.addEventListener('abort', onAbort);
+  if (signal.aborted) onAbort();
   let buf = '';
   let stderr = '';
   let answer = '';

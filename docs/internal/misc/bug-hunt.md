@@ -305,6 +305,7 @@ Completed reviews:
 - Trigger/evidence: Stop while `checkedStatus()` awaits. Adapter then spawns/submits and attaches its listener without rechecking; already-aborted signals do not notify newly attached listeners.
 - Impact/expected: tools/model work run despite Stop. Recheck cancellation and handle aborted-at-registration.
 - Limits: no Codex process started.
+- Fixed: Codex checks Stop after its version lookup and starts nothing; Codex, Claude Code, Hermes and `pipeLines()` also stop a child at once when the signal was aborted before their listener was attached. Test in `tests/server/codex-stop.test.ts`.
 
 ### BH-034 — OpenCode initialization has a Stop-handling gap
 

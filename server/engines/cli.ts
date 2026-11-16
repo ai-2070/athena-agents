@@ -65,6 +65,8 @@ export function pipeLines(
 ): Promise<ChildEnd> {
   const onAbort = () => killTree(child);
   signal.addEventListener('abort', onAbort);
+  // (an abort that came before is never sent again)
+  if (signal.aborted) onAbort();
   let buf = '';
   let stderr = '';
   const take = (line: string) => {
