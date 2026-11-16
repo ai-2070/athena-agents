@@ -799,6 +799,7 @@ Completed reviews:
 - Trigger/evidence: an npm agent shim receives an argument/path containing a cmd metacharacter such as an ampersand without whitespace. Wrapper uses `cmd.exe /c`; PTY serialization applies argv quoting, not cmd-language escaping.
 - Impact/expected: valid paths split into commands or reach the CLI truncated. Preserve literal arguments through the shell layer.
 - Limits: no Windows command executed; distinct from MCP backslash rewriting.
+- Fixed: on Windows a terminal for an npm shim starts its node and script directly (`ptyCommand()`, using `shimTarget()` as runs do), so its arguments go as they are; any other .cmd goes through cmd.exe and an argument with a character cmd.exe would read is refused. Test in `tests/server/terminal-command.test.ts` (Windows only).
 
 ### BH-089 — Terminal sockets never reconnect after ordinary connection loss
 

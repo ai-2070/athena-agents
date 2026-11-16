@@ -3,7 +3,7 @@ import pty from '@lydell/node-pty';
 import type { IPty } from '@lydell/node-pty';
 import type { WebSocket } from 'ws';
 import type { Agent, Terminal } from '../shared/types.ts';
-import { which, uid, IS_WIN, HOME } from './util.ts';
+import { which, uid, IS_WIN, HOME, shimTarget } from './util.ts';
 import { activeProject, emit, log } from './store.ts';
 import { prepareFiles, claudeArgs, claudeEnv } from './engines/claude.ts';
 import { hermesArgs } from './engines/hermes.ts';
@@ -49,6 +49,31 @@ export function listTerminals(): Terminal[] {
   }));
 }
 
+/** What a terminal starts for a command: the program and its arguments (see the .cmd note below). */
+export function ptyCommand(command: string, args: string[]): { file: string; argv: string[] } {
+  let file = which(command) || command;
+  let argv = args;
+  if (IS_WIN && /\.(cmd|bat)$/i.test(file)) {
+    // An npm-installed CLI (codex.cmd, claude.cmd) only starts node with its script: that starts directly, so its
+    // arguments reach it as they are. Anything else goes through cmd.exe, which reads & | < > ^ % ! " as its own:
+    // an argument with one is refused rather than split into another command.
+    const direct = shimTarget(file);
+    if (direct) {
+      argv = [...direct.args, ...args];
+      file = direct.command;
+    } else {
+      const bad = args.find((a) => /["%!^&|<>\r\n]/.test(String(a)));
+      if (bad !== undefined)
+        throw new Error(
+          `This argument has characters that can't be passed safely to ${file}: ${String(bad).slice(0, 80)}`,
+        );
+      argv = ['/d', '/c', file, ...args];
+      file = process.env.ComSpec || 'cmd.exe';
+    }
+  }
+  return { file, argv };
+}
+
 function spawnPty(
   command: string,
   args: string[],
@@ -59,12 +84,7 @@ function spawnPty(
     rows = 32,
   }: { cwd?: string | null; env?: NodeJS.ProcessEnv | null; cols?: number; rows?: number },
 ): IPty {
-  let file = which(command) || command;
-  let argv = args;
-  if (IS_WIN && /\.(cmd|bat)$/i.test(file)) {
-    argv = ['/d', '/c', file, ...args];
-    file = process.env.ComSpec || 'cmd.exe';
-  }
+  const { file, argv } = ptyCommand(command, args);
   return pty.spawn(file, argv, {
     name: 'xterm-256color',
     cols,
