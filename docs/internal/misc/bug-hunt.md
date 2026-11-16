@@ -180,6 +180,7 @@ Completed reviews:
 - Trigger/evidence: upload `brain-model.<ext>`, then clone or restore. The file is in `.dashboard`, but backup shape/packing/restoration cover logo/background, not that model.
 - Impact/expected: copied/restored projects lose their custom model if appearance assets are meant to be preserved.
 - Limits: no explicit exclusion found and no restore executed; confirm backup contract.
+- Fixed: backups (and so clones) carry the Brain's uploaded 3D model (`brainModel`), checked as a model again when restored. Test in `tests/server/backup.test.ts`.
 
 ### BH-017 — Manual Start leaves tasks To do or Blocked
 
