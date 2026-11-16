@@ -287,6 +287,7 @@ Completed reviews:
 - Trigger/evidence: delay C1's load, switch/load C2, then finish C1. Unmounted C1's unchanged ID still passes its check and calls the surviving parent's `onChat`.
 - Impact/expected: Full page/history selection can target C1 while C2 is visible. Ignore obsolete view/request responses.
 - Limits: no delay injected.
+- Fixed: a chat view keeps only the answer to its latest load while it is still open, so an older one coming back late never tells the page about the wrong chat. No test of its own.
 
 ### BH-029 — Chat reconnect ignores cancellation
 

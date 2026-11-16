@@ -185,15 +185,26 @@ export function ChatView(p: ChatViewProps) {
   const helping = !!chatId && !!app?.runs.some((r) => r.chatId === chatId && ours(r.projectId) && (r.depth ?? 0) > 0);
   const approvals = (app?.approvals || []).filter((a) => a.agentId === agent.id && ours(a.projectId));
 
-  // the saved chat, shown as it is. after: a stream just ended (its flag may not have caught up yet)
+  // the saved chat, shown as it is. after: a stream just ended (its flag may not have caught up yet). Only the latest
+  // load of a view that is still there counts: one that comes back after the view closed, or after a newer load,
+  // would show (and tell the page) a chat that isn't the one open
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  const loads = useRef(0);
   const reload = useCallback(
     async (after = false) => {
       const id = chatIdRef.current;
       if (!id) return;
+      const mine = ++loads.current;
       const saved = await rpcAt(at)
         .agents.chats.get({ id: agent.id, chatId: id })
         .catch(() => null);
-      if (!saved || chatIdRef.current !== id) return;
+      if (!saved || !alive.current || mine !== loads.current || chatIdRef.current !== id) return;
       setItems(saved.items);
       setQueued(saved.queued || []);
       setLoop(saved.loop || null);
