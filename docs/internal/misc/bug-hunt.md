@@ -612,6 +612,7 @@ Completed reviews:
 - Trigger/evidence: macOS/Linux interactive login profile blocks beyond five seconds. `recv_timeout()` abandons receiver, while detached thread remains in `Command::output()` without terminating shell/children.
 - Impact/expected: retries can accumulate processes surviving app quit; dashboard child ownership does not cover them. Timeout should bound subprocess lifetime.
 - Limits: no blocking shell launched; documented trayless/Linux and other packaging limitations were not classified as bugs.
+- Fixed: the login shell asked for PATH runs as its own process group and is killed with what it started when it takes over 5 s, instead of being left running. Compiled for Linux in a standalone check of the function; not run, and the full desktop crate was not built here.
 
 ### BH-067 — Delegation from private conversations creates incorrectly owned chats
 
