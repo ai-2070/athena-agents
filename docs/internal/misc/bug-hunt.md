@@ -964,6 +964,7 @@ Completed reviews:
 - Trigger/evidence: workbook/deck contains stored embedded Office data or XML text with another format's identifying pathname. `documentKind()` searches arbitrary ZIP bytes, prioritizing Word then Excel, rather than top-level package entries.
 - Impact/expected: valid outer documents are misclassified and fail extraction, with lasting failure cached. Identify the actual package entries.
 - Limits: no real producer sample opened; the stored-content condition follows from the search.
+- Fixed: an Office package is told by its own part names (its file list), not by a name found anywhere in its bytes. Test in `tests/server/documents.test.ts`.
 
 ### BH-108 — File/document tools drop cancellation before PDF reading
 
@@ -1034,6 +1035,7 @@ Completed reviews:
 - Trigger/evidence: equivalent target uses dot segments such as `./worksheets/sheet1.xml` or URI-encoded part names. Concatenation omits normalization/decoding before exact map lookup.
 - Impact/expected: Excel skips sheets; PowerPoint can omit/reorder slides despite successful-looking extraction. Resolve package-relative URIs correctly.
 - Limits: standard fixture targets covered; actual producer prevalence unverified, no document opened.
+- Fixed: relationship targets are %-decoded and normalized (`./`, `../`, from the root) before parts are looked up. Test in `tests/server/documents.test.ts`.
 
 ### BH-116 — Knowledge uploads silently turn binary documents into Markdown
 

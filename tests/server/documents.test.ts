@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { strToU8, unzipSync, zipSync } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import {
   DocumentError,
@@ -75,6 +75,29 @@ describe('the text of each kind', () => {
     // a deck's tables too
     const slide = `<a:tbl><a:tr><a:tc><a:txBody><a:p><a:r><a:t>Q1</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Q2</a:t></a:r></a:p></a:txBody></a:tc></a:tr></a:tbl>`;
     expect((await documentText('powerpoint', pptxRaw(slide))).text).toBe('--- Slide 1 ---\nQ1 | Q2');
+  });
+
+  it("knows a workbook by its own parts, not a Word file's name inside it", () => {
+    const parts = unzipSync(xlsx({ S: '' }));
+    parts['xl/embeddings/word/document.xml'] = strToU8('<w:document/>');
+    expect(documentKind(zipSync(parts), 'a.xlsx')).toBe('excel');
+  });
+
+  it('follows sheet addresses written ./ or %-encoded', async () => {
+    const parts = unzipSync(
+      xlsx({
+        First: '<row r="1"><c r="A1" t="str"><v>one</v></c></row>',
+        Second: '<row r="1"><c r="A1" t="str"><v>two</v></c></row>',
+      }),
+    );
+    const rels = strFromU8(parts['xl/_rels/workbook.xml.rels']!)
+      .replace('Target="worksheets/sheet1.xml"', 'Target="./worksheets/sheet1.xml"')
+      .replace('Target="worksheets/sheet2.xml"', 'Target="worksheets/%73heet2.xml"');
+    parts['xl/_rels/workbook.xml.rels'] = strToU8(rels);
+    const read = await documentText('excel', zipSync(parts));
+    expect(read.sheets).toEqual(['First', 'Second']);
+    expect(read.text).toContain('one');
+    expect(read.text).toContain('two');
   });
 
   it('reads each sheet of a workbook, cells in their columns', async () => {

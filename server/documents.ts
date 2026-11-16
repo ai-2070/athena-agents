@@ -109,6 +109,22 @@ const pdfHeader = (bytes: Uint8Array, name: string) => {
   return false;
 };
 
+/** The names of a ZIP package's parts, from its list (nothing is unpacked), or null when it can't be listed. */
+function packageParts(bytes: Uint8Array): Set<string> | null {
+  const names = new Set<string>();
+  try {
+    unzipSync(bytes, {
+      filter: (file) => {
+        names.add(file.name);
+        return false;
+      },
+    });
+  } catch {
+    return null;
+  }
+  return names;
+}
+
 /**
  * What kind of document the bytes are, or null for anything else. Office files (2007 on) are ZIP packages, told
  * apart by the part each must hold; older ones are compound files, which other programs use too, so for those the
@@ -118,10 +134,20 @@ export function documentKind(bytes: Uint8Array, name: string): DocumentKind | nu
   if (!bytes.length) return null;
   if (pdfHeader(bytes, name)) return 'pdf';
   if (startsWith(bytes, ZIP)) {
-    if (!contains(bytes, ascii('[Content_Types].xml'))) return null;
-    if (contains(bytes, ascii('word/document.xml'))) return 'word';
-    if (contains(bytes, ascii('xl/workbook.xml'))) return 'excel';
-    if (contains(bytes, ascii('ppt/presentation.xml'))) return 'powerpoint';
+    // by the package's own parts (its file list), not a name found anywhere in its bytes: a workbook with a Word
+    // file inside it is still a workbook
+    const names = packageParts(bytes);
+    if (!names) {
+      if (!contains(bytes, ascii('[Content_Types].xml'))) return null;
+      if (contains(bytes, ascii('word/document.xml'))) return 'word';
+      if (contains(bytes, ascii('xl/workbook.xml'))) return 'excel';
+      if (contains(bytes, ascii('ppt/presentation.xml'))) return 'powerpoint';
+      return null;
+    }
+    if (!names.has('[Content_Types].xml')) return null;
+    if (names.has('word/document.xml')) return 'word';
+    if (names.has('xl/workbook.xml')) return 'excel';
+    if (names.has('ppt/presentation.xml')) return 'powerpoint';
     return null;
   }
   if (startsWith(bytes, COMPOUND) && OLD_OFFICE_NAME.test(name)) return 'old-office';
@@ -508,13 +534,21 @@ function relationTargets(rels: string, folder: string): Map<string, string> {
   const targets = new Map<string, string>();
   for (const [rel] of rels.matchAll(/<(?:\w+:)?Relationship\b[^>]*>/g)) {
     const id = /\bId="([^"]+)"/.exec(rel)?.[1];
-    const target = /\bTarget="([^"]+)"/.exec(rel)?.[1];
-    // (absolute targets start at the package's root)
-    if (id && target)
-      targets.set(
-        id,
-        target.startsWith('/') ? target.slice(1) : `${folder}/${target.replace(new RegExp(`^${folder}/`), '')}`,
-      );
+    const raw = /\bTarget="([^"]+)"/.exec(rel)?.[1];
+    if (!id || !raw) continue;
+    // a part's address, as a package names it: %-encoded, and relative (./, ../) to the folder, or from the root (/)
+    let target = raw;
+    try {
+      target = decodeURIComponent(raw);
+    } catch {
+      /* not encoded */
+    }
+    const from = target.startsWith('/')
+      ? target.slice(1)
+      : target.startsWith(`${folder}/`)
+        ? target
+        : `${folder}/${target}`;
+    targets.set(id, path.posix.normalize(from).replace(/^(\.\.\/)+/, ''));
   }
   return targets;
 }
