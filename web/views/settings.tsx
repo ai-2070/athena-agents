@@ -16,7 +16,7 @@ import { ProgramGlyph, ProgramLabel } from '../ui/programmark.tsx';
 import { brandSrc, followTheme } from '../brandimages.ts';
 import type {
   AppState,
-  BrainToolAccess,
+  BrainAccess,
   BrainToolGrant,
   EngineStatus,
   SecretKey,
@@ -208,10 +208,10 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
       </Section>
 
       <Section
-        title={<IconLabel icon="plug">The Brain's tools</IconLabel>}
-        description="The Brain can use the tools of every MCP server that is on (Composio, OOMOL, GitHub…) itself, on any model it runs on: to check an inbox, find a file or send one message you asked for. Bigger work still goes to an agent or team."
+        title={<IconLabel icon="plug">What the Brain may do</IconLabel>}
+        description="The Brain builds teams, hires agents, hands out work and keeps the board, routines and skills in order. It can also use the tools of every MCP server that is on (Composio, OOMOL, GitHub…) itself: check an inbox, find a file, send one message you asked for. Bigger work still goes to an agent or team."
       >
-        <BrainToolsRow initial={s.brainTools} reload={reload} />
+        <BrainAccessRow initial={s.brainAccess} reload={reload} />
         <BrainGrantsRow />
       </Section>
 
@@ -485,36 +485,36 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
   );
 }
 
-const BRAIN_TOOLS: Record<BrainToolAccess, { said: string; about: string }> = {
+const BRAIN_ACCESS: Record<BrainAccess, { said: string; about: string }> = {
   full: {
-    said: 'The Brain uses MCP tools without asking',
+    said: 'The Brain does what it needs without asking',
     about:
-      'Every tool runs right away, including ones that send, post, edit or delete. The Brain only uses those when you ask for them.',
+      'The Brain hires, builds teams, hands out work and uses every tool right away, including ones that send, post, edit or delete. It only does those when you ask for them.',
   },
   ask: {
-    said: 'The Brain asks before tools that change things',
+    said: 'The Brain asks before it changes anything',
     about:
-      'Tools that only read run right away. Anything else waits for you in Needs you (the Brain never approves its own requests).',
+      'Anything that changes something waits for you in Needs you: new agents and teams, handing out work, the board, skills, MCP servers and tools. Looking things up runs right away.',
   },
-  off: {
-    said: "The Brain doesn't use MCP tools",
-    about: 'It can still give servers to agents and teams and hand them the work.',
+  read: {
+    said: 'The Brain only reads now',
+    about: 'The Brain answers and looks things up, but changes nothing. Ask an agent or team for the work.',
   },
 };
 
-/** How freely the Brain uses MCP tools itself; saves on its own. When saving fails it shows what is really set again. */
-function BrainToolsRow({ initial, reload }: { initial: BrainToolAccess; reload: () => Promise<unknown> }) {
-  const [value, setValue] = useState<BrainToolAccess>(initial === 'ask' || initial === 'off' ? initial : 'full');
-  const change = async (next: BrainToolAccess) => {
+/** How freely the Brain acts, with all its tools; saves on its own. When saving fails it shows what is really set again. */
+function BrainAccessRow({ initial, reload }: { initial: BrainAccess; reload: () => Promise<unknown> }) {
+  const [value, setValue] = useState<BrainAccess>(initial === 'ask' || initial === 'read' ? initial : 'full');
+  const change = async (next: BrainAccess) => {
     setValue(next);
-    const saved = await attempt(() => rpc.settings.save({ brainTools: next }), BRAIN_TOOLS[next].said);
+    const saved = await attempt(() => rpc.settings.save({ brainAccess: next }), BRAIN_ACCESS[next].said);
     if (saved) refreshSoon(0);
     else await reload();
   };
   return (
-    <Row title="Tool access" titleId="brain-tools-label" description={BRAIN_TOOLS[value].about}>
+    <Row title="Access" titleId="brain-access-label" description={BRAIN_ACCESS[value].about}>
       <Segmented
-        label="Tool access"
+        label="Access"
         options={[
           {
             value: 'full',
@@ -533,10 +533,10 @@ function BrainToolsRow({ initial, reload }: { initial: BrainToolAccess; reload: 
             ),
           },
           {
-            value: 'off',
+            value: 'read',
             label: (
-              <IconLabel icon="circle-x" compact>
-                Off
+              <IconLabel icon="file-text" compact>
+                Read only
               </IconLabel>
             ),
           },
@@ -547,6 +547,10 @@ function BrainToolsRow({ initial, reload }: { initial: BrainToolAccess; reload: 
     </Row>
   );
 }
+
+// (the Brain's own tools are kept under no server; "team:high" is its team tool when it changes something)
+const grantLabel = (g: BrainToolGrant) =>
+  g.server ? `${g.server} · ${g.tool}` : `The Brain · ${g.tool.replace(/:high$/, '')}`;
 
 /** The tools you let the Brain use without asking (Always allow in Needs you), each one with a way to take it back.
  *  Nothing shows while there are none. */
@@ -576,15 +580,13 @@ function BrainGrantsRow() {
 ${g.tool}`}
             className="flex items-center justify-between gap-3"
           >
-            <span className="min-w-0 truncate font-mono text-[13px] text-ink">
-              {g.server} · {g.tool}
-            </span>
+            <span className="min-w-0 truncate font-mono text-[13px] text-ink">{grantLabel(g)}</span>
             <Button
               type="button"
               variant="ghost"
               size="tiny"
               className="flex-none"
-              aria-label={`Take back ${g.tool} on ${g.server}`}
+              aria-label={g.server ? `Take back ${g.tool} on ${g.server}` : `Take back ${grantLabel(g)}`}
               onClick={() => void forget(g)}
             >
               Take back

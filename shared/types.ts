@@ -1458,6 +1458,9 @@ export interface Chat {
   rich?: boolean;
   /** When the agent's MEMORY.md had last changed as of its last run here (see engines/index.ts). */
   memoryAt?: number;
+  /** A fingerprint of the instructions its session last got (the Brain on Codex, Hermes or OpenClaw, which hear them
+   *  only when a session starts: changed ones are sent with the next message). */
+  instructions?: string;
   createdAt: number;
   updatedAt: number;
   _deleted?: boolean;
@@ -1681,9 +1684,6 @@ export interface ActivityEntry {
 }
 
 // ---------- settings ----------
-/** The Brain's own use of MCP tools: full (every tool, no asking), ask (tools that only read run, the rest wait
- *  for you in Needs you) or off. */
-export type BrainToolAccess = 'full' | 'ask' | 'off';
 /** A tool you let the Brain use without asking (Always allow in Needs you). */
 export interface BrainToolGrant {
   server: string;
@@ -1729,6 +1729,10 @@ export type WorldQuality = 'low' | 'medium' | 'high';
 export type StationQuality = 'smooth' | 'balanced' | 'saver';
 export type SidebarPanel = 'status' | 'limits';
 
+/** How freely the Brain acts: full runs everything, ask sends anything that changes something to Needs you,
+ *  read only answers and looks things up. */
+export type BrainAccess = 'full' | 'ask' | 'read';
+
 export interface Settings {
   defaults: {
     engine: EngineId;
@@ -1753,8 +1757,8 @@ export interface Settings {
   brainAnyGitHub: boolean;
   /** The Brain checks ordinary assignments after each turn and continues until delivered or blocked. */
   brainFollowsUp: boolean;
-  /** What the Brain may do with the tools of the MCP servers that are on (see BrainToolAccess). */
-  brainTools: BrainToolAccess;
+  /** What the Brain may do without asking, for all its tools (see BrainAccess). */
+  brainAccess: BrainAccess;
   /** Every agent, team and the Brain can search and read all saved sessions in the project. Off by default. */
   sessionSearch: boolean;
   look: LookSetting;
@@ -2649,6 +2653,8 @@ export interface BrainChatMessage {
   delegate?: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'>;
   /** The files it read while it answered (results cut short). */
   steps?: BrainStep[];
+  /** A note nobody asked for (what the Brain learned from finished work): its session hears it with the next message. */
+  note?: boolean;
 }
 
 /** A file or folder at the top of the Brain folder. */

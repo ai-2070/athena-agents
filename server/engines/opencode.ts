@@ -20,6 +20,7 @@ import { bridgeEnv, cliStatus, olderThan, pipeLines, steerEvent, tail, SessionGo
 import type { ChildProcess } from 'node:child_process';
 import type { Agent, RunEvent } from '../../shared/types.ts';
 import type { Engine, EngineRunArgs, EngineResult, TurnMessage, TurnSteering } from './index.ts';
+import { BRAIN_ID } from '../brainmcp.ts';
 
 export const INSTALL = 'npm i -g @opencode/cli';
 const MIN_VERSION = '2.0.0';
@@ -74,6 +75,18 @@ const folderRules = (dir: string): Rule[] => {
 
 /** The agent's autonomy as opencode's permission rules. */
 export function permissionRules(agent: Agent): Rule[] {
+  // the Brain only reads files (its own tools are the dashboard's, which ask for themselves)
+  if (agent.id === BRAIN_ID)
+    return [
+      rule('*', 'deny'),
+      rule('read', 'allow'),
+      rule('glob', 'allow'),
+      rule('grep', 'allow'),
+      rule('read', 'deny', '*.env'),
+      rule('read', 'deny', '*.env.*'),
+      rule('dashboard_*', 'allow'),
+      rule('question', 'deny'),
+    ];
   const mode = agent.autonomy || 'auto';
   const rules: Rule[] =
     mode === 'full'
