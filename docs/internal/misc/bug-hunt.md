@@ -480,6 +480,7 @@ Completed reviews:
 - Trigger/evidence: old `references/example` file becomes `references/example/detail.md`; restore old version. Current files are removed but directories remain, so copying the old file onto the directory fails.
 - Impact/expected: SKILL.md and extras are partially restored. Remove obsolete structure or stage a complete replacement.
 - Limits: no filesystem reproduction.
+- Fixed: restoring a version with files clears everything in the skill but SKILL.md, folders too, before copying the kept files back. Test in `tests/server/skillinstall.test.ts`.
 
 ### BH-054 — Failed GitHub update destroys the live installation
 

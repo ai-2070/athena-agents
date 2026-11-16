@@ -203,6 +203,21 @@ describe('installing', () => {
     expect(skills.getSkill(slug)?.origin?.repo).toBe('acme/skills');
   });
 
+  it('restores a version whose file is a folder now', async () => {
+    const files = repos['acme/skills'].main;
+    files['skills/writer/references/example'] = 'the old example file';
+    await installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer');
+    const slug = skills.findSkill('Writer')!.slug;
+    const dir = skills.skillDir(slug);
+    delete files['skills/writer/references/example'];
+    files['skills/writer/references/example/detail.md'] = 'now a folder';
+    await withActor('you', () => installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer'));
+    expect(fs.statSync(path.join(dir, 'references', 'example')).isDirectory()).toBe(true);
+    restoreVersion('skill', slug, historyOf('skill', slug).versions[0].id);
+    expect(fs.readFileSync(path.join(dir, 'references', 'example'), 'utf8')).toBe('the old example file');
+    delete files['skills/writer/references/example/detail.md'];
+  });
+
   it('finds a branch with a slash in its name, and says so when there is nothing to install', async () => {
     const r = await installFromGitHub('https://github.com/acme/skills/tree/feature/x');
     expect(r.installed.map((x) => x.name)).toEqual(['Branch skill']);

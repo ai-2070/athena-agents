@@ -540,7 +540,9 @@ export function restoreSkill(item: SkillVersionItem, versionId: string): SkillDe
   }
   writeSkillMd(dir, compose({ name: item.name, description: item.description, body: item.body }));
   if (withFiles) {
-    for (const rel of skillExtraFiles(dir)) fs.rmSync(path.join(dir, ...rel.split('/')), { force: true });
+    // everything but SKILL.md goes, folders too: a file the version had may be a folder now (example → example/)
+    for (const name of fs.readdirSync(dir))
+      if (name !== 'SKILL.md') fs.rmSync(path.join(dir, name), { recursive: true, force: true });
     if (kept && exists(kept)) copySkillFiles(kept, dir);
   }
   forgetSkill(item.slug);
