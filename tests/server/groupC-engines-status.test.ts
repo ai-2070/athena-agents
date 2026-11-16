@@ -57,6 +57,20 @@ describe('codex args', () => {
     expect(c).toContain('shell_environment_policy.exclude=["ATHENA_MCP_SECRET_GH_0","SERVICE_KEY"]');
   });
 
+  it('gives servers whose names fold together their own key variables', () => {
+    saveServer('work-mail', { type: 'http', url: 'https://a.example/mcp', headers: { Authorization: 'Bearer a' } });
+    saveServer('work_mail', { type: 'http', url: 'https://b.example/mcp', headers: { Authorization: 'Bearer b' } });
+    const { args, env } = codexLaunch(
+      newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['work-mail', 'work_mail'] }),
+      { version: '0.166.0' },
+    );
+    const c = overrides(args);
+    expect(c).toContain('mcp_servers.work-mail.env_http_headers={Authorization="ATHENA_MCP_SECRET_WORK_MAIL_0"}');
+    expect(c).toContain('mcp_servers.work_mail.env_http_headers={Authorization="ATHENA_MCP_SECRET_WORK_MAIL_0_2"}');
+    expect(env.ATHENA_MCP_SECRET_WORK_MAIL_0).toBe('Bearer a');
+    expect(env.ATHENA_MCP_SECRET_WORK_MAIL_0_2).toBe('Bearer b');
+  });
+
   it('keeps a variable two servers want with different values on the command line for the second', () => {
     saveServer('one', { type: 'stdio', command: 'node', args: ['a.js'], env: { TOKEN_X: 'first' } });
     saveServer('two', { type: 'stdio', command: 'node', args: ['b.js'], env: { TOKEN_X: 'second' } });

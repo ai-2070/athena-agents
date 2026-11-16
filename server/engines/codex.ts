@@ -254,7 +254,11 @@ export function codexLaunch(
       if (byEnv && headers.length) {
         const named = Object.fromEntries(
           headers.map(([h, v], i) => {
-            const key = `ATHENA_MCP_SECRET_${name.replace(/-/g, '_').toUpperCase()}_${i}`;
+            // (names like work-mail / work_mail / Work_Mail fold to one variable: count up until it's free)
+            const base = `ATHENA_MCP_SECRET_${name.replace(/-/g, '_').toUpperCase()}_${i}`;
+            let key = base;
+            for (let n = 2; key in env || taken.has(key); n++) key = `${base}_${n}`;
+            taken.set(key, String(v));
             env[key] = String(v);
             hidden.push(key);
             return [h, key];

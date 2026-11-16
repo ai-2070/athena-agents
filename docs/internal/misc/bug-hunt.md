@@ -344,6 +344,7 @@ Completed reviews:
 - Trigger/evidence: HTTP servers `work-mail` and `work_mail` have different credentials at the same header index on environment-header-capable Codex. Both use `ATHENA_MCP_SECRET_WORK_MAIL_0`; later value wins.
 - Impact/expected: authentication fails or a credential goes to another endpoint/account. Secret names must be unique.
 - Limits: supported-version branch only; no credential transmitted.
+- Fixed: header key variables now count up (`_2`, `_3`) until the name is free; test in `tests/server/groupC-engines-status.test.ts`.
 
 ### BH-039 — Claude acknowledges unrelated steers by substring
 
