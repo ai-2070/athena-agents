@@ -521,6 +521,7 @@ Completed reviews:
 - Trigger/evidence: crash after journal `stopRequested: true` but before native abort persists. Accepted session/delivery identities bypass `validAdmission()`; root `canResume()` accepts, and restored native run does not reject that intent.
 - Impact/expected: tools/model calls continue despite durable Stop. Reconcile Stop before resumption.
 - Limits: existing tests cover native stopped state, not this persistence gap; no crash run.
+- Fixed: `prepareEveRecovery()` stops (never resumes) a run whose journal receipt has `stopRequested`: it is marked stopped, its approvals, questions and operations are settled and its session retired, so `recoverEveRuns()` ends it at the worker. Test in `tests/server/eve-lifecycle.test.ts`.
 
 ### BH-060 — Ambiguous Eve steers can be delivered twice
 
