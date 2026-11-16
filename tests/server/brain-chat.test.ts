@@ -188,15 +188,18 @@ describe('the Brain chat', () => {
     expect(history(pid)).toEqual([]);
   });
 
-  it('two answers that overlap are both kept', async () => {
+  it('two messages that overlap are both answered and kept, one after the other', async () => {
     const pid = activeProject().id;
     clearHistory();
     const a = ask('first');
     const b = ask('second');
-    await until(() => pending.length === 2);
+    await until(() => pending.length === 1);
+    // (the second waits for the first to end)
+    await new Promise((r) => setTimeout(r, 20));
+    expect(pending).toHaveLength(1);
     pending.shift()!('answer one');
     await a;
-    pending.shift()!('answer two');
+    await answerNext('answer two');
     await b;
     expect(history(pid).map((m) => m.text)).toEqual(['first', 'answer one', 'second', 'answer two']);
   });

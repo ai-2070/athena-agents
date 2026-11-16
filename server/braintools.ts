@@ -45,6 +45,11 @@ export interface BrainTurn {
   used?: string[];
   /** GitHub installs in this turn (a few at most) */
   installs?: number;
+  /** what this turn used of its limits: changes, MCP look-ups, characters of MCP results, model searches */
+  changes?: number;
+  lookups?: number;
+  mcpText?: number;
+  modelSearches?: number;
 }
 
 const turns = new Map<string, BrainTurn>();

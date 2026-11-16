@@ -1,7 +1,10 @@
 // The Brain's turn as a real agent run (brainrun.ts → askAgent → startRun) on a stand-in Eve engine that calls the
 // Brain's tools the way a model would; and each engine keeping the Brain to reading files.
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { chats, saveSettings, workflows } from '../../server/store.ts';
+import { activeProject, chats, saveSettings, setActiveProject, withProject, workflows } from '../../server/store.ts';
+import { createProject } from '../../server/projects.ts';
 import { decide, listApprovals } from '../../server/approvals.ts';
 import { brainGrants, forgetBrainGrant } from '../../server/mcp.ts';
 import {
@@ -21,6 +24,7 @@ import { permissionRules } from '../../server/engines/opencode.ts';
 import { brainAgent } from '../../server/brainrun.ts';
 import { BRAIN_ID } from '../../server/braintools.ts';
 import type { EngineRunArgs } from '../../server/engines/index.ts';
+import type { ToolResult } from '../../server/tools.ts';
 
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
@@ -28,7 +32,7 @@ vi.mock('../../server/brain.ts', async (orig) => ({
 }));
 
 // what each turn the engine got, and what the "model" does in it
-const seen: { system: string; text: string; tools: string[]; chatId: string; engine: string }[] = [];
+const seen: { system: string; text: string; tools: string[]; chatId: string; engine: string; project: string }[] = [];
 let script: (args: EngineRunArgs) => Promise<string> = async () => 'Hello.';
 vi.mock('../../server/engines/eve.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/engines/eve.ts')>()),
@@ -39,6 +43,7 @@ vi.mock('../../server/engines/eve.ts', async (orig) => ({
       tools: toolsForAgent(args.agent, { engine: args.agent.engine }).map((t) => t.name),
       chatId: args.chat.id,
       engine: args.agent.engine,
+      project: activeProject().id,
     });
     return { text: await script(args) };
   },
@@ -155,6 +160,94 @@ describe("the Brain's turn as an agent run", () => {
       forgetBrainGrant('');
       saveSettings({ brainAccess: 'full' });
     }
+  });
+
+  it('messages that come while it answers wait their turn, one at a time', async () => {
+    clearHistory();
+    seen.length = 0;
+    let running = 0;
+    let most = 0;
+    let go = () => {};
+    const first = new Promise<void>((r) => (go = r));
+    script = async (a) => {
+      running++;
+      most = Math.max(most, running);
+      if (a.text.includes('first')) await first;
+      await new Promise((r) => setTimeout(r, 5));
+      running--;
+      return `Done: ${a.text.slice(a.text.lastIndexOf('\n') + 1)}`;
+    };
+    const answers = [ask('first'), ask('second'), ask('third')];
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    go();
+    const done = await Promise.all(answers);
+    expect(done.map((r) => r.answer)).toEqual(['Done: first', 'Done: second', 'Done: third']);
+    expect(most).toBe(1);
+    expect(new Set(seen.map((x) => x.chatId)).size).toBe(1);
+  });
+
+  it('opening another project while it waits or answers: the turn stays in the project it was asked in', async () => {
+    const home = activeProject();
+    const other = await createProject({
+      name: 'Elsewhere',
+      mode: 'new',
+      folder: path.join(os.homedir(), 'projects', 'brain-elsewhere'),
+    });
+    setActiveProject(home.id);
+    clearHistory();
+    seen.length = 0;
+    let go = () => {};
+    const first = new Promise<void>((r) => (go = r));
+    script = async (a) => {
+      if (a.text.includes('wait here')) await first;
+      else await use(a, 'team', { do: 'create_team', name: 'Home crew', members: [{ new: { name: 'Homebody' } }] });
+      return 'Done.';
+    };
+    try {
+      const waiting = ask('wait here');
+      await vi.waitFor(() => expect(seen).toHaveLength(1));
+      const queued = ask('build a crew');
+      setActiveProject(other.id);
+      go();
+      await Promise.all([waiting, queued]);
+      expect(seen.map((x) => x.project)).toEqual([home.id, home.id]);
+      // its engine chat, and what it built, are in the project it was asked in
+      expect(chats.get(BRAIN_ID, seen[1].chatId)).toBeNull();
+      expect(workflows.list().some((w) => w.name === 'Home crew')).toBe(false);
+      withProject(home, () => {
+        expect(chats.get(BRAIN_ID, seen[1].chatId)).not.toBeNull();
+        expect(workflows.list().some((w) => w.name === 'Home crew')).toBe(true);
+      });
+    } finally {
+      setActiveProject(home.id);
+    }
+  });
+
+  it('one answer makes at most 12 changes and hands the work to one agent or team', async () => {
+    clearHistory();
+    const results: boolean[] = [];
+    script = async (a) => {
+      for (let i = 0; i < 13; i++)
+        results.push(
+          (await use(a, 'team', { do: 'create_team', name: `Crew ${i}`, members: [{ new: { name: `Mate ${i}` } }] }))
+            .isError === true,
+        );
+      return 'Built them.';
+    };
+    await ask('build thirteen crews');
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect(results.at(-1)).toBe(true);
+
+    let second: ToolResult | null = null;
+    script = async (a) => {
+      const crew = workflows.list().find((w) => w.name === 'Crew 0')!;
+      await use(a, 'delegate', { do: 'delegate', to: 'team', id: crew.id, message: 'Do the first thing.' });
+      second = await use(a, 'delegate', { do: 'delegate', to: 'team', id: crew.id, message: 'And another.' });
+      return 'Handed on.';
+    };
+    const r = await ask('hand it on twice');
+    expect(second).toMatchObject({ isError: true, text: expect.stringContaining('At most one delegate') });
+    expect(r.delegate?.message).toBe('Do the first thing.');
   });
 
   it('read only: the run is offered no tools that change things', async () => {

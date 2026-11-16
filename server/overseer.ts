@@ -63,7 +63,7 @@ import { listTeams, teamState, getThread, getTeam, teamSteps, stopTeam, dropQueu
 import { liveActivity, runInfo, defaultModel, activeRuns, stopRun, RunStopped, chatRunId } from './engines/index.ts';
 import { runningWorkflowRuns, stopWorkflowRun } from './workflows.ts';
 import { listApprovals } from './approvals.ts';
-import { MCP_LOOKUPS, brainToolsInstructions, runMcpLookups } from './brainmcp.ts';
+import { MCP_LOOKUPS, MCP_TEXT_BUDGET, TURN_LOOKUPS_MAX, brainToolsInstructions, runMcpLookups } from './brainmcp.ts';
 import { brainSessionsInstructions } from './sessions.ts';
 import { BRAIN_ID } from './brainmcp.ts';
 import { beginBrainTurn, endBrainTurn, toolOf } from './braintools.ts';
@@ -315,6 +315,8 @@ export interface BrainAction {
 // The most actions one answer can take, and GitHub installs among them.
 const ACTIONS_MAX = 12;
 const INSTALLS_MAX = 3;
+// model look-ups (find_models) in one answer
+const MODEL_SEARCHES_MAX = 4;
 // install_skill downloads, so ask() runs it before the actions (prepareInstalls) and leaves its result
 // here for applyActions to report and hand out. (Only results made here count: the model can't fake one.)
 const installed = new WeakMap<BrainAction, SkillInstallResult | Error>();
@@ -809,8 +811,8 @@ const savedDelegate = (d: BrainDelegate): NonNullable<BrainChatMessage['delegate
   message: d.message,
   ...(d.sent ? { sent: d.sent } : {}),
 });
-// the Brain's run going on in each conversation (the next one waits for it to end)
-const brainTurns = new Map<string, Promise<string>>();
+// the Brain's turns in each conversation, one after another: the last one's end (the next one waits for it)
+const brainTurns = new Map<string, Promise<void>>();
 
 /** A Brain conversation as saved: its messages, and the agent chat that holds its engine session (chatId). */
 type BrainThreadFile = ThreadMeta & { messages?: BrainChatMessage[]; chatId?: string };
@@ -3005,7 +3007,9 @@ export async function brainToolCall(
   return withProject(turn.project, async () => {
     const p = turn.project;
     const act = { ...args, do: kind } as BrainAction;
-    const proceed = () => !turn.signal.aborted && !ctx.signal?.aborted;
+    // (stopped, or another conversation opened: what is still on its way, a download or a call waiting for you,
+    // changes nothing)
+    const proceed = () => !turn.signal.aborted && !ctx.signal?.aborted && turn.wanted?.() !== false;
     // look-ups
     if (kind === 'project_overview') {
       const section = String(args.section || '') as OverviewSection;
@@ -3024,18 +3028,40 @@ export async function brainToolCall(
         return { text: e instanceof Error ? e.message : String(e), isError: true };
       }
     }
-    if (kind === 'find_models')
+    if (kind === 'find_models') {
+      turn.modelSearches = (turn.modelSearches || 0) + 1;
+      if (turn.modelSearches > MODEL_SEARCHES_MAX)
+        return { text: `At most ${MODEL_SEARCHES_MAX} model look-ups in one answer.`, isError: true };
       return findModels(act.provider, act.query).then(
         (text) => ({ text }),
         (e: unknown) => ({ text: `Couldn't look them up: ${(e as Error).message}`, isError: true }),
       );
+    }
     if (MCP_LOOKUPS.includes(kind)) {
-      const r = await runMcpLookups([act], { signal: ctx.signal || turn.signal, proceed });
+      // (the limits are the turn's: each call is one look-up, and their results share one budget)
+      turn.lookups = (turn.lookups || 0) + 1;
+      if (turn.lookups > TURN_LOOKUPS_MAX)
+        return { text: `Skipped: at most ${TURN_LOOKUPS_MAX} MCP look-ups in one answer.`, isError: true };
+      const r = await runMcpLookups([act], {
+        signal: ctx.signal || turn.signal,
+        proceed,
+        budget: MCP_TEXT_BUDGET - (turn.mcpText || 0),
+      });
+      turn.mcpText = (turn.mcpText || 0) + r.used;
       const step = r.steps[0];
       if (step?.changed) turn.used = [...new Set([...(turn.used || []), step.name])];
       return { text: step?.text || r.text, isError: step?.isError };
     }
-    // changes: downloads and model lists first, as before
+    // changes: a few in one answer, and one hand-off
+    turn.changes = (turn.changes || 0) + 1;
+    if (turn.changes > ACTIONS_MAX)
+      return { text: `At most ${ACTIONS_MAX} changes in one answer: say what is left to do.`, isError: true };
+    if (kind === 'delegate' && turn.delegate)
+      return {
+        text: `At most one delegate per answer: you already handed this to ${turn.delegate.name}.`,
+        isError: true,
+      };
+    // downloads and model lists first, as before
     if (kind === 'install_skill') {
       turn.installs = (turn.installs || 0) + 1;
       if (turn.installs > INSTALLS_MAX)
@@ -3138,7 +3164,9 @@ export interface BrainAskOptions {
   proceed?: () => boolean;
 }
 export async function ask(text: string, opts: BrainAskOptions = {}): Promise<BrainAnswer> {
-  return opts.conversationId ? withProject(activeProject(), () => askNow(text, opts)) : askNow(text, opts);
+  // (the turn stays in the project it was asked in: its run, its engine chat and what it changes, even when another
+  // project is opened meanwhile)
+  return withProject(activeProject(), () => askNow(text, opts));
 }
 async function askNow(text: string, opts: BrainAskOptions): Promise<BrainAnswer> {
   if (opts.conversationId !== undefined) checkConversationId(opts.conversationId);
@@ -3321,29 +3349,33 @@ async function answerNow(
   };
   let answer = '';
   let failure: unknown = null;
-  // one turn at a time in a conversation: one that a new message cut off ends before this one starts
-  await brainTurns.get(key)?.catch(() => {});
-  const work = stopper.signal.aborted
-    ? Promise.reject(new RunStopped())
-    : runBrain({
-        agent: brainAgent(system, ensureBrain(p)),
-        chatId: engine.chat.id,
-        text: prompt,
-        runId,
-        signal: stopper.signal,
-        from: from || 'user',
-        onEvent,
-      });
-  brainTurns.set(key, work);
+  // one turn at a time in a conversation: one that a new message cut off ends before this one starts (in line:
+  // each waits for the one before it, so two waiting don't start together)
+  const ahead = brainTurns.get(key) || Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const mine = ahead.then(() => gate);
+  brainTurns.set(key, mine);
   beginBrainTurn(runId, turn);
   try {
-    const result = await work;
+    await ahead;
+    if (stopper.signal.aborted) throw new RunStopped();
+    const result = await runBrain({
+      agent: brainAgent(system, ensureBrain(p)),
+      chatId: engine.chat.id,
+      text: prompt,
+      runId,
+      signal: stopper.signal,
+      from: from || 'user',
+      onEvent,
+    });
     answer = said.trim() || result;
   } catch (e) {
     if (!(e instanceof RunStopped) && !stopper.signal.aborted) failure = e;
   } finally {
     endBrainTurn(runId);
-    if (brainTurns.get(key) === work) brainTurns.delete(key);
+    release();
+    if (brainTurns.get(key) === mine) brainTurns.delete(key);
     signals.delete(stopper);
     if (!signals.size) stopSignals.delete(key);
   }

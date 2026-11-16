@@ -2,7 +2,7 @@
 // call, ask sends the ones that change things to Needs you, off gives it none.
 import fs from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ask, clearHistory, stopAsks } from '../../server/overseer.ts';
+import { ask, clearHistory, newBrainThread, stopAsks } from '../../server/overseer.ts';
 import { decide, listApprovals, setReviewer } from '../../server/approvals.ts';
 import {
   brainGrants,
@@ -233,6 +233,31 @@ describe("the Brain's own MCP tools", () => {
     expect(listApprovals()).toEqual([]);
     expect(calls).toEqual([]);
     expect(r.done).toEqual([]);
+  });
+
+  it('opening another conversation: a call waiting in Needs you that you allow afterwards changes nothing', async () => {
+    saveSettings({ brainAccess: 'ask' });
+    answers.push(actions([{ do: 'mcp_call', server: 'composio', tool: 'GMAIL_SEND_EMAIL', args: { to: 'q@r.s' } }]));
+    const answer = ask('send it');
+    await vi.waitFor(() => expect(listApprovals()).toHaveLength(1));
+    newBrainThread();
+    decide(listApprovals()[0].id, { approved: true });
+    await answer;
+    expect(calls).toEqual([]);
+  });
+
+  it('look-ups are limited over the whole answer, and their results share one budget', async () => {
+    const big = { do: 'mcp_call', server: 'composio', tool: 'GMAIL_FETCH_THREAD', args: {} };
+    answers.push(actions([big, big, big, big, big]), 'Read them.');
+    await ask('read my long threads');
+    // (12 000 characters each: the fifth no longer fits in 48 000)
+    expect(calls).toHaveLength(4);
+
+    calls.length = 0;
+    const small = { do: 'mcp_call', server: 'composio', tool: 'GMAIL_FETCH_EMAILS', args: {} };
+    answers.push(actions(Array.from({ length: 25 }, () => small)), 'Read them.');
+    await ask('check my mail 25 times');
+    expect(calls).toHaveLength(24);
   });
 
   it('/stop while the server is still starting asks nothing in Needs you', async () => {

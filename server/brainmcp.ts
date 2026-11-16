@@ -23,6 +23,8 @@ export const BRAIN_ID = 'brain';
 export const MCP_LOOKUPS: readonly string[] = ['mcp_tools', 'mcp_call'];
 // calls and listings in one answer, and how much of each the Brain reads
 const LOOKUPS_MAX = 6;
+/** MCP calls and listings in one whole turn of the Brain as an agent (each tool call is one look-up). */
+export const TURN_LOOKUPS_MAX = 24;
 const LIST_CHARS = 24_000;
 const RESULT_CHARS = 12_000;
 /** How much MCP results one whole answer may bring back, over all its rounds (they all go into each next prompt). */
