@@ -276,8 +276,13 @@ async function xToken(accountId: string): Promise<string> {
     }).catch((e: FetchError) => {
       throw new Error(`Couldn't refresh @${acc.username}'s sign-in (${e.message}). Reconnect it in Connections.`);
     });
+    if (!tok?.access_token) throw new Error(`X gave no new sign-in for @${acc.username}. Reconnect it in Connections.`);
     const fresh = loadAccounts();
-    Object.assign(fresh.x[accountId], {
+    const now = fresh.x?.[accountId];
+    // disconnected, or signed in again, while this refresh went: the new sign-in is kept, never this older one
+    if (!now) throw new Error('That X account is not connected.');
+    if (now.refreshToken !== acc.refreshToken || now.accessToken !== acc.accessToken) return now.accessToken;
+    Object.assign(now, {
       accessToken: tok.access_token,
       refreshToken: tok.refresh_token || acc.refreshToken,
       expiresAt: Date.now() + (tok.expires_in || 7200) * 1000,

@@ -720,6 +720,7 @@ Completed reviews:
 - Trigger/evidence: old refresh awaits while account disconnects/reconnects; response arrives after new credentials save. Refresh serialization excludes reconnect, then assigns old response into the fresh account.
 - Impact/expected: new authorization/scopes are replaced with old credentials. Validate connection generation/token before persistence.
 - Limits: removal alone does not resurrect an account: assigning into missing entry throws. No account requests.
+- Fixed: an X (and Reddit) refresh saves its answer only if the account still has the tokens it refreshed; a sign-in made meanwhile is kept and used, and a disconnected account stays gone. Test in `tests/server/social-posting.test.ts`.
 
 ### BH-082 — Outbox requests can change projects during body parsing
 
@@ -737,6 +738,7 @@ Completed reviews:
 - Trigger/evidence: refresh receives an HTTP-success document containing OAuth `error`. Callback checks `tok.error`, refresh does not; it can persist undefined token with future expiry.
 - Impact/expected: later calls send `Bearer undefined` instead of exposing refresh failure. Validate the token/error response before saving.
 - Limits: discrepancy/control flow confirmed; whether current Reddit refresh failures use this response shape is unverified. No provider request.
+- Fixed: a Reddit refresh whose answer has an error, or no token, is refused and nothing is saved. Test in `tests/server/social-posting.test.ts`.
 
 ### BH-084 — Memory reads and writes miss ancestor symlink escapes
 

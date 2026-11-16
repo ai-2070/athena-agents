@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dataPath, writeJSON } from '../../server/util.ts';
+import { dataPath, readJSON, writeJSON } from '../../server/util.ts';
 import * as social from '../../server/social.ts';
 import * as reddit from '../../server/reddit.ts';
 import { allTools, toolDefs } from '../../server/tools.ts';
@@ -19,6 +19,7 @@ interface Call {
 }
 let calls: Call[];
 const later = Date.now() + 86_400_000;
+const stored = () => readJSON<AccountsFile>(dataPath('accounts.json'))!;
 
 function accounts({ xAuto = false, redditAuto = false, withReddit = true } = {}) {
   const a: AccountsFile = {
@@ -417,5 +418,56 @@ describe('the Outbox, one decision at a time', () => {
     // approving again goes on after the part that is posted
     expect((await social.approvePost(p.id)).status).toBe('posted');
     expect(tweets()).toHaveLength(1);
+  });
+});
+
+describe('refreshing a sign-in', () => {
+  const expire = (platform: 'x' | 'reddit', id: string) => {
+    const a = stored();
+    const acc = (a[platform] as Record<string, { expiresAt: number }>)[id]!;
+    acc.expiresAt = Date.now() - 1000;
+    writeJSON(dataPath('accounts.json'), a);
+  };
+
+  it("refuses Reddit's error answer instead of saving no token", async () => {
+    accounts();
+    expire('reddit', 'r1');
+    const real = globalThis.fetch;
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) =>
+      url === 'https://www.reddit.com/api/v1/access_token' ? json({ error: 'invalid_grant' }) : real(url, init),
+    );
+    const p = await social.draftPost({ platform: 'reddit', subreddit: 'test', title: 'Hi', text: 'Body' });
+    const r = await social.approvePost(p.id);
+    expect(r.status).toBe('failed');
+    expect(r.error).toMatch(/invalid_grant/);
+    expect(stored().reddit!.r1!.accessToken).toBe('rt');
+  });
+
+  it('keeps a new X sign-in made while an older refresh was still going', async () => {
+    accounts();
+    const a = stored();
+    a.x!.x1!.refreshToken = 'old-refresh';
+    a.x!.x1!.expiresAt = Date.now() - 1000;
+    writeJSON(dataPath('accounts.json'), a);
+    let release = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const real = globalThis.fetch;
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url === 'https://api.x.com/2/oauth2/token') {
+        await gate;
+        return json({ access_token: 'from-old-refresh', refresh_token: 'old-next', expires_in: 7200 });
+      }
+      return real(url, init);
+    });
+    const p = await social.draftPost({ platform: 'x', text: 'Hello' });
+    const posting = social.approvePost(p.id);
+    await new Promise((r) => setTimeout(r, 20));
+    // you sign in again meanwhile
+    const now = stored();
+    Object.assign(now.x!.x1!, { accessToken: 'new-sign-in', refreshToken: 'new-refresh', expiresAt: later });
+    writeJSON(dataPath('accounts.json'), now);
+    release();
+    await posting;
+    expect(stored().x!.x1).toMatchObject({ accessToken: 'new-sign-in', refreshToken: 'new-refresh' });
   });
 });

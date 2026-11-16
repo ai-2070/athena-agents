@@ -169,8 +169,17 @@ async function token(accountId: string): Promise<string> {
     }).catch((e: FetchError) => {
       throw new Error(`Couldn't refresh u/${acc.username}'s sign-in (${e.message}). Reconnect it in Connections.`);
     });
+    // (Reddit can answer a failed refresh with 200 and an error in the body)
+    if (tok?.error || !tok?.access_token)
+      throw new Error(
+        `Couldn't refresh u/${acc.username}'s sign-in (Reddit said: ${tok?.error || 'no token'}). Reconnect it in Connections.`,
+      );
     const a = load();
-    Object.assign(a.reddit![accountId], {
+    const now = a.reddit?.[accountId];
+    // disconnected, or signed in again, while this refresh went: the new sign-in is kept, never this older one
+    if (!now) throw new Error('That Reddit account is not connected.');
+    if (now.refreshToken !== acc.refreshToken || now.accessToken !== acc.accessToken) return now.accessToken;
+    Object.assign(now, {
       accessToken: tok.access_token,
       expiresAt: Date.now() + (tok.expires_in || 3600) * 1000,
     });
