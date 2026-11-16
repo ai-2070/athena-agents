@@ -1,6 +1,6 @@
 # Bug hunt
 
-Started: 2026-11-16. Thirteen reviews completed; five additional reviews are running.
+Started: 2026-11-16. Fourteen reviews completed; six additional reviews are running.
 
 Investigation only: no application code changed. This is an accumulating concern log, not a claim of exhaustive coverage or patch-introduced regressions.
 
@@ -32,7 +32,9 @@ Completed reviews:
 - KnowledgeDocumentBugs (running): knowledge caching/access, document extraction and PDF worker lifecycle.
 - TerminalCommandBugs (completed): terminal ownership, shell execution, timeouts and cleanup; ten concerns (BH-086–BH-095).
 - VoxelWorldBugs (running): world access, mutations, prefabs, transforms and import/export.
-- ProviderSettingsBugs (running): provider/model selection, cache identity, settings and keys.
+- ProviderSettingsBugs (completed): provider/model selection, cache identity, settings and keys; six concerns (BH-096–BH-101).
+- ProgramLaunchBugs (running): program discovery, launch identity, services and DCC execution.
+- ArtifactPreviewBugs (running): artifact targets, file previews, attachment lifecycle and project binding.
 - ComfyWorkflowBugs (running): workflow conversion, image inputs, masks, job lifecycle and results.
 - TeamDispatchBugs (running): team routing, queued delivery, turn ownership and thread switching.
 - Parent review: shared text/mention helpers, archive search, memory persistence and selected finding traces.
@@ -798,3 +800,51 @@ Completed reviews:
 - Trigger/evidence: open corresponding original/cloned agent terminals, or reopen after configuration changes. Global `runtime/<agentId>` and fixed terminal filenames are reused without project/session identity.
 - Impact/expected: later launch overwrites files referenced by the older terminal; delayed reads/rereads can consume another project's instructions/MCP settings. Keep per-terminal stable files.
 - Limits: overwriting is deterministic; CLI read timing and cross-project consumption not reproduced.
+
+### BH-096 — Saving or removing a key discards unsaved settings
+
+- Reporter: ProviderSettingsBugs. Severity: medium. Status: source-confirmed form lifetime defect.
+- Sources: `web/views/settings.tsx:85-95,400-418,752-766`.
+- Trigger/evidence: edit a provider URL or another setting, then save/remove a key. Key handling calls `reload()`, increments the form version and remounts GeneralForm, discarding its patch/input state—even when key saving fails.
+- Impact/expected: unrelated edits silently disappear. A replacement key can remain configured against the old endpoint, which subsequent discovery/inference may contact. Refresh secret status without losing the draft.
+- Limits: source trace only; no key or endpoint changed and no request made.
+
+### BH-097 — Successfully saved settings remain in the next patch
+
+- Reporter: ProviderSettingsBugs. Severity: medium. Status: source-confirmed stale patch retention.
+- Sources: `web/views/settings.tsx:93-98`; `server/store.ts:133-137`; `web/core.ts:71-87`.
+- Trigger/evidence: A saves a field; B changes it; A saves an unrelated edit. Save never clears the successful entries from `patch.current`, and global refresh does not reset that ref.
+- Impact/expected: A resubmits stale values and overwrites B's newer settings. Retire saved patch entries while preserving edits made during an in-flight save.
+- Limits: cross-tab ordering inspected; no browser scenario.
+
+### BH-098 — Provider key changes leave account-specific model catalogs cached
+
+- Reporter: ProviderSettingsBugs. Severity: medium. Status: source-confirmed conditional cache identity defect.
+- Sources: `server/models.ts:130-145,190,287-296`; `server/store.ts:146-151`; `server/apiproviders.ts:67-79`; `server/overseer.ts:1466-1476,2098-2104`.
+- Trigger/evidence: cache a custom service's key-dependent `/models` list under A, then replace its key with B at the same address. Cache identity has no credential generation and `setSecret()` does not invalidate it.
+- Impact/expected: for five minutes Brain discovery can list A's models and reject B-only IDs, while the separately fetched web picker shows B's actual catalog. Retire credential-specific entries and obsolete in-flight fetches.
+- Limits: requires an account-scoped catalog; no claim that public OpenRouter/Venice lists vary by key. No credentials or calls touched.
+
+### BH-099 — Context measurements use inconsistent endpoint/effective-model identity
+
+- Reporter: ProviderSettingsBugs. Severity: medium. Status: source-confirmed measurement/admission mismatch.
+- Sources: `server/context.ts:74-77,94-98,110-123`; `server/eve/transcript.ts:79-94`; `server/eve/model.ts:13,43`; `server/eve/admission.ts:259-279`.
+- Trigger/evidence: change endpoint while retaining model ID: old measured window still matches and wins before endpoint-aware lookup. Alternatively leave Eve model blank: transcript saves resolved-model identity while later comparison uses the blank agent model.
+- Impact/expected: stale endpoint windows can admit oversized/reject fitting input; default-model chats ignore actual usage and show estimates. Use one identity based on resolved endpoint and effective model.
+- Limits: persistence-to-admission source trace; no model/compaction run.
+
+### BH-100 — Invalid numeric settings are persisted before turns reject them
+
+- Reporter: ProviderSettingsBugs. Severity: medium. Status: source-confirmed save-time validation omission.
+- Sources: `shared/api/settings.ts:18,78-81`; `server/api/settings.ts:16`; `web/views/settings.tsx:316-340,351-362,463-466`; `server/eve/model.ts:21-26`; `server/context.ts:94-95`; `server/eve/admission.ts:259-279`.
+- Trigger/evidence: save fractional/negative maximum tool steps, negative cost, or negative context window. Contract accepts arbitrary finite numbers and the standalone Save button does not enforce number-input constraints.
+- Impact/expected: globally saved configuration breaks subsequent Eve turns or yields negative input budgets. Reject invalid limits at save time and retain usable settings.
+- Limits: explicit source failure paths; no invalid settings written.
+
+### BH-101 — Post-reset Codex refresh can reuse pre-reset work
+
+- Reporter: ProviderSettingsBugs. Severity: medium. Status: source-confirmed cache-ordering race.
+- Sources: `server/codexlimits.ts:161-177,190-199`; `server/api/mcp.ts:116-119`; `web/navlimits.tsx:307-319`.
+- Trigger/evidence: a limits read captures old values and is pending when a reset is consumed. Post-reset `force: true` bypasses completed cache but still returns `cache.running`.
+- Impact/expected: reset response/UI install old usage and credit counts as fresh and may announce the wrong remaining resets. Order refresh after reset consumption.
+- Limits: request overlap not executed; no Codex reset or process invoked.
