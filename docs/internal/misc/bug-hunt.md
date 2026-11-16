@@ -1,6 +1,6 @@
 # Bug hunt
 
-Started: 2026-11-16. Fourteen reviews completed; six additional reviews are running.
+Started: 2026-11-16. Nineteen reviews completed; one additional review is running.
 
 Investigation only: no application code changed. This is an accumulating concern log, not a claim of exhaustive coverage or patch-introduced regressions.
 
@@ -29,14 +29,14 @@ Completed reviews:
 - DesktopLifecycleBugs: startup/shutdown, tray, updater and packaging.
 - BrainOrchestrationBugs: routing, handoffs, completion evidence and project ownership.
 - SocialPostingBugs: OAuth, account refresh, Outbox publication, retry and lifecycle.
-- KnowledgeDocumentBugs (running): knowledge caching/access, document extraction and PDF worker lifecycle.
+- KnowledgeDocumentBugs (completed): knowledge caching/access, document extraction and PDF worker lifecycle; fifteen concerns (BH-102–BH-116).
 - TerminalCommandBugs (completed): terminal ownership, shell execution, timeouts and cleanup; ten concerns (BH-086–BH-095).
-- VoxelWorldBugs (running): world access, mutations, prefabs, transforms and import/export.
+- VoxelWorldBugs (completed): world access, mutations, prefabs, transforms and import/export; thirteen concerns (BH-134–BH-146).
 - ProviderSettingsBugs (completed): provider/model selection, cache identity, settings and keys; six concerns (BH-096–BH-101).
 - ProgramLaunchBugs (running): program discovery, launch identity, services and DCC execution.
-- ArtifactPreviewBugs (running): artifact targets, file previews, attachment lifecycle and project binding.
-- ComfyWorkflowBugs (running): workflow conversion, image inputs, masks, job lifecycle and results.
-- TeamDispatchBugs (running): team routing, queued delivery, turn ownership and thread switching.
+- ArtifactPreviewBugs (completed): artifact targets, file previews, attachment lifecycle and project binding; eight concerns (BH-147–BH-154).
+- ComfyWorkflowBugs (completed): workflow conversion, image inputs, masks, job lifecycle and results; eleven concerns (BH-117–BH-127).
+- TeamDispatchBugs (completed): team routing, queued delivery, turn ownership and thread switching; six concerns (BH-128–BH-133).
 - Parent review: shared text/mention helpers, archive search, memory persistence and selected finding traces.
 
 ## Findings
@@ -848,3 +848,427 @@ Completed reviews:
 - Trigger/evidence: a limits read captures old values and is pending when a reset is consumed. Post-reset `force: true` bypasses completed cache but still returns `cache.running`.
 - Impact/expected: reset response/UI install old usage and credit counts as fresh and may announce the wrong remaining resets. Order refresh after reset consumption.
 - Limits: request overlap not executed; no Codex reset or process invoked.
+
+### BH-102 — Handed-document access crosses private conversation boundaries
+
+- Reporter: KnowledgeDocumentBugs. Severity: high. Status: source-confirmed attachment authorization omission.
+- Sources: `server/tools.ts:244-257,2083-2087`; `server/conversations.ts:62-64,126-130`; `server/gateways/conversations.ts:32-39`.
+- Trigger/evidence: one Eve agent without Files tools serves multiple private gateway conversations and requests a known document path attached elsewhere. `handedFiles()` collects all of that agent's chat attachments without filtering `conversationId`.
+- Impact/expected: `read_document` discloses another private conversation's attachment although history tools reject equivalent access. Limit handed files to the requesting conversation.
+- Limits: requires knowing the attachment path; path discovery and unauthenticated access are not established. Existing tests distinguish agents, not conversations; no read executed.
+
+### BH-103 — Office stored entries evade actual unpacked allocation limits
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: source-confirmed metadata/allocation mismatch.
+- Sources: `server/documents.ts:407-428`; installed `fflate/esm/index.mjs:177-184,2692-2706`.
+- Trigger/evidence: an Office ZIP understates stored entries' `originalSize`. Filter accounts declarations while fflate copies compressed-length bodies; all parts allocate before individual actual-size checks, and actual aggregate size is never checked. Repeated central-directory references can amplify one body.
+- Impact/expected: Office reading exceeds allocation/aggregate guards on the server thread. Bound actual allocation/output, not only declared sizes.
+- Limits: distinct from asset extractor BH-006. Dependency path inspected; no hostile document or payload constructed.
+
+### BH-104 — Knowledge character limits apply only after full-file decoding
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: source-confirmed unbounded transient read.
+- Sources: `server/knowledge.ts:148-156,172,275`; `web/views/agents.tsx:1272-1276`.
+- Trigger/evidence: link a large text file/log folder and read/search. `readFileSync(..., 'utf8')` decodes the entire file before slicing to the nominal limits; linked files bypass upload-size restrictions.
+- Impact/expected: large references synchronously allocate/block the server; failures are swallowed as empty knowledge. Bound reads before decoding; cache limits do not bound transient work.
+- Limits: no large file read executed.
+
+### BH-105 — Duplicate knowledge labels open a different file from the search result
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: source-confirmed ambiguous identity.
+- Sources: `server/knowledge.ts:69-75,271-275`; `server/tools.ts:1957-1971`.
+- Trigger/evidence: link two README.md files or same-named docs folders with equal relative paths. Labels collide; search can return the second file but read selects the first matching label.
+- Impact/expected: a valid result leads to unrelated references, and the later file has no unique reader identifier. Give files unambiguous stable identities.
+- Limits: source trace only; inspected tests contain no collision fixture.
+
+### BH-106 — Stale knowledge sizes bypass the aggregate inline budget
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: source-confirmed cache/budget mismatch.
+- Sources: `server/knowledge.ts:118-127,161-172,211-219`.
+- Trigger/evidence: enlarge a linked file during the three-second listing cache. Inline eligibility uses old sizes while `textOf()` reads new contents, allowing up to 200,000 characters per file instead of the 24,000-byte small-knowledge threshold.
+- Impact/expected: ordinary edits unexpectedly inflate system context or fail input admission. Enforce budget against current returned contents.
+- Limits: cached listing interval is intentional; timing not reproduced.
+
+### BH-107 — Office type detection mistakes embedded content for the outer package
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: source-confirmed byte-search classification defect.
+- Sources: `server/documents.ts:120-124,194-201,489-492`.
+- Trigger/evidence: workbook/deck contains stored embedded Office data or XML text with another format's identifying pathname. `documentKind()` searches arbitrary ZIP bytes, prioritizing Word then Excel, rather than top-level package entries.
+- Impact/expected: valid outer documents are misclassified and fail extraction, with lasting failure cached. Identify the actual package entries.
+- Limits: no real producer sample opened; the stored-content condition follows from the search.
+
+### BH-108 — File/document tools drop cancellation before PDF reading
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: source-confirmed missing signal forwarding.
+- Sources: `server/tools.ts:2054,2087,2550-2553`; `server/documents.ts:301-316,345,369-382`.
+- Trigger/evidence: Stop during read_file/read_document PDF work or slot waiting. `callTool()` has the run signal, but both `readDocumentPart()` calls omit it.
+- Impact/expected: stopped calls still occupy/wait for shared workers; multi-file loops can proceed to more files. Forward cancellation into the already-cancellable reader.
+- Limits: existing cancellation tests call reader directly, not these consumers; no Stop scenario.
+
+### BH-109 — PDF queue time is outside the attachment deadline
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: source-confirmed deadline accounting omission.
+- Sources: `server/documents.ts:301-315,345-373`; `server/uploads.ts:344,369-381`.
+- Trigger/evidence: both PDF workers and a backlog are occupied. Attachment rendering passes remaining sixty-second budget as `timeoutMs`, but `pdfText()` waits for a slot before starting that timer.
+- Impact/expected: preparation exceeds its total budget by queue delay, blocking unrelated admission. Include waiting in the deadline.
+- Limits: delay depends on concurrency; inspected tests cover sequential timeout/cancel, not backlog deadlines. No queue executed.
+
+### BH-110 — Failed knowledge URL fetches overwrite good references with error pages
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: source-confirmed response validation omission.
+- Sources: `server/api/agents.ts:190-201`; `server/knowledge.ts:191-195`; `web/views/agents.tsx:1292-1296`.
+- Trigger/evidence: save/refresh a URL returning an HTTP error, such as transient 500. Handler never checks `res.ok`, converts the response and saves under a deterministic filename.
+- Impact/expected: error text becomes authoritative knowledge and can replace a useful file while reporting success. Reject unsuccessful responses before writing.
+- Limits: no network request; inspected tests cover notes/folder links, not URL status.
+
+### BH-111 — Knowledge search snippets can omit every matching term
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: source-confirmed scoring/excerpt mismatch.
+- Sources: `server/knowledge.ts:240-257`; `server/tools.ts:1957-1960`.
+- Trigger/evidence: match occurs past character 1,600 in a forty-line passage. Scoring uses the entire passage while output keeps only its prefix.
+- Impact/expected: top “matching passages” contain no evidence and crowd visible matches out of six results. Return excerpts around matches.
+- Limits: originals remain separately readable; existing truncation tests put keywords first. No search run.
+
+### BH-112 — Knowledge pagination cannot access its silently cut-off tail
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: candidate; truncation confirmed, large-file contract unclear.
+- Sources: `server/knowledge.ts:156,264-283`; `server/tools.ts:1966-1971`; `web/views/agents.tsx:1274-1276`.
+- Trigger/evidence: linked reference exceeds five million characters. Every reader page first truncates that same prefix and computes total from it; search separately stops at two million.
+- Impact/expected: agents without Files cannot reach later contents and totals imply completion. Preserve access or explicitly expose the cutoff.
+- Limits: linking large files is suggested, but intended hard-cutoff policy was not documented; no large read executed.
+
+### BH-113 — Partial PDF extraction is treated as complete attachment text
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: candidate; completeness mismatch confirmed, fallback policy unclear.
+- Sources: `server/documents.ts:23,264`; `server/uploads.ts:382-386,442`; `server/eve/admission.ts:156-164`.
+- Trigger/evidence: a PDF exceeds 300 pages, but sparse extracted pages fit inline. Omitted-page notes exist while `complete` becomes true from any nonempty text; Eve suppresses original PDF bytes.
+- Impact/expected: provider gets no later-page contents and read_document has the same cap. Do not equate nonempty partial extraction with full coverage.
+- Limits: confirm whether extraction cap intentionally forbids original-PDF fallback; no long PDF created.
+
+### BH-114 — Equivalent Office XML namespace prefixes lose text or slide order
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: compatibility candidate; literal-prefix parser restriction confirmed.
+- Sources: `server/documents.ts:451-456,492,615-625`; `tests/server/fixtures/documents.ts:67-82`.
+- Trigger/evidence: valid Word/PowerPoint uses alternate/default namespaces rather than literal w/a/p/r prefixes. Text regexes require w:/a:, and ordering expects p:sldId/r:id.
+- Impact/expected: extraction can silently return empty/incomplete text or filename-ordered slides. Honor namespace-equivalent package contents.
+- Limits: Excel already supports/tests alternative prefixes; real Word/PowerPoint producer prevalence not checked.
+
+### BH-115 — Office relationship URIs are not normalized before part lookup
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: compatibility candidate; lookup mismatch confirmed.
+- Sources: `server/documents.ts:496-505,554-557,615-621`.
+- Trigger/evidence: equivalent target uses dot segments such as `./worksheets/sheet1.xml` or URI-encoded part names. Concatenation omits normalization/decoding before exact map lookup.
+- Impact/expected: Excel skips sheets; PowerPoint can omit/reorder slides despite successful-looking extraction. Resolve package-relative URIs correctly.
+- Limits: standard fixture targets covered; actual producer prevalence unverified, no document opened.
+
+### BH-116 — Knowledge uploads silently turn binary documents into Markdown
+
+- Reporter: KnowledgeDocumentBugs. Severity: medium. Status: supported-input candidate; binary-to-text conversion confirmed.
+- Sources: `web/views/agents.tsx:1272-1278,1360-1366`; `server/knowledge.ts:191-195`.
+- Trigger/evidence: select a small PDF/Office file in unrestricted Knowledge upload picker. Client uses `File.text()`; server appends .md to unsupported extensions and saves decoded bytes.
+- Impact/expected: successful upload yields unusable reference material. If text-only is intentional, restrict/reject unsupported files rather than silently corrupting them.
+- Limits: document support need not be assumed; no binary file selected or written.
+
+### BH-117 — ComfyUI preparation submits work after Stop
+
+- Reporter: ComfyWorkflowBugs. Severity: high. Status: source-confirmed cancellation gap.
+- Sources: `server/comfyui.ts:673-676,697-715,860-874`; `server/tools.ts:881-888,2530-2549`.
+- Trigger/evidence: Stop during workflow loading, metadata lookup or image upload. Preparation/upload/submission neither receive nor recheck cancellation; first check is in polling after POST /prompt.
+- Impact/expected: remaining files transfer and GPU execution can begin despite Stop. Preserve cancellation through preparation, check before effects and reconcile accepted submission.
+- Limits: initial tool guard covers only entry; no Stop/service scenario executed.
+
+### BH-118 — Promoted subgraph widgets ignore supported named values
+
+- Reporter: ComfyWorkflowBugs. Severity: medium. Status: source-confirmed conversion inconsistency.
+- Sources: `server/comfyui.ts:387-391,419-424,445-449,483-489`; `tests/server/comfyui-convert.test.ts:126-171,248-318`.
+- Trigger/evidence: subgraph instance stores promoted values in widgets_values_named or object-valued widgets_values. Ordinary-node conversion supports those representations, but promotion reads arrays only and falls back to inner defaults.
+- Impact/expected: instance prompts, dimensions or settings silently run with wrong values. Apply named lookup before positional fallback.
+- Limits: subgraph tests use arrays; no real editor export generated.
+
+### BH-119 — ComfyUI result references lose the producing server
+
+- Reporter: ComfyWorkflowBugs. Severity: medium. Status: source-confirmed result identity omission.
+- Sources: `server/comfyui.ts:756-758,967-969,984-993`; `server/toolimages.ts:150-153`; `web/chat/parts.tsx:211-214`.
+- Trigger/evidence: generate on A, switch configured ComfyUI to B, reopen chat. Persisted relative references contain only file/subfolder/type; proxy/model reads resolve the currently selected server.
+- Impact/expected: images disappear or display B's same-named output; changing during model capture can give the wrong image. Bind origin server or retain local bytes.
+- Limits: later contents determine result; no image request/server change executed.
+
+### BH-120 — ComfyUI discovery accepts unrelated servers returning 404
+
+- Reporter: ComfyWorkflowBugs. Severity: medium. Status: source-confirmed service identity omission.
+- Sources: `server/programs.ts:354-365`; `server/util.ts:540-543`; `server/comfyui.ts:943-965,1048-1050`.
+- Trigger/evidence: unrelated HTTP server answers on port 8000. ping accepts statuses below 500, including 404 for /system_stats, ahead of relocated Desktop ports.
+- Impact/expected: status says ComfyUI runs, start refuses to launch it and jobs target another service. Validate successful ComfyUI-specific response structure.
+- Limits: no HTTP/port reproduction.
+
+### BH-121 — Non-image ComfyUI results lose download links before reaching users
+
+- Reporter: ComfyWorkflowBugs. Severity: medium. Status: source-confirmed tool/UI output loss.
+- Sources: `server/tools.ts:891,900-910`; `server/comfyui.ts:751-770`; `web/views/programs.tsx:285-289`; `web/chat/parts.tsx:258-282`.
+- Trigger/evidence: workflow generates GIF/video/audio/3D. runWorkflow creates usable URLs, but tool returns URLs only for images; other outputs become filename/type text. Programs panel filters non-images too.
+- Impact/expected: successful advertised output has no downloadable reference, particularly for remote servers. Carry and expose all result URLs.
+- Limits: existing 3D tests stop at runWorkflow URLs, not end-user delivery; no generation executed.
+
+### BH-122 — ComfyUI API discards explicit empty prompt overrides
+
+- Reporter: ComfyWorkflowBugs. Severity: medium. Status: source-confirmed optional-value mismatch.
+- Sources: `server/api/programs.ts:35-36`; `shared/api/programs.ts:54-59`; `server/comfyui.ts:657-665`.
+- Trigger/evidence: API caller supplies empty positive/negative text to clear saved content. Schema and runner distinguish empty from omitted, but API adapter converts empty strings to undefined.
+- Impact/expected: saved prompt runs unchanged instead of being cleared. Forward optional strings without truthiness conversion.
+- Limits: current Programs UI itself omits empty positive text; direct API consumers affected. No request executed.
+
+### BH-123 — ComfyUI cancellation POSTs are unbounded
+
+- Reporter: ComfyWorkflowBugs. Severity: medium. Status: source-confirmed missing application timeout.
+- Sources: `server/comfyui.ts:714-716,929-939`.
+- Trigger/evidence: POST /queue stalls before headers. Cancellation awaits it before checking running job; POST /interrupt also has no bounded signal. Only intervening GET has a ten-second timeout.
+- Impact/expected: GPU job and stopped tool can remain pending instead of reaching Stopped. Bound cancellation requests.
+- Limits: network-dependent; no stalled connection and no assumption about runtime default fetch timeout.
+
+### BH-124 — Combined conditioning traversal omits later branches
+
+- Reporter: ComfyWorkflowBugs. Severity: medium. Status: candidate; traversal omission confirmed, override policy unclear.
+- Sources: `server/comfyui.ts:580-588,610-615`.
+- Trigger/evidence: sampler receives ConditioningCombine with two encoders. Traversal follows first matching input; both encoders are excluded as independent starts, so second branch is never updated.
+- Impact/expected: replacement prompt mixes with saved text if top-level override should replace all conditioning branches.
+- Limits: whether only first branch is intentional needs confirmation; tests cover linear helpers, no branching run.
+
+### BH-125 — Linked seed inputs bypass randomization and reporting
+
+- Reporter: ComfyWorkflowBugs. Severity: medium. Status: candidate; behavior confirmed, computed-seed policy unclear.
+- Sources: `server/comfyui.ts:680-692`.
+- Trigger/evidence: sampler seed is a node-output link. Randomization and seed reporting accept numeric literals only, so a linked constant stays fixed and absent from reported seeds.
+- Impact/expected: repeated runs can contradict “Seeds are randomized unless set” and cannot report reproducibility state.
+- Limits: computed/shared producers cannot safely be treated as literals; intended handling needs confirmation. No workflow run.
+
+### BH-126 — An unavailable explicit ComfyUI address silently falls back elsewhere
+
+- Reporter: ComfyWorkflowBugs. Severity: medium. Status: candidate; fallback confirmed, intended policy unclear.
+- Sources: `server/programs.ts:356-365`; `server/comfyui.ts:147-159`.
+- Trigger/evidence: configured address is unavailable but another local candidate answers. Explicit address is merely first in discovery, followed by automatic fallbacks.
+- Impact/expected: jobs can use another instance's models/inputs instead of failing explicitly. Interface describes probing as auto and comments describe fallback when no address is set.
+- Limits: deliberate fallback policy needs confirmation; no service contacted.
+
+### BH-127 — Legacy ComfyUI interrupt can stop a different job
+
+- Reporter: ComfyWorkflowBugs. Severity: medium. Status: version/runtime candidate; check/use race confirmed.
+- Sources: `server/comfyui.ts:933-938`.
+- Trigger/evidence: checked running prompt finishes before interrupt POST, another starts, and server version ignores prompt_id. Global interrupt then hits that other job.
+- Impact/expected: cancellation affects unrelated work despite the comment's safety claim. Do not claim identity is stable across separate requests.
+- Limits: supported legacy versions ignoring prompt_id were not available; existing tests hold identity fixed. No race reproduced.
+
+### BH-128 — Outstanding team steers survive Stop and conversation replacement
+
+- Reporter: TeamDispatchBugs. Severity: high. Status: source-confirmed stale continuation.
+- Sources: `server/teams.ts:507-523,1399-1407,1703-1704,1740-1759`; `server/api/teams.ts:33,45-58`.
+- Trigger/evidence: Stop/Clear/switch while a steer awaits shutdown or joinChatTurn. Stop/replacement changes runtime epoch, but steering never rechecks it before postAndRoute; routing targets the now-open conversation and resets stopped=false.
+- Impact/expected: replacement work starts after Stop or instructions enter another thread. Capture/revalidate epoch and thread ownership across awaits.
+- Limits: no timing scenario executed.
+
+### BH-129 — Completed team turns post into replacement threads after missed-message waiting
+
+- Reporter: TeamDispatchBugs. Severity: high. Status: source-confirmed post-await ownership gap.
+- Sources: `server/teams.ts:1241-1264`; `server/engines/index.ts:1376-1386`; `server/eve/steer.ts:71-77`.
+- Trigger/evidence: Stop/Clear/switch while completed turn awaits missedMessages. Epoch/stopped guard precedes that await; afterward old reply/session/handoff changes proceed unconditionally. Native acknowledgement can wait twenty seconds.
+- Impact/expected: old output and missed input routing contaminate the new conversation or restart obsolete work. Revalidate current epoch/session before mutations.
+- Limits: existing clear-during-model tests cover earlier guard, not this boundary; no race executed.
+
+### BH-130 — Team queues release before cross-team/background work finishes
+
+- Reporter: TeamDispatchBugs. Severity: medium. Status: source-confirmed incomplete busy definition.
+- Sources: `server/teams.ts:345-357,827-834,948-964,1416-1435,1483-1515`; `docs/guide.md:111`.
+- Trigger/evidence: local member finishes while its other-team request is outstanding, then /queue or a held message is eligible. Queue idle/release checks only local running/queued/pending work, unlike isTeamBusy and relay completion.
+- Impact/expected: later instructions overlap incomplete work despite “whole team is done” ordering. Include relay/delegate work in queue eligibility.
+- Limits: no team/delegate execution.
+
+### BH-131 — Team reconnect merges obsolete sessions over the refreshed conversation
+
+- Reporter: TeamDispatchBugs. Severity: medium. Status: source-confirmed stale snapshot precedence.
+- Sources: `web/teamchat.tsx:301-307,1107,1185-1187`; `web/chat/TurnView.tsx:32-64`; `server/teams.ts:1779-1800`.
+- Trigger/evidence: miss a thread switch during outage; reconnect while same member works in new thread. Merge spreads refreshed sessions first, then old cached sessions, overwriting current ownership.
+- Impact/expected: live view follows old conversation or omits actual work. Refreshed mapping should win except for events received during that request.
+- Limits: normal connected switch clears mapping correctly; no outage run.
+
+### BH-132 — Delayed team snapshots resurrect ended live turns
+
+- Reporter: TeamDispatchBugs. Severity: medium. Status: source-confirmed load/event race.
+- Sources: `web/teamchat.tsx:247-254,305-308,1107,1185-1187`.
+- Trigger/evidence: GET captures working member; turn-end arrives before response is applied. Handler removes turning member, then snapshot re-adds stale working entries. early.state guards working list, not turning set.
+- Impact/expected: finished turn appears live or duplicates its saved reply until another event/reload. Preserve intervening turn ends over older snapshots.
+- Limits: existing tests cover stale state events, not delayed GET after turn end; no browser scenario.
+
+### BH-133 — Open team chats retain outdated member/lead controls
+
+- Reporter: TeamDispatchBugs. Severity: medium. Status: source-confirmed stale metadata binding.
+- Sources: `web/teamchat.tsx:292,754-755,1108`; `server/api/workflows.ts:37`; `web/chatwin.tsx:1081-1091`.
+- Trigger/evidence: edit membership/lead while chat stays open. C.team loads once; subscription handles no workflow update. App-state refresh retains chat contents and does not replace that object.
+- Impact/expected: removed members remain mention targets, new ones are absent, and lead-model control edits former lead. Reconcile roster/lead on updates.
+- Limits: server routing reads fresh members; no UI scenario run.
+
+### BH-134 — Editing a nested prefab can exceed ancestors' render depth
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: source-confirmed graph-depth validation gap.
+- Sources: `server/voxel/build.ts:465-469,497`; `web/voxel/instances.ts:17,89`.
+- Trigger/evidence: place a valid four-level prefab chain, then add a child to its existing leaf. Validation checks new child depth, not edited prefab's ancestors; drawnCheck counts work, not nesting.
+- Impact/expected: successful persistent fifth-level geometry disappears because rendering stops at four. Validate resulting graph through holders.
+- Limits: producer/render cutoff inspected; no scene built.
+
+### BH-135 — Short path segments do not advance prefab placement spacing
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: source-confirmed distance-accounting error.
+- Sources: `server/voxel/ops.ts:1106-1133`; `tests/server/voxel-prefabs.test.ts:240-268`.
+- Trigger/evidence: along-path segments are shorter than every/carry. carry updates only inside placement loop; skipped segments never subtract their length.
+- Impact/expected: densely sampled curves can get only initial copy instead of regularly spaced fences/lamps. Carry distance across every segment.
+- Limits: existing test uses one long segment; no operation run.
+
+### BH-136 — Named prefab pivots ignore nested assembly geometry
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: source-confirmed bounds/pivot mismatch.
+- Sources: `server/voxel/build.ts:376-378,520-524`; `server/voxel/prefabs.ts:267-268`; `web/voxel/instances.ts:100-101`; `web/voxel/worldlayer.ts:249,467`.
+- Trigger/evidence: prefab consists only of placed parts; choose top/center/bottom. Pivot calculation considers voxel volumes only, returning origin for empty volumes, although size later includes nested parts.
+- Impact/expected: assemblies rotate/stand/hang around the wrong point and named changes may do nothing. Use complete bounds for named pivots.
+- Limits: explicit-coordinate workaround exists; no rendering executed.
+
+### BH-137 — Extracted prefabs bypass ordinary side-size limits
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: source-confirmed entrypoint invariant mismatch.
+- Sources: `server/voxel/prefabs.ts:169-187`; `server/voxel/build.ts:481-488`.
+- Trigger/evidence: extract a 129-voxel-long valid object portion. Extraction checks count/nesting, not dimensions, whereas builder limits sides to 128; publication/import accept the result too.
+- Impact/expected: users share prefabs ordinary edits then refuse, even material-only changes. Enforce consistent creation invariants.
+- Limits: geometry must first shrink to become editable; no extraction run.
+
+### BH-138 — Prefab pivot changes bypass affected-copy ownership approval
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: source-confirmed alternate-entrypoint authorization gap.
+- Sources: `server/voxel/tools.ts:269-273,287-290,616-628`; `server/voxel/prefabs.ts:266-270`.
+- Trigger/evidence: B places A's prefab in B's object; A changes pivot under auto autonomy. Planner/executor check creator only, unlike rebuild copiesCheck, although pivot moves existing copies.
+- Impact/expected: another builder's geometry changes without the established copy-owner approval. Apply copy reach/ownership checks to pivot mutations.
+- Limits: not unrestricted full autonomy; no mutation executed.
+
+### BH-139 — Prefab reach checks omit worn skins
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: source-confirmed reach omission; delegated skin-edit policy needs clarification.
+- Sources: `server/voxel/reach.ts:111-128`; `server/voxel/tools.ts:246-263`; `web/voxel/skins.ts:274-290,330-340`.
+- Trigger/evidence: A's prefab becomes B's character/desk or shared team/Brain skin; A rebuilds it. Reach scans object/prefab instances only, not w.skins, despite direct skin changes requiring approval.
+- Impact/expected: appearance/shared geometry changes bypass direct ownership boundary unless also referenced elsewhere. Account for affected skins or explicitly define delegated authority.
+- Limits: rendering consumes prefab geometry/animation; no skin/build run.
+
+### BH-140 — Object undo restores references to already-deleted prefabs
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: source-confirmed missing dependency validation.
+- Sources: `server/voxel/build.ts:756-760,870-874`; `web/voxel/instances.ts:92-93`; `web/voxel/worldlayer.ts:467`.
+- Trigger/evidence: delete object with copies, delete now-unused prefab, undo object deletion. Undo checks later edits to object ID but not referenced prefab availability.
+- Impact/expected: success restores invisible missing parts. Restore dependencies or refuse atomically.
+- Limits: ordinary prefab deletion checks current uses, not undo history; no undo run.
+
+### BH-141 — Undoing imports leaks their added palette slots
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: source-confirmed undo metadata omission.
+- Sources: `server/voxel/exchange.ts:58,104-110,132`; `server/voxel/prefabs.ts:529,555-561`; `server/voxel/build.ts:781,810-815`.
+- Trigger/evidence: import colors then immediately undo. Import adds palette entries but omits history materials; undo reclaims additions only through mine.materials.
+- Impact/expected: repeatedly trying/undoing models exhausts the 255-material palette despite geometry removal. Record/reclaim imported materials like ordinary builds.
+- Limits: no import/undo executed.
+
+### BH-142 — Finishing-pass inspections bypass voxel work budgets
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: source-confirmed missing work accounting.
+- Sources: `server/voxel/ops.ts:44-45,876-889,900-973`.
+- Trigger/evidence: repeated no-change finishes, such as zero-chance weathering, scan chunks/occupied cells without tick(); only writes are budgeted. Allowed sparse reach can hold 32,768 chunks, about 134 million scanned cells per pass.
+- Impact/expected: synchronous operations monopolize server beyond advertised 20-million-inspected-spots guard; script deadlines cannot interrupt a host operation. Budget inspections themselves.
+- Limits: accounting/arithmetic inspected; duration/memory not measured.
+
+### BH-143 — Linked world roots are rejected only after object writes/deletions
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: source-confirmed destination-check ordering.
+- Sources: `server/voxel/store.ts:55-58,80,110-115`; `server/util.ts:92-100`; `server/voxel/build.ts:508-537`.
+- Trigger/evidence: replace linked project's world directory with a junction/symlink to a world-shaped outside directory. Metadata read checks final file; writeData checks immediate object directory/file; saveWorld rejects root after effects.
+- Impact/expected: a refused build/delete can already change outside files or corrupt another world. Check full destination before any data mutation.
+- Limits: pre-existing filesystem control/target permissions required; not unauthenticated HTTP. No link or operation executed.
+
+### BH-144 — Voxel import allocates sparse chunks before rejecting spatial extent
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: allocation candidate; order/arithmetic confirmed, OOM untested.
+- Sources: `server/voxel/exchange.ts:50,64-84`; `server/voxel/vox.ts:204,243`; `shared/voxel.ts:40-45`.
+- Trigger/evidence: allowed .vox scene spreads placements into distinct chunks ultimately outside reach. voxToGrid materializes first; one-million-voxel allowance can allocate roughly 4 GB in 4,096-byte chunks.
+- Impact/expected: even 64 MB input guard cannot prevent memory exhaustion on an import that must fail. Validate extent/allocation before materialization.
+- Limits: no import, large allocation or crash attempted.
+
+### BH-145 — Voxel-file imports bypass the world prefab-count cap
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: capacity candidate; guard mismatch confirmed.
+- Sources: `server/voxel/exchange.ts:81-111`; `server/voxel/build.ts:410-412`; `server/voxel/prefabs.ts:517-518`.
+- Trigger/evidence: import another .vox prefab after 300. Exchange omits WORLD_LIMITS.prefabs, unlike ordinary creation and library import.
+- Impact/expected: capacity grows past the stated limit through one entrypoint while others refuse. Enforce one invariant.
+- Limits: practical performance effects unmeasured; no import executed.
+
+### BH-146 — Script-backed world builds ignore Stop during sandbox initialization
+
+- Reporter: VoxelWorldBugs. Severity: medium. Status: cancellation candidate; missing post-await guard confirmed.
+- Sources: `server/tools.ts:2549-2553`; `server/voxel/tools.ts:443-450`.
+- Trigger/evidence: Stop a first script-backed build while loadSandbox() awaits. Tool's entry guard already passed, and build runs unconditionally when initialization finishes.
+- Impact/expected: stopped request can execute/persist a world build. Recheck run cancellation after sandbox loading.
+- Limits: initialization/Stop timing not exercised; no script executed.
+
+### BH-147 — Late artifact responses replace the new project's list
+
+- Reporter: ArtifactPreviewBugs. Severity: medium. Status: source-confirmed request ownership omission.
+- Sources: `web/views/artifacts.tsx:44-46`; `server/api/files.ts:61-63`.
+- Trigger/evidence: A's list request starts, switch to B, B finishes reload, then A arrives. All responses unconditionally setAll without project/request validation.
+- Impact/expected: A's artifact list/previews/Open reappear under B. Ignore obsolete responses.
+- Limits: response ordering not reproduced.
+
+### BH-148 — Same-named loose attachments collapse into one sent path
+
+- Reporter: ArtifactPreviewBugs. Severity: medium. Status: source-confirmed item/path identity loss.
+- Sources: `web/attach.tsx:200-205,239-256,555`; `server/uploads.ts:95-106,148,175-179`.
+- Trigger/evidence: drop report.pdf from two folders. group merges loose files; server reserves distinct names, but item.path ||= saved.top retains only one response.
+- Impact/expected: one uploaded document is silently omitted on send. Give loose files independent identities or retain all paths.
+- Limits: clipboard renaming does not protect ordinary drops; no upload executed.
+
+### BH-149 — Attachment consumption removes files added after the send snapshot
+
+- Reporter: ArtifactPreviewBugs. Severity: medium. Status: source-confirmed asynchronous snapshot mismatch.
+- Sources: `web/attach.tsx:555,638-642`; `web/chat/ChatView.tsx:319,334-351`; `web/taskboard.tsx:618-630`.
+- Trigger/evidence: ready snapshots A; add/finish B while first-chat/task creation awaits. take later removes every currently completed item, although request contained only A.
+- Impact/expected: B disappears unsent and unavailable for next message. Consume precisely snapshot-owned items.
+- Limits: both consumer awaits traced; no browser scenario.
+
+### BH-150 — Closed drop zones keep processing folders and start abandoned uploads
+
+- Reporter: ArtifactPreviewBugs. Severity: medium. Status: source-confirmed missing asynchronous disposal guard.
+- Sources: `web/attach.tsx:604,612,619-626,653`; `web/agentchat.tsx:69-74`; `web/teamchat.tsx:1098-1104`.
+- Trigger/evidence: close chat while filesFromDrop walks a folder. Cleanup discards current items/listeners, but promise later calls add and starts uploads.
+- Impact/expected: files enter an abandoned tray without composer or later discard. Invalidate pending drop/paste processing when owner disposes.
+- Limits: no folder walk/upload scenario executed.
+
+### BH-151 — Successfully consumed image attachments leak their object URLs
+
+- Reporter: ArtifactPreviewBugs. Severity: medium. Status: source-confirmed missing release path.
+- Sources: `web/attach.tsx:219-220,638-653`; `web/chat/ChatView.tsx:345-360`; `web/brainpane.tsx:123-158`.
+- Trigger/evidence: repeatedly send images successfully. take removes items without revoking URLs; consumers never release them, and later clear/discard sees only remaining items.
+- Impact/expected: registered Blobs persist until page unload. Release accepted-send resources while allowing failed-send restoration.
+- Limits: browser memory not measured.
+
+### BH-152 — Partially successful preview boxes never retry missing files
+
+- Reporter: ArtifactPreviewBugs. Severity: medium. Status: source-confirmed incomplete retry condition.
+- Sources: `web/filepreview.tsx:348-353,400-406`; `web/teamchat.tsx:628-636`; `web/dock.tsx:560-566`.
+- Trigger/evidence: streaming names two outputs, only one exists. One preview makes box visible; expiry only retries wholly hidden boxes, so redraw reuses it forever.
+- Impact/expected: second output never gets a lookup after it appears. Track unresolved paths independently.
+- Limits: existing retry test covers wholly missing boxes; no file generation executed.
+
+### BH-153 — Model-preview fallbacks promise download without a download link
+
+- Reporter: ArtifactPreviewBugs. Severity: medium. Status: source-confirmed missing consumer action.
+- Sources: `web/filepreview.tsx:231-234,249-258`; `web/modelviewer.ts:89-91,120,186-188`; `tests/web/filepreview.test.ts:90-105`.
+- Trigger/evidence: ordinary chat previews unsupported/oversized/unparseable model. Model branch bypasses FileCard; toolbar has server-side Reveal only, while fallback tells user to download.
+- Impact/expected: browser user cannot follow recovery instruction. Expose the file URL/download alongside model fallback.
+- Limits: artifact cards have separate Open links; no model/browser run.
+
+### BH-154 — Removed model previews lack observer/model disposal
+
+- Reporter: ArtifactPreviewBugs. Severity: medium. Status: runtime candidate; cleanup omission confirmed.
+- Sources: `web/modelviewer.ts:94-103,166-174,199-205`; `web/filepreview.tsx:379-381,404-407`; `web/ui/react.tsx:61-63`; `web/chat/parts.tsx:76-81`.
+- Trigger/evidence: replace/remove previews or evict cache repeatedly. IntersectionObserver handle is not retained/disconnected and retained model is not disposed; visibility cleanup releases renderer only.
+- Impact/expected: observer/model retention can grow across previews. Propagate explicit disposal through owners/cache eviction.
+- Limits: actual browser retention/resource growth unmeasured; no browser execution.
