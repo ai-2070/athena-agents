@@ -1025,9 +1025,13 @@ function bringUpToDate(m: BuiltinMarker, slug: string, sum: string, make: (dir: 
         ...skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), slug),
         filesHash: skillFilesHash(tmp),
       };
-      const v = withActor('you', () => keepVersion(vdir, was, after, { ignore: ['files'] }), {
-        note: 'Before the dashboard updated it',
-      });
+      const v = withActor(
+        'you',
+        () => keepVersion(vdir, was, after, { ignore: ['files'], apart: was.filesHash !== after.filesHash }),
+        {
+          note: 'Before the dashboard updated it',
+        },
+      );
       if (v && files.length) copySkillFiles(dir, versionFilesDir(vdir, v.id));
     }
     fs.renameSync(dir, old);

@@ -102,7 +102,9 @@ export function getVersion<T>(dir: string, id: string): Version<T> | null {
 /** Keep `before` (what an item was until now) in dir, unless it's the same as `after` or part of the
  *  same change as the last version (the same withActor run, or else edits close together). Returns the
  *  version kept, or null. extra: kept with a deleted one besides the item (a skill's extra files).
- *  prune: false leaves old versions for the caller to prune (one it is still reading from, a restore). */
+ *  prune: false leaves old versions for the caller to prune (one it is still reading from, a restore).
+ *  apart: always a version of its own, never part of the last one (a change to a skill's files, which are kept with
+ *  the version made for them: a version made for its text alone has none). */
 export function keepVersion<T>(
   dir: string,
   before: T,
@@ -112,7 +114,8 @@ export function keepVersion<T>(
     deleted = false,
     extra,
     prune = true,
-  }: { ignore?: readonly string[]; deleted?: boolean; extra?: Partial<T>; prune?: boolean } = {},
+    apart = false,
+  }: { ignore?: readonly string[]; deleted?: boolean; extra?: Partial<T>; prune?: boolean; apart?: boolean } = {},
 ): Version<T> | null {
   if (!before) return null;
   if (!deleted && after && canonical(before, ignore) === canonical(after, ignore)) return null;
@@ -131,6 +134,7 @@ export function keepVersion<T>(
   }
   if (
     !deleted &&
+    !apart &&
     !ctx?.force &&
     (ctx ? mine !== undefined : last && !last.deleted && last.by === by && age > -STAMP_SLACK_MS && age < COALESCE_MS)
   )

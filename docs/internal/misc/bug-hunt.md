@@ -518,6 +518,7 @@ Completed reviews:
 - Trigger/evidence: text-edit then GitHub Update within three minutes. Text-only version can coalesce with direct API install, returning null; installer snapshots old extras only when a new version is returned.
 - Impact/expected: changed extras disappear from History and old text restore keeps new files. Combined changes must retain complete rollback data.
 - Limits: coalescing itself is intentional; no update run.
+- Fixed: a skill update that changes its extra files is always a version of its own (`keepVersion(..., { apart })`), kept with the files it had, even right after an edit of its text. Test in `tests/server/skillinstall.test.ts`.
 
 ### BH-056 — Mutable refs mix install revisions and evade aggregate limits
 

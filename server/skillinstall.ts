@@ -291,7 +291,12 @@ export async function installFromGitHub(
             files: skillExtraFiles(dir),
             filesHash: skillFilesHash(dir),
           };
-          const v = keepVersion(skillVersionsDir(slug), was, after, { ignore: ['files'] });
+          // (a change to its files is a version of its own, with the files it had: one made just before for an edit
+          // of its text alone has none to bring back)
+          const v = keepVersion(skillVersionsDir(slug), was, after, {
+            ignore: ['files'],
+            apart: was.filesHash !== after.filesHash,
+          });
           if (v && was.files?.length) copySkillFiles(dir, versionFilesDir(skillVersionsDir(slug), v.id));
         }
         // The installed one is moved aside, not deleted, until the new one is in its place: a step that fails (a

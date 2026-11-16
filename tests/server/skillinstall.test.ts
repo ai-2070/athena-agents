@@ -216,6 +216,22 @@ describe('installing', () => {
     expect(skills.getSkill(slug)?.origin?.repo).toBe('acme/skills');
   });
 
+  it('an update right after an edit of the text still keeps the files from before it', async () => {
+    const files = repos['acme/skills'].main;
+    files['skills/writer/examples/one.md'] = 'files before';
+    await installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer');
+    const s = skills.findSkill('Writer')!;
+    const dir = skills.skillDir(s.slug);
+    // you edit its text, then update it from GitHub a moment later, its files changed there
+    skills.saveSkill({ slug: s.slug, name: s.name, description: s.description, body: `${s.body}\nEdited by you.` });
+    files['skills/writer/examples/one.md'] = 'files after';
+    await installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer');
+    expect(fs.readFileSync(path.join(dir, 'examples', 'one.md'), 'utf8')).toBe('files after');
+    // the update's own version is the skill as it was just before it, files and all
+    restoreVersion('skill', s.slug, historyOf('skill', s.slug).versions[0]!.id);
+    expect(fs.readFileSync(path.join(dir, 'examples', 'one.md'), 'utf8')).toBe('files before');
+  });
+
   it('restores a version whose file is a folder now', async () => {
     const files = repos['acme/skills'].main;
     files['skills/writer/references/example'] = 'the old example file';
