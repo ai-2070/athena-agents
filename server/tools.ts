@@ -30,6 +30,7 @@ import {
   sbsrenderArgs,
   openscadArgs,
   prusaSlicerArgs,
+  runsAfterSlicing,
   nvttArgs,
   handbrakeArgs,
   GPU_FIELDS,
@@ -1233,12 +1234,15 @@ const TOOLS: ToolDef[] = [
         (main && [sibling(main, 'prusa-slicer-console.exe')].find(exists)) || which('prusa-slicer-console') || main;
       if (!exe) throw new Error('PrusaSlicer was not found. Install it or set its path in Settings.');
       const out = writablePath(ctx, output);
-      const args = prusaSlicerArgs({
-        input: readablePath(ctx, input),
-        output: out,
-        profiles: (profiles || []).map((p) => readablePath(ctx, p)),
-        settings,
-      });
+      const model = readablePath(ctx, input);
+      const loads = (profiles || []).map((p) => readablePath(ctx, p));
+      // post_process can't be set here, and can't come in through a profile or a project either: it runs programs
+      const runs = [model, ...loads].find(runsAfterSlicing);
+      if (runs)
+        throw new Error(
+          `${path.basename(runs)} runs a program after slicing (its post_process setting). Remove that from it, or slice it in PrusaSlicer yourself.`,
+        );
+      const args = prusaSlicerArgs({ input: model, output: out, profiles: loads, settings });
       const r = await run(exe, args, { timeout: 30 * 60_000, signal: ctx.signal });
       const ok = r.code === 0 && exists(out);
       return {

@@ -4,12 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { strToU8, zipSync } from 'fflate';
 import {
   mayaScript,
   houdiniScript,
   sbsrenderArgs,
   openscadArgs,
   prusaSlicerArgs,
+  runsAfterSlicing,
   nvttArgs,
   handbrakeArgs,
   formatGpus,
@@ -168,6 +170,44 @@ describe('tool groups', () => {
     for (const n of ['substance_render', 'openscad_render', 'slice_model', 'nvidia_texture_export', 'handbrake_encode'])
       expect(risk(n), n).toBe('low');
     expect(risk('imagemagick')).toBe('high');
+  });
+
+  it('slice_model refuses a profile or project that would run a program after slicing', async () => {
+    saveSettings({ paths: { prusaslicer: process.execPath } });
+    const workspace = fs.mkdtempSync(path.join(os.homedir(), 'slice-'));
+    const at = (name: string, data: string | Uint8Array) => {
+      fs.writeFileSync(path.join(workspace, name), data);
+      return path.join(workspace, name);
+    };
+    const runs = at('runs.ini', 'layer_height = 0.2\npost_process = C:\\tools\\evil.exe\n');
+    const empty = at('plain.ini', 'layer_height = 0.2\npost_process = \n');
+    const project = at(
+      'part.3mf',
+      zipSync({ 'Metadata/Slic3r_PE.config': strToU8('; layer_height = 0.2\n; post_process = /bin/sh x\n') }),
+    );
+    const cleanProject = at('clean.3mf', zipSync({ 'Metadata/Slic3r_PE.config': strToU8('; post_process = \n') }));
+    expect(runsAfterSlicing(runs)).toBe(true);
+    expect(runsAfterSlicing(empty)).toBe(false);
+    expect(runsAfterSlicing(project)).toBe(true);
+    expect(runsAfterSlicing(cleanProject)).toBe(false);
+    expect(runsAfterSlicing(at('part.stl', 'solid x'))).toBe(false);
+    const agent: ToolAgent = {
+      id: 'slicer',
+      name: 'Slicer',
+      toolGroups: ['cad'],
+      autonomy: 'full',
+      workspace,
+      knowledge: { folders: [] },
+    };
+    for (const args of [
+      { input: 'part.stl', output: 'a.gcode', profiles: ['runs.ini'] },
+      { input: 'part.3mf', output: 'b.gcode' },
+    ]) {
+      const r = await callTool(agent, 'slice_model', args);
+      expect(r.isError).toBe(true);
+      expect(r.text).toContain('runs a program after slicing');
+    }
+    saveSettings({ paths: { prusaslicer: '' } });
   });
 
   it('file tools for models and textures stay inside the allowed folders', async () => {

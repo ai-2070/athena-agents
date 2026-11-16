@@ -1379,6 +1379,7 @@ Completed reviews:
 - Trigger/evidence: use a readable profile containing post-process through --load. Direct setting is explicitly rejected for running programs, but profiles receive path validation only.
 - Impact/expected: [INFERENCE] supported PrusaSlicer profile semantics may restore arbitrary command execution through this low-risk tool, bypassing direct-setting restrictions.
 - Limits: verify supported CLI profile/post-processing behavior before treating this as an executed bypass. Existing tests cover direct settings only; no slicer/profile run.
+- Fixed: `slice_model` refuses an .ini profile, or a .3mf/.amf project, whose saved `post_process` would run a program (`runsAfterSlicing()`; one it cannot read counts as one that would). Tests in `tests/server/dcc.test.ts`. The PrusaSlicer CLI behaviour itself was not run.
 
 ### BH-166 — OpenSCAD secondary file access lacks an explicit containment contract
 
