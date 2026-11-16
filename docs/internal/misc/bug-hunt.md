@@ -903,6 +903,7 @@ Completed reviews:
 - Trigger/evidence: change endpoint while retaining model ID: old measured window still matches and wins before endpoint-aware lookup. Alternatively leave Eve model blank: transcript saves resolved-model identity while later comparison uses the blank agent model.
 - Impact/expected: stale endpoint windows can admit oversized/reject fitting input; default-model chats ignore actual usage and show estimates. Use one identity based on resolved endpoint and effective model.
 - Limits: persistence-to-admission source trace; no model/compaction run.
+- Fixed: an API-model chat's measurement is named by its provider, the address it is asked at and the model it really uses (the default when none is set), the same for saving and comparing. Measurements saved before are taken as estimates once. Test in `tests/server/context.test.ts`.
 
 ### BH-100 — Invalid numeric settings are persisted before turns reject them
 
