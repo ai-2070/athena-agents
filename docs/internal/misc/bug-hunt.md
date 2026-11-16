@@ -234,6 +234,7 @@ Completed reviews:
 - Trigger/evidence: delete a workflow waiting at approval, then approve. Definition removal cancels neither active controls nor checkpoints; execution retains its object.
 - Impact/expected: deleted work can perform subsequent actions if deletion is expected to cancel it.
 - Limits: explicit stop handling exists but deletion does not invoke it; no action executed.
+- Fixed: deleting a workflow stops its runs going in that project first (`stopRunsOf()`), which also cancels a checkpoint waiting for approval. Test in `tests/server/workflow-stop.test.ts`.
 
 ### BH-024 — Full chat shows the old project while sending to the new one
 

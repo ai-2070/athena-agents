@@ -38,6 +38,8 @@ export const workflowsRouter = os.router({
   remove: os.remove.handler(({ input }) => {
     const team = teams.getTeam(input.id);
     if (!team) return { ok: true as const };
+    // its runs going now stop first: a step waiting for your approval must not act once it is gone
+    wfs.stopRunsOf(team.id);
     workflows.remove(team.id);
     teamMarks.dropMarkFiles(team.id);
     log('team', `Deleted team ${team.name}`);

@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { runs, saveSettings, workflows } from '../../server/store.ts';
-import { startWorkflow, stopWorkflowRun } from '../../server/workflows.ts';
+import { startWorkflow, stopRunsOf, stopWorkflowRun } from '../../server/workflows.ts';
 import { activeRuns, askAgent, RunStopped, stopRun } from '../../server/engines/index.ts';
 import type { Team } from '../../shared/types.ts';
 
@@ -74,6 +74,26 @@ describe('stopWorkflowRun()', () => {
     const saved = runs.get(run.id)!;
     expect(saved.status).toBe('stopped');
     expect(saved.steps.map((s) => s.status)).toEqual(['failed', 'waiting']);
+  });
+});
+
+describe('deleting a workflow', () => {
+  it('stops its runs going now, so nothing it waits on acts afterwards', async () => {
+    const a = newAgent({ name: 'Slow deleted', engine: 'eve', provider: 'custom', model: 'mock', toolGroups: [] });
+    const wf = workflows.save({
+      name: 'Doomed',
+      steps: [
+        { id: 's1', type: 'agent', agentId: a.id, label: 'Think', prompt: '{{input}}' },
+        { id: 's2', type: 'notify', label: 'Tell me', text: '{{prev}}' },
+      ],
+    } as Partial<Team>);
+    const before = asked;
+    const run = await startWorkflow(wf.id, 'go');
+    await until(() => asked > before);
+    expect(stopRunsOf(wf.id)).toBe(1);
+    await until(() => runs.get(run.id)?.status !== 'running');
+    expect(runs.get(run.id)!.status).toBe('stopped');
+    expect(runs.get(run.id)!.steps[1]!.status).toBe('waiting');
   });
 });
 

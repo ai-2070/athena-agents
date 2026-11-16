@@ -101,6 +101,14 @@ export function stopWorkflowRun(runId: string): boolean {
   return !!ctl;
 }
 
+/** Stops the runs of one workflow going in this project (it is being deleted: nothing it waits on goes on). */
+export function stopRunsOf(workflowId: string): number {
+  let n = 0;
+  for (const r of runs.list())
+    if (r.workflowId === workflowId && r.status === 'running' && activeRuns.has(r.id) && stopWorkflowRun(r.id)) n++;
+  return n;
+}
+
 // Runs that were going when the dashboard stopped can't continue (in every project, not only the open one).
 export function markInterruptedRuns() {
   for (const p of listProjects()) {
