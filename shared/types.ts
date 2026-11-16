@@ -1683,7 +1683,6 @@ export interface ActivityEntry {
 // ---------- settings ----------
 /** The Brain's own use of MCP tools: full (every tool, no asking), ask (tools that only read run, the rest wait
  *  for you in Needs you) or off. */
-export type BrainToolAccess = 'full' | 'ask' | 'off';
 /** A tool you let the Brain use without asking (Always allow in Needs you). */
 export interface BrainToolGrant {
   server: string;
@@ -1757,8 +1756,6 @@ export interface Settings {
   brainAnyGitHub: boolean;
   /** The Brain checks ordinary assignments after each turn and continues until delivered or blocked. */
   brainFollowsUp: boolean;
-  /** What the Brain may do with the tools of the MCP servers that are on (see BrainToolAccess). */
-  brainTools: BrainToolAccess;
   /** What the Brain may do without asking, for all its tools (see BrainAccess). */
   brainAccess: BrainAccess;
   /** Every agent, team and the Brain can search and read all saved sessions in the project. Off by default. */

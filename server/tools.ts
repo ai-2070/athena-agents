@@ -45,7 +45,7 @@ import type { ApprovalDecision, ApprovalRequest } from './approvals.ts';
 import { readPage, pagePart, PAGE_CHARS, PAGE_MAX_CHARS } from './webread.ts';
 import * as files from './filetools.ts';
 import { readDocumentPart } from './documents.ts';
-import { accountOf } from './mcp.ts';
+import { accountOf, allowForBrain } from './mcp.ts';
 import { knownPrograms, launchProgram, launchTarget, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
 import { MODEL_MAX_BYTES, imageType } from './toolimages.ts';
@@ -2549,7 +2549,9 @@ export async function gate(
   if (d.always && agent.id && !agent.id.startsWith('_')) {
     // the run asking keeps going with this same agent: the yes counts for the rest of it too
     agent.alwaysAllow = [...new Set([...(agent.alwaysAllow || []), name])];
-    rememberAlwaysAllow(agent.id, [name]);
+    // (the Brain's are kept with its MCP grants: its own tools under no server)
+    if (agent.id === BRAIN_ID) allowForBrain('', name);
+    else rememberAlwaysAllow(agent.id, [name]);
   }
   return null;
 }

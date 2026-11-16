@@ -4,18 +4,11 @@
 // checks as before (overseer.ts applyActions): an MCP server's settings only from what the user typed, GitHub
 // installs only from links the user gave, a skill rewritten only once the Brain has read it whole.
 // Kept light (no import of overseer.ts at load): tools.ts lists these, and overseer.ts imports tools.ts.
-import { getSettings } from './store.ts';
-import { BRAIN_ID } from './brainmcp.ts';
+import { BRAIN_ID, brainAccess } from './brainmcp.ts';
 import type { JSONSchema, ToolContext, ToolDef, ToolResult } from './tools.ts';
 import type { BrainAccess, BrainDelegate, BrainDone, Project } from '../shared/types.ts';
 
-export { BRAIN_ID };
-
-/** How freely the Brain acts (Settings › What the Brain may do). */
-export function brainAccess(): BrainAccess {
-  const v = getSettings().brainAccess;
-  return v === 'ask' || v === 'read' ? v : 'full';
-}
+export { BRAIN_ID, brainAccess };
 
 /** What "new" means in a turn: the last team, agent, routine, skill, server and task it made, and the skills it
  *  last installed. Kept across the turn's tool calls, so one call can refer to what the one before made. */

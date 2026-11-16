@@ -87,7 +87,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   for (const name of ['composio', 'oomol', 'mail', 'a', 'a__b']) removeServer(name);
-  saveSettings({ brainTools: 'full' });
+  saveSettings({ brainAccess: 'full' });
   setReviewer(null);
 });
 
@@ -112,7 +112,7 @@ describe("the Brain's own MCP tools", () => {
   });
 
   it('on ask, a tool that only reads runs, and one that changes things waits for you (not for the Brain)', async () => {
-    saveSettings({ brainTools: 'ask' });
+    saveSettings({ brainAccess: 'ask' });
     // the Brain reviewing its own request would allow it: it must not be asked
     const reviewer = vi.fn(async () => ({ approve: true, reason: 'fine' }));
     setReviewer(reviewer);
@@ -137,7 +137,7 @@ describe("the Brain's own MCP tools", () => {
   });
 
   it('"Always allow" lets the Brain use that tool from then on without asking', async () => {
-    saveSettings({ brainTools: 'ask' });
+    saveSettings({ brainAccess: 'ask' });
     const send = { do: 'mcp_call', server: 'composio', tool: 'GMAIL_SEND_EMAIL', args: { to: 'x@y.z' } };
     answers.push(actions([send]), 'Sent.');
     const first = ask('send it');
@@ -150,7 +150,7 @@ describe("the Brain's own MCP tools", () => {
   });
 
   it('/stop takes back a call that waits in Needs you', async () => {
-    saveSettings({ brainTools: 'ask' });
+    saveSettings({ brainAccess: 'ask' });
     answers.push(actions([{ do: 'mcp_call', server: 'composio', tool: 'GMAIL_SEND_EMAIL', args: { to: 'q@r.s' } }]));
     const answer = ask('send it');
     await vi.waitFor(() => expect(listApprovals()).toHaveLength(1));
@@ -162,20 +162,28 @@ describe("the Brain's own MCP tools", () => {
     expect(r.done).toEqual([expect.objectContaining({ kind: 'error' })]);
   });
 
-  it('a server that is turned off, or tools that are off, give it nothing', async () => {
+  it('a server that is turned off gives it nothing; on read only, only tools that read run', async () => {
     saveServer('oomol', { type: 'http', url: 'https://connector.oomol.com/v1/mcp', enabled: false });
     answers.push(actions([{ do: 'mcp_tools', server: 'oomol' }]), 'It is off.');
     await ask('what can oomol do');
     expect(asked[0].system).not.toContain('oomol,');
     expect(asked[1].user).toContain(`"oomol" isn't an MCP server that is on`);
 
-    saveSettings({ brainTools: 'off' });
+    // read only: tools that only read still run; one that changes something doesn't
+    saveSettings({ brainAccess: 'read' });
     asked.length = 0;
-    answers.push(actions([{ do: 'mcp_call', server: 'composio', tool: 'GMAIL_FETCH_EMAILS' }]), 'Off.');
-    await ask('check my mail');
-    expect(asked[0].system).not.toContain('"do":"mcp_call"');
-    expect(asked[1].user).toContain("The Brain's tools are off");
-    expect(calls).toEqual([]);
+    answers.push(
+      actions([
+        { do: 'mcp_call', server: 'composio', tool: 'GMAIL_FETCH_EMAILS' },
+        { do: 'mcp_call', server: 'composio', tool: 'GMAIL_SEND_EMAIL', args: { to: 'a@b.c' } },
+      ]),
+      'Read it.',
+    );
+    await ask('check my mail and answer it');
+    expect(asked[0].system).toContain('Only tools that read run');
+    expect(asked[1].user).toContain('The Brain may only read');
+    expect(calls.map((c) => c.tool)).toEqual(['GMAIL_FETCH_EMAILS']);
+    saveSettings({ brainAccess: 'full' });
   });
 
   it('a call that changed something before /stop is reported, not "nothing was changed"', async () => {
@@ -216,7 +224,7 @@ describe("the Brain's own MCP tools", () => {
   });
 
   it('a new conversation takes back a call that waits in Needs you', async () => {
-    saveSettings({ brainTools: 'ask' });
+    saveSettings({ brainAccess: 'ask' });
     answers.push(actions([{ do: 'mcp_call', server: 'composio', tool: 'GMAIL_SEND_EMAIL', args: { to: 'q@r.s' } }]));
     const answer = ask('send it');
     await vi.waitFor(() => expect(listApprovals()).toHaveLength(1));
@@ -228,7 +236,7 @@ describe("the Brain's own MCP tools", () => {
   });
 
   it('/stop while the server is still starting asks nothing in Needs you', async () => {
-    saveSettings({ brainTools: 'ask' });
+    saveSettings({ brainAccess: 'ask' });
     let ready = () => {};
     toolsGate = new Promise<void>((r) => {
       ready = r;
@@ -244,7 +252,7 @@ describe("the Brain's own MCP tools", () => {
   });
 
   it('nobody answering in Needs you is told as a timeout, with the real wait', async () => {
-    saveSettings({ brainTools: 'ask' });
+    saveSettings({ brainAccess: 'ask' });
     vi.useFakeTimers({ shouldAdvanceTime: true });
     answers.push(
       actions([{ do: 'mcp_call', server: 'composio', tool: 'GMAIL_SEND_EMAIL', args: { to: 'q@r.s' } }]),
@@ -269,7 +277,7 @@ describe("the Brain's own MCP tools", () => {
   });
 
   it('"Always allow" is kept by server and tool, follows a rename, and can be taken back', async () => {
-    saveSettings({ brainTools: 'ask' });
+    saveSettings({ brainAccess: 'ask' });
     // both names may hold "__": server a__b's tool is not server a's tool b__…
     saveServer('a__b', { type: 'http', url: 'https://one.example/mcp' });
     saveServer('a', { type: 'http', url: 'https://two.example/mcp' });
@@ -288,7 +296,7 @@ describe("the Brain's own MCP tools", () => {
   });
 
   it('"Always allow" goes with a removed server, so a new one under that name asks again', async () => {
-    saveSettings({ brainTools: 'ask' });
+    saveSettings({ brainAccess: 'ask' });
     const send = { do: 'mcp_call', server: 'composio', tool: 'GMAIL_SEND_EMAIL', args: {} };
     answers.push(actions([send]), 'Sent.');
     const first = ask('send it');

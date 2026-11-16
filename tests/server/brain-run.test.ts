@@ -2,6 +2,8 @@
 // Brain's tools the way a model would; and each engine keeping the Brain to reading files.
 import { describe, expect, it, vi } from 'vitest';
 import { chats, saveSettings, workflows } from '../../server/store.ts';
+import { decide, listApprovals } from '../../server/approvals.ts';
+import { brainGrants, forgetBrainGrant } from '../../server/mcp.ts';
 import { ask, clearHistory, history, stopAsks } from '../../server/overseer.ts';
 import { callTool, toolsForAgent } from '../../server/tools.ts';
 import { claudeArgs } from '../../server/engines/claude.ts';
@@ -108,6 +110,36 @@ describe("the Brain's turn as an agent run", () => {
       kind: 'error',
       text: expect.stringContaining('You stopped the Brain; before that it'),
     });
+  });
+
+  it('Ask first: building a team waits for you in Needs you; Always allow lets it through from then on', async () => {
+    saveSettings({ brainAccess: 'ask' });
+    try {
+      clearHistory();
+      const crew = (name: string) => async (a: EngineRunArgs) => {
+        await use(a, 'project_overview', { section: 'library' });
+        const r = await use(a, 'team', { do: 'create_team', name, members: [{ new: { name: `${name} one` } }] });
+        return r.isError ? 'Could not.' : 'Built it.';
+      };
+      script = crew('Asked crew');
+      const going = ask('build a crew');
+      await vi.waitFor(() => expect(listApprovals()).toHaveLength(1));
+      const req = listApprovals()[0];
+      expect(req).toMatchObject({ agentId: BRAIN_ID, title: expect.stringContaining('The Brain wants to use team') });
+      expect(workflows.list().some((w) => w.name === 'Asked crew')).toBe(false);
+      decide(req.id, { approved: true, always: true });
+      expect((await going).answer).toBe('Built it.');
+      expect(workflows.list().some((w) => w.name === 'Asked crew')).toBe(true);
+      expect(brainGrants()).toContainEqual({ server: '', tool: 'team:high' });
+      // the next turn doesn't ask
+      script = crew('Trusted crew');
+      expect((await ask('another one')).answer).toBe('Built it.');
+      expect(listApprovals()).toEqual([]);
+      expect(workflows.list().some((w) => w.name === 'Trusted crew')).toBe(true);
+    } finally {
+      forgetBrainGrant('');
+      saveSettings({ brainAccess: 'full' });
+    }
   });
 
   it('read only: the run is offered no tools that change things', async () => {

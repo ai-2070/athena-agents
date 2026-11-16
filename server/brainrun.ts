@@ -5,6 +5,7 @@
 import { askAgent } from './engines/index.ts';
 import { bus } from './store.ts';
 import { BRAIN_ENGINES, brainModel } from './brain.ts';
+import { brainGrants } from './mcp.ts';
 import { BRAIN_ID, brainAccess } from './braintools.ts';
 import type { Agent, RunEvent, ServerEvent } from '../shared/types.ts';
 
@@ -33,7 +34,8 @@ export function brainAgent(systemPrompt: string, workspace: string): Agent {
     workspace,
     temperature: '',
     effort: bm.effort,
-    alwaysAllow: [],
+    // its own tools you let it use without asking (Always allow in Needs you)
+    alwaysAllow: brainGrants().flatMap((g) => (g.server === '' ? [g.tool] : [])),
     skills: [],
     source: { type: 'custom' },
     pinned: false,

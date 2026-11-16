@@ -2,7 +2,8 @@
 // one action with the same checks as before.
 import { afterEach, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
-import { activeProject, saveSettings, workflows } from '../../server/store.ts';
+import { activeProject, getSettings, saveSettings, workflows } from '../../server/store.ts';
+import { dataPath, readJSON, writeJSON } from '../../server/util.ts';
 import * as skills from '../../server/skills.ts';
 import { callTool, riskOf, toolsForAgent } from '../../server/tools.ts';
 import { BRAIN_ID, beginBrainTurn, endBrainTurn, toolOf } from '../../server/braintools.ts';
@@ -134,5 +135,27 @@ describe("the Brain's tools", () => {
     const files = await callTool(BRAIN, 'project_overview', { section: 'files' }, { runId });
     expect(files.text).toContain('FOLDER TREE');
     expect((await callTool(BRAIN, 'project_overview', { section: 'secrets' }, { runId })).isError).toBe(true);
+  });
+
+  it("takes over the old MCP-only setting: off and ask become Ask first, and it's saved as the new setting", () => {
+    const file = dataPath('settings.json');
+    const saved = readJSON<Record<string, unknown>>(file, {});
+    try {
+      for (const [old, now] of [
+        ['off', 'ask'],
+        ['ask', 'ask'],
+        ['full', 'full'],
+      ] as const) {
+        const { brainAccess: _, ...rest } = saved;
+        writeJSON(file, { ...rest, brainTools: old });
+        expect(getSettings().brainAccess).toBe(now);
+        expect(getSettings()).not.toHaveProperty('brainTools');
+      }
+      // (once set, the new setting is what counts)
+      writeJSON(file, { ...saved, brainTools: 'off', brainAccess: 'full' });
+      expect(getSettings().brainAccess).toBe('full');
+    } finally {
+      writeJSON(file, saved);
+    }
   });
 });
