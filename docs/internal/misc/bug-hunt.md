@@ -280,6 +280,7 @@ Completed reviews:
 - Trigger/evidence: `/loop 2x review the work` starts its next turn before the preceding client stream ends, with no queued messages. Overlapping starts are retained only for nonempty queues.
 - Impact/expected: later loop turns stop streaming live; reload gives only a snapshot. Relevant starts should survive independent of queue contents.
 - Limits: source ordering traced; delivery timing untested.
+- Fixed: a run that starts while the view still streams the last turn is followed afterwards when a /loop is going too, not only when messages are queued. No test of its own.
 
 ### BH-028 — Obsolete chat loads update the parent after unmount
 

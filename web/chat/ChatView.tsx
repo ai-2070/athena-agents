@@ -137,6 +137,8 @@ export function ChatView(p: ChatViewProps) {
   const missedStart = useRef(false);
   // your /loop and /goal here (the server keeps them)
   const [loop, setLoop] = useState<LoopInfo | null>(null);
+  const loopRef = useRef(loop);
+  loopRef.current = loop;
   const [goal, setGoal] = useState<BrainBrief | null>(null);
   // the agent's harness's own / commands (a Claude Code agent's), for the / menu
   const [harness, setHarness] = useState<{ name: string; about: string }[]>([]);
@@ -283,11 +285,12 @@ export function ChatView(p: ChatViewProps) {
         if (ev.type === 'queue') return void setQueued((ev.queued as QueuedMessage[]) || []);
         if (ev.type !== 'run') return;
         const kind = (ev.event as { kind?: string })?.kind;
-        // (the server starts a queued message right as the turn before it ends: this view may still be streaming that one)
+        // (the server starts a queued message, or a /loop's next turn, right as the turn before it ends: this view may
+        // still be streaming that one)
         if (
           kind === 'start' &&
           (streamingRef.current || sending.current || following.current) &&
-          queuedRef.current.length
+          (queuedRef.current.length || loopRef.current)
         )
           missedStart.current = true;
         if (kind === 'start' && !streamingRef.current && !sending.current) void reload().then(follow);
