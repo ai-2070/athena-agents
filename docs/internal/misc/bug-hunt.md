@@ -1377,6 +1377,7 @@ Completed reviews:
 - Trigger/evidence: program is available only as a Start Menu shortcut and file/args are supplied. Known shortcut branch is skipped for extras, but Start Menu fallback chooses the same shortcut; openWithShell receives no extras.
 - Impact/expected: success is reported without opening the requested document or applying options. Preserve arguments or explicitly reject unsupported shortcut launches.
 - Limits: no program launched.
+- Fixed: a program found only as a shortcut is refused when it is given a file or options, saying to use open_path or set its path, instead of opening without them. No test of its own.
 
 ### BH-157 — Scan again retains stale executable lookup results
 
@@ -1394,6 +1395,7 @@ Completed reviews:
 - Trigger/evidence: PATH resolves npm .cmd or ComfyUI override names portable .bat. launchDetached uses raw spawn rather than existing Windows-aware spawnCommand; asynchronous errors are discarded.
 - Impact/expected: valid script targets fail or report Started misleadingly. Use a supported launcher and surface failure.
 - Limits: runtime/Node version determines error delivery; no command launched. Distinct from terminal-specific quoting BH-088.
+- Fixed: `launch_program` starts a program through `spawnCommand()` (an npm shim directly, another .cmd or .bat through cmd.exe with its checks) and waits for it to start, so a failure is said instead of "Started". No test of its own.
 
 ### BH-159 — Windows lookup cannot resolve already-suffixed executable names
 

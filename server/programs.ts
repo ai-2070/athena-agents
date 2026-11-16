@@ -14,7 +14,7 @@ import {
   run,
   ping,
   fetchJSON,
-  launchDetached,
+  spawnCommand,
   openWithShell,
   readJSON,
 } from './util.ts';
@@ -1480,11 +1480,24 @@ export async function launchProgram(
   const target = launchTarget(key, extra.length > 0);
   if (!target) throw new Error(`Couldn't find a program called "${key}". Use list_programs to see what's installed.`);
   if (target.exe !== undefined) {
-    launchDetached(target.exe, extra);
+    // (a .cmd or .bat goes the way the rest of the dashboard starts those; a program that can't start says so)
+    await new Promise<void>((resolve, reject) => {
+      const child = spawnCommand(target.exe, extra, { detached: true, stdio: 'ignore', windowsHide: false });
+      child.once('spawn', () => {
+        child.unref();
+        resolve();
+      });
+      child.once('error', (e) => reject(new Error(`${target.name} didn't start: ${e.message}`)));
+    });
     if (target.onPath) return `Started ${target.name}.`;
     checkSoon();
     return `Started ${target.name}${file ? ` with ${file}` : ''}.`;
   }
+  // a shortcut opens as it is: it can't be handed a file or options, so that is said rather than dropped
+  if (extra.length)
+    throw new Error(
+      `${target.name} is only a shortcut here, so it can't be given a file or options. Open the file with open_path, or set the program's path in Settings.`,
+    );
   openWithShell(target.shortcut);
   if (target.startMenu) return `Started ${target.name} (from the Start Menu).`;
   checkSoon();
