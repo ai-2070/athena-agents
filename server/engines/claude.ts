@@ -146,9 +146,9 @@ const PERMISSION_TOOL = 'mcp__dashboard__permission_prompt';
 
 // Files Claude Code reads for this agent: instructions and MCP servers.
 // One pair of files per run, so two chats with the same agent don't share a run id.
-export function prepareFiles(agent: Agent, systemPrompt: string, runId = ''): ClaudeFiles {
+export function prepareFiles(agent: Agent, systemPrompt: string, runId = '', terminalTag = 'terminal'): ClaudeFiles {
   const dir = ensureDir(dataPath('runtime', agent.id));
-  const tag = runId || 'terminal';
+  const tag = runId || terminalTag;
   const promptFile = path.join(dir, `${tag}-system-prompt.md`);
   const mcpFile = path.join(dir, `${tag}-mcp.json`);
   fs.writeFileSync(promptFile, systemPrompt);

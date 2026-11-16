@@ -479,10 +479,10 @@ async function run(
 }
 
 /** The interactive terminal: the agent brief stays in a file for the whole session. */
-export function terminalArgs(flavor: PiFlavor, agent: Agent, systemPrompt: string): string[] {
+export function terminalArgs(flavor: PiFlavor, agent: Agent, systemPrompt: string, tag = 'terminal'): string[] {
   return piArgs(flavor, agent, {
     interactive: true,
-    instructions: promptFile(agent, `terminal-${flavor}-instructions.md`, systemPrompt),
+    instructions: promptFile(agent, `${tag}-${flavor}-instructions.md`, systemPrompt),
   });
 }
 

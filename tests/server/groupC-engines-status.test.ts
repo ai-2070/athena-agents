@@ -108,6 +108,15 @@ describe('codex args', () => {
     expect(overrides(args)).toContain('mcp_servers.two.env={TOKEN_X="second"}');
   });
 
+  it("gives each terminal its own instructions file, so one opened later doesn't change another's", () => {
+    const agent = newAgent({ name: 'Coder', engine: 'codex' });
+    const one = terminalPromptFile(agent, 'Brief for the first terminal.', 'terminal-one');
+    const two = terminalPromptFile(agent, 'Brief for the second terminal.', 'terminal-two');
+    expect(one).not.toBe(two);
+    expect(fs.readFileSync(one, 'utf8')).toBe('Brief for the first terminal.');
+    expect(fs.readFileSync(two, 'utf8')).toBe('Brief for the second terminal.');
+  });
+
   it('points the interactive terminal at a file with the agent instructions', () => {
     const agent = newAgent({ name: 'Coder', engine: 'codex' });
     const file = terminalPromptFile(agent, 'You are Coder.\nAlways write tests.');

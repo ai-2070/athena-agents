@@ -180,8 +180,8 @@ const ttable = (o: Record<string, unknown>): string =>
 
 // The interactive terminal has no first message to carry the agent brief (see run()), so it goes
 // in a file and Codex's developer instructions point there. Only a short path goes on the command line.
-export function terminalPromptFile(agent: Agent, systemPrompt: string): string {
-  const file = path.join(ensureDir(dataPath('runtime', agent.id)), 'terminal-codex-instructions.md');
+export function terminalPromptFile(agent: Agent, systemPrompt: string, tag = 'terminal'): string {
+  const file = path.join(ensureDir(dataPath('runtime', agent.id)), `${tag}-codex-instructions.md`);
   fs.writeFileSync(file, systemPrompt);
   return file;
 }

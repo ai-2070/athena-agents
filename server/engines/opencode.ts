@@ -919,8 +919,12 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
 
 /** The interactive terminal: its own server (not the shared service, which wouldn't see this config), on the
  *  athena agent. The files stay for the terminal's whole session. */
-export function terminalLaunch(agent: Agent, systemPrompt: string): { args: string[]; env: NodeJS.ProcessEnv } {
-  const files = writeRunFiles(agent, systemPrompt, 'terminal');
+export function terminalLaunch(
+  agent: Agent,
+  systemPrompt: string,
+  tag = 'terminal',
+): { args: string[]; env: NodeJS.ProcessEnv } {
+  const files = writeRunFiles(agent, systemPrompt, tag);
   return { args: ['--standalone'], env: { ...process.env, OPENCODE_CONFIG: files.config } };
 }
 

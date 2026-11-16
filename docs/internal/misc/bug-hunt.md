@@ -860,6 +860,7 @@ Completed reviews:
 - Trigger/evidence: open corresponding original/cloned agent terminals, or reopen after configuration changes. Global `runtime/<agentId>` and fixed terminal filenames are reused without project/session identity.
 - Impact/expected: later launch overwrites files referenced by the older terminal; delayed reads/rereads can consume another project's instructions/MCP settings. Keep per-terminal stable files.
 - Limits: overwriting is deterministic; CLI read timing and cross-project consumption not reproduced.
+- Fixed: each agent terminal writes its brief and settings under its own tag (`terminal-<id>`) for Claude Code, Codex, pi and opencode, and they are removed when it is closed. Test in `tests/server/groupC-engines-status.test.ts` (the per-file part only).
 
 ### BH-096 — Saving or removing a key discards unsaved settings
 

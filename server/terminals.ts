@@ -4,7 +4,9 @@ import pty from '@lydell/node-pty';
 import type { IPty } from '@lydell/node-pty';
 import type { WebSocket } from 'ws';
 import type { Agent, Terminal } from '../shared/types.ts';
-import { which, uid, IS_WIN, HOME, shimTarget } from './util.ts';
+import fs from 'node:fs';
+import path from 'node:path';
+import { which, uid, IS_WIN, HOME, shimTarget, dataPath } from './util.ts';
 import { activeProject, emit, log } from './store.ts';
 import { prepareFiles, claudeArgs, claudeEnv } from './engines/claude.ts';
 import { hermesArgs } from './engines/hermes.ts';
@@ -21,6 +23,8 @@ export interface TerminalSession extends Terminal {
   pty: IPty;
   buffer: string;
   clients: Set<WebSocket>;
+  /** what the names of its own files in runtime/<agent id> have in them (an agent's terminal) */
+  fileTag?: string;
 }
 
 export interface CreateTerminalOptions {
@@ -118,10 +122,13 @@ export function createTerminal({
   let env = process.env;
   let dir = cwd || HOME;
   let name = title;
+  // the files an agent's terminal reads its brief and settings from are its own (another project's copy of the
+  // agent, or a terminal opened later, writes its own), and go when it is closed
+  const fileTag = `terminal-${uid()}`;
   if (kind === 'agent' && agent) {
     dir = workspaceOf(agent);
     if (agent.engine === 'claude-code') {
-      const files = prepareFiles(agent, buildSystemPrompt(agent));
+      const files = prepareFiles(agent, buildSystemPrompt(agent), '', fileTag);
       cmd = 'claude';
       argv = claudeArgs(agent, { ...files, interactive: true });
       env = claudeEnv(agent);
@@ -132,20 +139,20 @@ export function createTerminal({
       cmd = 'codex';
       const launch = codexLaunch(agent, {
         interactive: true,
-        promptFile: terminalPromptFile(agent, buildSystemPrompt(agent)),
+        promptFile: terminalPromptFile(agent, buildSystemPrompt(agent), fileTag),
       });
       argv = launch.args;
       env = { ...process.env, ...launch.env };
     } else if (agent.engine === 'pi' || agent.engine === 'omp') {
       cmd = agent.engine;
-      argv = piTerminalArgs(agent.engine, agent, buildSystemPrompt(agent));
+      argv = piTerminalArgs(agent.engine, agent, buildSystemPrompt(agent), fileTag);
       env = { ...process.env, ...bridgeEnv(agent.id) };
     } else if (agent.engine === 'openclaw') {
       cmd = 'openclaw';
       argv = openclawTerminalArgs(agent);
     } else if (agent.engine === 'opencode') {
       cmd = 'opencode';
-      const launch = opencodeTerminal(agent, buildSystemPrompt(agent));
+      const launch = opencodeTerminal(agent, buildSystemPrompt(agent), fileTag);
       argv = launch.args;
       env = launch.env;
     } else
@@ -177,6 +184,7 @@ export function createTerminal({
     exited: false,
     exitCode: null,
     projectId: activeProject().id,
+    ...(kind === 'agent' && agent ? { fileTag } : {}),
   };
   p.onData((d) => {
     s.buffer += d;
@@ -245,6 +253,14 @@ export function closeTerminal(id: string): boolean {
       /* gone */
     }
   for (const ws of s.clients) ws.close();
+  if (s.agentId && s.fileTag) {
+    const dir = dataPath('runtime', s.agentId);
+    try {
+      for (const n of fs.readdirSync(dir)) if (n.includes(s.fileTag)) fs.rmSync(path.join(dir, n), { force: true });
+    } catch {
+      /* none left */
+    }
+  }
   sessions.delete(id);
   emit('terminals');
   return true;
