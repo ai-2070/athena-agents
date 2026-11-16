@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
+import { attempt, toast, state, onState, onEvent, onReconnect, approvalCard } from '../core.ts';
 import { rpcAt } from '../client/rpc.ts';
 import type { AttachTray } from '../attach.tsx';
 import { COMPOSER_BTNS, COMPOSER_TEXT } from '../attach.tsx';
@@ -248,16 +248,20 @@ export function ChatView(p: ChatViewProps) {
     void follow();
   }, [ended, streaming, follow]);
 
+  // the saved chat, then a run going in it followed: when the view opens, and again when live events come back
+  // after they dropped (what happened meanwhile wasn't sent)
+  const catchUpSaved = useCallback(async () => {
+    await reload();
+    if (
+      chatIdRef.current &&
+      state.data?.runs.some((r) => r.chatId === chatIdRef.current && oursRef.current(r.projectId))
+    )
+      await follow();
+  }, [reload, follow]);
   useEffect(() => {
-    void (async () => {
-      await reload();
-      if (
-        chatIdRef.current &&
-        state.data?.runs.some((r) => r.chatId === chatIdRef.current && oursRef.current(r.projectId))
-      )
-        await follow();
-    })();
+    void catchUpSaved();
   }, []);
+  useEffect(() => onReconnect(() => void catchUpSaved()), [catchUpSaved]);
 
   // a run starting here from elsewhere, compactions, and runs ending without a stream (missed ones)
   useEffect(
