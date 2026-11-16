@@ -1,6 +1,6 @@
 # Bug hunt
 
-Started: 2026-11-16. Nineteen reviews completed; one additional review is running.
+Started: 2026-11-16. All twenty subagent reviews completed.
 
 Investigation only: no application code changed. This is an accumulating concern log, not a claim of exhaustive coverage or patch-introduced regressions.
 
@@ -33,7 +33,7 @@ Completed reviews:
 - TerminalCommandBugs (completed): terminal ownership, shell execution, timeouts and cleanup; ten concerns (BH-086–BH-095).
 - VoxelWorldBugs (completed): world access, mutations, prefabs, transforms and import/export; thirteen concerns (BH-134–BH-146).
 - ProviderSettingsBugs (completed): provider/model selection, cache identity, settings and keys; six concerns (BH-096–BH-101).
-- ProgramLaunchBugs (running): program discovery, launch identity, services and DCC execution.
+- ProgramLaunchBugs (completed): program discovery, launch identity, services and DCC execution; twelve new concerns (BH-155–BH-166) and independent confirmation of BH-120.
 - ArtifactPreviewBugs (completed): artifact targets, file previews, attachment lifecycle and project binding; eight concerns (BH-147–BH-154).
 - ComfyWorkflowBugs (completed): workflow conversion, image inputs, masks, job lifecycle and results; eleven concerns (BH-117–BH-127).
 - TeamDispatchBugs (completed): team routing, queued delivery, turn ownership and thread switching; six concerns (BH-128–BH-133).
@@ -995,7 +995,7 @@ Completed reviews:
 
 ### BH-120 — ComfyUI discovery accepts unrelated servers returning 404
 
-- Reporter: ComfyWorkflowBugs. Severity: medium. Status: source-confirmed service identity omission.
+- Reporters: ComfyWorkflowBugs and ProgramLaunchBugs (independent confirmation). Severity: medium. Status: source-confirmed service identity omission.
 - Sources: `server/programs.ts:354-365`; `server/util.ts:540-543`; `server/comfyui.ts:943-965,1048-1050`.
 - Trigger/evidence: unrelated HTTP server answers on port 8000. ping accepts statuses below 500, including 404 for /system_stats, ahead of relocated Desktop ports.
 - Impact/expected: status says ComfyUI runs, start refuses to launch it and jobs target another service. Validate successful ComfyUI-specific response structure.
@@ -1272,3 +1272,99 @@ Completed reviews:
 - Trigger/evidence: replace/remove previews or evict cache repeatedly. IntersectionObserver handle is not retained/disconnected and retained model is not disposed; visibility cleanup releases renderer only.
 - Impact/expected: observer/model retention can grow across previews. Propagate explicit disposal through owners/cache eviction.
 - Limits: actual browser retention/resource growth unmeasured; no browser execution.
+
+### BH-155 — Versioned/windowed interpreters bypass launch approval classification
+
+- Reporter: ProgramLaunchBugs. Severity: high. Status: source-confirmed executable-name classification gap.
+- Sources: `server/tools.ts:274-275,715-718,2426-2432`.
+- Trigger/evidence: launch an existing python3.12 or pythonw.exe with a script named .txt. Neither executable matches INTERPRETERS and the file extension does not escalate risk; executable can be resolved by its valid absolute path where necessary.
+- Impact/expected: arbitrary script execution is treated as low risk and default auto autonomy skips approval. Recognize executable interpreter variants rather than relying on that narrow name/extension combination.
+- Limits: existing launch-risk coverage uses node, not these variants. No interpreter, script or payload executed.
+
+### BH-156 — Shortcut launches silently drop requested files and arguments
+
+- Reporter: ProgramLaunchBugs. Severity: medium. Status: source-confirmed launch-target mismatch.
+- Sources: `server/programs.ts:1444-1450,1461-1470`; `server/tools.ts:730`.
+- Trigger/evidence: program is available only as a Start Menu shortcut and file/args are supplied. Known shortcut branch is skipped for extras, but Start Menu fallback chooses the same shortcut; openWithShell receives no extras.
+- Impact/expected: success is reported without opening the requested document or applying options. Preserve arguments or explicitly reject unsupported shortcut launches.
+- Limits: no program launched.
+
+### BH-157 — Scan again retains stale executable lookup results
+
+- Reporter: ProgramLaunchBugs. Severity: medium. Status: source-confirmed cache invalidation omission.
+- Sources: `server/util.ts:215-238`; `server/programs.ts:1342-1345,1355-1362`; contrasting callers `server/api/mcp.ts:103,110`.
+- Trigger/evidence: lookup misses, executable is installed in an already-searched PATH directory, then force rescan. Catalog reruns but whichCache still returns null; cached positives likewise survive removal.
+- Impact/expected: user-requested discovery cannot recover installation/removal until restart or unrelated cache clearing. Invalidate executable lookup during explicit rescan.
+- Limits: no installation or scan executed.
+
+### BH-158 — Windows script program targets bypass the Windows-aware launcher
+
+- Reporter: ProgramLaunchBugs. Severity: medium. Status: source-confirmed routing defect; exact runtime failure delivery untested.
+- Sources: `server/programs.ts:1449-1450,1464-1465`; `server/util.ts:297-316,445-449`.
+- Trigger/evidence: PATH resolves npm .cmd or ComfyUI override names portable .bat. launchDetached uses raw spawn rather than existing Windows-aware spawnCommand; asynchronous errors are discarded.
+- Impact/expected: valid script targets fail or report Started misleadingly. Use a supported launcher and surface failure.
+- Limits: runtime/Node version determines error delivery; no command launched. Distinct from terminal-specific quoting BH-088.
+
+### BH-159 — Windows lookup cannot resolve already-suffixed executable names
+
+- Reporter: ProgramLaunchBugs. Severity: medium. Status: source-confirmed candidate construction defect.
+- Sources: `server/util.ts:219-230`; `server/programs.ts:1449-1450`.
+- Trigger/evidence: request notepad.exe available on PATH. Lookup appends extensions to that supplied name, searching notepad.exe.exe/.cmd/etc., never the existing filename.
+- Impact/expected: valid program is reported missing while extensionless name works. Try already-suffixed names unchanged.
+- Limits: absolute paths take a separate branch; no executable lookup/runtime scenario run.
+
+### BH-160 — Service polling does not update installation visibility
+
+- Reporter: ProgramLaunchBugs. Severity: medium. Status: source-confirmed discovery/polling state mismatch.
+- Sources: `server/programs.ts:1367,1385,1397-1404`; `server/tools.ts:696`; `web/views/programs.tsx:156`.
+- Trigger/evidence: service-only ComfyUI is down at discovery and later starts. Poll updates serviceUrl/running but leaves installed=false; optional entries already removed from cache are not polled.
+- Impact/expected: now-running service stays hidden in Programs/list_programs until full scan. Reconcile installation visibility when service discovery succeeds.
+- Limits: no service started or polled.
+
+### BH-161 — Service address changes do not notify the Programs page
+
+- Reporter: ProgramLaunchBugs. Severity: medium. Status: source-confirmed incomplete event-change key.
+- Sources: `server/programs.ts:1401-1409`; `web/views/programs.tsx:118-126,191-192`.
+- Trigger/evidence: ComfyUI moves ports between polls without an observed stopped interval. serviceUrl changes but running-ID string does not, so no update event emits.
+- Impact/expected: open Programs page retains obsolete Open URL despite server discovery. Include address changes in notification criteria.
+- Limits: no port/service scenario executed.
+
+### BH-162 — Linux program catalog confuses Orca IDE with the screen reader
+
+- Reporter: ProgramLaunchBugs. Severity: medium. Status: source-confirmed platform identity inconsistency.
+- Sources: `server/programs.ts:328-331,1486-1491`; `web/views/programs.tsx:78,91-95`.
+- Trigger/evidence: Linux has bare orca screen reader or only orca-ide. Catalog detects bare orca everywhere, while orcaInstalled explicitly selects orca-ide on Linux.
+- Impact/expected: wrong application is advertised/launched or IDE is missed, including terminal command generation. Use consistent platform-specific identity.
+- Limits: no Linux process launched.
+
+### BH-163 — Saved executable overrides stay unapplied in cached program launches
+
+- Reporter: ProgramLaunchBugs. Severity: medium. Status: product-policy candidate; cache behavior confirmed.
+- Sources: `server/store.ts:133-137`; `server/programs.ts:1328-1346,1438-1443,1476-1482`; `web/views/settings.tsx:425-426,455-457`.
+- Trigger/evidence: save another installed version's path. Settings do not invalidate hourly program cache; ordinary launch keeps old executable while programExe-based DCC calls immediately select the new one.
+- Impact/expected: launch paths disagree after an explicit setting change. Apply saved override immediately or clearly state delayed effect.
+- Limits: background discovery caching is deliberate; intended delay for explicit overrides needs confirmation. No setting changed.
+
+### BH-164 — Blender Python failure policy is supplied after the script action
+
+- Reporter: ProgramLaunchBugs. Severity: medium. Status: runtime compatibility candidate.
+- Sources: `server/tools.ts:937-945,953-955`.
+- Trigger/evidence: --python script precedes --python-exit-code 1. [INFERENCE] If supported Blender processes actions sequentially, a script exception occurs before nonzero failure policy is set and can be labelled Finished.
+- Impact/expected: failed scripts may appear successful. Establish exit policy before execution if the documented ordering requires it.
+- Limits: supported Blender semantics need confirmation; no upstream implementation or Blender process inspected.
+
+### BH-165 — Loaded slicing profiles may restore prohibited post-processing commands
+
+- Reporter: ProgramLaunchBugs. Severity: high. Status: runtime/security candidate; profile validation gap confirmed.
+- Sources: `server/dcc.ts:117-118,136-147`; `server/tools.ts:1188-1190,1220-1225`; `tests/server/dcc.test.ts:95-100`.
+- Trigger/evidence: use a readable profile containing post-process through --load. Direct setting is explicitly rejected for running programs, but profiles receive path validation only.
+- Impact/expected: [INFERENCE] supported PrusaSlicer profile semantics may restore arbitrary command execution through this low-risk tool, bypassing direct-setting restrictions.
+- Limits: verify supported CLI profile/post-processing behavior before treating this as an executed bypass. Existing tests cover direct settings only; no slicer/profile run.
+
+### BH-166 — OpenSCAD secondary file access lacks an explicit containment contract
+
+- Reporter: ProgramLaunchBugs. Severity: medium. Status: runtime/product-policy candidate.
+- Sources: `server/tools.ts:1140-1142,1170-1178,2652-2664`; `server/dcc.ts:113`.
+- Trigger/evidence: only primary input/output paths are validated; submitted model code reaches OpenSCAD unchanged.
+- Impact/expected: [INFERENCE] imports, surfaces and includes can reference outside files and incorporate them into allowed output. Define/enforce transitive containment if promised, or explicitly document unrestricted dependencies.
+- Limits: tool policy and supported runtime behavior need confirmation; no OpenSCAD execution or outside-file read performed.
