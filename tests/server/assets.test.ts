@@ -100,6 +100,14 @@ describe('unzip', () => {
     expect(fs.readFileSync(path.join(outside, 'color.jpg'), 'utf8')).toBe('outside sentinel');
   });
 
+  it('refuses a stored file that claims to be smaller than it is', () => {
+    const zip = makeZip([{ name: 'big.bin', data: 'x'.repeat(5000) }]);
+    // the central record says 1 byte; the body is 5000
+    const at = zip.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+    zip.writeUInt32LE(1, at + 24);
+    expect(() => readZip(zip)).toThrow(/different size/);
+  });
+
   it('refuses something that is not a zip', () => {
     expect(() => readZip(Buffer.from('hello, not a zip at all'))).toThrow(/Not a zip/);
   });

@@ -52,6 +52,8 @@ export function readZip(buf: Buffer): ZipEntry[] {
     if (((external >>> 16) & 0o170000) === 0o120000) continue; // a symlink
     if (size === 0xffffffff || compressed === 0xffffffff || local === 0xffffffff)
       throw new Error('Zip files over 4 GB are not supported.');
+    // (a stored entry is its body, whatever size it claims: one claiming less is refused, and every copy counts)
+    if (method === 0 && compressed !== size) throw new Error(`"${name}" says it is a different size than it is.`);
     total += size;
     if (total > MAX_TOTAL) throw new Error('The zip unpacks to more than 4 GB.');
     if (buf.readUInt32LE(local) !== 0x04034b50) throw new Error('The zip is damaged.');

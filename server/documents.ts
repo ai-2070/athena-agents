@@ -398,7 +398,8 @@ export async function pdfText(
 
 /**
  * The parts of a package `wanted` picks, each within PART_MAX_BYTES unpacked, all within UNPACKED_MAX_BYTES and
- * PARTS_MAX. The sizes are the headers': fflate unpacks a part into a buffer of its header's size, never more.
+ * PARTS_MAX. fflate unpacks a deflated part into a buffer of its header's size, but copies a stored one whole, whatever
+ * its header says: so a part counts as the larger of the two, and the parts it gave back are counted again.
  */
 function unpack(bytes: Uint8Array, wanted: (name: string) => boolean): Map<string, string> {
   let files: Record<string, Uint8Array>;
@@ -409,9 +410,10 @@ function unpack(bytes: Uint8Array, wanted: (name: string) => boolean): Map<strin
     files = unzipSync(bytes, {
       filter: (file) => {
         if (!wanted(file.name)) return false;
-        total += file.originalSize;
+        const size = Math.max(file.originalSize, file.size);
+        total += size;
         count += 1;
-        if (file.originalSize > PART_MAX_BYTES || total > UNPACKED_MAX_BYTES) throw tooLarge();
+        if (size > PART_MAX_BYTES || total > UNPACKED_MAX_BYTES) throw tooLarge();
         if (count > PARTS_MAX) throw new DocumentError('it has too many parts to read.');
         return true;
       },
@@ -422,9 +424,11 @@ function unpack(bytes: Uint8Array, wanted: (name: string) => boolean): Map<strin
   }
   const decoder = new TextDecoder();
   const parts = new Map<string, string>();
+  let unpacked = 0;
   for (const [name, data] of Object.entries(files)) {
     // a header can understate the size; the unpacked bytes can't
-    if (data.length > PART_MAX_BYTES) throw tooLarge();
+    unpacked += data.length;
+    if (data.length > PART_MAX_BYTES || unpacked > UNPACKED_MAX_BYTES) throw tooLarge();
     parts.set(name, decoder.decode(data));
   }
   return parts;

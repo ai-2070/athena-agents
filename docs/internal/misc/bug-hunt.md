@@ -90,6 +90,7 @@ Completed reviews:
 - Trigger/evidence: stored entries declare zero uncompressed bytes while referencing a large body, possibly reusing that body. The 4 GB counter trusts declarations while `Buffer.from(raw)` copies actual bodies into retained buffers.
 - Impact/expected: memory exhaustion can exceed the limit without equally large unique input. Actual output length should be validated and bounded.
 - Limits: malicious/corrupt content must reach ambientCG's host-restricted asset flow. Ordinary uploaded ZIPs do not use this extractor; no archive executed or current asset alleged malicious.
+- Fixed: `readZip()` refuses a stored entry whose body is not the size it claims, so the 4 GB count is of real bytes. Test in `tests/server/assets.test.ts`.
 
 ### BH-007 — File-search regexes can block beyond the search timeout
 
@@ -884,6 +885,7 @@ Completed reviews:
 - Trigger/evidence: an Office ZIP understates stored entries' `originalSize`. Filter accounts declarations while fflate copies compressed-length bodies; all parts allocate before individual actual-size checks, and actual aggregate size is never checked. Repeated central-directory references can amplify one body.
 - Impact/expected: Office reading exceeds allocation/aggregate guards on the server thread. Bound actual allocation/output, not only declared sizes.
 - Limits: distinct from asset extractor BH-006. Dependency path inspected; no hostile document or payload constructed.
+- Fixed: Office unpacking counts each part as the larger of its claimed and stored sizes, and counts the unpacked parts again against the total. Test in `tests/server/documents.test.ts`.
 
 ### BH-104 — Knowledge character limits apply only after full-file decoding
 

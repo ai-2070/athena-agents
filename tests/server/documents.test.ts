@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { strToU8, zipSync } from 'fflate';
+import { strToU8, unzipSync, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import {
   DocumentError,
@@ -181,6 +181,15 @@ describe('limits', () => {
     );
     expect(bomb.length).toBeLessThan(100_000);
     await expect(documentText('word', bomb)).rejects.toThrow('too large');
+  });
+
+  it('counts a stored part by its body, not by the size its header claims', async () => {
+    // four stored sheets, each under the per-part limit but over the total together, each claiming 10 bytes
+    const parts = unzipSync(xlsx({ S0: '', S1: '', S2: '', S3: '' }));
+    for (const name of Object.keys(parts))
+      if (/^xl\/worksheets\//.test(name)) parts[name] = new Uint8Array(UNPACKED_MAX_BYTES / 4 + 1_000_000);
+    const stored = declareSizes(zipSync(parts, { level: 0 }), /^xl\/worksheets\//, 10);
+    await expect(documentText('excel', stored)).rejects.toThrow('too large');
   });
 
   it('caps what a package unpacks in all, and how many parts', async () => {
