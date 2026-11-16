@@ -548,16 +548,19 @@ export function turnActivity(items: ChatItem[]): Pick<LiveActivity, 'task' | 'fr
   };
 }
 
-// What every running agent is doing right now (for the Brain's overview).
-export function liveActivity(): LiveActivity[] {
-  return [...active.entries()].map(([id, r]) => ({
-    runId: id,
-    agentId: r.agentId,
-    agentName: r.agentName,
-    chatId: r.chatId,
-    seconds: Math.round((Date.now() - r.startedAt) / 1000),
-    ...turnActivity(r.chat?.items || []),
-  }));
+// What every running agent is doing right now (for the Brain's overview): in one project, when it is given (a clone's
+// agents have the same ids as the original's, so a run is matched to an agent only within its own project).
+export function liveActivity(projectId?: string): LiveActivity[] {
+  return [...active.entries()]
+    .filter(([, r]) => !projectId || r.projectId === projectId)
+    .map(([id, r]) => ({
+      runId: id,
+      agentId: r.agentId,
+      agentName: r.agentName,
+      chatId: r.chatId,
+      seconds: Math.round((Date.now() - r.startedAt) / 1000),
+      ...turnActivity(r.chat?.items || []),
+    }));
 }
 
 export function runInfo(runId: string | null | undefined): RunInfo | null {

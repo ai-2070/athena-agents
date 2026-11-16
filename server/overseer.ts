@@ -504,7 +504,7 @@ export async function snapshot({
 
   const all = agents.list();
   const byId = new Map(all.map((a) => [a.id, a]));
-  const live = liveActivity().filter((run) => {
+  const live = liveActivity(p.id).filter((run) => {
     if (!conversationId) return true;
     const owner = runInfo(run.runId);
     return owner?.projectId === p.id && owner.conversationId === conversationId;
@@ -3392,7 +3392,7 @@ export async function reviewApproval(item: Approval): Promise<BrainVerdict> {
 
 // Small overview numbers for the UI.
 export function pulse(): BrainPulse {
-  const live = liveActivity();
+  const live = liveActivity(activeProject().id);
   const teams = listTeams();
   return {
     project: activeProject().name,

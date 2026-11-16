@@ -612,6 +612,7 @@ Completed reviews:
 - Trigger/evidence: A works while B's Brain is inspected. Ordinary snapshot accepts global `liveActivity()`; matches local agents by ID only. Clones preserve those IDs.
 - Impact/expected: A's task/response can be attributed to B's agent; running count/pulse includes unrelated work even without ID collision. Filter project before matching.
 - Limits: private branch does check ownership; no simultaneous-project run.
+- Fixed: `liveActivity(projectId)` keeps to one project; the Brain's snapshot and pulse pass theirs, so a run is matched to an agent only in its own project. (The activity log in the snapshot stays global.) Test in `tests/server/project-isolation.test.ts`.
 
 ### BH-070 — Brain snapshots mix projects across asynchronous Git inspection
 

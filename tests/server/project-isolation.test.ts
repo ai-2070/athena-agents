@@ -214,6 +214,28 @@ describe('a message sent while the agent works (steer)', () => {
   });
 });
 
+describe("the Brain's view of who is working", () => {
+  it("shows only its own project's runs, even when a clone's agent has the same id", async () => {
+    const a = await createProject({ name: 'Busy A', mode: 'new', folder: folder('busy-a') });
+    const agent = apiAgent('Busy twin');
+    const chat = chats.create(agent.id);
+    const b = (await cloneProject(a.id, 'Busy B')).project;
+    setActiveProject(a.id);
+    const ra = startRun(agent, chat, 'distinctive-a-task');
+    await until(() => held.length > 0);
+    const { pulse, snapshot } = await import('../../server/overseer.ts');
+    expect(pulse().working).toBe(1);
+    expect(await snapshot({ fileBudget: 0 })).toMatch(/WORKING \d+s on "distinctive-a-task/);
+    setActiveProject(b.id);
+    expect(pulse().working).toBe(0);
+    // (its agent is idle here: A's run isn't put on B's agent of the same id)
+    expect(await snapshot({ fileBudget: 0 })).not.toMatch(/WORKING \d+s on "distinctive-a-task/);
+    setActiveProject(a.id);
+    await settled(chat.id);
+    await ra.promise.catch(() => {});
+  });
+});
+
 describe('handoffs', () => {
   it("are the project's: a clone's agent with the same id can't list or collect them", async () => {
     const a = await createProject({ name: 'Hand A', mode: 'new', folder: folder('hand-a') });
