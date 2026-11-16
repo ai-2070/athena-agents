@@ -172,6 +172,7 @@ Completed reviews:
 - Trigger/evidence: separately allowed categories such as 290 MiB of world data plus 100 MiB of marks exceed the 512 MiB decoded limit after base64. Remaining-room accounting constrains only later task files.
 - Impact/expected: serialization can fail or packing can create a backup its decoder rejects; cloning shares the path. Aggregate output must fit the accepted format.
 - Limits: exact runtime string/memory failure point untested; no large allocation attempted.
+- Fixed: a backup (or copy) whose parts together unpack to more than its reader accepts is refused when made, saying so, instead of written unreadable. The kinds are not yet shrunk to fit. No test of its own (it needs over 512 MB).
 
 ### BH-016 — Backups/clones omit the uploaded Brain model
 
