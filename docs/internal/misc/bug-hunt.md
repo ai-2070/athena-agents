@@ -303,6 +303,7 @@ Completed reviews:
 - Trigger/evidence: with team `Café`, write `#Caféé`. ASCII `\w` treats the suffix as a boundary; non-ASCII preceding letters likewise permit in-word matches.
 - Impact/expected: ordinary longer words unexpectedly relay work/messages. Exact-name boundaries should include Unicode letters/marks/numbers, as routines already do (`shared/routines.ts:5-10`).
 - Limits: tests cover ASCII longer words; no relay executed.
+- Fixed: #Team mentions count letters, marks and digits of any script as part of a word on both sides, as routine mentions do. Test in `tests/server/crossteam.test.ts`.
 
 ### BH-031 — Telegram sends documents after their source request changes
 

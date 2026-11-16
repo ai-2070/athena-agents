@@ -43,7 +43,8 @@ export function parseTeamRefs(
   // longest names first, each match taken out, so "#Design Ops" doesn't also count as "#Design"
   for (const t of [...teams].filter((x) => x.name.trim()).sort((a, b) => b.name.length - a.name.length)) {
     // (not in a link's #anchor or an &#39; entity, and not part of a longer word)
-    const re = new RegExp(`(^|[^\\w#&/])#${escape(t.name.trim())}(?![\\w-])`, 'gi');
+    // (a letter, mark or digit of any script counts as part of a word: "#Café" isn't in "#Caféé")
+    const re = new RegExp(`(^|[^\\p{L}\\p{M}\\p{N}_#&/])#${escape(t.name.trim())}(?![\\p{L}\\p{M}\\p{N}_-])`, 'giu');
     if (!re.test(rest)) continue;
     rest = rest.replace(re, '$1');
     if (t.id !== self && !found.includes(t.id)) found.push(t.id);

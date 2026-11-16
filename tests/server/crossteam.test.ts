@@ -77,6 +77,11 @@ describe('parseTeamRefs()', () => {
     expect(parseTeamRefs('run `#Design` or\n```\n#Design\n```', teams)).toEqual([]);
     expect(parseTeamRefs('see https://x.com/page#Design and a#Design', teams)).toEqual([]);
     expect(parseTeamRefs('# Design notes\n#Designers', teams)).toEqual([]);
+    // a name with letters past ASCII: a longer word, or a word before it, is still no mention
+    const cafe = [{ id: 'c', name: 'Café' }];
+    expect(parseTeamRefs('#Caféé is a word', cafe)).toEqual([]);
+    expect(parseTeamRefs('é#Café', cafe)).toEqual([]);
+    expect(parseTeamRefs('ask #Café now', cafe)).toEqual(['c']);
   });
   it('tells a message from another team by its sender', () => {
     expect(fromTeam(teamFrom('abc'))).toBe('abc');
