@@ -146,7 +146,9 @@ export async function receiveSource(
   // a folder in the path that is a link out of uploads/
   if (!inside(root, path.dirname(path.join(dir, ...parts)))) throw new UploadError(400, 'Bad upload path.');
   const target = reserveName(path.join(dir, ...parts));
+  const reservation = identity(target);
   const tmp = `${target}.${crypto.randomBytes(3).toString('hex')}.part`;
+  let part: FileId | null = null;
   let size = 0;
   const count = new Transform({
     transform(chunk: Buffer, _enc, done) {
@@ -158,6 +160,8 @@ export async function receiveSource(
   let descriptor: number | undefined;
   try {
     descriptor = fs.openSync(tmp, 'wx');
+    const st = fs.fstatSync(descriptor);
+    part = { dev: st.dev, ino: st.ino };
     reserved?.(target, tmp);
     const stream = fs.createWriteStream(tmp, { fd: descriptor, autoClose: true });
     descriptor = undefined;
@@ -166,8 +170,10 @@ export async function receiveSource(
     fs.renameSync(tmp, target);
   } catch (e) {
     if (descriptor !== undefined) fs.closeSync(descriptor);
-    fs.rmSync(tmp, { force: true });
-    fs.rmSync(target, { force: true });
+    // A folder on the way may have been swapped for a link while the file streamed: remove only the files this
+    // upload made, where they still are inside uploads/, never what the same names now point at.
+    removeOwn(root, tmp, part);
+    removeOwn(root, target, reservation);
     throw e;
   }
   const folder = parts.length > 1;
@@ -194,6 +200,24 @@ export function cleanOwnedBatch(batch: string, keep: string[]): void {
     const file = path.join(dir, entry.name);
     if ((entry.isFile() || entry.isSymbolicLink()) && !retained.has(path.resolve(file))) fs.unlinkSync(file);
   }
+}
+
+interface FileId {
+  dev: number;
+  ino: number;
+}
+const identity = (file: string): FileId | null => {
+  try {
+    const st = fs.lstatSync(file);
+    return { dev: st.dev, ino: st.ino };
+  } catch {
+    return null;
+  }
+};
+function removeOwn(root: string, file: string, id: FileId | null): void {
+  if (!id || !inside(root, path.dirname(file))) return;
+  const now = identity(file);
+  if (now && now.dev === id.dev && now.ino === id.ino) fs.rmSync(file, { force: true });
 }
 
 // Strictly inside root once links are followed (case only ignored on Windows). A link that can't be

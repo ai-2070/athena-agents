@@ -64,6 +64,7 @@ Completed reviews:
 - Trigger/evidence: while streaming `sub/victim.txt`, replace ancestor `sub` with a symlink/junction to an outside directory containing another `victim.txt`. Post-stream checks reject it, but catch cleanup still removes `tmp` and `target` through those unsafe pathnames.
 - Impact/expected: rejection can delete a server-writable outside file. Cleanup must stay within the reservation.
 - Limits: requires concurrent filesystem control, link rights and destination permissions; not unauthenticated cross-site HTTP access. OS timing untested.
+- Fixed: cleanup removes the temporary file and the reservation only while their folder is still inside uploads/ and the name still points at the file this upload created (same device and inode). Test in `tests/server/uploads.test.ts` (skipped on Windows, which cannot move a folder with an open file).
 
 ### BH-004 — Batch creation follows a dangling uploads `.gitignore` link
 

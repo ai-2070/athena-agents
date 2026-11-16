@@ -74,6 +74,26 @@ describe('receiving files', () => {
     );
     expect(fs.readFileSync(victim.path, 'utf8')).toBe('safe');
   });
+  // (Windows won't move a folder with a file open in it)
+  it.skipIf(process.platform === 'win32')(
+    'never removes an outside file when a folder of the upload turns into a link while it streams',
+    async () => {
+      const { batch, dir } = newBatch();
+      const outside = fs.mkdtempSync(path.join(path.dirname(uploadsRoot()), 'outside-'));
+      fs.writeFileSync(path.join(outside, 'victim.txt'), 'safe');
+      const sub = path.join(dir, 'sub');
+      async function* swapped() {
+        yield Buffer.from('first');
+        // the folder moves away and a link to the outside folder takes its name
+        fs.renameSync(sub, `${sub}-moved`);
+        fs.symlinkSync(outside, sub, process.platform === 'win32' ? 'junction' : 'dir');
+        yield Buffer.from('second');
+      }
+      await expect(receiveSource(swapped(), batch, 'sub/victim.txt')).rejects.toThrow('Bad upload path');
+      expect(fs.readFileSync(path.join(outside, 'victim.txt'), 'utf8')).toBe('safe');
+    },
+  );
+
   it('saves a file into its batch, and a folder file under its folder', async () => {
     const { batch, dir } = newBatch();
     expect(dir.startsWith(uploadsRoot() + path.sep)).toBe(true);
