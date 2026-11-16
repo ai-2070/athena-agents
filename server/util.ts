@@ -244,7 +244,9 @@ export function which(cmd: string): string | null {
       path.join(HOME, '.bun', 'bin'),
     );
     outer: for (const d of dirs) {
-      for (const ext of IS_WIN ? ['.exe', '.cmd', '.bat', ...exts] : ['']) {
+      // (a name that already ends in one, like notepad.exe, is looked for as it is first)
+      const suffixed = IS_WIN && /\.(exe|cmd|bat|com)$/i.test(cmd);
+      for (const ext of IS_WIN ? [...(suffixed ? [''] : []), '.exe', '.cmd', '.bat', ...exts] : ['']) {
         const p = path.join(d, cmd + ext);
         if (exists(p)) {
           found = p;

@@ -108,3 +108,42 @@ describe('run() with a lot of output', () => {
     expect(r.stdout.length).toBeLessThan(300);
   });
 });
+
+describe('which()', () => {
+  it.runIf(process.platform === 'win32')('finds a name that already ends in .exe, as it is', async () => {
+    const { clearWhichCache, which } = await import('../../server/util.ts');
+    const dir = fs.mkdtempSync(path.join(DATA, 'which-'));
+    fs.writeFileSync(path.join(dir, 'tool-here.exe'), '');
+    const was = process.env.PATH;
+    process.env.PATH = `${dir};${was}`;
+    try {
+      clearWhichCache();
+      expect(which('tool-here.exe')).toBe(path.join(dir, 'tool-here.exe'));
+      expect(which('tool-here')).toBe(path.join(dir, 'tool-here.exe'));
+    } finally {
+      process.env.PATH = was;
+      clearWhichCache();
+    }
+  });
+
+  it('Scan again finds a program installed since it was last looked for', async () => {
+    const { clearWhichCache, which } = await import('../../server/util.ts');
+    const { discoverPrograms } = await import('../../server/programs.ts');
+    const dir = fs.mkdtempSync(path.join(DATA, 'which-later-'));
+    const name = `later-tool-${Date.now()}`;
+    const file = path.join(dir, process.platform === 'win32' ? `${name}.exe` : name);
+    const was = process.env.PATH;
+    process.env.PATH = `${dir}${path.delimiter}${was}`;
+    try {
+      clearWhichCache();
+      expect(which(name)).toBeNull();
+      fs.writeFileSync(file, '');
+      expect(which(name)).toBeNull();
+      await discoverPrograms(true);
+      expect(which(name)).toBe(file);
+    } finally {
+      process.env.PATH = was;
+      clearWhichCache();
+    }
+  }, 60_000);
+});

@@ -1385,6 +1385,7 @@ Completed reviews:
 - Trigger/evidence: lookup misses, executable is installed in an already-searched PATH directory, then force rescan. Catalog reruns but whichCache still returns null; cached positives likewise survive removal.
 - Impact/expected: user-requested discovery cannot recover installation/removal until restart or unrelated cache clearing. Invalidate executable lookup during explicit rescan.
 - Limits: no installation or scan executed.
+- Fixed: Scan again (`discoverPrograms(true)`) clears the program lookup cache first. Test in `tests/server/util.test.ts`.
 
 ### BH-158 — Windows script program targets bypass the Windows-aware launcher
 
@@ -1401,6 +1402,7 @@ Completed reviews:
 - Trigger/evidence: request notepad.exe available on PATH. Lookup appends extensions to that supplied name, searching notepad.exe.exe/.cmd/etc., never the existing filename.
 - Impact/expected: valid program is reported missing while extensionless name works. Try already-suffixed names unchanged.
 - Limits: absolute paths take a separate branch; no executable lookup/runtime scenario run.
+- Fixed: on Windows `which()` looks for a name that already ends in .exe, .cmd, .bat or .com as it is first. Test in `tests/server/util.test.ts` (Windows only).
 
 ### BH-160 — Service polling does not update installation visibility
 

@@ -10,6 +10,7 @@ import {
   listFiles,
   walk,
   which,
+  clearWhichCache,
   run,
   ping,
   fetchJSON,
@@ -1353,7 +1354,11 @@ export function knownPrograms(): Program[] {
 
 /** For the page: the same list, but it waits for the very first scan; force (Rescan on the Programs page) scans now. */
 export async function discoverPrograms(force = false): Promise<Program[]> {
-  if (force) return scanNow();
+  // (Scan again looks for programs afresh: one installed or removed since is found, or gone, now)
+  if (force) {
+    clearWhichCache();
+    return scanNow();
+  }
   if (!cache.at) return scanNow();
   scanIfOld();
   return cache.list;
