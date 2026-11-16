@@ -237,6 +237,15 @@ describe('telling the agent', () => {
     expect(all.text).not.toContain('read_document');
   });
 
+  it('never counts a PDF read only in part as all of it', async () => {
+    const { batch } = newBatch();
+    const pages = Array.from({ length: 301 }, (_, i) => (i === 0 ? 'First page' : ''));
+    const big = await receive(body(Buffer.from(pdf(...pages))), batch, 'big.pdf');
+    const read = await readAttachments([big.path], { inline: 20000, rest: 'read_document' });
+    expect(read.text).toContain('Only the first 300 of 301 pages were read.');
+    expect([...read.whole]).toEqual([]);
+  }, 60_000);
+
   it('stops reading documents when told to', async () => {
     const { batch } = newBatch();
     const contract = await receive(body(Buffer.from(pdf('Signed on 3 May, again'))), batch, 'contract-2.pdf');

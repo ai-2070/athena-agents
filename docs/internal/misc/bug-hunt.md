@@ -1012,6 +1012,7 @@ Completed reviews:
 - Trigger/evidence: a PDF exceeds 300 pages, but sparse extracted pages fit inline. Omitted-page notes exist while `complete` becomes true from any nonempty text; Eve suppresses original PDF bytes.
 - Impact/expected: provider gets no later-page contents and read_document has the same cap. Do not equate nonempty partial extraction with full coverage.
 - Limits: confirm whether extraction cap intentionally forbids original-PDF fallback; no long PDF created.
+- Fixed: a PDF read only in part (past 300 pages) is never counted as complete, so the file itself goes along too. `read_document` still reads 300 pages at most. Test in `tests/server/uploads.test.ts`.
 
 ### BH-114 — Equivalent Office XML namespace prefixes lose text or slide order
 

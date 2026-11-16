@@ -414,7 +414,8 @@ async function readDocuments(
       const notes = read.notes.map((n) => `[${n}]`).join('\n');
       entry = {
         body: `(${documentAbout(read)})${notes ? `\n${notes}` : ''}\n${read.text.trim() || '(no text in it)'}`,
-        complete: documentHasText(read),
+        // (a PDF read only in part, its first pages, isn't all of it: the file goes along as itself too)
+        complete: documentHasText(read) && !(read.pages && read.pages.read < read.pages.total),
       };
     } catch (e) {
       signal?.throwIfAborted();
