@@ -11,6 +11,8 @@ import * as mcp from '../../server/mcp.ts';
 // A tiny stdio MCP server: "crash" prints and quits, "progress" reports progress while it works, "quiet" doesn't.
 const FAKE = `
 const mode = process.argv[2];
+if (process.env.COUNT_FILE) require('fs').appendFileSync(process.env.COUNT_FILE, 'x');
+if (mode === 'slowcrash') setTimeout(() => process.exit(1), 400);
 if (mode === 'crash') {
   process.stderr.write('starting up\\nError: the key sk-secret-123 was refused\\n');
   process.exit(1);
@@ -18,7 +20,12 @@ if (mode === 'crash') {
 const send = (m) => process.stdout.write(JSON.stringify(m) + '\\n');
 require('readline').createInterface({ input: process.stdin }).on('line', (line) => {
   const m = JSON.parse(line);
+  if (m.method === 'initialize' && mode === 'slowcrash') return;
   if (m.method === 'initialize') send({ jsonrpc: '2.0', id: m.id, result: { protocolVersion: m.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'fake', version: '1' } } });
+  else if (mode === 'paged' && m.method === 'tools/list')
+    send({ jsonrpc: '2.0', id: m.id, result: m.params && m.params.cursor === 'p2'
+      ? { tools: [{ name: 'second', inputSchema: { type: 'object' } }] }
+      : { tools: [{ name: 'first', inputSchema: { type: 'object' } }], nextCursor: 'p2' } });
   else if (m.method === 'tools/list' || m.method === 'tools/call') {
     const token = m.params && m.params._meta && m.params._meta.progressToken;
     let n = 0;
@@ -50,6 +57,34 @@ afterEach(async () => {
   }
 });
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+describe('a long tool list', () => {
+  it('comes in pages, and every page is read', async () => {
+    local('paged', 'paged');
+    expect((await mcp.listTools('paged')).map((t) => t.name)).toEqual(['first', 'second']);
+  });
+});
+
+describe('a connection that fails after it was replaced', () => {
+  it('leaves the new one in place', async () => {
+    const count = path.join(dir, `starts-${Date.now()}.txt`);
+    local('flip', 'slowcrash', { COUNT_FILE: count });
+    const first = mcp.listTools('flip').then(
+      () => null,
+      (e: unknown) => e,
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    // its settings change meanwhile: the old connection is let go and a new one starts
+    await mcp.disconnect('flip');
+    local('flip', 'paged', { COUNT_FILE: count });
+    expect((await mcp.listTools('flip')).map((t) => t.name)).toEqual(['first', 'second']);
+    expect(await first).toBeInstanceOf(Error);
+    // the new connection is still the one used: nothing starts a third
+    await mcp.listTools('flip', { test: false });
+    await mcp.callTool('flip', 'first', {}).catch(() => {});
+    expect(fs.readFileSync(count, 'utf8')).toBe('xx');
+  });
+});
 
 describe('a local server that fails', () => {
   it('says what it printed, with its key hidden', async () => {

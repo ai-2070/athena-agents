@@ -1647,7 +1647,8 @@ async function connect(name: string, { test = false } = {}): Promise<Client> {
   try {
     return await job;
   } catch (e) {
-    clients.delete(name);
+    // (only its own entry: settings may have started a new connection in its place meanwhile)
+    if (clients.get(name) === job) clients.delete(name);
     throw new Error(withOutput(name, `Couldn't start MCP server "${name}": ${errText(e)}`));
   }
 }
@@ -1685,6 +1686,7 @@ function requestError(name: string, what: string, e: unknown): Error {
 // Agents' tool lists are built on every model step and tool call; asking each server every time was slow.
 const toolLists = new Map<string, { client: Client; at: number; tools: Promise<McpTool[]> }>();
 const TOOL_LIST_MS = 5 * 60_000;
+const LIST_PAGES_MAX = 50;
 
 function forgetTools(name: string, client?: Client): void {
   if (!client || toolLists.get(name)?.client === client) toolLists.delete(name);
@@ -1695,20 +1697,30 @@ export async function listTools(name: string, { test = false } = {}): Promise<Mc
   const client = await connect(name, { test });
   const kept = toolLists.get(name);
   if (!test && kept && kept.client === client && Date.now() - kept.at < TOOL_LIST_MS) return kept.tools;
-  // (asking for progress is what makes a server send it; each report resets the quiet time)
-  const tools = client
-    .listTools(undefined, {
+  // (asking for progress is what makes a server send it; each report resets the quiet time). A long list comes in
+  // pages: each is asked for in turn, up to a limit, so a server can't keep it going for ever.
+  const page = (cursor?: string) =>
+    client.listTools(cursor ? { cursor } : undefined, {
       timeout: TIMEOUTS.list,
       maxTotalTimeout: TIMEOUTS.listMax,
       resetTimeoutOnProgress: true,
       onprogress: () => {},
-    })
-    .then(
-      (r) => r.tools || [],
-      (e: unknown) => {
-        throw requestError(name, `${name} listing its tools`, e);
-      },
-    );
+    });
+  const tools = (async () => {
+    const all: McpTool[] = [];
+    const seen = new Set<string>();
+    let cursor: string | undefined;
+    for (let n = 0; n < LIST_PAGES_MAX; n++) {
+      const r = await page(cursor);
+      all.push(...(r.tools || []));
+      cursor = typeof r.nextCursor === 'string' && r.nextCursor ? r.nextCursor : undefined;
+      if (!cursor || seen.has(cursor)) break;
+      seen.add(cursor);
+    }
+    return all;
+  })().catch((e: unknown) => {
+    throw requestError(name, `${name} listing its tools`, e);
+  });
   const entry = { client, at: Date.now(), tools };
   toolLists.set(name, entry);
   // (a failed answer isn't kept)

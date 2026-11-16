@@ -448,6 +448,7 @@ Completed reviews:
 - Trigger/evidence: A starts, settings disconnect it, B starts, then A rejects. Its unconditional `clients.delete(name)` removes B; close-event handling already checks promise identity.
 - Impact/expected: untracked live connections/processes and extra replacements; later cleanup cannot reliably close B. Only remove the failing entry.
 - Limits: no race/process-count measurement.
+- Fixed: a connection that fails removes its cache entry only if the entry is still its own. Test in `tests/server/mcp-connect.test.ts`.
 
 ### BH-049 — Paginated MCP lists lose later-page tools
 
@@ -456,6 +457,7 @@ Completed reviews:
 - Trigger/evidence: `tools/list` returns `nextCursor`. SDK performs one request; wrapper caches only tools and never follows it.
 - Impact/expected: Eve lacks later tools and Brain says they do not exist; refresh repeats page one. Consume pagination.
 - Limits: existing fixtures have no cursor; no live server contacted.
+- Fixed: `listTools()` follows `nextCursor` page by page (up to 50 pages, stopping on a repeated cursor). Test in `tests/server/mcp-connect.test.ts`.
 
 ### BH-050 — Question removal loses resolved project ownership
 
