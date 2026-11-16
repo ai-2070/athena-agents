@@ -2,7 +2,7 @@
 // its version for Settings, reading what it prints line by line, and the messages sent into a turn
 // while it works (for a CLI whose input stays open).
 import { which, killTree, run as runCmd, PORT, DATA } from '../util.ts';
-import { internalToken } from '../store.ts';
+import { activeProject, internalToken } from '../store.ts';
 import type { ChildProcess } from 'node:child_process';
 import type { RunEvent } from '../../shared/types.ts';
 import type { TurnMessage, TurnSteering } from './index.ts';
@@ -108,11 +108,18 @@ export function pipeLines(
   });
 }
 
-/** Tells the dashboard bridge (in a CLI's MCP config) which agent and run is calling. */
+/** Tells the dashboard bridge (in a CLI's MCP config) which agent and run is calling, and in which project (an
+ *  agent's terminal has no run: its tool calls still work in the project it was opened in). */
 export function bridgeEnv(agentId: string, runId = ''): Record<string, string> {
   // (the bridge reads the token from the data folder, so it never sits in their environment: made now if it isn't yet)
   internalToken();
-  return { DASH_PORT: String(PORT), DASH_DATA: DATA, DASH_AGENT: agentId, ...(runId ? { DASH_RUN: runId } : {}) };
+  return {
+    DASH_PORT: String(PORT),
+    DASH_DATA: DATA,
+    DASH_AGENT: agentId,
+    DASH_PROJECT: activeProject().id,
+    ...(runId ? { DASH_RUN: runId } : {}),
+  };
 }
 
 /** The end of what a CLI printed to stderr, for an error message. */

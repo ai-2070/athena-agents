@@ -13,7 +13,7 @@ import {
   dataPath,
   ensureDir,
 } from '../util.ts';
-import { internalToken, emit } from '../store.ts';
+import { activeProject, internalToken, emit } from '../store.ts';
 import { listServers } from '../mcp.ts';
 import { workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
@@ -217,6 +217,7 @@ export function codexLaunch(
     DASH_PORT: String(PORT),
     DASH_DATA: dataPath(),
     DASH_AGENT: agent.id,
+    DASH_PROJECT: activeProject().id,
     ...(runId ? { DASH_RUN: runId } : {}),
   };
   args.push('-c', `mcp_servers.dashboard.command=${tstr(process.execPath)}`);

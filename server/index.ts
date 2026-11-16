@@ -321,9 +321,15 @@ get('/api/workflows/:id/mark', async ({ id }, _b, _q, res) => {
 
 // ---------- internal: the MCP bridge calls these ----------
 // A bridge that belongs to a run works in the run's project (its agent, workspace and data), even
-// after you open another one. Without a run (an outside MCP client) it's the project open now.
-const inRunProject = <T>(run: engines.RunInfo | null, fn: () => T): T =>
-  run ? store.withProject(run.project, fn) : fn();
+// after you open another one. An agent's terminal has no run, but its bridge names the project it was opened in.
+// Without either (an outside MCP client) it's the project open now.
+const inRunProject = <T>(run: engines.RunInfo | null, projectId: string | null | undefined, fn: () => T): T => {
+  if (run) return store.withProject(run.project, fn);
+  if (!projectId) return fn();
+  const project = store.listProjects().find((p) => p.id === projectId);
+  if (!project) throw new HttpError(410, 'The project this terminal was opened in is gone.');
+  return store.withProject(project, fn);
+};
 // The agent as its run has it: what a team gave it for this work (tools, MCP servers, skills) counts too.
 // Its saved settings (autonomy, "always allow") are read fresh.
 const bridgeAgent = (run: engines.RunInfo | null, id: string | null | undefined): Agent | ExternalAgent => {
@@ -338,7 +344,7 @@ const bridgeAgent = (run: engines.RunInfo | null, id: string | null | undefined)
 };
 get('/api/internal/tools', async (_p, _b, q) => {
   const run = engines.runInfo(q.run);
-  return inRunProject(run, () => {
+  return inRunProject(run, q.project, () => {
     const agent = bridgeAgent(run, q.agent);
     const list = tools.toolDefs(agent, { conversationId: run?.conversationId, engine: agent.engine });
     if (agent.engine === 'claude-code')
@@ -354,12 +360,12 @@ get('/api/internal/tools', async (_p, _b, q) => {
     return { tools: list };
   });
 });
-post<{ agent?: string; run?: string; name: string; args?: Record<string, unknown> }>(
+post<{ agent?: string; run?: string; project?: string; name: string; args?: Record<string, unknown> }>(
   '/api/internal/tools/call',
   async (_p, body) => {
     // The bridge says which run it belongs to; that gives the right project, approvals, Stop button and delegation depth.
     const run = engines.runInfo(body.run);
-    return inRunProject(run, async () => {
+    return inRunProject(run, body.project, async () => {
       const agent = bridgeAgent(run, body.agent);
       const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
       if (body.name === 'permission_prompt')

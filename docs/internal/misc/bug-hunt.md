@@ -734,6 +734,7 @@ Completed reviews:
 - Trigger/evidence: open an agent terminal in A, switch to B and call a Dashboard MCP tool. Launch supplies an agent ID without run/project identity; dispatch resolves the agent and data in the open project. Stored terminal `projectId` never reaches it.
 - Impact/expected: a terminal working in A can read/change B, using B's corresponding cloned agent settings or external-client fallback. Preserve terminal project ownership for tool calls.
 - Limits: no terminal or tool executed. Unlike BH-046, these terminals never receive ownership rather than losing an expired run binding.
+- Fixed: every agent bridge (terminals included) carries `DASH_PROJECT`, the project it was opened in; `/api/internal/tools` and `/tools/call` work there when there is no run, and refuse (410) a project that is gone. Tests in `tests/server/api.test.ts` and `tests/server/groupC-engines-status.test.ts`.
 
 ### BH-087 — Generic command Stop and timeout leave descendant processes running
 

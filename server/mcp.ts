@@ -11,7 +11,7 @@ import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { ErrorCode, McpError, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { HOME, IS_WIN, BRIDGE_SCRIPT, PORT, dataPath, readJSON, writeJSON, which, exists } from './util.ts';
-import { emit, log, internalToken, agents, workflows, listProjects, withProject } from './store.ts';
+import { activeProject, emit, log, internalToken, agents, workflows, listProjects, withProject } from './store.ts';
 import type {
   BrainToolGrant,
   BridgeServerConfig,
@@ -1839,6 +1839,8 @@ export function bridgeServerConfig(agentId: string | null | undefined, runId = '
       DASH_PORT: String(PORT),
       DASH_TOKEN: internalToken(),
       DASH_AGENT: agentId || '',
+      // (an outside client, with no agent, works in whichever project is open)
+      ...(agentId ? { DASH_PROJECT: activeProject().id } : {}),
       ...(runId ? { DASH_RUN: runId } : {}),
     },
   };

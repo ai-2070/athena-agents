@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ChatItem } from '../../shared/types.ts';
 import { newAgent } from '../../server/library.ts';
-import { saveServer } from '../../server/mcp.ts';
-import { internalToken } from '../../server/store.ts';
+import { bridgeServerConfig, saveServer } from '../../server/mcp.ts';
+import { activeProject, internalToken } from '../../server/store.ts';
+import { bridgeEnv } from '../../server/engines/cli.ts';
 import { dataPath } from '../../server/util.ts';
 import { codexArgs, codexLaunch, terminalPromptFile } from '../../server/engines/codex.ts';
 import { turnActivity } from '../../server/engines/index.ts';
@@ -41,6 +42,12 @@ describe('codex args', () => {
     const bridge = overrides(args).find((x) => x.startsWith('mcp_servers.dashboard.env='))!;
     expect(bridge).toContain(`DASH_DATA=${JSON.stringify(dataPath())}`);
     expect(bridge).not.toContain('DASH_TOKEN');
+    // (a terminal has no run: its bridge names the project it was opened in)
+    expect(bridge).toContain(`DASH_PROJECT=${JSON.stringify(activeProject().id)}`);
+    expect(bridgeEnv('a1').DASH_PROJECT).toBe(activeProject().id);
+    expect(bridgeServerConfig('a1').env.DASH_PROJECT).toBe(activeProject().id);
+    // an outside client works in whichever project is open
+    expect(bridgeServerConfig('').env.DASH_PROJECT).toBeUndefined();
   });
 
   it("puts MCP servers' keys in Codex's environment, hidden from the commands it runs", () => {

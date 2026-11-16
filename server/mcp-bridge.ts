@@ -4,6 +4,7 @@
 //   DASH_PORT   dashboard port (default 4800)
 //   DASH_TOKEN  internal token from data/.internal-token (read automatically when unset)
 //   DASH_AGENT  which agent is calling (its tool groups and autonomy apply)
+//   DASH_RUN    the run it belongs to; DASH_PROJECT the project an agent's terminal was opened in
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -39,6 +40,7 @@ if (!token) {
 }
 const agent = process.env.DASH_AGENT || '';
 const runId = process.env.DASH_RUN || '';
+const projectId = process.env.DASH_PROJECT || '';
 const base = `http://127.0.0.1:${port}/api/internal`;
 
 // Plain http (no timeout): a call can wait a long time while you decide on an approval.
@@ -83,7 +85,7 @@ const server = new Server({ name: 'dashboard', version: '0.1.0' }, { capabilitie
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   try {
     const { tools } = await call<{ tools: BridgeTool[] }>(
-      `/tools?agent=${encodeURIComponent(agent)}&run=${encodeURIComponent(runId)}`,
+      `/tools?agent=${encodeURIComponent(agent)}&run=${encodeURIComponent(runId)}&project=${encodeURIComponent(projectId)}`,
     );
     return { tools: tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.parameters })) };
   } catch (e) {
@@ -99,6 +101,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const r = await call<BridgeCallResult>('/tools/call', {
       agent,
       run: runId,
+      project: projectId,
       name: req.params.name,
       args: req.params.arguments || {},
     });

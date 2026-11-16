@@ -1807,6 +1807,38 @@ describe('agent runs and projects', () => {
     }
   });
 
+  it("tool calls from an agent's terminal stay in the project it was opened in", async () => {
+    const send = async (p: string, body: unknown) =>
+      (await req(p, { method: 'POST', headers: json, body: JSON.stringify(body) })).json();
+    const home = path.join(tmp, 'home');
+    const a = await send('/api/projects', { name: 'Term A', mode: 'new', folder: path.join(home, 'term-a') });
+    const agent = await send('/api/agents', { name: 'Termed', engine: 'claude-code', toolGroups: ['files'] });
+    const b = await send('/api/projects', { name: 'Term B', mode: 'new', folder: path.join(home, 'term-b') });
+    expect((await (await req('/api/state')).json()).project.id).toBe(b.id);
+    const internal = {
+      'content-type': 'application/json',
+      'x-dash-internal': fs.readFileSync(path.join(tmp, 'data', '.internal-token'), 'utf8').trim(),
+    };
+    const call = (project: string) =>
+      req('/api/internal/tools/call', {
+        method: 'POST',
+        headers: internal,
+        body: JSON.stringify({
+          agent: agent.id,
+          project,
+          name: 'write_file',
+          args: { path: 'terminal.txt', content: 'from-a' },
+        }),
+      });
+    const r = await (await call(a.id)).json();
+    expect(r.isError).toBe(false);
+    expect(fs.readFileSync(path.join(a.brainPath, 'terminal.txt'), 'utf8')).toBe('from-a');
+    expect(fs.existsSync(path.join(b.brainPath, 'terminal.txt'))).toBe(false);
+    // a project that is gone is refused, never swapped for the open one
+    expect((await call('no-such-project')).status).toBe(410);
+    expect(fs.existsSync(path.join(b.brainPath, 'terminal.txt'))).toBe(false);
+  });
+
   it('the MCP bridge gives an agent the tools its team gave it for the work', async () => {
     let release = () => {};
     const model = http.createServer((rq, rs) => {
