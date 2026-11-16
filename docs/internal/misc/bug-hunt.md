@@ -1070,6 +1070,7 @@ Completed reviews:
 - Trigger/evidence: workflow generates GIF/video/audio/3D. runWorkflow creates usable URLs, but tool returns URLs only for images; other outputs become filename/type text. Programs panel filters non-images too.
 - Impact/expected: successful advertised output has no downloadable reference, particularly for remote servers. Carry and expose all result URLs.
 - Limits: existing 3D tests stop at runWorkflow URLs, not end-user delivery; no generation executed.
+- Fixed: `comfyui_run` lists a video, GIF, sound or 3D result with its download link (pictures still come back as pictures). The Programs panel still shows pictures only. Test in `tests/server/comfyui-run.test.ts`.
 
 ### BH-122 — ComfyUI API discards explicit empty prompt overrides
 

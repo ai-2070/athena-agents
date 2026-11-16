@@ -917,7 +917,8 @@ const TOOLS: ToolDef[] = [
         : '';
       return {
         text: [
-          `Done in ${r.seconds}s. Files:\n${r.files.map((f) => `- ${f.filename} (${f.kind}, ${f.type}${f.subfolder ? `/${f.subfolder}` : ''})`).join('\n') || '(none)'}`,
+          // (pictures come back as pictures; a video, GIF, sound or 3D model gets its link, to open or download)
+          `Done in ${r.seconds}s. Files:\n${r.files.map((f) => `- ${f.filename} (${f.kind}, ${f.type}${f.subfolder ? `/${f.subfolder}` : ''})${f.kind === 'images' ? '' : `: [download](${f.url})`}`).join('\n') || '(none)'}`,
           seeds,
           sent.length ? `Sent to ComfyUI:\n${sent.join('\n')}` : '',
           left.length ? `Left out by ComfyUI (the rest ran):\n${left.join('\n')}` : '',

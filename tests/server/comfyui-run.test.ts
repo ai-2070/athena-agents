@@ -342,6 +342,12 @@ describe('what a run reports back', () => {
       ['3d', 'preview3d_ab.glb', '3d', 'output'],
     ]);
     expect(r.files[1].url).toBe('/api/comfyui/view?filename=mesh_00001_.glb&subfolder=3d&type=output');
+    // the tool's answer links what isn't a picture, so it can be opened or downloaded
+    const said = await callTool(agent, 'comfyui_run', { workflow: 'img2img' });
+    expect(said.text).toContain(
+      'mesh_00001_.glb (3d, output/3d): [download](/api/comfyui/view?filename=mesh_00001_.glb&subfolder=3d&type=output)',
+    );
+    expect(said.text).toMatch(/out_00001_\.png \(images, output\)\n/);
   });
 });
 
