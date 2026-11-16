@@ -1467,3 +1467,5 @@ Completed reviews:
 - Trigger/evidence: only primary input/output paths are validated; submitted model code reaches OpenSCAD unchanged.
 - Impact/expected: [INFERENCE] imports, surfaces and includes can reference outside files and incorporate them into allowed output. Define/enforce transitive containment if promised, or explicitly document unrestricted dependencies.
 - Limits: tool policy and supported runtime behavior need confirmation; no OpenSCAD execution or outside-file read performed.
+
+- Fixed: before OpenSCAD runs, the files a model reads in (include, use, import, surface; included .scad files followed in turn) must be in the agent's folders; a name that is no file next to the model is left to OpenSCAD's own libraries. A text check, not a sandbox. Test in `tests/server/dcc.test.ts`.

@@ -233,6 +233,19 @@ describe('tool groups', () => {
       output: path.join(outside, 'cube.stl'),
     });
     expect(outsideWrite.text).toMatch(/outside the folders/);
+    // what a model reads in is held to the same folders, through an included file too
+    const secret = path.join(outside, 'secret.png');
+    const reads = await callTool(agent, 'openscad_render', {
+      code: `surface(file = ${JSON.stringify(secret.replace(/\\/g, '/'))});`,
+      output: 'surface.stl',
+    });
+    expect(reads.text).toMatch(/reads .*outside the folders/);
+    fs.writeFileSync(path.join(workspace, 'parts.scad'), `import("${secret.replace(/\\/g, '/')}");`);
+    const included = await callTool(agent, 'openscad_render', { code: 'include <parts.scad>', output: 'inc.stl' });
+    expect(included.text).toMatch(/reads .*outside the folders/);
+    // a library OpenSCAD has itself is its own
+    const lib = await callTool(agent, 'openscad_render', { code: 'use <MCAD/boxes.scad>', output: 'lib.stl' });
+    expect(lib.text).not.toMatch(/outside the folders/);
     const outsideSlice = await callTool(agent, 'slice_model', {
       input: 'part.stl',
       output: path.join(outside, 'part.gcode'),

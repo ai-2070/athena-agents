@@ -1192,6 +1192,8 @@ const TOOLS: ToolDef[] = [
         src = tmpFile('model.scad');
         fs.writeFileSync(src, code);
       } else src = readablePath(ctx, input);
+      // the files the model reads in (include, use, import, surface) are held to the same folders as the model
+      scadFilesInside(ctx, src, code ? workspaceOf(ctx.agent) : path.dirname(src));
       const out = writablePath(ctx, output);
       const r = await run(exe, openscadArgs({ input: src, output: out, defines }), {
         timeout: 15 * 60_000,
@@ -2698,6 +2700,34 @@ async function runPython(exe: string, script: string, ctx: ToolContext): Promise
 }
 
 // A file an agent may read, as its real path.
+/** The files an OpenSCAD model reads in, and theirs in turn: each must be in the folders the agent may read. A name
+ *  that isn't a file next to the model (an installed library, <MCAD/...>) is OpenSCAD's own library's. */
+function scadFilesInside(ctx: ToolContext, file: string, base: string, seen = new Set<string>()): void {
+  if (seen.has(file) || seen.size > 200) return;
+  seen.add(file);
+  let text = '';
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch {
+    return;
+  }
+  const named = [
+    ...[...text.matchAll(/\b(?:include|use)\s*<([^>\n]+)>/g)].map((m) => ({ name: m[1]!, scad: true })),
+    ...[...text.matchAll(/\b(?:import|surface)\s*\(\s*(?:file\s*=\s*)?"([^"\n]+)"/g)].map((m) => ({
+      name: m[1]!,
+      scad: false,
+    })),
+  ];
+  for (const { name, scad } of named) {
+    const abs = path.resolve(base, name);
+    const pointed = path.isAbsolute(name) || name.split(/[\\/]/).includes('..');
+    if (!pointed && !exists(abs)) continue;
+    const r = resolveInside(ctx.agent, abs);
+    if (!r.ok) throw new Error(`The model reads ${name}, which is outside the folders this agent may read.`);
+    if (scad) scadFilesInside(ctx, r.real, path.dirname(r.real), seen);
+  }
+}
+
 function readablePath(ctx: ToolContext, p: string | undefined): string {
   const r = resolveInside(ctx.agent, p);
   if (!r.ok) throw new Error(`${r.abs} is outside the folders this agent may read.`);
