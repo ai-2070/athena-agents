@@ -198,13 +198,17 @@ async function limited<T>(job: () => Promise<T>): Promise<T> {
 
 // What was dropped, as chips: loose files one each, a folder as one chip.
 function group(picked: PickedFile[]): Item[] {
+  // (loose files are one chip each, even two of one name from different folders: the server keeps both)
   const byTop = new Map<string, PickedFile[]>();
+  const loose: [string, PickedFile[]][] = [];
   for (const p of picked) {
     const parts = p.rel.split('/');
-    const key = parts.length > 1 ? `${parts[0]}/` : p.rel;
-    byTop.set(key, [...(byTop.get(key) || []), p]);
+    if (parts.length > 1) {
+      const key = `${parts[0]}/`;
+      byTop.set(key, [...(byTop.get(key) || []), p]);
+    } else loose.push([p.rel, [p]]);
   }
-  return [...byTop].map(([key, files]) => {
+  return [...byTop, ...loose].map(([key, files]) => {
     const folder = key.endsWith('/');
     return withDone({
       key: `${key}:${Math.random().toString(36).slice(2)}`,

@@ -1313,6 +1313,7 @@ Completed reviews:
 - Trigger/evidence: drop report.pdf from two folders. group merges loose files; server reserves distinct names, but item.path ||= saved.top retains only one response.
 - Impact/expected: one uploaded document is silently omitted on send. Give loose files independent identities or retain all paths.
 - Limits: clipboard renaming does not protect ordinary drops; no upload executed.
+- Fixed: loose files are one chip each, so two of one name from different folders are both sent. Test in `tests/web/attach-tray.test.ts`.
 
 ### BH-149 — Attachment consumption removes files added after the send snapshot
 

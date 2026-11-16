@@ -92,6 +92,22 @@ describe('attachTray()', () => {
     expect(await tray.ready()).toEqual(['/up/notes.txt']);
   });
 
+  it('keeps two loose files of the same name as two, and sends both', async () => {
+    const tray = attachTray();
+    tray.add(files('report.pdf', 'report.pdf'));
+    await flush();
+    expect(open()).toHaveLength(2);
+    // (the server gives the second its own name)
+    open().forEach((x, i) => {
+      x.finished = true;
+      x.status = 200;
+      const name = i ? 'report (2).pdf' : 'report.pdf';
+      x.responseText = JSON.stringify({ path: `/up/${name}`, top: `/up/${name}`, kind: 'file', name, size: 1 });
+      x.onload?.();
+    });
+    expect(await tray.ready()).toEqual(['/up/report.pdf', '/up/report (2).pdf']);
+  });
+
   it('uploads at most 4 files at once, across every chip', async () => {
     const tray = attachTray();
     tray.add(files(...Array.from({ length: 10 }, (_, i) => `f${i}.txt`)));
