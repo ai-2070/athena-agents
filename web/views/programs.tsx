@@ -91,7 +91,8 @@ async function openCli(p: ProgramInfo): Promise<void> {
   const t = await attempt(() =>
     rpc.terminals.create({
       kind: 'command',
-      command: CLI[p.id],
+      // (on Linux Orca's command is orca-ide, found by the scan: bare orca is the screen reader there)
+      command: p.id === 'orca' && p.exe && /orca-ide$/i.test(p.exe) ? p.exe : CLI[p.id],
       args: p.id === 'orca' ? ['status'] : p.id === 'openclaw' ? ['tui'] : [],
     }),
   );

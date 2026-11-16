@@ -343,7 +343,11 @@ const CATALOG: CatalogEntry[] = [
     id: 'orca',
     name: 'Orca',
     category: 'ai',
-    detect: () => ({ exe: localProgram('orca', 'Orca.exe'), cli: which('orca') }),
+    // (on Linux bare `orca` is usually the screen reader: the IDE's command there is orca-ide, as orcaInstalled says)
+    detect: () => ({
+      exe: localProgram('orca', 'Orca.exe'),
+      cli: which(process.platform === 'linux' ? 'orca-ide' : 'orca'),
+    }),
     actions: ['launch', 'terminal'],
   },
   {
