@@ -184,16 +184,22 @@ function copyTree(
         const st = fs.statSync(a);
         if (used + st.size > budget) continue;
         used += st.size;
-        // skip files that haven't changed
+        // skip files that haven't changed: a copy takes its file's time, so the same size and the same time is the
+        // same file (a newer copy is no proof: a file put back from elsewhere can be older and still different)
         try {
           const old = fs.statSync(b);
-          if (old.size === st.size && old.mtimeMs >= st.mtimeMs) continue;
+          if (old.size === st.size && Math.abs(old.mtimeMs - st.mtimeMs) < 1) continue;
         } catch {
           /* new file */
         }
         if (base) noLinks(base, b);
         ensureDir(path.dirname(b));
         fs.copyFileSync(a, b);
+        try {
+          fs.utimesSync(b, st.atime, st.mtime);
+        } catch {
+          /* copied; it is only compared again next time */
+        }
       }
     }
   };

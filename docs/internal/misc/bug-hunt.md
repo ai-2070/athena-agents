@@ -158,6 +158,7 @@ Completed reviews:
 - Trigger/evidence: replace an authoritative knowledge/chat/skill file with different equal-length contents and an equal/older mtime than its saved copy. `copyTree()` skips without comparing content.
 - Impact/expected: successful autosave retains obsolete recovery data. Equal size/newer destination timestamp is not proof of equal contents.
 - Limits: timestamp-preserving restores can trigger it; ordinary strictly increasing mtimes do not. Not reproduced.
+- Fixed: autosave gives each copy its file's time and skips a file only when the size and time are the same, not when the copy is merely newer. Copies saved before this are written once more. Test in `tests/server/projectsync.test.ts`.
 
 ### BH-015 — Aggregate backups can exceed their decoder's limit
 

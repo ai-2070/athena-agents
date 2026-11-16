@@ -198,6 +198,23 @@ describe('auto-save into the project folder', () => {
     expect(saved.project.name).toBe('First owner');
   });
 
+  it('saves a file again when it changed, even to an older time and the same size', async () => {
+    const p = await createProject({ name: 'Same size', mode: 'new', folder: folder('same-size') });
+    const a = newAgent({ name: 'Reader' });
+    const c = chats.create(a.id, 'First');
+    chats.save(c);
+    const src = dataPath('projects', p.id, 'chats', a.id, `${c.id}.json`);
+    sync.saveProject(p.id);
+    const copy = path.join(p.brainPath, '.dashboard', 'chats', a.id, `${c.id}.json`);
+    // the same length, different words, and a time from before the saved copy (put back from elsewhere)
+    const text = fs.readFileSync(src, 'utf8').replace('First', 'Fresh');
+    fs.writeFileSync(src, text);
+    const old = new Date(Date.now() - 86_400_000);
+    fs.utimesSync(src, old, old);
+    sync.saveProject(p.id);
+    expect(fs.readFileSync(copy, 'utf8')).toBe(text);
+  });
+
   it('drops agent chats that were deleted in the dashboard', async () => {
     const p = await createProject({ name: 'Chat prune', mode: 'new', folder: folder('chat-prune') });
     const a = newAgent({ name: 'Pruner' });
