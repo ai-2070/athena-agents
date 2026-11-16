@@ -18,6 +18,19 @@ describe('launch risk', () => {
     expect(riskOf('launch_program', { program: ' NODE ' })).toBe('high');
   });
 
+  it('any version or windowless variant of an interpreter is one too', () => {
+    const dir = ensureDir(dataPath('fake-bin-variants'));
+    for (const name of ['python3.12', 'pythonw.exe', 'python3.12w', 'node22', 'javaw.exe', 'perl5.36', 'pwsh.exe']) {
+      const exe = path.join(dir, name);
+      fs.writeFileSync(exe, '');
+      expect(riskOf('launch_program', { program: exe, file: path.join(dir, 'script.txt') }), name).toBe('high');
+      expect(riskOf('launch_program', { program: name }), name).toBe('high');
+    }
+    // a program that only looks a bit like one is still a plain launch
+    expect(riskOf('launch_program', { program: 'photoshop' })).toBe('low');
+    expect(riskOf('launch_program', { program: 'notepad' })).toBe('low');
+  });
+
   it('a script handed to a program needs a yes, Adobe scripts too', () => {
     expect(riskOf('launch_program', { program: 'photoshop', file: 'x.jsx' })).toBe('high');
     expect(riskOf('launch_program', { program: 'photoshop', file: 'x.jsxbin' })).toBe('high');

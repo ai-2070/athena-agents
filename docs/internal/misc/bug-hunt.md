@@ -1298,6 +1298,7 @@ Completed reviews:
 - Trigger/evidence: launch an existing python3.12 or pythonw.exe with a script named .txt. Neither executable matches INTERPRETERS and the file extension does not escalate risk; executable can be resolved by its valid absolute path where necessary.
 - Impact/expected: arbitrary script execution is treated as low risk and default auto autonomy skips approval. Recognize executable interpreter variants rather than relying on that narrow name/extension combination.
 - Limits: existing launch-risk coverage uses node, not these variants. No interpreter, script or payload executed.
+- Fixed: `launch_program` recognises interpreters whatever their version or windowless variant (`python3.12`, `pythonw.exe`, `node22`, `javaw`, `perl5.36`), and the list covers more of them (fish, lua, Rscript, dotnet, msbuild…). Test in `tests/server/launch-risk.test.ts`.
 
 ### BH-156 — Shortcut launches silently drop requested files and arguments
 

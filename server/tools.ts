@@ -275,9 +275,20 @@ function resolveInside(
   return { abs, real: real || abs, ok: !!real };
 }
 
-// Programs that run whatever they are given.
-const INTERPRETERS =
-  /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bun|deno|ruby|perl|php|java|javaw|osascript|bash|sh|zsh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
+// Programs that run whatever they are given: by name, whatever version or windowless variant it is
+// (python3.12, pythonw.exe, node22, javaw, perl5.36).
+const INTERPRETER_NAMES =
+  /^(cmd|command|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python|py|node|nodejs|bun|bunx|npx|deno|tsx|ts-node|ruby|perl|php|php-cgi|java|jshell|osascript|bash|sh|zsh|fish|ksh|dash|csh|tcsh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget|lua|luajit|rscript|julia|tclsh|wish|dotnet|electron|forfiles|wmic|msbuild|installutil|regasm|regsvcs|cmstp)$/;
+const INTERPRETERS = {
+  test(name: string): boolean {
+    const bare = name
+      .trim()
+      .toLowerCase()
+      .replace(/\.(exe|com|bat|cmd)$/, '');
+    const plain = bare.replace(/[-_.]?\d+([._]\d+)*w?$/, (v) => (v.endsWith('w') ? 'w' : ''));
+    return [bare, plain, plain.replace(/w$/, '')].some((n) => INTERPRETER_NAMES.test(n));
+  },
+};
 
 // board_tags: deleting a tag deletes; renaming one changes how every task with it reads
 const boardTagsRiskOf = (args: ToolArgs): Risk =>
