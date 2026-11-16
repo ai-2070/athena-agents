@@ -1045,6 +1045,7 @@ Completed reviews:
 - Trigger/evidence: subgraph instance stores promoted values in widgets_values_named or object-valued widgets_values. Ordinary-node conversion supports those representations, but promotion reads arrays only and falls back to inner defaults.
 - Impact/expected: instance prompts, dimensions or settings silently run with wrong values. Apply named lookup before positional fallback.
 - Limits: subgraph tests use arrays; no real editor export generated.
+- Fixed: a subgraph instance's values kept by name (`widgets_values_named`, or an object) are read before the positional ones. Test in `tests/server/comfyui-convert.test.ts`.
 
 ### BH-119 — ComfyUI result references lose the producing server
 

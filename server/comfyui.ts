@@ -388,6 +388,11 @@ export function uiToApi(wf: UiWorkflow, info: ObjectInfo): { api: ApiWorkflow; w
     const inst = ctx.instance!;
     const def = ctx.def!;
     const values = inst.widgets_values;
+    // (values kept by name, as ordinary nodes may keep theirs, come first)
+    const named =
+      inst.widgets_values_named || (values && !Array.isArray(values) && typeof values === 'object' ? values : null);
+    const name = def.inputs?.[slot]?.name;
+    if (named && name && Object.hasOwn(named, name)) return (named as Record<string, unknown>)[name] ?? undefined;
     if (!Array.isArray(values)) return undefined;
     const proxies = inst.properties?.proxyWidgets;
     if (Array.isArray(proxies)) {
