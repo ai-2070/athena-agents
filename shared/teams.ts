@@ -1,9 +1,10 @@
 // Team helpers the server and the page share.
 import type { Team, TeamStep } from './types.ts';
 
-// An old step list with tools, approvals, posts or notices runs as a workflow, not as a team chat.
+// A step list runs as a workflow, not as a team chat: one with tools, approvals, posts or notices, or an agent step
+// written for it (its own prompt, like "Prompt to image"). A team's own steps are bare: one per member.
 export function isStepList(team: Pick<Team, 'steps'> | null | undefined): boolean {
-  return (team?.steps || []).some((s) => s.type !== 'agent');
+  return (team?.steps || []).some((s) => s.type !== 'agent' || (typeof s.prompt === 'string' && !!s.prompt.trim()));
 }
 
 // The steps a team keeps when its members change: one per member, or, for a step list,

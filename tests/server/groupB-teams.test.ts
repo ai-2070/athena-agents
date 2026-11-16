@@ -109,6 +109,16 @@ describe('old step lists', () => {
   it('tells step lists (tools, approvals, posts) from teams', () => {
     expect(isStepList({ steps: [{ type: 'agent', agentId: 'a' }] })).toBe(false);
     expect(isStepList({ steps: [{ type: 'agent', agentId: 'a' }, { type: 'approval' }] })).toBe(true);
+    // an agent step written for the workflow (its own prompt) keeps it a workflow; a team's own steps are bare
+    expect(isStepList({ steps: [{ type: 'agent', agentId: 'a', prompt: 'Make an image of: {{input}}' }] })).toBe(true);
+    expect(
+      isStepList({
+        steps: [
+          { type: 'agent', agentId: 'a', prompt: '  ' },
+          { type: 'agent', agentId: 'b' },
+        ],
+      }),
+    ).toBe(false);
     expect(isStepList(null)).toBe(false);
   });
 

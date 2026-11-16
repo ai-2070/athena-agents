@@ -201,6 +201,7 @@ Completed reviews:
 - Trigger/evidence: run an authored all-agent workflow, including Prompt to image. `isStepList()` is false, so dispatch sends only input/“Go ahead.” to team chat instead of rendering saved steps.
 - Impact/expected: custom prompts, ordering and output substitutions are silently lost. Authored step semantics should survive dispatch.
 - Limits: editor reachability and producer/consumer paths inspected; no model call.
+- Fixed: `isStepList()` also counts an agent step with its own prompt, so an all-agent workflow you wrote (Prompt to image) runs its steps instead of going to the team chat; a team's bare steps stay a team. Test in `tests/server/groupB-teams.test.ts`.
 
 ### BH-020 — Workflow events can alter another project's indicator
 
