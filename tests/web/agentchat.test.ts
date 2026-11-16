@@ -200,7 +200,7 @@ describe('the agent tab', () => {
     act(() => tab.destroy());
   });
 
-  it('opens its latest own chat (not a team session), and New chat starts a fresh one', async () => {
+  it('opens its latest own chat (not a team session, nor a private one), and New chat starts a fresh one', async () => {
     state.data = {
       runs: [],
       approvals: [],
@@ -214,6 +214,8 @@ describe('the agent tab', () => {
         url === '/api/agents/a1/chats' && init.method !== 'POST'
           ? [
               { id: 'team1', title: 'Team: Social', teamId: 't1' },
+              // (a gateway's private conversation is newer, but never this tab's)
+              { id: 'c9', title: 'Telegram', conversationId: 'gw-telegram-1' },
               { id: 'c7', title: 'Mine' },
             ]
           : url === '/api/agents/a1/chats'

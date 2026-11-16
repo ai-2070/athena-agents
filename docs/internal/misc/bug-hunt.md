@@ -247,6 +247,7 @@ Completed reviews:
 - Trigger/evidence: a private conversation is the newest agent chat. Initial selection excludes team sessions but not `conversationId`, unlike its own history list.
 - Impact/expected: an ordinary tab shows/sends into another workflow's private conversation. Apply consistent private-chat exclusion.
 - Limits: static list/selection trace only.
+- Fixed: a floating agent chat opens the latest chat that is neither a team session nor a private conversation, the same rule as its list. Test in `tests/web/agentchat.test.ts`.
 
 ### BH-026 — Reconnection does not catch up open chat history
 

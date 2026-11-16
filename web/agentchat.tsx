@@ -53,13 +53,13 @@ function AgentChatPane({ agentId, ask, projectId }: { agentId: string; ask: Focu
   useEffect(() => {
     let live = true;
     chosen.current = false;
-    // its own conversations, not the sessions it keeps for each team chat
+    // its own conversations, not the sessions it keeps for each team chat, nor a private one (a gateway's, a task's)
     void rpcAt(at)
       .agents.chats.list({ id: agentId })
       .catch((): ChatSummary[] => [])
       .then((chats) => {
         if (!live || chosen.current) return;
-        const id = chats.find((c) => !isTeamSession(c))?.id || null;
+        const id = chats.find((c) => !isTeamSession(c) && !c.conversationId)?.id || null;
         setPick({ id, n: 0 });
         setChatId(id);
       });
