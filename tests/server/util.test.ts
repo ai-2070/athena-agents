@@ -7,6 +7,7 @@ import {
   parseFrontmatter,
   readJSON,
   renderTemplate,
+  run,
   slugify,
   truncate,
   uid,
@@ -58,5 +59,40 @@ describe('util', () => {
     expect(r.meta.description).toBe('writes');
     expect(r.body.trim()).toBe('Body text');
     expect(parseFrontmatter('no frontmatter').body).toBe('no frontmatter');
+  });
+});
+
+// Stop and the time limit end what a command started too, not only the shell (Windows: taskkill /t does).
+describe.skipIf(process.platform === 'win32')('run() stopping a command', () => {
+  const gone = (pid: number) => {
+    try {
+      process.kill(pid, 0);
+      return false;
+    } catch {
+      return true;
+    }
+  };
+
+  it('ends what it started when the time is up, and does not wait on it', async () => {
+    const started = Date.now();
+    const r = await run('sh', ['-c', 'sleep 30 & echo $!; wait'], { timeout: 500 });
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(r.stderr).toContain('timed out');
+    const pid = Number(r.stdout.trim());
+    expect(pid).toBeGreaterThan(0);
+    for (const end = Date.now() + 5000; !gone(pid) && Date.now() < end;) await new Promise((r) => setTimeout(r, 50));
+    expect(gone(pid)).toBe(true);
+  });
+
+  it('ends what it started when stopped', async () => {
+    const stop = new AbortController();
+    const pending = run('sh', ['-c', 'sleep 30 & echo $!; wait'], { timeout: 60_000, signal: stop.signal });
+    await new Promise((r) => setTimeout(r, 300));
+    stop.abort();
+    const r = await pending;
+    expect(r.stderr).toContain('[stopped]');
+    const pid = Number(r.stdout.trim());
+    for (const end = Date.now() + 5000; !gone(pid) && Date.now() < end;) await new Promise((r) => setTimeout(r, 50));
+    expect(gone(pid)).toBe(true);
   });
 });

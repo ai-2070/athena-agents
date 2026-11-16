@@ -389,20 +389,45 @@ export function run(
     let done = false;
     let child: ChildProcess;
     try {
-      child = spawnCommand(cmd, args, { cwd, env: env ? { ...process.env, ...env } : process.env });
+      // (its own process group off Windows, so Stop and the time limit reach what it starts too: see killTree)
+      child = spawnCommand(cmd, args, {
+        cwd,
+        env: env ? { ...process.env, ...env } : process.env,
+        ...(IS_WIN ? {} : { detached: true }),
+      });
+      if (!IS_WIN) groups.add(child);
     } catch (e) {
       resolve({ code: -1, stdout: '', stderr: String((e as Error).message || e) });
       return;
     }
+    let giveUp: ReturnType<typeof setTimeout> | undefined;
+    const finish = (code: number | null) => {
+      if (done) return;
+      lines('', true);
+      done = true;
+      clearTimeout(timer);
+      clearTimeout(giveUp);
+      signal?.removeEventListener('abort', onAbort);
+      resolve({ code, stdout: out, stderr: err });
+    };
+    // Something it started that got away (into a group of its own) can keep the output open: don't wait for ever.
+    const end = () => {
+      killTree(child);
+      giveUp ??= setTimeout(() => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        finish(child.exitCode);
+      }, SETTLE_MS);
+    };
     const timer = setTimeout(() => {
       if (!done) {
         err += `\n[timed out after ${Math.round(timeout / 1000)}s]`;
-        killTree(child);
+        end();
       }
     }, timeout);
     const onAbort = () => {
       err += '\n[stopped]';
-      killTree(child);
+      end();
     };
     if (signal?.aborted) onAbort();
     signal?.addEventListener('abort', onAbort);
@@ -419,26 +444,44 @@ export function run(
     child.on('error', (e) => {
       err += String(e.message || e);
     });
-    child.on('close', (code: number | null) => {
-      lines('', true);
-      done = true;
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', onAbort);
-      resolve({ code, stdout: out, stderr: err });
-    });
+    child.on('close', (code: number | null) => finish(code));
     if (input != null) child.stdin?.end(input);
     else child.stdin?.end();
   });
 }
 
+/** How long a stopped command gets to end before it is killed outright, and before run() stops waiting on it. */
+const KILL_GRACE_MS = 3000;
+const SETTLE_MS = 5000;
+// Processes started as their own group (run() off Windows): killTree ends the whole group, not just the first.
+const groups = new WeakSet<ChildProcess>();
+
 export function killTree(child: ChildProcess | null | undefined) {
-  if (!child || child.exitCode != null) return;
-  try {
-    if (IS_WIN && child.pid) spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true });
-    else child.kill('SIGTERM');
-  } catch {
-    /* already gone */
+  if (!child) return;
+  const group = groups.has(child) && child.pid ? child.pid : 0;
+  // (the first process may have ended while what it started goes on)
+  if (child.exitCode != null && !group) return;
+  if (IS_WIN && child.pid) {
+    try {
+      spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true }).on('error', () => {});
+    } catch {
+      /* already gone */
+    }
+    return;
   }
+  const send = (sig: NodeJS.Signals) => {
+    try {
+      if (group) process.kill(-group, sig);
+      else child.kill(sig);
+    } catch {
+      /* already gone */
+    }
+  };
+  send('SIGTERM');
+  // one that ignores SIGTERM is killed outright
+  setTimeout(() => {
+    if (group || child.exitCode == null) send('SIGKILL');
+  }, KILL_GRACE_MS).unref();
 }
 
 // Start a GUI program and forget about it.

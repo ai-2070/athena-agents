@@ -743,6 +743,7 @@ Completed reviews:
 - Trigger/evidence: on Linux/macOS, cancel/time out a shell sequence while an external child runs. `killTree()` sends SIGTERM only to the immediate child, with no escalation. Descendants can retain inherited output pipes.
 - Impact/expected: work/filesystem effects continue after Stop, and `run()` can await `close` beyond its timeout. Terminate owned descendants and bound settlement.
 - Limits: no process scenario executed; this concerns generic command execution, not adapter-specific cancellation gaps.
+- Fixed: `run()` starts commands in their own process group off Windows; `killTree()` ends the whole group with SIGTERM, then SIGKILL after 3 s, and `run()` stops waiting 5 s after Stop or the time limit. Checked on Linux in Docker (returns in about 1 s, was 30 s); tests in `tests/server/util.test.ts` (skipped on Windows, where `taskkill /t` already ends the tree).
 
 ### BH-088 — Windows terminal wrappers misparse literal arguments for `.cmd` shims
 
