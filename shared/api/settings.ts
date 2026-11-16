@@ -61,6 +61,7 @@ const settingsPatch = z
     brainAnyGitHub: yesNo('brainAnyGitHub'),
     brainFollowsUp: yesNo('brainFollowsUp'),
     brainTools: z.enum(['full', 'ask', 'off'], { error: "The Brain's tool access is full, ask or off." }),
+    sessionSearch: yesNo('sessionSearch'),
     look: z
       .object({
         theme: z.enum(['system', 'light', 'dark'], { error: 'The colour scheme is system, light or dark.' }),

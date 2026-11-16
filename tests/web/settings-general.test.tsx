@@ -195,6 +195,16 @@ describe('General & keys', () => {
     expect(document.getElementById('toasts')!.textContent).toContain('nope');
   });
 
+  it('session search starts off and saves at once', async () => {
+    await open();
+    const row = switchFor('Search all sessions');
+    expect(row.querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('false');
+    await act(async () => row.querySelector<HTMLElement>('.toggle-text')!.click());
+    await settle();
+    expect(requests.filter((r) => r.method === 'PUT').map((r) => r.body)).toEqual([{ sessionSearch: true }]);
+    expect(row.querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('true');
+  });
+
   it("the Brain's tool access starts on Full and saves at once", async () => {
     await open();
     const seg = el.querySelector('[aria-label="Tool access"]')!;

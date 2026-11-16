@@ -139,6 +139,7 @@ Connect agents to programs and services with the Model Context Protocol. Add ser
 - **Routines:** work you want done again and again, run by hand or on a schedule.
 - **Programs:** the Programs page finds creative and CAD apps on your computer (Blender, Photoshop, DaVinci Resolve, GIMP, OpenSCAD…) so agents can use them. Agents run your ComfyUI workflows with their own prompts and pictures, and get the images, video, audio and 3D files back.
 - **History:** every agent, team, skill and memory keeps its last 50 versions, so any change can be undone.
+- **Session search:** turn it on in Settings and every agent, team and the Brain can search and read all the project's saved chats, not only their own. Off by default.
 - **Built-in tools:** files (read in parts, edit, find, search), the text of PDFs and Word, Excel and PowerPoint files, web pages as Markdown, commands, delegating to other agents, and more. Long results keep their start and end, with the whole text saved for the agent to read.
 
 The [full guide](docs/guide.md) covers all of it in detail.

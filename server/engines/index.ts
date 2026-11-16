@@ -661,7 +661,9 @@ export function buildSystemPrompt(agent: Agent): string {
     worldPrompt(tools),
     skillsPrompt(agent),
     // (what each tool does is in its own description: only what no description says goes here)
-    'Before guessing about earlier work, look it up with search_conversations and read_conversation.',
+    tools.includes('search_sessions')
+      ? "Before guessing about earlier work, look it up with search_conversations and read_conversation. search_sessions and read_session also reach every other agent's, team's and the Brain's sessions in this project."
+      : 'Before guessing about earlier work, look it up with search_conversations and read_conversation.',
     "Plan work with several steps in the dashboard's task tools (TaskCreate, TaskList, TaskUpdate), not a task list of your own, so the user and your team see the same records. Read TaskList at the start of each turn.",
     "When the user's message asks for real work, call set_goal once at the start (in a team chat, the lead does).",
     accountsPrompt(agent.mcpServers || []),

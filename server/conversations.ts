@@ -11,14 +11,16 @@ import type {
   ConversationSearchResult,
 } from '../shared/types.ts';
 
-const pageNumber = (value: unknown, fallback: number, max: number) =>
+export const pageNumber = (value: unknown, fallback: number, max: number): number =>
   typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(0, Math.floor(value))) : fallback;
 
-function ownText(item: ChatItem): string {
+// (results of the look-up tools themselves aren't searched, or a search would find its own earlier output)
+const LOOKUP_TOOLS = new Set(['search_conversations', 'read_conversation', 'search_sessions', 'read_session']);
+
+/** An agent chat entry's searchable text. */
+export function ownText(item: ChatItem): string {
   if (item.type === 'tool')
-    return ['search_conversations', 'read_conversation'].includes(item.name)
-      ? ''
-      : `${item.name}\n${JSON.stringify(item.args ?? {})}\n${item.result || ''}`;
+    return LOOKUP_TOOLS.has(item.name) ? '' : `${item.name}\n${JSON.stringify(item.args ?? {})}\n${item.result || ''}`;
   if (item.type === 'compaction') return ''; // Search the originals rather than copies in checkpoints.
   return (
     item.text +
@@ -40,25 +42,11 @@ export function searchConversations(
   conversationId?: string,
 ): ConversationSearchResult {
   if (!agents.get(agentId)) throw new Error('Only saved dashboard agents can search conversations.');
-  const query = typeof args.query === 'string' ? args.query.trim() : '';
-  if (!query || query.length > 1000) throw new Error('Give search words, up to 1000 characters.');
+  const query = searchWords(args.query);
   if (args.scope && !['own', 'team', 'all'].includes(args.scope)) throw new Error('Scope must be own, team or all.');
   const scope = args.scope || 'all';
-  const words = query.toLowerCase().split(/\s+/);
-  const offset = pageNumber(args.offset, 0, Number.MAX_SAFE_INTEGER);
-  const limit = Math.max(1, pageNumber(args.limit, 10, 20));
   const hits: ConversationHit[] = [];
-  const match = (hit: Omit<ConversationHit, 'excerpt'>, text: string) => {
-    const low = text.toLowerCase();
-    if (!words.every((word) => low.includes(word))) return;
-    const at = low.indexOf(words[0]);
-    hits.push({
-      ...hit,
-      title: hit.title.slice(0, 200),
-      author: hit.author.slice(0, 256),
-      excerpt: text.slice(Math.max(0, at - 120), at + 400),
-    });
-  };
+  const match = matcher(query, hits);
   if (scope !== 'team') {
     for (const chat of chats.all(agentId)) {
       if (chat.conversationId !== conversationId) continue;
@@ -97,6 +85,42 @@ export function searchConversations(
   hits.sort(
     (a, b) => b.ts - a.ts || a.conversationId.localeCompare(b.conversationId) || a.messageId.localeCompare(b.messageId),
   );
+  return hitPage(hits, args);
+}
+
+/** The search words, checked. */
+export function searchWords(query: unknown): string {
+  const words = typeof query === 'string' ? query.trim() : '';
+  if (!words || words.length > 1000) throw new Error('Give search words, up to 1000 characters.');
+  return words;
+}
+
+/** Adds a hit (with an excerpt around the first word) when every search word is in the text, ignoring case. */
+export function matcher<H extends { title: string; author: string; excerpt: string }>(
+  query: string,
+  hits: H[],
+): (hit: Omit<H, 'excerpt'>, text: string) => void {
+  const words = query.toLowerCase().split(/\s+/);
+  return (hit, text) => {
+    const low = text.toLowerCase();
+    if (!words.every((word) => low.includes(word))) return;
+    const at = low.indexOf(words[0]);
+    hits.push({
+      ...hit,
+      title: hit.title.slice(0, 200),
+      author: hit.author.slice(0, 256),
+      excerpt: text.slice(Math.max(0, at - 120), at + 400),
+    } as H);
+  };
+}
+
+/** One page of sorted hits, small enough for the engines' tool-result limits. */
+export function hitPage<H>(
+  hits: H[],
+  args: { offset?: unknown; limit?: unknown },
+): { hits: H[]; total: number; nextOffset: number | null } {
+  const offset = pageNumber(args.offset, 0, Number.MAX_SAFE_INTEGER);
+  const limit = Math.max(1, pageNumber(args.limit, 10, 20));
   const page = hits.slice(offset, offset + limit);
   // Leave room below the engines' tool-result limits, including JSON escaping. (The page as JSON is "[",
   // its hits as JSON with commas between them, and "]": each hit is measured once.)
@@ -111,6 +135,26 @@ export function searchConversations(
     total: hits.length,
     nextOffset: offset + page.length < hits.length ? offset + page.length : null,
   };
+}
+
+/** One character page of a long original, its JSON under the engines' tool-result limits. */
+export function textPage<R extends { text: string }>(
+  text: string,
+  args: { offset?: unknown; limit?: unknown },
+  make: (part: { text: string; totalChars: number; offset: number; nextOffset: number | null }) => R,
+): R {
+  const offset = pageNumber(args.offset, 0, Number.MAX_SAFE_INTEGER);
+  const limit = Math.max(1, pageNumber(args.limit, 8000, 16000));
+  let end = Math.min(text.length, offset + limit);
+  const page = () =>
+    make({
+      text: text.slice(offset, end),
+      totalChars: text.length,
+      offset,
+      nextOffset: end < text.length ? end : null,
+    });
+  while (end > offset && JSON.stringify(page()).length > 20000) end = offset + Math.floor((end - offset) / 2);
+  return page();
 }
 
 /** Long originals are read in explicit character pages; an oversized message can always be read to its end. */
@@ -138,19 +182,11 @@ export function readConversation(
     text = `${message.text}${message.attachments?.length ? `\nAttached: ${message.attachments.join(', ')}` : ''}`;
     title = team.name;
   } else throw new Error('Source must be own or team.');
-  const offset = pageNumber(args.offset, 0, Number.MAX_SAFE_INTEGER);
-  const limit = Math.max(1, pageNumber(args.limit, 8000, 16000));
-  let end = Math.min(text.length, offset + limit);
-  const page = (): ConversationReadResult => ({
+  return textPage(text, args, (part): ConversationReadResult => ({
     source: args.source,
     conversationId: args.conversationId,
     messageId: args.messageId,
     title: title.slice(0, 200),
-    text: text.slice(offset, end),
-    totalChars: text.length,
-    offset,
-    nextOffset: end < text.length ? end : null,
-  });
-  while (end > offset && JSON.stringify(page()).length > 20000) end = offset + Math.floor((end - offset) / 2);
-  return page();
+    ...part,
+  }));
 }
