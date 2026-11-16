@@ -481,13 +481,28 @@ export function xmlText(text: string): string {
   });
 }
 
+const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+const PRESENTATION_NS = 'http://schemas.openxmlformats.org/presentationml/2006/main';
+const RELATIONSHIPS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+/** The prefix a part's XML gives a namespace, with its colon ('w:'), '' when it is the default one, else usual's. */
+function nsPrefix(xml: string, uri: string, usual: string): string {
+  const head = xml.slice(0, 20_000);
+  const named = [...head.matchAll(/xmlns:([A-Za-z_][\w.-]*)="([^"]*)"/g)].find((m) => m[2] === uri);
+  if (named) return `${named[1]}:`;
+  if (head.includes(`xmlns="${uri}"`)) return '';
+  return `${usual}:`;
+}
+
 /**
  * Word or PowerPoint XML as text: paragraphs as lines, a table's row on one line with its cells split by " | ". `ns`
  * is w (Word) or a (slides). A cell's own paragraphs (every cell ends with one) are joined by spaces.
  */
-function runsAsLines(xml: string, ns: 'w' | 'a'): string {
+function runsAsLines(xml: string, prefix: 'w' | 'a'): string {
+  // (the prefix the file itself gives the namespace: w: and a: are usual, but any name or none is the same)
+  const ns = nsPrefix(xml, prefix === 'w' ? WORD_NS : DRAWING_NS, prefix);
   const token = new RegExp(
-    `<${ns}:t(?:\\s[^>]*)?>([^<]*)</${ns}:t>|<${ns}:tab/>|<${ns}:br(?:\\s[^>]*)?/>|<${ns}:tc(?:\\s[^>]*)?>|</${ns}:p>|</${ns}:tc>|</${ns}:tr>`,
+    `<${ns}t(?:\\s[^>]*)?>([^<]*)</${ns}t>|<${ns}tab/>|<${ns}br(?:\\s[^>]*)?/>|<${ns}tc(?:\\s[^>]*)?>|</${ns}p>|</${ns}tc>|</${ns}tr>`,
     'g',
   );
   // the text outside any cell, then one entry per cell open around this point (a table can sit in a cell)
@@ -498,10 +513,10 @@ function runsAsLines(xml: string, ns: 'w' | 'a'): string {
   for (const [tag, text] of xml.matchAll(token)) {
     const inCell = open.length > 1;
     if (text !== undefined) add(xmlText(text));
-    else if (tag.startsWith(`<${ns}:tab`)) add(inCell ? ' ' : '\t');
-    else if (tag.startsWith(`<${ns}:br`) || tag === `</${ns}:p>`) add(inCell ? ' ' : '\n');
-    else if (tag === `</${ns}:tr>`) add(inCell ? ' ' : '\n');
-    else if (tag === `</${ns}:tc>`) {
+    else if (tag.startsWith(`<${ns}tab`)) add(inCell ? ' ' : '\t');
+    else if (tag.startsWith(`<${ns}br`) || tag === `</${ns}p>`) add(inCell ? ' ' : '\n');
+    else if (tag === `</${ns}tr>`) add(inCell ? ' ' : '\n');
+    else if (tag === `</${ns}tc>`) {
       if (!inCell) continue;
       const cell = open
         .pop()!
@@ -657,7 +672,10 @@ export function powerpointText(bytes: Uint8Array): { text: string; slides: numbe
   const deck = parts.get('ppt/presentation.xml');
   if (deck === undefined) throw new DocumentError('it has no presentation in it.');
   const targets = relationTargets(parts.get('ppt/_rels/presentation.xml.rels') ?? '', 'ppt');
-  const order = [...deck.matchAll(/<p:sldId\b[^>]*\br:id="([^"]+)"/g)]
+  // (with the prefixes the deck gives its namespaces: p: and r: are usual)
+  const p = nsPrefix(deck, PRESENTATION_NS, 'p');
+  const r = nsPrefix(deck, RELATIONSHIPS_NS, 'r');
+  const order = [...deck.matchAll(new RegExp(`<${p}sldId\\b[^>]*\\b${r}id="([^"]+)"`, 'g'))]
     .map((m) => targets.get(m[1]!))
     .filter((name): name is string => !!name && parts.has(name));
   // (a deck whose list can't be followed: its slides by number)

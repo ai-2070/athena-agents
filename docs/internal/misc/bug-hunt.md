@@ -1027,6 +1027,7 @@ Completed reviews:
 - Trigger/evidence: valid Word/PowerPoint uses alternate/default namespaces rather than literal w/a/p/r prefixes. Text regexes require w:/a:, and ordering expects p:sldId/r:id.
 - Impact/expected: extraction can silently return empty/incomplete text or filename-ordered slides. Honor namespace-equivalent package contents.
 - Limits: Excel already supports/tests alternative prefixes; real Word/PowerPoint producer prevalence not checked.
+- Fixed: Word and slide text, and a deck's slide order, use the prefix each part gives its namespace (`nsPrefix()`), a default namespace included, not only w:, a:, p: and r:. Test in `tests/server/documents.test.ts`.
 
 ### BH-115 — Office relationship URIs are not normalized before part lookup
 

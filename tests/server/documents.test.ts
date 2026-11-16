@@ -77,6 +77,18 @@ describe('the text of each kind', () => {
     expect((await documentText('powerpoint', pptxRaw(slide))).text).toBe('--- Slide 1 ---\nQ1 | Q2');
   });
 
+  it('reads Word text whatever prefix the file gives its namespace, or none', async () => {
+    const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    const doc = (xml: string) =>
+      zipSync({ '[Content_Types].xml': strToU8('<Types/>'), 'word/document.xml': strToU8(xml) });
+    const own = doc(
+      `<x:document xmlns:x="${W}"><x:body><x:p><x:r><x:t>Own prefix</x:t></x:r></x:p></x:body></x:document>`,
+    );
+    expect((await documentText('word', own)).text).toBe('Own prefix');
+    const none = doc(`<document xmlns="${W}"><body><p><r><t>No prefix</t></r></p></body></document>`);
+    expect((await documentText('word', none)).text).toBe('No prefix');
+  });
+
   it("knows a workbook by its own parts, not a Word file's name inside it", () => {
     const parts = unzipSync(xlsx({ S: '' }));
     parts['xl/embeddings/word/document.xml'] = strToU8('<w:document/>');
