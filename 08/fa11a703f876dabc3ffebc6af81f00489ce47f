@@ -1,0 +1,19 @@
+docs/internal/plans/BRAIN_ON_AGENT_TOOLS_2026-11-16.md
+  s_5ac3d13a58b9f0::t_3f0194beec6a1e 1-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "08fa11a703f876dabc3ffebc6af81f00489ce47f",
+  "prompts": {},
+  "sessions": {
+    "s_5ac3d13a58b9f0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "821aa0b8-4e63-48d1-8126-e18d892b46f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
