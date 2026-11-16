@@ -729,6 +729,12 @@ export function startAutoSave() {
     if ((ev.type === 'world' || ev.type === 'world-md') && typeof ev.world === 'string') {
       // a world can be shared: every project using it saves
       for (const id of new Set([activeProject().id, ...usedBy(ev.world)])) saveSoon(id);
+    } else if (ev.type === 'world' && typeof ev.project === 'string') {
+      // a project pointed at another world (or none): that project saves, open or not
+      saveSoon(ev.project);
+    } else if (ev.type === 'projects') {
+      // a project's name, description, skills or look changed (the list doesn't say which): each saves, in a moment
+      for (const p of listProjects()) saveSoon(p.id, 2000);
     } else if (ev.type === 'skills') {
       const slugs = [ev.slug, ...(Array.isArray(ev.installed) ? ev.installed : [])].filter(
         (x): x is string => typeof x === 'string',
