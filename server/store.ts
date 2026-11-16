@@ -32,7 +32,7 @@ ensureDir(DATA);
 export const bus = new EventEmitter<{ event: [ServerEvent] }>();
 bus.setMaxListeners(100);
 // (a chat's events say which project they are from: a copied project has the same agent, team and chat ids)
-const PROJECT_EVENTS = new Set(['run', 'queue', 'loop', 'compacted', 'chat-note', 'brief', 'team']);
+const PROJECT_EVENTS = new Set(['run', 'queue', 'loop', 'compacted', 'chat-note', 'brief', 'team', 'workflow-run']);
 export const emit = (type: string, payload: Record<string, unknown> = {}) =>
   bus.emit('event', {
     type,

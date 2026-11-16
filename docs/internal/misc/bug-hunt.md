@@ -209,6 +209,7 @@ Completed reviews:
 - Trigger/evidence: A runs a workflow, user opens cloned B with the same workflow ID. Events have no project identity and Station matches by workflow ID alone.
 - Impact/expected: A can light or clear B's workflow state. Origin ownership must accompany/filter progress.
 - Limits: full event path traced; no browser scenario.
+- Fixed: `workflow-run` events carry the project they come from, and the map ignores another project's. Test in `tests/server/store.test.ts` (the map's check itself has no test).
 
 ### BH-021 — Schedules ignore projects that are not open
 

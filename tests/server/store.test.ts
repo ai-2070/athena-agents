@@ -126,6 +126,8 @@ describe('events', () => {
     try {
       const p = { ...activeProject(), id: 'elsewhere' };
       withProject(p, () => emit('run', { chatId: 'c1' }));
+      // (a workflow's progress too: a copied project's workflow has the same id)
+      withProject(p, () => emit('workflow-run', { id: 'w1' }));
       emit('queue', { chatId: 'c1', projectId: 'given' });
       emit('settings');
     } finally {
@@ -133,6 +135,7 @@ describe('events', () => {
     }
     expect(seen.map((e) => [e.type, e.projectId])).toEqual([
       ['run', 'elsewhere'],
+      ['workflow-run', 'elsewhere'],
       ['queue', 'given'],
       ['settings', undefined],
     ]);
