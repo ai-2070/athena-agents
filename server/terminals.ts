@@ -36,6 +36,14 @@ export interface CreateTerminalOptions {
 
 const sessions = new Map<string, TerminalSession>();
 const MAX_BUFFER = 400_000;
+// A viewer this far behind (a slow connection) is let go rather than kept in memory: it connects again and gets the
+// screen as it is then (the last MAX_BUFFER of output).
+const MAX_BEHIND = 4_000_000;
+function send(ws: WebSocket, d: string): void {
+  if (ws.readyState !== 1) return;
+  if (ws.bufferedAmount > MAX_BEHIND) return void ws.close(4008, 'fell behind');
+  ws.send(d);
+}
 
 export function listTerminals(): Terminal[] {
   return [...sessions.values()].map(({ id, title, agentId, createdAt, exited, exitCode, command, projectId }) => ({
@@ -173,7 +181,7 @@ export function createTerminal({
   p.onData((d) => {
     s.buffer += d;
     if (s.buffer.length > MAX_BUFFER) s.buffer = s.buffer.slice(-MAX_BUFFER);
-    for (const ws of s.clients) if (ws.readyState === 1) ws.send(d);
+    for (const ws of s.clients) send(ws, d);
   });
   p.onExit(({ exitCode }) => {
     s.exited = true;

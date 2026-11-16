@@ -85,7 +85,12 @@ export function XTerm({ id, className = 'flex-1 min-h-0 px-4 py-3 bg-bg' }: { id
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(el);
-    const ws = openSocket('/ws/term', { id });
+    // The connection to the terminal comes back by itself when it drops (a server restart, a sleep, falling behind):
+    // the server sends what is on screen again, so the view starts over from that.
+    let ws: WebSocket;
+    let closed = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let tries = 0;
     const sendSize = () => {
       try {
         fit.fit();
@@ -94,15 +99,29 @@ export function XTerm({ id, className = 'flex-1 min-h-0 px-4 py-3 bg-bg' }: { id
       }
       if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
     };
-    ws.onopen = () => {
-      sendSize();
-      term.focus();
+    const connect = (again: boolean) => {
+      ws = openSocket('/ws/term', { id });
+      let fresh = again;
+      ws.onopen = () => {
+        tries = 0;
+        sendSize();
+        term.focus();
+      };
+      ws.onmessage = (m: MessageEvent<string | ArrayBuffer>) => {
+        if (fresh) {
+          fresh = false;
+          term.reset();
+        }
+        term.write(typeof m.data === 'string' ? m.data : new Uint8Array(m.data));
+      };
+      ws.onclose = (e) => {
+        if (closed) return;
+        if (e.code === 4004) return void term.write('\r\n\x1b[90m[this terminal is gone]\x1b[0m\r\n');
+        if (!tries) term.write('\r\n\x1b[90m[connection lost: reconnecting…]\x1b[0m\r\n');
+        retry = setTimeout(() => connect(true), Math.min(5000, 500 * 2 ** tries++));
+      };
     };
-    ws.onmessage = (m: MessageEvent<string | ArrayBuffer>) =>
-      term.write(typeof m.data === 'string' ? m.data : new Uint8Array(m.data));
-    ws.onclose = (e) => {
-      if (e.code === 4004) term.write('\r\n\x1b[90m[this terminal is gone]\x1b[0m\r\n');
-    };
+    connect(false);
     const input = term.onData((d) => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'input', data: d })));
     const ro = new ResizeObserver(() => sendSize());
     ro.observe(el);
@@ -119,6 +138,8 @@ export function XTerm({ id, className = 'flex-1 min-h-0 px-4 py-3 bg-bg' }: { id
       cancelAnimationFrame(again);
       ro.disconnect();
       input.dispose();
+      closed = true;
+      clearTimeout(retry);
       ws.close();
       term.dispose();
     };

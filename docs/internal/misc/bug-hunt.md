@@ -808,6 +808,7 @@ Completed reviews:
 - Trigger/evidence: a terminal socket drops then connectivity returns. Its effect reconnects only when `id` changes, and close handles only terminal-gone code 4004. App events reconnect independently.
 - Impact/expected: healthy dashboard contains a silently frozen terminal that drops keystrokes until reopening. Reconnect or clearly expose disconnection.
 - Limits: no network outage simulated.
+- Fixed: a terminal view connects again by itself when its socket drops (backing off up to 5 s), starting over from the screen the server sends, and stops when the terminal is gone (4004). Test in `tests/web/terminals.test.tsx`.
 
 ### BH-090 — Command result clipping loses the real output tail
 
@@ -841,6 +842,7 @@ Completed reviews:
 - Trigger/evidence: terminal produces output faster than a viewer receives. Scrollback is capped, but every chunk is sent without checking queued bytes/backpressure; the socket writable queue has no application cap.
 - Impact/expected: shared-server memory can grow independently of `MAX_BUFFER`. Bound or backpressure slow-client output.
 - Limits: no throughput test or observed memory exhaustion.
+- Fixed: a viewer more than 4 MB behind is let go (4008) instead of queuing without limit; it connects again and gets the current screen. No test of its own.
 
 ### BH-094 — Closing an unready Windows terminal can defer killing indefinitely
 

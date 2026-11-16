@@ -224,3 +224,61 @@ describe('the terminal follows the page: light or dark', () => {
     expect(term.options.theme!.background).toBe('#0e0f11');
   });
 });
+
+describe('a terminal whose connection drops', () => {
+  it('connects again by itself, but not to one that is gone', async () => {
+    const all: { url: string; onclose: ((e: { code: number }) => void) | null; closed: boolean }[] = [];
+    // (the terminal's own sockets still open: the page's event socket is another, and one let go is closed)
+    const mine = () => all.filter((x) => x.url.includes('/ws/term') && !x.closed);
+    const sockets = {
+      get length() {
+        return mine().length;
+      },
+      at: (i: number) => mine()[i],
+    };
+    class FakeSocket {
+      readyState = 0;
+      onclose: ((e: { code: number }) => void) | null = null;
+      closed = false;
+      url: string;
+      constructor(url: string) {
+        this.url = url;
+        all.push(this);
+      }
+      send() {}
+      close() {
+        this.closed = true;
+      }
+    }
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const open = [{ id: 't1', title: 'One' }];
+    state.data = { ...state.data!, terminals: open } as unknown as AppState;
+    vi.stubGlobal(
+      'fetch',
+      async (url: string) => new Response(JSON.stringify(url === '/api/terminals' ? open : { ok: true })),
+    );
+    await act(async () => terminals.render(el, []));
+    await settle();
+    expect(sockets).toHaveLength(1);
+    // the connection drops (a restart, a sleep): another one opens after a moment
+    const first = sockets.at(0)!;
+    first.closed = true;
+    await act(async () => first.onclose?.({ code: 1006 }));
+    await act(() => new Promise((r) => setTimeout(r, 700)));
+    expect(sockets).toHaveLength(1);
+    expect(sockets.at(0)).not.toBe(first);
+    // the terminal itself is gone: no more tries
+    const second = sockets.at(0)!;
+    second.closed = true;
+    await act(async () => second.onclose?.({ code: 4004 }));
+    await act(() => new Promise((r) => setTimeout(r, 1200)));
+    expect(sockets).toHaveLength(0);
+  });
+});
