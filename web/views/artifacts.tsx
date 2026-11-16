@@ -3,7 +3,7 @@
 import { Plate } from '../ui/surface.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
 import { Pill } from '../ui/marks.tsx';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { attempt, md, copy, confirmBox } from '../core.ts';
 import { filePreviews } from '../filepreview.tsx';
 import { fileUrl } from '../client/connection.ts';
@@ -41,7 +41,14 @@ let lastQuery = '';
 function ArtifactsPage() {
   const [all, setAll] = useState<Artifact[] | null>(null);
   const [query, setQuery] = useState(lastQuery);
-  const reload = useCallback(() => rpc.artifacts.list().then(setAll), []);
+  // (only the latest request's answer counts: an older one, from before another project opened, comes too late)
+  const latest = useRef(0);
+  const reload = useCallback(() => {
+    const ask = ++latest.current;
+    return rpc.artifacts.list().then((list) => {
+      if (ask === latest.current) setAll(list);
+    });
+  }, []);
   useEffect(() => void reload().catch(() => setAll([])), [reload]);
   useServerEvents((ev) => (ev.type === 'artifacts' || ev.type === 'project') && void reload());
 
