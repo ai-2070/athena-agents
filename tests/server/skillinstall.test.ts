@@ -56,18 +56,30 @@ const truncated = new Set(['big/repo']);
 const sizes: Record<string, number> = { 'skills/two/huge.bin': 3 * 1024 * 1024 };
 // a download that waits until the test lets it go
 let holdDownloads: Promise<void> | null = null;
+// commits a branch was at, as GitHub would keep them: what a commit holds never changes
+const commits: Record<string, Record<string, string>> = {};
+let pinCommits = false;
+const filesAt = (repo: string, ref: string) => commits[ref] || repos[repo]?.[ref];
 const fakeFetch = async (input: string | URL) => {
   const url = String(input);
   calls.push(url);
   const ok = (body: unknown) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status: 200 });
   const notFound = () => new Response('{"message":"Not Found"}', { status: 404 });
+  const c = /^https:\/\/api\.github\.com\/repos\/([^/]+)\/([^/]+)\/commits\/([^?]+)$/.exec(url);
+  if (c) {
+    const files = repos[`${c[1]}/${c[2]}`]?.[decodeURIComponent(c[3])];
+    if (!pinCommits || !files) return new Response('{"message":"Not Found"}', { status: 404 });
+    const sha = `c0ffee${Object.keys(commits).length}`;
+    commits[sha] = { ...files };
+    return new Response(JSON.stringify({ sha }), { status: 200 });
+  }
   let m = /^https:\/\/api\.github\.com\/repos\/([^/]+)\/([^/]+)$/.exec(url);
   if (m) return repos[`${m[1]}/${m[2]}`] ? ok({ default_branch: 'main' }) : notFound();
   m = /^https:\/\/api\.github\.com\/repos\/([^/]+)\/([^/]+)\/git\/trees\/([^?]+)\?recursive=1$/.exec(url);
   if (m) {
     const repo = `${m[1]}/${m[2]}`;
     const [ref, sub] = decodeURIComponent(m[3]).split(':');
-    const files = repos[repo]?.[ref];
+    const files = filesAt(repo, ref);
     if (!files) return notFound();
     // "ref:folder" is just that folder, with paths inside it, never cut short here
     const entries = Object.entries(files)
@@ -79,6 +91,7 @@ const fakeFetch = async (input: string | URL) => {
   if (m) {
     if (holdDownloads) await holdDownloads;
     const rest = m[3].split('/').map(decodeURIComponent);
+    if (commits[rest[0]!]) return ok(commits[rest[0]!]![rest.slice(1).join('/')] ?? '');
     for (const [ref, files] of Object.entries(repos[`${m[1]}/${m[2]}`] || {})) {
       const n = ref.split('/').length;
       if (rest.slice(0, n).join('/') === ref && rest.slice(n).join('/') in files)
@@ -216,6 +229,30 @@ describe('installing', () => {
     restoreVersion('skill', slug, historyOf('skill', slug).versions[0].id);
     expect(fs.readFileSync(path.join(dir, 'references', 'example'), 'utf8')).toBe('the old example file');
     delete files['skills/writer/references/example/detail.md'];
+  });
+
+  it('takes every file from one commit, even when the branch moves on while they come down', async () => {
+    pinCommits = true;
+    const files = repos['acme/skills'].main;
+    const before = files['skills/writer/examples/one.md'];
+    let release = () => {};
+    holdDownloads = new Promise<void>((r) => (release = r));
+    try {
+      const going = installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer');
+      await new Promise((r) => setTimeout(r, 50));
+      // a push to main meanwhile
+      files['skills/writer/examples/one.md'] = 'pushed while it downloaded';
+      release();
+      await going;
+      const dir = skills.skillDir(skills.findSkill('Writer')!.slug);
+      expect(fs.readFileSync(path.join(dir, 'examples', 'one.md'), 'utf8')).toBe(before);
+      // the branch is what an update follows
+      expect(skills.findSkill('Writer')!.origin?.ref).toBe('main');
+    } finally {
+      holdDownloads = null;
+      pinCommits = false;
+      files['skills/writer/examples/one.md'] = before!;
+    }
   });
 
   it('finds a branch with a slash in its name, and says so when there is nothing to install', async () => {

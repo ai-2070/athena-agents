@@ -526,6 +526,7 @@ Completed reviews:
 - Trigger/evidence: branch advances between tree metadata and independent per-file downloads, which use the branch rather than immutable revision/blob IDs.
 - Impact/expected: files can mix commits; listed-small files can grow below individual 2 MB limits but exceed the aggregate 10 MB cap. Use one immutable revision.
 - Limits: no requests or branch changes exercised.
+- Fixed: an install pins the commit its branch is at, reads the tree and downloads every file from that commit (the origin keeps the branch, for updates), and counts the bytes that really come down against the 10 MB limit. Test in `tests/server/skillinstall.test.ts`.
 
 ### BH-057 — Encoded skill paths produce broken Update origins
 
@@ -542,6 +543,7 @@ Completed reviews:
 - Trigger/evidence: private install before authentication caches null; user follows `gh auth login` then immediately retries, without `GITHUB_TOKEN`.
 - Impact/expected: retries remain unauthenticated for ten minutes/restart, also after installing missing CLI. Refresh negative credential discovery on retry.
 - Limits: no CLI/authentication run.
+- Fixed: a missing GitHub CLI sign-in is remembered for 15 s, not ten minutes, so signing in with `gh auth login` counts on the next try. No test of its own.
 
 ### BH-059 — Eve recovery resumes runs with a saved Stop intent
 
