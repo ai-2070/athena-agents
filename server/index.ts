@@ -374,15 +374,22 @@ get('/api/internal/tools', async (_p, _b, q) => {
 });
 post<{ agent?: string; run?: string; project?: string; name: string; args?: Record<string, unknown> }>(
   '/api/internal/tools/call',
-  async (_p, body) => {
+  async (_p, body, _q, res) => {
     // The bridge says which run it belongs to; that gives the right project, approvals, Stop button and delegation depth.
     const run = engines.runInfo(body.run);
+    // the MCP client gave up on the call (it cancelled it): what it waits on is taken back, and nothing runs after
+    const given = new AbortController();
+    res.on('close', () => {
+      if (!res.writableFinished) given.abort();
+    });
     return inRunProject(
       run,
       body.project,
       async () => {
         const agent = bridgeAgent(run, body.agent);
-        const ctx = run ? { runId: run.id, depth: run.depth, signal: run.signal } : { runId: null, depth: 1 };
+        const ctx = run
+          ? { runId: run.id, depth: run.depth, signal: AbortSignal.any([run.signal, given.signal]) }
+          : { runId: null, depth: 1, signal: given.signal };
         if (body.name === 'permission_prompt')
           return {
             text: JSON.stringify(

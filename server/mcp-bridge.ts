@@ -44,12 +44,14 @@ const projectId = process.env.DASH_PROJECT || '';
 const base = `http://127.0.0.1:${port}/api/internal`;
 
 // Plain http (no timeout): a call can wait a long time while you decide on an approval.
-function call<T>(pathname: string, body?: unknown): Promise<T> {
+function call<T>(pathname: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
     const req = http.request(
       `${base}${pathname}`,
       {
+        // (the client cancelled the call: the request goes, and the dashboard stops what it waited on)
+        ...(signal ? { signal } : {}),
         method: body ? 'POST' : 'GET',
         headers: {
           'x-dash-internal': token,
@@ -96,15 +98,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   }
 });
 
-server.setRequestHandler(CallToolRequestSchema, async (req) => {
+server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
   try {
-    const r = await call<BridgeCallResult>('/tools/call', {
-      agent,
-      run: runId,
-      project: projectId,
-      name: req.params.name,
-      args: req.params.arguments || {},
-    });
+    const r = await call<BridgeCallResult>(
+      '/tools/call',
+      {
+        agent,
+        run: runId,
+        project: projectId,
+        name: req.params.name,
+        args: req.params.arguments || {},
+      },
+      extra.signal,
+    );
     const content: CallToolResult['content'] = [{ type: 'text', text: r.text || '(no output)' }];
     for (const img of r.images || []) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(img);

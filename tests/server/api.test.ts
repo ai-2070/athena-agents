@@ -1807,6 +1807,43 @@ describe('agent runs and projects', () => {
     }
   });
 
+  it('a call its MCP client cancels while it waits in Needs you is taken back, and never runs', async () => {
+    const send = async (p: string, body: unknown) =>
+      (await req(p, { method: 'POST', headers: json, body: JSON.stringify(body) })).json();
+    const home = path.join(tmp, 'home');
+    const a = await send('/api/projects', { name: 'Cancel A', mode: 'new', folder: path.join(home, 'cancel-a') });
+    const agent = await send('/api/agents', {
+      name: 'Asker',
+      engine: 'claude-code',
+      toolGroups: ['files'],
+      autonomy: 'ask',
+    });
+    const internal = {
+      'content-type': 'application/json',
+      'x-dash-internal': fs.readFileSync(path.join(tmp, 'data', '.internal-token'), 'utf8').trim(),
+    };
+    const stop = new AbortController();
+    const call = req('/api/internal/tools/call', {
+      method: 'POST',
+      headers: internal,
+      signal: stop.signal,
+      body: JSON.stringify({
+        agent: agent.id,
+        project: a.id,
+        name: 'write_file',
+        args: { path: 'cancelled.txt', content: 'should not be written' },
+      }),
+    }).catch(() => null);
+    const waiting = async () => ((await (await req('/api/approvals')).json()) as { title: string }[]).length;
+    for (let i = 0; i < 100 && !(await waiting()); i++) await new Promise((r) => setTimeout(r, 50));
+    expect(await waiting()).toBe(1);
+    stop.abort();
+    await call;
+    for (let i = 0; i < 100 && (await waiting()); i++) await new Promise((r) => setTimeout(r, 50));
+    expect(await waiting()).toBe(0);
+    expect(fs.existsSync(path.join(a.brainPath, 'cancelled.txt'))).toBe(false);
+  });
+
   it("tool calls from an agent's terminal stay in the project it was opened in", async () => {
     const send = async (p: string, body: unknown) =>
       (await req(p, { method: 'POST', headers: json, body: JSON.stringify(body) })).json();

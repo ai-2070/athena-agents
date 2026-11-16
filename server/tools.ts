@@ -20,6 +20,7 @@ import {
   asOpened,
   runnable,
   commandShell,
+  uid,
 } from './util.ts';
 import * as assetLib from './assets.ts';
 import type { AssetSource, AssetKind } from './assets.ts';
@@ -41,7 +42,7 @@ import { startHandoff, awaitHandoff, awaitHandoffs, listHandoffs, DEFAULT_WAIT_S
 
 /** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */
 const HERMES_WAIT_S = 240;
-import { requestApproval } from './approvals.ts';
+import { requestApproval, withdrawApprovals } from './approvals.ts';
 import type { ApprovalDecision, ApprovalRequest } from './approvals.ts';
 import { readPage, pagePart, PAGE_CHARS, PAGE_MAX_CHARS } from './webread.ts';
 import * as files from './filetools.ts';
@@ -2455,6 +2456,22 @@ export function needsApproval(agent: ToolAgent, risk: Risk, toolName: string): b
   return risk === 'low' || risk === 'high';
 }
 
+/** Asks in Needs you until the call is stopped or given up (an MCP client that cancelled it): then the question is
+ *  taken back, so a yes given later runs nothing. */
+async function askWhileWanted(request: ApprovalRequest, signal?: AbortSignal): Promise<ApprovalDecision> {
+  if (!signal) return requestApproval(request);
+  if (signal.aborted) return { approved: false, message: 'Stopped.' };
+  const ref = uid('call');
+  const asked = requestApproval({ ...request, data: { ...request.data, callRef: ref } });
+  const stop = () => withdrawApprovals((it) => it.data?.callRef === ref, 'The request was stopped.');
+  signal.addEventListener('abort', stop, { once: true });
+  try {
+    return await asked;
+  } finally {
+    signal.removeEventListener('abort', stop);
+  }
+}
+
 // Eve's policy and executor use the same request and original arguments.
 export function toolApprovalRequest(
   agent: ToolAgent,
@@ -2493,7 +2510,11 @@ export async function gate(
   const grant = ctx.grantName || name;
   if (!needsApproval(agent, risk, grant)) return null;
   if (!ctx.approvalDecision) recordAsked(name);
-  const d = await (ctx.approvalDecision || requestApproval)(toolApprovalRequest(agent, name, args, ctx, detail));
+  const d = await (ctx.approvalDecision ? ctx.approvalDecision : (r: ApprovalRequest) => askWhileWanted(r, ctx.signal))(
+    toolApprovalRequest(agent, name, args, ctx, detail),
+  );
+  // (the call was stopped or given up while it waited: nothing runs, whatever the answer)
+  if (ctx.signal?.aborted) return { text: 'Stopped.', isError: true, denied: true };
   if (!d.approved)
     return {
       text: `The user said no${d.message ? `: ${d.message}` : ''}. Don't retry the same thing; ask what they want instead.`,

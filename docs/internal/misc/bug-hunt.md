@@ -445,6 +445,7 @@ Completed reviews:
 - Trigger/evidence: external client cancels while approval waits, keeps connection open, then approval is granted. Bridge ignores SDK handler signal; HTTP work stays pending without a run signal.
 - Impact/expected: cancelled requests can execute later effects despite suppressed responses. Propagate cancellation before consent/dispatch.
 - Limits: cannot undo dispatched effects; Dashboard Stop still handles valid run-bound calls. No cancellation scenario.
+- Fixed: the bridge passes the MCP client's cancel on to its request; the server aborts the call when that request goes away, `gate()` takes back a question still waiting in Needs you, and nothing runs after a stop, whatever the answer. Test in `tests/server/api.test.ts`.
 
 ### BH-048 — An old connection failure deletes its replacement's cache entry
 
