@@ -462,6 +462,7 @@ Completed reviews:
 - Trigger/evidence: agent places a repository in `board_reply`; later task assignment to Brain embeds that comment in `userWords`. `prepareInstalls()` treats its repository as user-provided even with `brainAnyGitHub` off.
 - Impact/expected: a generated install action can install agent-suggested instructions against the explicit user-link restriction. Preserve authorship boundaries.
 - Limits: requires Brain to emit the action; no model response/install/request executed.
+- Fixed: a board task's message to the Brain carries `ownWords` (the task when you made it, and your own comments); GitHub installs and MCP settings are checked against those, not against agents' comments. Test in `tests/server/boardwork.test.ts`.
 
 ### BH-053 — Skill restore fails when an old file became a directory
 

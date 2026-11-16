@@ -87,6 +87,16 @@ function assignment(p: Project, t: ProjectTask, tags: readonly BoardTag[], repor
     .filter(Boolean)
     .join('\n');
 }
+/** What of the task's message the user wrote: the task, when they made it, and their own comments. Links in the
+ *  rest (an agent's comment, a task an agent made) never count as theirs when the Brain installs or connects. */
+function ownWords(t: ProjectTask): string {
+  return [
+    ...(t.createdBy === 'you' ? [t.title, t.description] : []),
+    ...(t.comments || []).filter((c) => c.by === 'you').map((c) => c.text),
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
 /** The task's files and its comments' files, where they are now. */
 function attachmentsOf(p: Project, t: ProjectTask): string[] {
   const all = [...(t.files || []), ...(t.comments || []).flatMap((c) => c.files || [])];
@@ -192,6 +202,7 @@ async function brainStart(
     attachments,
     conversationId: boardConversation(t.id),
     from: BOARD_SENDER,
+    ownWords: ownWords(t),
     operationId,
     proceed: same,
   });

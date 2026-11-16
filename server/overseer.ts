@@ -2937,6 +2937,8 @@ export interface BrainAskOptions {
   from?: string;
   operationId?: string;
   proceed?: () => boolean;
+  /** The user's own words, when text holds others' too (see BrainChatMessage.ownWords). */
+  ownWords?: string;
 }
 export async function ask(text: string, opts: BrainAskOptions = {}): Promise<BrainAnswer> {
   return opts.conversationId ? withProject(activeProject(), () => askNow(text, opts)) : askNow(text, opts);
@@ -2951,6 +2953,7 @@ async function askNow(text: string, opts: BrainAskOptions): Promise<BrainAnswer>
     text,
     ...(opts.operationId ? { operationId: opts.operationId } : {}),
     ...(opts.from ? { from: opts.from } : {}),
+    ...(opts.ownWords !== undefined ? { ownWords: opts.ownWords } : {}),
     ts: Date.now(),
     ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
   };
@@ -3214,7 +3217,11 @@ async function answerNow(
     text: `You switched projects while the Brain was thinking, so ${nothing} was changed.${used} Open "${p.name}" and ask again.`,
   };
   // the user's own words in this chat: GitHub links and MCP server settings are checked against them
-  const userWords = [text, ...past.filter((m) => m.role === 'user').map((m) => m.text)].join('\n');
+  // (only what they wrote: an agent's comment on a board task is in the task's message, but isn't the user's word)
+  const userWords = [
+    me.question.ownWords ?? text,
+    ...past.filter((m) => m.role === 'user').map((m) => m.ownWords ?? m.text),
+  ].join('\n');
   // GitHub installs first (they download), with the user's own words to check the links against; a
   // switch while one downloads stops it before it changes the library
   if (!stale() && parsed.actions.slice(0, ACTIONS_MAX).some((a) => actionKind(a) === 'install_skill'))
