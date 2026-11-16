@@ -85,6 +85,33 @@ describe('the agent chat page', () => {
     }
   });
 
+  it('loads the chat again from the project you open, never leaving the last one showing', async () => {
+    const { refreshState } = await import('../../web/core.ts');
+    state.data = { ...state.data, project: { id: 'pa', name: 'A' } } as unknown as AppState;
+    await open(['a1', 'c1']);
+    await settle(80);
+    expect(el.querySelector('.chat-title')!.textContent).toBe('Launch post');
+    const before = requests.filter((r) => r.url === '/api/agents/a1/chats/c1').length;
+    // another project opens (its copy of the agent and chat has the same ids)
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      const method = init.method || 'GET';
+      requests.push({ method, url });
+      const json = (v: unknown) =>
+        new Response(JSON.stringify(v), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (url === '/api/state') return json({ ...state.data, project: { id: 'pb', name: 'B' } });
+      if (url === '/api/agents/a1') return json(agent);
+      if (url === '/api/agents/a1/chats' && method === 'GET') return json(chats);
+      if (url === '/api/agents/a1/chats/c1' && method === 'GET')
+        return json({ id: 'c1', title: "B's launch post", items: [] });
+      if (url.endsWith('/stream')) return new Response(null, { status: 204 });
+      return json(url.includes('/commands') ? [] : { ok: true });
+    });
+    await act(async () => refreshState());
+    await settle(80);
+    expect(requests.filter((r) => r.url === '/api/agents/a1/chats/c1').length).toBeGreaterThan(before);
+    expect(el.querySelector('.chat-title')!.textContent).toBe("B's launch post");
+  });
+
   it('says so when the agent no longer exists', async () => {
     await open(['gone']);
     expect(el.textContent).toBe('That agent no longer exists. Back to agents');

@@ -235,6 +235,7 @@ Completed reviews:
 - Trigger/evidence: open A's chat, switch to cloned B and send without navigation. Transcript/agent stay loaded from A, but unscoped transport uses B's refreshed project header and preserved IDs.
 - Impact/expected: instructions run in B while A's conversation is visible. Rebind/remount or explicitly pin the page.
 - Limits: stale guard accepts B's current header; no browser or agent run.
+- Fixed: the full chat page follows the open project: when another one opens it drops what it shows at once and loads the agent and chat again from the new project (`ChatScreen` is keyed by the project). Test in `tests/web/chat-page.test.tsx`.
 
 ### BH-025 — Floating chats can select private task/gateway conversations
 
