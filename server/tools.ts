@@ -954,13 +954,14 @@ const TOOLS: ToolDef[] = [
         ? `\nimport bpy as __b\n__b.ops.wm.save_as_mainfile(filepath=${JSON.stringify(save_as)})\nprint("Saved", ${JSON.stringify(save_as)})\n`
         : '';
       fs.writeFileSync(script, `${code}\n${footer}`);
+      // (Blender reads its arguments in order: the exit code for a failing script is set before the script runs)
       const args = [
         '-b',
         ...(blend_file ? [blend_file] : ['--factory-startup']),
-        '--python',
-        script,
         '--python-exit-code',
         '1',
+        '--python',
+        script,
       ];
       const r = await run(exe, args, { timeout: 15 * 60_000, signal: ctx.signal });
       const out = (r.stdout + '\n' + r.stderr)
