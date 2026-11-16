@@ -1729,6 +1729,10 @@ export type WorldQuality = 'low' | 'medium' | 'high';
 export type StationQuality = 'smooth' | 'balanced' | 'saver';
 export type SidebarPanel = 'status' | 'limits';
 
+/** How freely the Brain acts: full runs everything, ask sends anything that changes something to Needs you,
+ *  read only answers and looks things up. */
+export type BrainAccess = 'full' | 'ask' | 'read';
+
 export interface Settings {
   defaults: {
     engine: EngineId;
@@ -1755,6 +1759,8 @@ export interface Settings {
   brainFollowsUp: boolean;
   /** What the Brain may do with the tools of the MCP servers that are on (see BrainToolAccess). */
   brainTools: BrainToolAccess;
+  /** What the Brain may do without asking, for all its tools (see BrainAccess). */
+  brainAccess: BrainAccess;
   /** Every agent, team and the Brain can search and read all saved sessions in the project. Off by default. */
   sessionSearch: boolean;
   look: LookSetting;

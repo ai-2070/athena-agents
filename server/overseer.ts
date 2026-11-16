@@ -66,6 +66,9 @@ import { listApprovals } from './approvals.ts';
 import { MCP_LOOKUPS, MCP_TEXT_BUDGET, brainToolsInstructions, runMcpLookups } from './brainmcp.ts';
 import { SESSION_TOOLS, brainSessionsInstructions, runSessionLookups } from './sessions.ts';
 import type { McpStep } from './brainmcp.ts';
+import { BRAIN_ID } from './brainmcp.ts';
+import type { BrainRefs, BrainTurn, OverviewSection } from './braintools.ts';
+import type { ToolContext, ToolResult } from './tools.ts';
 import type { BrainVerdict } from './approvals.ts';
 import { think, brainModel, parseJSON } from './brain.ts';
 import type { ThinkPart } from './brain.ts';
@@ -494,10 +497,12 @@ function boardSnapshot(projectId: string, conversationId?: string): string {
   return `${board.tags}\n${board.lines.join('\n') || (own ? '(the task is gone)' : '(no tasks)')}`;
 }
 
+/** What the Brain knows of the project: all of it, or (section) the summary or one part (see braintools.ts). */
 export async function snapshot({
   fileBudget = 9000,
   conversationId,
-}: { fileBudget?: number; conversationId?: string } = {}): Promise<string> {
+  section,
+}: { fileBudget?: number; conversationId?: string; section?: 'summary' | OverviewSection } = {}): Promise<string> {
   if (conversationId !== undefined) checkConversationId(conversationId);
   const p = activeProject();
   const root = ensureBrain(p);
@@ -508,7 +513,9 @@ export async function snapshot({
 
   const all = agents.list();
   const byId = new Map(all.map((a) => [a.id, a]));
+  // (the Brain's own turn isn't work going on in the project)
   const live = liveActivity().filter((run) => {
+    if (run.agentId === BRAIN_ID) return false;
     if (!conversationId) return true;
     const owner = runInfo(run.runId);
     return owner?.projectId === p.id && owner.conversationId === conversationId;
@@ -631,32 +638,85 @@ export async function snapshot({
     .filter((e) => e.kind !== 'terminal')
     .map((e) => `- ${ago(e.ts)}: ${cut(e.text, 160)}`);
 
-  return [
-    `NOW: ${new Date().toLocaleString()}`,
-    `PROJECT: ${p.name} (id ${p.id})`,
-    p.description
-      ? `What the user said the project is: ${p.description}`
-      : 'The user has not described the project yet.',
-    `Station background: ${backgroundFile(p) ? 'a picture the user or you set (background clear:true takes it away)' : 'none (the plain map; the background action sets a picture)'}; picture opacity ${p.backgroundOpacity !== undefined ? `${p.backgroundOpacity}%` : `the default (${BACKGROUND_OPACITY.classic}% classic, ${BACKGROUND_OPACITY.world}% voxel)`}, map dots opacity ${mapDotsOpacity(p)}%`,
-    `Project folder (the Brain folder, every agent's default workspace): ${root}`,
-    info ? `Size: ${info.files} files, ${info.sizeMB} MB` : '',
-    info?.git
-      ? `GitHub/Git: ${info.git.url || info.git.remote || 'local repo'} | branch ${info.git.branch} | ${info.git.changes} uncommitted changes\nRecent commits:\n${commits}`
-      : 'Git: not a Git repo',
-    `\nFOLDER TREE:\n${tree(root) || '(empty)'}`,
-    fileBudget ? `\nKEY FILES:\n${keyFiles(root, fileBudget) || '(none)'}` : '',
-    `\nAGENTS (${all.length}, ${live.length} running now):\n${agentLines.join('\n') || '(none)'}`,
-    `\nTEAMS (${teams.length}; a team is a group chat of agents with a shared goal):\n${teamLines.join('\n') || '(none)'}`,
-    `\nWORK YOU HANDED OUT (newest last; you check on open ones when they finish):\n${briefLines.join('\n') || '(none)'}`,
-    `\nSAVED TASKS (use TaskList for more, TaskGet for full details):\n${conversationId ? '(not included in private conversation snapshots)' : JSON.stringify(listTasks({ status: 'open', limit: 40 }, { admin: true, scope: { kind: 'brain' } }))}`,
-    `\nTASK BOARD (the user's own tracked work on the Tasks page; open tasks, then the last ones done):\n${boardSnapshot(p.id, conversationId)}`,
-    `\nROUTINES (${routineLines.length}; saved instructions run by hand or on a schedule):\n${routineLines.join('\n') || '(none)'}`,
-    `\nSKILLS (${skillLines.length}; the project's recorded know-how and workflows; mention one in a routine as @Name):\n${skillLines.slice(0, 120).join('\n') || '(none)'}`,
-    `\nMCP SERVERS (${mcpLines.length}; outside tool servers agents and teams can be given):\n${mcpLines.join('\n') || '(none)'}\nReady-made, to add: ${ready}\nReady-made that sign in through the browser the first time they run (no key to paste), to add: ${byBrowser}${suggested ? `\nSuggested for this PC (not added; offer them, add only when the user says yes): ${suggested}` : ''}${found ? `\nFound in the user's Claude configs, to add: ${found}` : ''}`,
-    `\nWAITING FOR THE USER: ${approvals.length} approval(s)${approvals.length ? `: ${approvals.map((x) => `${x.agentName || 'agent'} wants "${cut(x.title, 80)}"`).join('; ')}` : ''} | ${pendingPosts.length} post(s) in the Outbox${pendingPosts.length ? `: ${pendingPosts.map((x) => `${x.platform}: "${cut((x.parts || [x.text]).join(' '), 70)}"`).join('; ')}` : ''} | ${asked.length} question(s) from agents in the Outbox${asked.length ? `: ${asked.map((x) => `${x.agentName || 'agent'} asks "${cut(x.question, 80)}"`).join('; ')}` : ''}`,
-    `\nRECENT ACTIVITY:\n${recent.join('\n') || '(nothing yet)'}`,
-    `\n${brainWorldSnapshot()}`,
-  ]
+  // (what each part says, made only when it is shown)
+  const part = {
+    now: () => `NOW: ${new Date().toLocaleString()}`,
+    project: () => `PROJECT: ${p.name} (id ${p.id})`,
+    desc: () =>
+      p.description
+        ? `What the user said the project is: ${p.description}`
+        : 'The user has not described the project yet.',
+    station: () =>
+      `Station background: ${backgroundFile(p) ? 'a picture the user or you set (background clear:true takes it away)' : 'none (the plain map; the background action sets a picture)'}; picture opacity ${p.backgroundOpacity !== undefined ? `${p.backgroundOpacity}%` : `the default (${BACKGROUND_OPACITY.classic}% classic, ${BACKGROUND_OPACITY.world}% voxel)`}, map dots opacity ${mapDotsOpacity(p)}%`,
+    folder: () => `Project folder (the Brain folder, every agent's default workspace): ${root}`,
+    size: () => (info ? `Size: ${info.files} files, ${info.sizeMB} MB` : ''),
+    git: () =>
+      info?.git
+        ? `GitHub/Git: ${info.git.url || info.git.remote || 'local repo'} | branch ${info.git.branch} | ${info.git.changes} uncommitted changes\nRecent commits:\n${commits}`
+        : 'Git: not a Git repo',
+    tree: () => `\nFOLDER TREE:\n${tree(root) || '(empty)'}`,
+    key: () => (fileBudget ? `\nKEY FILES:\n${keyFiles(root, fileBudget) || '(none)'}` : ''),
+    agents: () => `\nAGENTS (${all.length}, ${live.length} running now):\n${agentLines.join('\n') || '(none)'}`,
+    teams: () =>
+      `\nTEAMS (${teams.length}; a team is a group chat of agents with a shared goal):\n${teamLines.join('\n') || '(none)'}`,
+    work: () =>
+      `\nWORK YOU HANDED OUT (newest last; you check on open ones when they finish):\n${briefLines.join('\n') || '(none)'}`,
+    tasks: () =>
+      `\nSAVED TASKS (use TaskList for more, TaskGet for full details):\n${conversationId ? '(not included in private conversation snapshots)' : JSON.stringify(listTasks({ status: 'open', limit: 40 }, { admin: true, scope: { kind: 'brain' } }))}`,
+    board: () =>
+      `\nTASK BOARD (the user's own tracked work on the Tasks page; open tasks, then the last ones done):\n${boardSnapshot(p.id, conversationId)}`,
+    routines: () =>
+      `\nROUTINES (${routineLines.length}; saved instructions run by hand or on a schedule):\n${routineLines.join('\n') || '(none)'}`,
+    skills: () =>
+      `\nSKILLS (${skillLines.length}; the project's recorded know-how and workflows; mention one in a routine as @Name):\n${skillLines.slice(0, 120).join('\n') || '(none)'}`,
+    mcp: () =>
+      `\nMCP SERVERS (${mcpLines.length}; outside tool servers agents and teams can be given):\n${mcpLines.join('\n') || '(none)'}\nReady-made, to add: ${ready}\nReady-made that sign in through the browser the first time they run (no key to paste), to add: ${byBrowser}${suggested ? `\nSuggested for this PC (not added; offer them, add only when the user says yes): ${suggested}` : ''}${found ? `\nFound in the user's Claude configs, to add: ${found}` : ''}`,
+    waiting: () =>
+      `\nWAITING FOR THE USER: ${approvals.length} approval(s)${approvals.length ? `: ${approvals.map((x) => `${x.agentName || 'agent'} wants "${cut(x.title, 80)}"`).join('; ')}` : ''} | ${pendingPosts.length} post(s) in the Outbox${pendingPosts.length ? `: ${pendingPosts.map((x) => `${x.platform}: "${cut((x.parts || [x.text]).join(' '), 70)}"`).join('; ')}` : ''} | ${asked.length} question(s) from agents in the Outbox${asked.length ? `: ${asked.map((x) => `${x.agentName || 'agent'} asks "${cut(x.question, 80)}"`).join('; ')}` : ''}`,
+    activity: () => `\nRECENT ACTIVITY:\n${recent.join('\n') || '(nothing yet)'}`,
+    world: () => `\n${brainWorldSnapshot()}`,
+    library: () => `\n${catalog()}`,
+  };
+  type Part = keyof typeof part;
+  // the summary with each of the Brain's messages, and the sections project_overview shows (see braintools.ts)
+  const SECTION_PARTS: Record<'summary' | OverviewSection, Part[]> = {
+    summary: ['now', 'project', 'desc', 'folder', 'size', 'agents', 'teams', 'work', 'waiting'],
+    files: ['folder', 'size', 'git', 'tree', 'key'],
+    tasks: ['tasks'],
+    board: ['board'],
+    routines: ['routines'],
+    skills: ['skills'],
+    mcp: ['mcp'],
+    activity: ['activity'],
+    world: ['station', 'world'],
+    library: ['library'],
+  };
+  const parts: Part[] = section
+    ? SECTION_PARTS[section]
+    : [
+        'now',
+        'project',
+        'desc',
+        'station',
+        'folder',
+        'size',
+        'git',
+        'tree',
+        'key',
+        'agents',
+        'teams',
+        'work',
+        'tasks',
+        'board',
+        'routines',
+        'skills',
+        'mcp',
+        'waiting',
+        'activity',
+        'world',
+      ];
+  return parts
+    .map((k) => part[k]())
     .filter(Boolean)
     .join('\n');
 }
@@ -1501,7 +1561,9 @@ function stopWork(t: BrainAction, p: Project, last: { agent: string | null; team
   const ref = t.id || t.team;
   // an agent's runs in this project (in another project it works on: that's not the one you're in)
   const runsHere = (agentId?: string) =>
-    activeRuns().filter((r) => (!agentId || r.agentId === agentId) && runInfo(r.id)?.projectId === p.id);
+    activeRuns().filter(
+      (r) => (agentId ? r.agentId === agentId : r.agentId !== BRAIN_ID) && runInfo(r.id)?.projectId === p.id,
+    );
   const busy = (teamId: string) => {
     const s = teamState(teamId);
     return s.working.length + s.queued.length > 0;
@@ -1606,7 +1668,8 @@ interface ApplyOptions {
   userWords?: string;
   /** A private conversation (a gateway chat, a task's own): the board is out of reach there, except that a task's
    *  conversation (board-<taskId>) may comment on and update its own task. */
-  conversationId?: string;
+  conversationId?: string; /** What 'new' refers to, kept across calls: the Brain's tool calls in one turn each apply one action. */
+  refs?: BrainRefs;
 }
 /** In a private conversation, the board task an action may touch: its own task, or none at all. */
 function boardScope(conversationId: string | undefined, p: Project, ref: unknown, kind: string): void {
@@ -1630,17 +1693,18 @@ export function boardFind(projectId: string, a: BrainAction, conversationId?: st
 function applyAsBrain(
   actions: BrainAction[],
   p: Project,
-  { seenSkills = new Set<string>(), only = null, auto = false, userWords, conversationId }: ApplyOptions,
+  { seenSkills = new Set<string>(), only = null, auto = false, userWords, conversationId, refs }: ApplyOptions,
 ): { done: BrainDone[]; delegate: BrainDelegate | null } {
   const done: BrainDone[] = [];
   let delegate: BrainDelegate | null = null;
-  let lastTeam: string | null = null;
-  let lastAgent: string | null = null;
-  let lastRoutine: string | null = null;
-  let lastSkill: string | null = null;
-  let lastServer: string | null = null;
-  const seen = new Set(seenSkills);
-  let lastInstalled: string[] = [];
+  let lastTeam: string | null = refs?.team ?? null;
+  let lastAgent: string | null = refs?.agent ?? null;
+  let lastRoutine: string | null = refs?.routine ?? null;
+  let lastSkill: string | null = refs?.skill ?? null;
+  let lastServer: string | null = refs?.server ?? null;
+  // (the caller's set: a skill made or read here counts as seen for the rest of the turn)
+  const seen = seenSkills;
+  let lastInstalled: string[] = refs?.installed ?? [];
   const findSkillRef = (ref: unknown): SkillDetail | null => {
     if (!ref) return null;
     if (ref === 'new') return lastSkill ? getSkill(lastSkill) : null;
@@ -1894,7 +1958,7 @@ function applyAsBrain(
 
   // (a queue: install_skill adds the give_skill actions for what it installed)
   const queue = actions.slice(0, ACTIONS_MAX);
-  let lastTask = '';
+  let lastTask = refs?.task ?? '';
   for (let i = 0; i < queue.length && i < 24; i++) {
     const act = queue[i];
     try {
@@ -2878,7 +2942,95 @@ function applyAsBrain(
       done.push({ kind: 'error', text: `${actionKind(act) || 'action'}: ${(e as Error).message}` });
     }
   }
+  if (refs)
+    Object.assign(refs, {
+      team: lastTeam,
+      agent: lastAgent,
+      routine: lastRoutine,
+      skill: lastSkill,
+      server: lastServer,
+      task: lastTask,
+      installed: lastInstalled,
+    });
   return { done, delegate };
+}
+
+// ---------- the Brain's tools (braintools.ts) ----------
+const doneText = (done: BrainDone[]) => done.map((d) => `${d.kind === 'error' ? 'Failed: ' : ''}${d.text}`).join('\n');
+
+/** One of the Brain's tool calls in its turn: a look-up answers, anything else is one action applied with the
+ *  same checks as ever. What it did is kept for the chat (turn.done), and a delegate is handed on at once. */
+export async function brainToolCall(
+  kind: string,
+  args: Record<string, unknown>,
+  turn: BrainTurn,
+  ctx: ToolContext,
+): Promise<ToolResult> {
+  return withProject(turn.project, async () => {
+    const p = turn.project;
+    const act = { ...args, do: kind } as BrainAction;
+    const proceed = () => !turn.signal.aborted && !ctx.signal?.aborted;
+    // look-ups
+    if (kind === 'project_overview') {
+      const section = String(args.section || '') as OverviewSection;
+      const known = ['files', 'tasks', 'board', 'routines', 'skills', 'mcp', 'activity', 'world', 'library'];
+      if (!known.includes(section)) return { text: `section is one of: ${known.join(', ')}.`, isError: true };
+      return { text: await snapshot({ section, conversationId: turn.conversationId }) };
+    }
+    if (kind === 'board_find') return { text: boardFind(p.id, act, turn.conversationId) };
+    if (kind === 'TaskGet' || kind === 'TaskList') {
+      try {
+        const access = { admin: true, scope: { kind: 'brain' as const } };
+        const result =
+          kind === 'TaskGet' ? { task: getTask(act.taskId, access) } : listTasks(act as unknown as TaskQuery, access);
+        return { text: JSON.stringify(result) };
+      } catch (e) {
+        return { text: e instanceof Error ? e.message : String(e), isError: true };
+      }
+    }
+    if (kind === 'find_models')
+      return findModels(act.provider, act.query).then(
+        (text) => ({ text }),
+        (e: unknown) => ({ text: `Couldn't look them up: ${(e as Error).message}`, isError: true }),
+      );
+    if (MCP_LOOKUPS.includes(kind)) {
+      const r = await runMcpLookups([act], { signal: ctx.signal || turn.signal, proceed });
+      const step = r.steps[0];
+      return { text: step?.text || r.text, isError: step?.isError };
+    }
+    // changes: downloads and model lists first, as before
+    if (kind === 'install_skill') await prepareInstalls([act], turn.userWords, { proceed });
+    if (kind === 'set_model') await prepareModels([act]);
+    if (!proceed()) return { text: 'Stopped.', isError: true };
+    const applied = applyActions([act], p, {
+      seenSkills: turn.seenSkills,
+      userWords: turn.userWords,
+      conversationId: turn.conversationId,
+      refs: turn.refs,
+    });
+    const done = applied.done;
+    const delegate = applied.delegate;
+    if (delegate) {
+      if (turn.attachments.length) delegate.attachments = turn.attachments;
+      try {
+        const { sendBrief } = await import('./irc.ts');
+        await sendBrief(delegate, {
+          conversationId: turn.conversationId,
+          objective: turn.objective,
+          taskIds: turn.done.flatMap((d) => (d.taskId ? [d.taskId] : [])),
+          completed: turn.done.filter((d) => d.kind !== 'error').map((d) => d.text),
+          ...(turn.goal ? { goal: turn.objective } : {}),
+        });
+        turn.delegate = delegate;
+      } catch (e) {
+        done.push({ kind: 'error', text: `Couldn't hand it to ${delegate.name}: ${(e as Error).message}` });
+      }
+    }
+    turn.done.push(...done);
+    const failed = done.length > 0 && done.every((d) => d.kind === 'error');
+    const handed = turn.delegate === delegate && delegate ? `Handed to ${delegate.name}.` : '';
+    return { text: [doneText(done), handed].filter(Boolean).join('\n') || 'Nothing changed.', isError: failed };
+  });
 }
 
 // Run the install_skill actions (downloads) before the rest. Only from a repo the user named in this chat,

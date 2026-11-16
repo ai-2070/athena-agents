@@ -87,6 +87,7 @@ const DEFAULT_SETTINGS: Settings = {
   brainAnyGitHub: false,
   brainFollowsUp: true,
   brainTools: 'full',
+  brainAccess: 'full',
   sessionSearch: false,
   look: {
     theme: 'system',
