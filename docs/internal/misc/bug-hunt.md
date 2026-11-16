@@ -894,6 +894,7 @@ Completed reviews:
 - Trigger/evidence: cache a custom service's key-dependent `/models` list under A, then replace its key with B at the same address. Cache identity has no credential generation and `setSecret()` does not invalidate it.
 - Impact/expected: for five minutes Brain discovery can list A's models and reject B-only IDs, while the separately fetched web picker shows B's actual catalog. Retire credential-specific entries and obsolete in-flight fetches.
 - Limits: requires an account-scoped catalog; no claim that public OpenRouter/Venice lists vary by key. No credentials or calls touched.
+- Fixed: kept model lists are dropped whenever settings or keys change (the `settings` event), and a list still on its way from before is not kept. Test in `tests/server/venice-models.test.ts`.
 
 ### BH-099 — Context measurements use inconsistent endpoint/effective-model identity
 

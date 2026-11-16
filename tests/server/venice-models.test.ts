@@ -117,3 +117,19 @@ describe('Venice model discovery', () => {
     expect(normalizeApiModels({ data: [{ id: 'local' }] }, 'lmstudio')[0]).toMatchObject({ tools: true, price: null });
   });
 });
+
+describe('a key changed for a provider', () => {
+  it('lists the models of the new key, not those kept from the old one', async () => {
+    setSecret('veniceKey', 'key-a');
+    let asked = 0;
+    // (each key's account has its own models: the first asking is with key A, the next with key B)
+    vi.stubGlobal('fetch', async () =>
+      Response.json({ data: [{ ...model, id: ++asked === 1 ? 'only-for-a' : 'only-for-b' }] }),
+    );
+    expect((await availableModels('venice')).map((m) => m.id)).toEqual(['only-for-a']);
+    expect((await availableModels('venice')).map((m) => m.id)).toEqual(['only-for-a']);
+    setSecret('veniceKey', 'key-b');
+    expect((await availableModels('venice')).map((m) => m.id)).toEqual(['only-for-b']);
+    expect(asked).toBe(2);
+  });
+});
