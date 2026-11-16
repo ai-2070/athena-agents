@@ -480,6 +480,7 @@ Completed reviews:
 - Trigger/evidence: stop/remove during answer delivery's import/team await. Final save uses the original waiting record without rereading; `answering` does not guard closure or subsequent deletion.
 - Impact/expected: removed records can reappear; answers may be lost or create work after Stop. Reconcile ownership/status before committing.
 - Limits: resurrection follows writes; accepted-answer versus Stop policy and run-finalization timing need confirmation. No race run.
+- Fixed: an answer checks again that its question is still waiting after each load before sending it on, and its final save uses the question as it is then; a removed one is not brought back. Test in `tests/server/questions.test.ts`.
 
 ### BH-052 — Agent comments masquerade as user-approved skill links
 

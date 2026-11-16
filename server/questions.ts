@@ -193,11 +193,19 @@ async function answerNow(id: string, { choice, text }: UserAnswer): Promise<Agen
 
 async function deliver(q: AgentQuestion, answer: { choice: string; text: string }): Promise<AgentQuestion> {
   const { choice: picked, text: wrote } = answer;
+  // closed (its run stopped) or removed while this was loading: the answer goes nowhere, and nothing is brought back
+  const stillOpen = () => {
+    if (questions.get(q.id)?.status !== 'waiting')
+      throw Object.assign(new Error('This question was closed or removed meanwhile, so the answer was not sent.'), {
+        status: 409,
+      });
+  };
   // (loaded here: the engines import the tools, which import this file)
   const engines = await import('./engines/index.ts');
-  const w = waiting.get(q.id);
   // (its run may have ended without the wait noticing, e.g. the CLI quit: then it goes as a message)
   const operation = q.operationId ? (await import('./eve/operations.ts')).readOperation(q.operationId) : null;
+  stillOpen();
+  const w = waiting.get(q.id);
   const durable =
     operation?.questionId === q.id &&
     operation.runId === q.runId &&
@@ -211,6 +219,7 @@ async function deliver(q: AgentQuestion, answer: { choice: string; text: string 
   } else {
     const agent = q.agentId ? agents.get(q.agentId) : null;
     const teams = q.teamId ? await import('./teams.ts') : null;
+    stillOpen();
     const team = teams ? teams.getTeam(q.teamId) : null;
     if (teams && team && agent && team.members.includes(agent.id)) {
       // (named as it is called now: renamed since it asked, the old name would reach nobody)
@@ -224,15 +233,18 @@ async function deliver(q: AgentQuestion, answer: { choice: string; text: string 
       } else note = q.agentId ? 'The chat it was asked in is gone, so the answer went nowhere.' : '';
     }
   }
-  const saved = questions.save({
-    ...q,
-    status: 'answered',
+  // (as it is now: a question removed while the answer went to its team stays removed)
+  const now = questions.get(q.id);
+  const record = {
+    ...(now || q),
+    status: 'answered' as const,
     ...(picked ? { choice: picked } : {}),
     ...(wrote ? { reply: wrote } : {}),
     answeredAt: Date.now(),
     delivered,
     ...(note ? { note } : {}),
-  });
+  };
+  const saved = now ? questions.save(record) : record;
   log('approval', `You answered ${q.agentName || 'an agent'}: ${(picked || wrote).slice(0, 120)}`, {
     agentId: q.agentId,
   });
