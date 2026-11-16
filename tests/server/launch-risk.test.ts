@@ -40,3 +40,20 @@ describe('launch risk', () => {
     expect(riskOf('open_path', { path: 'C:/x/picture.png' })).toBe('low');
   });
 });
+
+describe('a program path set in Settings', () => {
+  it('is the one launched at once, whatever the last scan found', async () => {
+    const { saveSettings } = await import('../../server/store.ts');
+    const { discoverPrograms } = await import('../../server/programs.ts');
+    await discoverPrograms();
+    const dir = ensureDir(dataPath('fake-blender'));
+    const exe = path.join(dir, process.platform === 'win32' ? 'blender-4.exe' : 'blender-4');
+    fs.writeFileSync(exe, '');
+    saveSettings({ paths: { blender: exe } });
+    try {
+      expect(launchTarget('blender', false)).toMatchObject({ exe, onPath: false });
+    } finally {
+      saveSettings({ paths: { blender: '' } });
+    }
+  });
+});

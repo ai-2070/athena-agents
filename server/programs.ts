@@ -1467,6 +1467,9 @@ export function launchTarget(nameOrId: unknown, withExtra: boolean): LaunchTarge
   const known =
     progs.find((p) => p.id === lower || p.name.toLowerCase() === lower) ||
     progs.find((p) => p.name.toLowerCase().includes(lower));
+  // (a path set in Settings counts at once, as it does for the 3D tools: the last scan may be from before it)
+  const set = known ? (getSettings().paths as Record<string, string | undefined>)?.[known.id] : '';
+  if (known && set && exists(set)) return { exe: set, name: known.name, onPath: false };
   if (known?.exe && !known.cli) return { exe: known.exe, name: known.name, onPath: false };
   if (known?.shortcut && !withExtra) return { shortcut: known.shortcut, name: known.name, startMenu: false };
   const lnk =

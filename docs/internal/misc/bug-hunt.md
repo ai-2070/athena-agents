@@ -1440,6 +1440,7 @@ Completed reviews:
 - Trigger/evidence: save another installed version's path. Settings do not invalidate hourly program cache; ordinary launch keeps old executable while programExe-based DCC calls immediately select the new one.
 - Impact/expected: launch paths disagree after an explicit setting change. Apply saved override immediately or clearly state delayed effect.
 - Limits: background discovery caching is deliberate; intended delay for explicit overrides needs confirmation. No setting changed.
+- Fixed: a program path saved in Settings is used by the next launch at once, as the 3D tools already did, whatever the last scan found. Test in `tests/server/launch-risk.test.ts`.
 
 ### BH-164 — Blender Python failure policy is supplied after the script action
 
