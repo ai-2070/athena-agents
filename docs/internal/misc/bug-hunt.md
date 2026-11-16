@@ -1,6 +1,6 @@
 # Bug hunt
 
-Started: 2026-11-16. Twelve reviews completed; two additional reviews are running.
+Started: 2026-11-16. Thirteen reviews completed; five additional reviews are running.
 
 Investigation only: no application code changed. This is an accumulating concern log, not a claim of exhaustive coverage or patch-introduced regressions.
 
@@ -30,7 +30,11 @@ Completed reviews:
 - BrainOrchestrationBugs: routing, handoffs, completion evidence and project ownership.
 - SocialPostingBugs: OAuth, account refresh, Outbox publication, retry and lifecycle.
 - KnowledgeDocumentBugs (running): knowledge caching/access, document extraction and PDF worker lifecycle.
-- TerminalCommandBugs (running): terminal ownership, shell execution, timeouts and cleanup.
+- TerminalCommandBugs (completed): terminal ownership, shell execution, timeouts and cleanup; ten concerns (BH-086–BH-095).
+- VoxelWorldBugs (running): world access, mutations, prefabs, transforms and import/export.
+- ProviderSettingsBugs (running): provider/model selection, cache identity, settings and keys.
+- ComfyWorkflowBugs (running): workflow conversion, image inputs, masks, job lifecycle and results.
+- TeamDispatchBugs (running): team routing, queued delivery, turn ownership and thread switching.
 - Parent review: shared text/mention helpers, archive search, memory persistence and selected finding traces.
 
 ## Findings
@@ -714,3 +718,83 @@ Completed reviews:
 - Trigger/evidence: a restore destination has a plain owner directory but MEMORY.md itself is a symlink to an outside file. `putMemory()` checks only the directory, then `writeFileSync()` follows the file link. Its folder/backup callers use that helper.
 - Impact/expected: import can overwrite the outside target with restored memory despite the ordinary editor rejecting that link. Apply equivalent destination safety to import.
 - Limits: requires an already-planted destination link (or concurrent filesystem control over a new restore destination) plus target write permission. This does not claim that a backup archive alone can create the link; no restore or symlink executed.
+
+### BH-086 — Agent terminals send Dashboard tool calls to the currently open project
+
+- Reporter: TerminalCommandBugs. Severity: high. Status: source-confirmed missing terminal ownership propagation.
+- Sources: `server/terminals.ts:95-123,150`; `server/engines/cli.ts:112-115`; `server/mcp.ts:1810-1820`; `server/index.ts:325-336,361-374`; `server/engines/index.ts:563-578`.
+- Trigger/evidence: open an agent terminal in A, switch to B and call a Dashboard MCP tool. Launch supplies an agent ID without run/project identity; dispatch resolves the agent and data in the open project. Stored terminal `projectId` never reaches it.
+- Impact/expected: a terminal working in A can read/change B, using B's corresponding cloned agent settings or external-client fallback. Preserve terminal project ownership for tool calls.
+- Limits: no terminal or tool executed. Unlike BH-046, these terminals never receive ownership rather than losing an expired run binding.
+
+### BH-087 — Generic command Stop and timeout leave descendant processes running
+
+- Reporter: TerminalCommandBugs. Severity: high. Status: source-confirmed incomplete process-tree termination.
+- Sources: `server/util.ts:397-405,420-440`; `server/tools.ts:2251-2263`.
+- Trigger/evidence: on Linux/macOS, cancel/time out a shell sequence while an external child runs. `killTree()` sends SIGTERM only to the immediate child, with no escalation. Descendants can retain inherited output pipes.
+- Impact/expected: work/filesystem effects continue after Stop, and `run()` can await `close` beyond its timeout. Terminate owned descendants and bound settlement.
+- Limits: no process scenario executed; this concerns generic command execution, not adapter-specific cancellation gaps.
+
+### BH-088 — Windows terminal wrappers misparse literal arguments for `.cmd` shims
+
+- Reporter: TerminalCommandBugs. Severity: medium. Status: source-confirmed quoting-layer mismatch.
+- Sources: `server/terminals.ts:63-68`; installed `@lydell/node-pty-win32-x64/lib/windowsPtyAgent.js:287-338`.
+- Trigger/evidence: an npm agent shim receives an argument/path containing a cmd metacharacter such as an ampersand without whitespace. Wrapper uses `cmd.exe /c`; PTY serialization applies argv quoting, not cmd-language escaping.
+- Impact/expected: valid paths split into commands or reach the CLI truncated. Preserve literal arguments through the shell layer.
+- Limits: no Windows command executed; distinct from MCP backslash rewriting.
+
+### BH-089 — Terminal sockets never reconnect after ordinary connection loss
+
+- Reporter: TerminalCommandBugs. Severity: medium. Status: source-confirmed missing reconnect/feedback.
+- Sources: `web/terminalview.tsx:88-106,125`; comparison `web/core.ts:111-119`.
+- Trigger/evidence: a terminal socket drops then connectivity returns. Its effect reconnects only when `id` changes, and close handles only terminal-gone code 4004. App events reconnect independently.
+- Impact/expected: healthy dashboard contains a silently frozen terminal that drops keystrokes until reopening. Reconnect or clearly expose disconnection.
+- Limits: no network outage simulated.
+
+### BH-090 — Command result clipping loses the real output tail
+
+- Reporter: TerminalCommandBugs. Severity: medium. Status: source-confirmed output-contract mismatch.
+- Sources: `server/util.ts:412-416`; `server/tools.ts:2240,2262`.
+- Trigger/evidence: stdout/stderr exceeds the default two-million-character collection cap. Collection keeps the beginning only; later `truncateMiddle()` preserves ends of that prefix, not the command's actual final output.
+- Impact/expected: final compiler errors, summaries and completion diagnostics disappear despite the promise to preserve start/end. Retain the actual tail and disclose collection truncation.
+- Limits: no large-output command run.
+
+### BH-091 — Hermes/OpenClaw terminals omit Dashboard agent instructions
+
+- Reporter: TerminalCommandBugs. Severity: medium. Status: source-confirmed configuration omission.
+- Sources: `server/terminals.ts:99-101,114-116`; `server/engines/hermes.ts:50-59,63-69`; `server/engines/openclaw.ts:117-123,194-199`; `web/views/terminals.tsx:205-208`.
+- Trigger/evidence: open an agent whose Dashboard instructions differ from its CLI profile. Those terminal branches never build/deliver `buildSystemPrompt(agent)`, unlike ordinary Dashboard runs.
+- Impact/expected: underlying profile starts without the advertised role/instructions/context. Terminal launch should supply them or accurately describe the limitation.
+- Limits: external profiles may contain overlapping instructions; no CLI launched.
+
+### BH-092 — OpenCode terminals omit the selected model and effort
+
+- Reporter: TerminalCommandBugs. Severity: medium. Status: source-confirmed launch configuration omission.
+- Sources: `server/terminals.ts:117-121`; `server/engines/opencode.ts:157-170,664-689,898-901`.
+- Trigger/evidence: open an OpenCode agent with nondefault model/effort. Terminal args/config carry instructions, permissions and MCP, but not those choices; ordinary run dispatch explicitly translates both.
+- Impact/expected: terminal can use another provider/model/reasoning default. Honor the Dashboard selection.
+- Limits: exact fallback depends on installed OpenCode configuration; no provider call.
+
+### BH-093 — Slow terminal viewers can accumulate unbounded queued output
+
+- Reporter: TerminalCommandBugs. Severity: medium. Status: source-confirmed unbounded queuing path; memory effects unmeasured.
+- Sources: `server/terminals.ts:152-155`; installed `ws/lib/websocket.js:141-144,476-505`; `ws/lib/sender.js:567-576`.
+- Trigger/evidence: terminal produces output faster than a viewer receives. Scrollback is capped, but every chunk is sent without checking queued bytes/backpressure; the socket writable queue has no application cap.
+- Impact/expected: shared-server memory can grow independently of `MAX_BUFFER`. Bound or backpressure slow-client output.
+- Limits: no throughput test or observed memory exhaustion.
+
+### BH-094 — Closing an unready Windows terminal can defer killing indefinitely
+
+- Reporter: TerminalCommandBugs. Severity: medium. Status: runtime candidate; deferred cancellation confirmed.
+- Sources: `server/terminals.ts:199-208`; installed `@lydell/node-pty-win32-x64/lib/windowsTerminal.js:74-89,162-181`.
+- Trigger/evidence: close before first output, especially a silent long-running command. PTY `kill()` queues until `_isReady`, set by first output; app removes the session and reports closed immediately.
+- Impact/expected: if no initialization/output arrives, process remains alive untracked. Closing should actually cancel an unready process.
+- Limits: whether ConPTY reliably emits initial data for silent commands is unverified; no process run.
+
+### BH-095 — Terminal runtime files collide across projects and sessions
+
+- Reporter: TerminalCommandBugs. Severity: medium. Status: source-confirmed overwrite; harmful consumption is a runtime candidate.
+- Sources: `server/engines/claude.ts:149-155`; `codex.ts:180-183`; `pi.ts:208-210,479-483`; `opencode.ts:179-184,899-901` (under `server/engines`); `server/backup.ts:971`.
+- Trigger/evidence: open corresponding original/cloned agent terminals, or reopen after configuration changes. Global `runtime/<agentId>` and fixed terminal filenames are reused without project/session identity.
+- Impact/expected: later launch overwrites files referenced by the older terminal; delayed reads/rereads can consume another project's instructions/MCP settings. Keep per-terminal stable files.
+- Limits: overwriting is deterministic; CLI read timing and cross-project consumption not reproduced.
