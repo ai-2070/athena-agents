@@ -1413,6 +1413,7 @@ Completed reviews:
 - Trigger/evidence: service-only ComfyUI is down at discovery and later starts. Poll updates serviceUrl/running but leaves installed=false; optional entries already removed from cache are not polled.
 - Impact/expected: now-running service stays hidden in Programs/list_programs until full scan. Reconcile installation visibility when service discovery succeeds.
 - Limits: no service started or polled.
+- Fixed: the running check asks every service the catalog knows (not only those the last scan listed) and shows one that answers now as installed and running. Test in `tests/server/programs-service.test.ts`.
 
 ### BH-161 — Service address changes do not notify the Programs page
 
@@ -1421,6 +1422,7 @@ Completed reviews:
 - Trigger/evidence: ComfyUI moves ports between polls without an observed stopped interval. serviceUrl changes but running-ID string does not, so no update event emits.
 - Impact/expected: open Programs page retains obsolete Open URL despite server discovery. Include address changes in notification criteria.
 - Limits: no port/service scenario executed.
+- Fixed: a service answering at another address counts as a change, so the page is told. Test in `tests/server/programs-service.test.ts`.
 
 ### BH-162 — Linux program catalog confuses Orca IDE with the screen reader
 

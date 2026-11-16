@@ -1335,7 +1335,9 @@ async function runningExes(): Promise<Set<string>> {
   return set;
 }
 
-let cache: { at: number; list: Program[] } = { at: 0, list: [] };
+// list: what is shown; all: every program the catalog knows, so one found later (a service started since) shows up
+let cache: { at: number; list: Program[]; all: Program[] } = { at: 0, list: [], all: [] };
+const shown = (all: Program[]) => all.filter((p) => p.installed || !p.optional);
 // Finding the programs on this PC (process lists, service checks, folders) is slow, so it runs in the
 // background: once when the server starts, then at most once an hour. Nothing that thinks or works (the
 // Brain, agents' tools) waits for it; they read what the last scan found.
@@ -1400,7 +1402,7 @@ async function scanPrograms(): Promise<Program[]> {
       };
     }),
   );
-  cache = { at: Date.now(), list: list.filter((p) => p.installed || !p.optional) };
+  cache = { at: Date.now(), list: shown(list), all: list };
   return cache.list;
 }
 
@@ -1410,21 +1412,24 @@ let lastRunning: string | null = null;
 const isRunning = (p: Program, procs: Set<string>): boolean =>
   !!(p.serviceUrl || (p.exe && procs.has(path.basename(p.exe).toLowerCase())));
 export async function refreshRunning() {
-  if (!cache.list.length) return;
+  if (!cache.all.length) return;
   const procs = await runningExes();
-  // services (ComfyUI, LM Studio, Ollama...) are asked again, so starting or stopping one shows up
+  // services (ComfyUI, LM Studio, Ollama...) are asked again, so starting or stopping one shows up: one that answers
+  // now is there, even when the last scan didn't find it
   await Promise.all(
-    cache.list.map(async (p) => {
+    cache.all.map(async (p) => {
       const service = CATALOG.find((c) => c.id === p.id)?.service;
-      if (service) p.serviceUrl = await service().catch(() => null);
+      if (!service) return;
+      p.serviceUrl = await service().catch(() => null);
+      if (p.serviceUrl) p.installed = true;
     }),
   );
-  for (const p of cache.list) p.running = isRunning(p, procs);
-  const now = cache.list
-    .filter((p) => p.running)
-    .map((p) => p.id)
-    .join(',');
-  if (lastRunning !== null && now !== lastRunning) emit('programs', { running: now ? now.split(',') : [] });
+  for (const p of cache.all) p.running = isRunning(p, procs);
+  cache.list = shown(cache.all);
+  const running = cache.list.filter((p) => p.running);
+  // (where a service answers counts too: one that moved to another port is news for the page)
+  const now = running.map((p) => `${p.id}@${p.serviceUrl || ''}`).join(',');
+  if (lastRunning !== null && now !== lastRunning) emit('programs', { running: running.map((p) => p.id) });
   lastRunning = now;
 }
 export function startRunningWatch() {
