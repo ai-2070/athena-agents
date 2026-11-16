@@ -1238,16 +1238,20 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
   }
   const r = runtime(team.id);
   if (isStopping()) return;
-  if (r.stopped || r.epoch !== epoch) {
-    // stopped or cleared meanwhile: if cleared, don't let this turn bring the agent's session back
-    // (a conversation filed away by New chat keeps its sessions, for when it is opened again)
+  // stopped or cleared meanwhile: if cleared, don't let this turn bring the agent's session back
+  // (a conversation filed away by New chat keeps its sessions, for when it is opened again)
+  const gone = () => {
+    if (!r.stopped && r.epoch === epoch) return false;
     if (loadChat(team.id, pid).sessions[agent.id] !== chatId && !filedSession(team.id, agent.id, chatId, pid))
       chats.remove(agent.id, chatId);
-    return;
-  }
+    return true;
+  };
+  if (gone()) return;
   // your messages sent into its turn that it ended before reading leave that turn, so it doesn't show them as
   // read nor count them as had (before the reply marks where the turn's work ends)
   const missed = await missedMessages(delivery.runId);
+  // (that can wait a while: stopped, cleared or another conversation opened meanwhile, nothing of it goes on)
+  if (isStopping() || gone()) return;
   const session = missed.some((m) => m.steerId) ? chats.get(agent.id, chatId) : null;
   if (session) {
     const ids = new Set(missed.map((m) => m.steerId));
@@ -1338,6 +1342,8 @@ async function steerNow(team: Team, text: string | null | undefined, opts: PostO
     return postUserMessage(team.id, text, opts);
   const sessions = loadChat(team.id).sessions;
   r.steering = true;
+  // Stop, Clear or another conversation while it waits for the turns: the message isn't sent into what replaced them
+  const epoch = r.epoch;
   const messageId = opts.messageId || uid('m');
   const body = String(text || '').trim();
   // (saved before anything waits, for a restart: then everyone working gets it the ordinary way)
@@ -1402,6 +1408,14 @@ async function steerNow(team: Team, text: string | null | undefined, opts: PostO
     );
   } finally {
     r.steering = false;
+  }
+  if (r.epoch !== epoch) {
+    pump(team.id);
+    settled(team.id);
+    throw Object.assign(
+      new Error('The team was stopped, or its conversation changed, while your message waited. It was not sent.'),
+      { status: 409 },
+    );
   }
   try {
     return await postAndRoute(team.id, 'user', text, { ...opts, messageId, to: stopping, joined });

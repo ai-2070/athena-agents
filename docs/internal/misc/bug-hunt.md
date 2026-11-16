@@ -1082,6 +1082,7 @@ Completed reviews:
 - Trigger/evidence: Stop/Clear/switch while a steer awaits shutdown or joinChatTurn. Stop/replacement changes runtime epoch, but steering never rechecks it before postAndRoute; routing targets the now-open conversation and resets stopped=false.
 - Impact/expected: replacement work starts after Stop or instructions enter another thread. Capture/revalidate epoch and thread ownership across awaits.
 - Limits: no timing scenario executed.
+- Fixed: a team steer remembers the team's epoch before it waits for the turns to end; if Stop, Clear or another conversation came meanwhile it is refused (409, "It was not sent.") instead of routed. Test in `tests/server/team-stop-race.test.ts`.
 
 ### BH-129 — Completed team turns post into replacement threads after missed-message waiting
 
@@ -1090,6 +1091,7 @@ Completed reviews:
 - Trigger/evidence: Stop/Clear/switch while completed turn awaits missedMessages. Epoch/stopped guard precedes that await; afterward old reply/session/handoff changes proceed unconditionally. Native acknowledgement can wait twenty seconds.
 - Impact/expected: old output and missed input routing contaminate the new conversation or restart obsolete work. Revalidate current epoch/session before mutations.
 - Limits: existing clear-during-model tests cover earlier guard, not this boundary; no race executed.
+- Fixed: a finished team turn checks again for Stop, Clear or another conversation after waiting for its missed messages, and then posts and routes nothing. Test in `tests/server/team-stop-race.test.ts`.
 
 ### BH-130 — Team queues release before cross-team/background work finishes
 
