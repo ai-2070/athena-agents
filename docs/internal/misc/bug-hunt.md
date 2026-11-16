@@ -837,6 +837,7 @@ Completed reviews:
 - Trigger/evidence: edit a provider URL or another setting, then save/remove a key. Key handling calls `reload()`, increments the form version and remounts GeneralForm, discarding its patch/input state—even when key saving fails.
 - Impact/expected: unrelated edits silently disappear. A replacement key can remain configured against the old endpoint, which subsequent discovery/inference may contact. Refresh secret status without losing the draft.
 - Limits: source trace only; no key or endpoint changed and no request made.
+- Fixed: saving or removing a key refreshes only which keys are set; the form is no longer rebuilt, so other edits stay. Test in `tests/web/settings-general.test.tsx`.
 
 ### BH-097 — Successfully saved settings remain in the next patch
 
@@ -845,6 +846,7 @@ Completed reviews:
 - Trigger/evidence: A saves a field; B changes it; A saves an unrelated edit. Save never clears the successful entries from `patch.current`, and global refresh does not reset that ref.
 - Impact/expected: A resubmits stale values and overwrites B's newer settings. Retire saved patch entries while preserving edits made during an in-flight save.
 - Limits: cross-tab ordering inspected; no browser scenario.
+- Fixed: a successful Save takes what it sent out of the pending changes (`retireSaved()`), keeping anything changed again while it was saving. Test in `tests/web/settings-general.test.tsx`.
 
 ### BH-098 — Provider key changes leave account-specific model catalogs cached
 

@@ -84,18 +84,49 @@ export function GeneralTab() {
   // a new number re-creates the inputs from what the server has (after a key is saved, or a switch failed)
   const [version, setVersion] = useState(0);
   const load = useCallback(() => rpc.settings.get().then((r) => (setLoaded(r), setVersion((v) => v + 1))), []);
+  // a key saved or removed: only which keys are set changes, and what you typed elsewhere stays in the form
+  const loadSecrets = useCallback(
+    () => rpc.settings.get().then((r) => setLoaded((was) => (was ? { ...was, secrets: r.secrets } : r))),
+    [],
+  );
   useEffect(() => void load(), [load]);
   if (!loaded || !data) return null;
-  return <GeneralForm key={version} loaded={loaded} data={data} reload={load} />;
+  return <GeneralForm key={version} loaded={loaded} data={data} reload={load} reloadSecrets={loadSecrets} />;
 }
 
-function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState; reload: () => Promise<unknown> }) {
+/** Takes out of `patch` what `sent` saved, unless it was changed again while the save went. */
+export function retireSaved(patch: Patch, sent: Patch): void {
+  for (const [k, v] of Object.entries(sent)) {
+    const now = patch[k];
+    if (v && typeof v === 'object' && !Array.isArray(v) && now && typeof now === 'object' && !Array.isArray(now)) {
+      retireSaved(now as Patch, v as Patch);
+      if (!Object.keys(now).length) delete patch[k];
+    } else if (JSON.stringify(now) === JSON.stringify(v)) delete patch[k];
+  }
+}
+
+function GeneralForm({
+  loaded,
+  data,
+  reload,
+  reloadSecrets,
+}: {
+  loaded: Loaded;
+  data: AppState;
+  reload: () => Promise<unknown>;
+  reloadSecrets: () => Promise<unknown>;
+}) {
   const { settings: s, secrets } = loaded;
   const patch = useRef<Patch>({});
   const setP = (path: string, value: unknown) => setPath(patch.current, path, value);
-  // (built field by field from the form; the server checks every field)
-  const save = () =>
-    attempt(() => rpc.settings.save(patch.current as SettingsChange), 'Saved').then(() => refreshSoon(0));
+  // (built field by field from the form; the server checks every field). What saved leaves the patch, so a later
+  // save doesn't send it again over a change made since (in another tab, say)
+  const save = async () => {
+    const sent = structuredClone(patch.current);
+    const done = await attempt(() => rpc.settings.save(sent as SettingsChange), 'Saved');
+    if (done !== undefined) retireSaved(patch.current, sent);
+    refreshSoon(0);
+  };
   // the few choices drawn from state rather than left to the input
   const [engine, setEngine] = useState(s.defaults.engine);
   const [autonomy, setAutonomy] = useState(s.defaults.autonomy);
@@ -118,7 +149,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
             k="openrouterKey"
             mark={<Mark brand="openrouter" />}
             secrets={secrets}
-            reload={reload}
+            reload={reloadSecrets}
             label="OpenRouter key"
             placeholder="sk-or-…"
             hint={
@@ -135,7 +166,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
             k="veniceKey"
             mark={<Mark engine="venice" />}
             secrets={secrets}
-            reload={reload}
+            reload={reloadSecrets}
             label="Venice key"
             placeholder="Paste your Venice API key"
             hint={
@@ -153,7 +184,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
             mark={<Mark brand="anthropic" />}
             optional
             secrets={secrets}
-            reload={reload}
+            reload={reloadSecrets}
             label="Anthropic API key"
             placeholder="sk-ant-…"
             hint={'For Claude Code agents set to "Anthropic API key" instead of your subscription.'}
@@ -413,7 +444,7 @@ function GeneralForm({ loaded, data, reload }: { loaded: Loaded; data: AppState;
             </span>
           }
           secrets={secrets}
-          reload={reload}
+          reload={reloadSecrets}
           label="Custom provider key"
           placeholder="key"
         />
