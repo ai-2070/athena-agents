@@ -890,6 +890,8 @@ export interface SavedHandoff {
   chatId: string;
   runId: string;
   task: string;
+  /** The asker's private conversation (a gateway's, a board task's): only runs in it may collect the answer. */
+  conversationId?: string;
   startedAt: number;
   endedAt?: number;
   answer?: string;

@@ -1869,6 +1869,14 @@ export function retireAgentSessions(agentId: string, projectId: string = here())
 
 // Used by ask_agent and workflows: run to completion in a fresh chat, return the answer.
 // extra: tool groups / MCP servers added for this run only (a branch's access).
+/** The private conversation (a gateway's, a board task's) a run or a team's work belongs to; undefined for ordinary
+ *  chats. Work it hands out stays in it. */
+export function conversationOfRun(runId: string | null | undefined): string | undefined {
+  const teamPrefix = `team:${activeProject().id}/`;
+  if (runId?.startsWith(teamPrefix)) return privateTeamRecord(runId.slice(teamPrefix.length))?.conversationId;
+  return runId ? runInfo(runId)?.conversationId : undefined;
+}
+
 export async function askAgent(
   agent: Agent,
   message: string,
@@ -1896,12 +1904,7 @@ export async function askAgent(
       mcpServers: teamWorkServers(fresh.mcpServers || [], extra.mcpServers || []),
       _teamSkills: extra.skills || [],
     };
-  const teamPrefix = `team:${activeProject().id}/`;
-  const parentConversation = parentRunId?.startsWith(teamPrefix)
-    ? privateTeamRecord(parentRunId.slice(teamPrefix.length))?.conversationId
-    : parentRunId
-      ? runInfo(parentRunId)?.conversationId
-      : undefined;
+  const parentConversation = conversationOfRun(parentRunId);
   const existing = chatId ? chats.get(fresh.id, chatId) : null;
   if (existing && parentRunId && existing.conversationId !== parentConversation)
     throw new Error('Delegated work cannot leave its private conversation.');

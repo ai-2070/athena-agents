@@ -227,6 +227,30 @@ describe('handoffs', () => {
     await h.done;
     withProject(a, () => expect(listHandoffs('boss-1')).toMatch(/done, answer ready/));
   });
+
+  it("stay in the asker's private conversation: its helper's chat is in it, and only it can collect them", async () => {
+    await createProject({ name: 'Hand private', mode: 'new', folder: folder('hand-private') });
+    const boss = apiAgent('Private boss');
+    const helper = apiAgent('Private helper');
+    const privateChat = chats.create(boss.id, 'Gateway', null, 'gw-test-alice');
+    const parent = startRun(boss, privateChat, 'Delegate this');
+    await until(() => held.length > 0);
+    const h = await startHandoff(boss, helper, 'secret task', { depth: 1, parentRunId: parent.runId });
+    expect(chats.get(helper.id, h.chatId)?.conversationId).toBe('gw-test-alice');
+    expect(h.conversationId).toBe('gw-test-alice');
+    await releaseUntil(() => !!h.endedAt);
+    await h.done;
+    expect(h.error).toBeUndefined();
+    // an ordinary chat, or another private conversation, of the same agent can't list or collect it
+    expect(listHandoffs(boss.id)).toMatch(/no handoffs/);
+    expect(listHandoffs(boss.id, 'gw-test-bob')).toMatch(/no handoffs/);
+    expect((await awaitHandoff(h.id, boss.id, 1)).text).toMatch(/another conversation/);
+    expect((await awaitHandoff(h.id, boss.id, 1, undefined, 'gw-test-bob')).text).toMatch(/another conversation/);
+    expect(listHandoffs(boss.id, 'gw-test-alice')).toMatch(/done, answer ready/);
+    expect((await awaitHandoff(h.id, boss.id, 1, undefined, 'gw-test-alice')).isError).toBeFalsy();
+    await settled(privateChat.id);
+    await parent.promise.catch(() => {});
+  });
 });
 
 describe('a cloned team', () => {

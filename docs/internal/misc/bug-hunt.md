@@ -580,6 +580,7 @@ Completed reviews:
 - Trigger/evidence: gateway/board-private agent calls `ask_agent`. Handoff creates ordinary chat without `conversationId`, then passes it with private parent; ownership guard rejects before start.
 - Impact/expected: private agents cannot delegate, leaving failed handle and empty ordinary chat. Helper chat should inherit private ownership.
 - Limits: ordinary handoff tests miss this boundary; no helper run.
+- Fixed: `startHandoff()` creates the helper's chat in the asker's private conversation (`conversationOfRun()`, shared with `askAgent()`). Test in `tests/server/project-isolation.test.ts`.
 
 ### BH-068 — Private runs can collect unrelated handoff results
 
@@ -588,6 +589,7 @@ Completed reviews:
 - Trigger/evidence: same agent has dashboard handoffs and a private gateway run. `await_agent` without handles lists agent/project handoffs and excerpts; a listed handle retrieves the answer.
 - Impact/expected: private conversations access unrelated delegated instructions/results. Records/collection need asker-conversation ownership, absent from schema and checks.
 - Limits: tools remain available in private scopes; no disclosure executed.
+- Fixed: handoffs record the asker's `conversationId`; `await_agent` lists and collects only handoffs of the run's own conversation (ordinary chats see none of the private ones). Test in `tests/server/project-isolation.test.ts`.
 
 ### BH-069 — Brain activity includes other projects' runs
 

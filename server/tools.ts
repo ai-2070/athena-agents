@@ -1898,7 +1898,7 @@ const TOOLS: ToolDef[] = [
       );
       if (wait < 1)
         return { text: `${sent} They are working on it now. Get the answer with await_agent and handle "${h.id}".` };
-      const r = await awaitHandoff(h.id, ctx.agent.id, wait, ctx.signal);
+      const r = await awaitHandoff(h.id, ctx.agent.id, wait, ctx.signal, h.conversationId || null);
       return { ...r, text: `${sent}\n${r.text}` };
     },
   },
@@ -1923,13 +1923,15 @@ const TOOLS: ToolDef[] = [
       ctx,
     ) => {
       const ids = Array.isArray(handles) && handles.length ? handles.map(String) : handle ? [handle] : [];
-      if (!ids.length) return { text: listHandoffs(ctx.agent.id) };
+      // (a private conversation sees only what it handed out, and ordinary chats none of that)
+      const conversationId = (await import('./engines/index.ts')).conversationOfRun(ctx.runId) || null;
+      if (!ids.length) return { text: listHandoffs(ctx.agent.id, conversationId) };
       // Hermes gives up on an MCP call after 5 minutes: wait less, and it calls again
       const hermes = agentStore.get(ctx.agent.id)?.engine === 'hermes';
       const wait = hermes ? Math.min(HERMES_WAIT_S, Number(wait_seconds) || HERMES_WAIT_S) : wait_seconds;
       return ids.length === 1
-        ? awaitHandoff(ids[0]!, ctx.agent.id, wait, ctx.signal)
-        : awaitHandoffs(ids, ctx.agent.id, { all: !!all, waitS: wait, signal: ctx.signal });
+        ? awaitHandoff(ids[0]!, ctx.agent.id, wait, ctx.signal, conversationId)
+        : awaitHandoffs(ids, ctx.agent.id, { all: !!all, waitS: wait, signal: ctx.signal, conversationId });
     },
   },
   {

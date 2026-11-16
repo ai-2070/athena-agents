@@ -148,7 +148,8 @@ export function saveHandoff(handoff: SavedHandoff): void {
       if (
         existing.projectId !== handoff.projectId ||
         existing.from !== handoff.from ||
-        existing.runId !== handoff.runId
+        existing.runId !== handoff.runId ||
+        (existing.conversationId || null) !== (handoff.conversationId || null)
       )
         throw new Error('A handoff cannot change ownership.');
       Object.assign(existing, handoff);

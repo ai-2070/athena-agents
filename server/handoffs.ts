@@ -27,8 +27,10 @@ export async function startHandoff(
   task: string,
   { depth, parentRunId, signal }: { depth: number; parentRunId?: string | null; signal?: AbortSignal },
 ): Promise<Handoff> {
-  const { askAgent, isStopping, RunStopped } = await import('./engines/index.ts');
-  const chat = chats.create(target.id, `Asked by ${from.name}`);
+  const { askAgent, conversationOfRun: conversationOf, isStopping, RunStopped } = await import('./engines/index.ts');
+  // (the helper's chat is in the asker's private conversation, if it is in one: its work stays there)
+  const conversationId = conversationOf(parentRunId);
+  const chat = chats.create(target.id, `Asked by ${from.name}`, null, conversationId);
   const saved: SavedHandoff = {
     id: uid('h'),
     from: from.id,
@@ -38,6 +40,7 @@ export async function startHandoff(
     chatId: chat.id,
     runId: uid('r'),
     task,
+    ...(conversationId ? { conversationId } : {}),
     startedAt: Date.now(),
   };
   saveHandoff(saved);
@@ -72,6 +75,10 @@ export async function startHandoff(
   return h;
 }
 
+/** Whether an asker, in its conversation (null: ordinary chats), may see a handoff: its own, from the same one. */
+const owns = (h: SavedHandoff, askerId: string, conversationId: string | null) =>
+  h.from === askerId && (h.conversationId || null) === conversationId;
+
 const minutes = (ms: number) =>
   ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} s` : `${Math.round(ms / 60_000)} min`;
 
@@ -90,6 +97,7 @@ export async function awaitHandoff(
   askerId: string,
   waitS = DEFAULT_WAIT_S,
   signal?: AbortSignal,
+  conversationId: string | null = null,
 ): Promise<{ text: string; isError?: boolean }> {
   const found = handoffs().find((h) => h.id === String(id || '').trim());
   // (another project's handoff isn't there for this one)
@@ -100,6 +108,7 @@ export async function awaitHandoff(
       isError: true,
     };
   if (h.from !== askerId) return { text: 'That handle belongs to another agent.', isError: true };
+  if (!owns(h, askerId, conversationId)) return { text: 'That handle belongs to another conversation.', isError: true };
   if (!h.endedAt && !signal?.aborted) {
     const wait = Math.min(MAX_WAIT_S, Math.max(1, Number(waitS) || DEFAULT_WAIT_S)) * 1000;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -145,10 +154,15 @@ async function describe(
 export async function awaitHandoffs(
   ids: string[],
   askerId: string,
-  { all = false, waitS = DEFAULT_WAIT_S, signal }: { all?: boolean; waitS?: number; signal?: AbortSignal } = {},
+  {
+    all = false,
+    waitS = DEFAULT_WAIT_S,
+    signal,
+    conversationId = null,
+  }: { all?: boolean; waitS?: number; signal?: AbortSignal; conversationId?: string | null } = {},
 ): Promise<{ text: string; isError?: boolean }> {
   const wanted = [...new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))];
-  if (wanted.length <= 1) return awaitHandoff(wanted[0] || '', askerId, waitS, signal);
+  if (wanted.length <= 1) return awaitHandoff(wanted[0] || '', askerId, waitS, signal, conversationId);
   const projectId = activeProject().id;
   const find = (id: string) => handoffs().find((h) => h.id === id && h.projectId === projectId);
   for (const id of wanted) {
@@ -159,6 +173,8 @@ export async function awaitHandoffs(
         isError: true,
       };
     if (h.from !== askerId) return { text: `Handle ${id} belongs to another agent.`, isError: true };
+    if (!owns(h, askerId, conversationId))
+      return { text: `Handle ${id} belongs to another conversation.`, isError: true };
   }
   const finished = () => wanted.filter((id) => find(id)?.endedAt).length;
   const ready = () => (all ? finished() === wanted.length : finished() > 0);
@@ -191,10 +207,10 @@ export async function awaitHandoffs(
 }
 
 /** The asker's handoffs, newest first (await_agent without a handle). */
-export function listHandoffs(askerId: string): string {
+export function listHandoffs(askerId: string, conversationId: string | null = null): string {
   const projectId = activeProject().id;
   const mine = handoffs()
-    .filter((h) => h.from === askerId && h.projectId === projectId)
+    .filter((h) => owns(h, askerId, conversationId) && h.projectId === projectId)
     .sort((a, b) => b.startedAt - a.startedAt);
   if (!mine.length) return 'You have no handoffs. Give a task to a teammate with ask_agent.';
   return mine
