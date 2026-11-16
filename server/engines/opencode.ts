@@ -1053,8 +1053,11 @@ export async function ask({
       onLine: (l) => onLine(l.trim()),
     });
     const answer = texts.join('\n\n');
-    if (!answer)
-      throw new Error(`opencode didn't answer (${(err || r.stderr || '').trim().slice(-300) || `exit ${r.code}`})`);
+    // (an error, a failed exit or the time running out is a failure, whatever it wrote before)
+    if (!answer || err || r.code !== 0)
+      throw new Error(
+        `opencode ${answer ? 'failed before it finished' : "didn't answer"} (${(err || r.stderr || '').trim().slice(-300) || `exit ${r.code}`})`,
+      );
     return answer;
   } finally {
     fs.rmSync(brief, { force: true });

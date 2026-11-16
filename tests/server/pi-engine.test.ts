@@ -377,6 +377,21 @@ describe('a pi run', () => {
   });
 });
 
+describe('a crash in the middle of its answer', () => {
+  it('is a failure, not the half answer it wrote', async () => {
+    fake.lines = [
+      ev({ type: 'agent_start' }),
+      ev({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Half of the' } }),
+    ];
+    fake.code = 134;
+    fake.stderr = 'Segmentation fault';
+    const err = (await pi.run(runArgs('pi', chatOf(), [])).catch((e: unknown) => e)) as Error;
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toContain('exited (134) before it finished its answer');
+    expect(err.message).toContain('Segmentation fault');
+  });
+});
+
 describe('a session oh-my-pi does not have', () => {
   it('clears it and asks for a new session with the chat so far', async () => {
     const { SessionGone } = await import('../../server/engines/cli.ts');

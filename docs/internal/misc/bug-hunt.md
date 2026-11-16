@@ -338,6 +338,7 @@ Completed reviews:
 - Trigger/evidence: subprocess emits text then crashes without turn completion/error frame. Nonempty answers are accepted without requiring completed state or successful exit.
 - Impact/expected: unfinished work is marked completed for users/delegates. Require a valid completed outcome.
 - Limits: no subprocess crash induced.
+- Fixed: a pi or oh-my-pi run that exits with a failure code before its run ended is an error, even after some text (the text stays in the chat). A clean exit without an end frame is still taken as done. Test in `tests/server/pi-engine.test.ts`.
 
 ### BH-036 — OpenCode quick queries hide errors after preliminary text
 
@@ -346,6 +347,7 @@ Completed reviews:
 - Trigger/evidence: quick query emits text then errors, exits unsuccessfully or times out. Failure is examined only when answer is empty.
 - Impact/expected: Brain can publish preliminary commentary as success. Execution errors must not be hidden by partial output.
 - Limits: no command/timeout executed.
+- Fixed: an opencode quick query that reports an error, exits with a failure or runs out of time fails, even after some text. Test in `tests/server/brain-opencode.test.ts`.
 
 ### BH-037 — Codex corrupts backslashes in arbitrary MCP arguments
 
