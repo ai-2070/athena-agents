@@ -1,0 +1,108 @@
+tests/server/brain-mcp-tools.test.ts
+  s_5ac3d13a58b9f0::t_e59aa25c97eab0 106,262,264,266-268
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 23-26
+server/sessions.ts
+  s_5ac3d13a58b9f0::t_ce28c26817a293 8
+  s_5ac3d13a58b9f0::t_895c4e81a3d61d 197-202
+tests/server/brain-mcp.test.ts
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 19-22
+server/engines/opencode.ts
+  s_5ac3d13a58b9f0::t_290233f0f86976 23,78-89
+tests/server/brain-models.test.ts
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 34-37
+  s_5ac3d13a58b9f0::t_88fa01fc609039 411,419,444
+server/brain.ts
+  s_5ac3d13a58b9f0::t_59976e17a3b8d8 85-94,122
+server/engines/hermes.ts
+  s_5ac3d13a58b9f0::t_290233f0f86976 8,60-61
+server/index.ts
+  s_5ac3d13a58b9f0::t_6376a9e5f5ec4e 56,331-332
+tests/server/brain-chat.test.ts
+  s_5ac3d13a58b9f0::t_ac8676935efb0f 123-124,146,158,165-166,169-170,172-173,223,238-239
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 25-28
+server/overseer.ts
+  s_5ac3d13a58b9f0::t_3aca85ac4cd5f7 1003,1006-1007,1009,1012-1016,1018,1024-1025,1042,1054,1077
+  s_5ac3d13a58b9f0::t_d70442ab653526 1999
+  s_5ac3d13a58b9f0::t_e59aa25c97eab0 3024,3306,3309,3342-3343,3345,3354,3356,3366,3380,3382
+  s_5ac3d13a58b9f0::t_419f017d7760d4 159-160
+  s_5ac3d13a58b9f0::t_c83ac157982ea5 763,768-770,812-832
+  s_5ac3d13a58b9f0::t_a7daae3cd6998b 25,67
+  s_5ac3d13a58b9f0::t_0c7dd6fda31688 916,3028-3033,3305,3307-3308
+  s_5ac3d13a58b9f0::t_ce28c26817a293 66
+  s_5ac3d13a58b9f0::t_6a904b7c154380 63,69,71,76,3192-3194,3196-3209,3211,3213,3223-3226,3236-3242,3246,3259-3281,3283,3285-3286,3290-3304,3310-3327,3329-3332,3334-3335,3339-3341,3349-3353,3355,3362-3365,3368,3374,3376-3377,3390,3393,3397,3410-3411
+  s_5ac3d13a58b9f0::t_4c54aa053485ef 3346-3348,3386,3388
+  s_5ac3d13a58b9f0::t_ac8676935efb0f 804-811,3367,3401
+tests/server/brain-learning.test.ts
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 16-19
+  s_5ac3d13a58b9f0::t_4143ae706dfd97 60
+tests/server/skillinstall.test.ts
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 22-25
+  s_5ac3d13a58b9f0::t_88fa01fc609039 278-280,283-285,287,289-291
+  s_5ac3d13a58b9f0::t_4c54aa053485ef 288
+tests/server/groupB-overseer.test.ts
+  s_5ac3d13a58b9f0::t_88fa01fc609039 31,39,41
+  s_5ac3d13a58b9f0::t_4c54aa053485ef 5-12
+  s_5ac3d13a58b9f0::t_aa1e40a6068e2f 49
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 17-20
+server/engines/index.ts
+  s_5ac3d13a58b9f0::t_290233f0f86976 77,654-655
+  s_5ac3d13a58b9f0::t_4c54aa053485ef 521-523,525,557,828-832,1032-1036
+server/tools.ts
+  s_5ac3d13a58b9f0::t_f91b10a5536863 67,2722-2724
+server/brainmcp.ts
+  s_5ac3d13a58b9f0::t_3aca85ac4cd5f7 80-82
+server/engines/claude.ts
+  s_5ac3d13a58b9f0::t_290233f0f86976 19,222-223
+tests/server/brain-files.test.ts
+  s_5ac3d13a58b9f0::t_baa8dc14a1dd4d 1-2,10-19,57,59,61,63-65
+tests/server/irc.test.ts
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 24-27
+tests/server/past-chats-answering.test.ts
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 12-15
+tests/server/gateway-execution.test.ts
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 27-30
+server/brainrun.ts
+  s_5ac3d13a58b9f0::t_f70d555ef3ffca 1-73
+tests/server/brain-run.test.ts
+  s_5ac3d13a58b9f0::t_4c54aa053485ef 107-110,128
+  s_5ac3d13a58b9f0::t_a132c5d73313dd 1-106,111-127,129-148
+tests/server/private-conversations.test.ts
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 37-40
+tests/server/boardwork.test.ts
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 52-55
+server/engines/codex.ts
+  s_5ac3d13a58b9f0::t_290233f0f86976 23,272-274
+tests/server/brain-fake.ts
+  s_5ac3d13a58b9f0::t_bf9451e1bee53b 1-15,18-25,28-36,42-49,52-61,65-71
+  s_5ac3d13a58b9f0::t_8b5c46870c6fe7 16-17,37-41
+  s_5ac3d13a58b9f0::t_4c54aa053485ef 26-27,62-64
+  s_5ac3d13a58b9f0::t_0c7dd6fda31688 50-51
+tests/server/session-search.test.ts
+  s_5ac3d13a58b9f0::t_951d96319174d5 203
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 16-19
+  s_5ac3d13a58b9f0::t_d78e2d1b2d174f 10,85,137,183-184,188,196-197,204,206-213
+tests/server/goals.test.ts
+  s_5ac3d13a58b9f0::t_0a08a0a1992806 26-29
+  s_5ac3d13a58b9f0::t_88fa01fc609039 208
+  s_5ac3d13a58b9f0::t_aa1e40a6068e2f 215-218
+server/braintools.ts
+  s_5ac3d13a58b9f0::t_6dc6a2795a7c88 49-50
+  s_5ac3d13a58b9f0::t_0c7dd6fda31688 53-54,187-188
+  s_5ac3d13a58b9f0::t_e59aa25c97eab0 51-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b763fc89bc9ba54cead36cdb02b3aa3c51f48705",
+  "prompts": {},
+  "sessions": {
+    "s_5ac3d13a58b9f0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "821aa0b8-4e63-48d1-8126-e18d892b46f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
