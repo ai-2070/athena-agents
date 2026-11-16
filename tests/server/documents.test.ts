@@ -139,6 +139,21 @@ describe('the text of each kind', () => {
     expect((await pdfText(file)).text).toContain('Contract signed 3 May');
   });
 
+  it('counts the time waiting for a free thread in the time a read may take', async () => {
+    const file = pdf('Contract signed 3 May');
+    const t0 = Date.now();
+    // both threads busy: the third waits for one
+    const busy = Promise.all([pdfText(file), pdfText(file)]).then(() => Date.now() - t0);
+    const third = pdfText(file, { timeoutMs: 30 }).then(
+      () => ({ error: '', at: Date.now() - t0 }),
+      (e: unknown) => ({ error: (e as Error).message, at: Date.now() - t0 }),
+    );
+    const freeAt = await busy;
+    const r = await third;
+    expect(r.error).toContain('took too long');
+    expect(r.at).toBeLessThan(freeAt);
+  });
+
   it("stops reading a PDF when it's told to, and reads it in full next time", async () => {
     const file = path.join(folder(), 'long.pdf');
     fs.writeFileSync(file, pdf('Contract signed 3 May'));

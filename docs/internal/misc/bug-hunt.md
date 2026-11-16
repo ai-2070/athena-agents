@@ -978,6 +978,7 @@ Completed reviews:
 - Trigger/evidence: both PDF workers and a backlog are occupied. Attachment rendering passes remaining sixty-second budget as `timeoutMs`, but `pdfText()` waits for a slot before starting that timer.
 - Impact/expected: preparation exceeds its total budget by queue delay, blocking unrelated admission. Include waiting in the deadline.
 - Limits: delay depends on concurrency; inspected tests cover sequential timeout/cancel, not backlog deadlines. No queue executed.
+- Fixed: the time a PDF waits for a free thread counts against its time limit; what is left is the reading's limit. Test in `tests/server/documents.test.ts`.
 
 ### BH-110 — Failed knowledge URL fetches overwrite good references with error pages
 

@@ -342,7 +342,14 @@ export async function pdfText(
   bytes: Uint8Array,
   { timeoutMs = PDF_TIMEOUT_MS, signal }: ReadOptions = {},
 ): Promise<PdfRead> {
-  const free = await threadSlot(signal);
+  // the time waiting for a thread counts too: a caller's budget is for the whole read
+  const started = Date.now();
+  const budget = Math.min(timeoutMs, PDF_TIMEOUT_MS);
+  const queued = AbortSignal.timeout(budget);
+  const free = await threadSlot(signal ? AbortSignal.any([signal, queued]) : queued).catch((e: unknown) => {
+    if (!signal?.aborted && queued.aborted) throw new DocumentError('it took too long to read.', { lasting: false });
+    throw e;
+  });
   let worker: Worker;
   try {
     worker = new Worker(PDF_WORKER, {
@@ -355,7 +362,7 @@ export async function pdfText(
     free();
     throw readerFailed(e);
   }
-  const limit = Math.min(timeoutMs, PDF_TIMEOUT_MS);
+  const limit = Math.max(1, budget - (Date.now() - started));
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
   try {
