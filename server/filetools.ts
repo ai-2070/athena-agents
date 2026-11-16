@@ -151,8 +151,11 @@ export function findFiles(root: string, shown: string, pattern: string): string 
     .join('\n')}${more}`;
 }
 
-// Nested quantifiers like (a+)+ can take forever on one line: those are searched for as plain text.
-const RISKY = /\([^)]*[+*}][^)]*\)\s*[+*{]/;
+// A regular expression can't be stopped once it runs, and some take forever on one line: a repeated group that
+// repeats or chooses inside ((a+)+, (a|aa)+, (a?)*) and back-references are searched for as plain text. Lines are
+// tested up to LINE_TESTED characters, so what is left (like \w*\w*$) stays quick too.
+const RISKY = /\([^)]*[+*?}|][^)]*\)\s*[+*?{]|\\[1-9]|\\k</;
+const LINE_TESTED = 4000;
 
 /** Lines that match in the text files under a folder (or in one file), as file:line: text. */
 export function searchFiles(root: string, shown: string, query: string, glob?: string): string {
@@ -195,7 +198,7 @@ export function searchFiles(root: string, shown: string, query: string, glob?: s
       .toString('utf8')
       .split('\n')
       .forEach((line, i) => {
-        if (!re.test(line)) return;
+        if (!re.test(line.length > LINE_TESTED ? line.slice(0, LINE_TESTED) : line)) return;
         if (++total <= MATCHES_SHOWN)
           hits.push(`${rel}:${i + 1}: ${(line.length > 300 ? `${line.slice(0, 300)}…` : line).trimEnd()}`);
       });

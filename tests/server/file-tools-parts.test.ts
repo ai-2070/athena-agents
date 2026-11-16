@@ -144,6 +144,12 @@ describe('find_files and search_files', () => {
     const r = (await callTool(agent, 'search_files', { query: '(a+)+$' })).text;
     expect(r).toContain('aaa.txt:2:');
     expect(r).not.toContain('aaa.txt:1:');
+    // a repeated choice that overlaps, a repeated optional part and a back-reference too, and quickly
+    fs.writeFileSync(path.join(workspace, 'long.txt'), `${'a'.repeat(5000)}!\n`);
+    const started = Date.now();
+    for (const query of ['(a|aa)+$', '(a?)+$', '(a)\\1+$'])
+      expect((await callTool(agent, 'search_files', { query })).text, query).toMatch(/^No line/);
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 
   it.skipIf(!linksWork)("doesn't follow links out of the allowed folders", async () => {

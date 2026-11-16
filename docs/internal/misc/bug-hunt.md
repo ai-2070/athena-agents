@@ -99,6 +99,7 @@ Completed reviews:
 - Trigger/evidence: search a long `a` run with a nonmatching suffix using `(a|aa)+$`. The nested-quantifier heuristic misses overlapping alternation; synchronous matching cannot be interrupted by the between-file time check.
 - Impact/expected: the shared event loop can freeze despite the eight-second budget. Search should bound individual matching work.
 - Limits: needs Files tools and suitable allowed content; `search_files` has risk `none`. Existing coverage catches `(a+)+$`, not this variant. No costly payload executed.
+- Fixed: a repeated group that repeats, chooses or is optional inside, and back-references, are searched as plain text, and each line is tested up to 4,000 characters. A heuristic, not a guarantee: a regex still cannot be interrupted once it runs. Test in `tests/server/file-tools-parts.test.ts`.
 
 ### BH-008 — Different projects can overwrite the same portable save
 
