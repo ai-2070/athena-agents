@@ -314,6 +314,7 @@ Completed reviews:
 - Trigger/evidence: Stop after server startup while events/model/session setup awaits. Startup listener is removed; turn listener appears only at line 779 before unconditional post.
 - Impact/expected: stopped work can still call models/tools, and stalled initialization cannot be interrupted through that signal. Cancellation ownership must remain continuous.
 - Limits: no server/model call.
+- Fixed: Stop while opencode sets up ends the event wait at once, its setup calls take the run's signal, and Stop is checked before each setup step and right before the turn's own handling takes over. Test in `tests/server/opencode-engine.test.ts`.
 
 ### BH-035 — Pi/OMP crashes return partial text as success
 

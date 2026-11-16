@@ -30,6 +30,8 @@ interface Fake {
   onReply: (push: Push, sid: string, id: string) => void;
   /** what DELETE of an inbox entry answers */
   inboxDelete: number;
+  /** before it answers that a session was made (a test holds it there) */
+  beforeSession: () => void | Promise<void>;
   /** its stdin closed (it ends the polite way) */
   closed: number;
   /** it was killed */
@@ -48,6 +50,7 @@ const fake: Fake = vi.hoisted(
       onSteer: () => {},
       onReply: () => {},
       inboxDelete: 204,
+      beforeSession: () => {},
       closed: 0,
       killed: 0,
       crash: () => {},
@@ -92,8 +95,11 @@ function startFake(stdout: PassThrough): http.Server {
       if (route === '/api/model') return send(res, 200, { data: fake.models });
       if (route === '/api/model/default') return send(res, 200, { data: fake.models[0] });
       if (route === '/api/session' && req.method === 'POST') {
-        fake.sessions.set(String(body?.id), { model: body?.model as Record<string, unknown> });
-        return send(res, 200, { data: { id: body?.id } });
+        void Promise.resolve(fake.beforeSession()).then(() => {
+          fake.sessions.set(String(body?.id), { model: body?.model as Record<string, unknown> });
+          send(res, 200, { data: { id: body?.id } });
+        });
+        return;
       }
       if ((m = /^\/api\/session\/([^/]+)$/.exec(route))) {
         const s = fake.sessions.get(decodeURIComponent(m[1]!));
@@ -333,6 +339,7 @@ beforeEach(() => {
   fake.onSteer = () => {};
   fake.onReply = () => {};
   fake.inboxDelete = 204;
+  fake.beforeSession = () => {};
   fake.closed = 0;
   fake.killed = 0;
   oc.forgetModels();
@@ -783,6 +790,21 @@ describe('Stop', () => {
     await wait(() => fake.closed === 1);
     // (asked to stop, not killed: the interrupt reached it and it saved the turn as stopped)
     expect(fake.killed).toBe(0);
+  });
+
+  it('Stop while it sets up its session: the wait ends at once, and its turn never begins', async () => {
+    let asked = false;
+    fake.beforeSession = () => {
+      asked = true;
+      return new Promise<void>(() => {});
+    };
+    const ac = new AbortController();
+    const pending = oc.opencode.run(argsOf(coder(), chatOf(), [], ac.signal));
+    await wait(() => asked);
+    ac.abort();
+    await expect(pending).rejects.toThrow();
+    expect(callsTo(/\/prompt$/)).toHaveLength(0);
+    await wait(() => fake.closed + fake.killed === 1);
   });
 
   it('Stop while it starts: it is killed, and its turn never begins', async () => {
