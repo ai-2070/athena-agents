@@ -102,6 +102,8 @@ export interface ToolRunInfo {
   progress?: (text: string) => void;
   /** The MCP server an API-model agent's tool call goes to: its approval names the account. */
   mcpServer?: string;
+  /** What "Always allow" remembers for this call when it isn't the tool's name (an MCP tool: mcpGrant()). */
+  grantName?: string;
   /** Stable, server-issued identity for one durable tool operation. */
   operationId?: string;
   /** The input originally shown for an operation whose approval edited the arguments. */
@@ -2467,7 +2469,8 @@ export async function gate(
   ctx: ToolRunInfo = {},
   detail: string | null | undefined = null,
 ): Promise<ToolResult | null> {
-  if (!needsApproval(agent, risk, name)) return null;
+  const grant = ctx.grantName || name;
+  if (!needsApproval(agent, risk, grant)) return null;
   if (!ctx.approvalDecision) recordAsked(name);
   const d = await (ctx.approvalDecision || requestApproval)(toolApprovalRequest(agent, name, args, ctx, detail));
   if (!d.approved)
@@ -2478,8 +2481,8 @@ export async function gate(
     };
   if (d.always && agent.id && !agent.id.startsWith('_')) {
     // the run asking keeps going with this same agent: the yes counts for the rest of it too
-    agent.alwaysAllow = [...new Set([...(agent.alwaysAllow || []), name])];
-    rememberAlwaysAllow(agent.id, [name]);
+    agent.alwaysAllow = [...new Set([...(agent.alwaysAllow || []), grant])];
+    rememberAlwaysAllow(agent.id, [grant]);
   }
   return null;
 }

@@ -1364,19 +1364,41 @@ export function describeCopy(name: string, { label, useFor }: { label?: string; 
   return next;
 }
 
+/** How an API-model agent's "Always allow" names one MCP tool: by server and tool, never by the name the model
+ *  sees (that one is cut to 64 characters and numbered by listing order, so it can move to another tool). */
+export const mcpGrant = (server: string, tool: string): string => `mcp:${server}:${tool}`;
+
 // An always-allowed tool of a server, after the server is renamed (or null when it is removed). Claude Code
-// names a server's tools mcp__<server>__<tool>; API-model agents name them <server>__<tool>.
-export function renamedGrant(grant: string, from: string, to: string | null, engine: string): string {
-  const forms: [string, string][] = [[`mcp__${from}__`, `mcp__${to}__`]];
-  if (engine === 'eve') forms.push([`${from}__`, `${to}__`]);
-  if (grant === `mcp__${from}`) return to ? `mcp__${to}` : '';
-  for (const [was, now] of forms) if (grant.startsWith(was)) return to ? now + grant.slice(was.length) : '';
+// names a server's tools mcp__<server>__<tool>; API-model agents name them mcp:<server>:<tool> (older ones
+// <server>__<tool>). Server names may hold "__" themselves, so the longest server name a grant starts with owns it:
+// renaming "a" leaves "a__b"'s tools alone.
+export function renamedGrant(
+  grant: string,
+  from: string,
+  to: string | null,
+  engine: string,
+  names: string[] = [],
+): string {
+  const exact = `mcp:${from}:`;
+  if (grant.startsWith(exact)) return to ? `mcp:${to}:${grant.slice(exact.length)}` : '';
+  const forms = [`mcp__`];
+  if (engine === 'eve') forms.push('');
+  const all = [...new Set([from, ...names])];
+  for (const pre of forms) {
+    const owner = all
+      .filter((n) => grant === `${pre}${n}` || grant.startsWith(`${pre}${n}__`))
+      .sort((a, b) => b.length - a.length)[0];
+    if (owner === undefined) continue;
+    if (owner !== from) return grant;
+    if (pre === '' && grant === from) continue;
+    return to ? `${pre}${to}${grant.slice(pre.length + from.length)}` : '';
+  }
   return grant;
 }
 
 // Agents and teams name their servers, so a removed or renamed server changes on all of them, in every
 // project. Always-allowed tools go too: a new server with the old name mustn't inherit them.
-function renameOnEveryone(from: string, to: string | null) {
+function renameOnEveryone(from: string, to: string | null, names: string[]) {
   renameBrainGrants(from, to);
   const swap = (list: string[] | undefined): string[] | null =>
     (list || []).includes(from)
@@ -1387,7 +1409,7 @@ function renameOnEveryone(from: string, to: string | null) {
       for (const a of agents.list()) {
         const servers = swap(a.mcpServers);
         const had = a.alwaysAllow || [];
-        const grants = had.map((g) => renamedGrant(g, from, to, a.engine));
+        const grants = had.map((g) => renamedGrant(g, from, to, a.engine, names));
         const grantsChanged = grants.some((g, i) => g !== had[i]);
         if (servers || grantsChanged)
           agents.save({
@@ -1442,8 +1464,9 @@ function renameBrainGrants(from: string, to: string | null): void {
 
 /** Remove a server and take it off every agent and team that had it. */
 export function removeServerEverywhere(name: string) {
+  const names = Object.keys(listServers());
   removeServer(name);
-  renameOnEveryone(name, null);
+  renameOnEveryone(name, null, names);
   log('mcp', `Removed MCP server "${name}"`);
 }
 
@@ -1473,7 +1496,7 @@ export function renameServer(from: string, to: string, cfg?: McpServerInput): st
     for (const n of moved) now[n] = { ...now[n], kind: clean };
     if (moved.length) saveAll(now);
   }
-  renameOnEveryone(from, clean);
+  renameOnEveryone(from, clean, Object.keys(servers));
   log('mcp', `Renamed MCP server "${from}" to "${clean}"`);
   return clean;
 }

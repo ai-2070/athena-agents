@@ -154,7 +154,7 @@ async function checkCall(
         ? await toolApprovalPlan(fresh.agent, target.name, effective, approvalContext)
         : {
             risk: target.risk,
-            requests: needsApproval(fresh.agent, target.risk, name)
+            requests: needsApproval(fresh.agent, target.risk, mcp.mcpGrant(target.server, target.name))
               ? [toolApprovalRequest(fresh.agent, name, effective, { ...approvalContext, mcpServer: target.server })]
               : [],
           };
@@ -311,7 +311,11 @@ export async function eveTool(
         return clipForModel(await callTool(fresh.agent, target.name, effective, context), target.name, run.id);
       if (!fresh.agent.mcpServers.includes(target.server) || !mcp.isEnabled(target.server))
         return { text: 'This MCP account is no longer available.', isError: true, denied: true };
-      const refused = await gate(fresh.agent, name, target.risk, effective, { ...context, mcpServer: target.server });
+      const refused = await gate(fresh.agent, name, target.risk, effective, {
+        ...context,
+        mcpServer: target.server,
+        grantName: mcp.mcpGrant(target.server, target.name),
+      });
       if (signal?.aborted) return { text: 'Stopped.', isError: true, denied: true };
       if (refused) return refused;
       const started = Date.now();

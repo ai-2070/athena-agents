@@ -385,6 +385,7 @@ Completed reviews:
 - Trigger/evidence: permanently allow one colliding sanitized/truncated tool name, then remove/reorder tools. Listing-order suffixes change and another server/tool inherits the granted alias.
 - Impact/expected: a different destructive tool can bypass consent. Persist grants against stable server/tool identity.
 - Limits: Eve origin checks protect replay, not new calls inheriting old grants. Existing collision tests check simultaneous uniqueness only (`tests/server/mcp-copies.test.ts:263-273`); no bypass run.
+- Fixed: API-model (Eve) agents now remember MCP grants as `mcp:<server>:<tool>` (`mcpGrant()`), not the model-facing alias; `gate()` takes a `grantName`. Older alias grants simply ask again. Test in `tests/server/mcp-grants.test.ts`.
 
 ### BH-044 — Renaming one MCP server transfers another's consent
 
@@ -393,6 +394,7 @@ Completed reviews:
 - Trigger/evidence: servers `a`, `a__b`, `c__b`; Eve grant `a__b__send`; rename `a` to `c`. Allowed delimiters make prefix replacement rewrite the unrelated grant to `c__b__send`, across every agent.
 - Impact/expected: permissions transfer across endpoints/accounts; removal can revoke unrelated grants. Rewrite exact ownership, not ambiguous prefixes.
 - Limits: deterministic source flow; Brain's separately stored server/tool grants are unaffected. Not executed.
+- Fixed: `renamedGrant()` gives a grant to the longest server name it starts with, so renaming or removing `a` leaves `a__b`'s grants alone; new `mcp:<server>:<tool>` grants are exact. Test in `tests/server/mcp-grants.test.ts`.
 
 ### BH-045 — Brain tools Off during discovery still permits dispatch
 
