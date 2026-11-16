@@ -54,6 +54,18 @@ vi.mock('../../server/brain.ts', async (original) => ({
   brainModel: () => ({ provider: 'openrouter', model: 'mock' }),
   think: async (system: string, user: string) => (calls.asked.push(user), calls.think(system, user)),
 }));
+// copying a reply's files: a test can do something meanwhile
+const copying = vi.hoisted(() => ({ during: async () => {} }));
+vi.mock('../../server/boardfiles.ts', async (original) => {
+  const real = await original<typeof import('../../server/boardfiles.ts')>();
+  return {
+    ...real,
+    workerFiles: async (...args: Parameters<typeof real.workerFiles>) => {
+      await copying.during();
+      return real.workerFiles(...args);
+    },
+  };
+});
 vi.mock('../../server/approvals.ts', async (original) => ({
   ...(await original<typeof import('../../server/approvals.ts')>()),
   listApprovals: () => calls.approvals,
@@ -434,6 +446,24 @@ describe('the Brain picks up its task', () => {
 });
 
 describe("the worker's tools", () => {
+  it('a reply whose task was moved to Done while its files were copied changes nothing', async () => {
+    const agent = newAgent({ name: 'Slow replier' });
+    const t = addBoardTask(project(), { title: 'Draw it', assignee: `agent:${agent.id}`, status: 'in_progress' });
+    const started = await startWork(project(), t.id);
+    const runId = scope(agent, started.work!.chatId!, `board-${t.id}`);
+    const chart = path.join(activeProject().brainPath, 'slow-chart.png');
+    fs.writeFileSync(chart, 'png bytes');
+    copying.during = async () => {
+      copying.during = async () => {};
+      await move(t.id, { status: 'done' });
+    };
+    await expect(
+      workerReply(runId, agent.id, { text: 'Here it is', files: [chart], status: 'in_review' }),
+    ).rejects.toThrow();
+    expect(task(t.id).status).toBe('done');
+    expect(task(t.id).comments?.some((c) => c.text === 'Here it is')).toBeFalsy();
+  });
+
   it("comment and move only the worker's own task, never to Done, with files from its workspace copied in", async () => {
     const agent = newAgent({ name: 'Board tool user' });
     const t = addBoardTask(project(), { title: 'Make a chart', assignee: `agent:${agent.id}`, status: 'in_progress' });

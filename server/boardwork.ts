@@ -601,6 +601,9 @@ export async function workerReply(
   if (status === 'blocked' && !reason && !text) return fail('Say why it is blocked (reason).');
   const by = `agent:${run.agentId}`;
   const files = await workerFiles(run, args.files, by);
+  // (copying files takes a while: stopped, given to someone else or moved to Done meanwhile, this reply is not saved)
+  if (workerTask(runId, agentId).task.work?.operationId !== task.work?.operationId)
+    return fail("This task's work changed while the files were copied, so nothing was saved.");
   const retag = args.addTags !== undefined || args.removeTags !== undefined;
   if (!text && !files.length && !status && !retag) return fail('Give text, files, a status or tags.');
   return withProject(run.project, () => {

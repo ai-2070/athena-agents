@@ -191,6 +191,7 @@ Completed reviews:
 - Trigger/evidence: while `board_reply` awaits file copying, stop/reassign the task or move it to Done. Ownership is checked only before the await, then comments/tags/status are unconditionally changed.
 - Impact/expected: an old worker can undo newer decisions, including Done. Revalidate cancellation and operation ownership before committing.
 - Limits: real filesystem await traced; timing untested.
+- Fixed: `board_reply` checks again, after copying its files, that the run still works on the task with the same work, and saves nothing otherwise (the copied files stay in uploads). Test in `tests/server/boardwork.test.ts`.
 
 ### BH-019 — Agent-only workflows discard saved step prompts
 
