@@ -20,11 +20,19 @@ const weightOf = (cp: number): number => (LIGHT.some(([a, b]) => cp >= a && cp <
 
 // A grapheme that is an emoji: shown as an emoji by default, made one by U+FE0F, a flag, a keycap, or joined
 // or skin-toned. (A bare © or ™ is text, and weighs 1.)
-const EMOJI = /\p{Emoji_Presentation}|\p{Extended_Pictographic}️|\p{Regional_Indicator}|⃣|‍|\p{Emoji_Modifier}/u;
+// (a joiner makes an emoji only between emoji: in a script like Devanagari it is part of ordinary text)
+const EMOJI =
+  /\p{Emoji_Presentation}|\p{Extended_Pictographic}️|\p{Regional_Indicator}|⃣|\p{Extended_Pictographic}‍|\p{Emoji_Modifier}/u;
 
 // Links X shortens: with http(s)://, or a bare domain with a common ending (example.com/page). Not emails.
-const TLDS =
-  'com|org|net|io|ai|dev|co|app|me|gg|tv|xyz|info|edu|gov|uk|de|fr|jp|ca|au|us|ly|so|sh|to|be|nl|es|it|ch|se|no|fi|in|br|ru|cn|eu|news|blog|site|tech|online|store';
+// (the country endings X counts bare, and the generic ones, old and new, people write without https://)
+const TLDS = [
+  'com|org|net|io|ai|dev|co|app|me|gg|tv|xyz|info|edu|gov|uk|de|fr|jp|ca|au|us|ly|so|sh|to|be|nl|es|it|ch|se|no|fi|in|br|ru|cn|eu',
+  'news|blog|site|tech|online|store|biz|name|pro|mobi|museum|aero|coop|jobs|travel|int|mil|asia|cat|tel|post',
+  'shop|art|club|live|life|space|website|page|cloud|design|world|today|studio|agency|digital|media|network|systems',
+  'solutions|services|email|link|click|top|vip|work|wiki|one|global|group|ltd|inc|llc|company|center|academy|social',
+  'video|games|fun|photo|photos|music|health|finance|money|bank|law|legal|xyz|ink|wtf|lol|chat|bot|codes|software',
+].join('|');
 const URL = new RegExp(
   `https?://[^\\s<>"]+|(?<![@\\w./-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:${TLDS})(?![a-z0-9-])(?:[/?#][^\\s<>"]*)?`,
   'giu',

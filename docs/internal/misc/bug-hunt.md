@@ -48,6 +48,7 @@ Completed reviews:
 - Trigger/evidence: use a bare valid domain such as `example.museum` near the post limit. Its ending is absent from `TLDS`, so it counts as letters rather than 23 characters; explicitly prefixed URLs take a different branch.
 - Impact/expected: counter and draft/publish checks can admit over-limit text or reject text that fits. Detected URLs should receive X's fixed weight.
 - Limits: regex and enforcement paths inspected; no X request. Existing URL tests cover listed endings only (`tests/server/xtext.test.ts:39-45`). Reference: [X counting rules](https://docs.x.com/fundamentals/counting-characters).
+- Fixed: bare links are recognised with many more endings (older and newer generic ones such as .museum, .shop, .app). Still a list, not every ending X knows; country endings stay the listed ones. Test in `tests/server/xtext.test.ts`.
 
 ### BH-002 — Non-emoji joiners make ordinary script text count as emoji
 
@@ -56,6 +57,7 @@ Completed reviews:
 - Trigger/evidence: ordinary script graphemes containing U+200D, such as an Indic conjunct `क्‍ष`, match `EMOJI` solely because of the joiner. The entire segment costs 2 instead of its ordinary code-point weights.
 - Impact/expected: repeated text can pass the shared limit while exceeding X's weighting. Emoji treatment should require an emoji sequence, not a bare joiner.
 - Limits: segmentation may differ between runtimes. Existing tests cover emoji joiners, not ordinary-script joiners (`tests/server/xtext.test.ts:22-32`); no runtime reproduction.
+- Fixed: a joiner makes a grapheme an emoji only right after an emoji; ordinary script text with one weighs by its letters. Test in `tests/server/xtext.test.ts`.
 
 ### BH-003 — Failed upload cleanup can delete an outside file
 
