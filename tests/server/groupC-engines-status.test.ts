@@ -64,6 +64,26 @@ describe('codex args', () => {
     expect(c).toContain('shell_environment_policy.exclude=["ATHENA_MCP_SECRET_GH_0","SERVICE_KEY"]');
   });
 
+  it("keeps the backslashes in a local server's arguments, and writes its command as a path", () => {
+    saveServer('scripted', {
+      type: 'stdio',
+      command: 'C:\\Tools\\run.exe',
+      args: ['-e', 'print("a\\tb")', '--match', '\\d+'],
+    });
+    const c = overrides(
+      codexArgs(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['scripted'] }), { version: '0.166.0' }),
+    );
+    expect(c).toContain('mcp_servers.scripted.command="C:/Tools/run.exe"');
+    const listed = c.find((x) => x.startsWith('mcp_servers.scripted.args='))!;
+    // (TOML reads these back as the arguments as they were)
+    expect(JSON.parse(listed.slice('mcp_servers.scripted.args='.length))).toEqual([
+      '-e',
+      'print("a\\tb")',
+      '--match',
+      '\\d+',
+    ]);
+  });
+
   it('gives servers whose names fold together their own key variables', () => {
     saveServer('work-mail', { type: 'http', url: 'https://a.example/mcp', headers: { Authorization: 'Bearer a' } });
     saveServer('work_mail', { type: 'http', url: 'https://b.example/mcp', headers: { Authorization: 'Bearer b' } });

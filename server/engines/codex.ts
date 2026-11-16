@@ -169,7 +169,10 @@ export async function listModels(): Promise<CodexModel[]> {
 export const clearModelsCache = (): void => void (modelsCache = { at: 0, list: [] });
 
 // TOML values for -c overrides (Codex parses the value part as TOML).
-const tstr = (s: unknown): string => JSON.stringify(String(s).replace(/\\/g, '/'));
+// A TOML string for -c: JSON's escapes are TOML's, so it goes as it is (a script or a pattern keeps its backslashes).
+const tstr = (s: unknown): string => JSON.stringify(String(s));
+// A path: forward slashes work everywhere and read easier on the command line.
+const tpath = (s: unknown): string => tstr(String(s).replace(/\\/g, '/'));
 const ttable = (o: Record<string, unknown>): string =>
   `{${Object.entries(o)
     .map(([k, v]) => `${/^[A-Za-z0-9_-]+$/.test(k) ? k : JSON.stringify(k)}=${JSON.stringify(String(v))}`)
@@ -208,7 +211,7 @@ export function codexLaunch(
   if (promptFile)
     args.push(
       '-c',
-      `developer_instructions=${tstr(`Your agent instructions are in ${promptFile}. Read that file before anything else and follow it for this whole session.`)}`,
+      `developer_instructions=${tstr(`Your agent instructions are in ${String(promptFile).replace(/\\/g, '/')}. Read that file before anything else and follow it for this whole session.`)}`,
     );
   // The dashboard's own tools. Its token stays off the command line, where any program on this computer could
   // read it: the bridge reads it from the data folder (made here if it isn't there yet).
@@ -220,8 +223,8 @@ export function codexLaunch(
     DASH_PROJECT: activeProject().id,
     ...(runId ? { DASH_RUN: runId } : {}),
   };
-  args.push('-c', `mcp_servers.dashboard.command=${tstr(process.execPath)}`);
-  args.push('-c', `mcp_servers.dashboard.args=[${tstr(BRIDGE_SCRIPT)}]`);
+  args.push('-c', `mcp_servers.dashboard.command=${tpath(process.execPath)}`);
+  args.push('-c', `mcp_servers.dashboard.args=[${tpath(BRIDGE_SCRIPT)}]`);
   args.push('-c', `mcp_servers.dashboard.env=${ttable(bridge)}`);
   args.push('-c', 'mcp_servers.dashboard.tool_timeout_sec=3600');
   // The agent's MCP servers. Their keys (env, headers) go in Codex's own environment when it can pass them on
@@ -234,7 +237,7 @@ export function codexLaunch(
     const cfg = servers[name];
     if (!cfg || cfg.enabled === false || !/^[\w-]+$/.test(name)) continue;
     if (cfg.type === 'stdio') {
-      args.push('-c', `mcp_servers.${name}.command=${tstr(cfg.command)}`);
+      args.push('-c', `mcp_servers.${name}.command=${tpath(cfg.command)}`);
       args.push('-c', `mcp_servers.${name}.args=[${(cfg.args || []).map(tstr).join(',')}]`);
       const vars = Object.entries(cfg.env || {});
       // (a variable is passed on by its own name: two servers that want different values for one name keep theirs on the command line)

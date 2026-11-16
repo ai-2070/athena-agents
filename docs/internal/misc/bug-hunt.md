@@ -354,6 +354,7 @@ Completed reviews:
 - Trigger/evidence: stdio arguments contain scripts, escapes or regex backslashes. `tstr()` replaces all backslashes with `/`, including non-path arguments.
 - Impact/expected: commands fail or change behavior in runs/terminals. Encode general strings without path normalization.
 - Limits: transformation inspected; downstream effect depends on the command.
+- Fixed: Codex settings encode strings with their backslashes (JSON escapes are TOML's); only paths (commands, the bridge script, the brief file) are written with forward slashes. Test in `tests/server/groupC-engines-status.test.ts`.
 
 ### BH-038 — Codex MCP secret variable names collide
 
