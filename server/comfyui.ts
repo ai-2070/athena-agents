@@ -685,21 +685,32 @@ export async function runWorkflow({
     setInput(api, t.key, value);
     uploaded.push({ file: t.image.file, ...(t.image.mask ? { mask: t.image.mask } : {}), value, input: t.key });
   }
-  if (randomizeSeed) {
-    for (const [id, n] of Object.entries(api)) {
-      for (const k of ['seed', 'noise_seed'])
-        if (typeof n.inputs[k] === 'number' && !(`${id}.${k}` in inputs))
-          n.inputs[k] = Math.floor(Math.random() * 2 ** 48);
-    }
-  }
-  // the seeds as sent, so a picture worth keeping can be made again
-  const seeds: ComfySeed[] = [];
-  for (const [id, n] of Object.entries(api)) {
+  // Where the seeds are: a seed input with a number, or the number in the node a seed input is linked to (a
+  // primitive or seed node feeding the sampler)
+  const seedAt: [string, string][] = [];
+  const addSeed = (id: string, k: string) => {
+    if (!seedAt.some(([i, key]) => i === id && key === k)) seedAt.push([id, k]);
+  };
+  for (const [id, n] of Object.entries(api))
     for (const k of ['seed', 'noise_seed']) {
-      const value = n.inputs[k];
-      if (typeof value === 'number') seeds.push({ node: id, title: n._meta?.title || n.class_type, input: k, value });
+      const v = n.inputs[k];
+      if (typeof v === 'number') addSeed(id, k);
+      else if (Array.isArray(v) && typeof v[0] === 'string' && api[v[0]]) {
+        const src = api[v[0]]!;
+        const key = ['seed', 'noise_seed', 'value', 'int'].find((x) => typeof src.inputs[x] === 'number');
+        if (key) addSeed(v[0], key);
+      }
     }
-  }
+  if (randomizeSeed)
+    for (const [id, k] of seedAt)
+      if (!(`${id}.${k}` in inputs)) api[id]!.inputs[k] = Math.floor(Math.random() * 2 ** 48);
+  // the seeds as sent, so a picture worth keeping can be made again
+  const seeds: ComfySeed[] = seedAt.map(([id, k]) => ({
+    node: id,
+    title: api[id]!._meta?.title || api[id]!.class_type,
+    input: k,
+    value: api[id]!.inputs[k] as number,
+  }));
   for (const n of Object.values(api)) delete n._meta;
   halt();
   const clientId = crypto.randomUUID();
@@ -952,16 +963,22 @@ export function maskPng(
  *  (an interrupt stops whatever runs, which may be someone else's job). */
 export async function cancelPrompt(url: string, promptId: string): Promise<void> {
   const json = { 'content-type': 'application/json' };
-  await fetch(`${url}/queue`, { method: 'POST', headers: json, body: JSON.stringify({ delete: [promptId] }) }).catch(
-    () => {},
-  );
+  // (each request has a time limit: a ComfyUI that hangs mustn't keep Stop waiting)
+  await fetch(`${url}/queue`, {
+    method: 'POST',
+    headers: json,
+    body: JSON.stringify({ delete: [promptId] }),
+    signal: AbortSignal.timeout(10000),
+  }).catch(() => {});
   const q = await fetchJSON<{ queue_running?: unknown[][] }>(`${url}/queue`, { timeout: 10000 }).catch(() => null);
   if (!q?.queue_running?.some((job) => Array.isArray(job) && job[1] === promptId)) return;
-  // (newer ComfyUI interrupts only the prompt named; older ones the running one, which is this one)
+  // (newer ComfyUI interrupts only the prompt named; an older one interrupts whatever runs when this arrives, which
+  // is this one unless it ended in the moment between)
   await fetch(`${url}/interrupt`, {
     method: 'POST',
     headers: json,
     body: JSON.stringify({ prompt_id: promptId }),
+    signal: AbortSignal.timeout(10000),
   }).catch(() => {});
 }
 

@@ -1061,6 +1061,7 @@ Completed reviews:
 - Trigger/evidence: unrelated HTTP server answers on port 8000. ping accepts statuses below 500, including 404 for /system_stats, ahead of relocated Desktop ports.
 - Impact/expected: status says ComfyUI runs, start refuses to launch it and jobs target another service. Validate successful ComfyUI-specific response structure.
 - Limits: no HTTP/port reproduction.
+- Fixed: ComfyUI is found only where `/system_stats` answers with ComfyUI's own fields (`system` or `devices`), not any status under 500. Test in `tests/server/comfyui-seeds.test.ts`.
 
 ### BH-121 — Non-image ComfyUI results lose download links before reaching users
 
@@ -1077,6 +1078,7 @@ Completed reviews:
 - Trigger/evidence: API caller supplies empty positive/negative text to clear saved content. Schema and runner distinguish empty from omitted, but API adapter converts empty strings to undefined.
 - Impact/expected: saved prompt runs unchanged instead of being cleared. Forward optional strings without truthiness conversion.
 - Limits: current Programs UI itself omits empty positive text; direct API consumers affected. No request executed.
+- Fixed: the API passes an empty prompt or negative on as empty (it clears the saved text) instead of dropping it. No test of its own.
 
 ### BH-123 — ComfyUI cancellation POSTs are unbounded
 
@@ -1085,6 +1087,7 @@ Completed reviews:
 - Trigger/evidence: POST /queue stalls before headers. Cancellation awaits it before checking running job; POST /interrupt also has no bounded signal. Only intervening GET has a ten-second timeout.
 - Impact/expected: GPU job and stopped tool can remain pending instead of reaching Stopped. Bound cancellation requests.
 - Limits: network-dependent; no stalled connection and no assumption about runtime default fetch timeout.
+- Fixed: cancelling a ComfyUI job gives each POST a 10 s limit. No test of its own.
 
 ### BH-124 — Combined conditioning traversal omits later branches
 
@@ -1101,6 +1104,7 @@ Completed reviews:
 - Trigger/evidence: sampler seed is a node-output link. Randomization and seed reporting accept numeric literals only, so a linked constant stays fixed and absent from reported seeds.
 - Impact/expected: repeated runs can contradict “Seeds are randomized unless set” and cannot report reproducibility state.
 - Limits: computed/shared producers cannot safely be treated as literals; intended handling needs confirmation. No workflow run.
+- Fixed: a sampler seed linked to another node (a primitive) is randomized and reported there. Test in `tests/server/comfyui-seeds.test.ts`.
 
 ### BH-126 — An unavailable explicit ComfyUI address silently falls back elsewhere
 
@@ -1109,6 +1113,7 @@ Completed reviews:
 - Trigger/evidence: configured address is unavailable but another local candidate answers. Explicit address is merely first in discovery, followed by automatic fallbacks.
 - Impact/expected: jobs can use another instance's models/inputs instead of failing explicitly. Interface describes probing as auto and comments describe fallback when no address is set.
 - Limits: deliberate fallback policy needs confirmation; no service contacted.
+- Fixed: an address set in Settings is the only one tried; the automatic ports are tried only when none is set. Test in `tests/server/comfyui-seeds.test.ts`.
 
 ### BH-127 — Legacy ComfyUI interrupt can stop a different job
 

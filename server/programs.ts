@@ -12,12 +12,26 @@ import {
   which,
   run,
   ping,
+  fetchJSON,
   launchDetached,
   openWithShell,
   readJSON,
 } from './util.ts';
 import { getSettings, emit } from './store.ts';
 import type { Program, StartMenuApp } from '../shared/types.ts';
+
+/** Whether a ComfyUI answers there: its /system_stats, with what ComfyUI puts in it (any server that answers 404 at
+ *  that port is not one). */
+async function isComfy(url: string): Promise<boolean> {
+  const stats = await fetchJSON<{ system?: unknown; devices?: unknown }>(`${url}/system_stats`, {
+    timeout: 1200,
+  }).catch(() => null);
+  return (
+    !!stats &&
+    typeof stats === 'object' &&
+    ((typeof stats.system === 'object' && !!stats.system) || Array.isArray(stats.devices))
+  );
+}
 
 export type { Program, StartMenuApp } from '../shared/types.ts';
 
@@ -352,18 +366,17 @@ const CATALOG: CatalogEntry[] = [
     },
     service: async () => {
       const s = getSettings();
-      // the address set in Settings, ComfyUI's and the Legacy Desktop's ports, then any port Comfy Desktop moved one to
-      const urls = [
-        s.comfyui.url,
-        'http://127.0.0.1:8188',
-        'http://127.0.0.1:8000',
-        ...comfyDesktopPorts().map((p) => `http://127.0.0.1:${p}`),
-      ]
-        .filter(Boolean)
-        .map((u) => u.replace(/\/$/, ''));
-      for (const url of new Set(urls)) {
-        if (await ping(`${url}/system_stats`, 1200)) return url;
-      }
+      // The address set in Settings, and only that one (it is the one you mean: another ComfyUI that answers has
+      // other models and files). Else ComfyUI's and the Legacy Desktop's ports, then any Comfy Desktop moved one to.
+      const set = String(s.comfyui.url || '').replace(/\/$/, '');
+      const urls = set
+        ? [set]
+        : [
+            'http://127.0.0.1:8188',
+            'http://127.0.0.1:8000',
+            ...comfyDesktopPorts().map((p) => `http://127.0.0.1:${p}`),
+          ];
+      for (const url of new Set(urls)) if (await isComfy(url)) return url;
       return null;
     },
     actions: ['launch', 'open-ui'],
