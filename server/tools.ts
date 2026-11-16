@@ -234,22 +234,25 @@ function allowedRoots(agent: ToolAgent, write = false): string[] {
 
 // read_document: what read_file may read, for an agent that reads files (the Files tools, or an engine's own); for
 // one that doesn't, only what it was handed: its knowledge, and the files attached to messages in its own chats
-// (not everything attached anywhere in the project).
-function documentRoots(agent: ToolAgent): string[] {
+// (not everything attached anywhere in the project). A private conversation (a gateway's, a board task's) is handed
+// only its own attachments, and ordinary chats none of theirs.
+function documentRoots(agent: ToolAgent, conversationId: string | null): string[] {
   // (a stand-in, like a workflow, may carry no engine: its saved agent's counts)
   if (hasOwnFileTools(agent.engine ?? agentStore.get(agent.id)?.engine) || (agent.toolGroups || []).includes('files'))
     return allowedRoots(agent);
-  return [...kb.knowledgeRoots(agent), ...handedFiles(agent)];
+  return [...kb.knowledgeRoots(agent), ...handedFiles(agent, conversationId)];
 }
 
-// The files and folders attached to messages in an agent's chats in this project, while they are still in uploads/.
-function handedFiles(agent: ToolAgent): string[] {
+// The files and folders attached to messages in an agent's chats of one conversation in this project, while they
+// are still in uploads/.
+function handedFiles(agent: ToolAgent, conversationId: string | null): string[] {
   const uploads = safeUploadsRoot();
   if (!uploads) return [];
   let all: string[];
   try {
     all = chats
       .all(agent.id)
+      .filter((chat) => (chat.conversationId || null) === conversationId)
       .flatMap((chat) =>
         chat.items.flatMap((item) => ((item.type === 'user' || item.type === 'steer') && item.attachments) || []),
       );
@@ -2083,7 +2086,8 @@ const TOOLS: ToolDef[] = [
     parameters: obj({ path: str('File path'), offset: { type: 'number', description: 'First line' } }, ['path']),
     run: async ({ path: p, offset }: { path: string; offset?: number }, ctx) => {
       const abs = path.resolve(workspaceOf(ctx.agent), String(p || '.'));
-      const real = insideRoots(abs, documentRoots(ctx.agent));
+      const run = ctx.runId ? (await import('./engines/index.ts')).runInfo(ctx.runId) : null;
+      const real = insideRoots(abs, documentRoots(ctx.agent, run?.conversationId || null));
       if (!real) throw new Error(`${abs} is outside the folders this agent may use.`);
       if (fs.statSync(real).isDirectory()) throw new Error(`${abs} is a folder, not a document.`);
       const text = await readDocumentPart(real, abs, { offset });

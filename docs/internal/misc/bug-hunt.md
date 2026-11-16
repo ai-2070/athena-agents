@@ -860,6 +860,7 @@ Completed reviews:
 - Trigger/evidence: one Eve agent without Files tools serves multiple private gateway conversations and requests a known document path attached elsewhere. `handedFiles()` collects all of that agent's chat attachments without filtering `conversationId`.
 - Impact/expected: `read_document` discloses another private conversation's attachment although history tools reject equivalent access. Limit handed files to the requesting conversation.
 - Limits: requires knowing the attachment path; path discovery and unauthenticated access are not established. Existing tests distinguish agents, not conversations; no read executed.
+- Fixed: `read_document` hands an agent without Files tools only the attachments of the run's own conversation (ordinary chats see none of the private ones). Test in `tests/server/document-tools.test.ts`.
 
 ### BH-103 — Office stored entries evade actual unpacked allocation limits
 

@@ -3,12 +3,23 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { callTool, toolDefs } from '../../server/tools.ts';
 import { newBatch } from '../../server/uploads.ts';
 import { chats } from '../../server/store.ts';
 import type { ToolAgent } from '../../server/tools.ts';
 import { docx, pdf, pptx } from './fixtures/documents.ts';
+import type { RunInfo } from '../../server/engines/index.ts';
+
+// runs a test pretends are going on: their private conversation decides which attachments they were handed
+const fakeRuns = new Map<string, Partial<RunInfo>>();
+vi.mock('../../server/engines/index.ts', async (original) => {
+  const real = await original<typeof import('../../server/engines/index.ts')>();
+  return {
+    ...real,
+    runInfo: (id: string | null | undefined) => (id && fakeRuns.get(id)) || real.runInfo(id),
+  };
+});
 
 function setup(agent: Partial<ToolAgent> = {}) {
   const workspace = fs.mkdtempSync(path.join(os.homedir(), 'doc-tools-'));
@@ -89,6 +100,24 @@ describe('read_document', () => {
     const own = await callTool(agent, 'read_document', { path: path.join(workspace, 'contract.pdf') });
     expect(own.isError).toBe(true);
     expect(own.text).toContain('outside the folders');
+    // a private conversation (a gateway's) is handed only its own attachments, and ordinary chats none of them
+    const secret = path.join(dir, 'private.docx');
+    fs.writeFileSync(secret, docx('<w:p><w:r><w:t>Private note</w:t></w:r></w:p>'));
+    const privateChat = chats.create(agent.id, 'Alice', null, 'gw-telegram-alice');
+    privateChat.items.push({ type: 'user', text: 'Mine', attachments: [secret] });
+    chats.save(privateChat);
+    fakeRuns.set('run-bob', { id: 'run-bob', agentId: agent.id, conversationId: 'gw-telegram-bob' });
+    fakeRuns.set('run-alice', { id: 'run-alice', agentId: agent.id, conversationId: 'gw-telegram-alice' });
+    expect((await callTool(agent, 'read_document', { path: secret }, { runId: 'run-bob' })).text).toContain(
+      'outside the folders',
+    );
+    expect((await callTool(agent, 'read_document', { path: secret })).text).toContain('outside the folders');
+    expect((await callTool(agent, 'read_document', { path: deck }, { runId: 'run-alice' })).text).toContain(
+      'outside the folders',
+    );
+    expect((await callTool(agent, 'read_document', { path: secret }, { runId: 'run-alice' })).text).toContain(
+      'Private note',
+    );
     // with the Files tools, its workspace too
     expect(
       (await callTool({ ...agent, toolGroups: ['files'] }, 'read_document', { path: 'contract.pdf' })).text,
