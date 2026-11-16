@@ -4,7 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { chats, saveSettings, workflows } from '../../server/store.ts';
 import { decide, listApprovals } from '../../server/approvals.ts';
 import { brainGrants, forgetBrainGrant } from '../../server/mcp.ts';
-import { ask, clearHistory, history, stopAsks } from '../../server/overseer.ts';
+import {
+  ask,
+  brainThreads,
+  clearHistory,
+  history,
+  newBrainThread,
+  removeBrainThread,
+  stopAsks,
+} from '../../server/overseer.ts';
 import { callTool, toolsForAgent } from '../../server/tools.ts';
 import { claudeArgs } from '../../server/engines/claude.ts';
 import { codexArgs } from '../../server/engines/codex.ts';
@@ -87,10 +95,17 @@ describe("the Brain's turn as an agent run", () => {
     await ask('thanks');
     expect(seen[1].chatId).toBe(seen[0].chatId);
     expect(seen[1].text).not.toContain('EARLIER IN THIS CHAT');
-    // a new conversation starts a new session
+    // a new conversation starts a new session, and the old one goes with the conversation
     clearHistory();
+    expect(chats.get(BRAIN_ID, seen[0].chatId)).toBeNull();
     await ask('hi again');
     expect(seen[2].chatId).not.toBe(seen[0].chatId);
+    // a conversation filed away keeps its session; deleting it deletes that too
+    newBrainThread();
+    expect(chats.get(BRAIN_ID, seen[2].chatId)).not.toBeNull();
+    const filed = brainThreads().find((t) => t.title.includes('hi again'))!;
+    removeBrainThread(filed.id);
+    expect(chats.get(BRAIN_ID, seen[2].chatId)).toBeNull();
   });
 
   it('stop ends the run; what it did before stays done and is said', async () => {

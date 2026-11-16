@@ -60,7 +60,7 @@ import {
 } from './projects.ts';
 import { viewable, viewRoots } from './files.ts';
 import { listTeams, teamState, getThread, getTeam, teamSteps, stopTeam, dropQueuedTurns } from './teams.ts';
-import { liveActivity, runInfo, defaultModel, activeRuns, stopRun, RunStopped } from './engines/index.ts';
+import { liveActivity, runInfo, defaultModel, activeRuns, stopRun, RunStopped, chatRunId } from './engines/index.ts';
 import { runningWorkflowRuns, stopWorkflowRun } from './workflows.ts';
 import { listApprovals } from './approvals.ts';
 import { MCP_LOOKUPS, brainToolsInstructions, runMcpLookups } from './brainmcp.ts';
@@ -827,6 +827,12 @@ function brainEngineChat(pid: string, conversationId?: string): { chat: Chat; fr
   return { chat, fresh: true };
 }
 
+/** A conversation's engine chat goes with it (not while a turn still runs in it: that one ends first). */
+function dropEngineChat(pid: string, chatId: unknown): void {
+  if (typeof chatId !== 'string' || pid !== activeProject().id || chatRunId(BRAIN_ID, chatId, pid)) return;
+  chats.remove(BRAIN_ID, chatId);
+}
+
 // The tool that takes each action, before it in the reference (create_team → team {"do":"create_team",…}).
 const labelTools = (text: string): string =>
   text.replace(/^\{"do":"(\w+)"/gm, (m, kind: string) => `${toolOf(kind) ?? kind} ${m}`);
@@ -842,7 +848,9 @@ export function clearHistory(pid = activeProject().id, conversationId?: string) 
   generations.set(key, generation(key) + 1);
   // (the answers on their way belong to the old conversation: their tool calls, and ones waiting in Needs you, stop)
   cancelToolCalls(key);
+  const was = readJSON<BrainThreadFile>(histFile(pid, conversationId));
   remember([], pid, conversationId);
+  dropEngineChat(pid, was?.chatId);
 }
 // A message from the Brain nobody asked for (what it learned from finished work), on top of the chat.
 export function addBrainNote(pid: string, text: string, done: BrainDone[] = [], conversationId?: string) {
@@ -931,7 +939,10 @@ const brainPlace = (pid: string): ThreadPlace<BrainChatMessage, BrainThread> => 
   show: (thread) => showThread(pid, thread),
   // (as /clear did: the Brain starts fresh)
   clear: () => clearHistory(pid),
-  forget: () => emit('brain-chat', { projectId: pid }),
+  forget: (thread) => {
+    dropEngineChat(pid, (thread as BrainThreadFile).chatId);
+    emit('brain-chat', { projectId: pid });
+  },
 });
 /** The Brain chat's conversations: the open one first, then the past ones newest first. */
 export const brainThreads = (pid = activeProject().id): ThreadSummary[] => listThreads(brainPlace(pid));

@@ -155,7 +155,7 @@ Choose how much each agent may do on its own:
 | **Full**           | Never. Only for agents and access you trust.                   |
 
 - **The Brain approves** routine, reversible requests for you and sends anything risky or unclear to **Needs you**. That's a model's judgment, not a guarantee.
-- **The Brain's tools** start on **Full**: the Brain may run any tool of the MCP servers that are on, including ones that send or delete. Choose **Ask first** to approve those yourself.
+- **What the Brain may do** starts on **Full**: the Brain hires, builds teams and hands out work by itself, and may run any tool of the MCP servers that are on, including ones that send or delete. Choose **Ask first** to approve anything that changes something yourself, or **Read only** to have it only answer and look things up.
 - **No login means no lock.** The app only listens on your own computer (`127.0.0.1`), but anyone who can reach it can use it. Never put it behind a public tunnel or proxy.
 - **Keys stay on the server.** API keys and account tokens are never sent to the browser or put into project saves and backups.
 - **It's not a sandbox.** File tools stay inside the folders you allow, but shell commands and outside tools run with your account's access.

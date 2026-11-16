@@ -1,6 +1,7 @@
 # The Brain on agent tools
 
-16 November 2026. Status: plan, nothing built yet.
+16 November 2026. Status: built on `LZL0/brain-agent-tools`, in three commits (the Brain's tools; its turn as an
+agent run; the access level), with docs. `bun run check` passes. See "As built" for where it differs from the plan.
 
 The Brain has its own way to use tools. It writes JSON actions at the end of its answer, the server runs the
 look-ups among them and asks it again (up to 4 rounds), and the other actions run once the answer is final.
@@ -21,6 +22,29 @@ tools. It starts at Full.
 - **The SNAPSHOT** becomes a short summary sent with each turn, with tools for the details (see Phase steps).
 - **One access level for all the Brain's tools**, default Full: Full, Ask first, Read only (see Access level).
   Hiring, creating teams and delegating run without asking at Full, as they do today.
+
+## As built
+
+- **Old Brain chats are not left behind after all.** The Brain chat keeps its own conversation files; each
+  conversation records the agent chat that holds its engine session (`chatId`), the way a team member keeps a
+  session per team. A conversation without one (from before, or a new session) gets its last messages with the
+  first message, as before. Nothing is converted, nothing is hidden, and gateway and board-task conversations go on.
+- **The action reference stays in the system prompt**, each entry labelled with the tool that takes it
+  (`team {"do":"create_team",…}`). The tools themselves take `do` and the action's fields and apply it with
+  `applyActions()`, so every existing check (and its tests) stays in one place. `'new'` carries across calls.
+- **The Brain's MCP use stays its own** (`mcp_use`: `brainmcp.ts`), not the engines' native MCP: "ask only for
+  calls that change things" works the same on every engine.
+- **The SNAPSHOT summary** is NOW, the project, its folder, agents, teams, work handed out and what waits for the
+  user. `project_overview` has files, tasks, board, routines, skills, mcp, activity, world and library.
+- **Stopping.** Stop and `/clear` end the run; what already ran stays and is named. New chat, or opening another
+  conversation, lets the answer finish where its question went, while its tools refuse further changes (as the
+  old Brain kept the answer and applied nothing). A project switch doesn't stop it.
+- **Limits.** The 12-actions-per-answer cap is the engines' tool-step limit now; GitHub installs stay capped at 3
+  per answer; the shared 48 000-character MCP budget is gone (each result comes back with its own call, still cut
+  to 12 000).
+- **Files.** Claude Code gets only Read, Glob and Grep; Codex the read-only sandbox; Hermes never `--yolo`;
+  opencode only reads. API models get the dashboard's file tools that only read (they couldn't read files before).
+- **Engine chats go with their conversation** when it is deleted, pruned or cleared.
 
 ## Today (checked in the code)
 
