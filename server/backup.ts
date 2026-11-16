@@ -11,7 +11,6 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import {
   HOME,
-  IS_WIN,
   dataPath,
   ensureDir,
   exists,
@@ -19,7 +18,7 @@ import {
   isPlainDir,
   readJSON,
   readPlain,
-  realTarget,
+  sameFolder,
   slugify,
   writeJSON,
 } from './util.ts';
@@ -846,14 +845,6 @@ export function sameFiles(dir: string, files: PackedFile[]): boolean {
       return false;
     }
   });
-}
-
-// Two paths are the same folder: links followed, and case ignored only on Windows
-function sameFolder(a: string, b: string): boolean {
-  const ra = realTarget(a);
-  const rb = realTarget(b);
-  const fold = (x: string) => (IS_WIN ? x.toLowerCase() : x);
-  return !!ra && !!rb && fold(ra) === fold(rb);
 }
 
 function restoreSkills(list: BackupData['skills']): {

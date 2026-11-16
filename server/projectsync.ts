@@ -8,7 +8,18 @@ import path from 'node:path';
 import { bus, listProjects, activeProject, log, takeNewDefaultProject } from './store.ts';
 import { updateProject } from './projects.ts';
 import { savedOpacity } from '../shared/look.ts';
-import { dataPath, ensureDir, exists, isPlainDir, readJSON, readPlain, writeJSON, realTarget, uid } from './util.ts';
+import {
+  dataPath,
+  ensureDir,
+  exists,
+  isPlainDir,
+  readJSON,
+  readPlain,
+  writeJSON,
+  realTarget,
+  sameFolder,
+  uid,
+} from './util.ts';
 import {
   VERSIONS_KEPT,
   keepVersion,
@@ -192,8 +203,11 @@ function copyTree(
 
 // Write the project's copy into its folder now.
 export function saveProject(id: string): SaveStatus | null {
-  const p = listProjects().find((x) => x.id === id);
+  const all = listProjects();
+  const p = all.find((x) => x.id === id);
   if (!p || !exists(p.brainPath)) return null;
+  // (two projects made on one folder before that was refused: the first keeps it, the other never saves over it)
+  if (all.find((x) => sameFolder(x.brainPath, p.brainPath))?.id !== p.id) return null;
   try {
     const out = path.join(p.brainPath, DIR);
     noLinks(out, out);
@@ -373,10 +387,15 @@ export function restoreInto(id: string, folder: string): RestoreResult | null {
   const past = savedPath(folder, PAST_DIR);
   if (past) copyTree(past, projectDir(id, PAST_DIR), CHATS_CAP);
   restoreMemory(folder, id);
+  // a copy of a folder (the one it was saved from is still there) starts its own engine sessions: the two
+  // mustn't carry on in one conversation. A folder moved, or opened again, keeps them.
+  const from = typeof j.project?.brainPath === 'string' ? j.project.brainPath : '';
+  const copied = !!from && exists(from) && !sameFolder(from, folder);
   const chatCount = restoreChats(
     folder,
     id,
     (j.agents || []).filter(safe).map((a) => a.id as string),
+    copied,
   );
   const versionCount = restoreVersions(folder, id, move);
   const skills = restoreSkills(folder, j.project?.name || path.basename(folder));
@@ -595,7 +614,7 @@ function restoreSkills(folder: string, projectName: string): { added: string[]; 
 
 // The saved chats of the restored agents. Each is checked to be a plain file inside the folder and a
 // chat, and is put back under the agent and id it was saved as (whatever the file itself claims).
-function restoreChats(folder: string, id: string, agentIds: string[]): number {
+function restoreChats(folder: string, id: string, agentIds: string[], copied = false): number {
   let n = 0;
   for (const agentId of agentIds) {
     if (!/^[\w-]+$/.test(agentId)) continue;
@@ -608,7 +627,8 @@ function restoreChats(folder: string, id: string, agentIds: string[]): number {
       const c = readJSON<Partial<Chat>>(file, null);
       if (!c || !Array.isArray(c.items)) continue;
       const { _deleted, ...chat } = c;
-      writeJSON(projectDir(id, 'chats', agentId, name), { ...chat, id: chatId, agentId });
+      const session = copied && chat.sessionId ? { sessionId: null, reseed: true } : {};
+      writeJSON(projectDir(id, 'chats', agentId, name), { ...chat, ...session, id: chatId, agentId });
       n++;
     }
   }

@@ -8,6 +8,7 @@ import {
   insideRoots,
   isPlainDir,
   realTarget,
+  sameFolder,
   run,
   slugify,
   uid,
@@ -77,11 +78,25 @@ export async function createProject({
     .trim()
     .replace(/^"|"$/g, '');
   repo = String(repo || '').trim();
+  // A folder is one project's: two would save over each other's copy in it (.dashboard)
+  const owner = (dir: string) => listProjects().find((p) => sameFolder(p.brainPath, dir));
+  const taken = brainPath ? owner(brainPath) : undefined;
+  if (taken)
+    throw new Error(
+      mode === 'existing'
+        ? `That folder is already the project "${taken.name}". Open it from your projects instead.`
+        : `That folder belongs to the project "${taken.name}". Pick another folder.`,
+    );
   if (mode === 'existing') {
     if (!brainPath || !exists(brainPath) || !fs.statSync(brainPath).isDirectory())
       throw new Error(`${brainPath || 'That folder'} doesn't exist.`);
-  } else {
-    brainPath ||= path.join(PROJECTS_ROOT, slugify(name));
+  } else if (!brainPath) {
+    // (a new folder named after the project, numbered when a project of that name already has it)
+    const base = path.join(PROJECTS_ROOT, slugify(name));
+    brainPath = base;
+    for (let i = 2; owner(brainPath); i++) brainPath = `${base}-${i}`;
+  }
+  if (mode !== 'existing') {
     if (mode === 'github') {
       if (!repo) throw new Error('Which GitHub repo? Use owner/name or a URL.');
       if (exists(brainPath) && fs.readdirSync(brainPath).length)
@@ -142,6 +157,8 @@ export function updateProject(id: string, patch: ProjectPatch): Project {
   if (Array.isArray(patch.skills)) p.skills = [...new Set(patch.skills.map(String))].slice(0, 100);
   if (patch.brainPath) {
     if (!exists(patch.brainPath)) throw new Error(`${patch.brainPath} doesn't exist.`);
+    const taken = list.find((x) => x.id !== id && sameFolder(x.brainPath, String(patch.brainPath)));
+    if (taken) throw new Error(`That folder belongs to the project "${taken.name}". Pick another folder.`);
     p.brainPath = path.resolve(patch.brainPath);
   }
   // how strong the Station's background picture and the map's dots are

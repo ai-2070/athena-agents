@@ -143,6 +143,15 @@ export function realTarget(p: string): string | null {
   }
 }
 
+/** Two paths are the same folder: links followed, and case ignored only on Windows. A folder that isn't there is no
+ *  other folder. */
+export function sameFolder(a: string, b: string): boolean {
+  const ra = realTarget(a);
+  const rb = realTarget(b);
+  const fold = (x: string) => (IS_WIN ? x.toLowerCase() : x);
+  return !!ra && !!rb && fold(ra) === fold(rb);
+}
+
 // The real location of p when it lies inside one of roots (links followed on both sides), else null.
 // Case is ignored only on Windows. Elsewhere a folder may have a sibling that differs only in case
 // (Linux), and real paths already come back in the folder's own case where the disk ignores it (macOS).

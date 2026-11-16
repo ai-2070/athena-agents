@@ -29,8 +29,11 @@ describe('auto-save into the project folder', () => {
     updateTask({ taskId: b.id, addBlockedBy: [a.id] }, access);
     updateTask({ taskId: a.id, status: 'in_progress' }, access);
     sync.saveProject(p.id);
-    const copy = await createProject({ name: 'Tasks from folder', mode: 'existing', folder: p.brainPath });
-    sync.restoreInto(copy.id, p.brainPath);
+    // (a copy of the folder: the folder itself is the first project's)
+    const copied = folder('saved-tasks-copy');
+    fs.cpSync(p.brainPath, copied, { recursive: true });
+    const copy = await createProject({ name: 'Tasks from folder', mode: 'existing', folder: copied });
+    sync.restoreInto(copy.id, copied);
     setActiveProject(copy.id);
     expect(getTask(a.id, access)?.status).toBe('pending');
     expect(getTask(a.id, access)?.blocks).toEqual([b.id]);
@@ -98,9 +101,11 @@ describe('auto-save into the project folder', () => {
     expect(
       JSON.parse(fs.readFileSync(path.join(dir, 'project.json'), 'utf8')).routines.map((x: { name: string }) => x.name),
     ).toEqual(['Weekly']);
-    // the folder opened as another project brings the routine back
-    const copy = await createProject({ name: 'Routine copy', mode: 'existing', folder: p.brainPath });
-    expect(sync.restoreInto(copy.id, p.brainPath)).toMatchObject({ agents: 1 });
+    // a copy of the folder opened as another project brings the routine back
+    const copied = folder('routine-backups-copy');
+    fs.cpSync(p.brainPath, copied, { recursive: true });
+    const copy = await createProject({ name: 'Routine copy', mode: 'existing', folder: copied });
+    expect(sync.restoreInto(copy.id, copied)).toMatchObject({ agents: 1 });
     expect(fs.readdirSync(dataPath('projects', copy.id, 'routines'))).toHaveLength(1);
   });
 
@@ -142,6 +147,55 @@ describe('auto-save into the project folder', () => {
     const back = chats.get(a.id, c.id)!;
     expect(back.items.map((i) => (i.type === 'user' ? i.text : i.type))).toEqual(['distinctive-user-message']);
     expect(back).toMatchObject({ id: c.id, agentId: a.id, sessionId: 'session-123' });
+  });
+
+  it("a copy of the folder starts its own engine sessions, so the two don't share a conversation", async () => {
+    const dir = folder('session-original');
+    const p = await createProject({ name: 'Session original', mode: 'new', folder: dir });
+    const a = newAgent({ name: 'Coder', engine: 'codex' });
+    const c = chats.create(a.id, 'Work');
+    c.items.push({ type: 'user', text: 'hello', ts: Date.now() });
+    c.sessionId = 'thread-abc';
+    c.sessionEngine = 'codex';
+    chats.save(c);
+    sync.saveProject(p.id);
+    const copied = folder('session-copy');
+    fs.cpSync(dir, copied, { recursive: true });
+    const copy = await createProject({ name: 'Session copy', mode: 'existing', folder: copied });
+    expect(sync.restoreInto(copy.id, copied)).toMatchObject({ chats: 1 });
+    setActiveProject(copy.id);
+    expect(chats.get(a.id, c.id)).toMatchObject({ sessionId: null, reseed: true });
+    expect(chats.get(a.id, c.id)?.items).toHaveLength(1);
+    // the original keeps its own
+    setActiveProject(p.id);
+    expect(chats.get(a.id, c.id)?.sessionId).toBe('thread-abc');
+  });
+
+  it("a folder is one project's: opening it again or making another project on it is refused", async () => {
+    const p = await createProject({ name: 'Owned folder', mode: 'new', folder: folder('owned-folder') });
+    await expect(createProject({ name: 'Again', mode: 'existing', folder: p.brainPath })).rejects.toThrow(
+      'already the project "Owned folder"',
+    );
+    await expect(createProject({ name: 'Other', mode: 'new', folder: p.brainPath })).rejects.toThrow(
+      'belongs to the project "Owned folder"',
+    );
+    // two projects of one name get folders of their own
+    const one = await createProject({ name: 'Same name', mode: 'new' });
+    const two = await createProject({ name: 'Same name', mode: 'new' });
+    expect(two.brainPath).toBe(`${one.brainPath}-2`);
+    expect(() => updateProject(two.id, { brainPath: one.brainPath })).toThrow('belongs to the project "Same name"');
+  });
+
+  it('of two projects already on one folder, only the first saves into it', async () => {
+    const { listProjects, saveProjects } = await import('../../server/store.ts');
+    const first = await createProject({ name: 'First owner', mode: 'new', folder: folder('shared-owner') });
+    const second = await createProject({ name: 'Second owner', mode: 'new', folder: folder('shared-other') });
+    // (made before that was refused)
+    saveProjects(listProjects().map((x) => (x.id === second.id ? { ...x, brainPath: first.brainPath } : x)));
+    expect(sync.saveProject(second.id)).toBeNull();
+    expect(sync.saveProject(first.id)).not.toBeNull();
+    const saved = JSON.parse(fs.readFileSync(path.join(first.brainPath, '.dashboard', 'project.json'), 'utf8'));
+    expect(saved.project.name).toBe('First owner');
   });
 
   it('drops agent chats that were deleted in the dashboard', async () => {

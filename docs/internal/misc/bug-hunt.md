@@ -105,6 +105,7 @@ Completed reviews:
 - Trigger/evidence: open an already-registered folder again or create projects with the same default folder name. Ordinary creation lacks an ownership guard; both save/prune the same `.dashboard` destination.
 - Impact/expected: last save replaces the other recovery copy of agents, chats, knowledge or world state. Independent projects should not own one snapshot destination.
 - Limits: source trace only. Backup restoration already rejects ownership collisions (`server/backup.ts:904-912`).
+- Fixed: `createProject()` refuses a folder another project already has (`sameFolder()`, now in `util.ts`), numbers default folders of same-named projects (`-2`), `updateProject()` refuses moving onto another project's folder, and `saveProject()` lets only the first of two older duplicates save. Tests in `tests/server/projectsync.test.ts`.
 
 ### BH-009 — Copied folders retain the original engine conversation
 
@@ -113,6 +114,7 @@ Completed reviews:
 - Trigger/evidence: copy a saved Brain folder with a matching Codex `sessionEngine`/`sessionId`, then open it as another project. Restore retains the external ID and Codex resumes it.
 - Impact/expected: separate local chats share external conversation state, potentially mixing project context. Copies should start independent sessions.
 - Limits: no engine call. Reopening the original folder intentionally preserves sessions; backup cloning already clears them and reseeds (`server/backup.ts:995-1001`).
+- Fixed: `restoreInto()` treats a folder as a copy when the folder it was saved from is still there, and its chats start new engine sessions (`sessionId: null`, `reseed`); a moved or reopened folder keeps them. Test in `tests/server/projectsync.test.ts`.
 
 ### BH-010 — Restored teams lose uploaded reference documents
 

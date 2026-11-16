@@ -429,7 +429,7 @@ Workflow checkpoints and approval requests from outside MCP clients always come 
 
 Local dashboard state lives under **`data/`**, which is git-ignored (the [desktop app](#desktop-app-notes) uses its own data folder): projects, agents, teams, chats, knowledge, MEMORY.md files, skills, presets, settings, the Outbox and activity. Keys are in `secrets.json`; account tokens are in `accounts.json`.
 
-The dashboard also auto-saves project state into **`<project folder>/.dashboard`**, including its agents, teams, routines, chats, MEMORY.md files, assigned or routine-mentioned skills and earlier versions. Opening that folder as a project brings the saved state back. Existing library skills are not overwritten: a different copy from the project folder is kept as a version.
+The dashboard also auto-saves project state into **`<project folder>/.dashboard`**, including its agents, teams, routines, chats, MEMORY.md files, assigned or routine-mentioned skills and earlier versions. Opening that folder as a project brings the saved state back. A folder belongs to one project: opening a folder that already is one is refused (open that project instead), and a project made with the same name gets a folder of its own (`name-2`). A copy of a project folder opened as a project starts its own engine conversations from the chats so far, so it never carries on in the original's. Existing library skills are not overwritten: a different copy from the project folder is kept as a version.
 
 These copies exclude stored keys and account tokens, **not private content you put in chats, knowledge files, memories or skills**. Review `.dashboard` before sharing or committing a project folder.
 
