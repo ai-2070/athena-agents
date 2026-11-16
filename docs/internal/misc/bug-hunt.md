@@ -488,6 +488,7 @@ Completed reviews:
 - Trigger/evidence: partial removal or subsequent rename fails, for example under Windows locking. Old installation is removed before new rename; failure skips the skill and cleans staged files without rollback.
 - Impact/expected: failed update leaves a damaged/missing skill, not the original. Preserve live state until replacement succeeds.
 - Limits: History may allow manual recovery; bundled updates already attempt rollback. No fault injected.
+- Fixed: a GitHub update moves the installed skill aside instead of deleting it, and puts it back if the new copy cannot be moved into place. Test in `tests/server/skillinstall.test.ts`.
 
 ### BH-055 — Coalesced skill edits lose old extra-file snapshots
 

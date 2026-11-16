@@ -271,8 +271,21 @@ export async function installFromGitHub(
           const v = keepVersion(skillVersionsDir(slug), was, after, { ignore: ['files'] });
           if (v && was.files?.length) copySkillFiles(dir, versionFilesDir(skillVersionsDir(slug), v.id));
         }
-        fs.rmSync(skillDir(slug), { recursive: true, force: true });
-        fs.renameSync(tmp, skillDir(slug));
+        // The installed one is moved aside, not deleted, until the new one is in its place: a step that fails (a
+        // file Windows holds open) puts it back as it was
+        const live = skillDir(slug);
+        const old = fs.existsSync(live) ? path.join(ensureDir(dataPath('tmp')), `skill-old-${slug}-${Date.now()}`) : '';
+        if (old) fs.renameSync(live, old);
+        try {
+          fs.renameSync(tmp, live);
+        } catch (e) {
+          if (old) {
+            fs.rmSync(live, { recursive: true, force: true });
+            fs.renameSync(old, live);
+          }
+          throw e;
+        }
+        if (old) fs.rmSync(old, { recursive: true, force: true });
         forgetSkill(slug);
         const s = getSkill(slug)!;
         result.installed.push({ slug, name: s.name, updated: Boolean(before), files: files.length });

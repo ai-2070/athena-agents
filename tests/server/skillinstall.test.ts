@@ -162,6 +162,30 @@ describe('installing', () => {
     expect(historyOf('skill', writer.slug).versions[0].changes).toEqual(['instructions']);
   });
 
+  it('an update whose last step fails leaves the installed skill as it was', async () => {
+    const before = skills.findSkill('Writer')!;
+    const dir = skills.skillDir(before.slug);
+    const body = fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8');
+    repos['acme/skills'].main['skills/writer/SKILL.md'] =
+      '---\nname: Writer\ndescription: Use when writing.\n---\n\nA broken update.';
+    const real = fs.renameSync;
+    // (Windows holding a file open, as the new copy goes into place)
+    const rename = vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      if (String(from).includes('install-') && path.resolve(String(to)) === path.resolve(dir))
+        throw Object.assign(new Error('EBUSY: resource busy'), { code: 'EBUSY' });
+      return real(from, to);
+    });
+    try {
+      const r = await installFromGitHub('https://github.com/acme/skills/blob/main/skills/writer/SKILL.md');
+      expect(r.installed).toEqual([]);
+      expect(r.skipped.join()).toContain('EBUSY');
+    } finally {
+      rename.mockRestore();
+    }
+    expect(fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8')).toBe(body);
+    expect(skills.findSkill('Writer')?.body).toBe(before.body);
+  });
+
   it('an update that changes only the extra files keeps the old ones, and restoring brings them back', async () => {
     const files = repos['acme/skills'].main;
     files['skills/writer/examples/one.md'] = 'example one';
