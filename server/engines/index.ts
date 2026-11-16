@@ -1,5 +1,6 @@
 // Runs agents. One run = one user message answered by an agent (with any tool calls in between).
 // Engines stream events; this file turns them into chat history and live updates for the browser.
+import { createHash } from 'node:crypto';
 import {
   agents as agentStore,
   chats,
@@ -641,6 +642,7 @@ function finishMemoryReset(chat: Chat, runId: string): void {
 
 function clearMemory(chat: Chat): void {
   chat.sessionId = null;
+  delete chat.instructions;
   delete chat.reseed;
   delete chat.context;
 }
@@ -649,6 +651,9 @@ const COMPUTER = process.platform === 'win32' ? 'Windows PC' : process.platform 
 /** Added after the instructions of an agent hired from the Agent library (and no other): its role is a starting point. */
 export const LIBRARY_ROLE_LINE =
   "Your role is where you are strongest, not a limit: take on nearby work you can do well with the tools you have, and when the work needs a tool you don't have, ask for it with request_tool.";
+
+/** A short fingerprint of an agent's instructions, to tell when they changed. */
+const promptStamp = (text: string): string => createHash('sha256').update(text).digest('hex').slice(0, 16);
 
 export function buildSystemPrompt(agent: Agent): string {
   // the Brain's instructions are its own, made for each turn (overseer.ts)
@@ -930,6 +935,14 @@ export function startRun(
       // Codex, Hermes and OpenClaw get the instructions only when their session starts: a session that is
       // already going is told when MEMORY.md changed since its last run (by you, or in another chat)
       const memoryAt = hasMemory(agent) ? memoryStamp(agent.id) : 0;
+      // the Brain's instructions are made for each turn (its access, MCP servers, memory, skills): a session that
+      // heard others is given the new ones
+      const toldOnce = agent.engine === 'codex' || agent.engine === 'hermes' || agent.engine === 'openclaw';
+      const instructions = agent.id === BRAIN_ID && toldOnce ? promptStamp(systemPrompt) : '';
+      const instructionsNote =
+        instructions && !chat.reseed && chat.sessionId && chat.instructions && chat.instructions !== instructions
+          ? `<instructions-update>\nYour instructions changed since your last message here. From now on they are:\n${systemPrompt}\n</instructions-update>\n\n`
+          : '';
       const memoryNote =
         !chat.reseed &&
         chat.sessionId &&
@@ -952,7 +965,8 @@ export function startRun(
         const window = await contextInfo.contextWindow(agent, chat);
         const input = chat.reseed
           ? contextInfo.seedPrompt(chat.items, prompt, window, systemPrompt)
-          : memoryNote +
+          : instructionsNote +
+            memoryNote +
             (cut ? STOP_NOTE[cut] : '') +
             (added.length ? `${added.map((m) => m.text).join('\n\n')}\n\n` : '') +
             prompt;
@@ -988,6 +1002,7 @@ export function startRun(
       if (cli && chat.sessionId) delete chat.reseed;
       // (what it wrote to its own memory meanwhile, it knows)
       if (memoryAt) chat.memoryAt = memoryStamp(agent.id);
+      if (instructions) chat.instructions = instructions;
       if (result?.context)
         chat.context = {
           tokens: result.context,

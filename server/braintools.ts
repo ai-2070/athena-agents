@@ -106,8 +106,18 @@ export const brainToolOffered = (name: string, access: BrainAccess = brainAccess
   access !== 'read' ||
   (OPS[name as BrainToolName] as readonly string[] | undefined)?.some((k) => LOOKUPS.has(k)) === true;
 
-const SECTIONS = ['files', 'tasks', 'board', 'routines', 'skills', 'mcp', 'activity', 'world', 'library'] as const;
-export type OverviewSection = (typeof SECTIONS)[number];
+export const OVERVIEW_SECTIONS = [
+  'files',
+  'tasks',
+  'board',
+  'routines',
+  'skills',
+  'mcp',
+  'activity',
+  'world',
+  'library',
+] as const;
+export type OverviewSection = (typeof OVERVIEW_SECTIONS)[number];
 
 const ABOUT: Record<BrainToolName, string> = {
   team: 'Build and change teams, and hire agents: create_team, add_members, remove_members, update_team, hire.',
@@ -137,7 +147,7 @@ function params(name: BrainToolName): JSONSchema {
   if (name === 'project_overview')
     return {
       type: 'object',
-      properties: { section: { type: 'string', enum: [...SECTIONS], description: 'Which part to show' } },
+      properties: { section: { type: 'string', enum: [...OVERVIEW_SECTIONS], description: 'Which part to show' } },
       required: ['section'],
     };
   const ops = OPS[name];

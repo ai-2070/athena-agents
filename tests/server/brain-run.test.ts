@@ -8,6 +8,7 @@ import { createProject } from '../../server/projects.ts';
 import { decide, listApprovals } from '../../server/approvals.ts';
 import { brainGrants, forgetBrainGrant } from '../../server/mcp.ts';
 import {
+  addBrainNote,
   ask,
   brainThreads,
   clearHistory,
@@ -16,6 +17,7 @@ import {
   removeBrainThread,
   stopAsks,
 } from '../../server/overseer.ts';
+import { askAgent } from '../../server/engines/index.ts';
 import { callTool, toolsForAgent } from '../../server/tools.ts';
 import { claudeArgs } from '../../server/engines/claude.ts';
 import { codexArgs } from '../../server/engines/codex.ts';
@@ -46,6 +48,17 @@ vi.mock('../../server/engines/eve.ts', async (orig) => ({
       project: activeProject().id,
     });
     return { text: await script(args) };
+  },
+}));
+
+// the Brain on Codex: what each message its session got said
+const codexHeard: string[] = [];
+vi.mock('../../server/engines/codex.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/engines/codex.ts')>()),
+  run: async (args: EngineRunArgs) => {
+    codexHeard.push(args.chat.sessionId ? args.text : `${args.systemPrompt}\n\n${args.text}`);
+    args.chat.sessionId = 'codex-session';
+    return { text: 'Ok.' };
   },
 }));
 
@@ -248,6 +261,86 @@ describe("the Brain's turn as an agent run", () => {
     const r = await ask('hand it on twice');
     expect(second).toMatchObject({ isError: true, text: expect.stringContaining('At most one delegate') });
     expect(r.delegate?.message).toBe('Do the first thing.');
+  });
+
+  it('notes put in the chat between its turns (finished work) reach its session with the next message', async () => {
+    clearHistory();
+    seen.length = 0;
+    script = async () => 'Handed it on.';
+    await ask('research the market');
+    addBrainNote(activeProject().id, 'Researcher finished: the market is small.');
+    script = async () => 'Will do.';
+    await ask('good, put that on the board');
+    expect(seen[1].chatId).toBe(seen[0].chatId);
+    expect(seen[1].text).toContain('ADDED TO THIS CHAT SINCE YOUR LAST MESSAGE');
+    expect(seen[1].text).toContain('Researcher finished: the market is small.');
+    expect(seen[1].text).not.toContain('research the market');
+    // (once heard, not again)
+    await ask('thanks');
+    expect(seen[2].text).not.toContain('Researcher finished');
+  });
+
+  it('its instructions point to the Agent library through project_overview', async () => {
+    seen.length = 0;
+    script = async () => 'Ok.';
+    await ask('hi');
+    expect(seen[0].system).not.toContain('LIBRARY');
+    expect(seen[0].system).toContain('project_overview library');
+  });
+
+  it('a new conversation while it answers: its engine chat goes when the turn ends', async () => {
+    clearHistory();
+    seen.length = 0;
+    let go = () => {};
+    const held = new Promise<void>((r) => (go = r));
+    script = async () => {
+      await held;
+      return 'Late.';
+    };
+    const answer = ask('take your time');
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    clearHistory();
+    go();
+    await answer;
+    expect(chats.get(BRAIN_ID, seen[0].chatId)).toBeNull();
+  });
+
+  it("deleting a conversation of a project that isn't open deletes its engine chat there", async () => {
+    const home = activeProject();
+    const other = await createProject({
+      name: 'Other brain',
+      mode: 'new',
+      folder: path.join(os.homedir(), 'projects', 'other-brain'),
+    });
+    seen.length = 0;
+    script = async () => 'Hello there.';
+    try {
+      setActiveProject(other.id);
+      clearHistory();
+      await ask('hello from there');
+      newBrainThread();
+      const filed = brainThreads().find((t) => t.title.includes('hello from there'))!;
+      setActiveProject(home.id);
+      expect(withProject(other, () => chats.get(BRAIN_ID, seen[0].chatId))).not.toBeNull();
+      removeBrainThread(filed.id, other.id);
+      expect(withProject(other, () => chats.get(BRAIN_ID, seen[0].chatId))).toBeNull();
+    } finally {
+      setActiveProject(home.id);
+    }
+  });
+
+  it('on Codex, a session that goes on hears its new instructions when they change', async () => {
+    codexHeard.length = 0;
+    const brain = (system: string) => ({ ...brainAgent(system, '/tmp/brain'), engine: 'codex' as const });
+    const chat = chats.create(BRAIN_ID, 'The Brain', null);
+    await askAgent(brain('Rules one.'), 'first', { chatId: chat.id, depth: 0 });
+    await askAgent(brain('Rules one.'), 'second', { chatId: chat.id, depth: 0 });
+    await askAgent(brain('Rules two: read only.'), 'third', { chatId: chat.id, depth: 0 });
+    expect(codexHeard[0]).toContain('Rules one.');
+    expect(codexHeard[1]).toBe('second');
+    expect(codexHeard[2]).toMatch(/^<instructions-update>[\s\S]*Rules two: read only\.[\s\S]*<\/instructions-update>/);
+    expect(codexHeard[2]).toContain('third');
+    chats.remove(BRAIN_ID, chat.id);
   });
 
   it('read only: the run is offered no tools that change things', async () => {

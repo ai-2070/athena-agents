@@ -1458,6 +1458,9 @@ export interface Chat {
   rich?: boolean;
   /** When the agent's MEMORY.md had last changed as of its last run here (see engines/index.ts). */
   memoryAt?: number;
+  /** A fingerprint of the instructions its session last got (the Brain on Codex, Hermes or OpenClaw, which hear them
+   *  only when a session starts: changed ones are sent with the next message). */
+  instructions?: string;
   createdAt: number;
   updatedAt: number;
   _deleted?: boolean;
@@ -1681,8 +1684,6 @@ export interface ActivityEntry {
 }
 
 // ---------- settings ----------
-/** The Brain's own use of MCP tools: full (every tool, no asking), ask (tools that only read run, the rest wait
- *  for you in Needs you) or off. */
 /** A tool you let the Brain use without asking (Always allow in Needs you). */
 export interface BrainToolGrant {
   server: string;
@@ -2652,6 +2653,8 @@ export interface BrainChatMessage {
   delegate?: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'>;
   /** The files it read while it answered (results cut short). */
   steps?: BrainStep[];
+  /** A note nobody asked for (what the Brain learned from finished work): its session hears it with the next message. */
+  note?: boolean;
 }
 
 /** A file or folder at the top of the Brain folder. */
