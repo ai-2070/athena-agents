@@ -2072,10 +2072,12 @@ const TOOLS: ToolDef[] = [
       const list = Array.isArray(paths) && paths.length ? paths.slice(0, 10).map(String) : p ? [String(p)] : [];
       if (!list.length) throw new Error('Give path (or paths).');
       const read = async (file: string, chars?: number) => {
+        // (Stop ends a PDF's reading, and the files after it aren't read)
+        ctx.signal?.throwIfAborted();
         const { abs, real, ok } = resolveInside(ctx.agent, file);
         if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
         return (
-          (await readDocumentPart(real, abs, { offset, limit, chars })) ??
+          (await readDocumentPart(real, abs, { offset, limit, chars, signal: ctx.signal })) ??
           files.readText(real, abs, { offset, limit, chars })
         );
       };
@@ -2109,7 +2111,7 @@ const TOOLS: ToolDef[] = [
       const real = insideRoots(abs, documentRoots(ctx.agent, run?.conversationId || null));
       if (!real) throw new Error(`${abs} is outside the folders this agent may use.`);
       if (fs.statSync(real).isDirectory()) throw new Error(`${abs} is a folder, not a document.`);
-      const text = await readDocumentPart(real, abs, { offset });
+      const text = await readDocumentPart(real, abs, { offset, signal: ctx.signal });
       if (text === null)
         throw new Error(
           `${abs} is not a PDF, Word, Excel or PowerPoint file.${hasOwnFileTools(ctx.agent.engine ?? agentStore.get(ctx.agent.id)?.engine) ? ' Open it with your own file tools.' : ''}`,

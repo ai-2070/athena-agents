@@ -51,6 +51,23 @@ describe('read_file', () => {
   });
 });
 
+describe('Stop while documents are read', () => {
+  it('reads no more: a PDF on its way stops, and the files after it are not read', async () => {
+    const { agent } = setup({ engine: 'eve', toolGroups: ['files'] });
+    // (pressed while the PDF is read: callTool itself refuses a call that was stopped before it began)
+    const stop = new AbortController();
+    const reading = callTool(agent, 'read_document', { path: 'contract.pdf' }, { signal: stop.signal });
+    stop.abort(new Error('Stopped.'));
+    const one = await reading;
+    expect(one.isError).toBe(true);
+    expect(one.text).toContain('Stopped');
+    const again = new AbortController();
+    const many = callTool(agent, 'read_file', { paths: ['contract.pdf', 'notes.txt'] }, { signal: again.signal });
+    again.abort(new Error('Stopped.'));
+    expect((await many).text).not.toContain('plain notes');
+  });
+});
+
 describe('read_document', () => {
   it('is there for every engine, and reads in parts', async () => {
     const { agent } = setup({ engine: 'claude-code' });
