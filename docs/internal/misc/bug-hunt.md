@@ -937,6 +937,7 @@ Completed reviews:
 - Trigger/evidence: link a large text file/log folder and read/search. `readFileSync(..., 'utf8')` decodes the entire file before slicing to the nominal limits; linked files bypass upload-size restrictions.
 - Impact/expected: large references synchronously allocate/block the server; failures are swallowed as empty knowledge. Bound reads before decoding; cache limits do not bound transient work.
 - Limits: no large file read executed.
+- Fixed: knowledge reads only as many bytes as its character limit can take (`readHead()`), never a whole big file. No test of its own; the existing cache tests now watch the bounded reads.
 
 ### BH-105 — Duplicate knowledge labels open a different file from the search result
 
@@ -945,6 +946,7 @@ Completed reviews:
 - Trigger/evidence: link two README.md files or same-named docs folders with equal relative paths. Labels collide; search can return the second file but read selects the first matching label.
 - Impact/expected: a valid result leads to unrelated references, and the later file has no unique reader identifier. Give files unambiguous stable identities.
 - Limits: source trace only; inspected tests contain no collision fixture.
+- Fixed: a second knowledge file with the same label is numbered (`README.md (2)`), so a search hit opens the file it came from. Test in `tests/server/knowledge.test.ts`.
 
 ### BH-106 — Stale knowledge sizes bypass the aggregate inline budget
 
@@ -953,6 +955,7 @@ Completed reviews:
 - Trigger/evidence: enlarge a linked file during the three-second listing cache. Inline eligibility uses old sizes while `textOf()` reads new contents, allowing up to 200,000 characters per file instead of the 24,000-byte small-knowledge threshold.
 - Impact/expected: ordinary edits unexpectedly inflate system context or fail input admission. Enforce budget against current returned contents.
 - Limits: cached listing interval is intentional; timing not reproduced.
+- Fixed: knowledge goes into the instructions only if what the files hold when read still fits the small-knowledge limit. Test in `tests/server/knowledge.test.ts`.
 
 ### BH-107 — Office type detection mistakes embedded content for the outer package
 
@@ -996,6 +999,7 @@ Completed reviews:
 - Trigger/evidence: match occurs past character 1,600 in a forty-line passage. Scoring uses the entire passage while output keeps only its prefix.
 - Impact/expected: top “matching passages” contain no evidence and crowd visible matches out of six results. Return excerpts around matches.
 - Limits: originals remain separately readable; existing truncation tests put keywords first. No search run.
+- Fixed: a long search passage is shown from shortly before its first match. Test in `tests/server/knowledge.test.ts`.
 
 ### BH-112 — Knowledge pagination cannot access its silently cut-off tail
 
@@ -1004,6 +1008,7 @@ Completed reviews:
 - Trigger/evidence: linked reference exceeds five million characters. Every reader page first truncates that same prefix and computes total from it; search separately stops at two million.
 - Impact/expected: agents without Files cannot reach later contents and totals imply completion. Preserve access or explicitly expose the cutoff.
 - Limits: linking large files is suggested, but intended hard-cutoff policy was not documented; no large read executed.
+- Fixed: `knowledge_read` says when a file goes on past the 5,000,000 characters it reads, and to use the Files tools for the rest. No test of its own.
 
 ### BH-113 — Partial PDF extraction is treated as complete attachment text
 

@@ -76,6 +76,15 @@ function walkKnowledge(own: string, folders: string[]): Listed[] {
           follow: false,
         });
   }
+  // two files may have one name (a README.md in two linked folders): the later ones are numbered, so a search hit
+  // opens the file it came from
+  const seen = new Set<string>();
+  for (const f of files) {
+    let label = f.label;
+    for (let n = 2; seen.has(label.toLowerCase()); n++) label = `${f.label} (${n})`;
+    seen.add(label.toLowerCase());
+    f.label = label;
+  }
   return files.map((f) => {
     let size = 0;
     try {
@@ -145,15 +154,28 @@ function dropText(p: string): void {
   textBytes -= was.text.length * 2;
 }
 
-const read = (p: string, max = 200_000): string => {
+// The start of a file, up to max characters: only as many bytes as those can take are read, never a whole big file
+// (a linked log can be any size). cut: there is more after it.
+function readHead(p: string, max: number): { text: string; cut: boolean } {
+  let fd: number | undefined;
   try {
-    return fs.readFileSync(p, 'utf8').slice(0, max);
+    fd = fs.openSync(p, 'r');
+    const size = fs.fstatSync(fd).size;
+    const want = Math.min(size, max * 4);
+    const buf = Buffer.alloc(want);
+    const got = fs.readSync(fd, buf, 0, want, 0);
+    const text = buf.subarray(0, got).toString('utf8');
+    return { text: text.slice(0, max), cut: size > got || text.length > max };
   } catch {
-    return '';
+    return { text: '', cut: false };
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
   }
-};
+}
+const read = (p: string, max = 200_000): string => readHead(p, max).text;
 
 const SEARCHED = 2_000_000;
+const READ_MAX = 5_000_000;
 // A listed file's text, as much as a search looks at, from what is kept when the file hasn't changed.
 function textOf(f: Listed): string {
   const st = statListed(f);
@@ -224,10 +246,12 @@ export function knowledgeContext(agent: KnowledgeAgent): string {
   const files = listed(agent);
   if (!files.length) return '';
   const total = files.reduce((n, f) => n + f.size, 0);
-  if (total <= INLINE_LIMIT) {
+  // (the sizes are from the kept list: what is read now must fit too, a file may have grown since)
+  const bodies = total <= INLINE_LIMIT ? files.map((f) => textOf(f).slice(0, 200_000)) : null;
+  if (bodies && bodies.reduce((n, b) => n + Buffer.byteLength(b), 0) <= INLINE_LIMIT) {
     return (
       '\n\n# Your knowledge\nThese files are your reference material. Rely on them and cite the file name when you use them.\n' +
-      files.map((f) => `\n## ${f.label}\n${textOf(f).slice(0, 200_000)}`).join('\n')
+      files.map((f, i) => `\n## ${f.label}\n${bodies[i]}`).join('\n')
     );
   }
   const list = files
@@ -261,13 +285,17 @@ export function searchKnowledge(agent: KnowledgeAgent, query: unknown, limit = 6
         }
         if (n) score += 1 + Math.log(n);
       }
-      if (score > 0)
+      if (score > 0) {
+        // (a long passage is shown around its first match, so what is shown has what was searched for)
+        const first = Math.min(...terms.map((t) => low.indexOf(t)).filter((x) => x >= 0));
+        const from = chunk.length > 1600 && first > 400 ? first - 400 : 0;
         hits.push({
           file: f.label,
           line: i + 1,
           score: score + (low.includes(String(query).toLowerCase()) ? 3 : 0),
-          text: chunk.slice(0, 1600),
+          text: `${from ? '…' : ''}${chunk.slice(from, from + 1600)}`,
         });
+      }
     }
   }
   return hits.sort((a, b) => b.score - a.score).slice(0, limit);
@@ -284,14 +312,21 @@ export function readKnowledge(
     files.find((x) => x.label === label) ||
     files.find((x) => x.label.toLowerCase().includes(String(label).toLowerCase()));
   if (!f) throw new Error(`No knowledge file "${label}".`);
-  const all = (statListed(f) ? read(f.path, 5_000_000) : '').split(/\r?\n/);
+  const head = statListed(f) ? readHead(f.path, READ_MAX) : { text: '', cut: false };
+  const all = head.text.split(/\r?\n/);
   const start = Math.max(0, (offsetLine || 1) - 1);
+  const to = Math.min(all.length, start + lines);
+  // (the end of what can be read here is said as such: the file goes on, and the Files tools read the rest)
+  const past =
+    head.cut && to >= all.length
+      ? `\n[The file goes on past the first ${READ_MAX.toLocaleString('en-US')} characters, which is all knowledge_read reads. Open it with the Files tools for the rest.]`
+      : '';
   return {
     file: f.label,
     from: start + 1,
-    to: Math.min(all.length, start + lines),
+    to,
     total: all.length,
-    text: all.slice(start, start + lines).join('\n'),
+    text: all.slice(start, start + lines).join('\n') + past,
   };
 }
 

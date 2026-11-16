@@ -140,9 +140,9 @@ describe('knowledge kept between calls', () => {
     const old = new Date(Date.now() - 60_000);
     for (const f of files) fs.utimesSync(f, old, old);
   };
-  // Which files are read from disk while fn runs.
+  // Which files are read from disk while fn runs (opened: only their start is read, never the whole file).
   const reads = (fn: () => void): string[] => {
-    const spy = vi.spyOn(fs, 'readFileSync');
+    const spy = vi.spyOn(fs, 'openSync');
     try {
       fn();
       return spy.mock.calls
@@ -270,5 +270,46 @@ describe('adding a knowledge file', () => {
     expect(() => addKnowledgeFile('kb-binary', 'contract.pdf', '%PDF-1.4 garbled')).toThrow(/isn't a text file/);
     expect(() => addKnowledgeFile('kb-binary', 'notes', 'a\u0000b')).toThrow(/isn't a text file/);
     expect(fs.readFileSync(addKnowledgeFile('kb-binary', 'notes', 'plain words'), 'utf8')).toBe('plain words');
+  });
+});
+
+describe('knowledge that is long or has two files of one name', () => {
+  const folderOf = (prefix: string, files: Record<string, string>): string => {
+    const folder = fs.mkdtempSync(path.join(os.homedir(), prefix));
+    for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(folder, name), text);
+    return folder;
+  };
+
+  it('numbers a second file of the same name, so a search hit opens the file it came from', () => {
+    const a = folderOf('kb-same-', {});
+    fs.mkdirSync(path.join(a, 'docs'));
+    fs.writeFileSync(path.join(a, 'docs', 'README.md'), 'alpha only');
+    const other = folderOf('kb-same-other-', {});
+    fs.rmSync(other, { recursive: true });
+    fs.mkdirSync(path.join(other, 'docs'), { recursive: true });
+    fs.writeFileSync(path.join(other, 'docs', 'README.md'), 'beta only');
+    // two linked folders named docs: their READMEs have the same label
+    const agent = { id: 'kb-same', knowledge: { folders: [path.join(a, 'docs'), path.join(other, 'docs')] } };
+    const hit = searchKnowledge(agent, 'beta')[0]!;
+    expect(hit.file).toBe(path.join('docs', 'README.md (2)'));
+    expect(readKnowledge(agent, hit.file).text).toBe('beta only');
+  });
+
+  it('shows a long passage around what matched', () => {
+    const lines = Array.from({ length: 40 }, (_, i) => (i === 35 ? 'the needle is here' : 'x'.repeat(60)));
+    const agent = {
+      id: 'kb-snippet',
+      knowledge: { folders: [folderOf('kb-snippet-', { 'long.md': lines.join('\n') })] },
+    };
+    expect(searchKnowledge(agent, 'needle')[0]!.text).toContain('the needle is here');
+  });
+
+  it('puts files in the instructions only when what they hold now is small enough', () => {
+    const folder = folderOf('kb-grown-', { 'small.md': 'tiny' });
+    const agent = { id: 'kb-grown', knowledge: { folders: [folder] } };
+    expect(knowledgeContext(agent)).toContain('tiny');
+    // it grows a lot before the kept list is looked at again
+    fs.writeFileSync(path.join(folder, 'small.md'), 'y'.repeat(100_000));
+    expect(knowledgeContext(agent)).toContain('Search them with knowledge_search');
   });
 });
