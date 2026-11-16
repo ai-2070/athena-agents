@@ -1,4 +1,5 @@
 // Live terminals in the browser (like Agent Office's desks): PowerShell, Claude Code, Hermes, Orca or an agent.
+import { spawn } from 'node:child_process';
 import pty from '@lydell/node-pty';
 import type { IPty } from '@lydell/node-pty';
 import type { WebSocket } from 'ws';
@@ -224,6 +225,17 @@ export function closeTerminal(id: string): boolean {
   } catch {
     /* gone */
   }
+  // (on Windows the terminal's own kill waits until it has printed something: one that never does would be left
+  // running unseen, so it and what it started are ended by its process id too)
+  if (IS_WIN && !s.exited && s.pty.pid)
+    try {
+      spawn('taskkill', ['/pid', String(s.pty.pid), '/t', '/f'], { windowsHide: true, stdio: 'ignore' }).on(
+        'error',
+        () => {},
+      );
+    } catch {
+      /* gone */
+    }
   for (const ws of s.clients) ws.close();
   sessions.delete(id);
   emit('terminals');
