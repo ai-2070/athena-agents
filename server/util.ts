@@ -359,6 +359,30 @@ export interface RunResult {
   stderr: string;
 }
 
+/** Text collected up to max characters: past that, its first and last halves, saying how much was left out. */
+function kept(max: number): { add: (d: string) => void; text: () => string } {
+  const half = Math.max(1, Math.floor(max / 2));
+  let head = '';
+  let tail = '';
+  let dropped = 0;
+  return {
+    add(d: string) {
+      if (head.length < half) {
+        const take = d.slice(0, half - head.length);
+        head += take;
+        d = d.slice(take.length);
+      }
+      if (!d) return;
+      tail += d;
+      if (tail.length > half) {
+        dropped += tail.length - half;
+        tail = tail.slice(-half);
+      }
+    },
+    text: () => (dropped ? `${head}\n[… ${dropped} characters left out …]\n${tail}` : head + tail),
+  };
+}
+
 // Run a command and collect its output.
 export function run(
   cmd: string,
@@ -366,7 +390,8 @@ export function run(
   { timeout = 60000, input, cwd, env, maxBytes = 2_000_000, signal, onLine }: RunOptions = {},
 ): Promise<RunResult> {
   return new Promise<RunResult>((resolve) => {
-    let out = '';
+    // (over maxBytes, the start and the end are kept: the end is where a build's errors and a summary are)
+    const out = kept(maxBytes);
     let partial = '';
     // a line longer than maxBytes is dropped (up to its end), so the buffer never grows past it
     let skipping = false;
@@ -403,7 +428,7 @@ export function run(
         }
       }
     };
-    let err = '';
+    const err = kept(maxBytes);
     let done = false;
     let child: ChildProcess;
     try {
@@ -426,7 +451,7 @@ export function run(
       clearTimeout(timer);
       clearTimeout(giveUp);
       signal?.removeEventListener('abort', onAbort);
-      resolve({ code, stdout: out, stderr: err });
+      resolve({ code, stdout: out.text(), stderr: err.text() });
     };
     // Something it started that got away (into a group of its own) can keep the output open: don't wait for ever.
     const end = () => {
@@ -439,12 +464,12 @@ export function run(
     };
     const timer = setTimeout(() => {
       if (!done) {
-        err += `\n[timed out after ${Math.round(timeout / 1000)}s]`;
+        err.add(`\n[timed out after ${Math.round(timeout / 1000)}s]`);
         end();
       }
     }, timeout);
     const onAbort = () => {
-      err += '\n[stopped]';
+      err.add('\n[stopped]');
       end();
     };
     if (signal?.aborted) onAbort();
@@ -452,15 +477,15 @@ export function run(
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (d: string) => {
-      if (out.length < maxBytes) out += d;
+      out.add(d);
       lines(d);
     });
     child.stderr?.on('data', (d: string) => {
-      if (err.length < maxBytes) err += d;
+      err.add(d);
     });
     child.stdin?.on('error', () => {});
     child.on('error', (e) => {
-      err += String(e.message || e);
+      err.add(String(e.message || e));
     });
     child.on('close', (code: number | null) => finish(code));
     if (input != null) child.stdin?.end(input);

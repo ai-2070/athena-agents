@@ -815,6 +815,7 @@ Completed reviews:
 - Trigger/evidence: stdout/stderr exceeds the default two-million-character collection cap. Collection keeps the beginning only; later `truncateMiddle()` preserves ends of that prefix, not the command's actual final output.
 - Impact/expected: final compiler errors, summaries and completion diagnostics disappear despite the promise to preserve start/end. Retain the actual tail and disclose collection truncation.
 - Limits: no large-output command run.
+- Fixed: `run()` keeps the first and last halves of output over its limit, saying how much was left out, so a command's real final lines survive. Test in `tests/server/util.test.ts`.
 
 ### BH-091 — Hermes/OpenClaw terminals omit Dashboard agent instructions
 

@@ -96,3 +96,15 @@ describe.skipIf(process.platform === 'win32')('run() stopping a command', () => 
     expect(gone(pid)).toBe(true);
   });
 });
+
+describe('run() with a lot of output', () => {
+  it('keeps the start and the real end, saying how much was left out', async () => {
+    const r = await run(process.execPath, ['-e', "process.stdout.write('start' + 'x'.repeat(5000) + 'the real end')"], {
+      maxBytes: 200,
+    });
+    expect(r.stdout.startsWith('start')).toBe(true);
+    expect(r.stdout.endsWith('the real end')).toBe(true);
+    expect(r.stdout).toMatch(/characters left out/);
+    expect(r.stdout.length).toBeLessThan(300);
+  });
+});
