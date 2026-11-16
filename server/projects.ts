@@ -188,8 +188,10 @@ export function removeProject(id: string): Project[] {
   const list = listProjects();
   if (list.length <= 1) throw new Error('Keep at least one project.');
   const rest = list.filter((x) => x.id !== id);
+  // (which one was open is read before the list changes: after it, the open one already reads as another)
+  const open = activeProject().id;
   saveProjects(rest);
-  if (activeProject().id === id || !rest.some((x) => x.id === activeProject().id)) setActiveProject(rest[0].id);
+  if (open === id || !rest.some((x) => x.id === open)) setActiveProject(rest[0].id);
   return rest;
 }
 

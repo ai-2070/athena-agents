@@ -141,3 +141,24 @@ describe('events', () => {
     ]);
   });
 });
+
+describe('removing the open project', () => {
+  it('says another project is open now', async () => {
+    const { createProject, removeProject } = await import('../../server/projects.ts');
+    const keep = await createProject({ name: 'Stays here', mode: 'new' });
+    const gone = await createProject({ name: 'Goes away', mode: 'new' });
+    expect(activeProject().id).toBe(gone.id);
+    const seen: Record<string, unknown>[] = [];
+    const listen = (ev: Record<string, unknown>) => ev.type === 'project' && seen.push(ev);
+    bus.on('event', listen);
+    try {
+      removeProject(gone.id);
+    } finally {
+      bus.off('event', listen);
+    }
+    expect(seen).toHaveLength(1);
+    expect(activeProject().id).not.toBe(gone.id);
+    expect(seen[0]!.id).toBe(activeProject().id);
+    expect(keep.id).toBeTruthy();
+  });
+});

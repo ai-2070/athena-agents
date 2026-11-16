@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runBuild, BuildError, LIMITS, saveGrids } from '../../server/voxel/ops.ts';
@@ -511,6 +512,26 @@ describe('the world travels with its project', () => {
     addProject('p9');
     restoreInto('p9', p.brainPath);
     expect(shownWorld('p9')).toMatchObject({ how: 'shared', world: { id: w.id } });
+  });
+
+  it('a saved world with nothing built yet, only its WORLD.md, comes back too', async () => {
+    const { restoreInto } = await import('../../server/projectsync.ts');
+    const p = listProjects()[0];
+    const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'empty-world-'));
+    fs.cpSync(path.join(p.brainPath, '.dashboard'), path.join(copy, '.dashboard'), { recursive: true });
+    const dir = path.join(copy, '.dashboard', 'world');
+    for (const sub of ['objects', 'prefabs', 'versions'])
+      fs.rmSync(path.join(dir, sub), { recursive: true, force: true });
+    // a world this PC doesn't have
+    const saved = JSON.parse(fs.readFileSync(path.join(dir, 'world.json'), 'utf8'));
+    fs.writeFileSync(
+      path.join(dir, 'world.json'),
+      JSON.stringify({ ...saved, id: 'wemptyworld1', objects: [], prefabs: [] }),
+    );
+    addProject('p10');
+    expect(restoreInto('p10', copy)).toBeTruthy();
+    expect(shownWorld('p10').world!.id).toBe('wemptyworld1');
+    expect(fs.readFileSync(worldDir('wemptyworld1', 'WORLD.md'), 'utf8')).toContain('Growth.');
   });
 
   it('a backup brings the world back as a new world of the restored project', async () => {

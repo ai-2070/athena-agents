@@ -136,6 +136,7 @@ Completed reviews:
 - Trigger/evidence: restore a world with no objects/prefabs and its first WORLD.md into a profile without it. Empty trees create no destination; `copyFileSync()` precedes the `writeJSON()` that would create the directory.
 - Impact/expected: ENOENT interrupts a partially imported project. Imported agents can make retry hit the nonempty-agent guard. Restore should create the destination first.
 - Limits: first WORLD.md creates no version tree, so this is an ordinary state. Source-only.
+- Fixed: restoring a world from files makes its folder before WORLD.md is copied in, so a world with nothing built yet comes back. Test in `tests/server/voxel-world.test.ts`.
 
 ### BH-012 — Removing the open project omits the switch event
 
@@ -144,6 +145,7 @@ Completed reviews:
 - Trigger/evidence: remove the active project with another remaining. Saving the list happens before `activeProject()` checks; lookup has already fallen back, so `setActiveProject()` is not called.
 - Impact/expected: global state changes without `project`, leaving component-local lists/chats stale. Emit the actual transition.
 - Limits: generic `projects` refresh does not replace consumers' switch event. No UI scenario run.
+- Fixed: removing the open project reads which one was open before the list changes, so the switch is made and told (`project` event). Test in `tests/server/store.test.ts`.
 
 ### BH-013 — Metadata and world-link updates miss portable autosave
 

@@ -682,6 +682,8 @@ function restoreWorld(folder: string, id: string): boolean {
     const versions = savedPath(folder, 'world', 'versions', 'world-md');
     if (versions) copyTree(versions, worldDir(wid, 'versions', 'world-md'), WORLD_CAP);
     const md = savedPath(folder, 'world', 'WORLD.md');
+    // (an empty world has no objects to have made its folder)
+    ensureDir(worldDir(wid));
     if (md && fs.lstatSync(md).isFile() && fs.statSync(md).size <= WORLD_MD_MAX * 2)
       fs.copyFileSync(md, worldDir(wid, 'WORLD.md'));
     writeJSON(worldDir(wid, 'world.json'), { ...saved, id: wid, homeProject: id });
