@@ -1037,6 +1037,7 @@ Completed reviews:
 - Trigger/evidence: select a small PDF/Office file in unrestricted Knowledge upload picker. Client uses `File.text()`; server appends .md to unsupported extensions and saves decoded bytes.
 - Impact/expected: successful upload yields unusable reference material. If text-only is intentional, restrict/reject unsupported files rather than silently corrupting them.
 - Limits: document support need not be assumed; no binary file selected or written.
+- Fixed: adding a knowledge file refuses a document, picture or archive name, or content with NUL bytes, saying to link its folder or attach it instead (where its text is read). Test in `tests/server/knowledge.test.ts`.
 
 ### BH-117 — ComfyUI preparation submits work after Stop
 

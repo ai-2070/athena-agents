@@ -264,3 +264,11 @@ describe('knowledge kept between calls', () => {
     expect(readKnowledge(agent, 'reference.md').text).not.toContain('swap-sentinel');
   });
 });
+
+describe('adding a knowledge file', () => {
+  it("refuses one that isn't text, instead of saving its bytes as Markdown", () => {
+    expect(() => addKnowledgeFile('kb-binary', 'contract.pdf', '%PDF-1.4 garbled')).toThrow(/isn't a text file/);
+    expect(() => addKnowledgeFile('kb-binary', 'notes', 'a\u0000b')).toThrow(/isn't a text file/);
+    expect(fs.readFileSync(addKnowledgeFile('kb-binary', 'notes', 'plain words'), 'utf8')).toBe('plain words');
+  });
+});

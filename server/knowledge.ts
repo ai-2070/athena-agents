@@ -188,8 +188,20 @@ export function knowledgeFiles(agent: KnowledgeAgent): KnowledgeFile[] {
   return listed(agent).map((f) => ({ path: f.path, label: f.label, own: f.own, size: f.size }));
 }
 
+// Files whose bytes aren't text: read as text, they would be saved as nonsense
+const NOT_TEXT =
+  /\.(pdf|docx?|xlsx?|pptx?|odt|ods|odp|rtf|png|jpe?g|gif|webp|bmp|ico|svgz|zip|7z|rar|gz|tgz|exe|dll|bin|mp[34]|mov|wav|ogg)$/i;
+
 export function addKnowledgeFile(agentId: string, name: unknown, content: string): string {
   const safe = path.basename(String(name || 'note.md')).replace(/[^\w.\- ]+/g, '_');
+  // (what is added here is text: a document goes in a folder you link, or with a message, where its text is read)
+  if (NOT_TEXT.test(safe) || content.includes('\u0000'))
+    throw Object.assign(
+      new Error(
+        `${safe} isn't a text file. Put it in a folder and link the folder, or attach it to a message; its text is read there.`,
+      ),
+      { status: 400 },
+    );
   const file = path.join(knowledgeDir(agentId), TEXT_EXT.test(safe) ? safe : `${safe}.md`);
   fs.writeFileSync(file, content);
   lists.clear();
