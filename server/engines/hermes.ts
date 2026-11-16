@@ -5,6 +5,7 @@ import { workspaceOf } from '../tools.ts';
 import { effortFor } from '../../shared/effort.ts';
 import type { Agent, EngineStatus, HermesProfile } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
+import { BRAIN_ID } from '../brainmcp.ts';
 
 /** A row of `hermes profile list`. */
 export type { HermesProfile } from '../../shared/types.ts';
@@ -56,7 +57,8 @@ export function hermesArgs(agent: Agent, { interactive = false }: { interactive?
   if (agent.model) args.push('-m', agent.model);
   const effort = effortFor('hermes', agent.effort);
   if (effort) args.push('--reasoning', effort);
-  if (agent.autonomy === 'full') args.push('--yolo');
+  // (never for the Brain: it hands work to agents, and its own tools ask for themselves)
+  if (agent.autonomy === 'full' && agent.id !== BRAIN_ID) args.push('--yolo');
   return args;
 }
 

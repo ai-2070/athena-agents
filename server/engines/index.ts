@@ -74,6 +74,7 @@ import type {
 } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../../shared/queue.ts';
+import { BRAIN_ID } from '../brainmcp.ts';
 
 /** A run was stopped (by its caller or directly, e.g. its Stop button) before it answered. */
 export class RunStopped extends Error {
@@ -517,8 +518,11 @@ const steering = new Set<string>();
 /** Whether this run is going now (in this dashboard). */
 export const runActive = (runId: string): boolean => active.has(runId);
 
+// (the Brain's own turns show in the Brain chat, not as an agent at work)
+const agentRuns = () => [...active.entries()].filter(([, r]) => r.agentId !== BRAIN_ID);
+
 export function activeRuns(): ActiveRun[] {
-  return [...active.entries()].map(([id, r]) => ({
+  return agentRuns().map(([id, r]) => ({
     id,
     agentId: r.agentId,
     chatId: r.chatId,
@@ -550,7 +554,7 @@ export function turnActivity(items: ChatItem[]): Pick<LiveActivity, 'task' | 'fr
 
 // What every running agent is doing right now (for the Brain's overview).
 export function liveActivity(): LiveActivity[] {
-  return [...active.entries()].map(([id, r]) => ({
+  return agentRuns().map(([id, r]) => ({
     runId: id,
     agentId: r.agentId,
     agentName: r.agentName,
@@ -647,6 +651,8 @@ export const LIBRARY_ROLE_LINE =
   "Your role is where you are strongest, not a limit: take on nearby work you can do well with the tools you have, and when the work needs a tool you don't have, ask for it with request_tool.";
 
 export function buildSystemPrompt(agent: Agent): string {
+  // the Brain's instructions are its own, made for each turn (overseer.ts)
+  if (agent.id === BRAIN_ID) return agent.systemPrompt;
   // the day only: the instructions stay the same all day, so the provider's prompt cache can reuse them
   // and the chat after them (with the time in here, every message started a new cache)
   const date = new Date().toLocaleDateString('en-US', { dateStyle: 'full' });
@@ -819,10 +825,11 @@ export function startRun(
   const send = (event: RunEvent) =>
     emit('run', { runId, agentId: agent.id, chatId: chat.id, projectId: entry.projectId, event });
   send({ kind: 'start', text, from, ...(attachments.length ? { attachments } : {}) });
-  log('run', `${agent.name} started: ${(text || attachmentNames(attachments)).slice(0, 120)}`, {
-    agentId: agent.id,
-    chatId: chat.id,
-  });
+  if (agent.id !== BRAIN_ID)
+    log('run', `${agent.name} started: ${(text || attachmentNames(attachments)).slice(0, 120)}`, {
+      agentId: agent.id,
+      chatId: chat.id,
+    });
 
   let current: ChatItemOf<'assistant'> | null = null; // assistant item being streamed
   // the engine has started on the message (written or called a tool): its own session has it
@@ -1022,10 +1029,11 @@ export function startRun(
             : { cost: result.cost }),
         seconds: Math.round((Date.now() - started) / 1000),
       });
-      log('run', `${agent.name} finished (${Math.round((Date.now() - started) / 1000)}s)`, {
-        agentId: agent.id,
-        chatId: chat.id,
-      });
+      if (agent.id !== BRAIN_ID)
+        log('run', `${agent.name} finished (${Math.round((Date.now() - started) / 1000)}s)`, {
+          agentId: agent.id,
+          chatId: chat.id,
+        });
       answer = result?.text || lastAssistantText(chat);
       updateExecution(runId, { status: 'completed', answer, endedAt: Date.now() });
       return answer;

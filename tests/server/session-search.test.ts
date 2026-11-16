@@ -7,12 +7,16 @@ import { dataPath, writeJSON } from '../../server/util.ts';
 import { filePast } from '../../server/pastchats.ts';
 import type { ThreadMeta } from '../../server/pastchats.ts';
 import { callTool, toolsForAgent } from '../../server/tools.ts';
-import { brainSessionsInstructions, readSession, runSessionLookups, searchSessions } from '../../server/sessions.ts';
+import { brainSessionsInstructions, readSession, searchSessions } from '../../server/sessions.ts';
 import { ask, clearHistory } from '../../server/overseer.ts';
 import type { SessionReadResult, SessionSearchResult, Team } from '../../shared/types.ts';
 
 const answers: string[] = [];
 const asked: { system: string; user: string }[] = [];
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
+}));
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', fallback: false }),
@@ -78,7 +82,7 @@ describe('session search', () => {
     expect(names).not.toContain('search_sessions');
     expect(names).not.toContain('read_session');
     expect(names).toContain('search_conversations');
-    expect(brainSessionsInstructions()).toEqual({ prompt: '', actions: '' });
+    expect(brainSessionsInstructions()).toBe('');
     const r = await callTool(me, 'search_sessions', { query: word });
     expect(r.isError).toBe(true);
     expect(r.text).toContain('Session search is off');
@@ -130,7 +134,7 @@ describe('session search', () => {
     // a run in a gateway conversation gets no session search at all
     expect(toolsForAgent(me, { conversationId: GATEWAY }).map((t) => t.name)).not.toContain('search_sessions');
     expect(() => searchSessions({ query: word }, GATEWAY)).toThrow(/not available/);
-    expect(brainSessionsInstructions(GATEWAY)).toEqual({ prompt: '', actions: '' });
+    expect(brainSessionsInstructions(GATEWAY)).toBe('');
     // (a Tasks board conversation keeps it)
     expect(toolsForAgent(me, { conversationId: 'board-7' }).map((t) => t.name)).toContain('search_sessions');
     for (const bad of [
@@ -176,12 +180,12 @@ describe('session search', () => {
   });
 });
 
-describe("the Brain's session look-ups", () => {
-  it('are offered only when on, and answer within the project', async () => {
+describe("the Brain's session search", () => {
+  it('is offered only when on, and answers within the project', async () => {
     const { word } = setup();
     answers.push('Nothing to look up.');
     await ask('hello');
-    expect(asked[0].system).not.toContain('search_sessions');
+    expect(asked[0].system).not.toContain('Session search is on');
 
     saveSettings({ sessionSearch: true });
     answers.push(
@@ -189,20 +193,23 @@ describe("the Brain's session look-ups", () => {
       'Found it in the team thread.',
     );
     const r = await ask(`what did the team say about ${word}?`);
-    expect(asked[1].system).toContain('"do":"search_sessions"');
-    expect(asked[1].system).toContain('"do":"read_session"');
-    expect(asked[2].user).toContain('SESSIONS YOU LOOKED UP');
+    expect(asked[1].system).toContain('Session search is on');
+    expect(asked[2].user).toContain('--- search_sessions');
     expect(asked[2].user).toContain('in the open team thread');
     expect(r.answer).toBe('Found it in the team thread.');
     expect(r.done).toEqual([]);
   });
 
-  it('report a failed look-up instead of throwing', () => {
+  it("a session it can't read comes back as a failed tool call", async () => {
+    setup();
     saveSettings({ sessionSearch: true });
-    const r = runSessionLookups([
-      { do: 'read_session', source: 'brain', owner: 'brain', sessionId: 'x', messageId: '9' },
-    ]);
-    expect(r.steps[0]).toMatchObject({ name: 'read_session', isError: true });
-    expect(r.text).toContain('(failed)');
+    answers.push(
+      `\`\`\`actions\n${JSON.stringify([{ do: 'read_session', source: 'brain', owner: 'brain', sessionId: 'x', messageId: '9' }])}\n\`\`\``,
+      'Nothing there.',
+    );
+    const before = asked.length;
+    await ask('read that');
+    expect(asked[before + 1].user).toContain('--- read_session');
+    expect(asked[before + 1].user).toContain('(failed)');
   });
 });

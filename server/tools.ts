@@ -64,7 +64,7 @@ import { taskTools } from './tasktools.ts';
 import { goalTool } from './goaltool.ts';
 import { isBoardConversation, isGatewayConversation } from './private-conversations.ts';
 import { sessionSearchFor } from './sessionaccess.ts';
-import { BRAIN_ID, brainToolOffered, brainTools, sawSkill } from './braintools.ts';
+import { BRAIN_ID, brainToolOffered, brainTools, brainTurn, sawSkill } from './braintools.ts';
 import type { Agent, ToolGroup, ToolListing } from '../shared/types.ts';
 
 /** none: never asks. low: asks when autonomy is "ask". high: asks unless autonomy is "full". */
@@ -2719,6 +2719,9 @@ async function inRunProject(
   const sessions = await import('./sessions.ts');
   const { runInfo } = await import('./engines/index.ts');
   const { activeProject, withProject } = await import('./store.ts');
+  // the Brain, in one of its turns: that turn's project and conversation
+  const turn = ctx.agent.id === BRAIN_ID ? brainTurn(ctx.runId) : undefined;
+  if (turn) return { text: JSON.stringify(withProject(turn.project, () => look(sessions, turn.conversationId))) };
   const run = runInfo(ctx.runId);
   if (ctx.runId && (!run || run.agentId !== ctx.agent.id))
     return { text: 'That run is not available to you.', isError: true };

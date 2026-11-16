@@ -46,6 +46,12 @@ export interface BrainTurn {
   goal: boolean;
   attachments: string[];
   signal: AbortSignal;
+  /** false once the turn is no longer wanted (stopped, a new conversation, a gateway gone quiet) */
+  wanted?: () => boolean;
+  /** MCP tools it used that can change things (named when the turn is stopped: they did happen) */
+  used?: string[];
+  /** GitHub installs in this turn (a few at most) */
+  installs?: number;
 }
 
 const turns = new Map<string, BrainTurn>();
@@ -178,7 +184,8 @@ export function brainTools(): ToolDef[] {
         return refuse(
           'The Brain may only read and look things up (Settings › What the Brain may do). Tell the user what you would change.',
         );
-      if (turn.signal.aborted) return refuse('Stopped.');
+      if (turn.signal.aborted || turn.wanted?.() === false)
+        return refuse('The user stopped you or moved on to another conversation: change nothing more, just answer.');
       const { brainToolCall } = await import('./overseer.ts');
       return brainToolCall(kind, args, turn, ctx);
     },

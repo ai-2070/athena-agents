@@ -22,6 +22,10 @@ vi.mock('../../server/engines/index.ts', async (orig) => ({
 // the "model" answers only when the test says so (and tells what it does as it thinks through thinking's onPart)
 const pending: ((text: string) => void)[] = [];
 const thinking: (((p: unknown) => void) | undefined)[] = [];
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
+}));
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', fallback: false }),
@@ -116,7 +120,8 @@ describe('the Brain chat', () => {
     expect(history(pid)).toEqual([]);
     expect(workflows.list().some((w) => w.name === 'Late team')).toBe(false);
     expect(r.delegate).toBeNull();
-    expect(r.done).toEqual([expect.objectContaining({ kind: 'error' })]);
+    // (clearing stopped its turn before it did anything)
+    expect(r.done).toEqual([]);
   });
 
   it('a new message while it answers: that answer changes nothing, and its question stays in the history', async () => {
@@ -138,7 +143,7 @@ describe('the Brain chat', () => {
     ]);
   });
 
-  it('a new message after the answer was too far along to stop: what it did stands, once, and the chat hears it', async () => {
+  it('a new message while it hands work on: what it did stands, and the chat keeps it with the stopped question', async () => {
     const pid = activeProject().id;
     clearHistory();
     const late: ServerEvent[] = [];
@@ -150,29 +155,22 @@ describe('the Brain chat', () => {
       await answerNext(
         'Done\n```actions\n[{"do":"create_team","name":"Launch crew","members":[{"new":{"name":"Launcher"}}]},{"do":"delegate","to":"team","id":"new","message":"Plan the launch."}]\n```',
       );
-      // (handing the work on: past the point where it could be stopped)
+      // (handing the work on while the new message comes)
       await until(() => briefs.length > 0);
       steerAsks();
       briefs.shift()!();
       const r = await going;
       expect(workflows.list().some((w) => w.name === 'Launch crew')).toBe(true);
       expect(r.delegate).toMatchObject({ kind: 'branch', name: 'Launch crew' });
-      // its question once, with its own answer (no "stopped before answering" next to it)
+      expect(r.done.map((d) => d.kind)).toEqual(['hired', 'team', 'error']);
+      // its question once, with what it did before it stopped
       expect(history(pid).map((m) => m.role)).toEqual(['user', 'brain']);
-      // what it did is kept apart from what it said (a reopened chat shows it as actions), and read back to it as before
       const saved = history(pid)[1];
-      expect(saved.text).toBe('Done');
-      expect(saved.done?.map((d) => d.kind)).toEqual(['hired', 'team']);
+      expect(saved.text).toBe('(stopped before answering: the user sent a new message)');
+      expect(saved.done?.map((d) => d.kind)).toEqual(['hired', 'team', 'error']);
       expect(saved.delegate).toMatchObject({ kind: 'branch', name: 'Launch crew', message: 'Plan the launch.' });
-      expect(brainChatLine(saved)).toMatch(
-        /^Done\n\(Created a new agent: .*Launcher\)\n\(Built the team "Launch crew".*\)\n\(handed to Launch crew: Plan the launch\.\)$/,
-      );
-      expect(late).toEqual([
-        expect.objectContaining({
-          projectId: pid,
-          answer: expect.objectContaining({ delegate: expect.objectContaining({ name: 'Launch crew' }) }),
-        }),
-      ]);
+      expect(brainChatLine(saved)).toContain('(handed to Launch crew: Plan the launch.)');
+      expect(late).toEqual([]);
     } finally {
       holdBriefs = false;
       bus.off('event', hear);
@@ -222,7 +220,7 @@ describe('the Brain chat', () => {
     expect((await ok).answer).toBe('Sure.');
   });
 
-  it('changes nothing when you switched away and back while it thought', async () => {
+  it('keeps working in its own project when you switch away and back while it thinks', async () => {
     const home = activeProject();
     if (!listProjects().some((x) => x.id === 'away'))
       saveProjects([
@@ -237,10 +235,8 @@ describe('the Brain chat', () => {
       'On it.\n```actions\n[{"do":"create_team","name":"Round trip team","members":[{"new":{"name":"Rounder"}}]}]\n```',
     );
     const out = await r;
-    expect(out.done).toEqual([
-      expect.objectContaining({ kind: 'error', text: expect.stringContaining('switched projects') }),
-    ]);
-    expect(workflows.list().some((w) => w.name === 'Round trip team')).toBe(false);
+    expect(out.done.map((d) => d.kind)).toEqual(['hired', 'team']);
+    expect(workflows.list().some((w) => w.name === 'Round trip team')).toBe(true);
     // re-opening the project you're already in is not a switch
     setActiveProject(home.id);
     const again = ask('build it now');

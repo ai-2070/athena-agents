@@ -24,6 +24,10 @@ const calls = vi.hoisted(() => ({
   approvals: [] as Approval[],
   scopes: new Map<string, { projectId: string; conversationId?: string }>(),
 }));
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
+}));
 vi.mock('../../server/brain.ts', async (original) => ({
   ...(await original<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock' }),

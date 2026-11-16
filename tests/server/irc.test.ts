@@ -21,6 +21,10 @@ const answers: string[] = []; // the Brain chat
 const verdicts: (string | Promise<string>)[] = []; // checking finished work (a promise: a check that takes a while)
 const replies: string[] = []; // @Brain in a team chat
 const asked: { system: string; user: string }[] = [];
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
+}));
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', effort: '', fallback: false }),

@@ -13,6 +13,10 @@ import type { Chat } from '../../shared/types.ts';
 // (an Error makes the model fail; a promise is an answer that comes when it resolves)
 const answers: (string | Error | Promise<string>)[] = [];
 const asked: { system: string; user: string }[] = [];
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
+}));
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', fallback: false }),
@@ -53,7 +57,7 @@ describe('read_skill', () => {
     );
     const r = await ask('tighten up our thumbnails guidance');
     expect(asked).toHaveLength(2);
-    expect(asked[1].user).toContain('SKILLS YOU OPENED');
+    expect(asked[1].user).toContain('# Skill: Thumbnail rules');
     expect(asked[1].user).toContain('Big face, three words.');
     expect(r.answer).toBe('Rewrote it.');
     expect(r.done).toEqual([expect.objectContaining({ kind: 'skill' })]);
