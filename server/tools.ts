@@ -2468,8 +2468,12 @@ function brainMayUse(tool: ToolDef): boolean {
 
 export function toolsForAgent(agent: ToolAgent, scope: ToolScope = {}): ToolDef[] {
   const own = hasOwnFileTools(scope.engine);
+  // (the Brain on Hermes has none of Hermes's file tools, which also write: it reads with the dashboard's)
   if (agent.id === BRAIN_ID)
-    return TOOLS.filter((t) => brainMayUse(t) && !(own && BRAIN_FILES.has(t.name)) && (!t.when || t.when(scope)));
+    return TOOLS.filter(
+      (t) =>
+        brainMayUse(t) && !(own && scope.engine !== 'hermes' && BRAIN_FILES.has(t.name)) && (!t.when || t.when(scope)),
+    );
   let knowledge: boolean | undefined;
   return TOOLS.filter((t) => {
     if (own && OWN_TOOL_GROUPS.has(t.group)) return false;

@@ -49,6 +49,9 @@ export function status(): EngineStatus['hermes'] {
   return { installed: !!which('hermes'), path: which('hermes') };
 }
 
+/** Hermes's own toolsets the Brain may use: ones that only look things up. Names Hermes doesn't know are skipped. */
+export const BRAIN_HERMES_TOOLSETS = 'web,vision,session_search,todo';
+
 export function hermesArgs(agent: Agent, { interactive = false }: { interactive?: boolean } = {}): string[] {
   const args: string[] = [];
   if (agent.hermesProfile && agent.hermesProfile !== 'default') args.push('-p', agent.hermesProfile);
@@ -59,6 +62,8 @@ export function hermesArgs(agent: Agent, { interactive = false }: { interactive?
   if (effort) args.push('--reasoning', effort);
   // (never for the Brain: it hands work to agents, and its own tools ask for themselves)
   if (agent.autonomy === 'full' && agent.id !== BRAIN_ID) args.push('--yolo');
+  // the Brain only reads: none of Hermes's own terminal, file or code tools (its file tools also write)
+  if (agent.id === BRAIN_ID) args.push('-t', BRAIN_HERMES_TOOLSETS);
   return args;
 }
 

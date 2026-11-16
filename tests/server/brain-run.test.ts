@@ -182,8 +182,19 @@ describe('every engine keeps the Brain to reading files', () => {
     expect(args.join(' ')).toContain('-s read-only');
     expect(args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
   });
-  it('Hermes: never --yolo', () => {
-    expect(hermesArgs({ ...brain('hermes'), autonomy: 'full' })).not.toContain('--yolo');
+  it('Hermes: never --yolo, and none of its terminal, file or code tools', () => {
+    const args = hermesArgs({ ...brain('hermes'), autonomy: 'full' });
+    expect(args).not.toContain('--yolo');
+    const toolsets = args[args.indexOf('-t') + 1].split(',');
+    expect(args).toContain('-t');
+    for (const own of ['terminal', 'file', 'code_execution', 'browser', 'computer_use', 'delegation', 'cronjob'])
+      expect(toolsets).not.toContain(own);
+    // (it reads with the dashboard's file tools instead)
+    const tools = toolsForAgent(brain('hermes'), { engine: 'hermes' }).map((t) => t.name);
+    expect(tools).toContain('read_file');
+    expect(tools).not.toContain('write_file');
+    // an agent of yours on Hermes keeps every toolset of its profile
+    expect(hermesArgs({ ...brain('hermes'), id: 'someone' })).not.toContain('-t');
   });
   it('opencode: reading, and its dashboard tools', () => {
     const rules = permissionRules({ ...brain('opencode'), autonomy: 'full' });
